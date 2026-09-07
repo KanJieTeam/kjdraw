@@ -1,7 +1,7 @@
 {
   "name": "@kanjie/kjdraw-sdk",
-  "version": "0.3.0",
-  "description": "Local-first CAD documents, transactions, geometry and agent command interfaces",
+  "version": "0.3.1",
+  "description": "Extensible CAD documents, transactions, geometry, deployment providers and agent command interfaces",
   "repository": { "type": "git", "url": "https://github.com/KanJieTeam/kjdraw.git", "directory": "packages/kjdraw-sdk" },
   "homepage": "https://github.com/KanJieTeam/kjdraw#readme",
   "bugs": "https://github.com/KanJieTeam/kjdraw/issues",
@@ -16,6 +16,7 @@
     ".": "./src/index.js",
     "./capabilities": "./src/capabilities.js",
     "./document": "./src/document.js",
+    "./deployment": "./src/deployment.js",
     "./editing": "./src/editing.js",
     "./file": "./src/file-adapters.js",
     "./geometry": "./src/geometry/index.js",

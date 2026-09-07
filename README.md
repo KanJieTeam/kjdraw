@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/assets/hero.svg" alt="KJDraw — Local-first CAD infrastructure for engineering applications and AI agents" width="100%"></p>
+<p align="center"><img src="docs/assets/hero.svg" alt="KJDraw — Extensible CAD infrastructure for engineering applications and AI agents" width="100%"></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-bcf878?style=flat-square&labelColor=17212f" alt="Apache 2.0"></a>
@@ -8,20 +8,28 @@
   <a href="docs/getting-started.md"><img src="https://img.shields.io/badge/runtime-browser_%2B_Node.js-7db9e4?style=flat-square&labelColor=17212f" alt="Browser and Node.js"></a>
 </p>
 
-<p align="center"><strong>Open engineering. Drawn forward.</strong><br>Build CAD into your application. Keep control of the document. Give agents an explicit command interface.</p>
-<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><strong>Live demo</strong></a> · <a href="#try-it-locally">Get started</a> · <a href="docs/architecture.md">Architecture</a> · <a href="docs/roadmap.md">Roadmap</a> · <a href="CONTRIBUTING.md">Contribute</a> · <a href="README.zh-CN.md">简体中文</a></p>
+<p align="center"><strong>Extensible CAD infrastructure for engineering applications and AI agents.</strong><br>Browser-native. Server-accelerated. Deploy anywhere.</p>
+<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><strong>Live demo</strong></a> · <a href="#run-it-in-30-seconds">Run in 30 seconds</a> · <a href="docs/capability-matrix.md">Capabilities</a> · <a href="docs/architecture.md">Architecture</a> · <a href="docs/roadmap.md">Roadmap</a> · <a href="CONTRIBUTING.md">Contribute</a> · <a href="README.zh-CN.md">简体中文</a></p>
 
 ## Why KJDraw
 
 Engineering teams need more than a picture of a drawing. They need geometry they can inspect, objects they can edit, revisions they can review, and files their users can take with them.
 
-KJDraw is an open foundation for that workflow: a framework-independent JavaScript SDK, a Rust/WebAssembly kernel, and a small browser playground built on the same public APIs. It grows out of **Kanjie (勘界)**, an engineering workspace for geotechnical practice. The public core is intended to serve engineering applications well beyond that first use case.
+KJDraw is an open foundation for that workflow: a framework-independent TypeScript/ESM SDK, a Rust/WebAssembly kernel, deployment-provider contracts, and a real browser workbench built on the same public APIs. It grows out of **Kanjie (勘界)**, an engineering product, while the public core is deliberately general-purpose and independently useful.
 
 Our ambition is to make reliable, programmable CAD accessible to the teams building the next generation of engineering tools—for people and for AI agents.
 
-## Try it locally
+## Verified today
 
-Try the browser playground first: **[kanjieteam.github.io/kjdraw](https://kanjieteam.github.io/kjdraw/)**. It runs locally in the browser and uploads no drawing data.
+| 65 executable commands | 28 entity contracts | 86 automated tests | 5 deployment profiles |
+| :---: | :---: | :---: | :---: |
+| Transactions and editing | 2D plus bounded solid meshes | SDK, files, WASM and samples | Browser to hybrid cloud |
+
+These are repository-backed counts, not a claim of complete CAD parity. See the machine-tested [capability matrix](docs/capability-matrix.md) and the honest [known limits](docs/status.md).
+
+## Run it in 30 seconds
+
+Try the browser workbench first: **[kanjieteam.github.io/kjdraw](https://kanjieteam.github.io/kjdraw/)**. This public deployment runs entirely in the browser and uploads no drawing data.
 
 Install **Node.js 22 or newer**, then:
 
@@ -31,7 +39,7 @@ cd kjdraw
 node scripts/serve.mjs
 ```
 
-Open **http://localhost:4173**. No package installation, account, model API key, or backend service is needed. A prebuilt WASM kernel is included; its Rust source is in this repository.
+Open **http://localhost:4173**. No package installation, account, model API key, or backend service is needed. A prebuilt WASM kernel is included; its Rust source is in this repository. Applications can later attach explicit project, compute or scene providers for self-hosted and cloud-assisted deployments.
 
 The playground uses an original, synthetic field-station plan. Open or drop DXF/KJD/KJP files, draw lines, polylines, circles, arcs and text, edit layers and properties, measure geometry, run common modify commands, undo changes, download a KJP project, or export the ASCII DXF core subset. In the **Agent Command Lab**, preview moving the survey-point layer, inspect the amber proposal, and explicitly confirm the change.
 
@@ -56,8 +64,9 @@ The command lab is a deterministic example of the agent protocol, not a connecte
 | **Agent interfaces** | Plan/execute envelopes, expected revisions, confirmation metadata and execution receipts |
 | **Rust + WASM** | Document validation/revisions, primitive geometry queries, and experimental solid-mesh operations |
 | **Typed integration** | TypeScript declarations and a TypeScript authoring entry, while browser-compatible ESM remains stable during migration |
+| **Deployment providers** | Host-selected project storage, compute and scene contracts for local, self-hosted, cloud-assisted or hybrid applications |
 
-**Developer preview:** API and file migration policies are still evolving. There is no supported DWG backend, complete CAD plotting pipeline, or general BRep modeler. The minimal playground renders fewer entity types than the SDK can store. Rust authority is scoped to implemented operations; many 2D edits remain JavaScript. See the [capability boundaries](docs/status.md) before using project deliverables in production.
+**Developer preview:** API and file migration policies are still evolving. There is no certified public DWG backend, complete CAD plotting pipeline, or general BRep modeler. The reference workbench renders fewer entity variants than the SDK can store. Rust authority is scoped to implemented operations; many 2D edits remain JavaScript. See the [capability boundaries](docs/status.md) before using project deliverables in production.
 
 ## Start with the SDK
 
@@ -82,6 +91,22 @@ const dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
 
 See [Getting started](docs/getting-started.md) for package installation from a checkout, browser imports, and rebuilding WASM. This release does not assume a package has already been published on npm.
 
+## Deploy without rewriting the core
+
+```text
+Workbench · Your application · AI agents
+                   │
+        Documents + commands + files
+                   │
+       TypeScript SDK ↔ Rust / WASM
+                   │
+    ┌──────────────┼────────────────┐
+Local project   Self-hosted      Cloud-assisted
+   provider      providers          providers
+```
+
+KJDraw is deployment-neutral. The public demo needs no server; an embedding host can explicitly register project storage, compute or streamed-scene providers without forking the CAD core. Registration itself never initiates network access. Run `node examples/deployment-providers.mjs` and read the [deployment guide](docs/deployment.md).
+
 ## Give agents a reviewable interface
 
 ```text
@@ -104,22 +129,19 @@ Run the small [agent command example](examples/agent-command.mjs):
 node examples/agent-command.mjs
 ```
 
-## One core, many engineering workflows
+## Open foundation, protected domain value
 
 ```text
-Your application        Kanjie        Community plugins
-        └──────────────────┼─────────────────┘
-                       KJDraw SDK
-                    commands + documents
-                            │
-                  Rust / WebAssembly bridges
-                            │
-                   Local KJD / KJP files
+Your application · Community plugins · Commercial products
+                           │
+           KJDraw Core + Workbench + contracts
+                           │
+          Domain extensions stay in separate packages
 ```
 
-Kanjie is a downstream consumer of this public core. Shared fixes and improvements belong here first; domain-specific workflows remain in their own packages. We want other teams to have the same building blocks and the same extension interfaces as the original application.
+Kanjie is a downstream consumer of this public core. Shared CAD fixes belong here first; domain compilers, proprietary datasets, templates, customer systems and managed enterprise services stay separate. Other teams get the same general-purpose building blocks and extension interfaces without requiring Kanjie's private engineering layer.
 
-Read the [architecture](docs/architecture.md) and [downstream integration policy](docs/downstream.md).
+Read the [architecture](docs/architecture.md), [open-source boundary](docs/open-source-boundary.md), [security architecture](SECURITY_ARCHITECTURE.md) and [downstream integration policy](docs/downstream.md).
 
 ## Develop and contribute
 

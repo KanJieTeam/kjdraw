@@ -23,9 +23,11 @@ export const KJDRAW_CAD_VERSION_MATRIX = deepFreeze([
 /** Machine-readable KJDraw 1.0 boundary used by hosts, plugins and release QA. */
 export const KJDRAW_1_0_PRODUCT_CONTRACT = deepFreeze({
   id: 'com.kanjie.kjdraw.product@1',
-  deployment: 'local-offline',
-  sourceOfTruth: 'local-project-file',
-  cloudProjectAuthority: false,
+  deployment: 'provider-neutral',
+  deploymentModes: ['browser-local', 'desktop-local', 'self-hosted', 'cloud-assisted', 'hybrid'],
+  defaultDeployment: 'browser-local',
+  projectAuthority: 'host-selected-provider',
+  providerContracts: ['project-store', 'compute', 'scene'],
   authorities: {
     geometry: 'kjcore-rust',
     topology: 'kjcore-rust',
@@ -50,11 +52,7 @@ export const KJDRAW_1_0_PRODUCT_CONTRACT = deepFreeze({
   },
   commandProtocol: `${KJ_COMMAND_SCHEMA}@${KJ_COMMAND_SCHEMA_VERSION}`,
   cadVersions: KJDRAW_CAD_VERSION_MATRIX,
-  surveyFamilies: {
-    ytkc: { id: 'kanjie.ytkc', adapter: 'ytkc-mdb', templateFamily: 'ytkc', titleBlockFamily: 'ytkc' },
-    lizheng: { id: 'lizheng.gicad', adapter: 'lizheng-mdb', templateFamily: 'lizheng', titleBlockFamily: 'lizheng' },
-    automaticEnglishTitleBlockFallback: false,
-  },
+  domainExtensions: { included: false, policy: 'separate-packages' },
   extensionRule: 'official-and-third-party-capabilities-use-the-same-public-sdk',
 })
 

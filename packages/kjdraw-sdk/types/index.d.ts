@@ -2,6 +2,26 @@ export type Point2 = readonly [number, number]
 export type Point3 = readonly [number, number, number]
 export type KJCommandOrigin = 'ui' | 'script' | 'plugin' | 'ai' | { kind: string; owner?: string }
 export type KJCommandMode = 'execute' | 'plan'
+export type KJDeploymentMode = 'browser-local' | 'desktop-local' | 'self-hosted' | 'cloud-assisted' | 'hybrid'
+export type KJProviderType = 'project-store' | 'compute' | 'scene'
+
+export interface KJDeploymentProfile {
+  schema: 'com.kanjie.kjdraw.deployment-profile@1'
+  mode: KJDeploymentMode
+  projectAuthority: string
+  providers: Partial<Record<KJProviderType, string>>
+}
+
+export class KJDeploymentRegistry {
+  register(type: KJProviderType, provider: Record<string, unknown>, options?: { replace?: boolean }): () => boolean
+  get(type: KJProviderType, id: string): Record<string, unknown> | null
+  list(type?: KJProviderType): ReadonlyArray<Record<string, unknown>>
+}
+
+export function createDeploymentProfile(options?: { mode?: KJDeploymentMode; projectAuthority?: string; providers?: Partial<Record<KJProviderType, string>> }): KJDeploymentProfile
+export function validateDeploymentProfile(profile: KJDeploymentProfile, registry: KJDeploymentRegistry): KJDeploymentProfile
+export const KJ_DEPLOYMENT_MODES: readonly KJDeploymentMode[]
+export const KJ_PROVIDER_TYPES: Readonly<{ PROJECT_STORE: 'project-store'; COMPUTE: 'compute'; SCENE: 'scene' }>
 
 export interface KJEntity<TPayload extends Record<string, unknown> = Record<string, unknown>> {
   id: string

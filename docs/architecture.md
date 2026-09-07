@@ -1,13 +1,30 @@
 # Architecture
 
-KJDraw separates canonical CAD data from its visual projection and from the product using it.
+KJDraw separates canonical CAD data from its visual projection, deployment services and the product using it. The same core can run without a server or attach host-selected services through explicit providers.
 
 | Component | Responsibility |
 | --- | --- |
 | `packages/kjdraw-sdk/src` | Document facade, transactions, commands, extension registration, selections, editing and file adapters |
 | `runtime/kjcore-rs` | Rust document validation/revisions, primitive geometry and experimental solid meshes; raw WASM ABI |
-| `apps/playground` | Small Canvas 2D reference client; no canonical geometry stored in DOM or framework state |
+| `apps/playground` | Generic Canvas 2D reference workbench; no canonical geometry stored in DOM or framework state |
 | `examples` | Original synthetic data and executable integration examples |
+
+```text
+Applications · Workbench · AI agents
+                 │
+       Commands · Documents · Files
+                 │
+      TypeScript SDK ↔ Rust/WASM
+                 │
+   Project · Compute · Scene providers
+      local / self-hosted / cloud
+```
+
+## Deployment providers
+
+Deployment is a host concern. `KJDeploymentRegistry` validates three provider families: project storage, compute and scene streaming. A deployment profile names the providers selected by the host for browser-local, desktop-local, self-hosted, cloud-assisted or hybrid operation. Provider registration never performs implicit network access.
+
+The provider API is not an authentication layer. Hosts remain responsible for identity, authorization, tenant isolation, transport security and disclosure of remote processing. See [Deployment](deployment.md) and [Security architecture](../SECURITY_ARCHITECTURE.md).
 
 ## Documents and persistence
 
@@ -25,4 +42,4 @@ Hosts must bind user approval to exact plan arguments, document and revision. Th
 
 Rust/WASM is available for document sessions, primitive geometry queries, and specified solid-mesh operations. Many 2D edits still compute in JavaScript. Backend identity is explicit; reference geometry is not promoted to authoritative export by missing-backend fallback. The older machine-readable 1.0 contract describes a target architecture; it does not mean the developer preview has fulfilled all of it.
 
-The minimal playground calls public SDK commands, reads document state for rendering, and uses the Rust document bridge when available. It is not the full private Kanjie Studio and does not certify drawing fidelity or printing.
+The reference workbench calls public SDK commands, reads document state for rendering, and uses the Rust document bridge when available. It does not include downstream domain compilers, proprietary data or enterprise services, and does not certify arbitrary drawing fidelity or printing.

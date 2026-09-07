@@ -1,5 +1,7 @@
 # Developer preview: capability boundaries
 
+The SDK is provider-neutral. Browser-local operation is the verified public default; desktop-local, self-hosted, cloud-assisted and hybrid profiles are explicit host integration contracts. This release does not ship identity, tenancy, collaboration or managed cloud services. Registering a provider never starts network activity by itself.
+
 | Area | Current state | Still needed |
 | --- | --- | --- |
 | KJD documents | Object graph, validation, transactions, revisions | Long-term migration policy and wider compatibility corpus |

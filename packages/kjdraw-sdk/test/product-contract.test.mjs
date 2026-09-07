@@ -4,20 +4,41 @@ import { readFile } from 'node:fs/promises'
 import {
   KJDRAW_1_0_PRODUCT_CONTRACT,
   KJDRAW_CAD_VERSION_MATRIX,
+  KJDeploymentRegistry,
+  KJ_PROVIDER_TYPES,
   KJRevisionConflictError,
   KJValidationError,
   createKJDrawSDK,
+  createDeploymentProfile,
+  validateDeploymentProfile,
 } from '../src/index.js'
 
-test('KJDraw 1.0 contract locks local authority and the supported CAD matrix', () => {
-  assert.equal(KJDRAW_1_0_PRODUCT_CONTRACT.deployment, 'local-offline')
-  assert.equal(KJDRAW_1_0_PRODUCT_CONTRACT.sourceOfTruth, 'local-project-file')
-  assert.equal(KJDRAW_1_0_PRODUCT_CONTRACT.cloudProjectAuthority, false)
+test('KJDraw 1.0 contract is deployment-neutral and locks the supported CAD matrix', () => {
+  assert.equal(KJDRAW_1_0_PRODUCT_CONTRACT.deployment, 'provider-neutral')
+  assert.deepEqual(KJDRAW_1_0_PRODUCT_CONTRACT.deploymentModes, ['browser-local', 'desktop-local', 'self-hosted', 'cloud-assisted', 'hybrid'])
+  assert.equal(KJDRAW_1_0_PRODUCT_CONTRACT.defaultDeployment, 'browser-local')
+  assert.equal(KJDRAW_1_0_PRODUCT_CONTRACT.projectAuthority, 'host-selected-provider')
+  assert.deepEqual(KJDRAW_1_0_PRODUCT_CONTRACT.domainExtensions, { included: false, policy: 'separate-packages' })
   assert.equal(KJDRAW_1_0_PRODUCT_CONTRACT.authorities.geometry, 'kjcore-rust')
   assert.equal(KJDRAW_1_0_PRODUCT_CONTRACT.authorities.fileIntermediateModel, 'kjcore-rust')
   assert.deepEqual(KJDRAW_CAD_VERSION_MATRIX.map(row => row.label), ['R14', '2000', '2004', '2010', '2013', '2018', '2024'])
   assert.equal(JSON.stringify(KJDRAW_1_0_PRODUCT_CONTRACT).includes('2007'), false)
-  assert.equal(KJDRAW_1_0_PRODUCT_CONTRACT.surveyFamilies.automaticEnglishTitleBlockFallback, false)
+})
+
+test('deployment profiles bind only explicit host providers', () => {
+  const registry = new KJDeploymentRegistry()
+  registry.register(KJ_PROVIDER_TYPES.PROJECT_STORE, {
+    id: 'example.remote-projects', locality: 'remote',
+    loadProject: async () => null,
+    saveProject: async value => value,
+  })
+  const profile = validateDeploymentProfile(createDeploymentProfile({
+    mode: 'cloud-assisted',
+    providers: { [KJ_PROVIDER_TYPES.PROJECT_STORE]: 'example.remote-projects' },
+  }), registry)
+  assert.equal(profile.mode, 'cloud-assisted')
+  assert.equal(profile.providers['project-store'], 'example.remote-projects')
+  assert.throws(() => validateDeploymentProfile({ mode: 'hybrid', providers: { compute: 'missing' } }, registry), /unavailable provider/)
 })
 
 test('public DXF adapter does not advertise legacy R12 or removed 2007', () => {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1-preview.1
+
+- Repositioned KJDraw as extensible, deployment-neutral CAD infrastructure: browser-native, server-accelerated and deployable locally, self-hosted or cloud-assisted.
+- Added executable project-store, compute and scene-provider contracts with validated deployment profiles.
+- Added capability, deployment, security and open-source-boundary documentation.
+- Removed downstream domain-family definitions from the public product contract and strengthened release leakage checks.
+- Rebuilt the English and Chinese project narrative around verified capabilities and an explicit commercial boundary.
+
 ## 0.3.0-preview.1
 
 - Expanded the browser playground into a usable general CAD workbench with DXF/KJD/KJP open and drag-drop, common drawing and modify tools, measurements, layers, property editing and a command bar.

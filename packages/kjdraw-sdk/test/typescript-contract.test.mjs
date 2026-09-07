@@ -15,4 +15,6 @@ test('package exposes the public TypeScript declarations', async () => {
   assert.match(declarations, /export class KJDocument/)
   assert.match(declarations, /export interface KJCommandEnvelope/)
   assert.match(declarations, /export class KJProjectSession/)
+  assert.match(declarations, /export class KJDeploymentRegistry/)
+  assert.match(declarations, /export function createDeploymentProfile/)
 })
