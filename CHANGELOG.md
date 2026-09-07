@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0-preview.1
+
+- Added an original, redistributable ASCII DXF corpus across every declared R14–2024 target label.
+- Added a machine-readable corpus audit with per-file SHA-256, header verification, entity/resource invariants and semantic read/write/reopen checks.
+- Added the corpus as a dedicated CI gate and public compatibility evidence page.
+- Aligned the SDK package and runtime-reported preview version with the repository release.
+
 ## 0.4.0-preview.1
 
 - Added real multi-drawing project tabs, drawing creation and packaged project snapshots to the browser workbench.

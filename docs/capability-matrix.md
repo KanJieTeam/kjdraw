@@ -6,7 +6,8 @@ This matrix describes executable public code in the current developer preview. I
 
 - **65 registered commands** backed by SDK implementations and audited capability declarations.
 - **28 standard entity contracts**, including `PROXY_ENTITY` preservation and experimental `SOLID3D`.
-- **86 automated tests** covering documents, editing, deployment providers, files, projects, plugins, Rust/WASM bridges and public samples.
+- **88 automated tests** covering documents, editing, deployment providers, files, projects, plugins, Rust/WASM bridges and public samples.
+- **7 synthetic DXF target fixtures** with reproducible hashes and semantic read/write/reopen evidence.
 - **No runtime npm dependencies** for the SDK checkout path.
 
 Run `node scripts/test.mjs` and `node scripts/check.mjs` to reproduce the public gates.
@@ -21,7 +22,7 @@ Run `node scripts/test.mjs` and `node scripts/check.mjs` to reproduce the public
 | 2D editing | Create/erase/properties, transforms, arrays, offset, break, explode, trim/extend, chamfer/fillet | Available for declared combinations |
 | Inspection | Length, area, distance, angle, nearest point and intersections | Available for declared combinations |
 | Drafting resources | Layers, blocks/inserts, groups, hatches, styles, UCS, layouts, viewports and plot metadata | Available/partial by resource |
-| Files | KJD read/write, deterministic ZIP64 KJP, ASCII DXF read/write | Developer preview |
+| Files | KJD read/write, deterministic ZIP64 KJP, ASCII DXF read/write and [7-version synthetic corpus](dxf-compatibility.md) | Developer preview |
 | Extensions | Commands, entities, renderers, file adapters, tools, snaps, properties and workspaces | Available |
 | Deployment | Browser, desktop, self-hosted, cloud-assisted and hybrid provider profiles | Contract available |
 | Agent interface | Plan/execute envelopes, explicit confirmation, revision binding and receipts | Available |

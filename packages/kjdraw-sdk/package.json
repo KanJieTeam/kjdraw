@@ -1,6 +1,6 @@
 {
   "name": "@kanjie/kjdraw-sdk",
-  "version": "0.3.1",
+  "version": "0.5.0-preview.1",
   "description": "Extensible CAD documents, transactions, geometry, deployment providers and agent command interfaces",
   "repository": { "type": "git", "url": "https://github.com/KanJieTeam/kjdraw.git", "directory": "packages/kjdraw-sdk" },
   "homepage": "https://github.com/KanJieTeam/kjdraw#readme",
@@ -8,7 +8,7 @@
   "author": "KanJieTeam <kanjieteam@163.com>",
   "engines": { "node": ">=22" },
   "files": ["src", "types", "README.md", "LICENSE", "NOTICE"],
-  "keywords": ["cad", "dxf", "engineering", "local-first", "wasm", "geometry", "ai-agents"],
+  "keywords": ["cad", "dxf", "engineering", "browser-cad", "wasm", "geometry", "ai-agents"],
   "type": "module",
   "main": "./src/index.js",
   "types": "./types/index.d.ts",

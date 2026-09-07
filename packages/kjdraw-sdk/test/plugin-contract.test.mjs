@@ -15,7 +15,7 @@ const manifest = (patch = {}) => ({
   id: 'test.public-plugin',
   name: 'Public plugin',
   version: '1.2.3',
-  compatibility: { sdk: '^0.2.0', kernel: '>=1.0.0 <2.0.0' },
+  compatibility: { sdk: '>=0.2.0 <1.0.0', kernel: '>=1.0.0 <2.0.0' },
   permissions: ['commands.register'],
   contributes: { commands: ['TEST.*'] },
   ...patch,
@@ -24,8 +24,9 @@ const manifest = (patch = {}) => ({
 test('plugin manifest validation locks schema, semantic compatibility and known permissions', () => {
   const value = validatePluginManifest(manifest())
   assert.equal(value.id, 'test.public-plugin')
-  assert.equal(satisfiesVersion('0.2.8', value.compatibility.sdk), true)
-  assert.equal(satisfiesVersion('0.3.0', value.compatibility.sdk), false)
+  assert.equal(satisfiesVersion('0.2.8', '^0.2.0'), true)
+  assert.equal(satisfiesVersion('0.3.0', '^0.2.0'), false)
+  assert.equal(satisfiesVersion('0.5.0-preview.1', value.compatibility.sdk), true)
   assert.equal(satisfiesVersion('1.9.9', value.compatibility.kernel), true)
   assert.throws(() => validatePluginManifest(manifest({ permissions: ['filesystem.unrestricted'] })), /Unknown KJDraw plugin permission/)
 })

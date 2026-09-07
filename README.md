@@ -21,9 +21,9 @@ Our ambition is to make reliable, programmable CAD accessible to the teams build
 
 ## Verified today
 
-| 65 executable commands | 28 entity contracts | 86 automated tests | 5 deployment profiles |
+| 65 executable commands | 28 entity contracts | 88 automated tests | 7-version DXF corpus |
 | :---: | :---: | :---: | :---: |
-| Transactions and editing | 2D plus bounded solid meshes | SDK, files, WASM and samples | Browser to hybrid cloud |
+| Transactions and editing | 2D plus bounded solid meshes | SDK, files, WASM and samples | R14 through 2024 labels |
 
 These are repository-backed counts, not a claim of complete CAD parity. See the machine-tested [capability matrix](docs/capability-matrix.md) and the honest [known limits](docs/status.md).
 
@@ -60,7 +60,7 @@ The command lab is a deterministic example of the agent protocol, not a connecte
 | **Documents** | Stable object IDs and CAD handles; layers, blocks, model/paper spaces, resources and revisions |
 | **Workbench** | Multi-drawing project tabs, project snapshots, multi-selection, drafting toggles, properties, measurements and responsive layouts |
 | **Editing** | Atomic transactions, undo/redo, transforms, selection, snaps and a declared subset of trim/extend/offset/fillet operations |
-| **File exchange** | JSON KJD documents, ZIP64 KJP projects, development ASCII DXF adapter with explicit limitations |
+| **File exchange** | JSON KJD documents, ZIP64 KJP projects, development ASCII DXF adapter with a [7-version synthetic corpus](docs/dxf-compatibility.md) |
 | **Extensions** | Registries for commands, entities, file adapters and other extension points; plugin compatibility and permission declarations |
 | **Agent interfaces** | Plan/execute envelopes, expected revisions, confirmation metadata and execution receipts |
 | **Rust + WASM** | Document validation/revisions, primitive geometry queries, and experimental solid-mesh operations |
@@ -148,6 +148,7 @@ Read the [architecture](docs/architecture.md), [open-source boundary](docs/open-
 
 ```sh
 node scripts/test.mjs    # SDK, WASM artifact, and public sample tests
+node scripts/audit-dxf-corpus.mjs # per-version DXF semantic preservation evidence
 node scripts/check.mjs   # release metadata, local links, package boundaries
 node scripts/build.mjs   # standalone static playground → dist/
 ```

@@ -29,7 +29,7 @@ The goal is extensible CAD infrastructure that engineering applications can embe
 
 ## Close engineering workflows
 
-- Expand independent DXF fixtures and publish per-version preservation evidence.
+- Expand the shipped synthetic DXF version corpus with independent, redistributable cross-application fixtures.
 - Improve dimensions, fonts, hatches, layouts and plotting.
 - Verify local persistence and recovery under interruption.
 - Add realistic, openly redistributable performance fixtures and multiple-device results.

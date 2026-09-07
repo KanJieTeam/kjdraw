@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "license": "Apache-2.0",
+  "provenance": "Original synthetic fixtures authored for KJDraw",
+  "cases": [
+    { "file": "synthetic-r14-core.dxf", "version": "R14", "acadver": "AC1014" },
+    { "file": "synthetic-2000-core.dxf", "version": "2000", "acadver": "AC1015" },
+    { "file": "synthetic-2004-core.dxf", "version": "2004", "acadver": "AC1018" },
+    { "file": "synthetic-2010-core.dxf", "version": "2010", "acadver": "AC1024" },
+    { "file": "synthetic-2013-core.dxf", "version": "2013", "acadver": "AC1027" },
+    { "file": "synthetic-2018-core.dxf", "version": "2018", "acadver": "AC1032" },
+    { "file": "synthetic-2024-core.dxf", "version": "2024", "acadver": "AC1032", "detectedVersion": "2018" }
+  ],
+  "expected": {
+    "entityTypes": { "LINE": 1, "CIRCLE": 1, "TEXT": 1 },
+    "layers": ["0", "AUDIT"]
+  }
+}

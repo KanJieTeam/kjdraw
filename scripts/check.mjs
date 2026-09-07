@@ -26,7 +26,9 @@ for(const p of files){
   }
 }
 const pkg=JSON.parse(await readFile(resolve(root,'packages/kjdraw-sdk/package.json'),'utf8'))
+const rootPkg=JSON.parse(await readFile(resolve(root,'package.json'),'utf8'))
 if(pkg.license!=='Apache-2.0')failures.push('SDK license mismatch')
+if(pkg.version!==rootPkg.version)failures.push(`Release version mismatch: root ${rootPkg.version}, SDK ${pkg.version}`)
 if(pkg.dependencies && Object.keys(pkg.dependencies).length)failures.push('Review added SDK runtime dependencies and notices')
 for(const path of Object.values(pkg.exports)){try{await stat(resolve(root,'packages/kjdraw-sdk',path))}catch{failures.push(`Missing SDK export: ${path}`)}}
 if(failures.length){console.error(failures.join('\n'));process.exit(1)}
