@@ -30,7 +30,7 @@ test('agent sample move displaces geometry and undo restores it',async()=>{
   const plan=sdk.createCommandEnvelope('MOVE',{ids:[entity.id],dx:3,dy:0},{origin:'ai',mode:'plan',expectedRevision:document.revision})
   await sdk.executeCommandEnvelope(plan)
   assert.deepEqual(document.getObject(entity.id).payload.center,entity.payload.center)
-  const confirmed=sdk.createCommandEnvelope(plan.command,plan.arguments,{origin:'ai',expectedRevision:plan.expectedRevision,confirmation:{status:'confirmed',planId:plan.id}})
+  const confirmed=sdk.createCommandEnvelope(plan.command,plan.arguments,{origin:'ai',expectedRevision:plan.expectedRevision,confirmation:{status:'confirmed',planId:plan.id,confirmedBy:'sample-reviewer'}})
   await sdk.executeCommandEnvelope(confirmed)
   assert.equal(document.getObject(entity.id).payload.center[0],entity.payload.center[0]+3)
   await sdk.executeCommand('UNDO')

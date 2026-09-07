@@ -21,15 +21,29 @@ Our ambition is to make reliable, programmable CAD accessible to the teams build
 
 ## Verified today
 
-| 65 executable commands | 28 entity contracts | 89 automated tests | 7-version DXF corpus |
+| 65 executable commands | 28 entity contracts | 93 automated tests | Bound agent plans |
 | :---: | :---: | :---: | :---: |
-| Transactions and editing | 2D plus bounded solid meshes | SDK, files, WASM and samples | R14 through 2024 labels |
+| Transactions and editing | 2D plus bounded solid meshes | SDK, files, WASM and samples | Exact review → execute binding |
 
 These are repository-backed counts, not a claim of complete CAD parity. See the machine-tested [capability matrix](docs/capability-matrix.md) and the honest [known limits](docs/status.md).
 
 ## Run it in 30 seconds
 
 Try the browser workbench first: **[kanjieteam.github.io/kjdraw](https://kanjieteam.github.io/kjdraw/)**. This public deployment runs entirely in the browser and uploads no drawing data.
+
+For SDK consumers, the prepared npm path is:
+
+```sh
+npm install @kanjie/kjdraw-sdk@next
+```
+
+```js
+import { createKJDrawSDK } from '@kanjie/kjdraw-sdk'
+const sdk = createKJDrawSDK()
+const drawing = sdk.createDocument({ documentId: 'hello-cad' })
+```
+
+The package and guarded [npm publishing workflow](docs/npm-publishing.md) are ready; the command becomes available after KanJieTeam completes the first npm registry publication for the `@kanjie` scope. Until then, the repository checkout below is the verified zero-install path.
 
 Install **Node.js 22 or newer**, then:
 
@@ -62,7 +76,7 @@ The command lab is a deterministic example of the agent protocol, not a connecte
 | **Editing** | Atomic transactions, undo/redo, transforms, selection, snaps and a declared subset of trim/extend/offset/fillet operations |
 | **File exchange** | JSON KJD documents, ZIP64 KJP projects, development ASCII DXF adapter with a [7-version synthetic corpus](docs/dxf-compatibility.md) |
 | **Extensions** | Registries for commands, entities, file adapters and other extension points; plugin compatibility and permission declarations |
-| **Agent interfaces** | Plan/execute envelopes, expected revisions, confirmation metadata and execution receipts |
+| **Agent interfaces** | One-shot [reviewed plans](docs/agent-protocol.md) bound to exact arguments, document fingerprint, revision, expiry and reviewer; execution receipts and undo |
 | **Rust + WASM** | Document validation/revisions, primitive geometry queries, and experimental solid-mesh operations |
 | **Typed integration** | TypeScript-owned Provider source, public declarations and reproducible browser ESM; [remaining modules migrate incrementally](docs/typescript-migration.md) |
 | **Deployment providers** | Host-selected project storage, compute and scene contracts for local, self-hosted, cloud-assisted or hybrid applications |
@@ -122,7 +136,7 @@ Application / plugin / agent
       Receipt · updated document · undo
 ```
 
-The host owns identity, permissions and user confirmation. The SDK validates the command envelope and provides transactional changes. Confirmation metadata is **not** a sandbox or cryptographic authorization system. A host must bind approval to the exact proposed arguments and revision. The playground demonstrates that binding for its local move example.
+The SDK now registers AI plans, binds approval to the exact command arguments, document fingerprint and revision, enforces expiry, and consumes each plan once before transactional execution. The host still owns identity, permissions and user confirmation; this is **not** a sandbox or cryptographic authorization system. The playground exposes a short binding digest for its local move example. Read the [agent protocol and security boundary](docs/agent-protocol.md).
 
 Run the small [agent command example](examples/agent-command.mjs):
 

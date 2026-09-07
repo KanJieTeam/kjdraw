@@ -193,9 +193,9 @@ $('plan').onclick=()=>run(async()=>{
   const layer=doc().getTable('layers').records.find(x=>x.name==='Survey points');const ids=layer?modelEntities().filter(e=>e.payload.layerId===layer.id).map(e=>e.id):[]
   if(!ids.length)throw new Error('This demo targets the sample’s Survey points layer. Reload the sample to try it.')
   const envelope=sdk.createCommandEnvelope('MOVE',{ids,dx,dy:0},{origin:'ai',mode:'plan',expectedRevision:doc().revision})
-  await sdk.executeCommandEnvelope(envelope)
-  pendingPlan={envelope,ids,dx,documentId:doc().id,fingerprint:doc().fingerprint()}
-  $('plan-state').textContent=`${ids.length} entities · X ${dx>=0?'+':''}${dx.toFixed(2)} m · revision ${doc().revision}. Amber = proposed position.`;$('confirm').disabled=false;render();message('Plan previewed · document unchanged')
+  const planned=await sdk.executeCommandEnvelope(envelope),binding=planned.result.binding
+  pendingPlan={envelope,ids,dx,documentId:doc().id,fingerprint:doc().fingerprint(),binding}
+  $('plan-state').textContent=`${ids.length} entities · X ${dx>=0?'+':''}${dx.toFixed(2)} m · revision ${doc().revision} · binding ${binding.slice(0,8)}. Amber = proposed position.`;$('confirm').disabled=false;render();message('Plan previewed · exact arguments and document state bound · no mutation')
 })
 $('confirm').onclick=()=>run(async()=>{
   const plan=pendingPlan;if(!plan)throw new Error('Preview a plan first.')

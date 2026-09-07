@@ -13,15 +13,29 @@
 
 ## 当前验证基线
 
-| 65 个可执行命令 | 28 种对象契约 | 89 个自动测试 | 7 版本 DXF 语料 |
+| 65 个可执行命令 | 28 种对象契约 | 93 个自动测试 | Agent 计划精确绑定 |
 | :---: | :---: | :---: | :---: |
-| 事务与编辑 | 二维及受限实体网格 | SDK、文件、WASM、示例 | R14 至 2024 标签 |
+| 事务与编辑 | 二维及受限实体网格 | SDK、文件、WASM、示例 | 审核 → 执行参数不可替换 |
 
 这些数字来自仓库中的可运行代码，不代表已经具备所有商业 CAD 功能。详见[能力矩阵](docs/capability-matrix.md)和[当前限制](docs/status.md)。
 
 ## 30 秒运行
 
 先打开在线演示：**[kanjieteam.github.io/kjdraw](https://kanjieteam.github.io/kjdraw/)**。图纸只在浏览器本地处理，不上传服务器。
+
+SDK 的 npm 安装路径已经准备好：
+
+```sh
+npm install @kanjie/kjdraw-sdk@next
+```
+
+```js
+import { createKJDrawSDK } from '@kanjie/kjdraw-sdk'
+const sdk = createKJDrawSDK()
+const drawing = sdk.createDocument({ documentId: 'hello-cad' })
+```
+
+包内容、可运行 quickstart 和受保护的 [npm 发布工作流](docs/npm-publishing.md)都已就绪；KanJieTeam 完成 `@kanjie` scope 的首次 npm 注册表发布后，上述命令即可使用。在此之前，下面的仓库克隆方式仍是已验证的零安装路径。
 
 安装 **Node.js 22 或更新版本**：
 
@@ -54,14 +68,14 @@ node scripts/serve.mjs
 | 编辑 | 事务、撤销/重做、变换、选取、捕捉及部分精确修剪/延伸/偏移组合 |
 | 交换 | 开发阶段的 ASCII DXF 核心子集；提供[七版本合成语料审计](docs/dxf-compatibility.md) |
 | 扩展 | 命令、对象与文件适配器注册、插件版本与权限声明 |
-| Agent 接口 | 修改计划、显式确认、预期版本检查、执行回执 |
+| Agent 接口 | [一次性审核计划](docs/agent-protocol.md)，绑定精确参数、图纸指纹、版本、有效期与审核人；执行回执与撤销 |
 | Rust/WASM | 文档校验与修订、基础几何查询、实验性实体网格运算 |
 | 类型化接入 | Provider 已由 TypeScript 源码驱动并生成可复现浏览器 ESM；[其余模块渐进迁移](docs/typescript-migration.md) |
 | 部署 Provider | 工程存储、计算和场景接口；支持本地、私有化、云增强与混合部署 |
 
 当前是 **Developer Preview**。不承诺完整 DWG 读写、全套打印出图或通用 BRep。演示画布的显示范围小于 SDK 的存储范围；不少二维编辑算法仍由 JavaScript 实现。详见[当前能力边界](docs/status.md)。
 
-宿主必须管理用户身份、权限，并把批准绑定到具体参数和版本。命令中的确认字段是协议数据，不是安全沙箱或不可伪造的授权证明。
+SDK 会把 AI 计划绑定到精确命令参数、图纸指纹和版本，检查有效期，并在事务执行前一次性消费；工作台会显示简短绑定摘要。宿主仍必须管理用户身份、权限与确认记录。协议不是安全沙箱，也不是跨进程不可伪造的授权证明。详见 [Agent 计划协议](docs/agent-protocol.md)。
 
 ## 使用 SDK
 

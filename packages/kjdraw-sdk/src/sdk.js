@@ -5,6 +5,7 @@ import { KJExtensionRegistry } from './extensions.js'
 import { KJFileAdapterRegistry } from './file-adapters.js'
 import { KJValidationError } from './errors.js'
 import { KJSelectionManager } from './selection.js'
+import { KJAgentPlanRegistry } from './agent-plans.js'
 import { findSnapCandidates } from './snapping.js'
 import { buildSDKCapabilityManifest } from './capabilities.js'
 import { createKJDFileAdapter } from './kjd-adapter.js'
@@ -23,7 +24,7 @@ import {
 
 export class KJDrawSDK {
   constructor(options = {}) {
-    this.version = options.version ?? '0.6.0-preview.1'
+    this.version = options.version ?? '0.7.0-preview.1'
     this.events = new KJEventBus()
     this.extensions = new KJExtensionRegistry()
     this.commands = new KJCommandRegistry()
@@ -33,6 +34,7 @@ export class KJDrawSDK {
     this.activeDocumentId = null
     this.documentAuthority = options.documentAuthority ?? null
     this.solidAuthority = options.solidAuthority ?? null
+    this.agentPlans = options.agentPlans ?? new KJAgentPlanRegistry(options.agentPlanOptions)
     registerCoreCommands(this.commands)
     if (options.registerDefaultAdapters !== false) {
       this.fileAdapters.register(createKJDFileAdapter())
@@ -132,11 +134,13 @@ export class KJDrawSDK {
     if (document.id !== envelope.documentId) throw new KJValidationError(`Command document mismatch: ${envelope.documentId}`)
     const beforeRevision = document.revision
     if (envelope.mode === 'plan') {
-      const receipt = createCommandReceipt(envelope, { status: 'planned', beforeRevision, afterRevision: beforeRevision })
-      this.events.emit('command:planned', { envelope, receipt, document })
+      const plan = envelope.origin.kind === 'ai' ? this.agentPlans.register(envelope, document, options.agentPlanOptions) : null
+      const receipt = createCommandReceipt(envelope, { status: 'planned', beforeRevision, afterRevision: beforeRevision, result: plan })
+      this.events.emit('command:planned', { envelope, receipt, document, plan })
       return receipt
     }
-    this.events.emit('command:before-execute', { envelope, document, beforeRevision })
+    const agentPlan = envelope.origin.kind === 'ai' ? this.agentPlans.consume(envelope, document) : null
+    this.events.emit('command:before-execute', { envelope, document, beforeRevision, agentPlan })
     try {
       const result = await this.executeCommand(envelope.command, envelope.arguments, {
         ...options,

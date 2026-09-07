@@ -43,6 +43,34 @@ export function validateDeploymentProfile(profile: KJDeploymentProfile, registry
 export const KJ_DEPLOYMENT_MODES: readonly KJDeploymentMode[]
 export const KJ_PROVIDER_TYPES: Readonly<{ PROJECT_STORE: 'project-store'; COMPUTE: 'compute'; SCENE: 'scene' }>
 
+export interface KJAgentPlanRecord {
+  schema: 'com.kanjie.kjdraw.agent-plan@1'
+  planId: string
+  command: string
+  documentId: string
+  expectedRevision: number
+  documentFingerprint: string
+  binding: string
+  status: 'active' | 'consumed' | 'rejected' | 'expired'
+  createdAt: string
+  expiresAt: string
+  consumedAt?: string
+  rejectedAt?: string
+  confirmedBy?: string
+  rejectedBy?: string
+  executionEnvelopeId?: string
+}
+
+export class KJAgentPlanRegistry {
+  constructor(options?: { clock?: () => number; defaultTtlMs?: number })
+  register(envelope: KJCommandEnvelope, document: KJDocument, options?: { ttlMs?: number }): Readonly<KJAgentPlanRecord>
+  consume(envelope: KJCommandEnvelope, document: KJDocument): Readonly<KJAgentPlanRecord>
+  reject(planId: string, rejectedBy: string): Readonly<KJAgentPlanRecord>
+  get(planId: string): Readonly<KJAgentPlanRecord> | null
+  list(): ReadonlyArray<Readonly<KJAgentPlanRecord>>
+  prune(): number
+}
+
 export interface KJEntity<TPayload extends Record<string, unknown> = Record<string, unknown>> {
   id: string
   handle: string
@@ -101,6 +129,7 @@ export class KJDocument {
 
 export class KJDrawSDK {
   readonly version: string
+  readonly agentPlans: KJAgentPlanRegistry
   readonly activeDocument: KJDocument
   readonly documents: Map<string, KJDocument>
   createDocument(options?: { documentId?: string; title?: string; units?: string; historyLimit?: number }): KJDocument

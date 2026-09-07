@@ -1,8 +1,14 @@
 # @kanjie/kjdraw-sdk
 
-Extensible CAD documents, commands, transactions, editing, file adapters and deployment providers. Framework-independent ES modules with no runtime npm dependencies.
+Extensible CAD documents, commands, transactions, editing, file adapters, deployment providers and review-bound agent plans. Framework-independent ES modules with no runtime npm dependencies.
 
-The package ships TypeScript declarations and a TypeScript authoring entry. Runtime modules remain standards-based ESM during the incremental source migration, so existing browser and Node.js consumers do not need a framework wrapper.
+Install the current developer preview from npm's `next` channel:
+
+```sh
+npm install @kanjie/kjdraw-sdk@next
+```
+
+The package ships TypeScript declarations and TypeScript-owned source slices. Runtime modules remain standards-based ESM during the incremental migration, so browser and Node.js consumers do not need a framework wrapper.
 
 Part of [KJDraw](https://github.com/KanJieTeam/kjdraw). See the repository README and `docs/getting-started.md` for the playground, optional Rust/WASM backend, and preview limitations.
 
@@ -16,4 +22,6 @@ await sdk.executeCommand('CREATE', {
 console.log(drawing.serialize())
 ```
 
-Apache-2.0. The current API baseline is 0.2.0; the repository release is a developer preview. DWG, complete DXF fidelity and a full CAD editor are not included guarantees. Plugin declarations and command confirmation metadata require host enforcement and are not security isolation.
+Run the packaged example with `node node_modules/@kanjie/kjdraw-sdk/examples/quickstart.mjs`. It creates and moves real geometry, performs a KJD reopen and prints a JSON result.
+
+Apache-2.0. The package version follows the repository release. This is a developer preview: DWG, arbitrary-DXF fidelity, certified plotting and general BRep are not included guarantees. Agent plan binding strengthens review workflows but does not replace host identity, permissions or isolation.

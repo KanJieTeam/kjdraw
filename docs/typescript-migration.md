@@ -6,10 +6,11 @@ KJDraw is moving the SDK to TypeScript-owned source without breaking its zero-in
 
 Modules listed in `scripts/build-typescript.mjs` are owned by their `.ts` file. Their neighboring `.js` file is a committed browser/Node artifact and starts with a generated-file warning. Do not edit that JavaScript directly.
 
-The first migrated vertical slice is the deployment Provider system:
+The first two migrated vertical slices are the deployment Provider system and the Agent plan registry:
 
 - `deployment.ts` defines typed deployment modes, profiles and project-store, compute and scene Provider interfaces.
 - `deployment.js` is reproducibly generated and remains the stable runtime import.
+- `agent-plans.ts` defines the typed, review-bound plan lifecycle; `agent-plans.js` is its generated runtime artifact.
 - the published declaration bundle exposes the same Provider contracts.
 - CI fails if the committed ESM differs from the TypeScript source.
 

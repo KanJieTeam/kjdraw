@@ -1,9 +1,9 @@
 {
   "schema": "com.kanjie.kjdraw.acceptance-matrix@1",
-  "release": "0.6.0-preview.1",
+  "release": "0.7.0-preview.1",
   "note": "Public preview scope. The inherited 1.0 contract is a target, not a release certification.",
   "gates": [
-    {"id":"contract.command-protocol","status":"passed","evidence":["packages/kjdraw-sdk/test/product-contract.test.mjs"]},
+    {"id":"contract.command-protocol","status":"passed","evidence":["packages/kjdraw-sdk/test/product-contract.test.mjs","packages/kjdraw-sdk/test/agent-plans.test.mjs","packages/kjdraw-sdk/src/agent-plans.ts","docs/agent-protocol.md"]},
     {"id":"document.transactions","status":"passed","evidence":["packages/kjdraw-sdk/test/sdk.test.mjs"]},
     {"id":"file.local-authority","status":"partial","evidence":["packages/kjdraw-sdk/src/project-session.js"],"gap":"Browser downloads do not certify native durable saving."},
     {"id":"file.kjp","status":"passed","evidence":["packages/kjdraw-sdk/test/project-package.test.mjs"]},
@@ -14,7 +14,8 @@
     {"id":"cad.plotting","status":"blocked","evidence":[],"gap":"No complete layout/viewport/printing implementation."},
     {"id":"kernel.solid","status":"partial","evidence":["packages/kjdraw-sdk/test/solid3d.test.mjs"],"gap":"Experimental meshes, not general BRep."},
     {"id":"sdk.plugins","status":"partial","evidence":["packages/kjdraw-sdk/test/plugin-contract.test.mjs"],"gap":"Cooperative declarations, not hostile-code sandboxing."},
-    {"id":"sdk.typescript-source","status":"partial","evidence":["packages/kjdraw-sdk/src/deployment.ts","scripts/build-typescript.mjs","packages/kjdraw-sdk/test/typescript-source.test.mjs","docs/typescript-migration.md"],"gap":"Deployment Provider slice migrated; remaining SDK modules are still JavaScript-owned."},
+    {"id":"sdk.typescript-source","status":"partial","evidence":["packages/kjdraw-sdk/src/deployment.ts","packages/kjdraw-sdk/src/agent-plans.ts","scripts/build-typescript.mjs","packages/kjdraw-sdk/test/typescript-source.test.mjs","docs/typescript-migration.md"],"gap":"Deployment Provider and Agent plan slices migrated; remaining SDK modules are still JavaScript-owned."},
+    {"id":"sdk.npm-consumption","status":"partial","evidence":["packages/kjdraw-sdk/package.json","packages/kjdraw-sdk/examples/quickstart.mjs","packages/kjdraw-sdk/test/npm-quickstart.test.mjs",".github/workflows/npm-publish.yml","docs/npm-publishing.md"],"gap":"Package contents and publishing gate pass locally; first authenticated npm registry publication remains pending."},
     {"id":"public.synthetic-sample","status":"passed","evidence":["packages/kjdraw-sdk/test/sample-projects.test.mjs"]}
   ]
 }

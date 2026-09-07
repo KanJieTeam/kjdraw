@@ -1,19 +1,21 @@
 {
   "name": "@kanjie/kjdraw-sdk",
-  "version": "0.6.0-preview.1",
+  "version": "0.7.0-preview.1",
   "description": "Extensible CAD documents, transactions, geometry, deployment providers and agent command interfaces",
   "repository": { "type": "git", "url": "https://github.com/KanJieTeam/kjdraw.git", "directory": "packages/kjdraw-sdk" },
   "homepage": "https://github.com/KanJieTeam/kjdraw#readme",
   "bugs": "https://github.com/KanJieTeam/kjdraw/issues",
   "author": "KanJieTeam <kanjieteam@163.com>",
   "engines": { "node": ">=22" },
-  "files": ["src", "types", "README.md", "LICENSE", "NOTICE"],
+  "files": ["src", "types", "examples", "README.md", "LICENSE", "NOTICE"],
+  "publishConfig": { "access": "public", "provenance": true },
   "keywords": ["cad", "dxf", "engineering", "browser-cad", "wasm", "geometry", "ai-agents"],
   "type": "module",
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
     ".": "./src/index.js",
+    "./agent-plans": "./src/agent-plans.js",
     "./capabilities": "./src/capabilities.js",
     "./document": "./src/document.js",
     "./deployment": "./src/deployment.js",
@@ -36,7 +38,8 @@
     "./snapping": "./src/snapping.js"
   },
   "scripts": {
-    "test": "node ../../scripts/test.mjs"
+    "test": "node ../../scripts/test.mjs",
+    "quickstart": "node examples/quickstart.mjs"
   },
   "license": "Apache-2.0"
 }

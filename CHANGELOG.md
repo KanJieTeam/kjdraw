@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0-preview.1
+
+- Added an SDK-native agent plan registry that binds review to exact arguments, document identity, revision and fingerprint.
+- Added host-controlled expiry, reviewer identity, rejection and one-shot consumption with replay protection.
+- Exposed the binding digest in the real browser workbench and documented the enforced protocol boundary.
+- Added a publishable npm package layout, executable package self-import quickstart and guarded manual npm publishing workflow.
+- Migrated the new Agent plan module as the second TypeScript-owned source slice.
+
 ## 0.6.0-preview.1
 
 - Began the real TypeScript source migration with the deployment Provider vertical slice.

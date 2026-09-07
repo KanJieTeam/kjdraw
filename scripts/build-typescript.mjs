@@ -1,7 +1,7 @@
 import { stripTypeScriptTypes } from 'node:module'
 import { readFile, writeFile } from 'node:fs/promises'
 
-const modules = ['packages/kjdraw-sdk/src/deployment']
+const modules = ['packages/kjdraw-sdk/src/deployment', 'packages/kjdraw-sdk/src/agent-plans']
 const check = process.argv.includes('--check')
 let changed = 0
 

@@ -18,6 +18,8 @@ test('package exposes the public TypeScript declarations', async () => {
   assert.match(declarations, /export class KJProjectSession/)
   assert.match(declarations, /export class KJDeploymentRegistry/)
   assert.match(declarations, /export function createDeploymentProfile/)
+  assert.match(declarations, /export class KJAgentPlanRegistry/)
+  assert.match(declarations, /export interface KJAgentPlanRecord/)
 })
 
 test('runtime SDK version matches the published package version', async () => {

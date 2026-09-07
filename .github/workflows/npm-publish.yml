@@ -1,0 +1,35 @@
+name: Publish SDK to npm
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Verify release package
+        run: |
+          node scripts/test.mjs
+          node --no-warnings scripts/build-typescript.mjs --check
+          node scripts/check.mjs
+          version="$(node -p "require('./packages/kjdraw-sdk/package.json').version")"
+          test "$(git rev-list -n 1 "v${version}")" = "$GITHUB_SHA"
+          npm pack --dry-run --workspace packages/kjdraw-sdk
+      - name: Publish with the correct distribution tag
+        run: |
+          version="$(node -p "require('./packages/kjdraw-sdk/package.json').version")"
+          tag="latest"
+          [[ "$version" == *-* ]] && tag="next"
+          npm publish --workspace packages/kjdraw-sdk --access public --tag "$tag" --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
