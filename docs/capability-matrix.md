@@ -16,6 +16,7 @@ Run `node scripts/test.mjs` and `node scripts/check.mjs` to reproduce the public
 | Area | Current public capability | Status |
 | --- | --- | --- |
 | Document model | Stable IDs/handles, ownership, tables, model/paper spaces, resources, revisions | Available |
+| Browser workbench | Multi-drawing tabs, project snapshots, Shift multi-select, grouped transforms, grid/snap/ortho controls and nested supported block geometry | Available for the demonstrated entity subset |
 | Transactions | Atomic commit, rollback, undo/redo, expected-revision conflicts | Available |
 | 2D editing | Create/erase/properties, transforms, arrays, offset, break, explode, trim/extend, chamfer/fillet | Available for declared combinations |
 | Inspection | Length, area, distance, angle, nearest point and intersections | Available for declared combinations |

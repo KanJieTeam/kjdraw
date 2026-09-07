@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0-preview.1
+
+- Added real multi-drawing project tabs, drawing creation and packaged project snapshots to the browser workbench.
+- Added Shift multi-selection with group move/copy/rotate/delete behavior.
+- Added Grid and Ortho drafting controls and status feedback.
+- Added nested block-insert rendering for supported public entity geometry.
+- Extended real-browser QA across the new project and drafting workflows.
+
 ## 0.3.1-preview.1
 
 - Repositioned KJDraw as extensible, deployment-neutral CAD infrastructure: browser-native, server-accelerated and deployable locally, self-hosted or cloud-assisted.

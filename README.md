@@ -41,7 +41,7 @@ node scripts/serve.mjs
 
 Open **http://localhost:4173**. No package installation, account, model API key, or backend service is needed. A prebuilt WASM kernel is included; its Rust source is in this repository. Applications can later attach explicit project, compute or scene providers for self-hosted and cloud-assisted deployments.
 
-The playground uses an original, synthetic field-station plan. Open or drop DXF/KJD/KJP files, draw lines, polylines, circles, arcs and text, edit layers and properties, measure geometry, run common modify commands, undo changes, download a KJP project, or export the ASCII DXF core subset. In the **Agent Command Lab**, preview moving the survey-point layer, inspect the amber proposal, and explicitly confirm the change.
+The playground uses an original, synthetic field-station plan. Open or drop DXF/KJD/KJP files; create multiple drawings in one project; capture project-wide snapshots; draw lines, polylines, circles, arcs and text; Shift-select and transform object sets; toggle grid, object snap and orthographic constraints; edit layers and properties; measure geometry; undo changes; download a KJP project; or export the ASCII DXF core subset. In the **Agent Command Lab**, preview moving the survey-point layer, inspect the amber proposal, and explicitly confirm the change.
 
 The command lab is a deterministic example of the agent protocol, not a connected language model. Files are processed in your browser. The playground does not upload drawings or include analytics. Download KJP before leaving the page to keep edits.
 
@@ -58,6 +58,7 @@ The command lab is a deterministic example of the agent protocol, not a connecte
 | Foundation | Available in this preview |
 | --- | --- |
 | **Documents** | Stable object IDs and CAD handles; layers, blocks, model/paper spaces, resources and revisions |
+| **Workbench** | Multi-drawing project tabs, project snapshots, multi-selection, drafting toggles, properties, measurements and responsive layouts |
 | **Editing** | Atomic transactions, undo/redo, transforms, selection, snaps and a declared subset of trim/extend/offset/fillet operations |
 | **File exchange** | JSON KJD documents, ZIP64 KJP projects, development ASCII DXF adapter with explicit limitations |
 | **Extensions** | Registries for commands, entities, file adapters and other extension points; plugin compatibility and permission declarations |
