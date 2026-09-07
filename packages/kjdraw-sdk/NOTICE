@@ -1,0 +1,13 @@
+KJDraw
+Copyright 2026 KanJieTeam and KJDraw contributors
+
+Local-first CAD infrastructure for engineering applications and AI agents.
+https://github.com/KanJieTeam/kjdraw
+Contact: hanwei5512@126.com
+
+The public SDK and Rust kernel were extracted from the Kanjie engineering
+workspace. This distribution contains no private project corpus, customer
+files, legacy vendor CAD asset libraries, account services, or model credentials.
+Public sample geometry and visual identity assets are original project assets.
+Kanjie and KJDraw names identify the project; this license does not grant
+permission to imply endorsement of a third-party product by KanJieTeam.

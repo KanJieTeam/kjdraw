@@ -1,0 +1,19 @@
+{
+  "schema": "com.kanjie.kjdraw.acceptance-matrix@1",
+  "release": "0.2.0-preview.1",
+  "note": "Public preview scope. The inherited 1.0 contract is a target, not a release certification.",
+  "gates": [
+    {"id":"contract.command-protocol","status":"passed","evidence":["packages/kjdraw-sdk/test/product-contract.test.mjs"]},
+    {"id":"document.transactions","status":"passed","evidence":["packages/kjdraw-sdk/test/sdk.test.mjs"]},
+    {"id":"file.local-authority","status":"partial","evidence":["packages/kjdraw-sdk/src/project-session.js"],"gap":"Browser downloads do not certify native durable saving."},
+    {"id":"file.kjp","status":"passed","evidence":["packages/kjdraw-sdk/test/project-package.test.mjs"]},
+    {"id":"kernel.file-intermediate-model","status":"partial","evidence":["runtime/kjcore-rs/crates/kjcore/src/cad.rs"],"gap":"Document bridge exists; complete downstream mutation cutover and geometry authority remain incomplete."},
+    {"id":"cad.dwg-roundtrip","status":"blocked","evidence":[],"gap":"No authoritative backend after removing ODA from the product direction; no supported DWG claim."},
+    {"id":"cad.dxf-roundtrip","status":"partial","evidence":["packages/kjdraw-sdk/test/dxf-adapter.test.mjs"],"gap":"Core synthetic fixtures; no all-version certification."},
+    {"id":"cad.2d-editing","status":"partial","evidence":["packages/kjdraw-sdk/test/editing-advanced.test.mjs"],"gap":"Only declared entity combinations."},
+    {"id":"cad.plotting","status":"blocked","evidence":[],"gap":"No complete layout/viewport/printing implementation."},
+    {"id":"kernel.solid","status":"partial","evidence":["packages/kjdraw-sdk/test/solid3d.test.mjs"],"gap":"Experimental meshes, not general BRep."},
+    {"id":"sdk.plugins","status":"partial","evidence":["packages/kjdraw-sdk/test/plugin-contract.test.mjs"],"gap":"Cooperative declarations, not hostile-code sandboxing."},
+    {"id":"public.synthetic-sample","status":"passed","evidence":["packages/kjdraw-sdk/test/sample-projects.test.mjs"]}
+  ]
+}

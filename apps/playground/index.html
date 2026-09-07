@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="KJDraw — local-first CAD infrastructure for engineering applications and AI agents. Try the open-source SDK in your browser.">
+  <meta name="theme-color" content="#0c1119">
+  <title>KJDraw — Open engineering, drawn forward.</title>
+  <link rel="icon" href="./docs/assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./apps/playground/style.css">
+</head>
+<body>
+  <header class="site-header"><a class="brand" href="./"><img src="./docs/assets/mark.svg" alt="" width="30" height="30">KJDraw<span class="tag">DEVELOPER PREVIEW</span></a><nav><a href="./docs/getting-started.md">Documentation ↗</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub ↗</a></nav></header>
+  <main>
+    <section class="hero"><div><div class="eyebrow"><span class="dot"></span> OPEN SOURCE · LOCAL FIRST</div><h1>Open engineering.<br><span>Drawn forward.</span></h1><p>Local-first CAD infrastructure for<br class="desktop"> engineering applications and AI agents.</p></div><div class="hero-aside"><span class="issue">KJ / 001</span><p>Your geometry. Your workflow.<br>A shared foundation to build on.</p><div class="tech-tags"><span>JavaScript</span><span>Rust + WASM</span><span>Apache 2.0</span></div></div></section>
+    <section class="workbench" aria-label="KJDraw interactive playground">
+      <div class="workbench-head"><div class="file-title"><span class="file-icon">◇</span><strong id="file-name">Field station</strong><span id="file-state">In memory</span></div><div class="file-actions"><button id="open">Open DXF / KJP</button><button id="save">Download KJP</button><button id="export" class="primary">Export DXF ↗</button><input id="file-input" type="file" accept=".dxf,.kjp,.kjd" hidden></div></div>
+      <div class="workspace">
+        <aside class="left-panel"><div class="panel-heading">PROJECT EXPLORER</div><div class="document-row">▱ <span id="drawing-title">Concept plan</span><span class="small-label">2D</span></div><div class="panel-heading section-space">LAYERS <span id="layer-count"></span></div><div id="layers"></div><div class="left-bottom"><div class="panel-heading">WORKSPACE</div><p>Browser-local execution.<br>No uploads. No account.</p><button id="reset">Reload sample</button></div></aside>
+        <div class="stage"><div class="toolbar" role="toolbar" aria-label="Drawing tools"><button data-tool="select" class="active" title="Select (V)" aria-label="Select" aria-pressed="true">↖</button><button data-tool="line" title="Line (L)" aria-label="Draw line" aria-pressed="false">╱</button><button data-tool="circle" title="Circle (C)" aria-label="Draw circle" aria-pressed="false">○</button><span class="separator"></span><button id="undo" title="Undo" aria-label="Undo">↶</button><button id="redo" title="Redo" aria-label="Redo">↷</button><span class="separator"></span><button id="fit" title="Fit drawing" aria-label="Fit drawing">⌗</button></div><canvas id="canvas" aria-label="CAD drawing canvas" tabindex="0"></canvas><div class="stage-label"><span class="dot"></span> MODEL SPACE <span>TOP / 2D</span></div><div class="orientation">Y <span>↑</span><div>└── X</div></div><div id="hint" class="stage-hint">Scroll to zoom · middle-drag to pan · click to inspect</div></div>
+        <aside class="right-panel"><div class="panel-heading">INSPECTOR</div><div id="inspector" class="inspector"></div><div class="agent-panel"><div class="panel-heading"><span class="agent-symbol">✳</span> AGENT COMMAND LAB</div><h3>Intent → review → commit.</h3><p>A deterministic protocol demo.<br>No model or API key connected.</p><label for="shift">Move survey points east</label><div class="input-row"><input id="shift" type="number" min="-100" max="100" step="1" value="3"><span>m</span><button id="plan">Preview</button></div><div id="plan-state" class="plan-state">Preview a change before committing it.</div><button id="confirm" class="confirm" disabled>Confirm change</button></div></aside>
+      </div>
+      <div class="statusbar"><span id="status" role="status" aria-live="polite">Loading local SDK…</span><div><span id="entity-count">0 entities</span><span id="revision">REV 0</span><span id="coordinates">X 0.00 · Y 0.00</span><button id="snap" aria-pressed="true">SNAP ON</button></div></div>
+    </section>
+    <section class="principles"><article><span>01 / OWNERSHIP</span><h2>Your files stay yours.</h2><p>Open documents, local project packages, and portable drawing data. Build around your users’ workflow.</p></article><article><span>02 / COMPOSABILITY</span><h2>A foundation, not a silo.</h2><p>One SDK for UI tools, scripts, and plugins. Embed engineering capabilities in the application you already own.</p></article><article><span>03 / INTENT</span><h2>Give agents a real interface.</h2><p>Versioned commands, explicit confirmation, execution receipts, and undoable changes.</p></article></section>
+    <footer><span>Built by <a href="https://github.com/KanJieTeam">KanJieTeam</a> · 勘界</span><span>Preview scope: core 2D entities · ASCII DXF · KJP · <a href="./docs/status.md">Known limitations ↗</a></span></footer>
+  </main>
+  <script type="module" src="./apps/playground/app.js"></script>
+</body></html>

@@ -1,0 +1,40 @@
+{
+  "name": "@kanjie/kjdraw-sdk",
+  "version": "0.2.0",
+  "description": "Local-first CAD documents, transactions, geometry and agent command interfaces",
+  "repository": { "type": "git", "url": "https://github.com/KanJieTeam/kjdraw.git", "directory": "packages/kjdraw-sdk" },
+  "homepage": "https://github.com/KanJieTeam/kjdraw#readme",
+  "bugs": "https://github.com/KanJieTeam/kjdraw/issues",
+  "author": "KanJieTeam <hanwei5512@126.com>",
+  "engines": { "node": ">=22" },
+  "files": ["src", "README.md", "LICENSE", "NOTICE"],
+  "keywords": ["cad", "dxf", "engineering", "local-first", "wasm", "geometry", "ai-agents"],
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./capabilities": "./src/capabilities.js",
+    "./document": "./src/document.js",
+    "./editing": "./src/editing.js",
+    "./file": "./src/file-adapters.js",
+    "./geometry": "./src/geometry/index.js",
+    "./geometry/wasm": "./src/geometry/wasm.js",
+    "./kernel/wasm-document": "./src/kernel/wasm-document.js",
+    "./kernel/wasm-solid": "./src/kernel/wasm-solid.js",
+    "./grips": "./src/grips.js",
+    "./file/kjd": "./src/kjd-adapter.js",
+    "./file/dxf": "./src/dxf-adapter.js",
+    "./roundtrip": "./src/roundtrip.js",
+    "./product-contract": "./src/product-contract.js",
+    "./plugin-contract": "./src/plugin-contract.js",
+    "./project-session": "./src/project-session.js",
+    "./project-package": "./src/project-package.js",
+    "./project-store/browser": "./src/browser-project-store.js",
+    "./selection": "./src/selection.js",
+    "./snapping": "./src/snapping.js"
+  },
+  "scripts": {
+    "test": "node ../../scripts/test.mjs"
+  },
+  "license": "Apache-2.0"
+}

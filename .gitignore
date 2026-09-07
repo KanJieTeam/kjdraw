@@ -1,0 +1,12 @@
+node_modules/
+dist/
+target/
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
+*.tgz
+*.log
+playwright-report/
+test-results/

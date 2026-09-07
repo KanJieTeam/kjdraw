@@ -1,0 +1,11 @@
+{
+  "name": "kjdraw", "version": "0.2.0-preview.1", "private": true,
+  "description": "Local-first CAD infrastructure for engineering applications and AI agents",
+  "type": "module", "license": "Apache-2.0", "engines": { "node": ">=22" },
+  "workspaces": ["packages/kjdraw-sdk"],
+  "scripts": {
+    "dev": "node scripts/serve.mjs", "test": "node scripts/test.mjs",
+    "build": "node scripts/build.mjs", "build:wasm": "node scripts/build-wasm.mjs",
+    "example": "node examples/agent-command.mjs", "check": "node scripts/check.mjs"
+  }
+}
