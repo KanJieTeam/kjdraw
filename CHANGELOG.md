@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0-preview.1
+
+- Expanded the browser playground into a usable general CAD workbench with DXF/KJD/KJP open and drag-drop, common drawing and modify tools, measurements, layers, property editing and a command bar.
+- Added broader 2D entity rendering and a continuously deployed GitHub Pages demo.
+- Added TypeScript declarations, a TypeScript authoring entry and strict migration configuration while retaining browser-compatible ESM.
+- Updated the project contact to `kanjieteam@163.com`.
+
 ## 0.2.0-preview.1
 
 First standalone developer preview of KJDraw. The SDK retains its existing 0.2.0 API baseline.

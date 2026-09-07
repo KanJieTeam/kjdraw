@@ -15,4 +15,4 @@ The SDK has no runtime npm dependencies. The playground uses browser APIs and lo
 
 Excluded: Kanjie account/organization services, reports and MDB data, historical case knowledge, vendor CAD templates, legacy YTKC/Lizheng asset libraries, private configuration, keys, caches and original git history. Compatibility family identifiers in inherited contracts do not include or license those vendors' assets.
 
-This source inventory is not a third-party legal audit. New contributions and new dependencies must identify their provenance and retain any required notices. Contact: hanwei5512@126.com.
+This source inventory is not a third-party legal audit. New contributions and new dependencies must identify their provenance and retain any required notices. Contact: kanjieteam@163.com.

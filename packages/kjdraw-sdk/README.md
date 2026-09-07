@@ -2,6 +2,8 @@
 
 Local-first CAD documents, commands, transactions, editing and file adapters. Framework-independent ES modules with no runtime npm dependencies.
 
+The package ships TypeScript declarations and a TypeScript authoring entry. Runtime modules remain standards-based ESM during the incremental source migration, so existing browser and Node.js consumers do not need a framework wrapper.
+
 Part of [KJDraw](https://github.com/KanJieTeam/kjdraw). See the repository README and `docs/getting-started.md` for the playground, optional Rust/WASM backend, and preview limitations.
 
 ```js

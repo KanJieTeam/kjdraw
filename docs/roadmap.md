@@ -11,7 +11,10 @@ The goal is local-first CAD infrastructure that engineering applications can emb
 
 ## Make embedding dependable
 
+- Move the SDK to TypeScript-first source with strict public types while continuing to publish browser- and Node-compatible ESM.
 - Document the public API and provide focused Vue/React integration examples.
+- Grow the playground into a product-shaped reference workbench with richer drawing tools, property editing, layers, measurements and a command bar.
+- Publish the workbench continuously on GitHub Pages; keep every demo workflow local-first and based on synthetic data.
 - Strengthen command-plan binding and clarify host security responsibilities.
 - Add source-owned plugin examples and schema/version compatibility checks.
 - Improve renderer coverage, picking, drafting interaction and accessibility.

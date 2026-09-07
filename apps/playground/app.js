@@ -5,8 +5,8 @@ const $ = id => document.getElementById(id)
 const canvas = $('canvas'), ctx = canvas.getContext('2d')
 const camera = { x: 60, y: 38, scale: 4 }
 const colors = ['#c8d7e7','#ee9999','#e8d697','#bdf878','#7db9e4','#b795db','#de91bf','#b8c7d8','#637b91']
-const visibleTypes = new Set(['LINE','CIRCLE','ARC','POINT','LWPOLYLINE','POLYLINE','TEXT','MTEXT'])
-let sdk, session, selection = null, tool = 'select', start = null, cursor = null, snapEnabled = true, pendingPlan = null, pan = null, busy = false, authority = null, solidAuthority = null, width = 1, height = 1
+const visibleTypes = new Set(['LINE','RAY','XLINE','CIRCLE','ARC','POINT','LWPOLYLINE','POLYLINE','ELLIPSE','SPLINE','TEXT','MTEXT','ATTDEF','ATTRIB','HATCH','LEADER','MLEADER','DIMENSION','WIPEOUT','REVISION_CLOUD','SOLID','TRACE','TABLE','VIEWPORT'])
+let sdk, session, selection = null, tool = 'select', start = null, draft = [], cursor = null, snapEnabled = true, pendingPlan = null, pan = null, busy = false, authority = null, solidAuthority = null, measurement = '', width = 1, height = 1
 const doc = () => sdk.activeDocument
 const message = text => { $('status').textContent = text }
 const point = p => [(p[0]-camera.x)*camera.scale+width/2, height/2-(p[1]-camera.y)*camera.scale]
@@ -14,9 +14,10 @@ const world = p => [(p[0]-width/2)/camera.scale+camera.x, (height/2-p[1])/camera
 const modelEntities = () => doc().listEntities({ ownerId: doc().snapshot().spaces.modelSpaceId })
 function invalidatePlan() { pendingPlan = null; $('confirm').disabled = true; $('plan-state').textContent = 'Preview a change before committing it.' }
 function setTool(value) {
-  tool = value; start = null
+  tool = value; start = null; draft = []
   for (const b of document.querySelectorAll('[data-tool]')) { b.classList.toggle('active', b.dataset.tool === tool); b.setAttribute('aria-pressed', String(b.dataset.tool === tool)) }
-  $('hint').textContent = tool === 'select' ? 'Scroll to zoom · middle-drag to pan · click to inspect' : `${tool === 'line' ? 'LINE: first point, then endpoint' : 'CIRCLE: center, then radius'} · Esc to cancel`
+  const hints = { select:'Scroll to zoom · middle-drag to pan · click to inspect', line:'LINE: first point, then endpoint', polyline:'POLYLINE: choose three vertices', circle:'CIRCLE: center, then radius', arc:'ARC: center, start, then endpoint', text:'TEXT: choose insertion point', measure:'DISTANCE: choose two points' }
+  $('hint').textContent = `${hints[tool] ?? tool.toUpperCase()}${tool === 'select' ? '' : ' · Esc to cancel'}`
   render()
 }
 function layerColor(entity) {
@@ -30,6 +31,7 @@ function drawEntity(entity, color, offset = [0,0], dashed = false) {
   ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = entity.id === selection ? 2 : 1; ctx.setLineDash(dashed ? [5,4] : [])
   ctx.beginPath()
   if (entity.type === 'LINE') { ctx.moveTo(...map(p.start)); ctx.lineTo(...map(p.end)); ctx.stroke() }
+  else if (entity.type === 'RAY' || entity.type === 'XLINE') { const origin=map(p.origin),d=p.direction??[1,0],span=Math.max(width,height)*2,s=Math.hypot(d[0],d[1])||1,dx=d[0]/s*span,dy=-d[1]/s*span;ctx.moveTo(origin[0]-(entity.type==='XLINE'?dx:0),origin[1]-(entity.type==='XLINE'?dy:0));ctx.lineTo(origin[0]+dx,origin[1]+dy);ctx.stroke() }
   else if (entity.type === 'CIRCLE' || entity.type === 'ARC') {
     const [x,y] = map(p.center)
     ctx.arc(x,y,p.radius*camera.scale,entity.type === 'ARC' ? -p.startAngle : 0,entity.type === 'ARC' ? -p.endAngle : Math.PI*2,entity.type === 'ARC'); ctx.stroke()
@@ -40,6 +42,13 @@ function drawEntity(entity, color, offset = [0,0], dashed = false) {
     const verts = p.vertices ?? []; if (verts.some(v => v.bulge)) return
     verts.forEach((v,i) => { const q = map(v.point ?? v); i ? ctx.lineTo(...q) : ctx.moveTo(...q) }); if (p.closed) ctx.closePath(); ctx.stroke()
   }
+  else if(entity.type==='ELLIPSE'){const [x,y]=map(p.center),rx=Math.hypot(p.majorAxis[0],p.majorAxis[1])*camera.scale,rotation=-Math.atan2(p.majorAxis[1],p.majorAxis[0]);ctx.ellipse(x,y,rx,rx*p.ratio,rotation,-(p.endParameter??Math.PI*2),-(p.startParameter??0));ctx.stroke()}
+  else if(entity.type==='SPLINE'){const points=p.fitPoints?.length?p.fitPoints:p.controlPoints??[];points.forEach((v,i)=>{const q=map(v);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.stroke()}
+  else if(entity.type==='HATCH'){for(const loop of p.boundaryLoops??[]){const verts=loop.vertices??[];ctx.beginPath();verts.forEach((v,i)=>{const q=map(v.point??v);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.closePath();ctx.globalAlpha=p.solid?.18:.08;ctx.fill();ctx.globalAlpha=1;ctx.stroke()}}
+  else if(['LEADER','MLEADER','DIMENSION'].includes(entity.type)){const verts=p.vertices??p.definitionPoints??[];verts.forEach((v,i)=>{const q=map(v);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.stroke();if(p.textPosition){const q=map(p.textPosition);ctx.fillText(p.textOverride??(p.measurement==null?'':Number(p.measurement).toFixed(2)),q[0],q[1])}}
+  else if(['SOLID','TRACE','WIPEOUT','REVISION_CLOUD'].includes(entity.type)){const verts=p.vertices??[];verts.forEach((v,i)=>{const q=map(v.point??v);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.closePath();ctx.globalAlpha=.15;ctx.fill();ctx.globalAlpha=1;ctx.stroke()}
+  else if(entity.type==='VIEWPORT'){const [x,y]=map(p.center);ctx.rect(x-p.width*camera.scale/2,y-p.height*camera.scale/2,p.width*camera.scale,p.height*camera.scale);ctx.stroke()}
+  else if(entity.type==='TABLE'){const [x,y]=map(p.position),totalW=(p.columnWidths??[]).reduce((a,b)=>a+b,0),totalH=(p.rowHeights??[]).reduce((a,b)=>a+b,0);ctx.rect(x,y,totalW*camera.scale,totalH*camera.scale);ctx.stroke()}
   ctx.setLineDash([])
 }
 function rendererSupports(entity) { return visibleTypes.has(entity.type) && !(['LWPOLYLINE','POLYLINE'].includes(entity.type) && entity.payload.vertices?.some(v => v.bulge)) }
@@ -54,6 +63,7 @@ function render() {
   for (const entity of entities) if(isVisible(entity))drawEntity(entity,entity.id === selection ? '#edffd8' : layerColor(entity))
   if(pendingPlan)for(const entity of entities)if(pendingPlan.ids.includes(entity.id))drawEntity(entity,'#e4bc7b',[pendingPlan.dx,0],true)
   if(start && cursor)drawEntity({type:tool==='circle'?'CIRCLE':'LINE',payload:tool==='circle'?{center:start,radius:Math.hypot(cursor[0]-start[0],cursor[1]-start[1])}:{start,end:cursor}},'#bdf878',[0,0],true)
+  if(tool==='polyline'&&draft.length>1){ctx.strokeStyle='#bdf878';ctx.setLineDash([5,4]);ctx.beginPath();draft.concat(cursor?[cursor]:[]).forEach((v,i)=>{const q=point(v);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.stroke();ctx.setLineDash([])}
 }
 function resize() {
   const rect = canvas.getBoundingClientRect();width=rect.width;height=rect.height
@@ -64,8 +74,11 @@ function bounds() {
   for(const e of modelEntities()) {
     const p=e.payload
     if(p.start)coords.push(p.start);if(p.end)coords.push(p.end);if(p.position)coords.push(p.position)
+    if(p.origin)coords.push(p.origin);if(p.textPosition)coords.push(p.textPosition)
     if(p.center)coords.push([p.center[0]-(p.radius??0),p.center[1]-(p.radius??0)],[p.center[0]+(p.radius??0),p.center[1]+(p.radius??0)])
     for(const v of p.vertices??[])coords.push(v.point??v)
+    for(const v of p.controlPoints??[])coords.push(v);for(const v of p.fitPoints??[])coords.push(v);for(const v of p.definitionPoints??[])coords.push(v)
+    for(const loop of p.boundaryLoops??[])for(const v of loop.vertices??[])coords.push(v.point??v)
   }
   const valid=coords.filter(p=>Array.isArray(p)&&Number.isFinite(p[0])&&Number.isFinite(p[1]))
   if(!valid.length)return [0,0,100,80]
@@ -83,16 +96,52 @@ function refresh() {
   for(const layer of layers){const label=document.createElement('label');label.className='layer';const input=document.createElement('input');input.type='checkbox';input.checked=layer.payload.visible!==false;input.setAttribute('aria-label',`Show layer ${layer.name}`);input.onchange=()=>run(()=>execute('LAYERUPDATE',{id:layer.id,patch:{visible:input.checked}}));const name=document.createElement('span');name.textContent=layer.name;const count=document.createElement('small');count.textContent=doc().listEntities().filter(e=>e.payload.layerId===layer.id).length;label.append(input,name,count);$('layers').append(label)}
   const entity=selection?doc().getObject(selection):null; if(!entity)selection=null
   $('inspector').replaceChildren();const title=document.createElement('h3');title.textContent=entity?entity.type:'Drawing document';$('inspector').append(title)
-  if(entity){field($('inspector'),'Handle',entity.handle);field($('inspector'),'Layer',doc().getObject(entity.payload.layerId)?.name??'0');if(entity.payload.radius)field($('inspector'),'Radius',entity.payload.radius.toFixed(3));if(entity.payload.text)field($('inspector'),'Text',entity.payload.text);const erase=document.createElement('button');erase.textContent='Delete selected';erase.onclick=()=>run(()=>execute('ERASE',{ids:[selection]}));$('inspector').append(erase)}
+  if(entity){
+    field($('inspector'),'Handle',entity.handle);field($('inspector'),'Layer',doc().getObject(entity.payload.layerId)?.name??'0');if(entity.payload.radius)field($('inspector'),'Radius',entity.payload.radius.toFixed(3));if(entity.payload.text)field($('inspector'),'Text',entity.payload.text)
+    const editor=document.createElement('div');editor.className='property-editor'
+    const layerLabel=document.createElement('label');layerLabel.textContent='LAYER';const layerSelect=document.createElement('select')
+    for(const layer of doc().getTable('layers').records){const option=document.createElement('option');option.value=layer.id;option.textContent=layer.name;option.selected=layer.id===entity.payload.layerId;layerSelect.append(option)}
+    layerLabel.append(layerSelect);editor.append(layerLabel)
+    let valueInput=null
+    if(entity.type==='CIRCLE'||entity.type==='ARC'){const label=document.createElement('label');label.textContent='RADIUS';valueInput=document.createElement('input');valueInput.type='number';valueInput.min='0.000001';valueInput.step='0.1';valueInput.value=entity.payload.radius;label.append(valueInput);editor.append(label)}
+    if(entity.type==='TEXT'||entity.type==='MTEXT'){const label=document.createElement('label');label.textContent='TEXT';valueInput=document.createElement('input');valueInput.value=entity.payload.text??'';label.append(valueInput);editor.append(label)}
+    const save=document.createElement('button');save.textContent='Apply properties';save.onclick=()=>run(async()=>{const payload={...entity.payload,layerId:layerSelect.value};if(valueInput&&(entity.type==='CIRCLE'||entity.type==='ARC'))payload.radius=Number(valueInput.value);if(valueInput&&(entity.type==='TEXT'||entity.type==='MTEXT'))payload.text=valueInput.value;await execute('PROPERTIES',{id:entity.id,patch:{payload}})});editor.append(save);$('inspector').append(editor)
+    const erase=document.createElement('button');erase.textContent='Delete selected';erase.onclick=()=>run(()=>execute('ERASE',{ids:[selection]}));$('inspector').append(erase)
+  }
   else {field($('inspector'),'Revision',doc().revision);field($('inspector'),'Model entities',modelEntities().length);field($('inspector'),'Kernel',authority?'Rust / WASM':'JS reference');field($('inspector'),'Units',doc().snapshot().header.units??'unspecified')}
   const omitted=modelEntities().filter(e=>!rendererSupports(e)).length
   if(omitted){const warning=document.createElement('p');warning.textContent=`${omitted} entities not drawn by this minimal viewer. Preserved in the document; use KJP for lossless storage.`;$('inspector').append(warning)}
+  if(measurement){const output=document.createElement('div');output.className='measure-result';output.textContent=measurement;$('inspector').append(output)}
   render()
 }
 async function execute(command,args={},options={}) {
   invalidatePlan()
   const result=await sdk.executeCommandEnvelope(sdk.createCommandEnvelope(command,args,{expectedRevision:doc().revision,origin:'ui',...options}))
   $('file-state').textContent='Modified in memory';message(`${command} committed · revision ${doc().revision}`);refresh();return result
+}
+async function query(command,args={}) {
+  const result=await sdk.executeCommand(command,args)
+  measurement=`${command}: ${JSON.stringify(result)}`
+  refresh();message(`${command} completed · drawing unchanged`);return result
+}
+function requireSelection(){const entity=selection?doc().getObject(selection):null;if(!entity)throw new Error('Select an entity first.');return entity}
+async function transformSelection(command){
+  const entity=requireSelection()
+  if(command==='MOVE'||command==='COPY'){const dx=Number(window.prompt(`${command} X distance`,'5'));if(!Number.isFinite(dx))return;const dy=Number(window.prompt(`${command} Y distance`,'0'));if(!Number.isFinite(dy))return;const result=await execute(command,{ids:[entity.id],dx,dy});if(command==='COPY'&&Array.isArray(result)&&result[0]?.id)selection=result[0].id}
+  else if(command==='ROTATE'){const degrees=Number(window.prompt('Rotation angle in degrees','15'));if(!Number.isFinite(degrees))return;await execute('ROTATE',{ids:[entity.id],angle:degrees*Math.PI/180,center:[0,0]})}
+  else if(command==='OFFSET'){const distance=Number(window.prompt('Offset distance','2'));if(!Number.isFinite(distance))return;const result=await execute('OFFSET',{id:entity.id,distance});if(result?.id)selection=result.id}
+  refresh()
+}
+async function runTypedCommand(){
+  const raw=$('command-input').value.trim();if(!raw)return
+  const [name,...values]=raw.split(/[\s,]+/),command=name.toUpperCase();$('command-input').value=''
+  if(command==='FIT'){fit();message('View fitted');return}if(command==='UNDO'||command==='REDO'){await execute(command);return}
+  if(command==='MOVE'||command==='COPY'){const entity=requireSelection(),dx=Number(values[0]??0),dy=Number(values[1]??0);await execute(command,{ids:[entity.id],dx,dy});return}
+  if(command==='ROTATE'){const entity=requireSelection();await execute(command,{ids:[entity.id],angle:Number(values[0]??0)*Math.PI/180,center:[0,0]});return}
+  if(command==='OFFSET'){await execute(command,{id:requireSelection().id,distance:Number(values[0]??1)});return}
+  if(command==='ERASE'||command==='DELETE'){await execute('ERASE',{ids:[requireSelection().id]});return}
+  if(command==='LENGTH'||command==='AREA'){await query(command,{ids:[requireSelection().id]});return}
+  throw new Error(`Supported commands: MOVE, COPY, ROTATE, OFFSET, LENGTH, AREA, ERASE, UNDO, REDO, FIT`)
 }
 async function run(work){if(busy)return;busy=true;try{await work()}catch(e){message(e.cause?.message??e.message);console.error(e)}finally{busy=false}}
 async function freshSample(){const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});const document=await createSample(next);session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'sample-field-station',title:'Field station',documents:[document],metadata:{synthetic:true}});selection=null;invalidatePlan();$('file-name').textContent='Field station';$('drawing-title').textContent='Concept plan';$('file-state').textContent='In memory';refresh();fit();message('Synthetic sample · local execution · no uploads')}
@@ -107,9 +156,22 @@ async function openFile(file){
 }
 $('open').onclick=()=>$('file-input').click()
 $('file-input').onchange=e=>run(async()=>{try{await openFile(e.target.files[0])}finally{e.target.value=''}})
+for(const eventName of ['dragenter','dragover'])$('drop-zone').addEventListener(eventName,e=>{e.preventDefault();$('drop-zone').classList.add('dragging')})
+for(const eventName of ['dragleave','drop'])$('drop-zone').addEventListener(eventName,e=>{e.preventDefault();$('drop-zone').classList.remove('dragging')})
+$('drop-zone').addEventListener('drop',e=>run(()=>openFile(e.dataTransfer?.files?.[0])))
 $('save').onclick=()=>run(async()=>{const bytes=await session.package();download(bytes,'drawing.kjp','application/zip');message('KJP download requested · includes every drawing in this project')})
 $('export').onclick=()=>run(async()=>{const text=await sdk.writeDocument(doc(),{format:'DXF',version:'2018'});download(text,'drawing.dxf','application/dxf');message('ASCII DXF 2018 downloaded · core adapter, see compatibility limits')})
 $('undo').onclick=()=>run(()=>execute('UNDO'));$('redo').onclick=()=>run(()=>execute('REDO'));$('fit').onclick=fit
+$('fit-ribbon').onclick=fit
+$('move-selection').onclick=()=>run(()=>transformSelection('MOVE'))
+$('copy-selection').onclick=()=>run(()=>transformSelection('COPY'))
+$('rotate-selection').onclick=()=>run(()=>transformSelection('ROTATE'))
+$('offset-selection').onclick=()=>run(()=>transformSelection('OFFSET'))
+$('delete-selection').onclick=()=>run(()=>execute('ERASE',{ids:[requireSelection().id]}))
+$('measure-entity').onclick=()=>run(async()=>{const entity=requireSelection();const supportedArea=['CIRCLE','ELLIPSE','LWPOLYLINE','POLYLINE','SOLID','TRACE'].includes(entity.type);await query(supportedArea?'AREA':'LENGTH',{ids:[entity.id]})})
+$('run-command').onclick=()=>run(runTypedCommand)
+$('command-input').onkeydown=e=>{if(e.key==='Enter')run(runTypedCommand)}
+$('new-layer').onclick=()=>run(async()=>{const name=window.prompt('New layer name','Design');if(!name?.trim())return;await execute('LAYERNEW',{name:name.trim(),color:3})})
 $('reset').onclick=()=>run(async()=>{if(window.confirm('Replace the open project with the sample? Download KJP first to keep your changes.'))await freshSample()})
 $('snap').onclick=()=>{snapEnabled=!snapEnabled;$('snap').textContent=`SNAP ${snapEnabled?'ON':'OFF'}`;$('snap').setAttribute('aria-pressed',String(snapEnabled))}
 for(const b of document.querySelectorAll('[data-tool]'))b.onclick=()=>setTool(b.dataset.tool)
@@ -143,13 +205,30 @@ canvas.onpointerdown=e=>{
   if(tool==='select'){
     const candidates=sdk.snap(world(pointer(e)),{radius:10/camera.scale,modes:['nearest','center','endpoint']});selection=candidates.find(c=>isVisible(doc().getObject(c.entityIds[0])))?.entityIds[0]??null;refresh();return
   }
+  if(tool==='text'){const text=window.prompt('Text content','KJDraw');if(text)run(()=>execute('CREATE',{type:'TEXT',payload:{position:p,height:2.5,rotation:0,text}}));return}
+  if(tool==='measure'){
+    if(!start){start=p;cursor=p;message('Choose the second distance point');return}
+    const first=start;start=null;run(()=>query('DISTANCE',{firstPoint:first,secondPoint:p}));return
+  }
+  if(tool==='polyline'){
+    draft.push(p);start=p
+    if(draft.length<3){message(`Polyline vertex ${draft.length}/3`);render();return}
+    const vertices=draft.map(point=>({point}));draft=[];start=null;run(()=>execute('CREATE',{type:'LWPOLYLINE',payload:{vertices,closed:false}}));return
+  }
+  if(tool==='arc'){
+    draft.push(p);start=p
+    if(draft.length<3){message(draft.length===1?'Choose arc start point':'Choose arc endpoint');render();return}
+    const [center,arcStart,arcEnd]=draft;draft=[];start=null
+    const radius=Math.hypot(arcStart[0]-center[0],arcStart[1]-center[1]);if(radius<1e-9){message('Arc radius must be positive');return}
+    run(()=>execute('CREATE',{type:'ARC',payload:{center,radius,startAngle:Math.atan2(arcStart[1]-center[1],arcStart[0]-center[0]),endAngle:Math.atan2(arcEnd[1]-center[1],arcEnd[0]-center[0])}}));return
+  }
   if(!start){start=p;cursor=p;message(tool==='line'?'Choose endpoint':'Choose radius');return}
   const initial=start;start=null
   run(async()=>{if(tool==='circle'){const radius=Math.hypot(p[0]-initial[0],p[1]-initial[1]);if(radius<1e-9)throw new Error('Circle radius must be positive.');await execute('CREATE',{type:'CIRCLE',payload:{center:initial,radius}})}else await execute('CREATE',{type:'LINE',payload:{start:initial,end:p}})})
 }
 canvas.onpointerup=()=>{pan=null};canvas.onpointercancel=()=>{pan=null;start=null;render()}
 canvas.addEventListener('wheel',e=>{e.preventDefault();const p=pointer(e),a=world(p);camera.scale=Math.min(10000,Math.max(.00001,camera.scale*Math.exp(-e.deltaY*.001)));const b=world(p);camera.x+=a[0]-b[0];camera.y+=a[1]-b[1];render()},{passive:false})
-window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA'].includes(e.target.tagName))return;if(e.key==='Escape'){setTool('select');invalidatePlan();render()}if(e.key.toLowerCase()==='l')setTool('line');if(e.key.toLowerCase()==='c')setTool('circle');if(e.key.toLowerCase()==='v')setTool('select');if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();run(()=>execute(e.shiftKey?'REDO':'UNDO'))}})
+window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.key==='Escape'){setTool('select');invalidatePlan();render()}const key=e.key.toLowerCase();if(key==='l')setTool('line');if(key==='p')setTool('polyline');if(key==='c')setTool('circle');if(key==='a')setTool('arc');if(key==='t')setTool('text');if(key==='d')setTool('measure');if(key==='v')setTool('select');if((e.ctrlKey||e.metaKey)&&key==='z'){e.preventDefault();run(()=>execute(e.shiftKey?'REDO':'UNDO'))}})
 new ResizeObserver(resize).observe(canvas)
 try {
   const {instance}=await instantiateKJCoreWasm(new URL('../../web/public/kjcore/kjcore.wasm',import.meta.url))

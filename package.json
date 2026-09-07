@@ -1,5 +1,5 @@
 {
-  "name": "kjdraw", "version": "0.2.0-preview.1", "private": true,
+  "name": "kjdraw", "version": "0.3.0-preview.1", "private": true,
   "description": "Local-first CAD infrastructure for engineering applications and AI agents",
   "type": "module", "license": "Apache-2.0", "engines": { "node": ">=22" },
   "workspaces": ["packages/kjdraw-sdk"],

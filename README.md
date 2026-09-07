@@ -4,11 +4,12 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-bcf878?style=flat-square&labelColor=17212f" alt="Apache 2.0"></a>
   <a href="docs/status.md"><img src="https://img.shields.io/badge/status-developer_preview-e8bc7b?style=flat-square&labelColor=17212f" alt="Developer preview"></a>
   <a href="https://github.com/KanJieTeam/kjdraw/actions/workflows/ci.yml"><img src="https://github.com/KanJieTeam/kjdraw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://kanjieteam.github.io/kjdraw/"><img src="https://img.shields.io/badge/demo-open_playground-bdf878?style=flat-square&labelColor=17212f" alt="Open live playground"></a>
   <a href="docs/getting-started.md"><img src="https://img.shields.io/badge/runtime-browser_%2B_Node.js-7db9e4?style=flat-square&labelColor=17212f" alt="Browser and Node.js"></a>
 </p>
 
 <p align="center"><strong>Open engineering. Drawn forward.</strong><br>Build CAD into your application. Keep control of the document. Give agents an explicit command interface.</p>
-<p align="center"><a href="#try-it-locally">Get started</a> · <a href="docs/architecture.md">Architecture</a> · <a href="docs/roadmap.md">Roadmap</a> · <a href="CONTRIBUTING.md">Contribute</a> · <a href="README.zh-CN.md">简体中文</a></p>
+<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><strong>Live demo</strong></a> · <a href="#try-it-locally">Get started</a> · <a href="docs/architecture.md">Architecture</a> · <a href="docs/roadmap.md">Roadmap</a> · <a href="CONTRIBUTING.md">Contribute</a> · <a href="README.zh-CN.md">简体中文</a></p>
 
 ## Why KJDraw
 
@@ -20,6 +21,8 @@ Our ambition is to make reliable, programmable CAD accessible to the teams build
 
 ## Try it locally
 
+Try the browser playground first: **[kanjieteam.github.io/kjdraw](https://kanjieteam.github.io/kjdraw/)**. It runs locally in the browser and uploads no drawing data.
+
 Install **Node.js 22 or newer**, then:
 
 ```sh
@@ -30,7 +33,7 @@ node scripts/serve.mjs
 
 Open **http://localhost:4173**. No package installation, account, model API key, or backend service is needed. A prebuilt WASM kernel is included; its Rust source is in this repository.
 
-The playground uses an original, synthetic field-station plan. Select objects, draw lines and circles, toggle layers, undo changes, download a KJP project, or export the ASCII DXF core subset. In the **Agent Command Lab**, preview moving the survey-point layer, inspect the amber proposal, and explicitly confirm the change.
+The playground uses an original, synthetic field-station plan. Open or drop DXF/KJD/KJP files, draw lines, polylines, circles, arcs and text, edit layers and properties, measure geometry, run common modify commands, undo changes, download a KJP project, or export the ASCII DXF core subset. In the **Agent Command Lab**, preview moving the survey-point layer, inspect the amber proposal, and explicitly confirm the change.
 
 The command lab is a deterministic example of the agent protocol, not a connected language model. Files are processed in your browser. The playground does not upload drawings or include analytics. Download KJP before leaving the page to keep edits.
 
@@ -52,6 +55,7 @@ The command lab is a deterministic example of the agent protocol, not a connecte
 | **Extensions** | Registries for commands, entities, file adapters and other extension points; plugin compatibility and permission declarations |
 | **Agent interfaces** | Plan/execute envelopes, expected revisions, confirmation metadata and execution receipts |
 | **Rust + WASM** | Document validation/revisions, primitive geometry queries, and experimental solid-mesh operations |
+| **Typed integration** | TypeScript declarations and a TypeScript authoring entry, while browser-compatible ESM remains stable during migration |
 
 **Developer preview:** API and file migration policies are still evolving. There is no supported DWG backend, complete CAD plotting pipeline, or general BRep modeler. The minimal playground renders fewer entity types than the SDK can store. Rust authority is scoped to implemented operations; many 2D edits remain JavaScript. See the [capability boundaries](docs/status.md) before using project deliverables in production.
 
@@ -127,6 +131,6 @@ node scripts/build.mjs   # standalone static playground → dist/
 
 We welcome reproducible DXF issues, small geometry fixes, documentation, accessibility improvements, and integrations. Use synthetic or explicitly redistributable files in public issues. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and the [roadmap](docs/roadmap.md).
 
-**Maintained by [KanJieTeam](https://github.com/KanJieTeam)** · Contact: [hanwei5512@126.com](mailto:hanwei5512@126.com)
+**Maintained by [KanJieTeam](https://github.com/KanJieTeam)** · Contact: [kanjieteam@163.com](mailto:kanjieteam@163.com)
 
 Apache License 2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE), and [provenance](docs/provenance.md). The license covers this repository, not private Kanjie project data, commercial services, or third-party CAD resources.

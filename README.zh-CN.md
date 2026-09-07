@@ -1,7 +1,7 @@
 <p align="center"><img src="docs/assets/hero.svg" alt="KJDraw — 面向工程应用与 AI Agent 的本地优先 CAD 基础设施" width="100%"></p>
 
 <p align="center"><strong>面向工程应用与 AI Agent 的本地优先 CAD 基础设施。</strong><br>让几何可编辑，让修改可复核，让工程能力可以共同建设。</p>
-<p align="center"><a href="README.md">English</a> · <a href="docs/getting-started.md">快速开始</a> · <a href="docs/architecture.md">架构</a> · <a href="docs/roadmap.md">路线图</a> · <a href="CONTRIBUTING.md">参与贡献</a></p>
+<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><strong>在线演示</strong></a> · <a href="README.md">English</a> · <a href="docs/getting-started.md">快速开始</a> · <a href="docs/architecture.md">架构</a> · <a href="docs/roadmap.md">路线图</a> · <a href="CONTRIBUTING.md">参与贡献</a></p>
 
 ## 为什么做 KJDraw
 
@@ -13,6 +13,8 @@
 
 ## 立即运行
 
+先打开在线演示：**[kanjieteam.github.io/kjdraw](https://kanjieteam.github.io/kjdraw/)**。图纸只在浏览器本地处理，不上传服务器。
+
 安装 **Node.js 22 或更新版本**：
 
 ```sh
@@ -23,7 +25,7 @@ node scripts/serve.mjs
 
 打开 **http://localhost:4173**。无需安装 npm 依赖、注册账号、配置模型密钥或启动业务后端。仓库包含可重建的 WASM 文件和对应 Rust 源码。
 
-演示图由原创合成数据生成。可以选择对象、画线和圆、切换图层、撤销、下载 KJP、导出 ASCII DXF。右侧 **Agent Command Lab** 可预览勘探点图层的移动，再由用户确认提交；琥珀色虚线表示建议位置。
+演示图由原创合成数据生成。可以打开或拖入 DXF/KJD/KJP，绘制直线、折线、圆、圆弧和文字，编辑图层与对象属性，测量几何，执行常用修改命令，撤销、下载 KJP、导出 ASCII DXF。右侧 **Agent Command Lab** 可预览勘探点图层的移动，再由用户确认提交；琥珀色虚线表示建议位置。
 
 这是确定性的命令协议演示，尚未接入大模型。文件在浏览器本地处理，演示不上传图纸，也不包含分析埋点。离开页面前请下载 KJP 保存修改。
 
@@ -45,6 +47,7 @@ node scripts/serve.mjs
 | 扩展 | 命令、对象与文件适配器注册、插件版本与权限声明 |
 | Agent 接口 | 修改计划、显式确认、预期版本检查、执行回执 |
 | Rust/WASM | 文档校验与修订、基础几何查询、实验性实体网格运算 |
+| 类型化接入 | TypeScript 类型声明与 TS 编写入口；迁移期间继续兼容浏览器 ESM |
 
 当前是 **Developer Preview**。不承诺完整 DWG 读写、全套打印出图或通用 BRep。演示画布的显示范围小于 SDK 的存储范围；不少二维编辑算法仍由 JavaScript 实现。详见[当前能力边界](docs/status.md)。
 
@@ -77,6 +80,6 @@ node scripts/build.mjs
 
 勘界后续采用固定版本的开源核心。共享代码优先在本仓库修改，通过验证后再更新到勘界；专业业务、企业服务和私有数据保持独立。参见[下游集成约定](docs/downstream.md)和[路线图](docs/roadmap.md)。
 
-由 [KanJieTeam](https://github.com/KanJieTeam) 维护 · 联系邮箱：[hanwei5512@126.com](mailto:hanwei5512@126.com)
+由 [KanJieTeam](https://github.com/KanJieTeam) 维护 · 联系邮箱：[kanjieteam@163.com](mailto:kanjieteam@163.com)
 
 采用 [Apache-2.0](LICENSE) 许可证。公开范围与来源见 [NOTICE](NOTICE) 和[来源说明](docs/provenance.md)。

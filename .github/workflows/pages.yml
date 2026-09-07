@@ -1,5 +1,17 @@
 name: Deploy playground
 on:
+  push:
+    branches: [main]
+    paths:
+      - apps/playground/**
+      - packages/kjdraw-sdk/src/**
+      - web/public/kjcore/**
+      - docs/**
+      - examples/**
+      - scripts/**
+      - README.md
+      - README.zh-CN.md
+      - .github/workflows/pages.yml
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,6 +35,8 @@ jobs:
       - run: node scripts/check.mjs
       - run: node scripts/build.mjs
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
