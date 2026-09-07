@@ -13,7 +13,7 @@
 
 ## 当前验证基线
 
-| 65 个可执行命令 | 28 种对象契约 | 88 个自动测试 | 7 版本 DXF 语料 |
+| 65 个可执行命令 | 28 种对象契约 | 89 个自动测试 | 7 版本 DXF 语料 |
 | :---: | :---: | :---: | :---: |
 | 事务与编辑 | 二维及受限实体网格 | SDK、文件、WASM、示例 | R14 至 2024 标签 |
 
@@ -56,7 +56,7 @@ node scripts/serve.mjs
 | 扩展 | 命令、对象与文件适配器注册、插件版本与权限声明 |
 | Agent 接口 | 修改计划、显式确认、预期版本检查、执行回执 |
 | Rust/WASM | 文档校验与修订、基础几何查询、实验性实体网格运算 |
-| 类型化接入 | TypeScript 类型声明与 TS 编写入口；迁移期间继续兼容浏览器 ESM |
+| 类型化接入 | Provider 已由 TypeScript 源码驱动并生成可复现浏览器 ESM；[其余模块渐进迁移](docs/typescript-migration.md) |
 | 部署 Provider | 工程存储、计算和场景接口；支持本地、私有化、云增强与混合部署 |
 
 当前是 **Developer Preview**。不承诺完整 DWG 读写、全套打印出图或通用 BRep。演示画布的显示范围小于 SDK 的存储范围；不少二维编辑算法仍由 JavaScript 实现。详见[当前能力边界](docs/status.md)。
@@ -104,6 +104,7 @@ KJDraw 开源通用 CAD 文档、几何、文件、工作台和扩展契约。�
 
 ```sh
 node scripts/test.mjs
+node --no-warnings scripts/build-typescript.mjs --check
 node scripts/audit-dxf-corpus.mjs
 node scripts/check.mjs
 node scripts/build.mjs

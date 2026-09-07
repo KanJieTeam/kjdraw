@@ -5,6 +5,26 @@ export type KJCommandMode = 'execute' | 'plan'
 export type KJDeploymentMode = 'browser-local' | 'desktop-local' | 'self-hosted' | 'cloud-assisted' | 'hybrid'
 export type KJProviderType = 'project-store' | 'compute' | 'scene'
 
+export interface KJDeploymentProvider {
+  id: string
+  locality?: string
+  [key: string]: unknown
+}
+
+export interface KJProjectStoreProvider extends KJDeploymentProvider {
+  loadProject(projectId: string, options?: Record<string, unknown>): Promise<unknown>
+  saveProject(projectId: string, project: unknown, options?: Record<string, unknown>): Promise<unknown>
+}
+
+export interface KJComputeProvider extends KJDeploymentProvider {
+  execute(operation: string, input: unknown, options?: Record<string, unknown>): Promise<unknown>
+}
+
+export interface KJSceneProvider extends KJDeploymentProvider {
+  openScene(sceneId: string, options?: Record<string, unknown>): Promise<unknown>
+  queryViewport(viewport: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>
+}
+
 export interface KJDeploymentProfile {
   schema: 'com.kanjie.kjdraw.deployment-profile@1'
   mode: KJDeploymentMode
@@ -13,9 +33,9 @@ export interface KJDeploymentProfile {
 }
 
 export class KJDeploymentRegistry {
-  register(type: KJProviderType, provider: Record<string, unknown>, options?: { replace?: boolean }): () => boolean
-  get(type: KJProviderType, id: string): Record<string, unknown> | null
-  list(type?: KJProviderType): ReadonlyArray<Record<string, unknown>>
+  register(type: KJProviderType, provider: KJDeploymentProvider, options?: { replace?: boolean }): () => boolean
+  get(type: KJProviderType, id: string): Readonly<KJDeploymentProvider> | null
+  list(type?: KJProviderType): ReadonlyArray<Readonly<KJDeploymentProvider>>
 }
 
 export function createDeploymentProfile(options?: { mode?: KJDeploymentMode; projectAuthority?: string; providers?: Partial<Record<KJProviderType, string>> }): KJDeploymentProfile

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0-preview.1
+
+- Began the real TypeScript source migration with the deployment Provider vertical slice.
+- Added typed project-store, compute and scene-provider contracts in the authoritative source.
+- Added a dependency-free TypeScript-to-ESM build and CI parity gate while retaining zero-install browser execution.
+- Added release version alignment tests and a documented migration policy for remaining SDK modules.
+
 ## 0.5.0-preview.1
 
 - Added an original, redistributable ASCII DXF corpus across every declared R14–2024 target label.

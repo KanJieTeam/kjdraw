@@ -17,6 +17,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: node scripts/test.mjs
+      - run: node --no-warnings scripts/build-typescript.mjs --check
       - run: node scripts/audit-dxf-corpus.mjs
       - run: node scripts/check.mjs
       - run: node scripts/build.mjs

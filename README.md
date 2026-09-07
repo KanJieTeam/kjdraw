@@ -21,7 +21,7 @@ Our ambition is to make reliable, programmable CAD accessible to the teams build
 
 ## Verified today
 
-| 65 executable commands | 28 entity contracts | 88 automated tests | 7-version DXF corpus |
+| 65 executable commands | 28 entity contracts | 89 automated tests | 7-version DXF corpus |
 | :---: | :---: | :---: | :---: |
 | Transactions and editing | 2D plus bounded solid meshes | SDK, files, WASM and samples | R14 through 2024 labels |
 
@@ -64,7 +64,7 @@ The command lab is a deterministic example of the agent protocol, not a connecte
 | **Extensions** | Registries for commands, entities, file adapters and other extension points; plugin compatibility and permission declarations |
 | **Agent interfaces** | Plan/execute envelopes, expected revisions, confirmation metadata and execution receipts |
 | **Rust + WASM** | Document validation/revisions, primitive geometry queries, and experimental solid-mesh operations |
-| **Typed integration** | TypeScript declarations and a TypeScript authoring entry, while browser-compatible ESM remains stable during migration |
+| **Typed integration** | TypeScript-owned Provider source, public declarations and reproducible browser ESM; [remaining modules migrate incrementally](docs/typescript-migration.md) |
 | **Deployment providers** | Host-selected project storage, compute and scene contracts for local, self-hosted, cloud-assisted or hybrid applications |
 
 **Developer preview:** API and file migration policies are still evolving. There is no certified public DWG backend, complete CAD plotting pipeline, or general BRep modeler. The reference workbench renders fewer entity variants than the SDK can store. Rust authority is scoped to implemented operations; many 2D edits remain JavaScript. See the [capability boundaries](docs/status.md) before using project deliverables in production.
@@ -148,6 +148,7 @@ Read the [architecture](docs/architecture.md), [open-source boundary](docs/open-
 
 ```sh
 node scripts/test.mjs    # SDK, WASM artifact, and public sample tests
+node --no-warnings scripts/build-typescript.mjs --check # TypeScript source/ESM parity
 node scripts/audit-dxf-corpus.mjs # per-version DXF semantic preservation evidence
 node scripts/check.mjs   # release metadata, local links, package boundaries
 node scripts/build.mjs   # standalone static playground → dist/

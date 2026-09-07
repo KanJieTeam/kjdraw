@@ -6,7 +6,7 @@ This matrix describes executable public code in the current developer preview. I
 
 - **65 registered commands** backed by SDK implementations and audited capability declarations.
 - **28 standard entity contracts**, including `PROXY_ENTITY` preservation and experimental `SOLID3D`.
-- **88 automated tests** covering documents, editing, deployment providers, files, projects, plugins, Rust/WASM bridges and public samples.
+- **89 automated tests** covering documents, editing, deployment providers, files, projects, plugins, Rust/WASM bridges and public samples.
 - **7 synthetic DXF target fixtures** with reproducible hashes and semantic read/write/reopen evidence.
 - **No runtime npm dependencies** for the SDK checkout path.
 
@@ -25,6 +25,7 @@ Run `node scripts/test.mjs` and `node scripts/check.mjs` to reproduce the public
 | Files | KJD read/write, deterministic ZIP64 KJP, ASCII DXF read/write and [7-version synthetic corpus](dxf-compatibility.md) | Developer preview |
 | Extensions | Commands, entities, renderers, file adapters, tools, snaps, properties and workspaces | Available |
 | Deployment | Browser, desktop, self-hosted, cloud-assisted and hybrid provider profiles | Contract available |
+| TypeScript source | Deployment Provider vertical slice with generated ESM parity gate; declarations cover the public SDK | Migration in progress |
 | Agent interface | Plan/execute envelopes, explicit confirmation, revision binding and receipts | Available |
 | Rust/WASM | Document validation, geometry primitives and bounded solid-mesh operations | Partial |
 | General BRep | Curved topology, healing and arbitrary solid operations | Not available |

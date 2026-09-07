@@ -1,10 +1,11 @@
 {
-  "name": "kjdraw", "version": "0.5.0-preview.1", "private": true,
+  "name": "kjdraw", "version": "0.6.0-preview.1", "private": true,
   "description": "Extensible CAD infrastructure for engineering applications and AI agents",
   "type": "module", "license": "Apache-2.0", "engines": { "node": ">=22" },
   "workspaces": ["packages/kjdraw-sdk"],
   "scripts": {
     "dev": "node scripts/serve.mjs", "test": "node scripts/test.mjs",
+    "build:types": "node --no-warnings scripts/build-typescript.mjs",
     "build": "node scripts/build.mjs", "build:wasm": "node scripts/build-wasm.mjs",
     "example": "node examples/agent-command.mjs", "audit:dxf": "node scripts/audit-dxf-corpus.mjs", "check": "node scripts/check.mjs"
   }
