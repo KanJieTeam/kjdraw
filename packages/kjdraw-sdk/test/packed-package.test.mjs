@@ -17,6 +17,14 @@ test('packed npm artifact works from an isolated JavaScript and TypeScript consu
   assert.equal(report.ok, true)
   assert.equal(report.package.startsWith('@kanjieteam/kjdraw@'), true)
   assert.equal(report.publicEntryPoints > 1, true)
+  assert.equal(report.frameworkInstall.mode, 'locked-offline-npm-ci')
+  assert.deepEqual(report.frameworkInstall.packages, {
+    react: '19.2.8',
+    'react-dom': '19.2.8',
+    '@types/react': '19.2.18',
+    '@types/react-dom': '19.2.7',
+    vue: '3.5.42',
+  })
   assert.deepEqual(report.typedConsumers, ['Vanilla TypeScript', 'React TSX', 'Vue composable'])
   assert.equal(report.quickstart.entities, 1)
 })

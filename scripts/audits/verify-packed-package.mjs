@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, relative, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
@@ -99,6 +99,45 @@ function parsePackResult(stdout) {
   return entries[0]
 }
 
+function toPackageLockPath(path) {
+  return path.replaceAll('\\', '/')
+}
+
+function findLockedPackageKey(packages, dependency, fromKey = '') {
+  let cursor = fromKey
+  while (cursor) {
+    const nested = `${cursor}/node_modules/${dependency}`
+    if (packages[nested]) return nested
+    const parentIndex = cursor.lastIndexOf('/node_modules/')
+    cursor = parentIndex === -1 ? '' : cursor.slice(0, parentIndex)
+  }
+  const rootKey = `node_modules/${dependency}`
+  if (packages[rootKey]) return rootKey
+  throw new Error(`Root package lock does not contain ${dependency} required from ${fromKey || '<consumer>'}`)
+}
+
+function collectLockedDependencyClosure(repositoryLock, directDependencies) {
+  const packages = repositoryLock.packages ?? {}
+  const selected = new Map()
+  const queue = directDependencies.map(dependency => ({ dependency, fromKey: '' }))
+
+  while (queue.length) {
+    const request = queue.shift()
+    const key = findLockedPackageKey(packages, request.dependency, request.fromKey)
+    if (selected.has(key)) continue
+    const record = packages[key]
+    selected.set(key, record)
+    for (const dependency of Object.keys({ ...record.dependencies, ...record.optionalDependencies })) {
+      queue.push({ dependency, fromKey: key })
+    }
+    for (const dependency of Object.keys(record.peerDependencies ?? {})) {
+      if (record.peerDependenciesMeta?.[dependency]?.optional !== true) queue.push({ dependency, fromKey: key })
+    }
+  }
+
+  return Object.fromEntries(selected)
+}
+
 async function main() {
   const npmCli = await findNpmCli()
   const scratchParent = resolve(process.env.KJDRAW_AUDIT_TMPDIR || tmpdir())
@@ -160,16 +199,68 @@ async function main() {
     await writeFile(headlessProbePath, `for (const path of ${JSON.stringify(publicSubpaths.filter(path => !(path in frameworkEntries)))}) { await import(path === '.' ? '${installedPackage.name}' : '${installedPackage.name}/' + path.slice(2)) }`)
     run(process.execPath, [headlessProbePath], { cwd: consumerDirectory })
 
-    // npm ci populated these exact development versions in the local cache.
-    // Test the published adapters against real frameworks, not framework-shaped
-    // declarations. This install is offline and never picks a moving version.
+    // The first install deliberately has no framework peers. It proves every
+    // headless entry before the framework-specific consumer is assembled.
     const repositoryPackage = JSON.parse(await readFile(join(repositoryRoot, 'package.json'), 'utf8'))
-    const peers = ['react', 'react-dom', '@types/react', '@types/react-dom', 'vue'].map(name => {
+    const peerNames = ['react', 'react-dom', '@types/react', '@types/react-dom', 'vue']
+    const peerVersions = Object.fromEntries(peerNames.map(name => {
       const version = repositoryPackage.devDependencies?.[name]
       assert.match(version ?? '', /^\d+\.\d+\.\d+/, `Pin the framework audit dependency: ${name}`)
-      return `${name}@${version}`
-    })
-    run(process.execPath, [npmCli, 'install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false', ...peers], { cwd: consumerDirectory })
+      return [name, version]
+    }))
+    for (const name of peerNames) {
+      assert.equal(existsSync(join(consumerDirectory, 'node_modules', ...name.split('/'))), false, `${name} must not be installed for the headless probe`)
+    }
+
+    // npm ci on a clean machine caches lockfile tarballs, but it does not
+    // guarantee cached registry packuments for a later `npm install name@x`.
+    // Reuse the repository's exact lock records and point the SDK entry at the
+    // freshly packed tarball. npm ci can then install the real React/Vue graph
+    // offline using resolved tarball URLs, with no registry name resolution.
+    const repositoryLock = JSON.parse(await readFile(join(repositoryRoot, 'package-lock.json'), 'utf8'))
+    const tarballSpecifier = `file:${toPackageLockPath(relative(consumerDirectory, tarball))}`
+    const consumerPackage = {
+      name: 'kjdraw-packed-framework-consumer-audit',
+      version: '0.0.0',
+      private: true,
+      type: 'module',
+      dependencies: { [installedPackage.name]: tarballSpecifier },
+      devDependencies: peerVersions,
+    }
+    assert.match(packMetadata.integrity ?? '', /^sha512-/, 'npm pack result is missing an sha512 integrity value')
+    const lockedPackages = collectLockedDependencyClosure(repositoryLock, peerNames)
+    lockedPackages[`node_modules/${installedPackage.name}`] = {
+      version: installedPackage.version,
+      resolved: tarballSpecifier,
+      integrity: packMetadata.integrity,
+      license: installedPackage.license,
+      bin: installedPackage.bin,
+      engines: installedPackage.engines,
+      peerDependencies: installedPackage.peerDependencies,
+      peerDependenciesMeta: installedPackage.peerDependenciesMeta,
+    }
+    const consumerLock = {
+      name: consumerPackage.name,
+      version: consumerPackage.version,
+      lockfileVersion: 3,
+      requires: true,
+      packages: {
+        '': {
+          name: consumerPackage.name,
+          version: consumerPackage.version,
+          dependencies: consumerPackage.dependencies,
+          devDependencies: consumerPackage.devDependencies,
+        },
+        ...lockedPackages,
+      },
+    }
+    await writeFile(join(consumerDirectory, 'package.json'), `${JSON.stringify(consumerPackage, null, 2)}\n`)
+    await writeFile(join(consumerDirectory, 'package-lock.json'), `${JSON.stringify(consumerLock, null, 2)}\n`)
+    run(process.execPath, [npmCli, 'ci', '--offline', '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: consumerDirectory })
+    for (const [name, version] of Object.entries(peerVersions)) {
+      const manifest = JSON.parse(await readFile(join(consumerDirectory, 'node_modules', ...name.split('/'), 'package.json'), 'utf8'))
+      assert.equal(manifest.version, version, `${name} must match the root lock`)
+    }
     const importProbe = `
 const packageName = ${JSON.stringify(installedPackage.name)}
 const subpaths = ${JSON.stringify(publicSubpaths)}
@@ -241,6 +332,10 @@ console.log(JSON.stringify(results))
       unpackedBytes: packMetadata.unpackedSize,
       publicEntryPoints: importResults.length,
       importedBindings: totalExportBindings,
+      frameworkInstall: {
+        mode: 'locked-offline-npm-ci',
+        packages: peerVersions,
+      },
       typedConsumers: ['Vanilla TypeScript', 'React TSX', 'Vue composable'],
       cli: 'kjdraw --version',
       quickstart: {
