@@ -61,10 +61,23 @@ test('publishing guide distinguishes reusable and standalone trusted publishers'
   assert.match(guide, /npm-publish\.yml/)
   assert.match(guide, /NPM_TOKEN.*fallback/is)
   assert.match(guide, /scoped granular access token/i)
-  assert.match(guide, /v1\.0\.0-rc\.2.*GitHub Release/is)
-  assert.match(guide, /npm registry is still pending/i)
-  assert.match(guide, /releases\/download\/v1\.0\.0-rc\.2\/kanjieteam-kjdraw-1\.0\.0-rc\.2\.tgz/)
-  assert.doesNotMatch(guide, /has not been published yet/i)
-  assert.doesNotMatch(guide, /immutable Release asset/i)
   assert.match(guide, /local npm or browser login is not available inside GitHub Actions/i)
+})
+
+test('release docs separate the source candidate from live registry verification', async () => {
+  const [guide, status, packageText] = await Promise.all([
+    read('docs/npm-publishing.md'), read('docs/status.md'), read('packages/kjdraw-sdk/package.json'),
+  ])
+  const { version } = JSON.parse(packageText)
+  for (const document of [guide, status]) {
+    assert.ok(document.includes(`source-tree candidate is \`${version}\``))
+    assert.match(document, /checkout version does not establish npm publication/i)
+    assert.match(document, /npm view @kanjieteam\/kjdraw dist-tags/)
+    assert.ok(document.includes(`npm view @kanjieteam/kjdraw@${version} version`))
+    assert.match(document, /npm install @kanjieteam\/kjdraw@next/)
+    assert.doesNotMatch(document, /npm registry is still pending|After RC2 reaches npm|Available only after npm publication succeeds/i)
+  }
+  assert.match(guide, /npm install https:\/\/github\.com\/KanJieTeam\/kjdraw\/releases\/download\/v[^/\s]+\/kanjieteam-kjdraw-[^\s]+\.tgz/)
+  assert.match(guide, /A tag is not evidence that npm publication succeeded/)
+  assert.doesNotMatch(status, /all three pass locally/)
 })

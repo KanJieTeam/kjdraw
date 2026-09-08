@@ -1,24 +1,28 @@
 # npm package and publishing
 
-The distributable SDK package is `@kanjieteam/kjdraw`. The [`v1.0.0-rc.2` GitHub Release](https://github.com/KanJieTeam/kjdraw/releases/tag/v1.0.0-rc.2) and its installable package tarball are published. Publication of this version to the npm registry is still pending.
+The distributable SDK package is `@kanjieteam/kjdraw`. The source-tree candidate is `1.0.0-rc.3`. The checkout version does not establish npm publication. Use the live registry queries below to distinguish source changes from the artifacts users can install.
 
-After RC2 reaches npm, candidates in the 1.0 release line use the `next` dist-tag; the stable 1.0 release will use `latest`.
+Candidates in the 1.0 release line use the `next` dist-tag; stable promotion will use `latest` only after the release gates pass.
 
 ## Install the published candidate now
+
+```sh
+npm view @kanjieteam/kjdraw dist-tags
+npm view @kanjieteam/kjdraw@1.0.0-rc.3 version
+npm install @kanjieteam/kjdraw@next
+```
+
+The version query checks the current checkout's candidate; it is not a publication claim. An absent version is not installable from npm; distinguish that response from a network or authentication failure. The `next` tag may advance when a later candidate is published. An untagged `npm install @kanjieteam/kjdraw` follows `latest`, which may differ from `next`. For reproducible installs, replace `next` with the exact version returned by the registry.
+
+As a fixed-version alternative, the previously published [`v1.0.0-rc.2` GitHub Release](https://github.com/KanJieTeam/kjdraw/releases/tag/v1.0.0-rc.2) provides this tarball. It installs rc.2, not necessarily the current candidate:
 
 ```sh
 npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz
 ```
 
-This published, versioned Release asset is the current install path. After the npm package page lists `1.0.0-rc.2`, either registry command below installs the same candidate:
+Historical publication check: on 2026-09-09, the [public registry](https://registry.npmjs.org/@kanjieteam%2fkjdraw) listed `next` as `1.0.0-rc.2` and `latest` as `0.7.1-preview.1`, with no rc.3 entry. This is a dated observation, not the current registry status; use `npm view` above for current results.
 
-```sh
-# Available only after npm publication succeeds
-npm install @kanjieteam/kjdraw@next
-npm install @kanjieteam/kjdraw@1.0.0-rc.2
-```
-
-Contributors can alternatively build the repository and install the local package into a test application:
+To evaluate source changes independently of registry publication, contributors can build the repository and install the local package into a test application. This evaluates the checkout, not a published artifact:
 
 ```sh
 git clone https://github.com/KanJieTeam/kjdraw.git
@@ -28,7 +32,7 @@ npm run build
 npm install /path/to/kjdraw/packages/kjdraw-sdk
 ```
 
-The GitHub Release tarball and checkout package provide the editor entry point:
+The npm package, GitHub Release tarball and checkout package provide the editor entry point:
 
 ```js
 import { createKJDrawEditor } from '@kanjieteam/kjdraw/editor'
@@ -54,7 +58,7 @@ OIDC is recommended; `NPM_TOKEN` is optional and is not needed after the trusted
 
 ## Release gates
 
-Create an annotated version tag whose name exactly matches the SDK package version, for example `v1.0.0-rc.2`. The `Release` workflow accepts only a tag whose target is on `main`, then waits for both the exact-SHA `CI` and `Deploy playground` runs to succeed. It rebuilds and tests the SDK, verifies generated sources and declarations, audits an isolated packed-package consumer, creates the GitHub release and delegates npm publication.
+Create an annotated version tag whose name exactly matches the SDK package version, for example `v1.0.0-rc.3` for the current source candidate. A tag is not evidence that npm publication succeeded. The `Release` workflow accepts only a tag whose target is on `main`, then waits for both the exact-SHA `CI` and `Deploy playground` runs to succeed. It rebuilds and tests the SDK, verifies generated sources and declarations, audits an isolated packed-package consumer, creates the GitHub release and delegates npm publication.
 
 The npm workflow independently checks the tag, GitHub release, exact-SHA CI and Pages deployment before publishing. Existing npm versions are immutable: a rerun succeeds only when the expected dist-tag already points to that exact version. The workflow never silently moves `latest` or `next` for an existing version. An existing draft GitHub release is also left untouched; review and publish or delete it manually before rerunning.
 

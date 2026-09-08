@@ -201,7 +201,7 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         minSelection: 2,
         fields: [],
         pointKeys: [
-            pick('pickPoint', 'Pick the side of the target to trim', '在目标直线上指定要修剪的一侧')
+            pick('pickPoint', 'Pick the portion of the target to remove', '在目标直线上指定要删除的区段')
         ]
     },
     {

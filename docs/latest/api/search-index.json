@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:0085d801ea3d0da6205f8cdbcb23567b21c2641b0bfec6beb6b534e61f17544c",
+  "sourceDigest": "sha256:fac8aa0a6638c7a11617b912499bc21b6d337cdfc17048a4ca76e6d42d165c85",
   "entries": [
     {
       "name": "createDraftingSession",
@@ -3883,6 +3883,14 @@
       "href": "./api/reference/#core-function-trimlinepayload",
       "anchor": "core-function-trimlinepayload",
       "summary": "export declare function trimLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;"
+    },
+    {
+      "name": "trimLinePayloads",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/core",
+      "href": "./api/reference/#core-function-trimlinepayloads",
+      "anchor": "core-function-trimlinepayloads",
+      "summary": "export declare function trimLinePayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload[];"
     },
     {
       "name": "unregisterGeometryBackend",
@@ -8541,6 +8549,14 @@
       "summary": "export declare function trimLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;"
     },
     {
+      "name": "trimLinePayloads",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-trimlinepayloads",
+      "anchor": "root-function-trimlinepayloads",
+      "summary": "export declare function trimLinePayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload[];"
+    },
+    {
       "name": "unregisterGeometryBackend",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -9099,6 +9115,14 @@
       "href": "./api/reference/#editing-function-trimlinepayload",
       "anchor": "editing-function-trimlinepayload",
       "summary": "export declare function trimLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;"
+    },
+    {
+      "name": "trimLinePayloads",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/editing",
+      "href": "./api/reference/#editing-function-trimlinepayloads",
+      "anchor": "editing-function-trimlinepayloads",
+      "summary": "export declare function trimLinePayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload[];"
     },
     {
       "name": "defineFileAdapter",

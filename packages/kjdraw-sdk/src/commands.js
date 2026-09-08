@@ -6,7 +6,7 @@ import { clone, deepFreeze, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js';
 import { KJ_SNAP_MODES } from './snapping.js';
-import { breakEntityPayloads, chamferLinePair, explodeEntity, extendLinePayload, filletLinePair, offsetEntityPayload, trimLinePayload } from './editing.js';
+import { breakEntityPayloads, chamferLinePair, explodeEntity, extendLinePayload, filletLinePair, offsetEntityPayload, trimLinePayloads } from './editing.js';
 const AFFINE_ENTITY_TYPES = Object.freeze([
     'LINE',
     'RAY',
@@ -1344,9 +1344,12 @@ export function registerCoreCommands(registry) {
         title: 'Trim line',
         execute: ({ document, transaction }, args)=>{
             const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds);
-            return transaction.updateObject(entity.id, {
-                payload: trimLinePayload(entity, boundaries, args.pickPoint)
+            const pieces = trimLinePayloads(entity, boundaries, args.pickPoint);
+            const primary = transaction.updateObject(entity.id, {
+                payload: pieces[0]
             });
+            for (const payload of pieces.slice(1))createDerived(transaction, entity, 'LINE', payload);
+            return primary;
         }
     }, {
         owner: '@kanjieteam/kjdraw'

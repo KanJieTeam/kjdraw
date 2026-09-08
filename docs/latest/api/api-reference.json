@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:0085d801ea3d0da6205f8cdbcb23567b21c2641b0bfec6beb6b534e61f17544c",
+  "sourceDigest": "sha256:fac8aa0a6638c7a11617b912499bc21b6d337cdfc17048a4ca76e6d42d165c85",
   "modules": [
     {
       "exportPath": "./drafting",
@@ -3437,6 +3437,13 @@
           "declaration": "export declare function trimLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;",
           "source": "editing.d.ts",
           "anchor": "core-function-trimlinepayload"
+        },
+        {
+          "name": "trimLinePayloads",
+          "kind": "function",
+          "declaration": "export declare function trimLinePayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload[];",
+          "source": "editing.d.ts",
+          "anchor": "core-function-trimlinepayloads"
         },
         {
           "name": "unregisterGeometryBackend",
@@ -7561,6 +7568,13 @@
           "anchor": "root-function-trimlinepayload"
         },
         {
+          "name": "trimLinePayloads",
+          "kind": "function",
+          "declaration": "export declare function trimLinePayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload[];",
+          "source": "editing.d.ts",
+          "anchor": "root-function-trimlinepayloads"
+        },
+        {
           "name": "unregisterGeometryBackend",
           "kind": "function",
           "declaration": "export declare function unregisterGeometryBackend(): void;",
@@ -8089,6 +8103,13 @@
           "declaration": "export declare function trimLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;",
           "source": "editing.d.ts",
           "anchor": "editing-function-trimlinepayload"
+        },
+        {
+          "name": "trimLinePayloads",
+          "kind": "function",
+          "declaration": "export declare function trimLinePayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload[];",
+          "source": "editing.d.ts",
+          "anchor": "editing-function-trimlinepayloads"
         }
       ]
     },

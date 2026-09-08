@@ -164,7 +164,7 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
     description: text('Use the first selected LINE as target and the rest as boundaries.', '以第一个选中直线为目标，其余对象为边界。'),
     minSelection: 2,
     fields: [],
-    pointKeys: [pick('pickPoint', 'Pick the side of the target to trim', '在目标直线上指定要修剪的一侧')],
+    pointKeys: [pick('pickPoint', 'Pick the portion of the target to remove', '在目标直线上指定要删除的区段')],
   },
   {
     id: 'extend', command: 'EXTEND', label: text('Extend line', '延伸直线'),

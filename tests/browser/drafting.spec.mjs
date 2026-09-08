@@ -163,6 +163,49 @@ test('Explode keeps a styled elevated profile intact through the toolbar, undo a
   }
 })
 
+test('Trim removes only the picked interval and preserves both styled elevated sides through undo and reopen', async ({ page }) => {
+  await emptyDrawing(page)
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ title: 'Trim middle interval', units: 'millimeter' })
+  const layer = await sdk.executeCommand('LAYERNEW', { name: 'Trim parts', color: 3 })
+  const target = await sdk.executeCommand('CREATE', { type: 'LINE', payload: {
+    layerId: layer.id, start: [0,0,6], end: [100,0,6], color: 2, lineweight: 35, linetypeScale: 1.5,
+  } })
+  for (const x of [30,70]) await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [x,-20,6], end: [x,20,6] } })
+  await page.locator('#file-input').setInputFiles({ name: 'trim.kjd', mimeType: 'application/json', buffer: Buffer.from(await sdk.writeDocument(drawing, { format: 'KJD' })) })
+  await expect(page.locator('#entity-count')).toHaveText('3 entities')
+  const original = await save(page)
+  // KJD object order is canonicalized; explicitly select the target before its boundaries.
+  const box = await page.locator('#canvas').boundingBox(), scale = Math.min((box.width - 164) / 100, (box.height - 164) / 40)
+  const at = (x,y) => ({ x: box.x + box.width / 2 + (x - 50) * scale, y: box.y + box.height / 2 - y * scale })
+  const targetPoint = at(10,0)
+  await page.mouse.click(targetPoint.x,targetPoint.y)
+  await expect(page.locator('#selection-count')).toHaveText('1 selected')
+  await page.keyboard.down('Shift')
+  for (const x of [30,70]) { const point = at(x,10);await page.mouse.click(point.x,point.y) }
+  await page.keyboard.up('Shift')
+  await expect(page.locator('#selection-count')).toHaveText('3 selected')
+  await page.locator('.ribbon-tabs [data-i18n="modify"]').click()
+  await page.locator('#modification-tool').selectOption('trim')
+  await command(page, '50,0')
+  await expect(page.locator('#entity-count')).toHaveText('4 entities')
+  const result = await save(page)
+  const pieces = result.entities.filter(entity => entity.payload.layerId === layer.id).sort((a,b) => a.payload.start[0] - b.payload.start[0])
+  expect(pieces).toHaveLength(2)
+  expect(pieces[0].id).toBe(target.id)
+  expect(pieces.map(entity => [entity.payload.start,entity.payload.end])).toEqual([[[0,0,6],[30,0,6]],[[70,0,6],[100,0,6]]])
+  for (const entity of pieces) expect(entity.payload).toMatchObject({ color: 2, lineweight: 35, linetypeScale: 1.5 })
+  await page.locator('#undo').click();expect((await save(page)).snapshot.objects).toEqual(original.snapshot.objects)
+  await page.locator('#redo').click();expect((await save(page)).snapshot.objects).toEqual(result.snapshot.objects)
+  await page.locator('#file-input').setInputFiles({ name: 'trim.kjp', mimeType: 'application/zip', buffer: result.bytes })
+  await expect(page.locator('#file-state')).toContainText('Opened locally')
+  expect((await save(page)).snapshot.objects).toEqual(result.snapshot.objects)
+  const download = page.waitForEvent('download');await page.locator('#export').click()
+  const exported = await createKJDrawSDK().readDocument(await readFile(await (await download).path(), 'utf8'), { format: 'DXF' })
+  const reopenedPieces = exported.listEntities().filter(entity => exported.getObject(entity.payload.layerId).name === 'Trim parts').sort((a,b) => a.payload.start[0] - b.payload.start[0])
+  expect(reopenedPieces.map(entity => [entity.payload.start,entity.payload.end])).toEqual(pieces.map(entity => [entity.payload.start,entity.payload.end]))
+  for (const entity of reopenedPieces) expect(entity.payload).toMatchObject({ color: 2, lineweight: 35, linetypeScale: 1.5 })
+})
+
 test('language changes retain picked points and construction options cannot silently erase a draft', async ({ page }) => {
   await emptyDrawing(page)
   await command(page, 'CIRCLE'); await command(page, '10,20')

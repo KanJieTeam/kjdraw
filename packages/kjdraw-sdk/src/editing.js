@@ -306,6 +306,10 @@ function boundaryIntersections(target, boundary, targetMode = 'line') {
         modeA: targetMode,
         modeB: 'segment'
     }).points;
+    if (boundary.type === 'RAY' || boundary.type === 'XLINE') return intersectLineLine2(pointInput(targetPayload.start), pointInput(targetPayload.end), pointInput(boundaryPayload.origin), add2(pointInput(boundaryPayload.origin), pointInput(boundaryPayload.direction)), {
+        modeA: targetMode,
+        modeB: boundary.type === 'RAY' ? 'ray' : 'line'
+    }).points;
     if (boundary.type === 'CIRCLE') return intersectLineCircle2(pointInput(targetPayload.start), pointInput(targetPayload.end), pointInput(boundaryPayload.center), Number(boundaryPayload.radius), {
         mode: targetMode
     }).points;
@@ -322,20 +326,42 @@ function boundaryIntersections(target, boundary, targetMode = 'line') {
     }
     throw new KJValidationError(`Line boundary does not support ${String(boundary.type)}`);
 }
-export function trimLinePayload(target, boundaries, pickPoint) {
+function linePointAt(payload, parameter) {
+    const start = point3(payload.start), end = point3(payload.end);
+    return [
+        start[0] + (end[0] - start[0]) * parameter,
+        start[1] + (end[1] - start[1]) * parameter,
+        start[2] + (end[2] - start[2]) * parameter
+    ];
+}
+export function trimLinePayloads(target, boundaries, pickPoint) {
     if (target?.type !== 'LINE') throw new KJValidationError('Trim currently requires a LINE target');
-    const targetPayload = target.payload ?? {};
+    const targetPayload = payloadOf(target);
     const direction = subtract2(pointInput(targetPayload.end), pointInput(targetPayload.start));
     const pickParameter = projectParameter2(pointInput(pickPoint), pointInput(targetPayload.start), direction);
-    const candidates = boundaries.flatMap((boundary)=>boundaryIntersections(target, boundary, 'segment')).map((point)=>({
-            point: point3(point),
-            parameter: projectParameter2(point, pointInput(targetPayload.start), direction)
-        })).filter((value)=>value.parameter > 1e-10 && value.parameter < 1 - 1e-10).sort((a, b)=>Math.abs(a.parameter - pickParameter) - Math.abs(b.parameter - pickParameter));
+    const parameters = boundaries.flatMap((boundary)=>boundaryIntersections(target, boundary, 'segment')).map((point)=>projectParameter2(point, pointInput(targetPayload.start), direction)).filter((value)=>value > 1e-10 && value < 1 - 1e-10).sort((a, b)=>a - b);
+    const candidates = parameters.filter((value, index)=>index === 0 || value - parameters[index - 1] > 1e-10);
     if (!candidates.length) throw new KJValidationError('No trim intersection lies on the target segment');
-    const payload = clone(targetPayload), intersection = candidates[0];
-    if (pickParameter <= intersection.parameter) payload.start = intersection.point;
-    else payload.end = intersection.point;
-    return payload;
+    if (candidates.some((value)=>Math.abs(value - pickParameter) <= 1e-10)) throw new KJValidationError('Pick inside the interval to trim, not exactly on a cutting boundary');
+    const lower = candidates.filter((value)=>value < pickParameter).at(-1) ?? 0;
+    const upper = candidates.find((value)=>value > pickParameter) ?? 1;
+    const pieces = [];
+    if (lower > 0) pieces.push({
+        ...clone(targetPayload),
+        start: linePointAt(targetPayload, 0),
+        end: linePointAt(targetPayload, lower)
+    });
+    if (upper < 1) pieces.push({
+        ...clone(targetPayload),
+        start: linePointAt(targetPayload, upper),
+        end: linePointAt(targetPayload, 1)
+    });
+    return pieces;
+}
+export function trimLinePayload(target, boundaries, pickPoint) {
+    const pieces = trimLinePayloads(target, boundaries, pickPoint);
+    if (pieces.length !== 1) throw new KJValidationError('Trim produces multiple line segments; use trimLinePayloads to preserve both sides');
+    return pieces[0];
 }
 export function extendLinePayload(target, boundaries, pickPoint) {
     if (target?.type !== 'LINE') throw new KJValidationError('Extend currently requires a LINE target');
@@ -343,12 +369,11 @@ export function extendLinePayload(target, boundaries, pickPoint) {
     const direction = subtract2(pointInput(targetPayload.end), pointInput(targetPayload.start));
     const pickParameter = projectParameter2(pointInput(pickPoint), pointInput(targetPayload.start), direction), extendStart = pickParameter < 0.5;
     const candidates = boundaries.flatMap((boundary)=>boundaryIntersections(target, boundary, 'line')).map((point)=>({
-            point: point3(point),
             parameter: projectParameter2(point, pointInput(targetPayload.start), direction)
         })).filter((value)=>extendStart ? value.parameter < -1e-10 : value.parameter > 1 + 1e-10).sort((a, b)=>extendStart ? b.parameter - a.parameter : a.parameter - b.parameter);
     if (!candidates.length) throw new KJValidationError('No boundary is available in the selected extension direction');
     const payload = clone(targetPayload);
-    payload[extendStart ? 'start' : 'end'] = candidates[0].point;
+    payload[extendStart ? 'start' : 'end'] = linePointAt(targetPayload, candidates[0].parameter);
     return payload;
 }
 function selectedRay(line, intersection, pickPoint) {

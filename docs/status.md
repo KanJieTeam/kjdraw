@@ -1,6 +1,16 @@
 # KJDraw 1.0 readiness and capability boundaries
 
-This page separates what exists in the repository from what has been verified on an immutable public release. The current candidate is `1.0.0-rc.2`; the target contract is `1.0.0`.
+This page separates what exists in the repository from what has been verified on an immutable public release. The current source-tree candidate is `1.0.0-rc.3`; the target contract is `1.0.0`.
+
+The checkout version does not establish npm publication. Source-tree improvements below must not be mistaken for capabilities already shipped in a registry package. Query the current tags and the exact checkout version before choosing an artifact:
+
+```sh
+npm view @kanjieteam/kjdraw dist-tags
+npm view @kanjieteam/kjdraw@1.0.0-rc.3 version
+npm install @kanjieteam/kjdraw@next
+```
+
+An absent version is not installable from npm; a network or authentication error is not evidence of absence. The `next` tag can advance after a later release. See the [installation and publishing guide](npm-publishing.md) for version pinning, a previously published GitHub tarball alternative and source-checkout evaluation.
 
 For the authoritative gate state, read [`KJDRAW_1_0_ACCEPTANCE_MATRIX.json`](KJDRAW_1_0_ACCEPTANCE_MATRIX.json) or run:
 
@@ -27,7 +37,7 @@ These statements describe repository-owned evidence. They are not a claim that a
 
 Stable promotion remains blocked until the exact release-candidate commit has all required gates green, including:
 
-- the configured Chromium, Firefox and WebKit acceptance journeys in hosted CI (all three pass locally);
+- the configured Chromium, Firefox and WebKit acceptance journeys in hosted CI;
 - live Demo, Docs, search and API deep-link checks against the deployed candidate;
 - npm provenance, GitHub artifact attestation, SBOM and checksum verification from the real release run.
 

@@ -53,6 +53,9 @@ export interface KJLinePairEditResult {
 export declare function offsetEntityPayload(entity: KJEditingEntity | null | undefined, distance: unknown, options?: KJOffsetOptions): KJObjectPayload;
 export declare function breakEntityPayloads(entity: KJEditingEntity | null | undefined, options?: KJBreakOptions): KJDerivedEntityPayload[];
 export declare function explodeEntity(entity: KJEditingEntity | null | undefined): KJDerivedEntityPayload[];
+/** Remove the picked LINE interval, preserving both sides of an interior cut. */
+export declare function trimLinePayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload[];
+/** Single-result compatibility helper; use trimLinePayloads for interior cuts. */
 export declare function trimLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;
 export declare function extendLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;
 export declare function chamferLinePair(first: KJEditingEntity, second: KJEditingEntity, options?: KJLinePairOptions): KJLinePairEditResult;

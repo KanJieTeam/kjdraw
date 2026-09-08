@@ -38,7 +38,7 @@ import {
   extendLinePayload,
   filletLinePair,
   offsetEntityPayload,
-  trimLinePayload,
+  trimLinePayloads,
 } from './editing.js'
 import type { KJLinePairEditResult, KJLinePairOptions } from './editing.js'
 
@@ -733,7 +733,10 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'TRIM', aliases: ['TR'], title: 'Trim line',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds)
-      return transaction.updateObject(entity.id, { payload: trimLinePayload(entity, boundaries, args.pickPoint) })
+      const pieces = trimLinePayloads(entity, boundaries, args.pickPoint)
+      const primary = transaction.updateObject(entity.id, { payload: pieces[0]! })
+      for (const payload of pieces.slice(1)) createDerived(transaction, entity, 'LINE', payload)
+      return primary
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
