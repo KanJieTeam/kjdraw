@@ -44,6 +44,14 @@ test('Pages runs for dependency and package-manifest changes', async () => {
   assert.match(workflow, /node-version:\s*24/)
 })
 
+test('Pages uploads and deploys the same run-and-attempt-scoped artifact', async () => {
+  const workflow = await read('.github/workflows/pages.yml')
+
+  assert.match(workflow, /PAGES_ARTIFACT_NAME: github-pages-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}/)
+  assert.match(workflow, /name: \$\{\{ env\.PAGES_ARTIFACT_NAME \}\}/)
+  assert.match(workflow, /artifact_name: \$\{\{ env\.PAGES_ARTIFACT_NAME \}\}/)
+})
+
 test('publishing guide distinguishes reusable and standalone trusted publishers', async () => {
   const guide = await read('docs/npm-publishing.md')
 
