@@ -5,6 +5,7 @@ import { KJDocument, KJValidationError, createKJDrawSDK, extendLinePayload, trim
 const line = (start, end) => ({ type: 'LINE', payload: { start, end } })
 const boundary = x => line([x, -10, 0], [x, 10, 0])
 const endpoints = pieces => pieces.map(piece => [piece.start, piece.end])
+const recordsById = records => Object.fromEntries(records.map(record => [record.id, record]))
 
 test('TRIM removes only the picked interior interval, retaining identity, properties, XYZ and one history step', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument()
@@ -26,25 +27,33 @@ test('TRIM removes only the picked interior interval, retaining identity, proper
   assert.equal(document.revision, revision + 1)
   const pieces = document.listEntities({ ownerId, type: 'LINE' })
   assert.equal(pieces.length, 2)
-  assert.deepEqual(endpoints(pieces.map(piece => piece.payload)), endpoints(preview))
+  const retained = pieces.find(piece => piece.id === target.id)
+  const derived = pieces.filter(piece => piece.id !== target.id)
+  assert.ok(retained)
+  assert.equal(derived.length, 1)
+  const extra = derived[0]
+  assert.deepEqual(retained, primary)
+  assert.deepEqual(endpoints([retained.payload, extra.payload]), endpoints(preview))
   for (const piece of pieces) {
     for (const [key, value] of Object.entries(properties)) assert.deepEqual(piece.payload[key], value)
     assert.equal(piece.ownerId, ownerId)
     assert.equal(piece.name, target.name)
     assert.deepEqual(piece.extension.xdata, target.extension.xdata)
   }
-  assert.notEqual(pieces[1].id, target.id)
-  assert.notEqual(pieces[1].handle, target.handle)
-  assert.equal(pieces[1].source.derivedFromId, target.id)
+  assert.notEqual(extra.id, target.id)
+  assert.notEqual(extra.handle, target.handle)
+  assert.equal(extra.source.derivedFromId, target.id)
   for (const item of boundaries) assert.deepEqual(document.getObject(item.id), item)
   const reopened = KJDocument.open(document.serialize())
-  assert.deepEqual(reopened.listEntities({ ownerId, type: 'LINE' }).map(piece => piece.payload), pieces.map(piece => piece.payload))
+  // KJD canonicalizes object keys; entity enumeration is not drawing order.
+  assert.deepEqual(recordsById(reopened.listEntities()), recordsById(document.listEntities()))
   await sdk.executeCommand('UNDO')
   assert.deepEqual(document.getObject(target.id), target)
-  assert.equal(document.getObject(pieces[1].id), null)
+  assert.equal(document.getObject(extra.id), null)
+  assert.deepEqual(recordsById(document.listEntities()), recordsById([target, ...boundaries]))
   await sdk.executeCommand('REDO')
-  assert.deepEqual(endpoints(document.listEntities({ ownerId, type: 'LINE' }).map(piece => piece.payload)), endpoints(preview))
-  assert.equal(document.getObject(pieces[1].id).handle, pieces[1].handle)
+  assert.deepEqual(recordsById(document.listEntities()), recordsById([...pieces, ...boundaries]))
+  assert.equal(document.getObject(extra.id).handle, extra.handle)
 })
 
 test('trimLinePayload remains safe for one-piece trims and rejects multiple results without dropping a side', () => {
