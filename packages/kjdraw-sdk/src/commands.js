@@ -1970,6 +1970,13 @@ function editLinePair({ document, transaction }, args, operation) {
         connector
     };
 }
+const MAX_ARRAY_ENTITY_CREATIONS = 100000;
+function assertArrayCreationLimit(args, copyPositionCount) {
+    const selectedEntityCount = entityIds(args).length;
+    if (copyPositionCount > Math.floor(MAX_ARRAY_ENTITY_CREATIONS / selectedEntityCount)) {
+        throw new KJValidationError(`Array exceeds the ${MAX_ARRAY_ENTITY_CREATIONS} created entity safety limit`);
+    }
+}
 function rectangularArray(context, args) {
     const rows = Number(args.rows ?? 1), columns = Number(args.columns ?? 1);
     const rowSpacing = Number(args.rowSpacing ?? 0), columnSpacing = Number(args.columnSpacing ?? 0);
@@ -1982,6 +1989,8 @@ function rectangularArray(context, args) {
         rowSpacing,
         columnSpacing
     ].every(Number.isFinite)) throw new KJValidationError('Array spacing must be finite');
+    const copyPositionCount = rows * columns - (args.includeSource !== false ? 1 : 0);
+    assertArrayCreationLimit(args, copyPositionCount);
     const created = [];
     for(let row = 0; row < rows; row += 1){
         for(let column = 0; column < columns; column += 1){
@@ -1997,6 +2006,7 @@ function polarArray(context, args) {
     const center = vec2(args.center);
     const fillAngle = args.angleDegrees == null ? Number(args.angle ?? Math.PI * 2) : Number(args.angleDegrees) * Math.PI / 180;
     if (!Number.isFinite(fillAngle) || Math.abs(fillAngle) <= 1e-15) throw new KJValidationError('Polar array fill angle must be finite and non-zero');
+    assertArrayCreationLimit(args, count - 1);
     const fullCircle = Math.abs(Math.abs(fillAngle) - Math.PI * 2) <= 1e-10;
     const step = fillAngle / (fullCircle ? count : count - 1), created = [];
     for(let index = 1; index < count; index += 1){

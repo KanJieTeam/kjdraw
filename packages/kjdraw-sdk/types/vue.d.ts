@@ -3,8 +3,8 @@ import { createKJDrawEditor, type KJDrawEditor, type KJDrawEditorSaveOptions, ty
 import type { KJDocument } from './document.js';
 import type { KJDrawSDK, KJSDKCommandEnvelopeReceipt } from './sdk.js';
 import type { KJCommandArguments } from './commands.js';
-import type { KJDrawWorkbenchChange, KJWorkbenchLocale, KJWorkbenchOpenOptions, KJWorkbenchTheme } from './workbench.js';
-export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, } from './editor.js';
+import type { KJDrawWorkbenchChange, KJWorkbenchLayout, KJWorkbenchLocale, KJWorkbenchOpenOptions, KJWorkbenchTheme } from './workbench.js';
+export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, KJWorkbenchLayout, } from './editor.js';
 export interface KJDrawExposed {
     readonly instance: KJDrawEditor | null;
     readonly ready: Promise<KJDrawEditor> | null;
@@ -16,6 +16,7 @@ export interface KJDrawExposed {
     execute<TResult = unknown>(command: string, args?: KJCommandArguments): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;
     setDocument(document: KJDocument): Promise<KJDrawEditor>;
     setTheme(theme: KJWorkbenchTheme): KJDrawEditor;
+    setLayout(layout: KJWorkbenchLayout): KJDrawEditor;
     setLocale(locale: KJWorkbenchLocale): KJDrawEditor;
     setSelection(ids: readonly string[]): Promise<readonly string[]>;
     getSelection(): readonly string[];
@@ -40,6 +41,10 @@ export declare const KJDraw: import("vue").DefineComponent<import("vue").Extract
     };
     theme: {
         type: PropType<KJWorkbenchTheme>;
+        default: string;
+    };
+    layout: {
+        type: PropType<KJWorkbenchLayout>;
         default: string;
     };
     readonly: {
@@ -105,6 +110,10 @@ export declare const KJDraw: import("vue").DefineComponent<import("vue").Extract
         type: PropType<KJWorkbenchTheme>;
         default: string;
     };
+    layout: {
+        type: PropType<KJWorkbenchLayout>;
+        default: string;
+    };
     readonly: {
         type: BooleanConstructor;
         default: boolean;
@@ -154,6 +163,7 @@ export declare const KJDraw: import("vue").DefineComponent<import("vue").Extract
     sdk: KJDrawSDK;
     locale: KJWorkbenchLocale;
     theme: KJWorkbenchTheme;
+    layout: "classic" | "compact" | "focus";
     readonly: boolean;
     grid: boolean;
     toolbar: boolean;

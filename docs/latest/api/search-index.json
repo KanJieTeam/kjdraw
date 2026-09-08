@@ -1,9 +1,225 @@
 {
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
-  "version": "1.0.0-rc.2",
-  "sourceDigest": "sha256:93637f8c09ef279ae38e734ab9f86aafc34f065c3256cb98b95035359ab80f8e",
+  "version": "1.0.0-rc.3",
+  "sourceDigest": "sha256:20825da9f07277af01855af310137c0aa9f5ecc292ce031eaa3ab7cdb6362a79",
   "entries": [
+    {
+      "name": "createDraftingSession",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/drafting",
+      "href": "./api/reference/#drafting-function-createdraftingsession",
+      "anchor": "drafting-function-createdraftingsession",
+      "summary": "export declare function createDraftingSession(tool: KJDraftTool, options?: KJDraftingOptions): KJDraftingSession;"
+    },
+    {
+      "name": "KJDraftArcMode",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/drafting",
+      "href": "./api/reference/#drafting-type-kjdraftarcmode",
+      "anchor": "drafting-type-kjdraftarcmode",
+      "summary": "export type KJDraftArcMode = 'center-start-end' | '3-point';"
+    },
+    {
+      "name": "KJDraftCircleMode",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/drafting",
+      "href": "./api/reference/#drafting-type-kjdraftcirclemode",
+      "anchor": "drafting-type-kjdraftcirclemode",
+      "summary": "export type KJDraftCircleMode = 'center-radius' | '2-point' | '3-point';"
+    },
+    {
+      "name": "KJDraftDimensionType",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/drafting",
+      "href": "./api/reference/#drafting-type-kjdraftdimensiontype",
+      "anchor": "drafting-type-kjdraftdimensiontype",
+      "summary": "export type KJDraftDimensionType = 'ALIGNED' | 'ROTATED' | 'RADIUS' | 'DIAMETER';"
+    },
+    {
+      "name": "KJDraftEntitySpec",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drafting",
+      "href": "./api/reference/#drafting-interface-kjdraftentityspec",
+      "anchor": "drafting-interface-kjdraftentityspec",
+      "summary": "export interface KJDraftEntitySpec { type: KJStandardEntityType; payload: KJObjectPayload; options?: KJObjectSpec; }"
+    },
+    {
+      "name": "KJDraftingOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drafting",
+      "href": "./api/reference/#drafting-interface-kjdraftingoptions",
+      "anchor": "drafting-interface-kjdraftingoptions",
+      "summary": "export interface KJDraftingOptions { circleMode?: KJDraftCircleMode; arcMode?: KJDraftArcMode; sides?: number; splineDegree?: number; dimensionType?: KJDraftDimensionType; rotation?: number; textPosition?: KJDraftPoint; "
+    },
+    {
+      "name": "KJDraftingSession",
+      "kind": "class",
+      "module": "@kanjieteam/kjdraw/drafting",
+      "href": "./api/reference/#drafting-class-kjdraftingsession",
+      "anchor": "drafting-class-kjdraftingsession",
+      "summary": "export declare class KJDraftingSession { #private; readonly tool: KJDraftTool; constructor(tool: KJDraftTool, options?: KJDraftingOptions); get points(): readonly KJDraftPoint[]; get state(): KJDraftState; addPoint(value"
+    },
+    {
+      "name": "KJDraftPoint",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/drafting",
+      "href": "./api/reference/#drafting-type-kjdraftpoint",
+      "anchor": "drafting-type-kjdraftpoint",
+      "summary": "export type KJDraftPoint = readonly [number, number];"
+    },
+    {
+      "name": "KJDraftPointRole",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/drafting",
+      "href": "./api/reference/#drafting-type-kjdraftpointrole",
+      "anchor": "drafting-type-kjdraftpointrole",
+      "summary": "export type KJDraftPointRole = 'start' | 'end' | 'vertex' | 'position' | 'origin' | 'directionPoint' | 'center' | 'radiusPoint' | 'diameterPoint1' | 'diameterPoint2' | 'throughPoint' | 'majorAxisPoint' | 'minorAxisPoint'"
+    },
+    {
+      "name": "KJDraftState",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drafting",
+      "href": "./api/reference/#drafting-interface-kjdraftstate",
+      "anchor": "drafting-interface-kjdraftstate",
+      "summary": "export interface KJDraftState { tool: KJDraftTool; status: KJDraftStatus; points: readonly KJDraftPoint[]; minimumPoints: number; maximumPoints: number | null; nextPoint: KJDraftPointRole | null; canFinish: boolean; canC"
+    },
+    {
+      "name": "KJDraftStatus",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/drafting",
+      "href": "./api/reference/#drafting-type-kjdraftstatus",
+      "anchor": "drafting-type-kjdraftstatus",
+      "summary": "export type KJDraftStatus = 'collecting' | 'complete' | 'cancelled';"
+    },
+    {
+      "name": "KJDraftTool",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/drafting",
+      "href": "./api/reference/#drafting-type-kjdrafttool",
+      "anchor": "drafting-type-kjdrafttool",
+      "summary": "export type KJDraftTool = 'line' | 'polyline' | 'circle' | 'arc' | 'ellipse' | 'rectangle' | 'polygon' | 'point' | 'ray' | 'xline' | 'spline' | 'hatch' | 'dimension';"
+    },
+    {
+      "name": "parseDraftCoordinate",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/drafting",
+      "href": "./api/reference/#drafting-function-parsedraftcoordinate",
+      "anchor": "drafting-function-parsedraftcoordinate",
+      "summary": "export declare function parseDraftCoordinate(input: string, relativeBase?: KJDraftPoint): KJDraftPoint;"
+    },
+    {
+      "name": "buildKJModificationCommand",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-function-buildkjmodificationcommand",
+      "anchor": "modification-controls-function-buildkjmodificationcommand",
+      "summary": "export declare function buildKJModificationCommand(id: KJModificationId, context: KJModificationBuildContext): KJModificationCommand;"
+    },
+    {
+      "name": "getKJModificationDefinition",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-function-getkjmodificationdefinition",
+      "anchor": "modification-controls-function-getkjmodificationdefinition",
+      "summary": "export declare function getKJModificationDefinition(id: KJModificationId): KJModificationDefinition;"
+    },
+    {
+      "name": "getKJModificationSelectionCenter",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-function-getkjmodificationselectioncenter",
+      "anchor": "modification-controls-function-getkjmodificationselectioncenter",
+      "summary": "export declare function getKJModificationSelectionCenter(entities: readonly { readonly payload: Readonly<Record<string, unknown>>; }[]): KJModificationPoint;"
+    },
+    {
+      "name": "KJ_MODIFICATION_DEFINITIONS",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-const-kj-modification-definitions",
+      "anchor": "modification-controls-const-kj-modification-definitions",
+      "summary": "export declare const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[];"
+    },
+    {
+      "name": "KJ_MODIFICATION_IDS",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-const-kj-modification-ids",
+      "anchor": "modification-controls-const-kj-modification-ids",
+      "summary": "export declare const KJ_MODIFICATION_IDS: readonly [\"rotate\", \"scale\", \"mirror\", \"array-rect\", \"array-polar\", \"offset\", \"break\", \"explode\", \"trim\", \"extend\", \"chamfer\", \"fillet\"];"
+    },
+    {
+      "name": "KJLocalizedControlText",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-interface-kjlocalizedcontroltext",
+      "anchor": "modification-controls-interface-kjlocalizedcontroltext",
+      "summary": "export interface KJLocalizedControlText { readonly en: string; readonly zh: string; }"
+    },
+    {
+      "name": "KJModificationBuildContext",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-interface-kjmodificationbuildcontext",
+      "anchor": "modification-controls-interface-kjmodificationbuildcontext",
+      "summary": "export interface KJModificationBuildContext { readonly ids: readonly string[]; readonly values?: Readonly<Record<string, unknown>>; readonly points?: readonly KJModificationPoint[]; readonly selectionCenter?: KJModificat"
+    },
+    {
+      "name": "KJModificationCommand",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-interface-kjmodificationcommand",
+      "anchor": "modification-controls-interface-kjmodificationcommand",
+      "summary": "export interface KJModificationCommand { readonly command: string; readonly arguments: KJCommandArguments; }"
+    },
+    {
+      "name": "KJModificationDefinition",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-interface-kjmodificationdefinition",
+      "anchor": "modification-controls-interface-kjmodificationdefinition",
+      "summary": "export interface KJModificationDefinition { readonly id: KJModificationId; readonly command: string; readonly label: KJLocalizedControlText; readonly description: KJLocalizedControlText; readonly minSelection: number; re"
+    },
+    {
+      "name": "KJModificationFieldDefinition",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-interface-kjmodificationfielddefinition",
+      "anchor": "modification-controls-interface-kjmodificationfielddefinition",
+      "summary": "export interface KJModificationFieldDefinition { readonly key: string; readonly label: KJLocalizedControlText; readonly type: KJModificationFieldType; readonly default: number | boolean; readonly min?: number; readonly m"
+    },
+    {
+      "name": "KJModificationFieldType",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-type-kjmodificationfieldtype",
+      "anchor": "modification-controls-type-kjmodificationfieldtype",
+      "summary": "export type KJModificationFieldType = 'number' | 'integer' | 'boolean';"
+    },
+    {
+      "name": "KJModificationId",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-type-kjmodificationid",
+      "anchor": "modification-controls-type-kjmodificationid",
+      "summary": "export type KJModificationId = 'rotate' | 'scale' | 'mirror' | 'array-rect' | 'array-polar' | 'offset' | 'break' | 'explode' | 'trim' | 'extend' | 'chamfer' | 'fillet';"
+    },
+    {
+      "name": "KJModificationPoint",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-type-kjmodificationpoint",
+      "anchor": "modification-controls-type-kjmodificationpoint",
+      "summary": "export type KJModificationPoint = readonly [number, number];"
+    },
+    {
+      "name": "KJModificationPointDefinition",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-interface-kjmodificationpointdefinition",
+      "anchor": "modification-controls-interface-kjmodificationpointdefinition",
+      "summary": "export interface KJModificationPointDefinition { readonly key: string; readonly label: KJLocalizedControlText; }"
+    },
     {
       "name": "createIndustrySample",
       "kind": "function",
@@ -43,6 +259,14 @@
       "href": "./api/reference/#editor-function-createkjdraweditor",
       "anchor": "editor-function-createkjdraweditor",
       "summary": "export declare function createKJDrawEditor(container: string | HTMLElement | ShadowRoot, options?: KJDrawEditorOptions): KJDrawEditor;"
+    },
+    {
+      "name": "default",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/editor",
+      "href": "./api/reference/#editor-type-default",
+      "anchor": "editor-type-default",
+      "summary": "export type { KJWorkbenchLayout } from './workbench.js';"
     },
     {
       "name": "KJDrawEditor",
@@ -1802,7 +2026,7 @@
       "module": "@kanjieteam/kjdraw/core",
       "href": "./api/reference/#core-const-kjdraw-version",
       "anchor": "core-const-kjdraw-version",
-      "summary": "export declare const KJDRAW_VERSION: '1.0.0-rc.2';"
+      "summary": "export declare const KJDRAW_VERSION: '1.0.0-rc.3';"
     },
     {
       "name": "KJDrawError",
@@ -4394,7 +4618,7 @@
       "module": "@kanjieteam/kjdraw/react",
       "href": "./api/reference/#react-type-default",
       "anchor": "react-type-default",
-      "summary": "export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, } from './editor.js';"
+      "summary": "export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, KJWorkbenchLayout, } from './editor.js';"
     },
     {
       "name": "KJDraw",
@@ -4426,7 +4650,7 @@
       "module": "@kanjieteam/kjdraw/vue",
       "href": "./api/reference/#vue-type-default",
       "anchor": "vue-type-default",
-      "summary": "export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, } from './editor.js';"
+      "summary": "export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, KJWorkbenchLayout, } from './editor.js';"
     },
     {
       "name": "KJDraw",
@@ -4605,6 +4829,14 @@
       "summary": "export interface BrowserKjpReadResult { data: Uint8Array; project: KjpOpenResult; name: string; }"
     },
     {
+      "name": "buildKJModificationCommand",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-buildkjmodificationcommand",
+      "anchor": "root-function-buildkjmodificationcommand",
+      "summary": "export declare function buildKJModificationCommand(id: KJModificationId, context: KJModificationBuildContext): KJModificationCommand;"
+    },
+    {
       "name": "buildSDKCapabilityManifest",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -4757,6 +4989,14 @@
       "summary": "export declare function createDeploymentProfile(options?: KJDeploymentProfileOptions): Readonly<KJDeploymentProfile>;"
     },
     {
+      "name": "createDraftingSession",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-createdraftingsession",
+      "anchor": "root-function-createdraftingsession",
+      "summary": "export declare function createDraftingSession(tool: KJDraftTool, options?: KJDraftingOptions): KJDraftingSession;"
+    },
+    {
       "name": "createDXFFileAdapter",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -4883,6 +5123,14 @@
       "href": "./api/reference/#root-function-deepfreeze",
       "anchor": "root-function-deepfreeze",
       "summary": "export declare function deepFreeze<T>(value: T, seen?: WeakSet<object>): ReadonlyDeep<T>;"
+    },
+    {
+      "name": "default",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-default",
+      "anchor": "root-type-default",
+      "summary": "export type { KJWorkbenchLayout } from './workbench.js';"
     },
     {
       "name": "DEFAULT_TOLERANCE",
@@ -5133,6 +5381,22 @@
       "summary": "export declare function getGeometryBackendStatus(): KJGeometryBackendStatus;"
     },
     {
+      "name": "getKJModificationDefinition",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-getkjmodificationdefinition",
+      "anchor": "root-function-getkjmodificationdefinition",
+      "summary": "export declare function getKJModificationDefinition(id: KJModificationId): KJModificationDefinition;"
+    },
+    {
+      "name": "getKJModificationSelectionCenter",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-getkjmodificationselectioncenter",
+      "anchor": "root-function-getkjmodificationselectioncenter",
+      "summary": "export declare function getKJModificationSelectionCenter(entities: readonly { readonly payload: Readonly<Record<string, unknown>>; }[]): KJModificationPoint;"
+    },
+    {
       "name": "identity3",
       "kind": "const",
       "module": "@kanjieteam/kjdraw",
@@ -5315,6 +5579,22 @@
       "href": "./api/reference/#root-const-kj-format-capability",
       "anchor": "root-const-kj-format-capability",
       "summary": "export declare const KJ_FORMAT_CAPABILITY: Readonly<{ readonly EXACT: 'exact'; readonly CONVERTED: 'converted'; readonly OPAQUE: 'opaque'; readonly UNSUPPORTED: 'unsupported'; }>;"
+    },
+    {
+      "name": "KJ_MODIFICATION_DEFINITIONS",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-const-kj-modification-definitions",
+      "anchor": "root-const-kj-modification-definitions",
+      "summary": "export declare const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[];"
+    },
+    {
+      "name": "KJ_MODIFICATION_IDS",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-const-kj-modification-ids",
+      "anchor": "root-const-kj-modification-ids",
+      "summary": "export declare const KJ_MODIFICATION_IDS: readonly [\"rotate\", \"scale\", \"mirror\", \"array-rect\", \"array-polar\", \"offset\", \"break\", \"explode\", \"trim\", \"extend\", \"chamfer\", \"fillet\"];"
     },
     {
       "name": "KJ_OBJECT_KINDS",
@@ -6117,6 +6397,94 @@
       "summary": "export interface KJDocumentTransactionOptions { expectedRevision?: number; metadata?: Record<string, unknown>; at?: string; author?: unknown; source?: string; }"
     },
     {
+      "name": "KJDraftArcMode",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjdraftarcmode",
+      "anchor": "root-type-kjdraftarcmode",
+      "summary": "export type KJDraftArcMode = 'center-start-end' | '3-point';"
+    },
+    {
+      "name": "KJDraftCircleMode",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjdraftcirclemode",
+      "anchor": "root-type-kjdraftcirclemode",
+      "summary": "export type KJDraftCircleMode = 'center-radius' | '2-point' | '3-point';"
+    },
+    {
+      "name": "KJDraftDimensionType",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjdraftdimensiontype",
+      "anchor": "root-type-kjdraftdimensiontype",
+      "summary": "export type KJDraftDimensionType = 'ALIGNED' | 'ROTATED' | 'RADIUS' | 'DIAMETER';"
+    },
+    {
+      "name": "KJDraftEntitySpec",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdraftentityspec",
+      "anchor": "root-interface-kjdraftentityspec",
+      "summary": "export interface KJDraftEntitySpec { type: KJStandardEntityType; payload: KJObjectPayload; options?: KJObjectSpec; }"
+    },
+    {
+      "name": "KJDraftingOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdraftingoptions",
+      "anchor": "root-interface-kjdraftingoptions",
+      "summary": "export interface KJDraftingOptions { circleMode?: KJDraftCircleMode; arcMode?: KJDraftArcMode; sides?: number; splineDegree?: number; dimensionType?: KJDraftDimensionType; rotation?: number; textPosition?: KJDraftPoint; "
+    },
+    {
+      "name": "KJDraftingSession",
+      "kind": "class",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-class-kjdraftingsession",
+      "anchor": "root-class-kjdraftingsession",
+      "summary": "export declare class KJDraftingSession { #private; readonly tool: KJDraftTool; constructor(tool: KJDraftTool, options?: KJDraftingOptions); get points(): readonly KJDraftPoint[]; get state(): KJDraftState; addPoint(value"
+    },
+    {
+      "name": "KJDraftPoint",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjdraftpoint",
+      "anchor": "root-type-kjdraftpoint",
+      "summary": "export type KJDraftPoint = readonly [number, number];"
+    },
+    {
+      "name": "KJDraftPointRole",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjdraftpointrole",
+      "anchor": "root-type-kjdraftpointrole",
+      "summary": "export type KJDraftPointRole = 'start' | 'end' | 'vertex' | 'position' | 'origin' | 'directionPoint' | 'center' | 'radiusPoint' | 'diameterPoint1' | 'diameterPoint2' | 'throughPoint' | 'majorAxisPoint' | 'minorAxisPoint'"
+    },
+    {
+      "name": "KJDraftState",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdraftstate",
+      "anchor": "root-interface-kjdraftstate",
+      "summary": "export interface KJDraftState { tool: KJDraftTool; status: KJDraftStatus; points: readonly KJDraftPoint[]; minimumPoints: number; maximumPoints: number | null; nextPoint: KJDraftPointRole | null; canFinish: boolean; canC"
+    },
+    {
+      "name": "KJDraftStatus",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjdraftstatus",
+      "anchor": "root-type-kjdraftstatus",
+      "summary": "export type KJDraftStatus = 'collecting' | 'complete' | 'cancelled';"
+    },
+    {
+      "name": "KJDraftTool",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjdrafttool",
+      "anchor": "root-type-kjdrafttool",
+      "summary": "export type KJDraftTool = 'line' | 'polyline' | 'circle' | 'arc' | 'ellipse' | 'rectangle' | 'polygon' | 'point' | 'ray' | 'xline' | 'spline' | 'hatch' | 'dimension';"
+    },
+    {
       "name": "KJDRAW_1_0_PRODUCT_CONTRACT",
       "kind": "const",
       "module": "@kanjieteam/kjdraw",
@@ -6170,7 +6538,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-const-kjdraw-version",
       "anchor": "root-const-kjdraw-version",
-      "summary": "export declare const KJDRAW_VERSION: '1.0.0-rc.2';"
+      "summary": "export declare const KJDRAW_VERSION: '1.0.0-rc.3';"
     },
     {
       "name": "KJDrawEditor",
@@ -6635,6 +7003,78 @@
       "href": "./api/reference/#root-interface-kjlinepairoptions",
       "anchor": "root-interface-kjlinepairoptions",
       "summary": "export interface KJLinePairOptions { readonly pickPoint1?: unknown; readonly pickPoint2?: unknown; readonly distance?: unknown; readonly distance1?: unknown; readonly distance2?: unknown; readonly radius?: unknown; }"
+    },
+    {
+      "name": "KJLocalizedControlText",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjlocalizedcontroltext",
+      "anchor": "root-interface-kjlocalizedcontroltext",
+      "summary": "export interface KJLocalizedControlText { readonly en: string; readonly zh: string; }"
+    },
+    {
+      "name": "KJModificationBuildContext",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjmodificationbuildcontext",
+      "anchor": "root-interface-kjmodificationbuildcontext",
+      "summary": "export interface KJModificationBuildContext { readonly ids: readonly string[]; readonly values?: Readonly<Record<string, unknown>>; readonly points?: readonly KJModificationPoint[]; readonly selectionCenter?: KJModificat"
+    },
+    {
+      "name": "KJModificationCommand",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjmodificationcommand",
+      "anchor": "root-interface-kjmodificationcommand",
+      "summary": "export interface KJModificationCommand { readonly command: string; readonly arguments: KJCommandArguments; }"
+    },
+    {
+      "name": "KJModificationDefinition",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjmodificationdefinition",
+      "anchor": "root-interface-kjmodificationdefinition",
+      "summary": "export interface KJModificationDefinition { readonly id: KJModificationId; readonly command: string; readonly label: KJLocalizedControlText; readonly description: KJLocalizedControlText; readonly minSelection: number; re"
+    },
+    {
+      "name": "KJModificationFieldDefinition",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjmodificationfielddefinition",
+      "anchor": "root-interface-kjmodificationfielddefinition",
+      "summary": "export interface KJModificationFieldDefinition { readonly key: string; readonly label: KJLocalizedControlText; readonly type: KJModificationFieldType; readonly default: number | boolean; readonly min?: number; readonly m"
+    },
+    {
+      "name": "KJModificationFieldType",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjmodificationfieldtype",
+      "anchor": "root-type-kjmodificationfieldtype",
+      "summary": "export type KJModificationFieldType = 'number' | 'integer' | 'boolean';"
+    },
+    {
+      "name": "KJModificationId",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjmodificationid",
+      "anchor": "root-type-kjmodificationid",
+      "summary": "export type KJModificationId = 'rotate' | 'scale' | 'mirror' | 'array-rect' | 'array-polar' | 'offset' | 'break' | 'explode' | 'trim' | 'extend' | 'chamfer' | 'fillet';"
+    },
+    {
+      "name": "KJModificationPoint",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjmodificationpoint",
+      "anchor": "root-type-kjmodificationpoint",
+      "summary": "export type KJModificationPoint = readonly [number, number];"
+    },
+    {
+      "name": "KJModificationPointDefinition",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjmodificationpointdefinition",
+      "anchor": "root-interface-kjmodificationpointdefinition",
+      "summary": "export interface KJModificationPointDefinition { readonly key: string; readonly label: KJLocalizedControlText; }"
     },
     {
       "name": "KJNamedSelectionSet",
@@ -7699,6 +8139,14 @@
       "href": "./api/reference/#root-interface-orientationoptions",
       "anchor": "root-interface-orientationoptions",
       "summary": "export interface OrientationOptions { tolerance?: KJTolerance; }"
+    },
+    {
+      "name": "parseDraftCoordinate",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-parsedraftcoordinate",
+      "anchor": "root-function-parsedraftcoordinate",
+      "summary": "export declare function parseDraftCoordinate(input: string, relativeBase?: KJDraftPoint): KJDraftPoint;"
     },
     {
       "name": "perpendicular2",
@@ -10789,6 +11237,14 @@
       "summary": "export interface KJCanvasHit { entity: KJReadonlyObjectRecord; distance: number; point: readonly [number, number, number]; }"
     },
     {
+      "name": "KJCanvasPreviewEntity",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/renderer/canvas",
+      "href": "./api/reference/#renderer-canvas-interface-kjcanvaspreviewentity",
+      "anchor": "renderer-canvas-interface-kjcanvaspreviewentity",
+      "summary": "export interface KJCanvasPreviewEntity { type: string; payload: Readonly<Record<string, unknown>>; }"
+    },
+    {
       "name": "KJCanvasRenderer",
       "kind": "class",
       "module": "@kanjieteam/kjdraw/renderer/canvas",
@@ -10835,6 +11291,14 @@
       "href": "./api/reference/#renderer-canvas-type-kjcanvastheme",
       "anchor": "renderer-canvas-type-kjcanvastheme",
       "summary": "export type KJCanvasTheme = 'dark' | 'light';"
+    },
+    {
+      "name": "default",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/workbench",
+      "href": "./api/reference/#workbench-type-default",
+      "anchor": "workbench-type-default",
+      "summary": "export type { KJWorkbenchLayout } from './layout.js';"
     },
     {
       "name": "defineKJDrawWorkbenchElement",
@@ -10898,7 +11362,7 @@
       "module": "@kanjieteam/kjdraw/workbench",
       "href": "./api/reference/#workbench-interface-kjworkbenchsnapshot",
       "anchor": "workbench-interface-kjworkbenchsnapshot",
-      "summary": "export interface KJWorkbenchSnapshot { locale: KJWorkbenchLocale; theme: KJWorkbenchTheme; tool: KJWorkbenchTool; documentId: string | null; revision: number; entityCount: number; selectedIds: readonly string[]; render: "
+      "summary": "export interface KJWorkbenchSnapshot { locale: KJWorkbenchLocale; theme: KJWorkbenchTheme; layout: KJWorkbenchLayout; tool: KJWorkbenchTool; documentId: string | null; revision: number; entityCount: number; selectedIds: "
     },
     {
       "name": "KJWorkbenchTheme",
@@ -10914,7 +11378,7 @@
       "module": "@kanjieteam/kjdraw/workbench",
       "href": "./api/reference/#workbench-type-kjworkbenchtool",
       "anchor": "workbench-type-kjworkbenchtool",
-      "summary": "export type KJWorkbenchTool = 'select' | 'pan' | 'line' | 'polyline' | 'circle' | 'arc' | 'rectangle' | 'text' | 'measure';"
+      "summary": "export type KJWorkbenchTool = 'select' | 'pan' | KJDraftTool | 'text' | 'measure' | 'move' | 'copy';"
     },
     {
       "name": "mountKJDrawWorkbench",

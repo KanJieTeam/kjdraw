@@ -17,7 +17,7 @@ import {
 import type { KJDocument } from './document.js'
 import type { KJDrawSDK, KJSDKCommandEnvelopeReceipt } from './sdk.js'
 import type { KJCommandArguments } from './commands.js'
-import type { KJDrawWorkbenchChange, KJWorkbenchLocale, KJWorkbenchOpenOptions, KJWorkbenchTheme } from './workbench.js'
+import type { KJDrawWorkbenchChange, KJWorkbenchLayout, KJWorkbenchLocale, KJWorkbenchOpenOptions, KJWorkbenchTheme } from './workbench.js'
 
 export type {
   KJDrawEditor,
@@ -25,6 +25,7 @@ export type {
   KJDrawEditorOptions,
   KJDrawEditorSaveOptions,
   KJDrawEditorSelectionEvent,
+  KJWorkbenchLayout,
 } from './editor.js'
 
 export interface KJDrawExposed {
@@ -38,6 +39,7 @@ export interface KJDrawExposed {
   execute<TResult = unknown>(command: string, args?: KJCommandArguments): Promise<KJSDKCommandEnvelopeReceipt<TResult>>
   setDocument(document: KJDocument): Promise<KJDrawEditor>
   setTheme(theme: KJWorkbenchTheme): KJDrawEditor
+  setLayout(layout: KJWorkbenchLayout): KJDrawEditor
   setLocale(locale: KJWorkbenchLocale): KJDrawEditor
   setSelection(ids: readonly string[]): Promise<readonly string[]>
   getSelection(): readonly string[]
@@ -56,6 +58,7 @@ export const KJDraw = defineComponent({
     sdk: { type: Object as PropType<KJDrawSDK>, default: undefined },
     locale: { type: String as PropType<KJWorkbenchLocale>, default: 'en' },
     theme: { type: String as PropType<KJWorkbenchTheme>, default: 'dark' },
+    layout: { type: String as PropType<KJWorkbenchLayout>, default: 'classic' },
     readonly: { type: Boolean, default: false },
     grid: { type: Boolean, default: true },
     toolbar: { type: Boolean, default: true },
@@ -90,6 +93,7 @@ export const KJDraw = defineComponent({
         ...(props.sdk === undefined ? {} : { sdk: props.sdk }),
         locale: props.locale,
         theme: props.theme,
+        layout: props.layout,
         readonly: props.readonly,
         grid: props.grid,
         toolbar: props.toolbar,
@@ -116,6 +120,7 @@ export const KJDraw = defineComponent({
       execute: ((...args: Parameters<KJDrawEditor['execute']>) => requireEditor().execute(...args)) as KJDrawEditor['execute'],
       setDocument: drawing => requireEditor().setDocument(drawing),
       setTheme: value => requireEditor().setTheme(value),
+      setLayout: value => requireEditor().setLayout(value),
       setLocale: value => requireEditor().setLocale(value),
       setSelection: ids => requireEditor().setSelection(ids),
       getSelection: () => requireEditor().getSelection(),
@@ -139,8 +144,9 @@ export const KJDraw = defineComponent({
     watch(() => props.theme, value => editor.value?.setTheme(value))
     watch(() => props.locale, value => editor.value?.setLocale(value))
     watch(
-      () => [props.readonly, props.grid, props.toolbar, props.layers, props.properties, props.title, props.maxFileBytes] as const,
+      () => [props.layout, props.readonly, props.grid, props.toolbar, props.layers, props.properties, props.title, props.maxFileBytes] as const,
       () => editor.value?.setOptions({
+        layout: props.layout,
         readonly: props.readonly,
         grid: props.grid,
         toolbar: props.toolbar,

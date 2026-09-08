@@ -1,6 +1,6 @@
 {
   "name": "@kanjieteam/kjdraw",
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0-rc.3",
   "description": "TypeScript CAD application kit with a browser workbench, file interoperability, plugins and reviewable AI-agent commands",
   "repository": {
     "type": "git",
@@ -47,12 +47,26 @@
     "vue": ">=3.4.0 <4.0.0"
   },
   "peerDependenciesMeta": {
-    "react": { "optional": true },
-    "vue": { "optional": true }
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
   },
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
+    "./drafting": {
+      "types": "./types/drafting.d.ts",
+      "import": "./src/drafting.js",
+      "default": "./src/drafting.js"
+    },
+    "./modification-controls": {
+      "types": "./types/modification-controls.d.ts",
+      "import": "./src/modification-controls.js",
+      "default": "./src/modification-controls.js"
+    },
     "./samples": {
       "types": "./types/samples.d.ts",
       "import": "./src/samples.js",

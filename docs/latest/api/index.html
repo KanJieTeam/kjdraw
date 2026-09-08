@@ -20,7 +20,7 @@
   </header>
   <div class="api-shell">
     <aside class="api-sidebar">
-      <div class="version"><span><span class="lang-en">RECOMMENDED API</span><span class="lang-zh">推荐 API</span></span><strong>v1.0.0-rc.2</strong></div>
+      <div class="version"><span><span class="lang-en">RECOMMENDED API</span><span class="lang-zh">推荐 API</span></span><strong>v1.0.0-rc.3</strong></div>
       <nav>
         <a href="#overview"><span class="lang-en">Overview</span><span class="lang-zh">概览</span></a>
         <a href="#quickstart"><span class="lang-en">Quickstart</span><span class="lang-zh">快速接入</span></a>
@@ -39,8 +39,8 @@
           <p class="eyebrow">@kanjieteam/kjdraw</p>
           <h1><span class="lang-en">KJDraw Editor API</span><span class="lang-zh">KJDraw 编辑器 API</span></h1>
           <p class="lead"><span class="lang-en">Mount a complete CAD editor with one function, then control drawings, files, commands and selection through a small typed API.</span><span class="lang-zh">一个函数挂载完整 CAD 编辑器，再通过小而清晰的类型化 API 控制图档、文件、命令与选择。</span></p>
-          <div class="install"><code>npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz</code><button type="button" data-copy-value="npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz">Copy</button></div>
-          <p><span class="lang-en">Install the published GitHub release package. npm registry publication is pending.</span><span class="lang-zh">安装已发布的 GitHub Release 包；npm 仓库发布尚待完成。</span></p>
+          <div class="install"><code>npm install @kanjieteam/kjdraw@1.0.0-rc.3</code><button type="button" data-copy-value="npm install @kanjieteam/kjdraw@1.0.0-rc.3">Copy</button></div>
+
         </section>
 
         <section id="quickstart">
@@ -56,6 +56,7 @@ const editor = createKJDrawEditor(&#39;#cad&#39;, {
   document: &#39;sample&#39;,
   locale: &#39;en&#39;,
   theme: &#39;dark&#39;,
+  layout: &#39;classic&#39;,
   onChange: ({ revision, entityCount }) =&gt; {
     console.log({ revision, entityCount })
   },
@@ -66,7 +67,7 @@ await editor.execute(&#39;CREATE&#39;, {
   type: &#39;CIRCLE&#39;,
   payload: { center: [40, 30, 0], radius: 12 },
 })
-editor.fit()
+editor.setLayout(&#39;compact&#39;).fit()
 
 const kjd = await editor.save({ format: &#39;KJD&#39;, download: false })
 // Call editor.dispose() when the owning screen unmounts.</code></pre>
@@ -79,6 +80,7 @@ const kjd = await editor.save({ format: &#39;KJD&#39;, download: false })
 <tr id="option-sdk" data-api-entry data-name="sdk" data-kind="option" data-search="sdk kjdrawsdk reuse an application sdk so commands, plugins and documents share one registry. 复用应用 sdk，让命令、插件与图档共享同一注册表。"><td><a href="#option-sdk"><code>sdk</code></a></td><td><code>KJDrawSDK</code></td><td><code>new SDK</code></td><td><span class="lang-en">Reuse an application SDK so commands, plugins and documents share one registry.</span><span class="lang-zh">复用应用 SDK，让命令、插件与图档共享同一注册表。</span></td></tr>
 <tr id="option-locale" data-api-entry data-name="locale" data-kind="option" data-search="locale &#39;en&#39; | &#39;zh-cn&#39; initial workbench language. 工作台初始语言。"><td><a href="#option-locale"><code>locale</code></a></td><td><code>&#39;en&#39; | &#39;zh-CN&#39;</code></td><td><code>&#39;en&#39;</code></td><td><span class="lang-en">Initial workbench language.</span><span class="lang-zh">工作台初始语言。</span></td></tr>
 <tr id="option-theme" data-api-entry data-name="theme" data-kind="option" data-search="theme &#39;dark&#39; | &#39;light&#39; initial panel and canvas appearance. 面板与画布的初始外观。"><td><a href="#option-theme"><code>theme</code></a></td><td><code>&#39;dark&#39; | &#39;light&#39;</code></td><td><code>&#39;dark&#39;</code></td><td><span class="lang-en">Initial panel and canvas appearance.</span><span class="lang-zh">面板与画布的初始外观。</span></td></tr>
+<tr id="option-layout" data-api-entry data-name="layout" data-kind="option" data-search="layout &#39;classic&#39; | &#39;compact&#39; | &#39;focus&#39; workbench arrangement: full cad ribbon and panels, a shorter compact ribbon, or a canvas-first focus view. available since 1.0.0-rc.3. 工作台布局：完整 cad ribbon 与面板、较矮的紧凑 ribbon，或画布优先的专注视图。自 1.0.0-rc.3 起提供。"><td><a href="#option-layout"><code>layout</code></a></td><td><code>&#39;classic&#39; | &#39;compact&#39; | &#39;focus&#39;</code></td><td><code>&#39;classic&#39;</code></td><td><span class="lang-en">Workbench arrangement: full CAD ribbon and panels, a shorter compact ribbon, or a canvas-first focus view. Available since 1.0.0-rc.3.</span><span class="lang-zh">工作台布局：完整 CAD Ribbon 与面板、较矮的紧凑 Ribbon，或画布优先的专注视图。自 1.0.0-rc.3 起提供。</span></td></tr>
 <tr id="option-readonly" data-api-entry data-name="readonly" data-kind="option" data-search="readonly boolean keep inspection, navigation and export while disabling editing controls. 保留检查、导航与导出，同时禁用编辑控件。"><td><a href="#option-readonly"><code>readonly</code></a></td><td><code>boolean</code></td><td><code>false</code></td><td><span class="lang-en">Keep inspection, navigation and export while disabling editing controls.</span><span class="lang-zh">保留检查、导航与导出，同时禁用编辑控件。</span></td></tr>
 <tr id="option-grid" data-api-entry data-name="grid" data-kind="option" data-search="grid boolean show the drawing grid initially. 初始显示绘图网格。"><td><a href="#option-grid"><code>grid</code></a></td><td><code>boolean</code></td><td><code>true</code></td><td><span class="lang-en">Show the drawing grid initially.</span><span class="lang-zh">初始显示绘图网格。</span></td></tr>
 <tr id="option-toolbar" data-api-entry data-name="toolbar" data-kind="option" data-search="toolbar boolean show the ribbon toolbar. 显示 ribbon 工具栏。"><td><a href="#option-toolbar"><code>toolbar</code></a></td><td><code>boolean</code></td><td><code>true</code></td><td><span class="lang-en">Show the ribbon toolbar.</span><span class="lang-zh">显示 Ribbon 工具栏。</span></td></tr>
@@ -102,6 +104,7 @@ const kjd = await editor.save({ format: &#39;KJD&#39;, download: false })
 <tr id="property-workbench" data-api-entry data-name="workbench" data-kind="property" data-search="workbench kjdrawworkbench advanced workbench access for custom tools and renderer integration. 面向自定义工具与渲染集成的高级工作台入口。"><td><a href="#property-workbench"><code>workbench</code></a></td><td><code>KJDrawWorkbench</code></td><td><span class="lang-en">Advanced workbench access for custom tools and renderer integration.</span><span class="lang-zh">面向自定义工具与渲染集成的高级工作台入口。</span></td></tr>
 <tr id="property-locale" data-api-entry data-name="locale" data-kind="property" data-search="locale &#39;en&#39; | &#39;zh-cn&#39; current ui language. 当前界面语言。"><td><a href="#property-locale"><code>locale</code></a></td><td><code>&#39;en&#39; | &#39;zh-CN&#39;</code></td><td><span class="lang-en">Current UI language.</span><span class="lang-zh">当前界面语言。</span></td></tr>
 <tr id="property-theme" data-api-entry data-name="theme" data-kind="property" data-search="theme &#39;dark&#39; | &#39;light&#39; current appearance. 当前外观。"><td><a href="#property-theme"><code>theme</code></a></td><td><code>&#39;dark&#39; | &#39;light&#39;</code></td><td><span class="lang-en">Current appearance.</span><span class="lang-zh">当前外观。</span></td></tr>
+<tr id="property-layout" data-api-entry data-name="layout" data-kind="property" data-search="layout &#39;classic&#39; | &#39;compact&#39; | &#39;focus&#39; current workbench arrangement. 当前工作台布局。"><td><a href="#property-layout"><code>layout</code></a></td><td><code>&#39;classic&#39; | &#39;compact&#39; | &#39;focus&#39;</code></td><td><span class="lang-en">Current workbench arrangement.</span><span class="lang-zh">当前工作台布局。</span></td></tr>
 <tr id="property-disposed" data-api-entry data-name="disposed" data-kind="property" data-search="disposed boolean whether dispose() has released the editor. dispose() 是否已释放编辑器。"><td><a href="#property-disposed"><code>disposed</code></a></td><td><code>boolean</code></td><td><span class="lang-en">Whether dispose() has released the editor.</span><span class="lang-zh">dispose() 是否已释放编辑器。</span></td></tr></tbody></table></div>
         </section>
 
@@ -118,10 +121,11 @@ const kjd = await editor.save({ format: &#39;KJD&#39;, download: false })
 <tr id="method-setselection" data-api-entry data-name="setSelection" data-kind="method" data-search="setselection setselection(ids) readonly string[] promise&lt;readonly string[]&gt; replace selection through the serialized command queue and return the accepted ids. 通过串行命令队列替换选择集，并返回已接受的 id。"><td><a href="#method-setselection"><code>setSelection(ids)</code></a></td><td><code>readonly string[]</code></td><td><code>Promise&lt;readonly string[]&gt;</code></td><td><span class="lang-en">Replace selection through the serialized command queue and return the accepted IDs.</span><span class="lang-zh">通过串行命令队列替换选择集，并返回已接受的 ID。</span></td></tr>
 <tr id="method-getselection" data-api-entry data-name="getSelection" data-kind="method" data-search="getselection getselection() — readonly string[] read the current selected object ids. 读取当前已选对象 id。"><td><a href="#method-getselection"><code>getSelection()</code></a></td><td><code>—</code></td><td><code>readonly string[]</code></td><td><span class="lang-en">Read the current selected object IDs.</span><span class="lang-zh">读取当前已选对象 ID。</span></td></tr>
 <tr id="method-settheme" data-api-entry data-name="setTheme" data-kind="method" data-search="settheme settheme(theme) &#39;dark&#39; | &#39;light&#39; kjdraweditor switch panel and canvas appearance immediately. 立即切换面板与画布外观。"><td><a href="#method-settheme"><code>setTheme(theme)</code></a></td><td><code>&#39;dark&#39; | &#39;light&#39;</code></td><td><code>KJDrawEditor</code></td><td><span class="lang-en">Switch panel and canvas appearance immediately.</span><span class="lang-zh">立即切换面板与画布外观。</span></td></tr>
+<tr id="method-setlayout" data-api-entry data-name="setLayout" data-kind="method" data-search="setlayout setlayout(layout) &#39;classic&#39; | &#39;compact&#39; | &#39;focus&#39; kjdraweditor switch workbench chrome in place without replacing the editor, drawing or undo history. available since 1.0.0-rc.3. 原位切换工作台界面，不替换编辑器、图档或撤销历史。自 1.0.0-rc.3 起提供。"><td><a href="#method-setlayout"><code>setLayout(layout)</code></a></td><td><code>&#39;classic&#39; | &#39;compact&#39; | &#39;focus&#39;</code></td><td><code>KJDrawEditor</code></td><td><span class="lang-en">Switch workbench chrome in place without replacing the editor, drawing or undo history. Available since 1.0.0-rc.3.</span><span class="lang-zh">原位切换工作台界面，不替换编辑器、图档或撤销历史。自 1.0.0-rc.3 起提供。</span></td></tr>
 <tr id="method-setlocale" data-api-entry data-name="setLocale" data-kind="method" data-search="setlocale setlocale(locale) &#39;en&#39; | &#39;zh-cn&#39; kjdraweditor switch workbench language immediately. 立即切换工作台语言。"><td><a href="#method-setlocale"><code>setLocale(locale)</code></a></td><td><code>&#39;en&#39; | &#39;zh-CN&#39;</code></td><td><code>KJDrawEditor</code></td><td><span class="lang-en">Switch workbench language immediately.</span><span class="lang-zh">立即切换工作台语言。</span></td></tr>
-<tr id="method-settool" data-api-entry data-name="setTool" data-kind="method" data-search="settool settool(tool) kjworkbenchtool kjdraweditor activate select, pan, drawing or measurement tools. 激活选择、平移、绘制或测量工具。"><td><a href="#method-settool"><code>setTool(tool)</code></a></td><td><code>KJWorkbenchTool</code></td><td><code>KJDrawEditor</code></td><td><span class="lang-en">Activate select, pan, drawing or measurement tools.</span><span class="lang-zh">激活选择、平移、绘制或测量工具。</span></td></tr>
+<tr id="method-settool" data-api-entry data-name="setTool" data-kind="method" data-search="settool settool(tool) kjworkbenchtool kjdraweditor activate select, pan, move, copy or measure; drawing tools include line, polyline, circle, arc, ellipse, rectangle, polygon, spline, hatch, dimension, point, ray, xline and text. configure construction modes in the workbench drawing options dialog. 启用 select、pan、move、copy、measure，或 line、polyline、circle、arc、ellipse、rectangle、polygon、spline、hatch、dimension、point、ray、xline、text 绘图工具。构造方式可在工作台绘图参数对话框中设置。"><td><a href="#method-settool"><code>setTool(tool)</code></a></td><td><code>KJWorkbenchTool</code></td><td><code>KJDrawEditor</code></td><td><span class="lang-en">Activate select, pan, move, copy or measure; drawing tools include line, polyline, circle, arc, ellipse, rectangle, polygon, spline, hatch, dimension, point, ray, xline and text. Configure construction modes in the workbench Drawing options dialog.</span><span class="lang-zh">启用 select、pan、move、copy、measure，或 line、polyline、circle、arc、ellipse、rectangle、polygon、spline、hatch、dimension、point、ray、xline、text 绘图工具。构造方式可在工作台绘图参数对话框中设置。</span></td></tr>
 <tr id="method-settitle" data-api-entry data-name="setTitle" data-kind="method" data-search="settitle settitle(title) string kjdraweditor update the title displayed above the drawing. 更新图档上方显示的标题。"><td><a href="#method-settitle"><code>setTitle(title)</code></a></td><td><code>string</code></td><td><code>KJDrawEditor</code></td><td><span class="lang-en">Update the title displayed above the drawing.</span><span class="lang-zh">更新图档上方显示的标题。</span></td></tr>
-<tr id="method-setoptions" data-api-entry data-name="setOptions" data-kind="method" data-search="setoptions setoptions(options) pick&lt;kjdraweditoroptions, &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;layers&#39; | &#39;properties&#39; | &#39;title&#39; | &#39;maxfilebytes&#39;&gt; kjdraweditor update editor chrome, editing mode and file-size limit without replacing the drawing or its undo history. 原位更新编辑器界面、编辑模式与文件大小限制，不替换图档或撤销历史。"><td><a href="#method-setoptions"><code>setOptions(options)</code></a></td><td><code>Pick&lt;KJDrawEditorOptions, &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;layers&#39; | &#39;properties&#39; | &#39;title&#39; | &#39;maxFileBytes&#39;&gt;</code></td><td><code>KJDrawEditor</code></td><td><span class="lang-en">Update editor chrome, editing mode and file-size limit without replacing the drawing or its undo history.</span><span class="lang-zh">原位更新编辑器界面、编辑模式与文件大小限制，不替换图档或撤销历史。</span></td></tr>
+<tr id="method-setoptions" data-api-entry data-name="setOptions" data-kind="method" data-search="setoptions setoptions(options) pick&lt;kjdraweditoroptions, &#39;layout&#39; | &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;layers&#39; | &#39;properties&#39; | &#39;title&#39; | &#39;maxfilebytes&#39;&gt; kjdraweditor update layout, editor chrome, editing mode and file-size limit without replacing the drawing or its undo history. 原位更新布局、编辑器界面、编辑模式与文件大小限制，不替换图档或撤销历史。"><td><a href="#method-setoptions"><code>setOptions(options)</code></a></td><td><code>Pick&lt;KJDrawEditorOptions, &#39;layout&#39; | &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;layers&#39; | &#39;properties&#39; | &#39;title&#39; | &#39;maxFileBytes&#39;&gt;</code></td><td><code>KJDrawEditor</code></td><td><span class="lang-en">Update layout, editor chrome, editing mode and file-size limit without replacing the drawing or its undo history.</span><span class="lang-zh">原位更新布局、编辑器界面、编辑模式与文件大小限制，不替换图档或撤销历史。</span></td></tr>
 <tr id="method-on" data-api-entry data-name="on" data-kind="method" data-search="on on(name, listener) keyof kjdraweditorevents; listener () =&gt; boolean subscribe to an editor event and receive an unsubscribe function. 订阅编辑器事件，并获得取消订阅函数。"><td><a href="#method-on"><code>on(name, listener)</code></a></td><td><code>keyof KJDrawEditorEvents; listener</code></td><td><code>() =&gt; boolean</code></td><td><span class="lang-en">Subscribe to an editor event and receive an unsubscribe function.</span><span class="lang-zh">订阅编辑器事件，并获得取消订阅函数。</span></td></tr>
 <tr id="method-dispose" data-api-entry data-name="dispose" data-kind="method" data-search="dispose dispose() — void unmount and release listeners and renderer resources. safe to call twice. 卸载并释放监听与渲染资源；可安全重复调用。"><td><a href="#method-dispose"><code>dispose()</code></a></td><td><code>—</code></td><td><code>void</code></td><td><span class="lang-en">Unmount and release listeners and renderer resources. Safe to call twice.</span><span class="lang-zh">卸载并释放监听与渲染资源；可安全重复调用。</span></td></tr></tbody></table></div>
         </section>
@@ -146,30 +150,47 @@ off()</code></pre>
         <section id="frameworks">
           <h2>React / Vue<a class="permalink" href="#frameworks" aria-label="Link to React and Vue">#</a></h2>
           <div class="framework-grid">
-            <div><h3>React</h3><pre data-language="tsx"><button class="copy" type="button" data-copy-code>Copy</button><code>import { useRef } from &#39;react&#39;
-import { KJDraw, type KJDrawEditor } from &#39;@kanjieteam/kjdraw/react&#39;
+            <div><h3>React</h3><pre data-language="tsx"><button class="copy" type="button" data-copy-code>Copy</button><code>import { useRef, useState } from &#39;react&#39;
+import { KJDraw, type KJDrawEditor, type KJWorkbenchLayout } from &#39;@kanjieteam/kjdraw/react&#39;
 
 export function DrawingEditor() {
   const editor = useRef&lt;KJDrawEditor | null&gt;(null)
+  const [layout, setLayout] = useState&lt;KJWorkbenchLayout&gt;(&#39;classic&#39;)
+
+  async function moveSelection() {
+    const instance = editor.current
+    const ids = instance?.getSelection() ?? []
+    if (!instance || !ids.length) return
+    await instance.execute(&#39;MOVE&#39;, { ids, dx: 10, dy: 0 })
+  }
+
   return (
-    &lt;KJDraw
-      ref={editor}
-      document=&quot;sample&quot;
-      locale=&quot;en&quot;
-      theme=&quot;dark&quot;
-      style={{ height: 720 }}
-    /&gt;
+    &lt;&gt;
+      &lt;button onClick={() =&gt; setLayout(&#39;focus&#39;)}&gt;Focus drawing&lt;/button&gt;
+      &lt;button onClick={() =&gt; void moveSelection()}&gt;Move selected&lt;/button&gt;
+      &lt;KJDraw ref={editor} document=&quot;sample&quot; layout={layout} style={{ height: 720 }} /&gt;
+    &lt;/&gt;
   )
 }</code></pre><p><a href="../react/"><span class="lang-en">React guide</span><span class="lang-zh">React 指南</span> →</a></p></div>
             <div><h3>Vue</h3><pre data-language="vue"><button class="copy" type="button" data-copy-code>Copy</button><code>&lt;script setup lang=&quot;ts&quot;&gt;
 import { ref } from &#39;vue&#39;
-import { KJDraw, type KJDrawExposed } from &#39;@kanjieteam/kjdraw/vue&#39;
+import { KJDraw, type KJDrawExposed, type KJWorkbenchLayout } from &#39;@kanjieteam/kjdraw/vue&#39;
 
 const editor = ref&lt;KJDrawExposed | null&gt;(null)
+const layout = ref&lt;KJWorkbenchLayout&gt;(&#39;classic&#39;)
+
+async function moveSelection() {
+  const instance = editor.value
+  const ids = instance?.getSelection() ?? []
+  if (!instance || !ids.length) return
+  await instance.execute(&#39;MOVE&#39;, { ids, dx: 10, dy: 0 })
+}
 &lt;/script&gt;
 
 &lt;template&gt;
-  &lt;KJDraw ref=&quot;editor&quot; document=&quot;sample&quot; locale=&quot;en&quot; style=&quot;height: 720px&quot; /&gt;
+  &lt;button @click=&quot;layout = &#39;focus&#39;&quot;&gt;Focus drawing&lt;/button&gt;
+  &lt;button @click=&quot;moveSelection&quot;&gt;Move selected&lt;/button&gt;
+  &lt;KJDraw ref=&quot;editor&quot; document=&quot;sample&quot; :layout=&quot;layout&quot; style=&quot;height: 720px&quot; /&gt;
 &lt;/template&gt;</code></pre><p><a href="../vue/"><span class="lang-en">Vue guide</span><span class="lang-zh">Vue 指南</span> →</a></p></div>
           </div>
         </section>

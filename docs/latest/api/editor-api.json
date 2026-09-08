@@ -3,8 +3,8 @@
   "symbol": "createKJDrawEditor",
   "class": "KJDrawEditor",
   "distribution": {
-    "version": "1.0.0-rc.2",
-    "channel": "github-release"
+    "version": "1.0.0-rc.3",
+    "channel": "npm"
   },
   "title": {
     "en": "KJDraw Editor API",
@@ -15,9 +15,9 @@
     "zh": "一个函数挂载完整 CAD 编辑器，再通过小而清晰的类型化 API 控制图档、文件、命令与选择。"
   },
   "containerCode": "<div id=\"cad\"></div>\n<style>\n  #cad { width: 100%; height: 720px; }\n</style>",
-  "quickstartCode": "import { createKJDrawEditor } from '@kanjieteam/kjdraw'\n\nconst editor = createKJDrawEditor('#cad', {\n  document: 'sample',\n  locale: 'en',\n  theme: 'dark',\n  onChange: ({ revision, entityCount }) => {\n    console.log({ revision, entityCount })\n  },\n})\n\nawait editor.ready\nawait editor.execute('CREATE', {\n  type: 'CIRCLE',\n  payload: { center: [40, 30, 0], radius: 12 },\n})\neditor.fit()\n\nconst kjd = await editor.save({ format: 'KJD', download: false })\n// Call editor.dispose() when the owning screen unmounts.",
-  "reactCode": "import { useRef } from 'react'\nimport { KJDraw, type KJDrawEditor } from '@kanjieteam/kjdraw/react'\n\nexport function DrawingEditor() {\n  const editor = useRef<KJDrawEditor | null>(null)\n  return (\n    <KJDraw\n      ref={editor}\n      document=\"sample\"\n      locale=\"en\"\n      theme=\"dark\"\n      style={{ height: 720 }}\n    />\n  )\n}",
-  "vueCode": "<script setup lang=\"ts\">\nimport { ref } from 'vue'\nimport { KJDraw, type KJDrawExposed } from '@kanjieteam/kjdraw/vue'\n\nconst editor = ref<KJDrawExposed | null>(null)\n</script>\n\n<template>\n  <KJDraw ref=\"editor\" document=\"sample\" locale=\"en\" style=\"height: 720px\" />\n</template>",
+  "quickstartCode": "import { createKJDrawEditor } from '@kanjieteam/kjdraw'\n\nconst editor = createKJDrawEditor('#cad', {\n  document: 'sample',\n  locale: 'en',\n  theme: 'dark',\n  layout: 'classic',\n  onChange: ({ revision, entityCount }) => {\n    console.log({ revision, entityCount })\n  },\n})\n\nawait editor.ready\nawait editor.execute('CREATE', {\n  type: 'CIRCLE',\n  payload: { center: [40, 30, 0], radius: 12 },\n})\neditor.setLayout('compact').fit()\n\nconst kjd = await editor.save({ format: 'KJD', download: false })\n// Call editor.dispose() when the owning screen unmounts.",
+  "reactCode": "import { useRef, useState } from 'react'\nimport { KJDraw, type KJDrawEditor, type KJWorkbenchLayout } from '@kanjieteam/kjdraw/react'\n\nexport function DrawingEditor() {\n  const editor = useRef<KJDrawEditor | null>(null)\n  const [layout, setLayout] = useState<KJWorkbenchLayout>('classic')\n\n  async function moveSelection() {\n    const instance = editor.current\n    const ids = instance?.getSelection() ?? []\n    if (!instance || !ids.length) return\n    await instance.execute('MOVE', { ids, dx: 10, dy: 0 })\n  }\n\n  return (\n    <>\n      <button onClick={() => setLayout('focus')}>Focus drawing</button>\n      <button onClick={() => void moveSelection()}>Move selected</button>\n      <KJDraw ref={editor} document=\"sample\" layout={layout} style={{ height: 720 }} />\n    </>\n  )\n}",
+  "vueCode": "<script setup lang=\"ts\">\nimport { ref } from 'vue'\nimport { KJDraw, type KJDrawExposed, type KJWorkbenchLayout } from '@kanjieteam/kjdraw/vue'\n\nconst editor = ref<KJDrawExposed | null>(null)\nconst layout = ref<KJWorkbenchLayout>('classic')\n\nasync function moveSelection() {\n  const instance = editor.value\n  const ids = instance?.getSelection() ?? []\n  if (!instance || !ids.length) return\n  await instance.execute('MOVE', { ids, dx: 10, dy: 0 })\n}\n</script>\n\n<template>\n  <button @click=\"layout = 'focus'\">Focus drawing</button>\n  <button @click=\"moveSelection\">Move selected</button>\n  <KJDraw ref=\"editor\" document=\"sample\" :layout=\"layout\" style=\"height: 720px\" />\n</template>",
   "options": [
     {
       "name": "document",
@@ -46,6 +46,13 @@
       "default": "'dark'",
       "en": "Initial panel and canvas appearance.",
       "zh": "面板与画布的初始外观。"
+    },
+    {
+      "name": "layout",
+      "type": "'classic' | 'compact' | 'focus'",
+      "default": "'classic'",
+      "en": "Workbench arrangement: full CAD ribbon and panels, a shorter compact ribbon, or a canvas-first focus view. Available since 1.0.0-rc.3.",
+      "zh": "工作台布局：完整 CAD Ribbon 与面板、较矮的紧凑 Ribbon，或画布优先的专注视图。自 1.0.0-rc.3 起提供。"
     },
     {
       "name": "readonly",
@@ -169,6 +176,12 @@
       "zh": "当前外观。"
     },
     {
+      "name": "layout",
+      "type": "'classic' | 'compact' | 'focus'",
+      "en": "Current workbench arrangement.",
+      "zh": "当前工作台布局。"
+    },
+    {
       "name": "disposed",
       "type": "boolean",
       "en": "Whether dispose() has released the editor.",
@@ -257,6 +270,14 @@
       "zh": "立即切换面板与画布外观。"
     },
     {
+      "name": "setLayout",
+      "signature": "setLayout(layout)",
+      "parameters": "'classic' | 'compact' | 'focus'",
+      "returns": "KJDrawEditor",
+      "en": "Switch workbench chrome in place without replacing the editor, drawing or undo history. Available since 1.0.0-rc.3.",
+      "zh": "原位切换工作台界面，不替换编辑器、图档或撤销历史。自 1.0.0-rc.3 起提供。"
+    },
+    {
       "name": "setLocale",
       "signature": "setLocale(locale)",
       "parameters": "'en' | 'zh-CN'",
@@ -269,8 +290,8 @@
       "signature": "setTool(tool)",
       "parameters": "KJWorkbenchTool",
       "returns": "KJDrawEditor",
-      "en": "Activate select, pan, drawing or measurement tools.",
-      "zh": "激活选择、平移、绘制或测量工具。"
+      "en": "Activate select, pan, move, copy or measure; drawing tools include line, polyline, circle, arc, ellipse, rectangle, polygon, spline, hatch, dimension, point, ray, xline and text. Configure construction modes in the workbench Drawing options dialog.",
+      "zh": "启用 select、pan、move、copy、measure，或 line、polyline、circle、arc、ellipse、rectangle、polygon、spline、hatch、dimension、point、ray、xline、text 绘图工具。构造方式可在工作台绘图参数对话框中设置。"
     },
     {
       "name": "setTitle",
@@ -283,10 +304,10 @@
     {
       "name": "setOptions",
       "signature": "setOptions(options)",
-      "parameters": "Pick<KJDrawEditorOptions, 'readonly' | 'grid' | 'toolbar' | 'layers' | 'properties' | 'title' | 'maxFileBytes'>",
+      "parameters": "Pick<KJDrawEditorOptions, 'layout' | 'readonly' | 'grid' | 'toolbar' | 'layers' | 'properties' | 'title' | 'maxFileBytes'>",
       "returns": "KJDrawEditor",
-      "en": "Update editor chrome, editing mode and file-size limit without replacing the drawing or its undo history.",
-      "zh": "原位更新编辑器界面、编辑模式与文件大小限制，不替换图档或撤销历史。"
+      "en": "Update layout, editor chrome, editing mode and file-size limit without replacing the drawing or its undo history.",
+      "zh": "原位更新布局、编辑器界面、编辑模式与文件大小限制，不替换图档或撤销历史。"
     },
     {
       "name": "on",
@@ -350,7 +371,7 @@
     }
   ],
   "package": "@kanjieteam/kjdraw",
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0-rc.3",
   "source": "docs/site/api/editor-api.json",
-  "sourceDigest": "sha256:e287a01e773509e11dff4b9161bc5e3cf590685ea8ae915fab53fa9331d5e5d7"
+  "sourceDigest": "sha256:794418a8942fccac54ce68e8663f17214138526a8e764e567910590d85e2cf18"
 }

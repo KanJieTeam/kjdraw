@@ -5,7 +5,7 @@ function assignEditorRef(ref, value) {
     if (typeof ref === 'function') ref(value);
     else if (ref) ref.current = value;
 }
-export const KJDraw = forwardRef(function KJDraw({ className, style, id, document, sdk, locale, theme, readonly, grid, toolbar, layers, properties, title, maxFileBytes, onReady, onChange, onSelectionChange, onError }, forwardedRef) {
+export const KJDraw = forwardRef(function KJDraw({ className, style, id, document, sdk, locale, theme, layout, readonly, grid, toolbar, layers, properties, title, maxFileBytes, onReady, onChange, onSelectionChange, onError }, forwardedRef) {
     const containerRef = useRef(null);
     const editorRef = useRef(null);
     const remountRef = useRef(()=>{});
@@ -36,6 +36,9 @@ export const KJDraw = forwardRef(function KJDraw({ className, style, id, documen
         },
         ...theme === undefined ? {} : {
             theme
+        },
+        ...layout === undefined ? {} : {
+            layout
         },
         ...readonly === undefined ? {} : {
             readonly
@@ -129,6 +132,9 @@ export const KJDraw = forwardRef(function KJDraw({ className, style, id, documen
             ...readonly === undefined ? {} : {
                 readonly
             },
+            ...layout === undefined ? {} : {
+                layout
+            },
             ...grid === undefined ? {} : {
                 grid
             },
@@ -149,6 +155,7 @@ export const KJDraw = forwardRef(function KJDraw({ className, style, id, documen
             }
         });
     }, [
+        layout,
         readonly,
         grid,
         toolbar,

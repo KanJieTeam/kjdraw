@@ -47,6 +47,10 @@ export interface KJCanvasHit {
     distance: number;
     point: readonly [number, number, number];
 }
+export interface KJCanvasPreviewEntity {
+    type: string;
+    payload: Readonly<Record<string, unknown>>;
+}
 type Point2 = readonly [number, number];
 /** AutoCAD Color Index projection including the 24 hue ramps and gray tail. */
 export declare function aciColor(input: unknown, theme?: KJCanvasTheme): string;
@@ -82,6 +86,8 @@ export declare class KJCanvasRenderer {
     fit(): this;
     hitTest(screenPoint: Point2, tolerancePixels?: number): KJCanvasHit | null;
     render(): Readonly<KJCanvasRenderReport>;
+    /** Paint temporary native geometry without inserting objects or changing history. Call render() to clear it. */
+    drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2): this;
     dispose(): void;
 }
 export {};

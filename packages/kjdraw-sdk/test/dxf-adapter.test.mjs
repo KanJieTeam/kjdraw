@@ -68,7 +68,7 @@ test('DXF BLOCKS definitions and INSERT ownership survive write and reopen', asy
   assert.equal(reopened.listEntities({ ownerId: reopenedInsert.payload.blockRecordId, type: 'CIRCLE' }).length, 1)
 })
 
-test('DXF DIMENSION semantics and raw definition data survive write and reopen', async () => {
+test('DXF DIMENSION with a missing imported picture block is repaired from definition geometry', async () => {
   const source = [
     '0','SECTION','2','HEADER','9','$ACADVER','1','AC1032','0','ENDSEC',
     '0','SECTION','2','ENTITIES','0','DIMENSION','5','40','8','0','2','*D1','3','ISO-25','70','1','1','<>','10','5','20','7','30','0','11','5','21','9','31','0','13','0','23','0','33','0','14','10','24','0','34','0','42','10','0','ENDSEC','0','EOF','',
@@ -80,9 +80,103 @@ test('DXF DIMENSION semantics and raw definition data survive write and reopen',
   assert.equal(dimension.payload.styleName, 'ISO-25')
   assert.equal(dimension.payload.measurement, 10)
   assert.deepEqual(dimension.payload.definitionPoints, [[5, 7, 0], [0, 0, 0], [10, 0, 0]])
-  const reopened = await adapter.read(await adapter.write(document, { version: '2018' }))
-  assert.equal(reopened.listEntities({ type: 'DIMENSION' })[0].payload.dimensionType, 'ALIGNED')
+  const before = document.toJSON({ includeRevisions: true })
+  const written = await adapter.write(document, { version: '2018' })
+  assert.deepEqual(document.toJSON({ includeRevisions: true }), before, 'export-only picture blocks must not mutate the document or history')
+  const reopened = await adapter.read(written)
+  const repaired = reopened.listEntities({ type: 'DIMENSION' })[0]
+  assert.equal(repaired.payload.dimensionType, 'ALIGNED')
+  assert.equal(repaired.payload.dxfDimensionType & 32, 32)
+  const picture = reopened.getTable('blockRecords').records.find(record => record.name === repaired.payload.blockName)
+  assert.ok(picture, 'repaired DIMENSION must reference a real anonymous block')
+  assert.equal(reopened.listEntities({ ownerId: picture.id, type: 'LINE' }).length, 3)
+  assert.equal(reopened.listEntities({ ownerId: picture.id, type: 'SOLID' }).length, 2)
+  const [label] = reopened.listEntities({ ownerId: picture.id, type: 'TEXT' })
+  assert.equal(label.payload.horizontalAlignment, 1)
+  assert.equal(label.payload.verticalAlignment, 1)
+  assert.deepEqual(label.payload.alignmentPoint, label.payload.position)
   assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+})
+
+test('DXF DIMENSION preserves a populated imported picture block and rejects unsupported dangling geometry', async () => {
+  const source = [
+    '0','SECTION','2','HEADER','9','$ACADVER','1','AC1032','0','ENDSEC',
+    '0','SECTION','2','BLOCKS',
+    '0','BLOCK','5','50','8','0','2','*D7','70','1','10','0','20','0','30','0','3','*D7','1','',
+    '0','LINE','5','51','8','0','10','0','20','7','30','0','11','10','21','7','31','0',
+    '0','ENDBLK','5','52','8','0',
+    '0','ENDSEC',
+    '0','SECTION','2','ENTITIES',
+    '0','DIMENSION','5','40','8','0','2','*D7','3','STANDARD','70','33','10','5','20','7','30','0','13','0','23','0','33','0','14','10','24','0','34','0','42','10',
+    '0','ENDSEC','0','EOF','',
+  ].join('\r\n')
+  const adapter = createDXFFileAdapter()
+  const imported = await adapter.read(source)
+  const reopened = await adapter.read(await adapter.write(imported, { version: '2018' }))
+  const dimension = reopened.listEntities({ type: 'DIMENSION' })[0]
+  assert.equal(dimension.payload.blockName, '*D7')
+  const block = reopened.getTable('blockRecords').records.find(record => record.name === '*D7')
+  assert.ok(block)
+  assert.equal(reopened.listEntities({ ownerId: block.id, type: 'LINE' }).length, 1)
+  assert.equal(reopened.getTable('blockRecords').records.filter(record => /^\*D\d+$/i.test(record.name)).length, 1)
+
+  const sdk = createKJDrawSDK()
+  const unsupported = sdk.createDocument({ documentId: 'unsupported-native-dimension' })
+  await sdk.executeCommand('CREATE', { type: 'DIMENSION', payload: { dimensionType: 'ANGULAR', definitionPoints: [[0, 0, 0], [10, 0, 0], [0, 10, 0]] } })
+  const before = unsupported.toJSON({ includeRevisions: true })
+  await assert.rejects(sdk.writeDocument(unsupported, { format: 'DXF', version: '2018' }), error => error.cause instanceof KJValidationError && /ALIGNED, ROTATED, RADIUS, or DIAMETER/.test(error.cause.message))
+  assert.deepEqual(unsupported.toJSON({ includeRevisions: true }), before)
+
+  const rawUnsupported = await adapter.read([
+    '0','SECTION','2','HEADER','9','$ACADVER','1','AC1032','0','ENDSEC',
+    '0','SECTION','2','BLOCKS','0','BLOCK','5','60','8','0','2','*D8','70','1','10','0','20','0','30','0','3','*D8','1','',
+    '0','LINE','5','61','8','0','10','0','20','0','30','0','11','1','21','1','31','0','0','ENDBLK','5','62','8','0','0','ENDSEC',
+    '0','SECTION','2','ENTITIES','0','DIMENSION','5','63','8','0','2','*D8','3','STANDARD','70','34','10','5','20','5','30','0','13','0','23','0','33','0','14','10','24','0','34','0','15','5','25','5','35','0','0','ENDSEC','0','EOF','',
+  ].join('\r\n'))
+  assert.match(await adapter.write(rawUnsupported, { version: '2018' }), /\r\n\*D8\r\n/)
+  const rawSDK = createKJDrawSDK()
+  rawSDK.attachDocument(rawUnsupported)
+  const rawAngular = rawUnsupported.listEntities({ type: 'DIMENSION' })[0]
+  await rawSDK.executeCommand('MOVE', { id: rawAngular.id, dx: 1, dy: 2 })
+  await assert.rejects(rawSDK.writeDocument(rawUnsupported, { format: 'DXF', version: '2018' }), error => error.cause instanceof KJValidationError && /ALIGNED, ROTATED, RADIUS, or DIAMETER/.test(error.cause.message))
+})
+
+test('native DXF dimensions get unique non-empty picture blocks and reject non-XY projection', async () => {
+  const sdk = createKJDrawSDK()
+  const document = sdk.createDocument({ documentId: 'native-dimension-blocks' })
+  const payloads = [
+    { dimensionType: 'ALIGNED', definitionPoints: [[5, 7, 0], [0, 0, 0], [10, 0, 0]], measurement: 999 },
+    { dimensionType: 'ROTATED', definitionPoints: [[25, 7, 0], [20, 0, 0], [30, 0, 0]], rotation: 0, measurement: 999 },
+    { dimensionType: 'RADIUS', definitionPoints: [[40, 0, 0], [45, 0, 0]], measurement: 999 },
+    { dimensionType: 'DIAMETER', definitionPoints: [[55, 0, 0], [65, 0, 0]], measurement: 999 },
+  ]
+  for (const payload of payloads) await sdk.executeCommand('CREATE', { type: 'DIMENSION', payload })
+  const before = document.toJSON({ includeRevisions: true })
+  const artifact = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  assert.deepEqual(document.toJSON({ includeRevisions: true }), before)
+  const reopened = await sdk.readDocument(artifact, { format: 'DXF' })
+  const modelSpaceId = reopened.snapshot().spaces.modelSpaceId
+  const dimensions = reopened.listEntities({ ownerId: modelSpaceId, type: 'DIMENSION' })
+  assert.equal(dimensions.length, 4)
+  assert.equal(new Set(dimensions.map(entity => entity.payload.blockName)).size, 4)
+  assert.equal(dimensions.every(entity => /^\*D\d+$/i.test(entity.payload.blockName) && (entity.payload.dxfDimensionType & 32) === 32), true)
+  const expected = { ALIGNED: [3, 2, 10], ROTATED: [3, 2, 10], RADIUS: [1, 1, 5], DIAMETER: [1, 2, 10] }
+  for (const dimension of dimensions) {
+    const block = reopened.getTable('blockRecords').records.find(record => record.name === dimension.payload.blockName)
+    assert.ok(block)
+    const [lineCount, solidCount, measurement] = expected[dimension.payload.dimensionType]
+    assert.equal(reopened.listEntities({ ownerId: block.id, type: 'LINE' }).length, lineCount)
+    assert.equal(reopened.listEntities({ ownerId: block.id, type: 'SOLID' }).length, solidCount)
+    assert.equal(reopened.listEntities({ ownerId: block.id, type: 'TEXT' }).length, 1)
+    assert.equal(dimension.payload.measurement, measurement, 'stale cached measurement must not override projected geometry')
+  }
+
+  const spatial = createKJDrawSDK()
+  const spatialDocument = spatial.createDocument({ documentId: 'spatial-dimension-rejection' })
+  await spatial.executeCommand('CREATE', { type: 'DIMENSION', payload: { dimensionType: 'RADIUS', definitionPoints: [[0, 0, 1], [5, 0, 1]] } })
+  const spatialBefore = spatialDocument.toJSON({ includeRevisions: true })
+  await assert.rejects(spatial.writeDocument(spatialDocument, { format: 'DXF', version: '2018' }), error => error.cause instanceof KJValidationError && /supported XY plane/.test(error.cause.message))
+  assert.deepEqual(spatialDocument.toJSON({ includeRevisions: true }), spatialBefore)
 })
 
 test('DXF paper-space ownership and layout names survive write and reopen', async () => {
@@ -156,7 +250,7 @@ test('DXF standard resource tables and entity style references survive write and
   await document.transact('Create named view', tx => tx.upsertTableRecord('views', { name: 'SITE', type: 'VIEW', payload: { center: [50, 60, 0], width: 500, height: 300, direction: [0, 0, 1], target: [0, 0, 0], twistAngle: 0.2 } }))
   const layer = await sdk.executeCommand('LAYERNEW', { name: 'GEO-TEXT', color: 2, linetypeId: linetype.id, lineweight: 25, locked: true, plottable: false })
   await sdk.executeCommand('CREATE', { type: 'TEXT', payload: { position: [1, 2, 0], text: '钻孔 ZK01', height: 3.5, styleId: textStyle.id, layerId: layer.id } })
-  await sdk.executeCommand('CREATE', { type: 'DIMENSION', payload: { dimensionType: 'ALIGNED', definitionPoints: [[0, 0, 0], [100, 0, 0]], textPosition: [50, 10, 0], styleId: dimensionStyle.id, styleName: 'KJ-100', layerId: layer.id } })
+  await sdk.executeCommand('CREATE', { type: 'DIMENSION', payload: { dimensionType: 'ALIGNED', definitionPoints: [[50, 10, 0], [0, 0, 0], [100, 0, 0]], textPosition: [50, 10, 0], styleId: dimensionStyle.id, styleName: 'KJ-100', layerId: layer.id } })
 
   const artifact = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
   for (const table of ['LTYPE', 'STYLE', 'DIMSTYLE', 'UCS', 'VIEW', 'LAYER']) assert.match(artifact, new RegExp(`\\r\\n${table}\\r\\n`))
@@ -173,6 +267,7 @@ test('DXF standard resource tables and entity style references survive write and
   assert.equal(reopenedLayer.payload.linetypeId, reopenedLinetype.id)
   assert.equal(reopenedLayer.payload.locked, true)
   assert.equal(reopenedLayer.payload.plottable, false)
-  assert.equal(reopened.listEntities({ type: 'TEXT' })[0].payload.styleId, reopenedTextStyle.id)
-  assert.equal(reopened.listEntities({ type: 'DIMENSION' })[0].payload.styleId, reopenedDimensionStyle.id)
+  const modelSpaceId = reopened.snapshot().spaces.modelSpaceId
+  assert.equal(reopened.listEntities({ ownerId: modelSpaceId, type: 'TEXT' })[0].payload.styleId, reopenedTextStyle.id)
+  assert.equal(reopened.listEntities({ ownerId: modelSpaceId, type: 'DIMENSION' })[0].payload.styleId, reopenedDimensionStyle.id)
 })

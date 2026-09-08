@@ -383,7 +383,7 @@ const editorHtml = `<!doctype html>
           <h1>${localized(editorGuide.title.en, editorGuide.title.zh)}</h1>
           <p class="lead">${localized(editorGuide.lead.en, editorGuide.lead.zh)}</p>
           <div class="install"><code>${escapeHtml(installCommand)}</code><button type="button" data-copy-value="${escapeHtml(installCommand)}">Copy</button></div>
-          ${installFromRelease ? `<p>${localized('Install the published GitHub release package. npm registry publication is pending.', '安装已发布的 GitHub Release 包；npm 仓库发布尚待完成。')}</p>` : ''}
+${installFromRelease ? `          <p>${localized('Install the published GitHub release package. npm registry publication is pending.', '安装已发布的 GitHub Release 包；npm 仓库发布尚待完成。')}</p>` : ''}
         </section>
 
         <section id="quickstart">

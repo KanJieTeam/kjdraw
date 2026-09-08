@@ -18,6 +18,7 @@ export type {
   KJDrawEditorOptions,
   KJDrawEditorSaveOptions,
   KJDrawEditorSelectionEvent,
+  KJWorkbenchLayout,
 } from './editor.js'
 
 export interface KJDrawProps extends KJDrawEditorOptions {
@@ -44,6 +45,7 @@ export const KJDraw = forwardRef<KJDrawEditor, KJDrawProps>(function KJDraw(
     sdk,
     locale,
     theme,
+    layout,
     readonly,
     grid,
     toolbar,
@@ -71,6 +73,7 @@ export const KJDraw = forwardRef<KJDrawEditor, KJDrawProps>(function KJDraw(
     ...(sdk === undefined ? {} : { sdk }),
     ...(locale === undefined ? {} : { locale }),
     ...(theme === undefined ? {} : { theme }),
+    ...(layout === undefined ? {} : { layout }),
     ...(readonly === undefined ? {} : { readonly }),
     ...(grid === undefined ? {} : { grid }),
     ...(toolbar === undefined ? {} : { toolbar }),
@@ -146,6 +149,7 @@ export const KJDraw = forwardRef<KJDrawEditor, KJDrawProps>(function KJDraw(
   useEffect(() => {
     editorRef.current?.setOptions({
       ...(readonly === undefined ? {} : { readonly }),
+      ...(layout === undefined ? {} : { layout }),
       ...(grid === undefined ? {} : { grid }),
       ...(toolbar === undefined ? {} : { toolbar }),
       ...(layers === undefined ? {} : { layers }),
@@ -153,7 +157,7 @@ export const KJDraw = forwardRef<KJDrawEditor, KJDrawProps>(function KJDraw(
       ...(title === undefined ? {} : { title }),
       ...(maxFileBytes === undefined ? {} : { maxFileBytes }),
     })
-  }, [readonly, grid, toolbar, layers, properties, title, maxFileBytes])
+  }, [layout, readonly, grid, toolbar, layers, properties, title, maxFileBytes])
 
   return createElement('div', {
     ref: containerRef,

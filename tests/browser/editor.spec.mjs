@@ -70,6 +70,49 @@ test('typing in command input never invokes canvas shortcuts or erases a selecti
   await expect.poll(() => page.evaluate(() => window.editorTest.editor.document.listEntities()[0].payload.start[0])).toBe(2)
 })
 
+test('layout switches preserve the editor, drawing and undo history', async ({ page }) => {
+  await mount(page, { layout: 'classic' })
+  const result = await page.evaluate(async () => {
+    const { editor } = window.editorTest
+    const sameEditor = editor
+    const drawing = editor.document
+    const created = await editor.execute('CREATE', {
+      type: 'LINE',
+      payload: { start: [0, 0, 0], end: [20, 0, 0] },
+    })
+    const id = created.result.id
+    await editor.execute('MOVE', { id, dx: 8, dy: 3 })
+    const moved = [...drawing.getObject(id).payload.start]
+    const setLayoutResult = editor.setLayout('focus')
+    const afterFocus = {
+      layout: editor.layout,
+      sameEditor: setLayoutResult === sameEditor,
+      sameDrawing: editor.document === drawing,
+      position: [...drawing.getObject(id).payload.start],
+    }
+    await editor.undo()
+    const undone = [...drawing.getObject(id).payload.start]
+    const setOptionsResult = editor.setOptions({ layout: 'compact' })
+    await editor.redo()
+    return {
+      moved,
+      afterFocus,
+      undone,
+      redone: [...drawing.getObject(id).payload.start],
+      compact: editor.layout,
+      sameEditorAfterOptions: setOptionsResult === sameEditor,
+      sameDrawingAfterOptions: editor.document === drawing,
+    }
+  })
+  expect(result.moved).toEqual([8, 3, 0])
+  expect(result.afterFocus).toEqual({ layout: 'focus', sameEditor: true, sameDrawing: true, position: [8, 3, 0] })
+  expect(result.undone).toEqual([0, 0, 0])
+  expect(result.redone).toEqual([8, 3, 0])
+  expect(result.compact).toBe('compact')
+  expect(result.sameEditorAfterOptions).toBe(true)
+  expect(result.sameDrawingAfterOptions).toBe(true)
+})
+
 test('two editors sharing an SDK keep drawings, selections and file identity isolated', async ({ page }) => {
   await mount(page)
   const result = await page.evaluate(async () => {

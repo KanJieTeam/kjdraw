@@ -1,6 +1,6 @@
 {
   "name": "kjdraw",
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0-rc.3",
   "private": true,
   "description": "TypeScript CAD application kit with a browser workbench, file interoperability, plugins and reviewable AI-agent commands",
   "type": "module",

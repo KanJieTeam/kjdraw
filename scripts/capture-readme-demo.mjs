@@ -124,6 +124,42 @@ try {
   await placeCursor('#canvas', 0.57, 0.48)
   await capture('undo', 1600)
 
+  // These frames use normal user controls, starting with a genuinely empty drawing.
+  await page.locator('#new-drawing').click()
+  await page.locator('#dialog-fields input[name="name"]').fill(locale === 'zh-CN' ? '安装板 · 精确绘图' : 'Mounting plate · precise drafting')
+  await page.locator('#dialog-fields select[name="units"]').selectOption('millimeter')
+  await page.locator('#dialog-submit').click()
+  await page.waitForFunction(() => document.querySelector('.workbench')?.getAttribute('aria-busy') === 'false')
+  await page.locator('.right-tabs [data-panel="properties"]').click()
+  async function command(value, { dialog = false } = {}) {
+    await page.locator('#command-input').fill(value)
+    await page.locator('#command-input').press('Enter')
+    if (dialog) { await page.locator('#app-dialog').waitFor({ state: 'visible' }); return }
+    await page.waitForFunction(() => document.querySelector('.workbench')?.getAttribute('aria-busy') === 'false')
+    const error = await page.locator('.workbench').getAttribute('data-last-error')
+    if (error) throw new Error(`Readme capture command ${value}: ${error}`)
+  }
+  async function draw(tool, points) {
+    await command(tool)
+    for (const point of points) await command(point)
+    await page.locator('#command-input').press('Escape')
+  }
+  await draw('RECTANGLE', ['0,0','180,120'])
+  await draw('CIRCLE', ['90,60','22'])
+  await draw('CIRCLE', ['130,60','5'])
+  await command('FIT')
+  await placeCursor('#canvas', .55, .5); await capture('draw-from-empty', 1400)
+  const box = await page.locator('#canvas').boundingBox(), scale = Math.min((box.width - 164)/180, (box.height - 164)/120)
+  await page.mouse.click(box.x + box.width/2 + 45*scale, box.y + box.height/2)
+  await command('ARRAYPOLAR', { dialog: true })
+  await page.locator('#dialog-submit').click()
+  await command('90,60')
+  await placeCursor('#canvas', .65, .5); await capture('polar-array', 1400)
+  await draw('DIMALIGNED', ['0,0','180,0','90,-15'])
+  await draw('DIMRADIUS', ['90,60','112,60'])
+  await command('FIT')
+  await placeCursor('#canvas', .5, .8); await capture('dimensioned-plate', 2000)
+
   writeFileSync(resolve(framesDir, 'manifest.json'), JSON.stringify({ locale, width: 1120, frames: manifest }, null, 2))
   await context.close()
 

@@ -1,0 +1,478 @@
+// Generated from modification-controls.ts by scripts/build-typescript.mjs. Do not edit directly.
+const text = (en, zh)=>Object.freeze({
+        en,
+        zh
+    });
+const number = (key, en, zh, defaultValue, options = {})=>Object.freeze({
+        key,
+        label: text(en, zh),
+        type: options.type ?? 'number',
+        default: defaultValue,
+        ...options.min === undefined ? {} : {
+            min: options.min
+        },
+        ...options.max === undefined ? {} : {
+            max: options.max
+        },
+        ...options.step === undefined ? {} : {
+            step: options.step
+        }
+    });
+const boolean = (key, en, zh, defaultValue)=>Object.freeze({
+        key,
+        label: text(en, zh),
+        type: 'boolean',
+        default: defaultValue
+    });
+const pick = (key, en, zh)=>Object.freeze({
+        key,
+        label: text(en, zh)
+    });
+export const KJ_MODIFICATION_IDS = Object.freeze([
+    'rotate',
+    'scale',
+    'mirror',
+    'array-rect',
+    'array-polar',
+    'offset',
+    'break',
+    'explode',
+    'trim',
+    'extend',
+    'chamfer',
+    'fillet'
+]);
+export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
+    {
+        id: 'rotate',
+        command: 'ROTATE',
+        label: text('Rotate', '旋转'),
+        description: text('Rotate the selection around a point.', '绕指定基点旋转选中对象。'),
+        minSelection: 1,
+        fields: [
+            number('angleDegrees', 'Angle (°)', '角度（°）', 90, {
+                step: 1
+            })
+        ],
+        pointKeys: [
+            pick('center', 'Pick the rotation center', '在画布上指定旋转中心')
+        ]
+    },
+    {
+        id: 'scale',
+        command: 'SCALE',
+        label: text('Scale', '缩放'),
+        description: text('Scale the selection uniformly around a point.', '绕指定基点等比缩放选中对象。'),
+        minSelection: 1,
+        fields: [
+            number('factor', 'Scale factor', '缩放比例', 2, {
+                step: 0.1
+            })
+        ],
+        pointKeys: [
+            pick('center', 'Pick the scale center', '在画布上指定缩放基点')
+        ]
+    },
+    {
+        id: 'mirror',
+        command: 'MIRROR',
+        label: text('Mirror', '镜像'),
+        description: text('Mirror the selection across a two-point axis.', '以画布上两点定义的轴镜像选中对象。'),
+        minSelection: 1,
+        fields: [
+            boolean('eraseSource', 'Erase source', '删除源对象', false)
+        ],
+        pointKeys: [
+            pick('lineStart', 'Pick the first axis point', '指定镜像轴第一点'),
+            pick('lineEnd', 'Pick the second axis point', '指定镜像轴第二点')
+        ]
+    },
+    {
+        id: 'array-rect',
+        command: 'ARRAYRECT',
+        label: text('Rectangular array', '矩形阵列'),
+        description: text('Create rows and columns of the selection.', '按行列间距创建选中对象的矩形阵列。'),
+        minSelection: 1,
+        fields: [
+            number('rows', 'Rows', '行数', 2, {
+                type: 'integer',
+                min: 1,
+                max: 100000,
+                step: 1
+            }),
+            number('columns', 'Columns', '列数', 3, {
+                type: 'integer',
+                min: 1,
+                max: 100000,
+                step: 1
+            }),
+            number('rowSpacing', 'Row spacing', '行间距', 10, {
+                step: 1
+            }),
+            number('columnSpacing', 'Column spacing', '列间距', 10, {
+                step: 1
+            })
+        ],
+        pointKeys: []
+    },
+    {
+        id: 'array-polar',
+        command: 'ARRAYPOLAR',
+        label: text('Polar array', '环形阵列'),
+        description: text('Distribute the selection around a center point.', '围绕画布上指定中心阵列选中对象。'),
+        minSelection: 1,
+        fields: [
+            number('count', 'Item count', '项目数', 6, {
+                type: 'integer',
+                min: 2,
+                max: 100000,
+                step: 1
+            }),
+            number('angleDegrees', 'Fill angle (°)', '填充角度（°）', 360, {
+                step: 1
+            }),
+            boolean('rotateItems', 'Rotate items', '旋转阵列项', true)
+        ],
+        pointKeys: [
+            pick('center', 'Pick the array center', '在画布上指定阵列中心')
+        ]
+    },
+    {
+        id: 'offset',
+        command: 'OFFSET',
+        label: text('Offset', '偏移'),
+        description: text('Create one exact parallel or concentric entity.', '在指定侧创建一个精确平行或同心对象。'),
+        minSelection: 1,
+        maxSelection: 1,
+        supportedEntityTypes: [
+            'LINE',
+            'RAY',
+            'XLINE',
+            'CIRCLE',
+            'ARC'
+        ],
+        fields: [
+            number('distance', 'Distance', '偏移距离', 2, {
+                min: Number.EPSILON,
+                step: 0.1
+            })
+        ],
+        pointKeys: [
+            pick('sidePoint', 'Pick the offset side', '在画布上指定偏移侧')
+        ]
+    },
+    {
+        id: 'break',
+        command: 'BREAK',
+        label: text('Break', '打断'),
+        description: text('Split one line or arc at a point.', '在指定点打断一条直线或圆弧。'),
+        minSelection: 1,
+        maxSelection: 1,
+        supportedEntityTypes: [
+            'LINE',
+            'ARC'
+        ],
+        fields: [],
+        pointKeys: [
+            pick('point', 'Pick the break point', '在画布上指定打断点')
+        ]
+    },
+    {
+        id: 'explode',
+        command: 'EXPLODE',
+        label: text('Explode', '分解'),
+        description: text('Explode one polyline-compatible entity into primitives.', '将一个多段线类对象分解为基础图元。'),
+        minSelection: 1,
+        maxSelection: 1,
+        supportedEntityTypes: [
+            'LWPOLYLINE',
+            'POLYLINE',
+            'REVISION_CLOUD',
+            'WIPEOUT'
+        ],
+        fields: [],
+        pointKeys: []
+    },
+    {
+        id: 'trim',
+        command: 'TRIM',
+        label: text('Trim line', '修剪直线'),
+        description: text('Use the first selected LINE as target and the rest as boundaries.', '以第一个选中直线为目标，其余对象为边界。'),
+        minSelection: 2,
+        fields: [],
+        pointKeys: [
+            pick('pickPoint', 'Pick the side of the target to trim', '在目标直线上指定要修剪的一侧')
+        ]
+    },
+    {
+        id: 'extend',
+        command: 'EXTEND',
+        label: text('Extend line', '延伸直线'),
+        description: text('Use the first selected LINE as target and the rest as boundaries.', '以第一个选中直线为目标，其余对象为边界。'),
+        minSelection: 2,
+        fields: [],
+        pointKeys: [
+            pick('pickPoint', 'Pick the end of the target to extend', '在目标直线上指定要延伸的一端')
+        ]
+    },
+    {
+        id: 'chamfer',
+        command: 'CHAMFER',
+        label: text('Chamfer lines', '直线倒角'),
+        description: text('Trim two selected LINE entities and add a chamfer.', '修剪两条选中直线并创建倒角。'),
+        minSelection: 2,
+        maxSelection: 2,
+        supportedEntityTypes: [
+            'LINE'
+        ],
+        fields: [
+            number('distance1', 'First distance', '第一距离', 2, {
+                min: 0,
+                step: 0.1
+            }),
+            number('distance2', 'Second distance', '第二距离', 2, {
+                min: 0,
+                step: 0.1
+            })
+        ],
+        pointKeys: [
+            pick('pickPoint1', 'Pick the side of the first line to keep', '在第一条直线上指定保留侧'),
+            pick('pickPoint2', 'Pick the side of the second line to keep', '在第二条直线上指定保留侧')
+        ]
+    },
+    {
+        id: 'fillet',
+        command: 'FILLET',
+        label: text('Fillet lines', '直线圆角'),
+        description: text('Trim two selected LINE entities and add a tangent arc.', '修剪两条选中直线并创建相切圆弧。'),
+        minSelection: 2,
+        maxSelection: 2,
+        supportedEntityTypes: [
+            'LINE'
+        ],
+        fields: [
+            number('radius', 'Radius', '半径', 2, {
+                min: Number.EPSILON,
+                step: 0.1
+            })
+        ],
+        pointKeys: [
+            pick('pickPoint1', 'Pick the side of the first line to keep', '在第一条直线上指定保留侧'),
+            pick('pickPoint2', 'Pick the side of the second line to keep', '在第二条直线上指定保留侧')
+        ]
+    }
+]);
+const definitionById = new Map(KJ_MODIFICATION_DEFINITIONS.map((definition)=>[
+        definition.id,
+        definition
+    ]));
+export function getKJModificationSelectionCenter(entities) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const add = (value)=>{
+        if (value && typeof value === 'object' && !Array.isArray(value) && 'point' in value) value = value.point;
+        if (!Array.isArray(value)) return;
+        const x = Number(value[0]), y = Number(value[1]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+    };
+    for (const { payload } of entities){
+        for (const key of [
+            'start',
+            'end',
+            'center',
+            'position',
+            'insertionPoint',
+            'origin'
+        ])add(payload[key]);
+        for (const key of [
+            'vertices',
+            'controlPoints',
+            'fitPoints',
+            'definitionPoints'
+        ])if (Array.isArray(payload[key])) for (const point of payload[key])add(point);
+        for (const raw of Array.isArray(payload.boundaryLoops) ? payload.boundaryLoops : []){
+            const loop = raw;
+            for (const point of Array.isArray(loop.vertices) ? loop.vertices : [])add(point);
+            for (const rawEdge of Array.isArray(loop.edges) ? loop.edges : []){
+                const edge = rawEdge;
+                add(edge.start);
+                add(edge.end);
+                add(edge.center);
+            }
+        }
+    }
+    return Number.isFinite(minX) ? [
+        (minX + maxX) / 2,
+        (minY + maxY) / 2
+    ] : [
+        0,
+        0
+    ];
+}
+export function getKJModificationDefinition(id) {
+    const definition = definitionById.get(id);
+    if (!definition) throw new RangeError(`Unsupported KJDraw modification: ${String(id)}`);
+    return definition;
+}
+function normalizedIds(definition, ids) {
+    const result = [
+        ...new Set(ids.map(String).filter(Boolean))
+    ];
+    if (result.length < definition.minSelection) throw new RangeError(`${definition.command} requires at least ${definition.minSelection} selected object${definition.minSelection === 1 ? '' : 's'}`);
+    if (definition.maxSelection !== undefined && result.length > definition.maxSelection) throw new RangeError(`${definition.command} accepts at most ${definition.maxSelection} selected object${definition.maxSelection === 1 ? '' : 's'}`);
+    return result;
+}
+function normalizedValues(definition, source) {
+    const result = {};
+    for (const field of definition.fields){
+        const raw = source[field.key] ?? field.default;
+        if (field.type === 'boolean') {
+            result[field.key] = typeof raw === 'string' ? ![
+                '',
+                '0',
+                'false',
+                'no',
+                'off'
+            ].includes(raw.trim().toLowerCase()) : Boolean(raw);
+            continue;
+        }
+        const value = Number(raw);
+        if (!Number.isFinite(value)) throw new TypeError(`${field.label.en} must be a finite number`);
+        if (field.type === 'integer' && !Number.isInteger(value)) throw new RangeError(`${field.label.en} must be an integer`);
+        if (field.min !== undefined && value < field.min) throw new RangeError(`${field.label.en} must be at least ${field.min}`);
+        if (field.max !== undefined && value > field.max) throw new RangeError(`${field.label.en} must be at most ${field.max}`);
+        result[field.key] = value;
+    }
+    return result;
+}
+function normalizedPoints(definition, points) {
+    if (points.length !== definition.pointKeys.length) throw new RangeError(`${definition.command} requires ${definition.pointKeys.length} canvas point${definition.pointKeys.length === 1 ? '' : 's'}`);
+    return points.map((point, index)=>{
+        const x = Number(point?.[0]), y = Number(point?.[1]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) throw new TypeError(`${definition.pointKeys[index]?.label.en ?? 'Point'} must contain finite coordinates`);
+        return [
+            x,
+            y
+        ];
+    });
+}
+export function buildKJModificationCommand(id, context) {
+    const definition = getKJModificationDefinition(id);
+    const ids = normalizedIds(definition, context.ids);
+    const values = normalizedValues(definition, context.values ?? {});
+    const points = normalizedPoints(definition, context.points ?? []);
+    const all = {
+        ids,
+        ...values
+    };
+    switch(id){
+        case 'rotate':
+            return {
+                command: definition.command,
+                arguments: {
+                    ...all,
+                    center: points[0]
+                }
+            };
+        case 'scale':
+            return {
+                command: definition.command,
+                arguments: {
+                    ...all,
+                    center: points[0]
+                }
+            };
+        case 'mirror':
+            return {
+                command: definition.command,
+                arguments: {
+                    ...all,
+                    lineStart: points[0],
+                    lineEnd: points[1]
+                }
+            };
+        case 'array-rect':
+            return {
+                command: definition.command,
+                arguments: all
+            };
+        case 'array-polar':
+            return {
+                command: definition.command,
+                arguments: {
+                    ...all,
+                    center: points[0],
+                    ...values.rotateItems === false ? {
+                        basePoint: context.selectionCenter ?? points[0]
+                    } : {}
+                }
+            };
+        case 'offset':
+            return {
+                command: definition.command,
+                arguments: {
+                    id: ids[0],
+                    ...values,
+                    sidePoint: points[0]
+                }
+            };
+        case 'break':
+            return {
+                command: definition.command,
+                arguments: {
+                    id: ids[0],
+                    point: points[0]
+                }
+            };
+        case 'explode':
+            return {
+                command: definition.command,
+                arguments: {
+                    id: ids[0]
+                }
+            };
+        case 'trim':
+            return {
+                command: definition.command,
+                arguments: {
+                    id: ids[0],
+                    boundaryIds: ids.slice(1),
+                    pickPoint: points[0]
+                }
+            };
+        case 'extend':
+            return {
+                command: definition.command,
+                arguments: {
+                    id: ids[0],
+                    boundaryIds: ids.slice(1),
+                    pickPoint: points[0]
+                }
+            };
+        case 'chamfer':
+            return {
+                command: definition.command,
+                arguments: {
+                    firstId: ids[0],
+                    secondId: ids[1],
+                    ...values,
+                    pickPoint1: points[0],
+                    pickPoint2: points[1]
+                }
+            };
+        case 'fillet':
+            return {
+                command: definition.command,
+                arguments: {
+                    firstId: ids[0],
+                    secondId: ids[1],
+                    ...values,
+                    pickPoint1: points[0],
+                    pickPoint2: points[1]
+                }
+            };
+    }
+}

@@ -1,6 +1,6 @@
 {
   "schema": "com.kanjie.kjdraw.acceptance-matrix@2",
-  "release": "1.0.0-rc.2",
+  "release": "1.0.0-rc.3",
   "target": "1.0.0",
   "evaluatedAt": "2026-09-08",
   "note": "A requiredForStable gate must pass on the exact release-candidate commit before stable promotion. Repository-owned gates may pass locally; hosted browser, live deployment and release-provenance gates remain partial until their external run succeeds.",
@@ -92,9 +92,29 @@
       "evidence": [
         "packages/kjdraw-sdk/test/editing-advanced.test.mjs",
         "packages/kjdraw-sdk/test/snapping-grips.test.mjs",
+        "packages/kjdraw-sdk/test/drafting.test.mjs",
+        "packages/kjdraw-sdk/test/modification-controls.test.mjs",
+        "packages/kjdraw-sdk/test/annotation.test.mjs",
+        "tests/browser/drafting.spec.mjs",
+        "tests/browser/cad-workflow.spec.mjs",
         "tests/browser/launch-journey.spec.mjs",
         "scripts/benchmarks/core-readiness.mjs"
-      ]
+      ],
+      "boundary": "These tests cover the implemented construction and modification subset. Passing them does not complete the broader production-workflow programme below."
+    },
+    {
+      "id": "cad.production-workflows",
+      "requiredForStable": true,
+      "verifyOnCandidate": true,
+      "status": "partial",
+      "evidence": [
+        "docs/product/cad-completeness.md",
+        "docs/site/pages/workbench.md",
+        "tests/browser/drafting.spec.mjs",
+        "tests/browser/cad-workflow.spec.mjs",
+        "tests/browser/workbench.spec.mjs"
+      ],
+      "gap": "The shared workbench now supports native construction and parameterized edits, but window/crossing selection, grip editing, complete layer/block workflows, broader curve modifications and production output still need implementation and end-to-end acceptance. Passing CI, publishing npm or renaming a version cannot pass this gate."
     },
     {
       "id": "cad.certified-plotting",

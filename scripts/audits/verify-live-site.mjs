@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { chromium, expect } from '@playwright/test'
+import { createKJDrawSDK, KJProjectSession } from '../../packages/kjdraw-sdk/src/index.js'
 
 // Run after Pages succeeds, from the checkout that was deployed.
 // Example: node scripts/audits/verify-live-site.mjs https://kanjieteam.github.io/kjdraw/
@@ -24,9 +25,11 @@ try {
   const sha256 = value => createHash('sha256').update(value).digest('hex')
   for (const path of [
     'apps/playground/app.js', 'apps/playground/precision.css', 'apps/playground/theme-tokens.css', 'packages/kjdraw-sdk/src/theme.js',
-    'packages/kjdraw-sdk/src/editor.js', 'packages/kjdraw-sdk/src/workbench.js',
-    'packages/kjdraw-sdk/src/canvas-renderer.js', 'packages/kjdraw-sdk/src/samples.js',
-    'docs/latest/site-manifest.json', 'docs/latest/app.js', 'docs/latest/search-index.json',
+    'packages/kjdraw-sdk/src/editor.js', 'packages/kjdraw-sdk/src/workbench.js', 'packages/kjdraw-sdk/src/layout.js',
+    'packages/kjdraw-sdk/src/drafting.js', 'packages/kjdraw-sdk/src/modification-controls.js', 'packages/kjdraw-sdk/src/canvas-renderer.js', 'packages/kjdraw-sdk/src/dxf-adapter.js',
+    'packages/kjdraw-sdk/src/react.js', 'packages/kjdraw-sdk/src/vue.js',
+    'packages/kjdraw-sdk/src/geometry/annotation.js', 'packages/kjdraw-sdk/src/samples.js',
+    'docs/latest/site-manifest.json', 'docs/latest/app.js', 'docs/latest/search-index.json', 'docs/latest/workbench/index.html',
     'docs/latest/api/search-index.json',
     'docs/latest/api/editor-api.json', 'docs/latest/api/app.js',
     'docs/media/kjdraw-workflow.gif', 'docs/media/kjdraw-workflow-zh.gif',
@@ -67,9 +70,86 @@ try {
   await expect(page.locator('#entity-count')).toHaveText('2,294 entities')
   checks.push('Agent preview, commit, KJP reopen and undo work on the deployed page')
 
+  const sdk = createKJDrawSDK()
+  const drawing = sdk.createDocument({ documentId: 'live-move-verification', units: 'millimeter' })
+  await drawing.transact('Verification line', tx => tx.createEntity('LINE', { start: [0, 0], end: [20, 0] }, { id: 'moving-line' }))
+  await drawing.transact('Reference line', tx => tx.createEntity('LINE', { start: [0, 30], end: [20, 30] }, { id: 'reference-line' }))
+  await page.locator('#file-input').setInputFiles({ name: 'verify.kjd', mimeType: 'application/json', buffer: Buffer.from(await sdk.writeDocument(drawing, { format: 'KJD' })) })
+  await expect(page.locator('#entity-count')).toHaveText('2 entities')
+  if (await page.locator('#snap').getAttribute('aria-pressed') === 'true') await page.locator('#snap').click()
+  const box = await page.locator('#canvas').boundingBox()
+  const scale = Math.min((box.width - 164) / 20, (box.height - 164) / 30)
+  const at = (x, y) => ({ x: box.x + box.width / 2 + (x - 10) * scale, y: box.y + box.height / 2 - (y - 15) * scale })
+  await page.locator('#move-selection').click()
+  for (const position of [at(10, 0), at(10, 0), at(15, 5)]) await page.mouse.click(position.x, position.y)
+  await expect(page.locator('#revision')).toHaveText('REV 3')
+  for (const layout of ['compact', 'focus', 'classic']) {
+    await page.locator('#layout-select').selectOption(layout)
+    await expect(page.locator('.workbench')).toHaveAttribute('data-layout', layout)
+    await expect(page.locator('#nav-fit')).toBeVisible()
+    await expect(page.locator('#revision')).toHaveText('REV 3')
+    assert((await page.locator('#canvas').boundingBox()).height > 300, `${layout}: canvas remains usable`)
+  }
+  const saved = page.waitForEvent('download')
+  await page.locator('#save').click()
+  const project = await KJProjectSession.open(await readFile(await (await saved).path()), { sdk: createKJDrawSDK() })
+  const start = project.activeDocument.snapshot().objects['moving-line'].payload.start
+  assert(Math.abs(start[0] - 5) < .2 && Math.abs(start[1] - 5) < .2, 'Saved coordinates reflect mouse movement')
+  project.destroy()
+  await page.locator('#undo').click()
+  await expect(page.locator('#revision')).toHaveText('REV 4')
+  checks.push('Mouse movement, three layouts, KJP saved coordinates and Undo work on the deployed page')
+
+  await page.locator('#new-drawing').click()
+  await page.locator('#dialog-fields input[name="name"]').fill('Release verification — workshop detail')
+  await page.locator('#dialog-fields select[name="units"]').selectOption('millimeter')
+  await page.locator('#dialog-submit').click()
+  await expect(page.locator('#entity-count')).toHaveText('0 entities')
+  const command = async value => {
+    await expect(page.locator('.workbench')).toHaveAttribute('aria-busy', 'false')
+    await page.locator('#command-input').fill(value)
+    await page.locator('#command-input').press('Enter')
+    await expect(page.locator('.workbench')).toHaveAttribute('aria-busy', 'false')
+    assert.equal(await page.locator('.workbench').getAttribute('data-last-error'), null)
+  }
+  for (const steps of [
+    ['RECTANGLE', '0,0', '180,120'],
+    ['CIRCLE3P', '70,60', '90,80', '110,60'],
+    ['ELLIPSE', '140,60', '160,60', '140,68'],
+    ['DIMALIGNED', '0,0', '180,0', '90,-15'],
+    ['DIMDIAMETER', '70,60', '110,60'],
+  ]) {
+    for (const value of steps) await command(value)
+    await page.locator('#command-input').press('Escape')
+  }
+  await command('FIT')
+  await expect(page.locator('#entity-count')).toHaveText('5 entities')
+  const workshopDownload = page.waitForEvent('download')
+  await page.locator('#save').click()
+  const workshopBytes = await readFile(await (await workshopDownload).path())
+  const workshop = await KJProjectSession.open(workshopBytes, { sdk: createKJDrawSDK() })
+  const workshopObjects = workshop.activeDocument.snapshot().objects
+  const workshopEntities = workshop.activeDocument.listEntities()
+  assert.equal(workshop.activeDocument.snapshot().header.units, 'millimeter')
+  assert.equal(workshopEntities.length, 5)
+  assert.equal(workshopEntities.find(entity => entity.type === 'CIRCLE').payload.radius, 20)
+  assert.equal(workshopEntities.find(entity => entity.type === 'ELLIPSE').payload.ratio, .4)
+  assert.equal(workshopEntities.filter(entity => entity.type === 'DIMENSION').length, 2)
+  workshop.destroy()
+  await page.screenshot({ path: fileURLToPath(new URL('new-drawing.png', output)) })
+  await page.locator('#file-input').setInputFiles({ name: 'workshop.kjp', mimeType: 'application/zip', buffer: workshopBytes })
+  await expect(page.locator('#file-state')).toContainText('Opened locally')
+  const reopenedDownload = page.waitForEvent('download')
+  await page.locator('#save').click()
+  const reopened = await KJProjectSession.open(await readFile(await (await reopenedDownload).path()), { sdk: createKJDrawSDK() })
+  assert.deepEqual(reopened.activeDocument.snapshot().objects, workshopObjects)
+  reopened.destroy()
+  checks.push('A new millimeter drawing accepts exact circle/ellipse/dimension construction, saves and reopens without geometry changes')
+
   await page.goto(new URL('docs/latest/api/', base).href)
   await expect(page).toHaveTitle('Editor API · KJDraw')
   await expect(page.locator('#method-setoptions')).toContainText('setOptions')
+  await expect(page.locator('#method-setlayout')).toContainText('setLayout')
   await page.screenshot({ path: fileURLToPath(new URL('editor-api.png', output)) })
   await page.locator('#api-search').fill('KJCanvasRenderer')
   await page.locator('#api-results a[href^="./reference/#"]').first().click()

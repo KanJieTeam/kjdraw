@@ -3,6 +3,9 @@ const messages = {
     preview: '1.0 RELEASE CANDIDATE', docs: 'Documentation ↗', github: 'GitHub ↗', language: '中文',
     open: 'Open DXF / KJD / KJP', openShort: 'Open', snapshot: 'Snapshot', save: 'Download KJP', saveShort: 'Save KJP', export: 'Export DXF ↗', exportShort: 'DXF', memory: 'In memory', file: 'FILE', view: 'VIEW', construct: 'CONSTRUCT',
     home: 'HOME', draw: 'DRAW', modify: 'MODIFY', inspect: 'INSPECT', command: 'COMMAND', undo: 'Undo', redo: 'Redo',
+    layout: 'Workbench layout', layout_classic: 'Classic', layout_compact: 'Compact', layout_focus: 'Focus',
+    navigation: 'Canvas navigation', pan: 'Pan', zoomIn: 'Zoom in', zoomOut: 'Zoom out', panHint: 'Drag to pan · scroll to zoom · V to select',
+    moveChoose: 'Select an object to move or copy', moveBase: 'Pick the base point', moveTarget: 'Pick the target point, or type MOVE dx dy', selectFirst: 'Select an object on the drawing first.', drawingChanged: 'The drawing changed. Start the move again.', translationNumbers: 'Enter both X and Y offsets, for example MOVE 10 0.',
     select: 'Select', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', text: 'Text', rectangle: 'Rectangle', ellipse: 'Ellipse', point: 'Point', xline: 'XLine',
     move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', delete: 'Delete', distance: 'Distance', lengthArea: 'Length / area', fit: 'Fit view', run: 'Run',
     commandPlaceholder: 'Type a command: MOVE 5 0 · OFFSET 2 · LENGTH', project: 'PROJECT', layers: 'LAYERS', workspace: 'LOCAL WORKSPACE',
@@ -28,6 +31,9 @@ const messages = {
     preview: '1.0 候选版', docs: '开发文档 ↗', github: 'GitHub ↗', language: 'EN',
     open: '打开 DXF / KJD / KJP', openShort: '打开', snapshot: '快照', save: '下载 KJP', saveShort: '保存 KJP', export: '导出 DXF ↗', exportShort: '导出 DXF', memory: '仅在内存中', file: '文件', view: '视图', construct: '构造',
     home: '常用', draw: '绘图', modify: '修改', inspect: '测量', command: '命令行', undo: '撤销', redo: '重做',
+    layout: '工作台布局', layout_classic: '经典布局', layout_compact: '紧凑布局', layout_focus: '专注布局',
+    navigation: '画布导航', pan: '平移', zoomIn: '放大', zoomOut: '缩小', panHint: '按住拖动画布 · 滚轮缩放 · V 返回选择',
+    moveChoose: '选择要移动或复制的对象', moveBase: '指定基点', moveTarget: '指定目标点，或输入 MOVE dx dy', selectFirst: '请先在图纸上选择一个对象。', drawingChanged: '图纸已改变，请重新开始移动。', translationNumbers: '请输入 X 和 Y 两个位移值，例如 MOVE 10 0。',
     select: '选择', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', text: '文字', rectangle: '矩形', ellipse: '椭圆', point: '点', xline: '构造线',
     move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', delete: '删除', distance: '距离', lengthArea: '长度 / 面积', fit: '全图', run: '执行',
     commandPlaceholder: '输入命令：MOVE 5 0 · OFFSET 2 · LENGTH', project: '工程图纸', layers: '图层', workspace: '本地工作区',
@@ -59,6 +65,7 @@ export function createI18n() {
     document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en'
     for (const element of document.querySelectorAll('[data-i18n]')) element.textContent = t(element.dataset.i18n)
     for (const element of document.querySelectorAll('[data-i18n-title]')) element.title = t(element.dataset.i18nTitle)
+    for (const element of document.querySelectorAll('[data-i18n-label]')) element.setAttribute('aria-label', t(element.dataset.i18nLabel))
     for (const element of document.querySelectorAll('[data-i18n-placeholder]')) element.placeholder = t(element.dataset.i18nPlaceholder)
     document.dispatchEvent(new CustomEvent('kjdraw:language', { detail: { locale } }))
   }

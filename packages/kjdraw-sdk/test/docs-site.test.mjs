@@ -15,7 +15,7 @@ test('generated documentation portal covers the complete bilingual learning path
   const manifest = await json('docs/latest/site-manifest.json')
   const search = await json('docs/latest/search-index.json')
   const required = [
-    'introduction', 'quickstart', 'installation', 'architecture', 'react', 'vue',
+    'introduction', 'quickstart', 'installation', 'workbench', 'architecture', 'react', 'vue',
     'files', 'commands', 'agent', 'plugins', 'deployment', 'capabilities',
   ]
 

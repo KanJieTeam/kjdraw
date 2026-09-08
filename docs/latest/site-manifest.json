@@ -1,8 +1,8 @@
 {
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
-  "version": "1.0.0-rc.2",
-  "sourceDigest": "sha256:fb56e3fac627392c8a447042a3a370986374d499590a56e32c22a7d25fa50202",
+  "version": "1.0.0-rc.3",
+  "sourceDigest": "sha256:3480d0448f9c8846798b5f78dbaead75dda67989ce9a7113fbf7012daf8722e9",
   "locales": [
     "en",
     "zh"
@@ -76,6 +76,47 @@
           "zh-installation-requirements",
           "zh-installation-release-channels",
           "zh-installation-public-imports"
+        ]
+      }
+    },
+    {
+      "slug": "workbench",
+      "output": "workbench/index.html",
+      "source": "docs/site/pages/workbench.md",
+      "title": {
+        "en": "Using the workbench",
+        "zh": "工作台操作指南"
+      },
+      "anchors": {
+        "en": [
+          "en-workbench",
+          "en-workbench-open",
+          "en-workbench-drawing-workflow",
+          "en-workbench-coordinates",
+          "en-workbench-draw-tools",
+          "en-workbench-curves",
+          "en-workbench-spline-hatch",
+          "en-workbench-dimensions",
+          "en-workbench-move",
+          "en-workbench-modify",
+          "en-workbench-save",
+          "en-workbench-layouts",
+          "en-workbench-troubleshooting"
+        ],
+        "zh": [
+          "zh-workbench",
+          "zh-workbench-open",
+          "zh-workbench-drawing-workflow",
+          "zh-workbench-coordinates",
+          "zh-workbench-draw-tools",
+          "zh-workbench-curves",
+          "zh-workbench-spline-hatch",
+          "zh-workbench-dimensions",
+          "zh-workbench-move",
+          "zh-workbench-modify",
+          "zh-workbench-save",
+          "zh-workbench-layouts",
+          "zh-workbench-troubleshooting"
         ]
       }
     },
@@ -323,6 +364,7 @@
     "search-index.json",
     "site-manifest.json",
     "style.css",
-    "vue/index.html"
+    "vue/index.html",
+    "workbench/index.html"
   ]
 }

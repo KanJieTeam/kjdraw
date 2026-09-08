@@ -20,7 +20,10 @@ class RecordingContext2D {
   lineTo(...args) { this.#record('lineTo', ...args) }
   closePath() { this.#record('closePath') }
   stroke() { this.#record('stroke') }
-  fill() { this.#record('fill') }
+  fill(...args) { this.#record('fill', ...args) }
+  clip(...args) { this.#record('clip', ...args) }
+  arc(...args) { this.#record('arc', ...args) }
+  ellipse(...args) { this.#record('ellipse', ...args) }
   save() { this.#record('save') }
   restore() { this.#record('restore') }
   translate(...args) { this.#record('translate', ...args) }
@@ -42,6 +45,68 @@ function mockCanvas(width = 640, height = 360) {
   }
   return { canvas, context }
 }
+
+test('curve painting and hit testing follow the spline, not its control polygon', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'evaluated-curves' })
+  const spline = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: { degree: 2, controlPoints: [[0,0],[5,10],[10,0]], knots: [0,0,0,1,1,1] } })
+  const { canvas, context } = mockCanvas()
+  const renderer = new KJCanvasRenderer(canvas, { document, grid: false, pixelRatio: 1 }).fit()
+  context.calls.length = 0; renderer.render()
+  const midpoint = renderer.worldToScreen([5,5])
+  assert.ok(context.calls.some(call => call[0] === 'lineTo' && Math.hypot(call[1] - midpoint[0], call[2] - midpoint[1]) < 1e-8))
+  assert.equal(renderer.hitTest(midpoint, 2)?.entity.id, spline.id)
+  assert.equal(renderer.hitTest(renderer.worldToScreen([5,10]), 2), null)
+  assert.equal(renderer.report.unsupported, 0)
+  renderer.dispose()
+})
+
+test('circles and ellipses use native canvas curves and previews never mutate history', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'native-curves' })
+  await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: [0,0], radius: 10 } })
+  await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: { center: [30,0], majorAxis: [10,0], ratio: .4 } })
+  const { canvas, context } = mockCanvas()
+  const renderer = new KJCanvasRenderer(canvas, { document, grid: false, pixelRatio: 1 }).fit()
+  assert.ok(context.calls.some(call => call[0] === 'arc'))
+  assert.ok(context.calls.some(call => call[0] === 'ellipse'))
+  const snapshot = document.snapshot(), report = structuredClone(renderer.report)
+  context.calls.length = 0
+  renderer.drawPreview([{ type: 'LINE', payload: { start: [0,0], end: [10,0] } }], '#77a7ff', [5,5])
+  const endpoint = renderer.worldToScreen([15,5])
+  assert.ok(context.calls.some(call => call[0] === 'lineTo' && call[1] === endpoint[0] && call[2] === endpoint[1]))
+  assert.deepEqual(document.snapshot(), snapshot)
+  assert.deepEqual(renderer.report, report)
+  renderer.dispose()
+})
+
+test('hatch patterns clip to compound boundaries and never fake unsupported patterns', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'hatch-holes' })
+  const loops = [[[0,0],[40,0],[40,40],[0,40]],[[10,10],[30,10],[30,30],[10,30]]].map(vertices => ({ vertices, closed: true }))
+  const hatch = await sdk.executeCommand('CREATE', { type: 'HATCH', payload: { boundaryLoops: loops, solid: false, patternName: 'ANSI31', patternScale: 1 } })
+  const { canvas, context } = mockCanvas()
+  const renderer = new KJCanvasRenderer(canvas, { document, grid: false, pixelRatio: 1 }).fit()
+  context.calls.length = 0; renderer.render()
+  assert.ok(context.calls.some(call => call[0] === 'clip' && call[1] === 'evenodd'))
+  assert.ok(context.calls.filter(call => call[0] === 'closePath').length >= 2)
+  assert.ok(context.calls.filter(call => call[0] === 'stroke').length > 4)
+  await document.transact('solid', tx => tx.updateObject(hatch.id, { payload: { solid: true, patternName: 'SOLID' } }))
+  assert.ok(context.calls.some(call => call[0] === 'fill' && call[1] === 'evenodd'))
+  await document.transact('unrecognized pattern', tx => tx.updateObject(hatch.id, { payload: { solid: false, patternName: 'UNSUPPORTED_PATTERN' } }))
+  assert.equal(renderer.report.unsupported, 1)
+  assert.deepEqual(renderer.report.unsupportedTypes, ['HATCH'])
+  renderer.dispose()
+})
+
+test('dimensions paint measurable lines, arrows and text and can be selected on the dimension line', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'dimension-paint' })
+  const dimension = await sdk.executeCommand('CREATE', { type: 'DIMENSION', payload: { dimensionType: 'ALIGNED', definitionPoints: [[5,-5],[0,0],[10,0]], textHeight: 1 } })
+  const { canvas, context } = mockCanvas()
+  const renderer = new KJCanvasRenderer(canvas, { document, grid: false, pixelRatio: 1 }).fit()
+  assert.ok(context.calls.some(call => call[0] === 'fillText' && call[1] === '10'))
+  assert.ok(context.calls.filter(call => call[0] === 'fill').length >= 2)
+  assert.equal(renderer.hitTest(renderer.worldToScreen([5,-5]))?.entity.id, dimension.id)
+  assert.equal(renderer.report.unsupported, 0)
+  renderer.dispose()
+})
 
 test('Canvas renderer projects core entities, reports approximations and skips hidden layers', async () => {
   const sdk = createKJDrawSDK()

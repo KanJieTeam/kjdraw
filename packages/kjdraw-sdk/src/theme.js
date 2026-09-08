@@ -57,6 +57,8 @@ const paths = {
     layers: '<path d="m12 3 10 5-10 5L2 8l10-5Zm-9 10 9 5 9-5M3 18l9 5 9-5"/>',
     panel: '<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M14 3v18m3-13h2m-2 4h2m-2 4h2"/>',
     search: '<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/>',
+    'zoom-in': '<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6M7 10h6m-3-3v6"/>',
+    'zoom-out': '<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6M7 10h6"/>',
     eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
     lock: '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4M12 14v3"/>',
     unlock: '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0M12 14v3"/>',

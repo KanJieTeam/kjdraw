@@ -3,9 +3,12 @@ import type { KJDrawSDK, KJSDKCommandEnvelopeReceipt } from './sdk.js';
 import { KJDocument } from './document.js';
 import type { KJCommandArguments } from './commands.js';
 import type { KJFileAdapterOptions } from './file-adapters.js';
+import { type KJWorkbenchLayout } from './layout.js';
+import { type KJDraftTool } from './drafting.js';
+export type { KJWorkbenchLayout } from './layout.js';
 export type KJWorkbenchLocale = 'en' | 'zh-CN';
 export type KJWorkbenchTheme = 'dark' | 'light';
-export type KJWorkbenchTool = 'select' | 'pan' | 'line' | 'polyline' | 'circle' | 'arc' | 'rectangle' | 'text' | 'measure';
+export type KJWorkbenchTool = 'select' | 'pan' | KJDraftTool | 'text' | 'measure' | 'move' | 'copy';
 export interface KJDrawWorkbenchOptions {
     sdk?: KJDrawSDK;
     document?: KJDocument | 'blank' | 'sample' | null;
@@ -16,6 +19,7 @@ export interface KJDrawWorkbenchOptions {
     showLayers?: boolean;
     showInspector?: boolean;
     toolbar?: boolean;
+    layout?: KJWorkbenchLayout;
     title?: string;
     /** Browser-side ceiling checked before a selected file is read into memory. */
     maxFileBytes?: number;
@@ -37,6 +41,7 @@ export interface KJWorkbenchSaveOptions extends KJFileAdapterOptions {
 export interface KJWorkbenchSnapshot {
     locale: KJWorkbenchLocale;
     theme: KJWorkbenchTheme;
+    layout: KJWorkbenchLayout;
     tool: KJWorkbenchTool;
     documentId: string | null;
     revision: number;
@@ -56,16 +61,20 @@ export declare class KJDrawWorkbench {
     get document(): KJDocument | null;
     get locale(): KJWorkbenchLocale;
     get theme(): KJWorkbenchTheme;
+    get layout(): KJWorkbenchLayout;
     get tool(): KJWorkbenchTool;
     /** Change presentation without replacing the drawing or its undo history. */
-    setOptions(options: Pick<KJDrawWorkbenchOptions, 'readonly' | 'grid' | 'toolbar' | 'showLayers' | 'showInspector' | 'title' | 'maxFileBytes'>): this;
+    setOptions(options: Pick<KJDrawWorkbenchOptions, 'readonly' | 'grid' | 'toolbar' | 'showLayers' | 'showInspector' | 'title' | 'maxFileBytes' | 'layout'>): this;
     setLocale(locale: KJWorkbenchLocale): this;
     snapshot(): Readonly<KJWorkbenchSnapshot>;
     setTheme(theme: KJWorkbenchTheme): this;
+    setLayout(value: KJWorkbenchLayout): this;
     setTool(tool: KJWorkbenchTool): this;
     setDocument(document: KJDocument): Promise<this>;
     open(source: unknown, options?: KJWorkbenchOpenOptions): Promise<KJDocument>;
-    execute<TResult = unknown>(command: string, args?: KJCommandArguments): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;
+    execute<TResult = unknown>(command: string, args?: KJCommandArguments, options?: {
+        expectedRevision?: number;
+    }): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;
     save(format?: 'KJD' | 'DXF', options?: KJWorkbenchSaveOptions): Promise<unknown>;
     dispose(): void;
 }

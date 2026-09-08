@@ -2,10 +2,99 @@
 from __future__ import annotations
 
 import json
+import math
 import sys
 from pathlib import Path
 
 import ezdxf
+
+
+DIMENSION_TYPES = {
+    0: "ROTATED",
+    1: "ALIGNED",
+    2: "ANGULAR",
+    3: "DIAMETER",
+    4: "RADIUS",
+    5: "ANGULAR_3_POINT",
+    6: "ORDINATE",
+}
+
+
+def vector(value: object) -> list[float]:
+    return [float(component) for component in value]
+
+
+def inspect_hatch(entity: object) -> dict[str, object]:
+    pattern = getattr(entity, "pattern", None)
+    lines = [] if pattern is None else [
+        {
+            "angleDegrees": float(line.angle),
+            "base": vector(line.base_point),
+            "offset": vector(line.offset),
+            "dashes": [float(value) for value in line.dash_length_items],
+        }
+        for line in pattern.lines
+    ]
+    paths = list(entity.paths)
+    return {
+        "patternName": str(entity.dxf.pattern_name).upper(),
+        "solid": bool(entity.dxf.solid_fill),
+        "patternScale": float(entity.dxf.get("pattern_scale", 1.0)),
+        "patternAngleDegrees": float(entity.dxf.get("pattern_angle", 0.0)),
+        "boundaryPathCount": len(paths),
+        "boundaryPathFlags": [int(path.path_type_flags) for path in paths],
+        "boundaryVertexCounts": [len(getattr(path, "vertices", ())) for path in paths],
+        "patternLines": lines,
+    }
+
+
+def inspect_dimension(entity: object, document: object) -> dict[str, object]:
+    dimension_type = int(entity.dimtype)
+    points = [vector(entity.dxf.defpoint)]
+    if dimension_type in {0, 1}:
+        points.extend([vector(entity.dxf.defpoint2), vector(entity.dxf.defpoint3)])
+    elif dimension_type in {3, 4}:
+        points.append(vector(entity.dxf.defpoint4))
+    geometry_name = str(entity.dxf.geometry)
+    block = document.blocks.get(geometry_name)
+    if block is None:
+        raise AssertionError(f"DIMENSION references missing geometry block {geometry_name!r}")
+    geometry_counts: dict[str, int] = {}
+    geometry_entities = list(block)
+    for geometry in geometry_entities:
+        geometry_counts[geometry.dxftype()] = geometry_counts.get(geometry.dxftype(), 0) + 1
+    if not geometry_entities:
+        raise AssertionError(f"DIMENSION geometry block {geometry_name!r} is empty")
+    return {
+        "type": DIMENSION_TYPES.get(dimension_type, str(dimension_type)),
+        "rawType": int(entity.dxf.dimtype),
+        "definitionPoints": points,
+        "measurement": float(entity.get_measurement()),
+        "storedMeasurement": float(entity.dxf.get("actual_measurement", 0.0)),
+        "style": str(entity.dxf.dimstyle),
+        "geometryBlock": geometry_name,
+        "geometryEntityCounts": geometry_counts,
+        "geometryLines": [
+            {"start": vector(item.dxf.start), "end": vector(item.dxf.end)}
+            for item in geometry_entities if item.dxftype() == "LINE"
+        ],
+        "geometrySolids": [
+            [vector(item.dxf.vtx0), vector(item.dxf.vtx1), vector(item.dxf.vtx2), vector(item.dxf.vtx3)]
+            for item in geometry_entities if item.dxftype() == "SOLID"
+        ],
+        "geometryTexts": [
+            {
+                "insert": vector(item.dxf.insert),
+                "alignPoint": vector(item.dxf.get("align_point", item.dxf.insert)),
+                "horizontalAlignment": int(item.dxf.get("halign", 0)),
+                "verticalAlignment": int(item.dxf.get("valign", 0)),
+                "text": str(item.dxf.text),
+                "height": float(item.dxf.height),
+                "rotationDegrees": float(item.dxf.get("rotation", 0.0)),
+            }
+            for item in geometry_entities if item.dxftype() == "TEXT"
+        ],
+    }
 
 
 def generate(path: Path) -> None:
@@ -26,6 +115,28 @@ def generate(path: Path) -> None:
         close=True,
         dxfattribs=attributes,
     )
+    model.add_ellipse(
+        (160, 120, 0),
+        major_axis=(20, 5, 0),
+        ratio=0.4,
+        start_param=0,
+        end_param=math.tau,
+        dxfattribs=attributes,
+    )
+    spline = model.add_spline(degree=3, dxfattribs=attributes)
+    spline.control_points = [(140, 150, 0), (150, 170, 0), (175, 165, 0), (190, 145, 0)]
+    spline.knots = [0, 0, 0, 0, 1, 1, 1, 1]
+    ansi31 = model.add_hatch(dxfattribs=attributes)
+    ansi31.set_pattern_fill("ANSI31", angle=30, scale=2)
+    ansi31.paths.add_polyline_path([(0, 180), (80, 180), (80, 240), (0, 240)], is_closed=True, flags=1)
+    ansi31.paths.add_polyline_path([(20, 195), (60, 195), (60, 225), (20, 225)], is_closed=True, flags=0)
+    ansi37 = model.add_hatch(dxfattribs=attributes)
+    ansi37.set_pattern_fill("ANSI37", angle=0, scale=1)
+    ansi37.paths.add_polyline_path([(100, 180), (170, 180), (170, 240), (100, 240)], is_closed=True, flags=1)
+    model.add_aligned_dim((0, 260), (50, 260), 20, dxfattribs=attributes).render()
+    model.add_linear_dim((210, 280), (190, 260), (230, 260), angle=0, dxfattribs=attributes).render()
+    model.add_radius_dim((90, 265), mpoint=(100, 265), dxfattribs=attributes).render()
+    model.add_diameter_dim((140, 265), mpoint=(130, 265), dxfattribs=attributes).render()
     model.add_text(
         "KJDraw interop",
         dxfattribs={"layer": "KJ_INTEROP", "height": 4, "insert": (10, 145, 0)},
@@ -45,7 +156,11 @@ def inspect(path: Path) -> dict[str, object]:
     for entity in model:
         counts[entity.dxftype()] = counts.get(entity.dxftype(), 0) + 1
     if auditor.has_errors:
-        raise AssertionError(f"ezdxf audit found {len(auditor.errors)} errors")
+        details = "; ".join(str(error.message) for error in auditor.errors)
+        raise AssertionError(f"ezdxf audit found {len(auditor.errors)} errors: {details}")
+    if auditor.fixes:
+        details = "; ".join(str(fix.message) for fix in auditor.fixes)
+        raise AssertionError(f"ezdxf audit required {len(auditor.fixes)} fixes: {details}")
     if counts.get("LINE", 0) < 1 or counts.get("CIRCLE", 0) < 1:
         raise AssertionError(f"expected LINE and CIRCLE in modelspace, got {counts}")
     return {
@@ -55,6 +170,23 @@ def inspect(path: Path) -> dict[str, object]:
         "layers": sorted(layer.dxf.name for layer in document.layers),
         "auditErrors": len(auditor.errors),
         "auditFixes": len(auditor.fixes),
+        "hatches": [inspect_hatch(entity) for entity in model.query("HATCH")],
+        "ellipses": [{
+            "center": vector(entity.dxf.center),
+            "majorAxis": vector(entity.dxf.major_axis),
+            "ratio": float(entity.dxf.ratio),
+            "startParameter": float(entity.dxf.start_param),
+            "endParameter": float(entity.dxf.end_param),
+        } for entity in model.query("ELLIPSE")],
+        "splines": [{
+            "degree": int(entity.dxf.degree),
+            "flags": int(entity.dxf.flags),
+            "closed": bool(entity.closed),
+            "controlPointCount": len(entity.control_points),
+            "controlPoints": [vector(point) for point in entity.control_points],
+            "knots": [float(value) for value in entity.knots],
+        } for entity in model.query("SPLINE")],
+        "dimensions": [inspect_dimension(entity, document) for entity in model.query("DIMENSION")],
     }
 
 

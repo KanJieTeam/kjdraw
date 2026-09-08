@@ -27,7 +27,7 @@ Use it to display and edit engineering drawings, open or export KJD and DXF file
 - Start with a sample drawing or an empty canvas, then zoom, select, draw and inspect objects.
 - Open and save KJD or DXF, manage projects, and integrate your own storage flow.
 - Execute typed commands with undo and redo, or subscribe to document and selection changes.
-- Switch English or Chinese UI, light or dark appearance, and visible workbench panels at runtime.
+- Switch English or Chinese UI, light or dark appearance, and classic, compact or canvas-first focus layouts at runtime.
 - Add plugins, custom commands, renderers and AI-assisted workflows as your product grows.
 
 Start with **Quickstart**, then keep the task-oriented [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/) beside your code. The [complete TypeScript reference](https://kanjieteam.github.io/kjdraw/docs/latest/api/reference/) covers every public package entry.
@@ -54,7 +54,7 @@ KJDraw 为 Web 应用提供可直接嵌入的完整 CAD 编辑器，以及用于
 - 从示例图纸或空白画布开始，完成缩放、选择、绘制与对象检查。
 - 打开和保存 KJD 或 DXF，管理工程，并接入自己的存储流程。
 - 执行类型化命令并撤销、重做，或监听图档与选择变化。
-- 运行时切换中英文、明暗外观，以及工作台各个面板的显示状态。
+- 运行时切换中英文、明暗外观，以及经典、紧凑或画布优先的专注布局。
 - 随产品成长继续增加插件、自定义命令、渲染器与 AI 辅助流程。
 
 先阅读**快速上手**，开发时可随时查看按任务组织的 [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/)。[完整 TypeScript 参考](https://kanjieteam.github.io/kjdraw/docs/latest/api/reference/)覆盖全部公开包入口。

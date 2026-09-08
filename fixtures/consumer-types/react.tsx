@@ -10,9 +10,10 @@ export function ReactKJDrawConsumer() {
       document="sample"
       locale="en"
       theme="dark"
+      layout="compact"
       title="React engineering drawing"
       style={{ width: '100%', height: 720 }}
-      onReady={instance => instance.fit()}
+      onReady={instance => instance.setLayout('focus').fit()}
     />
   )
 }

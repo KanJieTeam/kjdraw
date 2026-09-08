@@ -19,6 +19,8 @@ KJDraw 的界面首先是一套可以工作的 CAD 工作台。图纸是主体�
 
 这不是一个新增的公开主题配置 API。当前代码中的 CSS 变量是实现基础；正式的宿主覆盖接口、完整换肤和主题兼容承诺需要单独测试后再公开。
 
+RC3 提供独立于配色的三种布局：经典（完整 Ribbon）、紧凑（单行工具区）、专注（隐藏 Ribbon 和侧栏）。Demo 与嵌入式编辑器都保留右中部的选择、平移、全图、放大、缩小导航。布局值由 `src/layout.ts` 统一定义；Vanilla 的 `layout` / `setLayout()`、React/Vue 的 `layout` prop 更新同一实例，不重建文档与撤销历史。Demo 记住本浏览器选择，嵌入实例的持久化交给宿主。
+
 ## 分项验收
 
 自动化通过不等于视觉验收通过。每一项最终都需要实际页面证据和用户确认。
@@ -32,8 +34,11 @@ KJDraw 的界面首先是一套可以工作的 CAD 工作台。图纸是主体�
 | UI-05 | 创建与选择对象、输入移动等命令；检查数值弹窗、修改反馈、撤销；普通属性区不输出原始 JSON | 待用户验收 |
 | UI-06 | 在 1366×768、1440×900、1920×1080、390×844 检查页面横向溢出；切换侧栏后检查全图适配与手动视图；另验收高 DPI | 待用户验收 |
 | UI-07 | 检查重复品牌、PUBLIC SDK、90 秒场景是否移除；没有选择对象时有说明；Agent 区明确为预设审核示例，不冒充自由对话 AI | 待用户验收 |
+| UI-08 | 经典→紧凑→专注→经典：画布高度有效，布局选择器、导航和命令行始终可用；图纸、选择、撤销历史不丢失 | 待用户验收 |
+| CAD-01 | 先选择后移动、先移动后选对象、基点→目标点、直接拖拽、复制后移动、Esc 取消；保存重开后核对坐标 | 待用户验收 |
+| DEV-01 | Vanilla/React/Vue 原位切换布局与语言；选择、真实 MOVE 结果、撤销/重做保持；卸载后释放实例 | 待用户验收 |
 
-浏览器回归：`tests/browser/precision-theme.spec.mjs`、`workbench.spec.mjs`、`launch-journey.spec.mjs`。本地验收截图输出至 `.cache/precision/`；发布前须重新核对部署页面，不能用本地通过代替线上通过。
+浏览器回归：`tests/browser/precision-theme.spec.mjs`、`workbench.spec.mjs`、`cad-workflow.spec.mjs`、`frameworks.spec.mjs`、`editor.spec.mjs`、`launch-journey.spec.mjs`。本地验收截图输出至 `.cache/precision/` 与 `.cache/cad-workflow/`；发布前须重新核对部署页面，不能用本地通过代替线上通过。
 
 ## 后续工作，不计入本轮完成
 

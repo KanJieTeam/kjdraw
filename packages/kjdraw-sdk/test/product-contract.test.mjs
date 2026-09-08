@@ -122,11 +122,15 @@ test('acceptance matrix is machine-readable and passed scope is backed by releas
   }
   const candidateOnlyGates = matrix.gates.filter(gate => gate.verifyOnCandidate === true)
   assert.deepEqual(candidateOnlyGates.map(gate => gate.id), [
+    'cad.production-workflows',
     'public.workbench',
     'public.documentation',
     'security.release-provenance',
   ])
   assert.equal(candidateOnlyGates.every(gate => gate.requiredForStable && gate.status === 'partial'), true)
+  const productionWorkflows = matrix.gates.find(gate => gate.id === 'cad.production-workflows')
+  assert.ok(productionWorkflows.evidence.includes('docs/product/cad-completeness.md'))
+  assert.match(productionWorkflows.gap, /Passing CI, publishing npm or renaming a version cannot pass this gate/)
   const localAuthority = matrix.gates.find(row => row.id === 'file.local-authority')
   assert.equal(localAuthority.status, 'passed')
   assert.ok(localAuthority.evidence.some(path => path.endsWith('/project-session.test.mjs')))

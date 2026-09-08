@@ -1,6 +1,9 @@
 import { createKJDrawSDK, KJProjectSession, instantiateKJCoreWasm, createWasmGeometryBackend, registerGeometryBackend, createKJCoreDocumentAuthority, createKJCoreSolidBackend } from '../../packages/kjdraw-sdk/src/index.js'
 import { KJCanvasRenderer, aciColor } from '../../packages/kjdraw-sdk/src/canvas-renderer.js'
 import { kjdrawIcon } from '../../packages/kjdraw-sdk/src/theme.js'
+import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from '../../packages/kjdraw-sdk/src/layout.js'
+import { createDraftingSession, parseDraftCoordinate } from '../../packages/kjdraw-sdk/src/drafting.js'
+import { KJ_MODIFICATION_DEFINITIONS, getKJModificationDefinition, buildKJModificationCommand, getKJModificationSelectionCenter } from '../../packages/kjdraw-sdk/src/modification-controls.js'
 import { createSample } from '../../examples/sample.js'
 import { createI18n } from './i18n.js'
 import { AGENT_REVISION_COMMAND, createShowcaseRevision, getShowcaseIntent, isShowcaseIntent, registerShowcaseCommand, resolveShowcasePreset } from './agent-showcase.js'
@@ -9,7 +12,8 @@ import { createIndustrySamples, INDUSTRY_SAMPLES } from './industry-samples.js'
 const $ = id => document.getElementById(id)
 const i18n = createI18n(), t = key => i18n.t(key)
 const workbench = document.querySelector('.workbench')
-const canvas = $('canvas'), canvasRenderer = new KJCanvasRenderer(canvas,{theme:'dark',grid:true,padding:45}), ctx = canvasRenderer.context
+// Keep fitted geometry above the command dock and clear of viewport controls.
+const canvas = $('canvas'), canvasRenderer = new KJCanvasRenderer(canvas,{theme:'dark',grid:true,padding:82}), ctx = canvasRenderer.context
 const camera = {
   get x(){return canvasRenderer.camera.centerX},set x(value){canvasRenderer.camera.centerX=value},
   get y(){return canvasRenderer.camera.centerY},set y(value){canvasRenderer.camera.centerY=value},
@@ -23,6 +27,7 @@ const SAMPLE_DESCRIPTORS = Object.freeze([
   ...INDUSTRY_SAMPLES,
 ])
 let sdk, session, selection = new Set(), tool = 'select', start = null, draft = [], cursor = null, snapEnabled = true, gridEnabled = true, orthoEnabled = false, pendingPlan = null, pan = null, busy = false, authority = null, solidAuthority = null, measurement = null, width = 1, height = 1, lastReceipt = null
+let translation = null, dragMove = null, drafting = null, modification = null
 const doc = () => sdk.activeDocument
 const documentTitle = drawing => {
   const metadata = drawing?.snapshot().metadata
@@ -63,29 +68,99 @@ function createAgentTask() {
   $('agent-preset').value=preset
   try{return {preset,intent:$('agent-intent').value.trim(),arguments:createShowcaseRevision(doc(),preset)}}catch(error){throw new Error(i18n.locale==='zh'?'当前图纸缺少演示目标，或场景已经执行；请撤销或重新加载示例。':'Showcase targets are missing or already applied. Undo or reload the sample.',{cause:error})}
 }
+function cancelInteraction(){
+  const pointerIds=new Set([pan?.pointerId,dragMove?.pointerId].filter(Number.isInteger))
+  pan=null;dragMove=null;translation=null;start=null;draft=[];cursor=null;drafting?.session.cancel();drafting=null;modification=null
+  for(const pointerId of pointerIds)if(canvas.hasPointerCapture(pointerId))canvas.releasePointerCapture(pointerId)
+}
 function setTool(value) {
+  let nextDraft=null
+  if(isDraftTool(value)&&sdk?.activeDocument){
+    try{const options=drawingOptions(value);nextDraft={session:createDraftingSession(value,options),options,documentId:doc().id,revision:doc().revision}}
+    catch(error){message(error.message);$('hint').textContent=error.message;return false}
+  }
+  cancelInteraction()
   tool = value; start = null; draft = []
+  canvas.style.cursor=value==='pan'?'grab':value==='select'?'default':'crosshair'
   for (const b of document.querySelectorAll('[data-tool]')) { b.classList.toggle('active', b.dataset.tool === tool); b.setAttribute('aria-pressed', String(b.dataset.tool === tool)) }
   const hints = i18n.locale === 'zh'
     ? { select:'滚轮缩放 · 中键拖动画布 · 单击检查对象', line:'直线：指定起点和终点', polyline:'多段线：依次指定三个顶点', circle:'圆：指定圆心和半径', arc:'圆弧：指定圆心、起点和终点', rectangle:'矩形：指定两个对角点', ellipse:'椭圆：指定中心和长轴端点', point:'点：指定位置', xline:'构造线：指定原点和方向', text:'文字：指定插入点', measure:'距离：指定两个测量点' }
     : { select:'Scroll to zoom · middle-drag to pan · click to inspect', line:'LINE: first point, then endpoint', polyline:'POLYLINE: choose three vertices', circle:'CIRCLE: center, then radius', arc:'ARC: center, start, then endpoint', rectangle:'RECTANGLE: choose opposite corners', ellipse:'ELLIPSE: choose center and major-axis endpoint', point:'POINT: choose a position', xline:'XLINE: choose origin and direction', text:'TEXT: choose insertion point', measure:'DISTANCE: choose two points' }
   $('hint').textContent = `${hints[tool] ?? tool.toUpperCase()}${tool === 'select' ? '' : ' · Esc to cancel'}`
-  render()
+  if(value==='pan')$('hint').textContent=t('panHint')
+  if(['move','copy'].includes(value)&&sdk?.activeDocument){
+    translation={command:value.toUpperCase(),ids:selectedIds(),base:null,documentId:doc().id,revision:doc().revision}
+    updateTranslationHint()
+  }
+  if(nextDraft){drafting=nextDraft;updateDraftHint()}
+  updateDraftControls()
+  if(sdk?.activeDocument)render()
+}
+function isDraftTool(value){return ['line','polyline','circle','arc','ellipse','rectangle','polygon','point','ray','xline','spline','hatch','dimension'].includes(value)}
+function drawingOptions(value){
+  if(value==='circle')return {circleMode:$('circle-mode').value}
+  if(value==='arc')return {arcMode:$('arc-mode').value}
+  if(value==='polygon')return {sides:Number($('polygon-sides').value)}
+  if(value==='spline')return {splineDegree:Number($('spline-degree').value)}
+  if(value==='dimension')return {dimensionType:$('dimension-type').value,rotation:$('dimension-direction').value==='vertical'?Math.PI/2:0,textHeight:Number($('dimension-height').value)}
+  if(value==='hatch')return {patternName:$('hatch-pattern').value,patternScale:Number($('hatch-scale').value),solid:$('hatch-pattern').value==='SOLID'}
+  return {}
+}
+function updateDraftControls(){
+  const container=$('draft-options');if(!container)return
+  container.hidden=!isDraftTool(tool)
+  if(isDraftTool(tool))$('drawing-tool').value=tool
+  for(const field of container.querySelectorAll('[data-draft-tools]'))field.hidden=!field.dataset.draftTools.split(' ').includes(tool)
+  const state=drafting?.session.state
+  for(const input of container.querySelectorAll('input,select'))input.dataset.previousValue=input.value
+  $('finish-draft').disabled=!state?.canFinish;$('close-draft').disabled=!state?.canClose;$('undo-draft-point').disabled=!state?.points.length
+}
+function updateDraftHint(){
+  if(!drafting)return
+  const roles={start:['Start point','起点'],end:['Endpoint','终点'],vertex:['Next vertex','下一顶点'],position:['Position','位置'],origin:['Origin','原点'],directionPoint:['Direction point','方向点'],center:['Center','圆心 / 中心'],radiusPoint:['Radius point (or enter radius)','半径点（也可输入半径）'],diameterPoint1:['First diameter endpoint','直径起点'],diameterPoint2:['Opposite diameter endpoint','直径终点'],throughPoint:['Point on curve','曲线上一点'],majorAxisPoint:['Major-axis endpoint','长轴端点'],minorAxisPoint:['Minor-axis distance','短轴距离'],firstCorner:['First corner','第一角点'],oppositeCorner:['Opposite corner','对角点'],controlPoint:['Next control point','下一控制点'],boundaryPoint:['Boundary vertex','填充边界顶点'],extensionOrigin1:['First measured point','第一测量点'],extensionOrigin2:['Second measured point','第二测量点'],placement:['Dimension line position','尺寸线位置'],oppositePoint:['Opposite diameter point','直径对侧点'],pointOnCircle:['Point on circle','圆上一点']}
+  const state=drafting.session.state,role=roles[state.nextPoint]??[state.nextPoint??'',state.nextPoint??'']
+  $('hint').textContent=`${tool.toUpperCase()} · ${role[i18n.locale==='zh'?1:0]} · ${state.points.length} ${i18n.locale==='zh'?'点':'points'} · x,y / @dx,dy / @distance<angle${state.canFinish?' · Enter':''}${state.canClose?' · C':''} · Esc`
+  message($('hint').textContent);updateDraftControls()
+}
+async function applyDraftInput(value,{coordinate=false,finish=false,close=false}={}){
+  const task=drafting;if(!task)return
+  if(doc().id!==task.documentId||doc().revision!==task.revision){setTool('select');throw new Error(t('drawingChanged'))}
+  let spec
+  const previousPoints=task.session.points
+  if(close)spec=task.session.close()
+  else if(finish)spec=task.session.finish()
+  else if(coordinate){
+    if(tool==='circle'&&$('circle-mode').value==='center-radius'&&task.session.points.length===1&&/^[+]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value)){
+      const radius=Number(value),center=task.session.points[0];if(!(radius>0))throw new Error(i18n.locale==='zh'?'半径必须大于零':'Radius must be positive');spec=task.session.addPoint([center[0]+radius,center[1]])
+    }else spec=task.session.addCoordinate(value)
+  }else spec=task.session.addPoint(value)
+  start=task.session.points.at(-1)??null
+  if(spec){
+    try{await execute('CREATE',spec,{expectedRevision:task.revision})}
+    catch(error){task.session=createDraftingSession(task.session.tool,task.options);for(const p of previousPoints)task.session.addPoint(p);start=task.session.points.at(-1)??null;updateDraftHint();render();throw error}
+    const currentTool=tool;setTool(currentTool);refresh()
+  }
+  else {updateDraftHint();render()}
+}
+function undoDraftPoint(){drafting?.session.undoPoint();start=drafting?.session.points.at(-1)??null;updateDraftHint();render()}
+function updateTranslationHint(){
+  if(!translation)return
+  const text=t(!translation.ids.length?'moveChoose':translation.base?'moveTarget':'moveBase')
+  $('hint').textContent=`${t(tool)} · ${text} · Esc`;message($('hint').textContent)
+}
+function translationValid(value){return value&&doc().id===value.documentId&&doc().revision===value.revision&&value.ids.every(id=>doc().getObject(id))}
+async function commitTranslation(value,target){
+  if(!translationValid(value))throw new Error(t('drawingChanged'))
+  const dx=target[0]-value.base[0],dy=target[1]-value.base[1]
+  if(Math.hypot(dx,dy)<1e-10){setTool('select');return}
+  const receipt=await execute(value.command,{ids:value.ids,dx,dy},{expectedRevision:value.revision})
+  if(value.command==='COPY')replaceSelection(receipt.result.map(row=>row.id))
+  setTool('select');refresh()
 }
 function isVisible(entity) { if (!entity) return false; const p = doc().getObject(entity.payload?.layerId)?.payload; return p?.visible !== false && !p?.frozen }
-// Only transient previews use this painter; committed geometry comes from the
-// same public Canvas renderer npm consumers use.
+// Transient and committed geometry share the public renderer.
 function drawOverlayEntity(entity, color, offset = [0,0]) {
-  const p=entity.payload,map=value=>point([value[0]+offset[0],value[1]+offset[1]])
-  ctx.save();ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=1.5;ctx.setLineDash([6,4]);ctx.beginPath()
-  if(entity.type==='LINE'){ctx.moveTo(...map(p.start));ctx.lineTo(...map(p.end));ctx.stroke()}
-  else if(entity.type==='RAY'||entity.type==='XLINE'){const origin=map(p.origin),direction=p.direction??[1,0],span=Math.max(width,height)*2,length=Math.hypot(...direction)||1,dx=direction[0]/length*span,dy=-direction[1]/length*span;ctx.moveTo(origin[0]-(entity.type==='XLINE'?dx:0),origin[1]-(entity.type==='XLINE'?dy:0));ctx.lineTo(origin[0]+dx,origin[1]+dy);ctx.stroke()}
-  else if(entity.type==='CIRCLE'||entity.type==='ARC'){const [x,y]=map(p.center);ctx.arc(x,y,p.radius*camera.scale,entity.type==='ARC'?-p.startAngle:0,entity.type==='ARC'?-p.endAngle:Math.PI*2,entity.type==='ARC');ctx.stroke()}
-  else if(entity.type==='POINT'){const [x,y]=map(p.position);ctx.moveTo(x-3,y);ctx.lineTo(x+3,y);ctx.moveTo(x,y-3);ctx.lineTo(x,y+3);ctx.stroke()}
-  else if(entity.type==='TEXT'||entity.type==='MTEXT'){const [x,y]=map(p.position);ctx.translate(x,y);ctx.rotate(-(p.rotation??0));ctx.font=`${Math.max(7,(p.height??1)*camera.scale)}px Consolas, monospace`;ctx.fillText(p.text??'',0,0)}
-  else if(entity.type==='LWPOLYLINE'||entity.type==='POLYLINE'){const vertices=p.vertices??[];vertices.forEach((value,index)=>{const next=map(value.point??value);index?ctx.lineTo(...next):ctx.moveTo(...next)});if(p.closed)ctx.closePath();ctx.stroke()}
-  else if(entity.type==='ELLIPSE'){const [x,y]=map(p.center),radius=Math.hypot(...p.majorAxis)*camera.scale,rotation=-Math.atan2(p.majorAxis[1],p.majorAxis[0]);ctx.ellipse(x,y,radius,radius*p.ratio,rotation,-(p.endParameter??Math.PI*2),-(p.startParameter??0));ctx.stroke()}
-  ctx.restore()
+  canvasRenderer.drawPreview([entity],color,offset)
 }
 function render() {
   if(!sdk?.activeDocument)return
@@ -102,15 +177,17 @@ function render() {
     for(const entity of entities)if(moved.has(entity.id))drawOverlayEntity(entity,'#ffc766',[args.dx,args.dy])
     for(const spec of args.additions)drawOverlayEntity({id:`preview-${spec.type}`,type:spec.type,payload:spec.payload},'#6ce6a5')
   }
-  if(start&&cursor){
-    const preview=tool==='circle'?{type:'CIRCLE',payload:{center:start,radius:Math.hypot(cursor[0]-start[0],cursor[1]-start[1])}}
-      :tool==='rectangle'?{type:'LWPOLYLINE',payload:{vertices:[[start[0],start[1]],[cursor[0],start[1]],cursor,[start[0],cursor[1]]].map(point=>({point})),closed:true}}
-      :tool==='ellipse'?{type:'ELLIPSE',payload:{center:start,majorAxis:[cursor[0]-start[0],cursor[1]-start[1]],ratio:.55,startParameter:0,endParameter:Math.PI*2}}
-      :tool==='xline'?{type:'XLINE',payload:{origin:start,direction:[cursor[0]-start[0],cursor[1]-start[1]]}}
-      :{type:'LINE',payload:{start,end:cursor}}
-    drawOverlayEntity(preview,'#bdf878')
+  const moving=dragMove?.started?{...dragMove,command:'MOVE',base:dragMove.worldStart}:translation
+  if(moving?.base&&cursor&&translationValid(moving)){
+    const offset=[cursor[0]-moving.base[0],cursor[1]-moving.base[1]]
+    for(const id of moving.ids)drawOverlayEntity(doc().getObject(id),'#77a7ff',offset)
+    const [sx,sy]=point(moving.base),[ex,ey]=point(cursor)
+    ctx.save();ctx.strokeStyle='#77a7ff';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(ex,ey);ctx.stroke();ctx.restore()
   }
-  if(tool==='polyline'&&draft.length>1){ctx.save();ctx.strokeStyle='#bdf878';ctx.setLineDash([5,4]);ctx.beginPath();draft.concat(cursor?[cursor]:[]).forEach((value,index)=>{const next=point(value);index?ctx.lineTo(...next):ctx.moveTo(...next)});ctx.stroke();ctx.restore()}
+  if(drafting){const preview=drafting.session.preview(cursor??undefined);if(preview)drawOverlayEntity(preview,'#77a7ff')}
+  if(!drafting&&start&&cursor){
+    drawOverlayEntity({type:'LINE',payload:{start,end:cursor}},'#bdf878')
+  }
 }
 function resize() {
   const rect = canvas.getBoundingClientRect();width=rect.width;height=rect.height
@@ -122,9 +199,9 @@ function field(container,label,value) { const row=document.createElement('div');
 function populateSampleSelector() {
   const select=$('sample-select'),active=doc()?.id
   select.replaceChildren()
-  for(const sample of SAMPLE_DESCRIPTORS){
-    if(!session?.documents.has(sample.id))continue
-    const option=document.createElement('option');option.value=sample.id;option.textContent=i18n.locale==='zh'?sample.titleZh:sample.title;option.selected=sample.id===active;select.append(option)
+  for(const drawing of session?.documents.values()??[]){
+    const sample=SAMPLE_DESCRIPTORS.find(sample=>sample.id===drawing.id)
+    const option=document.createElement('option');option.value=drawing.id;option.textContent=sample?(i18n.locale==='zh'?sample.titleZh:sample.title):documentTitle(drawing);option.selected=drawing.id===active;select.append(option)
   }
   select.hidden=!select.options.length
 }
@@ -135,8 +212,11 @@ function syncAgentAvailability() {
   for(const id of ['agent-preset','agent-intent','plan'])$(id).disabled=!available
   if(!available){$('confirm').disabled=true;$('plan-state').dataset.state='idle';$('plan-state').textContent=t('agentSampleRequired')}
 }
-function activateDrawing(id,{announce=true}={}) {
+function busyNotice(){const text=i18n.locale==='zh'?'正在完成上一项操作，请稍候再试。':'Finishing the current operation. Please wait and try again.';message(text);$('hint').textContent=text;workbench.dataset.lastError=text;return false}
+function activateDrawing(id,{announce=true,allowBusy=false}={}) {
   if(!session?.documents.has(id))return
+  if(busy&&!allowBusy){if(session.activeDocumentId)$('sample-select').value=session.activeDocumentId;return busyNotice()}
+  setTool('select')
   session.setActiveDocument(id);replaceSelection();measurement=null;invalidatePlan()
   const title=documentTitle(doc()),discipline=documentDiscipline(doc())
   $('drawing-title').textContent=title;$('top-file-name').textContent=title;$('drawing-discipline').textContent=`${discipline} · 2D`;$('sample-discipline').textContent=discipline
@@ -197,9 +277,13 @@ function refresh() {
   render()
 }
 async function execute(command,args={},options={}) {
-  invalidatePlan({preserveReceipt:Boolean(options.preserveReceipt)})
-  const result=await sdk.executeCommandEnvelope(sdk.createCommandEnvelope(command,args,{expectedRevision:doc().revision,origin:'ui',...options}))
-  $('file-state').textContent=i18n.locale==='zh'?'内存中已修改':'Modified in memory';message(`${command} committed · revision ${doc().revision}`);refresh();return result
+  const operationSdk=sdk,operationDocument=doc(),{preserveReceipt,...commandOptions}=options
+  invalidatePlan({preserveReceipt:Boolean(preserveReceipt)})
+  const envelope=operationSdk.createCommandEnvelope(command,args,{expectedRevision:operationDocument.revision,origin:'ui',...commandOptions,document:operationDocument})
+  const result=await operationSdk.executeCommandEnvelope(envelope,{document:operationDocument})
+  $('file-state').textContent=i18n.locale==='zh'?'内存中已修改':'Modified in memory';message(`${command} committed · revision ${operationDocument.revision}`)
+  if(sdk===operationSdk&&doc()===operationDocument)refresh()
+  return result
 }
 async function query(command,args={}) {
   const result=await sdk.executeCommand(command,args)
@@ -215,48 +299,94 @@ async function query(command,args={}) {
   measurement={command,rows,raw:result}
   if(!workbench.classList.contains('inspector-open'))$('toggle-inspector').click();selectSidePanel('properties');refresh();message(`${command} completed · drawing unchanged`);return result
 }
-function requireSelection(){const entity=primarySelection()?doc().getObject(primarySelection()):null;if(!entity)throw new Error('Select an entity first.');return entity}
+function requireSelection(){const entity=primarySelection()?doc().getObject(primarySelection()):null;if(!entity)throw new Error(t('selectFirst'));return entity}
 function requestLocalCommand({title,description='',submitLabel,fields=[]}) {
   const dialog=$('app-dialog'),form=$('dialog-form'),fieldRoot=$('dialog-fields')
+  form.onkeydown=event=>{if(event.key==='Enter'&&event.target.tagName==='INPUT'){event.preventDefault();form.requestSubmit($('dialog-submit'))}}
   $('dialog-title').textContent=title;$('dialog-description').textContent=description;$('dialog-description').hidden=!description
   $('dialog-submit').textContent=submitLabel??t('continue');fieldRoot.replaceChildren()
   const controls=[]
-  for(const field of fields){const label=document.createElement('label');label.textContent=field.label;const input=document.createElement('input');input.name=field.name;input.type=field.type??'text';input.value=field.value??'';if(field.min!=null)input.min=String(field.min);if(field.max!=null)input.max=String(field.max);if(field.step!=null)input.step=String(field.step);input.required=field.required!==false;input.autocomplete='off';label.append(input);fieldRoot.append(label);controls.push(input)}
+  for(const field of fields){
+    const label=document.createElement('label');label.textContent=field.label;const input=document.createElement(field.options?'select':'input');input.name=field.name
+    if(field.options){for(const [value,text] of field.options){const option=document.createElement('option');option.value=value;option.textContent=text;input.append(option)}}else input.type=field.type??'text'
+    input.value=field.value??'';if(input.type==='checkbox')input.checked=Boolean(field.value);if(field.min!=null)input.min=String(field.min);if(field.max!=null)input.max=String(field.max);if(field.step!=null)input.step=String(field.step);input.required=field.required!==false;input.autocomplete='off';label.append(input);fieldRoot.append(label);controls.push(input)
+  }
   return new Promise(resolve=>{
-    const close=()=>{dialog.removeEventListener('close',close);if(dialog.returnValue!=='default'){resolve(null);return}const values={};for(const input of controls){if(!input.reportValidity()){resolve(null);return}values[input.name]=input.type==='number'?Number(input.value):input.value}resolve(values)}
+    const close=()=>{dialog.removeEventListener('close',close);if(dialog.returnValue!=='default'){resolve(null);return}const values={};for(const input of controls){if(!input.reportValidity()){resolve(null);return}values[input.name]=input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value}resolve(values)}
     dialog.addEventListener('close',close);dialog.returnValue='cancel';dialog.showModal();queueMicrotask(()=>controls[0]?.focus())
   })
 }
 async function transformSelection(command){
-  const entity=requireSelection(),ids=selectedIds()
-  if(command==='MOVE'||command==='COPY'){const values=await requestLocalCommand({title:command==='MOVE'?(i18n.locale==='zh'?'移动所选对象':'Move selection'):(i18n.locale==='zh'?'复制所选对象':'Copy selection'),description:`${ids.length} ${t('selected')}`,fields:[{name:'dx',label:'ΔX',type:'number',value:5,step:.1},{name:'dy',label:'ΔY',type:'number',value:0,step:.1}]});if(!values)return;const result=await execute(command,{ids,dx:values.dx,dy:values.dy});if(command==='COPY'&&Array.isArray(result))replaceSelection(result.map(row=>row.id).filter(Boolean))}
-  else if(command==='ROTATE'){const values=await requestLocalCommand({title:i18n.locale==='zh'?'旋转所选对象':'Rotate selection',fields:[{name:'degrees',label:i18n.locale==='zh'?'角度（度）':'Angle (degrees)',type:'number',value:15,step:1}]});if(!values)return;await execute('ROTATE',{ids,angle:values.degrees*Math.PI/180,center:[0,0]})}
-  else if(command==='OFFSET'){if(ids.length!==1)throw new Error('OFFSET requires exactly one selected object.');const values=await requestLocalCommand({title:i18n.locale==='zh'?'偏移对象':'Offset entity',fields:[{name:'distance',label:i18n.locale==='zh'?'偏移距离':'Offset distance',type:'number',value:2,step:.1}]});if(!values)return;const result=await execute('OFFSET',{id:entity.id,distance:values.distance});if(result?.id)replaceSelection([result.id])}
-  refresh()
+  return beginModification(command.toLowerCase())
+}
+async function beginModification(id){
+  const definition=getKJModificationDefinition(id),ids=selectedIds(),drawing=doc(),locale=i18n.locale==='zh'?'zh':'en'
+  if(ids.length<definition.minSelection||(definition.maxSelection!=null&&ids.length>definition.maxSelection))throw new Error(`${definition.label[locale]} · ${i18n.locale==='zh'?'需要选择':'Select'} ${definition.minSelection}${definition.maxSelection===definition.minSelection?'': '+'} ${i18n.locale==='zh'?'个对象':'objects'}`)
+  if(definition.supportedEntityTypes&&ids.some(id=>!definition.supportedEntityTypes.includes(drawing.getObject(id).type)))throw new Error(`${definition.label[locale]}: ${definition.supportedEntityTypes.join(', ')}`)
+  if(['trim','extend'].includes(id)&&drawing.getObject(ids[0]).type!=='LINE')throw new Error(i18n.locale==='zh'?'先选待编辑直线，再按 Shift 选择边界。':'Select the target line first, then Shift-select boundaries.')
+  const bound={documentId:drawing.id,revision:drawing.revision,ids,selectionCenter:getKJModificationSelectionCenter(ids.map(id=>drawing.getObject(id)))}
+  let values={}
+  if(definition.fields.length){values=await requestLocalCommand({title:definition.label[locale],description:definition.description[locale],fields:definition.fields.map(field=>({name:field.key,label:field.label[locale],type:field.type==='boolean'?'checkbox':'number',value:field.default,min:field.min,max:field.max,step:field.type==='integer'?1:field.step??'any',required:field.type!=='boolean'}))});if(!values)return}
+  if(!translationValid(bound))throw new Error(t('drawingChanged'))
+  setTool('select');modification={...bound,definition,values,points:[]};canvas.style.cursor='crosshair'
+  if(!definition.pointKeys.length)await commitModification()
+  else {updateModificationHint();canvas.focus()}
+}
+function updateModificationHint(){if(!modification)return;const locale=i18n.locale==='zh'?'zh':'en';$('hint').textContent=`${modification.definition.label[locale]} · ${modification.definition.pointKeys[modification.points.length]?.label[locale]??''} · x,y / @dx,dy · Esc`;message($('hint').textContent)}
+async function addModificationPoint(p){
+  if(!translationValid(modification)){setTool('select');throw new Error(t('drawingChanged'))}
+  modification.points.push(p);start=p
+  if(modification.points.length>=modification.definition.pointKeys.length)await commitModification()
+  else {updateModificationHint();render()}
+}
+async function commitModification(){
+  const task=modification;if(!translationValid(task)){setTool('select');throw new Error(t('drawingChanged'))}
+  let receipt
+  try {const command=buildKJModificationCommand(task.definition.id,{ids:task.ids,values:task.values,points:task.points,selectionCenter:task.selectionCenter});receipt=await execute(command.command,command.arguments,{expectedRevision:task.revision})}
+  catch(error){if(translationValid(task)&&task.points.length){task.points.pop();start=task.points.at(-1)??null;updateModificationHint();render()}else setTool('select');throw error}
+  const ids=[];const collect=value=>{if(!value||typeof value!=='object')return;if(value.id&&doc().getObject(value.id)?.kind==='entity')ids.push(value.id);else if(Array.isArray(value))value.forEach(collect);else Object.values(value).forEach(collect)};collect(receipt.result)
+  if(ids.length)replaceSelection([...new Set(ids)]);setTool('select');refresh()
 }
 async function runTypedCommand(){
-  const raw=$('command-input').value.trim();if(!raw)return
-  const [name,...values]=raw.split(/[\s,]+/),command=name.toUpperCase();$('command-input').value=''
+  const raw=$('command-input').value.trim();if(!raw){if(drafting?.session.state.canFinish)await applyDraftInput(null,{finish:true});return}
+  if(modification&&/^@?[+\-.\d]/.test(raw)){$('command-input').value='';await addModificationPoint(parseDraftCoordinate(raw,modification.points.at(-1)));return}
+  if(drafting&&/^@?[+\-.\d]/.test(raw)){$('command-input').value='';await applyDraftInput(raw,{coordinate:true});return}
+  if(drafting&&/^(?:C|CLOSE)$/i.test(raw)){$('command-input').value='';await applyDraftInput(null,{close:true});return}
+  if(drafting&&/^(?:U|BACK)$/i.test(raw)){$('command-input').value='';undoDraftPoint();return}
+  const drawCommands={LINE:'line',L:'line',PLINE:'polyline',POLYLINE:'polyline',PL:'polyline',CIRCLE:'circle',CIRCLE2P:'circle',CIRCLE3P:'circle',ARC:'arc',ARC3P:'arc',ELLIPSE:'ellipse',POLYGON:'polygon',SPLINE:'spline',HATCH:'hatch',DIMALIGNED:'dimension',DIMLINEAR:'dimension',DIMRADIUS:'dimension',DIMDIAMETER:'dimension',RAY:'ray',XLINE:'xline',POINT:'point',RECTANGLE:'rectangle'}
+  const drawCommand=raw.toUpperCase()
+  if(drawCommands[drawCommand]){
+    if(drawCommand.startsWith('CIRCLE'))$('circle-mode').value=drawCommand==='CIRCLE2P'?'2-point':drawCommand==='CIRCLE3P'?'3-point':'center-radius'
+    if(drawCommand.startsWith('ARC'))$('arc-mode').value=drawCommand==='ARC3P'?'3-point':'center-start-end'
+    if(drawCommand.startsWith('DIM'))$('dimension-type').value=({DIMALIGNED:'ALIGNED',DIMLINEAR:'ROTATED',DIMRADIUS:'RADIUS',DIMDIAMETER:'DIAMETER'})[drawCommand]
+    $('command-input').value='';setTool(drawCommands[drawCommand]);return
+  }
+  const modificationDefinition=KJ_MODIFICATION_DEFINITIONS.find(definition=>definition.command===drawCommand)
+  if(modificationDefinition){$('command-input').value='';await beginModification(modificationDefinition.id);return}
+  const [name,...values]=raw.split(/[\s,]+/),command=({M:'MOVE',CO:'COPY',CP:'COPY'})[name.toUpperCase()]??name.toUpperCase();$('command-input').value=''
+  if((command==='MOVE'||command==='COPY')&&!values.length){setTool(command.toLowerCase());canvas.focus();return}
   if(command==='FIT'){fit();message('View fitted');return}if(command==='UNDO'||command==='REDO'){await execute(command);return}
-  if(command==='MOVE'||command==='COPY'){requireSelection();const dx=Number(values[0]??0),dy=Number(values[1]??0);const result=await execute(command,{ids:selectedIds(),dx,dy});if(command==='COPY'&&Array.isArray(result))replaceSelection(result.map(row=>row.id).filter(Boolean));return}
+  if(command==='MOVE'||command==='COPY'){requireSelection();if(values.length!==2||values.some(value=>!Number.isFinite(Number(value))))throw new Error(t('translationNumbers'));const [dx,dy]=values.map(Number);const result=(await execute(command,{ids:selectedIds(),dx,dy})).result;if(command==='COPY'&&Array.isArray(result))replaceSelection(result.map(row=>row.id).filter(Boolean));setTool('select');refresh();return}
   if(command==='ROTATE'){requireSelection();await execute(command,{ids:selectedIds(),angle:Number(values[0]??0)*Math.PI/180,center:[0,0]});return}
-  if(command==='OFFSET'){await execute(command,{id:requireSelection().id,distance:Number(values[0]??1)});return}
+  if(command==='OFFSET'){const result=(await execute(command,{id:requireSelection().id,distance:Number(values[0]??1)})).result;if(result?.id)replaceSelection([result.id]);setTool('select');refresh();return}
   if(command==='ERASE'||command==='DELETE'){requireSelection();await execute('ERASE',{ids:selectedIds()});return}
   if(command==='LENGTH'||command==='AREA'){await query(command,{ids:[requireSelection().id]});return}
-  throw new Error(`Supported commands: MOVE, COPY, ROTATE, OFFSET, LENGTH, AREA, ERASE, UNDO, REDO, FIT`)
+  throw new Error(`${i18n.locale==='zh'?'未知命令。绘图和修改菜单列出可用工具；也可输入':'Unknown command. Use the Drawing / Modification menus, or type'} LINE, PLINE, CIRCLE, ARC, ELLIPSE, POLYGON, SPLINE, HATCH, DIMALIGNED, MOVE, COPY, ARRAYPOLAR, TRIM, FILLET, UNDO, FIT.`)
 }
-async function run(work){if(busy)return;busy=true;workbench.setAttribute('aria-busy','true');try{await work()}catch(e){message(e.cause?.message??e.message);console.error(e)}finally{busy=false;workbench.setAttribute('aria-busy','false')}}
-async function freshSample(){rejectPendingPlan();workbench.dataset.demoState='loading';workbench.setAttribute('aria-busy','true');message(i18n.locale==='zh'?'正在生成五套原创行业图纸…':'Building five original industry drawings…');const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const showcase=await createSample(next),industry=await createIndustrySamples(next);session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'kjdraw-industry-samples',title:'KJDraw industry sample library',documents:[showcase,...industry],activeDocumentId:'sample-site-plan',metadata:{synthetic:true,industries:['energy','civil','architecture','transportation','mechanical']}});replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();$('file-state').textContent=t('memory');populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';workbench.setAttribute('aria-busy','false');message(i18n.locale==='zh'?`五套原创行业图纸已就绪 · 当前 ${modelEntities().length.toLocaleString()} 个可编辑对象`:`Five original industry drawings ready · ${modelEntities().length.toLocaleString()} editable objects in view`)}
+async function run(work){if(busy)return busyNotice();busy=true;workbench.setAttribute('aria-busy','true');try{await work();return true}catch(e){const text=e.cause?.message??e.message;message(text);$('hint').textContent=text;workbench.dataset.lastError=text;return false}finally{busy=false;workbench.setAttribute('aria-busy','false')}}
+async function freshSample(){setTool('select');rejectPendingPlan();workbench.dataset.demoState='loading';workbench.setAttribute('aria-busy','true');message(i18n.locale==='zh'?'正在生成五套原创行业图纸…':'Building five original industry drawings…');const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const showcase=await createSample(next),industry=await createIndustrySamples(next);session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'kjdraw-industry-samples',title:'KJDraw industry sample library',documents:[showcase,...industry],activeDocumentId:'sample-site-plan',metadata:{synthetic:true,industries:['energy','civil','architecture','transportation','mechanical']}});replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();$('file-state').textContent=t('memory');populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';workbench.setAttribute('aria-busy','false');message(i18n.locale==='zh'?`五套原创行业图纸已就绪 · 当前 ${modelEntities().length.toLocaleString()} 个可编辑对象`:`Five original industry drawings ready · ${modelEntities().length.toLocaleString()} editable objects in view`)}
 function download(content,name,type){const url=URL.createObjectURL(new Blob([content],{type}));const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 async function openFile(file){
   if(!file)return
+  setTool('select')
   if(file.size>20*1024*1024)throw new Error('Playground file limit: 20 MiB. Use the SDK directly for larger files.')
   rejectPendingPlan();const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);let project
   if(file.name.toLowerCase().endsWith('.kjp'))project=await KJProjectSession.open(new Uint8Array(await file.arrayBuffer()),{sdk:next})
   else {const format=file.name.toLowerCase().endsWith('.dxf')?'DXF':'KJD';const drawing=await next.readDocument(format==='DXF'?new Uint8Array(await file.arrayBuffer()):await file.text(),{format});project=KJProjectSession.create({sdk:next,title:file.name,documents:[drawing]})}
   session?.destroy();sdk=next;session=project;replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();setTool('select');$('top-file-name').textContent=file.name;$('drawing-title').textContent=documentTitle(project.activeDocument);$('file-state').textContent=i18n.locale==='zh'?'已在本地打开':'Opened locally';populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';message(i18n.locale==='zh'?'文件已在当前工作区打开':'File opened in the current workspace')
 }
-$('open').onclick=()=>$('file-input').click()
+function chooseFile(){if(busy)return busyNotice();setTool('select');$('file-input').click()}
+$('open').onclick=chooseFile
 function setPanelOpen(name,open){const className=name==='layers'?'layers-open':'inspector-open',button=$(name==='layers'?'toggle-layers':'toggle-inspector');workbench.classList.toggle(className,open);button.classList.toggle('active',open);button.setAttribute('aria-pressed',String(open))}
 $('open-agent-sample').onclick=()=>activateDrawing(SHOWCASE_DOCUMENT_ID)
 $('toggle-layers').onclick=()=>{const open=!workbench.classList.contains('layers-open');if(open&&window.innerWidth<=780)setPanelOpen('inspector',false);setPanelOpen('layers',open);resize()}
@@ -278,22 +408,22 @@ $('save').onclick=()=>run(saveProject)
 $('export').onclick=()=>run(async()=>{const text=await sdk.writeDocument(doc(),{format:'DXF',version:'2018'});download(text,'drawing.dxf','application/dxf');message('ASCII DXF 2018 downloaded · core adapter, see compatibility limits')})
 $('undo').onclick=()=>run(()=>execute('UNDO'));$('redo').onclick=()=>run(()=>execute('REDO'))
 $('fit-ribbon').onclick=fit
-$('move-selection').onclick=()=>run(()=>transformSelection('MOVE'))
-$('copy-selection').onclick=()=>run(()=>transformSelection('COPY'))
+$('move-selection').onclick=()=>{setTool('move');canvas.focus()}
+$('copy-selection').onclick=()=>{setTool('copy');canvas.focus()}
 $('rotate-selection').onclick=()=>run(()=>transformSelection('ROTATE'))
 $('offset-selection').onclick=()=>run(()=>transformSelection('OFFSET'))
 $('delete-selection').onclick=()=>run(()=>{requireSelection();return execute('ERASE',{ids:selectedIds()})})
 $('measure-entity').onclick=()=>run(async()=>{const entity=requireSelection();const supportedArea=['CIRCLE','ELLIPSE','LWPOLYLINE','POLYLINE','SOLID','TRACE'].includes(entity.type);await query(supportedArea?'AREA':'LENGTH',{ids:[entity.id]})})
 $('run-command').onclick=()=>run(runTypedCommand)
-$('command-input').onkeydown=e=>{if(e.key==='Enter')run(runTypedCommand)}
+$('command-input').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();run(runTypedCommand)}}
 $('new-layer').onclick=()=>run(async()=>{const values=await requestLocalCommand({title:i18n.locale==='zh'?'新建图层':'Create layer',fields:[{name:'name',label:i18n.locale==='zh'?'图层名称':'Layer name',value:'Design'}]});if(!values?.name.trim())return;await execute('LAYERNEW',{name:values.name.trim(),color:3})})
-$('new-drawing').onclick=()=>run(async()=>{const values=await requestLocalCommand({title:i18n.locale==='zh'?'新建图纸':'Create drawing',fields:[{name:'name',label:i18n.locale==='zh'?'图纸名称':'Drawing name',value:`Drawing ${session.documents.size+1}`}]});if(!values?.name.trim())return;const name=values.name.trim(),id=`drawing-${Date.now().toString(36)}`,drawing=sdk.createDocument({documentId:id,title:name,units:doc().snapshot().header.units??'unitless'});session.attachDocument(drawing);activateDrawing(id,{announce:false});$('file-state').textContent=i18n.locale==='zh'?'内存中已修改':'Modified in memory';message(`Drawing created · ${name}`)})
+$('new-drawing').onclick=()=>run(async()=>{const values=await requestLocalCommand({title:i18n.locale==='zh'?'新建图纸':'Create drawing',fields:[{name:'name',label:i18n.locale==='zh'?'图纸名称':'Drawing name',value:`Drawing ${session.documents.size+1}`},{name:'units',label:i18n.locale==='zh'?'绘图单位':'Drawing units',value:doc().snapshot().header.units??'millimeter',options:[['millimeter','mm'],['centimeter','cm'],['meter','m'],['inch','in'],['foot','ft'],['unitless',i18n.locale==='zh'?'无单位':'Unitless']]}]});if(!values?.name.trim())return;const name=values.name.trim(),id=`drawing-${Date.now().toString(36)}`,drawing=sdk.createDocument({documentId:id,title:name,units:values.units});session.attachDocument(drawing);activateDrawing(id,{announce:false,allowBusy:true});$('file-state').textContent=i18n.locale==='zh'?'内存中已修改':'Modified in memory';message(`Drawing created · ${name}`)})
 $('reset').onclick=()=>run(async()=>{const accepted=await requestLocalCommand({title:i18n.locale==='zh'?'重新加载原创示例？':'Reload the original sample?',description:i18n.locale==='zh'?'当前内存中的修改将被替换。需要保留时，请先保存 KJP。':'In-memory edits will be replaced. Save a KJP first if you need to keep them.',submitLabel:i18n.locale==='zh'?'重新加载':'Reload'});if(accepted)await freshSample()})
 $('snap').onclick=()=>{snapEnabled=!snapEnabled;$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');$('snap').setAttribute('aria-pressed',String(snapEnabled))}
 $('grid').onclick=()=>{gridEnabled=!gridEnabled;$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('grid').setAttribute('aria-pressed',String(gridEnabled));render()}
 $('ortho').onclick=()=>{orthoEnabled=!orthoEnabled;$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('ortho').setAttribute('aria-pressed',String(orthoEnabled));render()}
-$('language').onclick=()=>{const canonical=knownIntent($('agent-intent').value);i18n.toggle();if(canonical)setCanonicalIntent();$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');if(sdk){populateSampleSelector();refresh();message(`${t('ready')} · ${documentTitle(doc())}`)}if(pendingPlan)displayAgentPlan(pendingPlan);setTool(tool)}
-for(const b of document.querySelectorAll('[data-tool]'))b.onclick=()=>setTool(b.dataset.tool)
+$('language').onclick=()=>{const canonical=knownIntent($('agent-intent').value);i18n.toggle();if(canonical)setCanonicalIntent();$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');if(sdk){populateSampleSelector();refresh();message(`${t('ready')} · ${documentTitle(doc())}`)}if(pendingPlan)displayAgentPlan(pendingPlan);if(translation)updateTranslationHint();else if(drafting)updateDraftHint();else if(modification)updateModificationHint();else if(tool==='select')$('hint').textContent=t('canvasHint');else if(tool==='pan')$('hint').textContent=t('panHint')}
+for(const b of document.querySelectorAll('[data-tool]'))b.onclick=()=>{setTool(b.dataset.tool);canvas.focus()}
 function planStep(title,detail){const item=document.createElement('li'),heading=document.createElement('b');heading.textContent=title;item.append(heading,document.createTextNode(detail));$('plan-steps').append(item)}
 function displayAgentPlan(plan){
   const args=plan.envelope.arguments,binding=plan.record.binding
@@ -344,53 +474,64 @@ $('receipt-reopen').onclick=()=>run(async()=>{const bytes=await session.package(
 function pointer(e){const r=canvas.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]}
 function snap(p){if(!snapEnabled||!sdk)return p;const hits=sdk.snap(p,{radius:8/camera.scale,modes:['endpoint','midpoint','center','nearest']});return hits[0]?.point??p}
 function constrainedPoint(p){const value=snap(p);if(!orthoEnabled||!start)return value;const dx=Math.abs(value[0]-start[0]),dy=Math.abs(value[1]-start[1]);return dx>=dy?[value[0],start[1]]:[start[0],value[1]]}
+function translationPoint(p,base){const value=snap(p);if(!orthoEnabled||!base)return value;return Math.abs(value[0]-base[0])>=Math.abs(value[1]-base[1])?[value[0],base[1]]:[base[0],value[1]]}
 canvas.onpointermove=e=>{
   const p=pointer(e)
   if(pan){canvasRenderer.panBy(p[0]-pan.p[0],p[1]-pan.p[1]);pan.p=p;render();return}
-  cursor=constrainedPoint(world(p));$('coordinates').textContent=`X ${cursor[0].toFixed(2)} · Y ${cursor[1].toFixed(2)}`;if(start)render()
+  if(dragMove&&Math.hypot(p[0]-dragMove.screenStart[0],p[1]-dragMove.screenStart[1])>4)dragMove.started=true
+  cursor=translationPoint(constrainedPoint(world(p)),translation?.base??dragMove?.worldStart);$('coordinates').textContent=`X ${cursor[0].toFixed(2)} · Y ${cursor[1].toFixed(2)}`;if(start||drafting||modification||translation?.base||dragMove?.started)render()
 }
 canvas.onpointerdown=e=>{
-  if(e.button===1){e.preventDefault();pan={p:pointer(e)};canvas.setPointerCapture(e.pointerId);return}
-  if(e.button!==0||busy)return
+  if(e.button===1||(e.button===0&&tool==='pan')){e.preventDefault();pan={p:pointer(e),pointerId:e.pointerId};canvas.setPointerCapture(e.pointerId);canvas.style.cursor='grabbing';return}
+  if(e.button!==0)return
+  if(busy){busyNotice();return}
+  canvas.focus()
   const p=constrainedPoint(world(pointer(e)))
+  if(translation){
+    if(!translationValid(translation)){setTool('select');message(t('drawingChanged'));return}
+    if(!translation.ids.length){const hit=canvasRenderer.hitTest(pointer(e),9);if(!hit){message(t('moveChoose'));return}replaceSelection([hit.entity.id]);translation.ids=selectedIds();refresh();updateTranslationHint();return}
+    if(!translation.base){translation.base=p;cursor=p;updateTranslationHint();render();return}
+    const task=translation;translation=null;run(()=>commitTranslation(task,translationPoint(p,task.base)));return
+  }
+  if(modification){run(()=>addModificationPoint(p));return}
+  if(drafting){run(()=>applyDraftInput(p));return}
   if(tool==='select'){
-    const candidates=sdk.snap(world(pointer(e)),{radius:10/camera.scale,modes:['nearest','center','endpoint']})
-      .map(candidate=>candidate.entityIds[0]).filter((id,index,ids)=>ids.indexOf(id)===index&&isVisible(doc().getObject(id)))
-    const id=e.shiftKey?(candidates.find(candidate=>!selection.has(candidate))??candidates[0]??null):(candidates[0]??null)
-    if(e.shiftKey){if(id)selection.has(id)?selection.delete(id):selection.add(id)}else replaceSelection(id?[id]:[])
-    if(!workbench.classList.contains('inspector-open'))$('toggle-inspector').click();selectSidePanel('properties');refresh();return
+    const id=canvasRenderer.hitTest(pointer(e),9)?.entity.id??null
+    if(e.shiftKey){if(id)selection.has(id)?selection.delete(id):selection.add(id)}else if(!id||!selection.has(id))replaceSelection(id?[id]:[])
+    if(id&&!e.shiftKey){dragMove={screenStart:pointer(e),worldStart:world(pointer(e)),ids:selectedIds(),documentId:doc().id,revision:doc().revision,pointerId:e.pointerId,started:false};canvas.setPointerCapture(e.pointerId)}
+    selectSidePanel('properties');refresh();return
   }
   if(tool==='text'){run(async()=>{const values=await requestLocalCommand({title:i18n.locale==='zh'?'放置文字':'Place text',fields:[{name:'text',label:i18n.locale==='zh'?'文字内容':'Text content',value:'KJDraw'}]});if(values?.text)await execute('CREATE',{type:'TEXT',payload:{position:p,height:2.5,rotation:0,text:values.text}})});return}
-  if(tool==='point'){run(()=>execute('CREATE',{type:'POINT',payload:{position:p}}));return}
   if(tool==='measure'){
     if(!start){start=p;cursor=p;message('Choose the second distance point');return}
     const first=start;start=null;run(()=>query('DISTANCE',{firstPoint:first,secondPoint:p}));return
   }
-  if(tool==='polyline'){
-    draft.push(p);start=p
-    if(draft.length<3){message(`Polyline vertex ${draft.length}/3`);render();return}
-    const vertices=draft.map(point=>({point}));draft=[];start=null;run(()=>execute('CREATE',{type:'LWPOLYLINE',payload:{vertices,closed:false}}));return
-  }
-  if(tool==='arc'){
-    draft.push(p);start=p
-    if(draft.length<3){message(draft.length===1?'Choose arc start point':'Choose arc endpoint');render();return}
-    const [center,arcStart,arcEnd]=draft;draft=[];start=null
-    const radius=Math.hypot(arcStart[0]-center[0],arcStart[1]-center[1]);if(radius<1e-9){message('Arc radius must be positive');return}
-    run(()=>execute('CREATE',{type:'ARC',payload:{center,radius,startAngle:Math.atan2(arcStart[1]-center[1],arcStart[0]-center[0]),endAngle:Math.atan2(arcEnd[1]-center[1],arcEnd[0]-center[0])}}));return
-  }
-  if(!start){start=p;cursor=p;message(i18n.locale==='zh'?'指定下一点':'Choose the next point');return}
-  const initial=start;start=null
-  run(async()=>{
-    if(tool==='circle'){const radius=Math.hypot(p[0]-initial[0],p[1]-initial[1]);if(radius<1e-9)throw new Error('Circle radius must be positive.');await execute('CREATE',{type:'CIRCLE',payload:{center:initial,radius}})}
-    else if(tool==='rectangle')await execute('CREATE',{type:'LWPOLYLINE',payload:{vertices:[[initial[0],initial[1]],[p[0],initial[1]],p,[initial[0],p[1]]].map(point=>({point})),closed:true}})
-    else if(tool==='ellipse'){const majorAxis=[p[0]-initial[0],p[1]-initial[1]];if(Math.hypot(...majorAxis)<1e-9)throw new Error('Ellipse axis must be positive.');await execute('CREATE',{type:'ELLIPSE',payload:{center:initial,majorAxis,ratio:.55,startParameter:0,endParameter:Math.PI*2}})}
-    else if(tool==='xline'){const direction=[p[0]-initial[0],p[1]-initial[1]];if(Math.hypot(...direction)<1e-9)throw new Error('Construction line direction must be positive.');await execute('CREATE',{type:'XLINE',payload:{origin:initial,direction}})}
-    else await execute('CREATE',{type:'LINE',payload:{start:initial,end:p}})
-  })
 }
-canvas.onpointerup=()=>{pan=null};canvas.onpointercancel=()=>{pan=null;start=null;render()}
-canvas.addEventListener('wheel',e=>{e.preventDefault();canvasRenderer.zoomAt(Math.exp(-e.deltaY*.001),pointer(e));render()},{passive:false})
-window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.key==='Escape'){setTool('select');invalidatePlan();render()}const key=e.key.toLowerCase();if(key==='l')setTool('line');if(key==='p')setTool('polyline');if(key==='c')setTool('circle');if(key==='a')setTool('arc');if(key==='r')setTool('rectangle');if(key==='e')setTool('ellipse');if(key==='x')setTool('xline');if(key==='q')setTool('point');if(key==='t')setTool('text');if(key==='d')setTool('measure');if(key==='v')setTool('select');if((e.ctrlKey||e.metaKey)&&key==='z'){e.preventDefault();run(()=>execute(e.shiftKey?'REDO':'UNDO'))}})
+canvas.onpointerup=e=>{const drag=dragMove?.pointerId===e.pointerId?dragMove:null;if(drag)dragMove=null;if(pan?.pointerId===e.pointerId)pan=null;if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);canvas.style.cursor=tool==='pan'?'grab':tool==='select'?'default':'crosshair';if(drag?.started)run(()=>commitTranslation({...drag,command:'MOVE',base:drag.worldStart},translationPoint(world(pointer(e)),drag.worldStart)))}
+canvas.onpointercancel=()=>setTool('select')
+canvas.onlostpointercapture=e=>{if(pan?.pointerId===e.pointerId)pan=null;if(dragMove?.pointerId===e.pointerId)dragMove=null}
+canvas.addEventListener('wheel',e=>{e.preventDefault();if(dragMove)return;canvasRenderer.zoomAt(Math.exp(-e.deltaY*.001),pointer(e));render()},{passive:false})
+window.addEventListener('keydown',e=>{
+  if($('app-dialog').open)return
+  if(e.key==='Escape'){e.preventDefault();setTool('select');invalidatePlan();render();return}
+  if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)||e.target.isContentEditable)return
+  const key=e.key.toLowerCase()
+  if(e.ctrlKey||e.metaKey){
+    if(key==='z'){e.preventDefault();setTool('select');run(()=>execute(e.shiftKey?'REDO':'UNDO'))}
+    if(key==='s'){e.preventDefault();run(saveProject)}
+    if(key==='o'){e.preventDefault();chooseFile()}
+    return
+  }
+  if(e.altKey)return
+  if(drafting){
+    if(e.key==='Enter'&&drafting.session.state.canFinish){e.preventDefault();run(()=>applyDraftInput(null,{finish:true}));return}
+    if(key==='c'&&drafting.session.state.canClose){e.preventDefault();run(()=>applyDraftInput(null,{close:true}));return}
+    if(e.key==='Backspace'){e.preventDefault();undoDraftPoint();return}
+  }
+  if(e.key==='Delete'){e.preventDefault();run(()=>{requireSelection();return execute('ERASE',{ids:selectedIds()})});return}
+  const tools={l:'line',p:'polyline',c:'circle',a:'arc',r:'rectangle',e:'ellipse',x:'xline',q:'point',t:'text',d:'measure',v:'select',h:'pan',m:'move'}
+  if(tools[key]){e.preventDefault();setTool(tools[key])}
+})
 window.addEventListener('resize',()=>requestAnimationFrame(resize))
 i18n.apply()
 new ResizeObserver(()=>requestAnimationFrame(resize)).observe($('drop-zone'))
@@ -413,26 +554,45 @@ function filterLayers(){
 function initializeWorkbenchChrome(){
   const sample=document.querySelector('.sample-ribbon');sample.classList.remove('ribbon-group')
   document.querySelector('.site-header').insertBefore(sample,document.querySelector('.top-document'))
+  const layoutSelect=document.createElement('select');layoutSelect.id='layout-select';layoutSelect.dataset.i18nLabel='layout';layoutSelect.setAttribute('aria-label',t('layout'))
+  for(const layout of KJDRAW_LAYOUTS){const option=document.createElement('option');option.value=layout;option.dataset.i18n=`layout_${layout}`;option.textContent=t(option.dataset.i18n);layoutSelect.append(option)}
+  let savedLayout='classic';try{savedLayout=normalizeWorkbenchLayout(localStorage.getItem('kjdraw.layout'))}catch{}
+  layoutSelect.value=savedLayout;workbench.dataset.layout=savedLayout
+  layoutSelect.onchange=()=>{const layout=normalizeWorkbenchLayout(layoutSelect.value);workbench.dataset.layout=layout;try{localStorage.setItem('kjdraw.layout',layout)}catch{}requestAnimationFrame(()=>{resize();canvas.focus()})}
+  document.querySelector('.site-header').insertBefore(layoutSelect,document.querySelector('.top-document'))
+  $('move-selection').dataset.tool='move';$('copy-selection').dataset.tool='copy'
   document.querySelector('.ribbon-tabs > span').textContent='2D'
   const groups=[...document.querySelectorAll('.ribbon-group')]
   groups[3].classList.add('compact');groups[4].classList.add('compact');groups[5].classList.add('compact')
   const groupSections=['file','view','draw','draw','modify','inspect']
   groups.forEach((group,index)=>group.dataset.section=groupSections[index])
+  initializeDraftingControls()
+  const ribbonGroups=[...document.querySelectorAll('.ribbon-group')]
+  const showSection=section=>{for(const group of ribbonGroups)group.hidden=section==='home'?group.matches('.drawing-library,.modification-library'):group.dataset.section!==section&&group.dataset.section!=='view';document.querySelector('.ribbon-groups').scrollLeft=0}
+  showSection('home')
   for(const tab of document.querySelectorAll('.ribbon-tabs button')){
     tab.setAttribute('aria-pressed',String(tab.classList.contains('active')))
-    tab.onclick=()=>{for(const sibling of tab.parentElement.querySelectorAll('button')){sibling.classList.toggle('active',sibling===tab);sibling.setAttribute('aria-pressed',String(sibling===tab))}for(const group of groups)group.hidden=tab.dataset.i18n!=='home'&&group.dataset.section!==tab.dataset.i18n&&group.dataset.section!=='view'}
+    tab.onclick=()=>{for(const sibling of tab.parentElement.querySelectorAll('button')){sibling.classList.toggle('active',sibling===tab);sibling.setAttribute('aria-pressed',String(sibling===tab))}showSection(tab.dataset.i18n)}
   }
   const icons={'toggle-layers':'layers','toggle-inspector':'panel',undo:'undo',redo:'redo','move-selection':'move','copy-selection':'copy','rotate-selection':'rotate','offset-selection':'offset','delete-selection':'delete','measure-entity':'area','fit-ribbon':'fit'}
-  const shortcuts={select:'V',line:'L',polyline:'P',circle:'C',arc:'A',text:'T',rectangle:'R',ellipse:'E',point:'Q',xline:'X',measure:'D'}
+  const shortcuts={select:'V',line:'L',polyline:'P',circle:'C',arc:'A',text:'T',rectangle:'R',ellipse:'E',point:'Q',xline:'X',measure:'D',move:'M'}
   for(const button of document.querySelectorAll('.ribbon-group > button')){
     const label=document.createElement('span');label.textContent=button.textContent
     if(button.dataset.i18n){label.dataset.i18n=button.dataset.i18n;delete button.dataset.i18n}
     button.replaceChildren();button.insertAdjacentHTML('afterbegin',kjdrawIcon(button.dataset.icon||button.dataset.tool||icons[button.id]))
     button.append(label)
-    if(button.dataset.tool){button.dataset.shortcut=shortcuts[button.dataset.tool];button.setAttribute('aria-keyshortcuts',shortcuts[button.dataset.tool])}
+    if(shortcuts[button.dataset.tool]){button.dataset.shortcut=shortcuts[button.dataset.tool];button.setAttribute('aria-keyshortcuts',shortcuts[button.dataset.tool])}
   }
   const updateTooltips=()=>{for(const button of document.querySelectorAll('.ribbon-group > button'))button.title=`${button.textContent.trim()}${button.dataset.shortcut?` (${button.dataset.shortcut})`:''}`}
   document.addEventListener('kjdraw:language',updateTooltips);updateTooltips()
+  const navigator=document.createElement('div');navigator.className='canvas-navigator';navigator.setAttribute('role','toolbar');navigator.dataset.i18nLabel='navigation';navigator.setAttribute('aria-label',t('navigation'))
+  for(const [name,icon,key] of [['select','select','select'],['pan','pan','pan'],['fit','fit','fit'],['zoom-in','zoom-in','zoomIn'],['zoom-out','zoom-out','zoomOut']]){
+    const button=document.createElement('button');button.id=`nav-${name}`;button.innerHTML=kjdrawIcon(icon);button.dataset.i18nTitle=key;button.dataset.i18nLabel=key;button.title=t(key);button.setAttribute('aria-label',t(key))
+    if(['select','pan'].includes(name)){button.dataset.tool=name;button.onclick=()=>setTool(name)}
+    else button.onclick=()=>{if(name==='fit')fit();else {canvasRenderer.zoomAt(name==='zoom-in'?1.25:.8);render()}canvas.focus()}
+    navigator.append(button)
+  }
+  $('drop-zone').append(navigator)
   for(const [id,icon] of Object.entries({'close-layers':'close','close-inspector':'close','show-all-layers':'eye','new-layer':'plus','new-drawing':'plus'}))$(id).innerHTML=kjdrawIcon(icon)
   const search=document.createElement('label');search.className='layer-search';search.innerHTML=kjdrawIcon('search')
   const input=document.createElement('input');input.id='layer-search';input.type='search';input.dataset.i18nPlaceholder='searchLayers';input.setAttribute('aria-label',t('searchLayers'));input.oninput=filterLayers;search.append(input)
@@ -447,4 +607,46 @@ function initializeWorkbenchChrome(){
     handle.onkeydown=event=>{if(!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();adjust(panel.getBoundingClientRect().width+(event.key==='ArrowRight'?20:-20)*(name==='layers'?1:-1))}
     panel.append(handle)
   }
+}
+
+function initializeDraftingControls(){
+  const bilingual=(element,en,zh)=>{element.dataset.labelEn=en;element.dataset.labelZh=zh;element.textContent=i18n.locale==='zh'?zh:en;return element}
+  const library=document.createElement('div');library.className='ribbon-group drawing-library';library.dataset.section='draw'
+  library.append(bilingual(document.createElement('small'),'CONSTRUCTION','图形构造'))
+  const picker=document.createElement('select');picker.id='drawing-tool'
+  for(const [value,en,zh] of [['line','Line','直线'],['polyline','Polyline','多段线'],['circle','Circle','圆'],['arc','Arc','圆弧'],['ellipse','Ellipse','椭圆'],['rectangle','Rectangle','矩形'],['polygon','Polygon','正多边形'],['spline','Spline','样条曲线'],['hatch','Hatch / fill','填充'],['dimension','Dimension','尺寸标注'],['point','Point','点'],['ray','Ray','射线'],['xline','Construction line','构造线']]){
+    const option=bilingual(document.createElement('option'),en,zh);option.value=value;picker.append(option)
+  }
+  picker.setAttribute('aria-label',i18n.locale==='zh'?'绘图工具':'Drawing tool');picker.onchange=()=>{if(!busy){setTool(picker.value);canvas.focus()}}
+  library.append(picker);document.querySelector('.ribbon-groups').insertBefore(library,document.querySelector('.ribbon-group[data-section="modify"]'))
+  const options=document.createElement('div');options.id='draft-options';options.className='draft-options';options.hidden=true;options.setAttribute('role','toolbar');options.setAttribute('aria-label','Drawing options')
+  const add=(id,en,zh,tools,values,defaultValue,limits={})=>{
+    const label=document.createElement('label');label.dataset.draftTools=tools;label.append(bilingual(document.createElement('span'),en,zh));let input
+    if(values){input=document.createElement('select');for(const [value,labelEn,labelZh] of values){const option=bilingual(document.createElement('option'),labelEn,labelZh);option.value=value;input.append(option)}}
+    else {input=document.createElement('input');input.type='number';for(const [key,value]of Object.entries(limits))input[key]=String(value)}
+    input.id=id;input.value=String(defaultValue);input.dataset.previousValue=input.value;input.setAttribute('aria-label',i18n.locale==='zh'?zh:en)
+    input.onchange=()=>{
+      if(busy||drafting?.session.points.length){input.value=input.dataset.previousValue;if(busy)busyNotice();else message(i18n.locale==='zh'?'请先完成或按 Esc 取消当前图形，再更改构造参数。':'Finish the current shape or press Esc before changing construction options.');return}
+      if(!input.checkValidity()){input.reportValidity();return}
+      if(isDraftTool(tool)){setTool(tool);canvas.focus()}
+    };label.append(input);options.append(label)
+  }
+  add('circle-mode','Circle','画圆方式','circle',[['center-radius','Center / radius','圆心 / 半径'],['2-point','Two diameter points','直径两点'],['3-point','Three points','圆上三点']],'center-radius')
+  add('arc-mode','Arc','圆弧方式','arc',[['center-start-end','Center / start / end','圆心 / 起点 / 终点'],['3-point','Start / through / end','起点 / 中间点 / 终点']],'center-start-end')
+  add('polygon-sides','Sides','边数','polygon',null,6,{min:3,max:360,step:1})
+  add('spline-degree','Degree','次数','spline',[['2','Quadratic','二次'],['3','Cubic','三次']],'3')
+  add('dimension-type','Dimension','标注类型','dimension',[['ALIGNED','Aligned','对齐'],['ROTATED','Linear','线性'],['RADIUS','Radius','半径'],['DIAMETER','Diameter','直径']],'ALIGNED')
+  add('dimension-direction','Direction','方向','dimension',[['horizontal','Horizontal','水平'],['vertical','Vertical','垂直']],'horizontal')
+  add('dimension-height','Text height','字高','dimension',null,2.5,{min:.001,step:.1})
+  add('hatch-pattern','Pattern','图案','hatch',[['ANSI31','Diagonal','斜线'],['ANSI37','Cross','交叉'],['SOLID','Solid fill','实心']],'ANSI31')
+  add('hatch-scale','Scale','比例','hatch',null,1,{min:.001,step:.1})
+  for(const [id,en,zh,action] of [['finish-draft','Finish ↵','完成 ↵',()=>run(()=>applyDraftInput(null,{finish:true}))],['close-draft','Close (C)','闭合 (C)',()=>run(()=>applyDraftInput(null,{close:true}))],['undo-draft-point','Undo point','退回一点',undoDraftPoint]]){
+    const button=bilingual(document.createElement('button'),en,zh);button.id=id;button.dataset.draftTools='polyline spline hatch';button.onclick=action;options.append(button)
+  }
+  $('drop-zone').append(options)
+  const modify=document.createElement('div');modify.className='ribbon-group modification-library';modify.dataset.section='modify';modify.append(bilingual(document.createElement('small'),'EDIT GEOMETRY','编辑几何'))
+  const modifySelect=document.createElement('select');modifySelect.id='modification-tool';const placeholder=bilingual(document.createElement('option'),'More editing tools…','更多修改工具…');placeholder.value='';modifySelect.append(placeholder)
+  for(const definition of KJ_MODIFICATION_DEFINITIONS){const option=bilingual(document.createElement('option'),definition.label.en,definition.label.zh);option.value=definition.id;modifySelect.append(option)}
+  modifySelect.setAttribute('aria-label',i18n.locale==='zh'?'修改工具':'Modification tool');modifySelect.onchange=()=>{const value=modifySelect.value;modifySelect.value='';if(value)run(()=>beginModification(value))};modify.append(modifySelect);document.querySelector('.ribbon-groups').append(modify)
+  document.addEventListener('kjdraw:language',()=>{for(const node of document.querySelectorAll('[data-label-en]'))node.textContent=i18n.locale==='zh'?node.dataset.labelZh:node.dataset.labelEn;for(const label of options.querySelectorAll('label'))label.querySelector('input,select')?.setAttribute('aria-label',label.querySelector('span').textContent);picker.setAttribute('aria-label',i18n.locale==='zh'?'绘图工具':'Drawing tool');modifySelect.setAttribute('aria-label',i18n.locale==='zh'?'修改工具':'Modification tool');options.setAttribute('aria-label',i18n.locale==='zh'?'绘图参数':'Drawing options');if(drafting)updateDraftHint()})
 }

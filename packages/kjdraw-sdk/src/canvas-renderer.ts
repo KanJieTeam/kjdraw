@@ -6,6 +6,8 @@ import {
   translation3,
 } from './geometry/index.js'
 import { nearestPointOnEntity2 } from './snapping.js'
+import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js'
+import { projectDimension } from './geometry/annotation.js'
 import type { KJDocument } from './document.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 
@@ -58,6 +60,11 @@ export interface KJCanvasHit {
   entity: KJReadonlyObjectRecord
   distance: number
   point: readonly [number, number, number]
+}
+
+export interface KJCanvasPreviewEntity {
+  type: string
+  payload: Readonly<Record<string, unknown>>
 }
 
 type Point2 = readonly [number, number]
@@ -115,6 +122,21 @@ function points(input: unknown): Point2[] {
 function finite(value: unknown, fallback = 0): number {
   const result = Number(value)
   return Number.isFinite(result) ? result : fallback
+}
+
+function splineSamples(payload: Readonly<Record<string, unknown>>): Point2[] {
+  const definition = normalizeSplineDefinition({
+    degree: finite(payload.degree, 3), controlPoints: points(payload.controlPoints),
+    ...(Array.isArray(payload.knots) ? { knots: payload.knots.map(Number) } : {}),
+    ...(Array.isArray(payload.weights) ? { weights: payload.weights.map(Number) } : {}),
+  })
+  const knots = [...new Set(definition.knots.slice(definition.degree, definition.controlPoints.length + 1))]
+  const result: Point2[] = []
+  for (let span = 1; span < knots.length; span++) {
+    const a = knots[span - 1]!, b = knots[span]!
+    for (let step = span === 1 ? 0 : 1; step <= 24; step++) result.push(splinePoint2(definition, a + (b - a) * step / 24))
+  }
+  return result
 }
 
 function colorIndex(value: unknown): number {
@@ -360,6 +382,22 @@ export class KJCanvasRenderer {
       const layer = layers.get(String(entity.payload.layerId ?? ''))
       if (layer?.visible === false || layer?.frozen === true) continue
       try {
+        if (entity.type === 'SPLINE') {
+          const vertices = splineSamples(entity.payload).map(point => ({ point }))
+          const nearest = nearestPointOnEntity2({ ...entity, type: 'LWPOLYLINE', payload: { vertices, closed: entity.payload.closed === true } }, point)
+          if (nearest.distance <= radius && (!best || nearest.distance < best.distance)) best = { entity, distance: nearest.distance, point: nearest.point }
+          continue
+        }
+        if (entity.type === 'DIMENSION') {
+          const projected = projectDimension(entity.payload, this.#document?.getObject(String(entity.payload.styleId ?? ''))?.payload)
+          if (projected) {
+            for (const [start, end] of projected.lines) {
+              const nearest = nearestPointOnEntity2({ ...entity, type: 'LINE', payload: { start, end } }, point)
+              if (nearest.distance <= radius && (!best || nearest.distance < best.distance)) best = { entity, distance: nearest.distance, point: nearest.point }
+            }
+            continue
+          }
+        }
         const nearest = nearestPointOnEntity2(entity, point)
         if (nearest.distance * this.camera.scale <= tolerancePixels && (!best || nearest.distance < best.distance)) {
           best = { entity, distance: nearest.distance, point: nearest.point }
@@ -420,6 +458,16 @@ export class KJCanvasRenderer {
       scale: this.camera.scale,
     })
     return this.#report
+  }
+
+  /** Paint temporary native geometry without inserting objects or changing history. Call render() to clear it. */
+  drawPreview(entities: readonly KJCanvasPreviewEntity[], color = '#77a7ff', offset: Point2 = [0, 0]): this {
+    for (const [index, spec] of entities.entries()) {
+      let payload = structuredClone(spec.payload) as KJObjectPayload
+      if (offset[0] || offset[1]) payload = transformEntityPayload(spec.type, payload, translation3(offset[0], offset[1]))
+      this.#drawEntity({ id: `preview-${index}`, handle: '', kind: 'entity', type: spec.type, ownerId: null, name: null, payload, extension: { xdata: {}, xrecordIds: [], reactorIds: [], hyperlinks: [] }, erased: false, source: null }, color, 0)
+    }
+    return this
   }
 
   dispose(): void {
@@ -539,12 +587,10 @@ export class KJCanvasRenderer {
       if (!center || !(radius > 0)) drawn = false
       else {
         const start = entity.type === 'ARC' ? finite(payload.startAngle) : 0
-        const sweep = entity.type === 'ARC' ? normalizeSweep(start, finite(payload.endAngle)) : Math.PI * 2
-        const segments = Math.max(32, Math.ceil(sweep / (Math.PI / 36)))
-        drawn = this.#strokePath(Array.from({ length: segments + 1 }, (_, index) => {
-          const angle = start + sweep * index / segments
-          return [center[0] + Math.cos(angle) * radius, center[1] + Math.sin(angle) * radius] as Point2
-        }), entity.type === 'CIRCLE')
+        const end = finite(payload.endAngle)
+        const sweep = entity.type !== 'ARC' ? Math.PI * 2 : payload.clockwise === true ? -normalizeSweep(end, start) : normalizeSweep(start, end)
+        const screen = this.worldToScreen(center)
+        context.beginPath(); context.arc(screen[0], screen[1], radius * this.camera.scale, -start, -(start + sweep), sweep > 0); context.stroke()
       }
     } else if (entity.type === 'POINT') {
       const value = point2(payload.position)
@@ -562,13 +608,13 @@ export class KJCanvasRenderer {
         const radius = Math.hypot(axis[0], axis[1]), ratio = Math.abs(finite(payload.ratio, 1))
         const rotation = Math.atan2(axis[1], axis[0]), start = finite(payload.startParameter), end = finite(payload.endParameter, Math.PI * 2)
         const sweep = normalizeSweep(start, end)
-        drawn = this.#strokePath(Array.from({ length: 73 }, (_, index) => {
-          const parameter = start + sweep * index / 72
-          const x = Math.cos(parameter) * radius, y = Math.sin(parameter) * radius * ratio
-          return [center[0] + x * Math.cos(rotation) - y * Math.sin(rotation), center[1] + x * Math.sin(rotation) + y * Math.cos(rotation)] as Point2
-        }), sweep >= Math.PI * 2 - 1e-8)
+        const screen = this.worldToScreen(center)
+        context.beginPath(); context.ellipse(screen[0], screen[1], radius * this.camera.scale, radius * ratio * this.camera.scale, -rotation, -start, -(start + sweep), true); context.stroke()
       }
-    } else if (entity.type === 'SPLINE') drawn = this.#strokePath(points(Array.isArray(payload.fitPoints) && payload.fitPoints.length ? payload.fitPoints : payload.controlPoints))
+    } else if (entity.type === 'SPLINE') {
+      try { drawn = this.#strokePath(splineSamples(payload), payload.closed === true) }
+      catch { drawn = false }
+    }
     else if (['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(entity.type)) {
       const position = point2(payload.position)
       if (!position) drawn = false
@@ -581,15 +627,60 @@ export class KJCanvasRenderer {
       }
     } else if (entity.type === 'HATCH') {
       const loops = Array.isArray(payload.boundaryLoops) ? payload.boundaryLoops : []
-      drawn = loops.length > 0
-      for (const loop of loops) {
-        const values = points((loop as { vertices?: unknown }).vertices)
-        if (!values.length) continue
-        this.#strokePath(values, true)
-        context.globalAlpha = payload.solid === true ? 0.16 : 0.07
-        context.fill(); context.globalAlpha = 1
+      const paths = loops.map(loop => {
+        const value = loop as Record<string, unknown>
+        if (Array.isArray(value.vertices)) return polylineSamples({ vertices: value.vertices, closed: true })
+        const result: Point2[] = []
+        for (const edge of Array.isArray(value.edges) ? value.edges : []) {
+          const e = edge as Record<string, unknown>, center = point2(e.center)
+          if (center && finite(e.radius) > 0) {
+            const a = finite(e.startAngle), b = finite(e.endAngle), clockwise = e.clockwise === true || e.counterClockwise === false
+            const sweep = clockwise ? -normalizeSweep(b, a) : normalizeSweep(a, b)
+            for (let step = 0; step <= 72; step++) { const angle = a + sweep * step / 72; result.push([center[0] + Math.cos(angle) * finite(e.radius), center[1] + Math.sin(angle) * finite(e.radius)]) }
+          } else result.push(...points([e.start, e.end]))
+        }
+        return result
+      }).filter(path => path.length >= 3)
+      drawn = paths.length > 0
+      if (drawn) {
+        context.beginPath()
+        for (const path of paths) {
+          path.forEach((value, index) => { const p = this.worldToScreen(value); index ? context.lineTo(p[0], p[1]) : context.moveTo(p[0], p[1]) }); context.closePath()
+        }
+        const patternName = String(payload.patternName ?? 'ANSI31').toUpperCase()
+        if (payload.solid === true || patternName === 'SOLID') context.fill('evenodd')
+        else if (!['ANSI31', 'ANSI37', 'CROSS'].includes(patternName)) {
+          // Keep the boundary visible, but never substitute a different pattern.
+          context.stroke(); drawn = false
+        }
+        else {
+          context.clip('evenodd')
+          const baseAngle = finite(payload.patternAngle) + Math.PI / 4
+          const angles = patternName === 'ANSI37' || patternName === 'CROSS' ? [baseAngle, baseAngle + Math.PI / 2] : [baseAngle]
+          const all = paths.flat(), spacing = Math.max(.000001, 3.175 * finite(payload.patternScale, 1))
+          for (const angle of angles) {
+            const u: Point2 = [Math.cos(angle), Math.sin(angle)], n: Point2 = [-u[1], u[0]]
+            let minU = Infinity, maxU = -Infinity, minN = Infinity, maxN = -Infinity
+            for (const p of all) { const a = p[0] * u[0] + p[1] * u[1], b = p[0] * n[0] + p[1] * n[1]; minU = Math.min(minU, a); maxU = Math.max(maxU, a); minN = Math.min(minN, b); maxN = Math.max(maxN, b) }
+            // Bound dense offscreen patterns rather than hanging the editor.
+            const increment = spacing * Math.max(1, Math.ceil((maxN - minN) / spacing / 2000))
+            for (let b = Math.floor(minN / increment) * increment; b <= maxN; b += increment) this.#strokePath([[u[0] * minU + n[0] * b, u[1] * minU + n[1] * b], [u[0] * maxU + n[0] * b, u[1] * maxU + n[1] * b]])
+          }
+        }
       }
-    } else if (['LEADER', 'MLEADER', 'DIMENSION'].includes(entity.type)) {
+    } else if (entity.type === 'DIMENSION') {
+      const projected = projectDimension(payload, this.#document?.getObject(String(payload.styleId ?? ''))?.payload)
+      drawn = projected !== null
+      if (projected) {
+        for (const segment of projected.lines) this.#strokePath(segment)
+        for (const arrow of projected.arrows) { this.#strokePath(arrow, true); context.fill() }
+        const label = projected.label, screen = this.worldToScreen(label.position)
+        context.translate(screen[0], screen[1]); context.rotate(-label.rotation)
+        context.font = `${Math.max(.01, label.height * this.camera.scale)}px "Segoe UI", "Microsoft YaHei", sans-serif`
+        context.textAlign = 'center'; context.textBaseline = 'bottom'
+        context.fillText(label.text, 0, 0)
+      }
+    } else if (['LEADER', 'MLEADER'].includes(entity.type)) {
       const values = points(Array.isArray(payload.vertices) && payload.vertices.length ? payload.vertices : payload.definitionPoints)
       drawn = this.#strokePath(values)
       const position = point2(payload.textPosition)

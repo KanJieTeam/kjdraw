@@ -73,6 +73,9 @@ export class KJDrawEditor {
     get theme() {
         return this.workbench.theme;
     }
+    get layout() {
+        return this.workbench.layout;
+    }
     on(name, listener) {
         this.#assertMounted();
         return this.#events.on(name, listener);
@@ -138,6 +141,11 @@ export class KJDrawEditor {
     setTheme(theme) {
         this.#assertMounted();
         this.workbench.setTheme(theme);
+        return this;
+    }
+    setLayout(layout) {
+        this.#assertMounted();
+        this.workbench.setLayout(layout);
         return this;
     }
     setLocale(locale) {

@@ -1,6 +1,6 @@
 import { type CSSProperties } from 'react';
 import { createKJDrawEditor, type KJDrawEditor, type KJDrawEditorOptions } from './editor.js';
-export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, } from './editor.js';
+export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, KJWorkbenchLayout, } from './editor.js';
 export interface KJDrawProps extends KJDrawEditorOptions {
     /** Class applied to the editor host element. */
     className?: string;

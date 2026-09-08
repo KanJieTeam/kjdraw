@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/react/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=fb56e3fac627392c">
+  <link rel="stylesheet" href="../style.css?v=3480d0448f9c8846">
   <title>React integration · KJDraw Docs</title>
 </head>
 <body>
@@ -20,13 +20,14 @@
   </header>
   <div class="shell">
     <aside id="sidebar" class="sidebar">
-      <div class="version"><span><span class="lang-en">Current documentation</span><span class="lang-zh">当前文档</span></span><select id="docs-version" aria-label="Documentation version"><option>v1.0.0-rc.2 · current</option></select></div>
+      <div class="version"><span><span class="lang-en">Current documentation</span><span class="lang-zh">当前文档</span></span><select id="docs-version" aria-label="Documentation version"><option>v1.0.0-rc.3 · current</option></select></div>
       <nav>
         <section class="nav-group">
           <h3 class="lang-en">Get started</h3><h3 class="lang-zh">开始使用</h3>
           <a href="../"><span class="lang-en">Introduction</span><span class="lang-zh">简介</span></a>
           <a href="../quickstart/"><span class="lang-en">Quickstart</span><span class="lang-zh">快速上手</span></a>
           <a href="../installation/"><span class="lang-en">Installation</span><span class="lang-zh">安装</span></a>
+          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Foundations</h3><h3 class="lang-zh">核心基础</h3>
@@ -54,7 +55,7 @@
           <a class="api-nav" href="../api/"><b>API</b><span class="lang-en">Editor API and type reference</span><span class="lang-zh">Editor API 与类型参考</span></a>
         </section>
       </nav>
-      <footer><a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/site/pages/react.md"><span class="lang-en">Edit this page</span><span class="lang-zh">编辑此页</span> ↗</a><span>1.0.0-rc.2</span></footer>
+      <footer><a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/site/pages/react.md"><span class="lang-en">Edit this page</span><span class="lang-zh">编辑此页</span> ↗</a><span>1.0.0-rc.3</span></footer>
     </aside>
     <main>
       <div class="content">
@@ -63,24 +64,37 @@
           <h1>React integration</h1>
           <p class="lead">Mount the complete KJDraw editor as a React component, control it through a typed ref, or build a custom headless integration.</p>
           <h2 id="en-react-editor-component">Render the editor component<a class="heading-anchor" href="#en-react-editor-component" aria-label="Link to Render the editor component">#</a></h2>
-<pre data-language="tsx"><button class="copy" type="button">Copy</button><code>import { useRef } from &#39;react&#39;
-import { KJDraw, type KJDrawEditor } from &#39;@kanjieteam/kjdraw/react&#39;
+<pre data-language="tsx"><button class="copy" type="button">Copy</button><code>import { useRef, useState } from &#39;react&#39;
+import { KJDraw, type KJDrawEditor, type KJWorkbenchLayout } from &#39;@kanjieteam/kjdraw/react&#39;
 
 export function DrawingEditor() {
   const editor = useRef&lt;KJDrawEditor | null&gt;(null)
+  const [layout, setLayout] = useState&lt;KJWorkbenchLayout&gt;(&#39;classic&#39;)
+
+  async function moveSelection() {
+    const instance = editor.current
+    const ids = instance?.getSelection() ?? []
+    if (!instance || !ids.length) return
+    await instance.execute(&#39;MOVE&#39;, { ids, dx: 10, dy: 0 })
+  }
 
   return (
-    &lt;KJDraw
-      ref={editor}
-      document=&quot;sample&quot;
-      locale=&quot;en&quot;
-      theme=&quot;dark&quot;
-      style={{ width: &#39;100%&#39;, height: 720 }}
-      onReady={instance =&gt; instance.fit()}
-    /&gt;
+    &lt;section&gt;
+      &lt;button onClick={() =&gt; setLayout(&#39;focus&#39;)}&gt;Focus drawing&lt;/button&gt;
+      &lt;button onClick={() =&gt; void moveSelection()}&gt;Move selected&lt;/button&gt;
+      &lt;KJDraw
+        ref={editor}
+        document=&quot;sample&quot;
+        locale=&quot;en&quot;
+        theme=&quot;dark&quot;
+        layout={layout}
+        style={{ width: &#39;100%&#39;, height: 720 }}
+        onReady={instance =&gt; instance.fit()}
+      /&gt;
+    &lt;/section&gt;
   )
 }</code></pre>
-<p><code>KJDraw</code> mounts the complete editor and gives the ref a <code>KJDrawEditor</code>. Use the ref for <code>open()</code>, <code>save()</code>, <code>execute()</code>, selection and view methods. The component updates compatible options in place and disposes its editor when React unmounts it. See the <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a> for every prop and method.</p>
+<p><code>KJDraw</code> mounts the complete editor and gives the ref a <code>KJDrawEditor</code>. Use the ref for <code>open()</code>, <code>save()</code>, <code>execute()</code>, selection and view methods. Since <code>1.0.0-rc.3</code>, <code>layout=&quot;classic&quot;</code> provides the full CAD ribbon and panels, <code>compact</code> shortens the ribbon, and <code>focus</code> prioritizes the canvas. Changing <code>layout</code> updates the existing editor in place, so its drawing, selection and undo history stay intact. React unmount disposes the editor. See the <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a> for every prop and method.</p>
 <h2 id="en-react-minimal-hook">A minimal hook<a class="heading-anchor" href="#en-react-minimal-hook" aria-label="Link to A minimal hook">#</a></h2>
 <pre data-language="tsx"><button class="copy" type="button">Copy</button><code>import { useEffect, useRef, useState } from &#39;react&#39;
 import { createKJDrawSDK, type KJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
@@ -130,24 +144,37 @@ export function useKJDraw() {
           <h1>React 集成</h1>
           <p class="lead">将完整 KJDraw 编辑器作为 React 组件挂载，通过类型化 ref 控制，或构建自定义无界面集成。</p>
           <h2 id="zh-react-editor-component">渲染编辑器组件<a class="heading-anchor" href="#zh-react-editor-component" aria-label="Link to 渲染编辑器组件">#</a></h2>
-<pre data-language="tsx"><button class="copy" type="button">Copy</button><code>import { useRef } from &#39;react&#39;
-import { KJDraw, type KJDrawEditor } from &#39;@kanjieteam/kjdraw/react&#39;
+<pre data-language="tsx"><button class="copy" type="button">Copy</button><code>import { useRef, useState } from &#39;react&#39;
+import { KJDraw, type KJDrawEditor, type KJWorkbenchLayout } from &#39;@kanjieteam/kjdraw/react&#39;
 
 export function DrawingEditor() {
   const editor = useRef&lt;KJDrawEditor | null&gt;(null)
+  const [layout, setLayout] = useState&lt;KJWorkbenchLayout&gt;(&#39;classic&#39;)
+
+  async function moveSelection() {
+    const instance = editor.current
+    const ids = instance?.getSelection() ?? []
+    if (!instance || !ids.length) return
+    await instance.execute(&#39;MOVE&#39;, { ids, dx: 10, dy: 0 })
+  }
 
   return (
-    &lt;KJDraw
-      ref={editor}
-      document=&quot;sample&quot;
-      locale=&quot;zh-CN&quot;
-      theme=&quot;dark&quot;
-      style={{ width: &#39;100%&#39;, height: 720 }}
-      onReady={instance =&gt; instance.fit()}
-    /&gt;
+    &lt;section&gt;
+      &lt;button onClick={() =&gt; setLayout(&#39;focus&#39;)}&gt;专注图纸&lt;/button&gt;
+      &lt;button onClick={() =&gt; void moveSelection()}&gt;移动已选对象&lt;/button&gt;
+      &lt;KJDraw
+        ref={editor}
+        document=&quot;sample&quot;
+        locale=&quot;zh-CN&quot;
+        theme=&quot;dark&quot;
+        layout={layout}
+        style={{ width: &#39;100%&#39;, height: 720 }}
+        onReady={instance =&gt; instance.fit()}
+      /&gt;
+    &lt;/section&gt;
   )
 }</code></pre>
-<p><code>KJDraw</code> 会挂载完整编辑器，并把 <code>KJDrawEditor</code> 暴露给 ref。可通过 ref 调用 <code>open()</code>、<code>save()</code>、<code>execute()</code>、选择与视图方法。兼容选项会原位更新，React 卸载组件时会自动释放编辑器。全部属性与方法见 <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a>。</p>
+<p><code>KJDraw</code> 会挂载完整编辑器，并把 <code>KJDrawEditor</code> 暴露给 ref。可通过 ref 调用 <code>open()</code>、<code>save()</code>、<code>execute()</code>、选择与视图方法。自 <code>1.0.0-rc.3</code> 起，<code>layout=&quot;classic&quot;</code> 提供完整 CAD Ribbon 与面板，<code>compact</code> 使用较矮的 Ribbon，<code>focus</code> 让画布优先。修改 <code>layout</code> 会原位更新同一个编辑器，因此图档、选择集与撤销历史都保持不变；React 卸载组件时会自动释放编辑器。全部属性与方法见 <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a>。</p>
 <h2 id="zh-react-minimal-hook">最小 Hook<a class="heading-anchor" href="#zh-react-minimal-hook" aria-label="Link to 最小 Hook">#</a></h2>
 <pre data-language="tsx"><button class="copy" type="button">Copy</button><code>import { useEffect, useRef, useState } from &#39;react&#39;
 import { createKJDrawSDK, type KJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
@@ -198,6 +225,6 @@ export function useKJDraw() {
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=fb56e3fac627392c"></script>
+  <script type="module" src="../app.js?v=3480d0448f9c8846"></script>
 </body>
 </html>

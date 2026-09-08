@@ -140,6 +140,8 @@ function collectLockedDependencyClosure(repositoryLock, directDependencies) {
 
 async function main() {
   const npmCli = await findNpmCli()
+  const expectedPackage = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
+  const fromRegistry = process.argv.includes('--registry')
   const scratchParent = resolve(process.env.KJDRAW_AUDIT_TMPDIR || tmpdir())
   await mkdir(scratchParent, { recursive: true })
   const scratch = await mkdtemp(join(scratchParent, 'kjdraw-packed-consumer-'))
@@ -153,12 +155,14 @@ async function main() {
     const pack = run(process.execPath, [
       npmCli,
       'pack',
-      packageRoot,
+      fromRegistry ? `${expectedPackage.name}@${expectedPackage.version}` : packageRoot,
+      '--ignore-scripts',
       '--json',
       '--pack-destination',
       packDirectory,
     ])
     const packMetadata = parsePackResult(pack.stdout)
+    assert.equal(packMetadata.version, expectedPackage.version, 'The audited package must match the checkout version')
     const packedFiles = (await readdir(packDirectory, { recursive: true }))
       .filter(path => path.toLowerCase().endsWith('.tgz'))
     const expectedName = basename(packMetadata.filename)
@@ -187,6 +191,11 @@ async function main() {
     const installedPackage = JSON.parse(await readFile(join(installedRoot, 'package.json'), 'utf8'))
     assert.equal(installedPackage.name, '@kanjieteam/kjdraw')
     assert.equal(installedPackage.version, packMetadata.version)
+    if (fromRegistry) {
+      for (const artifact of ['src/editor.js', 'src/workbench.js', 'src/layout.js', 'src/drafting.js', 'src/modification-controls.js', 'src/canvas-renderer.js', 'src/dxf-adapter.js', 'src/react.js', 'src/vue.js', 'types/editor.d.ts', 'types/workbench.d.ts', 'types/drafting.d.ts']) {
+        assert.equal(await readFile(join(installedRoot, artifact), 'utf8'), await readFile(join(packageRoot, artifact), 'utf8'), `Registry artifact differs from the release checkout: ${artifact}`)
+      }
+    }
     assert.deepEqual(installedPackage.dependencies ?? {}, {}, 'The public SDK must remain runtime-dependency-free')
 
     const publicSubpaths = Object.keys(installedPackage.exports)
@@ -327,6 +336,7 @@ console.log(JSON.stringify(results))
     console.log(JSON.stringify({
       ok: true,
       package: `${installedPackage.name}@${installedPackage.version}`,
+      source: fromRegistry ? 'npm-registry' : 'local-pack',
       tarball: basename(tarball),
       packedFiles: packMetadata.entryCount,
       unpackedBytes: packMetadata.unpackedSize,

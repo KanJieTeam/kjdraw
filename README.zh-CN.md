@@ -7,21 +7,23 @@
 <p align="center">面向工程应用、交互式 CAD 工作台与可审核 AI Agent 的可扩展基础。</p>
 
 <p align="center">
-  <a href="https://github.com/KanJieTeam/kjdraw/releases/tag/v1.0.0-rc.2"><img src="https://img.shields.io/badge/release-v1.0.0--rc.2-2863f0?style=flat-square&labelColor=30363d" alt="GitHub Release v1.0.0-rc.2"></a>
-  <a href="https://www.npmjs.com/package/@kanjieteam/kjdraw"><img src="https://img.shields.io/npm/v/@kanjieteam/kjdraw?style=flat-square&label=npm_registry&labelColor=30363d&color=2863f0" alt="npm Registry 版本；RC2 待发布"></a>
+  <a href="https://github.com/KanJieTeam/kjdraw/releases"><img src="https://img.shields.io/github/v/release/KanJieTeam/kjdraw?include_prereleases&style=flat-square&labelColor=30363d&color=2863f0" alt="GitHub Release"></a>
+  <a href="https://www.npmjs.com/package/@kanjieteam/kjdraw"><img src="https://img.shields.io/npm/v/@kanjieteam/kjdraw/next?style=flat-square&label=npm_next&labelColor=30363d&color=2863f0" alt="npm 候选版渠道"></a>
   <a href="https://kanjieteam.github.io/kjdraw/"><img src="https://img.shields.io/badge/▲_在线_Demo-打开-2863f0?style=flat-square&labelColor=30363d" alt="在线 Demo"></a>
   <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><img src="https://img.shields.io/badge/▣_开发文档-latest-2863f0?style=flat-square&labelColor=30363d" alt="开发文档"></a>
   <a href="https://github.com/KanJieTeam/kjdraw"><img src="https://img.shields.io/badge/GitHub-源码-181717?style=flat-square&logo=github" alt="GitHub 源码"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
 </p>
 
-<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow-zh.gif" alt="KJDraw 打开工程图、预览 Agent CAD 修改、原子提交、验证工程重开并撤销结果" width="100%"></a></p>
+<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow-zh.gif" alt="KJDraw 浏览行业图纸、审核 Agent 修改，再从空白绘制安装板、阵列螺栓孔并添加尺寸标注" width="100%"></a></p>
 
-<p align="center"><sub>真实工作台录制：浏览行业图纸、审核 Agent 修改、保存并撤销。</sub></p>
+<p align="center"><sub>真实工作台录制：浏览行业图纸、审核 Agent 修改，再从空白绘制零件、阵列并标注尺寸。</sub></p>
 
 <p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><strong>打开在线工作台</strong></a> · <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><strong>快速开始</strong></a> · <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/"><strong>API 参考</strong></a> · <a href="README.md">English</a></p>
 
 直接打开场地总图、建筑平面、道路纵断面和机械详图：切换图纸、检查图层、修改几何并保存成果。能源园区示例还提供交互式 Agent 修改审核流程。体验工作台无需注册或上传图纸。
+
+也可以从空白图纸开始：构造圆、圆弧、椭圆、多边形和样条，输入精确坐标，使用矩形或环形阵列复制零件，再添加填充与尺寸标注。[工作台操作指南](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/)提供工具参数、取点顺序、键盘输入和保存步骤。
 
 ## 可以用它构建什么
 
@@ -50,13 +52,13 @@ AI Agent ─┘                       │
 
 ## 60 秒开始
 
-直接从 GitHub Release 安装已经发布的 RC2 包：
+安装当前候选版渠道：
 
 ```sh
-npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz
+npm install @kanjieteam/kjdraw@next
 ```
 
-`v1.0.0-rc.2` GitHub Release 已上线，并包含下面使用的编辑器 API；npm Registry 发布仍在处理中。npm 可以查询到该版本后，`npm install @kanjieteam/kjdraw@next` 与 `npm install @kanjieteam/kjdraw@1.0.0-rc.2` 将安装同一候选版。
+布局切换与交互移动需要 **1.0.0-rc.3 或更新版本**，可用 `npm list @kanjieteam/kjdraw` 核对安装结果。候选版使用 `next`；不带版本标签的包仍跟随旧的 `latest` 渠道。
 
 一次挂载编辑器：
 
@@ -69,6 +71,7 @@ const editor = createKJDrawEditor(
     document: 'sample',
     locale: 'zh-CN',
     theme: 'dark',
+    layout: 'classic', // 'classic' | 'compact' | 'focus'（RC3+）
   },
 )
 
@@ -207,7 +210,7 @@ npm 包采用 ESM，运行时零依赖。扩展核心边界前，请先阅读[�
 
 ## 走向 1.0
 
-`v1.0.0-rc.2` 候选版已经作为 [GitHub Release](https://github.com/KanJieTeam/kjdraw/releases/tag/v1.0.0-rc.2) 发布；npm Registry 分发仍在处理中。通过[更新说明](docs/releases/1.0.0-rc.2.md)了解本次变化，在[路线图](docs/roadmap.md)中查看后续方向。
+通过 [RC3 更新说明](docs/releases/1.0.0-rc.3.md)了解交互与布局变化，在[路线图](docs/roadmap.md)中查看后续方向。[工作台操作指南](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/)带你完成打开、移动、复制和保存图纸。
 
 ## 开发与贡献
 

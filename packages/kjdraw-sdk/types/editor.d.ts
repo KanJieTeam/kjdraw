@@ -2,8 +2,9 @@ import { KJDrawWorkbench } from './workbench.js';
 import type { KJDocument } from './document.js';
 import type { KJDrawSDK, KJSDKCommandEnvelopeReceipt } from './sdk.js';
 import type { KJCommandArguments } from './commands.js';
-import type { KJWorkbenchLocale, KJWorkbenchTheme, KJWorkbenchTool, KJWorkbenchOpenOptions, KJDrawWorkbenchChange } from './workbench.js';
+import type { KJWorkbenchLayout, KJWorkbenchLocale, KJWorkbenchTheme, KJWorkbenchTool, KJWorkbenchOpenOptions, KJDrawWorkbenchChange } from './workbench.js';
 import type { KJFileAdapterOptions } from './file-adapters.js';
+export type { KJWorkbenchLayout } from './workbench.js';
 /** Options for an embedded CAD editor. Give the container a height before mounting. */
 export interface KJDrawEditorOptions {
     /** Drawing to open initially. Defaults to the included sample. */
@@ -14,6 +15,8 @@ export interface KJDrawEditorOptions {
     locale?: KJWorkbenchLocale;
     /** Panel and canvas appearance. Default: dark. */
     theme?: KJWorkbenchTheme;
+    /** Workbench chrome arrangement. Default: classic. */
+    layout?: KJWorkbenchLayout;
     /** Enable inspection and file export with editing controls disabled. Default: false. */
     readonly?: boolean;
     /** Show the drawing grid. Default: true. */
@@ -66,6 +69,7 @@ export declare class KJDrawEditor {
     get disposed(): boolean;
     get locale(): KJWorkbenchLocale;
     get theme(): KJWorkbenchTheme;
+    get layout(): KJWorkbenchLayout;
     /** Subscribe to an editor event. The return value unsubscribes the listener. */
     on<Name extends keyof KJDrawEditorEvents>(name: Name, listener: (event: KJDrawEditorEvents[Name]) => void): () => boolean;
     /** Open a File, Blob, text or bytes. Pass format for bytes without a filename. */
@@ -81,11 +85,12 @@ export declare class KJDrawEditor {
     getSelection(): readonly string[];
     fit(): this;
     setTheme(theme: KJWorkbenchTheme): this;
+    setLayout(layout: KJWorkbenchLayout): this;
     setLocale(locale: KJWorkbenchLocale): this;
     setTool(tool: KJWorkbenchTool): this;
     setTitle(title: string): this;
     /** Update presentation and editing mode while preserving the active drawing. */
-    setOptions(options: Pick<KJDrawEditorOptions, 'readonly' | 'grid' | 'toolbar' | 'layers' | 'properties' | 'title' | 'maxFileBytes'>): this;
+    setOptions(options: Pick<KJDrawEditorOptions, 'layout' | 'readonly' | 'grid' | 'toolbar' | 'layers' | 'properties' | 'title' | 'maxFileBytes'>): this;
     /** Unmount the editor and release its listeners and rendering resources. Safe to call twice. */
     dispose(): void;
 }

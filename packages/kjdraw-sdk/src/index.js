@@ -5,6 +5,8 @@ export * from './agent-plans.js';
 export * from './capabilities.js';
 export * from './constants.js';
 export * from './document.js';
+export * from './drafting.js';
+export * from './modification-controls.js';
 export * from './deployment.js';
 export * from './dxf-adapter.js';
 export * from './editing.js';

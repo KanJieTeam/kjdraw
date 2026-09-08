@@ -2,6 +2,8 @@
 import { KJDocument } from './document.js';
 import { KJValidationError } from './errors.js';
 import { defineFileAdapter } from './file-adapters.js';
+import { projectDimension } from './geometry/annotation.js';
+import { normalizeStandardEntityPayload } from './standard-entities.js';
 import { normalizeName } from './utils.js';
 function dxfPayload(record) {
     return record.payload ?? {};
@@ -604,6 +606,9 @@ function entityPayload(record, blockIds, resources = {}) {
                 type: 'TEXT',
                 payload: {
                     position: point(record),
+                    alignmentPoint: optionalPoint(record, 11, 21, 31) ?? undefined,
+                    horizontalAlignment: number(record, 72, 0),
+                    verticalAlignment: number(record, 73, 0),
                     text: first(record, 1, ''),
                     height: number(record, 40, 2.5),
                     rotation: number(record, 50, 0) * Math.PI / 180,
@@ -1049,6 +1054,220 @@ function createHandleAllocator(handles) {
         return handle;
     };
 }
+const NATIVE_DIMENSION_SUBTYPES = new Set([
+    0,
+    1,
+    3,
+    4
+]);
+function nativeDimensionCode(payload) {
+    const namedType = normalizeName(payload.dimensionType);
+    const mapped = namedType === 'LINEAR' ? 0 : DIMENSION_CODE_BY_TYPE[namedType];
+    const value = payload.dxfDimensionType == null ? mapped : Number(payload.dxfDimensionType);
+    if (!Number.isInteger(value) || value < 0 || !NATIVE_DIMENSION_SUBTYPES.has(value & 7)) {
+        throw new KJValidationError(`DXF export requires a valid ALIGNED, ROTATED, RADIUS, or DIAMETER dimension; received ${payload.dimensionType ?? payload.dxfDimensionType ?? 'unknown'}`);
+    }
+    return value;
+}
+function assertNativeDimensionIsXY(payload, handle) {
+    const points = [
+        ...payload.definitionPoints ?? [],
+        ...payload.textPosition ? [
+            payload.textPosition
+        ] : []
+    ];
+    if (points.some((value)=>Math.abs(Number(value[2] ?? 0)) > 1e-12)) {
+        throw new KJValidationError(`DXF native dimension ${handle} is outside the supported XY plane`);
+    }
+    for (const key of [
+        'normal',
+        'extrusionDirection'
+    ]){
+        const value = payload[key];
+        if (!Array.isArray(value)) continue;
+        const normal = [
+            Number(value[0] ?? 0),
+            Number(value[1] ?? 0),
+            Number(value[2] ?? 1)
+        ];
+        if (!normal.every(Number.isFinite) || Math.abs(normal[0]) > 1e-12 || Math.abs(normal[1]) > 1e-12 || Math.abs(normal[2] - 1) > 1e-12) {
+            throw new KJValidationError(`DXF native dimension ${handle} uses an unsupported tilted OCS`);
+        }
+    }
+}
+function pointsMatch(firstValue, secondValue) {
+    if (!firstValue || !secondValue) return firstValue == null && secondValue == null;
+    return [
+        0,
+        1,
+        2
+    ].every((index)=>Math.abs(Number(firstValue[index] ?? 0) - Number(secondValue[index] ?? 0)) <= 1e-9);
+}
+function dimensionRawTagsMatchPayload(payload, dimensionStyles) {
+    if (!payload.rawTags?.length) return false;
+    const raw = entityPayload({
+        type: 'DIMENSION',
+        tags: [
+            ...payload.rawTags
+        ]
+    }, new Map()).payload;
+    const points = payload.definitionPoints ?? [];
+    const rawPoints = raw.definitionPoints ?? [];
+    if (points.length !== rawPoints.length || points.some((value, index)=>!pointsMatch(value, rawPoints[index]))) return false;
+    if (!pointsMatch(payload.textPosition, raw.textPosition)) return false;
+    const angleDelta = Math.atan2(Math.sin(Number(payload.rotation ?? 0) - Number(raw.rotation ?? 0)), Math.cos(Number(payload.rotation ?? 0) - Number(raw.rotation ?? 0)));
+    if (Math.abs(angleDelta) > 1e-9) return false;
+    const currentStyleName = (payload.styleId ? dimensionStyles.find((record)=>record.id === payload.styleId)?.name : undefined) ?? payload.styleName ?? 'STANDARD';
+    if (normalizeName(currentStyleName) !== normalizeName(raw.styleName ?? 'STANDARD')) return false;
+    if ((payload.textOverride ?? null) !== (raw.textOverride ?? null)) return false;
+    if (normalizeName(payload.blockName) !== normalizeName(raw.blockName)) return false;
+    if (Number(payload.dxfDimensionType ?? DIMENSION_CODE_BY_TYPE[normalizeName(payload.dimensionType)] ?? 0) !== Number(raw.dxfDimensionType ?? 0)) return false;
+    return true;
+}
+function buildDimensionExportBlocks(document, entities, sourceBlocks, dimensionStyles, context) {
+    const sourceBlocksByName = new Map(sourceBlocks.map((block)=>[
+            normalizeName(block.name),
+            block
+        ]));
+    const populatedSourceBlocks = new Set(sourceBlocks.filter((block)=>!block.payload?.isSpace && !block.payload?.importedPlaceholder && document.listEntities({
+            ownerId: block.id
+        }).length > 0).map((block)=>block.id));
+    const usedNames = new Set(sourceBlocks.map((block)=>normalizeName(block.name)));
+    const dimensions = new Map();
+    const blocks = [];
+    let sequence = 1;
+    const allocateName = ()=>{
+        while(usedNames.has(normalizeName(`*D${sequence}`)))sequence += 1;
+        const name = `*D${sequence}`;
+        sequence += 1;
+        usedNames.add(normalizeName(name));
+        return name;
+    };
+    for (const entity of entities){
+        if (entity.type !== 'DIMENSION') continue;
+        const payload = entity.payload ?? {};
+        const referencedBlock = payload.blockName ? sourceBlocksByName.get(normalizeName(payload.blockName)) : undefined;
+        if (payload.rawTags?.length && referencedBlock && populatedSourceBlocks.has(referencedBlock.id) && dimensionRawTagsMatchPayload(payload, dimensionStyles)) {
+            dimensions.set(entity.handle, {
+                blockName: referencedBlock.name,
+                preserveRaw: true
+            });
+            continue;
+        }
+        const dimensionCode = nativeDimensionCode(payload);
+        const subtype = dimensionCode & 7;
+        const dimensionType = DIMENSION_TYPE_BY_CODE[subtype];
+        assertNativeDimensionIsXY(payload, entity.handle);
+        const style = (payload.styleId ? dimensionStyles.find((record)=>record.id === payload.styleId) : dimensionStyles.find((record)=>normalizeName(record.name) === normalizeName(payload.styleName)))?.payload ?? {};
+        const projection = projectDimension({
+            ...payload,
+            dimensionType
+        }, style);
+        if (!projection) throw new KJValidationError(`DXF ${dimensionType} dimension ${entity.handle} has incomplete, non-finite, or degenerate definition points`);
+        const blockName = allocateName();
+        const blockHandle = context.allocateHandle();
+        const geometry = [
+            ...projection.lines.map(([start, end])=>({
+                    type: 'LINE',
+                    handle: context.allocateHandle(),
+                    payload: {
+                        start: [
+                            start[0],
+                            start[1],
+                            0
+                        ],
+                        end: [
+                            end[0],
+                            end[1],
+                            0
+                        ]
+                    }
+                })),
+            ...projection.arrows.map(([tip, rearA, rearB])=>({
+                    type: 'SOLID',
+                    handle: context.allocateHandle(),
+                    payload: {
+                        vertices: [
+                            [
+                                tip[0],
+                                tip[1],
+                                0
+                            ],
+                            [
+                                rearA[0],
+                                rearA[1],
+                                0
+                            ],
+                            [
+                                rearB[0],
+                                rearB[1],
+                                0
+                            ],
+                            [
+                                rearB[0],
+                                rearB[1],
+                                0
+                            ]
+                        ]
+                    }
+                })),
+            {
+                type: 'TEXT',
+                handle: context.allocateHandle(),
+                payload: {
+                    position: [
+                        projection.label.position[0],
+                        projection.label.position[1],
+                        0
+                    ],
+                    text: projection.label.text,
+                    height: projection.label.height,
+                    rotation: projection.label.rotation,
+                    alignmentPoint: [
+                        projection.label.position[0],
+                        projection.label.position[1],
+                        0
+                    ],
+                    horizontalAlignment: 1,
+                    verticalAlignment: 1
+                }
+            }
+        ];
+        const record = {
+            id: `dxf-export-dimension-${blockHandle}`,
+            name: blockName,
+            type: 'BLOCK_RECORD',
+            handle: blockHandle,
+            payload: {
+                dxfFlags: 1,
+                basePoint: [
+                    0,
+                    0,
+                    0
+                ],
+                isSpace: false
+            }
+        };
+        blocks.push({
+            record,
+            entities: geometry
+        });
+        dimensions.set(entity.handle, {
+            blockName,
+            preserveRaw: false,
+            measurement: projection.measurement,
+            textPosition: [
+                projection.label.position[0],
+                projection.label.position[1],
+                0
+            ]
+        });
+    }
+    return {
+        blocks,
+        dimensions
+    };
+}
 function emitSubclass(output, version, name) {
     if (isSubclassDXF(version)) emit(output, 100, name);
 }
@@ -1090,9 +1309,94 @@ function emitSpaceOwnership(output, space, version) {
     emit(output, 67, 1);
     if (VERSION_RANK[version] >= VERSION_RANK['2000']) emit(output, 410, space.layoutName ?? 'Layout1');
 }
+const NATIVE_HATCH_PATTERNS = Object.freeze({
+    ANSI31: Object.freeze([
+        {
+            angle: Math.PI / 4,
+            base: [
+                0,
+                0
+            ],
+            offset: [
+                0,
+                3.175
+            ],
+            dashes: []
+        }
+    ]),
+    ANSI37: Object.freeze([
+        {
+            angle: Math.PI / 4,
+            base: [
+                0,
+                0
+            ],
+            offset: [
+                0,
+                3.175
+            ],
+            dashes: []
+        },
+        {
+            angle: Math.PI * 3 / 4,
+            base: [
+                0,
+                0
+            ],
+            offset: [
+                0,
+                3.175
+            ],
+            dashes: []
+        }
+    ])
+});
+function rotatePatternPoint(point, angle, scale) {
+    const x = point[0] * scale, y = point[1] * scale, cosine = Math.cos(angle), sine = Math.sin(angle);
+    return [
+        x * cosine - y * sine,
+        x * sine + y * cosine
+    ];
+}
+function nativeHatchPatternLines(payload) {
+    const patternName = normalizeName(payload.patternName ?? 'SOLID');
+    const definitions = NATIVE_HATCH_PATTERNS[patternName];
+    if (!definitions) throw new KJValidationError(`DXF HATCH writer supports native pattern data for ANSI31 and ANSI37; unsupported pattern: ${patternName || '(empty)'}`);
+    const patternAngle = Number(payload.patternAngle ?? 0), patternScale = Number(payload.patternScale ?? 1);
+    if (!Number.isFinite(patternAngle)) throw new KJValidationError('DXF HATCH patternAngle must be finite');
+    if (!Number.isFinite(patternScale) || patternScale <= 0) throw new KJValidationError('DXF HATCH patternScale must be positive and finite');
+    return definitions.map((definition)=>{
+        const lineAngle = definition.angle + patternAngle;
+        return {
+            angleDegrees: (lineAngle * 180 / Math.PI % 360 + 360) % 360,
+            base: rotatePatternPoint(definition.base, lineAngle, patternScale),
+            offset: rotatePatternPoint(definition.offset, lineAngle, patternScale),
+            dashes: definition.dashes.map((dash)=>dash * patternScale)
+        };
+    });
+}
+function hasUnchangedHatchGeometry(payload) {
+    if (!payload.rawTags?.length) return false;
+    const imported = entityPayload({
+        type: 'HATCH',
+        tags: [
+            ...payload.rawTags
+        ]
+    }, new Map()).payload;
+    const normalized = normalizeStandardEntityPayload('HATCH', imported);
+    const state = (value)=>JSON.stringify([
+            normalizeName(value.patternName),
+            Boolean(value.solid),
+            Boolean(value.associative),
+            Number(value.patternScale ?? 1),
+            Number(value.patternAngle ?? 0),
+            value.boundaryLoops
+        ]);
+    return state(payload) === state(normalized);
+}
 function emitHatch(output, entity, layerName, ownerHandle, space, version) {
     const p = entity.payload ?? {};
-    if (Array.isArray(p.rawTags) && p.rawTags.length) {
+    if (hasUnchangedHatchGeometry(p)) {
         emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version);
         emitSubclass(output, version, 'AcDbHatch');
         for (const tag of p.rawTags){
@@ -1107,6 +1411,32 @@ function emitHatch(output, entity, layerName, ownerHandle, space, version) {
         }
         return;
     }
+    if (p.rawTags?.length) {
+        const record = {
+            type: 'HATCH',
+            tags: [
+                ...p.rawTags
+            ]
+        };
+        if (number(record, 30) !== 0 || number(record, 210) !== 0 || number(record, 220) !== 0 || number(record, 230, 1) !== 1) {
+            throw new KJValidationError('Edited non-planar DXF HATCH geometry requires an OCS-aware adapter');
+        }
+    }
+    const requireXY = (value)=>{
+        if (value.some((component)=>!Number.isFinite(component)) || (value[2] ?? 0) !== 0) throw new KJValidationError('Native DXF HATCH geometry must use finite XY points at Z=0');
+    };
+    for (const loop of p.boundaryLoops ?? []){
+        for (const vertex of loop.vertices ?? [])requireXY(vertexPoint(vertex));
+        for (const edge of loop.edges ?? []){
+            if (edge.type === 'LINE') {
+                requireXY(edge.start);
+                requireXY(edge.end);
+            } else if (edge.type === 'ARC') {
+                requireXY(edge.center);
+                if (!Number.isFinite(edge.radius) || edge.radius <= 0 || !Number.isFinite(edge.startAngle) || !Number.isFinite(edge.endAngle)) throw new KJValidationError('Native DXF HATCH arc edges require a positive radius and finite angles');
+            } else throw new KJValidationError(`Native DXF HATCH edge type ${edge.type} is not supported; use LINE or ARC boundaries`);
+        }
+    }
     emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version);
     emitSubclass(output, version, 'AcDbHatch');
     emitPoint(output, [
@@ -1119,8 +1449,9 @@ function emitHatch(output, entity, layerName, ownerHandle, space, version) {
     emit(output, 71, p.associative ? 1 : 0);
     emit(output, 91, p.boundaryLoops?.length ?? 0);
     for (const loop of p.boundaryLoops ?? []){
+        const pathFlags = Number(loop.flags ?? 0) & ~1 | (loop.external === false ? 0 : 1);
         if (loop.vertices?.length) {
-            emit(output, 92, Number(loop.flags ?? 1) | 2);
+            emit(output, 92, pathFlags | 2);
             emit(output, 72, loop.vertices.some((vertex)=>Number(vertex.bulge)) ? 1 : 0);
             emit(output, 73, loop.closed === false ? 0 : 1);
             emit(output, 93, loop.vertices.length);
@@ -1131,7 +1462,7 @@ function emitHatch(output, entity, layerName, ownerHandle, space, version) {
                 if (vertex.bulge) emit(output, 42, vertex.bulge);
             }
         } else {
-            emit(output, 92, Number(loop.flags ?? 1) & ~2);
+            emit(output, 92, pathFlags & ~2);
             emit(output, 93, loop.edges?.length ?? 0);
             for (const edge of loop.edges ?? []){
                 if (edge.type === 'LINE') {
@@ -1156,10 +1487,20 @@ function emitHatch(output, entity, layerName, ownerHandle, space, version) {
     emit(output, 75, 0);
     emit(output, 76, 1);
     if (!p.solid) {
+        const lines = nativeHatchPatternLines(p);
         emit(output, 52, (p.patternAngle ?? 0) * 180 / Math.PI);
         emit(output, 41, p.patternScale ?? 1);
         emit(output, 77, 0);
-        emit(output, 78, 0);
+        emit(output, 78, lines.length);
+        for (const line of lines){
+            emit(output, 53, line.angleDegrees);
+            emit(output, 43, line.base[0]);
+            emit(output, 44, line.base[1]);
+            emit(output, 45, line.offset[0]);
+            emit(output, 46, line.offset[1]);
+            emit(output, 79, line.dashes.length);
+            for (const dash of line.dashes)emit(output, 49, dash);
+        }
     }
 }
 function emitRawEntity(output, entity, layerName, ownerHandle, space, version) {
@@ -1317,10 +1658,11 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emitHatch(output, entity, layerName, ownerHandle, space, version);
         return;
     }
-    if ([
-        'WIPEOUT',
-        'DIMENSION'
-    ].includes(entity.type) && p.rawTags?.length) {
+    if (entity.type === 'WIPEOUT' && p.rawTags?.length) {
+        emitRawEntity(output, entity, layerName, ownerHandle, space, version);
+        return;
+    }
+    if (entity.type === 'DIMENSION' && p.rawTags?.length && resources.dimensions?.get(entity.handle)?.preserveRaw) {
         emitRawEntity(output, entity, layerName, ownerHandle, space, version);
         return;
     }
@@ -1400,8 +1742,10 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emit(output, 1, p.text);
         if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD');
         if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI);
-        emitSubclass(output, version, 'AcDbText');
+        if (p.horizontalAlignment) emit(output, 72, p.horizontalAlignment);
         if (p.alignmentPoint) emitPoint(output, p.alignmentPoint, 11);
+        emitSubclass(output, version, 'AcDbText');
+        if (p.verticalAlignment) emit(output, 73, p.verticalAlignment);
     } else if (entity.type === 'ATTDEF' || entity.type === 'ATTRIB') {
         emitSubclass(output, version, 'AcDbText');
         emitPoint(output, p.position);
@@ -1441,15 +1785,17 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         if (p.annotationHandle) emit(output, 340, p.annotationHandle);
     } else if (entity.type === 'DIMENSION') {
         if (!p.definitionPoints?.length) throw new KJValidationError('DXF DIMENSION requires at least one definition point');
-        const dimensionCode = Number(p.dxfDimensionType ?? DIMENSION_CODE_BY_TYPE[normalizeName(p.dimensionType)] ?? 0);
+        const dimension = resources.dimensions?.get(entity.handle);
+        if (!dimension || dimension.preserveRaw) throw new KJValidationError(`DXF DIMENSION ${entity.handle} has no export geometry block`);
+        const dimensionCode = nativeDimensionCode(p);
         emitSubclass(output, version, 'AcDbDimension');
+        emit(output, 2, dimension.blockName);
         emitPoint(output, p.definitionPoints[0]);
-        if (p.textPosition) emitPoint(output, p.textPosition, 11);
-        if (p.blockName) emit(output, 2, p.blockName);
+        emitPoint(output, dimension.textPosition ?? p.textPosition ?? p.definitionPoints[0], 11);
         emit(output, 3, (p.styleId ? resources.dimensionStyleNames?.get(p.styleId) : undefined) ?? p.styleName ?? 'STANDARD');
-        emit(output, 70, dimensionCode);
+        emit(output, 70, isSubclassDXF(version) ? dimensionCode | 32 : dimensionCode);
         if (p.textOverride != null) emit(output, 1, p.textOverride);
-        if (p.measurement != null) emit(output, 42, p.measurement);
+        if (dimension.measurement != null) emit(output, 42, dimension.measurement);
         const subtype = dimensionCode & 7;
         const subclass = [
             'AcDbAlignedDimension',
@@ -1461,7 +1807,9 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
             'AcDbOrdinateDimension'
         ][subtype];
         if (subclass) emitSubclass(output, version, subclass);
-        const codes = [
+        const codes = subtype === 3 || subtype === 4 ? [
+            15
+        ] : [
             13,
             14,
             15,
@@ -1513,16 +1861,26 @@ function writeDXF(document, options = {}) {
             name,
             context.allocateHandle()
         ]));
-    const blocks = documentTableRecords(document, 'blockRecords').map(dxfNamedRecord);
-    const blockNames = new Map(blocks.map((block)=>[
-            block.id,
-            block.name
-        ]));
+    const sourceBlocks = documentTableRecords(document, 'blockRecords').map(dxfNamedRecord);
     const linetypes = documentTableRecords(document, 'linetypes').map(dxfNamedRecord);
     const textStyles = documentTableRecords(document, 'textStyles').map(dxfNamedRecord);
     const dimensionStyles = documentTableRecords(document, 'dimensionStyles').map(dxfNamedRecord);
     const ucsRecords = documentTableRecords(document, 'ucs').map(dxfNamedRecord);
     const views = documentTableRecords(document, 'views').map(dxfNamedRecord);
+    const allEntities = document.listEntities().map(dxfEntity);
+    const dimensionExports = buildDimensionExportBlocks(document, allEntities, sourceBlocks, dimensionStyles, context);
+    const syntheticBlocks = new Map(dimensionExports.blocks.map((block)=>[
+            block.record.id,
+            block
+        ]));
+    const blocks = [
+        ...sourceBlocks,
+        ...dimensionExports.blocks.map((block)=>block.record)
+    ];
+    const blockNames = new Map(blocks.map((block)=>[
+            block.id,
+            block.name
+        ]));
     const resources = {
         textStyleNames: new Map(textStyles.map((record)=>[
                 record.id,
@@ -1531,13 +1889,13 @@ function writeDXF(document, options = {}) {
         dimensionStyleNames: new Map(dimensionStyles.map((record)=>[
                 record.id,
                 record.name
-            ]))
+            ])),
+        dimensions: dimensionExports.dimensions
     };
     const linetypeNames = new Map(linetypes.map((record)=>[
             record.id,
             record.name
         ]));
-    const allEntities = document.listEntities().map(dxfEntity);
     for (const entity of allEntities){
         const minimum = MIN_ENTITY_VERSION[entity.type];
         if (minimum && VERSION_RANK[version] < VERSION_RANK[minimum]) throw new KJValidationError(`DXF ${version} cannot represent ${entity.type} without data loss; minimum target is ${minimum}`);
@@ -1591,7 +1949,10 @@ function writeDXF(document, options = {}) {
         ]);
         emit(output, 3, block.name);
         emit(output, 1, '');
-        if (!block.payload?.isSpace) {
+        const synthetic = syntheticBlocks.get(block.id);
+        if (synthetic) {
+            for (const entity of synthetic.entities)emitEntity(output, entity, '0', block.handle, context, blockNames, null, resources);
+        } else if (!block.payload?.isSpace) {
             for (const sourceEntity of document.listEntities({
                 ownerId: block.id
             })){

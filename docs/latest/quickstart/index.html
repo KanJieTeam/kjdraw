@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/quickstart/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=fb56e3fac627392c">
+  <link rel="stylesheet" href="../style.css?v=3480d0448f9c8846">
   <title>Quickstart · KJDraw Docs</title>
 </head>
 <body>
@@ -20,13 +20,14 @@
   </header>
   <div class="shell">
     <aside id="sidebar" class="sidebar">
-      <div class="version"><span><span class="lang-en">Current documentation</span><span class="lang-zh">当前文档</span></span><select id="docs-version" aria-label="Documentation version"><option>v1.0.0-rc.2 · current</option></select></div>
+      <div class="version"><span><span class="lang-en">Current documentation</span><span class="lang-zh">当前文档</span></span><select id="docs-version" aria-label="Documentation version"><option>v1.0.0-rc.3 · current</option></select></div>
       <nav>
         <section class="nav-group">
           <h3 class="lang-en">Get started</h3><h3 class="lang-zh">开始使用</h3>
           <a href="../"><span class="lang-en">Introduction</span><span class="lang-zh">简介</span></a>
           <a href="../quickstart/" class="active" aria-current="page"><span class="lang-en">Quickstart</span><span class="lang-zh">快速上手</span></a>
           <a href="../installation/"><span class="lang-en">Installation</span><span class="lang-zh">安装</span></a>
+          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Foundations</h3><h3 class="lang-zh">核心基础</h3>
@@ -54,7 +55,7 @@
           <a class="api-nav" href="../api/"><b>API</b><span class="lang-en">Editor API and type reference</span><span class="lang-zh">Editor API 与类型参考</span></a>
         </section>
       </nav>
-      <footer><a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/site/pages/quickstart.md"><span class="lang-en">Edit this page</span><span class="lang-zh">编辑此页</span> ↗</a><span>1.0.0-rc.2</span></footer>
+      <footer><a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/site/pages/quickstart.md"><span class="lang-en">Edit this page</span><span class="lang-zh">编辑此页</span> ↗</a><span>1.0.0-rc.3</span></footer>
     </aside>
     <main>
       <div class="content">
@@ -63,8 +64,8 @@
           <h1>Quickstart</h1>
           <p class="lead">Install KJDraw, mount a complete editor in minutes and open one of the editable industry samples.</p>
           <h2 id="en-quickstart-install">Install<a class="heading-anchor" href="#en-quickstart-install" aria-label="Link to Install">#</a></h2>
-<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz</code></pre>
-<p>This installs the published <code>v1.0.0-rc.2</code> GitHub Release. npm registry publication is pending; after npm lists the candidate, <code>npm install @kanjieteam/kjdraw@next</code> is the equivalent channel command.</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm install @kanjieteam/kjdraw@next</code></pre>
+<p>Use version <strong>1.0.0-rc.3 or newer</strong> for interactive moves and switchable layouts. Check with <code>npm list @kanjieteam/kjdraw</code>; <code>next</code> is the release-candidate channel.</p>
 <h2 id="en-quickstart-mount-editor">Mount a complete editor<a class="heading-anchor" href="#en-quickstart-mount-editor" aria-label="Link to Mount a complete editor">#</a></h2>
 <p>Give the container a height, then create the editor:</p>
 <pre data-language="html"><button class="copy" type="button">Copy</button><code>&lt;div id=&quot;cad&quot;&gt;&lt;/div&gt;
@@ -109,8 +110,8 @@ await editor.ready</code></pre>
           <h1>快速上手</h1>
           <p class="lead">安装 KJDraw，几分钟内挂载完整编辑器，并打开一张可编辑的行业示例图纸。</p>
           <h2 id="zh-quickstart-install">安装<a class="heading-anchor" href="#zh-quickstart-install" aria-label="Link to 安装">#</a></h2>
-<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz</code></pre>
-<p>这会安装已经发布的 <code>v1.0.0-rc.2</code> GitHub Release。npm Registry 发布仍在处理中；npm 可以查询到该候选版后，可使用等价的渠道命令 <code>npm install @kanjieteam/kjdraw@next</code>。</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>npm install @kanjieteam/kjdraw@next</code></pre>
+<p>交互移动与布局切换需要 <strong>1.0.0-rc.3 或更新版本</strong>。可用 <code>npm list @kanjieteam/kjdraw</code> 核对，<code>next</code> 为候选版渠道。</p>
 <h2 id="zh-quickstart-mount-editor">挂载完整编辑器<a class="heading-anchor" href="#zh-quickstart-mount-editor" aria-label="Link to 挂载完整编辑器">#</a></h2>
 <p>先为容器设置高度，再创建编辑器：</p>
 <pre data-language="html"><button class="copy" type="button">Copy</button><code>&lt;div id=&quot;cad&quot;&gt;&lt;/div&gt;
@@ -156,6 +157,6 @@ await editor.ready</code></pre>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=fb56e3fac627392c"></script>
+  <script type="module" src="../app.js?v=3480d0448f9c8846"></script>
 </body>
 </html>

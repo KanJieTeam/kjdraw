@@ -9,26 +9,39 @@ summary.zh: 将完整 KJDraw 编辑器作为 React 组件挂载，通过类型�
 ## Render the editor component {#editor-component}
 
 ```tsx
-import { useRef } from 'react'
-import { KJDraw, type KJDrawEditor } from '@kanjieteam/kjdraw/react'
+import { useRef, useState } from 'react'
+import { KJDraw, type KJDrawEditor, type KJWorkbenchLayout } from '@kanjieteam/kjdraw/react'
 
 export function DrawingEditor() {
   const editor = useRef<KJDrawEditor | null>(null)
+  const [layout, setLayout] = useState<KJWorkbenchLayout>('classic')
+
+  async function moveSelection() {
+    const instance = editor.current
+    const ids = instance?.getSelection() ?? []
+    if (!instance || !ids.length) return
+    await instance.execute('MOVE', { ids, dx: 10, dy: 0 })
+  }
 
   return (
-    <KJDraw
-      ref={editor}
-      document="sample"
-      locale="en"
-      theme="dark"
-      style={{ width: '100%', height: 720 }}
-      onReady={instance => instance.fit()}
-    />
+    <section>
+      <button onClick={() => setLayout('focus')}>Focus drawing</button>
+      <button onClick={() => void moveSelection()}>Move selected</button>
+      <KJDraw
+        ref={editor}
+        document="sample"
+        locale="en"
+        theme="dark"
+        layout={layout}
+        style={{ width: '100%', height: 720 }}
+        onReady={instance => instance.fit()}
+      />
+    </section>
   )
 }
 ```
 
-`KJDraw` mounts the complete editor and gives the ref a `KJDrawEditor`. Use the ref for `open()`, `save()`, `execute()`, selection and view methods. The component updates compatible options in place and disposes its editor when React unmounts it. See the [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/) for every prop and method.
+`KJDraw` mounts the complete editor and gives the ref a `KJDrawEditor`. Use the ref for `open()`, `save()`, `execute()`, selection and view methods. Since `1.0.0-rc.3`, `layout="classic"` provides the full CAD ribbon and panels, `compact` shortens the ribbon, and `focus` prioritizes the canvas. Changing `layout` updates the existing editor in place, so its drawing, selection and undo history stay intact. React unmount disposes the editor. See the [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/) for every prop and method.
 
 ## A minimal hook {#minimal-hook}
 
@@ -84,26 +97,39 @@ Use `KJDraw` when you need a working CAD surface immediately, or the headless ho
 ## 渲染编辑器组件 {#editor-component}
 
 ```tsx
-import { useRef } from 'react'
-import { KJDraw, type KJDrawEditor } from '@kanjieteam/kjdraw/react'
+import { useRef, useState } from 'react'
+import { KJDraw, type KJDrawEditor, type KJWorkbenchLayout } from '@kanjieteam/kjdraw/react'
 
 export function DrawingEditor() {
   const editor = useRef<KJDrawEditor | null>(null)
+  const [layout, setLayout] = useState<KJWorkbenchLayout>('classic')
+
+  async function moveSelection() {
+    const instance = editor.current
+    const ids = instance?.getSelection() ?? []
+    if (!instance || !ids.length) return
+    await instance.execute('MOVE', { ids, dx: 10, dy: 0 })
+  }
 
   return (
-    <KJDraw
-      ref={editor}
-      document="sample"
-      locale="zh-CN"
-      theme="dark"
-      style={{ width: '100%', height: 720 }}
-      onReady={instance => instance.fit()}
-    />
+    <section>
+      <button onClick={() => setLayout('focus')}>专注图纸</button>
+      <button onClick={() => void moveSelection()}>移动已选对象</button>
+      <KJDraw
+        ref={editor}
+        document="sample"
+        locale="zh-CN"
+        theme="dark"
+        layout={layout}
+        style={{ width: '100%', height: 720 }}
+        onReady={instance => instance.fit()}
+      />
+    </section>
   )
 }
 ```
 
-`KJDraw` 会挂载完整编辑器，并把 `KJDrawEditor` 暴露给 ref。可通过 ref 调用 `open()`、`save()`、`execute()`、选择与视图方法。兼容选项会原位更新，React 卸载组件时会自动释放编辑器。全部属性与方法见 [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/)。
+`KJDraw` 会挂载完整编辑器，并把 `KJDrawEditor` 暴露给 ref。可通过 ref 调用 `open()`、`save()`、`execute()`、选择与视图方法。自 `1.0.0-rc.3` 起，`layout="classic"` 提供完整 CAD Ribbon 与面板，`compact` 使用较矮的 Ribbon，`focus` 让画布优先。修改 `layout` 会原位更新同一个编辑器，因此图档、选择集与撤销历史都保持不变；React 卸载组件时会自动释放编辑器。全部属性与方法见 [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/)。
 
 ## 最小 Hook {#minimal-hook}
 

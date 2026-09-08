@@ -21,6 +21,16 @@ function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex')
 }
 
+function pointNear(actual, expected, tolerance = 1e-9) {
+  return actual.length === expected.length && actual.every((value, index) => Math.abs(value - expected[index]) <= tolerance)
+}
+
+function hasLine(lines, first, second) {
+  return lines.some(line =>
+    (pointNear(line.start, first) && pointNear(line.end, second)) ||
+    (pointNear(line.start, second) && pointNear(line.end, first)))
+}
+
 const directory = await mkdtemp(join(tmpdir(), 'kjdraw-dxf-interop-'))
 try {
   const kjdrawOutput = join(directory, 'kjdraw-output.dxf')
@@ -35,6 +45,19 @@ try {
     ['CIRCLE', { center: [40, 60, 0], radius: 12.5, layerId: layer.id }],
     ['ARC', { center: [95, 65, 0], radius: 18, startAngle: Math.PI / 9, endAngle: Math.PI * 7 / 6, layerId: layer.id }],
     ['LWPOLYLINE', { vertices: [[0, 100], { point: [50, 100, 0], bulge: 0.35 }, [70, 125], [0, 125]], closed: true, layerId: layer.id }],
+    ['ELLIPSE', { center: [160, 120, 0], majorAxis: [20, 5, 0], ratio: 0.4, startParameter: 0, endParameter: Math.PI * 2, layerId: layer.id }],
+    ['SPLINE', { degree: 3, controlPoints: [[140, 150, 0], [150, 170, 0], [175, 165, 0], [190, 145, 0]], knots: [0, 0, 0, 0, 1, 1, 1, 1], closed: false, periodic: false, layerId: layer.id }],
+    ['HATCH', { boundaryLoops: [
+      { external: true, vertices: [[0, 180, 0], [80, 180, 0], [80, 240, 0], [0, 240, 0]] },
+      { external: false, vertices: [[20, 195, 0], [60, 195, 0], [60, 225, 0], [20, 225, 0]] },
+    ], patternName: 'ANSI31', patternScale: 2, patternAngle: Math.PI / 6, solid: false, layerId: layer.id }],
+    ['HATCH', { boundaryLoops: [
+      { external: true, vertices: [[100, 180, 0], [170, 180, 0], [170, 240, 0], [100, 240, 0]] },
+    ], patternName: 'ANSI37', patternScale: 1, patternAngle: 0, solid: false, layerId: layer.id }],
+    ['DIMENSION', { dimensionType: 'ALIGNED', definitionPoints: [[25, 280, 0], [0, 260, 0], [50, 260, 0]], measurement: 50, styleName: 'STANDARD', layerId: layer.id }],
+    ['DIMENSION', { dimensionType: 'ROTATED', definitionPoints: [[210, 280, 0], [190, 260, 0], [230, 260, 0]], rotation: 0, measurement: 40, styleName: 'STANDARD', layerId: layer.id }],
+    ['DIMENSION', { dimensionType: 'RADIUS', definitionPoints: [[90, 265, 0], [100, 265, 0]], measurement: 10, styleName: 'STANDARD', layerId: layer.id }],
+    ['DIMENSION', { dimensionType: 'DIAMETER', definitionPoints: [[130, 265, 0], [150, 265, 0]], measurement: 20, styleName: 'STANDARD', layerId: layer.id }],
     ['TEXT', { position: [10, 145, 0], text: 'KJDraw interop', height: 4, layerId: layer.id }],
   ]
   for (const [type, payload] of payloads) await sdk.executeCommand('CREATE', { type, payload })
@@ -45,28 +68,107 @@ try {
   assert.equal(externalRead.auditErrors, 0)
   assert.equal(externalRead.modelspaceEntities.LINE, 1)
   assert.equal(externalRead.modelspaceEntities.CIRCLE, 1)
+  assert.equal(externalRead.modelspaceEntities.HATCH, 2)
+  assert.equal(externalRead.modelspaceEntities.ELLIPSE, 1)
+  assert.equal(externalRead.modelspaceEntities.SPLINE, 1)
+  assert.equal(externalRead.modelspaceEntities.DIMENSION, 4)
   assert.ok(externalRead.layers.includes('KJ_INTEROP'))
+  const ansi31 = externalRead.hatches.find(hatch => hatch.patternName === 'ANSI31')
+  const ansi37 = externalRead.hatches.find(hatch => hatch.patternName === 'ANSI37')
+  assert.ok(ansi31)
+  assert.equal(ansi31.solid, false)
+  assert.equal(ansi31.boundaryPathCount, 2)
+  assert.deepEqual(ansi31.boundaryPathFlags, [3, 2], 'outer boundary must be external and the inner boundary must remain a hole')
+  assert.equal(ansi31.patternLines.length, 1)
+  assert.ok(Math.abs(ansi31.patternLines[0].angleDegrees - 75) < 1e-9)
+  assert.ok(Math.abs(Math.hypot(...ansi31.patternLines[0].offset) - 6.35) < 1e-9)
+  assert.equal(ansi37.patternLines.length, 2)
+  assert.deepEqual(ansi37.patternLines.map(line => line.angleDegrees), [45, 135])
+  assert.ok(Math.abs(externalRead.ellipses[0].ratio - 0.4) < 1e-12)
+  assert.deepEqual(externalRead.ellipses[0].center, [160, 120, 0])
+  assert.deepEqual(externalRead.ellipses[0].majorAxis, [20, 5, 0])
+  assert.equal(externalRead.splines[0].degree, 3)
+  assert.equal(externalRead.splines[0].controlPointCount, 4)
+  assert.deepEqual(externalRead.splines[0].knots, [0, 0, 0, 0, 1, 1, 1, 1])
+  const dimensions = new Map(externalRead.dimensions.map(dimension => [dimension.type, dimension]))
+  const aligned = dimensions.get('ALIGNED')
+  const rotated = dimensions.get('ROTATED')
+  const radius = dimensions.get('RADIUS')
+  const diameter = dimensions.get('DIAMETER')
+  assert.ok(Math.abs(aligned.measurement - 50) < 1e-9)
+  assert.ok(Math.abs(aligned.storedMeasurement - 50) < 1e-9)
+  assert.deepEqual(aligned.definitionPoints, [[25, 280, 0], [0, 260, 0], [50, 260, 0]])
+  assert.equal(aligned.rawType & 32, 32)
+  assert.deepEqual(aligned.geometryEntityCounts, { LINE: 3, SOLID: 2, TEXT: 1 })
+  assert.ok(hasLine(aligned.geometryLines, [0, 280, 0], [50, 280, 0]))
+  assert.equal(aligned.geometryTexts[0].text, '50')
+  assert.ok(Math.abs(rotated.measurement - 40) < 1e-9)
+  assert.ok(Math.abs(rotated.storedMeasurement - 40) < 1e-9)
+  assert.deepEqual(rotated.definitionPoints, [[210, 280, 0], [190, 260, 0], [230, 260, 0]])
+  assert.equal(rotated.rawType & 32, 32)
+  assert.deepEqual(rotated.geometryEntityCounts, { LINE: 3, SOLID: 2, TEXT: 1 })
+  assert.ok(hasLine(rotated.geometryLines, [190, 280, 0], [230, 280, 0]))
+  assert.equal(rotated.geometryTexts[0].text, '40')
+  assert.ok(Math.abs(radius.measurement - 10) < 1e-9)
+  assert.ok(Math.abs(radius.storedMeasurement - 10) < 1e-9)
+  assert.deepEqual(radius.definitionPoints, [[90, 265, 0], [100, 265, 0]])
+  assert.equal(radius.rawType & 32, 32)
+  assert.deepEqual(radius.geometryEntityCounts, { LINE: 1, SOLID: 1, TEXT: 1 })
+  assert.ok(hasLine(radius.geometryLines, [90, 265, 0], [100, 265, 0]))
+  assert.equal(radius.geometryTexts[0].text, 'R10')
+  assert.ok(Math.abs(diameter.measurement - 20) < 1e-9)
+  assert.ok(Math.abs(diameter.storedMeasurement - 20) < 1e-9)
+  assert.deepEqual(diameter.definitionPoints, [[130, 265, 0], [150, 265, 0]])
+  assert.equal(diameter.rawType & 32, 32)
+  assert.deepEqual(diameter.geometryEntityCounts, { LINE: 1, SOLID: 2, TEXT: 1 })
+  assert.ok(hasLine(diameter.geometryLines, [130, 265, 0], [150, 265, 0]))
+  assert.equal(diameter.geometryTexts[0].text, '⌀20')
+  assert.equal(new Set(externalRead.dimensions.map(dimension => dimension.geometryBlock)).size, 4)
+  assert.equal(externalRead.dimensions.every(dimension => /^\*D\d+$/i.test(dimension.geometryBlock)), true)
+  for (const dimension of [aligned, rotated, radius, diameter]) {
+    assert.equal(dimension.geometryTexts[0].horizontalAlignment, 1)
+    assert.equal(dimension.geometryTexts[0].verticalAlignment, 1)
+    assert.deepEqual(dimension.geometryTexts[0].alignPoint, dimension.geometryTexts[0].insert)
+  }
 
   const externalGeneration = runPython('generate', externalInput)
   const externalBytes = await readFile(externalInput)
   const imported = await createKJDrawSDK().readDocument(externalBytes, { format: 'DXF', version: '2018' })
   assert.equal(imported.getTable('layers').records.some(row => row.name === 'KJ_INTEROP'), true)
-  assert.equal(imported.listEntities({ type: 'LINE' }).length >= 2, true, 'model and block LINE entities must import')
-  assert.equal(imported.listEntities({ type: 'CIRCLE' }).length >= 2, true, 'model and block CIRCLE entities must import')
-  assert.equal(imported.listEntities({ type: 'ARC' }).length, 1)
-  assert.equal(imported.listEntities({ type: 'LWPOLYLINE' }).length, 1)
-  assert.equal(imported.listEntities({ type: 'TEXT' }).length, 1)
-  assert.equal(imported.listEntities({ type: 'INSERT' }).length, 1)
-  const polyline = imported.listEntities({ type: 'LWPOLYLINE' })[0]
+  const importedModelSpaceId = imported.snapshot().spaces.modelSpaceId
+  assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'LINE' }).length, 1)
+  assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'CIRCLE' }).length, 1)
+  assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'ARC' }).length, 1)
+  assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'LWPOLYLINE' }).length, 1)
+  assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'TEXT' }).length, 1)
+  assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'INSERT' }).length, 1)
+  assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'HATCH' }).length, 2)
+  assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'ELLIPSE' }).length, 1)
+  assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'SPLINE' }).length, 1)
+  assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'DIMENSION' }).length, 4)
+  const polyline = imported.listEntities({ ownerId: importedModelSpaceId, type: 'LWPOLYLINE' })[0]
   assert.equal(polyline.payload.closed, true)
   assert.equal(polyline.payload.vertices.some(vertex => Number(vertex.bulge ?? 0) !== 0), true)
 
   const reopenedSDK = createKJDrawSDK()
   reopenedSDK.attachDocument(imported)
+  const movedDimension = imported.listEntities({ ownerId: importedModelSpaceId, type: 'DIMENSION' }).find(entity =>
+    pointNear(entity.payload.definitionPoints?.[1] ?? [], [0, 260, 0]))
+  assert.ok(movedDimension)
+  await reopenedSDK.executeCommand('MOVE', { id: movedDimension.id, dx: 7, dy: -3 })
   await writeFile(roundTrip, await reopenedSDK.writeDocument(imported, { format: 'DXF', version: '2018' }))
   const externalRoundTrip = runPython('inspect', roundTrip)
   assert.equal(externalRoundTrip.auditErrors, 0)
   assert.equal(externalRoundTrip.modelspaceEntities.INSERT, 1)
+  assert.equal(externalRoundTrip.modelspaceEntities.HATCH, 2)
+  assert.equal(externalRoundTrip.modelspaceEntities.ELLIPSE, 1)
+  assert.equal(externalRoundTrip.modelspaceEntities.SPLINE, 1)
+  assert.equal(externalRoundTrip.modelspaceEntities.DIMENSION, 4)
+  const independentlyMoved = externalRoundTrip.dimensions.find(dimension => pointNear(dimension.definitionPoints?.[1] ?? [], [7, 257, 0]))
+  assert.deepEqual(independentlyMoved.definitionPoints, [[7, 277, 0], [7, 257, 0], [57, 257, 0]])
+  assert.ok(Math.abs(independentlyMoved.measurement - 50) < 1e-9)
+  assert.deepEqual(independentlyMoved.geometryEntityCounts, { LINE: 3, SOLID: 2, TEXT: 1 })
+  assert.ok(hasLine(independentlyMoved.geometryLines, [7, 277, 0], [57, 277, 0]))
 
   console.log(JSON.stringify({
     schema: 'com.kanjie.kjdraw.audit.dxf-interop@1',

@@ -1,10 +1,215 @@
 {
   "schema": "com.kanjie.kjdraw.api-reference@1",
   "package": "@kanjieteam/kjdraw",
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:93637f8c09ef279ae38e734ab9f86aafc34f065c3256cb98b95035359ab80f8e",
+  "sourceDigest": "sha256:20825da9f07277af01855af310137c0aa9f5ecc292ce031eaa3ab7cdb6362a79",
   "modules": [
+    {
+      "exportPath": "./drafting",
+      "packageName": "@kanjieteam/kjdraw/drafting",
+      "declaration": "types/drafting.d.ts",
+      "anchor": "module-drafting",
+      "symbols": [
+        {
+          "name": "createDraftingSession",
+          "kind": "function",
+          "declaration": "export declare function createDraftingSession(tool: KJDraftTool, options?: KJDraftingOptions): KJDraftingSession;",
+          "source": "drafting.d.ts",
+          "anchor": "drafting-function-createdraftingsession"
+        },
+        {
+          "name": "KJDraftArcMode",
+          "kind": "type",
+          "declaration": "export type KJDraftArcMode = 'center-start-end' | '3-point';",
+          "source": "drafting.d.ts",
+          "anchor": "drafting-type-kjdraftarcmode"
+        },
+        {
+          "name": "KJDraftCircleMode",
+          "kind": "type",
+          "declaration": "export type KJDraftCircleMode = 'center-radius' | '2-point' | '3-point';",
+          "source": "drafting.d.ts",
+          "anchor": "drafting-type-kjdraftcirclemode"
+        },
+        {
+          "name": "KJDraftDimensionType",
+          "kind": "type",
+          "declaration": "export type KJDraftDimensionType = 'ALIGNED' | 'ROTATED' | 'RADIUS' | 'DIAMETER';",
+          "source": "drafting.d.ts",
+          "anchor": "drafting-type-kjdraftdimensiontype"
+        },
+        {
+          "name": "KJDraftEntitySpec",
+          "kind": "interface",
+          "declaration": "export interface KJDraftEntitySpec {\n    type: KJStandardEntityType;\n    payload: KJObjectPayload;\n    options?: KJObjectSpec;\n}",
+          "source": "drafting.d.ts",
+          "anchor": "drafting-interface-kjdraftentityspec"
+        },
+        {
+          "name": "KJDraftingOptions",
+          "kind": "interface",
+          "declaration": "export interface KJDraftingOptions {\n    circleMode?: KJDraftCircleMode;\n    arcMode?: KJDraftArcMode;\n    sides?: number;\n    splineDegree?: number;\n    dimensionType?: KJDraftDimensionType;\n    rotation?: number;\n    textPosition?: KJDraftPoint;\n    textOverride?: string | null;\n    textHeight?: number;\n    styleName?: string;\n    patternName?: string;\n    patternScale?: number;\n    patternAngle?: number;\n    solid?: boolean;\n    payload?: KJObjectPayload;\n    entityOptions?: KJObjectSpec;\n    tolerance?: number;\n}",
+          "source": "drafting.d.ts",
+          "anchor": "drafting-interface-kjdraftingoptions"
+        },
+        {
+          "name": "KJDraftingSession",
+          "kind": "class",
+          "declaration": "export declare class KJDraftingSession {\n    #private;\n    readonly tool: KJDraftTool;\n    constructor(tool: KJDraftTool, options?: KJDraftingOptions);\n    get points(): readonly KJDraftPoint[];\n    get state(): KJDraftState;\n    addPoint(value: KJDraftPoint): KJDraftEntitySpec | null;\n    addCoordinate(input: string, relativeBase?: KJDraftPoint | undefined): KJDraftEntitySpec | null;\n    preview(cursor?: KJDraftPoint): KJDraftEntitySpec | null;\n    finish(): KJDraftEntitySpec;\n    close(): KJDraftEntitySpec;\n    undoPoint(): KJDraftPoint | null;\n    cancel(): void;\n}",
+          "source": "drafting.d.ts",
+          "anchor": "drafting-class-kjdraftingsession"
+        },
+        {
+          "name": "KJDraftPoint",
+          "kind": "type",
+          "declaration": "export type KJDraftPoint = readonly [number, number];",
+          "source": "drafting.d.ts",
+          "anchor": "drafting-type-kjdraftpoint"
+        },
+        {
+          "name": "KJDraftPointRole",
+          "kind": "type",
+          "declaration": "export type KJDraftPointRole = 'start' | 'end' | 'vertex' | 'position' | 'origin' | 'directionPoint' | 'center' | 'radiusPoint' | 'diameterPoint1' | 'diameterPoint2' | 'throughPoint' | 'majorAxisPoint' | 'minorAxisPoint' | 'firstCorner' | 'oppositeCorner' | 'controlPoint' | 'boundaryPoint' | 'extensionOrigin1' | 'extensionOrigin2' | 'placement' | 'oppositePoint' | 'pointOnCircle';",
+          "source": "drafting.d.ts",
+          "anchor": "drafting-type-kjdraftpointrole"
+        },
+        {
+          "name": "KJDraftState",
+          "kind": "interface",
+          "declaration": "export interface KJDraftState {\n    tool: KJDraftTool;\n    status: KJDraftStatus;\n    points: readonly KJDraftPoint[];\n    minimumPoints: number;\n    maximumPoints: number | null;\n    nextPoint: KJDraftPointRole | null;\n    canFinish: boolean;\n    canClose: boolean;\n}",
+          "source": "drafting.d.ts",
+          "anchor": "drafting-interface-kjdraftstate"
+        },
+        {
+          "name": "KJDraftStatus",
+          "kind": "type",
+          "declaration": "export type KJDraftStatus = 'collecting' | 'complete' | 'cancelled';",
+          "source": "drafting.d.ts",
+          "anchor": "drafting-type-kjdraftstatus"
+        },
+        {
+          "name": "KJDraftTool",
+          "kind": "type",
+          "declaration": "export type KJDraftTool = 'line' | 'polyline' | 'circle' | 'arc' | 'ellipse' | 'rectangle' | 'polygon' | 'point' | 'ray' | 'xline' | 'spline' | 'hatch' | 'dimension';",
+          "source": "drafting.d.ts",
+          "anchor": "drafting-type-kjdrafttool"
+        },
+        {
+          "name": "parseDraftCoordinate",
+          "kind": "function",
+          "declaration": "export declare function parseDraftCoordinate(input: string, relativeBase?: KJDraftPoint): KJDraftPoint;",
+          "source": "drafting.d.ts",
+          "anchor": "drafting-function-parsedraftcoordinate"
+        }
+      ]
+    },
+    {
+      "exportPath": "./modification-controls",
+      "packageName": "@kanjieteam/kjdraw/modification-controls",
+      "declaration": "types/modification-controls.d.ts",
+      "anchor": "module-modification-controls",
+      "symbols": [
+        {
+          "name": "buildKJModificationCommand",
+          "kind": "function",
+          "declaration": "export declare function buildKJModificationCommand(id: KJModificationId, context: KJModificationBuildContext): KJModificationCommand;",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-function-buildkjmodificationcommand"
+        },
+        {
+          "name": "getKJModificationDefinition",
+          "kind": "function",
+          "declaration": "export declare function getKJModificationDefinition(id: KJModificationId): KJModificationDefinition;",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-function-getkjmodificationdefinition"
+        },
+        {
+          "name": "getKJModificationSelectionCenter",
+          "kind": "function",
+          "declaration": "export declare function getKJModificationSelectionCenter(entities: readonly {\n    readonly payload: Readonly<Record<string, unknown>>;\n}[]): KJModificationPoint;",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-function-getkjmodificationselectioncenter"
+        },
+        {
+          "name": "KJ_MODIFICATION_DEFINITIONS",
+          "kind": "const",
+          "declaration": "export declare const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[];",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-const-kj-modification-definitions"
+        },
+        {
+          "name": "KJ_MODIFICATION_IDS",
+          "kind": "const",
+          "declaration": "export declare const KJ_MODIFICATION_IDS: readonly [\"rotate\", \"scale\", \"mirror\", \"array-rect\", \"array-polar\", \"offset\", \"break\", \"explode\", \"trim\", \"extend\", \"chamfer\", \"fillet\"];",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-const-kj-modification-ids"
+        },
+        {
+          "name": "KJLocalizedControlText",
+          "kind": "interface",
+          "declaration": "export interface KJLocalizedControlText {\n    readonly en: string;\n    readonly zh: string;\n}",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-interface-kjlocalizedcontroltext"
+        },
+        {
+          "name": "KJModificationBuildContext",
+          "kind": "interface",
+          "declaration": "export interface KJModificationBuildContext {\n    readonly ids: readonly string[];\n    readonly values?: Readonly<Record<string, unknown>>;\n    readonly points?: readonly KJModificationPoint[];\n    readonly selectionCenter?: KJModificationPoint;\n}",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-interface-kjmodificationbuildcontext"
+        },
+        {
+          "name": "KJModificationCommand",
+          "kind": "interface",
+          "declaration": "export interface KJModificationCommand {\n    readonly command: string;\n    readonly arguments: KJCommandArguments;\n}",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-interface-kjmodificationcommand"
+        },
+        {
+          "name": "KJModificationDefinition",
+          "kind": "interface",
+          "declaration": "export interface KJModificationDefinition {\n    readonly id: KJModificationId;\n    readonly command: string;\n    readonly label: KJLocalizedControlText;\n    readonly description: KJLocalizedControlText;\n    readonly minSelection: number;\n    readonly maxSelection?: number;\n    /** When present, every selected entity must use one of these types. */\n    readonly supportedEntityTypes?: readonly string[];\n    readonly fields: readonly KJModificationFieldDefinition[];\n    readonly pointKeys: readonly KJModificationPointDefinition[];\n}",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-interface-kjmodificationdefinition"
+        },
+        {
+          "name": "KJModificationFieldDefinition",
+          "kind": "interface",
+          "declaration": "export interface KJModificationFieldDefinition {\n    readonly key: string;\n    readonly label: KJLocalizedControlText;\n    readonly type: KJModificationFieldType;\n    readonly default: number | boolean;\n    readonly min?: number;\n    readonly max?: number;\n    readonly step?: number;\n}",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-interface-kjmodificationfielddefinition"
+        },
+        {
+          "name": "KJModificationFieldType",
+          "kind": "type",
+          "declaration": "export type KJModificationFieldType = 'number' | 'integer' | 'boolean';",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-type-kjmodificationfieldtype"
+        },
+        {
+          "name": "KJModificationId",
+          "kind": "type",
+          "declaration": "export type KJModificationId = 'rotate' | 'scale' | 'mirror' | 'array-rect' | 'array-polar' | 'offset' | 'break' | 'explode' | 'trim' | 'extend' | 'chamfer' | 'fillet';",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-type-kjmodificationid"
+        },
+        {
+          "name": "KJModificationPoint",
+          "kind": "type",
+          "declaration": "export type KJModificationPoint = readonly [number, number];",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-type-kjmodificationpoint"
+        },
+        {
+          "name": "KJModificationPointDefinition",
+          "kind": "interface",
+          "declaration": "export interface KJModificationPointDefinition {\n    readonly key: string;\n    readonly label: KJLocalizedControlText;\n}",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-interface-kjmodificationpointdefinition"
+        }
+      ]
+    },
     {
       "exportPath": "./samples",
       "packageName": "@kanjieteam/kjdraw/samples",
@@ -55,9 +260,16 @@
           "anchor": "editor-function-createkjdraweditor"
         },
         {
+          "name": "default",
+          "kind": "type",
+          "declaration": "export type { KJWorkbenchLayout } from './workbench.js';",
+          "source": "editor.d.ts",
+          "anchor": "editor-type-default"
+        },
+        {
           "name": "KJDrawEditor",
           "kind": "class",
-          "declaration": "export declare class KJDrawEditor {\n    #private;\n    readonly workbench: KJDrawWorkbench;\n    readonly ready: Promise<this>;\n    constructor(container: string | HTMLElement | ShadowRoot, options?: KJDrawEditorOptions);\n    get document(): KJDocument | null;\n    get sdk(): KJDrawSDK;\n    get element(): HTMLElement;\n    get disposed(): boolean;\n    get locale(): KJWorkbenchLocale;\n    get theme(): KJWorkbenchTheme;\n    /** Subscribe to an editor event. The return value unsubscribes the listener. */\n    on<Name extends keyof KJDrawEditorEvents>(name: Name, listener: (event: KJDrawEditorEvents[Name]) => void): () => boolean;\n    /** Open a File, Blob, text or bytes. Pass format for bytes without a filename. */\n    open(source: Blob | string | ArrayBuffer | ArrayBufferView, options?: KJWorkbenchOpenOptions): Promise<KJDocument>;\n    /** Save the current drawing, or return its content with download: false. */\n    save(options?: KJDrawEditorSaveOptions): Promise<string | Uint8Array>;\n    setDocument(drawing: KJDocument): Promise<this>;\n    /** Execute an SDK command using the current drawing and its undo history. */\n    execute<TResult = unknown>(command: string, args?: KJCommandArguments): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    undo(): Promise<KJSDKCommandEnvelopeReceipt>;\n    redo(): Promise<KJSDKCommandEnvelopeReceipt>;\n    setSelection(ids: readonly string[]): Promise<readonly string[]>;\n    getSelection(): readonly string[];\n    fit(): this;\n    setTheme(theme: KJWorkbenchTheme): this;\n    setLocale(locale: KJWorkbenchLocale): this;\n    setTool(tool: KJWorkbenchTool): this;\n    setTitle(title: string): this;\n    /** Update presentation and editing mode while preserving the active drawing. */\n    setOptions(options: Pick<KJDrawEditorOptions, 'readonly' | 'grid' | 'toolbar' | 'layers' | 'properties' | 'title' | 'maxFileBytes'>): this;\n    /** Unmount the editor and release its listeners and rendering resources. Safe to call twice. */\n    dispose(): void;\n}",
+          "declaration": "export declare class KJDrawEditor {\n    #private;\n    readonly workbench: KJDrawWorkbench;\n    readonly ready: Promise<this>;\n    constructor(container: string | HTMLElement | ShadowRoot, options?: KJDrawEditorOptions);\n    get document(): KJDocument | null;\n    get sdk(): KJDrawSDK;\n    get element(): HTMLElement;\n    get disposed(): boolean;\n    get locale(): KJWorkbenchLocale;\n    get theme(): KJWorkbenchTheme;\n    get layout(): KJWorkbenchLayout;\n    /** Subscribe to an editor event. The return value unsubscribes the listener. */\n    on<Name extends keyof KJDrawEditorEvents>(name: Name, listener: (event: KJDrawEditorEvents[Name]) => void): () => boolean;\n    /** Open a File, Blob, text or bytes. Pass format for bytes without a filename. */\n    open(source: Blob | string | ArrayBuffer | ArrayBufferView, options?: KJWorkbenchOpenOptions): Promise<KJDocument>;\n    /** Save the current drawing, or return its content with download: false. */\n    save(options?: KJDrawEditorSaveOptions): Promise<string | Uint8Array>;\n    setDocument(drawing: KJDocument): Promise<this>;\n    /** Execute an SDK command using the current drawing and its undo history. */\n    execute<TResult = unknown>(command: string, args?: KJCommandArguments): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    undo(): Promise<KJSDKCommandEnvelopeReceipt>;\n    redo(): Promise<KJSDKCommandEnvelopeReceipt>;\n    setSelection(ids: readonly string[]): Promise<readonly string[]>;\n    getSelection(): readonly string[];\n    fit(): this;\n    setTheme(theme: KJWorkbenchTheme): this;\n    setLayout(layout: KJWorkbenchLayout): this;\n    setLocale(locale: KJWorkbenchLocale): this;\n    setTool(tool: KJWorkbenchTool): this;\n    setTitle(title: string): this;\n    /** Update presentation and editing mode while preserving the active drawing. */\n    setOptions(options: Pick<KJDrawEditorOptions, 'layout' | 'readonly' | 'grid' | 'toolbar' | 'layers' | 'properties' | 'title' | 'maxFileBytes'>): this;\n    /** Unmount the editor and release its listeners and rendering resources. Safe to call twice. */\n    dispose(): void;\n}",
           "source": "editor.d.ts",
           "anchor": "editor-class-kjdraweditor"
         },
@@ -71,7 +283,7 @@
         {
           "name": "KJDrawEditorOptions",
           "kind": "interface",
-          "declaration": "export interface KJDrawEditorOptions {\n    /** Drawing to open initially. Defaults to the included sample. */\n    document?: KJDocument | 'sample' | 'blank' | null;\n    /** Reuse an application SDK to share commands and plugins. */\n    sdk?: KJDrawSDK;\n    /** Workbench language. Default: en. */\n    locale?: KJWorkbenchLocale;\n    /** Panel and canvas appearance. Default: dark. */\n    theme?: KJWorkbenchTheme;\n    /** Enable inspection and file export with editing controls disabled. Default: false. */\n    readonly?: boolean;\n    /** Show the drawing grid. Default: true. */\n    grid?: boolean;\n    /** Show the ribbon toolbar. Default: true. */\n    toolbar?: boolean;\n    /** Show the layers panel. Default: true. */\n    layers?: boolean;\n    /** Show the properties panel. Default: true. */\n    properties?: boolean;\n    /** Editor title displayed above the drawing. */\n    title?: string;\n    /** Maximum input file size in bytes. Default: 20 MiB. */\n    maxFileBytes?: number;\n    onReady?: (editor: KJDrawEditor) => void;\n    onChange?: (event: KJDrawWorkbenchChange) => void;\n    onSelectionChange?: (event: KJDrawEditorSelectionEvent) => void;\n    onError?: (error: unknown) => void;\n}",
+          "declaration": "export interface KJDrawEditorOptions {\n    /** Drawing to open initially. Defaults to the included sample. */\n    document?: KJDocument | 'sample' | 'blank' | null;\n    /** Reuse an application SDK to share commands and plugins. */\n    sdk?: KJDrawSDK;\n    /** Workbench language. Default: en. */\n    locale?: KJWorkbenchLocale;\n    /** Panel and canvas appearance. Default: dark. */\n    theme?: KJWorkbenchTheme;\n    /** Workbench chrome arrangement. Default: classic. */\n    layout?: KJWorkbenchLayout;\n    /** Enable inspection and file export with editing controls disabled. Default: false. */\n    readonly?: boolean;\n    /** Show the drawing grid. Default: true. */\n    grid?: boolean;\n    /** Show the ribbon toolbar. Default: true. */\n    toolbar?: boolean;\n    /** Show the layers panel. Default: true. */\n    layers?: boolean;\n    /** Show the properties panel. Default: true. */\n    properties?: boolean;\n    /** Editor title displayed above the drawing. */\n    title?: string;\n    /** Maximum input file size in bytes. Default: 20 MiB. */\n    maxFileBytes?: number;\n    onReady?: (editor: KJDrawEditor) => void;\n    onChange?: (event: KJDrawWorkbenchChange) => void;\n    onSelectionChange?: (event: KJDrawEditorSelectionEvent) => void;\n    onError?: (error: unknown) => void;\n}",
           "source": "editor.d.ts",
           "anchor": "editor-interface-kjdraweditoroptions"
         },
@@ -1598,7 +1810,7 @@
         {
           "name": "KJDRAW_VERSION",
           "kind": "const",
-          "declaration": "export declare const KJDRAW_VERSION: '1.0.0-rc.2';",
+          "declaration": "export declare const KJDRAW_VERSION: '1.0.0-rc.3';",
           "source": "version.d.ts",
           "anchor": "core-const-kjdraw-version"
         },
@@ -3898,7 +4110,7 @@
         {
           "name": "default",
           "kind": "type",
-          "declaration": "export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, } from './editor.js';",
+          "declaration": "export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, KJWorkbenchLayout, } from './editor.js';",
           "source": "react.d.ts",
           "anchor": "react-type-default"
         },
@@ -3934,21 +4146,21 @@
         {
           "name": "default",
           "kind": "type",
-          "declaration": "export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, } from './editor.js';",
+          "declaration": "export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, KJWorkbenchLayout, } from './editor.js';",
           "source": "vue.d.ts",
           "anchor": "vue-type-default"
         },
         {
           "name": "KJDraw",
           "kind": "const",
-          "declaration": "export declare const KJDraw: import(\"vue\").DefineComponent<import(\"vue\").ExtractPropTypes<{\n    document: {\n        type: PropType<KJDocument | 'sample' | 'blank' | null>;\n        default: string;\n    };\n    sdk: {\n        type: PropType<KJDrawSDK>;\n        default: undefined;\n    };\n    locale: {\n        type: PropType<KJWorkbenchLocale>;\n        default: string;\n    };\n    theme: {\n        type: PropType<KJWorkbenchTheme>;\n        default: string;\n    };\n    readonly: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    grid: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    toolbar: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    layers: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    properties: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    title: {\n        type: StringConstructor;\n        default: undefined;\n    };\n    maxFileBytes: {\n        type: NumberConstructor;\n        default: undefined;\n    };\n    onReady: {\n        type: PropType<(editor: KJDrawEditor) => void>;\n        default: undefined;\n    };\n    onChange: {\n        type: PropType<(event: KJDrawWorkbenchChange) => void>;\n        default: undefined;\n    };\n    onSelectionChange: {\n        type: PropType<(event: KJDrawEditorSelectionEvent) => void>;\n        default: undefined;\n    };\n    onError: {\n        type: PropType<(error: unknown) => void>;\n        default: undefined;\n    };\n}>, () => import(\"vue\").VNode<import(\"vue\").RendererNode, import(\"vue\").RendererElement, {\n    [key: string]: any;\n}>, {}, {}, {}, import(\"vue\").ComponentOptionsMixin, import(\"vue\").ComponentOptionsMixin, {}, string, import(\"vue\").PublicProps, Readonly<import(\"vue\").ExtractPropTypes<{\n    document: {\n        type: PropType<KJDocument | 'sample' | 'blank' | null>;\n        default: string;\n    };\n    sdk: {\n        type: PropType<KJDrawSDK>;\n        default: undefined;\n    };\n    locale: {\n        type: PropType<KJWorkbenchLocale>;\n        default: string;\n    };\n    theme: {\n        type: PropType<KJWorkbenchTheme>;\n        default: string;\n    };\n    readonly: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    grid: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    toolbar: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    layers: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    properties: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    title: {\n        type: StringConstructor;\n        default: undefined;\n    };\n    maxFileBytes: {\n        type: NumberConstructor;\n        default: undefined;\n    };\n    onReady: {\n        type: PropType<(editor: KJDrawEditor) => void>;\n        default: undefined;\n    };\n    onChange: {\n        type: PropType<(event: KJDrawWorkbenchChange) => void>;\n        default: undefined;\n    };\n    onSelectionChange: {\n        type: PropType<(event: KJDrawEditorSelectionEvent) => void>;\n        default: undefined;\n    };\n    onError: {\n        type: PropType<(error: unknown) => void>;\n        default: undefined;\n    };\n}>> & Readonly<{}>, {\n    document: \"blank\" | \"sample\" | KJDocument | null;\n    sdk: KJDrawSDK;\n    locale: KJWorkbenchLocale;\n    theme: KJWorkbenchTheme;\n    readonly: boolean;\n    grid: boolean;\n    toolbar: boolean;\n    layers: boolean;\n    properties: boolean;\n    title: string;\n    maxFileBytes: number;\n    onReady: (editor: KJDrawEditor) => void;\n    onChange: (event: KJDrawWorkbenchChange) => void;\n    onSelectionChange: (event: KJDrawEditorSelectionEvent) => void;\n    onError: (error: unknown) => void;\n}, {}, {}, {}, string, import(\"vue\").ComponentProvideOptions, true, {}, any>;",
+          "declaration": "export declare const KJDraw: import(\"vue\").DefineComponent<import(\"vue\").ExtractPropTypes<{\n    document: {\n        type: PropType<KJDocument | 'sample' | 'blank' | null>;\n        default: string;\n    };\n    sdk: {\n        type: PropType<KJDrawSDK>;\n        default: undefined;\n    };\n    locale: {\n        type: PropType<KJWorkbenchLocale>;\n        default: string;\n    };\n    theme: {\n        type: PropType<KJWorkbenchTheme>;\n        default: string;\n    };\n    layout: {\n        type: PropType<KJWorkbenchLayout>;\n        default: string;\n    };\n    readonly: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    grid: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    toolbar: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    layers: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    properties: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    title: {\n        type: StringConstructor;\n        default: undefined;\n    };\n    maxFileBytes: {\n        type: NumberConstructor;\n        default: undefined;\n    };\n    onReady: {\n        type: PropType<(editor: KJDrawEditor) => void>;\n        default: undefined;\n    };\n    onChange: {\n        type: PropType<(event: KJDrawWorkbenchChange) => void>;\n        default: undefined;\n    };\n    onSelectionChange: {\n        type: PropType<(event: KJDrawEditorSelectionEvent) => void>;\n        default: undefined;\n    };\n    onError: {\n        type: PropType<(error: unknown) => void>;\n        default: undefined;\n    };\n}>, () => import(\"vue\").VNode<import(\"vue\").RendererNode, import(\"vue\").RendererElement, {\n    [key: string]: any;\n}>, {}, {}, {}, import(\"vue\").ComponentOptionsMixin, import(\"vue\").ComponentOptionsMixin, {}, string, import(\"vue\").PublicProps, Readonly<import(\"vue\").ExtractPropTypes<{\n    document: {\n        type: PropType<KJDocument | 'sample' | 'blank' | null>;\n        default: string;\n    };\n    sdk: {\n        type: PropType<KJDrawSDK>;\n        default: undefined;\n    };\n    locale: {\n        type: PropType<KJWorkbenchLocale>;\n        default: string;\n    };\n    theme: {\n        type: PropType<KJWorkbenchTheme>;\n        default: string;\n    };\n    layout: {\n        type: PropType<KJWorkbenchLayout>;\n        default: string;\n    };\n    readonly: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    grid: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    toolbar: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    layers: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    properties: {\n        type: BooleanConstructor;\n        default: boolean;\n    };\n    title: {\n        type: StringConstructor;\n        default: undefined;\n    };\n    maxFileBytes: {\n        type: NumberConstructor;\n        default: undefined;\n    };\n    onReady: {\n        type: PropType<(editor: KJDrawEditor) => void>;\n        default: undefined;\n    };\n    onChange: {\n        type: PropType<(event: KJDrawWorkbenchChange) => void>;\n        default: undefined;\n    };\n    onSelectionChange: {\n        type: PropType<(event: KJDrawEditorSelectionEvent) => void>;\n        default: undefined;\n    };\n    onError: {\n        type: PropType<(error: unknown) => void>;\n        default: undefined;\n    };\n}>> & Readonly<{}>, {\n    document: \"blank\" | \"sample\" | KJDocument | null;\n    sdk: KJDrawSDK;\n    locale: KJWorkbenchLocale;\n    theme: KJWorkbenchTheme;\n    layout: \"classic\" | \"compact\" | \"focus\";\n    readonly: boolean;\n    grid: boolean;\n    toolbar: boolean;\n    layers: boolean;\n    properties: boolean;\n    title: string;\n    maxFileBytes: number;\n    onReady: (editor: KJDrawEditor) => void;\n    onChange: (event: KJDrawWorkbenchChange) => void;\n    onSelectionChange: (event: KJDrawEditorSelectionEvent) => void;\n    onError: (error: unknown) => void;\n}, {}, {}, {}, string, import(\"vue\").ComponentProvideOptions, true, {}, any>;",
           "source": "vue.d.ts",
           "anchor": "vue-const-kjdraw"
         },
         {
           "name": "KJDrawExposed",
           "kind": "interface",
-          "declaration": "export interface KJDrawExposed {\n    readonly instance: KJDrawEditor | null;\n    readonly ready: Promise<KJDrawEditor> | null;\n    open(source: Blob | string | ArrayBuffer | ArrayBufferView, options?: KJWorkbenchOpenOptions): Promise<KJDocument>;\n    save(options?: KJDrawEditorSaveOptions): Promise<string | Uint8Array>;\n    fit(): KJDrawEditor;\n    undo(): Promise<KJSDKCommandEnvelopeReceipt>;\n    redo(): Promise<KJSDKCommandEnvelopeReceipt>;\n    execute<TResult = unknown>(command: string, args?: KJCommandArguments): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    setDocument(document: KJDocument): Promise<KJDrawEditor>;\n    setTheme(theme: KJWorkbenchTheme): KJDrawEditor;\n    setLocale(locale: KJWorkbenchLocale): KJDrawEditor;\n    setSelection(ids: readonly string[]): Promise<readonly string[]>;\n    getSelection(): readonly string[];\n    setOptions(options: Parameters<KJDrawEditor['setOptions']>[0]): KJDrawEditor;\n    setTitle(title: string): KJDrawEditor;\n    on: KJDrawEditor['on'];\n    dispose(): void;\n}",
+          "declaration": "export interface KJDrawExposed {\n    readonly instance: KJDrawEditor | null;\n    readonly ready: Promise<KJDrawEditor> | null;\n    open(source: Blob | string | ArrayBuffer | ArrayBufferView, options?: KJWorkbenchOpenOptions): Promise<KJDocument>;\n    save(options?: KJDrawEditorSaveOptions): Promise<string | Uint8Array>;\n    fit(): KJDrawEditor;\n    undo(): Promise<KJSDKCommandEnvelopeReceipt>;\n    redo(): Promise<KJSDKCommandEnvelopeReceipt>;\n    execute<TResult = unknown>(command: string, args?: KJCommandArguments): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    setDocument(document: KJDocument): Promise<KJDrawEditor>;\n    setTheme(theme: KJWorkbenchTheme): KJDrawEditor;\n    setLayout(layout: KJWorkbenchLayout): KJDrawEditor;\n    setLocale(locale: KJWorkbenchLocale): KJDrawEditor;\n    setSelection(ids: readonly string[]): Promise<readonly string[]>;\n    getSelection(): readonly string[];\n    setOptions(options: Parameters<KJDrawEditor['setOptions']>[0]): KJDrawEditor;\n    setTitle(title: string): KJDrawEditor;\n    on: KJDrawEditor['on'];\n    dispose(): void;\n}",
           "source": "vue.d.ts",
           "anchor": "vue-interface-kjdrawexposed"
         }
@@ -4101,6 +4313,13 @@
           "anchor": "root-interface-browserkjpreadresult"
         },
         {
+          "name": "buildKJModificationCommand",
+          "kind": "function",
+          "declaration": "export declare function buildKJModificationCommand(id: KJModificationId, context: KJModificationBuildContext): KJModificationCommand;",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-function-buildkjmodificationcommand"
+        },
+        {
           "name": "buildSDKCapabilityManifest",
           "kind": "function",
           "declaration": "export declare function buildSDKCapabilityManifest(sdk: KJCapabilitySDK): Readonly<{\n    product: \"KJDraw SDK\";\n    sdkVersion: string;\n    documentSchemaVersion: number;\n    geometry: Readonly<{\n        mode: 'native' | 'reference';\n        authoritative: boolean;\n        backend: import(\"./geometry/backend.js\").KJGeometryBackendIdentity;\n        operations: readonly string[];\n        lastFailure: import(\"./geometry/backend.js\").KJGeometryBackendFailure | null;\n    }>;\n    commands: readonly Readonly<{\n        id: string;\n        title: string | undefined;\n        aliases: readonly string[];\n        transactional: boolean;\n        owner: string | undefined;\n        capabilities: Readonly<Record<string, unknown>>;\n    }>[];\n    commandIds: readonly string[];\n    entityTypes: readonly (\"ARC\" | \"ATTDEF\" | \"ATTRIB\" | \"CIRCLE\" | \"DIMENSION\" | \"ELLIPSE\" | \"HATCH\" | \"IMAGE\" | \"INSERT\" | \"LEADER\" | \"LINE\" | \"LWPOLYLINE\" | \"MLEADER\" | \"MTEXT\" | \"POINT\" | \"POLYLINE\" | \"PROXY_ENTITY\" | \"RAY\" | \"REVISION_CLOUD\" | \"SOLID\" | \"SOLID3D\" | \"SPLINE\" | \"TABLE\" | \"TEXT\" | \"TRACE\" | \"VIEWPORT\" | \"WIPEOUT\" | \"XLINE\")[];\n    fileAdapters: readonly KJFileAdapterCapability[];\n}>;",
@@ -4234,6 +4453,13 @@
           "anchor": "root-function-createdeploymentprofile"
         },
         {
+          "name": "createDraftingSession",
+          "kind": "function",
+          "declaration": "export declare function createDraftingSession(tool: KJDraftTool, options?: KJDraftingOptions): KJDraftingSession;",
+          "source": "drafting.d.ts",
+          "anchor": "root-function-createdraftingsession"
+        },
+        {
           "name": "createDXFFileAdapter",
           "kind": "function",
           "declaration": "export declare function createDXFFileAdapter(options?: DxfAdapterOptions): Readonly<KJFileAdapter<KJDocument, string>>;",
@@ -4344,6 +4570,13 @@
           "declaration": "export declare function deepFreeze<T>(value: T, seen?: WeakSet<object>): ReadonlyDeep<T>;",
           "source": "utils.d.ts",
           "anchor": "root-function-deepfreeze"
+        },
+        {
+          "name": "default",
+          "kind": "type",
+          "declaration": "export type { KJWorkbenchLayout } from './workbench.js';",
+          "source": "editor.d.ts",
+          "anchor": "root-type-default"
         },
         {
           "name": "DEFAULT_TOLERANCE",
@@ -4563,6 +4796,20 @@
           "anchor": "root-function-getgeometrybackendstatus"
         },
         {
+          "name": "getKJModificationDefinition",
+          "kind": "function",
+          "declaration": "export declare function getKJModificationDefinition(id: KJModificationId): KJModificationDefinition;",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-function-getkjmodificationdefinition"
+        },
+        {
+          "name": "getKJModificationSelectionCenter",
+          "kind": "function",
+          "declaration": "export declare function getKJModificationSelectionCenter(entities: readonly {\n    readonly payload: Readonly<Record<string, unknown>>;\n}[]): KJModificationPoint;",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-function-getkjmodificationselectioncenter"
+        },
+        {
           "name": "identity3",
           "kind": "const",
           "declaration": "export declare const identity3: () => AffineMatrix3;",
@@ -4722,6 +4969,20 @@
           "declaration": "export declare const KJ_FORMAT_CAPABILITY: Readonly<{\n    readonly EXACT: 'exact';\n    readonly CONVERTED: 'converted';\n    readonly OPAQUE: 'opaque';\n    readonly UNSUPPORTED: 'unsupported';\n}>;",
           "source": "constants.d.ts",
           "anchor": "root-const-kj-format-capability"
+        },
+        {
+          "name": "KJ_MODIFICATION_DEFINITIONS",
+          "kind": "const",
+          "declaration": "export declare const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[];",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-const-kj-modification-definitions"
+        },
+        {
+          "name": "KJ_MODIFICATION_IDS",
+          "kind": "const",
+          "declaration": "export declare const KJ_MODIFICATION_IDS: readonly [\"rotate\", \"scale\", \"mirror\", \"array-rect\", \"array-polar\", \"offset\", \"break\", \"explode\", \"trim\", \"extend\", \"chamfer\", \"fillet\"];",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-const-kj-modification-ids"
         },
         {
           "name": "KJ_OBJECT_KINDS",
@@ -5424,6 +5685,83 @@
           "anchor": "root-interface-kjdocumenttransactionoptions"
         },
         {
+          "name": "KJDraftArcMode",
+          "kind": "type",
+          "declaration": "export type KJDraftArcMode = 'center-start-end' | '3-point';",
+          "source": "drafting.d.ts",
+          "anchor": "root-type-kjdraftarcmode"
+        },
+        {
+          "name": "KJDraftCircleMode",
+          "kind": "type",
+          "declaration": "export type KJDraftCircleMode = 'center-radius' | '2-point' | '3-point';",
+          "source": "drafting.d.ts",
+          "anchor": "root-type-kjdraftcirclemode"
+        },
+        {
+          "name": "KJDraftDimensionType",
+          "kind": "type",
+          "declaration": "export type KJDraftDimensionType = 'ALIGNED' | 'ROTATED' | 'RADIUS' | 'DIAMETER';",
+          "source": "drafting.d.ts",
+          "anchor": "root-type-kjdraftdimensiontype"
+        },
+        {
+          "name": "KJDraftEntitySpec",
+          "kind": "interface",
+          "declaration": "export interface KJDraftEntitySpec {\n    type: KJStandardEntityType;\n    payload: KJObjectPayload;\n    options?: KJObjectSpec;\n}",
+          "source": "drafting.d.ts",
+          "anchor": "root-interface-kjdraftentityspec"
+        },
+        {
+          "name": "KJDraftingOptions",
+          "kind": "interface",
+          "declaration": "export interface KJDraftingOptions {\n    circleMode?: KJDraftCircleMode;\n    arcMode?: KJDraftArcMode;\n    sides?: number;\n    splineDegree?: number;\n    dimensionType?: KJDraftDimensionType;\n    rotation?: number;\n    textPosition?: KJDraftPoint;\n    textOverride?: string | null;\n    textHeight?: number;\n    styleName?: string;\n    patternName?: string;\n    patternScale?: number;\n    patternAngle?: number;\n    solid?: boolean;\n    payload?: KJObjectPayload;\n    entityOptions?: KJObjectSpec;\n    tolerance?: number;\n}",
+          "source": "drafting.d.ts",
+          "anchor": "root-interface-kjdraftingoptions"
+        },
+        {
+          "name": "KJDraftingSession",
+          "kind": "class",
+          "declaration": "export declare class KJDraftingSession {\n    #private;\n    readonly tool: KJDraftTool;\n    constructor(tool: KJDraftTool, options?: KJDraftingOptions);\n    get points(): readonly KJDraftPoint[];\n    get state(): KJDraftState;\n    addPoint(value: KJDraftPoint): KJDraftEntitySpec | null;\n    addCoordinate(input: string, relativeBase?: KJDraftPoint | undefined): KJDraftEntitySpec | null;\n    preview(cursor?: KJDraftPoint): KJDraftEntitySpec | null;\n    finish(): KJDraftEntitySpec;\n    close(): KJDraftEntitySpec;\n    undoPoint(): KJDraftPoint | null;\n    cancel(): void;\n}",
+          "source": "drafting.d.ts",
+          "anchor": "root-class-kjdraftingsession"
+        },
+        {
+          "name": "KJDraftPoint",
+          "kind": "type",
+          "declaration": "export type KJDraftPoint = readonly [number, number];",
+          "source": "drafting.d.ts",
+          "anchor": "root-type-kjdraftpoint"
+        },
+        {
+          "name": "KJDraftPointRole",
+          "kind": "type",
+          "declaration": "export type KJDraftPointRole = 'start' | 'end' | 'vertex' | 'position' | 'origin' | 'directionPoint' | 'center' | 'radiusPoint' | 'diameterPoint1' | 'diameterPoint2' | 'throughPoint' | 'majorAxisPoint' | 'minorAxisPoint' | 'firstCorner' | 'oppositeCorner' | 'controlPoint' | 'boundaryPoint' | 'extensionOrigin1' | 'extensionOrigin2' | 'placement' | 'oppositePoint' | 'pointOnCircle';",
+          "source": "drafting.d.ts",
+          "anchor": "root-type-kjdraftpointrole"
+        },
+        {
+          "name": "KJDraftState",
+          "kind": "interface",
+          "declaration": "export interface KJDraftState {\n    tool: KJDraftTool;\n    status: KJDraftStatus;\n    points: readonly KJDraftPoint[];\n    minimumPoints: number;\n    maximumPoints: number | null;\n    nextPoint: KJDraftPointRole | null;\n    canFinish: boolean;\n    canClose: boolean;\n}",
+          "source": "drafting.d.ts",
+          "anchor": "root-interface-kjdraftstate"
+        },
+        {
+          "name": "KJDraftStatus",
+          "kind": "type",
+          "declaration": "export type KJDraftStatus = 'collecting' | 'complete' | 'cancelled';",
+          "source": "drafting.d.ts",
+          "anchor": "root-type-kjdraftstatus"
+        },
+        {
+          "name": "KJDraftTool",
+          "kind": "type",
+          "declaration": "export type KJDraftTool = 'line' | 'polyline' | 'circle' | 'arc' | 'ellipse' | 'rectangle' | 'polygon' | 'point' | 'ray' | 'xline' | 'spline' | 'hatch' | 'dimension';",
+          "source": "drafting.d.ts",
+          "anchor": "root-type-kjdrafttool"
+        },
+        {
           "name": "KJDRAW_1_0_PRODUCT_CONTRACT",
           "kind": "const",
           "declaration": "export declare const KJDRAW_1_0_PRODUCT_CONTRACT: {\n    readonly id: 'com.kanjie.kjdraw.product@1';\n    readonly deployment: 'provider-neutral';\n    readonly deploymentModes: readonly [\"browser-local\", \"desktop-local\", \"self-hosted\", \"cloud-assisted\", \"hybrid\"];\n    readonly defaultDeployment: 'browser-local';\n    readonly projectAuthority: 'host-selected-provider';\n    readonly providerContracts: readonly [\"project-store\", \"compute\", \"scene\"];\n    readonly authorities: {\n        readonly geometry: 'kjcore-rust';\n        readonly topology: 'kjcore-rust';\n        readonly spatialIndex: 'kjcore-rust';\n        readonly fileIntermediateModel: 'kjcore-rust';\n        readonly workbench: 'typescript-sdk-client';\n        readonly renderer: 'read-only-projection';\n    };\n    readonly projectFile: {\n        readonly extension: '.kjp';\n        readonly mediaType: 'application/vnd.kanjie.kjdraw-project+zip';\n        readonly schema: 'com.kanjie.kjdraw.project@1';\n        readonly container: 'zip64';\n        readonly requiredEntries: readonly [\"manifest.json\", \"drawings/\", \"history/commands.ndjson\"];\n        readonly optionalEntries: readonly [\"assets/\", \"snapshots/\", \"recovery/\", \"diagnostics/\"];\n        readonly durability: 'write-temp-fsync-atomic-replace';\n    };\n    readonly documentFile: {\n        readonly extension: '.kjd';\n        readonly mediaType: 'application/vnd.kanjie.kjdraw-document+json';\n        readonly schema: 'com.kanjie.kjdraw.document@1';\n    };\n    readonly commandProtocol: \"com.kanjie.kjdraw.command@1\";\n    readonly cadVersions: readonly [{\n        readonly label: 'R14';\n        readonly code: 'AC1014';\n    }, {\n        readonly label: '2000';\n        readonly code: 'AC1015';\n    }, {\n        readonly label: '2004';\n        readonly code: 'AC1018';\n    }, {\n        readonly label: '2010';\n        readonly code: 'AC1024';\n    }, {\n        readonly label: '2013';\n        readonly code: 'AC1027';\n    }, {\n        readonly label: '2018';\n        readonly code: 'AC1032';\n    }, {\n        readonly label: '2024';\n        readonly code: 'AC1032';\n    }];\n    readonly domainExtensions: {\n        readonly included: false;\n        readonly policy: 'separate-packages';\n    };\n    readonly extensionRule: 'official-and-third-party-capabilities-use-the-same-public-sdk';\n};",
@@ -5468,14 +5806,14 @@
         {
           "name": "KJDRAW_VERSION",
           "kind": "const",
-          "declaration": "export declare const KJDRAW_VERSION: '1.0.0-rc.2';",
+          "declaration": "export declare const KJDRAW_VERSION: '1.0.0-rc.3';",
           "source": "version.d.ts",
           "anchor": "root-const-kjdraw-version"
         },
         {
           "name": "KJDrawEditor",
           "kind": "class",
-          "declaration": "export declare class KJDrawEditor {\n    #private;\n    readonly workbench: KJDrawWorkbench;\n    readonly ready: Promise<this>;\n    constructor(container: string | HTMLElement | ShadowRoot, options?: KJDrawEditorOptions);\n    get document(): KJDocument | null;\n    get sdk(): KJDrawSDK;\n    get element(): HTMLElement;\n    get disposed(): boolean;\n    get locale(): KJWorkbenchLocale;\n    get theme(): KJWorkbenchTheme;\n    /** Subscribe to an editor event. The return value unsubscribes the listener. */\n    on<Name extends keyof KJDrawEditorEvents>(name: Name, listener: (event: KJDrawEditorEvents[Name]) => void): () => boolean;\n    /** Open a File, Blob, text or bytes. Pass format for bytes without a filename. */\n    open(source: Blob | string | ArrayBuffer | ArrayBufferView, options?: KJWorkbenchOpenOptions): Promise<KJDocument>;\n    /** Save the current drawing, or return its content with download: false. */\n    save(options?: KJDrawEditorSaveOptions): Promise<string | Uint8Array>;\n    setDocument(drawing: KJDocument): Promise<this>;\n    /** Execute an SDK command using the current drawing and its undo history. */\n    execute<TResult = unknown>(command: string, args?: KJCommandArguments): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    undo(): Promise<KJSDKCommandEnvelopeReceipt>;\n    redo(): Promise<KJSDKCommandEnvelopeReceipt>;\n    setSelection(ids: readonly string[]): Promise<readonly string[]>;\n    getSelection(): readonly string[];\n    fit(): this;\n    setTheme(theme: KJWorkbenchTheme): this;\n    setLocale(locale: KJWorkbenchLocale): this;\n    setTool(tool: KJWorkbenchTool): this;\n    setTitle(title: string): this;\n    /** Update presentation and editing mode while preserving the active drawing. */\n    setOptions(options: Pick<KJDrawEditorOptions, 'readonly' | 'grid' | 'toolbar' | 'layers' | 'properties' | 'title' | 'maxFileBytes'>): this;\n    /** Unmount the editor and release its listeners and rendering resources. Safe to call twice. */\n    dispose(): void;\n}",
+          "declaration": "export declare class KJDrawEditor {\n    #private;\n    readonly workbench: KJDrawWorkbench;\n    readonly ready: Promise<this>;\n    constructor(container: string | HTMLElement | ShadowRoot, options?: KJDrawEditorOptions);\n    get document(): KJDocument | null;\n    get sdk(): KJDrawSDK;\n    get element(): HTMLElement;\n    get disposed(): boolean;\n    get locale(): KJWorkbenchLocale;\n    get theme(): KJWorkbenchTheme;\n    get layout(): KJWorkbenchLayout;\n    /** Subscribe to an editor event. The return value unsubscribes the listener. */\n    on<Name extends keyof KJDrawEditorEvents>(name: Name, listener: (event: KJDrawEditorEvents[Name]) => void): () => boolean;\n    /** Open a File, Blob, text or bytes. Pass format for bytes without a filename. */\n    open(source: Blob | string | ArrayBuffer | ArrayBufferView, options?: KJWorkbenchOpenOptions): Promise<KJDocument>;\n    /** Save the current drawing, or return its content with download: false. */\n    save(options?: KJDrawEditorSaveOptions): Promise<string | Uint8Array>;\n    setDocument(drawing: KJDocument): Promise<this>;\n    /** Execute an SDK command using the current drawing and its undo history. */\n    execute<TResult = unknown>(command: string, args?: KJCommandArguments): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    undo(): Promise<KJSDKCommandEnvelopeReceipt>;\n    redo(): Promise<KJSDKCommandEnvelopeReceipt>;\n    setSelection(ids: readonly string[]): Promise<readonly string[]>;\n    getSelection(): readonly string[];\n    fit(): this;\n    setTheme(theme: KJWorkbenchTheme): this;\n    setLayout(layout: KJWorkbenchLayout): this;\n    setLocale(locale: KJWorkbenchLocale): this;\n    setTool(tool: KJWorkbenchTool): this;\n    setTitle(title: string): this;\n    /** Update presentation and editing mode while preserving the active drawing. */\n    setOptions(options: Pick<KJDrawEditorOptions, 'layout' | 'readonly' | 'grid' | 'toolbar' | 'layers' | 'properties' | 'title' | 'maxFileBytes'>): this;\n    /** Unmount the editor and release its listeners and rendering resources. Safe to call twice. */\n    dispose(): void;\n}",
           "source": "editor.d.ts",
           "anchor": "root-class-kjdraweditor"
         },
@@ -5489,7 +5827,7 @@
         {
           "name": "KJDrawEditorOptions",
           "kind": "interface",
-          "declaration": "export interface KJDrawEditorOptions {\n    /** Drawing to open initially. Defaults to the included sample. */\n    document?: KJDocument | 'sample' | 'blank' | null;\n    /** Reuse an application SDK to share commands and plugins. */\n    sdk?: KJDrawSDK;\n    /** Workbench language. Default: en. */\n    locale?: KJWorkbenchLocale;\n    /** Panel and canvas appearance. Default: dark. */\n    theme?: KJWorkbenchTheme;\n    /** Enable inspection and file export with editing controls disabled. Default: false. */\n    readonly?: boolean;\n    /** Show the drawing grid. Default: true. */\n    grid?: boolean;\n    /** Show the ribbon toolbar. Default: true. */\n    toolbar?: boolean;\n    /** Show the layers panel. Default: true. */\n    layers?: boolean;\n    /** Show the properties panel. Default: true. */\n    properties?: boolean;\n    /** Editor title displayed above the drawing. */\n    title?: string;\n    /** Maximum input file size in bytes. Default: 20 MiB. */\n    maxFileBytes?: number;\n    onReady?: (editor: KJDrawEditor) => void;\n    onChange?: (event: KJDrawWorkbenchChange) => void;\n    onSelectionChange?: (event: KJDrawEditorSelectionEvent) => void;\n    onError?: (error: unknown) => void;\n}",
+          "declaration": "export interface KJDrawEditorOptions {\n    /** Drawing to open initially. Defaults to the included sample. */\n    document?: KJDocument | 'sample' | 'blank' | null;\n    /** Reuse an application SDK to share commands and plugins. */\n    sdk?: KJDrawSDK;\n    /** Workbench language. Default: en. */\n    locale?: KJWorkbenchLocale;\n    /** Panel and canvas appearance. Default: dark. */\n    theme?: KJWorkbenchTheme;\n    /** Workbench chrome arrangement. Default: classic. */\n    layout?: KJWorkbenchLayout;\n    /** Enable inspection and file export with editing controls disabled. Default: false. */\n    readonly?: boolean;\n    /** Show the drawing grid. Default: true. */\n    grid?: boolean;\n    /** Show the ribbon toolbar. Default: true. */\n    toolbar?: boolean;\n    /** Show the layers panel. Default: true. */\n    layers?: boolean;\n    /** Show the properties panel. Default: true. */\n    properties?: boolean;\n    /** Editor title displayed above the drawing. */\n    title?: string;\n    /** Maximum input file size in bytes. Default: 20 MiB. */\n    maxFileBytes?: number;\n    onReady?: (editor: KJDrawEditor) => void;\n    onChange?: (event: KJDrawWorkbenchChange) => void;\n    onSelectionChange?: (event: KJDrawEditorSelectionEvent) => void;\n    onError?: (error: unknown) => void;\n}",
           "source": "editor.d.ts",
           "anchor": "root-interface-kjdraweditoroptions"
         },
@@ -5877,6 +6215,69 @@
           "declaration": "export interface KJLinePairOptions {\n    readonly pickPoint1?: unknown;\n    readonly pickPoint2?: unknown;\n    readonly distance?: unknown;\n    readonly distance1?: unknown;\n    readonly distance2?: unknown;\n    readonly radius?: unknown;\n}",
           "source": "editing.d.ts",
           "anchor": "root-interface-kjlinepairoptions"
+        },
+        {
+          "name": "KJLocalizedControlText",
+          "kind": "interface",
+          "declaration": "export interface KJLocalizedControlText {\n    readonly en: string;\n    readonly zh: string;\n}",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-interface-kjlocalizedcontroltext"
+        },
+        {
+          "name": "KJModificationBuildContext",
+          "kind": "interface",
+          "declaration": "export interface KJModificationBuildContext {\n    readonly ids: readonly string[];\n    readonly values?: Readonly<Record<string, unknown>>;\n    readonly points?: readonly KJModificationPoint[];\n    readonly selectionCenter?: KJModificationPoint;\n}",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-interface-kjmodificationbuildcontext"
+        },
+        {
+          "name": "KJModificationCommand",
+          "kind": "interface",
+          "declaration": "export interface KJModificationCommand {\n    readonly command: string;\n    readonly arguments: KJCommandArguments;\n}",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-interface-kjmodificationcommand"
+        },
+        {
+          "name": "KJModificationDefinition",
+          "kind": "interface",
+          "declaration": "export interface KJModificationDefinition {\n    readonly id: KJModificationId;\n    readonly command: string;\n    readonly label: KJLocalizedControlText;\n    readonly description: KJLocalizedControlText;\n    readonly minSelection: number;\n    readonly maxSelection?: number;\n    /** When present, every selected entity must use one of these types. */\n    readonly supportedEntityTypes?: readonly string[];\n    readonly fields: readonly KJModificationFieldDefinition[];\n    readonly pointKeys: readonly KJModificationPointDefinition[];\n}",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-interface-kjmodificationdefinition"
+        },
+        {
+          "name": "KJModificationFieldDefinition",
+          "kind": "interface",
+          "declaration": "export interface KJModificationFieldDefinition {\n    readonly key: string;\n    readonly label: KJLocalizedControlText;\n    readonly type: KJModificationFieldType;\n    readonly default: number | boolean;\n    readonly min?: number;\n    readonly max?: number;\n    readonly step?: number;\n}",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-interface-kjmodificationfielddefinition"
+        },
+        {
+          "name": "KJModificationFieldType",
+          "kind": "type",
+          "declaration": "export type KJModificationFieldType = 'number' | 'integer' | 'boolean';",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-type-kjmodificationfieldtype"
+        },
+        {
+          "name": "KJModificationId",
+          "kind": "type",
+          "declaration": "export type KJModificationId = 'rotate' | 'scale' | 'mirror' | 'array-rect' | 'array-polar' | 'offset' | 'break' | 'explode' | 'trim' | 'extend' | 'chamfer' | 'fillet';",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-type-kjmodificationid"
+        },
+        {
+          "name": "KJModificationPoint",
+          "kind": "type",
+          "declaration": "export type KJModificationPoint = readonly [number, number];",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-type-kjmodificationpoint"
+        },
+        {
+          "name": "KJModificationPointDefinition",
+          "kind": "interface",
+          "declaration": "export interface KJModificationPointDefinition {\n    readonly key: string;\n    readonly label: KJLocalizedControlText;\n}",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-interface-kjmodificationpointdefinition"
         },
         {
           "name": "KJNamedSelectionSet",
@@ -6808,6 +7209,13 @@
           "declaration": "export interface OrientationOptions {\n    tolerance?: KJTolerance;\n}",
           "source": "geometry/intersections.d.ts",
           "anchor": "root-interface-orientationoptions"
+        },
+        {
+          "name": "parseDraftCoordinate",
+          "kind": "function",
+          "declaration": "export declare function parseDraftCoordinate(input: string, relativeBase?: KJDraftPoint): KJDraftPoint;",
+          "source": "drafting.d.ts",
+          "anchor": "root-function-parsedraftcoordinate"
         },
         {
           "name": "perpendicular2",
@@ -9688,9 +10096,16 @@
           "anchor": "renderer-canvas-interface-kjcanvashit"
         },
         {
+          "name": "KJCanvasPreviewEntity",
+          "kind": "interface",
+          "declaration": "export interface KJCanvasPreviewEntity {\n    type: string;\n    payload: Readonly<Record<string, unknown>>;\n}",
+          "source": "canvas-renderer.d.ts",
+          "anchor": "renderer-canvas-interface-kjcanvaspreviewentity"
+        },
+        {
           "name": "KJCanvasRenderer",
           "kind": "class",
-          "declaration": "export declare class KJCanvasRenderer {\n    #private;\n    readonly canvas: HTMLCanvasElement;\n    readonly context: CanvasRenderingContext2D;\n    readonly camera: KJCanvasCamera;\n    constructor(canvas: HTMLCanvasElement, options?: KJCanvasRendererOptions);\n    get document(): KJDocument | null;\n    get spaceId(): string | null;\n    get theme(): KJCanvasTheme;\n    get grid(): boolean;\n    get selection(): readonly string[];\n    get report(): Readonly<KJCanvasRenderReport>;\n    setDocument(document: KJDocument | null): this;\n    setTheme(theme: KJCanvasTheme): this;\n    setGrid(enabled: boolean): this;\n    setSelection(ids?: readonly string[]): this;\n    setSpace(spaceId: string | null): this;\n    setSceneProvider(provider: KJCanvasSceneProvider | null): this;\n    resize(width?: number, height?: number): this;\n    worldToScreen(input: Point2): Point2;\n    screenToWorld(input: Point2): Point2;\n    panBy(screenDx: number, screenDy: number): this;\n    zoomAt(factor: number, screenPoint?: Point2): this;\n    fit(): this;\n    hitTest(screenPoint: Point2, tolerancePixels?: number): KJCanvasHit | null;\n    render(): Readonly<KJCanvasRenderReport>;\n    dispose(): void;\n}",
+          "declaration": "export declare class KJCanvasRenderer {\n    #private;\n    readonly canvas: HTMLCanvasElement;\n    readonly context: CanvasRenderingContext2D;\n    readonly camera: KJCanvasCamera;\n    constructor(canvas: HTMLCanvasElement, options?: KJCanvasRendererOptions);\n    get document(): KJDocument | null;\n    get spaceId(): string | null;\n    get theme(): KJCanvasTheme;\n    get grid(): boolean;\n    get selection(): readonly string[];\n    get report(): Readonly<KJCanvasRenderReport>;\n    setDocument(document: KJDocument | null): this;\n    setTheme(theme: KJCanvasTheme): this;\n    setGrid(enabled: boolean): this;\n    setSelection(ids?: readonly string[]): this;\n    setSpace(spaceId: string | null): this;\n    setSceneProvider(provider: KJCanvasSceneProvider | null): this;\n    resize(width?: number, height?: number): this;\n    worldToScreen(input: Point2): Point2;\n    screenToWorld(input: Point2): Point2;\n    panBy(screenDx: number, screenDy: number): this;\n    zoomAt(factor: number, screenPoint?: Point2): this;\n    fit(): this;\n    hitTest(screenPoint: Point2, tolerancePixels?: number): KJCanvasHit | null;\n    render(): Readonly<KJCanvasRenderReport>;\n    /** Paint temporary native geometry without inserting objects or changing history. Call render() to clear it. */\n    drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2): this;\n    dispose(): void;\n}",
           "source": "canvas-renderer.d.ts",
           "anchor": "renderer-canvas-class-kjcanvasrenderer"
         },
@@ -9738,6 +10153,13 @@
       "anchor": "module-workbench",
       "symbols": [
         {
+          "name": "default",
+          "kind": "type",
+          "declaration": "export type { KJWorkbenchLayout } from './layout.js';",
+          "source": "workbench.d.ts",
+          "anchor": "workbench-type-default"
+        },
+        {
           "name": "defineKJDrawWorkbenchElement",
           "kind": "function",
           "declaration": "export declare function defineKJDrawWorkbenchElement(tagName?: string): CustomElementConstructor;",
@@ -9747,7 +10169,7 @@
         {
           "name": "KJDrawWorkbench",
           "kind": "class",
-          "declaration": "export declare class KJDrawWorkbench {\n    #private;\n    readonly container: HTMLElement | ShadowRoot;\n    readonly root: HTMLElement;\n    readonly sdk: KJDrawSDK;\n    readonly renderer: KJCanvasRenderer;\n    readonly ready: Promise<this>;\n    constructor(container: HTMLElement | ShadowRoot, options?: KJDrawWorkbenchOptions);\n    get document(): KJDocument | null;\n    get locale(): KJWorkbenchLocale;\n    get theme(): KJWorkbenchTheme;\n    get tool(): KJWorkbenchTool;\n    /** Change presentation without replacing the drawing or its undo history. */\n    setOptions(options: Pick<KJDrawWorkbenchOptions, 'readonly' | 'grid' | 'toolbar' | 'showLayers' | 'showInspector' | 'title' | 'maxFileBytes'>): this;\n    setLocale(locale: KJWorkbenchLocale): this;\n    snapshot(): Readonly<KJWorkbenchSnapshot>;\n    setTheme(theme: KJWorkbenchTheme): this;\n    setTool(tool: KJWorkbenchTool): this;\n    setDocument(document: KJDocument): Promise<this>;\n    open(source: unknown, options?: KJWorkbenchOpenOptions): Promise<KJDocument>;\n    execute<TResult = unknown>(command: string, args?: KJCommandArguments): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    save(format?: 'KJD' | 'DXF', options?: KJWorkbenchSaveOptions): Promise<unknown>;\n    dispose(): void;\n}",
+          "declaration": "export declare class KJDrawWorkbench {\n    #private;\n    readonly container: HTMLElement | ShadowRoot;\n    readonly root: HTMLElement;\n    readonly sdk: KJDrawSDK;\n    readonly renderer: KJCanvasRenderer;\n    readonly ready: Promise<this>;\n    constructor(container: HTMLElement | ShadowRoot, options?: KJDrawWorkbenchOptions);\n    get document(): KJDocument | null;\n    get locale(): KJWorkbenchLocale;\n    get theme(): KJWorkbenchTheme;\n    get layout(): KJWorkbenchLayout;\n    get tool(): KJWorkbenchTool;\n    /** Change presentation without replacing the drawing or its undo history. */\n    setOptions(options: Pick<KJDrawWorkbenchOptions, 'readonly' | 'grid' | 'toolbar' | 'showLayers' | 'showInspector' | 'title' | 'maxFileBytes' | 'layout'>): this;\n    setLocale(locale: KJWorkbenchLocale): this;\n    snapshot(): Readonly<KJWorkbenchSnapshot>;\n    setTheme(theme: KJWorkbenchTheme): this;\n    setLayout(value: KJWorkbenchLayout): this;\n    setTool(tool: KJWorkbenchTool): this;\n    setDocument(document: KJDocument): Promise<this>;\n    open(source: unknown, options?: KJWorkbenchOpenOptions): Promise<KJDocument>;\n    execute<TResult = unknown>(command: string, args?: KJCommandArguments, options?: {\n        expectedRevision?: number;\n    }): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    save(format?: 'KJD' | 'DXF', options?: KJWorkbenchSaveOptions): Promise<unknown>;\n    dispose(): void;\n}",
           "source": "workbench.d.ts",
           "anchor": "workbench-class-kjdrawworkbench"
         },
@@ -9761,7 +10183,7 @@
         {
           "name": "KJDrawWorkbenchOptions",
           "kind": "interface",
-          "declaration": "export interface KJDrawWorkbenchOptions {\n    sdk?: KJDrawSDK;\n    document?: KJDocument | 'blank' | 'sample' | null;\n    locale?: KJWorkbenchLocale;\n    theme?: KJWorkbenchTheme;\n    readonly?: boolean;\n    grid?: boolean;\n    showLayers?: boolean;\n    showInspector?: boolean;\n    toolbar?: boolean;\n    title?: string;\n    /** Browser-side ceiling checked before a selected file is read into memory. */\n    maxFileBytes?: number;\n    onChange?: (event: KJDrawWorkbenchChange) => void;\n    onError?: (error: unknown) => void;\n}",
+          "declaration": "export interface KJDrawWorkbenchOptions {\n    sdk?: KJDrawSDK;\n    document?: KJDocument | 'blank' | 'sample' | null;\n    locale?: KJWorkbenchLocale;\n    theme?: KJWorkbenchTheme;\n    readonly?: boolean;\n    grid?: boolean;\n    showLayers?: boolean;\n    showInspector?: boolean;\n    toolbar?: boolean;\n    layout?: KJWorkbenchLayout;\n    title?: string;\n    /** Browser-side ceiling checked before a selected file is read into memory. */\n    maxFileBytes?: number;\n    onChange?: (event: KJDrawWorkbenchChange) => void;\n    onError?: (error: unknown) => void;\n}",
           "source": "workbench.d.ts",
           "anchor": "workbench-interface-kjdrawworkbenchoptions"
         },
@@ -9789,7 +10211,7 @@
         {
           "name": "KJWorkbenchSnapshot",
           "kind": "interface",
-          "declaration": "export interface KJWorkbenchSnapshot {\n    locale: KJWorkbenchLocale;\n    theme: KJWorkbenchTheme;\n    tool: KJWorkbenchTool;\n    documentId: string | null;\n    revision: number;\n    entityCount: number;\n    selectedIds: readonly string[];\n    render: ReturnType<KJCanvasRenderer['render']>;\n}",
+          "declaration": "export interface KJWorkbenchSnapshot {\n    locale: KJWorkbenchLocale;\n    theme: KJWorkbenchTheme;\n    layout: KJWorkbenchLayout;\n    tool: KJWorkbenchTool;\n    documentId: string | null;\n    revision: number;\n    entityCount: number;\n    selectedIds: readonly string[];\n    render: ReturnType<KJCanvasRenderer['render']>;\n}",
           "source": "workbench.d.ts",
           "anchor": "workbench-interface-kjworkbenchsnapshot"
         },
@@ -9803,7 +10225,7 @@
         {
           "name": "KJWorkbenchTool",
           "kind": "type",
-          "declaration": "export type KJWorkbenchTool = 'select' | 'pan' | 'line' | 'polyline' | 'circle' | 'arc' | 'rectangle' | 'text' | 'measure';",
+          "declaration": "export type KJWorkbenchTool = 'select' | 'pan' | KJDraftTool | 'text' | 'measure' | 'move' | 'copy';",
           "source": "workbench.d.ts",
           "anchor": "workbench-type-kjworkbenchtool"
         },

@@ -11,23 +11,34 @@ summary.zh: 将完整 KJDraw 编辑器作为 Vue 组件挂载，通过暴露的 
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'
-import { KJDraw, type KJDrawExposed } from '@kanjieteam/kjdraw/vue'
+import { KJDraw, type KJDrawExposed, type KJWorkbenchLayout } from '@kanjieteam/kjdraw/vue'
 
 const editor = ref<KJDrawExposed | null>(null)
+const layout = ref<KJWorkbenchLayout>('classic')
+
+async function moveSelection() {
+  const instance = editor.value
+  const ids = instance?.getSelection() ?? []
+  if (!instance || !ids.length) return
+  await instance.execute('MOVE', { ids, dx: 10, dy: 0 })
+}
 </script>
 
 <template>
+  <button @click="layout = 'focus'">Focus drawing</button>
+  <button @click="moveSelection">Move selected</button>
   <KJDraw
     ref="editor"
     document="sample"
     locale="en"
     theme="dark"
+    :layout="layout"
     style="width: 100%; height: 720px"
   />
 </template>
 ```
 
-This is the shortest path to a functional CAD surface. The exposed ref provides `ready`, `open()`, `save()`, `execute()`, selection, view and lifecycle methods. Compatible prop changes update the editor in place, and Vue disposes it when the component unmounts. See the [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/) for every option and method.
+This is the shortest path to a functional CAD surface. The exposed ref provides `ready`, `open()`, `save()`, `execute()`, selection, view and lifecycle methods. Since `1.0.0-rc.3`, `layout="classic"` provides the full CAD ribbon and panels, `compact` shortens the ribbon, and `focus` prioritizes the canvas. Layout prop changes update the existing editor in place, preserving its drawing, selection and undo history. Vue disposes it when the component unmounts. See the [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/) for every option and method.
 
 ## A minimal composable {#minimal-composable}
 
@@ -76,23 +87,34 @@ Use `KJDraw` for an immediately usable CAD surface or the composable for a produ
 ```vue
 <script setup lang="ts">
 import { ref } from 'vue'
-import { KJDraw, type KJDrawExposed } from '@kanjieteam/kjdraw/vue'
+import { KJDraw, type KJDrawExposed, type KJWorkbenchLayout } from '@kanjieteam/kjdraw/vue'
 
 const editor = ref<KJDrawExposed | null>(null)
+const layout = ref<KJWorkbenchLayout>('classic')
+
+async function moveSelection() {
+  const instance = editor.value
+  const ids = instance?.getSelection() ?? []
+  if (!instance || !ids.length) return
+  await instance.execute('MOVE', { ids, dx: 10, dy: 0 })
+}
 </script>
 
 <template>
+  <button @click="layout = 'focus'">专注图纸</button>
+  <button @click="moveSelection">移动已选对象</button>
   <KJDraw
     ref="editor"
     document="sample"
     locale="zh-CN"
     theme="dark"
+    :layout="layout"
     style="width: 100%; height: 720px"
   />
 </template>
 ```
 
-这是得到可用 CAD 界面的最短路径。暴露的 ref 提供 `ready`、`open()`、`save()`、`execute()`、选择、视图与生命周期方法。兼容属性变化会原位更新编辑器，Vue 卸载组件时会自动释放资源。全部选项与方法见 [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/)。
+这是得到可用 CAD 界面的最短路径。暴露的 ref 提供 `ready`、`open()`、`save()`、`execute()`、选择、视图与生命周期方法。自 `1.0.0-rc.3` 起，`layout="classic"` 提供完整 CAD Ribbon 与面板，`compact` 使用较矮的 Ribbon，`focus` 让画布优先。布局 prop 变化会原位更新同一个编辑器，图档、选择集与撤销历史都保持不变；Vue 卸载组件时会自动释放资源。全部选项与方法见 [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/)。
 
 ## 最小 Composable {#minimal-composable}
 

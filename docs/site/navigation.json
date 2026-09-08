@@ -4,7 +4,7 @@
     {
       "id": "start",
       "title": { "en": "Get started", "zh": "开始使用" },
-      "pages": ["introduction", "quickstart", "installation"]
+      "pages": ["introduction", "quickstart", "installation", "workbench"]
     },
     {
       "id": "foundations",

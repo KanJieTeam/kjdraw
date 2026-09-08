@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/vue/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=fb56e3fac627392c">
+  <link rel="stylesheet" href="../style.css?v=3480d0448f9c8846">
   <title>Vue integration · KJDraw Docs</title>
 </head>
 <body>
@@ -20,13 +20,14 @@
   </header>
   <div class="shell">
     <aside id="sidebar" class="sidebar">
-      <div class="version"><span><span class="lang-en">Current documentation</span><span class="lang-zh">当前文档</span></span><select id="docs-version" aria-label="Documentation version"><option>v1.0.0-rc.2 · current</option></select></div>
+      <div class="version"><span><span class="lang-en">Current documentation</span><span class="lang-zh">当前文档</span></span><select id="docs-version" aria-label="Documentation version"><option>v1.0.0-rc.3 · current</option></select></div>
       <nav>
         <section class="nav-group">
           <h3 class="lang-en">Get started</h3><h3 class="lang-zh">开始使用</h3>
           <a href="../"><span class="lang-en">Introduction</span><span class="lang-zh">简介</span></a>
           <a href="../quickstart/"><span class="lang-en">Quickstart</span><span class="lang-zh">快速上手</span></a>
           <a href="../installation/"><span class="lang-en">Installation</span><span class="lang-zh">安装</span></a>
+          <a href="../workbench/"><span class="lang-en">Using the workbench</span><span class="lang-zh">工作台操作指南</span></a>
         </section>
         <section class="nav-group">
           <h3 class="lang-en">Foundations</h3><h3 class="lang-zh">核心基础</h3>
@@ -54,7 +55,7 @@
           <a class="api-nav" href="../api/"><b>API</b><span class="lang-en">Editor API and type reference</span><span class="lang-zh">Editor API 与类型参考</span></a>
         </section>
       </nav>
-      <footer><a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/site/pages/vue.md"><span class="lang-en">Edit this page</span><span class="lang-zh">编辑此页</span> ↗</a><span>1.0.0-rc.2</span></footer>
+      <footer><a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/site/pages/vue.md"><span class="lang-en">Edit this page</span><span class="lang-zh">编辑此页</span> ↗</a><span>1.0.0-rc.3</span></footer>
     </aside>
     <main>
       <div class="content">
@@ -65,21 +66,32 @@
           <h2 id="en-vue-editor-component">Render the editor component<a class="heading-anchor" href="#en-vue-editor-component" aria-label="Link to Render the editor component">#</a></h2>
 <pre data-language="vue"><button class="copy" type="button">Copy</button><code>&lt;script setup lang=&quot;ts&quot;&gt;
 import { ref } from &#39;vue&#39;
-import { KJDraw, type KJDrawExposed } from &#39;@kanjieteam/kjdraw/vue&#39;
+import { KJDraw, type KJDrawExposed, type KJWorkbenchLayout } from &#39;@kanjieteam/kjdraw/vue&#39;
 
 const editor = ref&lt;KJDrawExposed | null&gt;(null)
+const layout = ref&lt;KJWorkbenchLayout&gt;(&#39;classic&#39;)
+
+async function moveSelection() {
+  const instance = editor.value
+  const ids = instance?.getSelection() ?? []
+  if (!instance || !ids.length) return
+  await instance.execute(&#39;MOVE&#39;, { ids, dx: 10, dy: 0 })
+}
 &lt;/script&gt;
 
 &lt;template&gt;
+  &lt;button @click=&quot;layout = &#39;focus&#39;&quot;&gt;Focus drawing&lt;/button&gt;
+  &lt;button @click=&quot;moveSelection&quot;&gt;Move selected&lt;/button&gt;
   &lt;KJDraw
     ref=&quot;editor&quot;
     document=&quot;sample&quot;
     locale=&quot;en&quot;
     theme=&quot;dark&quot;
+    :layout=&quot;layout&quot;
     style=&quot;width: 100%; height: 720px&quot;
   /&gt;
 &lt;/template&gt;</code></pre>
-<p>This is the shortest path to a functional CAD surface. The exposed ref provides <code>ready</code>, <code>open()</code>, <code>save()</code>, <code>execute()</code>, selection, view and lifecycle methods. Compatible prop changes update the editor in place, and Vue disposes it when the component unmounts. See the <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a> for every option and method.</p>
+<p>This is the shortest path to a functional CAD surface. The exposed ref provides <code>ready</code>, <code>open()</code>, <code>save()</code>, <code>execute()</code>, selection, view and lifecycle methods. Since <code>1.0.0-rc.3</code>, <code>layout=&quot;classic&quot;</code> provides the full CAD ribbon and panels, <code>compact</code> shortens the ribbon, and <code>focus</code> prioritizes the canvas. Layout prop changes update the existing editor in place, preserving its drawing, selection and undo history. Vue disposes it when the component unmounts. See the <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a> for every option and method.</p>
 <h2 id="en-vue-minimal-composable">A minimal composable<a class="heading-anchor" href="#en-vue-minimal-composable" aria-label="Link to A minimal composable">#</a></h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { onScopeDispose, ref, shallowRef } from &#39;vue&#39;
 import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
@@ -122,21 +134,32 @@ export function useKJDraw() {
           <h2 id="zh-vue-editor-component">渲染编辑器组件<a class="heading-anchor" href="#zh-vue-editor-component" aria-label="Link to 渲染编辑器组件">#</a></h2>
 <pre data-language="vue"><button class="copy" type="button">Copy</button><code>&lt;script setup lang=&quot;ts&quot;&gt;
 import { ref } from &#39;vue&#39;
-import { KJDraw, type KJDrawExposed } from &#39;@kanjieteam/kjdraw/vue&#39;
+import { KJDraw, type KJDrawExposed, type KJWorkbenchLayout } from &#39;@kanjieteam/kjdraw/vue&#39;
 
 const editor = ref&lt;KJDrawExposed | null&gt;(null)
+const layout = ref&lt;KJWorkbenchLayout&gt;(&#39;classic&#39;)
+
+async function moveSelection() {
+  const instance = editor.value
+  const ids = instance?.getSelection() ?? []
+  if (!instance || !ids.length) return
+  await instance.execute(&#39;MOVE&#39;, { ids, dx: 10, dy: 0 })
+}
 &lt;/script&gt;
 
 &lt;template&gt;
+  &lt;button @click=&quot;layout = &#39;focus&#39;&quot;&gt;专注图纸&lt;/button&gt;
+  &lt;button @click=&quot;moveSelection&quot;&gt;移动已选对象&lt;/button&gt;
   &lt;KJDraw
     ref=&quot;editor&quot;
     document=&quot;sample&quot;
     locale=&quot;zh-CN&quot;
     theme=&quot;dark&quot;
+    :layout=&quot;layout&quot;
     style=&quot;width: 100%; height: 720px&quot;
   /&gt;
 &lt;/template&gt;</code></pre>
-<p>这是得到可用 CAD 界面的最短路径。暴露的 ref 提供 <code>ready</code>、<code>open()</code>、<code>save()</code>、<code>execute()</code>、选择、视图与生命周期方法。兼容属性变化会原位更新编辑器，Vue 卸载组件时会自动释放资源。全部选项与方法见 <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a>。</p>
+<p>这是得到可用 CAD 界面的最短路径。暴露的 ref 提供 <code>ready</code>、<code>open()</code>、<code>save()</code>、<code>execute()</code>、选择、视图与生命周期方法。自 <code>1.0.0-rc.3</code> 起，<code>layout=&quot;classic&quot;</code> 提供完整 CAD Ribbon 与面板，<code>compact</code> 使用较矮的 Ribbon，<code>focus</code> 让画布优先。布局 prop 变化会原位更新同一个编辑器，图档、选择集与撤销历史都保持不变；Vue 卸载组件时会自动释放资源。全部选项与方法见 <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a>。</p>
 <h2 id="zh-vue-minimal-composable">最小 Composable<a class="heading-anchor" href="#zh-vue-minimal-composable" aria-label="Link to 最小 Composable">#</a></h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { onScopeDispose, ref, shallowRef } from &#39;vue&#39;
 import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
@@ -178,6 +201,6 @@ export function useKJDraw() {
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=fb56e3fac627392c"></script>
+  <script type="module" src="../app.js?v=3480d0448f9c8846"></script>
 </body>
 </html>

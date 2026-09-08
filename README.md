@@ -7,21 +7,23 @@
 <p align="center">An extensible CAD foundation for engineering applications, interactive workbenches and reviewable AI agents.</p>
 
 <p align="center">
-  <a href="https://github.com/KanJieTeam/kjdraw/releases/tag/v1.0.0-rc.2"><img src="https://img.shields.io/badge/release-v1.0.0--rc.2-2863f0?style=flat-square&labelColor=30363d" alt="GitHub release v1.0.0-rc.2"></a>
-  <a href="https://www.npmjs.com/package/@kanjieteam/kjdraw"><img src="https://img.shields.io/npm/v/@kanjieteam/kjdraw?style=flat-square&label=npm_registry&labelColor=30363d&color=2863f0" alt="npm registry version; RC2 pending"></a>
+  <a href="https://github.com/KanJieTeam/kjdraw/releases"><img src="https://img.shields.io/github/v/release/KanJieTeam/kjdraw?include_prereleases&style=flat-square&labelColor=30363d&color=2863f0" alt="GitHub release"></a>
+  <a href="https://www.npmjs.com/package/@kanjieteam/kjdraw"><img src="https://img.shields.io/npm/v/@kanjieteam/kjdraw/next?style=flat-square&label=npm_next&labelColor=30363d&color=2863f0" alt="npm release candidate"></a>
   <a href="https://kanjieteam.github.io/kjdraw/"><img src="https://img.shields.io/badge/▲_Live_Demo-open-2863f0?style=flat-square&labelColor=30363d" alt="Live demo"></a>
   <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><img src="https://img.shields.io/badge/▣_Docs-latest-2863f0?style=flat-square&labelColor=30363d" alt="Documentation"></a>
   <a href="https://github.com/KanJieTeam/kjdraw"><img src="https://img.shields.io/badge/GitHub-source-181717?style=flat-square&logo=github" alt="GitHub source"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
 </p>
 
-<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow.gif" alt="KJDraw opens an engineering drawing, previews an Agent-authored CAD diff, commits it atomically, verifies the saved project and undoes the result" width="100%"></a></p>
+<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow.gif" alt="KJDraw explores industry drawings, reviews an Agent change, then draws a mounting plate, arrays bolt holes and adds dimensions from scratch" width="100%"></a></p>
 
-<p align="center"><sub>Real workbench capture: explore industry drawings, review an Agent change, save and undo.</sub></p>
+<p align="center"><sub>Real workbench capture: explore industry drawings, review an Agent change, then draw and dimension a part from scratch.</sub></p>
 
 <p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><strong>Open the workbench</strong></a> · <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><strong>Get started</strong></a> · <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/"><strong>API reference</strong></a> · <a href="README.zh-CN.md">简体中文</a></p>
 
 Explore original site plans, architectural floor plans, road profiles and mechanical details. Switch drawings, inspect layers, edit geometry and save your work. The energy-campus example also includes an interactive Agent review workflow. No account or upload is needed to try the workbench.
+
+Start a drawing of your own: construct circles, arcs, ellipses, polygons and splines; enter exact coordinates; repeat parts with rectangular or polar arrays; add hatching and dimensions. The [workbench guide](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/) walks through the tools, point order, keyboard input and saving.
 
 ## What you can build
 
@@ -50,13 +52,13 @@ Build the interface your users need while sharing drawing data, commands and und
 
 ## Start in 60 seconds
 
-Install the published RC2 tarball directly from its GitHub Release:
+Install the release-candidate channel:
 
 ```sh
-npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz
+npm install @kanjieteam/kjdraw@next
 ```
 
-The `v1.0.0-rc.2` GitHub Release is live and contains the editor API used below. Publication to the npm registry is still pending. After npm lists this version, `npm install @kanjieteam/kjdraw@next` and `npm install @kanjieteam/kjdraw@1.0.0-rc.2` will provide the same candidate.
+The layout switcher and interactive move workflow require **1.0.0-rc.3 or newer**. Check the installed version with `npm list @kanjieteam/kjdraw`. Release candidates use `next`; the unqualified package still follows the older `latest` channel.
 
 Mount the editor:
 
@@ -69,6 +71,7 @@ const editor = createKJDrawEditor(
     document: 'sample',
     locale: 'en',
     theme: 'dark',
+    layout: 'classic', // 'classic' | 'compact' | 'focus' (RC3+)
   },
 )
 
@@ -207,7 +210,7 @@ The package is ESM-first and has zero runtime dependencies. Read the [architectu
 
 ## Toward 1.0
 
-The `v1.0.0-rc.2` candidate is published as a [GitHub Release](https://github.com/KanJieTeam/kjdraw/releases/tag/v1.0.0-rc.2); npm registry distribution is pending. Follow the [release notes](docs/releases/1.0.0-rc.2.md) for changes and the [roadmap](docs/roadmap.md) for what comes next.
+Follow the [RC3 release notes](docs/releases/1.0.0-rc.3.md) for interaction and layout changes, and the [roadmap](docs/roadmap.md) for what comes next. The [workbench guide](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/) walks through opening, moving, copying and saving a drawing.
 
 ## Develop and contribute
 

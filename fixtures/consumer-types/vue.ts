@@ -11,9 +11,10 @@ export const VueKJDrawConsumer = defineComponent({
       document: 'sample',
       locale: 'zh-CN',
       theme: 'light',
+      layout: 'compact',
       title: 'Vue 工程图纸',
       style: { width: '100%', height: '720px' },
-      onReady: () => editor.value?.fit(),
+      onReady: () => { editor.value?.setLayout('focus'); editor.value?.fit() },
     })
   },
 })

@@ -16,7 +16,9 @@
     <nav class="top-links"><a href="../">Editor API</a><a href="../../"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="reference-shell">
-    <aside class="reference-sidebar"><div class="version"><span>TYPE REFERENCE</span><strong>v1.0.0-rc.2</strong></div><nav><a href="#module-samples"><code>./samples</code></a>
+    <aside class="reference-sidebar"><div class="version"><span>TYPE REFERENCE</span><strong>v1.0.0-rc.3</strong></div><nav><a href="#module-drafting"><code>./drafting</code></a>
+<a href="#module-modification-controls"><code>./modification-controls</code></a>
+<a href="#module-samples"><code>./samples</code></a>
 <a href="#module-editor"><code>./editor</code></a>
 <a href="#module-core"><code>./core</code></a>
 <a href="#module-files"><code>./files</code></a>
@@ -51,7 +53,312 @@
     <main class="reference-main"><article>
       <section class="reference-intro" id="api-reference"><p class="eyebrow">TYPESCRIPT</p><h1><span class="lang-en">Complete API reference</span><span class="lang-zh">完整 API 参考</span></h1><p class="lead"><span class="lang-en">Browse the declarations for the root package and every public subpath. Start with the Editor API for application integration.</span><span class="lang-zh">浏览根包及每个公开子路径的类型声明；应用接入请先从 Editor API 开始。</span></p><a class="primary-link" href="../"><span class="lang-en">Open Editor API</span><span class="lang-zh">打开 Editor API</span> →</a></section>
       <div id="empty-state" hidden><h2><span class="lang-en">No matching API</span><span class="lang-zh">未找到匹配 API</span></h2></div>
-      <section class="api-module" id="module-samples" data-module="@kanjieteam/kjdraw/samples">
+      <section class="api-module" id="module-drafting" data-module="@kanjieteam/kjdraw/drafting">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/drafting</code></h2></div><a class="permalink" href="#module-drafting" aria-label="Link to @kanjieteam/kjdraw/drafting">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/drafting.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="drafting-function-createdraftingsession" data-search="createdraftingsession function @kanjieteam/kjdraw/drafting export declare function createdraftingsession(tool: kjdrafttool, options?: kjdraftingoptions): kjdraftingsession;">
+      <header><div><span class="kind">function</span><h3>createDraftingSession</h3></div><a class="permalink" href="#drafting-function-createdraftingsession" aria-label="Link to createDraftingSession">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createDraftingSession(tool: KJDraftTool, options?: KJDraftingOptions): KJDraftingSession;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="drafting-type-kjdraftarcmode" data-search="kjdraftarcmode type @kanjieteam/kjdraw/drafting export type kjdraftarcmode = &#39;center-start-end&#39; | &#39;3-point&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDraftArcMode</h3></div><a class="permalink" href="#drafting-type-kjdraftarcmode" aria-label="Link to KJDraftArcMode">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDraftArcMode = &#39;center-start-end&#39; | &#39;3-point&#39;;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="drafting-type-kjdraftcirclemode" data-search="kjdraftcirclemode type @kanjieteam/kjdraw/drafting export type kjdraftcirclemode = &#39;center-radius&#39; | &#39;2-point&#39; | &#39;3-point&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDraftCircleMode</h3></div><a class="permalink" href="#drafting-type-kjdraftcirclemode" aria-label="Link to KJDraftCircleMode">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDraftCircleMode = &#39;center-radius&#39; | &#39;2-point&#39; | &#39;3-point&#39;;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="drafting-type-kjdraftdimensiontype" data-search="kjdraftdimensiontype type @kanjieteam/kjdraw/drafting export type kjdraftdimensiontype = &#39;aligned&#39; | &#39;rotated&#39; | &#39;radius&#39; | &#39;diameter&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDraftDimensionType</h3></div><a class="permalink" href="#drafting-type-kjdraftdimensiontype" aria-label="Link to KJDraftDimensionType">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDraftDimensionType = &#39;ALIGNED&#39; | &#39;ROTATED&#39; | &#39;RADIUS&#39; | &#39;DIAMETER&#39;;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="drafting-interface-kjdraftentityspec" data-search="kjdraftentityspec interface @kanjieteam/kjdraw/drafting export interface kjdraftentityspec {
+    type: kjstandardentitytype;
+    payload: kjobjectpayload;
+    options?: kjobjectspec;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDraftEntitySpec</h3></div><a class="permalink" href="#drafting-interface-kjdraftentityspec" aria-label="Link to KJDraftEntitySpec">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDraftEntitySpec {
+    type: KJStandardEntityType;
+    payload: KJObjectPayload;
+    options?: KJObjectSpec;
+}</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="drafting-interface-kjdraftingoptions" data-search="kjdraftingoptions interface @kanjieteam/kjdraw/drafting export interface kjdraftingoptions {
+    circlemode?: kjdraftcirclemode;
+    arcmode?: kjdraftarcmode;
+    sides?: number;
+    splinedegree?: number;
+    dimensiontype?: kjdraftdimensiontype;
+    rotation?: number;
+    textposition?: kjdraftpoint;
+    textoverride?: string | null;
+    textheight?: number;
+    stylename?: string;
+    patternname?: string;
+    patternscale?: number;
+    patternangle?: number;
+    solid?: boolean;
+    payload?: kjobjectpayload;
+    entityoptions?: kjobjectspec;
+    tolerance?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDraftingOptions</h3></div><a class="permalink" href="#drafting-interface-kjdraftingoptions" aria-label="Link to KJDraftingOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDraftingOptions {
+    circleMode?: KJDraftCircleMode;
+    arcMode?: KJDraftArcMode;
+    sides?: number;
+    splineDegree?: number;
+    dimensionType?: KJDraftDimensionType;
+    rotation?: number;
+    textPosition?: KJDraftPoint;
+    textOverride?: string | null;
+    textHeight?: number;
+    styleName?: string;
+    patternName?: string;
+    patternScale?: number;
+    patternAngle?: number;
+    solid?: boolean;
+    payload?: KJObjectPayload;
+    entityOptions?: KJObjectSpec;
+    tolerance?: number;
+}</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="drafting-class-kjdraftingsession" data-search="kjdraftingsession class @kanjieteam/kjdraw/drafting export declare class kjdraftingsession {
+    #private;
+    readonly tool: kjdrafttool;
+    constructor(tool: kjdrafttool, options?: kjdraftingoptions);
+    get points(): readonly kjdraftpoint[];
+    get state(): kjdraftstate;
+    addpoint(value: kjdraftpoint): kjdraftentityspec | null;
+    addcoordinate(input: string, relativebase?: kjdraftpoint | undefined): kjdraftentityspec | null;
+    preview(cursor?: kjdraftpoint): kjdraftentityspec | null;
+    finish(): kjdraftentityspec;
+    close(): kjdraftentityspec;
+    undopoint(): kjdraftpoint | null;
+    cancel(): void;
+}">
+      <header><div><span class="kind">class</span><h3>KJDraftingSession</h3></div><a class="permalink" href="#drafting-class-kjdraftingsession" aria-label="Link to KJDraftingSession">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare class KJDraftingSession {
+    #private;
+    readonly tool: KJDraftTool;
+    constructor(tool: KJDraftTool, options?: KJDraftingOptions);
+    get points(): readonly KJDraftPoint[];
+    get state(): KJDraftState;
+    addPoint(value: KJDraftPoint): KJDraftEntitySpec | null;
+    addCoordinate(input: string, relativeBase?: KJDraftPoint | undefined): KJDraftEntitySpec | null;
+    preview(cursor?: KJDraftPoint): KJDraftEntitySpec | null;
+    finish(): KJDraftEntitySpec;
+    close(): KJDraftEntitySpec;
+    undoPoint(): KJDraftPoint | null;
+    cancel(): void;
+}</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="drafting-type-kjdraftpoint" data-search="kjdraftpoint type @kanjieteam/kjdraw/drafting export type kjdraftpoint = readonly [number, number];">
+      <header><div><span class="kind">type</span><h3>KJDraftPoint</h3></div><a class="permalink" href="#drafting-type-kjdraftpoint" aria-label="Link to KJDraftPoint">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDraftPoint = readonly [number, number];</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="drafting-type-kjdraftpointrole" data-search="kjdraftpointrole type @kanjieteam/kjdraw/drafting export type kjdraftpointrole = &#39;start&#39; | &#39;end&#39; | &#39;vertex&#39; | &#39;position&#39; | &#39;origin&#39; | &#39;directionpoint&#39; | &#39;center&#39; | &#39;radiuspoint&#39; | &#39;diameterpoint1&#39; | &#39;diameterpoint2&#39; | &#39;throughpoint&#39; | &#39;majoraxispoint&#39; | &#39;minoraxispoint&#39; | &#39;firstcorner&#39; | &#39;oppositecorner&#39; | &#39;controlpoint&#39; | &#39;boundarypoint&#39; | &#39;extensionorigin1&#39; | &#39;extensionorigin2&#39; | &#39;placement&#39; | &#39;oppositepoint&#39; | &#39;pointoncircle&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDraftPointRole</h3></div><a class="permalink" href="#drafting-type-kjdraftpointrole" aria-label="Link to KJDraftPointRole">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDraftPointRole = &#39;start&#39; | &#39;end&#39; | &#39;vertex&#39; | &#39;position&#39; | &#39;origin&#39; | &#39;directionPoint&#39; | &#39;center&#39; | &#39;radiusPoint&#39; | &#39;diameterPoint1&#39; | &#39;diameterPoint2&#39; | &#39;throughPoint&#39; | &#39;majorAxisPoint&#39; | &#39;minorAxisPoint&#39; | &#39;firstCorner&#39; | &#39;oppositeCorner&#39; | &#39;controlPoint&#39; | &#39;boundaryPoint&#39; | &#39;extensionOrigin1&#39; | &#39;extensionOrigin2&#39; | &#39;placement&#39; | &#39;oppositePoint&#39; | &#39;pointOnCircle&#39;;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="drafting-interface-kjdraftstate" data-search="kjdraftstate interface @kanjieteam/kjdraw/drafting export interface kjdraftstate {
+    tool: kjdrafttool;
+    status: kjdraftstatus;
+    points: readonly kjdraftpoint[];
+    minimumpoints: number;
+    maximumpoints: number | null;
+    nextpoint: kjdraftpointrole | null;
+    canfinish: boolean;
+    canclose: boolean;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDraftState</h3></div><a class="permalink" href="#drafting-interface-kjdraftstate" aria-label="Link to KJDraftState">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDraftState {
+    tool: KJDraftTool;
+    status: KJDraftStatus;
+    points: readonly KJDraftPoint[];
+    minimumPoints: number;
+    maximumPoints: number | null;
+    nextPoint: KJDraftPointRole | null;
+    canFinish: boolean;
+    canClose: boolean;
+}</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="drafting-type-kjdraftstatus" data-search="kjdraftstatus type @kanjieteam/kjdraw/drafting export type kjdraftstatus = &#39;collecting&#39; | &#39;complete&#39; | &#39;cancelled&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDraftStatus</h3></div><a class="permalink" href="#drafting-type-kjdraftstatus" aria-label="Link to KJDraftStatus">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDraftStatus = &#39;collecting&#39; | &#39;complete&#39; | &#39;cancelled&#39;;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="drafting-type-kjdrafttool" data-search="kjdrafttool type @kanjieteam/kjdraw/drafting export type kjdrafttool = &#39;line&#39; | &#39;polyline&#39; | &#39;circle&#39; | &#39;arc&#39; | &#39;ellipse&#39; | &#39;rectangle&#39; | &#39;polygon&#39; | &#39;point&#39; | &#39;ray&#39; | &#39;xline&#39; | &#39;spline&#39; | &#39;hatch&#39; | &#39;dimension&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDraftTool</h3></div><a class="permalink" href="#drafting-type-kjdrafttool" aria-label="Link to KJDraftTool">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDraftTool = &#39;line&#39; | &#39;polyline&#39; | &#39;circle&#39; | &#39;arc&#39; | &#39;ellipse&#39; | &#39;rectangle&#39; | &#39;polygon&#39; | &#39;point&#39; | &#39;ray&#39; | &#39;xline&#39; | &#39;spline&#39; | &#39;hatch&#39; | &#39;dimension&#39;;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="drafting-function-parsedraftcoordinate" data-search="parsedraftcoordinate function @kanjieteam/kjdraw/drafting export declare function parsedraftcoordinate(input: string, relativebase?: kjdraftpoint): kjdraftpoint;">
+      <header><div><span class="kind">function</span><h3>parseDraftCoordinate</h3></div><a class="permalink" href="#drafting-function-parsedraftcoordinate" aria-label="Link to parseDraftCoordinate">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function parseDraftCoordinate(input: string, relativeBase?: KJDraftPoint): KJDraftPoint;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-modification-controls" data-module="@kanjieteam/kjdraw/modification-controls">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/modification-controls</code></h2></div><a class="permalink" href="#module-modification-controls" aria-label="Link to @kanjieteam/kjdraw/modification-controls">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/modification-controls.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="modification-controls-function-buildkjmodificationcommand" data-search="buildkjmodificationcommand function @kanjieteam/kjdraw/modification-controls export declare function buildkjmodificationcommand(id: kjmodificationid, context: kjmodificationbuildcontext): kjmodificationcommand;">
+      <header><div><span class="kind">function</span><h3>buildKJModificationCommand</h3></div><a class="permalink" href="#modification-controls-function-buildkjmodificationcommand" aria-label="Link to buildKJModificationCommand">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function buildKJModificationCommand(id: KJModificationId, context: KJModificationBuildContext): KJModificationCommand;</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="modification-controls-function-getkjmodificationdefinition" data-search="getkjmodificationdefinition function @kanjieteam/kjdraw/modification-controls export declare function getkjmodificationdefinition(id: kjmodificationid): kjmodificationdefinition;">
+      <header><div><span class="kind">function</span><h3>getKJModificationDefinition</h3></div><a class="permalink" href="#modification-controls-function-getkjmodificationdefinition" aria-label="Link to getKJModificationDefinition">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function getKJModificationDefinition(id: KJModificationId): KJModificationDefinition;</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="modification-controls-function-getkjmodificationselectioncenter" data-search="getkjmodificationselectioncenter function @kanjieteam/kjdraw/modification-controls export declare function getkjmodificationselectioncenter(entities: readonly {
+    readonly payload: readonly&lt;record&lt;string, unknown&gt;&gt;;
+}[]): kjmodificationpoint;">
+      <header><div><span class="kind">function</span><h3>getKJModificationSelectionCenter</h3></div><a class="permalink" href="#modification-controls-function-getkjmodificationselectioncenter" aria-label="Link to getKJModificationSelectionCenter">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function getKJModificationSelectionCenter(entities: readonly {
+    readonly payload: Readonly&lt;Record&lt;string, unknown&gt;&gt;;
+}[]): KJModificationPoint;</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="modification-controls-const-kj-modification-definitions" data-search="kj_modification_definitions const @kanjieteam/kjdraw/modification-controls export declare const kj_modification_definitions: readonly kjmodificationdefinition[];">
+      <header><div><span class="kind">const</span><h3>KJ_MODIFICATION_DEFINITIONS</h3></div><a class="permalink" href="#modification-controls-const-kj-modification-definitions" aria-label="Link to KJ_MODIFICATION_DEFINITIONS">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[];</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="modification-controls-const-kj-modification-ids" data-search="kj_modification_ids const @kanjieteam/kjdraw/modification-controls export declare const kj_modification_ids: readonly [&quot;rotate&quot;, &quot;scale&quot;, &quot;mirror&quot;, &quot;array-rect&quot;, &quot;array-polar&quot;, &quot;offset&quot;, &quot;break&quot;, &quot;explode&quot;, &quot;trim&quot;, &quot;extend&quot;, &quot;chamfer&quot;, &quot;fillet&quot;];">
+      <header><div><span class="kind">const</span><h3>KJ_MODIFICATION_IDS</h3></div><a class="permalink" href="#modification-controls-const-kj-modification-ids" aria-label="Link to KJ_MODIFICATION_IDS">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJ_MODIFICATION_IDS: readonly [&quot;rotate&quot;, &quot;scale&quot;, &quot;mirror&quot;, &quot;array-rect&quot;, &quot;array-polar&quot;, &quot;offset&quot;, &quot;break&quot;, &quot;explode&quot;, &quot;trim&quot;, &quot;extend&quot;, &quot;chamfer&quot;, &quot;fillet&quot;];</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="modification-controls-interface-kjlocalizedcontroltext" data-search="kjlocalizedcontroltext interface @kanjieteam/kjdraw/modification-controls export interface kjlocalizedcontroltext {
+    readonly en: string;
+    readonly zh: string;
+}">
+      <header><div><span class="kind">interface</span><h3>KJLocalizedControlText</h3></div><a class="permalink" href="#modification-controls-interface-kjlocalizedcontroltext" aria-label="Link to KJLocalizedControlText">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJLocalizedControlText {
+    readonly en: string;
+    readonly zh: string;
+}</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="modification-controls-interface-kjmodificationbuildcontext" data-search="kjmodificationbuildcontext interface @kanjieteam/kjdraw/modification-controls export interface kjmodificationbuildcontext {
+    readonly ids: readonly string[];
+    readonly values?: readonly&lt;record&lt;string, unknown&gt;&gt;;
+    readonly points?: readonly kjmodificationpoint[];
+    readonly selectioncenter?: kjmodificationpoint;
+}">
+      <header><div><span class="kind">interface</span><h3>KJModificationBuildContext</h3></div><a class="permalink" href="#modification-controls-interface-kjmodificationbuildcontext" aria-label="Link to KJModificationBuildContext">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModificationBuildContext {
+    readonly ids: readonly string[];
+    readonly values?: Readonly&lt;Record&lt;string, unknown&gt;&gt;;
+    readonly points?: readonly KJModificationPoint[];
+    readonly selectionCenter?: KJModificationPoint;
+}</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="modification-controls-interface-kjmodificationcommand" data-search="kjmodificationcommand interface @kanjieteam/kjdraw/modification-controls export interface kjmodificationcommand {
+    readonly command: string;
+    readonly arguments: kjcommandarguments;
+}">
+      <header><div><span class="kind">interface</span><h3>KJModificationCommand</h3></div><a class="permalink" href="#modification-controls-interface-kjmodificationcommand" aria-label="Link to KJModificationCommand">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModificationCommand {
+    readonly command: string;
+    readonly arguments: KJCommandArguments;
+}</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="modification-controls-interface-kjmodificationdefinition" data-search="kjmodificationdefinition interface @kanjieteam/kjdraw/modification-controls export interface kjmodificationdefinition {
+    readonly id: kjmodificationid;
+    readonly command: string;
+    readonly label: kjlocalizedcontroltext;
+    readonly description: kjlocalizedcontroltext;
+    readonly minselection: number;
+    readonly maxselection?: number;
+    /** when present, every selected entity must use one of these types. */
+    readonly supportedentitytypes?: readonly string[];
+    readonly fields: readonly kjmodificationfielddefinition[];
+    readonly pointkeys: readonly kjmodificationpointdefinition[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJModificationDefinition</h3></div><a class="permalink" href="#modification-controls-interface-kjmodificationdefinition" aria-label="Link to KJModificationDefinition">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModificationDefinition {
+    readonly id: KJModificationId;
+    readonly command: string;
+    readonly label: KJLocalizedControlText;
+    readonly description: KJLocalizedControlText;
+    readonly minSelection: number;
+    readonly maxSelection?: number;
+    /** When present, every selected entity must use one of these types. */
+    readonly supportedEntityTypes?: readonly string[];
+    readonly fields: readonly KJModificationFieldDefinition[];
+    readonly pointKeys: readonly KJModificationPointDefinition[];
+}</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="modification-controls-interface-kjmodificationfielddefinition" data-search="kjmodificationfielddefinition interface @kanjieteam/kjdraw/modification-controls export interface kjmodificationfielddefinition {
+    readonly key: string;
+    readonly label: kjlocalizedcontroltext;
+    readonly type: kjmodificationfieldtype;
+    readonly default: number | boolean;
+    readonly min?: number;
+    readonly max?: number;
+    readonly step?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJModificationFieldDefinition</h3></div><a class="permalink" href="#modification-controls-interface-kjmodificationfielddefinition" aria-label="Link to KJModificationFieldDefinition">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModificationFieldDefinition {
+    readonly key: string;
+    readonly label: KJLocalizedControlText;
+    readonly type: KJModificationFieldType;
+    readonly default: number | boolean;
+    readonly min?: number;
+    readonly max?: number;
+    readonly step?: number;
+}</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="modification-controls-type-kjmodificationfieldtype" data-search="kjmodificationfieldtype type @kanjieteam/kjdraw/modification-controls export type kjmodificationfieldtype = &#39;number&#39; | &#39;integer&#39; | &#39;boolean&#39;;">
+      <header><div><span class="kind">type</span><h3>KJModificationFieldType</h3></div><a class="permalink" href="#modification-controls-type-kjmodificationfieldtype" aria-label="Link to KJModificationFieldType">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJModificationFieldType = &#39;number&#39; | &#39;integer&#39; | &#39;boolean&#39;;</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="modification-controls-type-kjmodificationid" data-search="kjmodificationid type @kanjieteam/kjdraw/modification-controls export type kjmodificationid = &#39;rotate&#39; | &#39;scale&#39; | &#39;mirror&#39; | &#39;array-rect&#39; | &#39;array-polar&#39; | &#39;offset&#39; | &#39;break&#39; | &#39;explode&#39; | &#39;trim&#39; | &#39;extend&#39; | &#39;chamfer&#39; | &#39;fillet&#39;;">
+      <header><div><span class="kind">type</span><h3>KJModificationId</h3></div><a class="permalink" href="#modification-controls-type-kjmodificationid" aria-label="Link to KJModificationId">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJModificationId = &#39;rotate&#39; | &#39;scale&#39; | &#39;mirror&#39; | &#39;array-rect&#39; | &#39;array-polar&#39; | &#39;offset&#39; | &#39;break&#39; | &#39;explode&#39; | &#39;trim&#39; | &#39;extend&#39; | &#39;chamfer&#39; | &#39;fillet&#39;;</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="modification-controls-type-kjmodificationpoint" data-search="kjmodificationpoint type @kanjieteam/kjdraw/modification-controls export type kjmodificationpoint = readonly [number, number];">
+      <header><div><span class="kind">type</span><h3>KJModificationPoint</h3></div><a class="permalink" href="#modification-controls-type-kjmodificationpoint" aria-label="Link to KJModificationPoint">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJModificationPoint = readonly [number, number];</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="modification-controls-interface-kjmodificationpointdefinition" data-search="kjmodificationpointdefinition interface @kanjieteam/kjdraw/modification-controls export interface kjmodificationpointdefinition {
+    readonly key: string;
+    readonly label: kjlocalizedcontroltext;
+}">
+      <header><div><span class="kind">interface</span><h3>KJModificationPointDefinition</h3></div><a class="permalink" href="#modification-controls-interface-kjmodificationpointdefinition" aria-label="Link to KJModificationPointDefinition">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModificationPointDefinition {
+    readonly key: string;
+    readonly label: KJLocalizedControlText;
+}</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-samples" data-module="@kanjieteam/kjdraw/samples">
   <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/samples</code></h2></div><a class="permalink" href="#module-samples" aria-label="Link to @kanjieteam/kjdraw/samples">#</a></header>
   <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/samples.d.ts</code></p>
   <div class="api-symbols">
@@ -96,6 +403,11 @@
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createKJDrawEditor(container: string | HTMLElement | ShadowRoot, options?: KJDrawEditorOptions): KJDrawEditor;</code></pre>
       <p class="source-path">editor.d.ts</p>
     </article>
+<article class="api-symbol" id="editor-type-default" data-search="default type @kanjieteam/kjdraw/editor export type { kjworkbenchlayout } from &#39;./workbench.js&#39;;">
+      <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#editor-type-default" aria-label="Link to default">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJWorkbenchLayout } from &#39;./workbench.js&#39;;</code></pre>
+      <p class="source-path">editor.d.ts</p>
+    </article>
 <article class="api-symbol" id="editor-class-kjdraweditor" data-search="kjdraweditor class @kanjieteam/kjdraw/editor export declare class kjdraweditor {
     #private;
     readonly workbench: kjdrawworkbench;
@@ -107,6 +419,7 @@
     get disposed(): boolean;
     get locale(): kjworkbenchlocale;
     get theme(): kjworkbenchtheme;
+    get layout(): kjworkbenchlayout;
     /** subscribe to an editor event. the return value unsubscribes the listener. */
     on&lt;name extends keyof kjdraweditorevents&gt;(name: name, listener: (event: kjdraweditorevents[name]) =&gt; void): () =&gt; boolean;
     /** open a file, blob, text or bytes. pass format for bytes without a filename. */
@@ -122,11 +435,12 @@
     getselection(): readonly string[];
     fit(): this;
     settheme(theme: kjworkbenchtheme): this;
+    setlayout(layout: kjworkbenchlayout): this;
     setlocale(locale: kjworkbenchlocale): this;
     settool(tool: kjworkbenchtool): this;
     settitle(title: string): this;
     /** update presentation and editing mode while preserving the active drawing. */
-    setoptions(options: pick&lt;kjdraweditoroptions, &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;layers&#39; | &#39;properties&#39; | &#39;title&#39; | &#39;maxfilebytes&#39;&gt;): this;
+    setoptions(options: pick&lt;kjdraweditoroptions, &#39;layout&#39; | &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;layers&#39; | &#39;properties&#39; | &#39;title&#39; | &#39;maxfilebytes&#39;&gt;): this;
     /** unmount the editor and release its listeners and rendering resources. safe to call twice. */
     dispose(): void;
 }">
@@ -142,6 +456,7 @@
     get disposed(): boolean;
     get locale(): KJWorkbenchLocale;
     get theme(): KJWorkbenchTheme;
+    get layout(): KJWorkbenchLayout;
     /** Subscribe to an editor event. The return value unsubscribes the listener. */
     on&lt;Name extends keyof KJDrawEditorEvents&gt;(name: Name, listener: (event: KJDrawEditorEvents[Name]) =&gt; void): () =&gt; boolean;
     /** Open a File, Blob, text or bytes. Pass format for bytes without a filename. */
@@ -157,11 +472,12 @@
     getSelection(): readonly string[];
     fit(): this;
     setTheme(theme: KJWorkbenchTheme): this;
+    setLayout(layout: KJWorkbenchLayout): this;
     setLocale(locale: KJWorkbenchLocale): this;
     setTool(tool: KJWorkbenchTool): this;
     setTitle(title: string): this;
     /** Update presentation and editing mode while preserving the active drawing. */
-    setOptions(options: Pick&lt;KJDrawEditorOptions, &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;layers&#39; | &#39;properties&#39; | &#39;title&#39; | &#39;maxFileBytes&#39;&gt;): this;
+    setOptions(options: Pick&lt;KJDrawEditorOptions, &#39;layout&#39; | &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;layers&#39; | &#39;properties&#39; | &#39;title&#39; | &#39;maxFileBytes&#39;&gt;): this;
     /** Unmount the editor and release its listeners and rendering resources. Safe to call twice. */
     dispose(): void;
 }</code></pre>
@@ -199,6 +515,8 @@
     locale?: kjworkbenchlocale;
     /** panel and canvas appearance. default: dark. */
     theme?: kjworkbenchtheme;
+    /** workbench chrome arrangement. default: classic. */
+    layout?: kjworkbenchlayout;
     /** enable inspection and file export with editing controls disabled. default: false. */
     readonly?: boolean;
     /** show the drawing grid. default: true. */
@@ -228,6 +546,8 @@
     locale?: KJWorkbenchLocale;
     /** Panel and canvas appearance. Default: dark. */
     theme?: KJWorkbenchTheme;
+    /** Workbench chrome arrangement. Default: classic. */
+    layout?: KJWorkbenchLayout;
     /** Enable inspection and file export with editing controls disabled. Default: false. */
     readonly?: boolean;
     /** Show the drawing grid. Default: true. */
@@ -3691,9 +4011,9 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_PLUGIN_SCHEMA_VERSION = 1;</code></pre>
       <p class="source-path">plugin-contract.d.ts</p>
     </article>
-<article class="api-symbol" id="core-const-kjdraw-version" data-search="kjdraw_version const @kanjieteam/kjdraw/core export declare const kjdraw_version: &#39;1.0.0-rc.2&#39;;">
+<article class="api-symbol" id="core-const-kjdraw-version" data-search="kjdraw_version const @kanjieteam/kjdraw/core export declare const kjdraw_version: &#39;1.0.0-rc.3&#39;;">
       <header><div><span class="kind">const</span><h3>KJDRAW_VERSION</h3></div><a class="permalink" href="#core-const-kjdraw-version" aria-label="Link to KJDRAW_VERSION">#</a></header>
-      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_VERSION: &#39;1.0.0-rc.2&#39;;</code></pre>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_VERSION: &#39;1.0.0-rc.3&#39;;</code></pre>
       <p class="source-path">version.d.ts</p>
     </article>
 <article class="api-symbol" id="core-class-kjdrawerror" data-search="kjdrawerror class @kanjieteam/kjdraw/core export declare class kjdrawerror extends error {
@@ -7549,9 +7869,9 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export { createKJDrawEditor };</code></pre>
       <p class="source-path">react.d.ts</p>
     </article>
-<article class="api-symbol" id="react-type-default" data-search="default type @kanjieteam/kjdraw/react export type { kjdraweditor, kjdraweditorevents, kjdraweditoroptions, kjdraweditorsaveoptions, kjdraweditorselectionevent, } from &#39;./editor.js&#39;;">
+<article class="api-symbol" id="react-type-default" data-search="default type @kanjieteam/kjdraw/react export type { kjdraweditor, kjdraweditorevents, kjdraweditoroptions, kjdraweditorsaveoptions, kjdraweditorselectionevent, kjworkbenchlayout, } from &#39;./editor.js&#39;;">
       <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#react-type-default" aria-label="Link to default">#</a></header>
-      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, } from &#39;./editor.js&#39;;</code></pre>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, KJWorkbenchLayout, } from &#39;./editor.js&#39;;</code></pre>
       <p class="source-path">react.d.ts</p>
     </article>
 <article class="api-symbol" id="react-const-kjdraw" data-search="kjdraw const @kanjieteam/kjdraw/react export declare const kjdraw: import(&quot;react&quot;).forwardrefexoticcomponent&lt;kjdrawprops &amp; import(&quot;react&quot;).refattributes&lt;kjdraweditor&gt;&gt;;">
@@ -7589,9 +7909,9 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export { createKJDrawEditor };</code></pre>
       <p class="source-path">vue.d.ts</p>
     </article>
-<article class="api-symbol" id="vue-type-default" data-search="default type @kanjieteam/kjdraw/vue export type { kjdraweditor, kjdraweditorevents, kjdraweditoroptions, kjdraweditorsaveoptions, kjdraweditorselectionevent, } from &#39;./editor.js&#39;;">
+<article class="api-symbol" id="vue-type-default" data-search="default type @kanjieteam/kjdraw/vue export type { kjdraweditor, kjdraweditorevents, kjdraweditoroptions, kjdraweditorsaveoptions, kjdraweditorselectionevent, kjworkbenchlayout, } from &#39;./editor.js&#39;;">
       <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#vue-type-default" aria-label="Link to default">#</a></header>
-      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, } from &#39;./editor.js&#39;;</code></pre>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJDrawEditor, KJDrawEditorEvents, KJDrawEditorOptions, KJDrawEditorSaveOptions, KJDrawEditorSelectionEvent, KJWorkbenchLayout, } from &#39;./editor.js&#39;;</code></pre>
       <p class="source-path">vue.d.ts</p>
     </article>
 <article class="api-symbol" id="vue-const-kjdraw" data-search="kjdraw const @kanjieteam/kjdraw/vue export declare const kjdraw: import(&quot;vue&quot;).definecomponent&lt;import(&quot;vue&quot;).extractproptypes&lt;{
@@ -7609,6 +7929,10 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     };
     theme: {
         type: proptype&lt;kjworkbenchtheme&gt;;
+        default: string;
+    };
+    layout: {
+        type: proptype&lt;kjworkbenchlayout&gt;;
         default: string;
     };
     readonly: {
@@ -7674,6 +7998,10 @@ export declare function assertPlainObject(value: unknown, label: string): Record
         type: proptype&lt;kjworkbenchtheme&gt;;
         default: string;
     };
+    layout: {
+        type: proptype&lt;kjworkbenchlayout&gt;;
+        default: string;
+    };
     readonly: {
         type: booleanconstructor;
         default: boolean;
@@ -7723,6 +8051,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     sdk: kjdrawsdk;
     locale: kjworkbenchlocale;
     theme: kjworkbenchtheme;
+    layout: &quot;classic&quot; | &quot;compact&quot; | &quot;focus&quot;;
     readonly: boolean;
     grid: boolean;
     toolbar: boolean;
@@ -7751,6 +8080,10 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     };
     theme: {
         type: PropType&lt;KJWorkbenchTheme&gt;;
+        default: string;
+    };
+    layout: {
+        type: PropType&lt;KJWorkbenchLayout&gt;;
         default: string;
     };
     readonly: {
@@ -7816,6 +8149,10 @@ export declare function assertPlainObject(value: unknown, label: string): Record
         type: PropType&lt;KJWorkbenchTheme&gt;;
         default: string;
     };
+    layout: {
+        type: PropType&lt;KJWorkbenchLayout&gt;;
+        default: string;
+    };
     readonly: {
         type: BooleanConstructor;
         default: boolean;
@@ -7865,6 +8202,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     sdk: KJDrawSDK;
     locale: KJWorkbenchLocale;
     theme: KJWorkbenchTheme;
+    layout: &quot;classic&quot; | &quot;compact&quot; | &quot;focus&quot;;
     readonly: boolean;
     grid: boolean;
     toolbar: boolean;
@@ -7890,6 +8228,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     execute&lt;tresult = unknown&gt;(command: string, args?: kjcommandarguments): promise&lt;kjsdkcommandenvelopereceipt&lt;tresult&gt;&gt;;
     setdocument(document: kjdocument): promise&lt;kjdraweditor&gt;;
     settheme(theme: kjworkbenchtheme): kjdraweditor;
+    setlayout(layout: kjworkbenchlayout): kjdraweditor;
     setlocale(locale: kjworkbenchlocale): kjdraweditor;
     setselection(ids: readonly string[]): promise&lt;readonly string[]&gt;;
     getselection(): readonly string[];
@@ -7910,6 +8249,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     execute&lt;TResult = unknown&gt;(command: string, args?: KJCommandArguments): Promise&lt;KJSDKCommandEnvelopeReceipt&lt;TResult&gt;&gt;;
     setDocument(document: KJDocument): Promise&lt;KJDrawEditor&gt;;
     setTheme(theme: KJWorkbenchTheme): KJDrawEditor;
+    setLayout(layout: KJWorkbenchLayout): KJDrawEditor;
     setLocale(locale: KJWorkbenchLocale): KJDrawEditor;
     setSelection(ids: readonly string[]): Promise&lt;readonly string[]&gt;;
     getSelection(): readonly string[];
@@ -8174,6 +8514,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
 }</code></pre>
       <p class="source-path">browser-project-store.d.ts</p>
     </article>
+<article class="api-symbol" id="root-function-buildkjmodificationcommand" data-search="buildkjmodificationcommand function @kanjieteam/kjdraw export declare function buildkjmodificationcommand(id: kjmodificationid, context: kjmodificationbuildcontext): kjmodificationcommand;">
+      <header><div><span class="kind">function</span><h3>buildKJModificationCommand</h3></div><a class="permalink" href="#root-function-buildkjmodificationcommand" aria-label="Link to buildKJModificationCommand">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function buildKJModificationCommand(id: KJModificationId, context: KJModificationBuildContext): KJModificationCommand;</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-function-buildsdkcapabilitymanifest" data-search="buildsdkcapabilitymanifest function @kanjieteam/kjdraw export declare function buildsdkcapabilitymanifest(sdk: kjcapabilitysdk): readonly&lt;{
     product: &quot;kjdraw sdk&quot;;
     sdkversion: string;
@@ -8357,6 +8702,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createDeploymentProfile(options?: KJDeploymentProfileOptions): Readonly&lt;KJDeploymentProfile&gt;;</code></pre>
       <p class="source-path">deployment.d.ts</p>
     </article>
+<article class="api-symbol" id="root-function-createdraftingsession" data-search="createdraftingsession function @kanjieteam/kjdraw export declare function createdraftingsession(tool: kjdrafttool, options?: kjdraftingoptions): kjdraftingsession;">
+      <header><div><span class="kind">function</span><h3>createDraftingSession</h3></div><a class="permalink" href="#root-function-createdraftingsession" aria-label="Link to createDraftingSession">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createDraftingSession(tool: KJDraftTool, options?: KJDraftingOptions): KJDraftingSession;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-function-createdxffileadapter" data-search="createdxffileadapter function @kanjieteam/kjdraw export declare function createdxffileadapter(options?: dxfadapteroptions): readonly&lt;kjfileadapter&lt;kjdocument, string&gt;&gt;;">
       <header><div><span class="kind">function</span><h3>createDXFFileAdapter</h3></div><a class="permalink" href="#root-function-createdxffileadapter" aria-label="Link to createDXFFileAdapter">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createDXFFileAdapter(options?: DxfAdapterOptions): Readonly&lt;KJFileAdapter&lt;KJDocument, string&gt;&gt;;</code></pre>
@@ -8436,6 +8786,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <header><div><span class="kind">function</span><h3>deepFreeze</h3></div><a class="permalink" href="#root-function-deepfreeze" aria-label="Link to deepFreeze">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function deepFreeze&lt;T&gt;(value: T, seen?: WeakSet&lt;object&gt;): ReadonlyDeep&lt;T&gt;;</code></pre>
       <p class="source-path">utils.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-default" data-search="default type @kanjieteam/kjdraw export type { kjworkbenchlayout } from &#39;./workbench.js&#39;;">
+      <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#root-type-default" aria-label="Link to default">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJWorkbenchLayout } from &#39;./workbench.js&#39;;</code></pre>
+      <p class="source-path">editor.d.ts</p>
     </article>
 <article class="api-symbol" id="root-const-default-tolerance" data-search="default_tolerance const @kanjieteam/kjdraw export declare const default_tolerance: kjtolerance;">
       <header><div><span class="kind">const</span><h3>DEFAULT_TOLERANCE</h3></div><a class="permalink" href="#root-const-default-tolerance" aria-label="Link to DEFAULT_TOLERANCE">#</a></header>
@@ -8639,6 +8994,20 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <header><div><span class="kind">function</span><h3>getGeometryBackendStatus</h3></div><a class="permalink" href="#root-function-getgeometrybackendstatus" aria-label="Link to getGeometryBackendStatus">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function getGeometryBackendStatus(): KJGeometryBackendStatus;</code></pre>
       <p class="source-path">geometry/backend.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-function-getkjmodificationdefinition" data-search="getkjmodificationdefinition function @kanjieteam/kjdraw export declare function getkjmodificationdefinition(id: kjmodificationid): kjmodificationdefinition;">
+      <header><div><span class="kind">function</span><h3>getKJModificationDefinition</h3></div><a class="permalink" href="#root-function-getkjmodificationdefinition" aria-label="Link to getKJModificationDefinition">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function getKJModificationDefinition(id: KJModificationId): KJModificationDefinition;</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-function-getkjmodificationselectioncenter" data-search="getkjmodificationselectioncenter function @kanjieteam/kjdraw export declare function getkjmodificationselectioncenter(entities: readonly {
+    readonly payload: readonly&lt;record&lt;string, unknown&gt;&gt;;
+}[]): kjmodificationpoint;">
+      <header><div><span class="kind">function</span><h3>getKJModificationSelectionCenter</h3></div><a class="permalink" href="#root-function-getkjmodificationselectioncenter" aria-label="Link to getKJModificationSelectionCenter">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function getKJModificationSelectionCenter(entities: readonly {
+    readonly payload: Readonly&lt;Record&lt;string, unknown&gt;&gt;;
+}[]): KJModificationPoint;</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
     </article>
 <article class="api-symbol" id="root-const-identity3" data-search="identity3 const @kanjieteam/kjdraw export declare const identity3: () =&gt; affinematrix3;">
       <header><div><span class="kind">const</span><h3>identity3</h3></div><a class="permalink" href="#root-const-identity3" aria-label="Link to identity3">#</a></header>
@@ -9382,6 +9751,16 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     readonly UNSUPPORTED: &#39;unsupported&#39;;
 }&gt;;</code></pre>
       <p class="source-path">constants.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-const-kj-modification-definitions" data-search="kj_modification_definitions const @kanjieteam/kjdraw export declare const kj_modification_definitions: readonly kjmodificationdefinition[];">
+      <header><div><span class="kind">const</span><h3>KJ_MODIFICATION_DEFINITIONS</h3></div><a class="permalink" href="#root-const-kj-modification-definitions" aria-label="Link to KJ_MODIFICATION_DEFINITIONS">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[];</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-const-kj-modification-ids" data-search="kj_modification_ids const @kanjieteam/kjdraw export declare const kj_modification_ids: readonly [&quot;rotate&quot;, &quot;scale&quot;, &quot;mirror&quot;, &quot;array-rect&quot;, &quot;array-polar&quot;, &quot;offset&quot;, &quot;break&quot;, &quot;explode&quot;, &quot;trim&quot;, &quot;extend&quot;, &quot;chamfer&quot;, &quot;fillet&quot;];">
+      <header><div><span class="kind">const</span><h3>KJ_MODIFICATION_IDS</h3></div><a class="permalink" href="#root-const-kj-modification-ids" aria-label="Link to KJ_MODIFICATION_IDS">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJ_MODIFICATION_IDS: readonly [&quot;rotate&quot;, &quot;scale&quot;, &quot;mirror&quot;, &quot;array-rect&quot;, &quot;array-polar&quot;, &quot;offset&quot;, &quot;break&quot;, &quot;explode&quot;, &quot;trim&quot;, &quot;extend&quot;, &quot;chamfer&quot;, &quot;fillet&quot;];</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
     </article>
 <article class="api-symbol" id="root-const-kj-object-kinds" data-search="kj_object_kinds const @kanjieteam/kjdraw export declare const kj_object_kinds: readonly [&quot;entity&quot;, &quot;table-record&quot;, &quot;block-record&quot;, &quot;layout&quot;, &quot;dictionary&quot;, &quot;xrecord&quot;, &quot;group&quot;, &quot;custom&quot;, &quot;proxy&quot;];">
       <header><div><span class="kind">const</span><h3>KJ_OBJECT_KINDS</h3></div><a class="permalink" href="#root-const-kj-object-kinds" aria-label="Link to KJ_OBJECT_KINDS">#</a></header>
@@ -11153,6 +11532,149 @@ export declare function assertPlainObject(value: unknown, label: string): Record
 }</code></pre>
       <p class="source-path">document.d.ts</p>
     </article>
+<article class="api-symbol" id="root-type-kjdraftarcmode" data-search="kjdraftarcmode type @kanjieteam/kjdraw export type kjdraftarcmode = &#39;center-start-end&#39; | &#39;3-point&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDraftArcMode</h3></div><a class="permalink" href="#root-type-kjdraftarcmode" aria-label="Link to KJDraftArcMode">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDraftArcMode = &#39;center-start-end&#39; | &#39;3-point&#39;;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjdraftcirclemode" data-search="kjdraftcirclemode type @kanjieteam/kjdraw export type kjdraftcirclemode = &#39;center-radius&#39; | &#39;2-point&#39; | &#39;3-point&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDraftCircleMode</h3></div><a class="permalink" href="#root-type-kjdraftcirclemode" aria-label="Link to KJDraftCircleMode">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDraftCircleMode = &#39;center-radius&#39; | &#39;2-point&#39; | &#39;3-point&#39;;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjdraftdimensiontype" data-search="kjdraftdimensiontype type @kanjieteam/kjdraw export type kjdraftdimensiontype = &#39;aligned&#39; | &#39;rotated&#39; | &#39;radius&#39; | &#39;diameter&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDraftDimensionType</h3></div><a class="permalink" href="#root-type-kjdraftdimensiontype" aria-label="Link to KJDraftDimensionType">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDraftDimensionType = &#39;ALIGNED&#39; | &#39;ROTATED&#39; | &#39;RADIUS&#39; | &#39;DIAMETER&#39;;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjdraftentityspec" data-search="kjdraftentityspec interface @kanjieteam/kjdraw export interface kjdraftentityspec {
+    type: kjstandardentitytype;
+    payload: kjobjectpayload;
+    options?: kjobjectspec;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDraftEntitySpec</h3></div><a class="permalink" href="#root-interface-kjdraftentityspec" aria-label="Link to KJDraftEntitySpec">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDraftEntitySpec {
+    type: KJStandardEntityType;
+    payload: KJObjectPayload;
+    options?: KJObjectSpec;
+}</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjdraftingoptions" data-search="kjdraftingoptions interface @kanjieteam/kjdraw export interface kjdraftingoptions {
+    circlemode?: kjdraftcirclemode;
+    arcmode?: kjdraftarcmode;
+    sides?: number;
+    splinedegree?: number;
+    dimensiontype?: kjdraftdimensiontype;
+    rotation?: number;
+    textposition?: kjdraftpoint;
+    textoverride?: string | null;
+    textheight?: number;
+    stylename?: string;
+    patternname?: string;
+    patternscale?: number;
+    patternangle?: number;
+    solid?: boolean;
+    payload?: kjobjectpayload;
+    entityoptions?: kjobjectspec;
+    tolerance?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDraftingOptions</h3></div><a class="permalink" href="#root-interface-kjdraftingoptions" aria-label="Link to KJDraftingOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDraftingOptions {
+    circleMode?: KJDraftCircleMode;
+    arcMode?: KJDraftArcMode;
+    sides?: number;
+    splineDegree?: number;
+    dimensionType?: KJDraftDimensionType;
+    rotation?: number;
+    textPosition?: KJDraftPoint;
+    textOverride?: string | null;
+    textHeight?: number;
+    styleName?: string;
+    patternName?: string;
+    patternScale?: number;
+    patternAngle?: number;
+    solid?: boolean;
+    payload?: KJObjectPayload;
+    entityOptions?: KJObjectSpec;
+    tolerance?: number;
+}</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-class-kjdraftingsession" data-search="kjdraftingsession class @kanjieteam/kjdraw export declare class kjdraftingsession {
+    #private;
+    readonly tool: kjdrafttool;
+    constructor(tool: kjdrafttool, options?: kjdraftingoptions);
+    get points(): readonly kjdraftpoint[];
+    get state(): kjdraftstate;
+    addpoint(value: kjdraftpoint): kjdraftentityspec | null;
+    addcoordinate(input: string, relativebase?: kjdraftpoint | undefined): kjdraftentityspec | null;
+    preview(cursor?: kjdraftpoint): kjdraftentityspec | null;
+    finish(): kjdraftentityspec;
+    close(): kjdraftentityspec;
+    undopoint(): kjdraftpoint | null;
+    cancel(): void;
+}">
+      <header><div><span class="kind">class</span><h3>KJDraftingSession</h3></div><a class="permalink" href="#root-class-kjdraftingsession" aria-label="Link to KJDraftingSession">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare class KJDraftingSession {
+    #private;
+    readonly tool: KJDraftTool;
+    constructor(tool: KJDraftTool, options?: KJDraftingOptions);
+    get points(): readonly KJDraftPoint[];
+    get state(): KJDraftState;
+    addPoint(value: KJDraftPoint): KJDraftEntitySpec | null;
+    addCoordinate(input: string, relativeBase?: KJDraftPoint | undefined): KJDraftEntitySpec | null;
+    preview(cursor?: KJDraftPoint): KJDraftEntitySpec | null;
+    finish(): KJDraftEntitySpec;
+    close(): KJDraftEntitySpec;
+    undoPoint(): KJDraftPoint | null;
+    cancel(): void;
+}</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjdraftpoint" data-search="kjdraftpoint type @kanjieteam/kjdraw export type kjdraftpoint = readonly [number, number];">
+      <header><div><span class="kind">type</span><h3>KJDraftPoint</h3></div><a class="permalink" href="#root-type-kjdraftpoint" aria-label="Link to KJDraftPoint">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDraftPoint = readonly [number, number];</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjdraftpointrole" data-search="kjdraftpointrole type @kanjieteam/kjdraw export type kjdraftpointrole = &#39;start&#39; | &#39;end&#39; | &#39;vertex&#39; | &#39;position&#39; | &#39;origin&#39; | &#39;directionpoint&#39; | &#39;center&#39; | &#39;radiuspoint&#39; | &#39;diameterpoint1&#39; | &#39;diameterpoint2&#39; | &#39;throughpoint&#39; | &#39;majoraxispoint&#39; | &#39;minoraxispoint&#39; | &#39;firstcorner&#39; | &#39;oppositecorner&#39; | &#39;controlpoint&#39; | &#39;boundarypoint&#39; | &#39;extensionorigin1&#39; | &#39;extensionorigin2&#39; | &#39;placement&#39; | &#39;oppositepoint&#39; | &#39;pointoncircle&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDraftPointRole</h3></div><a class="permalink" href="#root-type-kjdraftpointrole" aria-label="Link to KJDraftPointRole">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDraftPointRole = &#39;start&#39; | &#39;end&#39; | &#39;vertex&#39; | &#39;position&#39; | &#39;origin&#39; | &#39;directionPoint&#39; | &#39;center&#39; | &#39;radiusPoint&#39; | &#39;diameterPoint1&#39; | &#39;diameterPoint2&#39; | &#39;throughPoint&#39; | &#39;majorAxisPoint&#39; | &#39;minorAxisPoint&#39; | &#39;firstCorner&#39; | &#39;oppositeCorner&#39; | &#39;controlPoint&#39; | &#39;boundaryPoint&#39; | &#39;extensionOrigin1&#39; | &#39;extensionOrigin2&#39; | &#39;placement&#39; | &#39;oppositePoint&#39; | &#39;pointOnCircle&#39;;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjdraftstate" data-search="kjdraftstate interface @kanjieteam/kjdraw export interface kjdraftstate {
+    tool: kjdrafttool;
+    status: kjdraftstatus;
+    points: readonly kjdraftpoint[];
+    minimumpoints: number;
+    maximumpoints: number | null;
+    nextpoint: kjdraftpointrole | null;
+    canfinish: boolean;
+    canclose: boolean;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDraftState</h3></div><a class="permalink" href="#root-interface-kjdraftstate" aria-label="Link to KJDraftState">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDraftState {
+    tool: KJDraftTool;
+    status: KJDraftStatus;
+    points: readonly KJDraftPoint[];
+    minimumPoints: number;
+    maximumPoints: number | null;
+    nextPoint: KJDraftPointRole | null;
+    canFinish: boolean;
+    canClose: boolean;
+}</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjdraftstatus" data-search="kjdraftstatus type @kanjieteam/kjdraw export type kjdraftstatus = &#39;collecting&#39; | &#39;complete&#39; | &#39;cancelled&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDraftStatus</h3></div><a class="permalink" href="#root-type-kjdraftstatus" aria-label="Link to KJDraftStatus">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDraftStatus = &#39;collecting&#39; | &#39;complete&#39; | &#39;cancelled&#39;;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjdrafttool" data-search="kjdrafttool type @kanjieteam/kjdraw export type kjdrafttool = &#39;line&#39; | &#39;polyline&#39; | &#39;circle&#39; | &#39;arc&#39; | &#39;ellipse&#39; | &#39;rectangle&#39; | &#39;polygon&#39; | &#39;point&#39; | &#39;ray&#39; | &#39;xline&#39; | &#39;spline&#39; | &#39;hatch&#39; | &#39;dimension&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDraftTool</h3></div><a class="permalink" href="#root-type-kjdrafttool" aria-label="Link to KJDraftTool">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDraftTool = &#39;line&#39; | &#39;polyline&#39; | &#39;circle&#39; | &#39;arc&#39; | &#39;ellipse&#39; | &#39;rectangle&#39; | &#39;polygon&#39; | &#39;point&#39; | &#39;ray&#39; | &#39;xline&#39; | &#39;spline&#39; | &#39;hatch&#39; | &#39;dimension&#39;;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-const-kjdraw-1-0-product-contract" data-search="kjdraw_1_0_product_contract const @kanjieteam/kjdraw export declare const kjdraw_1_0_product_contract: {
     readonly id: &#39;com.kanjie.kjdraw.product@1&#39;;
     readonly deployment: &#39;provider-neutral&#39;;
@@ -11339,9 +11861,9 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_PLUGIN_SCHEMA_VERSION = 1;</code></pre>
       <p class="source-path">plugin-contract.d.ts</p>
     </article>
-<article class="api-symbol" id="root-const-kjdraw-version" data-search="kjdraw_version const @kanjieteam/kjdraw export declare const kjdraw_version: &#39;1.0.0-rc.2&#39;;">
+<article class="api-symbol" id="root-const-kjdraw-version" data-search="kjdraw_version const @kanjieteam/kjdraw export declare const kjdraw_version: &#39;1.0.0-rc.3&#39;;">
       <header><div><span class="kind">const</span><h3>KJDRAW_VERSION</h3></div><a class="permalink" href="#root-const-kjdraw-version" aria-label="Link to KJDRAW_VERSION">#</a></header>
-      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_VERSION: &#39;1.0.0-rc.2&#39;;</code></pre>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_VERSION: &#39;1.0.0-rc.3&#39;;</code></pre>
       <p class="source-path">version.d.ts</p>
     </article>
 <article class="api-symbol" id="root-class-kjdraweditor" data-search="kjdraweditor class @kanjieteam/kjdraw export declare class kjdraweditor {
@@ -11355,6 +11877,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     get disposed(): boolean;
     get locale(): kjworkbenchlocale;
     get theme(): kjworkbenchtheme;
+    get layout(): kjworkbenchlayout;
     /** subscribe to an editor event. the return value unsubscribes the listener. */
     on&lt;name extends keyof kjdraweditorevents&gt;(name: name, listener: (event: kjdraweditorevents[name]) =&gt; void): () =&gt; boolean;
     /** open a file, blob, text or bytes. pass format for bytes without a filename. */
@@ -11370,11 +11893,12 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     getselection(): readonly string[];
     fit(): this;
     settheme(theme: kjworkbenchtheme): this;
+    setlayout(layout: kjworkbenchlayout): this;
     setlocale(locale: kjworkbenchlocale): this;
     settool(tool: kjworkbenchtool): this;
     settitle(title: string): this;
     /** update presentation and editing mode while preserving the active drawing. */
-    setoptions(options: pick&lt;kjdraweditoroptions, &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;layers&#39; | &#39;properties&#39; | &#39;title&#39; | &#39;maxfilebytes&#39;&gt;): this;
+    setoptions(options: pick&lt;kjdraweditoroptions, &#39;layout&#39; | &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;layers&#39; | &#39;properties&#39; | &#39;title&#39; | &#39;maxfilebytes&#39;&gt;): this;
     /** unmount the editor and release its listeners and rendering resources. safe to call twice. */
     dispose(): void;
 }">
@@ -11390,6 +11914,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     get disposed(): boolean;
     get locale(): KJWorkbenchLocale;
     get theme(): KJWorkbenchTheme;
+    get layout(): KJWorkbenchLayout;
     /** Subscribe to an editor event. The return value unsubscribes the listener. */
     on&lt;Name extends keyof KJDrawEditorEvents&gt;(name: Name, listener: (event: KJDrawEditorEvents[Name]) =&gt; void): () =&gt; boolean;
     /** Open a File, Blob, text or bytes. Pass format for bytes without a filename. */
@@ -11405,11 +11930,12 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     getSelection(): readonly string[];
     fit(): this;
     setTheme(theme: KJWorkbenchTheme): this;
+    setLayout(layout: KJWorkbenchLayout): this;
     setLocale(locale: KJWorkbenchLocale): this;
     setTool(tool: KJWorkbenchTool): this;
     setTitle(title: string): this;
     /** Update presentation and editing mode while preserving the active drawing. */
-    setOptions(options: Pick&lt;KJDrawEditorOptions, &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;layers&#39; | &#39;properties&#39; | &#39;title&#39; | &#39;maxFileBytes&#39;&gt;): this;
+    setOptions(options: Pick&lt;KJDrawEditorOptions, &#39;layout&#39; | &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;layers&#39; | &#39;properties&#39; | &#39;title&#39; | &#39;maxFileBytes&#39;&gt;): this;
     /** Unmount the editor and release its listeners and rendering resources. Safe to call twice. */
     dispose(): void;
 }</code></pre>
@@ -11447,6 +11973,8 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     locale?: kjworkbenchlocale;
     /** panel and canvas appearance. default: dark. */
     theme?: kjworkbenchtheme;
+    /** workbench chrome arrangement. default: classic. */
+    layout?: kjworkbenchlayout;
     /** enable inspection and file export with editing controls disabled. default: false. */
     readonly?: boolean;
     /** show the drawing grid. default: true. */
@@ -11476,6 +12004,8 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     locale?: KJWorkbenchLocale;
     /** Panel and canvas appearance. Default: dark. */
     theme?: KJWorkbenchTheme;
+    /** Workbench chrome arrangement. Default: classic. */
+    layout?: KJWorkbenchLayout;
     /** Enable inspection and file export with editing controls disabled. Default: false. */
     readonly?: boolean;
     /** Show the drawing grid. Default: true. */
@@ -12305,6 +12835,117 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     readonly radius?: unknown;
 }</code></pre>
       <p class="source-path">editing.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjlocalizedcontroltext" data-search="kjlocalizedcontroltext interface @kanjieteam/kjdraw export interface kjlocalizedcontroltext {
+    readonly en: string;
+    readonly zh: string;
+}">
+      <header><div><span class="kind">interface</span><h3>KJLocalizedControlText</h3></div><a class="permalink" href="#root-interface-kjlocalizedcontroltext" aria-label="Link to KJLocalizedControlText">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJLocalizedControlText {
+    readonly en: string;
+    readonly zh: string;
+}</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjmodificationbuildcontext" data-search="kjmodificationbuildcontext interface @kanjieteam/kjdraw export interface kjmodificationbuildcontext {
+    readonly ids: readonly string[];
+    readonly values?: readonly&lt;record&lt;string, unknown&gt;&gt;;
+    readonly points?: readonly kjmodificationpoint[];
+    readonly selectioncenter?: kjmodificationpoint;
+}">
+      <header><div><span class="kind">interface</span><h3>KJModificationBuildContext</h3></div><a class="permalink" href="#root-interface-kjmodificationbuildcontext" aria-label="Link to KJModificationBuildContext">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModificationBuildContext {
+    readonly ids: readonly string[];
+    readonly values?: Readonly&lt;Record&lt;string, unknown&gt;&gt;;
+    readonly points?: readonly KJModificationPoint[];
+    readonly selectionCenter?: KJModificationPoint;
+}</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjmodificationcommand" data-search="kjmodificationcommand interface @kanjieteam/kjdraw export interface kjmodificationcommand {
+    readonly command: string;
+    readonly arguments: kjcommandarguments;
+}">
+      <header><div><span class="kind">interface</span><h3>KJModificationCommand</h3></div><a class="permalink" href="#root-interface-kjmodificationcommand" aria-label="Link to KJModificationCommand">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModificationCommand {
+    readonly command: string;
+    readonly arguments: KJCommandArguments;
+}</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjmodificationdefinition" data-search="kjmodificationdefinition interface @kanjieteam/kjdraw export interface kjmodificationdefinition {
+    readonly id: kjmodificationid;
+    readonly command: string;
+    readonly label: kjlocalizedcontroltext;
+    readonly description: kjlocalizedcontroltext;
+    readonly minselection: number;
+    readonly maxselection?: number;
+    /** when present, every selected entity must use one of these types. */
+    readonly supportedentitytypes?: readonly string[];
+    readonly fields: readonly kjmodificationfielddefinition[];
+    readonly pointkeys: readonly kjmodificationpointdefinition[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJModificationDefinition</h3></div><a class="permalink" href="#root-interface-kjmodificationdefinition" aria-label="Link to KJModificationDefinition">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModificationDefinition {
+    readonly id: KJModificationId;
+    readonly command: string;
+    readonly label: KJLocalizedControlText;
+    readonly description: KJLocalizedControlText;
+    readonly minSelection: number;
+    readonly maxSelection?: number;
+    /** When present, every selected entity must use one of these types. */
+    readonly supportedEntityTypes?: readonly string[];
+    readonly fields: readonly KJModificationFieldDefinition[];
+    readonly pointKeys: readonly KJModificationPointDefinition[];
+}</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjmodificationfielddefinition" data-search="kjmodificationfielddefinition interface @kanjieteam/kjdraw export interface kjmodificationfielddefinition {
+    readonly key: string;
+    readonly label: kjlocalizedcontroltext;
+    readonly type: kjmodificationfieldtype;
+    readonly default: number | boolean;
+    readonly min?: number;
+    readonly max?: number;
+    readonly step?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJModificationFieldDefinition</h3></div><a class="permalink" href="#root-interface-kjmodificationfielddefinition" aria-label="Link to KJModificationFieldDefinition">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModificationFieldDefinition {
+    readonly key: string;
+    readonly label: KJLocalizedControlText;
+    readonly type: KJModificationFieldType;
+    readonly default: number | boolean;
+    readonly min?: number;
+    readonly max?: number;
+    readonly step?: number;
+}</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjmodificationfieldtype" data-search="kjmodificationfieldtype type @kanjieteam/kjdraw export type kjmodificationfieldtype = &#39;number&#39; | &#39;integer&#39; | &#39;boolean&#39;;">
+      <header><div><span class="kind">type</span><h3>KJModificationFieldType</h3></div><a class="permalink" href="#root-type-kjmodificationfieldtype" aria-label="Link to KJModificationFieldType">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJModificationFieldType = &#39;number&#39; | &#39;integer&#39; | &#39;boolean&#39;;</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjmodificationid" data-search="kjmodificationid type @kanjieteam/kjdraw export type kjmodificationid = &#39;rotate&#39; | &#39;scale&#39; | &#39;mirror&#39; | &#39;array-rect&#39; | &#39;array-polar&#39; | &#39;offset&#39; | &#39;break&#39; | &#39;explode&#39; | &#39;trim&#39; | &#39;extend&#39; | &#39;chamfer&#39; | &#39;fillet&#39;;">
+      <header><div><span class="kind">type</span><h3>KJModificationId</h3></div><a class="permalink" href="#root-type-kjmodificationid" aria-label="Link to KJModificationId">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJModificationId = &#39;rotate&#39; | &#39;scale&#39; | &#39;mirror&#39; | &#39;array-rect&#39; | &#39;array-polar&#39; | &#39;offset&#39; | &#39;break&#39; | &#39;explode&#39; | &#39;trim&#39; | &#39;extend&#39; | &#39;chamfer&#39; | &#39;fillet&#39;;</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjmodificationpoint" data-search="kjmodificationpoint type @kanjieteam/kjdraw export type kjmodificationpoint = readonly [number, number];">
+      <header><div><span class="kind">type</span><h3>KJModificationPoint</h3></div><a class="permalink" href="#root-type-kjmodificationpoint" aria-label="Link to KJModificationPoint">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJModificationPoint = readonly [number, number];</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjmodificationpointdefinition" data-search="kjmodificationpointdefinition interface @kanjieteam/kjdraw export interface kjmodificationpointdefinition {
+    readonly key: string;
+    readonly label: kjlocalizedcontroltext;
+}">
+      <header><div><span class="kind">interface</span><h3>KJModificationPointDefinition</h3></div><a class="permalink" href="#root-interface-kjmodificationpointdefinition" aria-label="Link to KJModificationPointDefinition">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModificationPointDefinition {
+    readonly key: string;
+    readonly label: KJLocalizedControlText;
+}</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjnamedselectionset" data-search="kjnamedselectionset interface @kanjieteam/kjdraw export interface kjnamedselectionset {
     id: string;
@@ -13962,6 +14603,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     tolerance?: KJTolerance;
 }</code></pre>
       <p class="source-path">geometry/intersections.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-function-parsedraftcoordinate" data-search="parsedraftcoordinate function @kanjieteam/kjdraw export declare function parsedraftcoordinate(input: string, relativebase?: kjdraftpoint): kjdraftpoint;">
+      <header><div><span class="kind">function</span><h3>parseDraftCoordinate</h3></div><a class="permalink" href="#root-function-parsedraftcoordinate" aria-label="Link to parseDraftCoordinate">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function parseDraftCoordinate(input: string, relativeBase?: KJDraftPoint): KJDraftPoint;</code></pre>
+      <p class="source-path">drafting.d.ts</p>
     </article>
 <article class="api-symbol" id="root-const-perpendicular2" data-search="perpendicular2 const @kanjieteam/kjdraw export declare const perpendicular2: (value: point2input) =&gt; point2;">
       <header><div><span class="kind">const</span><h3>perpendicular2</h3></div><a class="permalink" href="#root-const-perpendicular2" aria-label="Link to perpendicular2">#</a></header>
@@ -18319,6 +18965,17 @@ export declare function assertPlainObject(value: unknown, label: string): Record
 }</code></pre>
       <p class="source-path">canvas-renderer.d.ts</p>
     </article>
+<article class="api-symbol" id="renderer-canvas-interface-kjcanvaspreviewentity" data-search="kjcanvaspreviewentity interface @kanjieteam/kjdraw/renderer/canvas export interface kjcanvaspreviewentity {
+    type: string;
+    payload: readonly&lt;record&lt;string, unknown&gt;&gt;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJCanvasPreviewEntity</h3></div><a class="permalink" href="#renderer-canvas-interface-kjcanvaspreviewentity" aria-label="Link to KJCanvasPreviewEntity">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJCanvasPreviewEntity {
+    type: string;
+    payload: Readonly&lt;Record&lt;string, unknown&gt;&gt;;
+}</code></pre>
+      <p class="source-path">canvas-renderer.d.ts</p>
+    </article>
 <article class="api-symbol" id="renderer-canvas-class-kjcanvasrenderer" data-search="kjcanvasrenderer class @kanjieteam/kjdraw/renderer/canvas export declare class kjcanvasrenderer {
     #private;
     readonly canvas: htmlcanvaselement;
@@ -18345,6 +19002,8 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     fit(): this;
     hittest(screenpoint: point2, tolerancepixels?: number): kjcanvashit | null;
     render(): readonly&lt;kjcanvasrenderreport&gt;;
+    /** paint temporary native geometry without inserting objects or changing history. call render() to clear it. */
+    drawpreview(entities: readonly kjcanvaspreviewentity[], color?: string, offset?: point2): this;
     dispose(): void;
 }">
       <header><div><span class="kind">class</span><h3>KJCanvasRenderer</h3></div><a class="permalink" href="#renderer-canvas-class-kjcanvasrenderer" aria-label="Link to KJCanvasRenderer">#</a></header>
@@ -18374,6 +19033,8 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     fit(): this;
     hitTest(screenPoint: Point2, tolerancePixels?: number): KJCanvasHit | null;
     render(): Readonly&lt;KJCanvasRenderReport&gt;;
+    /** Paint temporary native geometry without inserting objects or changing history. Call render() to clear it. */
+    drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2): this;
     dispose(): void;
 }</code></pre>
       <p class="source-path">canvas-renderer.d.ts</p>
@@ -18471,7 +19132,12 @@ export declare function assertPlainObject(value: unknown, label: string): Record
   <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/workbench</code></h2></div><a class="permalink" href="#module-workbench" aria-label="Link to @kanjieteam/kjdraw/workbench">#</a></header>
   <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/workbench.d.ts</code></p>
   <div class="api-symbols">
-    <article class="api-symbol" id="workbench-function-definekjdrawworkbenchelement" data-search="definekjdrawworkbenchelement function @kanjieteam/kjdraw/workbench export declare function definekjdrawworkbenchelement(tagname?: string): customelementconstructor;">
+    <article class="api-symbol" id="workbench-type-default" data-search="default type @kanjieteam/kjdraw/workbench export type { kjworkbenchlayout } from &#39;./layout.js&#39;;">
+      <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#workbench-type-default" aria-label="Link to default">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJWorkbenchLayout } from &#39;./layout.js&#39;;</code></pre>
+      <p class="source-path">workbench.d.ts</p>
+    </article>
+<article class="api-symbol" id="workbench-function-definekjdrawworkbenchelement" data-search="definekjdrawworkbenchelement function @kanjieteam/kjdraw/workbench export declare function definekjdrawworkbenchelement(tagname?: string): customelementconstructor;">
       <header><div><span class="kind">function</span><h3>defineKJDrawWorkbenchElement</h3></div><a class="permalink" href="#workbench-function-definekjdrawworkbenchelement" aria-label="Link to defineKJDrawWorkbenchElement">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function defineKJDrawWorkbenchElement(tagName?: string): CustomElementConstructor;</code></pre>
       <p class="source-path">workbench.d.ts</p>
@@ -18487,16 +19153,20 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     get document(): kjdocument | null;
     get locale(): kjworkbenchlocale;
     get theme(): kjworkbenchtheme;
+    get layout(): kjworkbenchlayout;
     get tool(): kjworkbenchtool;
     /** change presentation without replacing the drawing or its undo history. */
-    setoptions(options: pick&lt;kjdrawworkbenchoptions, &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;showlayers&#39; | &#39;showinspector&#39; | &#39;title&#39; | &#39;maxfilebytes&#39;&gt;): this;
+    setoptions(options: pick&lt;kjdrawworkbenchoptions, &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;showlayers&#39; | &#39;showinspector&#39; | &#39;title&#39; | &#39;maxfilebytes&#39; | &#39;layout&#39;&gt;): this;
     setlocale(locale: kjworkbenchlocale): this;
     snapshot(): readonly&lt;kjworkbenchsnapshot&gt;;
     settheme(theme: kjworkbenchtheme): this;
+    setlayout(value: kjworkbenchlayout): this;
     settool(tool: kjworkbenchtool): this;
     setdocument(document: kjdocument): promise&lt;this&gt;;
     open(source: unknown, options?: kjworkbenchopenoptions): promise&lt;kjdocument&gt;;
-    execute&lt;tresult = unknown&gt;(command: string, args?: kjcommandarguments): promise&lt;kjsdkcommandenvelopereceipt&lt;tresult&gt;&gt;;
+    execute&lt;tresult = unknown&gt;(command: string, args?: kjcommandarguments, options?: {
+        expectedrevision?: number;
+    }): promise&lt;kjsdkcommandenvelopereceipt&lt;tresult&gt;&gt;;
     save(format?: &#39;kjd&#39; | &#39;dxf&#39;, options?: kjworkbenchsaveoptions): promise&lt;unknown&gt;;
     dispose(): void;
 }">
@@ -18512,16 +19182,20 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     get document(): KJDocument | null;
     get locale(): KJWorkbenchLocale;
     get theme(): KJWorkbenchTheme;
+    get layout(): KJWorkbenchLayout;
     get tool(): KJWorkbenchTool;
     /** Change presentation without replacing the drawing or its undo history. */
-    setOptions(options: Pick&lt;KJDrawWorkbenchOptions, &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;showLayers&#39; | &#39;showInspector&#39; | &#39;title&#39; | &#39;maxFileBytes&#39;&gt;): this;
+    setOptions(options: Pick&lt;KJDrawWorkbenchOptions, &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;showLayers&#39; | &#39;showInspector&#39; | &#39;title&#39; | &#39;maxFileBytes&#39; | &#39;layout&#39;&gt;): this;
     setLocale(locale: KJWorkbenchLocale): this;
     snapshot(): Readonly&lt;KJWorkbenchSnapshot&gt;;
     setTheme(theme: KJWorkbenchTheme): this;
+    setLayout(value: KJWorkbenchLayout): this;
     setTool(tool: KJWorkbenchTool): this;
     setDocument(document: KJDocument): Promise&lt;this&gt;;
     open(source: unknown, options?: KJWorkbenchOpenOptions): Promise&lt;KJDocument&gt;;
-    execute&lt;TResult = unknown&gt;(command: string, args?: KJCommandArguments): Promise&lt;KJSDKCommandEnvelopeReceipt&lt;TResult&gt;&gt;;
+    execute&lt;TResult = unknown&gt;(command: string, args?: KJCommandArguments, options?: {
+        expectedRevision?: number;
+    }): Promise&lt;KJSDKCommandEnvelopeReceipt&lt;TResult&gt;&gt;;
     save(format?: &#39;KJD&#39; | &#39;DXF&#39;, options?: KJWorkbenchSaveOptions): Promise&lt;unknown&gt;;
     dispose(): void;
 }</code></pre>
@@ -18550,6 +19224,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     showlayers?: boolean;
     showinspector?: boolean;
     toolbar?: boolean;
+    layout?: kjworkbenchlayout;
     title?: string;
     /** browser-side ceiling checked before a selected file is read into memory. */
     maxfilebytes?: number;
@@ -18567,6 +19242,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     showLayers?: boolean;
     showInspector?: boolean;
     toolbar?: boolean;
+    layout?: KJWorkbenchLayout;
     title?: string;
     /** Browser-side ceiling checked before a selected file is read into memory. */
     maxFileBytes?: number;
@@ -18603,6 +19279,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
 <article class="api-symbol" id="workbench-interface-kjworkbenchsnapshot" data-search="kjworkbenchsnapshot interface @kanjieteam/kjdraw/workbench export interface kjworkbenchsnapshot {
     locale: kjworkbenchlocale;
     theme: kjworkbenchtheme;
+    layout: kjworkbenchlayout;
     tool: kjworkbenchtool;
     documentid: string | null;
     revision: number;
@@ -18614,6 +19291,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJWorkbenchSnapshot {
     locale: KJWorkbenchLocale;
     theme: KJWorkbenchTheme;
+    layout: KJWorkbenchLayout;
     tool: KJWorkbenchTool;
     documentId: string | null;
     revision: number;
@@ -18628,9 +19306,9 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJWorkbenchTheme = &#39;dark&#39; | &#39;light&#39;;</code></pre>
       <p class="source-path">workbench.d.ts</p>
     </article>
-<article class="api-symbol" id="workbench-type-kjworkbenchtool" data-search="kjworkbenchtool type @kanjieteam/kjdraw/workbench export type kjworkbenchtool = &#39;select&#39; | &#39;pan&#39; | &#39;line&#39; | &#39;polyline&#39; | &#39;circle&#39; | &#39;arc&#39; | &#39;rectangle&#39; | &#39;text&#39; | &#39;measure&#39;;">
+<article class="api-symbol" id="workbench-type-kjworkbenchtool" data-search="kjworkbenchtool type @kanjieteam/kjdraw/workbench export type kjworkbenchtool = &#39;select&#39; | &#39;pan&#39; | kjdrafttool | &#39;text&#39; | &#39;measure&#39; | &#39;move&#39; | &#39;copy&#39;;">
       <header><div><span class="kind">type</span><h3>KJWorkbenchTool</h3></div><a class="permalink" href="#workbench-type-kjworkbenchtool" aria-label="Link to KJWorkbenchTool">#</a></header>
-      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJWorkbenchTool = &#39;select&#39; | &#39;pan&#39; | &#39;line&#39; | &#39;polyline&#39; | &#39;circle&#39; | &#39;arc&#39; | &#39;rectangle&#39; | &#39;text&#39; | &#39;measure&#39;;</code></pre>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJWorkbenchTool = &#39;select&#39; | &#39;pan&#39; | KJDraftTool | &#39;text&#39; | &#39;measure&#39; | &#39;move&#39; | &#39;copy&#39;;</code></pre>
       <p class="source-path">workbench.d.ts</p>
     </article>
 <article class="api-symbol" id="workbench-function-mountkjdrawworkbench" data-search="mountkjdrawworkbench function @kanjieteam/kjdraw/workbench export declare function mountkjdrawworkbench(container: htmlelement | shadowroot, options?: kjdrawworkbenchoptions): kjdrawworkbench;">

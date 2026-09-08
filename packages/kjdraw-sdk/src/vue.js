@@ -24,6 +24,10 @@ export const KJDraw = defineComponent({
             type: String,
             default: 'dark'
         },
+        layout: {
+            type: String,
+            default: 'classic'
+        },
         readonly: {
             type: Boolean,
             default: false
@@ -90,6 +94,7 @@ export const KJDraw = defineComponent({
                 },
                 locale: props.locale,
                 theme: props.theme,
+                layout: props.layout,
                 readonly: props.readonly,
                 grid: props.grid,
                 toolbar: props.toolbar,
@@ -123,6 +128,7 @@ export const KJDraw = defineComponent({
             execute: (...args)=>requireEditor().execute(...args),
             setDocument: (drawing)=>requireEditor().setDocument(drawing),
             setTheme: (value)=>requireEditor().setTheme(value),
+            setLayout: (value)=>requireEditor().setLayout(value),
             setLocale: (value)=>requireEditor().setLocale(value),
             setSelection: (ids)=>requireEditor().setSelection(ids),
             getSelection: ()=>requireEditor().getSelection(),
@@ -144,6 +150,7 @@ export const KJDraw = defineComponent({
         watch(()=>props.theme, (value)=>editor.value?.setTheme(value));
         watch(()=>props.locale, (value)=>editor.value?.setLocale(value));
         watch(()=>[
+                props.layout,
                 props.readonly,
                 props.grid,
                 props.toolbar,
@@ -152,6 +159,7 @@ export const KJDraw = defineComponent({
                 props.title,
                 props.maxFileBytes
             ], ()=>editor.value?.setOptions({
+                layout: props.layout,
                 readonly: props.readonly,
                 grid: props.grid,
                 toolbar: props.toolbar,

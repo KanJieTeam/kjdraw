@@ -3,8 +3,10 @@ import { KJEventBus } from './events.js'
 import type { KJDocument } from './document.js'
 import type { KJDrawSDK, KJSDKCommandEnvelopeReceipt } from './sdk.js'
 import type { KJCommandArguments } from './commands.js'
-import type { KJWorkbenchLocale, KJWorkbenchTheme, KJWorkbenchTool, KJWorkbenchOpenOptions, KJDrawWorkbenchChange } from './workbench.js'
+import type { KJWorkbenchLayout, KJWorkbenchLocale, KJWorkbenchTheme, KJWorkbenchTool, KJWorkbenchOpenOptions, KJDrawWorkbenchChange } from './workbench.js'
 import type { KJFileAdapterOptions } from './file-adapters.js'
+
+export type { KJWorkbenchLayout } from './workbench.js'
 
 /** Options for an embedded CAD editor. Give the container a height before mounting. */
 export interface KJDrawEditorOptions {
@@ -16,6 +18,8 @@ export interface KJDrawEditorOptions {
   locale?: KJWorkbenchLocale
   /** Panel and canvas appearance. Default: dark. */
   theme?: KJWorkbenchTheme
+  /** Workbench chrome arrangement. Default: classic. */
+  layout?: KJWorkbenchLayout
   /** Enable inspection and file export with editing controls disabled. Default: false. */
   readonly?: boolean
   /** Show the drawing grid. Default: true. */
@@ -105,6 +109,7 @@ export class KJDrawEditor {
   get disposed(): boolean { return this.#abort.signal.aborted }
   get locale(): KJWorkbenchLocale { return this.workbench.locale }
   get theme(): KJWorkbenchTheme { return this.workbench.theme }
+  get layout(): KJWorkbenchLayout { return this.workbench.layout }
 
   /** Subscribe to an editor event. The return value unsubscribes the listener. */
   on<Name extends keyof KJDrawEditorEvents>(name: Name, listener: (event: KJDrawEditorEvents[Name]) => void): () => boolean {
@@ -151,12 +156,13 @@ export class KJDrawEditor {
   getSelection(): readonly string[] { this.#assertMounted(); return this.workbench.snapshot().selectedIds }
   fit(): this { this.#assertMounted(); this.workbench.renderer.resize().fit(); return this }
   setTheme(theme: KJWorkbenchTheme): this { this.#assertMounted(); this.workbench.setTheme(theme); return this }
+  setLayout(layout: KJWorkbenchLayout): this { this.#assertMounted(); this.workbench.setLayout(layout); return this }
   setLocale(locale: KJWorkbenchLocale): this { this.#assertMounted(); this.workbench.setLocale(locale); this.#applyTitle(); return this }
   setTool(tool: KJWorkbenchTool): this { this.#assertMounted(); this.workbench.setTool(tool); return this }
   setTitle(title: string): this { this.#assertMounted(); this.#title = title; this.#applyTitle(); return this }
 
   /** Update presentation and editing mode while preserving the active drawing. */
-  setOptions(options: Pick<KJDrawEditorOptions, 'readonly' | 'grid' | 'toolbar' | 'layers' | 'properties' | 'title' | 'maxFileBytes'>): this {
+  setOptions(options: Pick<KJDrawEditorOptions, 'layout' | 'readonly' | 'grid' | 'toolbar' | 'layers' | 'properties' | 'title' | 'maxFileBytes'>): this {
     this.#assertMounted()
     const { layers, properties, ...rest } = options
     if (options.title !== undefined) this.#title = options.title
