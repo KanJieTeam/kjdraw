@@ -151,6 +151,25 @@ async function main() {
     assert.deepEqual(installedPackage.dependencies ?? {}, {}, 'The public SDK must remain runtime-dependency-free')
 
     const publicSubpaths = Object.keys(installedPackage.exports)
+    const frameworkEntries = { './react': 'react', './vue': 'vue' }
+    for (const [entry, peer] of Object.entries(frameworkEntries)) {
+      assert.ok(installedPackage.exports[entry], `Missing framework entry: ${entry}`)
+      assert.equal(installedPackage.peerDependenciesMeta?.[peer]?.optional, true, `${peer} must remain an optional peer`)
+    }
+    const headlessProbePath = join(consumerDirectory, 'verify-without-frameworks.mjs')
+    await writeFile(headlessProbePath, `for (const path of ${JSON.stringify(publicSubpaths.filter(path => !(path in frameworkEntries)))}) { await import(path === '.' ? '${installedPackage.name}' : '${installedPackage.name}/' + path.slice(2)) }`)
+    run(process.execPath, [headlessProbePath], { cwd: consumerDirectory })
+
+    // npm ci populated these exact development versions in the local cache.
+    // Test the published adapters against real frameworks, not framework-shaped
+    // declarations. This install is offline and never picks a moving version.
+    const repositoryPackage = JSON.parse(await readFile(join(repositoryRoot, 'package.json'), 'utf8'))
+    const peers = ['react', 'react-dom', '@types/react', '@types/react-dom', 'vue'].map(name => {
+      const version = repositoryPackage.devDependencies?.[name]
+      assert.match(version ?? '', /^\d+\.\d+\.\d+/, `Pin the framework audit dependency: ${name}`)
+      return `${name}@${version}`
+    })
+    run(process.execPath, [npmCli, 'install', '--offline', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false', ...peers], { cwd: consumerDirectory })
     const importProbe = `
 const packageName = ${JSON.stringify(installedPackage.name)}
 const subpaths = ${JSON.stringify(publicSubpaths)}
@@ -202,6 +221,7 @@ console.log(JSON.stringify(results))
         skipLibCheck: false,
       },
       include: ['src/**/*.ts', 'src/**/*.tsx'],
+      exclude: ['src/framework-shims.d.ts'],
     }, null, 2)}\n`)
     const compiler = await findTypeScriptCommand()
     run(compiler.command, [

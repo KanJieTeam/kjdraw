@@ -1,17 +1,20 @@
-import { onScopeDispose, ref, shallowRef } from 'vue'
-import { createKJDrawSDK } from '@kanjieteam/kjdraw'
+import { defineComponent, h, ref } from 'vue'
+import { KJDraw, type KJDrawExposed } from '@kanjieteam/kjdraw/vue'
 
-export function useKJDraw() {
-  const sdk = createKJDrawSDK()
-  const document = shallowRef(sdk.createDocument({ documentId: 'vue-drawing', units: 'millimeter' }))
-  const revision = ref(document.value.revision)
-  const off = sdk.events.on('command:committed', ({ document: changed }) => { revision.value = changed.revision })
-  onScopeDispose(off)
+/** A complete KJDraw editor surface for Vue applications. */
+export const EngineeringDrawing = defineComponent({
+  name: 'EngineeringDrawing',
+  setup() {
+    const editor = ref<KJDrawExposed | null>(null)
 
-  const drawLine = () => sdk.executeCommand('CREATE', {
-    type: 'LINE',
-    payload: { start: [0, 0, 0], end: [100, 0, 0] },
-  })
-
-  return { sdk, document, revision, drawLine }
-}
+    return () => h(KJDraw, {
+      ref: editor,
+      document: 'sample',
+      locale: 'en',
+      theme: 'dark',
+      title: 'Engineering drawing',
+      style: { width: '100%', height: '720px' },
+      onReady: () => editor.value?.fit(),
+    })
+  },
+})

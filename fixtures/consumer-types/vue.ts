@@ -1,24 +1,19 @@
-import { onScopeDispose, ref, shallowRef, type Ref, type ShallowRef } from 'vue'
-import { createKJDrawSDK, type KJDocument, type KJDrawSDK } from '@kanjieteam/kjdraw'
+import { defineComponent, h, ref } from 'vue'
+import { KJDraw, type KJDrawExposed } from '@kanjieteam/kjdraw/vue'
 
-export function useKJDraw(): {
-  sdk: KJDrawSDK
-  document: ShallowRef<KJDocument>
-  revision: Ref<number>
-  drawLine: () => Promise<unknown>
-} {
-  const sdk = createKJDrawSDK()
-  const document = shallowRef(sdk.createDocument({ documentId: 'vue-consumer', units: 'millimeter' }))
-  const revision = ref(document.value.revision)
-  const off = sdk.events.on('command:committed', ({ document: changed }) => {
-    revision.value = changed.revision
-  })
-  onScopeDispose(off)
+export const VueKJDrawConsumer = defineComponent({
+  name: 'VueKJDrawConsumer',
+  setup() {
+    const editor = ref<KJDrawExposed | null>(null)
 
-  const drawLine = () => sdk.executeCommand('CREATE', {
-    type: 'LINE',
-    payload: { start: [0, 0, 0], end: [100, 0, 0] },
-  })
-
-  return { sdk, document, revision, drawLine }
-}
+    return () => h(KJDraw, {
+      ref: editor,
+      document: 'sample',
+      locale: 'zh-CN',
+      theme: 'light',
+      title: 'Vue 工程图纸',
+      style: { width: '100%', height: '720px' },
+      onReady: () => editor.value?.fit(),
+    })
+  },
+})

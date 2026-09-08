@@ -1,0 +1,30 @@
+{
+  "schema": "com.kanjie.kjdraw.docs-navigation@1",
+  "groups": [
+    {
+      "id": "start",
+      "title": { "en": "Get started", "zh": "开始使用" },
+      "pages": ["introduction", "quickstart", "installation"]
+    },
+    {
+      "id": "foundations",
+      "title": { "en": "Foundations", "zh": "核心基础" },
+      "pages": ["architecture", "files", "commands"]
+    },
+    {
+      "id": "frameworks",
+      "title": { "en": "Frameworks", "zh": "前端框架" },
+      "pages": ["react", "vue"]
+    },
+    {
+      "id": "extend",
+      "title": { "en": "Extend and deploy", "zh": "扩展与部署" },
+      "pages": ["agent", "plugins", "deployment"]
+    },
+    {
+      "id": "reference",
+      "title": { "en": "Reference", "zh": "参考" },
+      "pages": ["capabilities"]
+    }
+  ]
+}

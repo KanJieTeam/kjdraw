@@ -1,42 +1,99 @@
 name: Publish SDK to npm
 
 on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Existing annotated release tag
+        required: true
+        type: string
+    secrets:
+      NPM_TOKEN:
+        required: false
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing annotated release tag
+        required: true
+        type: string
 
 permissions:
   contents: read
+  actions: read
   id-token: write
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag }}
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
-          cache: npm
-      - name: Verify release package
+          package-manager-cache: false
+      - name: Verify the trusted publishing runtime
+        shell: bash
+        run: |
+          npm_version="$(npm --version)"
+          node -e 'const [major, minor, patch] = process.argv[1].split(".").map(Number); if (major < 11 || (major === 11 && (minor < 5 || (minor === 5 && patch < 1)))) { console.error(`npm ${process.argv[1]} is too old for trusted publishing; npm >= 11.5.1 is required.`); process.exit(1) }' "$npm_version"
+      - name: Bind npm publication to the release and successful main CI
+        shell: bash
+        run: |
+          version="$(node -p "require('./packages/kjdraw-sdk/package.json').version")"
+          test "$RELEASE_TAG" = "v${version}"
+          test "$(git cat-file -t "$RELEASE_TAG")" = "tag"
+          sha="$(git rev-list -n 1 "$RELEASE_TAG")"
+          test "$(git rev-parse HEAD)" = "$sha"
+          git merge-base --is-ancestor "$sha" origin/main
+          test "$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft')" = "false"
+          ci_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
+          pages_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pages.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
+          test "$ci_conclusion" = "success"
+          test "$pages_conclusion" = "success"
+      - name: Verify the exact released package
+        shell: bash
         run: |
           npm ci --ignore-scripts
           npm run typecheck
           node scripts/build-declarations.mjs --check
+          node scripts/build-docs-site.mjs --check
           node scripts/build-api-docs.mjs --check
           node scripts/test.mjs
           node --no-warnings scripts/build-typescript.mjs --check
           node scripts/audits/verify-packed-package.mjs
           node scripts/check.mjs
-          version="$(node -p "require('./packages/kjdraw-sdk/package.json').version")"
-          test "$(git rev-list -n 1 "v${version}")" = "$GITHUB_SHA"
+          node scripts/audits/release-readiness.mjs --require-ready
           npm pack --dry-run --workspace packages/kjdraw-sdk
-      - name: Publish with the correct distribution tag
+      - name: Check whether this immutable version already exists
+        id: registry
+        shell: bash
         run: |
           version="$(node -p "require('./packages/kjdraw-sdk/package.json').version")"
-          tag="latest"
-          [[ "$version" == *-* ]] && tag="next"
-          npm publish --workspace packages/kjdraw-sdk --access public --tag "$tag" --provenance
+          expected_tag="latest"
+          [[ "$version" == *-* ]] && expected_tag="next"
+          echo "expected_tag=$expected_tag" >> "$GITHUB_OUTPUT"
+          if npm view "@kanjieteam/kjdraw@${version}" version >/dev/null 2>&1; then
+            actual_tag="$(npm view "@kanjieteam/kjdraw" "dist-tags.${expected_tag}" --json 2>/dev/null | tr -d '\"\r\n')"
+            if [[ "$actual_tag" != "$version" ]]; then
+              echo "::error::@kanjieteam/kjdraw@$version already exists, but dist-tag '$expected_tag' points to '${actual_tag:-<unset>}'. Refusing to alter an existing release automatically. Correct the dist-tag through an authorized maintainer workflow, then rerun."
+              exit 1
+            fi
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish with the correct distribution tag
+        if: steps.registry.outputs.exists != 'true'
+        shell: bash
+        run: |
+          npm publish --workspace packages/kjdraw-sdk --access public --tag "${{ steps.registry.outputs.expected_tag }}" --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

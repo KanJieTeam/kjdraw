@@ -4,27 +4,27 @@
 
 Install Node.js 22+ from https://nodejs.org/ and clone this repository. Run `node scripts/serve.mjs` from its root, then open http://localhost:4173. The server listens on loopback only. Set `PORT` in your shell to choose another port.
 
-No dependency installation is needed. Modern browsers with ES modules, Canvas 2D, WebAssembly and Web Crypto are required. The first preview is developed on Windows; cross-platform CI covers the SDK, not every browser/GPU combination.
+No dependency installation is needed. Modern browsers with ES modules, Canvas 2D, WebAssembly and Web Crypto are required. Candidate CI covers Node.js on Windows, macOS and Linux plus the launch journey in Chromium, Firefox and WebKit; product teams should add hardware-specific rendering QA for their supported devices.
 
 Select objects by clicking their geometry. Use L/P/C/A/T/D for line, polyline, circle, arc, text and distance; V returns to selection and Escape cancels. Scroll to zoom and middle-drag to pan. Snaps use SDK endpoint/midpoint/center/nearest queries. The reference renderer intentionally excludes some complex formatting and nested resource behavior; unsupported view entities remain in the document.
 
-Open accepts DXF, KJD and KJP files, with a 20 MiB playground limit. KJP downloads preserve the entire project; DXF exports the active document using the development ASCII adapter. A download request does not prove durable disk storage. Browser-tab reload discards unsaved edits. For a persistent application, integrate `BrowserKjpFileBinding` or your own native file adapter.
+Open accepts DXF, KJD and KJP files, with a 20 MiB playground limit. KJP downloads preserve the entire project; DXF exports the active document through the published bounded ASCII profile. Browser-tab reload discards unsaved edits. For persistent storage, integrate `BrowserKjpFileBinding` or your own native project provider.
 
 ## Consume the SDK
 
-After the first npm registry release, install the developer preview from the `next` channel:
+Install the current release candidate from npm's `next` channel:
 
 ```sh
-npm install @kanjieteam/kjdraw
+npm install @kanjieteam/kjdraw@next
 ```
 
-Until that authenticated publication is complete, use relative ES module imports from a checkout, or install the local package in your own application:
+For checkout-based development, install the local package in your application:
 
 ```sh
 npm install /path/to/kjdraw/packages/kjdraw-sdk
 ```
 
-Then import `createKJDrawSDK` from `@kanjieteam/kjdraw`. The SDK has no runtime npm dependencies and no UI framework requirement. Rust/WASM is an optional separately hosted artifact. See the [npm status and maintainer gate](npm-publishing.md).
+Then import `createKJDrawSDK` from `@kanjieteam/kjdraw`, or mount the ready-made workbench from `@kanjieteam/kjdraw/workbench`. The SDK has no runtime npm dependencies and no UI framework requirement. Rust/WASM is an optional separately hosted artifact. Browse the [versioned developer portal](https://kanjieteam.github.io/kjdraw/docs/latest/) or see the [npm release policy](npm-publishing.md).
 
 ```js
 import { createKJDrawSDK } from '@kanjieteam/kjdraw'
@@ -44,6 +44,7 @@ See `examples/agent-command.mjs` for command envelopes and `examples/deployment-
 node scripts/test.mjs
 node --no-warnings scripts/build-typescript.mjs --check
 node scripts/build-declarations.mjs --check
+node scripts/build-docs-site.mjs --check
 node scripts/build-api-docs.mjs --check
 node scripts/audit-dxf-corpus.mjs
 node scripts/check.mjs
@@ -64,4 +65,4 @@ node scripts/test.mjs
 
 Native kernel tests: `cargo test --locked --manifest-path runtime/kjcore-rs/Cargo.toml`.
 
-The script copies the rebuilt artifact into `web/public/kjcore/kjcore.wasm`. CI rebuilds and tests the artifact from public sources. The SDK can operate in JavaScript reference mode without WASM; a missing backend must not be represented as Rust-authoritative geometry.
+The script copies the rebuilt artifact into `web/public/kjcore/kjcore.wasm`. CI rebuilds and tests the artifact from public sources. The SDK can operate through its TypeScript reference path without WASM; backend identity remains explicit in the capability manifest.

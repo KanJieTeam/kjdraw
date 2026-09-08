@@ -1,6 +1,6 @@
 # KJDraw 1.0 readiness and capability boundaries
 
-This page separates what exists in the repository from what has been verified on an immutable public release. The current candidate is `1.0.0-rc.1`; the target contract is `1.0.0`.
+This page separates what exists in the repository from what has been verified on an immutable public release. The current candidate is `1.0.0-rc.2`; the target contract is `1.0.0`.
 
 For the authoritative gate state, read [`KJDRAW_1_0_ACCEPTANCE_MATRIX.json`](KJDRAW_1_0_ACCEPTANCE_MATRIX.json) or run:
 
@@ -12,6 +12,8 @@ node scripts/audits/release-readiness.mjs
 
 - Every public SDK runtime module has a strict TypeScript authority file. Browser/Node ESM is generated and checked for parity.
 - Generated declarations cover the package root and every documented subpath.
+- The public editor and React/Vue components share the canvas renderer, drawing data, commands and original industry samples used by the workbench.
+- Bilingual task guides explain setup, framework integration, files, commands, plugins and agents. The main API reference documents editor options, methods and events, with low-level declarations available separately.
 - KJD transactions, rollback, revisions, undo/redo and optional Rust/WASM document authority have executable tests.
 - KJP packages carry multiple drawings, hashes, snapshots and command journals with bounded ZIP64 decoding.
 - The public plugin starter exercises manifest validation, compatibility, explicit permission grants, activation, a real transaction and disposal.
@@ -25,7 +27,7 @@ These statements describe repository-owned evidence. They are not a claim that a
 
 Stable promotion remains blocked until the exact release-candidate commit has all required gates green, including:
 
-- the configured Chromium, Firefox and WebKit launch journey in hosted CI (the local Chromium journey passes);
+- the configured Chromium, Firefox and WebKit acceptance journeys in hosted CI (all three pass locally);
 - live Demo, Docs, search and API deep-link checks against the deployed candidate;
 - npm provenance, GitHub artifact attestation, SBOM and checksum verification from the real release run.
 

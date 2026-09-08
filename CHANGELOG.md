@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-rc.2 — 2026-09-08
+
+- Added a public editor API and lifecycle-safe React/Vue components with real framework types.
+- Added a reusable Canvas renderer and four editable industry sample drawings, including architectural model-unit verification and DXF round-trip tests.
+- Reorganized the demo into a CAD ribbon, left layer panel, right Properties/Agent tabs and a five-drawing sample library.
+- Replaced the API landing page's declaration dump with editor examples, options, methods and events; retained full declarations in a separate reference.
+- Added bilingual task guides and updated README examples for Vanilla TypeScript, React and Vue.
+- Fixed input-field keyboard isolation, repeated sample creation, camera bounds and editor cleanup.
+- Added the pinned DXF audit requirements file required by `setup-python` caching on clean GitHub runners.
+- Limited push CI to branches so an annotated release tag does not duplicate the exact branch run.
+- Regenerated runtime, declarations and API documentation from the corrected candidate version.
+
 ## 1.0.0-rc.1 — 2026-09-08
 
 - Completed strict TypeScript source ownership for every public SDK runtime module and added reproducible ESM/declaration drift gates.
@@ -13,7 +25,7 @@
 - Added repository-owned Chromium/Firefox/WebKit journeys, generated API reference/search/deep links, governance/support policy, issue forms, SBOM/checksum generation and artifact-attestation workflows.
 - Rewrote the bilingual project home, capability/status pages and 1.0 release notes around the testable product contract rather than raw repository counts.
 
-Stable promotion remains pending the external gates in the [1.0 acceptance matrix](docs/KJDRAW_1_0_ACCEPTANCE_MATRIX.json). Prepared notes: [1.0.0-rc.1](docs/releases/1.0.0-rc.1.md) and [1.0.0](docs/releases/1.0.0.md).
+Stable promotion remains pending the external gates in the [1.0 acceptance matrix](docs/KJDRAW_1_0_ACCEPTANCE_MATRIX.json). Prepared notes: [1.0.0-rc.2](docs/releases/1.0.0-rc.2.md) and [1.0.0](docs/releases/1.0.0.md).
 
 ## 0.7.2-preview.1
 

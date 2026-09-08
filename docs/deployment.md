@@ -16,7 +16,7 @@ The host chooses the project authority. Registration never initiates network acc
 
 ## Provider contracts
 
-KJDraw 0.3.1 introduces three small host-facing contracts:
+KJDraw exposes three small host-facing provider contracts:
 
 - `project-store`: `loadProject()` and `saveProject()`.
 - `compute`: `execute()`.

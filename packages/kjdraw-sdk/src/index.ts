@@ -1,6 +1,7 @@
 // Public TypeScript source entry. Each specifier intentionally uses the emitted
 // `.js` extension so the same graph works in Node ESM and in TypeScript's
 // NodeNext resolver without a package-root self reference.
+export * from './editor.js'
 export * from './commands.js'
 export * from './agent-plans.js'
 export * from './capabilities.js'

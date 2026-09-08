@@ -36,10 +36,10 @@ A KJP project is a ZIP64 package with a manifest, drawing documents and command 
 
 Hosts can call SDK commands directly or use versioned envelopes. Envelopes include document ID, expected revision, origin, plan/execute mode, arguments and confirmation metadata. A plan produces a non-mutating receipt; execution uses the same transactional command implementations as UI tools.
 
-Hosts must bind user approval to exact plan arguments, document and revision. The SDK does not persist a trusted plan registry or authenticate confirmation metadata. Plugins execute JavaScript in the host context unless the host adds isolation. Permission manifests document and constrain cooperative registration; they are not a hostile-code sandbox.
+The SDK keeps a short-lived in-process Agent plan registry and binds approval to exact arguments, document content and revision before one-shot execution. Hosts own user authentication and durable approval storage. Plugins execute in the host context unless the host adds isolation; permission manifests constrain cooperative registration.
 
 ## Geometry authority
 
-Rust/WASM is available for document sessions, primitive geometry queries, and specified solid-mesh operations. Many 2D edits still compute in JavaScript. Backend identity is explicit; reference geometry is not promoted to authoritative export by missing-backend fallback. The older machine-readable 1.0 contract describes a target architecture; it does not mean the developer preview has fulfilled all of it.
+Rust/WASM is available for document sessions, primitive geometry queries and specified solid-mesh operations. Portable 2D reference operations are authored in TypeScript. Backend identity is explicit, and the machine-readable acceptance matrix records the current candidate evidence separately from hosted release verification.
 
 The reference workbench calls public SDK commands, reads document state for rendering, and uses the Rust document bridge when available. It does not include downstream domain compilers, proprietary data or enterprise services, and does not certify arbitrary drawing fidelity or printing.

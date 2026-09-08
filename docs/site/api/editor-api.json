@@ -1,0 +1,348 @@
+{
+  "schema": "com.kanjie.kjdraw.editor-api-guide@1",
+  "symbol": "createKJDrawEditor",
+  "class": "KJDrawEditor",
+  "title": {
+    "en": "KJDraw Editor API",
+    "zh": "KJDraw 编辑器 API"
+  },
+  "lead": {
+    "en": "Mount a complete CAD editor with one function, then control drawings, files, commands and selection through a small typed API.",
+    "zh": "一个函数挂载完整 CAD 编辑器，再通过小而清晰的类型化 API 控制图档、文件、命令与选择。"
+  },
+  "containerCode": "<div id=\"cad\"></div>\n<style>\n  #cad { width: 100%; height: 720px; }\n</style>",
+  "quickstartCode": "import { createKJDrawEditor } from '@kanjieteam/kjdraw'\n\nconst editor = createKJDrawEditor('#cad', {\n  document: 'sample',\n  locale: 'en',\n  theme: 'dark',\n  onChange: ({ revision, entityCount }) => {\n    console.log({ revision, entityCount })\n  },\n})\n\nawait editor.ready\nawait editor.execute('CREATE', {\n  type: 'CIRCLE',\n  payload: { center: [40, 30, 0], radius: 12 },\n})\neditor.fit()\n\nconst kjd = await editor.save({ format: 'KJD', download: false })\n// Call editor.dispose() when the owning screen unmounts.",
+  "reactCode": "import { useRef } from 'react'\nimport { KJDraw, type KJDrawEditor } from '@kanjieteam/kjdraw/react'\n\nexport function DrawingEditor() {\n  const editor = useRef<KJDrawEditor | null>(null)\n  return (\n    <KJDraw\n      ref={editor}\n      document=\"sample\"\n      locale=\"en\"\n      theme=\"dark\"\n      style={{ height: 720 }}\n    />\n  )\n}",
+  "vueCode": "<script setup lang=\"ts\">\nimport { ref } from 'vue'\nimport { KJDraw, type KJDrawExposed } from '@kanjieteam/kjdraw/vue'\n\nconst editor = ref<KJDrawExposed | null>(null)\n</script>\n\n<template>\n  <KJDraw ref=\"editor\" document=\"sample\" locale=\"en\" style=\"height: 720px\" />\n</template>",
+  "options": [
+    {
+      "name": "document",
+      "type": "KJDocument | 'sample' | 'blank' | null",
+      "default": "active SDK document or 'sample'",
+      "en": "Initial drawing. 'sample' opens the included example; 'blank' and null create an empty drawing.",
+      "zh": "初始图档。'sample' 打开内置示例；'blank' 与 null 创建空白图档。"
+    },
+    {
+      "name": "sdk",
+      "type": "KJDrawSDK",
+      "default": "new SDK",
+      "en": "Reuse an application SDK so commands, plugins and documents share one registry.",
+      "zh": "复用应用 SDK，让命令、插件与图档共享同一注册表。"
+    },
+    {
+      "name": "locale",
+      "type": "'en' | 'zh-CN'",
+      "default": "'en'",
+      "en": "Initial workbench language.",
+      "zh": "工作台初始语言。"
+    },
+    {
+      "name": "theme",
+      "type": "'dark' | 'light'",
+      "default": "'dark'",
+      "en": "Initial panel and canvas appearance.",
+      "zh": "面板与画布的初始外观。"
+    },
+    {
+      "name": "readonly",
+      "type": "boolean",
+      "default": "false",
+      "en": "Keep inspection, navigation and export while disabling editing controls.",
+      "zh": "保留检查、导航与导出，同时禁用编辑控件。"
+    },
+    {
+      "name": "grid",
+      "type": "boolean",
+      "default": "true",
+      "en": "Show the drawing grid initially.",
+      "zh": "初始显示绘图网格。"
+    },
+    {
+      "name": "toolbar",
+      "type": "boolean",
+      "default": "true",
+      "en": "Show the ribbon toolbar.",
+      "zh": "显示 Ribbon 工具栏。"
+    },
+    {
+      "name": "layers",
+      "type": "boolean",
+      "default": "true",
+      "en": "Show the layers panel.",
+      "zh": "显示图层面板。"
+    },
+    {
+      "name": "properties",
+      "type": "boolean",
+      "default": "true",
+      "en": "Show the properties inspector.",
+      "zh": "显示属性检查器。"
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "default": "drawing ID",
+      "en": "Override the drawing title displayed in the workbench header.",
+      "zh": "覆盖工作台顶部显示的图档标题。"
+    },
+    {
+      "name": "maxFileBytes",
+      "type": "number",
+      "default": "20 MiB",
+      "en": "Maximum input size checked before an opened file is read.",
+      "zh": "打开文件前检查的最大输入字节数。"
+    },
+    {
+      "name": "onReady",
+      "type": "(editor: KJDrawEditor) => void",
+      "default": "—",
+      "en": "Called after the initial drawing and renderer are ready.",
+      "zh": "初始图档与渲染器就绪后调用。"
+    },
+    {
+      "name": "onChange",
+      "type": "(event: KJDrawWorkbenchChange) => void",
+      "default": "—",
+      "en": "Receives the document, revision and entity count after a drawing change.",
+      "zh": "图档变化后接收 document、revision 与 entityCount。"
+    },
+    {
+      "name": "onSelectionChange",
+      "type": "(event: KJDrawEditorSelectionEvent) => void",
+      "default": "—",
+      "en": "Receives the active document and selected object IDs.",
+      "zh": "接收活动图档与已选对象 ID。"
+    },
+    {
+      "name": "onError",
+      "type": "(error: unknown) => void",
+      "default": "—",
+      "en": "Receives initialization, file and command errors.",
+      "zh": "接收初始化、文件与命令错误。"
+    }
+  ],
+  "properties": [
+    {
+      "name": "ready",
+      "type": "Promise<KJDrawEditor>",
+      "en": "Resolves after the initial drawing is mounted and fitted.",
+      "zh": "初始图档完成挂载和适配后 resolve。"
+    },
+    {
+      "name": "element",
+      "type": "HTMLElement",
+      "en": "Mounted editor root element.",
+      "zh": "已挂载的编辑器根元素。"
+    },
+    {
+      "name": "document",
+      "type": "KJDocument | null",
+      "en": "Current drawing after ready resolves.",
+      "zh": "ready 完成后的当前图档。"
+    },
+    {
+      "name": "sdk",
+      "type": "KJDrawSDK",
+      "en": "SDK used by the editor. Register plugins here; use editor.execute() or pass a document explicitly for commands when several editors share this SDK.",
+      "zh": "编辑器使用的 SDK，可在此注册插件。多个编辑器共享时，使用 editor.execute() 或显式指定 document 来确定命令操作的图纸。"
+    },
+    {
+      "name": "workbench",
+      "type": "KJDrawWorkbench",
+      "en": "Advanced workbench access for custom tools and renderer integration.",
+      "zh": "面向自定义工具与渲染集成的高级工作台入口。"
+    },
+    {
+      "name": "locale",
+      "type": "'en' | 'zh-CN'",
+      "en": "Current UI language.",
+      "zh": "当前界面语言。"
+    },
+    {
+      "name": "theme",
+      "type": "'dark' | 'light'",
+      "en": "Current appearance.",
+      "zh": "当前外观。"
+    },
+    {
+      "name": "disposed",
+      "type": "boolean",
+      "en": "Whether dispose() has released the editor.",
+      "zh": "dispose() 是否已释放编辑器。"
+    }
+  ],
+  "methods": [
+    {
+      "name": "open",
+      "signature": "open(source, options?)",
+      "parameters": "Blob | string | ArrayBuffer | ArrayBufferView; KJWorkbenchOpenOptions",
+      "returns": "Promise<KJDocument>",
+      "en": "Open DXF or KJD content. File names can supply format detection.",
+      "zh": "打开 DXF 或 KJD 内容；可通过文件名自动识别格式。"
+    },
+    {
+      "name": "save",
+      "signature": "save(options?)",
+      "parameters": "KJDrawEditorSaveOptions",
+      "returns": "Promise<string | Uint8Array>",
+      "en": "Save KJD by default or DXF when selected. Set download:false to handle the result yourself.",
+      "zh": "默认保存 KJD，也可选择 DXF；设 download:false 后自行处理结果。"
+    },
+    {
+      "name": "execute",
+      "signature": "execute(command, args?)",
+      "parameters": "string; KJCommandArguments",
+      "returns": "Promise<KJSDKCommandEnvelopeReceipt<T>>",
+      "en": "Run a command against the current drawing and receive its revisioned receipt.",
+      "zh": "对当前图档执行命令并获得带修订信息的回执。"
+    },
+    {
+      "name": "undo",
+      "signature": "undo()",
+      "parameters": "—",
+      "returns": "Promise<KJSDKCommandEnvelopeReceipt>",
+      "en": "Undo the most recent committed transaction.",
+      "zh": "撤销最近一次已提交事务。"
+    },
+    {
+      "name": "redo",
+      "signature": "redo()",
+      "parameters": "—",
+      "returns": "Promise<KJSDKCommandEnvelopeReceipt>",
+      "en": "Redo the next transaction in session history.",
+      "zh": "重做当前会话历史中的下一项事务。"
+    },
+    {
+      "name": "fit",
+      "signature": "fit()",
+      "parameters": "—",
+      "returns": "KJDrawEditor",
+      "en": "Fit the active drawing to the current viewport.",
+      "zh": "将活动图档适配到当前视口。"
+    },
+    {
+      "name": "setDocument",
+      "signature": "setDocument(drawing)",
+      "parameters": "KJDocument",
+      "returns": "Promise<KJDrawEditor>",
+      "en": "Attach and activate an existing document.",
+      "zh": "挂接并激活一个现有图档。"
+    },
+    {
+      "name": "setSelection",
+      "signature": "setSelection(ids)",
+      "parameters": "readonly string[]",
+      "returns": "Promise<readonly string[]>",
+      "en": "Replace selection through the serialized command queue and return the accepted IDs.",
+      "zh": "通过串行命令队列替换选择集，并返回已接受的 ID。"
+    },
+    {
+      "name": "getSelection",
+      "signature": "getSelection()",
+      "parameters": "—",
+      "returns": "readonly string[]",
+      "en": "Read the current selected object IDs.",
+      "zh": "读取当前已选对象 ID。"
+    },
+    {
+      "name": "setTheme",
+      "signature": "setTheme(theme)",
+      "parameters": "'dark' | 'light'",
+      "returns": "KJDrawEditor",
+      "en": "Switch panel and canvas appearance immediately.",
+      "zh": "立即切换面板与画布外观。"
+    },
+    {
+      "name": "setLocale",
+      "signature": "setLocale(locale)",
+      "parameters": "'en' | 'zh-CN'",
+      "returns": "KJDrawEditor",
+      "en": "Switch workbench language immediately.",
+      "zh": "立即切换工作台语言。"
+    },
+    {
+      "name": "setTool",
+      "signature": "setTool(tool)",
+      "parameters": "KJWorkbenchTool",
+      "returns": "KJDrawEditor",
+      "en": "Activate select, pan, drawing or measurement tools.",
+      "zh": "激活选择、平移、绘制或测量工具。"
+    },
+    {
+      "name": "setTitle",
+      "signature": "setTitle(title)",
+      "parameters": "string",
+      "returns": "KJDrawEditor",
+      "en": "Update the title displayed above the drawing.",
+      "zh": "更新图档上方显示的标题。"
+    },
+    {
+      "name": "setOptions",
+      "signature": "setOptions(options)",
+      "parameters": "Pick<KJDrawEditorOptions, 'readonly' | 'grid' | 'toolbar' | 'layers' | 'properties' | 'title' | 'maxFileBytes'>",
+      "returns": "KJDrawEditor",
+      "en": "Update editor chrome, editing mode and file-size limit without replacing the drawing or its undo history.",
+      "zh": "原位更新编辑器界面、编辑模式与文件大小限制，不替换图档或撤销历史。"
+    },
+    {
+      "name": "on",
+      "signature": "on(name, listener)",
+      "parameters": "keyof KJDrawEditorEvents; listener",
+      "returns": "() => boolean",
+      "en": "Subscribe to an editor event and receive an unsubscribe function.",
+      "zh": "订阅编辑器事件，并获得取消订阅函数。"
+    },
+    {
+      "name": "dispose",
+      "signature": "dispose()",
+      "parameters": "—",
+      "returns": "void",
+      "en": "Unmount and release listeners and renderer resources. Safe to call twice.",
+      "zh": "卸载并释放监听与渲染资源；可安全重复调用。"
+    }
+  ],
+  "events": [
+    {
+      "name": "ready",
+      "payload": "KJDrawEditor",
+      "callback": "onReady",
+      "en": "Initial drawing and renderer are ready.",
+      "zh": "初始图档与渲染器已经就绪。"
+    },
+    {
+      "name": "change",
+      "payload": "{ document, revision, entityCount }",
+      "callback": "onChange",
+      "en": "A drawing change has committed.",
+      "zh": "一次图档变更已提交。"
+    },
+    {
+      "name": "selectionchange",
+      "payload": "{ document, ids }",
+      "callback": "onSelectionChange",
+      "en": "The selected object IDs changed.",
+      "zh": "已选对象 ID 发生变化。"
+    },
+    {
+      "name": "documentchange",
+      "payload": "{ document }",
+      "callback": "editor.on()",
+      "en": "Open or setDocument activated another drawing.",
+      "zh": "open 或 setDocument 激活了另一张图档。"
+    },
+    {
+      "name": "error",
+      "payload": "unknown",
+      "callback": "onError",
+      "en": "Initialization, file or queued command failed.",
+      "zh": "初始化、文件操作或队列命令失败。"
+    },
+    {
+      "name": "dispose",
+      "payload": "undefined",
+      "callback": "editor.on()",
+      "en": "The editor released its mounted resources.",
+      "zh": "编辑器已释放挂载资源。"
+    }
+  ]
+}

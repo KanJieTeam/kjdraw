@@ -1,26 +1,40 @@
-import { createKJDrawSDK, KJProjectSession, instantiateKJCoreWasm, createWasmGeometryBackend, registerGeometryBackend, createKJCoreDocumentAuthority, createKJCoreSolidBackend, multiply3, rotation3, scale3, translation3, transformEntityPayload } from '../../packages/kjdraw-sdk/src/index.js'
+import { createKJDrawSDK, KJProjectSession, instantiateKJCoreWasm, createWasmGeometryBackend, registerGeometryBackend, createKJCoreDocumentAuthority, createKJCoreSolidBackend } from '../../packages/kjdraw-sdk/src/index.js'
+import { KJCanvasRenderer } from '../../packages/kjdraw-sdk/src/canvas-renderer.js'
 import { createSample } from '../../examples/sample.js'
 import { createI18n } from './i18n.js'
 import { AGENT_REVISION_COMMAND, createShowcaseRevision, getShowcaseIntent, isShowcaseIntent, registerShowcaseCommand, resolveShowcasePreset } from './agent-showcase.js'
+import { createIndustrySamples, INDUSTRY_SAMPLES } from './industry-samples.js'
 
 const $ = id => document.getElementById(id)
 const i18n = createI18n(), t = key => i18n.t(key)
 const workbench = document.querySelector('.workbench')
-const canvas = $('canvas'), ctx = canvas.getContext('2d')
-const camera = { x: 60, y: 38, scale: 4 }
+const canvas = $('canvas'), canvasRenderer = new KJCanvasRenderer(canvas,{theme:'dark',grid:true,padding:45}), ctx = canvasRenderer.context
+const camera = {
+  get x(){return canvasRenderer.camera.centerX},set x(value){canvasRenderer.camera.centerX=value},
+  get y(){return canvasRenderer.camera.centerY},set y(value){canvasRenderer.camera.centerY=value},
+  get scale(){return canvasRenderer.camera.scale},set scale(value){canvasRenderer.camera.scale=value},
+}
 const colors = ['#c8d7e7','#ee9999','#e8d697','#bdf878','#7db9e4','#b795db','#de91bf','#b8c7d8','#637b91']
-const visibleTypes = new Set(['LINE','RAY','XLINE','CIRCLE','ARC','POINT','LWPOLYLINE','POLYLINE','ELLIPSE','SPLINE','TEXT','MTEXT','ATTDEF','ATTRIB','INSERT','HATCH','LEADER','MLEADER','DIMENSION','WIPEOUT','REVISION_CLOUD','SOLID','TRACE','TABLE','VIEWPORT'])
-let sdk, session, selection = new Set(), tool = 'select', start = null, draft = [], cursor = null, snapEnabled = true, gridEnabled = true, orthoEnabled = false, pendingPlan = null, pan = null, busy = false, authority = null, solidAuthority = null, measurement = '', width = 1, height = 1, lastReceipt = null
+let rendererSelectionKey = ''
+const SHOWCASE_DOCUMENT_ID = 'sample-resilient-campus'
+const SAMPLE_DESCRIPTORS = Object.freeze([
+  { id: SHOWCASE_DOCUMENT_ID, title: 'Resilient energy campus · Agent + 2,294 objects', titleZh: '韧性能源园区 · Agent + 2,294 对象', discipline: 'ENERGY · STRESS' },
+  ...INDUSTRY_SAMPLES,
+])
+let sdk, session, selection = new Set(), tool = 'select', start = null, draft = [], cursor = null, snapEnabled = true, gridEnabled = true, orthoEnabled = false, pendingPlan = null, pan = null, busy = false, authority = null, solidAuthority = null, measurement = null, width = 1, height = 1, lastReceipt = null
 const doc = () => sdk.activeDocument
-const documentTitle = drawing => drawing?.id === 'sample-resilient-campus' && i18n.locale === 'zh'
-  ? '韧性能源园区 / 总协调图'
-  : drawing?.snapshot().metadata?.title || drawing?.id || ''
+const documentTitle = drawing => {
+  const metadata = drawing?.snapshot().metadata
+  if (i18n.locale === 'zh') return metadata?.custom?.titleZh ?? (drawing?.id === SHOWCASE_DOCUMENT_ID ? '韧性能源园区 / 总协调图' : metadata?.title || drawing?.id || '')
+  return metadata?.title || drawing?.id || ''
+}
+const documentDiscipline = drawing => drawing?.snapshot().metadata?.custom?.discipline ?? (drawing?.id === SHOWCASE_DOCUMENT_ID ? 'ENERGY · STRESS' : 'DRAWING')
 const selectedIds = () => [...selection].filter(id => doc()?.getObject(id))
 const primarySelection = () => selectedIds().at(-1) ?? null
 function replaceSelection(ids = []) { selection = new Set(ids.filter(id => doc()?.getObject(id))) }
 const message = text => { $('status').textContent = text }
-const point = p => [(p[0]-camera.x)*camera.scale+width/2, height/2-(p[1]-camera.y)*camera.scale]
-const world = p => [(p[0]-width/2)/camera.scale+camera.x, (height/2-p[1])/camera.scale+camera.y]
+const point = p => canvasRenderer.worldToScreen(p)
+const world = p => canvasRenderer.screenToWorld(p)
 const modelEntities = () => doc().listEntities({ ownerId: doc().snapshot().spaces.modelSpaceId })
 const currentIntent = preset => getShowcaseIntent(i18n.locale,preset)
 const knownIntent = value => isShowcaseIntent(value)
@@ -57,100 +71,94 @@ function setTool(value) {
   $('hint').textContent = `${hints[tool] ?? tool.toUpperCase()}${tool === 'select' ? '' : ' · Esc to cancel'}`
   render()
 }
-function layerColor(entity) {
-  const layer = doc().getObject(entity.payload?.layerId)
-  return colors[Math.abs(Number(layer?.payload?.color ?? 7)) % colors.length]
-}
 function isVisible(entity) { if (!entity) return false; const p = doc().getObject(entity.payload?.layerId)?.payload; return p?.visible !== false && !p?.frozen }
-function drawEntity(entity, color, offset = [0,0], dashed = false, depth = 0) {
-  const p = entity.payload
-  const map = v => point([v[0]+offset[0],v[1]+offset[1]])
-  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = selection.has(entity.id) ? 2 : 1; ctx.setLineDash(dashed ? [5,4] : [])
-  ctx.beginPath()
-  if (entity.type === 'LINE') { ctx.moveTo(...map(p.start)); ctx.lineTo(...map(p.end)); ctx.stroke() }
-  else if (entity.type === 'RAY' || entity.type === 'XLINE') { const origin=map(p.origin),d=p.direction??[1,0],span=Math.max(width,height)*2,s=Math.hypot(d[0],d[1])||1,dx=d[0]/s*span,dy=-d[1]/s*span;ctx.moveTo(origin[0]-(entity.type==='XLINE'?dx:0),origin[1]-(entity.type==='XLINE'?dy:0));ctx.lineTo(origin[0]+dx,origin[1]+dy);ctx.stroke() }
-  else if (entity.type === 'CIRCLE' || entity.type === 'ARC') {
-    const [x,y] = map(p.center)
-    ctx.arc(x,y,p.radius*camera.scale,entity.type === 'ARC' ? -p.startAngle : 0,entity.type === 'ARC' ? -p.endAngle : Math.PI*2,entity.type === 'ARC'); ctx.stroke()
-  } else if (entity.type === 'POINT') { const [x,y] = map(p.position); ctx.moveTo(x-3,y);ctx.lineTo(x+3,y);ctx.moveTo(x,y-3);ctx.lineTo(x,y+3);ctx.stroke() }
-  else if (entity.type === 'TEXT' || entity.type === 'MTEXT') {
-    const [x,y] = map(p.position); ctx.save(); ctx.translate(x,y);ctx.rotate(-(p.rotation ?? 0));ctx.font = `${Math.max(4,(p.height ?? 1)*camera.scale)}px Consolas, monospace`;ctx.fillText(p.text ?? '',0,0);ctx.restore()
-  } else if (entity.type === 'LWPOLYLINE' || entity.type === 'POLYLINE') {
-    const verts = p.vertices ?? []; if (verts.some(v => v.bulge)) return
-    verts.forEach((v,i) => { const q = map(v.point ?? v); i ? ctx.lineTo(...q) : ctx.moveTo(...q) }); if (p.closed) ctx.closePath(); ctx.stroke()
-  }
-  else if(entity.type==='ELLIPSE'){const [x,y]=map(p.center),rx=Math.hypot(p.majorAxis[0],p.majorAxis[1])*camera.scale,rotation=-Math.atan2(p.majorAxis[1],p.majorAxis[0]);ctx.ellipse(x,y,rx,rx*p.ratio,rotation,-(p.endParameter??Math.PI*2),-(p.startParameter??0));ctx.stroke()}
-  else if(entity.type==='SPLINE'){const points=p.fitPoints?.length?p.fitPoints:p.controlPoints??[];points.forEach((v,i)=>{const q=map(v);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.stroke()}
-  else if(entity.type==='HATCH'){for(const loop of p.boundaryLoops??[]){const verts=loop.vertices??[];ctx.beginPath();verts.forEach((v,i)=>{const q=map(v.point??v);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.closePath();ctx.globalAlpha=p.solid?.18:.08;ctx.fill();ctx.globalAlpha=1;ctx.stroke()}}
-  else if(['LEADER','MLEADER','DIMENSION'].includes(entity.type)){const verts=p.vertices??p.definitionPoints??[];verts.forEach((v,i)=>{const q=map(v);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.stroke();if(p.textPosition){const q=map(p.textPosition);ctx.fillText(p.textOverride??(p.measurement==null?'':Number(p.measurement).toFixed(2)),q[0],q[1])}}
-  else if(['SOLID','TRACE','WIPEOUT','REVISION_CLOUD'].includes(entity.type)){const verts=p.vertices??[];verts.forEach((v,i)=>{const q=map(v.point??v);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.closePath();ctx.globalAlpha=.15;ctx.fill();ctx.globalAlpha=1;ctx.stroke()}
-  else if(entity.type==='VIEWPORT'){const [x,y]=map(p.center);ctx.rect(x-p.width*camera.scale/2,y-p.height*camera.scale/2,p.width*camera.scale,p.height*camera.scale);ctx.stroke()}
-  else if(entity.type==='TABLE'){const [x,y]=map(p.position),totalW=(p.columnWidths??[]).reduce((a,b)=>a+b,0),totalH=(p.rowHeights??[]).reduce((a,b)=>a+b,0);ctx.rect(x,y,totalW*camera.scale,totalH*camera.scale);ctx.stroke()}
-  else if(entity.type==='INSERT'&&depth<8){const block=doc().getObject(p.blockRecordId),base=block?.payload?.basePoint??[0,0],factor=Array.isArray(p.scale)?p.scale:[p.scale??1,p.scale??1],matrix=multiply3(translation3(...p.position),multiply3(rotation3(p.rotation??0),multiply3(scale3(factor[0]??1,factor[1]??factor[0]??1),translation3(-base[0],-base[1]))));for(const child of doc().listEntities({ownerId:p.blockRecordId})){try{drawEntity({...child,payload:transformEntityPayload(child.type,child.payload,matrix)},color,offset,dashed,depth+1)}catch{}}}
-  ctx.setLineDash([])
+// Only transient previews use this painter; committed geometry comes from the
+// same public Canvas renderer npm consumers use.
+function drawOverlayEntity(entity, color, offset = [0,0]) {
+  const p=entity.payload,map=value=>point([value[0]+offset[0],value[1]+offset[1]])
+  ctx.save();ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=1.5;ctx.setLineDash([6,4]);ctx.beginPath()
+  if(entity.type==='LINE'){ctx.moveTo(...map(p.start));ctx.lineTo(...map(p.end));ctx.stroke()}
+  else if(entity.type==='RAY'||entity.type==='XLINE'){const origin=map(p.origin),direction=p.direction??[1,0],span=Math.max(width,height)*2,length=Math.hypot(...direction)||1,dx=direction[0]/length*span,dy=-direction[1]/length*span;ctx.moveTo(origin[0]-(entity.type==='XLINE'?dx:0),origin[1]-(entity.type==='XLINE'?dy:0));ctx.lineTo(origin[0]+dx,origin[1]+dy);ctx.stroke()}
+  else if(entity.type==='CIRCLE'||entity.type==='ARC'){const [x,y]=map(p.center);ctx.arc(x,y,p.radius*camera.scale,entity.type==='ARC'?-p.startAngle:0,entity.type==='ARC'?-p.endAngle:Math.PI*2,entity.type==='ARC');ctx.stroke()}
+  else if(entity.type==='POINT'){const [x,y]=map(p.position);ctx.moveTo(x-3,y);ctx.lineTo(x+3,y);ctx.moveTo(x,y-3);ctx.lineTo(x,y+3);ctx.stroke()}
+  else if(entity.type==='TEXT'||entity.type==='MTEXT'){const [x,y]=map(p.position);ctx.translate(x,y);ctx.rotate(-(p.rotation??0));ctx.font=`${Math.max(7,(p.height??1)*camera.scale)}px Consolas, monospace`;ctx.fillText(p.text??'',0,0)}
+  else if(entity.type==='LWPOLYLINE'||entity.type==='POLYLINE'){const vertices=p.vertices??[];vertices.forEach((value,index)=>{const next=map(value.point??value);index?ctx.lineTo(...next):ctx.moveTo(...next)});if(p.closed)ctx.closePath();ctx.stroke()}
+  else if(entity.type==='ELLIPSE'){const [x,y]=map(p.center),radius=Math.hypot(...p.majorAxis)*camera.scale,rotation=-Math.atan2(p.majorAxis[1],p.majorAxis[0]);ctx.ellipse(x,y,radius,radius*p.ratio,rotation,-(p.endParameter??Math.PI*2),-(p.startParameter??0));ctx.stroke()}
+  ctx.restore()
 }
-function rendererSupports(entity) { return visibleTypes.has(entity.type) && !(['LWPOLYLINE','POLYLINE'].includes(entity.type) && entity.payload.vertices?.some(v => v.bulge)) }
 function render() {
-  if (!sdk?.activeDocument) return
-  const ratio = window.devicePixelRatio || 1
-  ctx.setTransform(ratio,0,0,ratio,0,0); ctx.clearRect(0,0,width,height)
-  let grid = 10; while(grid*camera.scale<24)grid*=2; while(grid*camera.scale>100)grid/=2
-  const a = world([0,height]), b = world([width,0]); ctx.fillStyle='#243349'
-  if(gridEnabled)for(let x=Math.ceil(a[0]/grid)*grid;x<b[0];x+=grid)for(let y=Math.ceil(a[1]/grid)*grid;y<b[1];y+=grid){const [px,py]=point([x,y]);ctx.fillRect(px,py,1,1)}
-  const entities = modelEntities(),layers=new Map(doc().getTable('layers').records.map(layer=>[layer.id,layer.payload]))
-  for (const entity of entities) { const layer=layers.get(entity.payload?.layerId);if(layer?.visible===false||layer?.frozen)continue;drawEntity(entity,selection.has(entity.id) ? '#edffd8' : colors[Math.abs(Number(layer?.color??7))%colors.length]) }
+  if(!sdk?.activeDocument)return
+  let rendered=false
+  if(canvasRenderer.document!==doc()){canvasRenderer.setDocument(doc());rendererSelectionKey='';rendered=true}
+  if(canvasRenderer.grid!==gridEnabled){canvasRenderer.setGrid(gridEnabled);rendered=true}
+  const selectionKey=selectedIds().sort().join('|')
+  if(selectionKey!==rendererSelectionKey){canvasRenderer.setSelection(selectedIds());rendererSelectionKey=selectionKey;rendered=true}
+  if(!rendered)canvasRenderer.render()
+  const entities=modelEntities()
   if(pendingPlan){
-    const args=pendingPlan.envelope.arguments
-    const deleted=new Set(args.deleteIds),moved=new Set(args.moveIds)
-    for(const entity of entities)if(deleted.has(entity.id))drawEntity(entity,'#ff7077',[0,0],true)
-    for(const entity of entities)if(moved.has(entity.id))drawEntity(entity,'#ffc766',[args.dx,args.dy],true)
-    for(const spec of args.additions)drawEntity({id:`preview-${spec.type}`,type:spec.type,payload:spec.payload},'#6ce6a5',[0,0],true)
+    const args=pendingPlan.envelope.arguments,deleted=new Set(args.deleteIds),moved=new Set(args.moveIds)
+    for(const entity of entities)if(deleted.has(entity.id))drawOverlayEntity(entity,'#ff7077')
+    for(const entity of entities)if(moved.has(entity.id))drawOverlayEntity(entity,'#ffc766',[args.dx,args.dy])
+    for(const spec of args.additions)drawOverlayEntity({id:`preview-${spec.type}`,type:spec.type,payload:spec.payload},'#6ce6a5')
   }
-  if(start && cursor){
-    const preview = tool==='circle' ? {type:'CIRCLE',payload:{center:start,radius:Math.hypot(cursor[0]-start[0],cursor[1]-start[1])}}
-      : tool==='rectangle' ? {type:'LWPOLYLINE',payload:{vertices:[[start[0],start[1]],[cursor[0],start[1]],cursor,[start[0],cursor[1]]].map(point=>({point})),closed:true}}
-      : tool==='ellipse' ? {type:'ELLIPSE',payload:{center:start,majorAxis:[cursor[0]-start[0],cursor[1]-start[1]],ratio:.55,startParameter:0,endParameter:Math.PI*2}}
-      : tool==='xline' ? {type:'XLINE',payload:{origin:start,direction:[cursor[0]-start[0],cursor[1]-start[1]]}}
-      : {type:'LINE',payload:{start,end:cursor}}
-    drawEntity(preview,'#bdf878',[0,0],true)
+  if(start&&cursor){
+    const preview=tool==='circle'?{type:'CIRCLE',payload:{center:start,radius:Math.hypot(cursor[0]-start[0],cursor[1]-start[1])}}
+      :tool==='rectangle'?{type:'LWPOLYLINE',payload:{vertices:[[start[0],start[1]],[cursor[0],start[1]],cursor,[start[0],cursor[1]]].map(point=>({point})),closed:true}}
+      :tool==='ellipse'?{type:'ELLIPSE',payload:{center:start,majorAxis:[cursor[0]-start[0],cursor[1]-start[1]],ratio:.55,startParameter:0,endParameter:Math.PI*2}}
+      :tool==='xline'?{type:'XLINE',payload:{origin:start,direction:[cursor[0]-start[0],cursor[1]-start[1]]}}
+      :{type:'LINE',payload:{start,end:cursor}}
+    drawOverlayEntity(preview,'#bdf878')
   }
-  if(tool==='polyline'&&draft.length>1){ctx.strokeStyle='#bdf878';ctx.setLineDash([5,4]);ctx.beginPath();draft.concat(cursor?[cursor]:[]).forEach((v,i)=>{const q=point(v);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.stroke();ctx.setLineDash([])}
+  if(tool==='polyline'&&draft.length>1){ctx.save();ctx.strokeStyle='#bdf878';ctx.setLineDash([5,4]);ctx.beginPath();draft.concat(cursor?[cursor]:[]).forEach((value,index)=>{const next=point(value);index?ctx.lineTo(...next):ctx.moveTo(...next)});ctx.stroke();ctx.restore()}
 }
 function resize() {
   const rect = canvas.getBoundingClientRect();width=rect.width;height=rect.height
-  const ratio = window.devicePixelRatio || 1;canvas.width=Math.round(width*ratio);canvas.height=Math.round(height*ratio);render()
+  canvasRenderer.resize(width,height);render()
 }
-function bounds() {
-  const coords=[]
-  for(const e of modelEntities()) {
-    const p=e.payload
-    if(p.start)coords.push(p.start);if(p.end)coords.push(p.end);if(p.position)coords.push(p.position)
-    if(p.origin)coords.push(p.origin);if(p.textPosition)coords.push(p.textPosition)
-    if(p.center)coords.push([p.center[0]-(p.radius??0),p.center[1]-(p.radius??0)],[p.center[0]+(p.radius??0),p.center[1]+(p.radius??0)])
-    for(const v of p.vertices??[])coords.push(v.point??v)
-    for(const v of p.controlPoints??[])coords.push(v);for(const v of p.fitPoints??[])coords.push(v);for(const v of p.definitionPoints??[])coords.push(v)
-    for(const loop of p.boundaryLoops??[])for(const v of loop.vertices??[])coords.push(v.point??v)
-  }
-  const valid=coords.filter(p=>Array.isArray(p)&&Number.isFinite(p[0])&&Number.isFinite(p[1]))
-  if(!valid.length)return [0,0,100,80]
-  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity
-  for(const [x,y] of valid){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y)}
-  return [x0,y0,x1,y1]
-}
-function fit(){const [x0,y0,x1,y1]=bounds();camera.x=(x0+x1)/2;camera.y=(y0+y1)/2;camera.scale=Math.max(.00001,Math.min((width-70)/Math.max(1,x1-x0),(height-145)/Math.max(1,y1-y0)));render()}
+function fit(){canvasRenderer.fit();render()}
 function focusRegion([x0,y0,x1,y1]){camera.x=(x0+x1)/2;camera.y=(y0+y1)/2;camera.scale=Math.max(.00001,Math.min((width-90)/Math.max(1,x1-x0),(height-110)/Math.max(1,y1-y0)));render()}
 function field(container,label,value) { const row=document.createElement('div');row.className='kv';const k=document.createElement('span'),v=document.createElement('b');k.textContent=label;v.textContent=String(value);row.append(k,v);container.append(row) }
+function populateSampleSelector() {
+  const select=$('sample-select'),active=doc()?.id
+  select.replaceChildren()
+  for(const sample of SAMPLE_DESCRIPTORS){
+    if(!session?.documents.has(sample.id))continue
+    const option=document.createElement('option');option.value=sample.id;option.textContent=i18n.locale==='zh'?sample.titleZh:sample.title;option.selected=sample.id===active;select.append(option)
+  }
+  select.hidden=!select.options.length
+}
+function syncAgentAvailability() {
+  const available=doc()?.id===SHOWCASE_DOCUMENT_ID
+  for(const id of ['agent-preset','agent-intent','plan'])$(id).disabled=!available
+  if(!available){$('confirm').disabled=true;$('plan-state').dataset.state='idle';$('plan-state').textContent=i18n.locale==='zh'?'Agent 修改演示位于“韧性能源园区”压力样例，请从上方样例库切换。':'The Agent change demo is available in the Resilient energy campus stress sample.'}
+}
+function activateDrawing(id,{announce=true}={}) {
+  if(!session?.documents.has(id))return
+  session.setActiveDocument(id);replaceSelection();measurement=null;invalidatePlan()
+  const title=documentTitle(doc()),discipline=documentDiscipline(doc())
+  $('drawing-title').textContent=title;$('top-file-name').textContent=title;$('drawing-discipline').textContent=`${discipline} · 2D`;$('sample-discipline').textContent=discipline
+  populateSampleSelector();refresh();fit()
+  if(announce)message(`${i18n.locale==='zh'?'当前图纸':'Active drawing'} · ${title}`)
+}
+function renderMeasurement(container,value) {
+  const output=document.createElement('section');output.className='measure-result'
+  const heading=document.createElement('b');heading.textContent=i18n.locale==='zh'?'测量结果':'Measurement';output.append(heading)
+  for(const row of value.rows){const item=document.createElement('div'),label=document.createElement('span'),result=document.createElement('strong');label.textContent=row.label;result.textContent=row.value;item.append(label,result);output.append(item)}
+  const details=document.createElement('details'),summary=document.createElement('summary'),pre=document.createElement('pre');summary.textContent=i18n.locale==='zh'?'查看数据':'View data';pre.textContent=JSON.stringify(value.raw,null,2);details.append(summary,pre);output.append(details);container.append(output)
+}
 function refresh() {
   const allEntities=doc().listEntities(),modelSpaceId=doc().snapshot().spaces.modelSpaceId,currentModel=allEntities.filter(entity=>entity.ownerId===modelSpaceId),layerEntityCounts=new Map()
   for(const entity of allEntities)layerEntityCounts.set(entity.payload?.layerId,(layerEntityCounts.get(entity.payload?.layerId)??0)+1)
   const tabs=$('document-tabs');for(const old of tabs.querySelectorAll('[data-document]'))old.remove()
-  for(const drawing of session?.documents?.values()??[]){const button=document.createElement('button');button.dataset.document=drawing.id;button.textContent=documentTitle(drawing);button.classList.toggle('active',drawing.id===session.activeDocumentId);button.onclick=()=>{session.setActiveDocument(drawing.id);replaceSelection();measurement='';const title=documentTitle(drawing);$('drawing-title').textContent=title;$('top-file-name').textContent=title;invalidatePlan();refresh();fit();message(`${i18n.locale==='zh'?'当前图纸':'Active drawing'} · ${drawing.id}`)};tabs.insertBefore(button,$('new-drawing'))}
+  for(const drawing of session?.documents?.values()??[]){const button=document.createElement('button');button.dataset.document=drawing.id;button.textContent=documentTitle(drawing);button.title=documentTitle(drawing);button.classList.toggle('active',drawing.id===session.activeDocumentId);button.onclick=()=>activateDrawing(drawing.id);tabs.insertBefore(button,$('new-drawing'))}
+  $('project-file-count').textContent=String(session?.documents.size??1)
+  const activeTitle=documentTitle(doc()),discipline=documentDiscipline(doc());$('drawing-title').textContent=activeTitle;$('top-file-name').textContent=activeTitle;$('drawing-discipline').textContent=`${discipline} · 2D`;$('sample-discipline').textContent=discipline
   $('entity-count').textContent=`${allEntities.length.toLocaleString()} ${t('entities')}`;$('revision').textContent=`REV ${doc().revision}`
   $('selection-count').textContent=`${selectedIds().length} ${t('selected')}`
   $('undo').disabled=!doc().history.canUndo;$('redo').disabled=!doc().history.canRedo
   const layers=doc().getTable('layers').records;$('layer-count').textContent=layers.length
   $('layers').replaceChildren()
-  for(const layer of layers){const label=document.createElement('label');label.className='layer';const input=document.createElement('input');input.type='checkbox';input.checked=layer.payload.visible!==false;input.setAttribute('aria-label',`Show layer ${layer.name}`);input.onchange=()=>run(()=>execute('LAYERUPDATE',{id:layer.id,patch:{visible:input.checked}}));const name=document.createElement('span');name.textContent=layer.name;const count=document.createElement('small');count.textContent=layerEntityCounts.get(layer.id)??0;label.append(input,name,count);$('layers').append(label)}
+  for(const layer of layers){const label=document.createElement('label');label.className='layer';const input=document.createElement('input');input.type='checkbox';input.checked=layer.payload.visible!==false;input.setAttribute('aria-label',`${input.checked?'Hide':'Show'} layer ${layer.name}`);input.onchange=()=>run(()=>execute('LAYERUPDATE',{id:layer.id,patch:{visible:input.checked}}));const swatch=document.createElement('i');swatch.style.setProperty('--layer-color',colors[Math.abs(Number(layer.payload?.color??7))%colors.length]);const name=document.createElement('span');name.textContent=layer.name;const count=document.createElement('small');count.textContent=layerEntityCounts.get(layer.id)??0;label.append(input,swatch,name,count);$('layers').append(label)}
   replaceSelection(selectedIds());const entity=primarySelection()?doc().getObject(primarySelection()):null
   $('inspector').replaceChildren();const title=document.createElement('h3');title.textContent=selectedIds().length>1?`${selectedIds().length} ${t('objectsSelected')}`:entity?entity.type:t('drawingDocument');$('inspector').append(title)
   if(entity){
@@ -167,9 +175,8 @@ function refresh() {
     const erase=document.createElement('button');erase.textContent=t('deleteSelected');erase.onclick=()=>run(()=>execute('ERASE',{ids:selectedIds()}));$('inspector').append(erase)
   }
   else {field($('inspector'),t('revision'),doc().revision);field($('inspector'),t('modelEntities'),currentModel.length);field($('inspector'),t('kernel'),authority?'Rust / WASM':t('jsReference'));field($('inspector'),t('units'),doc().snapshot().header.units??'unspecified')}
-  const omitted=currentModel.filter(e=>!rendererSupports(e)).length
-  if(omitted){const warning=document.createElement('p');warning.textContent=`${omitted} entities not drawn by this minimal viewer. Preserved in the document; use KJP for lossless storage.`;$('inspector').append(warning)}
-  if(measurement){const output=document.createElement('div');output.className='measure-result';output.textContent=measurement;$('inspector').append(output)}
+  if(measurement)renderMeasurement($('inspector'),measurement)
+  syncAgentAvailability()
   render()
 }
 async function execute(command,args={},options={}) {
@@ -179,8 +186,17 @@ async function execute(command,args={},options={}) {
 }
 async function query(command,args={}) {
   const result=await sdk.executeCommand(command,args)
-  measurement=`${command}: ${JSON.stringify(result)}`
-  refresh();message(`${command} completed · drawing unchanged`);return result
+  const value=Array.isArray(result)?result[0]??{}:result??{},units=String(doc().snapshot().header.units??''),rows=[]
+  const number=(input,digits=3)=>Number(input).toLocaleString(i18n.locale==='zh'?'zh-CN':'en-US',{maximumFractionDigits:digits})
+  if(Number.isFinite(value.distance))rows.push({label:i18n.locale==='zh'?'距离':'Distance',value:`${number(value.distance)} ${units}`})
+  if(Number.isFinite(value.length))rows.push({label:i18n.locale==='zh'?'长度':'Length',value:`${number(value.length)} ${units}`})
+  if(Number.isFinite(value.area))rows.push({label:i18n.locale==='zh'?'面积':'Area',value:`${number(value.area)} ${units}²`})
+  if(Number.isFinite(value.degrees))rows.push({label:i18n.locale==='zh'?'角度':'Angle',value:`${number(value.degrees,2)}°`})
+  if(Array.isArray(value.firstPoint))rows.push({label:i18n.locale==='zh'?'起点':'Start',value:`${number(value.firstPoint[0])}, ${number(value.firstPoint[1])}`})
+  if(Array.isArray(value.secondPoint))rows.push({label:i18n.locale==='zh'?'终点':'End',value:`${number(value.secondPoint[0])}, ${number(value.secondPoint[1])}`})
+  if(!rows.length)rows.push({label:command,value:i18n.locale==='zh'?'测量完成':'Complete'})
+  measurement={command,rows,raw:result}
+  if(!workbench.classList.contains('inspector-open'))$('toggle-inspector').click();selectSidePanel('properties');refresh();message(`${command} completed · drawing unchanged`);return result
 }
 function requireSelection(){const entity=primarySelection()?doc().getObject(primarySelection()):null;if(!entity)throw new Error('Select an entity first.');return entity}
 function requestLocalCommand({title,description='',submitLabel,fields=[]}) {
@@ -213,7 +229,7 @@ async function runTypedCommand(){
   throw new Error(`Supported commands: MOVE, COPY, ROTATE, OFFSET, LENGTH, AREA, ERASE, UNDO, REDO, FIT`)
 }
 async function run(work){if(busy)return;busy=true;workbench.setAttribute('aria-busy','true');try{await work()}catch(e){message(e.cause?.message??e.message);console.error(e)}finally{busy=false;workbench.setAttribute('aria-busy','false')}}
-async function freshSample(){rejectPendingPlan();workbench.dataset.demoState='loading';workbench.setAttribute('aria-busy','true');message(i18n.locale==='zh'?'正在生成 2,000+ 对象的原创工程图…':'Generating an original 2,000+ entity engineering drawing…');const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const document=await createSample(next);session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'sample-resilient-campus',title:'KJDraw 1.0 showcase',documents:[document],metadata:{synthetic:true,scenario:'resilient-energy-campus'}});replaceSelection();invalidatePlan();setCanonicalIntent();$('top-file-name').textContent=documentTitle(document);$('drawing-title').textContent=documentTitle(document);$('file-state').textContent=t('memory');refresh();fit();workbench.dataset.demoState='ready';workbench.setAttribute('aria-busy','false');message(i18n.locale==='zh'?`原创工程总图 · ${modelEntities().length.toLocaleString()} 个可编辑对象 · 全程本地`:`Original engineering plan · ${modelEntities().length.toLocaleString()} editable entities · local only`)}
+async function freshSample(){rejectPendingPlan();workbench.dataset.demoState='loading';workbench.setAttribute('aria-busy','true');message(i18n.locale==='zh'?'正在生成五套原创行业图纸…':'Building five original industry drawings…');const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const showcase=await createSample(next),industry=await createIndustrySamples(next);session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'kjdraw-industry-samples',title:'KJDraw industry sample library',documents:[showcase,...industry],activeDocumentId:'sample-site-plan',metadata:{synthetic:true,industries:['energy','civil','architecture','transportation','mechanical']}});replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();$('file-state').textContent=t('memory');populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';workbench.setAttribute('aria-busy','false');message(i18n.locale==='zh'?`五套原创行业图纸已就绪 · 当前 ${modelEntities().length.toLocaleString()} 个可编辑对象`:`Five original industry drawings ready · ${modelEntities().length.toLocaleString()} editable objects in view`)}
 function download(content,name,type){const url=URL.createObjectURL(new Blob([content],{type}));const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 async function openFile(file){
   if(!file)return
@@ -221,21 +237,28 @@ async function openFile(file){
   rejectPendingPlan();const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);let project
   if(file.name.toLowerCase().endsWith('.kjp'))project=await KJProjectSession.open(new Uint8Array(await file.arrayBuffer()),{sdk:next})
   else {const format=file.name.toLowerCase().endsWith('.dxf')?'DXF':'KJD';const drawing=await next.readDocument(format==='DXF'?new Uint8Array(await file.arrayBuffer()):await file.text(),{format});project=KJProjectSession.create({sdk:next,title:file.name,documents:[drawing]})}
-  session?.destroy();sdk=next;session=project;replaceSelection();invalidatePlan();setCanonicalIntent();setTool('select');$('top-file-name').textContent=file.name;$('drawing-title').textContent=documentTitle(project.activeDocument);$('file-state').textContent=i18n.locale==='zh'?'已在本地打开':'Opened locally';refresh();fit();workbench.dataset.demoState='ready';message(i18n.locale==='zh'?'文件已在本地打开 · 暂不显示的对象仍完整保留':'File opened locally · unsupported view entities remain in the document')
+  session?.destroy();sdk=next;session=project;replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();setTool('select');$('top-file-name').textContent=file.name;$('drawing-title').textContent=documentTitle(project.activeDocument);$('file-state').textContent=i18n.locale==='zh'?'已在本地打开':'Opened locally';populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';message(i18n.locale==='zh'?'文件已在当前工作区打开':'File opened in the current workspace')
 }
 $('open').onclick=()=>$('file-input').click()
-$('toggle-layers').onclick=()=>{const open=workbench.classList.toggle('layers-open');$('toggle-layers').classList.toggle('active',open);$('toggle-layers').setAttribute('aria-pressed',String(open));resize()}
-$('toggle-inspector').onclick=()=>{const open=workbench.classList.toggle('inspector-open');$('toggle-inspector').classList.toggle('active',open);$('toggle-inspector').setAttribute('aria-pressed',String(open));resize()}
+function setPanelOpen(name,open){const className=name==='layers'?'layers-open':'inspector-open',button=$(name==='layers'?'toggle-layers':'toggle-inspector');workbench.classList.toggle(className,open);button.classList.toggle('active',open);button.setAttribute('aria-pressed',String(open))}
+$('toggle-layers').onclick=()=>{const open=!workbench.classList.contains('layers-open');if(open&&window.innerWidth<=780)setPanelOpen('inspector',false);setPanelOpen('layers',open);resize()}
+$('toggle-inspector').onclick=()=>{const open=!workbench.classList.contains('inspector-open');if(open&&window.innerWidth<=780)setPanelOpen('layers',false);setPanelOpen('inspector',open);resize()}
+$('close-layers').onclick=()=>{$('toggle-layers').click()}
+$('close-inspector').onclick=()=>{$('toggle-inspector').click()}
+$('show-all-layers').onclick=()=>run(async()=>{for(const layer of doc().getTable('layers').records)if(layer.payload.visible===false||layer.payload.frozen)await execute('LAYERUPDATE',{id:layer.id,patch:{visible:true,frozen:false}})})
+$('sample-select').onchange=e=>activateDrawing(e.target.value)
+function selectSidePanel(name){for(const button of document.querySelectorAll('.right-tabs [data-panel]')){const active=button.dataset.panel===name;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active))}for(const view of document.querySelectorAll('[data-panel-view]'))view.hidden=view.dataset.panelView!==name}
+for(const tab of document.querySelectorAll('.right-tabs [data-panel]'))tab.onclick=()=>selectSidePanel(tab.dataset.panel)
 $('file-input').onchange=e=>run(async()=>{try{await openFile(e.target.files[0])}finally{e.target.value=''}})
 for(const eventName of ['dragenter','dragover'])$('drop-zone').addEventListener(eventName,e=>{e.preventDefault();$('drop-zone').classList.add('dragging')})
 for(const eventName of ['dragleave','drop'])$('drop-zone').addEventListener(eventName,e=>{e.preventDefault();$('drop-zone').classList.remove('dragging')})
 $('drop-zone').addEventListener('drop',e=>run(()=>openFile(e.dataTransfer?.files?.[0])))
 $('snapshot').onclick=()=>{const record=session.createSnapshot(`Snapshot ${session.snapshotLedger.length+1}`);$('file-state').textContent='Modified in memory';message(`Project snapshot created · ${record.documents.length} drawing${record.documents.length===1?'':'s'}`)}
 const formatBytes=value=>value<1024?`${value} B`:value<1024*1024?`${(value/1024).toFixed(1)} KiB`:`${(value/1024/1024).toFixed(1)} MiB`
-async function saveProject(){const bytes=await session.package();download(bytes,'kjdraw-resilient-campus.kjp','application/zip');message(i18n.locale==='zh'?`KJP 已生成（${formatBytes(bytes.length)}）· 包含工程内全部图纸`:`KJP generated (${formatBytes(bytes.length)}) · includes every project drawing`);return bytes}
+async function saveProject(){const bytes=await session.package();download(bytes,'kjdraw-project.kjp','application/zip');message(i18n.locale==='zh'?`KJP 已生成（${formatBytes(bytes.length)}）· 包含工程内全部图纸`:`KJP generated (${formatBytes(bytes.length)}) · includes every project drawing`);return bytes}
 $('save').onclick=()=>run(saveProject)
 $('export').onclick=()=>run(async()=>{const text=await sdk.writeDocument(doc(),{format:'DXF',version:'2018'});download(text,'drawing.dxf','application/dxf');message('ASCII DXF 2018 downloaded · core adapter, see compatibility limits')})
-$('undo').onclick=()=>run(()=>execute('UNDO'));$('redo').onclick=()=>run(()=>execute('REDO'));$('fit').onclick=fit
+$('undo').onclick=()=>run(()=>execute('UNDO'));$('redo').onclick=()=>run(()=>execute('REDO'))
 $('fit-ribbon').onclick=fit
 $('move-selection').onclick=()=>run(()=>transformSelection('MOVE'))
 $('copy-selection').onclick=()=>run(()=>transformSelection('COPY'))
@@ -246,12 +269,12 @@ $('measure-entity').onclick=()=>run(async()=>{const entity=requireSelection();co
 $('run-command').onclick=()=>run(runTypedCommand)
 $('command-input').onkeydown=e=>{if(e.key==='Enter')run(runTypedCommand)}
 $('new-layer').onclick=()=>run(async()=>{const values=await requestLocalCommand({title:i18n.locale==='zh'?'新建图层':'Create layer',fields:[{name:'name',label:i18n.locale==='zh'?'图层名称':'Layer name',value:'Design'}]});if(!values?.name.trim())return;await execute('LAYERNEW',{name:values.name.trim(),color:3})})
-$('new-drawing').onclick=()=>run(async()=>{const values=await requestLocalCommand({title:i18n.locale==='zh'?'新建图纸':'Create drawing',fields:[{name:'name',label:i18n.locale==='zh'?'图纸名称':'Drawing name',value:`Drawing ${session.documents.size+1}`}]});if(!values?.name.trim())return;const name=values.name.trim(),id=`drawing-${Date.now().toString(36)}`,drawing=sdk.createDocument({documentId:id,title:name,units:doc().snapshot().header.units??'unitless'});session.attachDocument(drawing);session.setActiveDocument(id);replaceSelection();measurement='';$('drawing-title').textContent=name;$('top-file-name').textContent=name;$('file-state').textContent=i18n.locale==='zh'?'内存中已修改':'Modified in memory';invalidatePlan();refresh();fit();message(`Drawing created · ${name}`)})
+$('new-drawing').onclick=()=>run(async()=>{const values=await requestLocalCommand({title:i18n.locale==='zh'?'新建图纸':'Create drawing',fields:[{name:'name',label:i18n.locale==='zh'?'图纸名称':'Drawing name',value:`Drawing ${session.documents.size+1}`}]});if(!values?.name.trim())return;const name=values.name.trim(),id=`drawing-${Date.now().toString(36)}`,drawing=sdk.createDocument({documentId:id,title:name,units:doc().snapshot().header.units??'unitless'});session.attachDocument(drawing);activateDrawing(id,{announce:false});$('file-state').textContent=i18n.locale==='zh'?'内存中已修改':'Modified in memory';message(`Drawing created · ${name}`)})
 $('reset').onclick=()=>run(async()=>{const accepted=await requestLocalCommand({title:i18n.locale==='zh'?'重新加载原创示例？':'Reload the original sample?',description:i18n.locale==='zh'?'当前内存中的修改将被替换。需要保留时，请先保存 KJP。':'In-memory edits will be replaced. Save a KJP first if you need to keep them.',submitLabel:i18n.locale==='zh'?'重新加载':'Reload'});if(accepted)await freshSample()})
 $('snap').onclick=()=>{snapEnabled=!snapEnabled;$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');$('snap').setAttribute('aria-pressed',String(snapEnabled))}
 $('grid').onclick=()=>{gridEnabled=!gridEnabled;$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('grid').setAttribute('aria-pressed',String(gridEnabled));render()}
 $('ortho').onclick=()=>{orthoEnabled=!orthoEnabled;$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('ortho').setAttribute('aria-pressed',String(orthoEnabled));render()}
-$('language').onclick=()=>{const canonical=knownIntent($('agent-intent').value);i18n.toggle();if(canonical)setCanonicalIntent();$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');if(sdk){if(doc()?.id==='sample-resilient-campus'){const title=documentTitle(doc());$('top-file-name').textContent=title;$('drawing-title').textContent=title}refresh()}if(pendingPlan)displayAgentPlan(pendingPlan);setTool(tool)}
+$('language').onclick=()=>{const canonical=knownIntent($('agent-intent').value);i18n.toggle();if(canonical)setCanonicalIntent();$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');if(sdk){populateSampleSelector();refresh()}if(pendingPlan)displayAgentPlan(pendingPlan);setTool(tool)}
 for(const b of document.querySelectorAll('[data-tool]'))b.onclick=()=>setTool(b.dataset.tool)
 function planStep(title,detail){const item=document.createElement('li'),heading=document.createElement('b');heading.textContent=title;item.append(heading,document.createTextNode(detail));$('plan-steps').append(item)}
 function displayAgentPlan(plan){
@@ -305,11 +328,11 @@ function snap(p){if(!snapEnabled||!sdk)return p;const hits=sdk.snap(p,{radius:8/
 function constrainedPoint(p){const value=snap(p);if(!orthoEnabled||!start)return value;const dx=Math.abs(value[0]-start[0]),dy=Math.abs(value[1]-start[1]);return dx>=dy?[value[0],start[1]]:[start[0],value[1]]}
 canvas.onpointermove=e=>{
   const p=pointer(e)
-  if(pan){camera.x=pan.x-(p[0]-pan.p[0])/camera.scale;camera.y=pan.y+(p[1]-pan.p[1])/camera.scale;render();return}
+  if(pan){canvasRenderer.panBy(p[0]-pan.p[0],p[1]-pan.p[1]);pan.p=p;render();return}
   cursor=constrainedPoint(world(p));$('coordinates').textContent=`X ${cursor[0].toFixed(2)} · Y ${cursor[1].toFixed(2)}`;if(start)render()
 }
 canvas.onpointerdown=e=>{
-  if(e.button===1){e.preventDefault();pan={p:pointer(e),x:camera.x,y:camera.y};canvas.setPointerCapture(e.pointerId);return}
+  if(e.button===1){e.preventDefault();pan={p:pointer(e)};canvas.setPointerCapture(e.pointerId);return}
   if(e.button!==0||busy)return
   const p=constrainedPoint(world(pointer(e)))
   if(tool==='select'){
@@ -317,7 +340,7 @@ canvas.onpointerdown=e=>{
       .map(candidate=>candidate.entityIds[0]).filter((id,index,ids)=>ids.indexOf(id)===index&&isVisible(doc().getObject(id)))
     const id=e.shiftKey?(candidates.find(candidate=>!selection.has(candidate))??candidates[0]??null):(candidates[0]??null)
     if(e.shiftKey){if(id)selection.has(id)?selection.delete(id):selection.add(id)}else replaceSelection(id?[id]:[])
-    refresh();return
+    if(!workbench.classList.contains('inspector-open'))$('toggle-inspector').click();selectSidePanel('properties');refresh();return
   }
   if(tool==='text'){run(async()=>{const values=await requestLocalCommand({title:i18n.locale==='zh'?'放置文字':'Place text',fields:[{name:'text',label:i18n.locale==='zh'?'文字内容':'Text content',value:'KJDraw'}]});if(values?.text)await execute('CREATE',{type:'TEXT',payload:{position:p,height:2.5,rotation:0,text:values.text}})});return}
   if(tool==='point'){run(()=>execute('CREATE',{type:'POINT',payload:{position:p}}));return}
@@ -348,10 +371,13 @@ canvas.onpointerdown=e=>{
   })
 }
 canvas.onpointerup=()=>{pan=null};canvas.onpointercancel=()=>{pan=null;start=null;render()}
-canvas.addEventListener('wheel',e=>{e.preventDefault();const p=pointer(e),a=world(p);camera.scale=Math.min(10000,Math.max(.00001,camera.scale*Math.exp(-e.deltaY*.001)));const b=world(p);camera.x+=a[0]-b[0];camera.y+=a[1]-b[1];render()},{passive:false})
+canvas.addEventListener('wheel',e=>{e.preventDefault();canvasRenderer.zoomAt(Math.exp(-e.deltaY*.001),pointer(e));render()},{passive:false})
 window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.key==='Escape'){setTool('select');invalidatePlan();render()}const key=e.key.toLowerCase();if(key==='l')setTool('line');if(key==='p')setTool('polyline');if(key==='c')setTool('circle');if(key==='a')setTool('arc');if(key==='r')setTool('rectangle');if(key==='e')setTool('ellipse');if(key==='x')setTool('xline');if(key==='q')setTool('point');if(key==='t')setTool('text');if(key==='d')setTool('measure');if(key==='v')setTool('select');if((e.ctrlKey||e.metaKey)&&key==='z'){e.preventDefault();run(()=>execute(e.shiftKey?'REDO':'UNDO'))}})
-new ResizeObserver(resize).observe(canvas)
+window.addEventListener('resize',()=>requestAnimationFrame(resize))
 i18n.apply()
+const narrowLayout=window.matchMedia('(max-width: 780px)')
+if(narrowLayout.matches)setPanelOpen('inspector',false)
+narrowLayout.addEventListener('change',event=>{if(event.matches){setPanelOpen('layers',false);setPanelOpen('inspector',false);requestAnimationFrame(resize)}})
 try {
   const {instance}=await instantiateKJCoreWasm(new URL('../../web/public/kjcore/kjcore.wasm',import.meta.url))
   registerGeometryBackend(createWasmGeometryBackend(instance));authority=createKJCoreDocumentAuthority(instance);solidAuthority=createKJCoreSolidBackend(instance)

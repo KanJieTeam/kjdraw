@@ -1,0 +1,87 @@
+import type { KJDocument } from './document.js';
+import type { KJReadonlyObjectRecord } from './schema.js';
+export type KJCanvasTheme = 'dark' | 'light';
+export interface KJCanvasRendererOptions {
+    document?: KJDocument | null;
+    spaceId?: string | null;
+    theme?: KJCanvasTheme;
+    grid?: boolean;
+    pixelRatio?: number;
+    padding?: number;
+    background?: string;
+    selectionColor?: string;
+    showLineweights?: boolean;
+    sceneProvider?: KJCanvasSceneProvider | null;
+}
+export interface KJCanvasSceneQuery {
+    document: KJDocument;
+    spaceId: string;
+}
+/** Replaceable scene-query seam for spatial indexes, workers or streamed tiles. */
+export interface KJCanvasSceneProvider {
+    listEntities(query: KJCanvasSceneQuery): ReadonlyArray<KJReadonlyObjectRecord>;
+    hitCandidates?(query: KJCanvasSceneQuery & {
+        point: Point2;
+        radius: number;
+    }): ReadonlyArray<KJReadonlyObjectRecord>;
+}
+export interface KJCanvasCamera {
+    centerX: number;
+    centerY: number;
+    scale: number;
+}
+export interface KJCanvasRenderReport {
+    total: number;
+    rendered: number;
+    approximated: number;
+    hidden: number;
+    unsupported: number;
+    approximateTypes: readonly string[];
+    unsupportedTypes: readonly string[];
+    width: number;
+    height: number;
+    scale: number;
+}
+export interface KJCanvasHit {
+    entity: KJReadonlyObjectRecord;
+    distance: number;
+    point: readonly [number, number, number];
+}
+type Point2 = readonly [number, number];
+/** AutoCAD Color Index projection including the 24 hue ramps and gray tail. */
+export declare function aciColor(input: unknown, theme?: KJCanvasTheme): string;
+/**
+ * Dependency-free Canvas 2D projection for KJDocument.
+ *
+ * The renderer never owns or mutates drawing truth. Applications can replace it
+ * with WebGL/WebGPU while keeping the exact same document and command contract.
+ */
+export declare class KJCanvasRenderer {
+    #private;
+    readonly canvas: HTMLCanvasElement;
+    readonly context: CanvasRenderingContext2D;
+    readonly camera: KJCanvasCamera;
+    constructor(canvas: HTMLCanvasElement, options?: KJCanvasRendererOptions);
+    get document(): KJDocument | null;
+    get spaceId(): string | null;
+    get theme(): KJCanvasTheme;
+    get grid(): boolean;
+    get selection(): readonly string[];
+    get report(): Readonly<KJCanvasRenderReport>;
+    setDocument(document: KJDocument | null): this;
+    setTheme(theme: KJCanvasTheme): this;
+    setGrid(enabled: boolean): this;
+    setSelection(ids?: readonly string[]): this;
+    setSpace(spaceId: string | null): this;
+    setSceneProvider(provider: KJCanvasSceneProvider | null): this;
+    resize(width?: number, height?: number): this;
+    worldToScreen(input: Point2): Point2;
+    screenToWorld(input: Point2): Point2;
+    panBy(screenDx: number, screenDy: number): this;
+    zoomAt(factor: number, screenPoint?: Point2): this;
+    fit(): this;
+    hitTest(screenPoint: Point2, tolerancePixels?: number): KJCanvasHit | null;
+    render(): Readonly<KJCanvasRenderReport>;
+    dispose(): void;
+}
+export {};

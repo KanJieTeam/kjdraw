@@ -1,48 +1,89 @@
-<p align="center"><img src="docs/assets/hero.svg" alt="KJDraw — CAD infrastructure for engineering applications and AI agents" width="100%"></p>
+<p align="center"><img src="docs/assets/mark.svg" alt="KJDraw" width="88" height="88"></p>
+
+<h1 align="center">KJDraw</h1>
+
+<p align="center"><strong>Open, inspect, edit and automate engineering drawings in the browser—from one TypeScript package.</strong></p>
+
+<p align="center">An extensible CAD foundation for engineering applications, interactive workbenches and reviewable AI agents.</p>
 
 <p align="center">
-  <a href="https://github.com/KanJieTeam/kjdraw/actions/workflows/ci.yml"><img src="https://github.com/KanJieTeam/kjdraw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://www.npmjs.com/package/@kanjieteam/kjdraw"><img src="https://img.shields.io/npm/v/@kanjieteam/kjdraw?style=flat-square&label=npm&labelColor=30363d&color=2863f0" alt="npm version"></a>
-  <a href="https://www.npmjs.com/package/@kanjieteam/kjdraw"><img src="https://img.shields.io/npm/dm/@kanjieteam/kjdraw?style=flat-square&label=downloads&labelColor=30363d&color=2863f0" alt="npm downloads"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
   <a href="https://kanjieteam.github.io/kjdraw/"><img src="https://img.shields.io/badge/▲_Live_Demo-open-2863f0?style=flat-square&labelColor=30363d" alt="Live demo"></a>
   <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><img src="https://img.shields.io/badge/▣_Docs-latest-2863f0?style=flat-square&labelColor=30363d" alt="Documentation"></a>
+  <a href="https://github.com/KanJieTeam/kjdraw"><img src="https://img.shields.io/badge/GitHub-source-181717?style=flat-square&logo=github" alt="GitHub source"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
 </p>
 
-<p align="center"><strong>The programmable CAD foundation for engineering software and AI agents.</strong><br>TypeScript-first. Rust/WASM accelerated. Browser-ready and provider-neutral.</p>
+<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow.gif" alt="KJDraw opens an engineering drawing, previews an Agent-authored CAD diff, commits it atomically, verifies the saved project and undoes the result" width="100%"></a></p>
 
-<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><strong>Launch the workbench</strong></a> · <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><strong>Read the docs</strong></a> · <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/"><strong>Explore the API</strong></a> · <a href="#install-and-draw">Install</a> · <a href="README.zh-CN.md">简体中文</a></p>
+<p align="center"><sub>Real workbench capture: explore industry drawings, review an Agent change, save and undo.</sub></p>
 
-<p align="center"><img src="docs/assets/playground.png" alt="KJDraw browser CAD workbench with a large engineering drawing, ribbon tools, inspector and reviewable Agent changes" width="100%"></p>
+<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><strong>Open the workbench</strong></a> · <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><strong>Get started</strong></a> · <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/"><strong>API reference</strong></a> · <a href="README.zh-CN.md">简体中文</a></p>
 
-KJDraw turns CAD from a closed desktop surface into an embeddable, typed and auditable platform. Use the headless SDK inside a web or Node.js product, start from the reference workbench, extend it with plugins, or put an AI agent behind the same transactional command boundary a human uses.
+Explore original site plans, architectural floor plans, road profiles and mechanical details. Switch drawings, inspect layers, edit geometry and save your work. The energy-campus example also includes an interactive Agent review workflow. No account or upload is needed to try the workbench.
 
-It grew out of the needs of **Kanjie (勘界)**, but the public core is intentionally general-purpose. Engineering-specific compilers, customer data and commercial services remain separate; shared CAD improvements land here first.
+## What you can build
 
-## See the complete workflow
+| Build | Start with | The useful part |
+| --- | --- | --- |
+| **Embedded CAD viewer/editor** | [`@kanjieteam/kjdraw/editor`](https://kanjieteam.github.io/kjdraw/docs/latest/quickstart/) | Mount a bilingual drawing surface with ribbon tools, layers, properties, command input and local file actions |
+| **Purpose-built engineering app** | [`@kanjieteam/kjdraw`](https://kanjieteam.github.io/kjdraw/docs/latest/architecture/) | Keep product UI and domain workflows above a typed document, command and transaction core |
+| **File and automation pipeline** | [File guide](https://kanjieteam.github.io/kjdraw/docs/latest/files/) + CLI | Read, validate, transform and write KJD, KJP and the published DXF profile in browsers or Node.js |
+| **Reviewable CAD copilot** | [Agent guide](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) | Turn intent into exact commands, show a visual diff, require approval, then return a verifiable receipt |
+| **CAD extension ecosystem** | [Plugin guide](https://kanjieteam.github.io/kjdraw/docs/latest/plugins/) | Add commands, entities, renderers, file adapters, tools, snaps, properties and workspace panels |
 
-The live workbench opens on an original synthetic engineering drawing with more than two thousand entities. In one session you can:
+KJDraw grew out of real product work at **Kanjie (勘界)**. The open core stays general-purpose, and reusable improvements flow back into this repository so the public project and Kanjie's products share one CAD foundation.
 
-1. Inspect layers and objects, draw and edit geometry, measure, snap and undo.
-2. Describe a change and review the exact move/delete/create diff before the document mutates.
-3. Approve one atomic transaction and inspect its receipt, revision and content binding.
-4. Download the KJP project, reopen it with a matching fingerprint, then undo the change.
+## One drawing, many ways to build
 
-No account, backend, model key or upload is required for the demo. The Agent journey is deterministic so its safety contract can be reproduced; connect your own model at the host boundary.
+Human tools, plugins and AI agents all use the same typed commands. Every accepted operation becomes one document revision with ordinary undo/redo and project history—so an Agent is a participant in the CAD application, not a side door around it.
 
-**[Run the 90-second demo →](https://kanjieteam.github.io/kjdraw/)**
+```text
+Human tools ─┐
+Plugins ─────┼─→ typed command → preview → atomic transaction → revision → KJD / KJP / DXF
+AI agents ───┘                         │
+                                      └─→ receipt → verify → undo
+```
 
-## Install and draw
+Build the interface your users need while sharing drawing data, commands and undo history across your application and its extensions.
+
+## Start in 60 seconds
+
+Install the published package:
 
 ```sh
 npm install @kanjieteam/kjdraw
 ```
 
+The examples below target the upcoming 1.0 editor API in this branch. Until this candidate is published, use the repository checkout to try these new entry points.
+
+Mount the editor:
+
 ```ts
-import {
-  createKJDrawSDK,
-  type KJReadonlyObjectRecord,
-} from '@kanjieteam/kjdraw'
+import { createKJDrawEditor } from '@kanjieteam/kjdraw/editor'
+
+const editor = createKJDrawEditor(
+  '#cad',
+  {
+    document: 'sample',
+    locale: 'en',
+    theme: 'dark',
+  },
+)
+
+await editor.ready
+// await editor.open(file) // File from an <input type="file">
+// await editor.save({ format: 'DXF', download: true })
+```
+
+```html
+<div id="cad" style="height: 720px"></div>
+```
+
+Or use the headless SDK and bring your own interface:
+
+```ts
+import { createKJDrawSDK } from '@kanjieteam/kjdraw/core'
 
 const cad = createKJDrawSDK()
 const drawing = cad.createDocument({
@@ -50,7 +91,7 @@ const drawing = cad.createDocument({
   units: 'millimeter',
 })
 
-const line = await cad.executeCommand<KJReadonlyObjectRecord>('CREATE', {
+const line = await cad.executeCommand('CREATE', {
   type: 'LINE',
   payload: { start: [0, 0, 0], end: [100, 40, 0] },
 })
@@ -59,83 +100,115 @@ await cad.executeCommand('MOVE', { id: line.id, dx: 25, dy: 10 })
 console.log(drawing.revision, drawing.fingerprint())
 ```
 
-The npm package is ESM-first, has zero runtime dependencies, and exposes documented root and subpath imports for documents, geometry, file adapters, deployment providers, projects, plugins and Agent plans.
+### Vanilla, React and Vue
 
-### React, Vue, Vanilla and CLI
+Use the packaged components in your application. They manage editor mounting and cleanup, and update appearance without replacing your drawing.
 
-| Start here | What it shows |
+**React**
+
+```tsx
+import { KJDraw } from '@kanjieteam/kjdraw/react'
+
+export default function DrawingPage() {
+  return <KJDraw document="sample" locale="en" style={{ height: 720 }} />
+}
+```
+
+**Vue**
+
+```vue
+<script setup lang="ts">
+import { KJDraw } from '@kanjieteam/kjdraw/vue'
+</script>
+
+<template>
+  <KJDraw document="sample" locale="en" style="height: 720px" />
+</template>
+```
+
+| Stack | Guide | Runnable source |
+| --- | --- | --- |
+| **Vanilla TypeScript** | [Quickstart](https://kanjieteam.github.io/kjdraw/docs/latest/quickstart/) | [`vanilla-workbench.ts`](packages/kjdraw-sdk/examples/vanilla-workbench.ts) |
+| **React** | [React integration](https://kanjieteam.github.io/kjdraw/docs/latest/react/) | [`react.tsx`](packages/kjdraw-sdk/examples/react.tsx) |
+| **Vue** | [Vue integration](https://kanjieteam.github.io/kjdraw/docs/latest/vue/) | [`vue.ts`](packages/kjdraw-sdk/examples/vue.ts) |
+| **Plugin** | [Plugin system](https://kanjieteam.github.io/kjdraw/docs/latest/plugins/) | [`plugin-starter`](examples/plugin-starter/README.md) |
+
+### Start with an industry drawing
+
+The same original drawings used by the demo are available to applications:
+
+```ts
+import { createKJDrawSDK } from '@kanjieteam/kjdraw/core'
+import { createIndustrySample } from '@kanjieteam/kjdraw/samples'
+import { createKJDrawEditor } from '@kanjieteam/kjdraw/editor'
+
+const sdk = createKJDrawSDK()
+const drawing = await createIndustrySample(sdk, 'sample-architecture')
+const editor = createKJDrawEditor('#cad', { sdk, document: drawing })
+await editor.ready
+```
+
+Choose `sample-site-plan`, `sample-architecture`, `sample-road-profile` or `sample-mechanical`. These are editable sample drawings, not customer data or construction deliverables.
+
+## Files, projects and CLI
+
+| Format | Role in KJDraw |
 | --- | --- |
-| [Vanilla quickstart](packages/kjdraw-sdk/examples/quickstart.mjs) | Create, edit and inspect a document with the package API |
-| [React hook](packages/kjdraw-sdk/examples/react.tsx) | Stable SDK lifetime, typed events and component cleanup |
-| [Vue composable](packages/kjdraw-sdk/examples/vue.ts) | Reactive document state and scope disposal |
-| [Plugin starter](examples/plugin-starter/README.md) | Manifest compatibility, permissions, activation and disposal |
+| **KJD** | Canonical transactional drawing with validation, stable IDs and revisions |
+| **KJP** | Deterministic multi-drawing project with manifests, hashes, snapshots and command journal |
+| **DXF** | Documented ASCII compatibility profile backed by corpus and independent cross-tool audits |
 
-The package also includes a local headless CLI:
+Use the same package from a terminal:
 
 ```sh
-npx @kanjieteam/kjdraw inspect drawing.dxf
-npx @kanjieteam/kjdraw validate project.kjp
-npx @kanjieteam/kjdraw convert drawing.kjd drawing.dxf --dxf-version 2018
+npx @kanjieteam/kjdraw@next inspect drawing.dxf
+npx @kanjieteam/kjdraw@next validate project.kjp
+npx @kanjieteam/kjdraw@next convert drawing.kjd drawing.dxf --dxf-version 2018
 ```
 
-## A foundation for real engineering products
+See [Loading and files](https://kanjieteam.github.io/kjdraw/docs/latest/files/), the [DXF compatibility evidence](docs/dxf-compatibility.md) and [known limits](docs/status.md).
 
-| Layer | Public 1.0 contract |
-| --- | --- |
-| **Document model** | Stable IDs and CAD handles, ownership, tables, blocks, model/paper spaces, resources and revisions |
-| **Editing** | Atomic transactions, rollback, undo/redo, expected revisions, selection, snapping and declared 2D operations |
-| **Files and projects** | KJD documents, deterministic ZIP64 KJP projects and a bounded ASCII DXF compatibility profile |
-| **Workbench** | Bilingual multi-drawing CAD UI built only on public package APIs |
-| **Extensibility** | Versioned plugin manifests plus command, entity, renderer, file, tool, snap, property and workspace extension points |
-| **AI agents** | Review-bound plans, exact arguments, SHA-256 content binding, expiry, one-shot execution, receipts and undo |
-| **Kernel** | Rebuildable Rust/WASM document authority, geometry predicates and explicitly bounded solid-mesh operations |
-| **Deployment** | Browser-local by default; explicit project, compute and scene providers for desktop, self-hosted, cloud-assisted or hybrid products |
+## Agent changes you can inspect and undo
 
-```text
-Your product · Reference workbench · Plugins · AI agents
-                         │
-              Commands + transactions
-                         │
-        Typed document model + KJD / KJP / DXF
-                         │
-        TypeScript SDK ↔ optional Rust / WASM
-                         │
- Browser-local · Desktop · Self-hosted · Cloud-assisted
-```
-
-KJDraw does not force a “local-only” architecture. The public demo processes drawings in the browser; an embedding host may register remote providers deliberately. Provider registration itself never starts network activity.
-
-## Agent changes are reviewable changesets
-
-An AI-origin command cannot silently reuse an old approval. The SDK binds the reviewed plan to its exact arguments, document identity, complete document digest, fingerprint, expected revision, expiry and reviewer. Concurrent replay and document drift fail closed; an accepted change still enters the ordinary transaction history and can be undone.
+KJDraw binds a reviewed Agent plan to the exact command arguments, document identity, content digest, fingerprint, expected revision, expiry and reviewer. The approved plan executes once, produces a receipt and enters normal undo/redo history.
 
 ```text
 Intent → immutable proposal → visual diff → human approval
        → one atomic command → receipt → save / reopen / undo
 ```
 
-This is an application protocol, not an identity system or hostile-code sandbox. Hosts still own authentication, authorization, model isolation and durable audit storage. See the [Agent protocol](docs/agent-protocol.md) and [security model](SECURITY_ARCHITECTURE.md).
+Start with the [Agent workflow guide](https://kanjieteam.github.io/kjdraw/docs/latest/agent/), hand a coding agent the stable [`docs/agent.md`](docs/agent.md) contract, or run [`examples/agent-command.mjs`](examples/agent-command.mjs).
 
-## File interoperability without inflated claims
+## Designed to be extended
 
-| Format | What KJDraw promises |
+| Layer | Public contract |
 | --- | --- |
-| **KJD** | Canonical transactional document format with validation and revisions |
-| **KJP** | Multi-drawing ZIP64 project, manifest, hashes, snapshots and command journal |
-| **DXF** | ASCII import/export for the published entity/resource/version profile, with corpus and cross-tool audits |
-| **DWG** | Not included in KJDraw 1.0 |
+| **Document** | Entities, tables, blocks, model/paper spaces, resources, stable handles and revisions |
+| **Editing** | Transactions, rollback, undo/redo, selections, snapping and typed 2D commands |
+| **Rendering** | Reference Canvas renderer plus replaceable scene-provider and renderer seams |
+| **Workbench** | Mountable bilingual CAD UI built on public package exports |
+| **Plugins** | Versioned manifests, explicit permissions, activation and complete disposal |
+| **Kernel** | Rebuildable Rust/WASM authority for document operations and geometry predicates |
+| **Deployment** | Browser, desktop, self-hosted, cloud-assisted or hybrid through explicit providers |
 
-Unsupported known export semantics reject rather than being advertised as lossless. Keep original files when evaluating interoperability. Read the [DXF evidence](docs/dxf-compatibility.md), [capability matrix](docs/capability-matrix.md) and [current status](docs/status.md).
+The package is ESM-first and has zero runtime dependencies. Read the [architecture guide](https://kanjieteam.github.io/kjdraw/docs/latest/architecture/) before extending a core boundary.
 
-## The 1.0 contract
+## Workbench controls
 
-`1.0.0-rc.1` is the immutable candidate for the stable contract. Stable 1.0 is promoted only when every in-scope gate passes on this candidate line, including the packed npm artifact, browser matrix, live Demo/Docs and release provenance.
+| Input | Action |
+| --- | --- |
+| `V` / `L` / `P` / `C` / `A` | Select / line / polyline / circle / arc |
+| `R` / `E` / `T` / `D` | Rectangle / ellipse / text / distance |
+| Mouse wheel / middle drag | Zoom / pan |
+| `Ctrl` or `⌘` + `Z` | Undo; add `Shift` to redo |
+| `Ctrl` or `⌘` + `Enter` | Preview the selected Agent scenario |
+| `Esc` | Return to select and clear the active preview |
 
-KJDraw 1.0 deliberately does **not** claim DWG support, arbitrary-DXF losslessness, general BRep modelling, full parametric constraints, complete font/layout fidelity, real-time collaboration or device-certified plotting. Experimental solid meshes remain labelled experimental.
+## Toward 1.0
 
-See the [1.0 scope](docs/1.0-scope.md), [machine-readable acceptance matrix](docs/KJDRAW_1_0_ACCEPTANCE_MATRIX.json) and [release notes](docs/releases/1.0.0-rc.1.md).
+The next candidate is `1.0.0-rc.2`. Follow the [release notes](docs/releases/1.0.0-rc.2.md) for changes and the [roadmap](docs/roadmap.md) for what comes next. The npm badge above shows the published version.
 
-## Run locally and contribute
+## Develop and contribute
 
 ```sh
 git clone https://github.com/KanJieTeam/kjdraw.git
@@ -147,10 +220,8 @@ npm run build
 npm run test:browser
 ```
 
-`node scripts/serve.mjs` starts the workbench at **http://localhost:4173**. Use synthetic or explicitly redistributable drawings in public issues.
+Run `npm run dev` and open **http://localhost:4173**. High-value contributions include reproducible DXF cases, geometry and rendering fixes, framework integrations, plugins, accessibility, performance and documentation.
 
-Good first contributions include reproducible DXF cases, geometry fixes, plugins, framework integrations, accessibility improvements and documentation. Read [Contributing](CONTRIBUTING.md), [Governance](GOVERNANCE.md), [Support](SUPPORT.md) and the [roadmap](docs/roadmap.md).
+Read [Contributing](CONTRIBUTING.md), [Governance](GOVERNANCE.md), [Support](SUPPORT.md) and the [roadmap](docs/roadmap.md).
 
 **Maintained by [KanJieTeam](https://github.com/KanJieTeam)** · [kanjieteam@163.com](mailto:kanjieteam@163.com) · Apache-2.0
-
-The Apache license covers this repository, not private Kanjie data, proprietary domain packages, commercial services or third-party CAD assets. See [LICENSE](LICENSE), [NOTICE](NOTICE) and [provenance](docs/provenance.md).

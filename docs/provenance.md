@@ -1,10 +1,10 @@
 # Source and asset provenance
 
-This developer preview is extracted from the KanJieTeam Kanjie workspace at the owner's request for public release.
+This public repository originated from the KanJieTeam Kanjie workspace at the owner's request and is maintained as a reusable upstream CAD core.
 
 | Included material | Source |
 | --- | --- |
-| JavaScript SDK and its core tests | `packages/kjdraw-sdk` in the Kanjie workspace |
+| TypeScript SDK, generated ESM/declarations and core tests | `packages/kjdraw-sdk` in the Kanjie workspace |
 | Rust kernel and WASM bridge | `runtime/kjcore-rs/crates`; no external Rust crate dependencies |
 | Included WASM | KJCore artifact; public-source rebuild is checked by the release workflow |
 | Playground and documentation | Written for this public extraction |

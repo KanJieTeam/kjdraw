@@ -1,27 +1,89 @@
 # @kanjieteam/kjdraw
 
-Extensible CAD documents, commands, transactions, editing, file adapters, deployment providers and review-bound agent plans. Framework-independent ES modules with no runtime npm dependencies.
+Build browser-based CAD viewers, editors and engineering automation with one TypeScript package. KJDraw combines a ready-to-mount editor, Canvas rendering, CAD documents and commands, DXF/KJD project workflows, plugins, and reviewable AI-agent operations.
 
-Install the current developer preview from npm's `next` channel:
+[Live Demo](https://kanjieteam.github.io/kjdraw/) · [Developer Docs](https://kanjieteam.github.io/kjdraw/docs/latest/) · [GitHub](https://github.com/KanJieTeam/kjdraw)
+
+## Install
 
 ```sh
-npm install @kanjieteam/kjdraw
+npm install @kanjieteam/kjdraw@next
 ```
 
-The package ships TypeScript declarations and TypeScript-owned source slices. Runtime modules remain standards-based ESM during the incremental migration, so browser and Node.js consumers do not need a framework wrapper.
+KJDraw ships as standards-based ESM with first-class TypeScript declarations.
 
-Part of [KJDraw](https://github.com/KanJieTeam/kjdraw). See the repository README and `docs/getting-started.md` for the playground, optional Rust/WASM backend, and preview limitations.
+## Vanilla TypeScript
 
-```js
+```html
+<div id="kjdraw" style="height: 720px"></div>
+```
+
+```ts
+import { createKJDrawEditor } from '@kanjieteam/kjdraw/editor'
+
+const editor = createKJDrawEditor(
+  document.querySelector('#kjdraw')!,
+  {
+    document: 'sample',
+    locale: 'en', // or 'zh-CN'
+    theme: 'dark',
+  },
+)
+
+await editor.ready
+```
+
+The editor includes drawing and modification tools, layers, properties, command input, file open/save, DXF export, themes, and English/Chinese UI.
+
+## React
+
+```tsx
+import { useRef } from 'react'
+import { KJDraw, type KJDrawEditor } from '@kanjieteam/kjdraw/react'
+
+export function DrawingEditor() {
+  const editor = useRef<KJDrawEditor | null>(null)
+  return <KJDraw ref={editor} document="sample" style={{ height: 720 }} />
+}
+```
+
+## Vue
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import { KJDraw, type KJDrawExposed } from '@kanjieteam/kjdraw/vue'
+
+const editor = ref<KJDrawExposed | null>(null)
+</script>
+
+<template>
+  <KJDraw ref="editor" document="sample" style="height: 720px" />
+</template>
+```
+
+## CAD engine
+
+Use the framework-independent engine when you want to compose your own UI or automation pipeline.
+
+```ts
 import { createKJDrawSDK } from '@kanjieteam/kjdraw'
+
 const sdk = createKJDrawSDK()
-const drawing = sdk.createDocument({ documentId: 'demo' })
+const drawing = sdk.createDocument({ documentId: 'demo', units: 'millimeter' })
+
 await sdk.executeCommand('CREATE', {
-  type: 'LINE', payload: { start: [0, 0], end: [100, 0] },
+  type: 'LINE',
+  payload: { start: [0, 0, 0], end: [100, 0, 0] },
 })
-console.log(drawing.serialize())
+
+const dxf = await sdk.writeDocument(drawing, { format: 'DXF' })
 ```
 
-Run the packaged example with `node node_modules/@kanjieteam/kjdraw/examples/quickstart.mjs`. It creates and moves real geometry, performs a KJD reopen and prints a JSON result.
+Explore complete React, Vue and Vanilla TypeScript examples in the package's `examples` directory. Run the Node.js quickstart with:
 
-Apache-2.0. The package version follows the repository release. This is a developer preview: DWG, arbitrary-DXF fidelity, certified plotting and general BRep are not included guarantees. Agent plan binding strengthens review workflows but does not replace host identity, permissions or isolation.
+```sh
+node node_modules/@kanjieteam/kjdraw/examples/quickstart.mjs
+```
+
+Apache-2.0 · Built by [KanJieTeam](https://github.com/KanJieTeam)

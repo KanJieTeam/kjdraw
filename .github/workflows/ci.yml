@@ -1,6 +1,8 @@
 name: CI
 on:
   push:
+    branches:
+      - '**'
   pull_request:
 permissions:
   contents: read
@@ -20,6 +22,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: node scripts/build-declarations.mjs --check
+      - run: node scripts/build-docs-site.mjs --check
       - run: node scripts/build-api-docs.mjs --check
       - run: node scripts/test.mjs
       - run: node --no-warnings scripts/build-typescript.mjs --check
@@ -40,6 +43,7 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: node scripts/build-declarations.mjs --check
+      - run: node scripts/build-docs-site.mjs --check
       - run: node scripts/build-api-docs.mjs --check
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable @ 2026-07-16
         with:
@@ -59,8 +63,9 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
+          cache-dependency-path: scripts/audits/requirements-dxf.txt
       - run: npm ci --ignore-scripts
-      - run: python -m pip install ezdxf==1.4.4
+      - run: python -m pip install -r scripts/audits/requirements-dxf.txt
       - run: node scripts/audits/dxf-interop.mjs
   browser:
     runs-on: ubuntu-latest

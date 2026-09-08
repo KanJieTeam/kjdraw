@@ -1,0 +1,1070 @@
+{
+  "schema": "com.kanjie.kjdraw.docs-search-index@1",
+  "package": "@kanjieteam/kjdraw",
+  "version": "1.0.0-rc.2",
+  "sourceDigest": "sha256:c98035656802692c3659114e997ca4ce8839dc66ae291b52abc6f3e4b5ed0cde",
+  "entries": [
+    {
+      "locale": "en",
+      "kind": "guide",
+      "page": "introduction",
+      "title": "Introduction",
+      "summary": "KJDraw is a programmable CAD foundation for engineering applications, browser workbenches and reviewable AI-agent changes.",
+      "href": "./#en-introduction",
+      "text": "What KJDraw is what it is KJDraw gives web applications a complete embeddable CAD editor and a TypeScript SDK for building specialized drawing experiences. One createKJDrawEditor() call mounts the canvas, tools, layers, properties and file actions. React and Vue components provide the same editor with framework native lifecycles. Use it to display and edit engineering drawings, open or export KJD and DXF files, add product specific tools, automate repeatable changes, or let an AI assistant prepare changes for a person to review. Choose your starting point starting point What you are building Start with You get JavaScript or TypeScript app createKJDrawEditor() A ready to use editor and a small imperative API React app @kanjieteam/kjdraw/react <KJDraw plus a typed editor ref Vue app @kanjieteam/kjdraw/vue <KJDraw plus exposed editor methods Custom CAD interface @kanjieteam/kjdraw/core Documents, commands, files and your own UI AI assisted workflow @kanjieteam/kjdraw/agent Reviewable plans, approval and execution receipts What you can do what you can do Start with a sample drawing or an empty canvas, then zoom, select, draw and inspect objects. Open and save KJD or DXF, manage projects, and integrate your own storage flow. Execute typed commands with undo and redo, or subscribe to document and selection changes. Switch English or Chinese UI, light or dark appearance, and visible workbench panels at runtime. Add plugins, custom commands, renderers and AI assisted workflows as your product grows. Start with Quickstart , then keep the task oriented Editor API beside your code. The complete TypeScript reference covers every public package entry."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "introduction",
+      "title": "What KJDraw is",
+      "summary": "Introduction",
+      "href": "./#en-introduction-what-it-is",
+      "text": "What KJDraw is what it is KJDraw gives web applications a complete embeddable CAD editor and a TypeScript SDK for building specialized drawing experiences. One createKJDrawEditor() call mounts the canvas, tools, layers, properties and file actions. React and Vue components provide the same editor with framework native lifecycles. Use it to display and edit engineering drawings, open or export KJD and DXF files, add product specific tools, automate repeatable changes, or let an AI assistant prepare changes for a person to review. Choose your starting point starting point What you are building Start with You get JavaScript or TypeScript app createKJDrawEditor() A ready to use editor and a small imperative API React app @kanjieteam/kjdraw/react <KJDraw plus a typed editor ref Vue app @kanjieteam/kjdraw/vue <KJDraw plus exposed editor methods Custom CAD interface @kanjieteam/kjdraw/core Documents, commands, files and your own UI AI assisted workflow @kanjieteam/kjdraw/agent Reviewable plans, approval and execution receipts What you can do what you can do Start with a sample drawing or an empty canvas, then zoom, select, draw and inspect objects. Open and save KJD or DXF, manage projects, and integrate your own storage flow. Execute typed commands with undo and redo, or subscribe to document and selection changes. Switch English or Chinese UI, light or dark appearance, and visible workbench panels at runtime. Add plugins, custom commands, renderers and AI assisted workflows as your product grows. Start with Quickstart , then keep the task oriented Editor API beside your code. The complete TypeScript reference covers every public package entry."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "introduction",
+      "title": "Choose your starting point",
+      "summary": "Introduction",
+      "href": "./#en-introduction-starting-point",
+      "text": "What KJDraw is what it is KJDraw gives web applications a complete embeddable CAD editor and a TypeScript SDK for building specialized drawing experiences. One createKJDrawEditor() call mounts the canvas, tools, layers, properties and file actions. React and Vue components provide the same editor with framework native lifecycles. Use it to display and edit engineering drawings, open or export KJD and DXF files, add product specific tools, automate repeatable changes, or let an AI assistant prepare changes for a person to review. Choose your starting point starting point What you are building Start with You get JavaScript or TypeScript app createKJDrawEditor() A ready to use editor and a small imperative API React app @kanjieteam/kjdraw/react <KJDraw plus a typed editor ref Vue app @kanjieteam/kjdraw/vue <KJDraw plus exposed editor methods Custom CAD interface @kanjieteam/kjdraw/core Documents, commands, files and your own UI AI assisted workflow @kanjieteam/kjdraw/agent Reviewable plans, approval and execution receipts What you can do what you can do Start with a sample drawing or an empty canvas, then zoom, select, draw and inspect objects. Open and save KJD or DXF, manage projects, and integrate your own storage flow. Execute typed commands with undo and redo, or subscribe to document and selection changes. Switch English or Chinese UI, light or dark appearance, and visible workbench panels at runtime. Add plugins, custom commands, renderers and AI assisted workflows as your product grows. Start with Quickstart , then keep the task oriented Editor API beside your code. The complete TypeScript reference covers every public package entry."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "introduction",
+      "title": "What you can do",
+      "summary": "Introduction",
+      "href": "./#en-introduction-what-you-can-do",
+      "text": "What KJDraw is what it is KJDraw gives web applications a complete embeddable CAD editor and a TypeScript SDK for building specialized drawing experiences. One createKJDrawEditor() call mounts the canvas, tools, layers, properties and file actions. React and Vue components provide the same editor with framework native lifecycles. Use it to display and edit engineering drawings, open or export KJD and DXF files, add product specific tools, automate repeatable changes, or let an AI assistant prepare changes for a person to review. Choose your starting point starting point What you are building Start with You get JavaScript or TypeScript app createKJDrawEditor() A ready to use editor and a small imperative API React app @kanjieteam/kjdraw/react <KJDraw plus a typed editor ref Vue app @kanjieteam/kjdraw/vue <KJDraw plus exposed editor methods Custom CAD interface @kanjieteam/kjdraw/core Documents, commands, files and your own UI AI assisted workflow @kanjieteam/kjdraw/agent Reviewable plans, approval and execution receipts What you can do what you can do Start with a sample drawing or an empty canvas, then zoom, select, draw and inspect objects. Open and save KJD or DXF, manage projects, and integrate your own storage flow. Execute typed commands with undo and redo, or subscribe to document and selection changes. Switch English or Chinese UI, light or dark appearance, and visible workbench panels at runtime. Add plugins, custom commands, renderers and AI assisted workflows as your product grows. Start with Quickstart , then keep the task oriented Editor API beside your code. The complete TypeScript reference covers every public package entry."
+    },
+    {
+      "locale": "zh",
+      "kind": "guide",
+      "page": "introduction",
+      "title": "简介",
+      "summary": "KJDraw 是面向工程应用、浏览器工作台与可审核 AI Agent 修改的可编程 CAD 基础设施。",
+      "href": "./#zh-introduction",
+      "text": "KJDraw 是什么 what it is KJDraw 为 Web 应用提供可直接嵌入的完整 CAD 编辑器，以及用于构建专业绘图体验的 TypeScript SDK。一次调用 createKJDrawEditor() 就能挂载画布、工具、图层、属性与文件操作；React 和 Vue 组件用各自框架熟悉的生命周期提供同一编辑器。 你可以用它显示和编辑工程图纸、打开或导出 KJD 与 DXF、增加产品专用工具、自动完成重复修改，或让 AI 助手先准备修改，再由人员确认执行。 选择接入方式 starting point 你要构建的产品 从这里开始 直接获得 JavaScript 或 TypeScript 应用 createKJDrawEditor() 可直接使用的编辑器与简洁控制 API React 应用 @kanjieteam/kjdraw/react <KJDraw 与类型化编辑器 ref Vue 应用 @kanjieteam/kjdraw/vue <KJDraw 与暴露的编辑器方法 自定义 CAD 界面 @kanjieteam/kjdraw/core 图档、命令、文件能力与自定义 UI AI 辅助流程 @kanjieteam/kjdraw/agent 可审核计划、批准与执行回执 现在可以完成什么 what you can do 从示例图纸或空白画布开始，完成缩放、选择、绘制与对象检查。 打开和保存 KJD 或 DXF，管理工程，并接入自己的存储流程。 执行类型化命令并撤销、重做，或监听图档与选择变化。 运行时切换中英文、明暗外观，以及工作台各个面板的显示状态。 随产品成长继续增加插件、自定义命令、渲染器与 AI 辅助流程。 先阅读 快速上手 ，开发时可随时查看按任务组织的 Editor API。完整 TypeScript 参考覆盖全部公开包入口。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "introduction",
+      "title": "KJDraw 是什么",
+      "summary": "简介",
+      "href": "./#zh-introduction-what-it-is",
+      "text": "KJDraw 是什么 what it is KJDraw 为 Web 应用提供可直接嵌入的完整 CAD 编辑器，以及用于构建专业绘图体验的 TypeScript SDK。一次调用 createKJDrawEditor() 就能挂载画布、工具、图层、属性与文件操作；React 和 Vue 组件用各自框架熟悉的生命周期提供同一编辑器。 你可以用它显示和编辑工程图纸、打开或导出 KJD 与 DXF、增加产品专用工具、自动完成重复修改，或让 AI 助手先准备修改，再由人员确认执行。 选择接入方式 starting point 你要构建的产品 从这里开始 直接获得 JavaScript 或 TypeScript 应用 createKJDrawEditor() 可直接使用的编辑器与简洁控制 API React 应用 @kanjieteam/kjdraw/react <KJDraw 与类型化编辑器 ref Vue 应用 @kanjieteam/kjdraw/vue <KJDraw 与暴露的编辑器方法 自定义 CAD 界面 @kanjieteam/kjdraw/core 图档、命令、文件能力与自定义 UI AI 辅助流程 @kanjieteam/kjdraw/agent 可审核计划、批准与执行回执 现在可以完成什么 what you can do 从示例图纸或空白画布开始，完成缩放、选择、绘制与对象检查。 打开和保存 KJD 或 DXF，管理工程，并接入自己的存储流程。 执行类型化命令并撤销、重做，或监听图档与选择变化。 运行时切换中英文、明暗外观，以及工作台各个面板的显示状态。 随产品成长继续增加插件、自定义命令、渲染器与 AI 辅助流程。 先阅读 快速上手 ，开发时可随时查看按任务组织的 Editor API。完整 TypeScript 参考覆盖全部公开包入口。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "introduction",
+      "title": "选择接入方式",
+      "summary": "简介",
+      "href": "./#zh-introduction-starting-point",
+      "text": "KJDraw 是什么 what it is KJDraw 为 Web 应用提供可直接嵌入的完整 CAD 编辑器，以及用于构建专业绘图体验的 TypeScript SDK。一次调用 createKJDrawEditor() 就能挂载画布、工具、图层、属性与文件操作；React 和 Vue 组件用各自框架熟悉的生命周期提供同一编辑器。 你可以用它显示和编辑工程图纸、打开或导出 KJD 与 DXF、增加产品专用工具、自动完成重复修改，或让 AI 助手先准备修改，再由人员确认执行。 选择接入方式 starting point 你要构建的产品 从这里开始 直接获得 JavaScript 或 TypeScript 应用 createKJDrawEditor() 可直接使用的编辑器与简洁控制 API React 应用 @kanjieteam/kjdraw/react <KJDraw 与类型化编辑器 ref Vue 应用 @kanjieteam/kjdraw/vue <KJDraw 与暴露的编辑器方法 自定义 CAD 界面 @kanjieteam/kjdraw/core 图档、命令、文件能力与自定义 UI AI 辅助流程 @kanjieteam/kjdraw/agent 可审核计划、批准与执行回执 现在可以完成什么 what you can do 从示例图纸或空白画布开始，完成缩放、选择、绘制与对象检查。 打开和保存 KJD 或 DXF，管理工程，并接入自己的存储流程。 执行类型化命令并撤销、重做，或监听图档与选择变化。 运行时切换中英文、明暗外观，以及工作台各个面板的显示状态。 随产品成长继续增加插件、自定义命令、渲染器与 AI 辅助流程。 先阅读 快速上手 ，开发时可随时查看按任务组织的 Editor API。完整 TypeScript 参考覆盖全部公开包入口。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "introduction",
+      "title": "现在可以完成什么",
+      "summary": "简介",
+      "href": "./#zh-introduction-what-you-can-do",
+      "text": "KJDraw 是什么 what it is KJDraw 为 Web 应用提供可直接嵌入的完整 CAD 编辑器，以及用于构建专业绘图体验的 TypeScript SDK。一次调用 createKJDrawEditor() 就能挂载画布、工具、图层、属性与文件操作；React 和 Vue 组件用各自框架熟悉的生命周期提供同一编辑器。 你可以用它显示和编辑工程图纸、打开或导出 KJD 与 DXF、增加产品专用工具、自动完成重复修改，或让 AI 助手先准备修改，再由人员确认执行。 选择接入方式 starting point 你要构建的产品 从这里开始 直接获得 JavaScript 或 TypeScript 应用 createKJDrawEditor() 可直接使用的编辑器与简洁控制 API React 应用 @kanjieteam/kjdraw/react <KJDraw 与类型化编辑器 ref Vue 应用 @kanjieteam/kjdraw/vue <KJDraw 与暴露的编辑器方法 自定义 CAD 界面 @kanjieteam/kjdraw/core 图档、命令、文件能力与自定义 UI AI 辅助流程 @kanjieteam/kjdraw/agent 可审核计划、批准与执行回执 现在可以完成什么 what you can do 从示例图纸或空白画布开始，完成缩放、选择、绘制与对象检查。 打开和保存 KJD 或 DXF，管理工程，并接入自己的存储流程。 执行类型化命令并撤销、重做，或监听图档与选择变化。 运行时切换中英文、明暗外观，以及工作台各个面板的显示状态。 随产品成长继续增加插件、自定义命令、渲染器与 AI 辅助流程。 先阅读 快速上手 ，开发时可随时查看按任务组织的 Editor API。完整 TypeScript 参考覆盖全部公开包入口。"
+    },
+    {
+      "locale": "en",
+      "kind": "guide",
+      "page": "quickstart",
+      "title": "Quickstart",
+      "summary": "Install KJDraw, mount a complete editor in minutes and open one of the editable industry samples.",
+      "href": "./quickstart/#en-quickstart",
+      "text": "Install install Mount a complete editor mount editor Give the container a height, then create the editor: Use editor.open(file) for KJD or DXF input and editor.save() to download the current drawing. The Editor API lists every option, method and event. Open an industry sample industry samples The sample catalogue also includes a site plan, road profile and mechanical manufacturing drawing. Each result is a normal editable KJDocument , so the same file, command and plugin APIs apply. Use multiple editors multiple editors Pass the same sdk to share plugins and commands, and give each editor its own container with a height. Use editor.execute() to target a specific editor, or pass an explicit document when calling the SDK directly. See Commands and transactions for background editing examples. Blank and sample drawings created by an editor are released after their last editor view closes. A drawing supplied through document remains owned by your application. Two views can display the same drawing; replacing it by reopening a file with the same ID is rejected while another view still uses it, so that view keeps its drawing and selection. Continue to React or Vue for framework components, Files for KJD/KJP/DXF, or Commands for programmatic editing."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "quickstart",
+      "title": "Install",
+      "summary": "Quickstart",
+      "href": "./quickstart/#en-quickstart-install",
+      "text": "Install install Mount a complete editor mount editor Give the container a height, then create the editor: Use editor.open(file) for KJD or DXF input and editor.save() to download the current drawing. The Editor API lists every option, method and event. Open an industry sample industry samples The sample catalogue also includes a site plan, road profile and mechanical manufacturing drawing. Each result is a normal editable KJDocument , so the same file, command and plugin APIs apply. Use multiple editors multiple editors Pass the same sdk to share plugins and commands, and give each editor its own container with a height. Use editor.execute() to target a specific editor, or pass an explicit document when calling the SDK directly. See Commands and transactions for background editing examples. Blank and sample drawings created by an editor are released after their last editor view closes. A drawing supplied through document remains owned by your application. Two views can display the same drawing; replacing it by reopening a file with the same ID is rejected while another view still uses it, so that view keeps its drawing and selection. Continue to React or Vue for framework components, Files for KJD/KJP/DXF, or Commands for programmatic editing."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "quickstart",
+      "title": "Mount a complete editor",
+      "summary": "Quickstart",
+      "href": "./quickstart/#en-quickstart-mount-editor",
+      "text": "Install install Mount a complete editor mount editor Give the container a height, then create the editor: Use editor.open(file) for KJD or DXF input and editor.save() to download the current drawing. The Editor API lists every option, method and event. Open an industry sample industry samples The sample catalogue also includes a site plan, road profile and mechanical manufacturing drawing. Each result is a normal editable KJDocument , so the same file, command and plugin APIs apply. Use multiple editors multiple editors Pass the same sdk to share plugins and commands, and give each editor its own container with a height. Use editor.execute() to target a specific editor, or pass an explicit document when calling the SDK directly. See Commands and transactions for background editing examples. Blank and sample drawings created by an editor are released after their last editor view closes. A drawing supplied through document remains owned by your application. Two views can display the same drawing; replacing it by reopening a file with the same ID is rejected while another view still uses it, so that view keeps its drawing and selection. Continue to React or Vue for framework components, Files for KJD/KJP/DXF, or Commands for programmatic editing."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "quickstart",
+      "title": "Open an industry sample",
+      "summary": "Quickstart",
+      "href": "./quickstart/#en-quickstart-industry-samples",
+      "text": "Install install Mount a complete editor mount editor Give the container a height, then create the editor: Use editor.open(file) for KJD or DXF input and editor.save() to download the current drawing. The Editor API lists every option, method and event. Open an industry sample industry samples The sample catalogue also includes a site plan, road profile and mechanical manufacturing drawing. Each result is a normal editable KJDocument , so the same file, command and plugin APIs apply. Use multiple editors multiple editors Pass the same sdk to share plugins and commands, and give each editor its own container with a height. Use editor.execute() to target a specific editor, or pass an explicit document when calling the SDK directly. See Commands and transactions for background editing examples. Blank and sample drawings created by an editor are released after their last editor view closes. A drawing supplied through document remains owned by your application. Two views can display the same drawing; replacing it by reopening a file with the same ID is rejected while another view still uses it, so that view keeps its drawing and selection. Continue to React or Vue for framework components, Files for KJD/KJP/DXF, or Commands for programmatic editing."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "quickstart",
+      "title": "Use multiple editors",
+      "summary": "Quickstart",
+      "href": "./quickstart/#en-quickstart-multiple-editors",
+      "text": "Install install Mount a complete editor mount editor Give the container a height, then create the editor: Use editor.open(file) for KJD or DXF input and editor.save() to download the current drawing. The Editor API lists every option, method and event. Open an industry sample industry samples The sample catalogue also includes a site plan, road profile and mechanical manufacturing drawing. Each result is a normal editable KJDocument , so the same file, command and plugin APIs apply. Use multiple editors multiple editors Pass the same sdk to share plugins and commands, and give each editor its own container with a height. Use editor.execute() to target a specific editor, or pass an explicit document when calling the SDK directly. See Commands and transactions for background editing examples. Blank and sample drawings created by an editor are released after their last editor view closes. A drawing supplied through document remains owned by your application. Two views can display the same drawing; replacing it by reopening a file with the same ID is rejected while another view still uses it, so that view keeps its drawing and selection. Continue to React or Vue for framework components, Files for KJD/KJP/DXF, or Commands for programmatic editing."
+    },
+    {
+      "locale": "zh",
+      "kind": "guide",
+      "page": "quickstart",
+      "title": "快速上手",
+      "summary": "安装 KJDraw，几分钟内挂载完整编辑器，并打开一张可编辑的行业示例图纸。",
+      "href": "./quickstart/#zh-quickstart",
+      "text": "安装 install 挂载完整编辑器 mount editor 先为容器设置高度，再创建编辑器： 使用 editor.open(file) 打开 KJD 或 DXF，使用 editor.save() 下载当前图档。Editor API列出了全部选项、方法与事件。 打开行业示例 industry samples 示例目录还包含场地总图、道路纵断面和机械制造图。每个结果都是普通、可编辑的 KJDocument ，可以继续使用同一套文件、命令与插件 API。 使用多个编辑器 multiple editors 传入同一个 sdk 可以共享插件和命令；每个编辑器分别使用设置了高度的容器。操作指定编辑器时调用 editor.execute() ，直接使用 SDK 时显式传入 document 。后台编辑示例见 命令与事务 。 编辑器自动创建的空白图或示例图，会在最后一个编辑器视图关闭后释放。通过 document 传入的图纸仍由应用管理。两个视图可以显示同一图纸；如果另一视图仍在使用它，重新打开同 ID 文件来替换图纸的操作会被拒绝，已有图纸和选择集保持不变。 接着阅读 React 或 Vue 使用框架组件，阅读 文件 了解 KJD/KJP/DXF，或阅读 命令与事务 进行程序化编辑。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "quickstart",
+      "title": "安装",
+      "summary": "快速上手",
+      "href": "./quickstart/#zh-quickstart-install",
+      "text": "安装 install 挂载完整编辑器 mount editor 先为容器设置高度，再创建编辑器： 使用 editor.open(file) 打开 KJD 或 DXF，使用 editor.save() 下载当前图档。Editor API列出了全部选项、方法与事件。 打开行业示例 industry samples 示例目录还包含场地总图、道路纵断面和机械制造图。每个结果都是普通、可编辑的 KJDocument ，可以继续使用同一套文件、命令与插件 API。 使用多个编辑器 multiple editors 传入同一个 sdk 可以共享插件和命令；每个编辑器分别使用设置了高度的容器。操作指定编辑器时调用 editor.execute() ，直接使用 SDK 时显式传入 document 。后台编辑示例见 命令与事务 。 编辑器自动创建的空白图或示例图，会在最后一个编辑器视图关闭后释放。通过 document 传入的图纸仍由应用管理。两个视图可以显示同一图纸；如果另一视图仍在使用它，重新打开同 ID 文件来替换图纸的操作会被拒绝，已有图纸和选择集保持不变。 接着阅读 React 或 Vue 使用框架组件，阅读 文件 了解 KJD/KJP/DXF，或阅读 命令与事务 进行程序化编辑。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "quickstart",
+      "title": "挂载完整编辑器",
+      "summary": "快速上手",
+      "href": "./quickstart/#zh-quickstart-mount-editor",
+      "text": "安装 install 挂载完整编辑器 mount editor 先为容器设置高度，再创建编辑器： 使用 editor.open(file) 打开 KJD 或 DXF，使用 editor.save() 下载当前图档。Editor API列出了全部选项、方法与事件。 打开行业示例 industry samples 示例目录还包含场地总图、道路纵断面和机械制造图。每个结果都是普通、可编辑的 KJDocument ，可以继续使用同一套文件、命令与插件 API。 使用多个编辑器 multiple editors 传入同一个 sdk 可以共享插件和命令；每个编辑器分别使用设置了高度的容器。操作指定编辑器时调用 editor.execute() ，直接使用 SDK 时显式传入 document 。后台编辑示例见 命令与事务 。 编辑器自动创建的空白图或示例图，会在最后一个编辑器视图关闭后释放。通过 document 传入的图纸仍由应用管理。两个视图可以显示同一图纸；如果另一视图仍在使用它，重新打开同 ID 文件来替换图纸的操作会被拒绝，已有图纸和选择集保持不变。 接着阅读 React 或 Vue 使用框架组件，阅读 文件 了解 KJD/KJP/DXF，或阅读 命令与事务 进行程序化编辑。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "quickstart",
+      "title": "打开行业示例",
+      "summary": "快速上手",
+      "href": "./quickstart/#zh-quickstart-industry-samples",
+      "text": "安装 install 挂载完整编辑器 mount editor 先为容器设置高度，再创建编辑器： 使用 editor.open(file) 打开 KJD 或 DXF，使用 editor.save() 下载当前图档。Editor API列出了全部选项、方法与事件。 打开行业示例 industry samples 示例目录还包含场地总图、道路纵断面和机械制造图。每个结果都是普通、可编辑的 KJDocument ，可以继续使用同一套文件、命令与插件 API。 使用多个编辑器 multiple editors 传入同一个 sdk 可以共享插件和命令；每个编辑器分别使用设置了高度的容器。操作指定编辑器时调用 editor.execute() ，直接使用 SDK 时显式传入 document 。后台编辑示例见 命令与事务 。 编辑器自动创建的空白图或示例图，会在最后一个编辑器视图关闭后释放。通过 document 传入的图纸仍由应用管理。两个视图可以显示同一图纸；如果另一视图仍在使用它，重新打开同 ID 文件来替换图纸的操作会被拒绝，已有图纸和选择集保持不变。 接着阅读 React 或 Vue 使用框架组件，阅读 文件 了解 KJD/KJP/DXF，或阅读 命令与事务 进行程序化编辑。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "quickstart",
+      "title": "使用多个编辑器",
+      "summary": "快速上手",
+      "href": "./quickstart/#zh-quickstart-multiple-editors",
+      "text": "安装 install 挂载完整编辑器 mount editor 先为容器设置高度，再创建编辑器： 使用 editor.open(file) 打开 KJD 或 DXF，使用 editor.save() 下载当前图档。Editor API列出了全部选项、方法与事件。 打开行业示例 industry samples 示例目录还包含场地总图、道路纵断面和机械制造图。每个结果都是普通、可编辑的 KJDocument ，可以继续使用同一套文件、命令与插件 API。 使用多个编辑器 multiple editors 传入同一个 sdk 可以共享插件和命令；每个编辑器分别使用设置了高度的容器。操作指定编辑器时调用 editor.execute() ，直接使用 SDK 时显式传入 document 。后台编辑示例见 命令与事务 。 编辑器自动创建的空白图或示例图，会在最后一个编辑器视图关闭后释放。通过 document 传入的图纸仍由应用管理。两个视图可以显示同一图纸；如果另一视图仍在使用它，重新打开同 ID 文件来替换图纸的操作会被拒绝，已有图纸和选择集保持不变。 接着阅读 React 或 Vue 使用框架组件，阅读 文件 了解 KJD/KJP/DXF，或阅读 命令与事务 进行程序化编辑。"
+    },
+    {
+      "locale": "en",
+      "kind": "guide",
+      "page": "installation",
+      "title": "Installation",
+      "summary": "Choose the npm channel, runtime and import path that match your application and release policy.",
+      "href": "./installation/#en-installation",
+      "text": "Requirements requirements Node.js 22 or newer for repository tooling and supported Node.js consumers. A modern browser with ES modules, Canvas 2D, WebAssembly and Web Crypto for browser products. npm, pnpm or another package manager that understands package exports. KJDraw has no runtime npm dependencies. React and Vue are examples for consumers, not peer dependencies of the core. Release channels release channels Intent Command Evaluate the current RC npm install @kanjieteam/kjdraw@next Reproduce RC2 exactly npm install @kanjieteam/kjdraw@1.0.0 rc.2 Install stable after promotion npm install @kanjieteam/kjdraw Work from a checkout npm install /path/to/kjdraw/packages/kjdraw sdk Do not assume npm latest points to a release candidate. Prereleases are intentionally published under next . Public imports public imports Use the root for the common SDK surface and subpaths when you want a smaller, explicit contract. Every declared package export appears in the generated API reference and is verified against the package manifest in CI."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "installation",
+      "title": "Requirements",
+      "summary": "Installation",
+      "href": "./installation/#en-installation-requirements",
+      "text": "Requirements requirements Node.js 22 or newer for repository tooling and supported Node.js consumers. A modern browser with ES modules, Canvas 2D, WebAssembly and Web Crypto for browser products. npm, pnpm or another package manager that understands package exports. KJDraw has no runtime npm dependencies. React and Vue are examples for consumers, not peer dependencies of the core. Release channels release channels Intent Command Evaluate the current RC npm install @kanjieteam/kjdraw@next Reproduce RC2 exactly npm install @kanjieteam/kjdraw@1.0.0 rc.2 Install stable after promotion npm install @kanjieteam/kjdraw Work from a checkout npm install /path/to/kjdraw/packages/kjdraw sdk Do not assume npm latest points to a release candidate. Prereleases are intentionally published under next . Public imports public imports Use the root for the common SDK surface and subpaths when you want a smaller, explicit contract. Every declared package export appears in the generated API reference and is verified against the package manifest in CI."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "installation",
+      "title": "Release channels",
+      "summary": "Installation",
+      "href": "./installation/#en-installation-release-channels",
+      "text": "Requirements requirements Node.js 22 or newer for repository tooling and supported Node.js consumers. A modern browser with ES modules, Canvas 2D, WebAssembly and Web Crypto for browser products. npm, pnpm or another package manager that understands package exports. KJDraw has no runtime npm dependencies. React and Vue are examples for consumers, not peer dependencies of the core. Release channels release channels Intent Command Evaluate the current RC npm install @kanjieteam/kjdraw@next Reproduce RC2 exactly npm install @kanjieteam/kjdraw@1.0.0 rc.2 Install stable after promotion npm install @kanjieteam/kjdraw Work from a checkout npm install /path/to/kjdraw/packages/kjdraw sdk Do not assume npm latest points to a release candidate. Prereleases are intentionally published under next . Public imports public imports Use the root for the common SDK surface and subpaths when you want a smaller, explicit contract. Every declared package export appears in the generated API reference and is verified against the package manifest in CI."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "installation",
+      "title": "Public imports",
+      "summary": "Installation",
+      "href": "./installation/#en-installation-public-imports",
+      "text": "Requirements requirements Node.js 22 or newer for repository tooling and supported Node.js consumers. A modern browser with ES modules, Canvas 2D, WebAssembly and Web Crypto for browser products. npm, pnpm or another package manager that understands package exports. KJDraw has no runtime npm dependencies. React and Vue are examples for consumers, not peer dependencies of the core. Release channels release channels Intent Command Evaluate the current RC npm install @kanjieteam/kjdraw@next Reproduce RC2 exactly npm install @kanjieteam/kjdraw@1.0.0 rc.2 Install stable after promotion npm install @kanjieteam/kjdraw Work from a checkout npm install /path/to/kjdraw/packages/kjdraw sdk Do not assume npm latest points to a release candidate. Prereleases are intentionally published under next . Public imports public imports Use the root for the common SDK surface and subpaths when you want a smaller, explicit contract. Every declared package export appears in the generated API reference and is verified against the package manifest in CI."
+    },
+    {
+      "locale": "zh",
+      "kind": "guide",
+      "page": "installation",
+      "title": "安装",
+      "summary": "根据应用形态与发布策略选择正确的 npm 渠道、运行环境和导入路径。",
+      "href": "./installation/#zh-installation",
+      "text": "环境要求 requirements 仓库工具链和受支持的 Node.js 消费端使用 Node.js 22 或更高版本。 浏览器产品需要支持 ES Modules、Canvas 2D、WebAssembly 与 Web Crypto 的现代浏览器。 npm、pnpm 或其他能够解析 package exports 的包管理器。 KJDraw 的 npm 运行时依赖为零。React、Vue 是消费端示例，不是核心包的 peer dependency。 发布渠道 release channels 目标 命令 评估当前候选版 npm install @kanjieteam/kjdraw@next 精确复现 RC2 npm install @kanjieteam/kjdraw@1.0.0 rc.2 稳定版晋级后安装 npm install @kanjieteam/kjdraw 从本地 checkout 使用 npm install /path/to/kjdraw/packages/kjdraw sdk 不要假设 npm latest 会指向候选版。预发布版本会刻意发布到 next 。 公共导入路径 public imports 常用 SDK 能力从根入口导入；当你希望边界更小、更明确时使用子路径。 所有 package exports 都会进入自动生成的 API Reference，并由 CI 对照包清单验证。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "installation",
+      "title": "环境要求",
+      "summary": "安装",
+      "href": "./installation/#zh-installation-requirements",
+      "text": "环境要求 requirements 仓库工具链和受支持的 Node.js 消费端使用 Node.js 22 或更高版本。 浏览器产品需要支持 ES Modules、Canvas 2D、WebAssembly 与 Web Crypto 的现代浏览器。 npm、pnpm 或其他能够解析 package exports 的包管理器。 KJDraw 的 npm 运行时依赖为零。React、Vue 是消费端示例，不是核心包的 peer dependency。 发布渠道 release channels 目标 命令 评估当前候选版 npm install @kanjieteam/kjdraw@next 精确复现 RC2 npm install @kanjieteam/kjdraw@1.0.0 rc.2 稳定版晋级后安装 npm install @kanjieteam/kjdraw 从本地 checkout 使用 npm install /path/to/kjdraw/packages/kjdraw sdk 不要假设 npm latest 会指向候选版。预发布版本会刻意发布到 next 。 公共导入路径 public imports 常用 SDK 能力从根入口导入；当你希望边界更小、更明确时使用子路径。 所有 package exports 都会进入自动生成的 API Reference，并由 CI 对照包清单验证。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "installation",
+      "title": "发布渠道",
+      "summary": "安装",
+      "href": "./installation/#zh-installation-release-channels",
+      "text": "环境要求 requirements 仓库工具链和受支持的 Node.js 消费端使用 Node.js 22 或更高版本。 浏览器产品需要支持 ES Modules、Canvas 2D、WebAssembly 与 Web Crypto 的现代浏览器。 npm、pnpm 或其他能够解析 package exports 的包管理器。 KJDraw 的 npm 运行时依赖为零。React、Vue 是消费端示例，不是核心包的 peer dependency。 发布渠道 release channels 目标 命令 评估当前候选版 npm install @kanjieteam/kjdraw@next 精确复现 RC2 npm install @kanjieteam/kjdraw@1.0.0 rc.2 稳定版晋级后安装 npm install @kanjieteam/kjdraw 从本地 checkout 使用 npm install /path/to/kjdraw/packages/kjdraw sdk 不要假设 npm latest 会指向候选版。预发布版本会刻意发布到 next 。 公共导入路径 public imports 常用 SDK 能力从根入口导入；当你希望边界更小、更明确时使用子路径。 所有 package exports 都会进入自动生成的 API Reference，并由 CI 对照包清单验证。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "installation",
+      "title": "公共导入路径",
+      "summary": "安装",
+      "href": "./installation/#zh-installation-public-imports",
+      "text": "环境要求 requirements 仓库工具链和受支持的 Node.js 消费端使用 Node.js 22 或更高版本。 浏览器产品需要支持 ES Modules、Canvas 2D、WebAssembly 与 Web Crypto 的现代浏览器。 npm、pnpm 或其他能够解析 package exports 的包管理器。 KJDraw 的 npm 运行时依赖为零。React、Vue 是消费端示例，不是核心包的 peer dependency。 发布渠道 release channels 目标 命令 评估当前候选版 npm install @kanjieteam/kjdraw@next 精确复现 RC2 npm install @kanjieteam/kjdraw@1.0.0 rc.2 稳定版晋级后安装 npm install @kanjieteam/kjdraw 从本地 checkout 使用 npm install /path/to/kjdraw/packages/kjdraw sdk 不要假设 npm latest 会指向候选版。预发布版本会刻意发布到 next 。 公共导入路径 public imports 常用 SDK 能力从根入口导入；当你希望边界更小、更明确时使用子路径。 所有 package exports 都会进入自动生成的 API Reference，并由 CI 对照包清单验证。"
+    },
+    {
+      "locale": "en",
+      "kind": "guide",
+      "page": "architecture",
+      "title": "Architecture",
+      "summary": "Understand where document truth lives, how commands cross boundaries and which responsibilities remain with the embedding host.",
+      "href": "./architecture/#en-architecture",
+      "text": "Layer model layer model The document is canonical. Component state, canvas display lists and selection overlays are projections that can be rebuilt. File and compute services enter through explicit adapters instead of becoming hidden global dependencies. Documents and transactions documents and transactions A KJDocument owns stable IDs and handles, object ownership, tables, blocks, model/paper spaces, resources and a monotonically changing revision. A transaction edits a draft, validates the result and then publishes it atomically. Undo/redo is session history; reopening a KJP does not claim to reconstruct the in memory undo stack. TypeScript and Rust authority typescript and rust authority Every public runtime module is authored in strict TypeScript. Browser/Node ESM and declarations are generated and checked for drift. The TypeScript path provides the portable reference implementation. Rust/WebAssembly can provide document authority, geometry predicates and explicitly bounded solid mesh operations. Backend identity is observable. Missing WASM is never silently described as Rust authoritative output. Host responsibilities host responsibilities KJDraw provides capability wiring. The embedding product supplies authentication, authorization, tenant isolation, transport policy, durable audit storage, model isolation and the sandbox policy for third party plugin code. Remote activity begins when the host invokes a configured remote provider, keeping data flow explicit and observable."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "architecture",
+      "title": "Layer model",
+      "summary": "Architecture",
+      "href": "./architecture/#en-architecture-layer-model",
+      "text": "Layer model layer model The document is canonical. Component state, canvas display lists and selection overlays are projections that can be rebuilt. File and compute services enter through explicit adapters instead of becoming hidden global dependencies. Documents and transactions documents and transactions A KJDocument owns stable IDs and handles, object ownership, tables, blocks, model/paper spaces, resources and a monotonically changing revision. A transaction edits a draft, validates the result and then publishes it atomically. Undo/redo is session history; reopening a KJP does not claim to reconstruct the in memory undo stack. TypeScript and Rust authority typescript and rust authority Every public runtime module is authored in strict TypeScript. Browser/Node ESM and declarations are generated and checked for drift. The TypeScript path provides the portable reference implementation. Rust/WebAssembly can provide document authority, geometry predicates and explicitly bounded solid mesh operations. Backend identity is observable. Missing WASM is never silently described as Rust authoritative output. Host responsibilities host responsibilities KJDraw provides capability wiring. The embedding product supplies authentication, authorization, tenant isolation, transport policy, durable audit storage, model isolation and the sandbox policy for third party plugin code. Remote activity begins when the host invokes a configured remote provider, keeping data flow explicit and observable."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "architecture",
+      "title": "Documents and transactions",
+      "summary": "Architecture",
+      "href": "./architecture/#en-architecture-documents-and-transactions",
+      "text": "Layer model layer model The document is canonical. Component state, canvas display lists and selection overlays are projections that can be rebuilt. File and compute services enter through explicit adapters instead of becoming hidden global dependencies. Documents and transactions documents and transactions A KJDocument owns stable IDs and handles, object ownership, tables, blocks, model/paper spaces, resources and a monotonically changing revision. A transaction edits a draft, validates the result and then publishes it atomically. Undo/redo is session history; reopening a KJP does not claim to reconstruct the in memory undo stack. TypeScript and Rust authority typescript and rust authority Every public runtime module is authored in strict TypeScript. Browser/Node ESM and declarations are generated and checked for drift. The TypeScript path provides the portable reference implementation. Rust/WebAssembly can provide document authority, geometry predicates and explicitly bounded solid mesh operations. Backend identity is observable. Missing WASM is never silently described as Rust authoritative output. Host responsibilities host responsibilities KJDraw provides capability wiring. The embedding product supplies authentication, authorization, tenant isolation, transport policy, durable audit storage, model isolation and the sandbox policy for third party plugin code. Remote activity begins when the host invokes a configured remote provider, keeping data flow explicit and observable."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "architecture",
+      "title": "TypeScript and Rust authority",
+      "summary": "Architecture",
+      "href": "./architecture/#en-architecture-typescript-and-rust-authority",
+      "text": "Layer model layer model The document is canonical. Component state, canvas display lists and selection overlays are projections that can be rebuilt. File and compute services enter through explicit adapters instead of becoming hidden global dependencies. Documents and transactions documents and transactions A KJDocument owns stable IDs and handles, object ownership, tables, blocks, model/paper spaces, resources and a monotonically changing revision. A transaction edits a draft, validates the result and then publishes it atomically. Undo/redo is session history; reopening a KJP does not claim to reconstruct the in memory undo stack. TypeScript and Rust authority typescript and rust authority Every public runtime module is authored in strict TypeScript. Browser/Node ESM and declarations are generated and checked for drift. The TypeScript path provides the portable reference implementation. Rust/WebAssembly can provide document authority, geometry predicates and explicitly bounded solid mesh operations. Backend identity is observable. Missing WASM is never silently described as Rust authoritative output. Host responsibilities host responsibilities KJDraw provides capability wiring. The embedding product supplies authentication, authorization, tenant isolation, transport policy, durable audit storage, model isolation and the sandbox policy for third party plugin code. Remote activity begins when the host invokes a configured remote provider, keeping data flow explicit and observable."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "architecture",
+      "title": "Host responsibilities",
+      "summary": "Architecture",
+      "href": "./architecture/#en-architecture-host-responsibilities",
+      "text": "Layer model layer model The document is canonical. Component state, canvas display lists and selection overlays are projections that can be rebuilt. File and compute services enter through explicit adapters instead of becoming hidden global dependencies. Documents and transactions documents and transactions A KJDocument owns stable IDs and handles, object ownership, tables, blocks, model/paper spaces, resources and a monotonically changing revision. A transaction edits a draft, validates the result and then publishes it atomically. Undo/redo is session history; reopening a KJP does not claim to reconstruct the in memory undo stack. TypeScript and Rust authority typescript and rust authority Every public runtime module is authored in strict TypeScript. Browser/Node ESM and declarations are generated and checked for drift. The TypeScript path provides the portable reference implementation. Rust/WebAssembly can provide document authority, geometry predicates and explicitly bounded solid mesh operations. Backend identity is observable. Missing WASM is never silently described as Rust authoritative output. Host responsibilities host responsibilities KJDraw provides capability wiring. The embedding product supplies authentication, authorization, tenant isolation, transport policy, durable audit storage, model isolation and the sandbox policy for third party plugin code. Remote activity begins when the host invokes a configured remote provider, keeping data flow explicit and observable."
+    },
+    {
+      "locale": "zh",
+      "kind": "guide",
+      "page": "architecture",
+      "title": "架构",
+      "summary": "理解图档真相保存在哪里、命令如何跨越边界，以及哪些职责始终属于嵌入宿主。",
+      "href": "./architecture/#zh-architecture",
+      "text": "分层模型 layer model 图档是规范真相。组件状态、Canvas 显示列表和选择覆盖层都只是可以重建的投影。文件与计算服务通过显式适配器进入系统，而不是变成隐藏的全局依赖。 图档与事务 documents and transactions KJDocument 管理稳定 ID 与 handle、对象所有权、表、块、模型/图纸空间、资源和单调变化的修订号。事务先编辑草稿，再校验结果，最后原子发布。撤销/重做属于当前会话历史；重新打开 KJP 不会冒充已经恢复 SDK 的内存撤销栈。 TypeScript 与 Rust 权威 typescript and rust authority 每个公共运行时模块都以严格 TypeScript 为权威源。浏览器/Node ESM 与类型声明自动生成，并检查漂移。TypeScript 路径提供可移植的参考实现。 Rust/WebAssembly 可以承担图档权威、几何判定和边界明确的实体网格运算。后端身份可观察；WASM 缺失时，系统绝不会把参考结果伪装成 Rust 权威结果。 宿主职责 host responsibilities KJDraw 提供能力连接。嵌入产品负责认证、授权、租户隔离、传输策略、持久审计、模型隔离，以及第三方插件代码的沙箱策略。 宿主调用已配置的远程 Provider 时才开始远程处理，让数据流保持显式、可观察。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "architecture",
+      "title": "分层模型",
+      "summary": "架构",
+      "href": "./architecture/#zh-architecture-layer-model",
+      "text": "分层模型 layer model 图档是规范真相。组件状态、Canvas 显示列表和选择覆盖层都只是可以重建的投影。文件与计算服务通过显式适配器进入系统，而不是变成隐藏的全局依赖。 图档与事务 documents and transactions KJDocument 管理稳定 ID 与 handle、对象所有权、表、块、模型/图纸空间、资源和单调变化的修订号。事务先编辑草稿，再校验结果，最后原子发布。撤销/重做属于当前会话历史；重新打开 KJP 不会冒充已经恢复 SDK 的内存撤销栈。 TypeScript 与 Rust 权威 typescript and rust authority 每个公共运行时模块都以严格 TypeScript 为权威源。浏览器/Node ESM 与类型声明自动生成，并检查漂移。TypeScript 路径提供可移植的参考实现。 Rust/WebAssembly 可以承担图档权威、几何判定和边界明确的实体网格运算。后端身份可观察；WASM 缺失时，系统绝不会把参考结果伪装成 Rust 权威结果。 宿主职责 host responsibilities KJDraw 提供能力连接。嵌入产品负责认证、授权、租户隔离、传输策略、持久审计、模型隔离，以及第三方插件代码的沙箱策略。 宿主调用已配置的远程 Provider 时才开始远程处理，让数据流保持显式、可观察。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "architecture",
+      "title": "图档与事务",
+      "summary": "架构",
+      "href": "./architecture/#zh-architecture-documents-and-transactions",
+      "text": "分层模型 layer model 图档是规范真相。组件状态、Canvas 显示列表和选择覆盖层都只是可以重建的投影。文件与计算服务通过显式适配器进入系统，而不是变成隐藏的全局依赖。 图档与事务 documents and transactions KJDocument 管理稳定 ID 与 handle、对象所有权、表、块、模型/图纸空间、资源和单调变化的修订号。事务先编辑草稿，再校验结果，最后原子发布。撤销/重做属于当前会话历史；重新打开 KJP 不会冒充已经恢复 SDK 的内存撤销栈。 TypeScript 与 Rust 权威 typescript and rust authority 每个公共运行时模块都以严格 TypeScript 为权威源。浏览器/Node ESM 与类型声明自动生成，并检查漂移。TypeScript 路径提供可移植的参考实现。 Rust/WebAssembly 可以承担图档权威、几何判定和边界明确的实体网格运算。后端身份可观察；WASM 缺失时，系统绝不会把参考结果伪装成 Rust 权威结果。 宿主职责 host responsibilities KJDraw 提供能力连接。嵌入产品负责认证、授权、租户隔离、传输策略、持久审计、模型隔离，以及第三方插件代码的沙箱策略。 宿主调用已配置的远程 Provider 时才开始远程处理，让数据流保持显式、可观察。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "architecture",
+      "title": "TypeScript 与 Rust 权威",
+      "summary": "架构",
+      "href": "./architecture/#zh-architecture-typescript-and-rust-authority",
+      "text": "分层模型 layer model 图档是规范真相。组件状态、Canvas 显示列表和选择覆盖层都只是可以重建的投影。文件与计算服务通过显式适配器进入系统，而不是变成隐藏的全局依赖。 图档与事务 documents and transactions KJDocument 管理稳定 ID 与 handle、对象所有权、表、块、模型/图纸空间、资源和单调变化的修订号。事务先编辑草稿，再校验结果，最后原子发布。撤销/重做属于当前会话历史；重新打开 KJP 不会冒充已经恢复 SDK 的内存撤销栈。 TypeScript 与 Rust 权威 typescript and rust authority 每个公共运行时模块都以严格 TypeScript 为权威源。浏览器/Node ESM 与类型声明自动生成，并检查漂移。TypeScript 路径提供可移植的参考实现。 Rust/WebAssembly 可以承担图档权威、几何判定和边界明确的实体网格运算。后端身份可观察；WASM 缺失时，系统绝不会把参考结果伪装成 Rust 权威结果。 宿主职责 host responsibilities KJDraw 提供能力连接。嵌入产品负责认证、授权、租户隔离、传输策略、持久审计、模型隔离，以及第三方插件代码的沙箱策略。 宿主调用已配置的远程 Provider 时才开始远程处理，让数据流保持显式、可观察。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "architecture",
+      "title": "宿主职责",
+      "summary": "架构",
+      "href": "./architecture/#zh-architecture-host-responsibilities",
+      "text": "分层模型 layer model 图档是规范真相。组件状态、Canvas 显示列表和选择覆盖层都只是可以重建的投影。文件与计算服务通过显式适配器进入系统，而不是变成隐藏的全局依赖。 图档与事务 documents and transactions KJDocument 管理稳定 ID 与 handle、对象所有权、表、块、模型/图纸空间、资源和单调变化的修订号。事务先编辑草稿，再校验结果，最后原子发布。撤销/重做属于当前会话历史；重新打开 KJP 不会冒充已经恢复 SDK 的内存撤销栈。 TypeScript 与 Rust 权威 typescript and rust authority 每个公共运行时模块都以严格 TypeScript 为权威源。浏览器/Node ESM 与类型声明自动生成，并检查漂移。TypeScript 路径提供可移植的参考实现。 Rust/WebAssembly 可以承担图档权威、几何判定和边界明确的实体网格运算。后端身份可观察；WASM 缺失时，系统绝不会把参考结果伪装成 Rust 权威结果。 宿主职责 host responsibilities KJDraw 提供能力连接。嵌入产品负责认证、授权、租户隔离、传输策略、持久审计、模型隔离，以及第三方插件代码的沙箱策略。 宿主调用已配置的远程 Provider 时才开始远程处理，让数据流保持显式、可观察。"
+    },
+    {
+      "locale": "en",
+      "kind": "guide",
+      "page": "files",
+      "title": "Files and projects",
+      "summary": "Read and write KJD, package multi-drawing KJP projects and use the explicitly bounded ASCII DXF compatibility profile.",
+      "href": "./files/#en-files",
+      "text": "Choose a format choose a format Format Use it for Contract boundary KJD One canonical transactional drawing JSON model, validation and revisions KJP A portable project with drawings, assets, snapshots and journal Deterministic ZIP64 package with hashes and read budgets DXF Interchange with the published ASCII subset Named entities, resources and versions only The maintained compatibility matrix is the authority for format versions and semantic coverage. Read and write a drawing read and write Adapters share the same document model. Keep the original input when evaluating interoperability, and treat an exported file as a new artifact rather than proof of application specific durable storage. Package a project package a project Use KJProjectSession when the application needs active drawing state, membership and a command journal. Use createKjpPackage() and openKjpPackage() for lower level package assembly and inspection. A browser file binding can download and reopen a KJP; a desktop or server provider defines atomic replacement and fsync guarantees. Limits and DXF evidence limits and dxf evidence KJD, KJP and DXF readers accept configurable byte/object/entity/archive budgets and abort signals. Export diagnostics make format decisions observable to the host. The exact versions, entity/resource subset and independent ezdxf audit are maintained in the DXF compatibility contract."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "files",
+      "title": "Choose a format",
+      "summary": "Files and projects",
+      "href": "./files/#en-files-choose-a-format",
+      "text": "Choose a format choose a format Format Use it for Contract boundary KJD One canonical transactional drawing JSON model, validation and revisions KJP A portable project with drawings, assets, snapshots and journal Deterministic ZIP64 package with hashes and read budgets DXF Interchange with the published ASCII subset Named entities, resources and versions only The maintained compatibility matrix is the authority for format versions and semantic coverage. Read and write a drawing read and write Adapters share the same document model. Keep the original input when evaluating interoperability, and treat an exported file as a new artifact rather than proof of application specific durable storage. Package a project package a project Use KJProjectSession when the application needs active drawing state, membership and a command journal. Use createKjpPackage() and openKjpPackage() for lower level package assembly and inspection. A browser file binding can download and reopen a KJP; a desktop or server provider defines atomic replacement and fsync guarantees. Limits and DXF evidence limits and dxf evidence KJD, KJP and DXF readers accept configurable byte/object/entity/archive budgets and abort signals. Export diagnostics make format decisions observable to the host. The exact versions, entity/resource subset and independent ezdxf audit are maintained in the DXF compatibility contract."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "files",
+      "title": "Read and write a drawing",
+      "summary": "Files and projects",
+      "href": "./files/#en-files-read-and-write",
+      "text": "Choose a format choose a format Format Use it for Contract boundary KJD One canonical transactional drawing JSON model, validation and revisions KJP A portable project with drawings, assets, snapshots and journal Deterministic ZIP64 package with hashes and read budgets DXF Interchange with the published ASCII subset Named entities, resources and versions only The maintained compatibility matrix is the authority for format versions and semantic coverage. Read and write a drawing read and write Adapters share the same document model. Keep the original input when evaluating interoperability, and treat an exported file as a new artifact rather than proof of application specific durable storage. Package a project package a project Use KJProjectSession when the application needs active drawing state, membership and a command journal. Use createKjpPackage() and openKjpPackage() for lower level package assembly and inspection. A browser file binding can download and reopen a KJP; a desktop or server provider defines atomic replacement and fsync guarantees. Limits and DXF evidence limits and dxf evidence KJD, KJP and DXF readers accept configurable byte/object/entity/archive budgets and abort signals. Export diagnostics make format decisions observable to the host. The exact versions, entity/resource subset and independent ezdxf audit are maintained in the DXF compatibility contract."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "files",
+      "title": "Package a project",
+      "summary": "Files and projects",
+      "href": "./files/#en-files-package-a-project",
+      "text": "Choose a format choose a format Format Use it for Contract boundary KJD One canonical transactional drawing JSON model, validation and revisions KJP A portable project with drawings, assets, snapshots and journal Deterministic ZIP64 package with hashes and read budgets DXF Interchange with the published ASCII subset Named entities, resources and versions only The maintained compatibility matrix is the authority for format versions and semantic coverage. Read and write a drawing read and write Adapters share the same document model. Keep the original input when evaluating interoperability, and treat an exported file as a new artifact rather than proof of application specific durable storage. Package a project package a project Use KJProjectSession when the application needs active drawing state, membership and a command journal. Use createKjpPackage() and openKjpPackage() for lower level package assembly and inspection. A browser file binding can download and reopen a KJP; a desktop or server provider defines atomic replacement and fsync guarantees. Limits and DXF evidence limits and dxf evidence KJD, KJP and DXF readers accept configurable byte/object/entity/archive budgets and abort signals. Export diagnostics make format decisions observable to the host. The exact versions, entity/resource subset and independent ezdxf audit are maintained in the DXF compatibility contract."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "files",
+      "title": "Limits and DXF evidence",
+      "summary": "Files and projects",
+      "href": "./files/#en-files-limits-and-dxf-evidence",
+      "text": "Choose a format choose a format Format Use it for Contract boundary KJD One canonical transactional drawing JSON model, validation and revisions KJP A portable project with drawings, assets, snapshots and journal Deterministic ZIP64 package with hashes and read budgets DXF Interchange with the published ASCII subset Named entities, resources and versions only The maintained compatibility matrix is the authority for format versions and semantic coverage. Read and write a drawing read and write Adapters share the same document model. Keep the original input when evaluating interoperability, and treat an exported file as a new artifact rather than proof of application specific durable storage. Package a project package a project Use KJProjectSession when the application needs active drawing state, membership and a command journal. Use createKjpPackage() and openKjpPackage() for lower level package assembly and inspection. A browser file binding can download and reopen a KJP; a desktop or server provider defines atomic replacement and fsync guarantees. Limits and DXF evidence limits and dxf evidence KJD, KJP and DXF readers accept configurable byte/object/entity/archive budgets and abort signals. Export diagnostics make format decisions observable to the host. The exact versions, entity/resource subset and independent ezdxf audit are maintained in the DXF compatibility contract."
+    },
+    {
+      "locale": "zh",
+      "kind": "guide",
+      "page": "files",
+      "title": "文件与工程",
+      "summary": "读写 KJD、打包多图档 KJP 工程，并在明确边界内使用 ASCII DXF 兼容能力。",
+      "href": "./files/#zh-files",
+      "text": "选择格式 choose a format 格式 适用场景 契约边界 KJD 单个规范事务图档 JSON 模型、校验与修订号 KJP 包含图档、资产、快照和日志的可移植工程 带哈希与读取预算的确定性 ZIP64 包 DXF 与公开 ASCII 子集互操作 仅承诺列明的实体、资源与版本 持续维护的兼容矩阵是格式版本与语义覆盖范围的权威依据。 读取与写出图档 read and write 不同适配器共用同一个图档模型。评估互操作时请保留原始输入；导出文件只是一个新产物，不能自动证明具体应用已经完成持久落盘。 打包工程 package a project 应用需要活动图档、成员关系和命令日志时使用 KJProjectSession 。需要更底层的工程包组装与检查时使用 createKjpPackage() 和 openKjpPackage() 。浏览器文件绑定可以下载并重开 KJP；桌面或服务端 Provider 则负责定义原子替换与 fsync 保证。 资源上限与 DXF 证据 limits and dxf evidence KJD、KJP、DXF 读取器支持可配置的字节、对象、实体、压缩包预算与中止信号。导出诊断会让格式决策对宿主保持可观察。 精确版本、实体/资源子集与独立 ezdxf 审计记录在 DXF 兼容契约中。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "files",
+      "title": "选择格式",
+      "summary": "文件与工程",
+      "href": "./files/#zh-files-choose-a-format",
+      "text": "选择格式 choose a format 格式 适用场景 契约边界 KJD 单个规范事务图档 JSON 模型、校验与修订号 KJP 包含图档、资产、快照和日志的可移植工程 带哈希与读取预算的确定性 ZIP64 包 DXF 与公开 ASCII 子集互操作 仅承诺列明的实体、资源与版本 持续维护的兼容矩阵是格式版本与语义覆盖范围的权威依据。 读取与写出图档 read and write 不同适配器共用同一个图档模型。评估互操作时请保留原始输入；导出文件只是一个新产物，不能自动证明具体应用已经完成持久落盘。 打包工程 package a project 应用需要活动图档、成员关系和命令日志时使用 KJProjectSession 。需要更底层的工程包组装与检查时使用 createKjpPackage() 和 openKjpPackage() 。浏览器文件绑定可以下载并重开 KJP；桌面或服务端 Provider 则负责定义原子替换与 fsync 保证。 资源上限与 DXF 证据 limits and dxf evidence KJD、KJP、DXF 读取器支持可配置的字节、对象、实体、压缩包预算与中止信号。导出诊断会让格式决策对宿主保持可观察。 精确版本、实体/资源子集与独立 ezdxf 审计记录在 DXF 兼容契约中。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "files",
+      "title": "读取与写出图档",
+      "summary": "文件与工程",
+      "href": "./files/#zh-files-read-and-write",
+      "text": "选择格式 choose a format 格式 适用场景 契约边界 KJD 单个规范事务图档 JSON 模型、校验与修订号 KJP 包含图档、资产、快照和日志的可移植工程 带哈希与读取预算的确定性 ZIP64 包 DXF 与公开 ASCII 子集互操作 仅承诺列明的实体、资源与版本 持续维护的兼容矩阵是格式版本与语义覆盖范围的权威依据。 读取与写出图档 read and write 不同适配器共用同一个图档模型。评估互操作时请保留原始输入；导出文件只是一个新产物，不能自动证明具体应用已经完成持久落盘。 打包工程 package a project 应用需要活动图档、成员关系和命令日志时使用 KJProjectSession 。需要更底层的工程包组装与检查时使用 createKjpPackage() 和 openKjpPackage() 。浏览器文件绑定可以下载并重开 KJP；桌面或服务端 Provider 则负责定义原子替换与 fsync 保证。 资源上限与 DXF 证据 limits and dxf evidence KJD、KJP、DXF 读取器支持可配置的字节、对象、实体、压缩包预算与中止信号。导出诊断会让格式决策对宿主保持可观察。 精确版本、实体/资源子集与独立 ezdxf 审计记录在 DXF 兼容契约中。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "files",
+      "title": "打包工程",
+      "summary": "文件与工程",
+      "href": "./files/#zh-files-package-a-project",
+      "text": "选择格式 choose a format 格式 适用场景 契约边界 KJD 单个规范事务图档 JSON 模型、校验与修订号 KJP 包含图档、资产、快照和日志的可移植工程 带哈希与读取预算的确定性 ZIP64 包 DXF 与公开 ASCII 子集互操作 仅承诺列明的实体、资源与版本 持续维护的兼容矩阵是格式版本与语义覆盖范围的权威依据。 读取与写出图档 read and write 不同适配器共用同一个图档模型。评估互操作时请保留原始输入；导出文件只是一个新产物，不能自动证明具体应用已经完成持久落盘。 打包工程 package a project 应用需要活动图档、成员关系和命令日志时使用 KJProjectSession 。需要更底层的工程包组装与检查时使用 createKjpPackage() 和 openKjpPackage() 。浏览器文件绑定可以下载并重开 KJP；桌面或服务端 Provider 则负责定义原子替换与 fsync 保证。 资源上限与 DXF 证据 limits and dxf evidence KJD、KJP、DXF 读取器支持可配置的字节、对象、实体、压缩包预算与中止信号。导出诊断会让格式决策对宿主保持可观察。 精确版本、实体/资源子集与独立 ezdxf 审计记录在 DXF 兼容契约中。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "files",
+      "title": "资源上限与 DXF 证据",
+      "summary": "文件与工程",
+      "href": "./files/#zh-files-limits-and-dxf-evidence",
+      "text": "选择格式 choose a format 格式 适用场景 契约边界 KJD 单个规范事务图档 JSON 模型、校验与修订号 KJP 包含图档、资产、快照和日志的可移植工程 带哈希与读取预算的确定性 ZIP64 包 DXF 与公开 ASCII 子集互操作 仅承诺列明的实体、资源与版本 持续维护的兼容矩阵是格式版本与语义覆盖范围的权威依据。 读取与写出图档 read and write 不同适配器共用同一个图档模型。评估互操作时请保留原始输入；导出文件只是一个新产物，不能自动证明具体应用已经完成持久落盘。 打包工程 package a project 应用需要活动图档、成员关系和命令日志时使用 KJProjectSession 。需要更底层的工程包组装与检查时使用 createKjpPackage() 和 openKjpPackage() 。浏览器文件绑定可以下载并重开 KJP；桌面或服务端 Provider 则负责定义原子替换与 fsync 保证。 资源上限与 DXF 证据 limits and dxf evidence KJD、KJP、DXF 读取器支持可配置的字节、对象、实体、压缩包预算与中止信号。导出诊断会让格式决策对宿主保持可观察。 精确版本、实体/资源子集与独立 ezdxf 审计记录在 DXF 兼容契约中。"
+    },
+    {
+      "locale": "en",
+      "kind": "guide",
+      "page": "commands",
+      "title": "Commands and transactions",
+      "summary": "Make every UI, automation and Agent edit observable through the same revisioned transactional boundary.",
+      "href": "./commands/#en-commands",
+      "text": "Execute a command execute a command expectedRevision closes stale write races. A mismatch fails before mutation. Successful commits advance the revision and emit typed events; undo/redo enters the same history. When using a mounted editor, prefer editor.execute(command, args) : it always targets that editor's drawing. With a shared SDK, pass document: drawing explicitly for background tasks. A bare sdk.executeCommand() uses the SDK's single active drawing, which follows editor focus and can change when another view becomes active. Atomicity and rollback atomicity and rollback A command runs against a transaction draft. Validation and any configured authority backend complete before publication. If execution or validation fails, the live document does not expose the partial draft. Built in editing includes declared combinations for creation, properties, move/copy/rotate/scale/mirror, arrays, offset, break/explode, trim/extend, chamfer/fillet and grips. Consult Capabilities for exact boundaries rather than inferring support from a command name. Use command envelopes command envelopes Envelopes make command identity, arguments, origin, target document and expected revision explicit. AI origin envelopes add the Agent plan review protocol described in Agent workflows . Observe changes observe changes Subscribe through sdk.events.on('command:committed', listener) and dispose the returned function when its owning UI scope unmounts. Renderers should derive their display state from the committed document rather than mutate canonical geometry directly."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "commands",
+      "title": "Execute a command",
+      "summary": "Commands and transactions",
+      "href": "./commands/#en-commands-execute-a-command",
+      "text": "Execute a command execute a command expectedRevision closes stale write races. A mismatch fails before mutation. Successful commits advance the revision and emit typed events; undo/redo enters the same history. When using a mounted editor, prefer editor.execute(command, args) : it always targets that editor's drawing. With a shared SDK, pass document: drawing explicitly for background tasks. A bare sdk.executeCommand() uses the SDK's single active drawing, which follows editor focus and can change when another view becomes active. Atomicity and rollback atomicity and rollback A command runs against a transaction draft. Validation and any configured authority backend complete before publication. If execution or validation fails, the live document does not expose the partial draft. Built in editing includes declared combinations for creation, properties, move/copy/rotate/scale/mirror, arrays, offset, break/explode, trim/extend, chamfer/fillet and grips. Consult Capabilities for exact boundaries rather than inferring support from a command name. Use command envelopes command envelopes Envelopes make command identity, arguments, origin, target document and expected revision explicit. AI origin envelopes add the Agent plan review protocol described in Agent workflows . Observe changes observe changes Subscribe through sdk.events.on('command:committed', listener) and dispose the returned function when its owning UI scope unmounts. Renderers should derive their display state from the committed document rather than mutate canonical geometry directly."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "commands",
+      "title": "Atomicity and rollback",
+      "summary": "Commands and transactions",
+      "href": "./commands/#en-commands-atomicity-and-rollback",
+      "text": "Execute a command execute a command expectedRevision closes stale write races. A mismatch fails before mutation. Successful commits advance the revision and emit typed events; undo/redo enters the same history. When using a mounted editor, prefer editor.execute(command, args) : it always targets that editor's drawing. With a shared SDK, pass document: drawing explicitly for background tasks. A bare sdk.executeCommand() uses the SDK's single active drawing, which follows editor focus and can change when another view becomes active. Atomicity and rollback atomicity and rollback A command runs against a transaction draft. Validation and any configured authority backend complete before publication. If execution or validation fails, the live document does not expose the partial draft. Built in editing includes declared combinations for creation, properties, move/copy/rotate/scale/mirror, arrays, offset, break/explode, trim/extend, chamfer/fillet and grips. Consult Capabilities for exact boundaries rather than inferring support from a command name. Use command envelopes command envelopes Envelopes make command identity, arguments, origin, target document and expected revision explicit. AI origin envelopes add the Agent plan review protocol described in Agent workflows . Observe changes observe changes Subscribe through sdk.events.on('command:committed', listener) and dispose the returned function when its owning UI scope unmounts. Renderers should derive their display state from the committed document rather than mutate canonical geometry directly."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "commands",
+      "title": "Use command envelopes",
+      "summary": "Commands and transactions",
+      "href": "./commands/#en-commands-command-envelopes",
+      "text": "Execute a command execute a command expectedRevision closes stale write races. A mismatch fails before mutation. Successful commits advance the revision and emit typed events; undo/redo enters the same history. When using a mounted editor, prefer editor.execute(command, args) : it always targets that editor's drawing. With a shared SDK, pass document: drawing explicitly for background tasks. A bare sdk.executeCommand() uses the SDK's single active drawing, which follows editor focus and can change when another view becomes active. Atomicity and rollback atomicity and rollback A command runs against a transaction draft. Validation and any configured authority backend complete before publication. If execution or validation fails, the live document does not expose the partial draft. Built in editing includes declared combinations for creation, properties, move/copy/rotate/scale/mirror, arrays, offset, break/explode, trim/extend, chamfer/fillet and grips. Consult Capabilities for exact boundaries rather than inferring support from a command name. Use command envelopes command envelopes Envelopes make command identity, arguments, origin, target document and expected revision explicit. AI origin envelopes add the Agent plan review protocol described in Agent workflows . Observe changes observe changes Subscribe through sdk.events.on('command:committed', listener) and dispose the returned function when its owning UI scope unmounts. Renderers should derive their display state from the committed document rather than mutate canonical geometry directly."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "commands",
+      "title": "Observe changes",
+      "summary": "Commands and transactions",
+      "href": "./commands/#en-commands-observe-changes",
+      "text": "Execute a command execute a command expectedRevision closes stale write races. A mismatch fails before mutation. Successful commits advance the revision and emit typed events; undo/redo enters the same history. When using a mounted editor, prefer editor.execute(command, args) : it always targets that editor's drawing. With a shared SDK, pass document: drawing explicitly for background tasks. A bare sdk.executeCommand() uses the SDK's single active drawing, which follows editor focus and can change when another view becomes active. Atomicity and rollback atomicity and rollback A command runs against a transaction draft. Validation and any configured authority backend complete before publication. If execution or validation fails, the live document does not expose the partial draft. Built in editing includes declared combinations for creation, properties, move/copy/rotate/scale/mirror, arrays, offset, break/explode, trim/extend, chamfer/fillet and grips. Consult Capabilities for exact boundaries rather than inferring support from a command name. Use command envelopes command envelopes Envelopes make command identity, arguments, origin, target document and expected revision explicit. AI origin envelopes add the Agent plan review protocol described in Agent workflows . Observe changes observe changes Subscribe through sdk.events.on('command:committed', listener) and dispose the returned function when its owning UI scope unmounts. Renderers should derive their display state from the committed document rather than mutate canonical geometry directly."
+    },
+    {
+      "locale": "zh",
+      "kind": "guide",
+      "page": "commands",
+      "title": "命令与事务",
+      "summary": "让 UI、自动化与 Agent 修改都经过同一条带修订号、可观察的事务边界。",
+      "href": "./commands/#zh-commands",
+      "text": "执行命令 execute a command expectedRevision 用于关闭陈旧写入竞态。版本不匹配时会在修改前失败。提交成功后修订号递增并发出类型化事件；撤销/重做也进入同一段历史。 使用已挂载的编辑器时，优先调用 editor.execute(command, args) ，它始终操作该编辑器的图纸。多个编辑器共享 SDK 时，后台任务应显式传入 document: drawing 。不指定图纸的 sdk.executeCommand() 会使用 SDK 的活动图纸；切换编辑器焦点也会切换这一目标。 原子性与回滚 atomicity and rollback 命令在事务草稿上执行。校验与已配置的权威后端都成功后才会发布。执行或校验失败时，活动图档不会暴露部分修改的草稿。 内置编辑覆盖已声明组合下的创建、属性、移动/复制/旋转/缩放/镜像、阵列、偏移、打断/分解、修剪/延伸、倒角/圆角与夹点。请从 能力与边界 确认精确范围，不要只根据命令名称推断支持程度。 使用命令信封 command envelopes 命令信封显式记录命令身份、参数、来源、目标图档与预期修订。AI 来源信封还会进入 Agent 工作流 所述的计划审核协议。 观察变更 observe changes 通过 sdk.events.on('command:committed', listener) 订阅，并在所属 UI 生命周期结束时调用返回的释放函数。渲染器应从已提交图档派生显示状态，而不是直接修改规范几何。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "commands",
+      "title": "执行命令",
+      "summary": "命令与事务",
+      "href": "./commands/#zh-commands-execute-a-command",
+      "text": "执行命令 execute a command expectedRevision 用于关闭陈旧写入竞态。版本不匹配时会在修改前失败。提交成功后修订号递增并发出类型化事件；撤销/重做也进入同一段历史。 使用已挂载的编辑器时，优先调用 editor.execute(command, args) ，它始终操作该编辑器的图纸。多个编辑器共享 SDK 时，后台任务应显式传入 document: drawing 。不指定图纸的 sdk.executeCommand() 会使用 SDK 的活动图纸；切换编辑器焦点也会切换这一目标。 原子性与回滚 atomicity and rollback 命令在事务草稿上执行。校验与已配置的权威后端都成功后才会发布。执行或校验失败时，活动图档不会暴露部分修改的草稿。 内置编辑覆盖已声明组合下的创建、属性、移动/复制/旋转/缩放/镜像、阵列、偏移、打断/分解、修剪/延伸、倒角/圆角与夹点。请从 能力与边界 确认精确范围，不要只根据命令名称推断支持程度。 使用命令信封 command envelopes 命令信封显式记录命令身份、参数、来源、目标图档与预期修订。AI 来源信封还会进入 Agent 工作流 所述的计划审核协议。 观察变更 observe changes 通过 sdk.events.on('command:committed', listener) 订阅，并在所属 UI 生命周期结束时调用返回的释放函数。渲染器应从已提交图档派生显示状态，而不是直接修改规范几何。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "commands",
+      "title": "原子性与回滚",
+      "summary": "命令与事务",
+      "href": "./commands/#zh-commands-atomicity-and-rollback",
+      "text": "执行命令 execute a command expectedRevision 用于关闭陈旧写入竞态。版本不匹配时会在修改前失败。提交成功后修订号递增并发出类型化事件；撤销/重做也进入同一段历史。 使用已挂载的编辑器时，优先调用 editor.execute(command, args) ，它始终操作该编辑器的图纸。多个编辑器共享 SDK 时，后台任务应显式传入 document: drawing 。不指定图纸的 sdk.executeCommand() 会使用 SDK 的活动图纸；切换编辑器焦点也会切换这一目标。 原子性与回滚 atomicity and rollback 命令在事务草稿上执行。校验与已配置的权威后端都成功后才会发布。执行或校验失败时，活动图档不会暴露部分修改的草稿。 内置编辑覆盖已声明组合下的创建、属性、移动/复制/旋转/缩放/镜像、阵列、偏移、打断/分解、修剪/延伸、倒角/圆角与夹点。请从 能力与边界 确认精确范围，不要只根据命令名称推断支持程度。 使用命令信封 command envelopes 命令信封显式记录命令身份、参数、来源、目标图档与预期修订。AI 来源信封还会进入 Agent 工作流 所述的计划审核协议。 观察变更 observe changes 通过 sdk.events.on('command:committed', listener) 订阅，并在所属 UI 生命周期结束时调用返回的释放函数。渲染器应从已提交图档派生显示状态，而不是直接修改规范几何。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "commands",
+      "title": "使用命令信封",
+      "summary": "命令与事务",
+      "href": "./commands/#zh-commands-command-envelopes",
+      "text": "执行命令 execute a command expectedRevision 用于关闭陈旧写入竞态。版本不匹配时会在修改前失败。提交成功后修订号递增并发出类型化事件；撤销/重做也进入同一段历史。 使用已挂载的编辑器时，优先调用 editor.execute(command, args) ，它始终操作该编辑器的图纸。多个编辑器共享 SDK 时，后台任务应显式传入 document: drawing 。不指定图纸的 sdk.executeCommand() 会使用 SDK 的活动图纸；切换编辑器焦点也会切换这一目标。 原子性与回滚 atomicity and rollback 命令在事务草稿上执行。校验与已配置的权威后端都成功后才会发布。执行或校验失败时，活动图档不会暴露部分修改的草稿。 内置编辑覆盖已声明组合下的创建、属性、移动/复制/旋转/缩放/镜像、阵列、偏移、打断/分解、修剪/延伸、倒角/圆角与夹点。请从 能力与边界 确认精确范围，不要只根据命令名称推断支持程度。 使用命令信封 command envelopes 命令信封显式记录命令身份、参数、来源、目标图档与预期修订。AI 来源信封还会进入 Agent 工作流 所述的计划审核协议。 观察变更 observe changes 通过 sdk.events.on('command:committed', listener) 订阅，并在所属 UI 生命周期结束时调用返回的释放函数。渲染器应从已提交图档派生显示状态，而不是直接修改规范几何。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "commands",
+      "title": "观察变更",
+      "summary": "命令与事务",
+      "href": "./commands/#zh-commands-observe-changes",
+      "text": "执行命令 execute a command expectedRevision 用于关闭陈旧写入竞态。版本不匹配时会在修改前失败。提交成功后修订号递增并发出类型化事件；撤销/重做也进入同一段历史。 使用已挂载的编辑器时，优先调用 editor.execute(command, args) ，它始终操作该编辑器的图纸。多个编辑器共享 SDK 时，后台任务应显式传入 document: drawing 。不指定图纸的 sdk.executeCommand() 会使用 SDK 的活动图纸；切换编辑器焦点也会切换这一目标。 原子性与回滚 atomicity and rollback 命令在事务草稿上执行。校验与已配置的权威后端都成功后才会发布。执行或校验失败时，活动图档不会暴露部分修改的草稿。 内置编辑覆盖已声明组合下的创建、属性、移动/复制/旋转/缩放/镜像、阵列、偏移、打断/分解、修剪/延伸、倒角/圆角与夹点。请从 能力与边界 确认精确范围，不要只根据命令名称推断支持程度。 使用命令信封 command envelopes 命令信封显式记录命令身份、参数、来源、目标图档与预期修订。AI 来源信封还会进入 Agent 工作流 所述的计划审核协议。 观察变更 observe changes 通过 sdk.events.on('command:committed', listener) 订阅，并在所属 UI 生命周期结束时调用返回的释放函数。渲染器应从已提交图档派生显示状态，而不是直接修改规范几何。"
+    },
+    {
+      "locale": "en",
+      "kind": "guide",
+      "page": "react",
+      "title": "React integration",
+      "summary": "Mount the complete KJDraw editor as a React component, control it through a typed ref, or build a custom headless integration.",
+      "href": "./react/#en-react",
+      "text": "Render the editor component editor component KJDraw mounts the complete editor and gives the ref a KJDrawEditor . Use the ref for open() , save() , execute() , selection and view methods. The component updates compatible options in place and disposes its editor when React unmounts it. See the Editor API for every prop and method. A minimal hook minimal hook Lifecycle rules lifecycle rules Create the SDK once for the editor scope, not during every render. Return the event disposer from useEffect ; React will unsubscribe on cleanup. Store small reactive signals such as revision, selection or active tool. Keep canonical geometry in KJDocument . Execute edits through SDK commands so React, plugins and agents share transactions and undo. Rendering rendering The /core headless entry does not impose a React renderer or state library. A custom canvas component can redraw after committed events, while property panels select typed records from the active document. For large drawings, derive viewport specific display data instead of copying the entire object graph into React state. Use KJDraw when you need a working CAD surface immediately, or the headless hook when your product owns every interface layer. The maintained examples are compiled against the npm package during release checks."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "react",
+      "title": "Render the editor component",
+      "summary": "React integration",
+      "href": "./react/#en-react-editor-component",
+      "text": "Render the editor component editor component KJDraw mounts the complete editor and gives the ref a KJDrawEditor . Use the ref for open() , save() , execute() , selection and view methods. The component updates compatible options in place and disposes its editor when React unmounts it. See the Editor API for every prop and method. A minimal hook minimal hook Lifecycle rules lifecycle rules Create the SDK once for the editor scope, not during every render. Return the event disposer from useEffect ; React will unsubscribe on cleanup. Store small reactive signals such as revision, selection or active tool. Keep canonical geometry in KJDocument . Execute edits through SDK commands so React, plugins and agents share transactions and undo. Rendering rendering The /core headless entry does not impose a React renderer or state library. A custom canvas component can redraw after committed events, while property panels select typed records from the active document. For large drawings, derive viewport specific display data instead of copying the entire object graph into React state. Use KJDraw when you need a working CAD surface immediately, or the headless hook when your product owns every interface layer. The maintained examples are compiled against the npm package during release checks."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "react",
+      "title": "A minimal hook",
+      "summary": "React integration",
+      "href": "./react/#en-react-minimal-hook",
+      "text": "Render the editor component editor component KJDraw mounts the complete editor and gives the ref a KJDrawEditor . Use the ref for open() , save() , execute() , selection and view methods. The component updates compatible options in place and disposes its editor when React unmounts it. See the Editor API for every prop and method. A minimal hook minimal hook Lifecycle rules lifecycle rules Create the SDK once for the editor scope, not during every render. Return the event disposer from useEffect ; React will unsubscribe on cleanup. Store small reactive signals such as revision, selection or active tool. Keep canonical geometry in KJDocument . Execute edits through SDK commands so React, plugins and agents share transactions and undo. Rendering rendering The /core headless entry does not impose a React renderer or state library. A custom canvas component can redraw after committed events, while property panels select typed records from the active document. For large drawings, derive viewport specific display data instead of copying the entire object graph into React state. Use KJDraw when you need a working CAD surface immediately, or the headless hook when your product owns every interface layer. The maintained examples are compiled against the npm package during release checks."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "react",
+      "title": "Lifecycle rules",
+      "summary": "React integration",
+      "href": "./react/#en-react-lifecycle-rules",
+      "text": "Render the editor component editor component KJDraw mounts the complete editor and gives the ref a KJDrawEditor . Use the ref for open() , save() , execute() , selection and view methods. The component updates compatible options in place and disposes its editor when React unmounts it. See the Editor API for every prop and method. A minimal hook minimal hook Lifecycle rules lifecycle rules Create the SDK once for the editor scope, not during every render. Return the event disposer from useEffect ; React will unsubscribe on cleanup. Store small reactive signals such as revision, selection or active tool. Keep canonical geometry in KJDocument . Execute edits through SDK commands so React, plugins and agents share transactions and undo. Rendering rendering The /core headless entry does not impose a React renderer or state library. A custom canvas component can redraw after committed events, while property panels select typed records from the active document. For large drawings, derive viewport specific display data instead of copying the entire object graph into React state. Use KJDraw when you need a working CAD surface immediately, or the headless hook when your product owns every interface layer. The maintained examples are compiled against the npm package during release checks."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "react",
+      "title": "Rendering",
+      "summary": "React integration",
+      "href": "./react/#en-react-rendering",
+      "text": "Render the editor component editor component KJDraw mounts the complete editor and gives the ref a KJDrawEditor . Use the ref for open() , save() , execute() , selection and view methods. The component updates compatible options in place and disposes its editor when React unmounts it. See the Editor API for every prop and method. A minimal hook minimal hook Lifecycle rules lifecycle rules Create the SDK once for the editor scope, not during every render. Return the event disposer from useEffect ; React will unsubscribe on cleanup. Store small reactive signals such as revision, selection or active tool. Keep canonical geometry in KJDocument . Execute edits through SDK commands so React, plugins and agents share transactions and undo. Rendering rendering The /core headless entry does not impose a React renderer or state library. A custom canvas component can redraw after committed events, while property panels select typed records from the active document. For large drawings, derive viewport specific display data instead of copying the entire object graph into React state. Use KJDraw when you need a working CAD surface immediately, or the headless hook when your product owns every interface layer. The maintained examples are compiled against the npm package during release checks."
+    },
+    {
+      "locale": "zh",
+      "kind": "guide",
+      "page": "react",
+      "title": "React 集成",
+      "summary": "将完整 KJDraw 编辑器作为 React 组件挂载，通过类型化 ref 控制，或构建自定义无界面集成。",
+      "href": "./react/#zh-react",
+      "text": "渲染编辑器组件 editor component KJDraw 会挂载完整编辑器，并把 KJDrawEditor 暴露给 ref。可通过 ref 调用 open() 、 save() 、 execute() 、选择与视图方法。兼容选项会原位更新，React 卸载组件时会自动释放编辑器。全部属性与方法见 Editor API。 最小 Hook minimal hook 生命周期规则 lifecycle rules 每个编辑器作用域只创建一次 SDK，不要在每次渲染时重新创建。 从 useEffect 返回事件释放函数，React 会在清理时取消订阅。 React 状态只保存修订号、选择集、活动工具等小型响应信号；规范几何留在 KJDocument 。 所有编辑通过 SDK 命令执行，让 React、插件与 Agent 共用事务和撤销历史。 渲染方式 rendering /core 无界面入口不强制 React 渲染器或状态库。自定义 Canvas 组件可以在命令提交后重绘，属性面板则从活动图档读取类型化记录。面对大型图纸，应按视口派生显示数据，不要把完整对象图复制进 React state。 需要立即可用的 CAD 界面时使用 KJDraw ，产品希望完全掌控每层界面时使用无界面 Hook。持续维护的示例会在发布检查中针对实际 npm 包编译。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "react",
+      "title": "渲染编辑器组件",
+      "summary": "React 集成",
+      "href": "./react/#zh-react-editor-component",
+      "text": "渲染编辑器组件 editor component KJDraw 会挂载完整编辑器，并把 KJDrawEditor 暴露给 ref。可通过 ref 调用 open() 、 save() 、 execute() 、选择与视图方法。兼容选项会原位更新，React 卸载组件时会自动释放编辑器。全部属性与方法见 Editor API。 最小 Hook minimal hook 生命周期规则 lifecycle rules 每个编辑器作用域只创建一次 SDK，不要在每次渲染时重新创建。 从 useEffect 返回事件释放函数，React 会在清理时取消订阅。 React 状态只保存修订号、选择集、活动工具等小型响应信号；规范几何留在 KJDocument 。 所有编辑通过 SDK 命令执行，让 React、插件与 Agent 共用事务和撤销历史。 渲染方式 rendering /core 无界面入口不强制 React 渲染器或状态库。自定义 Canvas 组件可以在命令提交后重绘，属性面板则从活动图档读取类型化记录。面对大型图纸，应按视口派生显示数据，不要把完整对象图复制进 React state。 需要立即可用的 CAD 界面时使用 KJDraw ，产品希望完全掌控每层界面时使用无界面 Hook。持续维护的示例会在发布检查中针对实际 npm 包编译。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "react",
+      "title": "最小 Hook",
+      "summary": "React 集成",
+      "href": "./react/#zh-react-minimal-hook",
+      "text": "渲染编辑器组件 editor component KJDraw 会挂载完整编辑器，并把 KJDrawEditor 暴露给 ref。可通过 ref 调用 open() 、 save() 、 execute() 、选择与视图方法。兼容选项会原位更新，React 卸载组件时会自动释放编辑器。全部属性与方法见 Editor API。 最小 Hook minimal hook 生命周期规则 lifecycle rules 每个编辑器作用域只创建一次 SDK，不要在每次渲染时重新创建。 从 useEffect 返回事件释放函数，React 会在清理时取消订阅。 React 状态只保存修订号、选择集、活动工具等小型响应信号；规范几何留在 KJDocument 。 所有编辑通过 SDK 命令执行，让 React、插件与 Agent 共用事务和撤销历史。 渲染方式 rendering /core 无界面入口不强制 React 渲染器或状态库。自定义 Canvas 组件可以在命令提交后重绘，属性面板则从活动图档读取类型化记录。面对大型图纸，应按视口派生显示数据，不要把完整对象图复制进 React state。 需要立即可用的 CAD 界面时使用 KJDraw ，产品希望完全掌控每层界面时使用无界面 Hook。持续维护的示例会在发布检查中针对实际 npm 包编译。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "react",
+      "title": "生命周期规则",
+      "summary": "React 集成",
+      "href": "./react/#zh-react-lifecycle-rules",
+      "text": "渲染编辑器组件 editor component KJDraw 会挂载完整编辑器，并把 KJDrawEditor 暴露给 ref。可通过 ref 调用 open() 、 save() 、 execute() 、选择与视图方法。兼容选项会原位更新，React 卸载组件时会自动释放编辑器。全部属性与方法见 Editor API。 最小 Hook minimal hook 生命周期规则 lifecycle rules 每个编辑器作用域只创建一次 SDK，不要在每次渲染时重新创建。 从 useEffect 返回事件释放函数，React 会在清理时取消订阅。 React 状态只保存修订号、选择集、活动工具等小型响应信号；规范几何留在 KJDocument 。 所有编辑通过 SDK 命令执行，让 React、插件与 Agent 共用事务和撤销历史。 渲染方式 rendering /core 无界面入口不强制 React 渲染器或状态库。自定义 Canvas 组件可以在命令提交后重绘，属性面板则从活动图档读取类型化记录。面对大型图纸，应按视口派生显示数据，不要把完整对象图复制进 React state。 需要立即可用的 CAD 界面时使用 KJDraw ，产品希望完全掌控每层界面时使用无界面 Hook。持续维护的示例会在发布检查中针对实际 npm 包编译。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "react",
+      "title": "渲染方式",
+      "summary": "React 集成",
+      "href": "./react/#zh-react-rendering",
+      "text": "渲染编辑器组件 editor component KJDraw 会挂载完整编辑器，并把 KJDrawEditor 暴露给 ref。可通过 ref 调用 open() 、 save() 、 execute() 、选择与视图方法。兼容选项会原位更新，React 卸载组件时会自动释放编辑器。全部属性与方法见 Editor API。 最小 Hook minimal hook 生命周期规则 lifecycle rules 每个编辑器作用域只创建一次 SDK，不要在每次渲染时重新创建。 从 useEffect 返回事件释放函数，React 会在清理时取消订阅。 React 状态只保存修订号、选择集、活动工具等小型响应信号；规范几何留在 KJDocument 。 所有编辑通过 SDK 命令执行，让 React、插件与 Agent 共用事务和撤销历史。 渲染方式 rendering /core 无界面入口不强制 React 渲染器或状态库。自定义 Canvas 组件可以在命令提交后重绘，属性面板则从活动图档读取类型化记录。面对大型图纸，应按视口派生显示数据，不要把完整对象图复制进 React state。 需要立即可用的 CAD 界面时使用 KJDraw ，产品希望完全掌控每层界面时使用无界面 Hook。持续维护的示例会在发布检查中针对实际 npm 包编译。"
+    },
+    {
+      "locale": "en",
+      "kind": "guide",
+      "page": "vue",
+      "title": "Vue integration",
+      "summary": "Mount the complete KJDraw editor as a Vue component, control it through an exposed ref, or build a custom composable.",
+      "href": "./vue/#en-vue",
+      "text": "Render the editor component editor component This is the shortest path to a functional CAD surface. The exposed ref provides ready , open() , save() , execute() , selection, view and lifecycle methods. Compatible prop changes update the editor in place, and Vue disposes it when the component unmounts. See the Editor API for every option and method. A minimal composable minimal composable Reactivity rules reactivity rules Use shallowRef for a KJDocument ; do not ask Vue to proxy its complete object graph. Mirror committed revision, selection or tool state with small refs. Register the event disposer with onScopeDispose . Keep mutations inside SDK commands so validation, receipts and undo remain intact. Share an editor scope share an editor scope For one editor, create the composable once in a provider component and expose it with Vue dependency injection or your state store. Create separate SDK instances only when documents need separate command registries, plugin scopes or lifecycle boundaries. Use KJDraw for an immediately usable CAD surface or the composable for a product owned interface. The maintained examples are compiled against the packed package in release checks."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "vue",
+      "title": "Render the editor component",
+      "summary": "Vue integration",
+      "href": "./vue/#en-vue-editor-component",
+      "text": "Render the editor component editor component This is the shortest path to a functional CAD surface. The exposed ref provides ready , open() , save() , execute() , selection, view and lifecycle methods. Compatible prop changes update the editor in place, and Vue disposes it when the component unmounts. See the Editor API for every option and method. A minimal composable minimal composable Reactivity rules reactivity rules Use shallowRef for a KJDocument ; do not ask Vue to proxy its complete object graph. Mirror committed revision, selection or tool state with small refs. Register the event disposer with onScopeDispose . Keep mutations inside SDK commands so validation, receipts and undo remain intact. Share an editor scope share an editor scope For one editor, create the composable once in a provider component and expose it with Vue dependency injection or your state store. Create separate SDK instances only when documents need separate command registries, plugin scopes or lifecycle boundaries. Use KJDraw for an immediately usable CAD surface or the composable for a product owned interface. The maintained examples are compiled against the packed package in release checks."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "vue",
+      "title": "A minimal composable",
+      "summary": "Vue integration",
+      "href": "./vue/#en-vue-minimal-composable",
+      "text": "Render the editor component editor component This is the shortest path to a functional CAD surface. The exposed ref provides ready , open() , save() , execute() , selection, view and lifecycle methods. Compatible prop changes update the editor in place, and Vue disposes it when the component unmounts. See the Editor API for every option and method. A minimal composable minimal composable Reactivity rules reactivity rules Use shallowRef for a KJDocument ; do not ask Vue to proxy its complete object graph. Mirror committed revision, selection or tool state with small refs. Register the event disposer with onScopeDispose . Keep mutations inside SDK commands so validation, receipts and undo remain intact. Share an editor scope share an editor scope For one editor, create the composable once in a provider component and expose it with Vue dependency injection or your state store. Create separate SDK instances only when documents need separate command registries, plugin scopes or lifecycle boundaries. Use KJDraw for an immediately usable CAD surface or the composable for a product owned interface. The maintained examples are compiled against the packed package in release checks."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "vue",
+      "title": "Reactivity rules",
+      "summary": "Vue integration",
+      "href": "./vue/#en-vue-reactivity-rules",
+      "text": "Render the editor component editor component This is the shortest path to a functional CAD surface. The exposed ref provides ready , open() , save() , execute() , selection, view and lifecycle methods. Compatible prop changes update the editor in place, and Vue disposes it when the component unmounts. See the Editor API for every option and method. A minimal composable minimal composable Reactivity rules reactivity rules Use shallowRef for a KJDocument ; do not ask Vue to proxy its complete object graph. Mirror committed revision, selection or tool state with small refs. Register the event disposer with onScopeDispose . Keep mutations inside SDK commands so validation, receipts and undo remain intact. Share an editor scope share an editor scope For one editor, create the composable once in a provider component and expose it with Vue dependency injection or your state store. Create separate SDK instances only when documents need separate command registries, plugin scopes or lifecycle boundaries. Use KJDraw for an immediately usable CAD surface or the composable for a product owned interface. The maintained examples are compiled against the packed package in release checks."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "vue",
+      "title": "Share an editor scope",
+      "summary": "Vue integration",
+      "href": "./vue/#en-vue-share-an-editor-scope",
+      "text": "Render the editor component editor component This is the shortest path to a functional CAD surface. The exposed ref provides ready , open() , save() , execute() , selection, view and lifecycle methods. Compatible prop changes update the editor in place, and Vue disposes it when the component unmounts. See the Editor API for every option and method. A minimal composable minimal composable Reactivity rules reactivity rules Use shallowRef for a KJDocument ; do not ask Vue to proxy its complete object graph. Mirror committed revision, selection or tool state with small refs. Register the event disposer with onScopeDispose . Keep mutations inside SDK commands so validation, receipts and undo remain intact. Share an editor scope share an editor scope For one editor, create the composable once in a provider component and expose it with Vue dependency injection or your state store. Create separate SDK instances only when documents need separate command registries, plugin scopes or lifecycle boundaries. Use KJDraw for an immediately usable CAD surface or the composable for a product owned interface. The maintained examples are compiled against the packed package in release checks."
+    },
+    {
+      "locale": "zh",
+      "kind": "guide",
+      "page": "vue",
+      "title": "Vue 集成",
+      "summary": "将完整 KJDraw 编辑器作为 Vue 组件挂载，通过暴露的 ref 控制，或构建自定义 Composable。",
+      "href": "./vue/#zh-vue",
+      "text": "渲染编辑器组件 editor component 这是得到可用 CAD 界面的最短路径。暴露的 ref 提供 ready 、 open() 、 save() 、 execute() 、选择、视图与生命周期方法。兼容属性变化会原位更新编辑器，Vue 卸载组件时会自动释放资源。全部选项与方法见 Editor API。 最小 Composable minimal composable 响应式规则 reactivity rules KJDocument 使用 shallowRef ，不要让 Vue 代理完整对象图。 用小型 ref 映射已提交修订号、选择集或工具状态。 使用 onScopeDispose 注册事件释放函数。 修改始终放在 SDK 命令中，保留校验、回执与撤销能力。 共享编辑器作用域 share an editor scope 同一个编辑器应在 Provider 组件中只创建一次 Composable，再通过 Vue 依赖注入或状态库暴露。只有当图档需要独立命令注册表、插件作用域或生命周期边界时，才创建不同 SDK 实例。 需要立即可用的 CAD 界面时使用 KJDraw ，产品自建全部界面时使用 Composable。持续维护的示例会在发布检查中针对打包后的 npm 包编译。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "vue",
+      "title": "渲染编辑器组件",
+      "summary": "Vue 集成",
+      "href": "./vue/#zh-vue-editor-component",
+      "text": "渲染编辑器组件 editor component 这是得到可用 CAD 界面的最短路径。暴露的 ref 提供 ready 、 open() 、 save() 、 execute() 、选择、视图与生命周期方法。兼容属性变化会原位更新编辑器，Vue 卸载组件时会自动释放资源。全部选项与方法见 Editor API。 最小 Composable minimal composable 响应式规则 reactivity rules KJDocument 使用 shallowRef ，不要让 Vue 代理完整对象图。 用小型 ref 映射已提交修订号、选择集或工具状态。 使用 onScopeDispose 注册事件释放函数。 修改始终放在 SDK 命令中，保留校验、回执与撤销能力。 共享编辑器作用域 share an editor scope 同一个编辑器应在 Provider 组件中只创建一次 Composable，再通过 Vue 依赖注入或状态库暴露。只有当图档需要独立命令注册表、插件作用域或生命周期边界时，才创建不同 SDK 实例。 需要立即可用的 CAD 界面时使用 KJDraw ，产品自建全部界面时使用 Composable。持续维护的示例会在发布检查中针对打包后的 npm 包编译。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "vue",
+      "title": "最小 Composable",
+      "summary": "Vue 集成",
+      "href": "./vue/#zh-vue-minimal-composable",
+      "text": "渲染编辑器组件 editor component 这是得到可用 CAD 界面的最短路径。暴露的 ref 提供 ready 、 open() 、 save() 、 execute() 、选择、视图与生命周期方法。兼容属性变化会原位更新编辑器，Vue 卸载组件时会自动释放资源。全部选项与方法见 Editor API。 最小 Composable minimal composable 响应式规则 reactivity rules KJDocument 使用 shallowRef ，不要让 Vue 代理完整对象图。 用小型 ref 映射已提交修订号、选择集或工具状态。 使用 onScopeDispose 注册事件释放函数。 修改始终放在 SDK 命令中，保留校验、回执与撤销能力。 共享编辑器作用域 share an editor scope 同一个编辑器应在 Provider 组件中只创建一次 Composable，再通过 Vue 依赖注入或状态库暴露。只有当图档需要独立命令注册表、插件作用域或生命周期边界时，才创建不同 SDK 实例。 需要立即可用的 CAD 界面时使用 KJDraw ，产品自建全部界面时使用 Composable。持续维护的示例会在发布检查中针对打包后的 npm 包编译。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "vue",
+      "title": "响应式规则",
+      "summary": "Vue 集成",
+      "href": "./vue/#zh-vue-reactivity-rules",
+      "text": "渲染编辑器组件 editor component 这是得到可用 CAD 界面的最短路径。暴露的 ref 提供 ready 、 open() 、 save() 、 execute() 、选择、视图与生命周期方法。兼容属性变化会原位更新编辑器，Vue 卸载组件时会自动释放资源。全部选项与方法见 Editor API。 最小 Composable minimal composable 响应式规则 reactivity rules KJDocument 使用 shallowRef ，不要让 Vue 代理完整对象图。 用小型 ref 映射已提交修订号、选择集或工具状态。 使用 onScopeDispose 注册事件释放函数。 修改始终放在 SDK 命令中，保留校验、回执与撤销能力。 共享编辑器作用域 share an editor scope 同一个编辑器应在 Provider 组件中只创建一次 Composable，再通过 Vue 依赖注入或状态库暴露。只有当图档需要独立命令注册表、插件作用域或生命周期边界时，才创建不同 SDK 实例。 需要立即可用的 CAD 界面时使用 KJDraw ，产品自建全部界面时使用 Composable。持续维护的示例会在发布检查中针对打包后的 npm 包编译。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "vue",
+      "title": "共享编辑器作用域",
+      "summary": "Vue 集成",
+      "href": "./vue/#zh-vue-share-an-editor-scope",
+      "text": "渲染编辑器组件 editor component 这是得到可用 CAD 界面的最短路径。暴露的 ref 提供 ready 、 open() 、 save() 、 execute() 、选择、视图与生命周期方法。兼容属性变化会原位更新编辑器，Vue 卸载组件时会自动释放资源。全部选项与方法见 Editor API。 最小 Composable minimal composable 响应式规则 reactivity rules KJDocument 使用 shallowRef ，不要让 Vue 代理完整对象图。 用小型 ref 映射已提交修订号、选择集或工具状态。 使用 onScopeDispose 注册事件释放函数。 修改始终放在 SDK 命令中，保留校验、回执与撤销能力。 共享编辑器作用域 share an editor scope 同一个编辑器应在 Provider 组件中只创建一次 Composable，再通过 Vue 依赖注入或状态库暴露。只有当图档需要独立命令注册表、插件作用域或生命周期边界时，才创建不同 SDK 实例。 需要立即可用的 CAD 界面时使用 KJDraw ，产品自建全部界面时使用 Composable。持续维护的示例会在发布检查中针对打包后的 npm 包编译。"
+    },
+    {
+      "locale": "en",
+      "kind": "guide",
+      "page": "agent",
+      "title": "Agent workflows",
+      "summary": "Turn model output into an immutable proposal that a human can inspect before one atomic drawing transaction executes.",
+      "href": "./agent/#en-agent",
+      "text": "Review before mutation review before mutation An AI origin command cannot mutate a document unless its exact proposal has first been registered, reviewed and confirmed. The SDK binds the plan to command arguments, document identity, full document digest, fingerprint, expected revision and expiry. Plan and execute plan and execute Fail closed cases fail closed cases Missing, rejected, expired or already consumed plan. Changed arguments, target document or expected revision. Document drift after the preview was created. Missing reviewer identity or replay of a successful execution envelope. Security boundary security boundary This is an application protocol inside one SDK host process. It does not authenticate users, sandbox a model, enforce organization policy across services or persist a durable approval ledger. The host owns those controls and may store the returned receipt as audit evidence. Start with the stable Agent integration contract, then use the maintained Agent protocol for the complete lifecycle and boundary."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "agent",
+      "title": "Review before mutation",
+      "summary": "Agent workflows",
+      "href": "./agent/#en-agent-review-before-mutation",
+      "text": "Review before mutation review before mutation An AI origin command cannot mutate a document unless its exact proposal has first been registered, reviewed and confirmed. The SDK binds the plan to command arguments, document identity, full document digest, fingerprint, expected revision and expiry. Plan and execute plan and execute Fail closed cases fail closed cases Missing, rejected, expired or already consumed plan. Changed arguments, target document or expected revision. Document drift after the preview was created. Missing reviewer identity or replay of a successful execution envelope. Security boundary security boundary This is an application protocol inside one SDK host process. It does not authenticate users, sandbox a model, enforce organization policy across services or persist a durable approval ledger. The host owns those controls and may store the returned receipt as audit evidence. Start with the stable Agent integration contract, then use the maintained Agent protocol for the complete lifecycle and boundary."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "agent",
+      "title": "Plan and execute",
+      "summary": "Agent workflows",
+      "href": "./agent/#en-agent-plan-and-execute",
+      "text": "Review before mutation review before mutation An AI origin command cannot mutate a document unless its exact proposal has first been registered, reviewed and confirmed. The SDK binds the plan to command arguments, document identity, full document digest, fingerprint, expected revision and expiry. Plan and execute plan and execute Fail closed cases fail closed cases Missing, rejected, expired or already consumed plan. Changed arguments, target document or expected revision. Document drift after the preview was created. Missing reviewer identity or replay of a successful execution envelope. Security boundary security boundary This is an application protocol inside one SDK host process. It does not authenticate users, sandbox a model, enforce organization policy across services or persist a durable approval ledger. The host owns those controls and may store the returned receipt as audit evidence. Start with the stable Agent integration contract, then use the maintained Agent protocol for the complete lifecycle and boundary."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "agent",
+      "title": "Fail closed cases",
+      "summary": "Agent workflows",
+      "href": "./agent/#en-agent-fail-closed-cases",
+      "text": "Review before mutation review before mutation An AI origin command cannot mutate a document unless its exact proposal has first been registered, reviewed and confirmed. The SDK binds the plan to command arguments, document identity, full document digest, fingerprint, expected revision and expiry. Plan and execute plan and execute Fail closed cases fail closed cases Missing, rejected, expired or already consumed plan. Changed arguments, target document or expected revision. Document drift after the preview was created. Missing reviewer identity or replay of a successful execution envelope. Security boundary security boundary This is an application protocol inside one SDK host process. It does not authenticate users, sandbox a model, enforce organization policy across services or persist a durable approval ledger. The host owns those controls and may store the returned receipt as audit evidence. Start with the stable Agent integration contract, then use the maintained Agent protocol for the complete lifecycle and boundary."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "agent",
+      "title": "Security boundary",
+      "summary": "Agent workflows",
+      "href": "./agent/#en-agent-security-boundary",
+      "text": "Review before mutation review before mutation An AI origin command cannot mutate a document unless its exact proposal has first been registered, reviewed and confirmed. The SDK binds the plan to command arguments, document identity, full document digest, fingerprint, expected revision and expiry. Plan and execute plan and execute Fail closed cases fail closed cases Missing, rejected, expired or already consumed plan. Changed arguments, target document or expected revision. Document drift after the preview was created. Missing reviewer identity or replay of a successful execution envelope. Security boundary security boundary This is an application protocol inside one SDK host process. It does not authenticate users, sandbox a model, enforce organization policy across services or persist a durable approval ledger. The host owns those controls and may store the returned receipt as audit evidence. Start with the stable Agent integration contract, then use the maintained Agent protocol for the complete lifecycle and boundary."
+    },
+    {
+      "locale": "zh",
+      "kind": "guide",
+      "page": "agent",
+      "title": "Agent 工作流",
+      "summary": "把模型输出变成不可变提案，让人工检查后再执行一次原子图档事务。",
+      "href": "./agent/#zh-agent",
+      "text": "修改前先审核 review before mutation AI 来源命令必须先完成精确提案的注册、审核和确认，才能修改图档。SDK 会把计划绑定到命令参数、图档身份、完整内容摘要、指纹、预期修订号和有效期。 计划与执行 plan and execute 关闭执行的情况 fail closed cases 计划缺失、被拒绝、已过期或已消费。 参数、目标图档或预期修订号发生变化。 生成预览后图档又发生漂移。 缺少审核人身份，或重放已经成功的执行信封。 安全边界 security boundary 这是单个 SDK 宿主进程内的应用协议。它不负责认证用户、隔离模型、跨服务执行组织策略，也不会替代持久批准账本。宿主负责这些控制，并可以保存返回回执作为审计证据。 Agent 开发者先阅读稳定的 Agent 集成契约，完整生命周期和边界见持续维护的 Agent 协议。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "agent",
+      "title": "修改前先审核",
+      "summary": "Agent 工作流",
+      "href": "./agent/#zh-agent-review-before-mutation",
+      "text": "修改前先审核 review before mutation AI 来源命令必须先完成精确提案的注册、审核和确认，才能修改图档。SDK 会把计划绑定到命令参数、图档身份、完整内容摘要、指纹、预期修订号和有效期。 计划与执行 plan and execute 关闭执行的情况 fail closed cases 计划缺失、被拒绝、已过期或已消费。 参数、目标图档或预期修订号发生变化。 生成预览后图档又发生漂移。 缺少审核人身份，或重放已经成功的执行信封。 安全边界 security boundary 这是单个 SDK 宿主进程内的应用协议。它不负责认证用户、隔离模型、跨服务执行组织策略，也不会替代持久批准账本。宿主负责这些控制，并可以保存返回回执作为审计证据。 Agent 开发者先阅读稳定的 Agent 集成契约，完整生命周期和边界见持续维护的 Agent 协议。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "agent",
+      "title": "计划与执行",
+      "summary": "Agent 工作流",
+      "href": "./agent/#zh-agent-plan-and-execute",
+      "text": "修改前先审核 review before mutation AI 来源命令必须先完成精确提案的注册、审核和确认，才能修改图档。SDK 会把计划绑定到命令参数、图档身份、完整内容摘要、指纹、预期修订号和有效期。 计划与执行 plan and execute 关闭执行的情况 fail closed cases 计划缺失、被拒绝、已过期或已消费。 参数、目标图档或预期修订号发生变化。 生成预览后图档又发生漂移。 缺少审核人身份，或重放已经成功的执行信封。 安全边界 security boundary 这是单个 SDK 宿主进程内的应用协议。它不负责认证用户、隔离模型、跨服务执行组织策略，也不会替代持久批准账本。宿主负责这些控制，并可以保存返回回执作为审计证据。 Agent 开发者先阅读稳定的 Agent 集成契约，完整生命周期和边界见持续维护的 Agent 协议。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "agent",
+      "title": "关闭执行的情况",
+      "summary": "Agent 工作流",
+      "href": "./agent/#zh-agent-fail-closed-cases",
+      "text": "修改前先审核 review before mutation AI 来源命令必须先完成精确提案的注册、审核和确认，才能修改图档。SDK 会把计划绑定到命令参数、图档身份、完整内容摘要、指纹、预期修订号和有效期。 计划与执行 plan and execute 关闭执行的情况 fail closed cases 计划缺失、被拒绝、已过期或已消费。 参数、目标图档或预期修订号发生变化。 生成预览后图档又发生漂移。 缺少审核人身份，或重放已经成功的执行信封。 安全边界 security boundary 这是单个 SDK 宿主进程内的应用协议。它不负责认证用户、隔离模型、跨服务执行组织策略，也不会替代持久批准账本。宿主负责这些控制，并可以保存返回回执作为审计证据。 Agent 开发者先阅读稳定的 Agent 集成契约，完整生命周期和边界见持续维护的 Agent 协议。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "agent",
+      "title": "安全边界",
+      "summary": "Agent 工作流",
+      "href": "./agent/#zh-agent-security-boundary",
+      "text": "修改前先审核 review before mutation AI 来源命令必须先完成精确提案的注册、审核和确认，才能修改图档。SDK 会把计划绑定到命令参数、图档身份、完整内容摘要、指纹、预期修订号和有效期。 计划与执行 plan and execute 关闭执行的情况 fail closed cases 计划缺失、被拒绝、已过期或已消费。 参数、目标图档或预期修订号发生变化。 生成预览后图档又发生漂移。 缺少审核人身份，或重放已经成功的执行信封。 安全边界 security boundary 这是单个 SDK 宿主进程内的应用协议。它不负责认证用户、隔离模型、跨服务执行组织策略，也不会替代持久批准账本。宿主负责这些控制，并可以保存返回回执作为审计证据。 Agent 开发者先阅读稳定的 Agent 集成契约，完整生命周期和边界见持续维护的 Agent 协议。"
+    },
+    {
+      "locale": "en",
+      "kind": "guide",
+      "page": "plugins",
+      "title": "Plugins",
+      "summary": "Extend commands, entities, files and workbench surfaces through versioned manifests and explicit cooperative grants.",
+      "href": "./plugins/#en-plugins",
+      "text": "Declare the contract declare the contract The host inspects the manifest, checks SDK/kernel compatibility and decides which requested permissions to grant. Contributions must be declared before activation. Activate through a scope activate through a scope Disposing the returned scope removes registrations owned by that plugin. Keep geometry changes inside commands so validation, receipts, revisioning and undo remain intact. Extension points extension points The 1.0 contract includes commands, entity definitions/renderers, file adapters, algorithms, tools, snaps, property panels, keymaps, workspaces, scene sources, ribbons, panels and symbols. Use only declared public extension points; do not patch SDK internals. Security boundary security boundary Plugin permissions are cooperative declarations, not hostile code isolation. Run untrusted third party code in a host owned Worker, process or sandbox. Start from the tested TypeScript plugin starter."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "plugins",
+      "title": "Declare the contract",
+      "summary": "Plugins",
+      "href": "./plugins/#en-plugins-declare-the-contract",
+      "text": "Declare the contract declare the contract The host inspects the manifest, checks SDK/kernel compatibility and decides which requested permissions to grant. Contributions must be declared before activation. Activate through a scope activate through a scope Disposing the returned scope removes registrations owned by that plugin. Keep geometry changes inside commands so validation, receipts, revisioning and undo remain intact. Extension points extension points The 1.0 contract includes commands, entity definitions/renderers, file adapters, algorithms, tools, snaps, property panels, keymaps, workspaces, scene sources, ribbons, panels and symbols. Use only declared public extension points; do not patch SDK internals. Security boundary security boundary Plugin permissions are cooperative declarations, not hostile code isolation. Run untrusted third party code in a host owned Worker, process or sandbox. Start from the tested TypeScript plugin starter."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "plugins",
+      "title": "Activate through a scope",
+      "summary": "Plugins",
+      "href": "./plugins/#en-plugins-activate-through-a-scope",
+      "text": "Declare the contract declare the contract The host inspects the manifest, checks SDK/kernel compatibility and decides which requested permissions to grant. Contributions must be declared before activation. Activate through a scope activate through a scope Disposing the returned scope removes registrations owned by that plugin. Keep geometry changes inside commands so validation, receipts, revisioning and undo remain intact. Extension points extension points The 1.0 contract includes commands, entity definitions/renderers, file adapters, algorithms, tools, snaps, property panels, keymaps, workspaces, scene sources, ribbons, panels and symbols. Use only declared public extension points; do not patch SDK internals. Security boundary security boundary Plugin permissions are cooperative declarations, not hostile code isolation. Run untrusted third party code in a host owned Worker, process or sandbox. Start from the tested TypeScript plugin starter."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "plugins",
+      "title": "Extension points",
+      "summary": "Plugins",
+      "href": "./plugins/#en-plugins-extension-points",
+      "text": "Declare the contract declare the contract The host inspects the manifest, checks SDK/kernel compatibility and decides which requested permissions to grant. Contributions must be declared before activation. Activate through a scope activate through a scope Disposing the returned scope removes registrations owned by that plugin. Keep geometry changes inside commands so validation, receipts, revisioning and undo remain intact. Extension points extension points The 1.0 contract includes commands, entity definitions/renderers, file adapters, algorithms, tools, snaps, property panels, keymaps, workspaces, scene sources, ribbons, panels and symbols. Use only declared public extension points; do not patch SDK internals. Security boundary security boundary Plugin permissions are cooperative declarations, not hostile code isolation. Run untrusted third party code in a host owned Worker, process or sandbox. Start from the tested TypeScript plugin starter."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "plugins",
+      "title": "Security boundary",
+      "summary": "Plugins",
+      "href": "./plugins/#en-plugins-security-boundary",
+      "text": "Declare the contract declare the contract The host inspects the manifest, checks SDK/kernel compatibility and decides which requested permissions to grant. Contributions must be declared before activation. Activate through a scope activate through a scope Disposing the returned scope removes registrations owned by that plugin. Keep geometry changes inside commands so validation, receipts, revisioning and undo remain intact. Extension points extension points The 1.0 contract includes commands, entity definitions/renderers, file adapters, algorithms, tools, snaps, property panels, keymaps, workspaces, scene sources, ribbons, panels and symbols. Use only declared public extension points; do not patch SDK internals. Security boundary security boundary Plugin permissions are cooperative declarations, not hostile code isolation. Run untrusted third party code in a host owned Worker, process or sandbox. Start from the tested TypeScript plugin starter."
+    },
+    {
+      "locale": "zh",
+      "kind": "guide",
+      "page": "plugins",
+      "title": "插件",
+      "summary": "通过版本化清单和显式协作授权，扩展命令、实体、文件与工作台界面。",
+      "href": "./plugins/#zh-plugins",
+      "text": "声明插件契约 declare the contract 宿主先检查清单与 SDK/kernel 兼容范围，再决定授予哪些申请权限。所有贡献项都必须在激活前声明。 通过作用域激活 activate through a scope 释放返回的 scope 会移除该插件拥有的注册项。几何修改应始终放在命令中，从而保留校验、回执、修订与撤销。 扩展点 extension points 1.0 契约包括命令、实体定义/渲染器、文件适配器、算法、工具、捕捉、属性面板、快捷键、工作区、场景源、Ribbon、面板与符号。只使用声明过的公共扩展点，不要修改 SDK 内部实现。 安全边界 security boundary 插件权限是协作式声明，不是恶意代码隔离。第三方不可信代码应运行在宿主控制的 Worker、进程或沙箱中。建议从已测试的 TypeScript 插件起步工程开始。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "plugins",
+      "title": "声明插件契约",
+      "summary": "插件",
+      "href": "./plugins/#zh-plugins-declare-the-contract",
+      "text": "声明插件契约 declare the contract 宿主先检查清单与 SDK/kernel 兼容范围，再决定授予哪些申请权限。所有贡献项都必须在激活前声明。 通过作用域激活 activate through a scope 释放返回的 scope 会移除该插件拥有的注册项。几何修改应始终放在命令中，从而保留校验、回执、修订与撤销。 扩展点 extension points 1.0 契约包括命令、实体定义/渲染器、文件适配器、算法、工具、捕捉、属性面板、快捷键、工作区、场景源、Ribbon、面板与符号。只使用声明过的公共扩展点，不要修改 SDK 内部实现。 安全边界 security boundary 插件权限是协作式声明，不是恶意代码隔离。第三方不可信代码应运行在宿主控制的 Worker、进程或沙箱中。建议从已测试的 TypeScript 插件起步工程开始。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "plugins",
+      "title": "通过作用域激活",
+      "summary": "插件",
+      "href": "./plugins/#zh-plugins-activate-through-a-scope",
+      "text": "声明插件契约 declare the contract 宿主先检查清单与 SDK/kernel 兼容范围，再决定授予哪些申请权限。所有贡献项都必须在激活前声明。 通过作用域激活 activate through a scope 释放返回的 scope 会移除该插件拥有的注册项。几何修改应始终放在命令中，从而保留校验、回执、修订与撤销。 扩展点 extension points 1.0 契约包括命令、实体定义/渲染器、文件适配器、算法、工具、捕捉、属性面板、快捷键、工作区、场景源、Ribbon、面板与符号。只使用声明过的公共扩展点，不要修改 SDK 内部实现。 安全边界 security boundary 插件权限是协作式声明，不是恶意代码隔离。第三方不可信代码应运行在宿主控制的 Worker、进程或沙箱中。建议从已测试的 TypeScript 插件起步工程开始。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "plugins",
+      "title": "扩展点",
+      "summary": "插件",
+      "href": "./plugins/#zh-plugins-extension-points",
+      "text": "声明插件契约 declare the contract 宿主先检查清单与 SDK/kernel 兼容范围，再决定授予哪些申请权限。所有贡献项都必须在激活前声明。 通过作用域激活 activate through a scope 释放返回的 scope 会移除该插件拥有的注册项。几何修改应始终放在命令中，从而保留校验、回执、修订与撤销。 扩展点 extension points 1.0 契约包括命令、实体定义/渲染器、文件适配器、算法、工具、捕捉、属性面板、快捷键、工作区、场景源、Ribbon、面板与符号。只使用声明过的公共扩展点，不要修改 SDK 内部实现。 安全边界 security boundary 插件权限是协作式声明，不是恶意代码隔离。第三方不可信代码应运行在宿主控制的 Worker、进程或沙箱中。建议从已测试的 TypeScript 插件起步工程开始。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "plugins",
+      "title": "安全边界",
+      "summary": "插件",
+      "href": "./plugins/#zh-plugins-security-boundary",
+      "text": "声明插件契约 declare the contract 宿主先检查清单与 SDK/kernel 兼容范围，再决定授予哪些申请权限。所有贡献项都必须在激活前声明。 通过作用域激活 activate through a scope 释放返回的 scope 会移除该插件拥有的注册项。几何修改应始终放在命令中，从而保留校验、回执、修订与撤销。 扩展点 extension points 1.0 契约包括命令、实体定义/渲染器、文件适配器、算法、工具、捕捉、属性面板、快捷键、工作区、场景源、Ribbon、面板与符号。只使用声明过的公共扩展点，不要修改 SDK 内部实现。 安全边界 security boundary 插件权限是协作式声明，不是恶意代码隔离。第三方不可信代码应运行在宿主控制的 Worker、进程或沙箱中。建议从已测试的 TypeScript 插件起步工程开始。"
+    },
+    {
+      "locale": "en",
+      "kind": "guide",
+      "page": "deployment",
+      "title": "Deployment",
+      "summary": "Keep browser-local operation simple or attach explicit project, compute and scene providers for other product topologies.",
+      "href": "./deployment/#en-deployment",
+      "text": "Supported profiles supported profiles Profile Where project data lives Typical use browser local KJP file or browser storage Zero install tools and offline review desktop local Application managed project file Desktop engineering products self hosted Organization selected providers Private networks and regulated environments cloud assisted Host selected remote services Managed compute or conversion hybrid Explicit local and remote providers Local editing with selected acceleration KJDraw uses the same editor, document and file APIs in every profile. A registered provider runs only when the application invokes it. Register a project provider register a provider Provider families provider families project store loads and saves project artifacts. compute executes a named host operation. scene opens a scene and answers viewport queries. Profiles select providers, while credentials stay in application configuration. Your application decides when to invoke a provider and how to authenticate the request. Connect your application connect your application Keep credentials, encryption, authorization, tenancy, retry and storage choices in your application layer. A platform specific project provider can add atomic replacement and durable writes where the product needs them. See the runnable deployment provider example."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "deployment",
+      "title": "Supported profiles",
+      "summary": "Deployment",
+      "href": "./deployment/#en-deployment-supported-profiles",
+      "text": "Supported profiles supported profiles Profile Where project data lives Typical use browser local KJP file or browser storage Zero install tools and offline review desktop local Application managed project file Desktop engineering products self hosted Organization selected providers Private networks and regulated environments cloud assisted Host selected remote services Managed compute or conversion hybrid Explicit local and remote providers Local editing with selected acceleration KJDraw uses the same editor, document and file APIs in every profile. A registered provider runs only when the application invokes it. Register a project provider register a provider Provider families provider families project store loads and saves project artifacts. compute executes a named host operation. scene opens a scene and answers viewport queries. Profiles select providers, while credentials stay in application configuration. Your application decides when to invoke a provider and how to authenticate the request. Connect your application connect your application Keep credentials, encryption, authorization, tenancy, retry and storage choices in your application layer. A platform specific project provider can add atomic replacement and durable writes where the product needs them. See the runnable deployment provider example."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "deployment",
+      "title": "Register a project provider",
+      "summary": "Deployment",
+      "href": "./deployment/#en-deployment-register-a-provider",
+      "text": "Supported profiles supported profiles Profile Where project data lives Typical use browser local KJP file or browser storage Zero install tools and offline review desktop local Application managed project file Desktop engineering products self hosted Organization selected providers Private networks and regulated environments cloud assisted Host selected remote services Managed compute or conversion hybrid Explicit local and remote providers Local editing with selected acceleration KJDraw uses the same editor, document and file APIs in every profile. A registered provider runs only when the application invokes it. Register a project provider register a provider Provider families provider families project store loads and saves project artifacts. compute executes a named host operation. scene opens a scene and answers viewport queries. Profiles select providers, while credentials stay in application configuration. Your application decides when to invoke a provider and how to authenticate the request. Connect your application connect your application Keep credentials, encryption, authorization, tenancy, retry and storage choices in your application layer. A platform specific project provider can add atomic replacement and durable writes where the product needs them. See the runnable deployment provider example."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "deployment",
+      "title": "Provider families",
+      "summary": "Deployment",
+      "href": "./deployment/#en-deployment-provider-families",
+      "text": "Supported profiles supported profiles Profile Where project data lives Typical use browser local KJP file or browser storage Zero install tools and offline review desktop local Application managed project file Desktop engineering products self hosted Organization selected providers Private networks and regulated environments cloud assisted Host selected remote services Managed compute or conversion hybrid Explicit local and remote providers Local editing with selected acceleration KJDraw uses the same editor, document and file APIs in every profile. A registered provider runs only when the application invokes it. Register a project provider register a provider Provider families provider families project store loads and saves project artifacts. compute executes a named host operation. scene opens a scene and answers viewport queries. Profiles select providers, while credentials stay in application configuration. Your application decides when to invoke a provider and how to authenticate the request. Connect your application connect your application Keep credentials, encryption, authorization, tenancy, retry and storage choices in your application layer. A platform specific project provider can add atomic replacement and durable writes where the product needs them. See the runnable deployment provider example."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "deployment",
+      "title": "Connect your application",
+      "summary": "Deployment",
+      "href": "./deployment/#en-deployment-connect-your-application",
+      "text": "Supported profiles supported profiles Profile Where project data lives Typical use browser local KJP file or browser storage Zero install tools and offline review desktop local Application managed project file Desktop engineering products self hosted Organization selected providers Private networks and regulated environments cloud assisted Host selected remote services Managed compute or conversion hybrid Explicit local and remote providers Local editing with selected acceleration KJDraw uses the same editor, document and file APIs in every profile. A registered provider runs only when the application invokes it. Register a project provider register a provider Provider families provider families project store loads and saves project artifacts. compute executes a named host operation. scene opens a scene and answers viewport queries. Profiles select providers, while credentials stay in application configuration. Your application decides when to invoke a provider and how to authenticate the request. Connect your application connect your application Keep credentials, encryption, authorization, tenancy, retry and storage choices in your application layer. A platform specific project provider can add atomic replacement and durable writes where the product needs them. See the runnable deployment provider example."
+    },
+    {
+      "locale": "zh",
+      "kind": "guide",
+      "page": "deployment",
+      "title": "部署",
+      "summary": "既可保持浏览器本地运行，也可为其他产品形态显式连接工程、计算与场景 Provider。",
+      "href": "./deployment/#zh-deployment",
+      "text": "支持的部署形态 supported profiles 形态 工程数据位置 常见用途 browser local KJP 文件或浏览器存储 零安装工具与离线审核 desktop local 应用管理的工程文件 桌面工程产品 self hosted 组织选择的 Provider 内网与合规环境 cloud assisted 宿主选择的远程服务 托管计算或转换 hybrid 显式本地与远程 Provider 本地编辑加选择性加速 KJDraw 在每种形态下都使用同一套编辑器、图档与文件 API。已注册的 Provider 只会在应用主动调用时运行。 注册工程 Provider register a provider Provider 类型 provider families project store 读取与保存工程产物。 compute 执行宿主定义的命名操作。 scene 打开场景并响应视口查询。 部署 Profile 选择所需 Provider，凭据保存在应用配置中。何时调用、怎样认证都由你的应用决定。 连接你的应用 connect your application 凭据、加密、授权、租户隔离、重试与存储选择都保留在你的应用层。平台专用的工程 Provider 可以按产品需要增加原子替换与持久写入。 参见可运行的 部署 Provider 示例。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "deployment",
+      "title": "支持的部署形态",
+      "summary": "部署",
+      "href": "./deployment/#zh-deployment-supported-profiles",
+      "text": "支持的部署形态 supported profiles 形态 工程数据位置 常见用途 browser local KJP 文件或浏览器存储 零安装工具与离线审核 desktop local 应用管理的工程文件 桌面工程产品 self hosted 组织选择的 Provider 内网与合规环境 cloud assisted 宿主选择的远程服务 托管计算或转换 hybrid 显式本地与远程 Provider 本地编辑加选择性加速 KJDraw 在每种形态下都使用同一套编辑器、图档与文件 API。已注册的 Provider 只会在应用主动调用时运行。 注册工程 Provider register a provider Provider 类型 provider families project store 读取与保存工程产物。 compute 执行宿主定义的命名操作。 scene 打开场景并响应视口查询。 部署 Profile 选择所需 Provider，凭据保存在应用配置中。何时调用、怎样认证都由你的应用决定。 连接你的应用 connect your application 凭据、加密、授权、租户隔离、重试与存储选择都保留在你的应用层。平台专用的工程 Provider 可以按产品需要增加原子替换与持久写入。 参见可运行的 部署 Provider 示例。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "deployment",
+      "title": "注册工程 Provider",
+      "summary": "部署",
+      "href": "./deployment/#zh-deployment-register-a-provider",
+      "text": "支持的部署形态 supported profiles 形态 工程数据位置 常见用途 browser local KJP 文件或浏览器存储 零安装工具与离线审核 desktop local 应用管理的工程文件 桌面工程产品 self hosted 组织选择的 Provider 内网与合规环境 cloud assisted 宿主选择的远程服务 托管计算或转换 hybrid 显式本地与远程 Provider 本地编辑加选择性加速 KJDraw 在每种形态下都使用同一套编辑器、图档与文件 API。已注册的 Provider 只会在应用主动调用时运行。 注册工程 Provider register a provider Provider 类型 provider families project store 读取与保存工程产物。 compute 执行宿主定义的命名操作。 scene 打开场景并响应视口查询。 部署 Profile 选择所需 Provider，凭据保存在应用配置中。何时调用、怎样认证都由你的应用决定。 连接你的应用 connect your application 凭据、加密、授权、租户隔离、重试与存储选择都保留在你的应用层。平台专用的工程 Provider 可以按产品需要增加原子替换与持久写入。 参见可运行的 部署 Provider 示例。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "deployment",
+      "title": "Provider 类型",
+      "summary": "部署",
+      "href": "./deployment/#zh-deployment-provider-families",
+      "text": "支持的部署形态 supported profiles 形态 工程数据位置 常见用途 browser local KJP 文件或浏览器存储 零安装工具与离线审核 desktop local 应用管理的工程文件 桌面工程产品 self hosted 组织选择的 Provider 内网与合规环境 cloud assisted 宿主选择的远程服务 托管计算或转换 hybrid 显式本地与远程 Provider 本地编辑加选择性加速 KJDraw 在每种形态下都使用同一套编辑器、图档与文件 API。已注册的 Provider 只会在应用主动调用时运行。 注册工程 Provider register a provider Provider 类型 provider families project store 读取与保存工程产物。 compute 执行宿主定义的命名操作。 scene 打开场景并响应视口查询。 部署 Profile 选择所需 Provider，凭据保存在应用配置中。何时调用、怎样认证都由你的应用决定。 连接你的应用 connect your application 凭据、加密、授权、租户隔离、重试与存储选择都保留在你的应用层。平台专用的工程 Provider 可以按产品需要增加原子替换与持久写入。 参见可运行的 部署 Provider 示例。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "deployment",
+      "title": "连接你的应用",
+      "summary": "部署",
+      "href": "./deployment/#zh-deployment-connect-your-application",
+      "text": "支持的部署形态 supported profiles 形态 工程数据位置 常见用途 browser local KJP 文件或浏览器存储 零安装工具与离线审核 desktop local 应用管理的工程文件 桌面工程产品 self hosted 组织选择的 Provider 内网与合规环境 cloud assisted 宿主选择的远程服务 托管计算或转换 hybrid 显式本地与远程 Provider 本地编辑加选择性加速 KJDraw 在每种形态下都使用同一套编辑器、图档与文件 API。已注册的 Provider 只会在应用主动调用时运行。 注册工程 Provider register a provider Provider 类型 provider families project store 读取与保存工程产物。 compute 执行宿主定义的命名操作。 scene 打开场景并响应视口查询。 部署 Profile 选择所需 Provider，凭据保存在应用配置中。何时调用、怎样认证都由你的应用决定。 连接你的应用 connect your application 凭据、加密、授权、租户隔离、重试与存储选择都保留在你的应用层。平台专用的工程 Provider 可以按产品需要增加原子替换与持久写入。 参见可运行的 部署 Provider 示例。"
+    },
+    {
+      "locale": "en",
+      "kind": "guide",
+      "page": "capabilities",
+      "title": "Capabilities",
+      "summary": "Explore the editor, drawing, file, automation and extension features available to KJDraw applications.",
+      "href": "./capabilities/#en-capabilities",
+      "text": "Complete editor experience editor experience createKJDrawEditor() mounts a CAD workspace with a canvas, ribbon tools, command line, layers, properties, selection, zoom and file actions. It can start with a sample, a blank drawing or an existing KJDocument . Task Available API Embed in JavaScript or TypeScript createKJDrawEditor() Use React <KJDraw from @kanjieteam/kjdraw/react Use Vue <KJDraw from @kanjieteam/kjdraw/vue Open and save drawings editor.open() and editor.save() Control the editor fit() , setSelection() , setTool() and setOptions() Respond to users change , selectionchange , documentchange and error events Drawing and editing drawing and editing Create and edit common 2D entities including lines, polylines, circles, arcs, ellipses, splines, text, hatches, dimensions and blocks. Move, rotate, scale, mirror, offset, trim, extend, break, fillet, chamfer and explode through commands. Work with layers, layouts, selection sets, grips, snapping, intersections and measured geometry. Group related changes into transactions with undo and redo. Use the portable geometry path everywhere, with optional Rust/WebAssembly document, geometry and solid modules for supported workloads. Start from editable site plan, architectural, road profile and mechanical examples. Files and projects files and projects KJD stores an individual drawing, KJP packages multi drawing projects and related assets, and DXF connects the editor to common CAD exchange workflows. Applications can use browser file pickers, return bytes for custom storage, or connect project providers. Continue to the Files and projects guide for working examples and format specific details. Automation and extensions automation and extensions The same commands used by the editor are available to application code, plugins and approved AI workflows. Add custom commands and panels through plugins, use the headless core for batch processing, or register project, compute and scene providers for your deployment. Use sdk.capabilities() when an application needs to inspect the commands, entities and file adapters registered in its current runtime. Compatibility details compatibility details For format specific coverage and reproducible issue reporting, use the maintained compatibility matrix and current status. Never attach private customer drawings to a public issue; use a minimal redistributable example."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "capabilities",
+      "title": "Complete editor experience",
+      "summary": "Capabilities",
+      "href": "./capabilities/#en-capabilities-editor-experience",
+      "text": "Complete editor experience editor experience createKJDrawEditor() mounts a CAD workspace with a canvas, ribbon tools, command line, layers, properties, selection, zoom and file actions. It can start with a sample, a blank drawing or an existing KJDocument . Task Available API Embed in JavaScript or TypeScript createKJDrawEditor() Use React <KJDraw from @kanjieteam/kjdraw/react Use Vue <KJDraw from @kanjieteam/kjdraw/vue Open and save drawings editor.open() and editor.save() Control the editor fit() , setSelection() , setTool() and setOptions() Respond to users change , selectionchange , documentchange and error events Drawing and editing drawing and editing Create and edit common 2D entities including lines, polylines, circles, arcs, ellipses, splines, text, hatches, dimensions and blocks. Move, rotate, scale, mirror, offset, trim, extend, break, fillet, chamfer and explode through commands. Work with layers, layouts, selection sets, grips, snapping, intersections and measured geometry. Group related changes into transactions with undo and redo. Use the portable geometry path everywhere, with optional Rust/WebAssembly document, geometry and solid modules for supported workloads. Start from editable site plan, architectural, road profile and mechanical examples. Files and projects files and projects KJD stores an individual drawing, KJP packages multi drawing projects and related assets, and DXF connects the editor to common CAD exchange workflows. Applications can use browser file pickers, return bytes for custom storage, or connect project providers. Continue to the Files and projects guide for working examples and format specific details. Automation and extensions automation and extensions The same commands used by the editor are available to application code, plugins and approved AI workflows. Add custom commands and panels through plugins, use the headless core for batch processing, or register project, compute and scene providers for your deployment. Use sdk.capabilities() when an application needs to inspect the commands, entities and file adapters registered in its current runtime. Compatibility details compatibility details For format specific coverage and reproducible issue reporting, use the maintained compatibility matrix and current status. Never attach private customer drawings to a public issue; use a minimal redistributable example."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "capabilities",
+      "title": "Drawing and editing",
+      "summary": "Capabilities",
+      "href": "./capabilities/#en-capabilities-drawing-and-editing",
+      "text": "Complete editor experience editor experience createKJDrawEditor() mounts a CAD workspace with a canvas, ribbon tools, command line, layers, properties, selection, zoom and file actions. It can start with a sample, a blank drawing or an existing KJDocument . Task Available API Embed in JavaScript or TypeScript createKJDrawEditor() Use React <KJDraw from @kanjieteam/kjdraw/react Use Vue <KJDraw from @kanjieteam/kjdraw/vue Open and save drawings editor.open() and editor.save() Control the editor fit() , setSelection() , setTool() and setOptions() Respond to users change , selectionchange , documentchange and error events Drawing and editing drawing and editing Create and edit common 2D entities including lines, polylines, circles, arcs, ellipses, splines, text, hatches, dimensions and blocks. Move, rotate, scale, mirror, offset, trim, extend, break, fillet, chamfer and explode through commands. Work with layers, layouts, selection sets, grips, snapping, intersections and measured geometry. Group related changes into transactions with undo and redo. Use the portable geometry path everywhere, with optional Rust/WebAssembly document, geometry and solid modules for supported workloads. Start from editable site plan, architectural, road profile and mechanical examples. Files and projects files and projects KJD stores an individual drawing, KJP packages multi drawing projects and related assets, and DXF connects the editor to common CAD exchange workflows. Applications can use browser file pickers, return bytes for custom storage, or connect project providers. Continue to the Files and projects guide for working examples and format specific details. Automation and extensions automation and extensions The same commands used by the editor are available to application code, plugins and approved AI workflows. Add custom commands and panels through plugins, use the headless core for batch processing, or register project, compute and scene providers for your deployment. Use sdk.capabilities() when an application needs to inspect the commands, entities and file adapters registered in its current runtime. Compatibility details compatibility details For format specific coverage and reproducible issue reporting, use the maintained compatibility matrix and current status. Never attach private customer drawings to a public issue; use a minimal redistributable example."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "capabilities",
+      "title": "Files and projects",
+      "summary": "Capabilities",
+      "href": "./capabilities/#en-capabilities-files-and-projects",
+      "text": "Complete editor experience editor experience createKJDrawEditor() mounts a CAD workspace with a canvas, ribbon tools, command line, layers, properties, selection, zoom and file actions. It can start with a sample, a blank drawing or an existing KJDocument . Task Available API Embed in JavaScript or TypeScript createKJDrawEditor() Use React <KJDraw from @kanjieteam/kjdraw/react Use Vue <KJDraw from @kanjieteam/kjdraw/vue Open and save drawings editor.open() and editor.save() Control the editor fit() , setSelection() , setTool() and setOptions() Respond to users change , selectionchange , documentchange and error events Drawing and editing drawing and editing Create and edit common 2D entities including lines, polylines, circles, arcs, ellipses, splines, text, hatches, dimensions and blocks. Move, rotate, scale, mirror, offset, trim, extend, break, fillet, chamfer and explode through commands. Work with layers, layouts, selection sets, grips, snapping, intersections and measured geometry. Group related changes into transactions with undo and redo. Use the portable geometry path everywhere, with optional Rust/WebAssembly document, geometry and solid modules for supported workloads. Start from editable site plan, architectural, road profile and mechanical examples. Files and projects files and projects KJD stores an individual drawing, KJP packages multi drawing projects and related assets, and DXF connects the editor to common CAD exchange workflows. Applications can use browser file pickers, return bytes for custom storage, or connect project providers. Continue to the Files and projects guide for working examples and format specific details. Automation and extensions automation and extensions The same commands used by the editor are available to application code, plugins and approved AI workflows. Add custom commands and panels through plugins, use the headless core for batch processing, or register project, compute and scene providers for your deployment. Use sdk.capabilities() when an application needs to inspect the commands, entities and file adapters registered in its current runtime. Compatibility details compatibility details For format specific coverage and reproducible issue reporting, use the maintained compatibility matrix and current status. Never attach private customer drawings to a public issue; use a minimal redistributable example."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "capabilities",
+      "title": "Automation and extensions",
+      "summary": "Capabilities",
+      "href": "./capabilities/#en-capabilities-automation-and-extensions",
+      "text": "Complete editor experience editor experience createKJDrawEditor() mounts a CAD workspace with a canvas, ribbon tools, command line, layers, properties, selection, zoom and file actions. It can start with a sample, a blank drawing or an existing KJDocument . Task Available API Embed in JavaScript or TypeScript createKJDrawEditor() Use React <KJDraw from @kanjieteam/kjdraw/react Use Vue <KJDraw from @kanjieteam/kjdraw/vue Open and save drawings editor.open() and editor.save() Control the editor fit() , setSelection() , setTool() and setOptions() Respond to users change , selectionchange , documentchange and error events Drawing and editing drawing and editing Create and edit common 2D entities including lines, polylines, circles, arcs, ellipses, splines, text, hatches, dimensions and blocks. Move, rotate, scale, mirror, offset, trim, extend, break, fillet, chamfer and explode through commands. Work with layers, layouts, selection sets, grips, snapping, intersections and measured geometry. Group related changes into transactions with undo and redo. Use the portable geometry path everywhere, with optional Rust/WebAssembly document, geometry and solid modules for supported workloads. Start from editable site plan, architectural, road profile and mechanical examples. Files and projects files and projects KJD stores an individual drawing, KJP packages multi drawing projects and related assets, and DXF connects the editor to common CAD exchange workflows. Applications can use browser file pickers, return bytes for custom storage, or connect project providers. Continue to the Files and projects guide for working examples and format specific details. Automation and extensions automation and extensions The same commands used by the editor are available to application code, plugins and approved AI workflows. Add custom commands and panels through plugins, use the headless core for batch processing, or register project, compute and scene providers for your deployment. Use sdk.capabilities() when an application needs to inspect the commands, entities and file adapters registered in its current runtime. Compatibility details compatibility details For format specific coverage and reproducible issue reporting, use the maintained compatibility matrix and current status. Never attach private customer drawings to a public issue; use a minimal redistributable example."
+    },
+    {
+      "locale": "en",
+      "kind": "section",
+      "page": "capabilities",
+      "title": "Compatibility details",
+      "summary": "Capabilities",
+      "href": "./capabilities/#en-capabilities-compatibility-details",
+      "text": "Complete editor experience editor experience createKJDrawEditor() mounts a CAD workspace with a canvas, ribbon tools, command line, layers, properties, selection, zoom and file actions. It can start with a sample, a blank drawing or an existing KJDocument . Task Available API Embed in JavaScript or TypeScript createKJDrawEditor() Use React <KJDraw from @kanjieteam/kjdraw/react Use Vue <KJDraw from @kanjieteam/kjdraw/vue Open and save drawings editor.open() and editor.save() Control the editor fit() , setSelection() , setTool() and setOptions() Respond to users change , selectionchange , documentchange and error events Drawing and editing drawing and editing Create and edit common 2D entities including lines, polylines, circles, arcs, ellipses, splines, text, hatches, dimensions and blocks. Move, rotate, scale, mirror, offset, trim, extend, break, fillet, chamfer and explode through commands. Work with layers, layouts, selection sets, grips, snapping, intersections and measured geometry. Group related changes into transactions with undo and redo. Use the portable geometry path everywhere, with optional Rust/WebAssembly document, geometry and solid modules for supported workloads. Start from editable site plan, architectural, road profile and mechanical examples. Files and projects files and projects KJD stores an individual drawing, KJP packages multi drawing projects and related assets, and DXF connects the editor to common CAD exchange workflows. Applications can use browser file pickers, return bytes for custom storage, or connect project providers. Continue to the Files and projects guide for working examples and format specific details. Automation and extensions automation and extensions The same commands used by the editor are available to application code, plugins and approved AI workflows. Add custom commands and panels through plugins, use the headless core for batch processing, or register project, compute and scene providers for your deployment. Use sdk.capabilities() when an application needs to inspect the commands, entities and file adapters registered in its current runtime. Compatibility details compatibility details For format specific coverage and reproducible issue reporting, use the maintained compatibility matrix and current status. Never attach private customer drawings to a public issue; use a minimal redistributable example."
+    },
+    {
+      "locale": "zh",
+      "kind": "guide",
+      "page": "capabilities",
+      "title": "功能能力",
+      "summary": "了解 KJDraw 应用可使用的编辑器、图档、文件、自动化与扩展能力。",
+      "href": "./capabilities/#zh-capabilities",
+      "text": "完整编辑器体验 editor experience createKJDrawEditor() 会挂载包含画布、Ribbon 工具、命令行、图层、属性、选择、缩放与文件操作的 CAD 工作区。它可以从示例、空白图档或现有 KJDocument 开始。 任务 可用 API 嵌入 JavaScript 或 TypeScript createKJDrawEditor() 使用 React @kanjieteam/kjdraw/react 的 <KJDraw 使用 Vue @kanjieteam/kjdraw/vue 的 <KJDraw 打开和保存图档 editor.open() 与 editor.save() 控制编辑器 fit() 、 setSelection() 、 setTool() 与 setOptions() 响应用户操作 change 、 selectionchange 、 documentchange 与 error 事件 图档与编辑 drawing and editing 创建和编辑直线、多段线、圆、圆弧、椭圆、样条曲线、文字、填充、标注与块等常用二维实体。 通过命令完成移动、旋转、缩放、镜像、偏移、修剪、延伸、打断、圆角、倒角与分解。 使用图层、布局、选择集、夹点、捕捉、交点与几何测量。 将相关修改组成事务，并支持撤销和重做。 默认使用可移植几何能力，并可为适合的任务启用 Rust/WebAssembly 图档、几何与实体模块。 从可编辑的场地总图、建筑平面、道路纵断面与机械制造图开始。 文件与工程 files and projects KJD 保存单张图档，KJP 打包多图档工程及相关资源，DXF 用于连接常见 CAD 交换流程。应用可以使用浏览器文件选择器、取得字节后接入自有存储，也可以连接工程 Provider。 继续阅读 文件与工程 指南，查看可运行示例和各格式说明。 自动化与扩展 automation and extensions 编辑器使用的同一套命令也可供应用代码、插件和经批准的 AI 流程调用。可通过插件增加自定义命令与面板，使用无界面核心进行批处理，或为部署环境注册工程、计算与场景 Provider。 当应用需要了解当前运行时已注册的命令、实体与文件适配器时，可以调用 sdk.capabilities() 。 兼容性说明 compatibility details 各格式的具体覆盖范围与问题复现要求，见持续维护的兼容矩阵和当前状态。请勿在公开 issue 中附加客户私有图纸，应改用可再分发的最小示例。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "capabilities",
+      "title": "完整编辑器体验",
+      "summary": "功能能力",
+      "href": "./capabilities/#zh-capabilities-editor-experience",
+      "text": "完整编辑器体验 editor experience createKJDrawEditor() 会挂载包含画布、Ribbon 工具、命令行、图层、属性、选择、缩放与文件操作的 CAD 工作区。它可以从示例、空白图档或现有 KJDocument 开始。 任务 可用 API 嵌入 JavaScript 或 TypeScript createKJDrawEditor() 使用 React @kanjieteam/kjdraw/react 的 <KJDraw 使用 Vue @kanjieteam/kjdraw/vue 的 <KJDraw 打开和保存图档 editor.open() 与 editor.save() 控制编辑器 fit() 、 setSelection() 、 setTool() 与 setOptions() 响应用户操作 change 、 selectionchange 、 documentchange 与 error 事件 图档与编辑 drawing and editing 创建和编辑直线、多段线、圆、圆弧、椭圆、样条曲线、文字、填充、标注与块等常用二维实体。 通过命令完成移动、旋转、缩放、镜像、偏移、修剪、延伸、打断、圆角、倒角与分解。 使用图层、布局、选择集、夹点、捕捉、交点与几何测量。 将相关修改组成事务，并支持撤销和重做。 默认使用可移植几何能力，并可为适合的任务启用 Rust/WebAssembly 图档、几何与实体模块。 从可编辑的场地总图、建筑平面、道路纵断面与机械制造图开始。 文件与工程 files and projects KJD 保存单张图档，KJP 打包多图档工程及相关资源，DXF 用于连接常见 CAD 交换流程。应用可以使用浏览器文件选择器、取得字节后接入自有存储，也可以连接工程 Provider。 继续阅读 文件与工程 指南，查看可运行示例和各格式说明。 自动化与扩展 automation and extensions 编辑器使用的同一套命令也可供应用代码、插件和经批准的 AI 流程调用。可通过插件增加自定义命令与面板，使用无界面核心进行批处理，或为部署环境注册工程、计算与场景 Provider。 当应用需要了解当前运行时已注册的命令、实体与文件适配器时，可以调用 sdk.capabilities() 。 兼容性说明 compatibility details 各格式的具体覆盖范围与问题复现要求，见持续维护的兼容矩阵和当前状态。请勿在公开 issue 中附加客户私有图纸，应改用可再分发的最小示例。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "capabilities",
+      "title": "图档与编辑",
+      "summary": "功能能力",
+      "href": "./capabilities/#zh-capabilities-drawing-and-editing",
+      "text": "完整编辑器体验 editor experience createKJDrawEditor() 会挂载包含画布、Ribbon 工具、命令行、图层、属性、选择、缩放与文件操作的 CAD 工作区。它可以从示例、空白图档或现有 KJDocument 开始。 任务 可用 API 嵌入 JavaScript 或 TypeScript createKJDrawEditor() 使用 React @kanjieteam/kjdraw/react 的 <KJDraw 使用 Vue @kanjieteam/kjdraw/vue 的 <KJDraw 打开和保存图档 editor.open() 与 editor.save() 控制编辑器 fit() 、 setSelection() 、 setTool() 与 setOptions() 响应用户操作 change 、 selectionchange 、 documentchange 与 error 事件 图档与编辑 drawing and editing 创建和编辑直线、多段线、圆、圆弧、椭圆、样条曲线、文字、填充、标注与块等常用二维实体。 通过命令完成移动、旋转、缩放、镜像、偏移、修剪、延伸、打断、圆角、倒角与分解。 使用图层、布局、选择集、夹点、捕捉、交点与几何测量。 将相关修改组成事务，并支持撤销和重做。 默认使用可移植几何能力，并可为适合的任务启用 Rust/WebAssembly 图档、几何与实体模块。 从可编辑的场地总图、建筑平面、道路纵断面与机械制造图开始。 文件与工程 files and projects KJD 保存单张图档，KJP 打包多图档工程及相关资源，DXF 用于连接常见 CAD 交换流程。应用可以使用浏览器文件选择器、取得字节后接入自有存储，也可以连接工程 Provider。 继续阅读 文件与工程 指南，查看可运行示例和各格式说明。 自动化与扩展 automation and extensions 编辑器使用的同一套命令也可供应用代码、插件和经批准的 AI 流程调用。可通过插件增加自定义命令与面板，使用无界面核心进行批处理，或为部署环境注册工程、计算与场景 Provider。 当应用需要了解当前运行时已注册的命令、实体与文件适配器时，可以调用 sdk.capabilities() 。 兼容性说明 compatibility details 各格式的具体覆盖范围与问题复现要求，见持续维护的兼容矩阵和当前状态。请勿在公开 issue 中附加客户私有图纸，应改用可再分发的最小示例。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "capabilities",
+      "title": "文件与工程",
+      "summary": "功能能力",
+      "href": "./capabilities/#zh-capabilities-files-and-projects",
+      "text": "完整编辑器体验 editor experience createKJDrawEditor() 会挂载包含画布、Ribbon 工具、命令行、图层、属性、选择、缩放与文件操作的 CAD 工作区。它可以从示例、空白图档或现有 KJDocument 开始。 任务 可用 API 嵌入 JavaScript 或 TypeScript createKJDrawEditor() 使用 React @kanjieteam/kjdraw/react 的 <KJDraw 使用 Vue @kanjieteam/kjdraw/vue 的 <KJDraw 打开和保存图档 editor.open() 与 editor.save() 控制编辑器 fit() 、 setSelection() 、 setTool() 与 setOptions() 响应用户操作 change 、 selectionchange 、 documentchange 与 error 事件 图档与编辑 drawing and editing 创建和编辑直线、多段线、圆、圆弧、椭圆、样条曲线、文字、填充、标注与块等常用二维实体。 通过命令完成移动、旋转、缩放、镜像、偏移、修剪、延伸、打断、圆角、倒角与分解。 使用图层、布局、选择集、夹点、捕捉、交点与几何测量。 将相关修改组成事务，并支持撤销和重做。 默认使用可移植几何能力，并可为适合的任务启用 Rust/WebAssembly 图档、几何与实体模块。 从可编辑的场地总图、建筑平面、道路纵断面与机械制造图开始。 文件与工程 files and projects KJD 保存单张图档，KJP 打包多图档工程及相关资源，DXF 用于连接常见 CAD 交换流程。应用可以使用浏览器文件选择器、取得字节后接入自有存储，也可以连接工程 Provider。 继续阅读 文件与工程 指南，查看可运行示例和各格式说明。 自动化与扩展 automation and extensions 编辑器使用的同一套命令也可供应用代码、插件和经批准的 AI 流程调用。可通过插件增加自定义命令与面板，使用无界面核心进行批处理，或为部署环境注册工程、计算与场景 Provider。 当应用需要了解当前运行时已注册的命令、实体与文件适配器时，可以调用 sdk.capabilities() 。 兼容性说明 compatibility details 各格式的具体覆盖范围与问题复现要求，见持续维护的兼容矩阵和当前状态。请勿在公开 issue 中附加客户私有图纸，应改用可再分发的最小示例。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "capabilities",
+      "title": "自动化与扩展",
+      "summary": "功能能力",
+      "href": "./capabilities/#zh-capabilities-automation-and-extensions",
+      "text": "完整编辑器体验 editor experience createKJDrawEditor() 会挂载包含画布、Ribbon 工具、命令行、图层、属性、选择、缩放与文件操作的 CAD 工作区。它可以从示例、空白图档或现有 KJDocument 开始。 任务 可用 API 嵌入 JavaScript 或 TypeScript createKJDrawEditor() 使用 React @kanjieteam/kjdraw/react 的 <KJDraw 使用 Vue @kanjieteam/kjdraw/vue 的 <KJDraw 打开和保存图档 editor.open() 与 editor.save() 控制编辑器 fit() 、 setSelection() 、 setTool() 与 setOptions() 响应用户操作 change 、 selectionchange 、 documentchange 与 error 事件 图档与编辑 drawing and editing 创建和编辑直线、多段线、圆、圆弧、椭圆、样条曲线、文字、填充、标注与块等常用二维实体。 通过命令完成移动、旋转、缩放、镜像、偏移、修剪、延伸、打断、圆角、倒角与分解。 使用图层、布局、选择集、夹点、捕捉、交点与几何测量。 将相关修改组成事务，并支持撤销和重做。 默认使用可移植几何能力，并可为适合的任务启用 Rust/WebAssembly 图档、几何与实体模块。 从可编辑的场地总图、建筑平面、道路纵断面与机械制造图开始。 文件与工程 files and projects KJD 保存单张图档，KJP 打包多图档工程及相关资源，DXF 用于连接常见 CAD 交换流程。应用可以使用浏览器文件选择器、取得字节后接入自有存储，也可以连接工程 Provider。 继续阅读 文件与工程 指南，查看可运行示例和各格式说明。 自动化与扩展 automation and extensions 编辑器使用的同一套命令也可供应用代码、插件和经批准的 AI 流程调用。可通过插件增加自定义命令与面板，使用无界面核心进行批处理，或为部署环境注册工程、计算与场景 Provider。 当应用需要了解当前运行时已注册的命令、实体与文件适配器时，可以调用 sdk.capabilities() 。 兼容性说明 compatibility details 各格式的具体覆盖范围与问题复现要求，见持续维护的兼容矩阵和当前状态。请勿在公开 issue 中附加客户私有图纸，应改用可再分发的最小示例。"
+    },
+    {
+      "locale": "zh",
+      "kind": "section",
+      "page": "capabilities",
+      "title": "兼容性说明",
+      "summary": "功能能力",
+      "href": "./capabilities/#zh-capabilities-compatibility-details",
+      "text": "完整编辑器体验 editor experience createKJDrawEditor() 会挂载包含画布、Ribbon 工具、命令行、图层、属性、选择、缩放与文件操作的 CAD 工作区。它可以从示例、空白图档或现有 KJDocument 开始。 任务 可用 API 嵌入 JavaScript 或 TypeScript createKJDrawEditor() 使用 React @kanjieteam/kjdraw/react 的 <KJDraw 使用 Vue @kanjieteam/kjdraw/vue 的 <KJDraw 打开和保存图档 editor.open() 与 editor.save() 控制编辑器 fit() 、 setSelection() 、 setTool() 与 setOptions() 响应用户操作 change 、 selectionchange 、 documentchange 与 error 事件 图档与编辑 drawing and editing 创建和编辑直线、多段线、圆、圆弧、椭圆、样条曲线、文字、填充、标注与块等常用二维实体。 通过命令完成移动、旋转、缩放、镜像、偏移、修剪、延伸、打断、圆角、倒角与分解。 使用图层、布局、选择集、夹点、捕捉、交点与几何测量。 将相关修改组成事务，并支持撤销和重做。 默认使用可移植几何能力，并可为适合的任务启用 Rust/WebAssembly 图档、几何与实体模块。 从可编辑的场地总图、建筑平面、道路纵断面与机械制造图开始。 文件与工程 files and projects KJD 保存单张图档，KJP 打包多图档工程及相关资源，DXF 用于连接常见 CAD 交换流程。应用可以使用浏览器文件选择器、取得字节后接入自有存储，也可以连接工程 Provider。 继续阅读 文件与工程 指南，查看可运行示例和各格式说明。 自动化与扩展 automation and extensions 编辑器使用的同一套命令也可供应用代码、插件和经批准的 AI 流程调用。可通过插件增加自定义命令与面板，使用无界面核心进行批处理，或为部署环境注册工程、计算与场景 Provider。 当应用需要了解当前运行时已注册的命令、实体与文件适配器时，可以调用 sdk.capabilities() 。 兼容性说明 compatibility details 各格式的具体覆盖范围与问题复现要求，见持续维护的兼容矩阵和当前状态。请勿在公开 issue 中附加客户私有图纸，应改用可再分发的最小示例。"
+    }
+  ]
+}

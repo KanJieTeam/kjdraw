@@ -1,6 +1,6 @@
 # KJDraw 1.0 capability matrix
 
-This matrix maps public promises to executable evidence for `1.0.0-rc.1`; it does not pre-announce a stable release.
+This matrix maps public promises to executable evidence for `1.0.0-rc.2`; it does not pre-announce a stable release.
 
 Status meanings:
 
@@ -54,7 +54,7 @@ Status meanings:
 | Agent review protocol | Exact arguments and full document digest, SHA-256 binding, revision, expiry, reviewer, single consumption, receipt and undo | Gated | [`agent-plans.test.mjs`](../packages/kjdraw-sdk/test/agent-plans.test.mjs), [Agent protocol](agent-protocol.md) |
 | Input budgets | Configurable KJD/DXF/KJP byte, object, tag, entity and archive limits plus abort handling | Gated | [`resource-limits.test.mjs`](../packages/kjdraw-sdk/test/resource-limits.test.mjs), [`file-safety.test.mjs`](../packages/kjdraw-sdk/test/file-safety.test.mjs) |
 | Large-document core budget | Synthetic 10,000-line batch/create/edit/snapshot/KJD/KJP profile with memory ceiling | Gated | [`performance-budgets.json`](performance-budgets.json), [`core-readiness.mjs`](../scripts/benchmarks/core-readiness.mjs) |
-| Versioned Docs/API | Searchable guides and generated API deep links sourced from declarations | Release verification | [`api-docs.test.mjs`](../packages/kjdraw-sdk/test/api-docs.test.mjs), [`build-api-docs.mjs`](../scripts/build-api-docs.mjs) |
+| Versioned Docs/API | Bilingual multi-page guides plus generated API deep links sourced from declarations | Release verification | [`docs-site.test.mjs`](../packages/kjdraw-sdk/test/docs-site.test.mjs), [`api-docs.test.mjs`](../packages/kjdraw-sdk/test/api-docs.test.mjs), [`build-docs-site.mjs`](../scripts/build-docs-site.mjs), [`build-api-docs.mjs`](../scripts/build-api-docs.mjs) |
 | Release supply chain | Pinned Actions, exact-tag package, SBOM, SHA-256 checksums, npm provenance and GitHub artifact attestation | Release verification | [`release.yml`](../.github/workflows/release.yml), [`npm-publish.yml`](../.github/workflows/npm-publish.yml), [`release-artifacts.mjs`](../scripts/release-artifacts.mjs) |
 
 ## Reproduce the gates
@@ -65,6 +65,8 @@ npm run typecheck
 npm test
 node --no-warnings scripts/build-typescript.mjs --check
 node scripts/build-declarations.mjs --check
+node scripts/build-docs-site.mjs --check
+node scripts/build-api-docs.mjs --check
 node scripts/audits/verify-packed-package.mjs
 node scripts/audit-dxf-corpus.mjs
 node scripts/benchmarks/core-readiness.mjs --entities=10000 --assert-budget

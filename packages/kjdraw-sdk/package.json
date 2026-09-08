@@ -1,7 +1,7 @@
 {
   "name": "@kanjieteam/kjdraw",
-  "version": "1.0.0-rc.1",
-  "description": "Extensible CAD documents, transactions, geometry, deployment providers and agent command interfaces",
+  "version": "1.0.0-rc.2",
+  "description": "TypeScript CAD application kit with a browser workbench, file interoperability, plugins and reviewable AI-agent commands",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/KanJieTeam/kjdraw.git",
@@ -34,15 +34,65 @@
     "dxf",
     "engineering",
     "browser-cad",
+    "cad-editor",
+    "canvas-renderer",
     "wasm",
     "geometry",
     "ai-agents"
   ],
   "type": "module",
   "sideEffects": false,
+  "peerDependencies": {
+    "react": ">=18.0.0 <20.0.0",
+    "vue": ">=3.4.0 <4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": { "optional": true },
+    "vue": { "optional": true }
+  },
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
+    "./samples": {
+      "types": "./types/samples.d.ts",
+      "import": "./src/samples.js",
+      "default": "./src/samples.js"
+    },
+    "./editor": {
+      "types": "./types/editor.d.ts",
+      "import": "./src/editor.js",
+      "default": "./src/editor.js"
+    },
+    "./core": {
+      "types": "./types/core.d.ts",
+      "import": "./src/core.js",
+      "default": "./src/core.js"
+    },
+    "./files": {
+      "types": "./types/files.d.ts",
+      "import": "./src/files.js",
+      "default": "./src/files.js"
+    },
+    "./agent": {
+      "types": "./types/agent.d.ts",
+      "import": "./src/agent.js",
+      "default": "./src/agent.js"
+    },
+    "./plugins": {
+      "types": "./types/plugin-contract.d.ts",
+      "import": "./src/plugin-contract.js",
+      "default": "./src/plugin-contract.js"
+    },
+    "./react": {
+      "types": "./types/react.d.ts",
+      "import": "./src/react.js",
+      "default": "./src/react.js"
+    },
+    "./vue": {
+      "types": "./types/vue.d.ts",
+      "import": "./src/vue.js",
+      "default": "./src/vue.js"
+    },
     ".": {
       "types": "./types/index.d.ts",
       "import": "./src/index.js",
@@ -152,6 +202,16 @@
       "types": "./types/snapping.d.ts",
       "import": "./src/snapping.js",
       "default": "./src/snapping.js"
+    },
+    "./renderer/canvas": {
+      "types": "./types/canvas-renderer.d.ts",
+      "import": "./src/canvas-renderer.js",
+      "default": "./src/canvas-renderer.js"
+    },
+    "./workbench": {
+      "types": "./types/workbench.d.ts",
+      "import": "./src/workbench.js",
+      "default": "./src/workbench.js"
     }
   },
   "scripts": {

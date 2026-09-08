@@ -1,0 +1,328 @@
+{
+  "schema": "com.kanjie.kjdraw.docs-site@1",
+  "package": "@kanjieteam/kjdraw",
+  "version": "1.0.0-rc.2",
+  "sourceDigest": "sha256:c98035656802692c3659114e997ca4ce8839dc66ae291b52abc6f3e4b5ed0cde",
+  "locales": [
+    "en",
+    "zh"
+  ],
+  "pages": [
+    {
+      "slug": "introduction",
+      "output": "index.html",
+      "source": "docs/site/pages/introduction.md",
+      "title": {
+        "en": "Introduction",
+        "zh": "简介"
+      },
+      "anchors": {
+        "en": [
+          "en-introduction",
+          "en-introduction-what-it-is",
+          "en-introduction-starting-point",
+          "en-introduction-what-you-can-do"
+        ],
+        "zh": [
+          "zh-introduction",
+          "zh-introduction-what-it-is",
+          "zh-introduction-starting-point",
+          "zh-introduction-what-you-can-do"
+        ]
+      }
+    },
+    {
+      "slug": "quickstart",
+      "output": "quickstart/index.html",
+      "source": "docs/site/pages/quickstart.md",
+      "title": {
+        "en": "Quickstart",
+        "zh": "快速上手"
+      },
+      "anchors": {
+        "en": [
+          "en-quickstart",
+          "en-quickstart-install",
+          "en-quickstart-mount-editor",
+          "en-quickstart-industry-samples",
+          "en-quickstart-multiple-editors"
+        ],
+        "zh": [
+          "zh-quickstart",
+          "zh-quickstart-install",
+          "zh-quickstart-mount-editor",
+          "zh-quickstart-industry-samples",
+          "zh-quickstart-multiple-editors"
+        ]
+      }
+    },
+    {
+      "slug": "installation",
+      "output": "installation/index.html",
+      "source": "docs/site/pages/installation.md",
+      "title": {
+        "en": "Installation",
+        "zh": "安装"
+      },
+      "anchors": {
+        "en": [
+          "en-installation",
+          "en-installation-requirements",
+          "en-installation-release-channels",
+          "en-installation-public-imports"
+        ],
+        "zh": [
+          "zh-installation",
+          "zh-installation-requirements",
+          "zh-installation-release-channels",
+          "zh-installation-public-imports"
+        ]
+      }
+    },
+    {
+      "slug": "architecture",
+      "output": "architecture/index.html",
+      "source": "docs/site/pages/architecture.md",
+      "title": {
+        "en": "Architecture",
+        "zh": "架构"
+      },
+      "anchors": {
+        "en": [
+          "en-architecture",
+          "en-architecture-layer-model",
+          "en-architecture-documents-and-transactions",
+          "en-architecture-typescript-and-rust-authority",
+          "en-architecture-host-responsibilities"
+        ],
+        "zh": [
+          "zh-architecture",
+          "zh-architecture-layer-model",
+          "zh-architecture-documents-and-transactions",
+          "zh-architecture-typescript-and-rust-authority",
+          "zh-architecture-host-responsibilities"
+        ]
+      }
+    },
+    {
+      "slug": "files",
+      "output": "files/index.html",
+      "source": "docs/site/pages/files.md",
+      "title": {
+        "en": "Files and projects",
+        "zh": "文件与工程"
+      },
+      "anchors": {
+        "en": [
+          "en-files",
+          "en-files-choose-a-format",
+          "en-files-read-and-write",
+          "en-files-package-a-project",
+          "en-files-limits-and-dxf-evidence"
+        ],
+        "zh": [
+          "zh-files",
+          "zh-files-choose-a-format",
+          "zh-files-read-and-write",
+          "zh-files-package-a-project",
+          "zh-files-limits-and-dxf-evidence"
+        ]
+      }
+    },
+    {
+      "slug": "commands",
+      "output": "commands/index.html",
+      "source": "docs/site/pages/commands.md",
+      "title": {
+        "en": "Commands and transactions",
+        "zh": "命令与事务"
+      },
+      "anchors": {
+        "en": [
+          "en-commands",
+          "en-commands-execute-a-command",
+          "en-commands-atomicity-and-rollback",
+          "en-commands-command-envelopes",
+          "en-commands-observe-changes"
+        ],
+        "zh": [
+          "zh-commands",
+          "zh-commands-execute-a-command",
+          "zh-commands-atomicity-and-rollback",
+          "zh-commands-command-envelopes",
+          "zh-commands-observe-changes"
+        ]
+      }
+    },
+    {
+      "slug": "react",
+      "output": "react/index.html",
+      "source": "docs/site/pages/react.md",
+      "title": {
+        "en": "React integration",
+        "zh": "React 集成"
+      },
+      "anchors": {
+        "en": [
+          "en-react",
+          "en-react-editor-component",
+          "en-react-minimal-hook",
+          "en-react-lifecycle-rules",
+          "en-react-rendering"
+        ],
+        "zh": [
+          "zh-react",
+          "zh-react-editor-component",
+          "zh-react-minimal-hook",
+          "zh-react-lifecycle-rules",
+          "zh-react-rendering"
+        ]
+      }
+    },
+    {
+      "slug": "vue",
+      "output": "vue/index.html",
+      "source": "docs/site/pages/vue.md",
+      "title": {
+        "en": "Vue integration",
+        "zh": "Vue 集成"
+      },
+      "anchors": {
+        "en": [
+          "en-vue",
+          "en-vue-editor-component",
+          "en-vue-minimal-composable",
+          "en-vue-reactivity-rules",
+          "en-vue-share-an-editor-scope"
+        ],
+        "zh": [
+          "zh-vue",
+          "zh-vue-editor-component",
+          "zh-vue-minimal-composable",
+          "zh-vue-reactivity-rules",
+          "zh-vue-share-an-editor-scope"
+        ]
+      }
+    },
+    {
+      "slug": "agent",
+      "output": "agent/index.html",
+      "source": "docs/site/pages/agent.md",
+      "title": {
+        "en": "Agent workflows",
+        "zh": "Agent 工作流"
+      },
+      "anchors": {
+        "en": [
+          "en-agent",
+          "en-agent-review-before-mutation",
+          "en-agent-plan-and-execute",
+          "en-agent-fail-closed-cases",
+          "en-agent-security-boundary"
+        ],
+        "zh": [
+          "zh-agent",
+          "zh-agent-review-before-mutation",
+          "zh-agent-plan-and-execute",
+          "zh-agent-fail-closed-cases",
+          "zh-agent-security-boundary"
+        ]
+      }
+    },
+    {
+      "slug": "plugins",
+      "output": "plugins/index.html",
+      "source": "docs/site/pages/plugins.md",
+      "title": {
+        "en": "Plugins",
+        "zh": "插件"
+      },
+      "anchors": {
+        "en": [
+          "en-plugins",
+          "en-plugins-declare-the-contract",
+          "en-plugins-activate-through-a-scope",
+          "en-plugins-extension-points",
+          "en-plugins-security-boundary"
+        ],
+        "zh": [
+          "zh-plugins",
+          "zh-plugins-declare-the-contract",
+          "zh-plugins-activate-through-a-scope",
+          "zh-plugins-extension-points",
+          "zh-plugins-security-boundary"
+        ]
+      }
+    },
+    {
+      "slug": "deployment",
+      "output": "deployment/index.html",
+      "source": "docs/site/pages/deployment.md",
+      "title": {
+        "en": "Deployment",
+        "zh": "部署"
+      },
+      "anchors": {
+        "en": [
+          "en-deployment",
+          "en-deployment-supported-profiles",
+          "en-deployment-register-a-provider",
+          "en-deployment-provider-families",
+          "en-deployment-connect-your-application"
+        ],
+        "zh": [
+          "zh-deployment",
+          "zh-deployment-supported-profiles",
+          "zh-deployment-register-a-provider",
+          "zh-deployment-provider-families",
+          "zh-deployment-connect-your-application"
+        ]
+      }
+    },
+    {
+      "slug": "capabilities",
+      "output": "capabilities/index.html",
+      "source": "docs/site/pages/capabilities.md",
+      "title": {
+        "en": "Capabilities",
+        "zh": "功能能力"
+      },
+      "anchors": {
+        "en": [
+          "en-capabilities",
+          "en-capabilities-editor-experience",
+          "en-capabilities-drawing-and-editing",
+          "en-capabilities-files-and-projects",
+          "en-capabilities-automation-and-extensions",
+          "en-capabilities-compatibility-details"
+        ],
+        "zh": [
+          "zh-capabilities",
+          "zh-capabilities-editor-experience",
+          "zh-capabilities-drawing-and-editing",
+          "zh-capabilities-files-and-projects",
+          "zh-capabilities-automation-and-extensions",
+          "zh-capabilities-compatibility-details"
+        ]
+      }
+    }
+  ],
+  "outputs": [
+    "agent/index.html",
+    "app.js",
+    "architecture/index.html",
+    "capabilities/index.html",
+    "commands/index.html",
+    "deployment/index.html",
+    "files/index.html",
+    "index.html",
+    "installation/index.html",
+    "plugins/index.html",
+    "quickstart/index.html",
+    "react/index.html",
+    "search-index.json",
+    "site-manifest.json",
+    "style.css",
+    "vue/index.html"
+  ]
+}

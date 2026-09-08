@@ -14,7 +14,7 @@ body:
     id: version
     attributes:
       label: Format and KJDraw versions
-      placeholder: "DXF 2018 / @kanjieteam/kjdraw 1.0.0-rc.1"
+      placeholder: "DXF 2018 / @kanjieteam/kjdraw 1.0.0-rc.2"
     validations:
       required: true
   - type: textarea

@@ -24,11 +24,14 @@ test('2,294-entity Agent launch journey is deterministic and reversible', async 
   await page.goto('/')
   if ((await page.locator('html').getAttribute('lang'))?.startsWith('zh')) await page.locator('#language').click()
 
+  await expect(page.locator('#sample-select')).toHaveValue('sample-site-plan')
+  await page.locator('#sample-select').selectOption('sample-resilient-campus')
   await expect(page.locator('#entity-count')).toHaveText('2,294 entities')
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
   await expect(page.locator('#inspector')).toContainText('Rust / WASM')
   await expect(page.locator('#undo')).toBeDisabled()
 
+  await page.locator('#agent-tab').click()
   await page.locator('#plan').click()
   await expect(page.locator('#plan-state')).toContainText('NO MUTATION')
   await expect(page.locator('#plan-steps')).toContainText('MOVE 33')
@@ -67,11 +70,56 @@ test('2,294-entity Agent launch journey is deterministic and reversible', async 
   expect(problems.external).toEqual([])
 })
 
+test('industry sample library switches complete drawings and keeps CAD panels separate', async ({ page }) => {
+  const problems = observe(page)
+  await page.goto('/')
+  if ((await page.locator('html').getAttribute('lang'))?.startsWith('zh')) await page.locator('#language').click()
+
+  await expect(page.locator('#sample-select option')).toHaveCount(5)
+  await expect(page.locator('#sample-select')).toHaveValue('sample-site-plan')
+  await expect(page.locator('#drawing-discipline')).toContainText('CIVIL')
+  await expect(page.locator('#layers .layer')).toHaveCount(11)
+  await expect(page.locator('.toolbar')).toHaveCount(0)
+
+  for (const [id, discipline, layerCount] of [
+    ['sample-architecture', 'ARCHITECTURE', 11],
+    ['sample-road-profile', 'TRANSPORTATION', 10],
+    ['sample-mechanical', 'MECHANICAL', 9],
+  ]) {
+    await page.locator('#sample-select').selectOption(id)
+    await expect(page.locator('#drawing-discipline')).toContainText(discipline)
+    await expect(page.locator('#layers .layer')).toHaveCount(layerCount)
+    await expect(page.locator('#entity-count')).not.toHaveText('0 entities')
+  }
+
+  await expect(page.locator('[data-panel-view="properties"]')).toBeVisible()
+  await expect(page.locator('[data-panel-view="agent"]')).toBeHidden()
+  await page.locator('#agent-tab').click()
+  await expect(page.locator('[data-panel-view="properties"]')).toBeHidden()
+  await expect(page.locator('[data-panel-view="agent"]')).toBeVisible()
+  await expect(page.locator('#plan')).toBeDisabled()
+
+  await page.locator('#toggle-layers').click()
+  await expect(page.locator('.left-panel')).toBeVisible()
+  await page.locator('#close-layers').click()
+  await expect(page.locator('.left-panel')).toBeHidden()
+
+  expect(problems.dialogs).toEqual([])
+  expect(problems.page).toEqual([])
+  expect(problems.console).toEqual([])
+  expect(problems.external).toEqual([])
+})
+
 test('workbench remains usable at a narrow viewport with accessible dialogs', async ({ page }) => {
   const problems = observe(page)
-  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setViewportSize({ width: 1024, height: 768 })
   await page.goto('/')
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await expect(page.locator('.right-panel')).toBeHidden()
+  await expect(page.locator('.left-panel')).toBeHidden()
 
   const namedButtons = await page.locator('button:visible').evaluateAll(buttons => buttons.map(button => ({
     id: button.id,

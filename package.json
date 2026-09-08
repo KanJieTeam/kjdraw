@@ -1,8 +1,8 @@
 {
   "name": "kjdraw",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0-rc.2",
   "private": true,
-  "description": "Extensible CAD infrastructure for engineering applications and AI agents",
+  "description": "TypeScript CAD application kit with a browser workbench, file interoperability, plugins and reviewable AI-agent commands",
   "type": "module",
   "license": "Apache-2.0",
   "engines": {
@@ -18,8 +18,8 @@
     "build:runtime": "node --no-warnings scripts/build-typescript.mjs",
     "build:examples": "node --no-warnings scripts/build-plugin-starter.mjs",
     "build:types": "node scripts/build-declarations.mjs",
-    "build:docs": "node scripts/build-api-docs.mjs",
-    "build": "node --no-warnings scripts/build-typescript.mjs && node scripts/build-declarations.mjs && node scripts/build-api-docs.mjs && node scripts/build.mjs",
+    "build:docs": "node scripts/build-docs-site.mjs && node scripts/build-api-docs.mjs",
+    "build": "node --no-warnings scripts/build-typescript.mjs && node scripts/build-declarations.mjs && node scripts/build-docs-site.mjs && node scripts/build-api-docs.mjs && node scripts/build.mjs",
     "build:wasm": "node scripts/build-wasm.mjs",
     "release:version": "node scripts/set-version.mjs",
     "example": "node examples/agent-command.mjs",
@@ -29,6 +29,12 @@
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
-    "typescript": "7.0.2"
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "esbuild": "0.25.12",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "typescript": "7.0.2",
+    "vue": "3.5.42"
   }
 }

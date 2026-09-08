@@ -1,27 +1,31 @@
-# API reference
+# API documentation
 
-The published [API reference](https://kanjieteam.github.io/kjdraw/docs/latest/api/) is generated from the exact TypeScript declaration files shipped by `@kanjieteam/kjdraw`. It is not a manually maintained list of selected APIs.
+The documentation has two API layers:
 
-The reference includes the root package entry and every public subpath in `packages/kjdraw-sdk/package.json#exports`. Every exported symbol has a stable fragment identifier, and both the guide search and the API search include the generated symbol index. The page records the package version and a SHA-256 digest of its declaration inputs so a rendered reference can be tied back to its source.
+- [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/) is the recommended application entry. It explains `createKJDrawEditor()`, options, properties, methods, events, and the React/Vue components with complete short examples.
+- [Complete TypeScript reference](https://kanjieteam.github.io/kjdraw/docs/latest/api/reference/) contains the declaration for every root and subpath export. Every symbol has a stable, searchable deep link.
+
+The Editor API content is maintained in `docs/site/api/editor-api.json`. The generator verifies its documented options, methods, properties, and events against `packages/kjdraw-sdk/types/editor.d.ts`, so an API rename cannot silently leave the guide behind. The complete reference and search index are generated directly from the declarations shipped in the package.
 
 ## Update the reference
 
-Run the declaration generator first, then generate the site:
+Run the declaration generator first, then generate the guide portal and API reference:
 
 ```sh
 npm run build:types
 npm run build:docs
 ```
 
-The generated files live under `docs/latest/api/`. Do not edit them directly. CI runs both generators in check mode and fails if a declaration, package export, deep link or search entry has drifted:
+The hand-edited guide source lives under `docs/site/`; the complete portal is generated into `docs/latest/`. Do not edit the generated destination directly. CI runs all generators in check mode and fails if a guide route, translation, Editor API row, package export, deep link, or search entry has drifted:
 
 ```sh
 node scripts/build-declarations.mjs --check
+node scripts/build-docs-site.mjs --check
 node scripts/build-api-docs.mjs --check
 ```
 
-`docs/latest/` always documents the package version recorded in the repository. A release tag freezes that exact source, declaration digest and documentation output; `latest` advances only when a newer release is promoted. This keeps links stable while making version provenance visible on every API page.
+Old declaration links in the form `/api/#symbol-anchor` redirect to `/api/reference/#symbol-anchor`. New links should use the canonical `/api/reference/` route.
 
 ## 添加或删除公共 API
 
-公共 API 以 TypeScript 源码及 `package.json#exports` 为准。修改源码后依次运行 `npm run build:types` 与 `npm run build:docs`；不要直接编辑生成的 API 页面。每个导出都会生成可复制的声明、稳定锚点和搜索索引，CI 会阻止遗漏或过期页面进入发布分支。
+推荐入口的内容源是 `docs/site/api/editor-api.json`，完整 API 则以 TypeScript 源码及 `package.json#exports` 为准。修改后依次运行 `npm run build:types` 与 `npm run build:docs`；不要直接编辑 `docs/latest/` 生成产物。每个 Editor API 条目、指南标题和包导出都有稳定锚点并进入搜索索引，CI 会阻止遗漏或过期页面进入发布分支。

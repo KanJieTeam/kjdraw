@@ -1,3 +1,4 @@
+export * from './editor.js';
 export * from './commands.js';
 export * from './agent-plans.js';
 export * from './capabilities.js';

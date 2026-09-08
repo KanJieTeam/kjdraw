@@ -1,6 +1,6 @@
 {
   "schema": "com.kanjie.kjdraw.acceptance-matrix@2",
-  "release": "1.0.0-rc.1",
+  "release": "1.0.0-rc.2",
   "target": "1.0.0",
   "evaluatedAt": "2026-09-08",
   "note": "A requiredForStable gate must pass on the exact release-candidate commit before stable promotion. Repository-owned gates may pass locally; hosted browser, live deployment and release-provenance gates remain partial until their external run succeeds.",
@@ -164,6 +164,8 @@
         "fixtures/consumer-types/vanilla.ts",
         "fixtures/consumer-types/react.tsx",
         "fixtures/consumer-types/vue.ts",
+        "tests/browser/frameworks.spec.mjs",
+        "tests/browser/editor.spec.mjs",
         "scripts/audits/verify-packed-package.mjs",
         "packages/kjdraw-sdk/test/packed-package.test.mjs"
       ]
@@ -179,9 +181,11 @@
         "apps/playground/agent-showcase.js",
         "packages/kjdraw-sdk/test/playground-experience.test.mjs",
         "tests/browser/launch-journey.spec.mjs",
+        "tests/browser/editor.spec.mjs",
+        "tests/browser/workbench.spec.mjs",
         "playwright.config.mjs"
       ],
-      "gap": "The launch journey passes locally in Chromium. Chromium, Firefox and WebKit must all pass in hosted CI on the exact candidate commit."
+      "gap": "Acceptance journeys pass locally in Chromium, Firefox and WebKit. All three must also pass in hosted CI on the exact candidate commit."
     },
     {
       "id": "public.documentation",
@@ -189,10 +193,17 @@
       "verifyOnCandidate": true,
       "status": "partial",
       "evidence": [
+        "docs/site/navigation.json",
+        "docs/site/pages/introduction.md",
         "docs/latest/index.html",
+        "docs/latest/site-manifest.json",
+        "docs/latest/search-index.json",
         "docs/latest/app.js",
         "docs/latest/api/api-reference.json",
+        "scripts/build-docs-site.mjs",
         "scripts/build-api-docs.mjs",
+        "packages/kjdraw-sdk/test/docs-site.test.mjs",
+        "tests/browser/docs.spec.mjs",
         "packages/kjdraw-sdk/test/api-docs.test.mjs"
       ],
       "gap": "Generated API coverage, search and deep-link tests exist locally; the versioned hosted Docs and Demo must be verified from the candidate commit."
@@ -238,7 +249,9 @@
       "status": "passed",
       "evidence": [
         "examples/sample.js",
-        "packages/kjdraw-sdk/test/sample-projects.test.mjs"
+        "packages/kjdraw-sdk/src/samples.ts",
+        "packages/kjdraw-sdk/test/sample-projects.test.mjs",
+        "packages/kjdraw-sdk/test/samples.test.mjs"
       ]
     },
     {
