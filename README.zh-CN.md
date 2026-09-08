@@ -49,10 +49,10 @@ AI Agent ─┘                       │
 
 ## 60 秒开始
 
-安装已发布的包：
+安装与以下示例匹配的候选版本：
 
 ```sh
-npm install @kanjieteam/kjdraw
+npm install @kanjieteam/kjdraw@1.0.0-rc.2
 ```
 
 下面的示例面向本分支即将发布的 1.0 编辑器 API。候选版发布前，请使用仓库源码体验这些新入口。

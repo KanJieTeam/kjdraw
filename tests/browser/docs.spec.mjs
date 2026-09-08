@@ -36,6 +36,16 @@ test('Editor API switches languages, searches the complete reference and preserv
 
 test('390px guides keep search and React-to-Vue navigation inside the viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
+  let releaseApiIndex
+  let markApiIndexRequested
+  const apiIndexGate = new Promise(resolve => { releaseApiIndex = resolve })
+  const apiIndexRequested = new Promise(resolve => { markApiIndexRequested = resolve })
+  await page.route('**/docs/latest/api/search-index.json*', async route => {
+    markApiIndexRequested()
+    const response = await route.fetch()
+    await apiIndexGate
+    await route.fulfill({ response })
+  })
 
   const expectNoPageOverflow = async () => {
     const dimensions = await page.evaluate(() => ({
@@ -55,6 +65,8 @@ test('390px guides keep search and React-to-Vue navigation inside the viewport',
   await page.locator('#search-button').click()
   await expect(page.locator('#search-dialog')).toBeVisible()
   await page.locator('#search').fill('KJDrawEditor')
+  await apiIndexRequested
+  releaseApiIndex()
   await expect(page.locator('#results a[href*="/api/reference/#editor-class-kjdraweditor"]')).toBeVisible()
   await expectNoPageOverflow()
   await page.keyboard.press('Escape')
@@ -74,4 +86,17 @@ test('390px guides keep search and React-to-Vue navigation inside the viewport',
   await expect(page.locator('article.lang-zh h1')).toHaveText('Vue 集成')
   await expect(page.locator('#zh-vue-editor-component')).toBeVisible()
   await expectNoPageOverflow()
+})
+
+test('guide search remains usable when the API index is temporarily unavailable', async ({ page }) => {
+  let apiAttempts = 0
+  await page.route('**/docs/latest/api/search-index.json*', route => {
+    apiAttempts += 1
+    return route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"retry"}' })
+  })
+  await page.goto('/docs/latest/react/')
+  await page.locator('#search-button').click()
+  await page.locator('#search').fill('React integration')
+  await expect(page.locator('#results a[href$="/react/#en-react"]')).toBeVisible()
+  await expect.poll(() => apiAttempts).toBe(2)
 })

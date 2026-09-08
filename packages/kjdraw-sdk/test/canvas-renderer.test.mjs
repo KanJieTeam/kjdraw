@@ -96,6 +96,30 @@ test('Canvas renderer keeps world/screen transforms, navigation and hit testing 
   renderer.dispose()
 })
 
+test('Canvas renderer refits responsive viewports until the user navigates manually', async () => {
+  const sdk = createKJDrawSDK()
+  const document = sdk.createDocument({ documentId: 'canvas-responsive-fit' })
+  await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0, 0], end: [100, 0] } })
+  const { canvas } = mockCanvas(800, 500)
+  const renderer = new KJCanvasRenderer(canvas, { document, pixelRatio: 1, grid: false }).fit()
+
+  assert.equal(renderer.camera.scale, 7.04)
+  renderer.resize(500, 500)
+  assert.equal(renderer.camera.scale, 4.04, 'a fitted drawing adapts when panels reduce the canvas width')
+
+  renderer.zoomAt(0.5, [250, 250])
+  const zoomed = { ...renderer.camera }
+  renderer.resize(700, 500)
+  assert.deepEqual(renderer.camera, zoomed, 'manual zoom is preserved across subsequent layout changes')
+
+  renderer.fit()
+  renderer.camera.centerX += 10
+  const externallyPositioned = { ...renderer.camera }
+  renderer.resize(600, 500)
+  assert.deepEqual(renderer.camera, externallyPositioned, 'direct camera navigation also leaves responsive fit mode')
+  renderer.dispose()
+})
+
 test('Canvas renderer reacts to document commits and keeps ACI colors deterministic', async () => {
   assert.equal(aciColor(1, 'dark'), '#ff0000')
   assert.equal(aciColor(7, 'light'), '#111111')

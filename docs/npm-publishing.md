@@ -5,7 +5,7 @@ The public SDK package is `@kanjieteam/kjdraw`. Release candidates are published
 ## Install and try it
 
 ```sh
-npm install @kanjieteam/kjdraw
+npm install @kanjieteam/kjdraw@1.0.0-rc.2
 ```
 
 The npm package page and repository badge are the source of truth for the currently published version. The `1.0.0-rc.2` editor API in this checkout has not been published yet. Until that candidate is available, build this repository and install the local package into a test application:
@@ -29,6 +29,8 @@ import { createKJDrawEditor } from '@kanjieteam/kjdraw/editor'
 KJDraw's release workflows are prepared for [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) with GitHub Actions OIDC. This is the preferred route: it creates short-lived credentials for one verified workflow run and publishes with npm provenance, without storing a long-lived npm token in the repository.
 
 In the npm package settings for `@kanjieteam/kjdraw`, add a GitHub Actions trusted publisher with the exact GitHub organization, repository and workflow filename. The normal release path calls the reusable npm workflow from `.github/workflows/release.yml`, so the trusted publisher must match `release.yml`—npm validates the calling workflow for a `workflow_call` publication.
+
+This workflow uses direct `npm publish`, so enable that action in the trusted publisher's **Allowed actions**. A connection that allows only `npm stage publish` cannot complete this workflow. Use organization `KanJieTeam`, repository `kjdraw`, workflow filename `release.yml`, and leave Environment name empty unless the workflow is changed to declare one.
 
 The standalone `.github/workflows/npm-publish.yml` workflow is also manually dispatchable. A standalone run has a different workflow identity, so add a second trusted-publisher connection that matches `npm-publish.yml` before using that path. If the npm package is configured only for `release.yml`, use the normal release workflow instead of the standalone dispatch. Keep the workflow filenames stable after configuring npm.
 
@@ -58,3 +60,5 @@ node scripts/audits/verify-live-site.mjs https://kanjieteam.github.io/kjdraw/
 ```
 
 The check compares deployed SDK, workbench, documentation and GIF assets with the checkout, then exercises sample drawings, layers, Agent review/save-reopen/undo, API links, guide search and the language switch. It saves screenshots under `.cache/live-site/`. Set `KJDRAW_CHROME_PATH` to use an existing Chrome executable instead of installing Chromium.
+
+If your network requires an existing proxy, set `KJDRAW_HTTP_PROXY` to its URL for this verification run. This affects only the audit browser and does not change system or Git proxy settings.

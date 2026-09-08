@@ -214,6 +214,7 @@ export class KJCanvasRenderer {
   #sceneProvider: KJCanvasSceneProvider | null
   #width = 1
   #height = 1
+  #fittedCamera: KJCanvasCamera | null = null
   #disposeDocument: (() => void) | null = null
   #observer: ResizeObserver | null = null
   #report: KJCanvasRenderReport = Object.freeze({ total: 0, rendered: 0, approximated: 0, hidden: 0, unsupported: 0, approximateTypes: Object.freeze([]), unsupportedTypes: Object.freeze([]), width: 1, height: 1, scale: 4 })
@@ -265,6 +266,10 @@ export class KJCanvasRenderer {
   setSceneProvider(provider: KJCanvasSceneProvider | null): this { this.#sceneProvider = provider; this.render(); return this }
 
   resize(width?: number, height?: number): this {
+    const keepFitted = this.#fittedCamera !== null
+      && this.camera.centerX === this.#fittedCamera.centerX
+      && this.camera.centerY === this.#fittedCamera.centerY
+      && this.camera.scale === this.#fittedCamera.scale
     const rect = this.canvas.getBoundingClientRect()
     this.#width = Math.max(1, finite(width, rect.width || this.canvas.clientWidth || 1))
     this.#height = Math.max(1, finite(height, rect.height || this.canvas.clientHeight || 1))
@@ -273,6 +278,8 @@ export class KJCanvasRenderer {
     const targetHeight = Math.max(1, Math.round(this.#height * ratio))
     if (this.canvas.width !== targetWidth) this.canvas.width = targetWidth
     if (this.canvas.height !== targetHeight) this.canvas.height = targetHeight
+    if (keepFitted && this.#document) return this.fit()
+    if (!keepFitted) this.#fittedCamera = null
     this.render()
     return this
   }
@@ -292,6 +299,7 @@ export class KJCanvasRenderer {
   }
 
   panBy(screenDx: number, screenDy: number): this {
+    this.#fittedCamera = null
     this.camera.centerX -= finite(screenDx) / this.camera.scale
     this.camera.centerY += finite(screenDy) / this.camera.scale
     this.render()
@@ -299,6 +307,7 @@ export class KJCanvasRenderer {
   }
 
   zoomAt(factor: number, screenPoint: Point2 = [this.#width / 2, this.#height / 2]): this {
+    this.#fittedCamera = null
     const before = this.screenToWorld(screenPoint)
     this.camera.scale = Math.min(1e7, Math.max(1e-7, this.camera.scale * Math.max(0.01, finite(factor, 1))))
     const after = this.screenToWorld(screenPoint)
@@ -322,6 +331,7 @@ export class KJCanvasRenderer {
       this.camera.centerX = 50
       this.camera.centerY = 40
       this.camera.scale = 4
+      this.#fittedCamera = { ...this.camera }
       return this.render(), this
     }
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
@@ -332,6 +342,7 @@ export class KJCanvasRenderer {
       Math.max(1, this.#width - this.#padding * 2) / Math.max(1e-9, maxX - minX),
       Math.max(1, this.#height - this.#padding * 2) / Math.max(1e-9, maxY - minY),
     ))
+    this.#fittedCamera = { ...this.camera }
     this.render()
     return this
   }

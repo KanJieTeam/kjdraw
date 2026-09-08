@@ -12,7 +12,7 @@ summary.zh: 根据应用形态与发布策略选择正确的 npm 渠道、运行
 - A modern browser with ES modules, Canvas 2D, WebAssembly and Web Crypto for browser products.
 - npm, pnpm or another package manager that understands package exports.
 
-KJDraw has no runtime npm dependencies. React and Vue are examples for consumers, not peer dependencies of the core.
+KJDraw's core has no runtime npm dependencies. React and Vue are optional peer dependencies: install the framework your application uses when importing `/react` or `/vue`. Headless and plain TypeScript applications do not need either framework.
 
 ## Release channels {#release-channels}
 
@@ -44,7 +44,7 @@ Every declared package export appears in the generated API reference and is veri
 - 浏览器产品需要支持 ES Modules、Canvas 2D、WebAssembly 与 Web Crypto 的现代浏览器。
 - npm、pnpm 或其他能够解析 package exports 的包管理器。
 
-KJDraw 的 npm 运行时依赖为零。React、Vue 是消费端示例，不是核心包的 peer dependency。
+KJDraw 核心的 npm 运行时依赖为零。React、Vue 是可选 peer dependency：导入 `/react` 或 `/vue` 时，安装应用所用的框架即可。无界面程序和原生 TypeScript 应用无需安装这两个框架。
 
 ## 发布渠道 {#release-channels}
 

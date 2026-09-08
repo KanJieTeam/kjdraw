@@ -9,7 +9,7 @@ summary.zh: 安装 KJDraw，几分钟内挂载完整编辑器，并打开一张�
 ## Install {#install}
 
 ```sh
-npm install @kanjieteam/kjdraw
+npm install @kanjieteam/kjdraw@1.0.0-rc.2
 ```
 
 ## Mount a complete editor {#mount-editor}
@@ -72,7 +72,7 @@ Continue to **React** or **Vue** for framework components, **Files** for KJD/KJP
 ## 安装 {#install}
 
 ```sh
-npm install @kanjieteam/kjdraw
+npm install @kanjieteam/kjdraw@1.0.0-rc.2
 ```
 
 ## 挂载完整编辑器 {#mount-editor}

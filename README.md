@@ -49,10 +49,10 @@ Build the interface your users need while sharing drawing data, commands and und
 
 ## Start in 60 seconds
 
-Install the published package:
+Install the candidate matching these examples:
 
 ```sh
-npm install @kanjieteam/kjdraw
+npm install @kanjieteam/kjdraw@1.0.0-rc.2
 ```
 
 The examples below target the upcoming 1.0 editor API in this branch. Until this candidate is published, use the repository checkout to try these new entry points.

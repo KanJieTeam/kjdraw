@@ -16,6 +16,7 @@ const pkg = JSON.parse(await readFile(new URL('package.json', root), 'utf8'))
 const browser = await chromium.launch({
   headless: true,
   ...(process.env.KJDRAW_CHROME_PATH ? { executablePath: process.env.KJDRAW_CHROME_PATH } : {}),
+  ...(process.env.KJDRAW_HTTP_PROXY ? { proxy: { server: process.env.KJDRAW_HTTP_PROXY } } : {}),
 })
 const checks = []
 try {
@@ -25,7 +26,8 @@ try {
     'apps/playground/app.js', 'apps/playground/classic.css',
     'packages/kjdraw-sdk/src/editor.js', 'packages/kjdraw-sdk/src/workbench.js',
     'packages/kjdraw-sdk/src/canvas-renderer.js', 'packages/kjdraw-sdk/src/samples.js',
-    'docs/latest/site-manifest.json', 'docs/latest/app.js',
+    'docs/latest/site-manifest.json', 'docs/latest/app.js', 'docs/latest/search-index.json',
+    'docs/latest/api/search-index.json',
     'docs/latest/api/editor-api.json', 'docs/latest/api/app.js',
     'docs/media/kjdraw-workflow.gif', 'docs/media/kjdraw-workflow-zh.gif',
   ]) {

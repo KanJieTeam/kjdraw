@@ -25,6 +25,7 @@ test('generated documentation portal covers the complete bilingual learning path
   assert.match(manifest.sourceDigest, /^sha256:[a-f0-9]{64}$/)
   assert.deepEqual(new Set(manifest.pages.map(page => page.slug)), new Set(required))
   assert.deepEqual(manifest.locales, ['en', 'zh'])
+  const assetRevision = manifest.sourceDigest.slice('sha256:'.length, 'sha256:'.length + 16)
 
   const htmlByPage = new Map()
   for (const page of manifest.pages) {
@@ -37,6 +38,8 @@ test('generated documentation portal covers the complete bilingual learning path
     assert.match(html, /class="lang-en"/)
     assert.match(html, /class="lang-zh"/)
     assert.match(html, /api\//)
+    assert.match(html, new RegExp(`style\\.css\\?v=${assetRevision}`))
+    assert.match(html, new RegExp(`app\\.js\\?v=${assetRevision}`))
     for (const locale of manifest.locales) {
       assert.ok(page.anchors[locale].length >= 2, `${page.slug}/${locale} must expose deep links`)
       for (const anchor of page.anchors[locale]) assert.match(html, new RegExp(`id=["']${anchor}["']`))
@@ -60,6 +63,10 @@ test('generated documentation portal covers the complete bilingual learning path
   assert.match(app, /search-index\.json/)
   assert.match(app, /api\/search-index\.json/)
   assert.match(app, /kjdraw\.docs\.language/)
+  assert.match(app, /fetchSearchEntries/)
+  assert.match(app, /cache:'no-store'/)
+  assert.match(app, /finishIndex\(\).*renderSearch\(\)/)
+  assert.doesNotMatch(app, /Promise\.all\(\[/)
   assert.doesNotMatch(app, /Guides and 784/)
 })
 

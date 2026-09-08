@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/installation/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css">
+  <link rel="stylesheet" href="../style.css?v=d155241f8396db1e">
   <title>Installation · KJDraw Docs</title>
 </head>
 <body>
@@ -68,7 +68,7 @@
 <li>A modern browser with ES modules, Canvas 2D, WebAssembly and Web Crypto for browser products.</li>
 <li>npm, pnpm or another package manager that understands package exports.</li>
 </ul>
-<p>KJDraw has no runtime npm dependencies. React and Vue are examples for consumers, not peer dependencies of the core.</p>
+<p>KJDraw&#39;s core has no runtime npm dependencies. React and Vue are optional peer dependencies: install the framework your application uses when importing <code>/react</code> or <code>/vue</code>. Headless and plain TypeScript applications do not need either framework.</p>
 <h2 id="en-installation-release-channels">Release channels<a class="heading-anchor" href="#en-installation-release-channels" aria-label="Link to Release channels">#</a></h2>
 <div class="table-wrap"><table><thead><tr><th>Intent</th><th>Command</th></tr></thead><tbody><tr><td>Evaluate the current RC</td><td><code>npm install @kanjieteam/kjdraw@next</code></td></tr><tr><td>Reproduce RC2 exactly</td><td><code>npm install @kanjieteam/kjdraw@1.0.0-rc.2</code></td></tr><tr><td>Install stable after promotion</td><td><code>npm install @kanjieteam/kjdraw</code></td></tr><tr><td>Work from a checkout</td><td><code>npm install /path/to/kjdraw/packages/kjdraw-sdk</code></td></tr></tbody></table></div>
 <p>Do not assume npm <code>latest</code> points to a release candidate. Prereleases are intentionally published under <code>next</code>.</p>
@@ -89,7 +89,7 @@ import { KJDeploymentRegistry } from &#39;@kanjieteam/kjdraw/deployment&#39;</co
 <li>浏览器产品需要支持 ES Modules、Canvas 2D、WebAssembly 与 Web Crypto 的现代浏览器。</li>
 <li>npm、pnpm 或其他能够解析 package exports 的包管理器。</li>
 </ul>
-<p>KJDraw 的 npm 运行时依赖为零。React、Vue 是消费端示例，不是核心包的 peer dependency。</p>
+<p>KJDraw 核心的 npm 运行时依赖为零。React、Vue 是可选 peer dependency：导入 <code>/react</code> 或 <code>/vue</code> 时，安装应用所用的框架即可。无界面程序和原生 TypeScript 应用无需安装这两个框架。</p>
 <h2 id="zh-installation-release-channels">发布渠道<a class="heading-anchor" href="#zh-installation-release-channels" aria-label="Link to 发布渠道">#</a></h2>
 <div class="table-wrap"><table><thead><tr><th>目标</th><th>命令</th></tr></thead><tbody><tr><td>评估当前候选版</td><td><code>npm install @kanjieteam/kjdraw@next</code></td></tr><tr><td>精确复现 RC2</td><td><code>npm install @kanjieteam/kjdraw@1.0.0-rc.2</code></td></tr><tr><td>稳定版晋级后安装</td><td><code>npm install @kanjieteam/kjdraw</code></td></tr><tr><td>从本地 checkout 使用</td><td><code>npm install /path/to/kjdraw/packages/kjdraw-sdk</code></td></tr></tbody></table></div>
 <p>不要假设 npm <code>latest</code> 会指向候选版。预发布版本会刻意发布到 <code>next</code>。</p>
@@ -106,6 +106,6 @@ import { KJDeploymentRegistry } from &#39;@kanjieteam/kjdraw/deployment&#39;</co
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js"></script>
+  <script type="module" src="../app.js?v=d155241f8396db1e"></script>
 </body>
 </html>

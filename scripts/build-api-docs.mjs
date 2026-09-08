@@ -374,7 +374,7 @@ const editorHtml = `<!doctype html>
           <p class="eyebrow">@kanjieteam/kjdraw</p>
           <h1>${localized(editorGuide.title.en, editorGuide.title.zh)}</h1>
           <p class="lead">${localized(editorGuide.lead.en, editorGuide.lead.zh)}</p>
-          <div class="install"><code>npm install @kanjieteam/kjdraw</code><button type="button" data-copy-value="npm install @kanjieteam/kjdraw">Copy</button></div>
+          <div class="install"><code>npm install ${escapeHtml(packageJson.name)}@${escapeHtml(packageJson.version)}</code><button type="button" data-copy-value="npm install ${escapeHtml(packageJson.name)}@${escapeHtml(packageJson.version)}">Copy</button></div>
         </section>
 
         <section id="quickstart">

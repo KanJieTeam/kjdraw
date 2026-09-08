@@ -249,10 +249,13 @@ for (const page of orderedPages) {
   }
 }
 
+const generatorSource = await readFile(fileURLToPath(import.meta.url), 'utf8')
 const digest = `sha256:${createHash('sha256')
   .update(`package:${packageJson.name}@${packageJson.version}\n`)
   .update(sources.map(([name, source]) => `${name}\n${source.replaceAll('\r\n', '\n')}\n`).join(''))
+  .update(`generator:build-docs-site.mjs\n${generatorSource.replaceAll('\r\n', '\n')}\n`)
   .digest('hex')}`
+const assetRevision = digest.slice('sha256:'.length, 'sha256:'.length + 16)
 
 const localized = (en, zh, tag = 'span') => `<${tag} class="lang-en">${escapeHtml(en)}</${tag}><${tag} class="lang-zh">${escapeHtml(zh)}</${tag}>`
 const routeFromRoot = slug => slug === 'introduction' ? './' : `./${slug}/`
@@ -298,7 +301,7 @@ function renderPage(page, index) {
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="${canonical}">
   <link rel="icon" href="${docsAssetPrefix}mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="${rootPrefix}style.css">
+  <link rel="stylesheet" href="${rootPrefix}style.css?v=${assetRevision}">
   <title>${escapeHtml(page.title.en)} · KJDraw Docs</title>
 </head>
 <body>
@@ -339,7 +342,7 @@ function renderPage(page, index) {
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot">${localized('Guides, Editor API and complete type reference', '指南、Editor API 与完整类型参考')}</p></form></dialog>
-  <script type="module" src="${rootPrefix}app.js"></script>
+  <script type="module" src="${rootPrefix}app.js?v=${assetRevision}"></script>
 </body>
 </html>
 `
@@ -376,6 +379,7 @@ const style = `:root{--blue:#2863f0;--blue-dark:#1748b7;--ink:#121722;--muted:#5
 const clientScript = `const html=document.documentElement
 const docsRoot=html.dataset.docsRoot||'./'
 const docsBase=new URL(docsRoot,location.href)
+const searchRevision=${JSON.stringify(assetRevision)}
 const languageButton=document.getElementById('language')
 const searchButton=document.getElementById('search-button')
 const dialog=document.getElementById('search-dialog')
@@ -385,6 +389,7 @@ const sidebar=document.getElementById('sidebar')
 let locale=localStorage.getItem('kjdraw.docs.language')||(navigator.language.toLowerCase().startsWith('zh')?'zh':'en')
 let guideEntries=[]
 let apiEntries=[]
+let indexesPending=2
 let searchReturnFocus=null
 function updateSearchStats(){const stats=document.getElementById('search-stats');if(!stats)return;stats.textContent=locale==='zh'?'指南、Editor API 与完整类型参考':'Guides, Editor API and complete type reference'}
 function applyLanguage(){
@@ -408,7 +413,7 @@ function renderSearch(){
     link.href=entry.href;title.textContent=entry.title;summary.textContent=entry.summary;kind.textContent=entry.kind
     link.append(title,summary,kind);link.onclick=()=>dialog.close();return link
   }))
-  if(!matches.length){const empty=document.createElement('p');empty.textContent=locale==='zh'?'没有找到匹配结果。':'No matching documentation.';results.replaceChildren(empty)}
+  if(!matches.length){const empty=document.createElement('p');empty.textContent=indexesPending?(locale==='zh'?'正在加载搜索索引…':'Loading search index…'):(locale==='zh'?'没有找到匹配结果。':'No matching documentation.');results.replaceChildren(empty)}
 }
 function restoreSearchFocus(){const target=searchReturnFocus;searchReturnFocus=null;if(target&&target.isConnected)target.focus()}
 function closeSearch(){if(dialog.open)dialog.close();else restoreSearchFocus()}
@@ -423,10 +428,19 @@ dialog.addEventListener('close',restoreSearchFocus)
 dialog.addEventListener('cancel',event=>{event.preventDefault();closeSearch()})
 window.addEventListener('keydown',event=>{if(event.key==='Escape'&&dialog.open){event.preventDefault();closeSearch();return}if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){event.preventDefault();openSearch()}if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement&&document.activeElement.tagName)){event.preventDefault();openSearch()}})
 if(location.hash.startsWith('#zh-'))locale='zh';if(location.hash.startsWith('#en-'))locale='en';applyLanguage()
-Promise.all([
-  fetch(new URL('search-index.json',docsBase)).then(response=>{if(!response.ok)throw new Error('Guide index '+response.status);return response.json()}),
-  fetch(new URL('api/search-index.json',docsBase)).then(response=>{if(!response.ok)throw new Error('API index '+response.status);return response.json()}),
-]).then(([guides,api])=>{guideEntries=(guides.entries||[]).map(normalizeGuide);apiEntries=(api.entries||[]).map(normalizeApi);updateSearchStats()}).catch(error=>console.warn('KJDraw documentation search is unavailable.',error))
+async function fetchSearchEntries(path,label){
+  let failure
+  for(let attempt=0;attempt<2;attempt++){
+    const url=new URL(path,docsBase);url.searchParams.set('v',searchRevision);if(attempt)url.searchParams.set('retry',String(attempt))
+    try{const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw new Error(label+' index '+response.status);const value=await response.json();if(!Array.isArray(value.entries))throw new Error(label+' index has no entries');return value.entries}
+    catch(error){failure=error;if(!attempt)await new Promise(resolve=>setTimeout(resolve,250))}
+  }
+  console.warn('KJDraw documentation '+label.toLowerCase()+' search is unavailable.',failure)
+  return []
+}
+function finishIndex(){indexesPending=Math.max(0,indexesPending-1);updateSearchStats();renderSearch()}
+void fetchSearchEntries('search-index.json','Guide').then(entries=>{guideEntries=entries.map(normalizeGuide);finishIndex()})
+void fetchSearchEntries('api/search-index.json','API').then(entries=>{apiEntries=entries.map(normalizeApi);finishIndex()})
 `
 
 const outputs = new Map()
