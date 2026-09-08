@@ -208,11 +208,23 @@ test('grip and box gestures safely cancel on Escape, external revisions, layout 
   expect(await selected(page)).toEqual([0])
   await expect(page.locator('[data-overlay]')).not.toHaveAttribute('data-selection-mode', /.+/)
 
-  await dragStart(page, [30, 20], [36, 32])
-  await page.evaluate(() => {
-    const canvas = window.__selectionGrips.workbench.root.querySelector('[data-canvas]')
-    canvas.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 }))
+  const canvas = page.locator('[data-canvas]')
+  // Mouse pointer IDs are browser-assigned; cancel the real owner, not an assumed ID.
+  await canvas.evaluate(canvas => {
+    canvas.__testOwningPointer = null
+    canvas.addEventListener('pointerdown', event => {
+      canvas.__testOwningPointer = { pointerId: event.pointerId, pointerType: event.pointerType, isPrimary: event.isPrimary, isTrusted: event.isTrusted }
+    }, { capture: true, once: true })
   })
+  await dragStart(page, [30, 20], [36, 32])
+  const owningPointer = await canvas.evaluate(canvas => {
+    const pointer = canvas.__testOwningPointer
+    delete canvas.__testOwningPointer
+    return pointer
+  })
+  expect(owningPointer).toMatchObject({ pointerType: 'mouse', isPrimary: true, isTrusted: true })
+  expect(Number.isInteger(owningPointer.pointerId)).toBe(true)
+  await canvas.dispatchEvent('pointercancel', { pointerId: owningPointer.pointerId, pointerType: owningPointer.pointerType, isPrimary: owningPointer.isPrimary })
   await page.mouse.up()
   expect(await entityState(page, 0)).toEqual(initial)
   expect(await selected(page)).toEqual([0])

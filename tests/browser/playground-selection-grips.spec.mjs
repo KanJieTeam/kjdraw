@@ -107,11 +107,23 @@ test('view changes, pointer cancellation and lost capture discard unfinished gri
   for(const cancellation of ['pointercancel','lostpointercapture','wheel','layout']){
     await page.locator('#layout-select').selectOption('classic');await page.locator('#nav-fit').click()
     const a=await screen(page,20,0),b=await screen(page,25,8)
+    // Mouse pointer IDs are browser-assigned; cancel the real owner, not an assumed ID.
+    await page.locator('#canvas').evaluate(canvas=>{
+      canvas.__testOwningPointer=null
+      canvas.addEventListener('pointerdown',event=>{
+        canvas.__testOwningPointer={pointerId:event.pointerId,pointerType:event.pointerType,isPrimary:event.isPrimary,isTrusted:event.isTrusted}
+      },{capture:true,once:true})
+    })
     await page.mouse.move(a.x,a.y);await page.mouse.down();await page.mouse.move(b.x,b.y,{steps:5})
+    const owningPointer=await page.locator('#canvas').evaluate(canvas=>{
+      const pointer=canvas.__testOwningPointer;delete canvas.__testOwningPointer;return pointer
+    })
+    expect(owningPointer).toMatchObject({pointerType:'mouse',isPrimary:true,isTrusted:true})
+    expect(Number.isInteger(owningPointer.pointerId)).toBe(true)
     await expect(page.locator('.workbench')).toHaveAttribute('data-grip','line-a:end')
     if(cancellation==='wheel')await page.mouse.wheel(0,100)
     else if(cancellation==='layout')await page.locator('#layout-select').selectOption('compact')
-    else await page.locator('#canvas').dispatchEvent(cancellation,{pointerId:1,button:0})
+    else await page.locator('#canvas').dispatchEvent(cancellation,{pointerId:owningPointer.pointerId,pointerType:owningPointer.pointerType,isPrimary:owningPointer.isPrimary,button:0})
     await expect(page.locator('.workbench')).not.toHaveAttribute('data-grip',/./)
     await page.mouse.up();expect((await save(page)).objects).toEqual(original.objects)
   }

@@ -97,6 +97,59 @@ def inspect_dimension(entity: object, document: object) -> dict[str, object]:
     }
 
 
+def inspect_styled_entity(entity: object) -> dict[str, object]:
+    result = {
+        "type": entity.dxftype(),
+        "layer": str(entity.dxf.layer),
+        "color": int(entity.dxf.color),
+        "trueColor": int(entity.dxf.true_color),
+        "linetype": str(entity.dxf.linetype),
+        "linetypeScale": float(entity.dxf.ltscale),
+        "lineweight": int(entity.dxf.lineweight),
+        "visible": not bool(entity.dxf.invisible),
+    }
+    if entity.dxftype() == "LINE":
+        result.update(start=vector(entity.dxf.start), end=vector(entity.dxf.end))
+    elif entity.dxftype() == "ARC":
+        result.update(
+            center=vector(entity.dxf.center),
+            radius=float(entity.dxf.radius),
+            start=vector(entity.start_point),
+            end=vector(entity.end_point),
+            startAngleDegrees=float(entity.dxf.start_angle),
+            endAngleDegrees=float(entity.dxf.end_angle),
+        )
+    return result
+
+
+def assert_styled_geometry(document: object) -> list[dict[str, object]]:
+    """Read actual DXF attributes and OCS-derived endpoints, not SDK metadata."""
+    entities = [entity for entity in document.modelspace() if entity.dxf.layer == "KJ_STYLES"]
+    assert len(entities) == 2, "The elevated styled ARC/LINE pair is missing"
+    assert sorted(entity.dxftype() for entity in entities) == ["ARC", "LINE"]
+    assert "KJ_INTEROP_DASH" in document.linetypes, "Entity linetype table record is missing"
+    summaries = [inspect_styled_entity(entity) for entity in entities]
+    expected_style = {
+        "layer": "KJ_STYLES", "color": 2, "trueColor": 0x2468AC,
+        "linetype": "KJ_INTEROP_DASH", "linetypeScale": 1.5,
+        "lineweight": 35, "visible": False,
+    }
+    for entity in summaries:
+        for key, expected in expected_style.items():
+            assert entity[key] == expected, f"{entity['type']}.{key}: {entity[key]} != {expected}"
+    line = next(entity for entity in summaries if entity["type"] == "LINE")
+    arc = next(entity for entity in summaries if entity["type"] == "ARC")
+    assert line["start"] == [220.0, 0.0, 6.0]
+    assert line["end"] == [220.0, 15.0, 6.0]
+    assert arc["center"] == [210.0, 0.0, 6.0]
+    assert arc["radius"] == 10.0
+    assert arc["startAngleDegrees"] == 180.0
+    assert arc["endAngleDegrees"] == 360.0
+    for actual, expected in [(arc["start"], [200.0, 0.0, 6.0]), (arc["end"], [220.0, 0.0, 6.0])]:
+        assert all(abs(left - right) < 1e-9 for left, right in zip(actual, expected)), (actual, expected)
+    return summaries
+
+
 def generate(path: Path) -> None:
     # Keep the cross-implementation corpus intentional. ``setup=True`` also
     # installs ezdxf's private dimension-arrow blocks, which would add unrelated
@@ -104,6 +157,8 @@ def generate(path: Path) -> None:
     document = ezdxf.new("R2018")
     document.header["$INSUNITS"] = 4  # millimetres
     document.layers.add("KJ_INTEROP", color=3)
+    document.layers.add("KJ_STYLES", color=5)
+    document.linetypes.add("KJ_INTEROP_DASH", pattern=[4.0, 3.0, -1.0])
     model = document.modelspace()
     attributes = {"layer": "KJ_INTEROP"}
     model.add_line((0, 0, 0), (120, 35, 0), dxfattribs=attributes)
@@ -145,6 +200,13 @@ def generate(path: Path) -> None:
     block.add_circle((0, 0, 0), radius=4, dxfattribs=attributes)
     block.add_line((-6, 0, 0), (6, 0, 0), dxfattribs=attributes)
     model.add_blockref("KJ_MARKER", (150, 75, 0), dxfattribs={"layer": "KJ_INTEROP"})
+    styled = {
+        "layer": "KJ_STYLES", "color": 2, "true_color": 0x2468AC,
+        "linetype": "KJ_INTEROP_DASH", "ltscale": 1.5,
+        "lineweight": 35, "invisible": 1,
+    }
+    model.add_arc((210, 0, 6), radius=10, start_angle=180, end_angle=360, dxfattribs=styled)
+    model.add_line((220, 0, 6), (220, 15, 6), dxfattribs=styled)
     document.saveas(path)
 
 
@@ -170,6 +232,7 @@ def inspect(path: Path) -> dict[str, object]:
         "layers": sorted(layer.dxf.name for layer in document.layers),
         "auditErrors": len(auditor.errors),
         "auditFixes": len(auditor.fixes),
+        "styledEntities": assert_styled_geometry(document),
         "hatches": [inspect_hatch(entity) for entity in model.query("HATCH")],
         "ellipses": [{
             "center": vector(entity.dxf.center),
@@ -197,7 +260,12 @@ def main() -> None:
     path = Path(raw_path).resolve()
     if action == "generate":
         generate(path)
-        print(json.dumps({"ezdxfVersion": ezdxf.__version__, "generated": str(path)}))
+        verified = inspect(path)
+        print(json.dumps({
+            "ezdxfVersion": ezdxf.__version__, "generated": str(path),
+            "auditErrors": verified["auditErrors"], "auditFixes": verified["auditFixes"],
+            "styledEntities": verified["styledEntities"],
+        }))
     else:
         print(json.dumps(inspect(path), sort_keys=True))
 

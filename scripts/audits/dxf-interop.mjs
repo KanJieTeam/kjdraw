@@ -31,6 +31,24 @@ function hasLine(lines, first, second) {
     (pointNear(line.start, second) && pointNear(line.end, first)))
 }
 
+function assertImportedStyles(drawing) {
+  const layer = drawing.getTable('layers').records.find(record => record.name === 'KJ_STYLES')
+  assert.ok(layer, 'Independent styled-entity layer must be imported')
+  const entities = drawing.listEntities({ ownerId: drawing.snapshot().spaces.modelSpaceId }).filter(entity => entity.payload.layerId === layer.id)
+  assert.deepEqual(entities.map(entity => entity.type).sort(), ['ARC', 'LINE'])
+  for (const entity of entities) {
+    for (const [key, value] of Object.entries({ color: 2, trueColor: 0x2468ac, linetypeName: 'KJ_INTEROP_DASH', linetypeScale: 1.5, lineweight: 35, visible: false })) assert.equal(entity.payload[key], value, `external ${entity.type}.${key}`)
+    assert.equal(drawing.getObject(entity.payload.linetypeId)?.name, 'KJ_INTEROP_DASH')
+  }
+  const line = entities.find(entity => entity.type === 'LINE'), arc = entities.find(entity => entity.type === 'ARC')
+  assert.deepEqual(line.payload.start, [220, 0, 6])
+  assert.deepEqual(line.payload.end, [220, 15, 6])
+  assert.deepEqual(arc.payload.center, [210, 0, 6])
+  assert.equal(arc.payload.radius, 10)
+  assert.equal(arc.payload.startAngle, Math.PI)
+  assert.equal(arc.payload.endAngle, Math.PI * 2)
+}
+
 const directory = await mkdtemp(join(tmpdir(), 'kjdraw-dxf-interop-'))
 try {
   const kjdrawOutput = join(directory, 'kjdraw-output.dxf')
@@ -61,12 +79,25 @@ try {
     ['TEXT', { position: [10, 145, 0], text: 'KJDraw interop', height: 4, layerId: layer.id }],
   ]
   for (const [type, payload] of payloads) await sdk.executeCommand('CREATE', { type, payload })
+  const styleLayer = await sdk.executeCommand('LAYERNEW', { name: 'KJ_STYLES', color: 5 })
+  const styleLinetype = await sdk.executeCommand('LINETYPE', { name: 'KJ_INTEROP_DASH', pattern: [3, -1] })
+  const elevatedProfile = await sdk.executeCommand('CREATE', { type: 'LWPOLYLINE', payload: {
+    layerId: styleLayer.id, color: 2, trueColor: 0x2468ac, linetypeId: styleLinetype.id,
+    linetypeScale: 1.5, lineweight: 35, visible: false, elevation: 6,
+    vertices: [{ point: [200, 0], bulge: 1 }, { point: [220, 0] }, { point: [220, 15] }],
+  } })
+  const exploded = await sdk.executeCommand('EXPLODE', { id: elevatedProfile.id })
+  assert.deepEqual(exploded.map(entity => entity.type), ['ARC', 'LINE'])
+  assert.equal(drawing.getObject(elevatedProfile.id), null)
   const emitted = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
   await writeFile(kjdrawOutput, emitted)
   const externalRead = runPython('inspect', kjdrawOutput)
   assert.equal(externalRead.dxfVersion, 'AC1032')
   assert.equal(externalRead.auditErrors, 0)
-  assert.equal(externalRead.modelspaceEntities.LINE, 1)
+  assert.equal(externalRead.auditFixes, 0)
+  assert.equal(externalRead.modelspaceEntities.LINE, 2)
+  assert.equal(externalRead.modelspaceEntities.ARC, 2)
+  assert.equal(externalRead.styledEntities.length, 2)
   assert.equal(externalRead.modelspaceEntities.CIRCLE, 1)
   assert.equal(externalRead.modelspaceEntities.HATCH, 2)
   assert.equal(externalRead.modelspaceEntities.ELLIPSE, 1)
@@ -132,13 +163,15 @@ try {
   }
 
   const externalGeneration = runPython('generate', externalInput)
+  assert.equal(externalGeneration.auditErrors, 0)
+  assert.equal(externalGeneration.auditFixes, 0)
   const externalBytes = await readFile(externalInput)
   const imported = await createKJDrawSDK().readDocument(externalBytes, { format: 'DXF', version: '2018' })
   assert.equal(imported.getTable('layers').records.some(row => row.name === 'KJ_INTEROP'), true)
   const importedModelSpaceId = imported.snapshot().spaces.modelSpaceId
-  assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'LINE' }).length, 1)
+  assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'LINE' }).length, 2)
   assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'CIRCLE' }).length, 1)
-  assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'ARC' }).length, 1)
+  assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'ARC' }).length, 2)
   assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'LWPOLYLINE' }).length, 1)
   assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'TEXT' }).length, 1)
   assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'INSERT' }).length, 1)
@@ -149,6 +182,7 @@ try {
   const polyline = imported.listEntities({ ownerId: importedModelSpaceId, type: 'LWPOLYLINE' })[0]
   assert.equal(polyline.payload.closed, true)
   assert.equal(polyline.payload.vertices.some(vertex => Number(vertex.bulge ?? 0) !== 0), true)
+  assertImportedStyles(imported)
 
   const reopenedSDK = createKJDrawSDK()
   reopenedSDK.attachDocument(imported)
@@ -159,6 +193,8 @@ try {
   await writeFile(roundTrip, await reopenedSDK.writeDocument(imported, { format: 'DXF', version: '2018' }))
   const externalRoundTrip = runPython('inspect', roundTrip)
   assert.equal(externalRoundTrip.auditErrors, 0)
+  assert.equal(externalRoundTrip.auditFixes, 0)
+  assert.equal(externalRoundTrip.styledEntities.length, 2)
   assert.equal(externalRoundTrip.modelspaceEntities.INSERT, 1)
   assert.equal(externalRoundTrip.modelspaceEntities.HATCH, 2)
   assert.equal(externalRoundTrip.modelspaceEntities.ELLIPSE, 1)
@@ -174,6 +210,8 @@ try {
     schema: 'com.kanjie.kjdraw.audit.dxf-interop@1',
     independentImplementation: `ezdxf ${externalRead.ezdxfVersion}`,
     direction: ['KJDraw write → ezdxf read/audit', 'ezdxf write → KJDraw read/write → ezdxf read/audit'],
+    entityStyleCoverage: ['ACI', 'trueColor', 'linetype reference', 'linetype scale', 'lineweight', 'visibility'],
+    explodedGeometryCoverage: ['elevated bulge ARC', 'elevated LINE', 'native endpoints and Z=6'],
     files: {
       kjdrawOutputSha256: sha256(Buffer.from(emitted)),
       externalInputSha256: sha256(externalBytes),

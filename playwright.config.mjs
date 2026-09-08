@@ -6,7 +6,7 @@ export default defineConfig({
   workers: 1,
   timeout: 60_000,
   expect: { timeout: 10_000 },
-  reporter: process.env.CI ? [['line'], ['html', { open: 'never' }]] : 'line',
+  reporter: process.env.CI ? [['line'], ['github'], ['html', { open: 'never' }]] : 'line',
   use: {
     baseURL: 'http://127.0.0.1:4173',
     locale: 'en-US',

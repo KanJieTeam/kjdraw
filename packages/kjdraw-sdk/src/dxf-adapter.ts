@@ -25,7 +25,7 @@ interface DxfReadOptions extends KJFileAdapterOptions {
   maxEntities?: number
 }
 interface DxfAdapterOptions extends DxfReadOptions { id?: string; priority?: number }
-interface DxfImportResources { textStyleIds?: ReadonlyMap<string, string>; dimensionStyleIds?: ReadonlyMap<string, string> }
+interface DxfImportResources { linetypeIds?: ReadonlyMap<string, string>; textStyleIds?: ReadonlyMap<string, string>; dimensionStyleIds?: ReadonlyMap<string, string> }
 interface DxfDimensionExport { blockName: string; preserveRaw: boolean; measurement?: number; textPosition?: Point3 }
 interface DxfExportResources {
   textStyleNames?: ReadonlyMap<string, string>
@@ -36,6 +36,7 @@ interface DxfSpace { paper?: boolean; layoutName?: string }
 interface DxfWriteContext {
   version: DxfVersion
   allocateHandle: () => string
+  linetypeNames?: ReadonlyMap<string, string>
 }
 interface DxfVertex { point: Point3; bulge?: number; startWidth?: number; endWidth?: number; dxfFlags?: number }
 interface DxfHatchLineEdge { type: 'LINE'; start: Point3; end: Point3 }
@@ -128,6 +129,10 @@ interface DxfPayload extends KJObjectPayload {
   direction?: Point3
   target?: Point3
   color?: number
+  trueColor?: number
+  linetypeScale?: number
+  thickness?: number
+  normal?: Point3
   visible?: boolean
   frozen?: boolean
   locked?: boolean
@@ -495,6 +500,22 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
   }
 }
 
+function entityDrawingProperties(record: DxfRecord, resources: DxfImportResources): KJObjectPayload {
+  const payload: KJObjectPayload = {}
+  for (const [code, key] of [[62, 'color'], [420, 'trueColor'], [48, 'linetypeScale'], [370, 'lineweight'], [39, 'thickness']] as const) {
+    if (values(record, code).length) payload[key] = number(record, code)
+  }
+  if (values(record, 60).length) payload.visible = number(record, 60) === 0
+  if (values(record, 6).length) {
+    const name = first(record, 6, 'BYLAYER')
+    payload.linetypeName = name
+    const id = resources.linetypeIds?.get(normalizeName(name))
+    if (id) payload.linetypeId = id
+  }
+  if ([210, 220, 230].some(code => values(record, code).length)) payload.normal = [number(record, 210), number(record, 220), number(record, 230, 1)]
+  return payload
+}
+
 function dxfVersion(tags: readonly DxfTag[]): DxfVersion | 'UNKNOWN' {
   const index = tags.findIndex(tag => tag.code === 9 && normalizeName(tag.value) === '$ACADVER')
   const code = index >= 0 ? tags.slice(index + 1).find(tag => tag.code === 1)?.value : null
@@ -602,7 +623,7 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
       const sourceHandle = String(first(record, 5, '')).toUpperCase()
       const handleAvailable = /^[0-9A-F]+$/.test(sourceHandle) && !Object.values(transaction._draft().objects).some(object => object.handle === sourceHandle)
       try {
-        transaction.createEntity(converted.type, { ...converted.payload, layerId }, {
+        transaction.createEntity(converted.type, { ...converted.payload, ...entityDrawingProperties(record, resources), layerId }, {
           ...(ownerId === undefined ? {} : { ownerId }),
           ...(handleAvailable ? { handle: sourceHandle } : {}),
           source: { format: 'DXF', scope, entityIndex: index, originalHandle: sourceHandle || null },
@@ -798,6 +819,8 @@ function emitEntityHeader(
   ownerHandle: string | null,
   space: DxfSpace | null,
   version: DxfVersion,
+  payload?: DxfPayload,
+  linetypeNames?: ReadonlyMap<string, string>,
 ): void {
   emit(output, 0, type)
   emit(output, 5, handle)
@@ -805,6 +828,48 @@ function emitEntityHeader(
   emitSubclass(output, version, 'AcDbEntity')
   emit(output, 8, layerName)
   emitSpaceOwnership(output, space, version)
+  if (payload) emitEntityDrawingProperties(output, payload, version, linetypeNames)
+}
+
+function emitEntityDrawingProperties(output: string[], payload: DxfPayload, version: DxfVersion, linetypeNames?: ReadonlyMap<string, string>): void {
+  if (payload.color != null) {
+    const text = String(payload.color).toUpperCase()
+    const color = text === 'BYLAYER' ? 256 : text === 'BYBLOCK' ? 0 : Number(payload.color)
+    if (!Number.isInteger(color) || color < -256 || color > 256) throw new KJValidationError('DXF entity color must be an ACI index, BYLAYER or BYBLOCK; use trueColor for RGB')
+    emit(output, 62, color)
+  }
+  if (payload.trueColor != null) {
+    if (!Number.isInteger(payload.trueColor) || payload.trueColor < 0 || payload.trueColor > 0xffffff) throw new KJValidationError('DXF trueColor must be a 24-bit RGB integer')
+    if (VERSION_RANK[version] < VERSION_RANK['2004']) throw new KJValidationError(`DXF ${version} cannot preserve entity trueColor; minimum target is 2004`)
+    emit(output, 420, payload.trueColor)
+  }
+  if (payload.linetypeId != null || payload.linetypeName != null) {
+    const name = payload.linetypeId == null ? payload.linetypeName : linetypeNames?.get(payload.linetypeId)
+    if (!name) throw new KJValidationError(`DXF entity references an unavailable linetype: ${payload.linetypeId}`)
+    emit(output, 6, name)
+  }
+  if (payload.linetypeScale != null) {
+    if (!Number.isFinite(payload.linetypeScale) || payload.linetypeScale <= 0) throw new KJValidationError('DXF entity linetypeScale must be positive and finite')
+    emit(output, 48, payload.linetypeScale)
+  }
+  if (payload.lineweight != null) {
+    if (!Number.isInteger(payload.lineweight)) throw new KJValidationError('DXF entity lineweight must be an integer')
+    if (VERSION_RANK[version] < VERSION_RANK['2000']) {
+      if (payload.lineweight !== -1) throw new KJValidationError(`DXF ${version} cannot preserve entity lineweight; minimum target is 2000`)
+    } else emit(output, 370, payload.lineweight)
+  }
+  if (payload.visible != null) emit(output, 60, payload.visible ? 0 : 1)
+}
+
+function emitEntityExtrusion(output: string[], payload: DxfPayload): void {
+  if (payload.thickness != null) {
+    if (!Number.isFinite(payload.thickness)) throw new KJValidationError('DXF entity thickness must be finite')
+    emit(output, 39, payload.thickness)
+  }
+  if (payload.normal != null) {
+    if (!payload.normal.every(Number.isFinite)) throw new KJValidationError('DXF entity normal must be finite')
+    emitPoint(output, payload.normal, 210)
+  }
 }
 
 function emitLegacyPolyline(
@@ -817,9 +882,10 @@ function emitLegacyPolyline(
 ): void {
   const { version } = context
   const p = entity.payload ?? {}
-  emitEntityHeader(output, 'POLYLINE', entity.handle, layerName, ownerHandle, space, version)
+  emitEntityHeader(output, 'POLYLINE', entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames)
   emitSubclass(output, version, 'AcDb2dPolyline')
   emitPoint(output, [0, 0, p.elevation ?? 0]); emit(output, 70, (Number(p.dxfFlags ?? 0) & ~1) | (p.closed ? 1 : 0))
+  emitEntityExtrusion(output, p)
   for (const vertex of p.vertices ?? []) {
     const pointValue = vertexPoint(vertex)
     const details = Array.isArray(vertex) ? null : vertex as DxfVertex
@@ -903,13 +969,15 @@ function hasUnchangedHatchGeometry(payload: DxfPayload): payload is DxfPayload &
   return state(payload) === state(normalized)
 }
 
-function emitHatch(output: string[], entity: DxfEntity, layerName: string, ownerHandle: string | null, space: DxfSpace | null, version: DxfVersion): void {
+function emitHatch(output: string[], entity: DxfEntity, layerName: string, ownerHandle: string | null, space: DxfSpace | null, context: DxfWriteContext): void {
+  const { version } = context
   const p = entity.payload ?? {}
   if (hasUnchangedHatchGeometry(p)) {
-    emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version)
+    const properties = { ...entityDrawingProperties({ type: 'HATCH', tags: [...p.rawTags] }, {}), ...p }
+    emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version, properties, context.linetypeNames)
     emitSubclass(output, version, 'AcDbHatch')
     for (const tag of p.rawTags) {
-      if ([5, 8, 67, 330, 410].includes(tag.code) || tag.code === 100) continue
+      if ([5, 6, 8, 48, 60, 62, 67, 330, 370, 410, 420].includes(tag.code) || tag.code === 100) continue
       else emit(output, tag.code, tag.value)
     }
     return
@@ -933,7 +1001,7 @@ function emitHatch(output: string[], entity: DxfEntity, layerName: string, owner
       } else throw new KJValidationError(`Native DXF HATCH edge type ${edge.type} is not supported; use LINE or ARC boundaries`)
     }
   }
-  emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version)
+  emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames)
   emitSubclass(output, version, 'AcDbHatch')
   emitPoint(output, [0, 0, 0]); emit(output, 2, p.patternName ?? 'SOLID'); emit(output, 70, p.solid ? 1 : 0); emit(output, 71, p.associative ? 1 : 0)
   emit(output, 91, p.boundaryLoops?.length ?? 0)
@@ -963,10 +1031,12 @@ function emitHatch(output: string[], entity: DxfEntity, layerName: string, owner
   }
 }
 
-function emitRawEntity(output: string[], entity: DxfEntity, layerName: string, ownerHandle: string | null, space: DxfSpace | null, version: DxfVersion): void {
-  emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version)
+function emitRawEntity(output: string[], entity: DxfEntity, layerName: string, ownerHandle: string | null, space: DxfSpace | null, context: DxfWriteContext): void {
+  const { version } = context
+  const properties = { ...entityDrawingProperties({ type: entity.type, tags: [...(entity.payload?.rawTags ?? [])] }, {}), ...entity.payload }
+  emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version, properties, context.linetypeNames)
   for (const tag of entity.payload?.rawTags ?? []) {
-    if ([5, 8, 67, 330, 410].includes(tag.code)) continue
+    if ([5, 6, 8, 48, 60, 62, 67, 330, 370, 410, 420].includes(tag.code)) continue
     else if (tag.code === 100 && (!isSubclassDXF(version) || normalizeName(tag.value) === 'ACDBENTITY')) continue
     else emit(output, tag.code, tag.value)
   }
@@ -1066,14 +1136,14 @@ function emitEntity(
     emitLegacyPolyline(output, entity, layerName, ownerHandle, space, context)
     return
   }
-  if (entity.type === 'HATCH') { emitHatch(output, entity, layerName, ownerHandle, space, version); return }
-  if (entity.type === 'WIPEOUT' && p.rawTags?.length) { emitRawEntity(output, entity, layerName, ownerHandle, space, version); return }
-  if (entity.type === 'DIMENSION' && p.rawTags?.length && resources.dimensions?.get(entity.handle)?.preserveRaw) { emitRawEntity(output, entity, layerName, ownerHandle, space, version); return }
+  if (entity.type === 'HATCH') { emitHatch(output, entity, layerName, ownerHandle, space, context); return }
+  if (entity.type === 'WIPEOUT' && p.rawTags?.length) { emitRawEntity(output, entity, layerName, ownerHandle, space, context); return }
+  if (entity.type === 'DIMENSION' && p.rawTags?.length && resources.dimensions?.get(entity.handle)?.preserveRaw) { emitRawEntity(output, entity, layerName, ownerHandle, space, context); return }
   if (entity.type === 'PROXY_ENTITY') {
-    emitRawEntity(output, { ...entity, type: p.originalType ?? 'PROXY_ENTITY' }, layerName, ownerHandle, space, version)
+    emitRawEntity(output, { ...entity, type: p.originalType ?? 'PROXY_ENTITY' }, layerName, ownerHandle, space, context)
     return
   }
-  emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version)
+  emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames)
   if (entity.type === 'LINE') { emitSubclass(output, version, 'AcDbLine'); emitPoint(output, p.start!); emitPoint(output, p.end!, 11) }
   else if (entity.type === 'POINT') { emitSubclass(output, version, 'AcDbPoint'); emitPoint(output, p.position!) }
   else if (entity.type === 'CIRCLE') { emitSubclass(output, version, 'AcDbCircle'); emitPoint(output, p.center!); emit(output, 40, p.radius) }
@@ -1132,6 +1202,7 @@ function emitEntity(
     if (subtype === 0) emitSubclass(output, version, 'AcDbRotatedDimension')
   }
   else if (entity.type === 'VIEWPORT') { emitSubclass(output, version, 'AcDbViewport'); emitPoint(output, p.center!); emit(output, 40, p.width); emit(output, 41, p.height); emitPoint(output, p.viewCenter!, 12); emit(output, 45, p.viewHeight); if (p.twistAngle) emit(output, 51, p.twistAngle * 180 / Math.PI) }
+  emitEntityExtrusion(output, p)
 }
 
 function isDxfVersion(value: string): value is DxfVersion { return (VERSIONS as readonly string[]).includes(value) }
@@ -1148,6 +1219,7 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   const context: DxfWriteContext = {
     version,
     allocateHandle: createHandleAllocator(Object.values(state.objects).map(record => record.handle)),
+    linetypeNames: new Map(documentTableRecords(document, 'linetypes').map(record => [record.id, String(record.name)])),
   }
   const tableHandles = new Map(['LTYPE', 'STYLE', 'DIMSTYLE', 'UCS', 'VIEW', 'LAYER', 'BLOCK_RECORD'].map(name => [name, context.allocateHandle()]))
   const sourceBlocks = documentTableRecords(document, 'blockRecords').map(dxfNamedRecord)

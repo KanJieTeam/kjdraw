@@ -214,13 +214,14 @@ export function breakEntityPayloads(entity, options = {}) {
 function bulgeArc(startInput, endInput, bulgeInput) {
     const start = point3(startInput), end = point3(endInput), bulge = Number(bulgeInput ?? 0);
     if (Math.abs(bulge) <= 1e-15) return null;
+    if (Math.abs(start[2] - end[2]) > 1e-10) throw new KJValidationError('Explode requires bulge arc endpoints in one XY plane');
     const chordVector = subtract2(end, start), chord = length2(chordVector), unit = normalize2(chordVector);
     const centerOffset = chord * (1 - bulge * bulge) / (4 * bulge);
     const center2 = add2(midpoint2(start, end), multiply2(perpendicular2(unit), centerOffset));
     const center = [
         center2[0],
         center2[1],
-        (start[2] + end[2]) / 2
+        start[2]
     ];
     const startAngle = Math.atan2(start[1] - center[1], start[0] - center[0]);
     return {
@@ -245,20 +246,53 @@ export function explodeEntity(entity) {
         'WIPEOUT'
     ].includes(type)) throw new KJValidationError(`Explode is not implemented for ${type || 'unknown entity'}`);
     const vertices = payload.vertices ?? [];
+    const drawingProperties = {};
+    for (const key of [
+        'layerId',
+        'color',
+        'trueColor',
+        'linetypeId',
+        'linetypeName',
+        'linetypeScale',
+        'lineweight',
+        'transparency',
+        'visible',
+        'thickness',
+        'normal',
+        'elevation',
+        'materialId',
+        'plotStyleId'
+    ]){
+        if (Object.hasOwn(payload, key)) drawingProperties[key] = clone(payload[key]);
+    }
+    if (payload.normal != null) {
+        const normal = point3(payload.normal);
+        if (Math.abs(normal[0]) > 1e-12 || Math.abs(normal[1]) > 1e-12 || normal[2] <= 0) throw new KJValidationError('Explode currently requires a positive XY extrusion normal');
+    }
+    const points = vertices.map((vertex)=>point3(vertex.point ?? vertex));
+    const elevation = Number(payload.elevation ?? 0);
+    if (!Number.isFinite(elevation)) throw new KJValidationError('Polyline elevation must be finite');
+    const useElevation = [
+        'LWPOLYLINE',
+        'POLYLINE'
+    ].includes(type) && !(Number(payload.dxfFlags ?? 0) & 8) && elevation !== 0 && points.every((point)=>point[2] === 0);
+    if (useElevation) for (const point of points)point[2] = elevation;
     const count = payload.closed ? vertices.length : vertices.length - 1;
     const result = [];
     for(let index = 0; index < count; index += 1){
-        const vertex = vertices[index], next = vertices[(index + 1) % vertices.length];
-        const vertexRecord = vertex;
-        const nextRecord = next;
-        const start = point3(vertexRecord.point ?? vertex), end = point3(nextRecord.point ?? next);
+        const vertexRecord = vertices[index];
+        const start = points[index], end = points[(index + 1) % points.length];
         const arc = bulgeArc(start, end, vertexRecord.bulge);
         result.push(arc ? {
             type: 'ARC',
-            payload: arc
+            payload: {
+                ...clone(drawingProperties),
+                ...arc
+            }
         } : {
             type: 'LINE',
             payload: {
+                ...clone(drawingProperties),
                 start,
                 end
             }

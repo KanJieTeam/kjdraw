@@ -125,6 +125,44 @@ test('construct native curves, closed polylines, hatch and dimensions with exact
   expect((await save(page)).snapshot.objects).toEqual(result.snapshot.objects)
 })
 
+test('Explode keeps a styled elevated profile intact through the toolbar, undo and file reopen', async ({ page }) => {
+  await emptyDrawing(page)
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ title: 'Elevated profile', units: 'millimeter' })
+  const layer = await sdk.executeCommand('LAYERNEW', { name: 'Parts', color: 3 })
+  await sdk.executeCommand('CREATE', { type: 'LWPOLYLINE', payload: {
+    layerId: layer.id, color: 2, lineweight: 35, linetypeScale: 1.5, elevation: 6,
+    vertices: [{ point: [0,0], bulge: 1 }, { point: [40,0] }, { point: [40,30] }],
+  } })
+  await page.locator('#file-input').setInputFiles({ name: 'profile.kjd', mimeType: 'application/json', buffer: Buffer.from(await sdk.writeDocument(drawing, { format: 'KJD' })) })
+  await expect(page.locator('#entity-count')).toHaveText('1 entities')
+  const original = await save(page)
+  await page.locator('#canvas').click({ position: { x: 30, y: 30 } })
+  await page.keyboard.press('Control+a')
+  await expect(page.locator('#selection-count')).toHaveText('1 selected')
+  await page.locator('.ribbon-tabs [data-i18n="modify"]').click()
+  await page.locator('#modification-tool').selectOption('explode')
+  await expect(page.locator('#entity-count')).toHaveText('2 entities')
+  const result = await save(page), pieces = result.entities.filter(entity => !entity.erased)
+  expect(pieces.map(entity => entity.type).sort()).toEqual(['ARC', 'LINE'])
+  for (const entity of pieces) {
+    expect(entity.payload).toMatchObject({ layerId: layer.id, color: 2, lineweight: 35, linetypeScale: 1.5 })
+    for (const point of entity.type === 'ARC' ? [entity.payload.center] : [entity.payload.start, entity.payload.end]) expect(point[2]).toBe(6)
+  }
+  await page.locator('#undo').click();expect((await save(page)).snapshot.objects).toEqual(original.snapshot.objects)
+  await page.locator('#redo').click();expect((await save(page)).snapshot.objects).toEqual(result.snapshot.objects)
+  await page.locator('#file-input').setInputFiles({ name: 'profile.kjp', mimeType: 'application/zip', buffer: result.bytes })
+  await expect(page.locator('#file-state')).toContainText('Opened locally')
+  expect((await save(page)).snapshot.objects).toEqual(result.snapshot.objects)
+  const download = page.waitForEvent('download');await page.locator('#export').click()
+  const exported = await createKJDrawSDK().readDocument(await readFile(await (await download).path(), 'utf8'), { format: 'DXF' })
+  expect(exported.listEntities()).toHaveLength(2)
+  for (const entity of exported.listEntities()) {
+    expect(exported.getObject(entity.payload.layerId).name).toBe('Parts')
+    expect(entity.payload).toMatchObject({ color: 2, lineweight: 35, linetypeScale: 1.5 })
+    for (const point of entity.type === 'ARC' ? [entity.payload.center] : [entity.payload.start, entity.payload.end]) expect(point[2]).toBe(6)
+  }
+})
+
 test('language changes retain picked points and construction options cannot silently erase a draft', async ({ page }) => {
   await emptyDrawing(page)
   await command(page, 'CIRCLE'); await command(page, '10,20')
