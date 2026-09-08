@@ -10,7 +10,7 @@ export const server = createServer(async (req, res) => {
   try {
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405).end(); return }
     const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname)
-    const publicPath = pathname === '/' ? '/apps/playground/index.html' : pathname
+    const publicPath = pathname === '/' ? '/apps/playground/index.html' : pathname.endsWith('/') ? `${pathname}index.html` : pathname
     if (!['/apps/playground/', '/packages/kjdraw-sdk/src/', '/web/public/kjcore/', '/docs/', '/examples/'].some(prefix => publicPath.startsWith(prefix))) { res.writeHead(404).end(); return }
     const target = resolve(root, `.${publicPath}`)
     const rel = relative(root, target)

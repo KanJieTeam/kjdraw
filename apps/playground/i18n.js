@@ -1,9 +1,9 @@
 const messages = {
   en: {
     preview: 'DEVELOPER PREVIEW', docs: 'Documentation ↗', github: 'GitHub ↗', language: '中文',
-    open: 'Open DXF / KJD / KJP', snapshot: 'Snapshot', save: 'Download KJP', export: 'Export DXF ↗', memory: 'In memory',
+    open: 'Open DXF / KJD / KJP', openShort: 'Open', snapshot: 'Snapshot', save: 'Download KJP', saveShort: 'Save KJP', export: 'Export DXF ↗', exportShort: 'DXF', memory: 'In memory', file: 'FILE', view: 'VIEW', construct: 'CONSTRUCT',
     home: 'HOME', draw: 'DRAW', modify: 'MODIFY', inspect: 'INSPECT', command: 'COMMAND',
-    select: 'Select', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', text: 'Text',
+    select: 'Select', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', text: 'Text', rectangle: 'Rectangle', ellipse: 'Ellipse', point: 'Point', xline: 'XLine',
     move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', delete: 'Delete', distance: 'Distance', lengthArea: 'Length / area', fit: 'Fit view', run: 'Run',
     commandPlaceholder: 'Type a command: MOVE 5 0 · OFFSET 2 · LENGTH', project: 'PROJECT', layers: 'LAYERS', workspace: 'LOCAL WORKSPACE',
     localHelp: 'Open or drop DXF / KJD / KJP. Files stay in this browser.', reload: 'Reload sample', inspector: 'PROPERTIES',
@@ -18,9 +18,9 @@ const messages = {
   },
   zh: {
     preview: '开发者预览版', docs: '开发文档 ↗', github: 'GitHub ↗', language: 'EN',
-    open: '打开 DXF / KJD / KJP', snapshot: '创建快照', save: '下载 KJP', export: '导出 DXF ↗', memory: '仅在内存中',
+    open: '打开 DXF / KJD / KJP', openShort: '打开', snapshot: '快照', save: '下载 KJP', saveShort: '保存 KJP', export: '导出 DXF ↗', exportShort: '导出 DXF', memory: '仅在内存中', file: '文件', view: '视图', construct: '构造',
     home: '常用', draw: '绘图', modify: '修改', inspect: '测量', command: '命令行',
-    select: '选择', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', text: '文字',
+    select: '选择', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', text: '文字', rectangle: '矩形', ellipse: '椭圆', point: '点', xline: '构造线',
     move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', delete: '删除', distance: '距离', lengthArea: '长度 / 面积', fit: '全图', run: '执行',
     commandPlaceholder: '输入命令：MOVE 5 0 · OFFSET 2 · LENGTH', project: '工程图纸', layers: '图层', workspace: '本地工作区',
     localHelp: '打开或拖入 DXF / KJD / KJP，文件始终留在本浏览器。', reload: '重新加载示例', inspector: '特性',

@@ -23,8 +23,8 @@ function setTool(value) {
   tool = value; start = null; draft = []
   for (const b of document.querySelectorAll('[data-tool]')) { b.classList.toggle('active', b.dataset.tool === tool); b.setAttribute('aria-pressed', String(b.dataset.tool === tool)) }
   const hints = i18n.locale === 'zh'
-    ? { select:'滚轮缩放 · 中键拖动画布 · 单击检查对象', line:'直线：指定起点和终点', polyline:'多段线：依次指定三个顶点', circle:'圆：指定圆心和半径', arc:'圆弧：指定圆心、起点和终点', text:'文字：指定插入点', measure:'距离：指定两个测量点' }
-    : { select:'Scroll to zoom · middle-drag to pan · click to inspect', line:'LINE: first point, then endpoint', polyline:'POLYLINE: choose three vertices', circle:'CIRCLE: center, then radius', arc:'ARC: center, start, then endpoint', text:'TEXT: choose insertion point', measure:'DISTANCE: choose two points' }
+    ? { select:'滚轮缩放 · 中键拖动画布 · 单击检查对象', line:'直线：指定起点和终点', polyline:'多段线：依次指定三个顶点', circle:'圆：指定圆心和半径', arc:'圆弧：指定圆心、起点和终点', rectangle:'矩形：指定两个对角点', ellipse:'椭圆：指定中心和长轴端点', point:'点：指定位置', xline:'构造线：指定原点和方向', text:'文字：指定插入点', measure:'距离：指定两个测量点' }
+    : { select:'Scroll to zoom · middle-drag to pan · click to inspect', line:'LINE: first point, then endpoint', polyline:'POLYLINE: choose three vertices', circle:'CIRCLE: center, then radius', arc:'ARC: center, start, then endpoint', rectangle:'RECTANGLE: choose opposite corners', ellipse:'ELLIPSE: choose center and major-axis endpoint', point:'POINT: choose a position', xline:'XLINE: choose origin and direction', text:'TEXT: choose insertion point', measure:'DISTANCE: choose two points' }
   $('hint').textContent = `${hints[tool] ?? tool.toUpperCase()}${tool === 'select' ? '' : ' · Esc to cancel'}`
   render()
 }
@@ -71,7 +71,14 @@ function render() {
   const entities = modelEntities()
   for (const entity of entities) if(isVisible(entity))drawEntity(entity,selection.has(entity.id) ? '#edffd8' : layerColor(entity))
   if(pendingPlan)for(const entity of entities)if(pendingPlan.ids.includes(entity.id))drawEntity(entity,'#e4bc7b',[pendingPlan.dx,0],true)
-  if(start && cursor)drawEntity({type:tool==='circle'?'CIRCLE':'LINE',payload:tool==='circle'?{center:start,radius:Math.hypot(cursor[0]-start[0],cursor[1]-start[1])}:{start,end:cursor}},'#bdf878',[0,0],true)
+  if(start && cursor){
+    const preview = tool==='circle' ? {type:'CIRCLE',payload:{center:start,radius:Math.hypot(cursor[0]-start[0],cursor[1]-start[1])}}
+      : tool==='rectangle' ? {type:'LWPOLYLINE',payload:{vertices:[[start[0],start[1]],[cursor[0],start[1]],cursor,[start[0],cursor[1]]].map(point=>({point})),closed:true}}
+      : tool==='ellipse' ? {type:'ELLIPSE',payload:{center:start,majorAxis:[cursor[0]-start[0],cursor[1]-start[1]],ratio:.55,startParameter:0,endParameter:Math.PI*2}}
+      : tool==='xline' ? {type:'XLINE',payload:{origin:start,direction:[cursor[0]-start[0],cursor[1]-start[1]]}}
+      : {type:'LINE',payload:{start,end:cursor}}
+    drawEntity(preview,'#bdf878',[0,0],true)
+  }
   if(tool==='polyline'&&draft.length>1){ctx.strokeStyle='#bdf878';ctx.setLineDash([5,4]);ctx.beginPath();draft.concat(cursor?[cursor]:[]).forEach((v,i)=>{const q=point(v);i?ctx.lineTo(...q):ctx.moveTo(...q)});ctx.stroke();ctx.setLineDash([])}
 }
 function resize() {
@@ -99,7 +106,7 @@ function fit(){const [x0,y0,x1,y1]=bounds();camera.x=(x0+x1)/2;camera.y=(y0+y1)/
 function field(container,label,value) { const row=document.createElement('div');row.className='kv';const k=document.createElement('span'),v=document.createElement('b');k.textContent=label;v.textContent=String(value);row.append(k,v);container.append(row) }
 function refresh() {
   const tabs=$('document-tabs');for(const old of tabs.querySelectorAll('[data-document]'))old.remove()
-  for(const drawing of session?.documents?.values()??[]){const button=document.createElement('button');button.dataset.document=drawing.id;button.textContent=drawing.snapshot().title||drawing.id;button.classList.toggle('active',drawing.id===session.activeDocumentId);button.onclick=()=>{session.setActiveDocument(drawing.id);replaceSelection();measurement='';$('drawing-title').textContent=drawing.snapshot().title||drawing.id;refresh();fit();message(`Active drawing · ${drawing.id}`)};tabs.insertBefore(button,$('new-drawing'))}
+  for(const drawing of session?.documents?.values()??[]){const button=document.createElement('button');button.dataset.document=drawing.id;button.textContent=drawing.snapshot().title||drawing.id;button.classList.toggle('active',drawing.id===session.activeDocumentId);button.onclick=()=>{session.setActiveDocument(drawing.id);replaceSelection();measurement='';const title=drawing.snapshot().title||drawing.id;$('drawing-title').textContent=title;$('top-file-name').textContent=title;refresh();fit();message(`${i18n.locale==='zh'?'当前图纸':'Active drawing'} · ${drawing.id}`)};tabs.insertBefore(button,$('new-drawing'))}
   $('entity-count').textContent=`${doc().listEntities().length} ${t('entities')}`;$('revision').textContent=`REV ${doc().revision}`
   $('selection-count').textContent=`${selectedIds().length} ${t('selected')}`
   $('undo').disabled=!doc().history.canUndo;$('redo').disabled=!doc().history.canRedo
@@ -157,7 +164,7 @@ async function runTypedCommand(){
   throw new Error(`Supported commands: MOVE, COPY, ROTATE, OFFSET, LENGTH, AREA, ERASE, UNDO, REDO, FIT`)
 }
 async function run(work){if(busy)return;busy=true;try{await work()}catch(e){message(e.cause?.message??e.message);console.error(e)}finally{busy=false}}
-async function freshSample(){const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});const document=await createSample(next);session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'sample-field-station',title:'Field station',documents:[document],metadata:{synthetic:true}});replaceSelection();invalidatePlan();$('file-name').textContent='Field station';$('top-file-name').textContent='Field station';$('drawing-title').textContent='Concept plan';$('file-state').textContent=t('memory');refresh();fit();message(i18n.locale==='zh'?'原创合成示例 · 浏览器本地执行 · 不上传文件':'Synthetic sample · local execution · no uploads')}
+async function freshSample(){const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});const document=await createSample(next);session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'sample-field-station',title:'KJDraw showcase',documents:[document],metadata:{synthetic:true}});replaceSelection();invalidatePlan();$('top-file-name').textContent=document.snapshot().title;$('drawing-title').textContent=document.snapshot().title;$('file-state').textContent=t('memory');refresh();fit();message(i18n.locale==='zh'?'原创工程示例 · 浏览器本地执行 · 不上传文件':'Original engineering sample · local execution · no uploads')}
 function download(content,name,type){const url=URL.createObjectURL(new Blob([content],{type}));const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 async function openFile(file){
   if(!file)return
@@ -165,7 +172,7 @@ async function openFile(file){
   const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});let project
   if(file.name.toLowerCase().endsWith('.kjp'))project=await KJProjectSession.open(new Uint8Array(await file.arrayBuffer()),{sdk:next})
   else {const format=file.name.toLowerCase().endsWith('.dxf')?'DXF':'KJD';const drawing=await next.readDocument(format==='DXF'?new Uint8Array(await file.arrayBuffer()):await file.text(),{format});project=KJProjectSession.create({sdk:next,title:file.name,documents:[drawing]})}
-  session?.destroy();sdk=next;session=project;replaceSelection();invalidatePlan();setTool('select');$('file-name').textContent=file.name;$('top-file-name').textContent=file.name;$('drawing-title').textContent=project.activeDocument.snapshot().title||project.activeDocument.id;$('file-state').textContent=i18n.locale==='zh'?'已在本地打开':'Opened locally';refresh();fit();message(i18n.locale==='zh'?'文件已在本地打开 · 暂不显示的对象仍完整保留':'File opened locally · unsupported view entities remain in the document')
+  session?.destroy();sdk=next;session=project;replaceSelection();invalidatePlan();setTool('select');$('top-file-name').textContent=file.name;$('drawing-title').textContent=project.activeDocument.snapshot().title||project.activeDocument.id;$('file-state').textContent=i18n.locale==='zh'?'已在本地打开':'Opened locally';refresh();fit();message(i18n.locale==='zh'?'文件已在本地打开 · 暂不显示的对象仍完整保留':'File opened locally · unsupported view entities remain in the document')
 }
 $('open').onclick=()=>$('file-input').click()
 $('toggle-layers').onclick=()=>{const open=workbench.classList.toggle('layers-open');$('toggle-layers').classList.toggle('active',open);$('toggle-layers').setAttribute('aria-pressed',String(open));resize()}
@@ -231,6 +238,7 @@ canvas.onpointerdown=e=>{
     refresh();return
   }
   if(tool==='text'){const text=window.prompt('Text content','KJDraw');if(text)run(()=>execute('CREATE',{type:'TEXT',payload:{position:p,height:2.5,rotation:0,text}}));return}
+  if(tool==='point'){run(()=>execute('CREATE',{type:'POINT',payload:{position:p}}));return}
   if(tool==='measure'){
     if(!start){start=p;cursor=p;message('Choose the second distance point');return}
     const first=start;start=null;run(()=>query('DISTANCE',{firstPoint:first,secondPoint:p}));return
@@ -247,13 +255,19 @@ canvas.onpointerdown=e=>{
     const radius=Math.hypot(arcStart[0]-center[0],arcStart[1]-center[1]);if(radius<1e-9){message('Arc radius must be positive');return}
     run(()=>execute('CREATE',{type:'ARC',payload:{center,radius,startAngle:Math.atan2(arcStart[1]-center[1],arcStart[0]-center[0]),endAngle:Math.atan2(arcEnd[1]-center[1],arcEnd[0]-center[0])}}));return
   }
-  if(!start){start=p;cursor=p;message(tool==='line'?'Choose endpoint':'Choose radius');return}
+  if(!start){start=p;cursor=p;message(i18n.locale==='zh'?'指定下一点':'Choose the next point');return}
   const initial=start;start=null
-  run(async()=>{if(tool==='circle'){const radius=Math.hypot(p[0]-initial[0],p[1]-initial[1]);if(radius<1e-9)throw new Error('Circle radius must be positive.');await execute('CREATE',{type:'CIRCLE',payload:{center:initial,radius}})}else await execute('CREATE',{type:'LINE',payload:{start:initial,end:p}})})
+  run(async()=>{
+    if(tool==='circle'){const radius=Math.hypot(p[0]-initial[0],p[1]-initial[1]);if(radius<1e-9)throw new Error('Circle radius must be positive.');await execute('CREATE',{type:'CIRCLE',payload:{center:initial,radius}})}
+    else if(tool==='rectangle')await execute('CREATE',{type:'LWPOLYLINE',payload:{vertices:[[initial[0],initial[1]],[p[0],initial[1]],p,[initial[0],p[1]]].map(point=>({point})),closed:true}})
+    else if(tool==='ellipse'){const majorAxis=[p[0]-initial[0],p[1]-initial[1]];if(Math.hypot(...majorAxis)<1e-9)throw new Error('Ellipse axis must be positive.');await execute('CREATE',{type:'ELLIPSE',payload:{center:initial,majorAxis,ratio:.55,startParameter:0,endParameter:Math.PI*2}})}
+    else if(tool==='xline'){const direction=[p[0]-initial[0],p[1]-initial[1]];if(Math.hypot(...direction)<1e-9)throw new Error('Construction line direction must be positive.');await execute('CREATE',{type:'XLINE',payload:{origin:initial,direction}})}
+    else await execute('CREATE',{type:'LINE',payload:{start:initial,end:p}})
+  })
 }
 canvas.onpointerup=()=>{pan=null};canvas.onpointercancel=()=>{pan=null;start=null;render()}
 canvas.addEventListener('wheel',e=>{e.preventDefault();const p=pointer(e),a=world(p);camera.scale=Math.min(10000,Math.max(.00001,camera.scale*Math.exp(-e.deltaY*.001)));const b=world(p);camera.x+=a[0]-b[0];camera.y+=a[1]-b[1];render()},{passive:false})
-window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.key==='Escape'){setTool('select');invalidatePlan();render()}const key=e.key.toLowerCase();if(key==='l')setTool('line');if(key==='p')setTool('polyline');if(key==='c')setTool('circle');if(key==='a')setTool('arc');if(key==='t')setTool('text');if(key==='d')setTool('measure');if(key==='v')setTool('select');if((e.ctrlKey||e.metaKey)&&key==='z'){e.preventDefault();run(()=>execute(e.shiftKey?'REDO':'UNDO'))}})
+window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.key==='Escape'){setTool('select');invalidatePlan();render()}const key=e.key.toLowerCase();if(key==='l')setTool('line');if(key==='p')setTool('polyline');if(key==='c')setTool('circle');if(key==='a')setTool('arc');if(key==='r')setTool('rectangle');if(key==='e')setTool('ellipse');if(key==='x')setTool('xline');if(key==='q')setTool('point');if(key==='t')setTool('text');if(key==='d')setTool('measure');if(key==='v')setTool('select');if((e.ctrlKey||e.metaKey)&&key==='z'){e.preventDefault();run(()=>execute(e.shiftKey?'REDO':'UNDO'))}})
 new ResizeObserver(resize).observe(canvas)
 i18n.apply()
 try {

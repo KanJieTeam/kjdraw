@@ -1,15 +1,15 @@
 <p align="center"><img src="docs/assets/hero.svg" alt="KJDraw — Extensible CAD infrastructure for engineering applications and AI agents" width="100%"></p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-bcf878?style=flat-square&labelColor=17212f" alt="Apache 2.0"></a>
-  <a href="docs/status.md"><img src="https://img.shields.io/badge/status-developer_preview-e8bc7b?style=flat-square&labelColor=17212f" alt="Developer preview"></a>
-  <a href="https://github.com/KanJieTeam/kjdraw/actions/workflows/ci.yml"><img src="https://github.com/KanJieTeam/kjdraw/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://kanjieteam.github.io/kjdraw/"><img src="https://img.shields.io/badge/demo-open_playground-bdf878?style=flat-square&labelColor=17212f" alt="Open live playground"></a>
-  <a href="docs/getting-started.md"><img src="https://img.shields.io/badge/runtime-browser_%2B_Node.js-7db9e4?style=flat-square&labelColor=17212f" alt="Browser and Node.js"></a>
+  <a href="https://www.npmjs.com/package/@kanjieteam/kjdraw"><img src="https://img.shields.io/npm/v/@kanjieteam/kjdraw?style=flat-square&label=npm&labelColor=30363d&color=2863f0" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/@kanjieteam/kjdraw"><img src="https://img.shields.io/npm/dm/@kanjieteam/kjdraw?style=flat-square&label=downloads&labelColor=30363d&color=2863f0" alt="npm downloads per month"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
+  <a href="https://kanjieteam.github.io/kjdraw/"><img src="https://img.shields.io/badge/▲_Live_Demo-open-2863f0?style=flat-square&labelColor=30363d" alt="Open live demo"></a>
+  <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><img src="https://img.shields.io/badge/▣_Docs-latest-2863f0?style=flat-square&labelColor=30363d" alt="Read the latest documentation"></a>
 </p>
 
 <p align="center"><strong>Extensible CAD infrastructure for engineering applications and AI agents.</strong><br>Browser-native. Server-accelerated. Deploy anywhere.</p>
-<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><strong>Live demo</strong></a> · <a href="#install-and-draw">Install</a> · <a href="#react">React</a> · <a href="#vue">Vue</a> · <a href="docs/capability-matrix.md">Capabilities</a> · <a href="docs/architecture.md">Architecture</a> · <a href="CONTRIBUTING.md">Contribute</a> · <a href="README.zh-CN.md">简体中文</a></p>
+<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><strong>Live demo</strong></a> · <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><strong>Documentation</strong></a> · <a href="#install-and-draw">Install</a> · <a href="#react">React</a> · <a href="#vue">Vue</a> · <a href="CONTRIBUTING.md">Contribute</a> · <a href="README.zh-CN.md">简体中文</a></p>
 
 ## Why KJDraw
 

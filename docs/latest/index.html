@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="KJDraw documentation — install, embed and extend programmable CAD in TypeScript, React, Vue and AI agents.">
+  <title>KJDraw Documentation</title>
+  <link rel="icon" href="../../docs/assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="../../"><img src="../../docs/assets/mark.svg" alt=""><b>KJDraw</b><span>Docs</span></a>
+    <button id="search-button" class="search-button" aria-keyshortcuts="Control+K Meta+K"><span>⌕</span><span data-copy="search">Search documentation</span><kbd>Ctrl K</kbd></button>
+    <nav><a href="../../" data-copy="demo">Live Demo</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language">中文</button></nav>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="version"><span data-copy="version">Documentation</span><select aria-label="Documentation version"><option>v0.7 · latest</option></select></div>
+      <nav id="nav">
+        <h3 data-copy="start">Getting started</h3>
+        <a class="active" href="#introduction" data-copy="introduction">Introduction</a>
+        <a href="#quickstart" data-copy="quickstart">Quickstart</a>
+        <a href="#installation" data-copy="installation">Installation</a>
+        <h3 data-copy="frameworks">Frameworks</h3>
+        <a href="#typescript">TypeScript / ESM</a><a href="#react">React</a><a href="#vue">Vue 3</a>
+        <h3 data-copy="guides">Guides</h3>
+        <a href="#files" data-copy="files">Open and save drawings</a>
+        <a href="#commands" data-copy="commands">Commands and transactions</a>
+        <a href="#workbench" data-copy="workbench">Embed the workbench</a>
+        <a href="#agent">Agent-native CAD</a>
+        <h3 data-copy="reference">Reference</h3>
+        <a href="#packages" data-copy="packages">Packages</a>
+        <a href="#capabilities" data-copy="capabilities">Capabilities and limits</a>
+        <a href="#next" data-copy="next">Next steps</a>
+      </nav>
+    </aside>
+    <main>
+      <article>
+        <section id="introduction">
+          <p class="eyebrow">KJDRAW / DOCUMENTATION</p>
+          <h1 data-copy="title">CAD infrastructure you can build on.</h1>
+          <p class="lead" data-copy="lead">A framework-independent drawing model, deterministic command system, DXF/KJD/KJP file pipeline and Rust/WebAssembly geometry backend for engineering applications and AI agents.</p>
+          <div class="actions"><a class="primary" href="#quickstart" data-copy="installAction">Install KJDraw</a><a href="../../" data-copy="tryAction">Try the workbench ↗</a></div>
+          <div class="cards">
+            <a href="#quickstart"><b data-copy="cardInstall">Install in a minute</b><span data-copy="cardInstallBody">Create and edit a real drawing with the public npm package.</span></a>
+            <a href="#workbench"><b data-copy="cardEmbed">Build your own CAD UI</b><span data-copy="cardEmbedBody">Use the headless core with any renderer or framework.</span></a>
+            <a href="#agent"><b data-copy="cardAgent">Give agents safe tools</b><span data-copy="cardAgentBody">Plan, review and commit bounded drawing changes.</span></a>
+          </div>
+        </section>
+
+        <section id="quickstart"><h2 data-copy="quickstart">Quickstart</h2><p data-copy="quickstartBody">Install the dependency-free SDK, create a document, and commit geometry through the same command path used by the live workbench.</p>
+<pre><button class="copy">Copy</button><code>npm install @kanjieteam/kjdraw</code></pre>
+<pre><button class="copy">Copy</button><code>import { createKJDrawSDK } from '@kanjieteam/kjdraw'
+
+const sdk = createKJDrawSDK()
+const drawing = sdk.createDocument({
+  documentId: 'hello-cad',
+  units: 'millimeter',
+})
+
+await sdk.executeCommand('CREATE', {
+  type: 'LINE',
+  payload: { start: [0, 0, 0], end: [100, 0, 0] },
+})
+
+console.log(drawing.revision) // 1</code></pre></section>
+
+        <section id="installation"><h2 data-copy="installation">Installation</h2><p data-copy="installationBody">KJDraw ships as ESM with TypeScript declarations and no runtime npm dependencies. Node.js 22+ is recommended for tooling; modern evergreen browsers are supported.</p><table><thead><tr><th data-copy="goal">Goal</th><th data-copy="use">Use</th></tr></thead><tbody><tr><td>Browser / Node.js</td><td><code>@kanjieteam/kjdraw</code></td></tr><tr><td>React</td><td data-copy="reactUse">Core package + your hook or store</td></tr><tr><td>Vue 3</td><td data-copy="vueUse">Core package + your composable or store</td></tr><tr><td>Rust / WASM</td><td data-copy="wasmUse">Optional authoritative geometry backend</td></tr></tbody></table></section>
+
+        <section id="typescript"><h2>TypeScript / ESM</h2><p data-copy="tsBody">The public model is framework-independent. Subscribe to document events and project state instead of coupling the core to a component lifecycle.</p><pre><button class="copy">Copy</button><code>const off = sdk.events.on('command:committed', ({ receipt }) =&gt; {
+  console.log(receipt.afterRevision)
+})
+
+await sdk.executeCommand('MOVE', { ids: ['entity-1'], dx: 25, dy: 0 })
+off()</code></pre></section>
+
+        <section id="react"><h2>React</h2><p data-copy="reactBody">Create the SDK once, subscribe in an effect, and expose stable commands from a hook. KJDraw does not force a renderer or state library.</p><p><a href="https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/react.tsx" data-copy="reactExample">Open the complete React hook →</a></p></section>
+        <section id="vue"><h2>Vue 3</h2><p data-copy="vueBody">Wrap the SDK in a composable, mirror revisions with refs, and dispose event subscriptions when the component unmounts.</p><p><a href="https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/vue.ts" data-copy="vueExample">Open the complete Vue composable →</a></p></section>
+
+        <section id="files"><h2 data-copy="files">Open and save drawings</h2><p data-copy="filesBody">Read DXF or KJD into the same document model. Use KJP when a project contains multiple drawings, command history, snapshots or assets.</p><pre><button class="copy">Copy</button><code>const drawing = await sdk.readDocument(await file.arrayBuffer(), { format: 'DXF' })
+const dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })</code></pre><p><a href="../dxf-compatibility.md" data-copy="compatLink">Read the DXF compatibility contract →</a></p></section>
+
+        <section id="commands"><h2 data-copy="commands">Commands and transactions</h2><p data-copy="commandsBody">Every edit is validated and revisioned. Command envelopes add origin, expected revision and a receipt, making UI actions and automation observable and replayable.</p><div class="chips"><span>CREATE</span><span>MOVE</span><span>COPY</span><span>ROTATE</span><span>OFFSET</span><span>TRIM</span><span>EXTEND</span><span>UNDO</span><span>REDO</span></div></section>
+
+        <section id="workbench"><h2 data-copy="workbench">Embed the workbench</h2><p data-copy="workbenchBody">The live workbench is a reference application built only with public APIs. Fork its shell, replace the renderer, or use the core headlessly inside an existing engineering product.</p><div class="callout"><b data-copy="boundary">Architecture boundary</b><span data-copy="boundaryBody">The SDK owns drawing truth. UI stores and renderers are projections. File and compute providers are explicit adapters.</span></div><p><a href="../../" data-copy="demoLink">Open the interactive CAD workbench →</a></p></section>
+
+        <section id="agent"><h2>Agent-native CAD</h2><p data-copy="agentBody">An agent proposes a bounded command envelope. KJDraw binds it to the exact document revision, lets a human inspect the result, and only commits after explicit confirmation.</p><pre><button class="copy">Copy</button><code>const envelope = sdk.createCommandEnvelope('MOVE', {
+  ids: surveyPointIds, dx: 3, dy: 0,
+}, { origin: 'ai', mode: 'plan', expectedRevision: drawing.revision })
+
+const preview = await sdk.executeCommandEnvelope(envelope)</code></pre><p><a href="../agent-protocol.md" data-copy="agentLink">Read the Agent protocol →</a></p></section>
+
+        <section id="packages"><h2 data-copy="packages">Packages</h2><table><thead><tr><th data-copy="package">Package</th><th data-copy="purpose">Purpose</th><th data-copy="license">License</th></tr></thead><tbody><tr><td><code>@kanjieteam/kjdraw</code></td><td data-copy="corePurpose">Document, commands, files, geometry contracts and Agent protocol</td><td>Apache 2.0</td></tr><tr><td><code>kjcore.wasm</code></td><td data-copy="wasmPurpose">Optional Rust/WebAssembly authoritative backend</td><td>Apache 2.0</td></tr><tr><td data-copy="workbenchName">Reference workbench</td><td data-copy="workbenchPurpose">Browser CAD UI and integration example</td><td>Apache 2.0</td></tr></tbody></table></section>
+
+        <section id="capabilities"><h2 data-copy="capabilities">Capabilities and limits</h2><p data-copy="capabilitiesBody">KJDraw publishes exact support boundaries. Unsupported DXF records are preserved where the format contract allows; preview UI coverage is not presented as full CAD parity.</p><p><a href="../capability-matrix.md" data-copy="matrixLink">Capability matrix →</a> · <a href="../status.md" data-copy="limitsLink">Known limits →</a> · <a href="../architecture.md" data-copy="architectureLink">Architecture →</a></p></section>
+        <section id="next"><h2 data-copy="next">Next steps</h2><div class="cards compact"><a href="../../"><b data-copy="tryAction">Try the workbench ↗</b><span data-copy="nextDemo">Open, edit and export an original engineering sample.</span></a><a href="https://github.com/KanJieTeam/kjdraw"><b>GitHub</b><span data-copy="nextGitHub">Star, discuss, report issues or contribute.</span></a><a href="../roadmap.md"><b data-copy="roadmap">Roadmap</b><span data-copy="nextRoadmap">Follow the path from preview to 1.0.</span></a></div></section>
+      </article>
+      <aside class="toc"><b data-copy="onPage">On this page</b><a href="#introduction" data-copy="introduction">Introduction</a><a href="#quickstart" data-copy="quickstart">Quickstart</a><a href="#installation" data-copy="installation">Installation</a><a href="#frameworks" data-copy="frameworks">Frameworks</a><a href="#files" data-copy="guides">Guides</a><a href="#packages" data-copy="reference">Reference</a></aside>
+    </main>
+  </div>
+  <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span>⌕</span><input id="search" autocomplete="off" data-copy-placeholder="searchPlaceholder" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results"></div></form></dialog>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

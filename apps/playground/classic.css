@@ -96,11 +96,10 @@ body > main { width: 100%; max-width: none; height: calc(100vh - 36px); padding:
 }
 
 /* KJDraw's public CAD shell: familiar drafting grammar, distinct open-source identity. */
-.workbench-head { order: 1; }
-.cad-ribbon { order: 2; height: 118px; min-height: 118px; display: block; padding: 0; overflow: hidden; }
-.workspace { order: 3; position: relative; display: block; }
-.document-tabs { order: 4; }
-.statusbar { order: 5; }
+.cad-ribbon { order: 1; height: 118px; min-height: 118px; display: block; padding: 0; overflow: hidden; }
+.workspace { order: 2; position: relative; display: block; }
+.document-tabs { order: 3; }
+.statusbar { order: 4; }
 .ribbon-tabs { height: 24px; display: flex; align-items: stretch; padding-left: 14px; border-bottom: 1px solid var(--chrome-line); background: #f2f4f7; }
 .ribbon-tabs button { min-width: 58px; padding: 0 13px; border: 0; border-radius: 0; background: transparent; color: #3e4650; font-size: 10px; }
 .ribbon-tabs button:hover { background: #e5edf8; }
@@ -126,6 +125,17 @@ body > main { width: 100%; max-width: none; height: calc(100vh - 36px); padding:
 .ribbon-groups #delete-selection::before { content: '⌫'; }
 .ribbon-groups #measure-entity::before { content: '⌁'; }
 .ribbon-groups #fit-ribbon::before { content: '⛶'; }
+.ribbon-groups [data-tool="rectangle"]::before { content: '▭'; }
+.ribbon-groups [data-tool="ellipse"]::before { content: '⬭'; }
+.ribbon-groups [data-tool="point"]::before { content: '⌖'; }
+.ribbon-groups [data-tool="xline"]::before { content: '╱'; }
+.ribbon-groups #open::before { content: '▰'; }
+.ribbon-groups #save::before { content: '▣'; }
+.ribbon-groups #export::before { content: '⇱'; }
+.ribbon-groups #snapshot::before { content: '◉'; }
+.ribbon-groups #toggle-layers::before { content: '▤'; }
+.ribbon-groups #toggle-inspector::before { content: '☷'; }
+.ribbon-groups #toggle-layers.active, .ribbon-groups #toggle-inspector.active { border-color: #8faed4; background: #dceafb; color: #174d90; }
 .head-divider { width: 1px; height: 18px; margin: 0 4px; background: var(--chrome-line); }
 .file-icon { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 3px; background: #285fc0; color: white; font: 700 9px/1 Consolas, monospace; }
 .file-actions [data-icon]::before { margin-right: 5px; color: #285fc0; }
@@ -169,7 +179,7 @@ body > main { width: 100%; max-width: none; height: calc(100vh - 36px); padding:
   .ribbon-groups .ribbon-group { height: 71px; }
   .ribbon-groups .ribbon-group > button { min-width: 42px; height: 51px; }
   .ribbon-groups .ribbon-group > button::before { height: 22px; font-size: 18px; }
-  .ribbon-groups .ribbon-group:nth-child(n+2) { display: none; }
+  .ribbon-groups .ribbon-group:nth-child(n+3) { display: none; }
   .workbench.layers-open .stage, .workbench.inspector-open .stage { padding: 0; }
   .workspace > .left-panel, .workspace > .right-panel { width: min(86vw,320px); }
   .cad-command-dock { width: calc(100% - 66px); left: 8px; transform: none; grid-template-columns: 27px minmax(100px,1fr) 42px; }
