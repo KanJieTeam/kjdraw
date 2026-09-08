@@ -24,7 +24,7 @@ import {
 
 export class KJDrawSDK {
   constructor(options = {}) {
-    this.version = options.version ?? '0.7.0-preview.1'
+    this.version = options.version ?? '0.7.2-preview.1'
     this.events = new KJEventBus()
     this.extensions = new KJExtensionRegistry()
     this.commands = new KJCommandRegistry()

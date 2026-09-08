@@ -9,7 +9,7 @@ test('packaged npm quickstart resolves the package export and edits real geometr
   })
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
   const output = JSON.parse(result.stdout)
-  assert.equal(output.sdkVersion, '0.7.0-preview.1')
+  assert.equal(output.sdkVersion, '0.7.2-preview.1')
   assert.equal(output.documentId, 'npm-quickstart')
   assert.equal(output.entities, 1)
   assert.deepEqual(output.line.start, [25, 10, 0])

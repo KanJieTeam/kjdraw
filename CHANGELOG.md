@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.2-preview.1
+
+- Rebuilt the public demo as a full-height, familiar CAD workbench instead of a marketing landing page.
+- Added automatic Chinese/English UI selection with an explicit language switch.
+- Added real React hook and Vue composable integration examples.
+- Added npm package assets to tagged GitHub releases and tightened release-to-commit binding.
+
+## 0.7.1-preview.1
+
+- Published the zero-runtime-dependency SDK to npm as `@kanjieteam/kjdraw`.
+- Verified installation and the executable quickstart from a clean registry consumer directory.
+
 ## 0.7.0-preview.1
 
 - Added an SDK-native agent plan registry that binds review to exact arguments, document identity, revision and fingerprint.

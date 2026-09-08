@@ -28,7 +28,7 @@ import {
   KJ_PROVIDER_TYPES,
   createDeploymentProfile,
   validateDeploymentProfile,
-} from '@kanjie/kjdraw-sdk/deployment'
+} from '@kanjieteam/kjdraw/deployment'
 
 const providers = new KJDeploymentRegistry()
 providers.register(KJ_PROVIDER_TYPES.PROJECT_STORE, {

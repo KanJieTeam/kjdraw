@@ -1,4 +1,4 @@
-import { createKJDrawSDK } from '@kanjie/kjdraw-sdk'
+import { createKJDrawSDK } from '@kanjieteam/kjdraw'
 
 const sdk = createKJDrawSDK()
 const drawing = sdk.createDocument({ documentId: 'npm-quickstart', title: 'NPM quickstart', units: 'millimeter' })

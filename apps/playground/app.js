@@ -1,7 +1,10 @@
 import { createKJDrawSDK, KJProjectSession, instantiateKJCoreWasm, createWasmGeometryBackend, registerGeometryBackend, createKJCoreDocumentAuthority, createKJCoreSolidBackend, multiply3, rotation3, scale3, translation3, transformEntityPayload } from '../../packages/kjdraw-sdk/src/index.js'
 import { createSample } from '../../examples/sample.js'
+import { createI18n } from './i18n.js'
 
 const $ = id => document.getElementById(id)
+const i18n = createI18n(), t = key => i18n.t(key)
+const workbench = document.querySelector('.workbench')
 const canvas = $('canvas'), ctx = canvas.getContext('2d')
 const camera = { x: 60, y: 38, scale: 4 }
 const colors = ['#c8d7e7','#ee9999','#e8d697','#bdf878','#7db9e4','#b795db','#de91bf','#b8c7d8','#637b91']
@@ -19,7 +22,9 @@ function invalidatePlan() { pendingPlan = null; $('confirm').disabled = true; $(
 function setTool(value) {
   tool = value; start = null; draft = []
   for (const b of document.querySelectorAll('[data-tool]')) { b.classList.toggle('active', b.dataset.tool === tool); b.setAttribute('aria-pressed', String(b.dataset.tool === tool)) }
-  const hints = { select:'Scroll to zoom · middle-drag to pan · click to inspect', line:'LINE: first point, then endpoint', polyline:'POLYLINE: choose three vertices', circle:'CIRCLE: center, then radius', arc:'ARC: center, start, then endpoint', text:'TEXT: choose insertion point', measure:'DISTANCE: choose two points' }
+  const hints = i18n.locale === 'zh'
+    ? { select:'滚轮缩放 · 中键拖动画布 · 单击检查对象', line:'直线：指定起点和终点', polyline:'多段线：依次指定三个顶点', circle:'圆：指定圆心和半径', arc:'圆弧：指定圆心、起点和终点', text:'文字：指定插入点', measure:'距离：指定两个测量点' }
+    : { select:'Scroll to zoom · middle-drag to pan · click to inspect', line:'LINE: first point, then endpoint', polyline:'POLYLINE: choose three vertices', circle:'CIRCLE: center, then radius', arc:'ARC: center, start, then endpoint', text:'TEXT: choose insertion point', measure:'DISTANCE: choose two points' }
   $('hint').textContent = `${hints[tool] ?? tool.toUpperCase()}${tool === 'select' ? '' : ' · Esc to cancel'}`
   render()
 }
@@ -95,17 +100,17 @@ function field(container,label,value) { const row=document.createElement('div');
 function refresh() {
   const tabs=$('document-tabs');for(const old of tabs.querySelectorAll('[data-document]'))old.remove()
   for(const drawing of session?.documents?.values()??[]){const button=document.createElement('button');button.dataset.document=drawing.id;button.textContent=drawing.snapshot().title||drawing.id;button.classList.toggle('active',drawing.id===session.activeDocumentId);button.onclick=()=>{session.setActiveDocument(drawing.id);replaceSelection();measurement='';$('drawing-title').textContent=drawing.snapshot().title||drawing.id;refresh();fit();message(`Active drawing · ${drawing.id}`)};tabs.insertBefore(button,$('new-drawing'))}
-  $('entity-count').textContent=`${doc().listEntities().length} entities`;$('revision').textContent=`REV ${doc().revision}`
-  $('selection-count').textContent=`${selectedIds().length} selected`
+  $('entity-count').textContent=`${doc().listEntities().length} ${t('entities')}`;$('revision').textContent=`REV ${doc().revision}`
+  $('selection-count').textContent=`${selectedIds().length} ${t('selected')}`
   $('undo').disabled=!doc().history.canUndo;$('redo').disabled=!doc().history.canRedo
   const layers=doc().getTable('layers').records;$('layer-count').textContent=layers.length
   $('layers').replaceChildren()
   for(const layer of layers){const label=document.createElement('label');label.className='layer';const input=document.createElement('input');input.type='checkbox';input.checked=layer.payload.visible!==false;input.setAttribute('aria-label',`Show layer ${layer.name}`);input.onchange=()=>run(()=>execute('LAYERUPDATE',{id:layer.id,patch:{visible:input.checked}}));const name=document.createElement('span');name.textContent=layer.name;const count=document.createElement('small');count.textContent=doc().listEntities().filter(e=>e.payload.layerId===layer.id).length;label.append(input,name,count);$('layers').append(label)}
   replaceSelection(selectedIds());const entity=primarySelection()?doc().getObject(primarySelection()):null
-  $('inspector').replaceChildren();const title=document.createElement('h3');title.textContent=selectedIds().length>1?`${selectedIds().length} objects selected`:entity?entity.type:'Drawing document';$('inspector').append(title)
+  $('inspector').replaceChildren();const title=document.createElement('h3');title.textContent=selectedIds().length>1?`${selectedIds().length} ${t('objectsSelected')}`:entity?entity.type:t('drawingDocument');$('inspector').append(title)
   if(entity){
-    if(selectedIds().length>1){const summary=document.createElement('div');summary.className='selection-summary';summary.textContent=`Primary: ${entity.type} · transforms and delete apply to all selected objects`;$('inspector').append(summary)}
-    field($('inspector'),'Handle',entity.handle);field($('inspector'),'Layer',doc().getObject(entity.payload.layerId)?.name??'0');if(entity.payload.radius)field($('inspector'),'Radius',entity.payload.radius.toFixed(3));if(entity.payload.text)field($('inspector'),'Text',entity.payload.text)
+    if(selectedIds().length>1){const summary=document.createElement('div');summary.className='selection-summary';summary.textContent=`${t('primary')}: ${entity.type} · ${t('groupHint')}`;$('inspector').append(summary)}
+    field($('inspector'),t('handle'),entity.handle);field($('inspector'),t('layer'),doc().getObject(entity.payload.layerId)?.name??'0');if(entity.payload.radius)field($('inspector'),t('radius'),entity.payload.radius.toFixed(3));if(entity.payload.text)field($('inspector'),t('textField'),entity.payload.text)
     const editor=document.createElement('div');editor.className='property-editor'
     const layerLabel=document.createElement('label');layerLabel.textContent='LAYER';const layerSelect=document.createElement('select')
     for(const layer of doc().getTable('layers').records){const option=document.createElement('option');option.value=layer.id;option.textContent=layer.name;option.selected=layer.id===entity.payload.layerId;layerSelect.append(option)}
@@ -113,10 +118,10 @@ function refresh() {
     let valueInput=null
     if(entity.type==='CIRCLE'||entity.type==='ARC'){const label=document.createElement('label');label.textContent='RADIUS';valueInput=document.createElement('input');valueInput.type='number';valueInput.min='0.000001';valueInput.step='0.1';valueInput.value=entity.payload.radius;label.append(valueInput);editor.append(label)}
     if(entity.type==='TEXT'||entity.type==='MTEXT'){const label=document.createElement('label');label.textContent='TEXT';valueInput=document.createElement('input');valueInput.value=entity.payload.text??'';label.append(valueInput);editor.append(label)}
-    const save=document.createElement('button');save.textContent='Apply properties';save.onclick=()=>run(async()=>{const payload={...entity.payload,layerId:layerSelect.value};if(valueInput&&(entity.type==='CIRCLE'||entity.type==='ARC'))payload.radius=Number(valueInput.value);if(valueInput&&(entity.type==='TEXT'||entity.type==='MTEXT'))payload.text=valueInput.value;await execute('PROPERTIES',{id:entity.id,patch:{payload}})});editor.append(save);$('inspector').append(editor)
-    const erase=document.createElement('button');erase.textContent='Delete selected';erase.onclick=()=>run(()=>execute('ERASE',{ids:selectedIds()}));$('inspector').append(erase)
+    const save=document.createElement('button');save.textContent=t('applyProperties');save.onclick=()=>run(async()=>{const payload={...entity.payload,layerId:layerSelect.value};if(valueInput&&(entity.type==='CIRCLE'||entity.type==='ARC'))payload.radius=Number(valueInput.value);if(valueInput&&(entity.type==='TEXT'||entity.type==='MTEXT'))payload.text=valueInput.value;await execute('PROPERTIES',{id:entity.id,patch:{payload}})});editor.append(save);$('inspector').append(editor)
+    const erase=document.createElement('button');erase.textContent=t('deleteSelected');erase.onclick=()=>run(()=>execute('ERASE',{ids:selectedIds()}));$('inspector').append(erase)
   }
-  else {field($('inspector'),'Revision',doc().revision);field($('inspector'),'Model entities',modelEntities().length);field($('inspector'),'Kernel',authority?'Rust / WASM':'JS reference');field($('inspector'),'Units',doc().snapshot().header.units??'unspecified')}
+  else {field($('inspector'),t('revision'),doc().revision);field($('inspector'),t('modelEntities'),modelEntities().length);field($('inspector'),t('kernel'),authority?'Rust / WASM':t('jsReference'));field($('inspector'),t('units'),doc().snapshot().header.units??'unspecified')}
   const omitted=modelEntities().filter(e=>!rendererSupports(e)).length
   if(omitted){const warning=document.createElement('p');warning.textContent=`${omitted} entities not drawn by this minimal viewer. Preserved in the document; use KJP for lossless storage.`;$('inspector').append(warning)}
   if(measurement){const output=document.createElement('div');output.className='measure-result';output.textContent=measurement;$('inspector').append(output)}
@@ -152,7 +157,7 @@ async function runTypedCommand(){
   throw new Error(`Supported commands: MOVE, COPY, ROTATE, OFFSET, LENGTH, AREA, ERASE, UNDO, REDO, FIT`)
 }
 async function run(work){if(busy)return;busy=true;try{await work()}catch(e){message(e.cause?.message??e.message);console.error(e)}finally{busy=false}}
-async function freshSample(){const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});const document=await createSample(next);session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'sample-field-station',title:'Field station',documents:[document],metadata:{synthetic:true}});replaceSelection();invalidatePlan();$('file-name').textContent='Field station';$('drawing-title').textContent='Concept plan';$('file-state').textContent='In memory';refresh();fit();message('Synthetic sample · local execution · no uploads')}
+async function freshSample(){const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});const document=await createSample(next);session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'sample-field-station',title:'Field station',documents:[document],metadata:{synthetic:true}});replaceSelection();invalidatePlan();$('file-name').textContent='Field station';$('top-file-name').textContent='Field station';$('drawing-title').textContent='Concept plan';$('file-state').textContent=t('memory');refresh();fit();message(i18n.locale==='zh'?'原创合成示例 · 浏览器本地执行 · 不上传文件':'Synthetic sample · local execution · no uploads')}
 function download(content,name,type){const url=URL.createObjectURL(new Blob([content],{type}));const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 async function openFile(file){
   if(!file)return
@@ -160,9 +165,11 @@ async function openFile(file){
   const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});let project
   if(file.name.toLowerCase().endsWith('.kjp'))project=await KJProjectSession.open(new Uint8Array(await file.arrayBuffer()),{sdk:next})
   else {const format=file.name.toLowerCase().endsWith('.dxf')?'DXF':'KJD';const drawing=await next.readDocument(format==='DXF'?new Uint8Array(await file.arrayBuffer()):await file.text(),{format});project=KJProjectSession.create({sdk:next,title:file.name,documents:[drawing]})}
-  session?.destroy();sdk=next;session=project;replaceSelection();invalidatePlan();setTool('select');$('file-name').textContent=file.name;$('drawing-title').textContent=project.activeDocument.snapshot().title||project.activeDocument.id;$('file-state').textContent='Opened locally';refresh();fit();message('File opened locally · unsupported view entities remain in the document')
+  session?.destroy();sdk=next;session=project;replaceSelection();invalidatePlan();setTool('select');$('file-name').textContent=file.name;$('top-file-name').textContent=file.name;$('drawing-title').textContent=project.activeDocument.snapshot().title||project.activeDocument.id;$('file-state').textContent=i18n.locale==='zh'?'已在本地打开':'Opened locally';refresh();fit();message(i18n.locale==='zh'?'文件已在本地打开 · 暂不显示的对象仍完整保留':'File opened locally · unsupported view entities remain in the document')
 }
 $('open').onclick=()=>$('file-input').click()
+$('toggle-layers').onclick=()=>{const open=workbench.classList.toggle('layers-open');$('toggle-layers').classList.toggle('active',open);$('toggle-layers').setAttribute('aria-pressed',String(open));resize()}
+$('toggle-inspector').onclick=()=>{const open=workbench.classList.toggle('inspector-open');$('toggle-inspector').classList.toggle('active',open);$('toggle-inspector').setAttribute('aria-pressed',String(open));resize()}
 $('file-input').onchange=e=>run(async()=>{try{await openFile(e.target.files[0])}finally{e.target.value=''}})
 for(const eventName of ['dragenter','dragover'])$('drop-zone').addEventListener(eventName,e=>{e.preventDefault();$('drop-zone').classList.add('dragging')})
 for(const eventName of ['dragleave','drop'])$('drop-zone').addEventListener(eventName,e=>{e.preventDefault();$('drop-zone').classList.remove('dragging')})
@@ -183,9 +190,10 @@ $('command-input').onkeydown=e=>{if(e.key==='Enter')run(runTypedCommand)}
 $('new-layer').onclick=()=>run(async()=>{const name=window.prompt('New layer name','Design');if(!name?.trim())return;await execute('LAYERNEW',{name:name.trim(),color:3})})
 $('new-drawing').onclick=()=>run(async()=>{const name=window.prompt('Drawing name',`Drawing ${session.documents.size+1}`);if(!name?.trim())return;const id=`drawing-${Date.now().toString(36)}`,drawing=sdk.createDocument({documentId:id,title:name.trim(),units:doc().snapshot().header.units??'unitless'});session.attachDocument(drawing);session.setActiveDocument(id);replaceSelection();measurement='';$('drawing-title').textContent=name.trim();$('file-state').textContent='Modified in memory';refresh();fit();message(`Drawing created · ${name.trim()}`)})
 $('reset').onclick=()=>run(async()=>{if(window.confirm('Replace the open project with the sample? Download KJP first to keep your changes.'))await freshSample()})
-$('snap').onclick=()=>{snapEnabled=!snapEnabled;$('snap').textContent=`SNAP ${snapEnabled?'ON':'OFF'}`;$('snap').setAttribute('aria-pressed',String(snapEnabled))}
-$('grid').onclick=()=>{gridEnabled=!gridEnabled;$('grid').textContent=`GRID ${gridEnabled?'ON':'OFF'}`;$('grid').setAttribute('aria-pressed',String(gridEnabled));render()}
-$('ortho').onclick=()=>{orthoEnabled=!orthoEnabled;$('ortho').textContent=`ORTHO ${orthoEnabled?'ON':'OFF'}`;$('ortho').setAttribute('aria-pressed',String(orthoEnabled));render()}
+$('snap').onclick=()=>{snapEnabled=!snapEnabled;$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');$('snap').setAttribute('aria-pressed',String(snapEnabled))}
+$('grid').onclick=()=>{gridEnabled=!gridEnabled;$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('grid').setAttribute('aria-pressed',String(gridEnabled));render()}
+$('ortho').onclick=()=>{orthoEnabled=!orthoEnabled;$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('ortho').setAttribute('aria-pressed',String(orthoEnabled));render()}
+$('language').onclick=()=>{i18n.toggle();$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');if(sdk)refresh();setTool(tool)}
 for(const b of document.querySelectorAll('[data-tool]'))b.onclick=()=>setTool(b.dataset.tool)
 $('shift').oninput=()=>{invalidatePlan();render()}
 $('plan').onclick=()=>run(async()=>{
@@ -247,6 +255,7 @@ canvas.onpointerup=()=>{pan=null};canvas.onpointercancel=()=>{pan=null;start=nul
 canvas.addEventListener('wheel',e=>{e.preventDefault();const p=pointer(e),a=world(p);camera.scale=Math.min(10000,Math.max(.00001,camera.scale*Math.exp(-e.deltaY*.001)));const b=world(p);camera.x+=a[0]-b[0];camera.y+=a[1]-b[1];render()},{passive:false})
 window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.key==='Escape'){setTool('select');invalidatePlan();render()}const key=e.key.toLowerCase();if(key==='l')setTool('line');if(key==='p')setTool('polyline');if(key==='c')setTool('circle');if(key==='a')setTool('arc');if(key==='t')setTool('text');if(key==='d')setTool('measure');if(key==='v')setTool('select');if((e.ctrlKey||e.metaKey)&&key==='z'){e.preventDefault();run(()=>execute(e.shiftKey?'REDO':'UNDO'))}})
 new ResizeObserver(resize).observe(canvas)
+i18n.apply()
 try {
   const {instance}=await instantiateKJCoreWasm(new URL('../../web/public/kjcore/kjcore.wasm',import.meta.url))
   registerGeometryBackend(createWasmGeometryBackend(instance));authority=createKJCoreDocumentAuthority(instance);solidAuthority=createKJCoreSolidBackend(instance)

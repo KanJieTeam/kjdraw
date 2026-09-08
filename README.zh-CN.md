@@ -1,7 +1,7 @@
 <p align="center"><img src="docs/assets/hero.svg" alt="KJDraw — 面向工程应用与 AI Agent 的可扩展 CAD 基础设施" width="100%"></p>
 
 <p align="center"><strong>面向工程应用与 AI Agent 的可扩展 CAD 基础设施。</strong><br>浏览器原生运行，服务端按需增强，支持本地、私有化与云端部署。</p>
-<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><strong>在线演示</strong></a> · <a href="#30-秒运行">30 秒运行</a> · <a href="docs/capability-matrix.md">能力矩阵</a> · <a href="README.md">English</a> · <a href="docs/architecture.md">架构</a> · <a href="docs/roadmap.md">路线图</a> · <a href="CONTRIBUTING.md">参与贡献</a></p>
+<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><strong>在线演示</strong></a> · <a href="#安装并创建图元">安装</a> · <a href="#react">React</a> · <a href="#vue">Vue</a> · <a href="docs/capability-matrix.md">能力矩阵</a> · <a href="README.md">English</a> · <a href="docs/architecture.md">架构</a> · <a href="CONTRIBUTING.md">参与贡献</a></p>
 
 ## 为什么做 KJDraw
 
@@ -11,31 +11,52 @@
 
 我们希望它逐步成为岩土、地质、测绘和更多工程应用可以共同依赖的基础设施。勘界也是这个公共核心的使用者，通用改进优先回到这里。
 
-## 当前验证基线
-
-| 65 个可执行命令 | 28 种对象契约 | 93 个自动测试 | Agent 计划精确绑定 |
-| :---: | :---: | :---: | :---: |
-| 事务与编辑 | 二维及受限实体网格 | SDK、文件、WASM、示例 | 审核 → 执行参数不可替换 |
-
-这些数字来自仓库中的可运行代码，不代表已经具备所有商业 CAD 功能。详见[能力矩阵](docs/capability-matrix.md)和[当前限制](docs/status.md)。
-
-## 30 秒运行
-
-先打开在线演示：**[kanjieteam.github.io/kjdraw](https://kanjieteam.github.io/kjdraw/)**。图纸只在浏览器本地处理，不上传服务器。
-
-SDK 的 npm 安装路径已经准备好：
+## 安装并创建图元
 
 ```sh
-npm install @kanjie/kjdraw-sdk@next
+npm install @kanjieteam/kjdraw
 ```
 
-```js
-import { createKJDrawSDK } from '@kanjie/kjdraw-sdk'
+```ts
+import { createKJDrawSDK } from '@kanjieteam/kjdraw'
+
 const sdk = createKJDrawSDK()
-const drawing = sdk.createDocument({ documentId: 'hello-cad' })
+const drawing = sdk.createDocument({ documentId: 'hello-cad', units: 'millimeter' })
+await sdk.executeCommand('CREATE', {
+  type: 'LINE',
+  payload: { start: [0, 0, 0], end: [100, 0, 0] },
+})
+console.log(drawing.revision, drawing.listEntities())
 ```
 
-包内容、可运行 quickstart 和受保护的 [npm 发布工作流](docs/npm-publishing.md)都已就绪；KanJieTeam 完成 `@kanjie` scope 的首次 npm 注册表发布后，上述命令即可使用。在此之前，下面的仓库克隆方式仍是已验证的零安装路径。
+[`@kanjieteam/kjdraw`](https://www.npmjs.com/package/@kanjieteam/kjdraw) 没有运行时依赖；浏览器与 Node.js 使用同一套文档、事务、命令、文件和 Agent API。
+
+### React
+
+```tsx
+function DrawingStatus() {
+  const { revision, drawLine } = useKJDraw()
+  return <button onClick={drawLine}>绘制直线 · 版本 {revision}</button>
+}
+```
+
+直接使用仓库中的完整 [`useKJDraw` Hook](packages/kjdraw-sdk/examples/react.tsx)，已处理命令提交事件与组件卸载。
+
+### Vue
+
+```vue
+<script setup lang="ts">
+import { useKJDraw } from './useKJDraw'
+const { revision, drawLine } = useKJDraw()
+</script>
+<template><button @click="drawLine">绘制直线 · 版本 {{ revision }}</button></template>
+```
+
+直接使用完整 [`useKJDraw` Composable](packages/kjdraw-sdk/examples/vue.ts)，已处理响应式版本与作用域清理。KJDraw Core 是不绑定框架的无界面核心；公开工作台则是完全基于相同 npm API 构建的参考 UI 与渲染实现。
+
+## 打开 CAD 工作台
+
+**[立即进入在线工作台 →](https://kanjieteam.github.io/kjdraw/)**：打开 DXF/KJD/KJP、检查和编辑对象、绘制几何、管理图层、审核 Agent 命令并导出结果。文件始终留在浏览器本地。
 
 安装 **Node.js 22 或更新版本**：
 
@@ -51,7 +72,7 @@ node scripts/serve.mjs
 
 这是确定性的命令协议演示，尚未接入大模型。文件在浏览器本地处理，演示不上传图纸，也不包含分析埋点。离开页面前请下载 KJP 保存修改。
 
-![真实运行界面：本地编辑、图层、对象检查器与 Agent 命令演示](docs/assets/playground.png)
+![真实中文工作台：本地编辑、图层、对象检查器与 Agent 命令演示](docs/assets/playground-zh.png)
 
 <details><summary>查看修改计划的真实预览</summary>
 

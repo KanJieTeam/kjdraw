@@ -129,6 +129,7 @@ export class KJDocument {
 
 export class KJDrawSDK {
   readonly version: string
+  readonly events: KJEventBus
   readonly agentPlans: KJAgentPlanRegistry
   readonly activeDocument: KJDocument
   readonly documents: Map<string, KJDocument>
@@ -143,6 +144,13 @@ export class KJDrawSDK {
   writeDocument(document: KJDocument, options: { format: string; version?: string }): Promise<string | Uint8Array>
   snap(point: Point2, options?: { radius?: number; modes?: string[] }): Array<{ point: Point2; entityIds: string[]; mode: string }>
   getSelectionManager(documentId?: string): KJSelectionManager | null
+}
+
+export class KJEventBus {
+  on(name: string, listener: (payload: any) => void, options?: { signal?: AbortSignal }): () => void
+  once(name: string, listener: (payload: any) => void, options?: { signal?: AbortSignal }): () => void
+  off(name: string, listener: (payload: any) => void): boolean
+  clear(): void
 }
 
 export class KJProjectSession {

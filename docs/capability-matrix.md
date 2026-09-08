@@ -27,7 +27,7 @@ Run `node scripts/test.mjs` and `node scripts/check.mjs` to reproduce the public
 | Deployment | Browser, desktop, self-hosted, cloud-assisted and hybrid provider profiles | Contract available |
 | TypeScript source | Deployment Provider and Agent plan slices with generated ESM parity gate; declarations cover the public SDK | Migration in progress |
 | Agent interface | One-shot plans bound to exact arguments, document fingerprint/revision, expiry and reviewer; receipts and undo | Available in one SDK host process |
-| npm consumption | Publishable `@kanjie/kjdraw-sdk`, package self-import quickstart and guarded manual publishing workflow | Package ready; first registry publication pending |
+| npm consumption | Published `@kanjieteam/kjdraw`, package self-import quickstart and guarded release workflow | `0.7.1-preview.1` installed and executed from a clean directory |
 | Rust/WASM | Document validation, geometry primitives and bounded solid-mesh operations | Partial |
 | General BRep | Curved topology, healing and arbitrary solid operations | Not available |
 | Certified plotting | Complete layout/font/plot fidelity | Not available |

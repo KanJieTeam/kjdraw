@@ -9,7 +9,7 @@
 </p>
 
 <p align="center"><strong>Extensible CAD infrastructure for engineering applications and AI agents.</strong><br>Browser-native. Server-accelerated. Deploy anywhere.</p>
-<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><strong>Live demo</strong></a> · <a href="#run-it-in-30-seconds">Run in 30 seconds</a> · <a href="docs/capability-matrix.md">Capabilities</a> · <a href="docs/architecture.md">Architecture</a> · <a href="docs/roadmap.md">Roadmap</a> · <a href="CONTRIBUTING.md">Contribute</a> · <a href="README.zh-CN.md">简体中文</a></p>
+<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><strong>Live demo</strong></a> · <a href="#install-and-draw">Install</a> · <a href="#react">React</a> · <a href="#vue">Vue</a> · <a href="docs/capability-matrix.md">Capabilities</a> · <a href="docs/architecture.md">Architecture</a> · <a href="CONTRIBUTING.md">Contribute</a> · <a href="README.zh-CN.md">简体中文</a></p>
 
 ## Why KJDraw
 
@@ -19,31 +19,52 @@ KJDraw is an open foundation for that workflow: a framework-independent TypeScri
 
 Our ambition is to make reliable, programmable CAD accessible to the teams building the next generation of engineering tools—for people and for AI agents.
 
-## Verified today
-
-| 65 executable commands | 28 entity contracts | 93 automated tests | Bound agent plans |
-| :---: | :---: | :---: | :---: |
-| Transactions and editing | 2D plus bounded solid meshes | SDK, files, WASM and samples | Exact review → execute binding |
-
-These are repository-backed counts, not a claim of complete CAD parity. See the machine-tested [capability matrix](docs/capability-matrix.md) and the honest [known limits](docs/status.md).
-
-## Run it in 30 seconds
-
-Try the browser workbench first: **[kanjieteam.github.io/kjdraw](https://kanjieteam.github.io/kjdraw/)**. This public deployment runs entirely in the browser and uploads no drawing data.
-
-For SDK consumers, the prepared npm path is:
+## Install and draw
 
 ```sh
-npm install @kanjie/kjdraw-sdk@next
+npm install @kanjieteam/kjdraw
 ```
 
-```js
-import { createKJDrawSDK } from '@kanjie/kjdraw-sdk'
+```ts
+import { createKJDrawSDK } from '@kanjieteam/kjdraw'
+
 const sdk = createKJDrawSDK()
-const drawing = sdk.createDocument({ documentId: 'hello-cad' })
+const drawing = sdk.createDocument({ documentId: 'hello-cad', units: 'millimeter' })
+await sdk.executeCommand('CREATE', {
+  type: 'LINE',
+  payload: { start: [0, 0, 0], end: [100, 0, 0] },
+})
+console.log(drawing.revision, drawing.listEntities())
 ```
 
-The package and guarded [npm publishing workflow](docs/npm-publishing.md) are ready; the command becomes available after KanJieTeam completes the first npm registry publication for the `@kanjie` scope. Until then, the repository checkout below is the verified zero-install path.
+The [npm package](https://www.npmjs.com/package/@kanjieteam/kjdraw) has zero runtime dependencies. It gives browser and Node.js applications the same document, transaction, command, file and Agent APIs.
+
+### React
+
+```tsx
+function DrawingStatus() {
+  const { revision, drawLine } = useKJDraw()
+  return <button onClick={drawLine}>Draw line · revision {revision}</button>
+}
+```
+
+Use the complete, event-safe [`useKJDraw` hook](packages/kjdraw-sdk/examples/react.tsx).
+
+### Vue
+
+```vue
+<script setup lang="ts">
+import { useKJDraw } from './useKJDraw'
+const { revision, drawLine } = useKJDraw()
+</script>
+<template><button @click="drawLine">Draw line · revision {{ revision }}</button></template>
+```
+
+Use the complete, lifecycle-safe [`useKJDraw` composable](packages/kjdraw-sdk/examples/vue.ts). KJDraw Core is headless and framework-independent; the public workbench is the reference UI and renderer, built entirely on the same package APIs.
+
+## Open the workbench
+
+**[Launch the live CAD demo →](https://kanjieteam.github.io/kjdraw/)** — open DXF/KJD/KJP, inspect and edit objects, draw geometry, manage layers, run reviewed Agent commands, and export your work. Files remain in the browser.
 
 Install **Node.js 22 or newer**, then:
 
@@ -104,7 +125,7 @@ const kjd = drawing.serialize({ pretty: true })
 const dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
 ```
 
-See [Getting started](docs/getting-started.md) for package installation from a checkout, browser imports, and rebuilding WASM. This release does not assume a package has already been published on npm.
+See [Getting started](docs/getting-started.md) for browser imports, package exports, and rebuilding WASM.
 
 ## Deploy without rewriting the core
 

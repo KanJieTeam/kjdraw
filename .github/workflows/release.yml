@@ -20,13 +20,17 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
-      - name: Publish newest reachable tag once
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Publish exact tagged package and release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tag="$(git tag --merged HEAD --sort=-version:refname | head -n 1)"
-          test -n "$tag" || { echo "No reachable release tag."; exit 0; }
-          gh release view "$tag" >/dev/null 2>&1 && { echo "$tag is already published."; exit 0; }
+          sha="${{ github.event.workflow_run.head_sha || github.sha }}"
+          tag="$(git tag --points-at "$sha" --sort=-version:refname | head -n 1)"
+          test -n "$tag" || { echo "No release tag points at $sha."; exit 0; }
+          git checkout --detach "$tag"
 
           version="${tag#v}"
           notes="docs/releases/${version}.md"
@@ -37,4 +41,10 @@ jobs:
           else
             args+=(--generate-notes)
           fi
-          gh release create "${args[@]}"
+          mkdir -p dist/release
+          asset="$(npm pack --workspace packages/kjdraw-sdk --pack-destination dist/release --silent | tail -n 1)"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "dist/release/$asset" --clobber
+          else
+            gh release create "${args[@]}" "dist/release/$asset"
+          fi

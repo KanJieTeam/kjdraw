@@ -1,8 +1,8 @@
 {
-  "name": "@kanjie/kjdraw-sdk",
-  "version": "0.7.0-preview.1",
+  "name": "@kanjieteam/kjdraw",
+  "version": "0.7.2-preview.1",
   "description": "Extensible CAD documents, transactions, geometry, deployment providers and agent command interfaces",
-  "repository": { "type": "git", "url": "https://github.com/KanJieTeam/kjdraw.git", "directory": "packages/kjdraw-sdk" },
+  "repository": { "type": "git", "url": "git+https://github.com/KanJieTeam/kjdraw.git", "directory": "packages/kjdraw-sdk" },
   "homepage": "https://github.com/KanJieTeam/kjdraw#readme",
   "bugs": "https://github.com/KanJieTeam/kjdraw/issues",
   "author": "KanJieTeam <kanjieteam@163.com>",

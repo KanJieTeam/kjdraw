@@ -171,11 +171,11 @@ export function registerCoreCommands(registry) {
   disposers.push(registry.register({
     id: 'UNDO', aliases: ['U'], title: 'Undo', transactional: false,
     execute: ({ document, expectedRevision }, args) => document.undo({ author: args.author, source: 'command:UNDO', expectedRevision }),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'REDO', title: 'Redo', transactional: false,
     execute: ({ document, expectedRevision }, args) => document.redo({ author: args.author, source: 'command:REDO', expectedRevision }),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'SELECT', title: 'Update selection', transactional: false,
     execute: ({ sdk, document }, args) => {
@@ -190,7 +190,7 @@ export function registerCoreCommands(registry) {
       else throw new KJValidationError(`Unknown selection operation: ${operation}`)
       return selection.ids
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'SELECTIONSAVE', title: 'Save named selection', transactional: false,
     execute: ({ sdk, document }, args) => {
@@ -198,7 +198,7 @@ export function registerCoreCommands(registry) {
       if (!manager) throw new KJValidationError('Selection manager is unavailable')
       return manager.saveNamed(args.name, { ids: args.ids ?? manager.active.ids, description: args.description })
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'SELECTIONRESTORE', title: 'Restore named selection', transactional: false,
     execute: ({ sdk, document }, args) => {
@@ -206,35 +206,35 @@ export function registerCoreCommands(registry) {
       if (!manager) throw new KJValidationError('Selection manager is unavailable')
       return manager.loadNamed(args.name, { append: Boolean(args.append) }).ids
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'CREATE', title: 'Create entity',
     execute: ({ transaction }, args) => transaction.createEntity(args.type, args.payload, args.options),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'CREATEBATCH', title: 'Create entity batch',
     execute: (context, args) => createEntityBatch(context, args),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'ERASE', aliases: ['DELETE'], title: 'Erase objects',
     execute: ({ transaction }, args) => (args.ids ?? [args.id]).filter(Boolean).map(id => transaction.eraseObject(id)),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'RESTORE', title: 'Restore objects',
     execute: ({ transaction }, args) => (args.ids ?? [args.id]).filter(Boolean).map(id => transaction.restoreObject(id)),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'PROPERTIES', title: 'Update object properties',
     execute: ({ transaction }, args) => transaction.updateObject(args.id, args.patch),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'SETVAR', title: 'Set system variable',
     execute: ({ transaction }, args) => transaction.setSystemVariable(args.name, args.value),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'ORTHO', title: 'Set orthogonal drafting mode',
     execute: ({ transaction }, args) => transaction.setSystemVariable('ORTHOMODE', args.enabled === false || Number(args.enabled) === 0 ? 0 : 1),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'SNAPSETTINGS', title: 'Set object snap modes',
     execute: ({ transaction }, args) => {
@@ -246,7 +246,7 @@ export function registerCoreCommands(registry) {
       transaction.setSystemVariable('APERTURE', radius)
       return { modes, radius }
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'LAYERNEW', title: 'Create layer',
     execute: ({ document, transaction }, args) => transaction.upsertTableRecord('layers', {
@@ -262,26 +262,26 @@ export function registerCoreCommands(registry) {
         plottable: args.plottable !== false,
       },
     }),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'LAYERCURRENT', title: 'Set current layer',
     execute: ({ document, transaction }, args) => transaction.setCurrentTableRecord('layers', resolveTableRecord(document, 'layers', args.id ?? args.name).id),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'LAYERUPDATE', title: 'Update layer',
     execute: ({ document, transaction }, args) => {
       const record = resolveTableRecord(document, 'layers', args.id ?? args.name)
       return transaction.updateObject(record.id, { name: args.newName ?? record.name, payload: { ...args.patch } })
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'LAYERDELETE', title: 'Delete layer',
     execute: ({ document, transaction }, args) => transaction.removeTableRecord('layers', resolveTableRecord(document, 'layers', args.id ?? args.name).id),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'BLOCKCREATE', aliases: ['BLOCK', 'B'], title: 'Create block definition',
     execute: (context, args) => createBlockDefinition(context, args),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'BLOCKINSERT', aliases: ['INSERT'], title: 'Insert block reference',
     execute: ({ document, transaction }, args) => {
@@ -296,7 +296,7 @@ export function registerCoreCommands(registry) {
         layerId: args.layerId,
       }, { ownerId: args.ownerId })
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'XREFATTACH', aliases: ['XATTACH'], title: 'Attach local external reference',
     execute: ({ transaction }, args) => {
@@ -310,7 +310,7 @@ export function registerCoreCommands(registry) {
         sha256: args.sha256 == null ? null : String(args.sha256).toLowerCase(), status: 'unresolved',
       })
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'XREFRELOAD', title: 'Update local external reference status',
     execute: ({ document, transaction }, args) => {
@@ -322,15 +322,15 @@ export function registerCoreCommands(registry) {
         status: String(args.status ?? 'loaded').toLowerCase(), checkedAt: args.checkedAt ?? null,
       })
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'XREFDETACH', aliases: ['XDETACH'], title: 'Detach external reference',
     execute: ({ transaction }, args) => transaction.removeResource('externalReferences', String(args.id ?? '')),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'GROUP', aliases: ['G'], title: 'Create object group',
     execute: ({ document, transaction }, args) => createObjectGroup(document, transaction, args),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'HATCH', aliases: ['H'], title: 'Create hatch',
     execute: ({ transaction }, args) => transaction.createEntity('HATCH', {
@@ -341,26 +341,26 @@ export function registerCoreCommands(registry) {
       solid: args.solid,
       layerId: args.layerId,
     }, { ownerId: args.ownerId }),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'LINETYPE', aliases: ['LT'], title: 'Create or update linetype',
     execute: ({ transaction }, args) => transaction.upsertTableRecord('linetypes', { name: args.name, type: 'LINETYPE', payload: { description: args.description ?? '', pattern: clone(args.pattern ?? []) } }),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'TEXTSTYLE', aliases: ['STYLE'], title: 'Create or update text style',
     execute: ({ transaction }, args) => transaction.upsertTableRecord('textStyles', { name: args.name, type: 'TEXT_STYLE', payload: { fontFamily: String(args.fontFamily ?? 'sans-serif'), fontFile: args.fontFile ?? null, bigFontFile: args.bigFontFile ?? null, fixedHeight: Number(args.fixedHeight ?? 0), widthFactor: Number(args.widthFactor ?? 1), obliqueAngle: Number(args.obliqueAngle ?? 0) } }),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'DIMSTYLE', aliases: ['D'], title: 'Create or update dimension style',
     execute: ({ transaction }, args) => transaction.upsertTableRecord('dimensionStyles', { name: args.name, type: 'DIM_STYLE', payload: clone(args.properties ?? args.payload ?? {}) }),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'UCS', title: 'Create, update or activate UCS',
     execute: ({ document, transaction }, args) => {
       if (String(args.operation ?? 'upsert').toLowerCase() === 'set-current') return transaction.setCurrentTableRecord('ucs', resolveTableRecord(document, 'ucs', args.id ?? args.name).id)
       return transaction.upsertTableRecord('ucs', { name: args.name, type: 'UCS', payload: { origin: args.origin ?? [0, 0, 0], xAxis: args.xAxis ?? [1, 0, 0], yAxis: args.yAxis ?? [0, 1, 0] } })
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'LAYOUT', title: 'Create or activate layout',
     execute: ({ document, transaction }, args) => {
@@ -373,7 +373,7 @@ export function registerCoreCommands(registry) {
       }
       throw new KJValidationError(`Unsupported layout operation: ${operation}`)
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'VIEWPORT', aliases: ['MVIEW'], title: 'Create paper-space viewport',
     execute: ({ document, transaction }, args) => {
@@ -398,7 +398,7 @@ export function registerCoreCommands(registry) {
       transaction.updateObject(layout.id, { payload: { viewportIds: [...(layout.payload.viewportIds ?? []), viewport.id] } })
       return viewport
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'PLOTSETUP', aliases: ['PAGESETUP'], title: 'Configure layout plotting',
     execute: ({ document, transaction }, args) => {
@@ -407,7 +407,7 @@ export function registerCoreCommands(registry) {
       if (settings.plotStyleId && !document.snapshot().resources.plotStyles?.[settings.plotStyleId]) throw new KJValidationError(`Plot style does not exist: ${settings.plotStyleId}`)
       return transaction.updateObject(layout.id, { payload: { plotSettings: settings } })
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'PLOTSTYLE', title: 'Create or update plot style',
     execute: ({ transaction }, args) => {
@@ -415,50 +415,50 @@ export function registerCoreCommands(registry) {
       if (!id) throw new KJValidationError('Plot style id is required')
       return transaction.putResource('plotStyles', id, { id, name: String(args.name ?? id), mode: String(args.mode ?? 'color-dependent'), mappings: clone(args.mappings ?? {}) })
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'SEARCH', aliases: ['FIND'], title: 'Search drawing information', transactional: false,
     execute: ({ document }, args) => searchDocument(document, args),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'COMPARE', aliases: ['DWGCOMPARE'], title: 'Compare drawings by CAD handle', transactional: false,
     execute: ({ document }, args) => compareDocuments(document, args.otherDocument ?? args.other),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   for (const [id,method,title] of [
     ['SOLIDBOX','box','Create authoritative box'],['SOLIDCYLINDER','cylinder','Create authoritative cylinder'],
     ['SOLIDCONE','cone','Create authoritative cone'],['SOLIDSPHERE','sphere','Create authoritative sphere'],
     ['SOLIDSWEEP','sweep','Sweep authoritative solid'],['SOLIDLOFT','loft','Loft authoritative solid'],
-  ]) disposers.push(registry.register({ id, title, execute:(context,args)=>createAuthoritativeSolid(context,args,method) }, { owner:'@kanjie/kjdraw-sdk' }))
+  ]) disposers.push(registry.register({ id, title, execute:(context,args)=>createAuthoritativeSolid(context,args,method) }, { owner:'@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id:'SOLIDTRANSFORM',title:'Transform authoritative solid',
     execute:({sdk,document,transaction},args)=>{
       const entity=requiredSolidEntity(document,args.id),source=openSolid(sdk,entity),result=source.transform(args.matrix)
       try{return transaction.updateObject(entity.id,{payload:solidPayload(result,{layerId:entity.payload.layerId})})}finally{result.close();source.close()}
     },
-  },{owner:'@kanjie/kjdraw-sdk'}))
+  },{owner:'@kanjieteam/kjdraw'}))
   disposers.push(registry.register({
     id:'SOLIDBOOLEAN',title:'Boolean authoritative solids',
     execute:({sdk,document,transaction},args)=>{
       const first=requiredSolidEntity(document,args.firstId),second=requiredSolidEntity(document,args.secondId),a=openSolid(sdk,first),b=openSolid(sdk,second),result=a.boolean(b,args.operation??'union')
       try{const created=transaction.createEntity('SOLID3D',solidPayload(result,{layerId:args.layerId??first.payload.layerId}),{ownerId:args.ownerId??first.ownerId});if(args.eraseSources!==false){transaction.eraseObject(first.id);transaction.eraseObject(second.id)}return created}finally{result.close();a.close();b.close()}
     },
-  },{owner:'@kanjie/kjdraw-sdk'}))
+  },{owner:'@kanjieteam/kjdraw'}))
   disposers.push(registry.register({
     id:'SOLIDVALIDATE',title:'Validate authoritative solid',transactional:false,
     execute:({sdk,document},args)=>{const entity=requiredSolidEntity(document,args.id),solid=openSolid(sdk,entity);try{solid.validate();return solid.serialize().validation}finally{solid.close()}},
-  },{owner:'@kanjie/kjdraw-sdk'}))
+  },{owner:'@kanjieteam/kjdraw'}))
   disposers.push(registry.register({
     id:'SOLIDVOLUME',title:'Measure authoritative solid volume',transactional:false,
     execute:({sdk,document},args)=>{const entity=requiredSolidEntity(document,args.id),solid=openSolid(sdk,entity);try{return{id:entity.id,volume:solid.volume,kernelAuthority:'kjcore-rust-wasm'}}finally{solid.close()}},
-  },{owner:'@kanjie/kjdraw-sdk'}))
+  },{owner:'@kanjieteam/kjdraw'}))
   disposers.push(registry.register({
     id: 'MOVE', aliases: ['M'], title: 'Move objects',
     execute: (context, args) => transformExisting(context, args, moveMatrix(args)),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'ROTATE', aliases: ['RO'], title: 'Rotate objects',
     execute: (context, args) => transformExisting(context, args, rotationAround3(commandAngle(args), vec2(args.center ?? args.basePoint ?? [0, 0]))),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'SCALE', aliases: ['SC'], title: 'Scale objects',
     execute: (context, args) => {
@@ -466,11 +466,11 @@ export function registerCoreCommands(registry) {
       if (!Number.isFinite(factor) || factor === 0) throw new KJValidationError('Scale factor must be a finite non-zero number')
       return transformExisting(context, args, scaleAround3(factor, factor, vec2(args.center ?? args.basePoint ?? [0, 0])))
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'COPY', aliases: ['CO', 'CP'], title: 'Copy objects',
     execute: (context, args) => copyEntities(context, args, moveMatrix(args)),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'MIRROR', aliases: ['MI'], title: 'Mirror objects',
     execute: (context, args) => {
@@ -479,22 +479,22 @@ export function registerCoreCommands(registry) {
       if (args.eraseSource) for (const id of entityIds(args)) context.transaction.eraseObject(id)
       return copies
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'ARRAYRECT', aliases: ['ARRAYRECTANGULAR'], title: 'Rectangular array',
     execute: (context, args) => rectangularArray(context, args),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'ARRAYPOLAR', aliases: ['POLARARRAY'], title: 'Polar array',
     execute: (context, args) => polarArray(context, args),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'OFFSET', aliases: ['O'], title: 'Offset entity',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id)
       return createDerived(transaction, entity, entity.type, { ...offsetEntityPayload(entity, args.distance, args), ...clone(args.payloadPatch ?? {}) })
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'BREAK', aliases: ['BR'], title: 'Break entity',
     execute: ({ document, transaction }, args) => {
@@ -502,7 +502,7 @@ export function registerCoreCommands(registry) {
       transaction.eraseObject(entity.id)
       return pieces.map(piece => createDerived(transaction, entity, piece.type, piece.payload))
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'EXPLODE', aliases: ['X'], title: 'Explode entity',
     execute: ({ document, transaction }, args) => {
@@ -510,55 +510,55 @@ export function registerCoreCommands(registry) {
       transaction.eraseObject(entity.id)
       return pieces.map(piece => createDerived(transaction, entity, piece.type, piece.payload))
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'TRIM', aliases: ['TR'], title: 'Trim line',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds)
       return transaction.updateObject(entity.id, { payload: trimLinePayload(entity, boundaries, args.pickPoint) })
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'EXTEND', aliases: ['EX'], title: 'Extend line',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds)
       return transaction.updateObject(entity.id, { payload: extendLinePayload(entity, boundaries, args.pickPoint) })
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'CHAMFER', aliases: ['CHA'], title: 'Chamfer lines',
     execute: (context, args) => editLinePair(context, args, chamferLinePair),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'FILLET', aliases: ['F'], title: 'Fillet lines',
     execute: (context, args) => editLinePair(context, args, filletLinePair),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'GRIPEDIT', title: 'Edit entity grip',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id)
       return transaction.updateObject(entity.id, { payload: editEntityGrip(entity, args.gripId, args.point) })
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'LENGTH', aliases: ['LISTLENGTH'], title: 'Measure entity length', transactional: false,
     execute: ({ document }, args) => entityIds(args).map(id => ({ id, ...entityLength2(requiredEntity(document, id)) })),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'AREA', title: 'Measure entity area', transactional: false,
     execute: ({ document }, args) => entityIds(args).map(id => ({ id, ...entityArea2(requiredEntity(document, id)) })),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'NEAREST', title: 'Nearest point on entity', transactional: false,
     execute: ({ document }, args) => ({ id: String(args.id), ...nearestPointOnEntity2(requiredEntity(document, args.id), args.point) }),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'INTERSECT', aliases: ['INTERSECTION'], title: 'Intersect entities', transactional: false,
     execute: ({ document }, args) => ({
       firstId: String(args.firstId), secondId: String(args.secondId),
       ...intersectEntityPair2(requiredEntity(document, args.firstId), requiredEntity(document, args.secondId)),
     }),
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'DISTANCE', aliases: ['DI', 'DIST'], title: 'Measure distance', transactional: false,
     execute: ({ document }, args) => {
@@ -567,7 +567,7 @@ export function registerCoreCommands(registry) {
       const second = vec2(args.secondPoint, 'secondPoint')
       return { mode: 'point-point', firstPoint: point, secondPoint: second, distance: distance2(point, second) }
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'ANGLE', aliases: ['ANG'], title: 'Measure angle', transactional: false,
     execute: (_context, args) => {
@@ -578,7 +578,7 @@ export function registerCoreCommands(registry) {
       const radians = Math.acos(Math.max(-1, Math.min(1, dot2(first, second) / (firstLength * secondLength))))
       return { radians, degrees: radians * 180 / Math.PI }
     },
-  }, { owner: '@kanjie/kjdraw-sdk' }))
+  }, { owner: '@kanjieteam/kjdraw' }))
   return () => disposers.reverse().forEach(dispose => dispose())
 }
 

@@ -15,7 +15,7 @@ Open accepts DXF, KJD and KJP files, with a 20 MiB playground limit. KJP downloa
 After the first npm registry release, install the developer preview from the `next` channel:
 
 ```sh
-npm install @kanjie/kjdraw-sdk@next
+npm install @kanjieteam/kjdraw
 ```
 
 Until that authenticated publication is complete, use relative ES module imports from a checkout, or install the local package in your own application:
@@ -24,10 +24,10 @@ Until that authenticated publication is complete, use relative ES module imports
 npm install /path/to/kjdraw/packages/kjdraw-sdk
 ```
 
-Then import `createKJDrawSDK` from `@kanjie/kjdraw-sdk`. The SDK has no runtime npm dependencies and no UI framework requirement. Rust/WASM is an optional separately hosted artifact. See the [npm status and maintainer gate](npm-publishing.md).
+Then import `createKJDrawSDK` from `@kanjieteam/kjdraw`. The SDK has no runtime npm dependencies and no UI framework requirement. Rust/WASM is an optional separately hosted artifact. See the [npm status and maintainer gate](npm-publishing.md).
 
 ```js
-import { createKJDrawSDK } from '@kanjie/kjdraw-sdk'
+import { createKJDrawSDK } from '@kanjieteam/kjdraw'
 const sdk = createKJDrawSDK()
 const drawing = sdk.createDocument({ documentId: 'example' })
 await sdk.executeCommand('CREATE', {
