@@ -49,6 +49,20 @@ test('rolls back the entire transaction when an operation is invalid', async () 
   assert.equal(document.revision, 0)
 })
 
+test('transaction draft inspection cannot mutate structurally shared document state', async () => {
+  const document = KJDocument.create({ documentId: 'readonly-transaction-draft' })
+  const created = await document.transact('Create source', transaction => transaction.createEntity('LINE', { start: [0, 0, 0], end: [5, 0, 0] }))
+  const before = document.serialize()
+  await assert.rejects(
+    document.transact('Attempt hidden mutation', transaction => {
+      transaction._draft().objects[created.id].payload.start[0] = 99
+    }),
+    /draft views are read-only/i,
+  )
+  assert.equal(document.serialize(), before)
+  assert.deepEqual(document.getObject(created.id).payload.start, [0, 0, 0])
+})
+
 test('undo and redo preserve the original CAD handle and ownership', async () => {
   const document = KJDocument.create({ documentId: 'drawing-history' })
   const entity = await document.transact('Add circle', transaction => transaction.createEntity('CIRCLE', { center: [2, 3, 0], radius: 4 }))

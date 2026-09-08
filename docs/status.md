@@ -1,27 +1,63 @@
-# Developer preview: capability boundaries
+# KJDraw 1.0 readiness and capability boundaries
 
-The SDK is provider-neutral. Browser-local operation is the verified public default; desktop-local, self-hosted, cloud-assisted and hybrid profiles are explicit host integration contracts. This release does not ship identity, tenancy, collaboration or managed cloud services. Registering a provider never starts network activity by itself.
+This page separates what exists in the repository from what has been verified on an immutable public release. The current candidate is `1.0.0-rc.1`; the target contract is `1.0.0`.
 
-| Area | Current state | Still needed |
+For the authoritative gate state, read [`KJDRAW_1_0_ACCEPTANCE_MATRIX.json`](KJDRAW_1_0_ACCEPTANCE_MATRIX.json) or run:
+
+```sh
+node scripts/audits/release-readiness.mjs
+```
+
+## Ready in the source tree
+
+- Every public SDK runtime module has a strict TypeScript authority file. Browser/Node ESM is generated and checked for parity.
+- Generated declarations cover the package root and every documented subpath.
+- KJD transactions, rollback, revisions, undo/redo and optional Rust/WASM document authority have executable tests.
+- KJP packages carry multiple drawings, hashes, snapshots and command journals with bounded ZIP64 decoding.
+- The public plugin starter exercises manifest validation, compatibility, explicit permission grants, activation, a real transaction and disposal.
+- Agent plans use SHA-256 content binding over exact arguments and complete document content, plus expected revision, expiry, reviewer identity and one-shot consumption.
+- The synthetic 10,000-line core profile is enforced by a CI budget for batch creation, a single-entity edit, snapshot, KJD/KJP round trips and memory growth.
+- The headless CLI inspects, validates and converts KJD, KJP and the supported DXF profile without uploading files.
+
+These statements describe repository-owned evidence. They are not a claim that a future tag, npm artifact or hosted page already passed its release run.
+
+## Verification still required for stable 1.0
+
+Stable promotion remains blocked until the exact release-candidate commit has all required gates green, including:
+
+- the configured Chromium, Firefox and WebKit launch journey in hosted CI (the local Chromium journey passes);
+- live Demo, Docs, search and API deep-link checks against the deployed candidate;
+- npm provenance, GitHub artifact attestation, SBOM and checksum verification from the real release run.
+
+The isolated packed artifact already installs and compiles the Vanilla TypeScript, React and Vue consumers locally. The DXF gate also has pinned ezdxf 1.4.4 cross-implementation evidence for the published subset. Both must continue to pass in candidate CI, but they no longer represent missing repository evidence.
+
+Governance policy and release/security responsibilities are documented. A second authorized backup maintainer is still an operational continuity risk that must remain visible before promotion.
+
+## Exact product boundary
+
+| Area | Current contract | Boundary |
 | --- | --- | --- |
-| KJD documents | Object graph, validation, transactions, revisions | Long-term migration policy and wider compatibility corpus |
-| KJP projects | Pack/open, hashes, snapshots and journals | Crash-injection and durable native file delivery verification |
-| 2D editing | Declared entity combinations for transforms, offsets, trim/extend, etc. | Full interactive tool coverage, constraint behavior and UX |
-| DXF | Development ASCII adapter, core entities, resource tables and a public 7-version synthetic corpus | Broad independent cross-application certification |
-| DWG | No supported backend | Independently verified read/write implementation |
-| Browser viewer | Lines, circles/arcs, points, straight polylines, simple text and nested supported block geometry | Bulge polylines, full text/font fidelity, complete hatches, dimensions and layouts |
-| Rust/WASM | Primitive queries and document sessions | Complete topology/edit authority |
-| 3D | Experimental meshes, primitives and box booleans | General BRep, curved topology, robust general booleans and healing |
-| Agent commands | Plan/execute envelopes and revision checking | Host identity, approval binding, model integrations and isolation |
-| Plugins | Registries, permissions and version declarations | Strong isolation and broader compatibility tooling |
-| Plotting | SDK can store some layout/plot metadata | A certified layout/viewport/PDF/printing pipeline |
+| **KJD documents** | Canonical object graph, validation, transactions and revisions | Future schema changes require migration fixtures and compatibility notes |
+| **KJP projects** | Multi-drawing ZIP64 package, integrity hashes, snapshots and journals | Browser download/reopen proves artifact portability; native durable replacement/fsync belongs to the selected host provider |
+| **2D editing** | Declared combinations for creation, transforms, arrays, offset, break, explode, trim/extend, chamfer/fillet, selection and grips | Not every entity pair or desktop-CAD interaction is implemented |
+| **DXF** | Bounded ASCII adapter for the published entities, resources and target labels | Not binary DXF, arbitrary-file losslessness or universal cross-application certification |
+| **DWG** | No public backend | Explicitly outside KJDraw 1.0 |
+| **Workbench** | Bilingual multi-drawing reference UI for open, inspect, draw, edit, review, save, reopen and undo | The renderer covers the demonstrated profile, not every stored CAD semantic |
+| **Rust/WASM** | Document authority, geometry predicates and specified mesh operations | JavaScript/TypeScript reference paths remain explicit; absence of WASM is never reported as Rust authority |
+| **3D** | Experimental meshes, primitives, transforms and bounded box booleans | No general BRep, curved topology, healing or arbitrary robust boolean claim |
+| **Agent commands** | Review-bound plan/execute protocol, receipts and undo | Host owns identity, authorization, model isolation and durable audit storage |
+| **Plugins** | Cooperative permissions, declared contributions and version compatibility | Hostile-code isolation requires a separate process or sandbox |
+| **Plotting** | Document model stores selected layout, viewport and plot metadata | No complete font/layout fidelity or device-certified PDF/printing pipeline |
+| **Deployment** | Browser-local default plus explicit desktop, self-hosted, cloud-assisted and hybrid provider contracts | KJDraw does not ship tenancy, collaboration, managed cloud or authentication services |
 
-## DXF detail
+## DXF interpretation
 
-The adapter declares R14, 2000, 2004, 2010, 2013, 2018 and 2024 labels. The last two use AC1032. Every declared label now passes the public [synthetic corpus gate](dxf-compatibility.md), including header verification and semantic read/write/reopen checks. This remains evidence for the exact tested subset, **not a broad certification claim**. R12 is a controlled legacy path; AutoCAD 2007/AC1021 is absent from the inherited target contract. Changing that policy should be discussed with a compatibility fixture.
+The public target labels are R14, 2000, 2004, 2010, 2013, 2018 and 2024; 2018 and 2024 both map to AC1032. R12 is a controlled legacy-import path rather than a 1.0 output promise. The repository corpus proves the exact fixtures and invariants it runs—header family, supported entities/resources, stable handles and semantic reopen—not all files created by those CAD releases.
 
-Known limits include binary DXF, complete layout-object metadata, some opaque/object records, fonts and complex resource behavior. Unsupported export operations reject in known cases, but the adapter is not a proven arbitrary-CAD lossless converter. Keep originals and use KJP for internal editing. The private source repository's historical asset-corpus counts are not public release certification evidence.
+Unsupported known exports should reject instead of silently discarding content. Preserve original source files and use KJP as the editable project format while evaluating DXF interoperability.
 
-## Browser and scale
+## Data and network behavior
 
-The playground is a minimal Canvas 2D SDK client. It does not advertise WebGPU, a 200,000-entity rendering guarantee, offline PWA installation or a complete desktop CAD. File bytes remain in the browser; initial page hosting and explicit external documentation links still involve normal HTTP requests.
+The public workbench processes opened files in the browser and has no analytics or implicit drawing upload. Normal page and documentation hosting still use HTTP. A remote project, compute or scene provider runs only when an embedding host registers and invokes it; the host is responsible for credentials, policy and disclosure.
+
+Input budgets reduce accidental or adversarial resource exhaustion but are not a complete security sandbox. Review [SECURITY.md](../SECURITY.md), [SECURITY_ARCHITECTURE.md](../SECURITY_ARCHITECTURE.md) and the [1.0 scope](1.0-scope.md) before production use.

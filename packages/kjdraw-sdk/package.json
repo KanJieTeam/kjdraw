@@ -1,41 +1,158 @@
 {
   "name": "@kanjieteam/kjdraw",
-  "version": "0.7.2-preview.1",
+  "version": "1.0.0-rc.1",
   "description": "Extensible CAD documents, transactions, geometry, deployment providers and agent command interfaces",
-  "repository": { "type": "git", "url": "git+https://github.com/KanJieTeam/kjdraw.git", "directory": "packages/kjdraw-sdk" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KanJieTeam/kjdraw.git",
+    "directory": "packages/kjdraw-sdk"
+  },
   "homepage": "https://github.com/KanJieTeam/kjdraw#readme",
   "bugs": "https://github.com/KanJieTeam/kjdraw/issues",
   "author": "KanJieTeam <kanjieteam@163.com>",
-  "engines": { "node": ">=22" },
-  "files": ["src", "types", "examples", "README.md", "LICENSE", "NOTICE"],
-  "publishConfig": { "access": "public", "provenance": true },
-  "keywords": ["cad", "dxf", "engineering", "browser-cad", "wasm", "geometry", "ai-agents"],
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "src",
+    "types",
+    "bin",
+    "examples",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "bin": {
+    "kjdraw": "./bin/kjdraw.mjs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "keywords": [
+    "cad",
+    "dxf",
+    "engineering",
+    "browser-cad",
+    "wasm",
+    "geometry",
+    "ai-agents"
+  ],
   "type": "module",
+  "sideEffects": false,
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
-    ".": "./src/index.js",
-    "./agent-plans": "./src/agent-plans.js",
-    "./capabilities": "./src/capabilities.js",
-    "./document": "./src/document.js",
-    "./deployment": "./src/deployment.js",
-    "./editing": "./src/editing.js",
-    "./file": "./src/file-adapters.js",
-    "./geometry": "./src/geometry/index.js",
-    "./geometry/wasm": "./src/geometry/wasm.js",
-    "./kernel/wasm-document": "./src/kernel/wasm-document.js",
-    "./kernel/wasm-solid": "./src/kernel/wasm-solid.js",
-    "./grips": "./src/grips.js",
-    "./file/kjd": "./src/kjd-adapter.js",
-    "./file/dxf": "./src/dxf-adapter.js",
-    "./roundtrip": "./src/roundtrip.js",
-    "./product-contract": "./src/product-contract.js",
-    "./plugin-contract": "./src/plugin-contract.js",
-    "./project-session": "./src/project-session.js",
-    "./project-package": "./src/project-package.js",
-    "./project-store/browser": "./src/browser-project-store.js",
-    "./selection": "./src/selection.js",
-    "./snapping": "./src/snapping.js"
+    ".": {
+      "types": "./types/index.d.ts",
+      "import": "./src/index.js",
+      "default": "./src/index.js"
+    },
+    "./agent-plans": {
+      "types": "./types/agent-plans.d.ts",
+      "import": "./src/agent-plans.js",
+      "default": "./src/agent-plans.js"
+    },
+    "./capabilities": {
+      "types": "./types/capabilities.d.ts",
+      "import": "./src/capabilities.js",
+      "default": "./src/capabilities.js"
+    },
+    "./document": {
+      "types": "./types/document.d.ts",
+      "import": "./src/document.js",
+      "default": "./src/document.js"
+    },
+    "./deployment": {
+      "types": "./types/deployment.d.ts",
+      "import": "./src/deployment.js",
+      "default": "./src/deployment.js"
+    },
+    "./editing": {
+      "types": "./types/editing.d.ts",
+      "import": "./src/editing.js",
+      "default": "./src/editing.js"
+    },
+    "./file": {
+      "types": "./types/file-adapters.d.ts",
+      "import": "./src/file-adapters.js",
+      "default": "./src/file-adapters.js"
+    },
+    "./geometry": {
+      "types": "./types/geometry/index.d.ts",
+      "import": "./src/geometry/index.js",
+      "default": "./src/geometry/index.js"
+    },
+    "./geometry/wasm": {
+      "types": "./types/geometry/wasm.d.ts",
+      "import": "./src/geometry/wasm.js",
+      "default": "./src/geometry/wasm.js"
+    },
+    "./kernel/wasm-document": {
+      "types": "./types/kernel/wasm-document.d.ts",
+      "import": "./src/kernel/wasm-document.js",
+      "default": "./src/kernel/wasm-document.js"
+    },
+    "./kernel/wasm-solid": {
+      "types": "./types/kernel/wasm-solid.d.ts",
+      "import": "./src/kernel/wasm-solid.js",
+      "default": "./src/kernel/wasm-solid.js"
+    },
+    "./grips": {
+      "types": "./types/grips.d.ts",
+      "import": "./src/grips.js",
+      "default": "./src/grips.js"
+    },
+    "./file/kjd": {
+      "types": "./types/kjd-adapter.d.ts",
+      "import": "./src/kjd-adapter.js",
+      "default": "./src/kjd-adapter.js"
+    },
+    "./file/dxf": {
+      "types": "./types/dxf-adapter.d.ts",
+      "import": "./src/dxf-adapter.js",
+      "default": "./src/dxf-adapter.js"
+    },
+    "./roundtrip": {
+      "types": "./types/roundtrip.d.ts",
+      "import": "./src/roundtrip.js",
+      "default": "./src/roundtrip.js"
+    },
+    "./product-contract": {
+      "types": "./types/product-contract.d.ts",
+      "import": "./src/product-contract.js",
+      "default": "./src/product-contract.js"
+    },
+    "./plugin-contract": {
+      "types": "./types/plugin-contract.d.ts",
+      "import": "./src/plugin-contract.js",
+      "default": "./src/plugin-contract.js"
+    },
+    "./project-session": {
+      "types": "./types/project-session.d.ts",
+      "import": "./src/project-session.js",
+      "default": "./src/project-session.js"
+    },
+    "./project-package": {
+      "types": "./types/project-package.d.ts",
+      "import": "./src/project-package.js",
+      "default": "./src/project-package.js"
+    },
+    "./project-store/browser": {
+      "types": "./types/browser-project-store.d.ts",
+      "import": "./src/browser-project-store.js",
+      "default": "./src/browser-project-store.js"
+    },
+    "./selection": {
+      "types": "./types/selection.d.ts",
+      "import": "./src/selection.js",
+      "default": "./src/selection.js"
+    },
+    "./snapping": {
+      "types": "./types/snapping.d.ts",
+      "import": "./src/snapping.js",
+      "default": "./src/snapping.js"
+    }
   },
   "scripts": {
     "test": "node ../../scripts/test.mjs",

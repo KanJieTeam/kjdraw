@@ -36,13 +36,15 @@ await sdk.executeCommand('CREATE', {
 console.log(drawing.serialize())
 ```
 
-See `examples/agent-command.mjs` for command envelopes and `examples/deployment-providers.mjs` for local/remote provider wiring. `MOVE` accepts `dx` and `dy` (or `from` and `to`), not a `delta` array. Public exports are listed in `packages/kjdraw-sdk/package.json` and `src/index.js`.
+See `examples/agent-command.mjs` for command envelopes and `examples/deployment-providers.mjs` for local/remote provider wiring. `MOVE` accepts `dx` and `dy` (or `from` and `to`), not a `delta` array. Browse the declaration-driven [API reference](https://kanjieteam.github.io/kjdraw/docs/latest/api/) for every root and subpath export, or read [how it is generated](api-reference.md).
 
 ## Build and verify
 
 ```sh
 node scripts/test.mjs
 node --no-warnings scripts/build-typescript.mjs --check
+node scripts/build-declarations.mjs --check
+node scripts/build-api-docs.mjs --check
 node scripts/audit-dxf-corpus.mjs
 node scripts/check.mjs
 node scripts/build.mjs

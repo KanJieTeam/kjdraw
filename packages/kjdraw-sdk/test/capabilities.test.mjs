@@ -19,13 +19,12 @@ test('capability manifest only advertises registered executable contracts', () =
   assert.deepEqual(manifest.commands.find(command => command.id === 'TRIM').capabilities.targetEntityTypes, ['LINE'])
 })
 
-test('1.0 readiness gate reports real missing commands, formats and native geometry', () => {
+test('1.0 readiness gate matches the scoped formats and reports missing native geometry', () => {
   const sdk = createKJDrawSDK()
   const audit = auditSDKReadiness(sdk)
   assert.equal(audit.passed, false)
   assert.equal(audit.findings.some(row => row.code === 'COMMAND_MISSING'), false)
-  assert.ok(audit.findings.some(row => row.code === 'FORMAT_VERSION_MISSING' && row.capability === 'DWG.read'))
-  assert.ok(audit.findings.some(row => row.code === 'FORMAT_VERSION_MISSING' && row.capability === 'DWG.write'))
+  assert.equal(audit.findings.some(row => row.code === 'FORMAT_VERSION_MISSING'), false)
   assert.ok(audit.findings.some(row => row.code === 'AUTHORITATIVE_GEOMETRY_UNAVAILABLE'))
 })
 

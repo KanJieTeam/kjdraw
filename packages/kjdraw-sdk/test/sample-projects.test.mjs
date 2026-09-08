@@ -5,8 +5,12 @@ import { createSample } from '../../../examples/sample.js'
 
 test('public synthetic sample packs and reopens without private assets',async()=>{
   const sdk=createKJDrawSDK(),document=await createSample(sdk)
-  assert.equal(document.listEntities().length,150)
+  assert.ok(document.listEntities().length>=2000)
   assert.equal(document.validate().valid,true)
+  const layerNames=document.getTable('layers').records.map(layer=>layer.name)
+  assert.ok(layerNames.includes('Equipment · Rev A'))
+  assert.ok(layerNames.includes('Temporary · remove'))
+  assert.ok(layerNames.includes('Safety · proposal'))
   const session=KJProjectSession.create({sdk,id:'public-synthetic',documents:[document],metadata:{synthetic:true}})
   const project=await openKjpPackage(await session.package())
   assert.equal(project.drawings.size,1)

@@ -1,15 +1,18 @@
 {
   "compilerOptions": {
-    "allowJs": true,
-    "checkJs": false,
-    "declaration": true,
-    "emitDeclarationOnly": true,
+    "allowJs": false,
+    "declaration": false,
+    "noEmit": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "strict": true,
     "target": "ES2022",
-    "outDir": "dist-types",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "useDefineForClassFields": true,
+    "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts", "src/**/*.js"]
+  "include": ["src/**/*.ts"]
 }

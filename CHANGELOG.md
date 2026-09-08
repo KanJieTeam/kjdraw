@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.0-rc.1 — 2026-09-08
+
+- Completed strict TypeScript source ownership for every public SDK runtime module and added reproducible ESM/declaration drift gates.
+- Added isolated packed-package compilation for Vanilla TypeScript, React and Vue, plus a zero-service CLI for KJD/KJP/DXF inspection, validation and conversion.
+- Added the TypeScript plugin starter and executable compatibility lifecycle covering permissions, activation, a real transaction and disposal.
+- Hardened Agent plans with Web Crypto SHA-256 binding over canonical exact arguments and complete document content, replay protection, expiry and fail-closed concurrent consumption.
+- Added configurable KJD, DXF and KJP resource budgets and abort handling.
+- Reworked large-document transactions around structural sharing and added an enforced synthetic 10,000-entity performance budget.
+- Added pinned ezdxf 1.4.4 bidirectional interoperability evidence for the published ASCII DXF subset alongside the seven-version synthetic corpus.
+- Rebuilt the browser launch journey around a large original engineering drawing, natural-language diff, explicit approval, atomic receipt, KJP fingerprint reopen and undo.
+- Added repository-owned Chromium/Firefox/WebKit journeys, generated API reference/search/deep links, governance/support policy, issue forms, SBOM/checksum generation and artifact-attestation workflows.
+- Rewrote the bilingual project home, capability/status pages and 1.0 release notes around the testable product contract rather than raw repository counts.
+
+Stable promotion remains pending the external gates in the [1.0 acceptance matrix](docs/KJDRAW_1_0_ACCEPTANCE_MATRIX.json). Prepared notes: [1.0.0-rc.1](docs/releases/1.0.0-rc.1.md) and [1.0.0](docs/releases/1.0.0.md).
+
 ## 0.7.2-preview.1
 
 - Rebuilt the public demo as a full-height, familiar CAD workbench instead of a marketing landing page.

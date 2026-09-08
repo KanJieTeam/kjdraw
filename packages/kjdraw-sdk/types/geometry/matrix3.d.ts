@@ -1,0 +1,21 @@
+import { type KJTolerance } from './tolerance.js';
+import { type Point2Input } from './vector2.js';
+/** Affine matrix [a, b, c, d, e, f]. */
+export type AffineMatrix3 = [number, number, number, number, number, number];
+export type AffineMatrix3Input = readonly unknown[];
+export type TransformedPoint = [number, number, ...unknown[]];
+export declare function matrix3(value?: AffineMatrix3Input): AffineMatrix3;
+export declare const identity3: () => AffineMatrix3;
+export declare const translation3: (dx: number, dy: number) => AffineMatrix3;
+export declare const scale3: (sx: number, sy?: number) => AffineMatrix3;
+export declare const rotation3: (angle: number) => AffineMatrix3;
+export declare function multiply3(left: AffineMatrix3Input, right: AffineMatrix3Input): AffineMatrix3;
+export declare function aroundPoint3(transform: AffineMatrix3Input, center: Point2Input): AffineMatrix3;
+export declare const rotationAround3: (angle: number, center?: Point2Input) => AffineMatrix3;
+export declare const scaleAround3: (sx: number, sy?: number, center?: Point2Input) => AffineMatrix3;
+export declare function reflectionAcrossLine3(start: Point2Input, end: Point2Input): AffineMatrix3;
+export declare function determinant3(value: AffineMatrix3Input): number;
+export declare function invert3(value: AffineMatrix3Input, tolerance?: KJTolerance): AffineMatrix3;
+export declare function transformPoint3(value: AffineMatrix3Input, point: Point2Input): TransformedPoint;
+export declare function transformVector3(value: AffineMatrix3Input, vector: Point2Input): TransformedPoint;
+export declare function similarityScale3(value: AffineMatrix3Input, tolerance?: KJTolerance): number;

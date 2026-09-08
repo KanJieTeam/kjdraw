@@ -1,0 +1,41 @@
+name: Feature or RFC proposal
+description: Propose a focused capability or public-contract change
+title: "[Proposal]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: Please describe the engineering workflow before proposing an implementation. Large API, format or kernel changes may be promoted to an RFC.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and users
+      description: Who is blocked, and what exact workflow cannot be completed today?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Observable outcome
+      description: Describe a testable result, not only a UI or library choice.
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and scope
+      description: Note public API, KJD/KJP/DXF, deployment, performance, security and downstream effects.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence or minimal example
+      description: Link a synthetic fixture, benchmark, sketch or prior-art reference when available.
+  - type: checkboxes
+    id: rights
+    attributes:
+      label: Public-safe material
+      options:
+        - label: I will not attach customer drawings, proprietary templates, fonts, credentials or other restricted material.
+          required: true

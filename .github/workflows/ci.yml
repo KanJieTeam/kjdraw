@@ -12,25 +12,64 @@ jobs:
         node: [22, 24]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: node scripts/build-declarations.mjs --check
+      - run: node scripts/build-api-docs.mjs --check
       - run: node scripts/test.mjs
       - run: node --no-warnings scripts/build-typescript.mjs --check
+      - run: node scripts/audits/verify-packed-package.mjs
       - run: node scripts/audit-dxf-corpus.mjs
+      - if: matrix.os == 'ubuntu-latest' && matrix.node == 24
+        run: node scripts/benchmarks/core-readiness.mjs --entities=10000 --assert-budget
       - run: node scripts/check.mjs
       - run: node scripts/build.mjs
   rust:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
-      - uses: dtolnay/rust-toolchain@stable
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: node scripts/build-declarations.mjs --check
+      - run: node scripts/build-api-docs.mjs --check
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable @ 2026-07-16
         with:
           targets: wasm32-unknown-unknown
       - run: cargo test --locked --manifest-path runtime/kjcore-rs/Cargo.toml
       - run: node scripts/build-wasm.mjs
       - run: node scripts/test.mjs
+  dxf-interop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: npm ci --ignore-scripts
+      - run: python -m pip install ezdxf==1.4.4
+      - run: node scripts/audits/dxf-interop.mjs
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - run: npm run test:browser

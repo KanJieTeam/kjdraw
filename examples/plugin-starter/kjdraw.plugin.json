@@ -1,0 +1,10 @@
+{
+  "schema": "com.kanjie.kjdraw.plugin",
+  "schemaVersion": 1,
+  "id": "community.center-marker",
+  "name": "Center marker starter",
+  "version": "1.0.0",
+  "compatibility": { "sdk": ">=1.0.0 <2.0.0", "kernel": "*" },
+  "permissions": ["commands.register"],
+  "contributes": { "commands": ["KJ_MARK_CENTER"] }
+}

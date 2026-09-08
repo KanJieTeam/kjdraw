@@ -1,12 +1,34 @@
 {
-  "name": "kjdraw", "version": "0.7.2-preview.1", "private": true,
+  "name": "kjdraw",
+  "version": "1.0.0-rc.1",
+  "private": true,
   "description": "Extensible CAD infrastructure for engineering applications and AI agents",
-  "type": "module", "license": "Apache-2.0", "engines": { "node": ">=22" },
-  "workspaces": ["packages/kjdraw-sdk"],
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/kjdraw-sdk"
+  ],
   "scripts": {
-    "dev": "node scripts/serve.mjs", "test": "node scripts/test.mjs",
-    "build:types": "node --no-warnings scripts/build-typescript.mjs",
-    "build": "node scripts/build.mjs", "build:wasm": "node scripts/build-wasm.mjs",
-    "example": "node examples/agent-command.mjs", "audit:dxf": "node scripts/audit-dxf-corpus.mjs", "check": "node scripts/check.mjs"
+    "dev": "node scripts/serve.mjs",
+    "test": "node scripts/test.mjs",
+    "typecheck": "node scripts/typecheck.mjs",
+    "build:runtime": "node --no-warnings scripts/build-typescript.mjs",
+    "build:examples": "node --no-warnings scripts/build-plugin-starter.mjs",
+    "build:types": "node scripts/build-declarations.mjs",
+    "build:docs": "node scripts/build-api-docs.mjs",
+    "build": "node --no-warnings scripts/build-typescript.mjs && node scripts/build-declarations.mjs && node scripts/build-api-docs.mjs && node scripts/build.mjs",
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "release:version": "node scripts/set-version.mjs",
+    "example": "node examples/agent-command.mjs",
+    "test:browser": "playwright test",
+    "audit:dxf": "node scripts/audit-dxf-corpus.mjs",
+    "check": "node scripts/check.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "typescript": "7.0.2"
   }
 }

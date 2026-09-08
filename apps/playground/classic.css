@@ -185,3 +185,82 @@ body > main { width: 100%; max-width: none; height: calc(100vh - 36px); padding:
   .cad-command-dock { width: calc(100% - 66px); left: 8px; transform: none; grid-template-columns: 27px minmax(100px,1fr) 42px; }
   .cad-command-dock span { display: none; }
 }
+
+/* 1.0 showcase: a review surface, not a chat-box façade. */
+.workspace > .right-panel { width: 340px; padding: 10px 12px 12px; overflow: hidden; }
+.workbench.inspector-open .stage { padding-right: 340px; }
+.workbench.inspector-open .toolbar { right: 350px; }
+.inspector-section { flex: none; max-height: 148px; overflow: auto; padding-bottom: 8px; }
+.inspector { min-height: 94px; padding-top: 7px; }
+.inspector h3 { margin-bottom: 3px; font-size: 14px; }
+.inspector .kv { padding: 2px 0; }
+
+.agent-panel { min-height: 0; display: flex; flex: 1; flex-direction: column; margin-top: 0; padding-top: 10px; overflow: auto; }
+.agent-panel .panel-heading { gap: 6px; }
+.protocol-badge { margin-left: auto; padding: 2px 5px; border: 1px solid #a9bdd5; border-radius: 8px; color: #315d95; font: 7px/1.2 Consolas, monospace; letter-spacing: .08em; }
+.agent-panel h3 { margin: 8px 0 4px; font-size: 13px; }
+.agent-panel p { margin-bottom: 7px; }
+.agent-panel label { margin: 5px 0 3px; color: #4b5663; font-size: 9px; font-weight: 650; letter-spacing: .04em; }
+.agent-panel select, .agent-panel textarea { width: 100%; border: 1px solid var(--chrome-line); border-radius: 3px; background: #fff; color: #20262d; }
+.agent-panel select { height: 29px; padding: 0 7px; font-size: 10px; }
+.agent-panel textarea { min-height: 47px; padding: 6px 7px; resize: vertical; font: 10px/1.45 "Segoe UI", sans-serif; }
+.agent-panel .agent-help { margin: 4px 0 6px; color: #7c8793; font-size: 8px; }
+.agent-actions { display: grid; grid-template-columns: 1fr auto; gap: 5px; }
+.agent-actions button { min-height: 28px; padding: 4px 8px; }
+.agent-actions .plan-button { border-color: #789bc8; background: #edf4fd; color: #174d90; font-weight: 650; }
+.plan-state { min-height: 0; margin: 7px 0 4px; padding: 6px 7px; border-left: 2px solid #9aa8b7; background: #eef1f4; color: #53606e; line-height: 1.45; }
+.plan-state[data-state="planned"] { border-left-color: #d08b24; background: #fff7e7; color: #6c4b19; }
+.plan-state[data-state="committed"], .plan-state[data-state="verified"] { border-left-color: #2d8a61; background: #eaf7f1; color: #246549; }
+.diff-legend { display: flex; gap: 4px; margin: 3px 0 5px; }
+.diff-legend[hidden], .plan-details[hidden], .receipt-panel[hidden] { display: none; }
+.diff-legend span { flex: 1; padding: 3px 4px; border-radius: 2px; text-align: center; font: 8px/1.2 Consolas, monospace; }
+.diff-move { border: 1px solid #d7a64a; background: #fff5dd; color: #7a5517; }
+.diff-delete { border: 1px solid #db8e91; background: #fff0f0; color: #8a3035; }
+.diff-add { border: 1px solid #69ae8c; background: #eaf8f1; color: #256544; }
+.canvas-diff { position: absolute; z-index: 6; top: 42px; left: 17px; display: flex; align-items: center; gap: 4px; padding: 5px 6px; border: 1px solid #47566a; border-radius: 3px; background: #111a26e8; box-shadow: 0 4px 16px #0005; }
+.canvas-diff[hidden] { display: none; }
+.canvas-diff b { margin-right: 2px; color: #d9e4ef; font: 8px Consolas, monospace; letter-spacing: .08em; }
+.canvas-diff span { padding: 2px 5px; border-radius: 2px; font: 8px Consolas, monospace; }
+.canvas-diff .diff-move { border-color: #c58b30; background: #6e4a18; color: #ffe0a1; }
+.canvas-diff .diff-delete { border-color: #c95f66; background: #682e33; color: #ffc6c8; }
+.canvas-diff .diff-add { border-color: #4cae7d; background: #205f43; color: #c0f6d9; }
+.plan-steps { display: grid; gap: 3px; margin: 0 0 5px; padding: 0; list-style: none; counter-reset: plan-step; }
+.plan-steps li { position: relative; min-height: 29px; padding: 4px 6px 4px 30px; border: 1px solid #d8dde4; border-radius: 3px; background: #fff; color: #48535f; font-size: 9px; line-height: 1.35; }
+.plan-steps li::before { counter-increment: plan-step; content: counter(plan-step); position: absolute; left: 6px; top: 5px; width: 15px; height: 15px; display: grid; place-items: center; border-radius: 50%; background: #e8eef6; color: #315d95; font: 8px Consolas, monospace; }
+.plan-steps b { display: block; color: #242c35; font: 650 9px Consolas, monospace; }
+.plan-details { margin-bottom: 5px; color: #53606e; font-size: 9px; }
+.plan-details summary { cursor: pointer; color: #315d95; }
+.plan-details pre { max-height: 112px; margin: 4px 0; padding: 6px; overflow: auto; border: 1px solid #d5dce5; background: #151c25; color: #bbd2ec; font: 8px/1.45 Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.confirm { min-height: 31px; flex: none; font-weight: 650; }
+.receipt-panel { margin-top: 6px; padding-top: 7px; border-top: 1px solid #ccd4dd; }
+.receipt-panel h4 { margin: 0 0 5px; color: #245f48; font-size: 10px; }
+.receipt-panel ol { display: grid; gap: 3px; margin: 0 0 6px; padding: 0; list-style: none; }
+.receipt-panel li { position: relative; padding-left: 16px; color: #586572; font: 8px/1.35 Consolas, monospace; }
+.receipt-panel li::before { content: '✓'; position: absolute; left: 0; color: #27845a; font-weight: 700; }
+.receipt-actions { display: grid; grid-template-columns: repeat(3,1fr); gap: 4px; }
+.receipt-actions button { min-height: 28px; padding: 3px; border-color: #afbbc8; background: #fff; color: #31556f; font-size: 8px; }
+
+.app-dialog { width: min(430px,calc(100vw - 28px)); padding: 0; border: 1px solid #9da9b8; border-radius: 5px; background: #f7f8fa; color: #20262d; box-shadow: 0 22px 80px #0009; }
+.app-dialog::backdrop { background: #07101bbb; }
+.app-dialog form { padding: 20px; }
+.dialog-kicker { color: #285fc0; font: 8px Consolas, monospace; letter-spacing: .13em; }
+.app-dialog h2 { margin: 6px 0 4px; font-size: 18px; }
+.app-dialog p { margin: 0 0 12px; color: #66717e; font-size: 11px; line-height: 1.5; }
+.dialog-fields { display: grid; gap: 9px; }
+.dialog-fields label { display: grid; gap: 4px; color: #56616d; font-size: 10px; }
+.dialog-fields input { width: 100%; border-color: #b9c2cd; background: #fff; color: #20262d; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 17px; }
+.dialog-actions button { border-color: #b9c2cd; background: #fff; color: #303945; }
+.dialog-actions .dialog-primary { border-color: #285fc0; background: #285fc0; color: #fff; }
+
+@media (max-width: 1100px) {
+  .workspace > .right-panel { width: 310px; }
+  .workbench.inspector-open .stage { padding-right: 310px; }
+  .workbench.inspector-open .toolbar { right: 320px; }
+}
+@media (max-width: 780px) {
+  .workspace > .right-panel { width: min(92vw,350px); }
+  .workbench.inspector-open .stage { padding-right: 0; }
+  .workbench.inspector-open .toolbar { right: 10px; }
+  .inspector-section { display: none; }
+}

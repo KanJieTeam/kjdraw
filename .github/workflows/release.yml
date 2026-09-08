@@ -8,6 +8,9 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
 
 jobs:
   publish:
@@ -16,11 +19,11 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: main
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
       - name: Publish exact tagged package and release
@@ -34,17 +37,33 @@ jobs:
 
           version="${tag#v}"
           notes="docs/releases/${version}.md"
-          args=("$tag" --verify-tag --title "KJDraw ${version} — Developer Preview")
+          title="KJDraw ${version}"
+          [[ "$version" == *-* ]] && title+=" — Release Candidate"
+          args=("$tag" --verify-tag --title "$title")
           [[ "$version" == *-* ]] && args+=(--prerelease)
           if [[ -f "$notes" ]]; then
             args+=(--notes-file "$notes")
           else
             args+=(--generate-notes)
           fi
+          npm ci --ignore-scripts
+          npm run typecheck
+          node scripts/build-declarations.mjs --check
+          node scripts/build-api-docs.mjs --check
+          node scripts/test.mjs
+          node --no-warnings scripts/build-typescript.mjs --check
+          node scripts/audits/verify-packed-package.mjs
+          node scripts/check.mjs
+          node scripts/audits/release-readiness.mjs --require-ready
           mkdir -p dist/release
           asset="$(npm pack --workspace packages/kjdraw-sdk --pack-destination dist/release --silent | tail -n 1)"
+          node scripts/release-artifacts.mjs "dist/release/$asset"
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "dist/release/$asset" --clobber
+            gh release upload "$tag" dist/release/* --clobber
           else
-            gh release create "${args[@]}" "dist/release/$asset"
+            gh release create "${args[@]}" dist/release/*
           fi
+      - name: Attest release artifacts
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: dist/release/SHA256SUMS

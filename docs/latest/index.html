@@ -7,16 +7,17 @@
   <title>KJDraw Documentation</title>
   <link rel="icon" href="../../docs/assets/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./enhancements.css">
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="../../"><img src="../../docs/assets/mark.svg" alt=""><b>KJDraw</b><span>Docs</span></a>
     <button id="search-button" class="search-button" aria-keyshortcuts="Control+K Meta+K"><span>⌕</span><span data-copy="search">Search documentation</span><kbd>Ctrl K</kbd></button>
-    <nav><a href="../../" data-copy="demo">Live Demo</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language">中文</button></nav>
+    <nav><a href="./api/">API</a><a href="../../" data-copy="demo">Live Demo</a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language">中文</button></nav>
   </header>
   <div class="layout">
     <aside class="sidebar">
-      <div class="version"><span data-copy="version">Documentation</span><select aria-label="Documentation version"><option>v0.7 · latest</option></select></div>
+      <div class="version"><span data-copy="version">Documentation</span><select id="docs-version" aria-label="Documentation version"><option>latest</option></select></div>
       <nav id="nav">
         <h3 data-copy="start">Getting started</h3>
         <a class="active" href="#introduction" data-copy="introduction">Introduction</a>
@@ -30,6 +31,7 @@
         <a href="#workbench" data-copy="workbench">Embed the workbench</a>
         <a href="#agent">Agent-native CAD</a>
         <h3 data-copy="reference">Reference</h3>
+        <a class="api-nav" href="./api/"><b>API</b> <span data-copy="generated">Generated reference</span></a>
         <a href="#packages" data-copy="packages">Packages</a>
         <a href="#capabilities" data-copy="capabilities">Capabilities and limits</a>
         <a href="#next" data-copy="next">Next steps</a>
@@ -41,7 +43,7 @@
           <p class="eyebrow">KJDRAW / DOCUMENTATION</p>
           <h1 data-copy="title">CAD infrastructure you can build on.</h1>
           <p class="lead" data-copy="lead">A framework-independent drawing model, deterministic command system, DXF/KJD/KJP file pipeline and Rust/WebAssembly geometry backend for engineering applications and AI agents.</p>
-          <div class="actions"><a class="primary" href="#quickstart" data-copy="installAction">Install KJDraw</a><a href="../../" data-copy="tryAction">Try the workbench ↗</a></div>
+          <div class="actions"><a class="primary" href="#quickstart" data-copy="installAction">Install KJDraw</a><a href="./api/" data-copy="apiAction">Explore the API</a><a href="../../" data-copy="tryAction">Try the workbench ↗</a></div>
           <div class="cards">
             <a href="#quickstart"><b data-copy="cardInstall">Install in a minute</b><span data-copy="cardInstallBody">Create and edit a real drawing with the public npm package.</span></a>
             <a href="#workbench"><b data-copy="cardEmbed">Build your own CAD UI</b><span data-copy="cardEmbedBody">Use the headless core with any renderer or framework.</span></a>

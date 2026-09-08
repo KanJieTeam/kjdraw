@@ -1,21 +1,260 @@
 {
-  "schema": "com.kanjie.kjdraw.acceptance-matrix@1",
-  "release": "0.7.2-preview.1",
-  "note": "Public preview scope. The inherited 1.0 contract is a target, not a release certification.",
+  "schema": "com.kanjie.kjdraw.acceptance-matrix@2",
+  "release": "1.0.0-rc.1",
+  "target": "1.0.0",
+  "evaluatedAt": "2026-09-08",
+  "note": "A requiredForStable gate must pass on the exact release-candidate commit before stable promotion. Repository-owned gates may pass locally; hosted browser, live deployment and release-provenance gates remain partial until their external run succeeds.",
   "gates": [
-    {"id":"contract.command-protocol","status":"passed","evidence":["packages/kjdraw-sdk/test/product-contract.test.mjs","packages/kjdraw-sdk/test/agent-plans.test.mjs","packages/kjdraw-sdk/src/agent-plans.ts","docs/agent-protocol.md"]},
-    {"id":"document.transactions","status":"passed","evidence":["packages/kjdraw-sdk/test/sdk.test.mjs"]},
-    {"id":"file.local-authority","status":"partial","evidence":["packages/kjdraw-sdk/src/project-session.js"],"gap":"Browser downloads do not certify native durable saving."},
-    {"id":"file.kjp","status":"passed","evidence":["packages/kjdraw-sdk/test/project-package.test.mjs"]},
-    {"id":"kernel.file-intermediate-model","status":"partial","evidence":["runtime/kjcore-rs/crates/kjcore/src/cad.rs"],"gap":"Document bridge exists; complete downstream mutation cutover and geometry authority remain incomplete."},
-    {"id":"cad.dwg-roundtrip","status":"blocked","evidence":[],"gap":"No authoritative backend after removing ODA from the product direction; no supported DWG claim."},
-    {"id":"cad.dxf-roundtrip","status":"partial","evidence":["packages/kjdraw-sdk/test/dxf-adapter.test.mjs","packages/kjdraw-sdk/test/dxf-corpus.test.mjs","scripts/audit-dxf-corpus.mjs","fixtures/dxf/manifest.json","docs/dxf-compatibility.md"],"gap":"Declared-version synthetic core corpus passes; broad independent cross-application certification remains open."},
-    {"id":"cad.2d-editing","status":"partial","evidence":["packages/kjdraw-sdk/test/editing-advanced.test.mjs"],"gap":"Only declared entity combinations."},
-    {"id":"cad.plotting","status":"blocked","evidence":[],"gap":"No complete layout/viewport/printing implementation."},
-    {"id":"kernel.solid","status":"partial","evidence":["packages/kjdraw-sdk/test/solid3d.test.mjs"],"gap":"Experimental meshes, not general BRep."},
-    {"id":"sdk.plugins","status":"partial","evidence":["packages/kjdraw-sdk/test/plugin-contract.test.mjs"],"gap":"Cooperative declarations, not hostile-code sandboxing."},
-    {"id":"sdk.typescript-source","status":"partial","evidence":["packages/kjdraw-sdk/src/deployment.ts","packages/kjdraw-sdk/src/agent-plans.ts","scripts/build-typescript.mjs","packages/kjdraw-sdk/test/typescript-source.test.mjs","docs/typescript-migration.md"],"gap":"Deployment Provider and Agent plan slices migrated; remaining SDK modules are still JavaScript-owned."},
-    {"id":"sdk.npm-consumption","status":"passed","evidence":["packages/kjdraw-sdk/package.json","packages/kjdraw-sdk/examples/quickstart.mjs","packages/kjdraw-sdk/test/npm-quickstart.test.mjs",".github/workflows/npm-publish.yml","docs/npm-publishing.md"],"gap":"Published as @kanjieteam/kjdraw and verified from a clean registry install."},
-    {"id":"public.synthetic-sample","status":"passed","evidence":["packages/kjdraw-sdk/test/sample-projects.test.mjs"]}
+    {
+      "id": "contract.command-protocol",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "packages/kjdraw-sdk/test/product-contract.test.mjs",
+        "packages/kjdraw-sdk/test/agent-plans.test.mjs",
+        "packages/kjdraw-sdk/src/agent-plans.ts",
+        "docs/agent-protocol.md"
+      ]
+    },
+    {
+      "id": "document.transactions",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "packages/kjdraw-sdk/test/sdk.test.mjs",
+        "packages/kjdraw-sdk/test/rust-wasm-artifact.test.mjs"
+      ]
+    },
+    {
+      "id": "file.local-authority",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "packages/kjdraw-sdk/src/browser-project-store.ts",
+        "packages/kjdraw-sdk/test/project-session.test.mjs",
+        "tests/browser/launch-journey.spec.mjs",
+        "docs/status.md"
+      ],
+      "boundary": "Browser download/reopen proves portable file delivery. Native atomic replace and fsync guarantees belong to the selected desktop or server project-store provider."
+    },
+    {
+      "id": "file.kjp",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "packages/kjdraw-sdk/test/project-package.test.mjs",
+        "packages/kjdraw-sdk/test/project-session.test.mjs",
+        "packages/kjdraw-sdk/test/file-safety.test.mjs"
+      ]
+    },
+    {
+      "id": "kernel.file-intermediate-model",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "runtime/kjcore-rs/crates/kjcore/src/cad.rs",
+        "packages/kjdraw-sdk/test/rust-document-bridge.test.mjs",
+        "packages/kjdraw-sdk/test/rust-wasm-artifact.test.mjs",
+        "docs/architecture.md"
+      ],
+      "boundary": "Rust/WASM authority is explicit and ABI-checked; the TypeScript reference path remains available and is never reported as Rust authority."
+    },
+    {
+      "id": "cad.dwg-roundtrip",
+      "requiredForStable": false,
+      "status": "out-of-scope",
+      "evidence": [
+        "docs/1.0-scope.md"
+      ],
+      "gap": "KJDraw 1.0 makes no DWG read/write claim. A future provider requires independent legal and interoperability evidence."
+    },
+    {
+      "id": "cad.dxf-roundtrip",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "packages/kjdraw-sdk/test/dxf-adapter.test.mjs",
+        "packages/kjdraw-sdk/test/dxf-corpus.test.mjs",
+        "packages/kjdraw-sdk/test/dxf-encoding.test.mjs",
+        "scripts/audit-dxf-corpus.mjs",
+        "scripts/audits/dxf-interop.mjs",
+        "scripts/audits/ezdxf-interop.py",
+        "fixtures/dxf/manifest.json",
+        "docs/dxf-compatibility.md",
+        "docs/audits/dxf-interop.md"
+      ],
+      "boundary": "Cross-implementation evidence covers the published ASCII subset, including pinned ezdxf 1.4.4 bidirectional R2018 and R12/R14 audits. It is not arbitrary-DXF losslessness or Autodesk certification."
+    },
+    {
+      "id": "cad.2d-editing",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "packages/kjdraw-sdk/test/editing-advanced.test.mjs",
+        "packages/kjdraw-sdk/test/snapping-grips.test.mjs",
+        "tests/browser/launch-journey.spec.mjs",
+        "scripts/benchmarks/core-readiness.mjs"
+      ]
+    },
+    {
+      "id": "cad.certified-plotting",
+      "requiredForStable": false,
+      "status": "out-of-scope",
+      "evidence": [
+        "docs/1.0-scope.md"
+      ],
+      "gap": "Stable 1.0 does not claim complete layout, viewport, font or device-certified printing fidelity."
+    },
+    {
+      "id": "kernel.general-brep",
+      "requiredForStable": false,
+      "status": "experimental",
+      "evidence": [
+        "packages/kjdraw-sdk/test/solid3d.test.mjs",
+        "packages/kjdraw-sdk/test/rust-wasm-artifact.test.mjs"
+      ],
+      "gap": "Bounded solid meshes and axis-aligned-box booleans remain experimental and are not a general BRep claim."
+    },
+    {
+      "id": "sdk.plugins",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "packages/kjdraw-sdk/test/plugin-contract.test.mjs",
+        "packages/kjdraw-sdk/test/plugin-starter.test.mjs",
+        "examples/plugin-starter/kjdraw.plugin.json",
+        "examples/plugin-starter/src/index.ts",
+        "scripts/audits/plugin-starter.mjs"
+      ],
+      "boundary": "Plugin permissions are cooperative declarations. Hostile-code isolation remains a host process or sandbox responsibility."
+    },
+    {
+      "id": "sdk.typescript-source",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "packages/kjdraw-sdk/tsconfig.json",
+        "scripts/typecheck.mjs",
+        "scripts/build-typescript.mjs",
+        "scripts/build-declarations.mjs",
+        "packages/kjdraw-sdk/test/typescript-source.test.mjs",
+        "packages/kjdraw-sdk/test/typescript-contract.test.mjs"
+      ]
+    },
+    {
+      "id": "sdk.npm-consumption",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "packages/kjdraw-sdk/package.json",
+        "packages/kjdraw-sdk/examples/quickstart.mjs",
+        "packages/kjdraw-sdk/test/npm-quickstart.test.mjs",
+        "packages/kjdraw-sdk/test/packed-package.test.mjs",
+        ".github/workflows/npm-publish.yml",
+        "docs/npm-publishing.md"
+      ]
+    },
+    {
+      "id": "sdk.framework-consumption",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "packages/kjdraw-sdk/examples/react.tsx",
+        "packages/kjdraw-sdk/examples/vue.ts",
+        "fixtures/consumer-types/vanilla.ts",
+        "fixtures/consumer-types/react.tsx",
+        "fixtures/consumer-types/vue.ts",
+        "scripts/audits/verify-packed-package.mjs",
+        "packages/kjdraw-sdk/test/packed-package.test.mjs"
+      ]
+    },
+    {
+      "id": "public.workbench",
+      "requiredForStable": true,
+      "verifyOnCandidate": true,
+      "status": "partial",
+      "evidence": [
+        "apps/playground/index.html",
+        "apps/playground/app.js",
+        "apps/playground/agent-showcase.js",
+        "packages/kjdraw-sdk/test/playground-experience.test.mjs",
+        "tests/browser/launch-journey.spec.mjs",
+        "playwright.config.mjs"
+      ],
+      "gap": "The launch journey passes locally in Chromium. Chromium, Firefox and WebKit must all pass in hosted CI on the exact candidate commit."
+    },
+    {
+      "id": "public.documentation",
+      "requiredForStable": true,
+      "verifyOnCandidate": true,
+      "status": "partial",
+      "evidence": [
+        "docs/latest/index.html",
+        "docs/latest/app.js",
+        "docs/latest/api/api-reference.json",
+        "scripts/build-api-docs.mjs",
+        "packages/kjdraw-sdk/test/api-docs.test.mjs"
+      ],
+      "gap": "Generated API coverage, search and deep-link tests exist locally; the versioned hosted Docs and Demo must be verified from the candidate commit."
+    },
+    {
+      "id": "security.input-budgets",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "packages/kjdraw-sdk/test/resource-limits.test.mjs",
+        "packages/kjdraw-sdk/test/file-safety.test.mjs",
+        "packages/kjdraw-sdk/src/dxf-adapter.ts",
+        "packages/kjdraw-sdk/src/kjd-adapter.ts",
+        "packages/kjdraw-sdk/src/project-package.ts"
+      ]
+    },
+    {
+      "id": "security.release-provenance",
+      "requiredForStable": true,
+      "verifyOnCandidate": true,
+      "status": "partial",
+      "evidence": [
+        ".github/workflows/npm-publish.yml",
+        ".github/workflows/release.yml",
+        "scripts/release-artifacts.mjs"
+      ],
+      "gap": "The workflow is configured for pinned Actions, npm provenance, SBOM, checksums and GitHub artifact attestation; the real release-candidate run must be verified."
+    },
+    {
+      "id": "performance.large-drawing",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "docs/performance-budgets.json",
+        "scripts/benchmarks/core-readiness.mjs",
+        ".github/workflows/ci.yml"
+      ],
+      "boundary": "This is a CI guardrail for a named synthetic core profile, not a universal rendering or hardware claim."
+    },
+    {
+      "id": "public.synthetic-samples",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "examples/sample.js",
+        "packages/kjdraw-sdk/test/sample-projects.test.mjs"
+      ]
+    },
+    {
+      "id": "community.governance",
+      "requiredForStable": true,
+      "status": "passed",
+      "evidence": [
+        "CONTRIBUTING.md",
+        "GOVERNANCE.md",
+        "SUPPORT.md",
+        "SECURITY.md",
+        "CODE_OF_CONDUCT.md",
+        ".github/ISSUE_TEMPLATE/feature_request.yml",
+        "docs/rfcs/0000-template.md"
+      ],
+      "risk": "Policy and responsibilities are explicit. A second authorized backup release/security maintainer remains an operational continuity risk."
+    }
   ]
 }

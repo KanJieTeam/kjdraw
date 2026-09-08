@@ -1,14 +1,126 @@
-const zh={search:'搜索文档',searchPlaceholder:'搜索 KJDraw 文档',demo:'在线 Demo',version:'当前文档',start:'快速开始',introduction:'简介',quickstart:'快速上手',installation:'安装',frameworks:'框架',guides:'指南',files:'打开与保存图纸',commands:'命令与事务',workbench:'嵌入工作台',reference:'参考',packages:'软件包',capabilities:'能力与限制',next:'下一步',title:'可持续构建的 CAD 基础设施。',lead:'面向工程应用与 AI Agent 的框架无关图纸模型、确定性命令系统、DXF/KJD/KJP 文件管线和 Rust/WebAssembly 几何后端。',installAction:'安装 KJDraw',tryAction:'体验工作台 ↗',cardInstall:'一分钟完成安装',cardInstallBody:'通过公开 npm 包创建和编辑真实图纸。',cardEmbed:'构建你自己的 CAD 界面',cardEmbedBody:'任意渲染器、任意前端框架，或完全无界面运行。',cardAgent:'为 Agent 提供安全工具',cardAgentBody:'受控地规划、审核和提交图纸修改。',quickstartBody:'安装零运行时依赖的 SDK，通过与在线工作台相同的命令路径创建并提交图元。',installationBody:'KJDraw 以 ESM 发布并包含 TypeScript 类型声明，npm 运行时零依赖。工具链建议 Node.js 22+，支持现代浏览器。',goal:'目标',use:'使用方式',reactUse:'核心包 + 自定义 Hook 或状态库',vueUse:'核心包 + 自定义 Composable 或状态库',wasmUse:'可选的权威几何后端',tsBody:'公共模型与框架无关。通过图纸事件与工程状态订阅变化，不把核心绑定到组件生命周期。',reactBody:'SDK 只创建一次，在 Effect 中订阅事件，用 Hook 暴露稳定命令；KJDraw 不强制渲染器或状态库。',reactExample:'查看完整 React Hook →',vueBody:'在 Composable 中封装 SDK，用 ref 映射版本，并在组件卸载时释放事件订阅。',vueExample:'查看完整 Vue Composable →',filesBody:'将 DXF 或 KJD 读入同一图纸模型。包含多张图纸、命令历史、快照或资产时使用 KJP 工程包。',compatLink:'查看 DXF 兼容性契约 →',commandsBody:'每次编辑均经过校验并产生版本。命令信封附带来源、预期版本和执行回执，使界面操作与自动化都可观察、可回放。',workbenchBody:'在线工作台是完全基于公共 API 构建的参考应用。你可以复用界面、替换渲染器，或只把核心嵌入现有工程产品。',boundary:'架构边界',boundaryBody:'SDK 持有图纸真相；UI 状态和渲染器只是投影；文件与计算服务通过显式适配器连接。',demoLink:'打开交互式 CAD 工作台 →',agentBody:'Agent 提交受限的命令计划。KJDraw 将计划绑定到准确图纸版本，允许人工检查，并只在明确确认后提交。',agentLink:'查看 Agent 协议 →',package:'软件包',purpose:'用途',license:'许可证',corePurpose:'图纸、命令、文件、几何契约与 Agent 协议',wasmPurpose:'可选 Rust/WebAssembly 权威后端',workbenchName:'参考工作台',workbenchPurpose:'浏览器 CAD 界面与集成示例',capabilitiesBody:'KJDraw 公开准确支持边界。在格式契约允许时保留暂不支持的 DXF 记录；预览版界面能力不冒充完整 CAD 对等。',matrixLink:'能力矩阵 →',limitsLink:'已知限制 →',architectureLink:'架构 →',nextDemo:'打开、编辑并导出原创工程示例。',nextGitHub:'Star、讨论、反馈问题或参与贡献。',roadmap:'路线图',nextRoadmap:'跟踪从预览版到 1.0 的进程。',onPage:'本页目录'}
-let locale=localStorage.getItem('kjdraw.docs.language')||(navigator.language.toLowerCase().startsWith('zh')?'zh':'en')
-const english=new Map([...document.querySelectorAll('[data-copy]')].map(element=>[element,element.textContent])),placeholders=new Map([...document.querySelectorAll('[data-copy-placeholder]')].map(element=>[element,element.placeholder]))
-function applyLanguage(){document.documentElement.lang=locale==='zh'?'zh-CN':'en';for(const [element,value]of english)element.textContent=locale==='zh'?(zh[element.dataset.copy]??value):value;for(const [element,value]of placeholders)element.placeholder=locale==='zh'?(zh[element.dataset.copyPlaceholder]??value):value;document.getElementById('language').textContent=locale==='zh'?'EN':'中文'}
-document.getElementById('language').onclick=()=>{locale=locale==='zh'?'en':'zh';localStorage.setItem('kjdraw.docs.language',locale);applyLanguage();indexSearch()}
-for(const button of document.querySelectorAll('.copy'))button.onclick=async()=>{await navigator.clipboard.writeText(button.nextElementSibling.textContent);const old=button.textContent;button.textContent=locale==='zh'?'已复制':'Copied';setTimeout(()=>button.textContent=old,1200)}
-const dialog=document.getElementById('search-dialog'),input=document.getElementById('search'),results=document.getElementById('results')
-function entries(){return[...document.querySelectorAll('article section')].map(section=>({id:section.id,title:section.querySelector('h1,h2')?.textContent??section.id,body:section.querySelector('p')?.textContent??''}))}
-function indexSearch(){const query=input.value.trim().toLowerCase(),matches=entries().filter(row=>!query||`${row.title} ${row.body}`.toLowerCase().includes(query));results.replaceChildren(...matches.map(row=>{const link=document.createElement('a');link.href=`#${row.id}`;const title=document.createElement('b'),body=document.createElement('span');title.textContent=row.title;body.textContent=row.body.slice(0,110);link.append(title,body);link.onclick=()=>dialog.close();return link}))}
-document.getElementById('search-button').onclick=()=>{dialog.showModal();indexSearch();setTimeout(()=>input.focus())};input.oninput=indexSearch
-window.addEventListener('keydown',event=>{if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='k'){event.preventDefault();dialog.showModal();indexSearch();setTimeout(()=>input.focus())}})
-const links=[...document.querySelectorAll('#nav a')],observer=new IntersectionObserver(rows=>{const current=rows.filter(row=>row.isIntersecting).at(-1);if(current)for(const link of links)link.classList.toggle('active',link.hash===`#${current.target.id}`)},{rootMargin:'-15% 0px -72%'})
-for(const section of document.querySelectorAll('article section'))observer.observe(section)
+const zh = {
+  search: '搜索文档', searchPlaceholder: '搜索指南与 API', demo: '在线 Demo', version: '当前文档',
+  start: '快速开始', introduction: '简介', quickstart: '快速上手', installation: '安装', frameworks: '框架',
+  guides: '指南', files: '打开与保存图纸', commands: '命令与事务', workbench: '嵌入工作台', reference: '参考',
+  generated: '自动生成参考', apiAction: '浏览 API', packages: '软件包', capabilities: '能力与限制', next: '下一步',
+  title: '可持续构建的 CAD 基础设施。',
+  lead: '面向工程应用与 AI Agent 的框架无关图纸模型、确定性命令系统、DXF/KJD/KJP 文件管线和 Rust/WebAssembly 几何后端。',
+  installAction: '安装 KJDraw', tryAction: '体验工作台 ↗', cardInstall: '一分钟完成安装',
+  cardInstallBody: '通过公开 npm 包创建和编辑真实图纸。', cardEmbed: '构建你自己的 CAD 界面',
+  cardEmbedBody: '任意渲染器、任意前端框架，或完全无界面运行。', cardAgent: '为 Agent 提供安全工具',
+  cardAgentBody: '受控地规划、审核和提交图纸修改。',
+  quickstartBody: '安装零运行时依赖的 SDK，通过与在线工作台相同的命令路径创建并提交图元。',
+  installationBody: 'KJDraw 以 ESM 发布并包含 TypeScript 类型声明，npm 运行时零依赖。工具链建议 Node.js 22+，支持现代浏览器。',
+  goal: '目标', use: '使用方式', reactUse: '核心包 + 自定义 Hook 或状态库', vueUse: '核心包 + 自定义 Composable 或状态库',
+  wasmUse: '可选的权威几何后端', tsBody: '公共模型与框架无关。通过图纸事件与工程状态订阅变化，不把核心绑定到组件生命周期。',
+  reactBody: 'SDK 只创建一次，在 Effect 中订阅事件，用 Hook 暴露稳定命令；KJDraw 不强制渲染器或状态库。',
+  reactExample: '查看完整 React Hook →', vueBody: '在 Composable 中封装 SDK，用 ref 映射版本，并在组件卸载时释放事件订阅。',
+  vueExample: '查看完整 Vue Composable →', filesBody: '将 DXF 或 KJD 读入同一图纸模型。包含多张图纸、命令历史、快照或资产时使用 KJP 工程包。',
+  compatLink: '查看 DXF 兼容性契约 →',
+  commandsBody: '每次编辑均经过校验并产生版本。命令信封附带来源、预期版本和执行回执，使界面操作与自动化都可观察、可回放。',
+  workbenchBody: '在线工作台是完全基于公共 API 构建的参考应用。你可以复用界面、替换渲染器，或只把核心嵌入现有工程产品。',
+  boundary: '架构边界', boundaryBody: 'SDK 持有图纸真相；UI 状态和渲染器只是投影；文件与计算服务通过显式适配器连接。',
+  demoLink: '打开交互式 CAD 工作台 →',
+  agentBody: 'Agent 提交受限的命令计划。KJDraw 将计划绑定到准确图纸版本，允许人工检查，并只在明确确认后提交。',
+  agentLink: '查看 Agent 协议 →', package: '软件包', purpose: '用途', license: '许可证',
+  corePurpose: '图纸、命令、文件、几何契约与 Agent 协议', wasmPurpose: '可选 Rust/WebAssembly 权威后端',
+  workbenchName: '参考工作台', workbenchPurpose: '浏览器 CAD 界面与集成示例',
+  capabilitiesBody: 'KJDraw 公开准确支持边界。在格式契约允许时保留暂不支持的 DXF 记录；预览版界面能力不冒充完整 CAD 对等。',
+  matrixLink: '能力矩阵 →', limitsLink: '已知限制 →', architectureLink: '架构 →',
+  nextDemo: '打开、编辑并导出原创工程示例。', nextGitHub: 'Star、讨论、反馈问题或参与贡献。',
+  roadmap: '路线图', nextRoadmap: '跟踪从预览版到 1.0 的进程。', onPage: '本页目录',
+}
+
+let locale = localStorage.getItem('kjdraw.docs.language') || (navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en')
+const english = new Map([...document.querySelectorAll('[data-copy]')].map(element => [element, element.textContent]))
+const placeholders = new Map([...document.querySelectorAll('[data-copy-placeholder]')].map(element => [element, element.placeholder]))
+const dialog = document.getElementById('search-dialog')
+const input = document.getElementById('search')
+const results = document.getElementById('results')
+let apiEntries = []
+
+function applyLanguage() {
+  document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en'
+  for (const [element, value] of english) element.textContent = locale === 'zh' ? (zh[element.dataset.copy] ?? value) : value
+  for (const [element, value] of placeholders) element.placeholder = locale === 'zh' ? (zh[element.dataset.copyPlaceholder] ?? value) : value
+  document.getElementById('language').textContent = locale === 'zh' ? 'EN' : '中文'
+}
+
+function guideEntries() {
+  return [...document.querySelectorAll('article section')].map(section => ({
+    href: `#${section.id}`,
+    title: section.querySelector('h1,h2')?.textContent ?? section.id,
+    body: section.querySelector('p')?.textContent ?? '',
+  }))
+}
+
+function searchEntries() {
+  return [
+    ...guideEntries(),
+    ...apiEntries.map(entry => ({ href: entry.href, title: `${entry.name} · ${entry.module}`, body: `${entry.kind} — ${entry.summary}` })),
+  ]
+}
+
+function indexSearch() {
+  const query = input.value.trim().toLowerCase()
+  const matches = searchEntries().filter(row => !query || `${row.title} ${row.body}`.toLowerCase().includes(query)).slice(0, 80)
+  results.replaceChildren(...matches.map(row => {
+    const link = document.createElement('a')
+    const title = document.createElement('b')
+    const body = document.createElement('span')
+    link.href = row.href
+    title.textContent = row.title
+    body.textContent = row.body.slice(0, 140)
+    link.append(title, body)
+    link.onclick = () => dialog.close()
+    return link
+  }))
+}
+
+document.getElementById('language').onclick = () => {
+  locale = locale === 'zh' ? 'en' : 'zh'
+  localStorage.setItem('kjdraw.docs.language', locale)
+  applyLanguage()
+  indexSearch()
+}
+
+for (const button of document.querySelectorAll('.copy')) button.onclick = async () => {
+  await navigator.clipboard.writeText(button.nextElementSibling.textContent)
+  const old = button.textContent
+  button.textContent = locale === 'zh' ? '已复制' : 'Copied'
+  setTimeout(() => { button.textContent = old }, 1200)
+}
+
+function openSearch() {
+  dialog.showModal()
+  indexSearch()
+  setTimeout(() => input.focus())
+}
+
+document.getElementById('search-button').onclick = openSearch
+input.oninput = indexSearch
+window.addEventListener('keydown', event => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+    event.preventDefault()
+    openSearch()
+  }
+})
+
+const links = [...document.querySelectorAll('#nav a[href^="#"]')]
+const observer = new IntersectionObserver(rows => {
+  const current = rows.filter(row => row.isIntersecting).at(-1)
+  if (current) for (const link of links) link.classList.toggle('active', link.hash === `#${current.target.id}`)
+}, { rootMargin: '-15% 0px -72%' })
+for (const section of document.querySelectorAll('article section')) observer.observe(section)
+
+fetch('./api/search-index.json').then(async response => {
+  if (!response.ok) throw new Error(`API index request failed: ${response.status}`)
+  return response.json()
+}).then(index => {
+  apiEntries = Array.isArray(index.entries) ? index.entries : []
+  const version = document.getElementById('docs-version')?.querySelector('option')
+  if (version) version.textContent = `v${index.version} · latest`
+  if (dialog.open) indexSearch()
+}).catch(error => console.warn('KJDraw API search is unavailable.', error))
+
 applyLanguage()

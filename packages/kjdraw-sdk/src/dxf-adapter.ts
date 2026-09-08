@@ -1,0 +1,997 @@
+import { KJDocument } from './document.js'
+import { KJValidationError } from './errors.js'
+import { defineFileAdapter } from './file-adapters.js'
+import type { KJFileAdapter, KJFileAdapterContext, KJFileAdapterOptions } from './file-adapters.js'
+import type { KJTableName } from './constants.js'
+import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
+import type { KJTransaction } from './transaction.js'
+import { normalizeName } from './utils.js'
+
+type DxfVersion = 'R12' | 'R14' | '2000' | '2004' | '2010' | '2013' | '2018' | '2024'
+type DxfProductVersion = Exclude<DxfVersion, 'R12'>
+type Point3 = [number, number, number]
+
+interface DxfTag { code: number; value: string }
+interface DxfRecord { type: string; tags: DxfTag[]; vertices?: DxfRecord[]; sequenceEnd?: DxfRecord | null }
+interface DxfBlockDefinition { name: string; header: DxfRecord; basePoint: Point3; flags: number; records: DxfRecord[] }
+interface DxfReadLimits { maxBytes: number; maxTags: number; maxEntities: number }
+interface DxfReadOptions extends KJFileAdapterOptions {
+  limits?: Partial<DxfReadLimits>
+  signal?: AbortSignal
+  maxBytes?: number
+  maxTags?: number
+  maxEntities?: number
+}
+interface DxfAdapterOptions extends DxfReadOptions { id?: string; priority?: number }
+interface DxfImportResources { textStyleIds?: ReadonlyMap<string, string>; dimensionStyleIds?: ReadonlyMap<string, string> }
+interface DxfExportResources { textStyleNames?: ReadonlyMap<string, string>; dimensionStyleNames?: ReadonlyMap<string, string> }
+interface DxfSpace { paper?: boolean; layoutName?: string }
+interface DxfWriteContext {
+  version: DxfVersion
+  allocateHandle: () => string
+}
+interface DxfVertex { point: Point3; bulge?: number; startWidth?: number; endWidth?: number; dxfFlags?: number }
+interface DxfHatchLineEdge { type: 'LINE'; start: Point3; end: Point3 }
+interface DxfHatchArcEdge { type: 'ARC'; center: Point3; radius: number; startAngle: number; endAngle: number; counterClockwise: boolean }
+interface DxfHatchRawEdge { type: 'ELLIPSE' | 'SPLINE' | 'UNKNOWN'; dxfEdgeType: number; rawTags: DxfTag[] }
+type DxfHatchEdge = DxfHatchLineEdge | DxfHatchArcEdge | DxfHatchRawEdge
+interface DxfHatchLoop { external: boolean; flags: number; closed?: boolean; vertices?: DxfVertex[]; edges?: DxfHatchEdge[] }
+interface DxfEntitySpec { type: string; payload: Record<string, unknown> }
+
+interface DxfPayload extends KJObjectPayload {
+  start?: Point3
+  end?: Point3
+  position?: Point3
+  center?: Point3
+  radius?: number
+  startAngle?: number
+  endAngle?: number
+  vertices?: readonly (DxfVertex | Point3)[]
+  closed?: boolean
+  elevation?: number
+  dxfFlags?: number
+  majorAxis?: Point3
+  ratio?: number
+  startParameter?: number
+  endParameter?: number
+  degree?: number
+  knots?: readonly number[]
+  weights?: readonly number[]
+  controlPoints?: readonly Point3[]
+  fitPoints?: readonly Point3[]
+  periodic?: boolean
+  text?: string
+  height?: number
+  rotation?: number
+  styleId?: string | null
+  alignmentPoint?: Point3
+  tag?: string
+  prompt?: string
+  flags?: number
+  lockPosition?: boolean
+  scale?: readonly number[]
+  boundaryLoops?: readonly DxfHatchLoop[]
+  patternName?: string
+  solid?: boolean
+  associative?: boolean
+  patternAngle?: number
+  patternScale?: number
+  rawTags?: readonly DxfTag[]
+  originalType?: string
+  annotationHandle?: string | null
+  textPosition?: Point3 | null
+  dimensionType?: string
+  dxfDimensionType?: number
+  definitionPoints?: readonly Point3[]
+  textOverride?: string | null
+  styleName?: string
+  blockName?: string | null
+  measurement?: number | null
+  uVector?: Point3
+  vVector?: Point3
+  width?: number
+  viewCenter?: Point3
+  viewHeight?: number
+  twistAngle?: number
+  pattern?: readonly number[]
+  description?: string
+  totalPatternLength?: number
+  fixedHeight?: number
+  widthFactor?: number
+  obliqueAngle?: number
+  generationFlags?: number
+  lastHeight?: number
+  fontFile?: string
+  fontFamily?: string
+  bigFontFile?: string
+  overallScale?: number
+  arrowSize?: number
+  extensionOffset?: number
+  baselineSpacing?: number
+  extensionBeyond?: number
+  rounding?: number
+  textHeight?: number
+  centerMarkSize?: number
+  textGap?: number
+  origin?: Point3
+  xAxis?: Point3
+  yAxis?: Point3
+  direction?: Point3
+  target?: Point3
+  color?: number
+  visible?: boolean
+  frozen?: boolean
+  locked?: boolean
+  plottable?: boolean
+  lineweight?: number
+  linetypeId?: string | null
+  linetypeName?: string
+  basePoint?: Point3
+  isSpace?: boolean
+}
+
+interface DxfEntity {
+  type: string
+  handle: string
+  payload?: DxfPayload
+}
+
+interface DxfNamedRecord extends DxfEntity {
+  id: string
+  name: string
+}
+
+function dxfPayload(record: KJReadonlyObjectRecord | DxfEntity): DxfPayload {
+  return (record.payload ?? {}) as unknown as DxfPayload
+}
+
+function dxfEntity(record: KJReadonlyObjectRecord): DxfEntity {
+  return { type: record.type, handle: record.handle, payload: dxfPayload(record) }
+}
+
+function dxfNamedRecord(record: KJReadonlyObjectRecord): DxfNamedRecord {
+  return { id: record.id, name: String(record.name ?? ''), type: record.type, handle: record.handle, payload: dxfPayload(record) }
+}
+
+function vertexPoint(vertex: DxfVertex | Point3): Point3 {
+  if (Array.isArray(vertex)) return [Number(vertex[0]), Number(vertex[1]), Number(vertex[2] ?? 0)]
+  return (vertex as DxfVertex).point
+}
+
+function documentTableRecords(document: KJDocument, name: KJTableName): ReadonlyArray<KJReadonlyObjectRecord> {
+  const table = document.getTable(name)
+  if (!table) throw new KJValidationError(`KJDocument table is unavailable: ${name}`)
+  return table.records
+}
+
+const PRODUCT_VERSIONS: readonly DxfProductVersion[] = Object.freeze(['R14', '2000', '2004', '2010', '2013', '2018', '2024'])
+const VERSIONS: readonly DxfVersion[] = Object.freeze(['R12', ...PRODUCT_VERSIONS])
+const ACADVER: Readonly<Record<DxfVersion, string>> = Object.freeze({ R12: 'AC1009', R14: 'AC1014', 2000: 'AC1015', 2004: 'AC1018', 2010: 'AC1024', 2013: 'AC1027', 2018: 'AC1032', 2024: 'AC1032' })
+const VERSION_BY_CODE: Readonly<Record<string, DxfVersion>> = Object.freeze({ AC1009: 'R12', AC1014: 'R14', AC1015: '2000', AC1018: '2004', AC1024: '2010', AC1027: '2013', AC1032: '2018' })
+const READ_TYPES = Object.freeze(['LINE', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
+const WRITE_TYPES = new Set(['LINE', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
+
+const DIMENSION_TYPE_BY_CODE: Readonly<Record<number, string>> = Object.freeze({ 0: 'ROTATED', 1: 'ALIGNED', 2: 'ANGULAR', 3: 'DIAMETER', 4: 'RADIUS', 5: 'ANGULAR_3_POINT', 6: 'ORDINATE' })
+const DIMENSION_CODE_BY_TYPE: Readonly<Record<string, number>> = Object.freeze(Object.fromEntries(Object.entries(DIMENSION_TYPE_BY_CODE).map(([code, type]) => [type, Number(code)])))
+const VERSION_RANK: Readonly<Record<DxfVersion, number>> = Object.freeze({ R12: 0, R14: 1, 2000: 2, 2004: 3, 2010: 4, 2013: 5, 2018: 6, 2024: 6 })
+const MIN_ENTITY_VERSION: Readonly<Record<string, DxfVersion>> = Object.freeze({
+  ELLIPSE: 'R14', SPLINE: 'R14', MTEXT: 'R14', LEADER: 'R14', HATCH: 'R14',
+  WIPEOUT: '2000',
+})
+
+const CODE_PAGE_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  'ANSI_936': 'gb18030',
+  'ANSI_950': 'big5',
+  'ANSI_932': 'shift_jis',
+  'ANSI_949': 'euc-kr',
+  'ANSI_1252': 'windows-1252',
+  'UTF-8': 'utf-8',
+  'UTF8': 'utf-8',
+})
+
+export const DXF_DEFAULT_READ_LIMITS: Readonly<DxfReadLimits> = Object.freeze({ maxBytes: 64 * 1024 ** 2, maxTags: 2_000_000, maxEntities: 250_000 })
+
+function readLimits(options: DxfReadOptions | Partial<DxfReadLimits> = {}): DxfReadLimits {
+  const source: Partial<DxfReadLimits> = 'limits' in options && options.limits ? options.limits : options
+  const limits: DxfReadLimits = {
+    maxBytes: Math.max(1, Number(source.maxBytes ?? DXF_DEFAULT_READ_LIMITS.maxBytes)),
+    maxTags: Math.max(1, Number(source.maxTags ?? DXF_DEFAULT_READ_LIMITS.maxTags)),
+    maxEntities: Math.max(1, Number(source.maxEntities ?? DXF_DEFAULT_READ_LIMITS.maxEntities)),
+  }
+  if (!Object.values(limits).every(Number.isFinite)) throw new KJValidationError('DXF read limits must be finite positive numbers')
+  return limits
+}
+
+function assertSourceSize(size: number | undefined, limits: DxfReadLimits): void {
+  if (size !== undefined && Number.isFinite(size) && size > limits.maxBytes) throw new KJValidationError(`DXF source exceeds the ${limits.maxBytes} byte read limit`)
+}
+
+function decodeBytes(bytes: Uint8Array): string {
+  const probe = new TextDecoder('windows-1252').decode(bytes.subarray(0, Math.min(bytes.length, 65536)))
+  const match = probe.match(/\$DWGCODEPAGE\s*\r?\n\s*3\s*\r?\n\s*([^\r\n]+)/i)
+  const codePage = normalizeName(match?.[1] ?? 'UTF-8')
+  const label = CODE_PAGE_LABELS[codePage] ?? 'utf-8'
+  try { return new TextDecoder(label).decode(bytes) } catch { return new TextDecoder().decode(bytes) }
+}
+
+async function sourceText(source: unknown, options: DxfReadOptions | Partial<DxfReadLimits> = {}): Promise<string> {
+  const limits = readLimits(options)
+  if (typeof source === 'string') { assertSourceSize(new TextEncoder().encode(source).byteLength, limits); return source }
+  if (source instanceof Uint8Array) { assertSourceSize(source.byteLength, limits); return decodeBytes(source) }
+  if (source instanceof ArrayBuffer) { assertSourceSize(source.byteLength, limits); return decodeBytes(new Uint8Array(source)) }
+  if (source !== null && typeof source === 'object' && 'arrayBuffer' in source && typeof source.arrayBuffer === 'function') {
+    const sized = source as { size?: number; arrayBuffer(): Promise<ArrayBuffer> }
+    assertSourceSize(sized.size, limits)
+    const bytes = new Uint8Array(await sized.arrayBuffer())
+    assertSourceSize(bytes.byteLength, limits)
+    return decodeBytes(bytes)
+  }
+  if (source !== null && typeof source === 'object' && 'text' in source && typeof source.text === 'function') {
+    const sized = source as { size?: number; text(): Promise<string> }
+    assertSourceSize(sized.size, limits)
+    const text = await sized.text()
+    assertSourceSize(new TextEncoder().encode(text).byteLength, limits)
+    return text
+  }
+  throw new KJValidationError('DXF source must be text, bytes, or Blob/File')
+}
+
+function tagsFromText(text: string, options: DxfReadOptions | Partial<DxfReadLimits> = {}): DxfTag[] {
+  const limits = readLimits(options)
+  const lines = String(text).replace(/^\uFEFF/, '').replace(/\r/g, '').split('\n')
+  if (Math.ceil(lines.length / 2) > limits.maxTags) throw new KJValidationError(`DXF tag count exceeds the ${limits.maxTags} read limit`)
+  const tags: DxfTag[] = []
+  for (let index = 0; index + 1 < lines.length; index += 2) {
+    const code = Number(lines[index]!.trim())
+    if (!Number.isInteger(code)) throw new KJValidationError(`Invalid DXF group code at line ${index + 1}`)
+    tags.push({ code, value: lines[index + 1]!.trimEnd() })
+  }
+  return tags
+}
+
+function section(tags: readonly DxfTag[], name: string): DxfTag[] {
+  const normalizedName = normalizeName(name)
+  for (let index = 0; index < tags.length - 1; index += 1) {
+    if (tags[index]!.code === 0 && normalizeName(tags[index]!.value) === 'SECTION' && tags[index + 1]!.code === 2 && normalizeName(tags[index + 1]!.value) === normalizedName) {
+      const end = tags.findIndex((tag, position) => position > index + 1 && tag.code === 0 && normalizeName(tag.value) === 'ENDSEC')
+      return tags.slice(index + 2, end < 0 ? tags.length : end)
+    }
+  }
+  return []
+}
+
+function records(tags: readonly DxfTag[]): DxfRecord[] {
+  const output: DxfRecord[] = []
+  let current: DxfRecord | null = null
+  for (const tag of tags) {
+    if (tag.code === 0) {
+      if (current) output.push(current)
+      current = { type: normalizeName(tag.value), tags: [] }
+    } else if (current) current.tags.push(tag)
+  }
+  if (current) output.push(current)
+  return output
+}
+
+function collapseLegacyPolylines(source: readonly DxfRecord[]): DxfRecord[] {
+  const output: DxfRecord[] = []
+  for (let index = 0; index < source.length; index += 1) {
+    const record = source[index]!
+    if (record.type !== 'POLYLINE') {
+      output.push(record)
+      continue
+    }
+    const vertices: DxfRecord[] = []
+    let cursor = index + 1
+    while (cursor < source.length && source[cursor]!.type === 'VERTEX') {
+      vertices.push(source[cursor]!)
+      cursor += 1
+    }
+    const sequenceEnd = source[cursor]?.type === 'SEQEND' ? source[cursor]! : null
+    output.push({ ...record, vertices, sequenceEnd })
+    index = sequenceEnd ? cursor : cursor - 1
+  }
+  return output
+}
+
+function entityRecords(tags: readonly DxfTag[]): DxfRecord[] { return collapseLegacyPolylines(records(tags)) }
+
+function blockDefinitions(tags: readonly DxfTag[]): DxfBlockDefinition[] {
+  const source = records(tags)
+  const output: DxfBlockDefinition[] = []
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index]!.type !== 'BLOCK') continue
+    const header = source[index]!
+    const inner: DxfRecord[] = []
+    index += 1
+    while (index < source.length && source[index]!.type !== 'ENDBLK') inner.push(source[index++]!)
+    const name = String(first(header, 2, first(header, 3, ''))).trim()
+    if (name) output.push({ name, header, basePoint: point(header), flags: number(header, 70, 0), records: collapseLegacyPolylines(inner) })
+  }
+  return output
+}
+
+function values(record: DxfRecord, code: number): string[] { return record.tags.filter(tag => tag.code === code).map(tag => tag.value) }
+function first(record: DxfRecord, code: number): string | null
+function first<Fallback>(record: DxfRecord, code: number, fallback: Fallback): string | Fallback
+function first<Fallback>(record: DxfRecord, code: number, fallback: Fallback | null = null): string | Fallback | null { return values(record, code)[0] ?? fallback }
+function number(record: DxfRecord, code: number, fallback = 0): number {
+  const value = Number(first(record, code, fallback))
+  if (!Number.isFinite(value)) throw new KJValidationError(`Invalid DXF numeric group ${code} in ${record.type}`)
+  return value
+}
+function point(record: DxfRecord, xCode = 10, yCode = 20, zCode = 30): Point3 { return [number(record, xCode), number(record, yCode), number(record, zCode)] }
+
+function repeatedPoints(record: DxfRecord, xCode = 10, yCode = 20, zCode = 30): Point3[] {
+  const result: Point3[] = []
+  for (let index = 0; index < record.tags.length; index += 1) {
+    if (record.tags[index]!.code !== xCode) continue
+    const value: Point3 = [Number(record.tags[index]!.value), 0, 0]
+    for (let cursor = index + 1; cursor < record.tags.length && record.tags[cursor]!.code !== xCode; cursor += 1) {
+      if (record.tags[cursor]!.code === yCode) value[1] = Number(record.tags[cursor]!.value)
+      else if (record.tags[cursor]!.code === zCode) value[2] = Number(record.tags[cursor]!.value)
+    }
+    if (!value.every(Number.isFinite)) throw new KJValidationError(`Invalid repeated point ${xCode}/${yCode}/${zCode} in ${record.type}`)
+    result.push(value)
+  }
+  return result
+}
+
+function optionalPoint(record: DxfRecord, xCode: number, yCode: number, zCode: number): Point3 | null {
+  return values(record, xCode).length ? point(record, xCode, yCode, zCode) : null
+}
+
+function polylineVertices(record: DxfRecord): DxfVertex[] {
+  const vertices: DxfVertex[] = []
+  for (let index = 0; index < record.tags.length; index += 1) {
+    if (record.tags[index]!.code !== 10) continue
+    const vertex: DxfVertex = { point: [Number(record.tags[index]!.value), 0, 0], bulge: 0, startWidth: 0, endWidth: 0 }
+    for (let cursor = index + 1; cursor < record.tags.length && record.tags[cursor]!.code !== 10; cursor += 1) {
+      const tag = record.tags[cursor]!
+      if (tag.code === 20) vertex.point[1] = Number(tag.value)
+      else if (tag.code === 30) vertex.point[2] = Number(tag.value)
+      else if (tag.code === 42) vertex.bulge = Number(tag.value)
+      else if (tag.code === 40) vertex.startWidth = Number(tag.value)
+      else if (tag.code === 41) vertex.endWidth = Number(tag.value)
+    }
+    if (!vertex.point.every(Number.isFinite) || ![vertex.bulge, vertex.startWidth, vertex.endWidth].every(Number.isFinite)) throw new KJValidationError('Invalid LWPOLYLINE vertex')
+    vertices.push(vertex)
+  }
+  return vertices
+}
+
+function legacyPolylineVertices(record: DxfRecord): DxfVertex[] {
+  const defaultStartWidth = number(record, 40, 0)
+  const defaultEndWidth = number(record, 41, 0)
+  return (record.vertices ?? []).map((vertex, index): DxfVertex => {
+    const value: DxfVertex = {
+      point: point(vertex),
+      bulge: number(vertex, 42, 0),
+      startWidth: number(vertex, 40, defaultStartWidth),
+      endWidth: number(vertex, 41, defaultEndWidth),
+      dxfFlags: number(vertex, 70, 0),
+    }
+    if (!value.point.every(Number.isFinite)) throw new KJValidationError(`Invalid POLYLINE vertex ${index}`)
+    return value
+  })
+}
+
+function hatchBoundaryLoops(record: DxfRecord): DxfHatchLoop[] {
+  const tags = record.tags
+  const loops: DxfHatchLoop[] = []
+  let cursor = tags.findIndex(tag => tag.code === 91)
+  const loopCount = cursor < 0 ? 0 : Number(tags[cursor]!.value)
+  cursor += 1
+  for (let loopIndex = 0; loopIndex < loopCount; loopIndex += 1) {
+    while (cursor < tags.length && tags[cursor]!.code !== 92) cursor += 1
+    if (cursor >= tags.length) break
+    const flags = Number(tags[cursor++]!.value)
+    const external = Boolean(flags & 1 || flags & 16)
+    if (flags & 2) {
+      let closed = true, vertexCount = 0
+      while (cursor < tags.length && tags[cursor]!.code !== 93) {
+        if (tags[cursor]!.code === 73) closed = Number(tags[cursor]!.value) !== 0
+        cursor += 1
+      }
+      if (tags[cursor]?.code === 93) vertexCount = Number(tags[cursor++]!.value)
+      const vertices: DxfVertex[] = []
+      while (cursor < tags.length && vertices.length < vertexCount) {
+        if (tags[cursor]!.code !== 10) { cursor += 1; continue }
+        const vertex: DxfVertex = { point: [Number(tags[cursor++]!.value), 0, 0], bulge: 0, startWidth: 0, endWidth: 0 }
+        while (cursor < tags.length && tags[cursor]!.code !== 10 && tags[cursor]!.code !== 97 && tags[cursor]!.code !== 92) {
+          if (tags[cursor]!.code === 20) vertex.point[1] = Number(tags[cursor]!.value)
+          else if (tags[cursor]!.code === 42) vertex.bulge = Number(tags[cursor]!.value)
+          cursor += 1
+        }
+        vertices.push(vertex)
+      }
+      loops.push({ external, flags, closed, vertices })
+    } else {
+      while (cursor < tags.length && tags[cursor]!.code !== 93) cursor += 1
+      const edgeCount = tags[cursor]?.code === 93 ? Number(tags[cursor++]!.value) : 0
+      const edges: DxfHatchEdge[] = []
+      for (let edgeIndex = 0; edgeIndex < edgeCount && cursor < tags.length; edgeIndex += 1) {
+        while (cursor < tags.length && tags[cursor]!.code !== 72) cursor += 1
+        if (cursor >= tags.length) break
+        const edgeType = Number(tags[cursor++]!.value)
+        if (edgeType === 1) {
+          const edge: DxfHatchLineEdge = { type: 'LINE', start: [0, 0, 0], end: [0, 0, 0] }
+          while (cursor < tags.length && ![72, 92, 97].includes(tags[cursor]!.code)) {
+            const tag = tags[cursor++]!; if (tag.code === 10) edge.start[0] = Number(tag.value); else if (tag.code === 20) edge.start[1] = Number(tag.value); else if (tag.code === 11) edge.end[0] = Number(tag.value); else if (tag.code === 21) edge.end[1] = Number(tag.value)
+          }
+          edges.push(edge)
+        } else if (edgeType === 2) {
+          const edge: DxfHatchArcEdge = { type: 'ARC', center: [0, 0, 0], radius: 0, startAngle: 0, endAngle: 0, counterClockwise: true }
+          while (cursor < tags.length && ![72, 92, 97].includes(tags[cursor]!.code)) {
+            const tag = tags[cursor++]!; if (tag.code === 10) edge.center[0] = Number(tag.value); else if (tag.code === 20) edge.center[1] = Number(tag.value); else if (tag.code === 40) edge.radius = Number(tag.value); else if (tag.code === 50) edge.startAngle = Number(tag.value) * Math.PI / 180; else if (tag.code === 51) edge.endAngle = Number(tag.value) * Math.PI / 180; else if (tag.code === 73) edge.counterClockwise = Number(tag.value) !== 0
+          }
+          edges.push(edge)
+        } else {
+          const rawTags: DxfTag[] = []
+          while (cursor < tags.length && ![72, 92, 97].includes(tags[cursor]!.code)) rawTags.push(tags[cursor++]!)
+          edges.push({ type: edgeType === 3 ? 'ELLIPSE' : edgeType === 4 ? 'SPLINE' : 'UNKNOWN', dxfEdgeType: edgeType, rawTags })
+        }
+      }
+      loops.push({ external, flags, edges })
+    }
+    if (tags[cursor]?.code === 97) {
+      const sourceCount = Number(tags[cursor++]!.value)
+      cursor += Math.min(sourceCount, tags.slice(cursor).filter(tag => tag.code === 330).length)
+    }
+  }
+  if (!loops.length) throw new KJValidationError('DXF HATCH contains no boundary loops')
+  return loops
+}
+
+function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>, resources: DxfImportResources = {}): DxfEntitySpec {
+  switch (record.type) {
+    case 'LINE': return { type: 'LINE', payload: { start: point(record), end: point(record, 11, 21, 31) } }
+    case 'POINT': return { type: 'POINT', payload: { position: point(record) } }
+    case 'CIRCLE': return { type: 'CIRCLE', payload: { center: point(record), radius: number(record, 40) } }
+    case 'ARC': return { type: 'ARC', payload: { center: point(record), radius: number(record, 40), startAngle: number(record, 50) * Math.PI / 180, endAngle: number(record, 51) * Math.PI / 180 } }
+    case 'LWPOLYLINE': return { type: 'LWPOLYLINE', payload: { vertices: polylineVertices(record), closed: (number(record, 70, 0) & 1) === 1, elevation: number(record, 38, 0) } }
+    case 'POLYLINE': return { type: 'POLYLINE', payload: { vertices: legacyPolylineVertices(record), closed: (number(record, 70, 0) & 1) === 1, elevation: number(record, 30, 0), dxfFlags: number(record, 70, 0) } }
+    case 'ELLIPSE': return { type: 'ELLIPSE', payload: { center: point(record), majorAxis: point(record, 11, 21, 31), ratio: number(record, 40), startParameter: number(record, 41, 0), endParameter: number(record, 42, Math.PI * 2) } }
+    case 'SPLINE': {
+      const weights = values(record, 41).map(Number)
+      return { type: 'SPLINE', payload: { degree: number(record, 71), knots: values(record, 40).map(Number), weights: weights.length ? weights : undefined, controlPoints: repeatedPoints(record), fitPoints: repeatedPoints(record, 11, 21, 31), closed: (number(record, 70, 0) & 1) === 1, periodic: (number(record, 70, 0) & 2) === 2 } }
+    }
+    case 'TEXT': return { type: 'TEXT', payload: { position: point(record), text: first(record, 1, ''), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null } }
+    case 'MTEXT': return { type: 'MTEXT', payload: { position: point(record), text: values(record, 3).join('') + first(record, 1, ''), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null } }
+    case 'ATTDEF':
+    case 'ATTRIB': return { type: record.type, payload: { position: point(record), alignmentPoint: values(record, 11).length ? point(record, 11, 21, 31) : undefined, text: first(record, 1, ''), tag: first(record, 2, ''), prompt: first(record, 3, ''), flags: number(record, 70, 0), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null, lockPosition: number(record, 280, 0) === 1 } }
+    case 'INSERT': return { type: 'INSERT', payload: { blockRecordId: blockIds.get(normalizeName(first(record, 2))), position: point(record), scale: [number(record, 41, 1), number(record, 42, 1), number(record, 43, 1)], rotation: number(record, 50, 0) * Math.PI / 180 } }
+    case 'HATCH': return { type: 'HATCH', payload: { boundaryLoops: hatchBoundaryLoops(record), patternName: first(record, 2, 'SOLID'), solid: number(record, 70, 0) === 1, associative: number(record, 71, 0) === 1, patternAngle: number(record, 52, 0) * Math.PI / 180, patternScale: number(record, 41, 1), rawTags: record.tags } }
+    case 'LEADER': return { type: 'LEADER', payload: { vertices: repeatedPoints(record), annotationHandle: first(record, 340), textPosition: point(record, 11, 21, 31) } }
+    case 'DIMENSION': {
+      const dxfDimensionType = number(record, 70, 0)
+      const definitionPoints = [optionalPoint(record, 10, 20, 30), optionalPoint(record, 13, 23, 33), optionalPoint(record, 14, 24, 34), optionalPoint(record, 15, 25, 35), optionalPoint(record, 16, 26, 36)].filter((value): value is Point3 => Boolean(value))
+      const styleName = first(record, 3, 'STANDARD')
+      return { type: 'DIMENSION', payload: { dimensionType: DIMENSION_TYPE_BY_CODE[dxfDimensionType & 7] ?? 'ROTATED', dxfDimensionType, definitionPoints, textPosition: optionalPoint(record, 11, 21, 31), textOverride: first(record, 1), styleName, styleId: resources.dimensionStyleIds?.get(normalizeName(styleName)) ?? null, blockName: first(record, 2), measurement: values(record, 42).length ? number(record, 42) : null, rotation: number(record, 50, 0) * Math.PI / 180, rawTags: record.tags } }
+    }
+    case 'SOLID': return { type: 'SOLID', payload: { vertices: [point(record), point(record, 11, 21, 31), point(record, 12, 22, 32), point(record, 13, 23, 33)] } }
+    case 'VIEWPORT': return { type: 'VIEWPORT', payload: { center: point(record), width: number(record, 40), height: number(record, 41), viewCenter: point(record, 12, 22, 32), viewHeight: number(record, 45), twistAngle: number(record, 51, 0) * Math.PI / 180 } }
+    case 'WIPEOUT': {
+      const position = point(record), u = point(record, 11, 21, 31), v = point(record, 12, 22, 32)
+      const vertices: Point3[] = repeatedPoints(record, 14, 24, 34).map(([x, y]) => [position[0] + u[0] * x + v[0] * y, position[1] + u[1] * x + v[1] * y, position[2] + u[2] * x + v[2] * y])
+      return { type: 'WIPEOUT', payload: { vertices, closed: true, position, uVector: u, vVector: v, rawTags: record.tags } }
+    }
+    default: return { type: 'PROXY_ENTITY', payload: { originalType: record.type, rawTags: record.tags } }
+  }
+}
+
+function dxfVersion(tags: readonly DxfTag[]): DxfVersion | 'UNKNOWN' {
+  const index = tags.findIndex(tag => tag.code === 9 && normalizeName(tag.value) === '$ACADVER')
+  const code = index >= 0 ? tags.slice(index + 1).find(tag => tag.code === 1)?.value : null
+  return VERSION_BY_CODE[normalizeName(code)] ?? 'UNKNOWN'
+}
+
+function dxfCodePage(tags: readonly DxfTag[]): string {
+  const index = tags.findIndex(tag => tag.code === 9 && normalizeName(tag.value) === '$DWGCODEPAGE')
+  return index >= 0 ? String(tags.slice(index + 1).find(tag => tag.code === 3)?.value ?? 'UTF-8').trim() : 'UTF-8'
+}
+
+function importResourceTables(transaction: KJTransaction, tableRecords: readonly DxfRecord[], document: KJDocument): { linetypeIds: Map<string, string>; textStyleIds: Map<string, string>; dimensionStyleIds: Map<string, string> } {
+  const linetypeIds = new Map<string, string>(documentTableRecords(document, 'linetypes').map(record => [normalizeName(record.name), record.id]))
+  const textStyleIds = new Map<string, string>(documentTableRecords(document, 'textStyles').map(record => [normalizeName(record.name), record.id]))
+  const dimensionStyleIds = new Map<string, string>(documentTableRecords(document, 'dimensionStyles').map(record => [normalizeName(record.name), record.id]))
+  for (const record of tableRecords.filter(value => value.type === 'LTYPE')) {
+    const name = String(first(record, 2, 'CONTINUOUS')).trim() || 'CONTINUOUS'
+    const imported = transaction.upsertTableRecord('linetypes', { name, type: 'LINETYPE', payload: { description: first(record, 3, ''), pattern: values(record, 49).map(Number), totalPatternLength: number(record, 40, 0), dxfFlags: number(record, 70, 0) } })
+    linetypeIds.set(normalizeName(name), imported.id)
+  }
+  for (const record of tableRecords.filter(value => value.type === 'STYLE')) {
+    const name = String(first(record, 2, 'STANDARD')).trim() || 'STANDARD'
+    const imported = transaction.upsertTableRecord('textStyles', { name, type: 'TEXT_STYLE', payload: { fontFamily: first(record, 3, 'sans-serif'), fontFile: first(record, 3, null), bigFontFile: first(record, 4, null), fixedHeight: number(record, 40, 0), widthFactor: number(record, 41, 1), obliqueAngle: number(record, 50, 0) * Math.PI / 180, dxfFlags: number(record, 70, 0), generationFlags: number(record, 71, 0) } })
+    textStyleIds.set(normalizeName(name), imported.id)
+  }
+  for (const record of tableRecords.filter(value => value.type === 'DIMSTYLE')) {
+    const name = String(first(record, 2, 'STANDARD')).trim() || 'STANDARD'
+    const imported = transaction.upsertTableRecord('dimensionStyles', { name, type: 'DIM_STYLE', payload: { overallScale: number(record, 40, 1), arrowSize: number(record, 41, 2.5), extensionOffset: number(record, 42, 0.625), baselineSpacing: number(record, 43, 3.75), extensionBeyond: number(record, 44, 1.25), rounding: number(record, 45, 0), textHeight: number(record, 140, 2.5), centerMarkSize: number(record, 141, 2.5), textGap: number(record, 147, 0.625), dxfFlags: number(record, 70, 0) } })
+    dimensionStyleIds.set(normalizeName(name), imported.id)
+  }
+  for (const record of tableRecords.filter(value => value.type === 'UCS')) {
+    const name = String(first(record, 2, '')).trim()
+    if (name) transaction.upsertTableRecord('ucs', { name, type: 'UCS', payload: { origin: point(record), xAxis: point(record, 11, 21, 31), yAxis: point(record, 12, 22, 32), dxfFlags: number(record, 70, 0) } })
+  }
+  for (const record of tableRecords.filter(value => value.type === 'VIEW')) {
+    const name = String(first(record, 2, '')).trim()
+    if (name) transaction.upsertTableRecord('views', { name, type: 'VIEW', payload: { center: point(record), height: number(record, 40, 1), width: number(record, 41, 1), direction: point(record, 11, 21, 31), target: point(record, 12, 22, 32), twistAngle: number(record, 50, 0) * Math.PI / 180, dxfFlags: number(record, 70, 0) } })
+  }
+  return { linetypeIds, textStyleIds, dimensionStyleIds }
+}
+
+async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<KJDocument> {
+  const limits = readLimits(options)
+  if (options.signal?.aborted) throw new KJValidationError('DXF read aborted')
+  const tags = tagsFromText(await sourceText(source, limits), limits)
+  if (!section(tags, 'ENTITIES').length && !tags.some(tag => tag.code === 0 && normalizeName(tag.value) === 'SECTION')) throw new KJValidationError('DXF has no valid SECTION structure')
+  const version = dxfVersion(tags)
+  const document = KJDocument.create({ sourceFormat: 'DXF', sourceVersion: version, codePage: dxfCodePage(tags), title: 'Imported DXF' })
+  await document.transact('Import ASCII DXF', transaction => {
+    const tableRecords = records(section(tags, 'TABLES'))
+    const resources = importResourceTables(transaction, tableRecords, document)
+    const defaultLayerId = document.snapshot().tables.layers.currentId
+    if (!defaultLayerId) throw new KJValidationError('DXF import requires the default layer')
+    const layerIds = new Map<string, string>([['0', defaultLayerId]])
+    for (const record of tableRecords.filter(record => record.type === 'LAYER')) {
+      const name = String(first(record, 2, '0')).trim() || '0'
+      const color = number(record, 62, 7)
+      const linetypeName = first(record, 6, 'CONTINUOUS')
+      const layer = transaction.upsertTableRecord('layers', { name, type: 'LAYER', payload: { color: Math.abs(color), linetypeName, linetypeId: resources.linetypeIds.get(normalizeName(linetypeName)) ?? null, lineweight: number(record, 370, -1), visible: color >= 0, frozen: (number(record, 70, 0) & 1) === 1, locked: (number(record, 70, 0) & 4) === 4, plottable: number(record, 290, 1) !== 0 } })
+      layerIds.set(normalizeName(name), layer.id)
+    }
+    const definitions = blockDefinitions(section(tags, 'BLOCKS'))
+    const sourceEntityRecords = entityRecords(section(tags, 'ENTITIES'))
+    const allSourceRecords = [...sourceEntityRecords, ...definitions.flatMap(definition => definition.records)]
+    if (allSourceRecords.length > limits.maxEntities) throw new KJValidationError(`DXF entity count exceeds the ${limits.maxEntities} read limit`)
+    if (options.signal?.aborted) throw new KJValidationError('DXF read aborted')
+    const blockNames = new Set([
+      ...definitions.map(definition => normalizeName(definition.name)),
+      ...allSourceRecords.filter(record => record.type === 'INSERT').map(record => normalizeName(first(record, 2))).filter(Boolean),
+    ])
+    const blockIds = new Map<string, string>()
+    for (const block of documentTableRecords(document, 'blockRecords')) blockIds.set(normalizeName(block.name), block.id)
+    for (const name of blockNames) {
+      const definition = definitions.find(value => normalizeName(value.name) === name)
+      const block = transaction.upsertTableRecord('blockRecords', { name: definition?.name ?? name, type: 'BLOCK_RECORD', payload: { entityIds: [], isSpace: name.startsWith('*MODEL_SPACE') || name.startsWith('*PAPER_SPACE'), basePoint: definition?.basePoint ?? [0, 0, 0], dxfFlags: definition?.flags ?? 0, importedPlaceholder: !definition } })
+      blockIds.set(name, block.id)
+    }
+
+    const paperSpaceIds = new Map<string, string>()
+    const defaultPaperLayoutId = document.snapshot().spaces.layoutIds.find(id => document.getObject(id)?.name !== 'Model')
+    const defaultPaperLayout = defaultPaperLayoutId ? document.getObject(defaultPaperLayoutId) : null
+    if (defaultPaperLayout && typeof defaultPaperLayout.payload.blockRecordId === 'string') paperSpaceIds.set(normalizeName(defaultPaperLayout.name), defaultPaperLayout.payload.blockRecordId)
+    const sourcePaperLayouts = [...new Set(sourceEntityRecords
+      .filter(record => number(record, 67, 0) === 1 || (first(record, 410) && normalizeName(first(record, 410)) !== 'MODEL'))
+      .map(record => String(first(record, 410, 'Layout1')).trim() || 'Layout1'))]
+    for (const [index, layoutName] of sourcePaperLayouts.entries()) {
+      const key = normalizeName(layoutName)
+      if (paperSpaceIds.has(key)) continue
+      if (index === 0 && defaultPaperLayout) {
+        transaction.updateObject(defaultPaperLayout.id, { name: layoutName })
+        paperSpaceIds.clear()
+        if (typeof defaultPaperLayout.payload.blockRecordId !== 'string') throw new KJValidationError('DXF paper-space layout has no block record')
+        paperSpaceIds.set(key, defaultPaperLayout.payload.blockRecordId)
+      } else {
+        const layout = transaction.createLayout({ name: layoutName })
+        if (typeof layout.payload.blockRecordId !== 'string') throw new KJValidationError(`DXF layout ${layoutName} has no block record`)
+        paperSpaceIds.set(key, layout.payload.blockRecordId)
+      }
+    }
+
+    const importRecord = (record: DxfRecord, index: number, ownerId: string | undefined, scope: string): void => {
+      const layerName = normalizeName(first(record, 8, '0'))
+      const layerId = layerIds.get(layerName) ?? defaultLayerId
+      const converted = entityPayload(record, blockIds, resources)
+      const sourceHandle = String(first(record, 5, '')).toUpperCase()
+      const handleAvailable = /^[0-9A-F]+$/.test(sourceHandle) && !Object.values(transaction._draft().objects).some(object => object.handle === sourceHandle)
+      try {
+        transaction.createEntity(converted.type, { ...converted.payload, layerId }, {
+          ...(ownerId === undefined ? {} : { ownerId }),
+          ...(handleAvailable ? { handle: sourceHandle } : {}),
+          source: { format: 'DXF', scope, entityIndex: index, originalHandle: sourceHandle || null },
+        })
+      } catch (error) {
+        transaction.createEntity('PROXY_ENTITY', { originalType: record.type, rawTags: record.tags, importError: error instanceof Error ? error.message : String(error), layerId }, {
+          ...(ownerId === undefined ? {} : { ownerId }),
+          source: { format: 'DXF', scope, entityIndex: index, originalHandle: sourceHandle || null },
+        })
+      }
+    }
+    for (const definition of definitions) {
+      const ownerId = blockIds.get(normalizeName(definition.name))
+      definition.records.forEach((record, index) => importRecord(record, index, ownerId, `block:${definition.name}`))
+    }
+    const modelSpaceId = document.snapshot().spaces.modelSpaceId
+    sourceEntityRecords.forEach((record, index) => {
+      const layoutName = String(first(record, 410, 'Layout1')).trim() || 'Layout1'
+      const paperSpace = number(record, 67, 0) === 1 || (first(record, 410) && normalizeName(first(record, 410)) !== 'MODEL')
+      const fallbackPaperSpaceId = typeof defaultPaperLayout?.payload.blockRecordId === 'string' ? defaultPaperLayout.payload.blockRecordId : modelSpaceId
+      const ownerId = paperSpace ? (paperSpaceIds.get(normalizeName(layoutName)) ?? fallbackPaperSpaceId) : modelSpaceId
+      importRecord(record, index, ownerId, paperSpace ? `paper-space:${layoutName}` : 'model-space')
+    })
+  }, { source: 'adapter:dxf-ascii' })
+  return document
+}
+
+function emit(output: string[], code: number, value: unknown): void { output.push(String(code), String(value)) }
+function emitPoint(output: string[], pointValue: readonly number[], base = 10): void { emit(output, base, pointValue[0]); emit(output, base + 10, pointValue[1]); emit(output, base + 20, pointValue[2] ?? 0) }
+
+function isSubclassDXF(version: DxfVersion): boolean { return version !== 'R12' }
+
+function createHandleAllocator(handles: readonly string[]): () => string {
+  let next = handles.reduce((maximum, handle) => {
+    if (!/^[0-9A-F]+$/i.test(handle)) return maximum
+    const numeric = BigInt(`0x${handle}`)
+    return numeric > maximum ? numeric : maximum
+  }, 0n) + 1n
+  return () => {
+    const handle = next.toString(16).toUpperCase()
+    next += 1n
+    return handle
+  }
+}
+
+function emitSubclass(output: string[], version: DxfVersion, name: string): void {
+  if (isSubclassDXF(version)) emit(output, 100, name)
+}
+
+function emitEntityHeader(
+  output: string[],
+  type: string,
+  handle: string,
+  layerName: string,
+  ownerHandle: string | null,
+  space: DxfSpace | null,
+  version: DxfVersion,
+): void {
+  emit(output, 0, type)
+  emit(output, 5, handle)
+  if (isSubclassDXF(version) && ownerHandle) emit(output, 330, ownerHandle)
+  emitSubclass(output, version, 'AcDbEntity')
+  emit(output, 8, layerName)
+  emitSpaceOwnership(output, space, version)
+}
+
+function emitLegacyPolyline(
+  output: string[],
+  entity: DxfEntity,
+  layerName: string,
+  ownerHandle: string | null,
+  space: DxfSpace | null,
+  context: DxfWriteContext,
+): void {
+  const { version } = context
+  const p = entity.payload ?? {}
+  emitEntityHeader(output, 'POLYLINE', entity.handle, layerName, ownerHandle, space, version)
+  emitSubclass(output, version, 'AcDb2dPolyline')
+  emitPoint(output, [0, 0, p.elevation ?? 0]); emit(output, 70, (Number(p.dxfFlags ?? 0) & ~1) | (p.closed ? 1 : 0))
+  for (const vertex of p.vertices ?? []) {
+    const pointValue = vertexPoint(vertex)
+    const details = Array.isArray(vertex) ? null : vertex as DxfVertex
+    emitEntityHeader(output, 'VERTEX', context.allocateHandle(), layerName, ownerHandle, space, version)
+    emitSubclass(output, version, 'AcDbVertex')
+    emitSubclass(output, version, 'AcDb2dVertex')
+    emitPoint(output, pointValue)
+    if (details?.startWidth) emit(output, 40, details.startWidth)
+    if (details?.endWidth) emit(output, 41, details.endWidth)
+    if (details?.bulge) emit(output, 42, details.bulge)
+    if (details?.dxfFlags) emit(output, 70, details.dxfFlags)
+  }
+  emitEntityHeader(output, 'SEQEND', context.allocateHandle(), layerName, ownerHandle, space, version)
+}
+
+function emitSpaceOwnership(output: string[], space: DxfSpace | null, version: DxfVersion): void {
+  if (!space?.paper) return
+  emit(output, 67, 1)
+  if (VERSION_RANK[version] >= VERSION_RANK['2000']) emit(output, 410, space.layoutName ?? 'Layout1')
+}
+
+function emitHatch(output: string[], entity: DxfEntity, layerName: string, ownerHandle: string | null, space: DxfSpace | null, version: DxfVersion): void {
+  const p = entity.payload ?? {}
+  if (Array.isArray(p.rawTags) && p.rawTags.length) {
+    emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version)
+    emitSubclass(output, version, 'AcDbHatch')
+    for (const tag of p.rawTags) {
+      if ([5, 8, 67, 330, 410].includes(tag.code) || tag.code === 100) continue
+      else emit(output, tag.code, tag.value)
+    }
+    return
+  }
+  emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version)
+  emitSubclass(output, version, 'AcDbHatch')
+  emitPoint(output, [0, 0, 0]); emit(output, 2, p.patternName ?? 'SOLID'); emit(output, 70, p.solid ? 1 : 0); emit(output, 71, p.associative ? 1 : 0)
+  emit(output, 91, p.boundaryLoops?.length ?? 0)
+  for (const loop of p.boundaryLoops ?? []) {
+    if (loop.vertices?.length) {
+      emit(output, 92, (Number(loop.flags ?? 1) | 2)); emit(output, 72, loop.vertices.some(vertex => Number(vertex.bulge)) ? 1 : 0); emit(output, 73, loop.closed === false ? 0 : 1); emit(output, 93, loop.vertices.length)
+      for (const vertex of loop.vertices) { const value = vertexPoint(vertex); emit(output, 10, value[0]); emit(output, 20, value[1]); if (vertex.bulge) emit(output, 42, vertex.bulge) }
+    } else {
+      emit(output, 92, Number(loop.flags ?? 1) & ~2); emit(output, 93, loop.edges?.length ?? 0)
+      for (const edge of loop.edges ?? []) {
+        if (edge.type === 'LINE') { emit(output, 72, 1); emit(output, 10, edge.start[0]); emit(output, 20, edge.start[1]); emit(output, 11, edge.end[0]); emit(output, 21, edge.end[1]) }
+        else if (edge.type === 'ARC') { emit(output, 72, 2); emit(output, 10, edge.center[0]); emit(output, 20, edge.center[1]); emit(output, 40, edge.radius); emit(output, 50, edge.startAngle * 180 / Math.PI); emit(output, 51, edge.endAngle * 180 / Math.PI); emit(output, 73, edge.counterClockwise === false ? 0 : 1) }
+        else throw new KJValidationError(`DXF HATCH writer does not support ${edge.type} boundary edges`)
+      }
+    }
+    emit(output, 97, 0)
+  }
+  emit(output, 75, 0); emit(output, 76, 1)
+  if (!p.solid) { emit(output, 52, (p.patternAngle ?? 0) * 180 / Math.PI); emit(output, 41, p.patternScale ?? 1); emit(output, 77, 0); emit(output, 78, 0) }
+}
+
+function emitRawEntity(output: string[], entity: DxfEntity, layerName: string, ownerHandle: string | null, space: DxfSpace | null, version: DxfVersion): void {
+  emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version)
+  for (const tag of entity.payload?.rawTags ?? []) {
+    if ([5, 8, 67, 330, 410].includes(tag.code)) continue
+    else if (tag.code === 100 && (!isSubclassDXF(version) || normalizeName(tag.value) === 'ACDBENTITY')) continue
+    else emit(output, tag.code, tag.value)
+  }
+}
+
+function emitTable<RecordType>(
+  output: string[],
+  name: string,
+  records: readonly RecordType[],
+  context: DxfWriteContext,
+  tableHandle: string,
+  emitRecord: (record: RecordType, ownerHandle: string, version: DxfVersion) => void,
+): void {
+  emit(output, 0, 'TABLE'); emit(output, 2, name)
+  if (isSubclassDXF(context.version)) {
+    emit(output, 5, tableHandle); emit(output, 330, '0'); emit(output, 100, 'AcDbSymbolTable')
+  }
+  emit(output, 70, records.length)
+  if (isSubclassDXF(context.version) && name === 'DIMSTYLE') emit(output, 100, 'AcDbDimStyleTable')
+  for (const record of records) emitRecord(record, tableHandle, context.version)
+  emit(output, 0, 'ENDTAB')
+}
+
+function emitSymbolTableRecordHeader(output: string[], type: string, record: DxfNamedRecord, ownerHandle: string, version: DxfVersion, subclass: string): void {
+  emit(output, 0, type)
+  emit(output, type === 'DIMSTYLE' && isSubclassDXF(version) ? 105 : 5, record.handle)
+  if (isSubclassDXF(version)) {
+    emit(output, 330, ownerHandle)
+    emit(output, 100, 'AcDbSymbolTableRecord')
+    emit(output, 100, subclass)
+  }
+}
+
+function emitLinetypeTable(output: string[], records: readonly DxfNamedRecord[], context: DxfWriteContext, tableHandle: string): void {
+  emitTable(output, 'LTYPE', records, context, tableHandle, (record, ownerHandle, version) => {
+    const pattern = record.payload?.pattern ?? []
+    emitSymbolTableRecordHeader(output, 'LTYPE', record, ownerHandle, version, 'AcDbLinetypeTableRecord')
+    emit(output, 2, record.name); emit(output, 70, record.payload?.dxfFlags ?? 0); emit(output, 3, record.payload?.description ?? ''); emit(output, 72, 65); emit(output, 73, pattern.length); emit(output, 40, record.payload?.totalPatternLength ?? pattern.reduce((sum, value) => sum + Math.abs(Number(value)), 0))
+    for (const value of pattern) { emit(output, 49, value); emit(output, 74, 0) }
+  })
+}
+
+function emitTextStyleTable(output: string[], records: readonly DxfNamedRecord[], context: DxfWriteContext, tableHandle: string): void {
+  emitTable(output, 'STYLE', records, context, tableHandle, (record, ownerHandle, version) => {
+    const payload = record.payload ?? {}
+    emitSymbolTableRecordHeader(output, 'STYLE', record, ownerHandle, version, 'AcDbTextStyleTableRecord')
+    emit(output, 2, record.name); emit(output, 70, payload.dxfFlags ?? 0); emit(output, 40, payload.fixedHeight ?? 0); emit(output, 41, payload.widthFactor ?? 1); emit(output, 50, (payload.obliqueAngle ?? 0) * 180 / Math.PI); emit(output, 71, payload.generationFlags ?? 0); emit(output, 42, payload.lastHeight ?? 2.5); emit(output, 3, payload.fontFile ?? payload.fontFamily ?? 'txt'); emit(output, 4, payload.bigFontFile ?? '')
+  })
+}
+
+function emitDimensionStyleTable(output: string[], records: readonly DxfNamedRecord[], context: DxfWriteContext, tableHandle: string): void {
+  emitTable(output, 'DIMSTYLE', records, context, tableHandle, (record, ownerHandle, version) => {
+    const payload = record.payload ?? {}
+    emitSymbolTableRecordHeader(output, 'DIMSTYLE', record, ownerHandle, version, 'AcDbDimStyleTableRecord')
+    emit(output, 2, record.name); emit(output, 70, payload.dxfFlags ?? 0); emit(output, 40, payload.overallScale ?? 1); emit(output, 41, payload.arrowSize ?? 2.5); emit(output, 42, payload.extensionOffset ?? 0.625); emit(output, 43, payload.baselineSpacing ?? 3.75); emit(output, 44, payload.extensionBeyond ?? 1.25); emit(output, 45, payload.rounding ?? 0); emit(output, 140, payload.textHeight ?? 2.5); emit(output, 141, payload.centerMarkSize ?? 2.5); emit(output, 147, payload.textGap ?? 0.625)
+  })
+}
+
+function emitUcsTable(output: string[], records: readonly DxfNamedRecord[], context: DxfWriteContext, tableHandle: string): void {
+  emitTable(output, 'UCS', records, context, tableHandle, (record, ownerHandle, version) => {
+    const payload = record.payload ?? {}
+    emitSymbolTableRecordHeader(output, 'UCS', record, ownerHandle, version, 'AcDbUCSTableRecord')
+    emit(output, 2, record.name); emit(output, 70, payload.dxfFlags ?? 0); emitPoint(output, payload.origin ?? [0, 0, 0]); emitPoint(output, payload.xAxis ?? [1, 0, 0], 11); emitPoint(output, payload.yAxis ?? [0, 1, 0], 12)
+  })
+}
+
+function emitViewTable(output: string[], records: readonly DxfNamedRecord[], context: DxfWriteContext, tableHandle: string): void {
+  emitTable(output, 'VIEW', records, context, tableHandle, (record, ownerHandle, version) => {
+    const payload = record.payload ?? {}
+    emitSymbolTableRecordHeader(output, 'VIEW', record, ownerHandle, version, 'AcDbViewTableRecord')
+    emit(output, 2, record.name); emit(output, 70, payload.dxfFlags ?? 0); emitPoint(output, payload.center ?? [0, 0, 0]); emit(output, 40, payload.height ?? 1); emit(output, 41, payload.width ?? 1); emitPoint(output, payload.direction ?? [0, 0, 1], 11); emitPoint(output, payload.target ?? [0, 0, 0], 12); emit(output, 50, (payload.twistAngle ?? 0) * 180 / Math.PI)
+  })
+}
+
+function emitBlockRecordTable(output: string[], records: readonly DxfNamedRecord[], context: DxfWriteContext, tableHandle: string): void {
+  emitTable(output, 'BLOCK_RECORD', records, context, tableHandle, (record, ownerHandle, version) => {
+    emitSymbolTableRecordHeader(output, 'BLOCK_RECORD', record, ownerHandle, version, 'AcDbBlockTableRecord')
+    emit(output, 2, record.name); emit(output, 70, record.payload?.dxfFlags ?? 0); emit(output, 280, 1); emit(output, 281, 0)
+  })
+}
+
+function emitEntity(
+  output: string[],
+  entity: DxfEntity,
+  layerName: string,
+  ownerHandle: string | null,
+  context: DxfWriteContext,
+  blockNames: ReadonlyMap<string, string> = new Map<string, string>(),
+  space: DxfSpace | null = null,
+  resources: DxfExportResources = {},
+): void {
+  const { version } = context
+  const p = entity.payload ?? {}
+  const entityVertices = p.vertices ?? []
+  if (!WRITE_TYPES.has(entity.type)) throw new KJValidationError(`ASCII DXF writer does not support ${entity.type}; export stopped to prevent data loss`)
+  if (entity.type === 'POLYLINE' || (version === 'R12' && entity.type === 'LWPOLYLINE')) {
+    emitLegacyPolyline(output, entity, layerName, ownerHandle, space, context)
+    return
+  }
+  if (entity.type === 'HATCH') { emitHatch(output, entity, layerName, ownerHandle, space, version); return }
+  if (['WIPEOUT', 'DIMENSION'].includes(entity.type) && p.rawTags?.length) { emitRawEntity(output, entity, layerName, ownerHandle, space, version); return }
+  if (entity.type === 'PROXY_ENTITY') {
+    emitRawEntity(output, { ...entity, type: p.originalType ?? 'PROXY_ENTITY' }, layerName, ownerHandle, space, version)
+    return
+  }
+  emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version)
+  if (entity.type === 'LINE') { emitSubclass(output, version, 'AcDbLine'); emitPoint(output, p.start!); emitPoint(output, p.end!, 11) }
+  else if (entity.type === 'POINT') { emitSubclass(output, version, 'AcDbPoint'); emitPoint(output, p.position!) }
+  else if (entity.type === 'CIRCLE') { emitSubclass(output, version, 'AcDbCircle'); emitPoint(output, p.center!); emit(output, 40, p.radius) }
+  else if (entity.type === 'ARC') { emitSubclass(output, version, 'AcDbCircle'); emitPoint(output, p.center!); emit(output, 40, p.radius); emitSubclass(output, version, 'AcDbArc'); emit(output, 50, Number(p.startAngle) * 180 / Math.PI); emit(output, 51, Number(p.endAngle) * 180 / Math.PI) }
+  else if (entity.type === 'ELLIPSE') { emitSubclass(output, version, 'AcDbEllipse'); emitPoint(output, p.center!); emitPoint(output, p.majorAxis!, 11); emit(output, 40, p.ratio); emit(output, 41, p.startParameter); emit(output, 42, p.endParameter) }
+  else if (entity.type === 'SPLINE') {
+    emitSubclass(output, version, 'AcDbSpline')
+    const flags = (p.closed ? 1 : 0) | (p.periodic ? 2 : 0) | (p.weights?.length ? 4 : 0)
+    emit(output, 70, flags); emit(output, 71, p.degree); emit(output, 72, p.knots?.length ?? 0); emit(output, 73, p.controlPoints?.length ?? 0); emit(output, 74, p.fitPoints?.length ?? 0)
+    for (const knot of p.knots ?? []) emit(output, 40, knot)
+    for (const weight of p.weights ?? []) emit(output, 41, weight)
+    for (const value of p.controlPoints ?? []) emitPoint(output, value)
+    for (const value of p.fitPoints ?? []) emitPoint(output, value, 11)
+  }
+  else if (['LWPOLYLINE', 'POLYLINE'].includes(entity.type)) {
+    emitSubclass(output, version, 'AcDbPolyline')
+    emit(output, 90, entityVertices.length); emit(output, 70, p.closed ? 1 : 0); emit(output, 38, p.elevation ?? 0)
+    for (const vertex of entityVertices) { const pointValue = vertexPoint(vertex); const details = Array.isArray(vertex) ? null : vertex as DxfVertex; emit(output, 10, pointValue[0]); emit(output, 20, pointValue[1]); if (details?.bulge) emit(output, 42, details.bulge); if (details?.startWidth) emit(output, 40, details.startWidth); if (details?.endWidth) emit(output, 41, details.endWidth) }
+  } else if (entity.type === 'MTEXT') {
+    emitSubclass(output, version, 'AcDbMText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, p.text); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI)
+  } else if (entity.type === 'TEXT') {
+    emitSubclass(output, version, 'AcDbText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, p.text); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI); emitSubclass(output, version, 'AcDbText'); if (p.alignmentPoint) emitPoint(output, p.alignmentPoint, 11)
+  } else if (entity.type === 'ATTDEF' || entity.type === 'ATTRIB') {
+    emitSubclass(output, version, 'AcDbText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, p.text); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI); if (p.alignmentPoint) emitPoint(output, p.alignmentPoint, 11)
+    emitSubclass(output, version, entity.type === 'ATTDEF' ? 'AcDbAttributeDefinition' : 'AcDbAttribute')
+    if (entity.type === 'ATTDEF') emit(output, 3, p.prompt)
+    emit(output, 2, p.tag); emit(output, 70, p.flags ?? 0); if (p.lockPosition) emit(output, 280, 1)
+  }
+  else if (entity.type === 'INSERT') {
+    const blockName = p.blockRecordId ? blockNames.get(p.blockRecordId) : undefined
+    if (!blockName) throw new KJValidationError(`DXF INSERT references an unavailable block record: ${p.blockRecordId}`)
+    emitSubclass(output, version, 'AcDbBlockReference')
+    emit(output, 2, blockName); emitPoint(output, p.position!); emit(output, 41, p.scale?.[0] ?? 1); emit(output, 42, p.scale?.[1] ?? 1); emit(output, 43, p.scale?.[2] ?? 1); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI)
+  }
+  else if (entity.type === 'SOLID') { emitSubclass(output, version, 'AcDbTrace'); entityVertices.forEach((value, index) => emitPoint(output, vertexPoint(value), 10 + index)) }
+  else if (entity.type === 'LEADER') { emitSubclass(output, version, 'AcDbLeader'); emit(output, 3, 'STANDARD'); emit(output, 71, 1); emit(output, 72, 0); emit(output, 73, 3); emit(output, 74, 0); emit(output, 75, 0); emit(output, 76, entityVertices.length); for (const value of entityVertices) emitPoint(output, vertexPoint(value)); if (p.annotationHandle) emit(output, 340, p.annotationHandle) }
+  else if (entity.type === 'DIMENSION') {
+    if (!p.definitionPoints?.length) throw new KJValidationError('DXF DIMENSION requires at least one definition point')
+    const dimensionCode = Number(p.dxfDimensionType ?? DIMENSION_CODE_BY_TYPE[normalizeName(p.dimensionType)] ?? 0)
+    emitSubclass(output, version, 'AcDbDimension')
+    emitPoint(output, p.definitionPoints[0]!)
+    if (p.textPosition) emitPoint(output, p.textPosition, 11)
+    if (p.blockName) emit(output, 2, p.blockName)
+    emit(output, 3, (p.styleId ? resources.dimensionStyleNames?.get(p.styleId) : undefined) ?? p.styleName ?? 'STANDARD')
+    emit(output, 70, dimensionCode)
+    if (p.textOverride != null) emit(output, 1, p.textOverride)
+    if (p.measurement != null) emit(output, 42, p.measurement)
+    const subtype = dimensionCode & 7
+    const subclass = ['AcDbAlignedDimension', 'AcDbAlignedDimension', 'AcDb2LineAngularDimension', 'AcDbDiametricDimension', 'AcDbRadialDimension', 'AcDb3PointAngularDimension', 'AcDbOrdinateDimension'][subtype]
+    if (subclass) emitSubclass(output, version, subclass)
+    const codes = [13, 14, 15, 16]
+    p.definitionPoints.slice(1, codes.length + 1).forEach((value, index) => emitPoint(output, value, codes[index]!))
+    if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI)
+    if (subtype === 0) emitSubclass(output, version, 'AcDbRotatedDimension')
+  }
+  else if (entity.type === 'VIEWPORT') { emitSubclass(output, version, 'AcDbViewport'); emitPoint(output, p.center!); emit(output, 40, p.width); emit(output, 41, p.height); emitPoint(output, p.viewCenter!, 12); emit(output, 45, p.viewHeight); if (p.twistAngle) emit(output, 51, p.twistAngle * 180 / Math.PI) }
+}
+
+function isDxfVersion(value: string): value is DxfVersion { return (VERSIONS as readonly string[]).includes(value) }
+
+function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string {
+  if (!(document instanceof KJDocument)) throw new KJValidationError('DXF writer requires a KJDocument')
+  const versionText = String(options.version ?? '2018').toUpperCase()
+  if (!isDxfVersion(versionText)) throw new KJValidationError(`Unsupported ASCII DXF version: ${versionText}`)
+  const version = versionText
+  const output: string[] = []
+  const layers = documentTableRecords(document, 'layers').map(dxfNamedRecord)
+  const layerNames = new Map(layers.map(layer => [layer.id, layer.name]))
+  const state = document.toJSON({ includeRevisions: false })
+  const context: DxfWriteContext = {
+    version,
+    allocateHandle: createHandleAllocator(Object.values(state.objects).map(record => record.handle)),
+  }
+  const tableHandles = new Map(['LTYPE', 'STYLE', 'DIMSTYLE', 'UCS', 'VIEW', 'LAYER', 'BLOCK_RECORD'].map(name => [name, context.allocateHandle()]))
+  const blocks = documentTableRecords(document, 'blockRecords').map(dxfNamedRecord)
+  const blockNames = new Map(blocks.map(block => [block.id, block.name]))
+  const linetypes = documentTableRecords(document, 'linetypes').map(dxfNamedRecord)
+  const textStyles = documentTableRecords(document, 'textStyles').map(dxfNamedRecord)
+  const dimensionStyles = documentTableRecords(document, 'dimensionStyles').map(dxfNamedRecord)
+  const ucsRecords = documentTableRecords(document, 'ucs').map(dxfNamedRecord)
+  const views = documentTableRecords(document, 'views').map(dxfNamedRecord)
+  const resources: DxfExportResources = {
+    textStyleNames: new Map(textStyles.map(record => [record.id, record.name])),
+    dimensionStyleNames: new Map(dimensionStyles.map(record => [record.id, record.name])),
+  }
+  const linetypeNames = new Map(linetypes.map(record => [record.id, record.name]))
+  const allEntities = document.listEntities().map(dxfEntity)
+  for (const entity of allEntities) {
+    const minimum = MIN_ENTITY_VERSION[entity.type]
+    if (minimum && VERSION_RANK[version] < VERSION_RANK[minimum]) throw new KJValidationError(`DXF ${version} cannot represent ${entity.type} without data loss; minimum target is ${minimum}`)
+    const sourceVersion = state.header.sourceVersion
+    const sourceCode = isDxfVersion(sourceVersion) ? ACADVER[sourceVersion] : undefined
+    if (entity.type === 'PROXY_ENTITY' && sourceVersion !== 'UNKNOWN' && sourceCode !== ACADVER[version]) throw new KJValidationError(`Opaque ${entity.payload?.originalType ?? 'DXF'} data can only be preserved at its source format code ${sourceCode ?? sourceVersion}`)
+  }
+  const populatedPaperSpaces = state.spaces.paperSpaceIds.filter(id => document.listEntities({ ownerId: id }).length)
+  if (VERSION_RANK[version] < VERSION_RANK['2000'] && populatedPaperSpaces.length > 1) throw new KJValidationError(`DXF ${version} cannot preserve multiple named paper spaces without layout metadata`)
+  emit(output, 0, 'SECTION'); emit(output, 2, 'HEADER'); emit(output, 9, '$ACADVER'); emit(output, 1, ACADVER[version]); emit(output, 0, 'ENDSEC')
+  emit(output, 0, 'SECTION'); emit(output, 2, 'TABLES')
+  emitLinetypeTable(output, linetypes, context, tableHandles.get('LTYPE')!)
+  emitTextStyleTable(output, textStyles, context, tableHandles.get('STYLE')!)
+  emitDimensionStyleTable(output, dimensionStyles, context, tableHandles.get('DIMSTYLE')!)
+  emitUcsTable(output, ucsRecords, context, tableHandles.get('UCS')!)
+  emitViewTable(output, views, context, tableHandles.get('VIEW')!)
+  emitTable(output, 'LAYER', layers, context, tableHandles.get('LAYER')!, (layer, ownerHandle, tableVersion) => {
+    const payload = layer.payload ?? {}
+    const flags = (payload.frozen ? 1 : 0) | (payload.locked ? 4 : 0)
+    const color = Math.abs(Number(payload.color ?? 7))
+    emitSymbolTableRecordHeader(output, 'LAYER', layer, ownerHandle, tableVersion, 'AcDbLayerTableRecord')
+    emit(output, 2, layer.name)
+    emit(output, 70, flags); emit(output, 62, payload.visible === false ? -color : color)
+    emit(output, 6, (payload.linetypeId ? linetypeNames.get(payload.linetypeId) : undefined) ?? payload.linetypeName ?? 'CONTINUOUS')
+    if (version !== 'R12') { emit(output, 290, payload.plottable === false ? 0 : 1); emit(output, 370, payload.lineweight ?? -1) }
+  })
+  if (isSubclassDXF(version)) emitBlockRecordTable(output, blocks, context, tableHandles.get('BLOCK_RECORD')!)
+  emit(output, 0, 'ENDSEC')
+  emit(output, 0, 'SECTION'); emit(output, 2, 'BLOCKS')
+  for (const block of blocks) {
+    emitEntityHeader(output, 'BLOCK', context.allocateHandle(), '0', block.handle, null, version)
+    emitSubclass(output, version, 'AcDbBlockBegin')
+    emit(output, 2, block.name); emit(output, 70, block.payload?.dxfFlags ?? 0); emitPoint(output, block.payload?.basePoint ?? [0, 0, 0]); emit(output, 3, block.name); emit(output, 1, '')
+    if (!block.payload?.isSpace) {
+      for (const sourceEntity of document.listEntities({ ownerId: block.id })) {
+        const entity = dxfEntity(sourceEntity)
+        emitEntity(output, entity, layerNames.get(entity.payload?.layerId ?? '') ?? '0', block.handle, context, blockNames, null, resources)
+      }
+    }
+    emitEntityHeader(output, 'ENDBLK', context.allocateHandle(), '0', block.handle, null, version)
+    emitSubclass(output, version, 'AcDbBlockEnd')
+  }
+  emit(output, 0, 'ENDSEC')
+  emit(output, 0, 'SECTION'); emit(output, 2, 'ENTITIES')
+  for (const sourceEntity of document.listEntities({ ownerId: state.spaces.modelSpaceId })) {
+    const entity = dxfEntity(sourceEntity)
+    const ownerHandle = state.objects[state.spaces.modelSpaceId]?.handle ?? null
+    emitEntity(output, entity, layerNames.get(entity.payload?.layerId ?? '') ?? '0', ownerHandle, context, blockNames, null, resources)
+  }
+  const layoutsByBlock = new Map<string, string>(state.spaces.layoutIds.flatMap(id => {
+    const layout = state.objects[id]
+    const blockRecordId = layout?.payload?.blockRecordId
+    return layout && typeof blockRecordId === 'string' ? [[blockRecordId, String(layout.name ?? 'Layout1')]] : []
+  }))
+  for (const paperSpaceId of state.spaces.paperSpaceIds) {
+    const space = { paper: true, layoutName: layoutsByBlock.get(paperSpaceId) ?? 'Layout1' }
+    for (const sourceEntity of document.listEntities({ ownerId: paperSpaceId })) {
+      const entity = dxfEntity(sourceEntity)
+      const ownerHandle = state.objects[paperSpaceId]?.handle ?? null
+      emitEntity(output, entity, layerNames.get(entity.payload?.layerId ?? '') ?? '0', ownerHandle, context, blockNames, space, resources)
+    }
+  }
+  emit(output, 0, 'ENDSEC'); emit(output, 0, 'EOF')
+  return `${output.join('\r\n')}\r\n`
+}
+
+export function createDXFFileAdapter(options: DxfAdapterOptions = {}): Readonly<KJFileAdapter<KJDocument, string>> {
+  return defineFileAdapter<KJDocument, string>({
+    id: options.id ?? 'kanjie.dxf.ascii', vendor: 'Kanjie', priority: Number(options.priority ?? 500),
+    formats: { DXF: { read: PRODUCT_VERSIONS, write: PRODUCT_VERSIONS, notes: ['ASCII DXF core subset with public corpus and bidirectional ezdxf 1.4.4 interoperability evidence', 'R12 is accepted only through the explicit legacy adapter path and is not in the KJDraw 1.0 support matrix'] } },
+    capabilities: { certification: 'cross-implementation-subset', encoding: 'ascii', legacyMigrationVersions: ['R12'], entityRead: READ_TYPES, entityWrite: [...WRITE_TYPES], unknownEntities: 'proxy-raw-tags', blocks: 'definitions-and-nested-inserts', spaces: 'model-and-paper-ownership', tables: ['LAYER', 'LTYPE', 'STYLE', 'DIMSTYLE', 'UCS', 'VIEW'], limitations: ['binary DXF', 'layout object metadata', 'not Autodesk certified'] },
+    preservation: { handles: 'best-effort', ownership: 'model-and-paper-space', opaqueObjects: 'raw-entity-tags', resources: 'standard-table-records' },
+    sniff: async (source, readOptions = {}) => { try { const text = await sourceText(source, readOptions as DxfReadOptions); return /\bSECTION\b/.test(text.slice(0, 4096)) && /\bHEADER\b|\bENTITIES\b/.test(text.slice(0, 16384)) } catch { return false } },
+    read: (source, readOptions = {}) => readDXF(source, readOptions as DxfReadOptions),
+    write: writeDXF,
+  })
+}

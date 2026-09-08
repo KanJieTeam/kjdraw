@@ -1,0 +1,19 @@
+{
+  "schema": "com.kanjie.kjdraw.performance-budgets@1",
+  "profiles": {
+    "core-10000-lines": {
+      "entityCount": 10000,
+      "maximumTimingsMs": {
+        "createBatchMs": 2000,
+        "singleEntityMoveMs": 300,
+        "snapshotMs": 180,
+        "serializeKjdMs": 260,
+        "reopenKjdMs": 450,
+        "packKjpMs": 400,
+        "reopenKjpMs": 500
+      },
+      "maximumRssGrowthMiB": 384
+    }
+  },
+  "note": "CI guardrails, not universal hardware claims. Published browser profiles must name device, browser and drawing fixture."
+}

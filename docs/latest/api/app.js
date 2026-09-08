@@ -1,0 +1,13 @@
+const zh={guides:'指南',demo:'在线 Demo',apiReference:'API 参考',entrypoints:'入口',exports:'导出',exportedSymbols:'导出符号',title:'TypeScript API 参考',lead:'下方每一项均由 npm 包实际发布的类型声明自动生成。生成器覆盖全部公开入口，CI 会阻止声明与文档发生漂移。',generatedFrom:'生成自',symbols:'个符号',noResults:'未找到匹配 API',noResultsBody:'请尝试符号名、类型、命令、文件格式或包路径。',searchPlaceholder:'搜索 784 个导出符号'}
+let locale=localStorage.getItem('kjdraw.docs.language')||(navigator.language.toLowerCase().startsWith('zh')?'zh':'en')
+const english=new Map([...document.querySelectorAll('[data-copy]')].map(element=>[element,element.textContent]))
+const input=document.getElementById('api-search'),defaultSearchPlaceholder=input.placeholder
+function applyLanguage(){document.documentElement.lang=locale==='zh'?'zh-CN':'en';for(const [element,value]of english)element.textContent=locale==='zh'?(zh[element.dataset.copy]??value):value;input.placeholder=locale==='zh'?zh.searchPlaceholder:defaultSearchPlaceholder;document.getElementById('language').textContent=locale==='zh'?'EN':'中文'}
+document.getElementById('language').onclick=()=>{locale=locale==='zh'?'en':'zh';localStorage.setItem('kjdraw.docs.language',locale);applyLanguage()}
+for(const button of document.querySelectorAll('[data-copy-code]'))button.onclick=async()=>{await navigator.clipboard.writeText(button.nextElementSibling.textContent);const old=button.textContent;button.textContent=locale==='zh'?'已复制':'Copied';setTimeout(()=>button.textContent=old,1200)}
+const modules=[...document.querySelectorAll('.api-module')],empty=document.getElementById('empty-state')
+function search(){const terms=input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);let visible=0;for(const module of modules){let moduleVisible=0;for(const symbol of module.querySelectorAll('.api-symbol')){const show=terms.every(term=>symbol.dataset.search.includes(term));symbol.hidden=!show;if(show)moduleVisible+=1}module.hidden=moduleVisible===0;visible+=moduleVisible}empty.hidden=visible!==0;const url=new URL(location.href);if(input.value)url.searchParams.set('q',input.value);else url.searchParams.delete('q');history.replaceState(null,'',url)}
+input.value=new URL(location.href).searchParams.get('q')??'';input.addEventListener('input',search);search()
+window.addEventListener('keydown',event=>{if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName)){event.preventDefault();input.focus()}})
+for(const link of document.querySelectorAll('.permalink'))link.addEventListener('click',()=>{history.replaceState(null,'',link.hash);document.getElementById(link.hash.slice(1))?.focus({preventScroll:true})})
+applyLanguage()

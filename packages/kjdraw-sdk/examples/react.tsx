@@ -9,7 +9,9 @@ export function useKJDraw() {
   }
 
   const sdk = sdkRef.current
-  const [revision, setRevision] = useState(sdk.activeDocument.revision)
+  const document = sdk.activeDocument
+  if (!document) throw new Error('KJDraw document initialization failed')
+  const [revision, setRevision] = useState(document.revision)
   useEffect(() => sdk.events.on('command:committed', ({ document }) => setRevision(document.revision)), [sdk])
 
   const drawLine = () => sdk.executeCommand('CREATE', {
@@ -17,5 +19,5 @@ export function useKJDraw() {
     payload: { start: [0, 0, 0], end: [100, 0, 0] },
   })
 
-  return { sdk, document: sdk.activeDocument, revision, drawLine }
+  return { sdk, document, revision, drawLine }
 }

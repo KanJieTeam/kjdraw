@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://kanjieteam.github.io/kjdraw/docs/latest/
+    about: Start with the bilingual guides and API documentation.
+  - name: Security report
+    url: mailto:kanjieteam@163.com
+    about: Report vulnerabilities privately; never attach confidential drawings.

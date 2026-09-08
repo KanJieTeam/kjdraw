@@ -1,0 +1,38 @@
+name: CAD compatibility report
+description: Report a reproducible KJD, KJP or DXF interoperability problem
+title: "[Compatibility]: "
+labels: [compatibility]
+body:
+  - type: dropdown
+    id: format
+    attributes:
+      label: Format
+      options: [KJD, KJP, DXF, Other]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Format and KJDraw versions
+      placeholder: "DXF 2018 / @kanjieteam/kjdraw 1.0.0-rc.1"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction and semantic expectation
+      description: List the exact objects/resources expected before and after open, edit, save and reopen.
+    validations:
+      required: true
+  - type: input
+    id: external
+    attributes:
+      label: Independent application check
+      description: If relevant, name the application/version used to verify the file.
+  - type: checkboxes
+    id: provenance
+    attributes:
+      label: Fixture provenance
+      options:
+        - label: Any attached file is synthetic or explicitly redistributable, and its provenance/license is stated.
+          required: true
