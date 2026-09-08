@@ -63,9 +63,36 @@ test('embeddable workbench isolates its UI and keeps document, locale, selection
       count: state.workbench.snapshot().entityCount,
       allButtonsAreSafe: hostButtons.every(button => button.type === 'button'),
       outsideDisplay: getComputedStyle(document.querySelector('#outside-tool')).display,
+      chrome: getComputedStyle(state.workbench.root.querySelector('.appbar')).backgroundColor,
+      rowHeights: [
+        state.workbench.root.querySelector('.appbar').offsetHeight,
+        state.workbench.root.querySelector('.ribbon').offsetHeight,
+        state.workbench.root.querySelector('.statusbar').offsetHeight,
+      ],
+      svgTools: state.workbench.root.querySelectorAll('.ribbon .kj-icon').length,
+      iconFill: getComputedStyle(state.workbench.root.querySelector('.ribbon .kj-icon')).fill,
+      toolDisplay: getComputedStyle(state.workbench.root.querySelector('.ribbon .tool')).display,
     }
   })
-  expect(initial).toEqual({ count: 1, allButtonsAreSafe: true, outsideDisplay: 'inline-block' })
+  expect(initial).toEqual({
+    count: 1,
+    allButtonsAreSafe: true,
+    outsideDisplay: 'inline-block',
+    chrome: 'rgb(246, 247, 249)',
+    rowHeights: [44, 92, 32],
+    svgTools: 18,
+    iconFill: 'none',
+    toolDisplay: 'grid',
+  })
+
+  await page.locator('#workbench-host [data-action="toggle-layers"]').click()
+  await expect(page.locator('#workbench-host .side.layers')).toBeHidden()
+  await page.locator('#workbench-host [data-action="toggle-layers"]').click()
+  await expect(page.locator('#workbench-host .side.layers')).toBeVisible()
+  expect(await page.evaluate(() => {
+    const { workbench, drawing } = window.__workbenchTest
+    return { sameDocument: workbench.document === drawing, revision: drawing.revision }
+  })).toEqual({ sameDocument: true, revision: 1 })
 
   await page.locator('#workbench-host [data-action="language"]').click()
   const localized = await page.evaluate(() => {

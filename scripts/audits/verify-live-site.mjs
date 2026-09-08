@@ -23,7 +23,7 @@ try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US', reducedMotion: 'reduce' })
   const sha256 = value => createHash('sha256').update(value).digest('hex')
   for (const path of [
-    'apps/playground/app.js', 'apps/playground/classic.css',
+    'apps/playground/app.js', 'apps/playground/precision.css', 'apps/playground/theme-tokens.css', 'packages/kjdraw-sdk/src/theme.js',
     'packages/kjdraw-sdk/src/editor.js', 'packages/kjdraw-sdk/src/workbench.js',
     'packages/kjdraw-sdk/src/canvas-renderer.js', 'packages/kjdraw-sdk/src/samples.js',
     'docs/latest/site-manifest.json', 'docs/latest/app.js', 'docs/latest/search-index.json',

@@ -575,7 +575,8 @@ export class KJCanvasRenderer {
       else {
         const screen = this.worldToScreen(position)
         context.translate(screen[0], screen[1]); context.rotate(-finite(payload.rotation))
-        context.font = `${Math.max(7, Math.abs(finite(payload.height, 2.5) * this.camera.scale))}px ui-monospace, SFMono-Regular, Consolas, monospace`
+        const screenHeight = Math.max(0.01, Math.abs(finite(payload.height, 2.5) * this.camera.scale))
+        context.font = `${screenHeight}px ui-monospace, SFMono-Regular, Consolas, monospace`
         context.textBaseline = 'alphabetic'; context.fillText(String(payload.text ?? payload.defaultValue ?? ''), 0, 0)
       }
     } else if (entity.type === 'HATCH') {

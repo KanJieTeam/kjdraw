@@ -96,6 +96,21 @@ test('Canvas renderer keeps world/screen transforms, navigation and hit testing 
   renderer.dispose()
 })
 
+test('Canvas renderer preserves model text height below one screen pixel', async () => {
+  const sdk = createKJDrawSDK()
+  const document = sdk.createDocument({ documentId: 'canvas-text-scale' })
+  await sdk.executeCommand('CREATE', { type: 'TEXT', payload: { position: [0, 0], text: 'scaled', height: 3 } })
+  const { canvas, context } = mockCanvas()
+  const renderer = new KJCanvasRenderer(canvas, { document, pixelRatio: 1, grid: false })
+
+  renderer.camera.scale = 0.1
+  renderer.render()
+
+  assert.ok(Math.abs(Number.parseFloat(context.font) - 0.3) < 1e-12)
+  assert.ok(Number.parseFloat(context.font) < 1, 'text is not inflated to a fixed screen-space minimum')
+  renderer.dispose()
+})
+
 test('Canvas renderer refits responsive viewports until the user navigates manually', async () => {
   const sdk = createKJDrawSDK()
   const document = sdk.createDocument({ documentId: 'canvas-responsive-fit' })

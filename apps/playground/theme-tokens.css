@@ -1,0 +1,27 @@
+/* Generated from src/theme.ts. Do not edit directly. */
+:where(.kjdraw-theme, .kjwb) {
+  --kj-chrome: #f6f7f9;
+  --kj-surface: #ffffff;
+  --kj-surface-subtle: #eef1f5;
+  --kj-border: #d9dee6;
+  --kj-text: #202936;
+  --kj-muted: #637083;
+  --kj-action: #2863df;
+  --kj-action-soft: #eaf1ff;
+  --kj-brand: #bdf878;
+  --kj-canvas: #090e15;
+  --kj-radius: 6px;
+  --kj-font: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --kj-mono: 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  font-family: var(--kj-font);
+  font-size: 13px;
+  color: var(--kj-text);
+  color-scheme: light;
+}
+:where(.kjdraw-theme, .kjwb) .kj-icon {
+  display: inline-block; width: 20px; height: 20px; flex-shrink: 0;
+  vertical-align: middle; pointer-events: none;
+}
+:where(.kjdraw-theme, .kjwb) :focus-visible {
+  outline: 2px solid var(--kj-action); outline-offset: 2px;
+}

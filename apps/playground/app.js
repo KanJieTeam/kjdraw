@@ -1,5 +1,6 @@
 import { createKJDrawSDK, KJProjectSession, instantiateKJCoreWasm, createWasmGeometryBackend, registerGeometryBackend, createKJCoreDocumentAuthority, createKJCoreSolidBackend } from '../../packages/kjdraw-sdk/src/index.js'
-import { KJCanvasRenderer } from '../../packages/kjdraw-sdk/src/canvas-renderer.js'
+import { KJCanvasRenderer, aciColor } from '../../packages/kjdraw-sdk/src/canvas-renderer.js'
+import { kjdrawIcon } from '../../packages/kjdraw-sdk/src/theme.js'
 import { createSample } from '../../examples/sample.js'
 import { createI18n } from './i18n.js'
 import { AGENT_REVISION_COMMAND, createShowcaseRevision, getShowcaseIntent, isShowcaseIntent, registerShowcaseCommand, resolveShowcasePreset } from './agent-showcase.js'
@@ -14,11 +15,11 @@ const camera = {
   get y(){return canvasRenderer.camera.centerY},set y(value){canvasRenderer.camera.centerY=value},
   get scale(){return canvasRenderer.camera.scale},set scale(value){canvasRenderer.camera.scale=value},
 }
-const colors = ['#c8d7e7','#ee9999','#e8d697','#bdf878','#7db9e4','#b795db','#de91bf','#b8c7d8','#637b91']
+initializeWorkbenchChrome()
 let rendererSelectionKey = ''
 const SHOWCASE_DOCUMENT_ID = 'sample-resilient-campus'
 const SAMPLE_DESCRIPTORS = Object.freeze([
-  { id: SHOWCASE_DOCUMENT_ID, title: 'Resilient energy campus · Agent + 2,294 objects', titleZh: '韧性能源园区 · Agent + 2,294 对象', discipline: 'ENERGY · STRESS' },
+  { id: SHOWCASE_DOCUMENT_ID, title: 'Resilient energy campus', titleZh: '韧性能源园区', discipline: 'ENERGY' },
   ...INDUSTRY_SAMPLES,
 ])
 let sdk, session, selection = new Set(), tool = 'select', start = null, draft = [], cursor = null, snapEnabled = true, gridEnabled = true, orthoEnabled = false, pendingPlan = null, pan = null, busy = false, authority = null, solidAuthority = null, measurement = null, width = 1, height = 1, lastReceipt = null
@@ -129,8 +130,10 @@ function populateSampleSelector() {
 }
 function syncAgentAvailability() {
   const available=doc()?.id===SHOWCASE_DOCUMENT_ID
+  document.querySelector('.agent-panel').classList.toggle('unavailable',!available)
+  $('open-agent-sample').hidden=available
   for(const id of ['agent-preset','agent-intent','plan'])$(id).disabled=!available
-  if(!available){$('confirm').disabled=true;$('plan-state').dataset.state='idle';$('plan-state').textContent=i18n.locale==='zh'?'Agent 修改演示位于“韧性能源园区”压力样例，请从上方样例库切换。':'The Agent change demo is available in the Resilient energy campus stress sample.'}
+  if(!available){$('confirm').disabled=true;$('plan-state').dataset.state='idle';$('plan-state').textContent=t('agentSampleRequired')}
 }
 function activateDrawing(id,{announce=true}={}) {
   if(!session?.documents.has(id))return
@@ -158,23 +161,37 @@ function refresh() {
   $('undo').disabled=!doc().history.canUndo;$('redo').disabled=!doc().history.canRedo
   const layers=doc().getTable('layers').records;$('layer-count').textContent=layers.length
   $('layers').replaceChildren()
-  for(const layer of layers){const label=document.createElement('label');label.className='layer';const input=document.createElement('input');input.type='checkbox';input.checked=layer.payload.visible!==false;input.setAttribute('aria-label',`${input.checked?'Hide':'Show'} layer ${layer.name}`);input.onchange=()=>run(()=>execute('LAYERUPDATE',{id:layer.id,patch:{visible:input.checked}}));const swatch=document.createElement('i');swatch.style.setProperty('--layer-color',colors[Math.abs(Number(layer.payload?.color??7))%colors.length]);const name=document.createElement('span');name.textContent=layer.name;const count=document.createElement('small');count.textContent=layerEntityCounts.get(layer.id)??0;label.append(input,swatch,name,count);$('layers').append(label)}
+  for(const layer of layers){
+    const row=document.createElement('div');row.className='layer';row.dataset.layerName=layer.name
+    const input=document.createElement('input');input.type='checkbox';input.checked=layer.payload.visible!==false&&!layer.payload.frozen
+    input.setAttribute('aria-label',`${t(input.checked?'hideLayer':'showLayer')} · ${layer.name}`)
+    input.onchange=()=>run(()=>execute('LAYERUPDATE',{id:layer.id,patch:{visible:input.checked,frozen:false}}))
+    const swatch=document.createElement('i'),rawColor=layer.payload.trueColor
+    const color=rawColor!=null?(typeof rawColor==='number'?`#${rawColor.toString(16).padStart(6,'0')}`:String(rawColor)):aciColor(layer.payload.color??7)
+    swatch.style.setProperty('--layer-color',color)
+    const name=document.createElement('span');name.textContent=layer.name;name.title=layer.name
+    const count=document.createElement('small');count.textContent=layerEntityCounts.get(layer.id)??0
+    const edit=document.createElement('button');edit.innerHTML=kjdrawIcon('panel');edit.title=`${t('editLayer')} · ${layer.name}`;edit.setAttribute('aria-label',edit.title)
+    edit.onclick=()=>run(async()=>{const values=await requestLocalCommand({title:t('editLayer'),fields:[{name:'name',label:t('layerName'),value:layer.name},{name:'color',label:t('layerColor'),type:'number',value:layer.payload.color??7,step:1}]});if(!values)return;const color=Number(values.color);if(!Number.isInteger(color)||color<1||color>255)throw new Error(t('layerColorRange'));await execute('LAYERUPDATE',{id:layer.id,newName:values.name.trim()||layer.name,patch:{color,trueColor:null}})})
+    row.append(input,swatch,name,count,edit);$('layers').append(row)
+  }
+  filterLayers()
   replaceSelection(selectedIds());const entity=primarySelection()?doc().getObject(primarySelection()):null
   $('inspector').replaceChildren();const title=document.createElement('h3');title.textContent=selectedIds().length>1?`${selectedIds().length} ${t('objectsSelected')}`:entity?entity.type:t('drawingDocument');$('inspector').append(title)
   if(entity){
     if(selectedIds().length>1){const summary=document.createElement('div');summary.className='selection-summary';summary.textContent=`${t('primary')}: ${entity.type} · ${t('groupHint')}`;$('inspector').append(summary)}
     field($('inspector'),t('handle'),entity.handle);field($('inspector'),t('layer'),doc().getObject(entity.payload.layerId)?.name??'0');if(entity.payload.radius)field($('inspector'),t('radius'),entity.payload.radius.toFixed(3));if(entity.payload.text)field($('inspector'),t('textField'),entity.payload.text)
     const editor=document.createElement('div');editor.className='property-editor'
-    const layerLabel=document.createElement('label');layerLabel.textContent='LAYER';const layerSelect=document.createElement('select')
+    const layerLabel=document.createElement('label');layerLabel.textContent=t('layer');const layerSelect=document.createElement('select')
     for(const layer of doc().getTable('layers').records){const option=document.createElement('option');option.value=layer.id;option.textContent=layer.name;option.selected=layer.id===entity.payload.layerId;layerSelect.append(option)}
     layerLabel.append(layerSelect);editor.append(layerLabel)
     let valueInput=null
-    if(entity.type==='CIRCLE'||entity.type==='ARC'){const label=document.createElement('label');label.textContent='RADIUS';valueInput=document.createElement('input');valueInput.type='number';valueInput.min='0.000001';valueInput.step='0.1';valueInput.value=entity.payload.radius;label.append(valueInput);editor.append(label)}
-    if(entity.type==='TEXT'||entity.type==='MTEXT'){const label=document.createElement('label');label.textContent='TEXT';valueInput=document.createElement('input');valueInput.value=entity.payload.text??'';label.append(valueInput);editor.append(label)}
+    if(entity.type==='CIRCLE'||entity.type==='ARC'){const label=document.createElement('label');label.textContent=t('radius');valueInput=document.createElement('input');valueInput.type='number';valueInput.min='0.000001';valueInput.step='0.1';valueInput.value=entity.payload.radius;label.append(valueInput);editor.append(label)}
+    if(entity.type==='TEXT'||entity.type==='MTEXT'){const label=document.createElement('label');label.textContent=t('textField');valueInput=document.createElement('input');valueInput.value=entity.payload.text??'';label.append(valueInput);editor.append(label)}
     const save=document.createElement('button');save.textContent=t('applyProperties');save.onclick=()=>run(async()=>{const payload={...entity.payload,layerId:layerSelect.value};if(valueInput&&(entity.type==='CIRCLE'||entity.type==='ARC'))payload.radius=Number(valueInput.value);if(valueInput&&(entity.type==='TEXT'||entity.type==='MTEXT'))payload.text=valueInput.value;await execute('PROPERTIES',{id:entity.id,patch:{payload}})});editor.append(save);$('inspector').append(editor)
     const erase=document.createElement('button');erase.textContent=t('deleteSelected');erase.onclick=()=>run(()=>execute('ERASE',{ids:selectedIds()}));$('inspector').append(erase)
   }
-  else {field($('inspector'),t('revision'),doc().revision);field($('inspector'),t('modelEntities'),currentModel.length);field($('inspector'),t('kernel'),authority?'Rust / WASM':t('jsReference'));field($('inspector'),t('units'),doc().snapshot().header.units??'unspecified')}
+  else {field($('inspector'),t('revision'),doc().revision);field($('inspector'),t('modelEntities'),currentModel.length);field($('inspector'),t('kernel'),authority?'Rust / WASM':t('jsReference'));field($('inspector'),t('units'),doc().snapshot().header.units??'unspecified');const help=document.createElement('div');help.className='inspector-empty';help.innerHTML=kjdrawIcon('select');help.append(document.createTextNode(t('inspectHint')));$('inspector').append(help)}
   if(measurement)renderMeasurement($('inspector'),measurement)
   syncAgentAvailability()
   render()
@@ -241,6 +258,7 @@ async function openFile(file){
 }
 $('open').onclick=()=>$('file-input').click()
 function setPanelOpen(name,open){const className=name==='layers'?'layers-open':'inspector-open',button=$(name==='layers'?'toggle-layers':'toggle-inspector');workbench.classList.toggle(className,open);button.classList.toggle('active',open);button.setAttribute('aria-pressed',String(open))}
+$('open-agent-sample').onclick=()=>activateDrawing(SHOWCASE_DOCUMENT_ID)
 $('toggle-layers').onclick=()=>{const open=!workbench.classList.contains('layers-open');if(open&&window.innerWidth<=780)setPanelOpen('inspector',false);setPanelOpen('layers',open);resize()}
 $('toggle-inspector').onclick=()=>{const open=!workbench.classList.contains('inspector-open');if(open&&window.innerWidth<=780)setPanelOpen('layers',false);setPanelOpen('inspector',open);resize()}
 $('close-layers').onclick=()=>{$('toggle-layers').click()}
@@ -274,7 +292,7 @@ $('reset').onclick=()=>run(async()=>{const accepted=await requestLocalCommand({t
 $('snap').onclick=()=>{snapEnabled=!snapEnabled;$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');$('snap').setAttribute('aria-pressed',String(snapEnabled))}
 $('grid').onclick=()=>{gridEnabled=!gridEnabled;$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('grid').setAttribute('aria-pressed',String(gridEnabled));render()}
 $('ortho').onclick=()=>{orthoEnabled=!orthoEnabled;$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('ortho').setAttribute('aria-pressed',String(orthoEnabled));render()}
-$('language').onclick=()=>{const canonical=knownIntent($('agent-intent').value);i18n.toggle();if(canonical)setCanonicalIntent();$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');if(sdk){populateSampleSelector();refresh()}if(pendingPlan)displayAgentPlan(pendingPlan);setTool(tool)}
+$('language').onclick=()=>{const canonical=knownIntent($('agent-intent').value);i18n.toggle();if(canonical)setCanonicalIntent();$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');if(sdk){populateSampleSelector();refresh();message(`${t('ready')} · ${documentTitle(doc())}`)}if(pendingPlan)displayAgentPlan(pendingPlan);setTool(tool)}
 for(const b of document.querySelectorAll('[data-tool]'))b.onclick=()=>setTool(b.dataset.tool)
 function planStep(title,detail){const item=document.createElement('li'),heading=document.createElement('b');heading.textContent=title;item.append(heading,document.createTextNode(detail));$('plan-steps').append(item)}
 function displayAgentPlan(plan){
@@ -375,6 +393,7 @@ canvas.addEventListener('wheel',e=>{e.preventDefault();canvasRenderer.zoomAt(Mat
 window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.key==='Escape'){setTool('select');invalidatePlan();render()}const key=e.key.toLowerCase();if(key==='l')setTool('line');if(key==='p')setTool('polyline');if(key==='c')setTool('circle');if(key==='a')setTool('arc');if(key==='r')setTool('rectangle');if(key==='e')setTool('ellipse');if(key==='x')setTool('xline');if(key==='q')setTool('point');if(key==='t')setTool('text');if(key==='d')setTool('measure');if(key==='v')setTool('select');if((e.ctrlKey||e.metaKey)&&key==='z'){e.preventDefault();run(()=>execute(e.shiftKey?'REDO':'UNDO'))}})
 window.addEventListener('resize',()=>requestAnimationFrame(resize))
 i18n.apply()
+new ResizeObserver(()=>requestAnimationFrame(resize)).observe($('drop-zone'))
 const narrowLayout=window.matchMedia('(max-width: 780px)')
 if(narrowLayout.matches)setPanelOpen('inspector',false)
 narrowLayout.addEventListener('change',event=>{if(event.matches){setPanelOpen('layers',false);setPanelOpen('inspector',false);requestAnimationFrame(resize)}})
@@ -383,3 +402,49 @@ try {
   registerGeometryBackend(createWasmGeometryBackend(instance));authority=createKJCoreDocumentAuthority(instance);solidAuthority=createKJCoreSolidBackend(instance)
 } catch(e){message('WASM unavailable · JavaScript reference mode');console.warn(e.message)}
 await freshSample();resize();fit()
+
+function filterLayers(){
+  const term=$('layer-search').value.trim().toLocaleLowerCase()
+  let matches=0
+  for(const row of $('layers').children){row.hidden=!row.dataset.layerName.toLocaleLowerCase().includes(term);if(!row.hidden)matches++}
+  $('layer-search-empty').hidden=matches>0
+}
+
+function initializeWorkbenchChrome(){
+  const sample=document.querySelector('.sample-ribbon');sample.classList.remove('ribbon-group')
+  document.querySelector('.site-header').insertBefore(sample,document.querySelector('.top-document'))
+  document.querySelector('.ribbon-tabs > span').textContent='2D'
+  const groups=[...document.querySelectorAll('.ribbon-group')]
+  groups[3].classList.add('compact');groups[4].classList.add('compact');groups[5].classList.add('compact')
+  const groupSections=['file','view','draw','draw','modify','inspect']
+  groups.forEach((group,index)=>group.dataset.section=groupSections[index])
+  for(const tab of document.querySelectorAll('.ribbon-tabs button')){
+    tab.setAttribute('aria-pressed',String(tab.classList.contains('active')))
+    tab.onclick=()=>{for(const sibling of tab.parentElement.querySelectorAll('button')){sibling.classList.toggle('active',sibling===tab);sibling.setAttribute('aria-pressed',String(sibling===tab))}for(const group of groups)group.hidden=tab.dataset.i18n!=='home'&&group.dataset.section!==tab.dataset.i18n&&group.dataset.section!=='view'}
+  }
+  const icons={'toggle-layers':'layers','toggle-inspector':'panel',undo:'undo',redo:'redo','move-selection':'move','copy-selection':'copy','rotate-selection':'rotate','offset-selection':'offset','delete-selection':'delete','measure-entity':'area','fit-ribbon':'fit'}
+  const shortcuts={select:'V',line:'L',polyline:'P',circle:'C',arc:'A',text:'T',rectangle:'R',ellipse:'E',point:'Q',xline:'X',measure:'D'}
+  for(const button of document.querySelectorAll('.ribbon-group > button')){
+    const label=document.createElement('span');label.textContent=button.textContent
+    if(button.dataset.i18n){label.dataset.i18n=button.dataset.i18n;delete button.dataset.i18n}
+    button.replaceChildren();button.insertAdjacentHTML('afterbegin',kjdrawIcon(button.dataset.icon||button.dataset.tool||icons[button.id]))
+    button.append(label)
+    if(button.dataset.tool){button.dataset.shortcut=shortcuts[button.dataset.tool];button.setAttribute('aria-keyshortcuts',shortcuts[button.dataset.tool])}
+  }
+  const updateTooltips=()=>{for(const button of document.querySelectorAll('.ribbon-group > button'))button.title=`${button.textContent.trim()}${button.dataset.shortcut?` (${button.dataset.shortcut})`:''}`}
+  document.addEventListener('kjdraw:language',updateTooltips);updateTooltips()
+  for(const [id,icon] of Object.entries({'close-layers':'close','close-inspector':'close','show-all-layers':'eye','new-layer':'plus','new-drawing':'plus'}))$(id).innerHTML=kjdrawIcon(icon)
+  const search=document.createElement('label');search.className='layer-search';search.innerHTML=kjdrawIcon('search')
+  const input=document.createElement('input');input.id='layer-search';input.type='search';input.dataset.i18nPlaceholder='searchLayers';input.setAttribute('aria-label',t('searchLayers'));input.oninput=filterLayers;search.append(input)
+  $('layers').before(search)
+  const empty=document.createElement('p');empty.id='layer-search-empty';empty.className='layer-empty';empty.dataset.i18n='noLayersFound';empty.hidden=true;$('layers').after(empty)
+  const openSample=document.createElement('button');openSample.id='open-agent-sample';openSample.dataset.i18n='openAgentSample';openSample.textContent=t('openAgentSample');$('agent-title').after(openSample)
+  for(const [name,selector,variable] of [['layers','.left-panel','--left-width'],['inspector','.right-panel','--right-width']]){
+    const panel=document.querySelector(selector),handle=document.createElement('div');handle.className='panel-resizer';handle.tabIndex=0;handle.role='separator';handle.setAttribute('aria-orientation','vertical');handle.setAttribute('aria-label',t(name==='layers'?'resizeLayers':'resizeProperties'));handle.setAttribute('aria-valuemin','220');handle.setAttribute('aria-valuemax','420')
+    const adjust=value=>{const next=Math.max(220,Math.min(420,window.innerWidth*.35,value));workbench.style.setProperty(variable,`${next}px`);handle.setAttribute('aria-valuenow',String(Math.round(next)));resize()}
+    handle.setAttribute('aria-valuenow',String(Math.round(panel.getBoundingClientRect().width||300)))
+    handle.onpointerdown=event=>{if(event.button!==0)return;event.preventDefault();const x=event.clientX,start=panel.getBoundingClientRect().width;handle.setPointerCapture(event.pointerId);handle.onpointermove=move=>adjust(start+(move.clientX-x)*(name==='layers'?1:-1));handle.onpointerup=()=>{handle.onpointermove=null};handle.onlostpointercapture=()=>{handle.onpointermove=null}}
+    handle.onkeydown=event=>{if(!['ArrowLeft','ArrowRight'].includes(event.key))return;event.preventDefault();adjust(panel.getBoundingClientRect().width+(event.key==='ArrowRight'?20:-20)*(name==='layers'?1:-1))}
+    panel.append(handle)
+  }
+}

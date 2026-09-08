@@ -36,3 +36,16 @@ for (const modulePath of modules) {
 
 if (check && changed) process.exitCode = 1
 else console.log(`${check ? 'Verified' : 'Built'} ${modules.length} TypeScript-owned ESM module${modules.length === 1 ? '' : 's'}.`)
+
+// The hosted app loads the same tokens before JS, without a second hand-maintained theme.
+if (modules.includes('packages/kjdraw-sdk/src/theme')) {
+  const source = await readFile(new URL('../packages/kjdraw-sdk/src/theme.ts', import.meta.url), 'utf8')
+  const css = source.match(/export const KJDRAW_THEME_CSS = `([\s\S]*?)`/)?.[1]
+  if (!css) throw new Error('Shared KJDraw theme CSS is missing')
+  const target = new URL('../apps/playground/theme-tokens.css', import.meta.url)
+  const output = `/* Generated from src/theme.ts. Do not edit directly. */\n${css.trim()}\n`
+  if (await readFile(target, 'utf8').catch(() => '') !== output) {
+    if (check) { console.error('Generated theme-tokens.css is stale'); process.exitCode = 1 }
+    else await writeFile(target, output)
+  }
+}

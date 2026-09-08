@@ -6,19 +6,17 @@
   <meta name="theme-color" content="#0c1119">
   <title>KJDraw — Open engineering, drawn forward.</title>
   <link rel="icon" href="./docs/assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./apps/playground/style.css">
-  <link rel="stylesheet" href="./apps/playground/workbench.css">
-  <link rel="stylesheet" href="./apps/playground/studio.css">
-  <link rel="stylesheet" href="./apps/playground/classic.css">
+  <link rel="stylesheet" href="./apps/playground/theme-tokens.css">
+  <link rel="stylesheet" href="./apps/playground/precision.css">
 </head>
-<body>
+<body class="kjdraw-theme">
   <header class="site-header"><a class="brand" href="./"><img src="./docs/assets/mark.svg" alt="" width="24" height="24">KJDraw<span class="tag" data-i18n="preview">1.0 RELEASE CANDIDATE</span></a><span class="top-document"><i>◇</i><b id="top-file-name">Resilient energy campus</b><span id="file-state" data-i18n="memory">In memory</span></span><nav><a href="./docs/latest/" data-i18n="docs" data-i18n-title="docsTitle">Documentation ↗</a><a href="https://github.com/KanJieTeam/kjdraw" data-i18n="github" data-i18n-title="githubTitle">GitHub ↗</a><button id="language" data-i18n="language" data-i18n-title="languageTitle">中文</button></nav></header>
   <main>
     <section class="workbench inspector-open" aria-label="KJDraw interactive playground" aria-busy="true" data-demo-state="loading">
       <div class="cad-ribbon" aria-label="CAD commands">
         <nav class="ribbon-tabs"><button class="active" data-i18n="home">HOME</button><button data-i18n="draw">DRAW</button><button data-i18n="modify">MODIFY</button><button data-i18n="inspect">INSPECT</button><span>KJDraw Core · 2D</span></nav>
         <div class="ribbon-groups">
-        <div class="ribbon-group file-ribbon"><small data-i18n="file">FILE</small><button id="open" data-icon="folder" data-i18n="openShort">Open</button><button id="save" data-icon="save" data-i18n="saveShort">Save KJP</button><button id="export" data-icon="export" data-i18n="exportShort">DXF</button><button id="snapshot" data-icon="camera" data-i18n="snapshot">Snapshot</button><input id="file-input" type="file" accept=".dxf,.kjp,.kjd" hidden></div>
+        <div class="ribbon-group file-ribbon compact"><small data-i18n="file">FILE</small><button id="open" data-icon="open" data-i18n="openShort">Open</button><button id="save" data-icon="save" data-i18n="saveShort">Save KJP</button><button id="export" data-icon="export" data-i18n="exportShort">DXF</button><button id="snapshot" data-icon="camera" data-i18n="snapshot">Snapshot</button><input id="file-input" type="file" accept=".dxf,.kjp,.kjd" hidden></div>
         <div class="ribbon-group sample-ribbon"><small data-i18n="sampleLibrary">SAMPLE DRAWINGS</small><label for="sample-select"><span data-i18n="chooseIndustry">Choose a discipline</span><select id="sample-select" aria-label="Industry sample drawing"></select><em id="sample-discipline">CIVIL</em></label></div>
         <div class="ribbon-group view-ribbon"><small data-i18n="view">VIEW</small><button id="toggle-layers" data-i18n="layers" aria-pressed="false">Layers</button><button id="toggle-inspector" class="active" data-i18n="sidePanel" aria-pressed="true">Side panel</button></div>
         <div class="ribbon-group"><small data-i18n="draw">DRAW</small><button data-tool="select" data-i18n="select">Select</button><button data-tool="line" data-i18n="line">Line</button><button data-tool="polyline" data-i18n="polyline">Polyline</button><button data-tool="circle" data-i18n="circle">Circle</button><button data-tool="arc" data-i18n="arc">Arc</button><button data-tool="text" data-i18n="text">Text</button></div>
@@ -35,18 +33,17 @@
           <header class="right-tabs"><button id="properties-tab" class="active" data-panel="properties" data-i18n="inspector" aria-selected="true">PROPERTIES</button><button id="agent-tab" data-panel="agent" data-i18n="agent" aria-selected="false">AGENT REVIEW</button><button id="close-inspector" data-i18n-title="closePanel" title="Close panel" aria-label="Close side panel">×</button></header>
           <div class="inspector-section side-panel-view" data-panel-view="properties"><div id="inspector" class="inspector"></div></div>
           <div class="agent-panel side-panel-view" data-panel-view="agent" aria-labelledby="agent-title" hidden>
-            <div class="panel-heading"><span class="agent-symbol">✳</span><span data-i18n="agent">AGENT REVIEW</span><span class="protocol-badge">PUBLIC SDK</span></div>
-            <h3 id="agent-title" data-i18n="agentTitle">Describe a change. Review it. Apply with confidence.</h3>
+            <h3 id="agent-title" data-i18n="agentTitle">Review drawing changes</h3>
             <p data-i18n="agentHelp">Try a ready-made engineering change — everything runs in this browser.</p>
-            <label for="agent-preset" data-i18n="taskPreset">90-second scenario</label>
+            <label for="agent-preset" data-i18n="taskPreset">Example change</label>
             <select id="agent-preset" aria-describedby="agent-help">
               <option value="service-yard" data-i18n="presetService">Re-plan east service yard</option>
               <option value="fire-corridor" data-i18n="presetFire">Open an emergency corridor</option>
               <option value="inspection-buffer" data-i18n="presetInspect">Add an inspection buffer</option>
             </select>
-            <label for="agent-intent" data-i18n="naturalIntent">Natural-language intent</label>
-            <textarea id="agent-intent" rows="3" spellcheck="false" aria-keyshortcuts="Control+Enter" aria-describedby="agent-help"></textarea>
-            <p id="agent-help" class="agent-help" data-i18n="agentProtocolHelp">A local preset compiler turns this sentence into exact public-SDK arguments. Ctrl/⌘ + Enter previews.</p>
+            <label for="agent-intent" data-i18n="naturalIntent">Change description</label>
+            <textarea id="agent-intent" rows="3" readonly spellcheck="false" aria-keyshortcuts="Control+Enter" aria-describedby="agent-help"></textarea>
+            <p id="agent-help" class="agent-help" data-i18n="agentProtocolHelp">Three predefined example changes. No AI model is connected.</p>
             <div class="agent-actions"><button id="plan" class="plan-button" data-i18n="previewAction" aria-controls="plan-state plan-steps">Build exact plan</button><button id="clear-plan" data-i18n="clearPlan" aria-controls="plan-state">Clear</button></div>
             <div id="plan-state" class="plan-state" role="status" aria-live="polite" data-state="idle" data-i18n="previewHelp">Choose a scenario, then review the exact diff before anything changes.</div>
             <div id="diff-legend" class="diff-legend" hidden><span class="diff-move" data-i18n="diffMove">Move</span><span class="diff-delete" data-i18n="diffDelete">Delete</span><span class="diff-add" data-i18n="diffAdd">Add</span></div>
