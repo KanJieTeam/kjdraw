@@ -8,6 +8,8 @@ import {
 import { nearestPointOnEntity2 } from './snapping.js'
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js'
 import { projectDimension } from './geometry/annotation.js'
+import { getEntityGrips, type KJEntityGrip } from './grips.js'
+import { isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence, type KJBoxSelectionMode } from './selection-geometry.js'
 import type { KJDocument } from './document.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 
@@ -61,6 +63,9 @@ export interface KJCanvasHit {
   distance: number
   point: readonly [number, number, number]
 }
+
+export interface KJCanvasSelectionOptions { includeLocked?: boolean }
+export interface KJCanvasBoxSelectionOptions extends KJCanvasSelectionOptions { mode?: KJBoxSelectionMode }
 
 export interface KJCanvasPreviewEntity {
   type: string
@@ -293,14 +298,19 @@ export class KJCanvasRenderer {
       && this.camera.centerY === this.#fittedCamera.centerY
       && this.camera.scale === this.#fittedCamera.scale
     const rect = this.canvas.getBoundingClientRect()
-    this.#width = Math.max(1, finite(width, rect.width || this.canvas.clientWidth || 1))
-    this.#height = Math.max(1, finite(height, rect.height || this.canvas.clientHeight || 1))
+    const nextWidth = Math.max(1, finite(width, rect.width || this.canvas.clientWidth || 1))
+    const nextHeight = Math.max(1, finite(height, rect.height || this.canvas.clientHeight || 1))
+    const viewportChanged = nextWidth !== this.#width || nextHeight !== this.#height
+    this.#width = nextWidth
+    this.#height = nextHeight
     const ratio = this.#pixelRatio ?? Math.max(1, globalThis.devicePixelRatio || 1)
     const targetWidth = Math.max(1, Math.round(this.#width * ratio))
     const targetHeight = Math.max(1, Math.round(this.#height * ratio))
     if (this.canvas.width !== targetWidth) this.canvas.width = targetWidth
     if (this.canvas.height !== targetHeight) this.canvas.height = targetHeight
-    if (keepFitted && this.#document) return this.fit()
+    // ResizeObserver may deliver its initial notification after edits or pointerdown.
+    // An unchanged viewport must not refit changed geometry underneath that gesture.
+    if (keepFitted && viewportChanged && this.#document) return this.fit()
     if (!keepFitted) this.#fittedCamera = null
     this.render()
     return this
@@ -346,7 +356,7 @@ export class KJCanvasRenderer {
     const values = this.#entities()
       .filter(entity => {
         const layer = layers.get(String(entity.payload.layerId ?? ''))
-        return layer?.visible !== false && layer?.frozen !== true
+        return entity.payload.visible !== false && layer?.visible !== false && layer?.frozen !== true
       })
       .flatMap(entity => this.#fitPoints(entity))
     if (!values.length) {
@@ -369,7 +379,7 @@ export class KJCanvasRenderer {
     return this
   }
 
-  hitTest(screenPoint: Point2, tolerancePixels = 8): KJCanvasHit | null {
+  hitTest(screenPoint: Point2, tolerancePixels = 8, options: KJCanvasSelectionOptions = {}): KJCanvasHit | null {
     const document = this.#document
     if (!document) return null
     const point = this.screenToWorld(screenPoint)
@@ -379,6 +389,7 @@ export class KJCanvasRenderer {
     const query = { document, spaceId: this.#activeSpaceId(), point, radius }
     const candidates = this.#sceneProvider?.hitCandidates?.(query) ?? this.#entities()
     for (const entity of candidates) {
+      if (!isEntitySelectable(document, entity, { ...options, spaceId: query.spaceId })) continue
       const layer = layers.get(String(entity.payload.layerId ?? ''))
       if (layer?.visible === false || layer?.frozen === true) continue
       try {
@@ -413,6 +424,60 @@ export class KJCanvasRenderer {
     return best ? Object.freeze({ ...best, point: Object.freeze(best.point) }) : null
   }
 
+  /** Screen-coordinate box query. Left to right defaults to window; right to left to crossing. */
+  selectBox(first: Point2, second: Point2, options: KJCanvasBoxSelectionOptions = {}): readonly string[] {
+    if (!this.#document) return Object.freeze([])
+    const sceneIds = new Set(this.#entities().map(entity => entity.id))
+    return Object.freeze(selectEntitiesInBox(this.#document, this.screenToWorld(first), this.screenToWorld(second), options.mode ?? (second[0] >= first[0] ? 'window' : 'crossing'), { ...options, spaceId: this.#activeSpaceId(), tolerance: .25 / this.camera.scale }).filter(id => sceneIds.has(id)))
+  }
+
+  selectFence(points: readonly Point2[], options: KJCanvasSelectionOptions = {}): readonly string[] {
+    if (!this.#document) return Object.freeze([])
+    const sceneIds = new Set(this.#entities().map(entity => entity.id))
+    return Object.freeze(selectEntitiesByFence(this.#document, points.map(point => this.screenToWorld(point)), { ...options, spaceId: this.#activeSpaceId(), tolerance: .25 / this.camera.scale }).filter(id => sceneIds.has(id)))
+  }
+
+  selectAll(options: KJCanvasSelectionOptions = {}): readonly string[] {
+    const document = this.#document
+    if (!document) return Object.freeze([])
+    const query = { ...options, spaceId: this.#activeSpaceId() }
+    return Object.freeze(this.#entities().filter(entity => isEntitySelectable(document, entity, query)).map(entity => entity.id))
+  }
+
+  /** Returns editable model-space handles without changing selection or document history. */
+  getGrips(ids: readonly string[] = [...this.#selection]): readonly KJEntityGrip[] {
+    const document = this.#document
+    if (!document) return Object.freeze([])
+    const result: KJEntityGrip[] = [], query = { spaceId: this.#activeSpaceId() }
+    for (const id of ids) {
+      const entity = document.getObject(id)
+      if (!entity || !isEntitySelectable(document, entity, query)) continue
+      try { result.push(...getEntityGrips(entity)) } catch { /* Unsupported geometry has no editable handle. */ }
+    }
+    return Object.freeze(result)
+  }
+
+  hitGrip(screenPoint: Point2, tolerancePixels = 7): KJEntityGrip | null {
+    let best: KJEntityGrip | null = null, distance = tolerancePixels
+    for (const grip of this.getGrips()) {
+      const p = this.worldToScreen([grip.point[0], grip.point[1]]), d = Math.hypot(p[0] - screenPoint[0], p[1] - screenPoint[1])
+      if (d <= distance) { best = grip; distance = d }
+    }
+    return best
+  }
+
+  /** Optional handle overlay; render() clears it, leaving inspect/read-only hosts in control. */
+  drawGrips(hoverId?: string): this {
+    const context = this.context
+    context.save(); context.setLineDash([]); context.lineWidth = 1
+    for (const grip of this.getGrips()) {
+      const [x, y] = this.worldToScreen([grip.point[0], grip.point[1]])
+      context.fillStyle = hoverId === `${grip.entityId}:${grip.id}` ? '#ffbf69' : '#2863df'
+      context.strokeStyle = '#dceaff'; context.fillRect(x - 3.5, y - 3.5, 7, 7); context.strokeRect(x - 3.5, y - 3.5, 7, 7)
+    }
+    context.restore(); return this
+  }
+
   render(): Readonly<KJCanvasRenderReport> {
     const context = this.context
     const ratio = this.canvas.width / Math.max(1, this.#width)
@@ -435,7 +500,7 @@ export class KJCanvasRenderer {
     const unsupported = new Set<string>()
     for (const entity of entities) {
       const layer = layers.get(String(entity.payload.layerId ?? ''))
-      if (layer?.visible === false || layer?.frozen === true) { hidden += 1; continue }
+      if (entity.payload.visible === false || layer?.visible === false || layer?.frozen === true) { hidden += 1; continue }
       const color = this.#selection.has(entity.id)
         ? this.#selectionColor ?? (this.#theme === 'dark' ? '#b9ff72' : '#0b67e3')
         : this.#color(entity, layer) ?? palette[colorIndex(layer?.color)]!

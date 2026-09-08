@@ -188,7 +188,7 @@ Start with the [Agent workflow guide](https://kanjieteam.github.io/kjdraw/docs/l
 | Layer | Public contract |
 | --- | --- |
 | **Document** | Entities, tables, blocks, model/paper spaces, resources, stable handles and revisions |
-| **Editing** | Transactions, rollback, undo/redo, selections, snapping and typed 2D commands |
+| **Editing** | Undo/redo, window/crossing/fence selection, draggable grips, layer protection and typed 2D commands |
 | **Rendering** | Reference Canvas renderer plus replaceable scene-provider and renderer seams |
 | **Workbench** | Mountable bilingual CAD UI built on public package exports |
 | **Plugins** | Versioned manifests, explicit permissions, activation and complete disposal |
@@ -204,13 +204,17 @@ The package is ESM-first and has zero runtime dependencies. Read the [architectu
 | `V` / `L` / `P` / `C` / `A` | Select / line / polyline / circle / arc |
 | `R` / `E` / `T` / `D` | Rectangle / ellipse / text / distance |
 | Mouse wheel / middle drag | Zoom / pan |
+| Drag empty canvas left → right / right → left | Window / crossing selection |
+| `Shift` / `Ctrl` or `⌘` while selecting | Add / remove objects |
+| `Ctrl` or `⌘` + `A` | Select editable objects in the current drawing space |
+| `FENCE` in the command line | Pick an open selection path; Enter finishes, Backspace removes a point |
 | `Ctrl` or `⌘` + `Z` | Undo; add `Shift` to redo |
 | `Ctrl` or `⌘` + `Enter` | Preview the selected Agent scenario |
 | `Esc` | Return to select and clear the active preview |
 
 ## Toward 1.0
 
-Follow the [RC3 release notes](docs/releases/1.0.0-rc.3.md) for interaction and layout changes, and the [roadmap](docs/roadmap.md) for what comes next. The [workbench guide](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/) walks through opening, moving, copying and saving a drawing.
+Follow the [RC3 release notes](docs/releases/1.0.0-rc.3.md) for interaction and layout changes, and the [roadmap](docs/roadmap.md) for what comes next. The [workbench guide](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/) walks through drawing, selection, grip editing, dimensions and saving your work.
 
 ## Develop and contribute
 

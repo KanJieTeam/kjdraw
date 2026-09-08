@@ -27,6 +27,7 @@ try {
     'apps/playground/app.js', 'apps/playground/precision.css', 'apps/playground/theme-tokens.css', 'packages/kjdraw-sdk/src/theme.js',
     'packages/kjdraw-sdk/src/editor.js', 'packages/kjdraw-sdk/src/workbench.js', 'packages/kjdraw-sdk/src/layout.js',
     'packages/kjdraw-sdk/src/drafting.js', 'packages/kjdraw-sdk/src/modification-controls.js', 'packages/kjdraw-sdk/src/canvas-renderer.js', 'packages/kjdraw-sdk/src/dxf-adapter.js',
+    'packages/kjdraw-sdk/src/selection-geometry.js', 'packages/kjdraw-sdk/src/edit-policy.js', 'packages/kjdraw-sdk/src/grips.js',
     'packages/kjdraw-sdk/src/react.js', 'packages/kjdraw-sdk/src/vue.js',
     'packages/kjdraw-sdk/src/geometry/annotation.js', 'packages/kjdraw-sdk/src/samples.js',
     'docs/latest/site-manifest.json', 'docs/latest/app.js', 'docs/latest/search-index.json', 'docs/latest/workbench/index.html',

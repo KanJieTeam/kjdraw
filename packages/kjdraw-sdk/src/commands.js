@@ -1,5 +1,6 @@
 // Generated from commands.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJRegistrationError, KJValidationError } from './errors.js';
+import { createCommandEditScope } from './edit-policy.js';
 import { entityArea2, entityLength2, distance2, dot2, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
 import { clone, deepFreeze, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
@@ -537,10 +538,15 @@ export class KJCommandRegistry {
             transaction: null
         }, clone(args));
         if (!context.document) throw new KJValidationError(`Command ${command.id} requires a document`);
-        return context.document.transact(command.title ?? command.id, (transaction)=>command.execute({
+        return context.document.transact(command.title ?? command.id, async (transaction)=>{
+            const scope = createCommandEditScope(transaction, command.id);
+            const result = await command.execute({
                 ...context,
-                transaction
-            }, clone(args)), {
+                transaction: scope.transaction
+            }, clone(args));
+            scope.validate();
+            return result;
+        }, {
             author: context.author,
             source: `command:${command.id}`,
             expectedRevision: context.expectedRevision,

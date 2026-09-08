@@ -3,6 +3,8 @@ import { KJValidationError } from './errors.js'
 import { normalizeName } from './utils.js'
 import type { KJDocument } from './document.js'
 import type { KJObjectRecord, KJReadonlyObjectRecord } from './schema.js'
+export { isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence } from './selection-geometry.js'
+export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js'
 
 const NAMED_PREFIX = 'KJ_SELECTION_SET:'
 

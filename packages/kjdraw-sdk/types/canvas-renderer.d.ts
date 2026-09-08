@@ -1,3 +1,5 @@
+import { type KJEntityGrip } from './grips.js';
+import { type KJBoxSelectionMode } from './selection-geometry.js';
 import type { KJDocument } from './document.js';
 import type { KJReadonlyObjectRecord } from './schema.js';
 export type KJCanvasTheme = 'dark' | 'light';
@@ -47,6 +49,12 @@ export interface KJCanvasHit {
     distance: number;
     point: readonly [number, number, number];
 }
+export interface KJCanvasSelectionOptions {
+    includeLocked?: boolean;
+}
+export interface KJCanvasBoxSelectionOptions extends KJCanvasSelectionOptions {
+    mode?: KJBoxSelectionMode;
+}
 export interface KJCanvasPreviewEntity {
     type: string;
     payload: Readonly<Record<string, unknown>>;
@@ -84,7 +92,16 @@ export declare class KJCanvasRenderer {
     panBy(screenDx: number, screenDy: number): this;
     zoomAt(factor: number, screenPoint?: Point2): this;
     fit(): this;
-    hitTest(screenPoint: Point2, tolerancePixels?: number): KJCanvasHit | null;
+    hitTest(screenPoint: Point2, tolerancePixels?: number, options?: KJCanvasSelectionOptions): KJCanvasHit | null;
+    /** Screen-coordinate box query. Left to right defaults to window; right to left to crossing. */
+    selectBox(first: Point2, second: Point2, options?: KJCanvasBoxSelectionOptions): readonly string[];
+    selectFence(points: readonly Point2[], options?: KJCanvasSelectionOptions): readonly string[];
+    selectAll(options?: KJCanvasSelectionOptions): readonly string[];
+    /** Returns editable model-space handles without changing selection or document history. */
+    getGrips(ids?: readonly string[]): readonly KJEntityGrip[];
+    hitGrip(screenPoint: Point2, tolerancePixels?: number): KJEntityGrip | null;
+    /** Optional handle overlay; render() clears it, leaving inspect/read-only hosts in control. */
+    drawGrips(hoverId?: string): this;
     render(): Readonly<KJCanvasRenderReport>;
     /** Paint temporary native geometry without inserting objects or changing history. Call render() to clear it. */
     drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2): this;

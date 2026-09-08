@@ -1,4 +1,5 @@
 import { KJRegistrationError, KJValidationError } from './errors.js'
+import { createCommandEditScope } from './edit-policy.js'
 import {
   entityArea2,
   entityLength2,
@@ -364,9 +365,12 @@ export class KJCommandRegistry {
     if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`)
     if (command.transactional === false) return command.execute({ ...context, transaction: null } as unknown as KJCommandContext, clone(args))
     if (!context.document) throw new KJValidationError(`Command ${command.id} requires a document`)
-    return context.document.transact(command.title ?? command.id, transaction => (
-      command.execute({ ...context, transaction } as KJCommandContext, clone(args))
-    ), {
+    return context.document.transact(command.title ?? command.id, async transaction => {
+      const scope = createCommandEditScope(transaction, command.id)
+      const result = await command.execute({ ...context, transaction: scope.transaction } as KJCommandContext, clone(args))
+      scope.validate()
+      return result
+    }, {
       author: context.author,
       source: `command:${command.id}`,
       expectedRevision: context.expectedRevision,

@@ -1109,6 +1109,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function deepFreeze&lt;T&gt;(value: T, seen?: WeakSet&lt;object&gt;): ReadonlyDeep&lt;T&gt;;</code></pre>
       <p class="source-path">utils.d.ts</p>
     </article>
+<article class="api-symbol" id="core-type-default" data-search="default type @kanjieteam/kjdraw/core export type { kjboxselectionmode, kjspatialselectionoptions } from &#39;./selection-geometry.js&#39;;">
+      <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#core-type-default" aria-label="Link to default">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./selection-geometry.js&#39;;</code></pre>
+      <p class="source-path">selection.d.ts</p>
+    </article>
 <article class="api-symbol" id="core-const-default-tolerance" data-search="default_tolerance const @kanjieteam/kjdraw/core export declare const default_tolerance: kjtolerance;">
       <header><div><span class="kind">const</span><h3>DEFAULT_TOLERANCE</h3></div><a class="permalink" href="#core-const-default-tolerance" aria-label="Link to DEFAULT_TOLERANCE">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const DEFAULT_TOLERANCE: KJTolerance;</code></pre>
@@ -1361,6 +1366,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <header><div><span class="kind">function</span><h3>invokeGeometryBackend</h3></div><a class="permalink" href="#core-function-invokegeometrybackend" aria-label="Link to invokeGeometryBackend">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function invokeGeometryBackend&lt;Result&gt;(operation: string, args: readonly unknown[], fallback: () =&gt; Result): Result;</code></pre>
       <p class="source-path">geometry/backend.d.ts</p>
+    </article>
+<article class="api-symbol" id="core-function-isentityselectable" data-search="isentityselectable function @kanjieteam/kjdraw/core export declare function isentityselectable(document: kjdocument, entity: kjreadonlyobjectrecord, options?: kjspatialselectionoptions): boolean;">
+      <header><div><span class="kind">function</span><h3>isEntitySelectable</h3></div><a class="permalink" href="#core-function-isentityselectable" aria-label="Link to isEntitySelectable">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function isEntitySelectable(document: KJDocument, entity: KJReadonlyObjectRecord, options?: KJSpatialSelectionOptions): boolean;</code></pre>
+      <p class="source-path">selection-geometry.d.ts</p>
     </article>
 <article class="api-symbol" id="core-function-isstandardentitytype" data-search="isstandardentitytype function @kanjieteam/kjdraw/core export declare function isstandardentitytype(type: unknown): type is kjnormalizedentitytype;">
       <header><div><span class="kind">function</span><h3>isStandardEntityType</h3></div><a class="permalink" href="#core-function-isstandardentitytype" aria-label="Link to isStandardEntityType">#</a></header>
@@ -6590,6 +6600,16 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const scaleAround3: (sx: number, sy?: number, center?: Point2Input) =&gt; AffineMatrix3;</code></pre>
       <p class="source-path">geometry/matrix3.d.ts</p>
     </article>
+<article class="api-symbol" id="core-function-selectentitiesbyfence" data-search="selectentitiesbyfence function @kanjieteam/kjdraw/core export declare function selectentitiesbyfence(document: kjdocument, vertices: readonly point[], options?: kjspatialselectionoptions): readonly string[];">
+      <header><div><span class="kind">function</span><h3>selectEntitiesByFence</h3></div><a class="permalink" href="#core-function-selectentitiesbyfence" aria-label="Link to selectEntitiesByFence">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function selectEntitiesByFence(document: KJDocument, vertices: readonly Point[], options?: KJSpatialSelectionOptions): readonly string[];</code></pre>
+      <p class="source-path">selection-geometry.d.ts</p>
+    </article>
+<article class="api-symbol" id="core-function-selectentitiesinbox" data-search="selectentitiesinbox function @kanjieteam/kjdraw/core export declare function selectentitiesinbox(document: kjdocument, first: point, second: point, mode?: kjboxselectionmode, options?: kjspatialselectionoptions): readonly string[];">
+      <header><div><span class="kind">function</span><h3>selectEntitiesInBox</h3></div><a class="permalink" href="#core-function-selectentitiesinbox" aria-label="Link to selectEntitiesInBox">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function selectEntitiesInBox(document: KJDocument, first: Point, second: Point, mode?: KJBoxSelectionMode, options?: KJSpatialSelectionOptions): readonly string[];</code></pre>
+      <p class="source-path">selection-geometry.d.ts</p>
+    </article>
 <article class="api-symbol" id="core-function-signedangle2" data-search="signedangle2 function @kanjieteam/kjdraw/core export declare function signedangle2(from: point2input, to: point2input): number;">
       <header><div><span class="kind">function</span><h3>signedAngle2</h3></div><a class="permalink" href="#core-function-signedangle2" aria-label="Link to signedAngle2">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function signedAngle2(from: Point2Input, to: Point2Input): number;</code></pre>
@@ -8787,9 +8807,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function deepFreeze&lt;T&gt;(value: T, seen?: WeakSet&lt;object&gt;): ReadonlyDeep&lt;T&gt;;</code></pre>
       <p class="source-path">utils.d.ts</p>
     </article>
-<article class="api-symbol" id="root-type-default" data-search="default type @kanjieteam/kjdraw export type { kjworkbenchlayout } from &#39;./workbench.js&#39;;">
+<article class="api-symbol" id="root-type-default" data-search="default type @kanjieteam/kjdraw export type { kjworkbenchlayout } from &#39;./workbench.js&#39;;
+export type { kjboxselectionmode, kjspatialselectionoptions } from &#39;./selection-geometry.js&#39;;">
       <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#root-type-default" aria-label="Link to default">#</a></header>
-      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJWorkbenchLayout } from &#39;./workbench.js&#39;;</code></pre>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJWorkbenchLayout } from &#39;./workbench.js&#39;;
+export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./selection-geometry.js&#39;;</code></pre>
       <p class="source-path">editor.d.ts</p>
     </article>
 <article class="api-symbol" id="root-const-default-tolerance" data-search="default_tolerance const @kanjieteam/kjdraw export declare const default_tolerance: kjtolerance;">
@@ -9058,6 +9080,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <header><div><span class="kind">function</span><h3>invokeGeometryBackend</h3></div><a class="permalink" href="#root-function-invokegeometrybackend" aria-label="Link to invokeGeometryBackend">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function invokeGeometryBackend&lt;Result&gt;(operation: string, args: readonly unknown[], fallback: () =&gt; Result): Result;</code></pre>
       <p class="source-path">geometry/backend.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-function-isentityselectable" data-search="isentityselectable function @kanjieteam/kjdraw export declare function isentityselectable(document: kjdocument, entity: kjreadonlyobjectrecord, options?: kjspatialselectionoptions): boolean;">
+      <header><div><span class="kind">function</span><h3>isEntitySelectable</h3></div><a class="permalink" href="#root-function-isentityselectable" aria-label="Link to isEntitySelectable">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function isEntitySelectable(document: KJDocument, entity: KJReadonlyObjectRecord, options?: KJSpatialSelectionOptions): boolean;</code></pre>
+      <p class="source-path">selection-geometry.d.ts</p>
     </article>
 <article class="api-symbol" id="root-function-isstandardentitytype" data-search="isstandardentitytype function @kanjieteam/kjdraw export declare function isstandardentitytype(type: unknown): type is kjnormalizedentitytype;">
       <header><div><span class="kind">function</span><h3>isStandardEntityType</h3></div><a class="permalink" href="#root-function-isstandardentitytype" aria-label="Link to isStandardEntityType">#</a></header>
@@ -14745,6 +14772,16 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const scaleAround3: (sx: number, sy?: number, center?: Point2Input) =&gt; AffineMatrix3;</code></pre>
       <p class="source-path">geometry/matrix3.d.ts</p>
     </article>
+<article class="api-symbol" id="root-function-selectentitiesbyfence" data-search="selectentitiesbyfence function @kanjieteam/kjdraw export declare function selectentitiesbyfence(document: kjdocument, vertices: readonly point[], options?: kjspatialselectionoptions): readonly string[];">
+      <header><div><span class="kind">function</span><h3>selectEntitiesByFence</h3></div><a class="permalink" href="#root-function-selectentitiesbyfence" aria-label="Link to selectEntitiesByFence">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function selectEntitiesByFence(document: KJDocument, vertices: readonly Point[], options?: KJSpatialSelectionOptions): readonly string[];</code></pre>
+      <p class="source-path">selection-geometry.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-function-selectentitiesinbox" data-search="selectentitiesinbox function @kanjieteam/kjdraw export declare function selectentitiesinbox(document: kjdocument, first: point, second: point, mode?: kjboxselectionmode, options?: kjspatialselectionoptions): readonly string[];">
+      <header><div><span class="kind">function</span><h3>selectEntitiesInBox</h3></div><a class="permalink" href="#root-function-selectentitiesinbox" aria-label="Link to selectEntitiesInBox">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function selectEntitiesInBox(document: KJDocument, first: Point, second: Point, mode?: KJBoxSelectionMode, options?: KJSpatialSelectionOptions): readonly string[];</code></pre>
+      <p class="source-path">selection-geometry.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-function-signedangle2" data-search="signedangle2 function @kanjieteam/kjdraw export declare function signedangle2(from: point2input, to: point2input): number;">
       <header><div><span class="kind">function</span><h3>signedAngle2</h3></div><a class="permalink" href="#root-function-signedangle2" aria-label="Link to signedAngle2">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function signedAngle2(from: Point2Input, to: Point2Input): number;</code></pre>
@@ -18670,7 +18707,17 @@ export declare function assertPlainObject(value: unknown, label: string): Record
   <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/selection</code></h2></div><a class="permalink" href="#module-selection" aria-label="Link to @kanjieteam/kjdraw/selection">#</a></header>
   <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/selection.d.ts</code></p>
   <div class="api-symbols">
-    <article class="api-symbol" id="selection-type-kjentityreference" data-search="kjentityreference type @kanjieteam/kjdraw/selection export type kjentityreference = string | {
+    <article class="api-symbol" id="selection-type-default" data-search="default type @kanjieteam/kjdraw/selection export type { kjboxselectionmode, kjspatialselectionoptions } from &#39;./selection-geometry.js&#39;;">
+      <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#selection-type-default" aria-label="Link to default">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./selection-geometry.js&#39;;</code></pre>
+      <p class="source-path">selection.d.ts</p>
+    </article>
+<article class="api-symbol" id="selection-function-isentityselectable" data-search="isentityselectable function @kanjieteam/kjdraw/selection export declare function isentityselectable(document: kjdocument, entity: kjreadonlyobjectrecord, options?: kjspatialselectionoptions): boolean;">
+      <header><div><span class="kind">function</span><h3>isEntitySelectable</h3></div><a class="permalink" href="#selection-function-isentityselectable" aria-label="Link to isEntitySelectable">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function isEntitySelectable(document: KJDocument, entity: KJReadonlyObjectRecord, options?: KJSpatialSelectionOptions): boolean;</code></pre>
+      <p class="source-path">selection-geometry.d.ts</p>
+    </article>
+<article class="api-symbol" id="selection-type-kjentityreference" data-search="kjentityreference type @kanjieteam/kjdraw/selection export type kjentityreference = string | {
     id: string;
 };">
       <header><div><span class="kind">type</span><h3>KJEntityReference</h3></div><a class="permalink" href="#selection-type-kjentityreference" aria-label="Link to KJEntityReference">#</a></header>
@@ -18806,6 +18853,16 @@ export declare function assertPlainObject(value: unknown, label: string): Record
 }</code></pre>
       <p class="source-path">selection.d.ts</p>
     </article>
+<article class="api-symbol" id="selection-function-selectentitiesbyfence" data-search="selectentitiesbyfence function @kanjieteam/kjdraw/selection export declare function selectentitiesbyfence(document: kjdocument, vertices: readonly point[], options?: kjspatialselectionoptions): readonly string[];">
+      <header><div><span class="kind">function</span><h3>selectEntitiesByFence</h3></div><a class="permalink" href="#selection-function-selectentitiesbyfence" aria-label="Link to selectEntitiesByFence">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function selectEntitiesByFence(document: KJDocument, vertices: readonly Point[], options?: KJSpatialSelectionOptions): readonly string[];</code></pre>
+      <p class="source-path">selection-geometry.d.ts</p>
+    </article>
+<article class="api-symbol" id="selection-function-selectentitiesinbox" data-search="selectentitiesinbox function @kanjieteam/kjdraw/selection export declare function selectentitiesinbox(document: kjdocument, first: point, second: point, mode?: kjboxselectionmode, options?: kjspatialselectionoptions): readonly string[];">
+      <header><div><span class="kind">function</span><h3>selectEntitiesInBox</h3></div><a class="permalink" href="#selection-function-selectentitiesinbox" aria-label="Link to selectEntitiesInBox">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function selectEntitiesInBox(document: KJDocument, first: Point, second: Point, mode?: KJBoxSelectionMode, options?: KJSpatialSelectionOptions): readonly string[];</code></pre>
+      <p class="source-path">selection-geometry.d.ts</p>
+    </article>
   </div>
 </section>
 <section class="api-module" id="module-snapping" data-module="@kanjieteam/kjdraw/snapping">
@@ -18939,6 +18996,15 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function aciColor(input: unknown, theme?: KJCanvasTheme): string;</code></pre>
       <p class="source-path">canvas-renderer.d.ts</p>
     </article>
+<article class="api-symbol" id="renderer-canvas-interface-kjcanvasboxselectionoptions" data-search="kjcanvasboxselectionoptions interface @kanjieteam/kjdraw/renderer/canvas export interface kjcanvasboxselectionoptions extends kjcanvasselectionoptions {
+    mode?: kjboxselectionmode;
+}">
+      <header><div><span class="kind">interface</span><h3>KJCanvasBoxSelectionOptions</h3></div><a class="permalink" href="#renderer-canvas-interface-kjcanvasboxselectionoptions" aria-label="Link to KJCanvasBoxSelectionOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJCanvasBoxSelectionOptions extends KJCanvasSelectionOptions {
+    mode?: KJBoxSelectionMode;
+}</code></pre>
+      <p class="source-path">canvas-renderer.d.ts</p>
+    </article>
 <article class="api-symbol" id="renderer-canvas-interface-kjcanvascamera" data-search="kjcanvascamera interface @kanjieteam/kjdraw/renderer/canvas export interface kjcanvascamera {
     centerx: number;
     centery: number;
@@ -19000,7 +19066,16 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     panby(screendx: number, screendy: number): this;
     zoomat(factor: number, screenpoint?: point2): this;
     fit(): this;
-    hittest(screenpoint: point2, tolerancepixels?: number): kjcanvashit | null;
+    hittest(screenpoint: point2, tolerancepixels?: number, options?: kjcanvasselectionoptions): kjcanvashit | null;
+    /** screen-coordinate box query. left to right defaults to window; right to left to crossing. */
+    selectbox(first: point2, second: point2, options?: kjcanvasboxselectionoptions): readonly string[];
+    selectfence(points: readonly point2[], options?: kjcanvasselectionoptions): readonly string[];
+    selectall(options?: kjcanvasselectionoptions): readonly string[];
+    /** returns editable model-space handles without changing selection or document history. */
+    getgrips(ids?: readonly string[]): readonly kjentitygrip[];
+    hitgrip(screenpoint: point2, tolerancepixels?: number): kjentitygrip | null;
+    /** optional handle overlay; render() clears it, leaving inspect/read-only hosts in control. */
+    drawgrips(hoverid?: string): this;
     render(): readonly&lt;kjcanvasrenderreport&gt;;
     /** paint temporary native geometry without inserting objects or changing history. call render() to clear it. */
     drawpreview(entities: readonly kjcanvaspreviewentity[], color?: string, offset?: point2): this;
@@ -19031,7 +19106,16 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     panBy(screenDx: number, screenDy: number): this;
     zoomAt(factor: number, screenPoint?: Point2): this;
     fit(): this;
-    hitTest(screenPoint: Point2, tolerancePixels?: number): KJCanvasHit | null;
+    hitTest(screenPoint: Point2, tolerancePixels?: number, options?: KJCanvasSelectionOptions): KJCanvasHit | null;
+    /** Screen-coordinate box query. Left to right defaults to window; right to left to crossing. */
+    selectBox(first: Point2, second: Point2, options?: KJCanvasBoxSelectionOptions): readonly string[];
+    selectFence(points: readonly Point2[], options?: KJCanvasSelectionOptions): readonly string[];
+    selectAll(options?: KJCanvasSelectionOptions): readonly string[];
+    /** Returns editable model-space handles without changing selection or document history. */
+    getGrips(ids?: readonly string[]): readonly KJEntityGrip[];
+    hitGrip(screenPoint: Point2, tolerancePixels?: number): KJEntityGrip | null;
+    /** Optional handle overlay; render() clears it, leaving inspect/read-only hosts in control. */
+    drawGrips(hoverId?: string): this;
     render(): Readonly&lt;KJCanvasRenderReport&gt;;
     /** Paint temporary native geometry without inserting objects or changing history. Call render() to clear it. */
     drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2): this;
@@ -19118,6 +19202,15 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJCanvasSceneQuery {
     document: KJDocument;
     spaceId: string;
+}</code></pre>
+      <p class="source-path">canvas-renderer.d.ts</p>
+    </article>
+<article class="api-symbol" id="renderer-canvas-interface-kjcanvasselectionoptions" data-search="kjcanvasselectionoptions interface @kanjieteam/kjdraw/renderer/canvas export interface kjcanvasselectionoptions {
+    includelocked?: boolean;
+}">
+      <header><div><span class="kind">interface</span><h3>KJCanvasSelectionOptions</h3></div><a class="permalink" href="#renderer-canvas-interface-kjcanvasselectionoptions" aria-label="Link to KJCanvasSelectionOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJCanvasSelectionOptions {
+    includeLocked?: boolean;
 }</code></pre>
       <p class="source-path">canvas-renderer.d.ts</p>
     </article>
@@ -19306,9 +19399,9 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJWorkbenchTheme = &#39;dark&#39; | &#39;light&#39;;</code></pre>
       <p class="source-path">workbench.d.ts</p>
     </article>
-<article class="api-symbol" id="workbench-type-kjworkbenchtool" data-search="kjworkbenchtool type @kanjieteam/kjdraw/workbench export type kjworkbenchtool = &#39;select&#39; | &#39;pan&#39; | kjdrafttool | &#39;text&#39; | &#39;measure&#39; | &#39;move&#39; | &#39;copy&#39;;">
+<article class="api-symbol" id="workbench-type-kjworkbenchtool" data-search="kjworkbenchtool type @kanjieteam/kjdraw/workbench export type kjworkbenchtool = &#39;select&#39; | &#39;fence&#39; | &#39;pan&#39; | kjdrafttool | &#39;text&#39; | &#39;measure&#39; | &#39;move&#39; | &#39;copy&#39;;">
       <header><div><span class="kind">type</span><h3>KJWorkbenchTool</h3></div><a class="permalink" href="#workbench-type-kjworkbenchtool" aria-label="Link to KJWorkbenchTool">#</a></header>
-      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJWorkbenchTool = &#39;select&#39; | &#39;pan&#39; | KJDraftTool | &#39;text&#39; | &#39;measure&#39; | &#39;move&#39; | &#39;copy&#39;;</code></pre>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJWorkbenchTool = &#39;select&#39; | &#39;fence&#39; | &#39;pan&#39; | KJDraftTool | &#39;text&#39; | &#39;measure&#39; | &#39;move&#39; | &#39;copy&#39;;</code></pre>
       <p class="source-path">workbench.d.ts</p>
     </article>
 <article class="api-symbol" id="workbench-function-mountkjdrawworkbench" data-search="mountkjdrawworkbench function @kanjieteam/kjdraw/workbench export declare function mountkjdrawworkbench(container: htmlelement | shadowroot, options?: kjdrawworkbenchoptions): kjdrawworkbench;">

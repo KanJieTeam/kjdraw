@@ -466,11 +466,12 @@ test('direct drag freezes its targets and camera until pointer release', async (
     window.__workbenchTest.secondLine = secondLine
   })
 
-  const dragBase = await canvasPoint(page, [10, 0])
-  const dragDestination = await canvasPoint(page, [15, 5])
+  // Pick the line body, clear of the new endpoint and midpoint grips.
+  const dragBase = await canvasPoint(page, [5, 0])
+  const dragDestination = await canvasPoint(page, [10, 5])
   expect(await page.evaluate(() => {
     const { workbench, line } = window.__workbenchTest
-    const screen = workbench.renderer.worldToScreen([10, 0])
+    const screen = workbench.renderer.worldToScreen([5, 0])
     return {
       tool: workbench.tool,
       selected: workbench.snapshot().selectedIds.includes(line.id),
@@ -499,8 +500,8 @@ test('direct drag freezes its targets and camera until pointer release', async (
     const { sdk, drawing, line } = window.__workbenchTest
     await sdk.executeCommand('SELECT', { ids: [line.id], operation: 'replace' }, { document: drawing })
   })
-  const conflictBase = await canvasPoint(page, [15, 5])
-  const conflictDestination = await canvasPoint(page, [20, 10])
+  const conflictBase = await canvasPoint(page, [10, 5])
+  const conflictDestination = await canvasPoint(page, [15, 10])
   await page.mouse.move(conflictBase.x, conflictBase.y)
   await page.mouse.down()
   await page.evaluate(async () => {
@@ -510,5 +511,5 @@ test('direct drag freezes its targets and camera until pointer release', async (
   await page.mouse.move(conflictDestination.x, conflictDestination.y, { steps: 4 })
   await page.mouse.up()
   expect(await page.evaluate(() => window.__workbenchTest.drawing.getObject(window.__workbenchTest.line.id).payload.start)).toEqual(draggedStart)
-  await expect(page.locator('#workbench-host [data-message]')).toContainText('Document revision conflict')
+  await expect(page.locator('#workbench-host [data-message]')).toContainText('Drawing or view changed')
 })

@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:20825da9f07277af01855af310137c0aa9f5ecc292ce031eaa3ab7cdb6362a79",
+  "sourceDigest": "sha256:0085d801ea3d0da6205f8cdbcb23567b21c2641b0bfec6beb6b534e61f17544c",
   "modules": [
     {
       "exportPath": "./drafting",
@@ -688,6 +688,13 @@
           "anchor": "core-function-deepfreeze"
         },
         {
+          "name": "default",
+          "kind": "type",
+          "declaration": "export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
+          "source": "selection.d.ts",
+          "anchor": "core-type-default"
+        },
+        {
           "name": "DEFAULT_TOLERANCE",
           "kind": "const",
           "declaration": "export declare const DEFAULT_TOLERANCE: KJTolerance;",
@@ -973,6 +980,13 @@
           "declaration": "export declare function invokeGeometryBackend<Result>(operation: string, args: readonly unknown[], fallback: () => Result): Result;",
           "source": "geometry/backend.d.ts",
           "anchor": "core-function-invokegeometrybackend"
+        },
+        {
+          "name": "isEntitySelectable",
+          "kind": "function",
+          "declaration": "export declare function isEntitySelectable(document: KJDocument, entity: KJReadonlyObjectRecord, options?: KJSpatialSelectionOptions): boolean;",
+          "source": "selection-geometry.d.ts",
+          "anchor": "core-function-isentityselectable"
         },
         {
           "name": "isStandardEntityType",
@@ -3285,6 +3299,20 @@
           "anchor": "core-const-scalearound3"
         },
         {
+          "name": "selectEntitiesByFence",
+          "kind": "function",
+          "declaration": "export declare function selectEntitiesByFence(document: KJDocument, vertices: readonly Point[], options?: KJSpatialSelectionOptions): readonly string[];",
+          "source": "selection-geometry.d.ts",
+          "anchor": "core-function-selectentitiesbyfence"
+        },
+        {
+          "name": "selectEntitiesInBox",
+          "kind": "function",
+          "declaration": "export declare function selectEntitiesInBox(document: KJDocument, first: Point, second: Point, mode?: KJBoxSelectionMode, options?: KJSpatialSelectionOptions): readonly string[];",
+          "source": "selection-geometry.d.ts",
+          "anchor": "core-function-selectentitiesinbox"
+        },
+        {
           "name": "signedAngle2",
           "kind": "function",
           "declaration": "export declare function signedAngle2(from: Point2Input, to: Point2Input): number;",
@@ -4574,7 +4602,7 @@
         {
           "name": "default",
           "kind": "type",
-          "declaration": "export type { KJWorkbenchLayout } from './workbench.js';",
+          "declaration": "export type { KJWorkbenchLayout } from './workbench.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
           "source": "editor.d.ts",
           "anchor": "root-type-default"
         },
@@ -4878,6 +4906,13 @@
           "declaration": "export declare function invokeGeometryBackend<Result>(operation: string, args: readonly unknown[], fallback: () => Result): Result;",
           "source": "geometry/backend.d.ts",
           "anchor": "root-function-invokegeometrybackend"
+        },
+        {
+          "name": "isEntitySelectable",
+          "kind": "function",
+          "declaration": "export declare function isEntitySelectable(document: KJDocument, entity: KJReadonlyObjectRecord, options?: KJSpatialSelectionOptions): boolean;",
+          "source": "selection-geometry.d.ts",
+          "anchor": "root-function-isentityselectable"
         },
         {
           "name": "isStandardEntityType",
@@ -7384,6 +7419,20 @@
           "declaration": "export declare const scaleAround3: (sx: number, sy?: number, center?: Point2Input) => AffineMatrix3;",
           "source": "geometry/matrix3.d.ts",
           "anchor": "root-const-scalearound3"
+        },
+        {
+          "name": "selectEntitiesByFence",
+          "kind": "function",
+          "declaration": "export declare function selectEntitiesByFence(document: KJDocument, vertices: readonly Point[], options?: KJSpatialSelectionOptions): readonly string[];",
+          "source": "selection-geometry.d.ts",
+          "anchor": "root-function-selectentitiesbyfence"
+        },
+        {
+          "name": "selectEntitiesInBox",
+          "kind": "function",
+          "declaration": "export declare function selectEntitiesInBox(document: KJDocument, first: Point, second: Point, mode?: KJBoxSelectionMode, options?: KJSpatialSelectionOptions): readonly string[];",
+          "source": "selection-geometry.d.ts",
+          "anchor": "root-function-selectentitiesinbox"
         },
         {
           "name": "signedAngle2",
@@ -9919,6 +9968,20 @@
       "anchor": "module-selection",
       "symbols": [
         {
+          "name": "default",
+          "kind": "type",
+          "declaration": "export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
+          "source": "selection.d.ts",
+          "anchor": "selection-type-default"
+        },
+        {
+          "name": "isEntitySelectable",
+          "kind": "function",
+          "declaration": "export declare function isEntitySelectable(document: KJDocument, entity: KJReadonlyObjectRecord, options?: KJSpatialSelectionOptions): boolean;",
+          "source": "selection-geometry.d.ts",
+          "anchor": "selection-function-isentityselectable"
+        },
+        {
           "name": "KJEntityReference",
           "kind": "type",
           "declaration": "export type KJEntityReference = string | {\n    id: string;\n};",
@@ -9973,6 +10036,20 @@
           "declaration": "export declare class KJSelectionSet {\n    #private;\n    constructor(document: KJDocument, ids?: readonly KJEntityReference[]);\n    get size(): number;\n    get ids(): readonly string[];\n    get objects(): ReadonlyArray<KJReadonlyObjectRecord>;\n    has(value: KJEntityReference): boolean;\n    onChange(listener: (change: KJSelectionChange) => void, options?: {\n        signal?: AbortSignal;\n    }): () => void;\n    add(values: KJEntityReference | readonly KJEntityReference[], { silent }?: KJSelectionMutationOptions): this;\n    remove(values: KJEntityReference | readonly KJEntityReference[], { silent }?: KJSelectionMutationOptions): this;\n    toggle(value: KJEntityReference): this;\n    clear({ silent }?: KJSelectionMutationOptions): this;\n    replace(values?: readonly KJEntityReference[], { silent }?: KJSelectionMutationOptions): this;\n    selectWhere(predicate: (entity: KJReadonlyObjectRecord, index: number) => boolean, { append }?: {\n        append?: boolean;\n    }): this;\n    prune(): string[];\n}",
           "source": "selection.d.ts",
           "anchor": "selection-class-kjselectionset"
+        },
+        {
+          "name": "selectEntitiesByFence",
+          "kind": "function",
+          "declaration": "export declare function selectEntitiesByFence(document: KJDocument, vertices: readonly Point[], options?: KJSpatialSelectionOptions): readonly string[];",
+          "source": "selection-geometry.d.ts",
+          "anchor": "selection-function-selectentitiesbyfence"
+        },
+        {
+          "name": "selectEntitiesInBox",
+          "kind": "function",
+          "declaration": "export declare function selectEntitiesInBox(document: KJDocument, first: Point, second: Point, mode?: KJBoxSelectionMode, options?: KJSpatialSelectionOptions): readonly string[];",
+          "source": "selection-geometry.d.ts",
+          "anchor": "selection-function-selectentitiesinbox"
         }
       ]
     },
@@ -10082,6 +10159,13 @@
           "anchor": "renderer-canvas-function-acicolor"
         },
         {
+          "name": "KJCanvasBoxSelectionOptions",
+          "kind": "interface",
+          "declaration": "export interface KJCanvasBoxSelectionOptions extends KJCanvasSelectionOptions {\n    mode?: KJBoxSelectionMode;\n}",
+          "source": "canvas-renderer.d.ts",
+          "anchor": "renderer-canvas-interface-kjcanvasboxselectionoptions"
+        },
+        {
           "name": "KJCanvasCamera",
           "kind": "interface",
           "declaration": "export interface KJCanvasCamera {\n    centerX: number;\n    centerY: number;\n    scale: number;\n}",
@@ -10105,7 +10189,7 @@
         {
           "name": "KJCanvasRenderer",
           "kind": "class",
-          "declaration": "export declare class KJCanvasRenderer {\n    #private;\n    readonly canvas: HTMLCanvasElement;\n    readonly context: CanvasRenderingContext2D;\n    readonly camera: KJCanvasCamera;\n    constructor(canvas: HTMLCanvasElement, options?: KJCanvasRendererOptions);\n    get document(): KJDocument | null;\n    get spaceId(): string | null;\n    get theme(): KJCanvasTheme;\n    get grid(): boolean;\n    get selection(): readonly string[];\n    get report(): Readonly<KJCanvasRenderReport>;\n    setDocument(document: KJDocument | null): this;\n    setTheme(theme: KJCanvasTheme): this;\n    setGrid(enabled: boolean): this;\n    setSelection(ids?: readonly string[]): this;\n    setSpace(spaceId: string | null): this;\n    setSceneProvider(provider: KJCanvasSceneProvider | null): this;\n    resize(width?: number, height?: number): this;\n    worldToScreen(input: Point2): Point2;\n    screenToWorld(input: Point2): Point2;\n    panBy(screenDx: number, screenDy: number): this;\n    zoomAt(factor: number, screenPoint?: Point2): this;\n    fit(): this;\n    hitTest(screenPoint: Point2, tolerancePixels?: number): KJCanvasHit | null;\n    render(): Readonly<KJCanvasRenderReport>;\n    /** Paint temporary native geometry without inserting objects or changing history. Call render() to clear it. */\n    drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2): this;\n    dispose(): void;\n}",
+          "declaration": "export declare class KJCanvasRenderer {\n    #private;\n    readonly canvas: HTMLCanvasElement;\n    readonly context: CanvasRenderingContext2D;\n    readonly camera: KJCanvasCamera;\n    constructor(canvas: HTMLCanvasElement, options?: KJCanvasRendererOptions);\n    get document(): KJDocument | null;\n    get spaceId(): string | null;\n    get theme(): KJCanvasTheme;\n    get grid(): boolean;\n    get selection(): readonly string[];\n    get report(): Readonly<KJCanvasRenderReport>;\n    setDocument(document: KJDocument | null): this;\n    setTheme(theme: KJCanvasTheme): this;\n    setGrid(enabled: boolean): this;\n    setSelection(ids?: readonly string[]): this;\n    setSpace(spaceId: string | null): this;\n    setSceneProvider(provider: KJCanvasSceneProvider | null): this;\n    resize(width?: number, height?: number): this;\n    worldToScreen(input: Point2): Point2;\n    screenToWorld(input: Point2): Point2;\n    panBy(screenDx: number, screenDy: number): this;\n    zoomAt(factor: number, screenPoint?: Point2): this;\n    fit(): this;\n    hitTest(screenPoint: Point2, tolerancePixels?: number, options?: KJCanvasSelectionOptions): KJCanvasHit | null;\n    /** Screen-coordinate box query. Left to right defaults to window; right to left to crossing. */\n    selectBox(first: Point2, second: Point2, options?: KJCanvasBoxSelectionOptions): readonly string[];\n    selectFence(points: readonly Point2[], options?: KJCanvasSelectionOptions): readonly string[];\n    selectAll(options?: KJCanvasSelectionOptions): readonly string[];\n    /** Returns editable model-space handles without changing selection or document history. */\n    getGrips(ids?: readonly string[]): readonly KJEntityGrip[];\n    hitGrip(screenPoint: Point2, tolerancePixels?: number): KJEntityGrip | null;\n    /** Optional handle overlay; render() clears it, leaving inspect/read-only hosts in control. */\n    drawGrips(hoverId?: string): this;\n    render(): Readonly<KJCanvasRenderReport>;\n    /** Paint temporary native geometry without inserting objects or changing history. Call render() to clear it. */\n    drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2): this;\n    dispose(): void;\n}",
           "source": "canvas-renderer.d.ts",
           "anchor": "renderer-canvas-class-kjcanvasrenderer"
         },
@@ -10136,6 +10220,13 @@
           "declaration": "export interface KJCanvasSceneQuery {\n    document: KJDocument;\n    spaceId: string;\n}",
           "source": "canvas-renderer.d.ts",
           "anchor": "renderer-canvas-interface-kjcanvasscenequery"
+        },
+        {
+          "name": "KJCanvasSelectionOptions",
+          "kind": "interface",
+          "declaration": "export interface KJCanvasSelectionOptions {\n    includeLocked?: boolean;\n}",
+          "source": "canvas-renderer.d.ts",
+          "anchor": "renderer-canvas-interface-kjcanvasselectionoptions"
         },
         {
           "name": "KJCanvasTheme",
@@ -10225,7 +10316,7 @@
         {
           "name": "KJWorkbenchTool",
           "kind": "type",
-          "declaration": "export type KJWorkbenchTool = 'select' | 'pan' | KJDraftTool | 'text' | 'measure' | 'move' | 'copy';",
+          "declaration": "export type KJWorkbenchTool = 'select' | 'fence' | 'pan' | KJDraftTool | 'text' | 'measure' | 'move' | 'copy';",
           "source": "workbench.d.ts",
           "anchor": "workbench-type-kjworkbenchtool"
         },

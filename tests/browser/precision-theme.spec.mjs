@@ -22,7 +22,7 @@ test('Precision theme keeps CAD controls readable and panels usable', async ({ p
   const toggle=layer.locator('input[type=checkbox]')
   await toggle.uncheck();await expect(toggle).not.toBeChecked()
   await page.locator('#undo').click();await expect(toggle).toBeChecked()
-  await layer.locator('button').click()
+  await layer.getByRole('button', { name: 'Layer settings · 0', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.locator('input[name=color]').fill('3')
   await page.locator('#dialog-submit').click()

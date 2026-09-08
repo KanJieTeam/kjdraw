@@ -90,7 +90,25 @@ The displayed measurement is calculated from the accepted geometry. In the Demo,
 
 ## Select, move and copy {#move}
 
-Click the edge of an object to select it. Hold Shift while clicking to add or remove objects. The Properties panel shows the primary object and the selection count.
+Click the edge of an object to select it. **Shift** adds to the selection; **Ctrl** (or **Command** on macOS) removes from it. The Properties panel shows the primary object and the selection count.
+
+Drag from empty canvas to select several objects:
+
+| Gesture | Result |
+| --- | --- |
+| Left to right · blue solid frame | Select objects entirely inside the window |
+| Right to left · green dashed frame | Select objects inside or intersecting the frame |
+| Shift + drag | Add the result to the existing selection |
+| Ctrl / Command + drag | Remove the result from the existing selection |
+| Ctrl / Command + A, with the editor focused | Select editable, visible objects in the current drawing space |
+
+The frame tests the drawing geometry, not just overlapping object bounds. A small frame inside an empty circle does not select the circle. **Esc** cancels an unfinished frame without changing the selection.
+
+To select objects along an open path, enter **FENCE** in the command line, pick two or more points, then press **Enter**. **Backspace** removes the last point; **Esc** cancels. The path is not automatically closed.
+
+When one editable object is selected, its blue square **grips** appear. Drag a line endpoint, a circle quadrant, or a polyline vertex to reshape it. The highlighted preview is temporary; releasing the pointer commits one edit. **Undo** restores the previous geometry. Dragging a selected object away from its grips moves it as a whole.
+
+Hidden and frozen layers are excluded from picking. Locked layers remain visible, but cannot be selected for editing or modified by editing commands. Unlock, thaw or show the layer before editing it. If the drawing, revision or view changes during a drag, the pending drag is cancelled.
 
 Choose **Move**, click a base point, then click the destination. You can also choose Move before selecting an object. The blue preview is temporary; the destination creates one undoable edit. **Copy** uses the same two-point workflow, keeps the originals and selects the new objects.
 
@@ -236,7 +254,25 @@ editor.setLayout('compact')
 
 ## 选择、移动与复制 {#move}
 
-点击对象边缘进行选择；按住 Shift 点击可追加或移除对象。特性面板会显示主对象和当前选择数量。
+点击对象边缘进行选择；**Shift** 追加选择，**Ctrl**（macOS 为 **Command**）移除选择。特性面板会显示主对象和当前选择数量。
+
+从画布空白处按住鼠标拖动，可批量选择对象：
+
+| 手势 | 结果 |
+| --- | --- |
+| 从左向右拖动 · 蓝色实线框 | 只选择完全位于框内的对象 |
+| 从右向左拖动 · 绿色虚线框 | 选择框内及与边框相交的对象 |
+| Shift + 拖动 | 将结果加入已有选区 |
+| Ctrl / Command + 拖动 | 从已有选区移除结果 |
+| 编辑器获得焦点后按 Ctrl / Command + A | 全选当前绘图空间内可编辑、可见的对象 |
+
+选择框按图形本身判断，不只比较外接矩形。例如，在圆的空心区域内画一个小框，不会误选整个圆。按 **Esc** 可取消尚未完成的框选，保留原来的选择。
+
+需要沿开放路径选择时，在命令行输入 **FENCE**，依次指定至少两个点，再按 **Enter** 完成围栏选择。**Backspace** 撤回最后一点，**Esc** 取消；围栏不会自动闭合。
+
+选中一个可编辑对象后，会显示蓝色方形**夹点**。拖动直线端点、圆的象限点或多段线顶点即可调整图形；高亮部分是临时预览，松开鼠标才提交一次修改。按**撤销**可完整还原。从夹点以外的位置拖动选中对象，则会整体移动它。
+
+隐藏、冻结图层不参与拾取；锁定图层仍然可见，但不能选中编辑，也不能通过编辑命令修改。请先解锁、解冻或显示图层。拖动途中若图纸、修订或视图发生变化，本次拖动会取消。
 
 点击**移动**，指定基点，再指定目标点。也可以先点移动，再选择对象。蓝色图形只是预览，指定目标点后才生成一次可撤销修改。**复制**采用相同的两点流程，但会保留源对象，并自动选中新对象。
 

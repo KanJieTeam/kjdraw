@@ -112,9 +112,13 @@
         "docs/site/pages/workbench.md",
         "tests/browser/drafting.spec.mjs",
         "tests/browser/cad-workflow.spec.mjs",
-        "tests/browser/workbench.spec.mjs"
+        "tests/browser/workbench.spec.mjs",
+        "tests/browser/workbench-selection-grips.spec.mjs",
+        "tests/browser/playground-selection-grips.spec.mjs",
+        "packages/kjdraw-sdk/test/spatial-selection.test.mjs",
+        "packages/kjdraw-sdk/test/edit-policy.test.mjs"
       ],
-      "gap": "The shared workbench now supports native construction and parameterized edits, but window/crossing selection, grip editing, complete layer/block workflows, broader curve modifications and production output still need implementation and end-to-end acceptance. Passing CI, publishing npm or renaming a version cannot pass this gate."
+      "gap": "The shared workbench now includes native construction, parameterized edits, window/crossing/fence selection, draggable grips and layer editing protection. Complete layer/block workflows, advanced polyline topology, broader curve modifications and production output still need implementation and end-to-end acceptance. Passing CI, publishing npm or renaming a version cannot pass this gate."
     },
     {
       "id": "cad.certified-plotting",
@@ -205,7 +209,7 @@
         "tests/browser/workbench.spec.mjs",
         "playwright.config.mjs"
       ],
-      "gap": "Acceptance journeys pass locally in Chromium, Firefox and WebKit. All three must also pass in hosted CI on the exact candidate commit."
+      "gap": "The current candidate requires complete Chromium, Firefox and WebKit acceptance on its exact commit. Local Firefox startup is unavailable in this environment; hosted CI must execute its tests, not skip them."
     },
     {
       "id": "public.documentation",

@@ -3,6 +3,8 @@ import { createKJDrawSDK } from './sdk.js'
 import type { KJDrawSDK, KJSDKCommandEnvelopeReceipt } from './sdk.js'
 import { KJDocument } from './document.js'
 import type { KJCommandArguments } from './commands.js'
+import { editEntityGrip, type KJEntityGrip } from './grips.js'
+import type { KJReadonlyObjectRecord } from './schema.js'
 import type { KJFileAdapterOptions } from './file-adapters.js'
 import { createIndustrySample } from './samples.js'
 import { KJDRAW_THEME_CSS, kjdrawIcon } from './theme.js'
@@ -30,7 +32,7 @@ export type { KJWorkbenchLayout } from './layout.js'
 
 export type KJWorkbenchLocale = 'en' | 'zh-CN'
 export type KJWorkbenchTheme = 'dark' | 'light'
-export type KJWorkbenchTool = 'select' | 'pan' | KJDraftTool | 'text' | 'measure' | 'move' | 'copy'
+export type KJWorkbenchTool = 'select' | 'fence' | 'pan' | KJDraftTool | 'text' | 'measure' | 'move' | 'copy'
 
 export interface KJDrawWorkbenchOptions {
   sdk?: KJDrawSDK
@@ -95,6 +97,32 @@ interface KJWorkbenchDraftGesture {
   session: KJDraftingSession
 }
 
+interface KJWorkbenchPointerBinding {
+  pointerId: number
+  document: KJDocument
+  revision: number
+  view: string
+  baseScreen: Point2
+}
+
+interface KJWorkbenchBoxSelection extends KJWorkbenchPointerBinding {
+  currentScreen: Point2
+  operation: 'replace' | 'add' | 'remove'
+}
+
+interface KJWorkbenchGripGesture extends KJWorkbenchPointerBinding {
+  grip: KJEntityGrip
+  entity: KJReadonlyObjectRecord
+  currentWorld: Point2
+}
+
+interface KJWorkbenchFenceSelection {
+  document: KJDocument
+  revision: number
+  points: Point2[]
+  operation: 'replace' | 'add' | 'remove'
+}
+
 const copy = {
   en: {
     open: 'Open', saveKjd: 'Save KJD', exportDxf: 'Export DXF', draw: 'Draw', modify: 'Modify', view: 'View',
@@ -107,6 +135,10 @@ const copy = {
     layout: 'Layout', layoutClassic: 'Classic', layoutCompact: 'Compact', layoutFocus: 'Focus', selectObjects: 'Select an object', basePoint: 'Specify the base point', destinationPoint: 'Specify the destination point', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
     modifyTools: 'Edit tools', modifyTitle: 'Modify selection', modifyDescription: 'Choose an exact operation and enter its parameters.', cancel: 'Cancel', continueOnCanvas: 'Continue on canvas', selectionOrder: 'Selection order is significant for paired and boundary operations.',
     moreDraw: 'More', drawTitle: 'Drawing tools', drawDescription: 'Choose a primitive and configure its construction method.', startDrawing: 'Start drawing', drawingTool: 'Primitive', undoPoint: 'Undo point', finish: 'Finish', closeShape: 'Close', coordinateHint: 'x,y · @dx,dy · @distance<angle',
+    selectionHint: 'Drag blank space: left → right encloses, right → left crosses · Shift adds · Ctrl/⌘ removes · Ctrl/⌘+A selects all',
+    windowSelection: 'Window: fully enclosed objects', crossingSelection: 'Crossing: enclosed or intersecting objects', gripHint: 'Drag a square grip to edit geometry · Esc cancels', gripEditing: 'Specify the new grip position · Esc cancels', gestureCancelled: 'Drawing or view changed — gesture cancelled',
+    fenceHint: 'Fence: click an open polyline · Enter selects · Backspace removes a point · Esc cancels · Shift/Ctrl/⌘ on first point adds/removes', fenceNeedsPoints: 'Fence selection needs at least two distinct points',
+    showLayer: 'Show layer', hideLayer: 'Hide layer', lockLayer: 'Lock layer', unlockLayer: 'Unlock layer', freezeLayer: 'Freeze layer', thawLayer: 'Thaw layer',
   },
   'zh-CN': {
     open: '打开', saveKjd: '保存 KJD', exportDxf: '导出 DXF', draw: '绘图', modify: '修改', view: '视图',
@@ -119,6 +151,10 @@ const copy = {
     layout: '布局', layoutClassic: '经典', layoutCompact: '紧凑', layoutFocus: '专注', selectObjects: '选择对象', basePoint: '指定基点', destinationPoint: '指定目标点', zoomIn: '放大', zoomOut: '缩小',
     modifyTools: '编辑工具', modifyTitle: '修改选中对象', modifyDescription: '选择精确操作并输入参数。', cancel: '取消', continueOnCanvas: '到画布继续', selectionOrder: '成对操作和边界操作会按选择顺序执行。',
     moreDraw: '更多', drawTitle: '绘图工具', drawDescription: '选择基础图元并配置构造方式。', startDrawing: '开始绘图', drawingTool: '基础图元', undoPoint: '撤回点', finish: '完成', closeShape: '闭合', coordinateHint: 'x,y · @dx,dy · @距离<角度',
+    selectionHint: '空白处拖动：左→右框选，右→左交叉选 · Shift 增选 · Ctrl/⌘ 减选 · Ctrl/⌘+A 全选',
+    windowSelection: '框选：完全位于框内的对象', crossingSelection: '交叉选择：框内或与边界相交的对象', gripHint: '拖动方形夹点修改几何 · Esc 取消', gripEditing: '指定夹点的新位置 · Esc 取消', gestureCancelled: '图纸或视图已变化，操作已取消',
+    fenceHint: '围栏：连续点击折线点 · Enter 选择 · Backspace 撤回点 · Esc 取消 · 首点按 Shift 增选、Ctrl/⌘ 减选', fenceNeedsPoints: '围栏至少需要两个不同的点',
+    showLayer: '显示图层', hideLayer: '隐藏图层', lockLayer: '锁定图层', unlockLayer: '解锁图层', freezeLayer: '冻结图层', thawLayer: '解冻图层',
   },
 } as const
 
@@ -153,6 +189,9 @@ const draftPointText: Readonly<Record<KJDraftPointRole, KJLocalizedControlText>>
 const WORKBENCH_STYLE = `
 :host{display:block;min-height:480px;color-scheme:light}
 .kjwb{--surface:var(--kj-surface,#fff);--surface-subtle:var(--kj-surface-subtle,#eef1f5);--chrome:var(--kj-chrome,#f6f7f9);--border:var(--kj-border,#d9dee6);--text:var(--kj-text,#202936);--muted:var(--kj-muted,#637083);--action:var(--kj-action,#2863df);--action-soft:var(--kj-action-soft,#eaf1ff);--brand:var(--kj-brand,#bdf878);--radius:var(--kj-radius,6px);height:100%;min-height:480px;display:grid;grid-template-rows:44px 92px minmax(300px,1fr) 32px;background:var(--chrome);color:var(--text);font:13px/1.4 var(--kj-font,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif);border:1px solid var(--border);overflow:hidden;isolation:isolate}
+/* Long status messages must never resize the canvas by expanding an implicit auto grid column. */
+.kjwb{grid-template-columns:minmax(0,1fr);min-width:0}.kjwb :is(.appbar,.ribbon,.workspace,.statusbar){min-width:0}
+@media(min-width:681px){.kjwb .appbar button,.kjwb .appbar .layout-select,.kjwb .appbar .brand{flex-shrink:0;white-space:nowrap}}
 .kjwb *{box-sizing:border-box}.kjwb :where(:not(svg):not(svg *)){all:revert;box-sizing:border-box}.kjwb button,.kjwb select,.kjwb input{font:inherit}.kjwb .appbar{display:flex;align-items:center;gap:6px;padding:0 10px;background:var(--chrome);border-bottom:1px solid var(--border)}
 .kjwb .mark{display:grid;place-items:center;width:28px;height:28px;border-radius:var(--radius);background:var(--brand);color:#16220f;flex:0 0 auto}.kjwb .mark .icon{width:19px;height:19px}.kjwb .brand{font-size:14px;font-weight:700;letter-spacing:-.015em}.kjwb .docname{min-width:0;margin-left:8px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kjwb .spacer{flex:1}
 .kjwb button{min-height:32px;border:1px solid transparent;color:var(--text);background:transparent;border-radius:var(--radius);cursor:pointer}.kjwb button:hover:not(:disabled){background:var(--surface-subtle);border-color:var(--border)}.kjwb button:focus-visible{outline:2px solid var(--action);outline-offset:1px}.kjwb button:disabled{opacity:.38;cursor:default}.kjwb .icon{display:inline-grid;place-items:center;width:18px;height:18px;color:#526075;flex:0 0 auto}.kjwb .icon svg{display:block;width:100%;height:100%}
@@ -164,6 +203,7 @@ const WORKBENCH_STYLE = `
 .kjwb .workspace{min-height:0;display:grid;grid-template-columns:232px minmax(0,1fr) 260px}.kjwb .workspace.no-layers{grid-template-columns:minmax(0,1fr) 260px}.kjwb .workspace.no-inspector{grid-template-columns:232px minmax(0,1fr)}.kjwb .workspace.no-layers.no-inspector{grid-template-columns:minmax(0,1fr)}
 .kjwb .side{min-width:0;background:var(--surface);border-right:1px solid var(--border);overflow:auto}.kjwb .side.right{border-right:0;border-left:1px solid var(--border)}.kjwb .side h2{height:40px;margin:0;padding:11px 12px;border-bottom:1px solid var(--border);font-size:12px;line-height:17px;font-weight:700;letter-spacing:.035em;color:var(--muted)}
 .kjwb .layer{width:100%;min-height:38px;display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;gap:7px;padding:6px 12px;border-bottom:1px solid var(--surface-subtle);text-align:left}.kjwb .layer:hover{background:var(--surface-subtle)}.kjwb .layer input{width:16px;height:16px;accent-color:var(--action)}.kjwb .layer span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kjwb .layer small{min-width:24px;padding:1px 5px;border-radius:10px;background:var(--surface-subtle);color:var(--muted);font-size:12px;text-align:center}
+.kjwb .layer{grid-template-columns:minmax(0,1fr) 28px 28px auto;gap:4px;padding-inline:8px}.kjwb .layer-name{display:flex;align-items:center;gap:7px;min-width:0;cursor:pointer}.kjwb .layer-name input{flex:0 0 16px;margin:0}.kjwb .layer-name span{min-width:0}.kjwb .layer-state{display:grid;place-items:center;width:28px;height:28px;min-height:28px;padding:4px;color:var(--muted)}.kjwb .layer-state[aria-pressed="true"]{color:var(--action);background:var(--action-soft)}.kjwb .layer-state .kj-icon{width:17px;height:17px}
 .kjwb .canvas-wrap{position:relative;min-width:0;min-height:0;background:#081016;overflow:hidden}.kjwb.light .canvas-wrap{background:#f8fafc}.kjwb .canvas-wrap canvas{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none}.kjwb .canvas-wrap .overlay{pointer-events:none}.kjwb .crosshair{cursor:crosshair!important}.kjwb .pan{cursor:grab!important}.kjwb .pan.dragging{cursor:grabbing!important}
 .kjwb .navigator{position:absolute;z-index:4;right:12px;top:50%;transform:translateY(-50%);display:grid;gap:2px;padding:3px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff2;box-shadow:0 7px 22px #17233a24}.kjwb .navigator button{width:32px;height:32px;min-height:32px;padding:6px;display:grid;place-items:center}.kjwb .navigator button.active{background:var(--action-soft);border-color:#c8d8fa}.kjwb .navigator button.active .icon{color:var(--action)}
 .kjwb .draft-actions{position:absolute;z-index:4;left:12px;top:12px;display:flex;gap:4px;padding:3px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff2;box-shadow:0 6px 18px #17233a1f}.kjwb .draft-actions button{height:32px;padding:0 10px}.kjwb .draft-actions button:disabled{display:none}
@@ -318,7 +358,14 @@ export class KJDrawWorkbench {
   #snappableEntityIds: string[] = []
   #panStart: Point2 | null = null
   #activePointer: number | null = null
-  #selectionDrag: { pointerId: number; document: KJDocument; revision: number; ids: readonly string[]; baseWorld: Point2; baseScreen: Point2; currentWorld: Point2 } | null = null
+  #selectionDrag: (KJWorkbenchPointerBinding & { ids: readonly string[]; baseWorld: Point2; currentWorld: Point2 }) | null = null
+  #boxSelection: KJWorkbenchBoxSelection | null = null
+  #gripGesture: KJWorkbenchGripGesture | null = null
+  #fenceSelection: KJWorkbenchFenceSelection | null = null
+  #fencePointer: number | null = null
+  #hoverGrip: KJEntityGrip | null = null
+  #cancelledPointers = new Set<number>()
+  #ignoredPointers = new Set<number>()
   #transformGesture: { document: KJDocument; revision: number; ids: readonly string[]; operation: 'MOVE' | 'COPY'; base: Point2 | null } | null = null
   #modificationGesture: KJModificationGesture | null = null
   #draftGesture: KJWorkbenchDraftGesture | null = null
@@ -395,9 +442,9 @@ export class KJDrawWorkbench {
     syncPanelToggle(layersToggle, this.#options.showLayers !== false)
     syncPanelToggle(inspectorToggle, this.#options.showInspector !== false)
     for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-tool]')) {
-      button.disabled = this.#options.readonly === true && !['select', 'pan', 'measure'].includes(button.dataset.tool ?? '')
+      button.disabled = this.#options.readonly === true && !['select', 'fence', 'pan', 'measure'].includes(button.dataset.tool ?? '')
     }
-    if (this.#options.readonly && !['select', 'pan', 'measure'].includes(this.#tool)) this.setTool('select')
+    if (this.#options.readonly && !['select', 'fence', 'pan', 'measure'].includes(this.#tool)) this.setTool('select')
     this.#refreshDocumentPanels()
     this.renderer.resize()
     this.#drawOverlay()
@@ -414,7 +461,7 @@ export class KJDrawWorkbench {
       ? this.#draftPrompt(this.#draftGesture.session.state.nextPoint)
       : modificationPoint
         ? this.#localizedControlText(modificationPoint.label)
-        : this.#t('ready'))
+        : this.#fenceSelection ? this.#t('fenceHint') : this.#tool === 'select' ? this.#t('selectionHint') : this.#t('ready'))
     return this
   }
 
@@ -449,6 +496,7 @@ export class KJDrawWorkbench {
   setLayout(value: KJWorkbenchLayout): this {
     if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed')
     const layout = normalizeWorkbenchLayout(value)
+    if (layout !== this.#layout) this.#cancelPointer()
     this.#layout = layout
     this.#options = { ...this.#options, layout }
     for (const candidate of KJDRAW_LAYOUTS) this.root.classList.toggle(`layout-${candidate}`, candidate === layout)
@@ -460,25 +508,26 @@ export class KJDrawWorkbench {
   }
 
   setTool(tool: KJWorkbenchTool): this {
-    const tools: readonly KJWorkbenchTool[] = ['select', 'pan', ...DRAFT_TOOLS, 'text', 'measure', 'move', 'copy']
+    const tools: readonly KJWorkbenchTool[] = ['select', 'fence', 'pan', ...DRAFT_TOOLS, 'text', 'measure', 'move', 'copy']
     if (!tools.includes(tool)) throw new RangeError(`Unsupported KJDraw workbench tool: ${String(tool)}`)
-    if (this.#options.readonly && !['select', 'pan', 'measure'].includes(tool)) {
+    if (this.#options.readonly && !['select', 'fence', 'pan', 'measure'].includes(tool)) {
       this.#setMessage(this.#t('readonly'))
       return this
     }
     this.#cancelGesture()
     this.#tool = tool
+    if (tool === 'fence' && this.document) this.#fenceSelection = { document: this.document, revision: this.document.revision, points: [], operation: 'replace' }
     if (tool === 'move' || tool === 'copy') this.#beginTransformGesture(tool)
     if (DRAFT_TOOLS.includes(tool as KJDraftTool)) this.#beginDraftGesture(tool as KJDraftTool)
-    this.#canvas.classList.toggle('crosshair', DRAFT_TOOLS.includes(tool as KJDraftTool) || ['text', 'measure', 'move', 'copy'].includes(tool))
+    this.#canvas.classList.toggle('crosshair', DRAFT_TOOLS.includes(tool as KJDraftTool) || ['fence', 'text', 'measure', 'move', 'copy'].includes(tool))
     this.#canvas.classList.toggle('pan', tool === 'pan')
     for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-tool]')) button.classList.toggle('active', button.dataset.tool === tool)
     this.#hideSnap()
     this.#drawOverlay()
     this.#setMessage(this.#draftGesture
       ? this.#draftPrompt(this.#draftGesture.session.state.nextPoint)
-      : tool === 'select'
-      ? this.#t('ready')
+      : tool === 'fence' ? this.#t('fenceHint') : tool === 'select'
+      ? this.#t('selectionHint')
       : tool === 'text'
         ? this.#t('textPrompt')
         : tool === 'move' || tool === 'copy'
@@ -507,6 +556,7 @@ export class KJDrawWorkbench {
       this.#subscribeDocument(document)
       this.renderer.setSelection(this.sdk.getSelectionManager(document.id)?.active.ids ?? [])
       if (DRAFT_TOOLS.includes(this.#tool as KJDraftTool)) this.#beginDraftGesture(this.#tool as KJDraftTool)
+      if (this.#tool === 'fence') this.#fenceSelection = { document, revision: document.revision, points: [], operation: 'replace' }
       this.#leasedDocument = document
       if (previousLease && previousLease !== document) releaseDocumentLease(this.sdk, this, previousLease)
       this.#fileName = `${document.id}.kjd`
@@ -605,7 +655,7 @@ export class KJDrawWorkbench {
         return this
       }
       await this.#setDocument(drawing, generated)
-      this.#setMessage(this.#t('ready'))
+      this.#setMessage(this.#t('selectionHint'))
       return this
     } catch (error) {
       this.#handleError(error)
@@ -712,20 +762,43 @@ export class KJDrawWorkbench {
     commandInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); void this.#runCommand() } }, { signal })
     this.#canvas.addEventListener('wheel', event => {
       event.preventDefault()
-      if (this.#selectionDrag || event.buttons !== 0) return
+      if (this.#selectionDrag || this.#boxSelection || this.#gripGesture || event.buttons !== 0) return
       this.renderer.zoomAt(Math.exp(-event.deltaY * 0.0015), point(event, this.#canvas)); this.#refreshViewport()
     }, { signal, passive: false })
     this.#canvas.addEventListener('pointerdown', event => this.#pointerDown(event), { signal })
     this.#canvas.addEventListener('pointermove', event => this.#pointerMove(event), { signal })
     this.#canvas.addEventListener('pointerup', event => void this.#pointerUp(event), { signal })
-    this.#canvas.addEventListener('pointercancel', () => { this.#cancelPointer(); this.#hideSnap() }, { signal })
-    this.#canvas.addEventListener('pointerleave', () => { this.#cursorWorld = null; this.#hideSnap(); this.#drawOverlay() }, { signal })
+    this.#canvas.addEventListener('pointercancel', event => {
+      if (this.#ignoredPointers.delete(event.pointerId) || this.#isForeignPointer(event)) return
+      this.#cancelledPointers.add(event.pointerId)
+      if (this.#fenceSelection) this.setTool('select')
+      else this.#cancelPointer()
+      this.#hideSnap(); this.#drawOverlay()
+    }, { signal })
+    this.#canvas.addEventListener('lostpointercapture', event => {
+      if ([this.#selectionDrag?.pointerId, this.#boxSelection?.pointerId, this.#gripGesture?.pointerId, this.#fencePointer, this.#activePointer].includes(event.pointerId)) {
+        this.#cancelPointer(); this.#hideSnap(); this.#drawOverlay()
+      }
+    }, { signal })
+    this.#canvas.addEventListener('pointerleave', event => {
+      if (this.#ignoredPointers.has(event.pointerId) || this.#isForeignPointer(event)) return
+      if (this.#gripGesture || this.#boxSelection || this.#selectionDrag) return
+      this.#cursorWorld = null; this.#hoverGrip = null; this.#hideSnap(); this.#drawOverlay()
+    }, { signal })
     this.#canvas.addEventListener('dblclick', event => {
       if (this.#draftGesture?.session.state.canFinish) { event.preventDefault(); void this.#finishDraft(false) }
     }, { signal })
     this.root.addEventListener('keydown', event => {
       if (event.key === 'Escape') { this.setTool('select'); return }
       if (event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable="true"]')) return
+      if (this.#fenceSelection && event.key === 'Enter') { event.preventDefault(); void this.#finishFence(); return }
+      if (this.#fenceSelection && event.key === 'Backspace') { event.preventDefault(); this.#fenceSelection.points.pop(); this.#drawOverlay(); return }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
+        event.preventDefault()
+        this.setTool('select')
+        void this.#run(() => this.execute('SELECT', { ids: [...this.renderer.selectAll()], operation: 'replace' }))
+        return
+      }
       if (event.key === 'Enter' && this.#draftGesture?.session.state.canFinish) { event.preventDefault(); void this.#finishDraft(false); return }
       if (event.key.toLowerCase() === 'c' && this.#draftGesture?.session.state.canClose && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); void this.#finishDraft(true); return }
       if (event.key === 'Backspace' && this.#draftGesture?.session.points.length) { event.preventDefault(); this.#undoDraftPoint(); return }
@@ -740,6 +813,14 @@ export class KJDrawWorkbench {
   #subscribeDocument(drawing: KJDocument): void {
     this.#disposeDocument?.(); this.#disposeSelection?.()
     this.#disposeDocument = drawing.on('document:change', () => {
+      const gesture = this.#gripGesture ?? this.#boxSelection ?? this.#selectionDrag
+      if (gesture && !this.#pointerBindingIsCurrent(gesture)) {
+        this.#cancelPointer()
+        this.#setMessage(this.#t('gestureCancelled'))
+      }
+      if (this.#fenceSelection && this.#fenceSelection.revision !== drawing.revision) {
+        this.setTool('select'); this.#setMessage(this.#t('gestureCancelled'))
+      }
       this.#refreshDocumentPanels()
       const change = { document: drawing, revision: drawing.revision, entityCount: drawing.listEntities().length }
       this.#options.onChange?.(change)
@@ -747,9 +828,12 @@ export class KJDrawWorkbench {
     })
     const selection = this.sdk.getSelectionManager(drawing.id)?.active
     this.#disposeSelection = selection?.onChange(() => {
+      if (this.#boxSelection) this.#cancelPointer()
+      this.#hoverGrip = null
       this.renderer.setSelection(selection.ids)
       this.#refreshSelectionPanels()
       this.#refreshDraftPreview()
+      this.#refreshGripPreview()
       this.#drawOverlay()
       this.root.dispatchEvent(new CustomEvent('kjdraw:selection', { detail: { document: drawing, ids: selection.ids }, bubbles: true, composed: true }))
     }) ?? null
@@ -772,6 +856,7 @@ export class KJDrawWorkbench {
     const input = query<HTMLInputElement>(this.root, '[data-command]')
     const raw = input.value.trim()
     if (!raw) {
+      if (this.#fenceSelection) { await this.#finishFence(); return }
       if (this.#draftGesture?.session.state.canFinish) await this.#finishDraft(false)
       return
     }
@@ -815,8 +900,8 @@ export class KJDrawWorkbench {
         await this.execute(command, parsed as KJCommandArguments)
         return
       }
-      if (this.#options.readonly && !['PAN', 'SELECT', 'MEASURE'].includes(command)) throw new Error(this.#t('readonly'))
-      if (command === 'PAN' || command === 'SELECT' || command === 'MEASURE') {
+      if (this.#options.readonly && !['PAN', 'SELECT', 'FENCE', 'MEASURE'].includes(command)) throw new Error(this.#t('readonly'))
+      if (command === 'PAN' || command === 'SELECT' || command === 'FENCE' || command === 'MEASURE') {
         this.setTool(command.toLowerCase() as KJWorkbenchTool)
         return
       }
@@ -1370,12 +1455,12 @@ export class KJDrawWorkbench {
     }).map(entity => entity.id)
   }
 
-  #snapAt(world: Point2): Point2 | null {
+  #snapAt(world: Point2, excludeIds: readonly string[] = []): Point2 | null {
     const drawing = this.document
     if (!drawing || !this.#snappableEntityIds.length) return null
     const candidate = this.sdk.snap(world, {
       document: drawing,
-      entityIds: this.#snappableEntityIds,
+      entityIds: excludeIds.length ? this.#snappableEntityIds.filter(id => !excludeIds.includes(id)) : this.#snappableEntityIds,
       radius: 10 / this.renderer.camera.scale,
       modes: ['endpoint', 'midpoint', 'center', 'nearest'],
     })[0]
@@ -1399,25 +1484,60 @@ export class KJDrawWorkbench {
   }
 
   #pointerDown(event: PointerEvent): void {
+    const owner = this.#pointerOwnerId()
+    if (owner !== null) {
+      if (owner !== event.pointerId) this.#ignoredPointers.add(event.pointerId)
+      return
+    }
+    if (event.pointerType === 'touch' && !event.isPrimary) { this.#ignoredPointers.add(event.pointerId); return }
+    this.#ignoredPointers.delete(event.pointerId)
     this.root.focus({ preventScroll: true })
+    this.#cancelledPointers.delete(event.pointerId)
     const location = point(event, this.#canvas)
+    if (this.#gripGesture || this.#boxSelection || this.#selectionDrag || this.#activePointer !== null || this.#fencePointer !== null) return
     if (event.button === 1 || this.#tool === 'pan') {
       event.preventDefault(); this.#panStart = location; this.#activePointer = event.pointerId; this.#canvas.setPointerCapture(event.pointerId); this.#canvas.classList.add('dragging')
       return
     }
-    if (event.button === 0 && this.#tool === 'select' && !event.shiftKey && !this.#options.readonly && !this.#modificationGesture) {
+    if (event.button === 0 && this.#fenceSelection) {
+      this.#fencePointer = event.pointerId
+      this.#canvas.setPointerCapture(event.pointerId)
+      return
+    }
+    if (event.button === 0 && this.#tool === 'select' && !this.#modificationGesture) {
       const drawing = this.document
+      if (!drawing) return
       const selection = this.#selection
+      const operation = event.ctrlKey || event.metaKey ? 'remove' : event.shiftKey ? 'add' : 'replace'
+      const binding: KJWorkbenchPointerBinding = {
+        pointerId: event.pointerId, document: drawing, revision: drawing.revision, view: this.#viewIdentity(), baseScreen: location,
+      }
+      const grip = operation === 'replace' && !this.#options.readonly && selection?.size === 1 ? this.renderer.hitGrip(location, 7) : null
+      const entity = grip ? drawing.getObject(grip.entityId) : null
+      if (grip && entity?.kind === 'entity') {
+        this.#gripGesture = { ...binding, grip, entity, currentWorld: [grip.point[0], grip.point[1]] }
+        this.#canvas.setPointerCapture(event.pointerId)
+        this.#canvas.classList.add('dragging')
+        this.#setMessage(this.#t('gripEditing'))
+        event.preventDefault()
+        return
+      }
       const hit = this.renderer.hitTest(location, 9)
-      if (drawing && hit && selection?.has(hit.entity.id)) {
+      if (!hit) {
+        this.#boxSelection = { ...binding, currentScreen: location, operation }
+        this.#canvas.setPointerCapture(event.pointerId)
+        this.#hoverGrip = null
+        this.#hideSnap()
+        event.preventDefault()
+        return
+      }
+      if (operation === 'replace' && !this.#options.readonly && selection?.has(hit.entity.id)) {
         const baseWorld = this.renderer.screenToWorld(location)
+        const editable = new Set(this.renderer.selectAll())
         this.#selectionDrag = {
-          pointerId: event.pointerId,
-          document: drawing,
-          revision: drawing.revision,
-          ids: Object.freeze([...selection.ids]),
+          ...binding,
+          ids: Object.freeze(selection.ids.filter(id => editable.has(id))),
           baseWorld,
-          baseScreen: location,
           currentWorld: baseWorld,
         }
         this.#canvas.setPointerCapture(event.pointerId)
@@ -1428,9 +1548,29 @@ export class KJDrawWorkbench {
   }
 
   #pointerMove(event: PointerEvent): void {
+    if (this.#ignoredPointers.has(event.pointerId) || this.#isForeignPointer(event)) return
     const location = point(event, this.#canvas), rawWorld = this.renderer.screenToWorld(location)
     const coordinate = this.root.querySelector<HTMLElement>('[data-coordinate]')
     if (coordinate) coordinate.textContent = `X ${rawWorld[0].toFixed(3)} · Y ${rawWorld[1].toFixed(3)}`
+    const pointerGesture = this.#gripGesture ?? this.#boxSelection ?? this.#selectionDrag
+    if (pointerGesture && !this.#pointerBindingIsCurrent(pointerGesture)) {
+      this.#cancelPointer(); this.#setMessage(this.#t('gestureCancelled')); this.#drawOverlay(); return
+    }
+    if (this.#boxSelection?.pointerId === event.pointerId) {
+      this.#boxSelection.currentScreen = location
+      this.#setMessage(this.#t(location[0] >= this.#boxSelection.baseScreen[0] ? 'windowSelection' : 'crossingSelection'))
+      this.#drawOverlay()
+      return
+    }
+    if (this.#gripGesture?.pointerId === event.pointerId) {
+      const snapped = this.#snapAt(rawWorld, [this.#gripGesture.grip.entityId])
+      this.#gripGesture.currentWorld = snapped ?? rawWorld
+      this.#cursorWorld = this.#gripGesture.currentWorld
+      this.#showSnap(snapped)
+      this.#refreshGripPreview()
+      this.#drawOverlay()
+      return
+    }
     if (this.#selectionDrag?.pointerId === event.pointerId) {
       this.#selectionDrag.currentWorld = rawWorld
       this.#cursorWorld = rawWorld
@@ -1447,6 +1587,8 @@ export class KJDrawWorkbench {
       return
     }
     const drawingTool = this.#draftGesture !== null || this.#modificationGesture !== null || ['text', 'measure', 'move', 'copy'].includes(this.#tool)
+    this.#hoverGrip = this.#tool === 'select' && !this.#options.readonly && this.#selection?.size === 1 ? this.renderer.hitGrip(location, 7) : null
+    this.#canvas.style.cursor = this.#hoverGrip ? 'crosshair' : ''
     const snapped = drawingTool ? this.#snapAt(rawWorld) : null
     this.#cursorWorld = snapped ?? rawWorld
     this.#showSnap(snapped)
@@ -1455,6 +1597,47 @@ export class KJDrawWorkbench {
   }
 
   async #pointerUp(event: PointerEvent): Promise<void> {
+    if (this.#ignoredPointers.delete(event.pointerId) || this.#isForeignPointer(event)) return
+    if (this.#cancelledPointers.delete(event.pointerId)) return
+    if (this.#fencePointer === event.pointerId) {
+      this.#fencePointer = null
+      if (this.#canvas.hasPointerCapture(event.pointerId)) this.#canvas.releasePointerCapture(event.pointerId)
+    }
+    if (this.#boxSelection?.pointerId === event.pointerId) {
+      const box = this.#boxSelection, location = point(event, this.#canvas)
+      this.#boxSelection = null
+      if (this.#canvas.hasPointerCapture(event.pointerId)) this.#canvas.releasePointerCapture(event.pointerId)
+      if (this.#pointerBindingIsCurrent(box)) {
+        const dragged = Math.hypot(location[0] - box.baseScreen[0], location[1] - box.baseScreen[1]) >= 3
+        if (dragged || box.operation === 'replace') {
+          const ids = dragged ? this.renderer.selectBox(box.baseScreen, location) : []
+          await this.#run(() => this.execute('SELECT', { ids: [...ids], operation: box.operation }, { expectedRevision: box.revision }))
+        }
+        this.#setMessage(this.#selection?.size === 1 ? this.#t('gripHint') : this.#t('selectionHint'))
+      } else this.#setMessage(this.#t('gestureCancelled'))
+      this.#drawOverlay()
+      return
+    }
+    if (this.#gripGesture?.pointerId === event.pointerId) {
+      const gesture = this.#gripGesture, location = point(event, this.#canvas)
+      const rawWorld = this.renderer.screenToWorld(location)
+      const destination = this.#snapAt(rawWorld, [gesture.grip.entityId]) ?? rawWorld
+      this.#gripGesture = null
+      if (this.#canvas.hasPointerCapture(event.pointerId)) this.#canvas.releasePointerCapture(event.pointerId)
+      this.#canvas.classList.remove('dragging')
+      this.#hoverGrip = null
+      this.#hideSnap()
+      this.renderer.render()
+      if (this.#pointerBindingIsCurrent(gesture) && !this.#options.readonly) {
+        if (Math.hypot(location[0] - gesture.baseScreen[0], location[1] - gesture.baseScreen[1]) >= 3) {
+          await this.#run(() => this.execute('GRIPEDIT', {
+            id: gesture.entity.id, gripId: gesture.grip.id, point: [destination[0], destination[1], gesture.grip.point[2]],
+          }, { expectedRevision: gesture.revision }))
+        }
+      } else this.#setMessage(this.#t('gestureCancelled'))
+      this.#drawOverlay()
+      return
+    }
     if (this.#selectionDrag?.pointerId === event.pointerId) {
       const drag = this.#selectionDrag
       const location = point(event, this.#canvas)
@@ -1463,7 +1646,7 @@ export class KJDrawWorkbench {
       if (this.#canvas.hasPointerCapture(event.pointerId)) this.#canvas.releasePointerCapture(event.pointerId)
       this.#canvas.classList.remove('dragging')
       const screenDistance = Math.hypot(location[0] - drag.baseScreen[0], location[1] - drag.baseScreen[1])
-      if (screenDistance >= 3 && this.document === drag.document && drag.ids.length) {
+      if (screenDistance >= 3 && this.#pointerBindingIsCurrent(drag) && drag.ids.length) {
         await this.#run(() => this.execute('MOVE', {
           ids: [...drag.ids],
           dx: destination[0] - drag.baseWorld[0],
@@ -1481,15 +1664,22 @@ export class KJDrawWorkbench {
     const snapped = (this.#draftGesture !== null || this.#modificationGesture !== null || ['text', 'measure', 'move', 'copy'].includes(this.#tool)) ? this.#snapAt(rawWorld) : null
     const world: Point2 = snapped ?? rawWorld
     this.#cursorWorld = world
+    if (this.#fenceSelection) {
+      const fence = this.#fenceSelection
+      if (fence.document !== this.document || fence.document.revision !== fence.revision) { this.setTool('select'); return }
+      if (!fence.points.length) fence.operation = event.ctrlKey || event.metaKey ? 'remove' : event.shiftKey ? 'add' : 'replace'
+      const previous = fence.points.at(-1)
+      if (!previous || Math.hypot(previous[0] - rawWorld[0], previous[1] - rawWorld[1]) > 1e-12) fence.points.push(rawWorld)
+      this.#setMessage(this.#t('fenceHint')); this.#drawOverlay(); return
+    }
     if (this.#draftGesture) { await this.#addDraftPoint(world); return }
     if (this.#modificationGesture) { await this.#addModificationPoint(world); return }
     if (this.#tool === 'select') {
       const hit = this.renderer.hitTest(location, 9)
-      if (event.shiftKey && !hit) return
-      const operation = event.shiftKey
-        ? this.#selection?.has(hit!.entity.id) ? 'remove' : 'add'
-        : 'replace'
-      await this.sdk.executeCommand('SELECT', { ids: hit ? [hit.entity.id] : [], operation }, { document: this.document })
+      if ((event.shiftKey || event.ctrlKey || event.metaKey) && !hit) return
+      const operation = event.ctrlKey || event.metaKey ? 'remove' : event.shiftKey ? 'add' : 'replace'
+      await this.#run(() => this.execute('SELECT', { ids: hit ? [hit.entity.id] : [], operation }))
+      this.#setMessage(this.#selection?.size === 1 && !this.#options.readonly ? this.#t('gripHint') : this.#t('selectionHint'))
       return
     }
     if (this.#tool === 'pan') return
@@ -1600,9 +1790,60 @@ export class KJDrawWorkbench {
   }
 
   #cancelPointer(): void {
-    if (this.#activePointer != null && this.#canvas.hasPointerCapture(this.#activePointer)) this.#canvas.releasePointerCapture(this.#activePointer)
-    if (this.#selectionDrag && this.#canvas.hasPointerCapture(this.#selectionDrag.pointerId)) this.#canvas.releasePointerCapture(this.#selectionDrag.pointerId)
-    this.#activePointer = null; this.#panStart = null; this.#selectionDrag = null; this.#canvas.classList.remove('dragging')
+    const ids = [this.#activePointer, this.#selectionDrag?.pointerId, this.#boxSelection?.pointerId, this.#gripGesture?.pointerId, this.#fencePointer]
+    const hadGripPreview = this.#gripGesture !== null
+    this.#activePointer = null; this.#panStart = null; this.#selectionDrag = null; this.#boxSelection = null; this.#gripGesture = null; this.#hoverGrip = null; this.#fencePointer = null
+    for (const id of ids) if (id != null) {
+      this.#cancelledPointers.add(id)
+      if (this.#canvas.hasPointerCapture(id)) this.#canvas.releasePointerCapture(id)
+    }
+    this.#canvas.classList.remove('dragging')
+    this.#canvas.style.cursor = ''
+    if (hadGripPreview) this.renderer.render()
+  }
+
+  #pointerOwnerId(): number | null {
+    return this.#gripGesture?.pointerId ?? this.#boxSelection?.pointerId ?? this.#selectionDrag?.pointerId ?? this.#fencePointer ?? this.#activePointer
+  }
+
+  #isForeignPointer(event: PointerEvent): boolean {
+    const owner = this.#pointerOwnerId()
+    return (event.pointerType === 'touch' && !event.isPrimary) || (owner !== null && owner !== event.pointerId)
+  }
+
+  #viewIdentity(): string {
+    const rect = this.#canvas.getBoundingClientRect(), camera = this.renderer.camera
+    return [camera.centerX, camera.centerY, camera.scale, rect.left, rect.top, rect.width, rect.height].join(':')
+  }
+
+  #pointerBindingIsCurrent(binding: KJWorkbenchPointerBinding): boolean {
+    return this.document === binding.document && this.sdk.documents.get(binding.document.id) === binding.document
+      && binding.document.revision === binding.revision && binding.view === this.#viewIdentity()
+  }
+
+  #refreshGripPreview(): void {
+    const gesture = this.#gripGesture
+    if (!gesture) return
+    this.renderer.render()
+    try {
+      const payload = editEntityGrip(gesture.entity, gesture.grip.id, [...gesture.currentWorld, gesture.grip.point[2]])
+      this.renderer.drawPreview([{ type: gesture.entity.type, payload }], this.#theme === 'dark' ? '#8fc0ff' : '#175fc8')
+    } catch {
+      // A transient degenerate position is not a committed edit. GRIPEDIT validates the final position.
+    }
+  }
+
+  async #finishFence(): Promise<void> {
+    const fence = this.#fenceSelection
+    if (!fence) return
+    if (fence.points.length < 2) { this.#setMessage(this.#t('fenceNeedsPoints')); return }
+    if (fence.document !== this.document || fence.document.revision !== fence.revision || this.sdk.documents.get(fence.document.id) !== fence.document) {
+      this.setTool('select'); this.#setMessage(this.#t('gestureCancelled')); return
+    }
+    const ids = this.renderer.selectFence(fence.points.map(value => this.renderer.worldToScreen(value)))
+    this.#fenceSelection = null
+    await this.#run(() => this.execute('SELECT', { ids: [...ids], operation: fence.operation }, { expectedRevision: fence.revision }))
+    if (this.document === fence.document) this.setTool('select')
   }
 
   #beginTransformGesture(tool: 'move' | 'copy', ids: readonly string[] = this.#selection?.ids ?? []): void {
@@ -1620,6 +1861,7 @@ export class KJDrawWorkbench {
     this.#draftPoints = []
     this.#transformGesture = null
     this.#modificationGesture = null
+    this.#fenceSelection = null
     const dialog = this.root.querySelector<HTMLDialogElement>('[data-modification-dialog]')
     if (dialog?.open) dialog.close()
     const draftDialog = this.root.querySelector<HTMLDialogElement>('[data-draft-dialog]')
@@ -1657,9 +1899,56 @@ export class KJDrawWorkbench {
     context.fillStyle = context.strokeStyle
     context.lineWidth = 1.5
     context.setLineDash([6, 4])
+    const grips = this.#tool === 'select' && !this.#options.readonly && !this.#modificationGesture && (this.#selection?.size === 1 || this.#gripGesture) && !this.#boxSelection && !this.#selectionDrag
+      ? this.renderer.getGrips(this.#gripGesture ? [this.#gripGesture.entity.id] : undefined) : []
+    this.#overlay.dataset.gripCount = String(grips.length)
+    context.setLineDash([])
+    for (const grip of grips) {
+      const active = this.#gripGesture?.grip.id === grip.id && this.#gripGesture.grip.entityId === grip.entityId
+      const hover = this.#hoverGrip?.id === grip.id && this.#hoverGrip.entityId === grip.entityId
+      const position = screen(active ? this.#gripGesture!.currentWorld : [grip.point[0], grip.point[1]])
+      context.fillStyle = active || hover ? '#ffb547' : '#3985ed'
+      context.strokeStyle = this.#theme === 'dark' ? '#c6ddff' : '#123b76'
+      context.lineWidth = 1
+      context.fillRect(position[0] - 4, position[1] - 4, 8, 8)
+      context.strokeRect(position[0] - 4, position[1] - 4, 8, 8)
+    }
+    if (this.#boxSelection) {
+      const { baseScreen: first, currentScreen: last } = this.#boxSelection
+      const crossing = last[0] < first[0]
+      this.#overlay.dataset.selectionMode = crossing ? 'crossing' : 'window'
+      context.strokeStyle = crossing ? '#43c58b' : '#559bff'
+      context.fillStyle = crossing ? 'rgba(67,197,139,0.14)' : 'rgba(85,155,255,0.14)'
+      context.lineWidth = 1
+      context.setLineDash(crossing ? [6, 4] : [])
+      const x = Math.min(first[0], last[0]), y = Math.min(first[1], last[1]), width = Math.abs(last[0] - first[0]), height = Math.abs(last[1] - first[1])
+      context.fillRect(x, y, width, height)
+      context.strokeRect(x, y, width, height)
+      context.restore()
+      return
+    }
+    delete this.#overlay.dataset.selectionMode
+    context.strokeStyle = this.#theme === 'dark' ? '#a4ef55' : '#1769e0'
+    context.fillStyle = context.strokeStyle
+    context.lineWidth = 1.5
+    context.setLineDash([6, 4])
+    if (this.#gripGesture) {
+      const start = screen([this.#gripGesture.grip.point[0], this.#gripGesture.grip.point[1]]), end = screen(this.#gripGesture.currentWorld)
+      context.beginPath(); context.moveTo(start[0], start[1]); context.lineTo(end[0], end[1]); context.stroke()
+      context.restore()
+      return
+    }
     const transformBase = this.#selectionDrag?.baseWorld ?? this.#transformGesture?.base ?? null
     const transformCursor = this.#selectionDrag?.currentWorld ?? cursor
-    if (transformBase && transformCursor) {
+    if (this.#fenceSelection) {
+      const points = cursor ? [...this.#fenceSelection.points, cursor] : this.#fenceSelection.points
+      context.strokeStyle = '#43c58b'
+      context.beginPath()
+      points.forEach((value, index) => { const p = screen(value); if (index === 0) context.moveTo(p[0], p[1]); else context.lineTo(p[0], p[1]) })
+      context.stroke()
+      context.setLineDash([])
+      for (const value of this.#fenceSelection.points) { const p = screen(value); context.strokeRect(p[0] - 3, p[1] - 3, 6, 6) }
+    } else if (transformBase && transformCursor) {
       const start = screen(transformBase), end = screen(transformCursor)
       const dx = transformCursor[0] - transformBase[0], dy = transformCursor[1] - transformBase[1]
       context.beginPath(); context.moveTo(start[0], start[1]); context.lineTo(end[0], end[1]); context.stroke()
@@ -1768,12 +2057,29 @@ export class KJDrawWorkbench {
     const counts = new Map<string, number>()
     for (const entity of drawing.listEntities()) counts.set(String(entity.payload.layerId ?? ''), (counts.get(String(entity.payload.layerId ?? '')) ?? 0) + 1)
     for (const layer of drawing.getTable('layers')?.records ?? []) {
-      const label = document.createElement('label'); label.className = 'layer'
+      const row = document.createElement('div'); row.className = 'layer'; row.dataset.layerId = layer.id
+      const label = document.createElement('label'); label.className = 'layer-name'
       const input = document.createElement('input'); input.type = 'checkbox'; input.checked = layer.payload.visible !== false; input.disabled = this.#options.readonly === true
+      input.title = `${this.#t(input.checked ? 'hideLayer' : 'showLayer')}: ${layer.name ?? '0'}`
+      input.setAttribute('aria-label', input.title)
       input.addEventListener('change', () => void this.#run(() => this.execute('LAYERUPDATE', { id: layer.id, patch: { visible: input.checked } })), { signal: this.#abort.signal })
       const name = document.createElement('span'); name.textContent = layer.name ?? '0'
+      name.title = name.textContent
       const count = document.createElement('small'); count.textContent = String(counts.get(layer.id) ?? 0)
-      label.append(input, name, count); host.append(label)
+      label.append(input, name)
+      const controls = (['locked', 'frozen'] as const).map(property => {
+        const active = layer.payload[property] === true
+        const button = document.createElement('button'); button.type = 'button'; button.className = 'layer-state'; button.dataset.layerProperty = property
+        button.disabled = this.#options.readonly === true
+        button.title = `${this.#t(property === 'locked' ? active ? 'unlockLayer' : 'lockLayer' : active ? 'thawLayer' : 'freezeLayer')}: ${layer.name ?? '0'}`
+        button.setAttribute('aria-label', button.title); button.setAttribute('aria-pressed', String(active))
+        button.innerHTML = property === 'locked' ? kjdrawIcon(active ? 'lock' : 'unlock') : active
+          ? '<svg class="kj-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v20M3.34 7l17.32 10M3.34 17 20.66 7M9 4l3 3 3-3M9 20l3-3 3 3M3.5 10.5l4-1-1-4M17.5 18.5l-1-4 4-1M6.5 18.5l1-4-4-1M20.5 10.5l-4-1 1-4"/></svg>'
+          : kjdrawIcon('sun')
+        button.addEventListener('click', () => void this.#run(() => this.execute('LAYERUPDATE', { id: layer.id, patch: { [property]: !active } })), { signal: this.#abort.signal })
+        return button
+      })
+      row.append(label, ...controls, count); host.append(row)
     }
   }
 

@@ -37,10 +37,10 @@ The following is the implementation baseline, not a claim that the listed work i
 | P02 | Endpoint/midpoint/center/intersection snaps | Core queries exist; expose mode selection and clear indicators consistently | Pick known geometry and assert exact resulting coordinates |
 | P03 | Tangent/perpendicular/quadrant/grid snaps | Audit per-entity query coverage and integrate missing modes | Dedicated numeric tests plus mouse capture tests |
 | P04 | Orthographic/polar tracking and distances | Add explicit tool options; avoid arbitrary dimensions | Constrain a direction and enter a distance |
-| S01 | Single, Shift-multiple and select all | Align hosted/embedded behaviour | Modify precisely the selected set |
-| S02 | Window/crossing/fence selection | Core selection has foundations; complete mouse workflow | Left-to-right contains; right-to-left crosses |
-| S03 | Grips and vertex editing | GRIPEDIT exists; draggable grips and point editing remain | Stretch endpoint/vertex with snap and undo |
-| S04 | Layer/hidden/locked-object selection rules | Visibility exists; lock must enforce mutation protection | Locked objects cannot change through tools, commands or agents |
+| S01 | Single, Shift-multiple and select all | Shared add/remove and active-space editable selection are implemented | Modify precisely the selected set |
+| S02 | Window/crossing/fence selection | Shared geometric queries and mouse workflows are implemented | Left-to-right contains; right-to-left crosses; open fence does not close itself |
+| S03 | Grips and vertex editing | Visible endpoint, radius and vertex handles are implemented; advanced polyline insert/remove editing remains | Preview, cancel, drag and undo; preserve elevation |
+| S04 | Layer/hidden/locked-object selection rules | Common editing-command layer protection and unlock/thaw UI are implemented | Locked objects cannot change through editing tools, transactional commands or agents; import transactions remain low-level |
 | M01 | Move/copy with base point and drag | Implemented this iteration; gesture race/cancellation regressions under test | Switch document or revision mid-gesture; no unintended edit |
 | M02 | Rotate/scale about chosen origin | Core exists; remove fixed-value-only toolbar behaviour | Rotate by a chosen angle around an explicit base point |
 | M03 | Mirror with source retained/deleted | Core exists; complete axis picking and options | Mirror a profile and check handedness and source retention |
@@ -82,7 +82,9 @@ This delivery closes usable slices of the programme; it does not mark an entire 
 | --- | --- | --- |
 | Construction | Point, line, ray, xline, rectangle, regular polygon, continuous open/closed polyline, three circle modes, two arc modes, three-point ellipse and control-point spline | `drafting.test.mjs`, `tests/browser/drafting.spec.mjs`; circumscribed polygons, elliptical arcs and tangent constructions remain |
 | Exact input | Absolute, relative and polar coordinates; finish/close/undo-point/cancel | Draft validation, retry and bilingual UI tests; full tracking and snap-mode controls remain |
-| Moving objects | Select-first or command-first move/copy, direct dragging, frozen gesture targets, preview and cancellation | `tests/browser/cad-workflow.spec.mjs`, `tests/browser/workbench.spec.mjs`; window/crossing/fence selection and grips remain |
+| Moving objects | Select-first or command-first move/copy, direct dragging, frozen gesture targets, preview and cancellation | `tests/browser/cad-workflow.spec.mjs`, `tests/browser/workbench.spec.mjs` |
+| Selecting and reshaping | Directional window/crossing selection, open fence, add/remove/all selection, visible endpoint/radius/vertex grips | `spatial-selection.test.mjs`, `tests/browser/workbench-selection-grips.spec.mjs`, `tests/browser/playground-selection-grips.spec.mjs`; advanced topology and polyline insert/remove editing remain |
+| Layer protection | Locked/frozen/hidden layers block editing commands atomically; unlock/thaw controls in both workbenches | `edit-policy.test.mjs` plus browser layer tests; direct import/migration transactions remain low-level data operations, not an authorization system |
 | Editing | Parameterized rotate, scale, mirror, rectangular/polar array, offset, break/explode, line trim/extend and line-pair fillet/chamfer | `modification-controls.test.mjs` verifies all 12 controls and invalid input; broader curve targets, joining, stretch and block explode remain |
 | Annotation and fill | Aligned, rotated, radius and diameter dimensions; SOLID, ANSI31 and ANSI37 hatch construction | `annotation.test.mjs`, `hatch-pattern.test.mjs`; angular dimensions, complete styles and island-picking UI remain |
 | Layout and navigation | Classic, Compact and Focus; Select/Pan/Fit/Zoom navigation; layout changes retain the mounted drawing and history | Three-browser UI tests include language changes and ribbon hit areas; complete layer/property editing remains |

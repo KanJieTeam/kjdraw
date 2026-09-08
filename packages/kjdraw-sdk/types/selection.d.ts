@@ -1,5 +1,7 @@
 import type { KJDocument } from './document.js';
 import type { KJObjectRecord, KJReadonlyObjectRecord } from './schema.js';
+export { isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence } from './selection-geometry.js';
+export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';
 export type KJEntityReference = string | {
     id: string;
 };

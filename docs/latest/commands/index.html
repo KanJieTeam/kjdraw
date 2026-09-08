@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/commands/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=3480d0448f9c8846">
+  <link rel="stylesheet" href="../style.css?v=4ca39c51560f1e49">
   <title>Commands and transactions · KJDraw Docs</title>
 </head>
 <body>
@@ -79,6 +79,25 @@ await sdk.executeCommand(
 <h2 id="en-commands-atomicity-and-rollback">Atomicity and rollback<a class="heading-anchor" href="#en-commands-atomicity-and-rollback" aria-label="Link to Atomicity and rollback">#</a></h2>
 <p>A command runs against a transaction draft. Validation and any configured authority backend complete before publication. If execution or validation fails, the live document does not expose the partial draft.</p>
 <p>Built-in editing includes declared combinations for creation, properties, move/copy/rotate/scale/mirror, arrays, offset, break/explode, trim/extend, chamfer/fillet and grips. Consult <strong>Capabilities</strong> for exact boundaries rather than inferring support from a command name.</p>
+<h2 id="en-commands-select-geometry">Select geometry<a class="heading-anchor" href="#en-commands-select-geometry" aria-label="Link to Select geometry">#</a></h2>
+<p>The packaged workbench includes click selection, directional box selection, an open fence and editable grips. For your own toolbar or automation, query the drawing in model coordinates:</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { selectEntitiesInBox, selectEntitiesByFence } from &#39;@kanjieteam/kjdraw/selection&#39;
+
+const ids = selectEntitiesInBox(drawing, [0, 0], [100, 80], &#39;window&#39;)
+await sdk.executeCommand(&#39;SELECT&#39;, { ids: [...ids], operation: &#39;replace&#39; }, { document: drawing })
+
+// Find objects touched by an open line across the drawing.
+const crossed = selectEntitiesByFence(drawing, [[0, 20], [100, 20]])</code></pre>
+<div class="table-wrap"><table><thead><tr><th>API / option</th><th>Purpose</th></tr></thead><tbody><tr><td><code>selectEntitiesInBox(drawing, first, second, mode, options?)</code></td><td><code>window</code> requires the whole object inside; <code>crossing</code> also accepts geometry touching the frame</td></tr><tr><td><code>selectEntitiesByFence(drawing, points, options?)</code></td><td>At least two points; the last point is not automatically joined to the first</td></tr><tr><td><code>spaceId</code></td><td>Query a particular drawing space; defaults to model space</td></tr><tr><td><code>includeLocked: true</code></td><td>Include visible locked-layer entities for inspection; does not make them editable</td></tr><tr><td><code>tolerance</code></td><td>Non-negative distance in model units; defaults to <code>1e-8</code></td></tr></tbody></table></div>
+<p>Both functions return object IDs without changing selection or undo history. Hidden and frozen layers are excluded. Circles, arcs, ellipses and bulged polyline segments use curve intersections; splines follow the displayed curve and text uses approximate label extents.</p>
+<p>For custom Canvas UI, <code>editor.workbench.renderer.selectBox(first, second)</code> and <code>selectFence(points)</code> accept <strong>canvas-relative CSS pixels</strong>, not model coordinates. <code>selectBox</code> automatically chooses window for left-to-right dragging and crossing for right-to-left. Apply the returned IDs with <code>editor.setSelection(ids)</code>.</p>
+<h2 id="en-commands-protected-layers">Protected layers<a class="heading-anchor" href="#en-commands-protected-layers" aria-label="Link to Protected layers">#</a></h2>
+<p>Editing commands reject writes to locked, frozen or hidden layers, including moving an object into a protected layer. A multi-object command fails as a whole; it does not move the writable objects and leave the others behind. Read-only measurements and queries still work. Use the Layers panel to unlock, thaw or show a layer, or update it explicitly:</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>await editor.execute(&#39;LAYERUPDATE&#39;, {
+  id: layerId,
+  patch: { locked: false, frozen: false, visible: true },
+})</code></pre>
+<p>This editing policy applies to transactional commands, including registered extensions. Direct <code>drawing.transact(...)</code> remains available for importers and data migrations that reconstruct protected drawings; it is a low-level data API, not a user permission system.</p>
 <h2 id="en-commands-command-envelopes">Use command envelopes<a class="heading-anchor" href="#en-commands-command-envelopes" aria-label="Link to Use command envelopes">#</a></h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>const envelope = sdk.createCommandEnvelope(&#39;MOVE&#39;, {
   ids: selectedIds,
@@ -116,6 +135,25 @@ await sdk.executeCommand(
 <h2 id="zh-commands-atomicity-and-rollback">原子性与回滚<a class="heading-anchor" href="#zh-commands-atomicity-and-rollback" aria-label="Link to 原子性与回滚">#</a></h2>
 <p>命令在事务草稿上执行。校验与已配置的权威后端都成功后才会发布。执行或校验失败时，活动图档不会暴露部分修改的草稿。</p>
 <p>内置编辑覆盖已声明组合下的创建、属性、移动/复制/旋转/缩放/镜像、阵列、偏移、打断/分解、修剪/延伸、倒角/圆角与夹点。请从<strong>能力与边界</strong>确认精确范围，不要只根据命令名称推断支持程度。</p>
+<h2 id="zh-commands-select-geometry">按几何范围选择<a class="heading-anchor" href="#zh-commands-select-geometry" aria-label="Link to 按几何范围选择">#</a></h2>
+<p>内置工作台提供单击选择、方向框选、开放围栏和可编辑夹点。开发自己的工具栏或自动化流程时，可直接按模型坐标查询：</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { selectEntitiesInBox, selectEntitiesByFence } from &#39;@kanjieteam/kjdraw/selection&#39;
+
+const ids = selectEntitiesInBox(drawing, [0, 0], [100, 80], &#39;window&#39;)
+await sdk.executeCommand(&#39;SELECT&#39;, { ids: [...ids], operation: &#39;replace&#39; }, { document: drawing })
+
+// 查询与一条开放折线相交的对象。
+const crossed = selectEntitiesByFence(drawing, [[0, 20], [100, 20]])</code></pre>
+<div class="table-wrap"><table><thead><tr><th>API / 参数</th><th>用途</th></tr></thead><tbody><tr><td><code>selectEntitiesInBox(drawing, first, second, mode, options?)</code></td><td><code>window</code> 要求对象完全位于框内；<code>crossing</code> 也包含与边框相交的图形</td></tr><tr><td><code>selectEntitiesByFence(drawing, points, options?)</code></td><td>至少两个点，不自动连接最后一点与第一点</td></tr><tr><td><code>spaceId</code></td><td>指定绘图空间，默认查询模型空间</td></tr><tr><td><code>includeLocked: true</code></td><td>检查时可包含锁定层对象，但不解除其编辑保护</td></tr><tr><td><code>tolerance</code></td><td>模型单位下的非负距离容差，默认 <code>1e-8</code></td></tr></tbody></table></div>
+<p>两个函数只返回对象 ID，不改变选择和撤销历史。隐藏、冻结图层不参与查询。圆、圆弧、椭圆和带凸度的多段线按曲线求交；样条按显示曲线判断，文字采用近似标签范围。</p>
+<p>自定义 Canvas 界面时，可使用 <code>editor.workbench.renderer.selectBox(first, second)</code> 和 <code>selectFence(points)</code>，坐标为<strong>相对画布的 CSS 像素</strong>，不是模型坐标。<code>selectBox</code> 根据拖动方向自动选择全包含或交叉模式。再调用 <code>editor.setSelection(ids)</code> 应用查询结果。</p>
+<h2 id="zh-commands-protected-layers">图层编辑保护<a class="heading-anchor" href="#zh-commands-protected-layers" aria-label="Link to 图层编辑保护">#</a></h2>
+<p>编辑命令不能修改锁定、冻结或隐藏图层上的对象，也不能把对象移入这些图层。批量命令整体失败，不会只修改其中可写的对象。测量和只读查询仍可使用。可以通过图层面板解锁、解冻或显示图层，也可以显式更新：</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>await editor.execute(&#39;LAYERUPDATE&#39;, {
+  id: layerId,
+  patch: { locked: false, frozen: false, visible: true },
+})</code></pre>
+<p>这一编辑策略覆盖事务命令及注册的扩展命令。底层 <code>drawing.transact(...)</code> 仍可用于导入、迁移等需要重建受保护图纸的数据操作；它不是面向用户的权限系统。</p>
 <h2 id="zh-commands-command-envelopes">使用命令信封<a class="heading-anchor" href="#zh-commands-command-envelopes" aria-label="Link to 使用命令信封">#</a></h2>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>const envelope = sdk.createCommandEnvelope(&#39;MOVE&#39;, {
   ids: selectedIds,
@@ -135,10 +173,10 @@ console.log(receipt.command, receipt.afterRevision)</code></pre>
         </article>
         <nav class="pager" aria-label="Adjacent documentation"><a href="../files/"><strong class="lang-en">Files and projects</strong><strong class="lang-zh">文件与工程</strong></a><a href="../react/"><strong class="lang-en">React integration</strong><strong class="lang-zh">React 集成</strong></a></nav>
       </div>
-      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-commands-execute-a-command">Execute a command</a><a class="toc-level-2" href="#en-commands-atomicity-and-rollback">Atomicity and rollback</a><a class="toc-level-2" href="#en-commands-command-envelopes">Use command envelopes</a><a class="toc-level-2" href="#en-commands-observe-changes">Observe changes</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-commands-execute-a-command">执行命令</a><a class="toc-level-2" href="#zh-commands-atomicity-and-rollback">原子性与回滚</a><a class="toc-level-2" href="#zh-commands-command-envelopes">使用命令信封</a><a class="toc-level-2" href="#zh-commands-observe-changes">观察变更</a></div></aside>
+      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-commands-execute-a-command">Execute a command</a><a class="toc-level-2" href="#en-commands-atomicity-and-rollback">Atomicity and rollback</a><a class="toc-level-2" href="#en-commands-select-geometry">Select geometry</a><a class="toc-level-2" href="#en-commands-protected-layers">Protected layers</a><a class="toc-level-2" href="#en-commands-command-envelopes">Use command envelopes</a><a class="toc-level-2" href="#en-commands-observe-changes">Observe changes</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-commands-execute-a-command">执行命令</a><a class="toc-level-2" href="#zh-commands-atomicity-and-rollback">原子性与回滚</a><a class="toc-level-2" href="#zh-commands-select-geometry">按几何范围选择</a><a class="toc-level-2" href="#zh-commands-protected-layers">图层编辑保护</a><a class="toc-level-2" href="#zh-commands-command-envelopes">使用命令信封</a><a class="toc-level-2" href="#zh-commands-observe-changes">观察变更</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=3480d0448f9c8846"></script>
+  <script type="module" src="../app.js?v=4ca39c51560f1e49"></script>
 </body>
 </html>

@@ -218,6 +218,22 @@ test('Canvas renderer reacts to document commits and keeps ACI colors determinis
   renderer.dispose()
 })
 
+test('unchanged resize notifications do not refit edited geometry under the pointer', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument()
+  const line = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0,0], end: [100,0] } })
+  const { canvas } = mockCanvas(800,500)
+  const renderer = new KJCanvasRenderer(canvas, { document, pixelRatio: 1, grid: false }).fit()
+  const camera = { ...renderer.camera }, screen = renderer.worldToScreen([25,0])
+  await sdk.executeCommand('MOVE', { id: line.id, dx: 100, dy: 20 })
+  renderer.resize()
+  renderer.resize(800,500)
+  assert.deepEqual(renderer.camera, camera, 'late observer callbacks preserve the active view')
+  assert.deepEqual(renderer.worldToScreen([25,0]), screen)
+  renderer.resize(600,500)
+  assert.equal(renderer.camera.centerX, 150, 'a genuine layout resize still updates a fitted view')
+  renderer.dispose()
+})
+
 test('fit includes transformed nested block geometry and remains finite in a small viewport', async () => {
   const sdk = createKJDrawSDK()
   const document = sdk.createDocument({ documentId: 'canvas-block-bounds' })

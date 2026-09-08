@@ -248,9 +248,10 @@ test('DXF standard resource tables and entity style references survive write and
   const dimensionStyle = await sdk.executeCommand('DIMSTYLE', { name: 'KJ-100', properties: { overallScale: 100, arrowSize: 2.5, textHeight: 3.5, textGap: 0.7 } })
   await sdk.executeCommand('UCS', { name: 'SURVEY', origin: [100, 200, 0], xAxis: [0, 1, 0], yAxis: [-1, 0, 0] })
   await document.transact('Create named view', tx => tx.upsertTableRecord('views', { name: 'SITE', type: 'VIEW', payload: { center: [50, 60, 0], width: 500, height: 300, direction: [0, 0, 1], target: [0, 0, 0], twistAngle: 0.2 } }))
-  const layer = await sdk.executeCommand('LAYERNEW', { name: 'GEO-TEXT', color: 2, linetypeId: linetype.id, lineweight: 25, locked: true, plottable: false })
+  const layer = await sdk.executeCommand('LAYERNEW', { name: 'GEO-TEXT', color: 2, linetypeId: linetype.id, lineweight: 25, plottable: false })
   await sdk.executeCommand('CREATE', { type: 'TEXT', payload: { position: [1, 2, 0], text: '钻孔 ZK01', height: 3.5, styleId: textStyle.id, layerId: layer.id } })
   await sdk.executeCommand('CREATE', { type: 'DIMENSION', payload: { dimensionType: 'ALIGNED', definitionPoints: [[50, 10, 0], [0, 0, 0], [100, 0, 0]], textPosition: [50, 10, 0], styleId: dimensionStyle.id, styleName: 'KJ-100', layerId: layer.id } })
+  await sdk.executeCommand('LAYERUPDATE', { id: layer.id, patch: { locked: true } })
 
   const artifact = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
   for (const table of ['LTYPE', 'STYLE', 'DIMSTYLE', 'UCS', 'VIEW', 'LAYER']) assert.match(artifact, new RegExp(`\\r\\n${table}\\r\\n`))

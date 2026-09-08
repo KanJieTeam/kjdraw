@@ -8,7 +8,7 @@ import { type KJDraftTool } from './drafting.js';
 export type { KJWorkbenchLayout } from './layout.js';
 export type KJWorkbenchLocale = 'en' | 'zh-CN';
 export type KJWorkbenchTheme = 'dark' | 'light';
-export type KJWorkbenchTool = 'select' | 'pan' | KJDraftTool | 'text' | 'measure' | 'move' | 'copy';
+export type KJWorkbenchTool = 'select' | 'fence' | 'pan' | KJDraftTool | 'text' | 'measure' | 'move' | 'copy';
 export interface KJDrawWorkbenchOptions {
     sdk?: KJDrawSDK;
     document?: KJDocument | 'blank' | 'sample' | null;

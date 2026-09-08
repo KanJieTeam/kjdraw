@@ -85,7 +85,8 @@ main { height: calc(100dvh - 44px); }
 .layer-search input { padding-left: 30px; background: var(--kj-chrome); }
 .layer-list { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 8px; }
 .layer-empty { margin: 0; padding: 12px; color: var(--kj-muted); font-size: 12px; }
-.layer { display: grid; grid-template-columns: 16px 10px minmax(0, 1fr) 26px 28px; align-items: center; gap: 7px; min-height: 36px; padding: 3px 4px; border-bottom: 1px solid #f0f2f5; }
+.layer { display: grid; grid-template-columns: 16px 10px minmax(0, 1fr) 26px 28px 28px; align-items: center; gap: 7px; min-height: 36px; padding: 3px 4px; border-bottom: 1px solid #f0f2f5; }
+.layer-lock[aria-pressed="true"] { color: var(--kj-action); background: #eaf1fc; }
 .layer:hover { background: var(--kj-chrome); }
 .layer > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .layer i { width: 10px; height: 10px; border: 1px solid #0002; border-radius: 2px; background: var(--layer-color); }

@@ -96,7 +96,11 @@ export function getEntityGrips(entity: KJReadonlyObjectRecord): readonly KJEntit
       const vertices = payload.vertices ?? []
       for (const [index, vertex] of vertices.entries()) add(`vertex:${index}`, 'vertex', vertexPoint(vertex), { vertexIndex: index })
       const count = payload.closed ? vertices.length : vertices.length - 1
-      for (let index = 0; index < count; index += 1) add(`segment:${index}`, 'segment', midpoint2(vertexPoint(vertices[index]!), vertexPoint(vertices[(index + 1) % vertices.length]!)), { segmentIndex: index })
+      for (let index = 0; index < count; index += 1) {
+        const vertex = vertices[index]!, a = point3(vertexPoint(vertex)), b = point3(vertexPoint(vertices[(index + 1) % vertices.length]!))
+        const bulge = Array.isArray(vertex) ? 0 : Number((vertex as KJGripVertex).bulge ?? 0)
+        add(`segment:${index}`, 'segment', [(a[0] + b[0]) / 2 + (b[1] - a[1]) * bulge / 2, (a[1] + b[1]) / 2 - (b[0] - a[0]) * bulge / 2, (a[2] + b[2]) / 2], { segmentIndex: index })
+      }
       break
     }
     case 'SOLID':

@@ -2,6 +2,7 @@
 import { KJEventBus } from './events.js';
 import { KJValidationError } from './errors.js';
 import { normalizeName } from './utils.js';
+export { isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence } from './selection-geometry.js';
 const NAMED_PREFIX = 'KJ_SELECTION_SET:';
 function referenceId(value) {
     return String(typeof value === 'object' ? value.id : value);

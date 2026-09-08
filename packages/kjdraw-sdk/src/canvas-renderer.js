@@ -3,6 +3,8 @@ import { multiply3, rotation3, scale3, transformEntityPayload, translation3 } fr
 import { nearestPointOnEntity2 } from './snapping.js';
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js';
 import { projectDimension } from './geometry/annotation.js';
+import { getEntityGrips } from './grips.js';
+import { isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence } from './selection-geometry.js';
 const DARK_PALETTE = Object.freeze([
     '#d8e6f3',
     '#ff767d',
@@ -385,14 +387,17 @@ export class KJCanvasRenderer {
     resize(width, height) {
         const keepFitted = this.#fittedCamera !== null && this.camera.centerX === this.#fittedCamera.centerX && this.camera.centerY === this.#fittedCamera.centerY && this.camera.scale === this.#fittedCamera.scale;
         const rect = this.canvas.getBoundingClientRect();
-        this.#width = Math.max(1, finite(width, rect.width || this.canvas.clientWidth || 1));
-        this.#height = Math.max(1, finite(height, rect.height || this.canvas.clientHeight || 1));
+        const nextWidth = Math.max(1, finite(width, rect.width || this.canvas.clientWidth || 1));
+        const nextHeight = Math.max(1, finite(height, rect.height || this.canvas.clientHeight || 1));
+        const viewportChanged = nextWidth !== this.#width || nextHeight !== this.#height;
+        this.#width = nextWidth;
+        this.#height = nextHeight;
         const ratio = this.#pixelRatio ?? Math.max(1, globalThis.devicePixelRatio || 1);
         const targetWidth = Math.max(1, Math.round(this.#width * ratio));
         const targetHeight = Math.max(1, Math.round(this.#height * ratio));
         if (this.canvas.width !== targetWidth) this.canvas.width = targetWidth;
         if (this.canvas.height !== targetHeight) this.canvas.height = targetHeight;
-        if (keepFitted && this.#document) return this.fit();
+        if (keepFitted && viewportChanged && this.#document) return this.fit();
         if (!keepFitted) this.#fittedCamera = null;
         this.render();
         return this;
@@ -438,7 +443,7 @@ export class KJCanvasRenderer {
             ]) ?? []);
         const values = this.#entities().filter((entity)=>{
             const layer = layers.get(String(entity.payload.layerId ?? ''));
-            return layer?.visible !== false && layer?.frozen !== true;
+            return entity.payload.visible !== false && layer?.visible !== false && layer?.frozen !== true;
         }).flatMap((entity)=>this.#fitPoints(entity));
         if (!values.length) {
             this.camera.centerX = 50;
@@ -465,7 +470,7 @@ export class KJCanvasRenderer {
         this.render();
         return this;
     }
-    hitTest(screenPoint, tolerancePixels = 8) {
+    hitTest(screenPoint, tolerancePixels = 8, options = {}) {
         const document = this.#document;
         if (!document) return null;
         const point = this.screenToWorld(screenPoint);
@@ -483,6 +488,10 @@ export class KJCanvasRenderer {
         };
         const candidates = this.#sceneProvider?.hitCandidates?.(query) ?? this.#entities();
         for (const entity of candidates){
+            if (!isEntitySelectable(document, entity, {
+                ...options,
+                spaceId: query.spaceId
+            })) continue;
             const layer = layers.get(String(entity.payload.layerId ?? ''));
             if (layer?.visible === false || layer?.frozen === true) continue;
             try {
@@ -558,6 +567,82 @@ export class KJCanvasRenderer {
             point: Object.freeze(best.point)
         }) : null;
     }
+    selectBox(first, second, options = {}) {
+        if (!this.#document) return Object.freeze([]);
+        const sceneIds = new Set(this.#entities().map((entity)=>entity.id));
+        return Object.freeze(selectEntitiesInBox(this.#document, this.screenToWorld(first), this.screenToWorld(second), options.mode ?? (second[0] >= first[0] ? 'window' : 'crossing'), {
+            ...options,
+            spaceId: this.#activeSpaceId(),
+            tolerance: .25 / this.camera.scale
+        }).filter((id)=>sceneIds.has(id)));
+    }
+    selectFence(points, options = {}) {
+        if (!this.#document) return Object.freeze([]);
+        const sceneIds = new Set(this.#entities().map((entity)=>entity.id));
+        return Object.freeze(selectEntitiesByFence(this.#document, points.map((point)=>this.screenToWorld(point)), {
+            ...options,
+            spaceId: this.#activeSpaceId(),
+            tolerance: .25 / this.camera.scale
+        }).filter((id)=>sceneIds.has(id)));
+    }
+    selectAll(options = {}) {
+        const document = this.#document;
+        if (!document) return Object.freeze([]);
+        const query = {
+            ...options,
+            spaceId: this.#activeSpaceId()
+        };
+        return Object.freeze(this.#entities().filter((entity)=>isEntitySelectable(document, entity, query)).map((entity)=>entity.id));
+    }
+    getGrips(ids = [
+        ...this.#selection
+    ]) {
+        const document = this.#document;
+        if (!document) return Object.freeze([]);
+        const result = [], query = {
+            spaceId: this.#activeSpaceId()
+        };
+        for (const id of ids){
+            const entity = document.getObject(id);
+            if (!entity || !isEntitySelectable(document, entity, query)) continue;
+            try {
+                result.push(...getEntityGrips(entity));
+            } catch  {}
+        }
+        return Object.freeze(result);
+    }
+    hitGrip(screenPoint, tolerancePixels = 7) {
+        let best = null, distance = tolerancePixels;
+        for (const grip of this.getGrips()){
+            const p = this.worldToScreen([
+                grip.point[0],
+                grip.point[1]
+            ]), d = Math.hypot(p[0] - screenPoint[0], p[1] - screenPoint[1]);
+            if (d <= distance) {
+                best = grip;
+                distance = d;
+            }
+        }
+        return best;
+    }
+    drawGrips(hoverId) {
+        const context = this.context;
+        context.save();
+        context.setLineDash([]);
+        context.lineWidth = 1;
+        for (const grip of this.getGrips()){
+            const [x, y] = this.worldToScreen([
+                grip.point[0],
+                grip.point[1]
+            ]);
+            context.fillStyle = hoverId === `${grip.entityId}:${grip.id}` ? '#ffbf69' : '#2863df';
+            context.strokeStyle = '#dceaff';
+            context.fillRect(x - 3.5, y - 3.5, 7, 7);
+            context.strokeRect(x - 3.5, y - 3.5, 7, 7);
+        }
+        context.restore();
+        return this;
+    }
     render() {
         const context = this.context;
         const ratio = this.canvas.width / Math.max(1, this.#width);
@@ -593,7 +678,7 @@ export class KJCanvasRenderer {
         const unsupported = new Set();
         for (const entity of entities){
             const layer = layers.get(String(entity.payload.layerId ?? ''));
-            if (layer?.visible === false || layer?.frozen === true) {
+            if (entity.payload.visible === false || layer?.visible === false || layer?.frozen === true) {
                 hidden += 1;
                 continue;
             }

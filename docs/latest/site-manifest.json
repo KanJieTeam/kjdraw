@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:3480d0448f9c8846798b5f78dbaead75dda67989ce9a7113fbf7012daf8722e9",
+  "sourceDigest": "sha256:4ca39c51560f1e49dd0d68027bbf408ee06b2a291c2a039c4e5315f4b0649126",
   "locales": [
     "en",
     "zh"
@@ -183,6 +183,8 @@
           "en-commands",
           "en-commands-execute-a-command",
           "en-commands-atomicity-and-rollback",
+          "en-commands-select-geometry",
+          "en-commands-protected-layers",
           "en-commands-command-envelopes",
           "en-commands-observe-changes"
         ],
@@ -190,6 +192,8 @@
           "zh-commands",
           "zh-commands-execute-a-command",
           "zh-commands-atomicity-and-rollback",
+          "zh-commands-select-geometry",
+          "zh-commands-protected-layers",
           "zh-commands-command-envelopes",
           "zh-commands-observe-changes"
         ]

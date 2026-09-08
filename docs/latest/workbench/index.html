@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/workbench/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=3480d0448f9c8846">
+  <link rel="stylesheet" href="../style.css?v=4ca39c51560f1e49">
   <title>Using the workbench · KJDraw Docs</title>
 </head>
 <body>
@@ -105,7 +105,13 @@
 <div class="table-wrap"><table><thead><tr><th>Type</th><th>Point order</th></tr></thead><tbody><tr><td>Aligned</td><td>First measured point, second measured point, dimension-line position</td></tr><tr><td>Linear / rotated</td><td>First measured point, second measured point, dimension-line position; set the direction or rotation first</td></tr><tr><td>Radius</td><td>Circle center, point on the circle</td></tr><tr><td>Diameter</td><td>One diameter endpoint, opposite endpoint</td></tr></tbody></table></div>
 <p>The displayed measurement is calculated from the accepted geometry. In the Demo, <strong>Text height</strong> controls the annotation size.</p>
 <h2 id="en-workbench-move">Select, move and copy<a class="heading-anchor" href="#en-workbench-move" aria-label="Link to Select, move and copy">#</a></h2>
-<p>Click the edge of an object to select it. Hold Shift while clicking to add or remove objects. The Properties panel shows the primary object and the selection count.</p>
+<p>Click the edge of an object to select it. <strong>Shift</strong> adds to the selection; <strong>Ctrl</strong> (or <strong>Command</strong> on macOS) removes from it. The Properties panel shows the primary object and the selection count.</p>
+<p>Drag from empty canvas to select several objects:</p>
+<div class="table-wrap"><table><thead><tr><th>Gesture</th><th>Result</th></tr></thead><tbody><tr><td>Left to right · blue solid frame</td><td>Select objects entirely inside the window</td></tr><tr><td>Right to left · green dashed frame</td><td>Select objects inside or intersecting the frame</td></tr><tr><td>Shift + drag</td><td>Add the result to the existing selection</td></tr><tr><td>Ctrl / Command + drag</td><td>Remove the result from the existing selection</td></tr><tr><td>Ctrl / Command + A, with the editor focused</td><td>Select editable, visible objects in the current drawing space</td></tr></tbody></table></div>
+<p>The frame tests the drawing geometry, not just overlapping object bounds. A small frame inside an empty circle does not select the circle. <strong>Esc</strong> cancels an unfinished frame without changing the selection.</p>
+<p>To select objects along an open path, enter <strong>FENCE</strong> in the command line, pick two or more points, then press <strong>Enter</strong>. <strong>Backspace</strong> removes the last point; <strong>Esc</strong> cancels. The path is not automatically closed.</p>
+<p>When one editable object is selected, its blue square <strong>grips</strong> appear. Drag a line endpoint, a circle quadrant, or a polyline vertex to reshape it. The highlighted preview is temporary; releasing the pointer commits one edit. <strong>Undo</strong> restores the previous geometry. Dragging a selected object away from its grips moves it as a whole.</p>
+<p>Hidden and frozen layers are excluded from picking. Locked layers remain visible, but cannot be selected for editing or modified by editing commands. Unlock, thaw or show the layer before editing it. If the drawing, revision or view changes during a drag, the pending drag is cancelled.</p>
 <p>Choose <strong>Move</strong>, click a base point, then click the destination. You can also choose Move before selecting an object. The blue preview is temporary; the destination creates one undoable edit. <strong>Copy</strong> uses the same two-point workflow, keeps the originals and selects the new objects.</p>
 <p>For an exact displacement, select the objects and enter <code>MOVE 10 0</code> or <code>COPY 10 0</code>. <code>M</code> or <code>COPY</code> without coordinates starts the interactive tool. You can also drag an already selected object to move the selection.</p>
 <h2 id="en-workbench-modify">Modify geometry<a class="heading-anchor" href="#en-workbench-modify" aria-label="Link to Modify geometry">#</a></h2>
@@ -180,7 +186,13 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
 <div class="table-wrap"><table><thead><tr><th>类型</th><th>取点顺序</th></tr></thead><tbody><tr><td>对齐</td><td>第一测量点、第二测量点、尺寸线位置</td></tr><tr><td>线性 / 旋转</td><td>第一测量点、第二测量点、尺寸线位置；先设置方向或旋转角度</td></tr><tr><td>半径</td><td>圆心、圆上一点</td></tr><tr><td>直径</td><td>一个直径端点、对侧端点</td></tr></tbody></table></div>
 <p>显示值由取点后的实际几何计算。Demo 中可通过<strong>字高</strong>调整标注文字大小。</p>
 <h2 id="zh-workbench-move">选择、移动与复制<a class="heading-anchor" href="#zh-workbench-move" aria-label="Link to 选择、移动与复制">#</a></h2>
-<p>点击对象边缘进行选择；按住 Shift 点击可追加或移除对象。特性面板会显示主对象和当前选择数量。</p>
+<p>点击对象边缘进行选择；<strong>Shift</strong> 追加选择，<strong>Ctrl</strong>（macOS 为 <strong>Command</strong>）移除选择。特性面板会显示主对象和当前选择数量。</p>
+<p>从画布空白处按住鼠标拖动，可批量选择对象：</p>
+<div class="table-wrap"><table><thead><tr><th>手势</th><th>结果</th></tr></thead><tbody><tr><td>从左向右拖动 · 蓝色实线框</td><td>只选择完全位于框内的对象</td></tr><tr><td>从右向左拖动 · 绿色虚线框</td><td>选择框内及与边框相交的对象</td></tr><tr><td>Shift + 拖动</td><td>将结果加入已有选区</td></tr><tr><td>Ctrl / Command + 拖动</td><td>从已有选区移除结果</td></tr><tr><td>编辑器获得焦点后按 Ctrl / Command + A</td><td>全选当前绘图空间内可编辑、可见的对象</td></tr></tbody></table></div>
+<p>选择框按图形本身判断，不只比较外接矩形。例如，在圆的空心区域内画一个小框，不会误选整个圆。按 <strong>Esc</strong> 可取消尚未完成的框选，保留原来的选择。</p>
+<p>需要沿开放路径选择时，在命令行输入 <strong>FENCE</strong>，依次指定至少两个点，再按 <strong>Enter</strong> 完成围栏选择。<strong>Backspace</strong> 撤回最后一点，<strong>Esc</strong> 取消；围栏不会自动闭合。</p>
+<p>选中一个可编辑对象后，会显示蓝色方形<strong>夹点</strong>。拖动直线端点、圆的象限点或多段线顶点即可调整图形；高亮部分是临时预览，松开鼠标才提交一次修改。按<strong>撤销</strong>可完整还原。从夹点以外的位置拖动选中对象，则会整体移动它。</p>
+<p>隐藏、冻结图层不参与拾取；锁定图层仍然可见，但不能选中编辑，也不能通过编辑命令修改。请先解锁、解冻或显示图层。拖动途中若图纸、修订或视图发生变化，本次拖动会取消。</p>
 <p>点击<strong>移动</strong>，指定基点，再指定目标点。也可以先点移动，再选择对象。蓝色图形只是预览，指定目标点后才生成一次可撤销修改。<strong>复制</strong>采用相同的两点流程，但会保留源对象，并自动选中新对象。</p>
 <p>需要精确位移时，先选择对象，再输入 <code>MOVE 10 0</code> 或 <code>COPY 10 0</code>。不带坐标的 <code>M</code> 或 <code>COPY</code> 会进入交互工具。还可以按住已经选中的对象，直接拖动整组选区。</p>
 <h2 id="zh-workbench-modify">参数化修改图形<a class="heading-anchor" href="#zh-workbench-modify" aria-label="Link to 参数化修改图形">#</a></h2>
@@ -215,6 +227,6 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=3480d0448f9c8846"></script>
+  <script type="module" src="../app.js?v=4ca39c51560f1e49"></script>
 </body>
 </html>

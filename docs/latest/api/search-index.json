@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:20825da9f07277af01855af310137c0aa9f5ecc292ce031eaa3ab7cdb6362a79",
+  "sourceDigest": "sha256:0085d801ea3d0da6205f8cdbcb23567b21c2641b0bfec6beb6b534e61f17544c",
   "entries": [
     {
       "name": "createDraftingSession",
@@ -741,6 +741,14 @@
       "summary": "export declare function deepFreeze<T>(value: T, seen?: WeakSet<object>): ReadonlyDeep<T>;"
     },
     {
+      "name": "default",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/core",
+      "href": "./api/reference/#core-type-default",
+      "anchor": "core-type-default",
+      "summary": "export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';"
+    },
+    {
       "name": "DEFAULT_TOLERANCE",
       "kind": "const",
       "module": "@kanjieteam/kjdraw/core",
@@ -1067,6 +1075,14 @@
       "href": "./api/reference/#core-function-invokegeometrybackend",
       "anchor": "core-function-invokegeometrybackend",
       "summary": "export declare function invokeGeometryBackend<Result>(operation: string, args: readonly unknown[], fallback: () => Result): Result;"
+    },
+    {
+      "name": "isEntitySelectable",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/core",
+      "href": "./api/reference/#core-function-isentityselectable",
+      "anchor": "core-function-isentityselectable",
+      "summary": "export declare function isEntitySelectable(document: KJDocument, entity: KJReadonlyObjectRecord, options?: KJSpatialSelectionOptions): boolean;"
     },
     {
       "name": "isStandardEntityType",
@@ -3709,6 +3725,22 @@
       "summary": "export declare const scaleAround3: (sx: number, sy?: number, center?: Point2Input) => AffineMatrix3;"
     },
     {
+      "name": "selectEntitiesByFence",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/core",
+      "href": "./api/reference/#core-function-selectentitiesbyfence",
+      "anchor": "core-function-selectentitiesbyfence",
+      "summary": "export declare function selectEntitiesByFence(document: KJDocument, vertices: readonly Point[], options?: KJSpatialSelectionOptions): readonly string[];"
+    },
+    {
+      "name": "selectEntitiesInBox",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/core",
+      "href": "./api/reference/#core-function-selectentitiesinbox",
+      "anchor": "core-function-selectentitiesinbox",
+      "summary": "export declare function selectEntitiesInBox(document: KJDocument, first: Point, second: Point, mode?: KJBoxSelectionMode, options?: KJSpatialSelectionOptions): readonly string[];"
+    },
+    {
       "name": "signedAngle2",
       "kind": "function",
       "module": "@kanjieteam/kjdraw/core",
@@ -5130,7 +5162,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-type-default",
       "anchor": "root-type-default",
-      "summary": "export type { KJWorkbenchLayout } from './workbench.js';"
+      "summary": "export type { KJWorkbenchLayout } from './workbench.js'; export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';"
     },
     {
       "name": "DEFAULT_TOLERANCE",
@@ -5475,6 +5507,14 @@
       "href": "./api/reference/#root-function-invokegeometrybackend",
       "anchor": "root-function-invokegeometrybackend",
       "summary": "export declare function invokeGeometryBackend<Result>(operation: string, args: readonly unknown[], fallback: () => Result): Result;"
+    },
+    {
+      "name": "isEntitySelectable",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-isentityselectable",
+      "anchor": "root-function-isentityselectable",
+      "summary": "export declare function isEntitySelectable(document: KJDocument, entity: KJReadonlyObjectRecord, options?: KJSpatialSelectionOptions): boolean;"
     },
     {
       "name": "isStandardEntityType",
@@ -8341,6 +8381,22 @@
       "summary": "export declare const scaleAround3: (sx: number, sy?: number, center?: Point2Input) => AffineMatrix3;"
     },
     {
+      "name": "selectEntitiesByFence",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-selectentitiesbyfence",
+      "anchor": "root-function-selectentitiesbyfence",
+      "summary": "export declare function selectEntitiesByFence(document: KJDocument, vertices: readonly Point[], options?: KJSpatialSelectionOptions): readonly string[];"
+    },
+    {
+      "name": "selectEntitiesInBox",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-selectentitiesinbox",
+      "anchor": "root-function-selectentitiesinbox",
+      "summary": "export declare function selectEntitiesInBox(document: KJDocument, first: Point, second: Point, mode?: KJBoxSelectionMode, options?: KJSpatialSelectionOptions): readonly string[];"
+    },
+    {
       "name": "signedAngle2",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -11053,6 +11109,22 @@
       "summary": "export interface KjpBrowserWritable { write(data: KjpSource): Promise<void>; close(): Promise<void>; abort?(): Promise<void>; }"
     },
     {
+      "name": "default",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/selection",
+      "href": "./api/reference/#selection-type-default",
+      "anchor": "selection-type-default",
+      "summary": "export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';"
+    },
+    {
+      "name": "isEntitySelectable",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/selection",
+      "href": "./api/reference/#selection-function-isentityselectable",
+      "anchor": "selection-function-isentityselectable",
+      "summary": "export declare function isEntitySelectable(document: KJDocument, entity: KJReadonlyObjectRecord, options?: KJSpatialSelectionOptions): boolean;"
+    },
+    {
       "name": "KJEntityReference",
       "kind": "type",
       "module": "@kanjieteam/kjdraw/selection",
@@ -11115,6 +11187,22 @@
       "href": "./api/reference/#selection-class-kjselectionset",
       "anchor": "selection-class-kjselectionset",
       "summary": "export declare class KJSelectionSet { #private; constructor(document: KJDocument, ids?: readonly KJEntityReference[]); get size(): number; get ids(): readonly string[]; get objects(): ReadonlyArray<KJReadonlyObjectRecord"
+    },
+    {
+      "name": "selectEntitiesByFence",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/selection",
+      "href": "./api/reference/#selection-function-selectentitiesbyfence",
+      "anchor": "selection-function-selectentitiesbyfence",
+      "summary": "export declare function selectEntitiesByFence(document: KJDocument, vertices: readonly Point[], options?: KJSpatialSelectionOptions): readonly string[];"
+    },
+    {
+      "name": "selectEntitiesInBox",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/selection",
+      "href": "./api/reference/#selection-function-selectentitiesinbox",
+      "anchor": "selection-function-selectentitiesinbox",
+      "summary": "export declare function selectEntitiesInBox(document: KJDocument, first: Point, second: Point, mode?: KJBoxSelectionMode, options?: KJSpatialSelectionOptions): readonly string[];"
     },
     {
       "name": "findBestSnap",
@@ -11221,6 +11309,14 @@
       "summary": "export declare function aciColor(input: unknown, theme?: KJCanvasTheme): string;"
     },
     {
+      "name": "KJCanvasBoxSelectionOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/renderer/canvas",
+      "href": "./api/reference/#renderer-canvas-interface-kjcanvasboxselectionoptions",
+      "anchor": "renderer-canvas-interface-kjcanvasboxselectionoptions",
+      "summary": "export interface KJCanvasBoxSelectionOptions extends KJCanvasSelectionOptions { mode?: KJBoxSelectionMode; }"
+    },
+    {
       "name": "KJCanvasCamera",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw/renderer/canvas",
@@ -11283,6 +11379,14 @@
       "href": "./api/reference/#renderer-canvas-interface-kjcanvasscenequery",
       "anchor": "renderer-canvas-interface-kjcanvasscenequery",
       "summary": "export interface KJCanvasSceneQuery { document: KJDocument; spaceId: string; }"
+    },
+    {
+      "name": "KJCanvasSelectionOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/renderer/canvas",
+      "href": "./api/reference/#renderer-canvas-interface-kjcanvasselectionoptions",
+      "anchor": "renderer-canvas-interface-kjcanvasselectionoptions",
+      "summary": "export interface KJCanvasSelectionOptions { includeLocked?: boolean; }"
     },
     {
       "name": "KJCanvasTheme",
@@ -11378,7 +11482,7 @@
       "module": "@kanjieteam/kjdraw/workbench",
       "href": "./api/reference/#workbench-type-kjworkbenchtool",
       "anchor": "workbench-type-kjworkbenchtool",
-      "summary": "export type KJWorkbenchTool = 'select' | 'pan' | KJDraftTool | 'text' | 'measure' | 'move' | 'copy';"
+      "summary": "export type KJWorkbenchTool = 'select' | 'fence' | 'pan' | KJDraftTool | 'text' | 'measure' | 'move' | 'copy';"
     },
     {
       "name": "mountKJDrawWorkbench",

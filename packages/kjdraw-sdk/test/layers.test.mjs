@@ -19,6 +19,8 @@ test('layer commands create, activate, update and safely delete real table recor
   await assert.rejects(sdk.executeCommand('LAYERDELETE', { id: survey.id }), KJValidationError)
   await sdk.executeCommand('LAYERCURRENT', { id: layer0 })
   await assert.rejects(sdk.executeCommand('LAYERDELETE', { id: survey.id }), KJValidationError)
+  await assert.rejects(sdk.executeCommand('PROPERTIES', { id: second.id, patch: { payload: { layerId: layer0 } } }), /layer .* is locked/)
+  await sdk.executeCommand('LAYERUPDATE', { id: survey.id, patch: { locked: false } })
   await sdk.executeCommand('PROPERTIES', { id: second.id, patch: { payload: { layerId: layer0 } } })
   await sdk.executeCommand('LAYERDELETE', { id: survey.id })
   assert.equal(document.getObject(survey.id), null)
