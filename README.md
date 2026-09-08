@@ -7,7 +7,8 @@
 <p align="center">An extensible CAD foundation for engineering applications, interactive workbenches and reviewable AI agents.</p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@kanjieteam/kjdraw"><img src="https://img.shields.io/npm/v/@kanjieteam/kjdraw?style=flat-square&label=npm&labelColor=30363d&color=2863f0" alt="npm version"></a>
+  <a href="https://github.com/KanJieTeam/kjdraw/releases/tag/v1.0.0-rc.2"><img src="https://img.shields.io/badge/release-v1.0.0--rc.2-2863f0?style=flat-square&labelColor=30363d" alt="GitHub release v1.0.0-rc.2"></a>
+  <a href="https://www.npmjs.com/package/@kanjieteam/kjdraw"><img src="https://img.shields.io/npm/v/@kanjieteam/kjdraw?style=flat-square&label=npm_registry&labelColor=30363d&color=2863f0" alt="npm registry version; RC2 pending"></a>
   <a href="https://kanjieteam.github.io/kjdraw/"><img src="https://img.shields.io/badge/▲_Live_Demo-open-2863f0?style=flat-square&labelColor=30363d" alt="Live demo"></a>
   <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><img src="https://img.shields.io/badge/▣_Docs-latest-2863f0?style=flat-square&labelColor=30363d" alt="Documentation"></a>
   <a href="https://github.com/KanJieTeam/kjdraw"><img src="https://img.shields.io/badge/GitHub-source-181717?style=flat-square&logo=github" alt="GitHub source"></a>
@@ -49,13 +50,13 @@ Build the interface your users need while sharing drawing data, commands and und
 
 ## Start in 60 seconds
 
-Install the candidate matching these examples:
+Install the published RC2 tarball directly from its GitHub Release:
 
 ```sh
-npm install @kanjieteam/kjdraw@1.0.0-rc.2
+npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz
 ```
 
-The examples below target the upcoming 1.0 editor API in this branch. Until this candidate is published, use the repository checkout to try these new entry points.
+The `v1.0.0-rc.2` GitHub Release is live and contains the editor API used below. Publication to the npm registry is still pending. After npm lists this version, `npm install @kanjieteam/kjdraw@next` and `npm install @kanjieteam/kjdraw@1.0.0-rc.2` will provide the same candidate.
 
 Mount the editor:
 
@@ -158,12 +159,12 @@ Choose `sample-site-plan`, `sample-architecture`, `sample-road-profile` or `samp
 | **KJP** | Deterministic multi-drawing project with manifests, hashes, snapshots and command journal |
 | **DXF** | Documented ASCII compatibility profile backed by corpus and independent cross-tool audits |
 
-Use the same package from a terminal:
+Use the installed package from a terminal:
 
 ```sh
-npx @kanjieteam/kjdraw@next inspect drawing.dxf
-npx @kanjieteam/kjdraw@next validate project.kjp
-npx @kanjieteam/kjdraw@next convert drawing.kjd drawing.dxf --dxf-version 2018
+npx kjdraw inspect drawing.dxf
+npx kjdraw validate project.kjp
+npx kjdraw convert drawing.kjd drawing.dxf --dxf-version 2018
 ```
 
 See [Loading and files](https://kanjieteam.github.io/kjdraw/docs/latest/files/), the [DXF compatibility evidence](docs/dxf-compatibility.md) and [known limits](docs/status.md).
@@ -206,7 +207,7 @@ The package is ESM-first and has zero runtime dependencies. Read the [architectu
 
 ## Toward 1.0
 
-The next candidate is `1.0.0-rc.2`. Follow the [release notes](docs/releases/1.0.0-rc.2.md) for changes and the [roadmap](docs/roadmap.md) for what comes next. The npm badge above shows the published version.
+The `v1.0.0-rc.2` candidate is published as a [GitHub Release](https://github.com/KanJieTeam/kjdraw/releases/tag/v1.0.0-rc.2); npm registry distribution is pending. Follow the [release notes](docs/releases/1.0.0-rc.2.md) for changes and the [roadmap](docs/roadmap.md) for what comes next.
 
 ## Develop and contribute
 

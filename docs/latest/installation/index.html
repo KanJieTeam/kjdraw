@@ -4,11 +4,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Choose the npm channel, runtime and import path that match your application and release policy.">
+  <meta name="description" content="Install the published GitHub Release today, then choose the npm channel, runtime and import path that match your application.">
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/installation/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=d155241f8396db1e">
+  <link rel="stylesheet" href="../style.css?v=fb56e3fac627392c">
   <title>Installation · KJDraw Docs</title>
 </head>
 <body>
@@ -61,7 +61,7 @@
         <article class="lang-en" lang="en" id="en-installation">
           <p class="eyebrow">KJDRAW / INSTALLATION</p>
           <h1>Installation</h1>
-          <p class="lead">Choose the npm channel, runtime and import path that match your application and release policy.</p>
+          <p class="lead">Install the published GitHub Release today, then choose the npm channel, runtime and import path that match your application.</p>
           <h2 id="en-installation-requirements">Requirements<a class="heading-anchor" href="#en-installation-requirements" aria-label="Link to Requirements">#</a></h2>
 <ul>
 <li>Node.js 22 or newer for repository tooling and supported Node.js consumers.</li>
@@ -70,8 +70,8 @@
 </ul>
 <p>KJDraw&#39;s core has no runtime npm dependencies. React and Vue are optional peer dependencies: install the framework your application uses when importing <code>/react</code> or <code>/vue</code>. Headless and plain TypeScript applications do not need either framework.</p>
 <h2 id="en-installation-release-channels">Release channels<a class="heading-anchor" href="#en-installation-release-channels" aria-label="Link to Release channels">#</a></h2>
-<div class="table-wrap"><table><thead><tr><th>Intent</th><th>Command</th></tr></thead><tbody><tr><td>Evaluate the current RC</td><td><code>npm install @kanjieteam/kjdraw@next</code></td></tr><tr><td>Reproduce RC2 exactly</td><td><code>npm install @kanjieteam/kjdraw@1.0.0-rc.2</code></td></tr><tr><td>Install stable after promotion</td><td><code>npm install @kanjieteam/kjdraw</code></td></tr><tr><td>Work from a checkout</td><td><code>npm install /path/to/kjdraw/packages/kjdraw-sdk</code></td></tr></tbody></table></div>
-<p>Do not assume npm <code>latest</code> points to a release candidate. Prereleases are intentionally published under <code>next</code>.</p>
+<div class="table-wrap"><table><thead><tr><th>Intent</th><th>Command</th></tr></thead><tbody><tr><td>Install published RC2 now</td><td><code>npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz</code></td></tr><tr><td>Evaluate the current RC after npm publication</td><td><code>npm install @kanjieteam/kjdraw@next</code></td></tr><tr><td>Reproduce RC2 from npm after it becomes available</td><td><code>npm install @kanjieteam/kjdraw@1.0.0-rc.2</code></td></tr><tr><td>Install stable after npm promotion</td><td><code>npm install @kanjieteam/kjdraw</code></td></tr><tr><td>Work from a checkout</td><td><code>npm install /path/to/kjdraw/packages/kjdraw-sdk</code></td></tr></tbody></table></div>
+<p>The <code>v1.0.0-rc.2</code> GitHub Release and tarball are published; npm registry publication is pending. Until the package page lists this candidate, use the release tarball above. Once npm is available, prereleases use <code>next</code> and stable versions use <code>latest</code>.</p>
 <h2 id="en-installation-public-imports">Public imports<a class="heading-anchor" href="#en-installation-public-imports" aria-label="Link to Public imports">#</a></h2>
 <p>Use the root for the common SDK surface and subpaths when you want a smaller, explicit contract.</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
@@ -82,7 +82,7 @@ import { KJDeploymentRegistry } from &#39;@kanjieteam/kjdraw/deployment&#39;</co
         <article class="lang-zh" lang="zh-CN" id="zh-installation">
           <p class="eyebrow">KJDRAW / 安装</p>
           <h1>安装</h1>
-          <p class="lead">根据应用形态与发布策略选择正确的 npm 渠道、运行环境和导入路径。</p>
+          <p class="lead">立即安装已发布的 GitHub Release，并根据应用形态选择后续 npm 渠道、运行环境和导入路径。</p>
           <h2 id="zh-installation-requirements">环境要求<a class="heading-anchor" href="#zh-installation-requirements" aria-label="Link to 环境要求">#</a></h2>
 <ul>
 <li>仓库工具链和受支持的 Node.js 消费端使用 Node.js 22 或更高版本。</li>
@@ -91,8 +91,8 @@ import { KJDeploymentRegistry } from &#39;@kanjieteam/kjdraw/deployment&#39;</co
 </ul>
 <p>KJDraw 核心的 npm 运行时依赖为零。React、Vue 是可选 peer dependency：导入 <code>/react</code> 或 <code>/vue</code> 时，安装应用所用的框架即可。无界面程序和原生 TypeScript 应用无需安装这两个框架。</p>
 <h2 id="zh-installation-release-channels">发布渠道<a class="heading-anchor" href="#zh-installation-release-channels" aria-label="Link to 发布渠道">#</a></h2>
-<div class="table-wrap"><table><thead><tr><th>目标</th><th>命令</th></tr></thead><tbody><tr><td>评估当前候选版</td><td><code>npm install @kanjieteam/kjdraw@next</code></td></tr><tr><td>精确复现 RC2</td><td><code>npm install @kanjieteam/kjdraw@1.0.0-rc.2</code></td></tr><tr><td>稳定版晋级后安装</td><td><code>npm install @kanjieteam/kjdraw</code></td></tr><tr><td>从本地 checkout 使用</td><td><code>npm install /path/to/kjdraw/packages/kjdraw-sdk</code></td></tr></tbody></table></div>
-<p>不要假设 npm <code>latest</code> 会指向候选版。预发布版本会刻意发布到 <code>next</code>。</p>
+<div class="table-wrap"><table><thead><tr><th>目标</th><th>命令</th></tr></thead><tbody><tr><td>立即安装已发布的 RC2</td><td><code>npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz</code></td></tr><tr><td>npm 发布后评估当前候选版</td><td><code>npm install @kanjieteam/kjdraw@next</code></td></tr><tr><td>npm 可用后精确复现 RC2</td><td><code>npm install @kanjieteam/kjdraw@1.0.0-rc.2</code></td></tr><tr><td>npm 晋级稳定版后安装</td><td><code>npm install @kanjieteam/kjdraw</code></td></tr><tr><td>从本地 checkout 使用</td><td><code>npm install /path/to/kjdraw/packages/kjdraw-sdk</code></td></tr></tbody></table></div>
+<p><code>v1.0.0-rc.2</code> GitHub Release 与 tarball 已经发布，npm Registry 发布仍在处理中。在 npm 包页面列出该候选版之前，请使用上面的 Release tarball。npm 可用后，预发布版本使用 <code>next</code>，稳定版本使用 <code>latest</code>。</p>
 <h2 id="zh-installation-public-imports">公共导入路径<a class="heading-anchor" href="#zh-installation-public-imports" aria-label="Link to 公共导入路径">#</a></h2>
 <p>常用 SDK 能力从根入口导入；当你希望边界更小、更明确时使用子路径。</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
@@ -106,6 +106,6 @@ import { KJDeploymentRegistry } from &#39;@kanjieteam/kjdraw/deployment&#39;</co
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=d155241f8396db1e"></script>
+  <script type="module" src="../app.js?v=fb56e3fac627392c"></script>
 </body>
 </html>

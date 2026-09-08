@@ -11,6 +11,11 @@ test('Editor API switches languages, searches the complete reference and preserv
   await expect(page.locator('#quickstart')).toBeVisible()
   await expect(page.locator('#method-setoptions')).toContainText('setOptions')
 
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.locator('.install button')).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  await page.setViewportSize({ width: 1280, height: 720 })
+
   await page.locator('#language').click()
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
   await expect(page.locator('h1 .lang-zh')).toHaveText('KJDraw 编辑器 API')

@@ -7,7 +7,8 @@
 <p align="center">面向工程应用、交互式 CAD 工作台与可审核 AI Agent 的可扩展基础。</p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/@kanjieteam/kjdraw"><img src="https://img.shields.io/npm/v/@kanjieteam/kjdraw?style=flat-square&label=npm&labelColor=30363d&color=2863f0" alt="npm 版本"></a>
+  <a href="https://github.com/KanJieTeam/kjdraw/releases/tag/v1.0.0-rc.2"><img src="https://img.shields.io/badge/release-v1.0.0--rc.2-2863f0?style=flat-square&labelColor=30363d" alt="GitHub Release v1.0.0-rc.2"></a>
+  <a href="https://www.npmjs.com/package/@kanjieteam/kjdraw"><img src="https://img.shields.io/npm/v/@kanjieteam/kjdraw?style=flat-square&label=npm_registry&labelColor=30363d&color=2863f0" alt="npm Registry 版本；RC2 待发布"></a>
   <a href="https://kanjieteam.github.io/kjdraw/"><img src="https://img.shields.io/badge/▲_在线_Demo-打开-2863f0?style=flat-square&labelColor=30363d" alt="在线 Demo"></a>
   <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><img src="https://img.shields.io/badge/▣_开发文档-latest-2863f0?style=flat-square&labelColor=30363d" alt="开发文档"></a>
   <a href="https://github.com/KanJieTeam/kjdraw"><img src="https://img.shields.io/badge/GitHub-源码-181717?style=flat-square&logo=github" alt="GitHub 源码"></a>
@@ -49,13 +50,13 @@ AI Agent ─┘                       │
 
 ## 60 秒开始
 
-安装与以下示例匹配的候选版本：
+直接从 GitHub Release 安装已经发布的 RC2 包：
 
 ```sh
-npm install @kanjieteam/kjdraw@1.0.0-rc.2
+npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz
 ```
 
-下面的示例面向本分支即将发布的 1.0 编辑器 API。候选版发布前，请使用仓库源码体验这些新入口。
+`v1.0.0-rc.2` GitHub Release 已上线，并包含下面使用的编辑器 API；npm Registry 发布仍在处理中。npm 可以查询到该版本后，`npm install @kanjieteam/kjdraw@next` 与 `npm install @kanjieteam/kjdraw@1.0.0-rc.2` 将安装同一候选版。
 
 一次挂载编辑器：
 
@@ -158,12 +159,12 @@ await editor.ready
 | **KJP** | 包含清单、哈希、快照与命令日志的确定性多图纸工程 |
 | **DXF** | 有文档、语料和独立跨工具审计支撑的 ASCII 兼容范围 |
 
-同一个包也可以直接用于终端：
+已安装的包也可以直接用于终端：
 
 ```sh
-npx @kanjieteam/kjdraw@next inspect drawing.dxf
-npx @kanjieteam/kjdraw@next validate project.kjp
-npx @kanjieteam/kjdraw@next convert drawing.kjd drawing.dxf --dxf-version 2018
+npx kjdraw inspect drawing.dxf
+npx kjdraw validate project.kjp
+npx kjdraw convert drawing.kjd drawing.dxf --dxf-version 2018
 ```
 
 继续阅读[文件读写指南](https://kanjieteam.github.io/kjdraw/docs/latest/files/)、[DXF 兼容证据](docs/dxf-compatibility.md)和[已知边界](docs/status.md)。
@@ -206,7 +207,7 @@ npm 包采用 ESM，运行时零依赖。扩展核心边界前，请先阅读[�
 
 ## 走向 1.0
 
-下一候选版为 `1.0.0-rc.2`。通过[更新说明](docs/releases/1.0.0-rc.2.md)了解本次变化，在[路线图](docs/roadmap.md)中查看后续方向。实际已发布版本以上方 npm 徽章为准。
+`v1.0.0-rc.2` 候选版已经作为 [GitHub Release](https://github.com/KanJieTeam/kjdraw/releases/tag/v1.0.0-rc.2) 发布；npm Registry 分发仍在处理中。通过[更新说明](docs/releases/1.0.0-rc.2.md)了解本次变化，在[路线图](docs/roadmap.md)中查看后续方向。
 
 ## 开发与贡献
 

@@ -309,6 +309,14 @@ const editorApi = {
   sourceDigest: editorGuideDigest,
 }
 
+// A published release artifact remains installable while the registry publication is pending.
+const installFromRelease = editorGuide.distribution?.version === packageJson.version
+  && editorGuide.distribution?.channel === 'github-release'
+const installTarget = installFromRelease
+  ? `https://github.com/KanJieTeam/kjdraw/releases/download/v${packageJson.version}/kanjieteam-kjdraw-${packageJson.version}.tgz`
+  : `${packageJson.name}@${packageJson.version}`
+const installCommand = `npm install ${installTarget}`
+
 const localized = (en, zh, tag = 'span') => `<${tag} class="lang-en">${escapeHtml(en)}</${tag}><${tag} class="lang-zh">${escapeHtml(zh)}</${tag}>`
 const permalink = (anchor, label) => `<a class="permalink" href="#${anchor}" aria-label="Link to ${escapeHtml(label)}">#</a>`
 const codeBlock = (code, language = 'ts') => `<pre data-language="${escapeHtml(language)}"><button class="copy" type="button" data-copy-code>Copy</button><code>${escapeHtml(code)}</code></pre>`
@@ -374,7 +382,8 @@ const editorHtml = `<!doctype html>
           <p class="eyebrow">@kanjieteam/kjdraw</p>
           <h1>${localized(editorGuide.title.en, editorGuide.title.zh)}</h1>
           <p class="lead">${localized(editorGuide.lead.en, editorGuide.lead.zh)}</p>
-          <div class="install"><code>npm install ${escapeHtml(packageJson.name)}@${escapeHtml(packageJson.version)}</code><button type="button" data-copy-value="npm install ${escapeHtml(packageJson.name)}@${escapeHtml(packageJson.version)}">Copy</button></div>
+          <div class="install"><code>${escapeHtml(installCommand)}</code><button type="button" data-copy-value="${escapeHtml(installCommand)}">Copy</button></div>
+          ${installFromRelease ? `<p>${localized('Install the published GitHub release package. npm registry publication is pending.', '安装已发布的 GitHub Release 包；npm 仓库发布尚待完成。')}</p>` : ''}
         </section>
 
         <section id="quickstart">

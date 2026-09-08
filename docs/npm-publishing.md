@@ -1,14 +1,24 @@
 # npm package and publishing
 
-The public SDK package is `@kanjieteam/kjdraw`. Release candidates are published on npm's `next` dist-tag; stable versions are published on `latest`.
+The distributable SDK package is `@kanjieteam/kjdraw`. The [`v1.0.0-rc.2` GitHub Release](https://github.com/KanJieTeam/kjdraw/releases/tag/v1.0.0-rc.2) and its installable package tarball are published. Publication of this version to the npm registry is still pending.
 
-## Install and try it
+After RC2 reaches npm, candidates in the 1.0 release line use the `next` dist-tag; the stable 1.0 release will use `latest`.
+
+## Install the published candidate now
 
 ```sh
+npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz
+```
+
+This published, versioned Release asset is the current install path. After the npm package page lists `1.0.0-rc.2`, either registry command below installs the same candidate:
+
+```sh
+# Available only after npm publication succeeds
+npm install @kanjieteam/kjdraw@next
 npm install @kanjieteam/kjdraw@1.0.0-rc.2
 ```
 
-The npm package page and repository badge are the source of truth for the currently published version. The `1.0.0-rc.2` editor API in this checkout has not been published yet. Until that candidate is available, build this repository and install the local package into a test application:
+Contributors can alternatively build the repository and install the local package into a test application:
 
 ```sh
 git clone https://github.com/KanJieTeam/kjdraw.git
@@ -18,7 +28,7 @@ npm run build
 npm install /path/to/kjdraw/packages/kjdraw-sdk
 ```
 
-The checkout package can then provide the upcoming editor entry point:
+The GitHub Release tarball and checkout package provide the editor entry point:
 
 ```js
 import { createKJDrawEditor } from '@kanjieteam/kjdraw/editor'

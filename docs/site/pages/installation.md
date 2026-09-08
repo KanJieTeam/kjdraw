@@ -2,8 +2,8 @@
 slug: installation
 title.en: Installation
 title.zh: 安装
-summary.en: Choose the npm channel, runtime and import path that match your application and release policy.
-summary.zh: 根据应用形态与发布策略选择正确的 npm 渠道、运行环境和导入路径。
+summary.en: Install the published GitHub Release today, then choose the npm channel, runtime and import path that match your application.
+summary.zh: 立即安装已发布的 GitHub Release，并根据应用形态选择后续 npm 渠道、运行环境和导入路径。
 ---
 :::en
 ## Requirements {#requirements}
@@ -18,12 +18,13 @@ KJDraw's core has no runtime npm dependencies. React and Vue are optional peer d
 
 | Intent | Command |
 | --- | --- |
-| Evaluate the current RC | `npm install @kanjieteam/kjdraw@next` |
-| Reproduce RC2 exactly | `npm install @kanjieteam/kjdraw@1.0.0-rc.2` |
-| Install stable after promotion | `npm install @kanjieteam/kjdraw` |
+| Install published RC2 now | `npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz` |
+| Evaluate the current RC after npm publication | `npm install @kanjieteam/kjdraw@next` |
+| Reproduce RC2 from npm after it becomes available | `npm install @kanjieteam/kjdraw@1.0.0-rc.2` |
+| Install stable after npm promotion | `npm install @kanjieteam/kjdraw` |
 | Work from a checkout | `npm install /path/to/kjdraw/packages/kjdraw-sdk` |
 
-Do not assume npm `latest` points to a release candidate. Prereleases are intentionally published under `next`.
+The `v1.0.0-rc.2` GitHub Release and tarball are published; npm registry publication is pending. Until the package page lists this candidate, use the release tarball above. Once npm is available, prereleases use `next` and stable versions use `latest`.
 
 ## Public imports {#public-imports}
 
@@ -50,12 +51,13 @@ KJDraw 核心的 npm 运行时依赖为零。React、Vue 是可选 peer dependen
 
 | 目标 | 命令 |
 | --- | --- |
-| 评估当前候选版 | `npm install @kanjieteam/kjdraw@next` |
-| 精确复现 RC2 | `npm install @kanjieteam/kjdraw@1.0.0-rc.2` |
-| 稳定版晋级后安装 | `npm install @kanjieteam/kjdraw` |
+| 立即安装已发布的 RC2 | `npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz` |
+| npm 发布后评估当前候选版 | `npm install @kanjieteam/kjdraw@next` |
+| npm 可用后精确复现 RC2 | `npm install @kanjieteam/kjdraw@1.0.0-rc.2` |
+| npm 晋级稳定版后安装 | `npm install @kanjieteam/kjdraw` |
 | 从本地 checkout 使用 | `npm install /path/to/kjdraw/packages/kjdraw-sdk` |
 
-不要假设 npm `latest` 会指向候选版。预发布版本会刻意发布到 `next`。
+`v1.0.0-rc.2` GitHub Release 与 tarball 已经发布，npm Registry 发布仍在处理中。在 npm 包页面列出该候选版之前，请使用上面的 Release tarball。npm 可用后，预发布版本使用 `next`，稳定版本使用 `latest`。
 
 ## 公共导入路径 {#public-imports}
 

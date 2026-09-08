@@ -57,7 +57,10 @@ test('Editor API is task-oriented, bilingual and deep-linkable', async () => {
   assert.equal(guide.package, packageJson.name)
   assert.equal(guide.version, packageJson.version)
   assert.match(guide.sourceDigest, /^sha256:[a-f0-9]{64}$/)
-  assert.ok(html.includes(`data-copy-value="npm install ${packageJson.name}@${packageJson.version}"`), 'the install command must select the version described by this documentation')
+  const installTarget = guide.distribution?.version === packageJson.version && guide.distribution?.channel === 'github-release'
+    ? `https://github.com/KanJieTeam/kjdraw/releases/download/v${packageJson.version}/kanjieteam-kjdraw-${packageJson.version}.tgz`
+    : `${packageJson.name}@${packageJson.version}`
+  assert.ok(html.includes(`data-copy-value="npm install ${installTarget}"`), 'the install command must select the available distribution of the documented version')
   assert.match(html, /createKJDrawEditor/)
   assert.match(html, /@kanjieteam\/kjdraw\/react/)
   assert.match(html, /@kanjieteam\/kjdraw\/vue/)

@@ -9,8 +9,10 @@ summary.zh: 安装 KJDraw，几分钟内挂载完整编辑器，并打开一张�
 ## Install {#install}
 
 ```sh
-npm install @kanjieteam/kjdraw@1.0.0-rc.2
+npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz
 ```
+
+This installs the published `v1.0.0-rc.2` GitHub Release. npm registry publication is pending; after npm lists the candidate, `npm install @kanjieteam/kjdraw@next` is the equivalent channel command.
 
 ## Mount a complete editor {#mount-editor}
 
@@ -72,8 +74,10 @@ Continue to **React** or **Vue** for framework components, **Files** for KJD/KJP
 ## 安装 {#install}
 
 ```sh
-npm install @kanjieteam/kjdraw@1.0.0-rc.2
+npm install https://github.com/KanJieTeam/kjdraw/releases/download/v1.0.0-rc.2/kanjieteam-kjdraw-1.0.0-rc.2.tgz
 ```
+
+这会安装已经发布的 `v1.0.0-rc.2` GitHub Release。npm Registry 发布仍在处理中；npm 可以查询到该候选版后，可使用等价的渠道命令 `npm install @kanjieteam/kjdraw@next`。
 
 ## 挂载完整编辑器 {#mount-editor}
 

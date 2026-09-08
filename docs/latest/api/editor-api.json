@@ -2,6 +2,10 @@
   "schema": "com.kanjie.kjdraw.editor-api-guide@1",
   "symbol": "createKJDrawEditor",
   "class": "KJDrawEditor",
+  "distribution": {
+    "version": "1.0.0-rc.2",
+    "channel": "github-release"
+  },
   "title": {
     "en": "KJDraw Editor API",
     "zh": "KJDraw 编辑器 API"
@@ -348,5 +352,5 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.2",
   "source": "docs/site/api/editor-api.json",
-  "sourceDigest": "sha256:3fe75a98d97b021858b7d9deaea87b460eb4d7794841482a6d37761c9e463e55"
+  "sourceDigest": "sha256:e287a01e773509e11dff4b9161bc5e3cf590685ea8ae915fab53fa9331d5e5d7"
 }
