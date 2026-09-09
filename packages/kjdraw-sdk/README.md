@@ -1,8 +1,9 @@
 # @kanjieteam/kjdraw
 
-**CAD for engineers and AI.**
+**A new generation of CAD.**
 
-An open-source CAD engine and ready-to-use editor. Build engineering drawing apps, or give your AI agent tools to create and edit drawings that people can continue working on.
+An open-source CAD engine and ready-to-use editor.
+Create, edit, and automate engineering drawings—with code, with AI, or by hand.
 
 Use the editor in your browser app, customize it for your industry, or automate drawing operations from code. Drawing tools, layers, properties, English/Chinese UI and three layouts are included.
 

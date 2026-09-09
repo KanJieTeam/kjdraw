@@ -2,9 +2,9 @@
 
 <h1 align="center">KJDraw</h1>
 
-<p align="center"><strong>CAD for engineers and AI.</strong></p>
+<p align="center"><strong>A new generation of CAD.</strong></p>
 
-<p align="center">An open-source CAD engine and ready-to-use editor.<br>Build engineering drawing apps. Give AI agents tools to create and edit drawings.</p>
+<p align="center">An open-source CAD engine and ready-to-use editor.<br>Create, edit, and automate engineering drawings—with code, with AI, or by hand.</p>
 
 <p align="center">
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>Try the editor</strong></a> ·
