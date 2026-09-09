@@ -5,9 +5,13 @@
 An open-source CAD engine and ready-to-use editor.
 Create, edit, and automate engineering drawings—with code, with AI, or by hand.
 
-Use the editor in your browser app, customize it for your industry, or automate drawing operations from code. Drawing tools, layers, properties, English/Chinese UI and three layouts are included.
-
 [Live Demo](https://kanjieteam.github.io/kjdraw/) · [Developer Docs](https://kanjieteam.github.io/kjdraw/docs/latest/) · [GitHub](https://github.com/KanJieTeam/kjdraw)
+
+## Why KJDraw?
+
+- **Keep automated work editable.** Continue editing drawings created or modified by code or an AI agent, using the same drawing objects and undo history.
+- **Start with a ready-to-use editor.** Drawing tools, layers, properties and file operations are included, with three layouts and English and Chinese interfaces.
+- **Build on the CAD engine.** Embed the editor in your application, create your own interface, or extend the engine with tools for your industry.
 
 ## Install
 
@@ -15,7 +19,7 @@ Use the editor in your browser app, customize it for your industry, or automate 
 npm install @kanjieteam/kjdraw@next
 ```
 
-KJDraw ships as standards-based ESM with first-class TypeScript declarations. Interactive movement and selectable layouts require **1.0.0-rc.3 or newer**; release candidates use the `next` channel.
+KJDraw ships as ESM with TypeScript declarations. These examples require **1.0.0-rc.3 or newer**. Use the `next` channel; `latest` may be older. See [release status](https://github.com/KanJieTeam/kjdraw/blob/main/docs/status.md) for published versions and source changes not yet on npm.
 
 ## Vanilla TypeScript
 
@@ -96,10 +100,18 @@ node node_modules/@kanjieteam/kjdraw/examples/quickstart.mjs
 
 ## Give your agent CAD tools
 
-Your application connects the AI model; KJDraw provides drawing commands and a review-and-approval workflow. A person can continue editing the result and undo an approved edit. Follow the [Agent guide](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) to connect your host.
+Your application supplies the AI model; KJDraw supplies the CAD tools. Connect your agent to create and modify drawing objects, preview supported changes for approval, and apply edits that users can continue working on or undo. Follow the [Agent guide](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) to get started.
 
-The built-in Agent Demo uses preset scenarios. A general-purpose natural-language design assistant is not included. Native KJD/KJP files and a documented [DXF compatibility range](https://github.com/KanJieTeam/kjdraw/blob/main/docs/dxf-compatibility.md) are supported; direct DWG support is not included.
+The built-in Agent Demo uses preset scenarios, not a connected language model.
 
-Our mission is to make KJDraw the default open-source CAD engine for the AI era. [Explore the roadmap and contribute](https://github.com/KanJieTeam/kjdraw#build-it-with-us).
+## Files and automation
+
+Read, edit and save drawings from code or the CLI, without an AI model. See the [file guide](https://kanjieteam.github.io/kjdraw/docs/latest/files/) for examples.
+
+KJDraw supports native KJD drawings and KJP projects, plus a documented [DXF compatibility range](https://github.com/KanJieTeam/kjdraw/blob/main/docs/dxf-compatibility.md). Direct DWG support is not included.
+
+## Contributing
+
+Our mission is to make KJDraw the default open-source CAD engine for the AI era. Explore the [roadmap](https://github.com/KanJieTeam/kjdraw/blob/main/docs/product/roadmap-to-core.md) or [contribute](https://github.com/KanJieTeam/kjdraw#contributing).
 
 Apache-2.0 · Built by [KanJieTeam](https://github.com/KanJieTeam)
