@@ -2,7 +2,7 @@
 
 <h1 align="center">KJDraw</h1>
 
-<p align="center"><strong>CAD for people and AI.</strong></p>
+<p align="center"><strong>CAD for engineers and AI.</strong></p>
 
 <p align="center">An open-source CAD engine and ready-to-use editor.<br>Build engineering drawing apps. Give AI agents tools to create and edit drawings.</p>
 
@@ -122,18 +122,6 @@ The SDK provides drawing commands and an approval workflow today. A general-purp
 
 You can also automate drawings without AI. The [file guide](https://kanjieteam.github.io/kjdraw/docs/latest/files/) covers reading, editing and saving from code or the CLI. KJDraw supports its native KJD drawings and KJP projects, plus a documented [DXF compatibility range](docs/dxf-compatibility.md); direct DWG support is not included.
 
-## Building toward the AI era
-
-We want an engineer, an application and an AI agent to work on the same editable drawing. Our next flagship workflow is a request-to-drawing journey: describe a part, create it, ask for a change, review the result and hand it over for further editing. This is a development target, not a description of the current preset Demo.
-
-The [roadmap to 1.0](docs/product/roadmap-to-core.md) connects that ambition to practical work:
-
-- **Finish real drawings:** dependable editing, reusable parts, file exchange and measured output.
-- **Make CAD useful to agents:** focused drawing queries, useful tool errors, real model integrations and reviewable changes.
-- **Make it a foundation others can build on:** straightforward integration, extensible tools, clear documentation and compatibility.
-
-KJDraw grew out of **Kanjie (勘界)**. Our direction is one shared CAD core for the open-source project and Kanjie's products, with general-purpose improvements contributed here. Private industry workflows and customer data stay outside this repository.
-
 ## Build it with us
 
 Bring a drawing that exposes a bug, build an integration, or help improve the engine. Work that directly helps users includes geometry and file compatibility, editing tools, Agent examples, accessibility, performance and documentation.
@@ -149,7 +137,7 @@ npm run dev
 
 Open **http://localhost:4173**. Before submitting changes, run `npm run typecheck` and `npm test`; UI changes also need `npm run test:browser`.
 
-[Documentation](https://kanjieteam.github.io/kjdraw/docs/latest/) · [API reference](https://kanjieteam.github.io/kjdraw/docs/latest/api/) · [Support](SUPPORT.md) · [Release status](docs/status.md) · [License](LICENSE)
+[Documentation](https://kanjieteam.github.io/kjdraw/docs/latest/) · [API reference](https://kanjieteam.github.io/kjdraw/docs/latest/api/) · [Roadmap](docs/product/roadmap-to-core.md) · [Support](SUPPORT.md) · [Release status](docs/status.md) · [License](LICENSE)
 
 **Built by [KanJieTeam](https://github.com/KanJieTeam), open to contributors everywhere.**
 

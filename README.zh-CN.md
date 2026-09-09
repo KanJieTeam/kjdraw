@@ -2,7 +2,7 @@
 
 <h1 align="center">KJDraw</h1>
 
-<p align="center"><strong>让人和 AI 在同一张工程图纸上工作。</strong></p>
+<p align="center"><strong>面向工程师与 AI 的 CAD。</strong></p>
 
 <p align="center">开源 CAD 引擎，以及拿来就能用的绘图编辑器。<br>开发你的工程绘图应用，让 AI 拥有创建和修改图纸的工具。</p>
 
@@ -122,18 +122,6 @@ import { KJDraw } from '@kanjieteam/kjdraw/vue'
 
 不使用 AI，也可以自动化处理图纸。[文件指南](https://kanjieteam.github.io/kjdraw/docs/latest/files/)介绍程序和命令行中的读取、编辑与保存。KJDraw 支持原生 KJD 图纸、KJP 工程，以及有明确[兼容范围的 DXF](docs/dxf-compatibility.md)；当前不包含直接打开 DWG 的能力。
 
-## 一起建设 AI 时代的 CAD
-
-我们希望工程师、应用程序和 AI Agent 能在同一张可编辑图纸上工作。下一个重点体验是：提出一个零件需求、生成图纸、继续提出修改、检查结果，再交给人继续编辑。这是正在建设的目标，不是当前预设 Demo 已经完成的能力。
-
-[1.0 产品路线](docs/product/roadmap-to-core.md)把这个目标落实为具体工作：
-
-- **完成真正的绘图工作：** 可靠的编辑、可复用零部件、文件交换和按比例出图。
-- **让 Agent 更容易使用 CAD：** 按需读取图纸、清楚的工具报错、真实模型接入和可检查的修改。
-- **让更多产品可以建立在它之上：** 简单的接入方式、可扩展工具、清晰文档和兼容性。
-
-KJDraw 源于**勘界 Kanjie**。我们的方向是让开源项目和勘界产品共享同一套 CAD 核心，把通用改进持续贡献到这里。私有行业流程和客户数据不进入本仓库。
-
 ## 欢迎一起打磨
 
 带来一张能复现问题的图纸、接入你正在开发的应用，或者一起改进引擎。几何与文件兼容、编辑工具、Agent 示例、无障碍、性能和文档，都是直接帮助用户的贡献方向。
@@ -149,7 +137,7 @@ npm run dev
 
 访问 **http://localhost:4173**。提交修改前运行 `npm run typecheck` 和 `npm test`；界面修改还需运行 `npm run test:browser`。
 
-[使用文档](https://kanjieteam.github.io/kjdraw/docs/latest/) · [API 参考](https://kanjieteam.github.io/kjdraw/docs/latest/api/) · [获取支持](SUPPORT.md) · [版本状态](docs/status.md) · [许可证](LICENSE)
+[使用文档](https://kanjieteam.github.io/kjdraw/docs/latest/) · [API 参考](https://kanjieteam.github.io/kjdraw/docs/latest/api/) · [路线图](docs/product/roadmap-to-core.md) · [获取支持](SUPPORT.md) · [版本状态](docs/status.md) · [许可证](LICENSE)
 
 **由 [KanJieTeam](https://github.com/KanJieTeam) 发起，欢迎全球开发者参与。**
 
