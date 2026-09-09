@@ -4,6 +4,8 @@ The distributable SDK package is `@kanjieteam/kjdraw`. The source-tree candidate
 
 Candidates in the 1.0 release line use the `next` dist-tag; stable promotion will use `latest` only after the release gates pass.
 
+Run `npm run audit:distribution` for a read-only source/registry version comparison. `npm run audit:distribution -- --require-current` exits with 1 for a confirmed version/channel mismatch and 2 for an unavailable or malformed response. Run it after publishing, not as a pre-publication CI gate: a new version is necessarily absent before it is published. It never changes tags and does not replace provenance or artifact verification.
+
 ## Install the published candidate now
 
 ```sh
@@ -29,6 +31,7 @@ git clone https://github.com/KanJieTeam/kjdraw.git
 cd kjdraw
 npm ci
 npm run build
+cd /path/to/your-app
 npm install /path/to/kjdraw/packages/kjdraw-sdk
 ```
 

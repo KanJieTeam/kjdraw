@@ -68,7 +68,7 @@ The following is the implementation baseline, not a claim that the listed work i
 | U03 | Bilingual UI/accessibility | Every new control/prompt needs both languages and keyboard access | Complete the same drawing in English and Chinese |
 | E01 | Ready-to-use Vanilla/React/Vue editor | Existing adapters now gain layout updates; every new common tool must ship here | Install packed/registry package in isolated apps and draw immediately |
 | E02 | Custom UI, tool/options/events APIs | Document stable high-level operations; keep internals out of the main guide | Host extends a command without copying the workbench source |
-| E03 | Plugins and AI operations | Public continuous boundary-edit sessions now share native previews and reviewed SDK execution with the UI; broader previews, bounded context queries and real model-host integration remain | Agent and human edits produce the same undoable geometry |
+| E03 | Plugins and AI operations | Public boundary-edit sessions share native previews and reviewed SDK execution with the UI; bounded context queries and six model-neutral starter tools are implemented in source; broader previews and real model-host integration remain | Agent and human edits produce the same undoable geometry |
 | Q01 | Large drawings and interaction latency | Establish a reproducible corpus, frame/selection/load/memory budgets | Publish hardware, fixture size and measured results |
 | Q02 | File safety, malformed inputs and limits | Existing checks must cover new tools and adapters | Fuzz inputs, cancel large loads and verify resource bounds |
 | Q03 | Distribution, provenance and documentation | Release checks exist; verify the exact artifact users install | Clean install, browser tests, hosted asset match and reproducible build |
@@ -96,13 +96,13 @@ This delivery closes usable slices of the programme; it does not mark an entire 
 
 The `cad.production-workflows` stable-release gate remains partial until the remaining everyday CAD workflows are implemented and accepted. Publishing this candidate cannot pass that gate automatically.
 
-## Local work after the publication pause
+## Source work completed during the publication pause
 
-These changes are local, uncommitted and not part of the deployed Demo or published npm package. Regression evidence is recorded separately from the source-candidate features above.
+The following is a historical implementation slice, subsequently committed to the public source. GitHub publication resumed on 2026-09-09; this does not establish npm availability. Current delivery priorities and status rules are maintained in the [master programme](roadmap-to-core.md). Run `npm run audit:distribution` to compare the source version with public registry tags.
 
 | Area | Local implementation | Remaining acceptance / scope |
 | --- | --- | --- |
-| Curved trim and extend | TRIM supports native LINE, ARC and CIRCLE targets; EXTEND supports LINE and ARC, with finite/ray/infinite-line and circular cutting boundaries | Boundary-first repeated trimming, polyline/spline targets and non-XY curve planes remain |
+| Curved trim and extend | TRIM supports native LINE, ARC and CIRCLE targets; EXTEND supports LINE and ARC, with finite/ray/infinite-line and circular cutting boundaries | Boundary-first repeated editing is now implemented; polyline/spline targets and non-XY curve planes remain |
 | Topology-changing edits | Circle-to-arc and two-piece TRIM update ordinary GROUP and saved-selection membership atomically with the geometry | Generalize explicit membership rules to BREAK/EXPLODE and block decomposition; arbitrary host references are not automatically rewritten |
 | Clockwise DXF arcs | Export swaps directional endpoints so the native DXF ARC has the same locus and sweep, instead of the complementary arc | Independent-reader checks cover the accepted circular-arc cases, not arbitrary-file fidelity |
 | Consumer-level checks | Shared bilingual controls, real Demo/embedded canvas tests and isolated packed-package curve-editing consumers | The complete programme and production-workflow release gate remain partial |

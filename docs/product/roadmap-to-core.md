@@ -1,10 +1,59 @@
-# From a usable editor to a dependable CAD foundation
+# KJDraw delivery programme
 
 Review date: 2026-09-09. This is an implementation and acceptance plan, not a list of shipped capabilities. See the [detailed CAD workstreams](cad-completeness.md) for feature-level scope.
+
+## One programme, explicit evidence
+
+This is the master delivery plan for the CAD application, SDK and AI tools. The CAD workstream IDs below link to the detailed implementation checklist; the [release matrix](../KJDRAW_1_0_ACCEPTANCE_MATRIX.json) governs stable promotion, not feature completeness. Historical acceptance reports are evidence at their recorded commit, not current publication status.
+
+Each delivery item advances through **planned → implemented → accepted → published**. Record its source commit, remaining scope, tests, affected consumers and first published package version. A passing core test does not establish UI availability; a deployed Demo does not establish npm availability. No overall percentage is inferred from command or test counts.
+
+### Workstreams
+
+| ID | Deliverables | Current position | Acceptance |
+| --- | --- | --- | --- |
+| W01 Distribution | Exact-commit CI, source/npm/Demo/Docs alignment, generated TS/JS parity, immutable release evidence | In progress: latest inspected public npm channel is older than the source; Firefox subpixel assertion corrected and the focused test passes in three browsers | Actual installed package completes documented examples; release and deployment artifacts match the accepted source |
+| W02 Construction and precision | G01–G10, P01–P04: native drawing primitives, curve construction, coordinates, snaps, tracking and units | Partial; basic construction and coordinate entry exist | Construct dimensioned profiles from points and exact input; independently check geometry |
+| W03 Editing and topology | S01–S04, M01–M09: selection, transforms, arrays, offset, trim/extend, fillet/chamfer, break/join/explode, stretch and vertices | Partial; continuous curve boundary editing exists, advanced topology remains | Draw and reshape a mechanical profile; cancel, undo, redo and reopen without lost geometry or references |
+| W04 Drawing resources | A01–A03, L01–L02, B01–B02: layers, text, dimensions, hatches, blocks, attributes and licensed parts | Partial; core records are not complete editing workflows | Build a plan from reusable parts; update instances, styles and dimensions and reopen |
+| W05 Files and output | F01–F04, O01–O02: uniform file actions, recovery, external DXF fixtures, paper/viewport/scale, PDF/SVG/image output; separate DWG provider track | Partial; native formats/history and bounded DXF exist, production output remains | Save/recover a project and produce a measured A3 sheet at explicit scale |
+| W06 Design relationships | Stable object identity, named parts, parameters, edge offsets, symmetry and dependency updates; later general constraints | Planned beyond existing IDs and object records | Widen a mounting plate while retaining specified hole-edge distances and updating annotations |
+| W07 CAD agent tools | Versioned tool definitions and runtime validation, explicit units/coordinates, bounded context, task-sized operations and useful errors | Starter session implemented in source: read/page/measure and line/circle/move proposals, with host-only approval. Real provider adapters and geometric preview expansion remain | Discover tools without reading internals; query, propose and validate supported geometry |
+| W08 Real AI execution | Real model loop, clarification, geometric checks, reviewed application, bounded correction, retry/deduplication, cancellation and resume | Planned; preset Demo is not this workflow | Real model creates, revises, validates and saves a part; reject a proposal and exercise failure recovery |
+| W09 Provider/framework/harness adapters | One tool source; direct SDK, MCP and CLI entrances; provider schema/result adapters; session, file, permissions and approval integration | Planned as a complete integration layer | The same task corpus runs with multiple tested models and two host environments without separate CAD implementations |
+| W10 Workbench and embedding | U01–U03, E01–E03: shared theme/layouts, usable panels, shortcuts, accessibility, Vanilla/React/Vue parity, customization and Kanjie downstream checks | Partial; three layouts and packaged adapters exist | Independent consumers embed and customize without copying workbench source; common fixes reach every consumer |
+| W11 Reliability and global documentation | Q01–Q03: mixed-drawing performance, input fuzzing, resource budgets, model-data permissions, bilingual versioned guides, fonts/Unicode/units | Partial; baseline tests, input budgets and docs exist | Named hardware/fixtures, measured latency and memory, malicious-input cases, reproducible guide examples |
+| W12 Ecosystem and modelling | Industry samples, independent integrations, plugin contributions, task evaluations, maintained releases; X01 parametric sketches, BRep and assemblies | Partial samples/governance; external adoption and general modelling remain | External users complete tasks and ship integrations; modelling features have independent geometric acceptance |
+
+### Delivery stages
+
+| Stage | Work in parallel | Exit condition |
+| --- | --- | --- |
+| A — Trusted baseline | W01 plus W07 interface design | Complete CI passes; installation/deployment differences are explicit and the accepted candidate can be reproduced |
+| B — Complete part workflow | W02/W03/W06 plus first W07/W08 DeepSeek task | Empty drawing → dimensioned part → language-driven revision → numeric checks → save/reopen, across varied inputs |
+| C — General application | W04/W05/W10 plus W09 | Mechanical, building and site tasks; reusable parts and output; real cross-model/host tests |
+| D — Candidate acceptance | W01/W08/W11 with independent users | Three clean framework integrations, complete browser runs, failures/recovery, measured AI task corpus |
+| E — Stable release | W01/W12 | Explicit maintainer promotion of the exact accepted artifact, with matching Docs/Demo and public tested scope |
+| F — Broader leadership | W06/W09/W11/W12 | Larger tasks, interoperability, reliable modelling and sustained independent adoption |
+
+Milestones are evidence-based, not promised dates. The target is global leadership in dependable, embeddable, AI-usable CAD; no ranking or guaranteed community response is asserted.
+
+### Proposed 1.0 user acceptance
+
+- Mechanical, building and site drawings completed from empty documents, including modification, native save/reopen and measured output within the published scope.
+- The same workflows in clean Vanilla/React/Vue consumers, without copied workbench source.
+- At least three actually tested model configurations spanning domestic and international providers, and two host environments. Target adapters are not advertised as supported until their task results exist.
+- A versioned corpus of at least 30 AI tasks, with repeated runs per model/configuration. Proposed standard-task completion target: 95%; also report geometric correctness, attempts, cost, latency, interventions and failures. This is a target, not a current result.
+- No known release-blocking data loss, silently incorrect committed geometry or duplicate-execution defect in the accepted scope; complete CI and exact published-artifact checks.
+- Independent developers and drawing users complete onboarding and tasks without maintainer coaching. General BRep, assemblies, unrestricted DWG and device-certified printing remain separate tracks rather than implied 1.0 features.
+
+The runtime owns identity, file/model permissions and approvals. Drawing text is untrusted data, not an instruction. Models may propose changes but must not manufacture their own approval. Keep vendor dependencies outside the CAD core and give every adapter the same tool semantics.
 
 The [local regression record](regression-2026-09-09.md) separates implemented changes, tested artifacts and remaining gaps during the publication pause.
 
 The subsequent [continuous-editing and geometric-review record](boundary-workflows-2026-09-09.md) tracks the shared UI/Agent workflow and its local acceptance.
+
+The [starter-tool acceptance record](agent-tools-acceptance-2026-09-09.md) covers model-neutral tools, installed consumers, bilingual search and distribution auditing. Real model/provider integration remains a separate acceptance step.
 
 ## Product decision
 
@@ -28,8 +77,8 @@ Stages are ordered by dependencies, not promised dates. Documentation, accessibi
 
 ### Next implementation slices
 
-1. **Completed locally:** curve-editing regression on generated runtime, rebuilt WASM and packed consumers, including group membership, undo and independent DXF reread. See the dated regression record; the publication pause remains in place.
-2. **Implemented locally:** boundary-first, repeated TRIM/EXTEND in the Demo and packaged editor, with hover geometry, a public UI-neutral session API and one Undo per completed target. The same preview feeds an existing reviewed Agent plan. Publication remains paused; this completes a bounded editing slice, not the entire drafting stage.
+1. **Accepted in source:** curve-editing regression on generated runtime, rebuilt WASM and packed consumers, including group membership, undo and independent DXF reread. Source publication resumed; check npm separately with `npm run audit:distribution`.
+2. **Accepted in source:** boundary-first, repeated TRIM/EXTEND in the Demo and packaged editor, with hover geometry, a public UI-neutral session API and one Undo per completed target. The same preview feeds an existing reviewed Agent plan. This completes a bounded editing slice, not the entire drafting stage or npm release.
 3. Implement native contour joining, lengthening, stretch and polyline vertex insert/remove. Generalize GROUP/saved-selection membership for BREAK/EXPLODE; a split or replacement must not leave an apparently empty assembly or lose a retained fragment.
 4. Complete the mechanical drawing acceptance from an empty document before expanding the parts/block and building-plan workflow. File-reopen and measured geometry are required alongside screenshots.
 

@@ -6,6 +6,33 @@ summary.en: Give your agent focused drawing context, review its proposed edits, 
 summary.zh: 让 Agent 按需读取图纸，检查它提出的修改，再由人接手继续编辑。
 ---
 :::en
+## Model-neutral CAD tools {#agent-tools}
+
+The current source checkout adds `KJAgentToolSession` from `@kanjieteam/kjdraw/agent-tools`. Check source/package availability before using this new entry. The session binds one host-authorized document and provides serializable tool definitions plus a `call(name, arguments)` dispatcher.
+
+| Tool | Result |
+| --- | --- |
+| `cad_read_drawing` | First page of visible model-space objects, layers and drawing units |
+| `cad_read_page` | Revision-bound continuation with independent entity/layer offsets |
+| `cad_measure_distance` | Planar point-to-point distance in the supplied drawing units |
+| `cad_propose_lines` | Proposed batch of up to 64 XY lines |
+| `cad_propose_circles` | Proposed batch of up to 64 XY circles |
+| `cad_propose_move` | Proposed XY move of up to 64 visible editable model-space LINE/CIRCLE objects |
+
+Expose **only the definitions and dispatcher** to your model adapter. `approve(planId, reviewerId)` and `reject(planId, reviewerId)` are trusted-host methods: the host authenticates the user, checks permissions and collects review of the exact proposed arguments. A reviewer string by itself is not authentication. There is no model-callable approval, arbitrary command, file or network tool.
+
+Proposals validate their inputs and bind the current drawing, but they are **command arguments, not rendered geometric previews**. Execution can still reject geometry or editing policy. Approval attempts are not automatically retried; inspect the drawing and make a fresh proposal after a failed/uncertain result. There is no durable task resume or model connector in this starter session.
+
+Creation uses the core batch command's default layer and explicitly targets model XY at z=0. Read results retain native coordinates and omission notices; they do not expand blocks or promise world-coordinate geometry. Each session accepts at most 128 proposals and permits one in-flight operation. The host still owns total session limits, model budgets, isolation, model-data disclosure and persistence. Provider-specific schema conversion must not remove the session's runtime validation.
+
+Run the installed [tool-session example](https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/agent-tools.mjs):
+
+```sh
+node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs
+```
+
+It exercises proposal, simulated host approval, duplicate rejection, native-file reopen and undo without a model or API key. This verifies tool plumbing, not natural-language design success.
+
 ## Give the agent the drawing it needs {#drawing-context}
 
 Your host connects the model and decides which drawing data it may receive. KJDraw provides the editing tools and a read-only context query. Query only the objects relevant to the task instead of sending the entire drawing file.
@@ -162,6 +189,33 @@ This is an application protocol inside one SDK host process. It does not authent
 Start with the stable [Agent integration contract](https://github.com/KanJieTeam/kjdraw/blob/main/docs/agent.md), then use the maintained [Agent protocol](https://github.com/KanJieTeam/kjdraw/blob/main/docs/agent-protocol.md) for the complete lifecycle and boundary.
 :::
 :::zh
+## 模型无关的 CAD 工具 {#agent-tools}
+
+当前源码新增 `@kanjieteam/kjdraw/agent-tools` 中的 `KJAgentToolSession`。使用前核对源码与安装包的发布状态。一个会话绑定一份由宿主授权的图纸，提供可序列化的工具定义和 `call(name, arguments)` 调用入口。
+
+| 工具 | 返回结果 |
+| --- | --- |
+| `cad_read_drawing` | 可见模型空间对象、图层和单位的第一页 |
+| `cad_read_page` | 绑定图纸版本、分别按对象和图层偏移继续读取 |
+| `cad_measure_distance` | 使用图纸单位计算同一坐标系中两点的平面距离 |
+| `cad_propose_lines` | 最多 64 条 XY 直线的创建方案 |
+| `cad_propose_circles` | 最多 64 个 XY 圆的创建方案 |
+| `cad_propose_move` | 最多 64 个可见且可编辑的模型空间直线或圆的 XY 移动方案 |
+
+向模型适配器**只提供工具定义和调用入口**。`approve(planId, reviewerId)` 与 `reject(planId, reviewerId)` 仅供可信宿主使用：宿主验证身份、检查权限，并让用户审核确切的修改参数。填写审核人字符串不等于完成身份验证。工具列表没有批准、任意命令、文件或网络执行入口。
+
+方案验证输入并绑定当前图纸，但返回的是**命令参数，不是图形预览**。实际执行仍可能因几何或编辑规则失败。批准尝试不会自动重放；失败或结果不确定时，先检查图纸，再创建新方案。此基础会话尚不包含持久化任务恢复或模型连接器。
+
+创建操作使用核心批量命令的默认图层，明确在模型 XY 平面 z=0 上创建。读取保留原生坐标和省略说明，不展开图块或保证世界坐标。每个会话最多接受 128 个方案，同时只允许一个正在执行的操作。会话总量、模型费用、隔离、向模型发送数据的权限和持久化仍由宿主管理。厂家参数格式转换不能取消会话中的运行时验证。
+
+运行安装包中的[工具会话示例](https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/agent-tools.mjs)：
+
+```sh
+node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs
+```
+
+示例不调用模型或使用密钥，验证提案、模拟宿主批准、重复执行拒绝、原生文件重开和撤销。这是工具链验证，不是自然语言设计成功率的证明。
+
 ## 先让 Agent 读到任务需要的图纸内容 {#drawing-context}
 
 宿主应用负责连接模型，并决定它可以读取哪些图纸数据。KJDraw 提供编辑工具和只读查询接口，让你按任务选取对象，不必把整份图纸文件发送出去。

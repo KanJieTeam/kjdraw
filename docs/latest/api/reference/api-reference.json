@@ -3,8 +3,51 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:a32b0e23bf032aea271af47e72a200246c8bfe3f3baaf8287f185fa1ca9470fa",
+  "sourceDigest": "sha256:fdfdbb9847cbc4a00b8b0b64007bd34f0d128b2861cbc02d8a14346eed2011ed",
   "modules": [
+    {
+      "exportPath": "./agent-tools",
+      "packageName": "@kanjieteam/kjdraw/agent-tools",
+      "declaration": "types/agent-tools.d.ts",
+      "anchor": "module-agent-tools",
+      "symbols": [
+        {
+          "name": "KJAgentToolDefinition",
+          "kind": "interface",
+          "declaration": "export interface KJAgentToolDefinition {\n    readonly name: string;\n    readonly description: string;\n    /** JSON Schema; provider adapters must preserve validation semantics. */\n    readonly inputSchema: KJAgentToolSchema;\n    readonly effect: 'read' | 'propose';\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-interface-kjagenttooldefinition"
+        },
+        {
+          "name": "KJAgentToolResult",
+          "kind": "type",
+          "declaration": "export type KJAgentToolResult = {\n    readonly ok: true;\n    readonly value: unknown;\n} | {\n    readonly ok: false;\n    readonly error: {\n        readonly code: string;\n        readonly message: string;\n    };\n};",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-type-kjagenttoolresult"
+        },
+        {
+          "name": "KJAgentToolSchema",
+          "kind": "interface",
+          "declaration": "export interface KJAgentToolSchema {\n    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'null';\n    readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;\n    readonly required?: readonly string[];\n    readonly additionalProperties?: false;\n    readonly items?: KJAgentToolSchema;\n    readonly minimum?: number;\n    readonly maximum?: number;\n    readonly exclusiveMinimum?: number;\n    readonly minItems?: number;\n    readonly maxItems?: number;\n    readonly minLength?: number;\n    readonly maxLength?: number;\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-interface-kjagenttoolschema"
+        },
+        {
+          "name": "KJAgentToolSession",
+          "kind": "class",
+          "declaration": "export declare class KJAgentToolSession {\n    #private;\n    readonly definitions: readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument);\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-class-kjagenttoolsession"
+        },
+        {
+          "name": "KJDRAW_AGENT_TOOLS",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[];",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-const-kjdraw-agent-tools"
+        }
+      ]
+    },
     {
       "exportPath": "./drawing-context",
       "packageName": "@kanjieteam/kjdraw/drawing-context",
@@ -5295,6 +5338,34 @@
           "anchor": "root-interface-kjagentplanregistryoptions"
         },
         {
+          "name": "KJAgentToolDefinition",
+          "kind": "interface",
+          "declaration": "export interface KJAgentToolDefinition {\n    readonly name: string;\n    readonly description: string;\n    /** JSON Schema; provider adapters must preserve validation semantics. */\n    readonly inputSchema: KJAgentToolSchema;\n    readonly effect: 'read' | 'propose';\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-interface-kjagenttooldefinition"
+        },
+        {
+          "name": "KJAgentToolResult",
+          "kind": "type",
+          "declaration": "export type KJAgentToolResult = {\n    readonly ok: true;\n    readonly value: unknown;\n} | {\n    readonly ok: false;\n    readonly error: {\n        readonly code: string;\n        readonly message: string;\n    };\n};",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-type-kjagenttoolresult"
+        },
+        {
+          "name": "KJAgentToolSchema",
+          "kind": "interface",
+          "declaration": "export interface KJAgentToolSchema {\n    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'null';\n    readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;\n    readonly required?: readonly string[];\n    readonly additionalProperties?: false;\n    readonly items?: KJAgentToolSchema;\n    readonly minimum?: number;\n    readonly maximum?: number;\n    readonly exclusiveMinimum?: number;\n    readonly minItems?: number;\n    readonly maxItems?: number;\n    readonly minLength?: number;\n    readonly maxLength?: number;\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-interface-kjagenttoolschema"
+        },
+        {
+          "name": "KJAgentToolSession",
+          "kind": "class",
+          "declaration": "export declare class KJAgentToolSession {\n    #private;\n    readonly definitions: readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument);\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-class-kjagenttoolsession"
+        },
+        {
           "name": "KJArcConnector",
           "kind": "interface",
           "declaration": "export interface KJArcConnector {\n    type: 'ARC';\n    payload: KJObjectPayload & {\n        center: Point3;\n        radius: number;\n        startAngle: number;\n        endAngle: number;\n        clockwise: boolean;\n        normal: Point3;\n    };\n}",
@@ -6035,6 +6106,13 @@
           "declaration": "export declare const KJDRAW_1_0_READINESS_PROFILE: Readonly<KJSDKReadinessProfile>;",
           "source": "capabilities.d.ts",
           "anchor": "root-const-kjdraw-1-0-readiness-profile"
+        },
+        {
+          "name": "KJDRAW_AGENT_TOOLS",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[];",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-const-kjdraw-agent-tools"
         },
         {
           "name": "KJDRAW_CAD_VERSION_MATRIX",

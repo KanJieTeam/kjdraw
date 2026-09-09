@@ -20,6 +20,8 @@ node scripts/audits/release-readiness.mjs
 
 ## Ready in the source tree
 
+For the current public npm/source comparison, run `npm run audit:distribution`. Add `-- --require-current` to fail when the source version is unpublished or the expected channel points elsewhere. Registry/network errors are reported as unknown, not as a missing release. This check is read-only and does not replace artifact or stable-release verification.
+
 - Every public SDK runtime module has a strict TypeScript authority file. Browser/Node ESM is generated and checked for parity.
 - Generated declarations cover the package root and every documented subpath.
 - The public editor and React/Vue components share the canvas renderer, drawing data, commands and original industry samples used by the workbench.
@@ -29,6 +31,7 @@ node scripts/audits/release-readiness.mjs
 - The public plugin starter exercises manifest validation, compatibility, explicit permission grants, activation, a real transaction and disposal.
 - Agent plans use SHA-256 content binding over exact arguments and complete document content, plus expected revision, expiry, reviewer identity and one-shot consumption.
 - The source-tree `drawing-context` entry provides read-only, revision-bound entity/layer queries with native geometry, editing eligibility, pagination and explicit response/geometry omissions. It does not connect a model or authorize data access.
+- The source-tree `agent-tools` entry provides six model-neutral starter tool definitions with runtime validation, bound-document queries/measurement and line/circle/move proposals. Approval is a separate trusted-host method; provider adapters, rendered previews, durable task recovery and real model-task verification remain incomplete.
 - The synthetic 10,000-line core profile is enforced by a CI budget for batch creation, a single-entity edit, snapshot, KJD/KJP round trips and memory growth.
 - The headless CLI inspects, validates and converts KJD, KJP and the supported DXF profile without uploading files.
 

@@ -105,3 +105,24 @@ test('guide search remains usable when the API index is temporarily unavailable'
   await expect(page.locator('#results a[href$="/react/#en-react"]')).toBeVisible()
   await expect.poll(() => apiAttempts).toBe(2)
 })
+
+test('Agent tool guide has bilingual deep links, searchable tools and a usable narrow layout', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/docs/latest/agent/#en-agent-agent-tools')
+  await expect(page.locator('#en-agent-agent-tools')).toBeVisible()
+  const english = page.locator('article.lang-en')
+  await expect(english.locator('table').first().locator('tbody tr')).toHaveCount(6)
+  await expect(english).toContainText('KJAgentToolSession')
+  await expect(english).toContainText('examples/agent-tools.mjs')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+
+  await page.locator('#language').click()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN')
+  await expect(page.locator('#zh-agent-agent-tools')).toBeVisible()
+  await expect(page.locator('article.lang-zh')).toContainText('KJAgentToolSession')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+
+  await page.locator('#search-button').click()
+  await page.locator('#search').fill('cad_propose_circles')
+  await expect(page.locator('#results a[href*="/agent/#zh-agent-agent-tools"]')).toBeVisible()
+})

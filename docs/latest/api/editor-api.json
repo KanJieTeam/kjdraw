@@ -373,5 +373,5 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "docs/site/api/editor-api.json",
-  "sourceDigest": "sha256:cd1fa0d71379824d0dbceafa91dfb68ea1d3b1645d8d996c9823a63c9b1cef10"
+  "sourceDigest": "sha256:6ecc9165bda393751e348c59564060c1ea7e4434f7ec267f508b4dd5073214fe"
 }

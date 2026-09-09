@@ -422,6 +422,8 @@ console.log(JSON.stringify(results))
     const boundaryProbe = run(process.execPath, [boundaryProbePath], { cwd: consumerDirectory })
     assert.deepEqual(JSON.parse(boundaryProbe.stdout), { boundarySession: true, preview: true, reviewedAgentEdit: true, continuousUiEdit: true, separateUndo: true })
 
+    const agentToolsProbe = run(process.execPath, [join(installedRoot, 'examples', 'agent-tools.mjs')], { cwd: consumerDirectory })
+    assert.deepEqual(JSON.parse(agentToolsProbe.stdout), { agentTools: true, hostApproval: true, duplicateRejected: true, reopen: true, undo: true })
     const contextProbe = run(process.execPath, [join(installedRoot, 'examples', 'drawing-context.mjs')], { cwd: consumerDirectory })
     assert.deepEqual(JSON.parse(contextProbe.stdout), { drawingContext: true, units: 'millimeter', circles: 3, pagination: true, readOnly: true })
 

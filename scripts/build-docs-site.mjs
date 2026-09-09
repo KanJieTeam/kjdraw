@@ -73,7 +73,9 @@ function plainText(source) {
   return String(source)
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
-    .replace(/[`*_>#|{}\[\]-]/g, ' ')
+    // Keep inline API/tool identifiers intact; underscores and hyphens are
+    // meaningful in code, not Markdown emphasis or list markers.
+    .replace(/`([^`]+)`|[`*_>#|{}\[\]-]/g, (_, code) => code ?? ' ')
     .replace(/\s+/g, ' ')
     .trim()
 }

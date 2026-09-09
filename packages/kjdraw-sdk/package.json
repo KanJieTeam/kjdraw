@@ -57,6 +57,11 @@
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
+    "./agent-tools": {
+      "types": "./types/agent-tools.d.ts",
+      "import": "./src/agent-tools.js",
+      "default": "./src/agent-tools.js"
+    },
     "./drawing-context": {
       "types": "./types/drawing-context.d.ts",
       "import": "./src/drawing-context.js",

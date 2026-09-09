@@ -25,6 +25,7 @@
     "example": "node examples/agent-command.mjs",
     "test:browser": "playwright test",
     "audit:dxf": "node scripts/audit-dxf-corpus.mjs",
+    "audit:distribution": "node scripts/audits/distribution-status.mjs",
     "check": "node scripts/check.mjs"
   },
   "devDependencies": {

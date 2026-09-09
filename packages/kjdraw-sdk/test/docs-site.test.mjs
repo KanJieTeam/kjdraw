@@ -50,6 +50,12 @@ test('generated documentation portal covers the complete bilingual learning path
   assert.equal(search.version, packageJson.version)
   assert.equal(search.sourceDigest, manifest.sourceDigest)
   assert.ok(search.entries.length > required.length * 2)
+  for (const locale of manifest.locales) {
+    const tools = search.entries.find(entry => entry.href.endsWith(`#${locale}-agent-agent-tools`))
+    assert.ok(tools, `Agent tool guide must be indexed in ${locale}`)
+    assert.match(tools.text, /cad_propose_circles/)
+    assert.match(tools.text, /@kanjieteam\/kjdraw\/agent-tools/)
+  }
   for (const entry of search.entries) {
     assert.ok(manifest.locales.includes(entry.locale))
     assert.ok(required.includes(entry.page))

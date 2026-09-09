@@ -2,8 +2,48 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:a32b0e23bf032aea271af47e72a200246c8bfe3f3baaf8287f185fa1ca9470fa",
+  "sourceDigest": "sha256:fdfdbb9847cbc4a00b8b0b64007bd34f0d128b2861cbc02d8a14346eed2011ed",
   "entries": [
+    {
+      "name": "KJAgentToolDefinition",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-interface-kjagenttooldefinition",
+      "anchor": "agent-tools-interface-kjagenttooldefinition",
+      "summary": "export interface KJAgentToolDefinition { readonly name: string; readonly description: string; /** JSON Schema; provider adapters must preserve validation semantics. */ readonly inputSchema: KJAgentToolSchema; readonly ef"
+    },
+    {
+      "name": "KJAgentToolResult",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-type-kjagenttoolresult",
+      "anchor": "agent-tools-type-kjagenttoolresult",
+      "summary": "export type KJAgentToolResult = { readonly ok: true; readonly value: unknown; } | { readonly ok: false; readonly error: { readonly code: string; readonly message: string; }; };"
+    },
+    {
+      "name": "KJAgentToolSchema",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-interface-kjagenttoolschema",
+      "anchor": "agent-tools-interface-kjagenttoolschema",
+      "summary": "export interface KJAgentToolSchema { readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'null'; readonly properties?: Readonly<Record<string, KJAgentToolSchema>>; readonly required?: readonly string[];"
+    },
+    {
+      "name": "KJAgentToolSession",
+      "kind": "class",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-class-kjagenttoolsession",
+      "anchor": "agent-tools-class-kjagenttoolsession",
+      "summary": "export declare class KJAgentToolSession { #private; readonly definitions: readonly KJAgentToolDefinition[]; constructor(sdk: KJDrawSDK, document: KJDocument); call(name: string, input: unknown): Promise<KJAgentToolResult"
+    },
+    {
+      "name": "KJDRAW_AGENT_TOOLS",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-const-kjdraw-agent-tools",
+      "anchor": "agent-tools-const-kjdraw-agent-tools",
+      "summary": "export declare const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[];"
+    },
     {
       "name": "createDrawingContext",
       "kind": "function",
@@ -5933,6 +5973,38 @@
       "summary": "export interface KJAgentPlanRegistryOptions { clock?: () => number; defaultTtlMs?: number; bindingProvider?: KJAgentPlanBindingProvider; }"
     },
     {
+      "name": "KJAgentToolDefinition",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagenttooldefinition",
+      "anchor": "root-interface-kjagenttooldefinition",
+      "summary": "export interface KJAgentToolDefinition { readonly name: string; readonly description: string; /** JSON Schema; provider adapters must preserve validation semantics. */ readonly inputSchema: KJAgentToolSchema; readonly ef"
+    },
+    {
+      "name": "KJAgentToolResult",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjagenttoolresult",
+      "anchor": "root-type-kjagenttoolresult",
+      "summary": "export type KJAgentToolResult = { readonly ok: true; readonly value: unknown; } | { readonly ok: false; readonly error: { readonly code: string; readonly message: string; }; };"
+    },
+    {
+      "name": "KJAgentToolSchema",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagenttoolschema",
+      "anchor": "root-interface-kjagenttoolschema",
+      "summary": "export interface KJAgentToolSchema { readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'null'; readonly properties?: Readonly<Record<string, KJAgentToolSchema>>; readonly required?: readonly string[];"
+    },
+    {
+      "name": "KJAgentToolSession",
+      "kind": "class",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-class-kjagenttoolsession",
+      "anchor": "root-class-kjagenttoolsession",
+      "summary": "export declare class KJAgentToolSession { #private; readonly definitions: readonly KJAgentToolDefinition[]; constructor(sdk: KJDrawSDK, document: KJDocument); call(name: string, input: unknown): Promise<KJAgentToolResult"
+    },
+    {
       "name": "KJArcConnector",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -6779,6 +6851,14 @@
       "href": "./api/reference/#root-const-kjdraw-1-0-readiness-profile",
       "anchor": "root-const-kjdraw-1-0-readiness-profile",
       "summary": "export declare const KJDRAW_1_0_READINESS_PROFILE: Readonly<KJSDKReadinessProfile>;"
+    },
+    {
+      "name": "KJDRAW_AGENT_TOOLS",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-const-kjdraw-agent-tools",
+      "anchor": "root-const-kjdraw-agent-tools",
+      "summary": "export declare const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[];"
     },
     {
       "name": "KJDRAW_CAD_VERSION_MATRIX",

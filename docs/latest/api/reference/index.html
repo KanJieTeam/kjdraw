@@ -16,7 +16,8 @@
     <nav class="top-links"><a href="../">Editor API</a><a href="../../"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="reference-shell">
-    <aside class="reference-sidebar"><div class="version"><span>TYPE REFERENCE</span><strong>v1.0.0-rc.3</strong></div><nav><a href="#module-drawing-context"><code>./drawing-context</code></a>
+    <aside class="reference-sidebar"><div class="version"><span>TYPE REFERENCE</span><strong>v1.0.0-rc.3</strong></div><nav><a href="#module-agent-tools"><code>./agent-tools</code></a>
+<a href="#module-drawing-context"><code>./drawing-context</code></a>
 <a href="#module-boundary-edit"><code>./boundary-edit</code></a>
 <a href="#module-drafting"><code>./drafting</code></a>
 <a href="#module-modification-controls"><code>./modification-controls</code></a>
@@ -55,7 +56,110 @@
     <main class="reference-main"><article>
       <section class="reference-intro" id="api-reference"><p class="eyebrow">TYPESCRIPT</p><h1><span class="lang-en">Complete API reference</span><span class="lang-zh">完整 API 参考</span></h1><p class="lead"><span class="lang-en">Browse the declarations for the root package and every public subpath. Start with the Editor API for application integration.</span><span class="lang-zh">浏览根包及每个公开子路径的类型声明；应用接入请先从 Editor API 开始。</span></p><a class="primary-link" href="../"><span class="lang-en">Open Editor API</span><span class="lang-zh">打开 Editor API</span> →</a></section>
       <div id="empty-state" hidden><h2><span class="lang-en">No matching API</span><span class="lang-zh">未找到匹配 API</span></h2></div>
-      <section class="api-module" id="module-drawing-context" data-module="@kanjieteam/kjdraw/drawing-context">
+      <section class="api-module" id="module-agent-tools" data-module="@kanjieteam/kjdraw/agent-tools">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/agent-tools</code></h2></div><a class="permalink" href="#module-agent-tools" aria-label="Link to @kanjieteam/kjdraw/agent-tools">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/agent-tools.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="agent-tools-interface-kjagenttooldefinition" data-search="kjagenttooldefinition interface @kanjieteam/kjdraw/agent-tools export interface kjagenttooldefinition {
+    readonly name: string;
+    readonly description: string;
+    /** json schema; provider adapters must preserve validation semantics. */
+    readonly inputschema: kjagenttoolschema;
+    readonly effect: &#39;read&#39; | &#39;propose&#39;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentToolDefinition</h3></div><a class="permalink" href="#agent-tools-interface-kjagenttooldefinition" aria-label="Link to KJAgentToolDefinition">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentToolDefinition {
+    readonly name: string;
+    readonly description: string;
+    /** JSON Schema; provider adapters must preserve validation semantics. */
+    readonly inputSchema: KJAgentToolSchema;
+    readonly effect: &#39;read&#39; | &#39;propose&#39;;
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
+<article class="api-symbol" id="agent-tools-type-kjagenttoolresult" data-search="kjagenttoolresult type @kanjieteam/kjdraw/agent-tools export type kjagenttoolresult = {
+    readonly ok: true;
+    readonly value: unknown;
+} | {
+    readonly ok: false;
+    readonly error: {
+        readonly code: string;
+        readonly message: string;
+    };
+};">
+      <header><div><span class="kind">type</span><h3>KJAgentToolResult</h3></div><a class="permalink" href="#agent-tools-type-kjagenttoolresult" aria-label="Link to KJAgentToolResult">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJAgentToolResult = {
+    readonly ok: true;
+    readonly value: unknown;
+} | {
+    readonly ok: false;
+    readonly error: {
+        readonly code: string;
+        readonly message: string;
+    };
+};</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
+<article class="api-symbol" id="agent-tools-interface-kjagenttoolschema" data-search="kjagenttoolschema interface @kanjieteam/kjdraw/agent-tools export interface kjagenttoolschema {
+    readonly type: &#39;object&#39; | &#39;array&#39; | &#39;string&#39; | &#39;number&#39; | &#39;integer&#39; | &#39;null&#39;;
+    readonly properties?: readonly&lt;record&lt;string, kjagenttoolschema&gt;&gt;;
+    readonly required?: readonly string[];
+    readonly additionalproperties?: false;
+    readonly items?: kjagenttoolschema;
+    readonly minimum?: number;
+    readonly maximum?: number;
+    readonly exclusiveminimum?: number;
+    readonly minitems?: number;
+    readonly maxitems?: number;
+    readonly minlength?: number;
+    readonly maxlength?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentToolSchema</h3></div><a class="permalink" href="#agent-tools-interface-kjagenttoolschema" aria-label="Link to KJAgentToolSchema">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentToolSchema {
+    readonly type: &#39;object&#39; | &#39;array&#39; | &#39;string&#39; | &#39;number&#39; | &#39;integer&#39; | &#39;null&#39;;
+    readonly properties?: Readonly&lt;Record&lt;string, KJAgentToolSchema&gt;&gt;;
+    readonly required?: readonly string[];
+    readonly additionalProperties?: false;
+    readonly items?: KJAgentToolSchema;
+    readonly minimum?: number;
+    readonly maximum?: number;
+    readonly exclusiveMinimum?: number;
+    readonly minItems?: number;
+    readonly maxItems?: number;
+    readonly minLength?: number;
+    readonly maxLength?: number;
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
+<article class="api-symbol" id="agent-tools-class-kjagenttoolsession" data-search="kjagenttoolsession class @kanjieteam/kjdraw/agent-tools export declare class kjagenttoolsession {
+    #private;
+    readonly definitions: readonly kjagenttooldefinition[];
+    constructor(sdk: kjdrawsdk, document: kjdocument);
+    call(name: string, input: unknown): promise&lt;kjagenttoolresult&gt;;
+    /** invoke only after an authenticated host collected review of these exact arguments. */
+    approve(planid: string, reviewerid: string): promise&lt;kjagenttoolresult&gt;;
+    reject(planid: string, reviewerid: string): kjagenttoolresult;
+}">
+      <header><div><span class="kind">class</span><h3>KJAgentToolSession</h3></div><a class="permalink" href="#agent-tools-class-kjagenttoolsession" aria-label="Link to KJAgentToolSession">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare class KJAgentToolSession {
+    #private;
+    readonly definitions: readonly KJAgentToolDefinition[];
+    constructor(sdk: KJDrawSDK, document: KJDocument);
+    call(name: string, input: unknown): Promise&lt;KJAgentToolResult&gt;;
+    /** Invoke only after an authenticated host collected review of these exact arguments. */
+    approve(planId: string, reviewerId: string): Promise&lt;KJAgentToolResult&gt;;
+    reject(planId: string, reviewerId: string): KJAgentToolResult;
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
+<article class="api-symbol" id="agent-tools-const-kjdraw-agent-tools" data-search="kjdraw_agent_tools const @kanjieteam/kjdraw/agent-tools export declare const kjdraw_agent_tools: readonly kjagenttooldefinition[];">
+      <header><div><span class="kind">const</span><h3>KJDRAW_AGENT_TOOLS</h3></div><a class="permalink" href="#agent-tools-const-kjdraw-agent-tools" aria-label="Link to KJDRAW_AGENT_TOOLS">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[];</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-drawing-context" data-module="@kanjieteam/kjdraw/drawing-context">
   <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/drawing-context</code></h2></div><a class="permalink" href="#module-drawing-context" aria-label="Link to @kanjieteam/kjdraw/drawing-context">#</a></header>
   <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/drawing-context.d.ts</code></p>
   <div class="api-symbols">
@@ -10360,6 +10464,98 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }</code></pre>
       <p class="source-path">agent-plans.d.ts</p>
     </article>
+<article class="api-symbol" id="root-interface-kjagenttooldefinition" data-search="kjagenttooldefinition interface @kanjieteam/kjdraw export interface kjagenttooldefinition {
+    readonly name: string;
+    readonly description: string;
+    /** json schema; provider adapters must preserve validation semantics. */
+    readonly inputschema: kjagenttoolschema;
+    readonly effect: &#39;read&#39; | &#39;propose&#39;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentToolDefinition</h3></div><a class="permalink" href="#root-interface-kjagenttooldefinition" aria-label="Link to KJAgentToolDefinition">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentToolDefinition {
+    readonly name: string;
+    readonly description: string;
+    /** JSON Schema; provider adapters must preserve validation semantics. */
+    readonly inputSchema: KJAgentToolSchema;
+    readonly effect: &#39;read&#39; | &#39;propose&#39;;
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjagenttoolresult" data-search="kjagenttoolresult type @kanjieteam/kjdraw export type kjagenttoolresult = {
+    readonly ok: true;
+    readonly value: unknown;
+} | {
+    readonly ok: false;
+    readonly error: {
+        readonly code: string;
+        readonly message: string;
+    };
+};">
+      <header><div><span class="kind">type</span><h3>KJAgentToolResult</h3></div><a class="permalink" href="#root-type-kjagenttoolresult" aria-label="Link to KJAgentToolResult">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJAgentToolResult = {
+    readonly ok: true;
+    readonly value: unknown;
+} | {
+    readonly ok: false;
+    readonly error: {
+        readonly code: string;
+        readonly message: string;
+    };
+};</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjagenttoolschema" data-search="kjagenttoolschema interface @kanjieteam/kjdraw export interface kjagenttoolschema {
+    readonly type: &#39;object&#39; | &#39;array&#39; | &#39;string&#39; | &#39;number&#39; | &#39;integer&#39; | &#39;null&#39;;
+    readonly properties?: readonly&lt;record&lt;string, kjagenttoolschema&gt;&gt;;
+    readonly required?: readonly string[];
+    readonly additionalproperties?: false;
+    readonly items?: kjagenttoolschema;
+    readonly minimum?: number;
+    readonly maximum?: number;
+    readonly exclusiveminimum?: number;
+    readonly minitems?: number;
+    readonly maxitems?: number;
+    readonly minlength?: number;
+    readonly maxlength?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentToolSchema</h3></div><a class="permalink" href="#root-interface-kjagenttoolschema" aria-label="Link to KJAgentToolSchema">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentToolSchema {
+    readonly type: &#39;object&#39; | &#39;array&#39; | &#39;string&#39; | &#39;number&#39; | &#39;integer&#39; | &#39;null&#39;;
+    readonly properties?: Readonly&lt;Record&lt;string, KJAgentToolSchema&gt;&gt;;
+    readonly required?: readonly string[];
+    readonly additionalProperties?: false;
+    readonly items?: KJAgentToolSchema;
+    readonly minimum?: number;
+    readonly maximum?: number;
+    readonly exclusiveMinimum?: number;
+    readonly minItems?: number;
+    readonly maxItems?: number;
+    readonly minLength?: number;
+    readonly maxLength?: number;
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-class-kjagenttoolsession" data-search="kjagenttoolsession class @kanjieteam/kjdraw export declare class kjagenttoolsession {
+    #private;
+    readonly definitions: readonly kjagenttooldefinition[];
+    constructor(sdk: kjdrawsdk, document: kjdocument);
+    call(name: string, input: unknown): promise&lt;kjagenttoolresult&gt;;
+    /** invoke only after an authenticated host collected review of these exact arguments. */
+    approve(planid: string, reviewerid: string): promise&lt;kjagenttoolresult&gt;;
+    reject(planid: string, reviewerid: string): kjagenttoolresult;
+}">
+      <header><div><span class="kind">class</span><h3>KJAgentToolSession</h3></div><a class="permalink" href="#root-class-kjagenttoolsession" aria-label="Link to KJAgentToolSession">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare class KJAgentToolSession {
+    #private;
+    readonly definitions: readonly KJAgentToolDefinition[];
+    constructor(sdk: KJDrawSDK, document: KJDocument);
+    call(name: string, input: unknown): Promise&lt;KJAgentToolResult&gt;;
+    /** Invoke only after an authenticated host collected review of these exact arguments. */
+    approve(planId: string, reviewerId: string): Promise&lt;KJAgentToolResult&gt;;
+    reject(planId: string, reviewerId: string): KJAgentToolResult;
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-interface-kjarcconnector" data-search="kjarcconnector interface @kanjieteam/kjdraw export interface kjarcconnector {
     type: &#39;arc&#39;;
     payload: kjobjectpayload &amp; {
@@ -12331,6 +12527,11 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <header><div><span class="kind">const</span><h3>KJDRAW_1_0_READINESS_PROFILE</h3></div><a class="permalink" href="#root-const-kjdraw-1-0-readiness-profile" aria-label="Link to KJDRAW_1_0_READINESS_PROFILE">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_1_0_READINESS_PROFILE: Readonly&lt;KJSDKReadinessProfile&gt;;</code></pre>
       <p class="source-path">capabilities.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-const-kjdraw-agent-tools" data-search="kjdraw_agent_tools const @kanjieteam/kjdraw export declare const kjdraw_agent_tools: readonly kjagenttooldefinition[];">
+      <header><div><span class="kind">const</span><h3>KJDRAW_AGENT_TOOLS</h3></div><a class="permalink" href="#root-const-kjdraw-agent-tools" aria-label="Link to KJDRAW_AGENT_TOOLS">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[];</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
     </article>
 <article class="api-symbol" id="root-const-kjdraw-cad-version-matrix" data-search="kjdraw_cad_version_matrix const @kanjieteam/kjdraw export declare const kjdraw_cad_version_matrix: readonly [{
     readonly label: &#39;r14&#39;;
