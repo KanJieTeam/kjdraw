@@ -224,6 +224,24 @@ function insideFills(point: Point, loops: readonly Point[][]): boolean {
 }
 function criticalPoints(part: Primitive): Point[] { return part.kind === 'curve' ? curveExtrema(part) : part.kind === 'point' ? [part.point] : [part.a, part.b] }
 
+/** Conservative owner-XY query classification. Unknown geometry must remain visible to inspection callers. */
+export function classifyEntityInBox(document: KJDocument, entity: KJReadonlyObjectRecord, bounds: readonly [number, number, number, number]): 'intersects' | 'outside' | 'unclassified' {
+  if (!Array.isArray(bounds) || bounds.length !== 4 || [...bounds].some(n => typeof n !== 'number' || !Number.isFinite(n)) || bounds[0] > bounds[2] || bounds[1] > bounds[3]) throw new TypeError('Query bounds must be finite ordered XY extents')
+  if (!['LINE', 'RAY', 'XLINE', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE'].includes(entity.type)) return 'unclassified'
+  for (const normal of [entity.payload.normal, entity.payload.extrusionDirection]) {
+    if (normal !== undefined && (!Array.isArray(normal) || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) return 'unclassified'
+  }
+  if (Array.isArray(entity.payload.vertices) && entity.payload.vertices.length > 4096) return 'unclassified'
+  const [minX, minY, maxX, maxY] = bounds, tolerance = 1e-8
+  const corners: Point[] = [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]]
+  const inside = (p: Point) => p[0] >= minX - tolerance && p[0] <= maxX + tolerance && p[1] >= minY - tolerance && p[1] <= maxY + tolerance
+  try {
+    const projection = project(entity, document)
+    if (!projection.complete || !projection.parts.length) return 'unclassified'
+    return projection.parts.some(part => criticalPoints(part).some(inside) || corners.some((corner, i) => intersects(part, corner, corners[(i + 1) % 4]!, tolerance))) ? 'intersects' : 'outside'
+  } catch { return 'unclassified' }
+}
+
 /** One shared visibility/locking rule for picking, region queries and editable grips. */
 export function isEntitySelectable(document: KJDocument, entity: KJReadonlyObjectRecord, options: KJSpatialSelectionOptions = {}): boolean {
   if (entity.kind !== 'entity' || entity.erased || entity.ownerId !== (options.spaceId ?? document.snapshot().spaces.modelSpaceId) || entity.payload.visible === false) return false

@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:3b5733514d5ea220b5b2d6e4ade0cb4141b52c7f62490559cf5da5dadab50f6f",
+  "sourceDigest": "sha256:a5453821fe25bdbe051cfc9b0e8694319ed345e6d24a1cd89f91ecfdd0e6221b",
   "modules": [
     {
       "exportPath": "./model-adapters",
@@ -140,6 +140,13 @@
           "anchor": "agent-tools-type-default"
         },
         {
+          "name": "KJAgentDrawingQuery",
+          "kind": "interface",
+          "declaration": "export interface KJAgentDrawingQuery {\n    expectedRevision: number;\n    filters: Pick<KJDrawingContextOptions, 'ids' | 'types' | 'layerIds' | 'spaceId' | 'includeHidden' | 'bounds'>;\n    offset: number;\n    layerOffset: number;\n    limit: number;\n    maxLayers: number;\n    maxBytes: number;\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-interface-kjagentdrawingquery"
+        },
+        {
           "name": "KJAgentToolDefinition",
           "kind": "interface",
           "declaration": "export interface KJAgentToolDefinition {\n    readonly name: string;\n    readonly description: string;\n    /** JSON Schema; provider adapters must preserve validation semantics. */\n    readonly inputSchema: KJAgentToolSchema;\n    readonly effect: 'read' | 'propose';\n}",
@@ -192,14 +199,14 @@
         {
           "name": "KJDrawingContext",
           "kind": "interface",
-          "declaration": "export interface KJDrawingContext {\n    readonly documentId: string;\n    readonly revision: number;\n    readonly units: string;\n    readonly spaceId: string;\n    readonly layers: readonly KJDrawingContextLayer[];\n    readonly entities: readonly KJDrawingContextEntity[];\n    /** True when either collection or any requested native geometry was omitted. */\n    readonly truncated: boolean;\n    readonly truncationReasons: readonly KJDrawingContextTruncationReason[];\n    readonly nextOffset: number | null;\n    readonly nextLayerOffset: number | null;\n    readonly limits: {\n        readonly limit: number;\n        readonly maxLayers: number;\n        readonly maxBytes: number;\n        readonly maxGeometryBytes: number;\n    };\n}",
+          "declaration": "export interface KJDrawingContext {\n    readonly documentId: string;\n    readonly revision: number;\n    readonly units: string;\n    readonly spaceId: string;\n    readonly spatialQuery?: {\n        readonly bounds: readonly [number, number, number, number];\n        readonly coordinates: 'owner-xy';\n        readonly mode: 'crossing';\n        readonly unclassifiedIncluded: true;\n    };\n    readonly layers: readonly KJDrawingContextLayer[];\n    readonly entities: readonly KJDrawingContextEntity[];\n    /** True when either collection or any requested native geometry was omitted. */\n    readonly truncated: boolean;\n    readonly truncationReasons: readonly KJDrawingContextTruncationReason[];\n    readonly nextOffset: number | null;\n    readonly nextLayerOffset: number | null;\n    readonly limits: {\n        readonly limit: number;\n        readonly maxLayers: number;\n        readonly maxBytes: number;\n        readonly maxGeometryBytes: number;\n    };\n}",
           "source": "drawing-context.d.ts",
           "anchor": "drawing-context-interface-kjdrawingcontext"
         },
         {
           "name": "KJDrawingContextEntity",
           "kind": "interface",
-          "declaration": "export interface KJDrawingContextEntity {\n    readonly id: string;\n    readonly type: string;\n    readonly ownerId: string | null;\n    readonly layerId: string | null;\n    readonly visible: boolean;\n    /** Visibility and locking eligibility only; command support is not implied. */\n    readonly editable: boolean;\n    /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */\n    readonly geometry: {\n        readonly [key: string]: KJDrawingContextValue;\n    } | null;\n    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;\n}",
+          "declaration": "export interface KJDrawingContextEntity {\n    readonly id: string;\n    readonly type: string;\n    readonly ownerId: string | null;\n    readonly layerId: string | null;\n    readonly visible: boolean;\n    /** Visibility and locking eligibility only; command support is not implied. */\n    readonly editable: boolean;\n    /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */\n    readonly geometry: {\n        readonly [key: string]: KJDrawingContextValue;\n    } | null;\n    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;\n    readonly spatialMatch?: 'intersects' | 'unclassified';\n}",
           "source": "drawing-context.d.ts",
           "anchor": "drawing-context-interface-kjdrawingcontextentity"
         },
@@ -213,7 +220,7 @@
         {
           "name": "KJDrawingContextOptions",
           "kind": "interface",
-          "declaration": "export interface KJDrawingContextOptions {\n    /** Exact object IDs; duplicates are ignored. Filters are combined with AND. */\n    ids?: readonly string[];\n    /** Case-insensitive native entity types, for example LINE or ARC. */\n    types?: readonly string[];\n    layerIds?: readonly string[];\n    /** A live block record; defaults to model space. INSERTs are not expanded. */\n    spaceId?: string;\n    /** Hidden and frozen entities are excluded by default. Locked entities remain visible. */\n    includeHidden?: boolean;\n    expectedRevision?: number;\n    /** Matching entity offset. Continuations require expectedRevision and the same filters. */\n    offset?: number;\n    /** Registered layer offset, after layerIds filtering. */\n    layerOffset?: number;\n    /** 0 disables entities; default 50, maximum 200. */\n    limit?: number;\n    /** 0 disables the layer catalog; default 50, maximum 100. */\n    maxLayers?: number;\n    /** Maximum UTF-8 bytes of JSON.stringify(result); default 65536, range 1024..262144. */\n    maxBytes?: number;\n}",
+          "declaration": "export interface KJDrawingContextOptions {\n    /** Exact object IDs; duplicates are ignored. Filters are combined with AND. */\n    ids?: readonly string[];\n    /** Case-insensitive native entity types, for example LINE or ARC. */\n    types?: readonly string[];\n    layerIds?: readonly string[];\n    /** A live block record; defaults to model space. INSERTs are not expanded. */\n    spaceId?: string;\n    /** Hidden and frozen entities are excluded by default. Locked entities remain visible. */\n    includeHidden?: boolean;\n    /** Crossing rectangle [minX,minY,maxX,maxY] in owner XY. Unclassified geometry is retained and marked. */\n    bounds?: readonly [number, number, number, number];\n    expectedRevision?: number;\n    /** Matching entity offset. Continuations require expectedRevision and the same filters. */\n    offset?: number;\n    /** Registered layer offset, after layerIds filtering. */\n    layerOffset?: number;\n    /** 0 disables entities; default 50, maximum 200. */\n    limit?: number;\n    /** 0 disables the layer catalog; default 50, maximum 100. */\n    maxLayers?: number;\n    /** Maximum UTF-8 bytes of JSON.stringify(result); default 65536, range 1024..262144. */\n    maxBytes?: number;\n}",
           "source": "drawing-context.d.ts",
           "anchor": "drawing-context-interface-kjdrawingcontextoptions"
         },
@@ -5431,6 +5438,13 @@
           "anchor": "root-class-kjadaptererror"
         },
         {
+          "name": "KJAgentDrawingQuery",
+          "kind": "interface",
+          "declaration": "export interface KJAgentDrawingQuery {\n    expectedRevision: number;\n    filters: Pick<KJDrawingContextOptions, 'ids' | 'types' | 'layerIds' | 'spaceId' | 'includeHidden' | 'bounds'>;\n    offset: number;\n    layerOffset: number;\n    limit: number;\n    maxLayers: number;\n    maxBytes: number;\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-interface-kjagentdrawingquery"
+        },
+        {
           "name": "KJAgentModel",
           "kind": "interface",
           "declaration": "export interface KJAgentModel {\n    createConversation(options: {\n        readonly instructions: string;\n        readonly tools: readonly KJAgentToolDefinition[];\n    }): KJModelConversation;\n}",
@@ -6364,14 +6378,14 @@
         {
           "name": "KJDrawingContext",
           "kind": "interface",
-          "declaration": "export interface KJDrawingContext {\n    readonly documentId: string;\n    readonly revision: number;\n    readonly units: string;\n    readonly spaceId: string;\n    readonly layers: readonly KJDrawingContextLayer[];\n    readonly entities: readonly KJDrawingContextEntity[];\n    /** True when either collection or any requested native geometry was omitted. */\n    readonly truncated: boolean;\n    readonly truncationReasons: readonly KJDrawingContextTruncationReason[];\n    readonly nextOffset: number | null;\n    readonly nextLayerOffset: number | null;\n    readonly limits: {\n        readonly limit: number;\n        readonly maxLayers: number;\n        readonly maxBytes: number;\n        readonly maxGeometryBytes: number;\n    };\n}",
+          "declaration": "export interface KJDrawingContext {\n    readonly documentId: string;\n    readonly revision: number;\n    readonly units: string;\n    readonly spaceId: string;\n    readonly spatialQuery?: {\n        readonly bounds: readonly [number, number, number, number];\n        readonly coordinates: 'owner-xy';\n        readonly mode: 'crossing';\n        readonly unclassifiedIncluded: true;\n    };\n    readonly layers: readonly KJDrawingContextLayer[];\n    readonly entities: readonly KJDrawingContextEntity[];\n    /** True when either collection or any requested native geometry was omitted. */\n    readonly truncated: boolean;\n    readonly truncationReasons: readonly KJDrawingContextTruncationReason[];\n    readonly nextOffset: number | null;\n    readonly nextLayerOffset: number | null;\n    readonly limits: {\n        readonly limit: number;\n        readonly maxLayers: number;\n        readonly maxBytes: number;\n        readonly maxGeometryBytes: number;\n    };\n}",
           "source": "drawing-context.d.ts",
           "anchor": "root-interface-kjdrawingcontext"
         },
         {
           "name": "KJDrawingContextEntity",
           "kind": "interface",
-          "declaration": "export interface KJDrawingContextEntity {\n    readonly id: string;\n    readonly type: string;\n    readonly ownerId: string | null;\n    readonly layerId: string | null;\n    readonly visible: boolean;\n    /** Visibility and locking eligibility only; command support is not implied. */\n    readonly editable: boolean;\n    /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */\n    readonly geometry: {\n        readonly [key: string]: KJDrawingContextValue;\n    } | null;\n    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;\n}",
+          "declaration": "export interface KJDrawingContextEntity {\n    readonly id: string;\n    readonly type: string;\n    readonly ownerId: string | null;\n    readonly layerId: string | null;\n    readonly visible: boolean;\n    /** Visibility and locking eligibility only; command support is not implied. */\n    readonly editable: boolean;\n    /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */\n    readonly geometry: {\n        readonly [key: string]: KJDrawingContextValue;\n    } | null;\n    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;\n    readonly spatialMatch?: 'intersects' | 'unclassified';\n}",
           "source": "drawing-context.d.ts",
           "anchor": "root-interface-kjdrawingcontextentity"
         },
@@ -6385,7 +6399,7 @@
         {
           "name": "KJDrawingContextOptions",
           "kind": "interface",
-          "declaration": "export interface KJDrawingContextOptions {\n    /** Exact object IDs; duplicates are ignored. Filters are combined with AND. */\n    ids?: readonly string[];\n    /** Case-insensitive native entity types, for example LINE or ARC. */\n    types?: readonly string[];\n    layerIds?: readonly string[];\n    /** A live block record; defaults to model space. INSERTs are not expanded. */\n    spaceId?: string;\n    /** Hidden and frozen entities are excluded by default. Locked entities remain visible. */\n    includeHidden?: boolean;\n    expectedRevision?: number;\n    /** Matching entity offset. Continuations require expectedRevision and the same filters. */\n    offset?: number;\n    /** Registered layer offset, after layerIds filtering. */\n    layerOffset?: number;\n    /** 0 disables entities; default 50, maximum 200. */\n    limit?: number;\n    /** 0 disables the layer catalog; default 50, maximum 100. */\n    maxLayers?: number;\n    /** Maximum UTF-8 bytes of JSON.stringify(result); default 65536, range 1024..262144. */\n    maxBytes?: number;\n}",
+          "declaration": "export interface KJDrawingContextOptions {\n    /** Exact object IDs; duplicates are ignored. Filters are combined with AND. */\n    ids?: readonly string[];\n    /** Case-insensitive native entity types, for example LINE or ARC. */\n    types?: readonly string[];\n    layerIds?: readonly string[];\n    /** A live block record; defaults to model space. INSERTs are not expanded. */\n    spaceId?: string;\n    /** Hidden and frozen entities are excluded by default. Locked entities remain visible. */\n    includeHidden?: boolean;\n    /** Crossing rectangle [minX,minY,maxX,maxY] in owner XY. Unclassified geometry is retained and marked. */\n    bounds?: readonly [number, number, number, number];\n    expectedRevision?: number;\n    /** Matching entity offset. Continuations require expectedRevision and the same filters. */\n    offset?: number;\n    /** Registered layer offset, after layerIds filtering. */\n    layerOffset?: number;\n    /** 0 disables entities; default 50, maximum 200. */\n    limit?: number;\n    /** 0 disables the layer catalog; default 50, maximum 100. */\n    maxLayers?: number;\n    /** Maximum UTF-8 bytes of JSON.stringify(result); default 65536, range 1024..262144. */\n    maxBytes?: number;\n}",
           "source": "drawing-context.d.ts",
           "anchor": "root-interface-kjdrawingcontextoptions"
         },

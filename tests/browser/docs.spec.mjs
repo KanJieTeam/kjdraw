@@ -111,7 +111,7 @@ test('Agent tool guide has bilingual deep links, searchable tools and a usable n
   await page.goto('/docs/latest/agent/#en-agent-agent-tools')
   await expect(page.locator('#en-agent-agent-tools')).toBeVisible()
   const english = page.locator('article.lang-en')
-  await expect(english.locator('table').first().locator('tbody tr')).toHaveCount(7)
+  await expect(english.locator('table').first().locator('tbody tr')).toHaveCount(8)
   await expect(english).toContainText('KJAgentToolSession')
   await expect(english).toContainText('examples/agent-tools.mjs')
   await expect(english).toContainText('cad_propose_drawing')

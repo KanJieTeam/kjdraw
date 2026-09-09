@@ -1,7 +1,17 @@
 import type { KJDrawSDK } from './sdk.js';
 import type { KJDocument } from './document.js';
+import { type KJDrawingContextOptions } from './drawing-context.js';
 export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';
 export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';
+export interface KJAgentDrawingQuery {
+    expectedRevision: number;
+    filters: Pick<KJDrawingContextOptions, 'ids' | 'types' | 'layerIds' | 'spaceId' | 'includeHidden' | 'bounds'>;
+    offset: number;
+    layerOffset: number;
+    limit: number;
+    maxLayers: number;
+    maxBytes: number;
+}
 export interface KJAgentToolSchema {
     readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';
     readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;

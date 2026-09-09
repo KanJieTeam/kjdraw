@@ -9,6 +9,8 @@ export interface KJDrawingContextOptions {
     spaceId?: string;
     /** Hidden and frozen entities are excluded by default. Locked entities remain visible. */
     includeHidden?: boolean;
+    /** Crossing rectangle [minX,minY,maxX,maxY] in owner XY. Unclassified geometry is retained and marked. */
+    bounds?: readonly [number, number, number, number];
     expectedRevision?: number;
     /** Matching entity offset. Continuations require expectedRevision and the same filters. */
     offset?: number;
@@ -49,12 +51,19 @@ export interface KJDrawingContextEntity {
         readonly [key: string]: KJDrawingContextValue;
     } | null;
     readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;
+    readonly spatialMatch?: 'intersects' | 'unclassified';
 }
 export interface KJDrawingContext {
     readonly documentId: string;
     readonly revision: number;
     readonly units: string;
     readonly spaceId: string;
+    readonly spatialQuery?: {
+        readonly bounds: readonly [number, number, number, number];
+        readonly coordinates: 'owner-xy';
+        readonly mode: 'crossing';
+        readonly unclassifiedIncluded: true;
+    };
     readonly layers: readonly KJDrawingContextLayer[];
     readonly entities: readonly KJDrawingContextEntity[];
     /** True when either collection or any requested native geometry was omitted. */
@@ -75,7 +84,7 @@ export interface KJDrawingContext {
  * budget does not bound the document's initial snapshot allocation or scan time.
  * spaceId identifies the owner; stored coordinates may be OCS or block-local.
  * normal/extrusionDirection are retained without world-coordinate conversion.
- * No block expansion, viewport-specific visibility, semantic interpretation,
+ * No block expansion, paper-viewport visibility, semantic interpretation,
  * permission enforcement, or custom payload serialization is performed.
  */
 export declare function createDrawingContext(document: KJDocument, options?: KJDrawingContextOptions): KJDrawingContext;

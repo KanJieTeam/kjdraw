@@ -1,6 +1,7 @@
 // Generated from drawing-context.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJRevisionConflictError, KJValidationError } from './errors.js';
 import { deepFreeze } from './utils.js';
+import { classifyEntityInBox } from './selection-geometry.js';
 const MAX_GEOMETRY_BYTES = 8192;
 const REASONS = [
     'entity-limit',
@@ -15,6 +16,7 @@ const OPTION_KEYS = new Set([
     'layerIds',
     'spaceId',
     'includeHidden',
+    'bounds',
     'expectedRevision',
     'offset',
     'layerOffset',
@@ -361,6 +363,10 @@ export function createDrawingContext(document, options = {}) {
     if (!options || typeof options !== 'object' || Array.isArray(options)) throw new KJValidationError('Drawing context options must be an object');
     for (const key of Object.keys(options))if (!OPTION_KEYS.has(key)) throw new KJValidationError('Unknown drawing context option');
     if (options.includeHidden !== undefined && typeof options.includeHidden !== 'boolean') throw new KJValidationError('Drawing context includeHidden must be boolean');
+    const bounds = options.bounds;
+    if (bounds !== undefined && (!Array.isArray(bounds) || bounds.length !== 4 || [
+        ...bounds
+    ].some((n)=>typeof n !== 'number' || !Number.isFinite(n) || Math.abs(n) > 1e12) || bounds[0] > bounds[2] || bounds[1] > bounds[3])) throw new KJValidationError('Drawing context bounds must be ordered finite XY extents within +/-1e12');
     const limit = integer(options.limit, 50, 0, 200, 'limit');
     const maxLayers = integer(options.maxLayers, 50, 0, 100, 'maxLayers');
     const maxBytes = integer(options.maxBytes, 65536, 1024, 262144, 'maxBytes');
@@ -391,6 +397,16 @@ export function createDrawingContext(document, options = {}) {
         revision: state.revision,
         units: state.header.units,
         spaceId,
+        ...bounds ? {
+            spatialQuery: {
+                bounds: [
+                    ...bounds
+                ],
+                coordinates: 'owner-xy',
+                mode: 'crossing',
+                unclassifiedIncluded: true
+            }
+        } : {},
         layers: [],
         entities: [],
         truncated: false,
@@ -425,6 +441,8 @@ export function createDrawingContext(document, options = {}) {
         const layer = layerId !== null && Object.hasOwn(state.objects, layerId) ? state.objects[layerId] : undefined;
         const visible = entity.payload.visible !== false && layer?.payload.visible !== false && layer?.payload.frozen !== true;
         if (!visible && !options.includeHidden) continue;
+        const spatialMatch = bounds ? classifyEntityInBox(document, entity, bounds) : undefined;
+        if (spatialMatch === 'outside') continue;
         if (matched++ < offset) continue;
         if (result.entities.length >= limit) {
             result.nextOffset = matched - 1;
@@ -444,7 +462,10 @@ export function createDrawingContext(document, options = {}) {
             layerId,
             visible,
             editable: visible && layer?.payload.locked !== true,
-            ...nativeGeometry(entity)
+            ...nativeGeometry(entity),
+            ...spatialMatch ? {
+                spatialMatch
+            } : {}
         };
         let bytes = jsonBytes(item) + (result.entities.length ? 1 : 0);
         if (usedBytes + bytes > maxBytes && item.geometry !== null) {

@@ -284,6 +284,27 @@ export type { kjagentgeometrypreview, kjagentpreviewentity } from &#39;./agent-p
 export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-preview.js&#39;;</code></pre>
       <p class="source-path">agent-tools.d.ts</p>
     </article>
+<article class="api-symbol" id="agent-tools-interface-kjagentdrawingquery" data-search="kjagentdrawingquery interface @kanjieteam/kjdraw/agent-tools export interface kjagentdrawingquery {
+    expectedrevision: number;
+    filters: pick&lt;kjdrawingcontextoptions, &#39;ids&#39; | &#39;types&#39; | &#39;layerids&#39; | &#39;spaceid&#39; | &#39;includehidden&#39; | &#39;bounds&#39;&gt;;
+    offset: number;
+    layeroffset: number;
+    limit: number;
+    maxlayers: number;
+    maxbytes: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentDrawingQuery</h3></div><a class="permalink" href="#agent-tools-interface-kjagentdrawingquery" aria-label="Link to KJAgentDrawingQuery">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentDrawingQuery {
+    expectedRevision: number;
+    filters: Pick&lt;KJDrawingContextOptions, &#39;ids&#39; | &#39;types&#39; | &#39;layerIds&#39; | &#39;spaceId&#39; | &#39;includeHidden&#39; | &#39;bounds&#39;&gt;;
+    offset: number;
+    layerOffset: number;
+    limit: number;
+    maxLayers: number;
+    maxBytes: number;
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
 <article class="api-symbol" id="agent-tools-interface-kjagenttooldefinition" data-search="kjagenttooldefinition interface @kanjieteam/kjdraw/agent-tools export interface kjagenttooldefinition {
     readonly name: string;
     readonly description: string;
@@ -401,6 +422,12 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     readonly revision: number;
     readonly units: string;
     readonly spaceid: string;
+    readonly spatialquery?: {
+        readonly bounds: readonly [number, number, number, number];
+        readonly coordinates: &#39;owner-xy&#39;;
+        readonly mode: &#39;crossing&#39;;
+        readonly unclassifiedincluded: true;
+    };
     readonly layers: readonly kjdrawingcontextlayer[];
     readonly entities: readonly kjdrawingcontextentity[];
     /** true when either collection or any requested native geometry was omitted. */
@@ -421,6 +448,12 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     readonly revision: number;
     readonly units: string;
     readonly spaceId: string;
+    readonly spatialQuery?: {
+        readonly bounds: readonly [number, number, number, number];
+        readonly coordinates: &#39;owner-xy&#39;;
+        readonly mode: &#39;crossing&#39;;
+        readonly unclassifiedIncluded: true;
+    };
     readonly layers: readonly KJDrawingContextLayer[];
     readonly entities: readonly KJDrawingContextEntity[];
     /** True when either collection or any requested native geometry was omitted. */
@@ -450,6 +483,7 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
         readonly [key: string]: kjdrawingcontextvalue;
     } | null;
     readonly geometryomittedreason: kjdrawinggeometryomittedreason | null;
+    readonly spatialmatch?: &#39;intersects&#39; | &#39;unclassified&#39;;
 }">
       <header><div><span class="kind">interface</span><h3>KJDrawingContextEntity</h3></div><a class="permalink" href="#drawing-context-interface-kjdrawingcontextentity" aria-label="Link to KJDrawingContextEntity">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingContextEntity {
@@ -465,6 +499,7 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
         readonly [key: string]: KJDrawingContextValue;
     } | null;
     readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;
+    readonly spatialMatch?: &#39;intersects&#39; | &#39;unclassified&#39;;
 }</code></pre>
       <p class="source-path">drawing-context.d.ts</p>
     </article>
@@ -499,6 +534,8 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     spaceid?: string;
     /** hidden and frozen entities are excluded by default. locked entities remain visible. */
     includehidden?: boolean;
+    /** crossing rectangle [minx,miny,maxx,maxy] in owner xy. unclassified geometry is retained and marked. */
+    bounds?: readonly [number, number, number, number];
     expectedrevision?: number;
     /** matching entity offset. continuations require expectedrevision and the same filters. */
     offset?: number;
@@ -522,6 +559,8 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     spaceId?: string;
     /** Hidden and frozen entities are excluded by default. Locked entities remain visible. */
     includeHidden?: boolean;
+    /** Crossing rectangle [minX,minY,maxX,maxY] in owner XY. Unclassified geometry is retained and marked. */
+    bounds?: readonly [number, number, number, number];
     expectedRevision?: number;
     /** Matching entity offset. Continuations require expectedRevision and the same filters. */
     offset?: number;
@@ -10575,6 +10614,27 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }</code></pre>
       <p class="source-path">errors.d.ts</p>
     </article>
+<article class="api-symbol" id="root-interface-kjagentdrawingquery" data-search="kjagentdrawingquery interface @kanjieteam/kjdraw export interface kjagentdrawingquery {
+    expectedrevision: number;
+    filters: pick&lt;kjdrawingcontextoptions, &#39;ids&#39; | &#39;types&#39; | &#39;layerids&#39; | &#39;spaceid&#39; | &#39;includehidden&#39; | &#39;bounds&#39;&gt;;
+    offset: number;
+    layeroffset: number;
+    limit: number;
+    maxlayers: number;
+    maxbytes: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentDrawingQuery</h3></div><a class="permalink" href="#root-interface-kjagentdrawingquery" aria-label="Link to KJAgentDrawingQuery">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentDrawingQuery {
+    expectedRevision: number;
+    filters: Pick&lt;KJDrawingContextOptions, &#39;ids&#39; | &#39;types&#39; | &#39;layerIds&#39; | &#39;spaceId&#39; | &#39;includeHidden&#39; | &#39;bounds&#39;&gt;;
+    offset: number;
+    layerOffset: number;
+    limit: number;
+    maxLayers: number;
+    maxBytes: number;
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-interface-kjagentmodel" data-search="kjagentmodel interface @kanjieteam/kjdraw export interface kjagentmodel {
     createconversation(options: {
         readonly instructions: string;
@@ -13151,6 +13211,12 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     readonly revision: number;
     readonly units: string;
     readonly spaceid: string;
+    readonly spatialquery?: {
+        readonly bounds: readonly [number, number, number, number];
+        readonly coordinates: &#39;owner-xy&#39;;
+        readonly mode: &#39;crossing&#39;;
+        readonly unclassifiedincluded: true;
+    };
     readonly layers: readonly kjdrawingcontextlayer[];
     readonly entities: readonly kjdrawingcontextentity[];
     /** true when either collection or any requested native geometry was omitted. */
@@ -13171,6 +13237,12 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     readonly revision: number;
     readonly units: string;
     readonly spaceId: string;
+    readonly spatialQuery?: {
+        readonly bounds: readonly [number, number, number, number];
+        readonly coordinates: &#39;owner-xy&#39;;
+        readonly mode: &#39;crossing&#39;;
+        readonly unclassifiedIncluded: true;
+    };
     readonly layers: readonly KJDrawingContextLayer[];
     readonly entities: readonly KJDrawingContextEntity[];
     /** True when either collection or any requested native geometry was omitted. */
@@ -13200,6 +13272,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         readonly [key: string]: kjdrawingcontextvalue;
     } | null;
     readonly geometryomittedreason: kjdrawinggeometryomittedreason | null;
+    readonly spatialmatch?: &#39;intersects&#39; | &#39;unclassified&#39;;
 }">
       <header><div><span class="kind">interface</span><h3>KJDrawingContextEntity</h3></div><a class="permalink" href="#root-interface-kjdrawingcontextentity" aria-label="Link to KJDrawingContextEntity">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingContextEntity {
@@ -13215,6 +13288,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         readonly [key: string]: KJDrawingContextValue;
     } | null;
     readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;
+    readonly spatialMatch?: &#39;intersects&#39; | &#39;unclassified&#39;;
 }</code></pre>
       <p class="source-path">drawing-context.d.ts</p>
     </article>
@@ -13249,6 +13323,8 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     spaceid?: string;
     /** hidden and frozen entities are excluded by default. locked entities remain visible. */
     includehidden?: boolean;
+    /** crossing rectangle [minx,miny,maxx,maxy] in owner xy. unclassified geometry is retained and marked. */
+    bounds?: readonly [number, number, number, number];
     expectedrevision?: number;
     /** matching entity offset. continuations require expectedrevision and the same filters. */
     offset?: number;
@@ -13272,6 +13348,8 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     spaceId?: string;
     /** Hidden and frozen entities are excluded by default. Locked entities remain visible. */
     includeHidden?: boolean;
+    /** Crossing rectangle [minX,minY,maxX,maxY] in owner XY. Unclassified geometry is retained and marked. */
+    bounds?: readonly [number, number, number, number];
     expectedRevision?: number;
     /** Matching entity offset. Continuations require expectedRevision and the same filters. */
     offset?: number;

@@ -50,6 +50,40 @@ function assertContinuation(protocol, body) {
 }
 
 for (const protocol of protocols) {
+  test(`${protocol}: filtered query schema and pagination select exact geometry for a reviewed move`, async () => {
+    const { sdk, document, session } = fixture()
+    await document.transact('source', tx => {
+      tx.createEntity('LINE', { start: [-10, 0], end: [10, 0] }, { id: 'target' })
+      tx.createEntity('LINE', { start: [100, 100], end: [101, 101] }, { id: 'unrelated' })
+    })
+    const before = document.getObject('unrelated'), inputs = []
+    const model = createKJModelAdapter({ protocol, model: 'offline-query-fixture', request: async ({ body }) => {
+      const defs = protocol === 'gemini-generate-content' ? body.tools[0].functionDeclarations : body.tools
+      const def = defs.find(t => (t.function?.name ?? t.name) === 'cad_query_drawing')
+      const schema = def.function?.parameters ?? def.parameters ?? def.input_schema ?? def.parametersJsonSchema
+      assert.deepEqual(schema.properties.filters.required, [])
+      assert.equal(schema.properties.filters.additionalProperties, false)
+      assert.equal(schema.properties.filters.properties.bounds.minItems, 4)
+      if (!inputs.length) {
+        inputs.push(true)
+        return wire(protocol, [call('query', 'cad_query_drawing', { expectedRevision: 1, filters: { types: ['LINE'], bounds: [-1, -1, 1, 1] }, offset: 0, layerOffset: 0, limit: 10, maxLayers: 0, maxBytes: 2048 })])
+      }
+      const result = resultAtEnd(protocol, body)
+      assert.equal(result.ok, true); assert.deepEqual(result.value.entities.map(e => e.id), ['target'])
+      assert.equal(result.value.entities[0].spatialMatch, 'intersects')
+      assert.equal(result.value.spatialQuery.coordinates, 'owner-xy')
+      return wire(protocol, [call('move', 'cad_propose_move', { expectedRevision: result.value.revision, units: result.value.units, ids: result.value.entities.map(e => e.id), dx: 2, dy: 3 })])
+    } })
+    const result = await runKJAgentTask({ session, model, prompt: 'Inspect the supplied region and move the line by (2,3).', toolNames: ['cad_query_drawing', 'cad_propose_move'] })
+    assert.equal(result.status, 'awaiting-approval', JSON.stringify(result)); assert.equal(document.revision, 1)
+    assert.equal((await session.approve(result.proposalIds[0], 'host-review')).ok, true)
+    assert.deepEqual(document.getObject('target').payload.start, [-8, 3, 0]); assert.deepEqual(document.getObject('unrelated'), before)
+    await sdk.executeCommand('UNDO'); assert.deepEqual(document.getObject('target').payload.start, [-10, 0, 0])
+    await sdk.executeCommand('REDO'); assert.deepEqual(document.getObject('target').payload.end, [12, 3, 0])
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format: 'DXF' }), { format: 'DXF' })
+    assert.ok(reopened.listEntities().some(e => JSON.stringify(e.payload.start) === '[-8,3,0]'))
+  })
+
   test(`${protocol}: selected tools retain units, error correction, host approval and saved geometry`, async () => {
     const { sdk, document, session } = fixture()
     let requests = 0
@@ -120,7 +154,7 @@ for (const protocol of protocols) {
       const body = request.body
       if (requests++ === 0) {
         const defs = protocol === 'gemini-generate-content' ? body.tools[0].functionDeclarations : body.tools
-        assert.equal(defs.length, 7)
+        assert.equal(defs.length, 8)
         assert.ok(!JSON.stringify(defs).includes('execute_anything'))
         return wire(protocol, [call('read', 'cad_read_drawing')])
       }
@@ -254,7 +288,7 @@ test('chat token-limit fields are host-selected without hardcoded model names', 
 test('a custom framework/model bridge uses the same runner without any built-in protocol', async () => {
   const { session, document } = fixture()
   const model = { createConversation({ tools, instructions }) {
-    assert.equal(tools.length, 7)
+    assert.equal(tools.length, 8)
     assert.match(instructions, /untrusted/)
     return { async next() { return { text: 'Review before editing.', calls: [call('custom', 'cad_propose_circles', args)] } } }
   } }

@@ -10,6 +10,8 @@ export interface KJSpatialSelectionOptions {
     /** Model-space tolerance. The Canvas adapter supplies a sub-pixel tolerance. */
     tolerance?: number;
 }
+/** Conservative owner-XY query classification. Unknown geometry must remain visible to inspection callers. */
+export declare function classifyEntityInBox(document: KJDocument, entity: KJReadonlyObjectRecord, bounds: readonly [number, number, number, number]): 'intersects' | 'outside' | 'unclassified';
 /** One shared visibility/locking rule for picking, region queries and editable grips. */
 export declare function isEntitySelectable(document: KJDocument, entity: KJReadonlyObjectRecord, options?: KJSpatialSelectionOptions): boolean;
 /** Select complete geometry (window) or geometry touching the box (crossing), in model coordinates. Does not mutate selection/history. */

@@ -1,5 +1,8 @@
 import { createKJDrawSDK, KJAgentToolSession as RootSession } from '@kanjieteam/kjdraw'
-import { KJAgentToolSession, type KJAgentToolDefinition, type KJAgentToolResult } from '@kanjieteam/kjdraw/agent-tools'
+import { KJAgentToolSession, type KJAgentToolDefinition, type KJAgentToolResult, type KJAgentDrawingQuery } from '@kanjieteam/kjdraw/agent-tools'
+
+const query: KJAgentDrawingQuery = { expectedRevision: 0, filters: { types: ['LINE'], bounds: [0, 0, 10, 10] }, offset: 0, layerOffset: 0, limit: 10, maxLayers: 0, maxBytes: 2048 }
+void query
 
 const sdk = createKJDrawSDK()
 const drawing = sdk.createDocument({ units: 'millimeter' })

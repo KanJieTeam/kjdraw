@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:3b5733514d5ea220b5b2d6e4ade0cb4141b52c7f62490559cf5da5dadab50f6f",
+  "sourceDigest": "sha256:a5453821fe25bdbe051cfc9b0e8694319ed345e6d24a1cd89f91ecfdd0e6221b",
   "entries": [
     {
       "name": "createKJModelAdapter",
@@ -133,6 +133,14 @@
       "summary": "export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js'; export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';"
     },
     {
+      "name": "KJAgentDrawingQuery",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-interface-kjagentdrawingquery",
+      "anchor": "agent-tools-interface-kjagentdrawingquery",
+      "summary": "export interface KJAgentDrawingQuery { expectedRevision: number; filters: Pick<KJDrawingContextOptions, 'ids' | 'types' | 'layerIds' | 'spaceId' | 'includeHidden' | 'bounds'>; offset: number; layerOffset: number; limit: "
+    },
+    {
       "name": "KJAgentToolDefinition",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw/agent-tools",
@@ -186,7 +194,7 @@
       "module": "@kanjieteam/kjdraw/drawing-context",
       "href": "./api/reference/#drawing-context-interface-kjdrawingcontext",
       "anchor": "drawing-context-interface-kjdrawingcontext",
-      "summary": "export interface KJDrawingContext { readonly documentId: string; readonly revision: number; readonly units: string; readonly spaceId: string; readonly layers: readonly KJDrawingContextLayer[]; readonly entities: readonly"
+      "summary": "export interface KJDrawingContext { readonly documentId: string; readonly revision: number; readonly units: string; readonly spaceId: string; readonly spatialQuery?: { readonly bounds: readonly [number, number, number, n"
     },
     {
       "name": "KJDrawingContextEntity",
@@ -6061,6 +6069,14 @@
       "summary": "export declare class KJAdapterError extends KJDrawError { constructor(message: string, details?: KJErrorDetails, cause?: unknown); }"
     },
     {
+      "name": "KJAgentDrawingQuery",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentdrawingquery",
+      "anchor": "root-interface-kjagentdrawingquery",
+      "summary": "export interface KJAgentDrawingQuery { expectedRevision: number; filters: Pick<KJDrawingContextOptions, 'ids' | 'types' | 'layerIds' | 'spaceId' | 'includeHidden' | 'bounds'>; offset: number; layerOffset: number; limit: "
+    },
+    {
       "name": "KJAgentModel",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -7130,7 +7146,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjdrawingcontext",
       "anchor": "root-interface-kjdrawingcontext",
-      "summary": "export interface KJDrawingContext { readonly documentId: string; readonly revision: number; readonly units: string; readonly spaceId: string; readonly layers: readonly KJDrawingContextLayer[]; readonly entities: readonly"
+      "summary": "export interface KJDrawingContext { readonly documentId: string; readonly revision: number; readonly units: string; readonly spaceId: string; readonly spatialQuery?: { readonly bounds: readonly [number, number, number, n"
     },
     {
       "name": "KJDrawingContextEntity",

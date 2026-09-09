@@ -2,6 +2,7 @@ import type { KJDocument } from './document.js'
 import { KJRevisionConflictError, KJValidationError } from './errors.js'
 import type { KJReadonlyObjectRecord } from './schema.js'
 import { deepFreeze } from './utils.js'
+import { classifyEntityInBox } from './selection-geometry.js'
 
 export interface KJDrawingContextOptions {
   /** Exact object IDs; duplicates are ignored. Filters are combined with AND. */
@@ -13,6 +14,8 @@ export interface KJDrawingContextOptions {
   spaceId?: string
   /** Hidden and frozen entities are excluded by default. Locked entities remain visible. */
   includeHidden?: boolean
+  /** Crossing rectangle [minX,minY,maxX,maxY] in owner XY. Unclassified geometry is retained and marked. */
+  bounds?: readonly [number, number, number, number]
   expectedRevision?: number
   /** Matching entity offset. Continuations require expectedRevision and the same filters. */
   offset?: number
@@ -52,6 +55,7 @@ export interface KJDrawingContextEntity {
   /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */
   readonly geometry: { readonly [key: string]: KJDrawingContextValue } | null
   readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null
+  readonly spatialMatch?: 'intersects' | 'unclassified'
 }
 
 export interface KJDrawingContext {
@@ -59,6 +63,7 @@ export interface KJDrawingContext {
   readonly revision: number
   readonly units: string
   readonly spaceId: string
+  readonly spatialQuery?: { readonly bounds: readonly [number, number, number, number]; readonly coordinates: 'owner-xy'; readonly mode: 'crossing'; readonly unclassifiedIncluded: true }
   readonly layers: readonly KJDrawingContextLayer[]
   readonly entities: readonly KJDrawingContextEntity[]
   /** True when either collection or any requested native geometry was omitted. */
@@ -85,7 +90,7 @@ interface DrawingContextEntityBuilder extends KJDrawingContextEntity {
 
 const MAX_GEOMETRY_BYTES = 8192
 const REASONS: KJDrawingContextTruncationReason[] = ['entity-limit', 'layer-limit', 'response-budget', 'geometry-budget', 'unsupported-geometry']
-const OPTION_KEYS = new Set(['ids', 'types', 'layerIds', 'spaceId', 'includeHidden', 'expectedRevision', 'offset', 'layerOffset', 'limit', 'maxLayers', 'maxBytes'])
+const OPTION_KEYS = new Set(['ids', 'types', 'layerIds', 'spaceId', 'includeHidden', 'bounds', 'expectedRevision', 'offset', 'layerOffset', 'limit', 'maxLayers', 'maxBytes'])
 const encoder = new TextEncoder()
 
 type Shape = 'scalar' | 'hatch-edge' | readonly [Shape] | { readonly [key: string]: Shape }
@@ -227,13 +232,15 @@ function checkIdentity(value: string | null, maxBytes: number): void {
  * budget does not bound the document's initial snapshot allocation or scan time.
  * spaceId identifies the owner; stored coordinates may be OCS or block-local.
  * normal/extrusionDirection are retained without world-coordinate conversion.
- * No block expansion, viewport-specific visibility, semantic interpretation,
+ * No block expansion, paper-viewport visibility, semantic interpretation,
  * permission enforcement, or custom payload serialization is performed.
  */
 export function createDrawingContext(document: KJDocument, options: KJDrawingContextOptions = {}): KJDrawingContext {
   if (!options || typeof options !== 'object' || Array.isArray(options)) throw new KJValidationError('Drawing context options must be an object')
   for (const key of Object.keys(options)) if (!OPTION_KEYS.has(key)) throw new KJValidationError('Unknown drawing context option')
   if (options.includeHidden !== undefined && typeof options.includeHidden !== 'boolean') throw new KJValidationError('Drawing context includeHidden must be boolean')
+  const bounds = options.bounds
+  if (bounds !== undefined && (!Array.isArray(bounds) || bounds.length !== 4 || [...bounds].some(n => typeof n !== 'number' || !Number.isFinite(n) || Math.abs(n) > 1e12) || bounds[0] > bounds[2] || bounds[1] > bounds[3])) throw new KJValidationError('Drawing context bounds must be ordered finite XY extents within +/-1e12')
   const limit = integer(options.limit, 50, 0, 200, 'limit')
   const maxLayers = integer(options.maxLayers, 50, 0, 100, 'maxLayers')
   const maxBytes = integer(options.maxBytes, 65536, 1024, 262144, 'maxBytes')
@@ -256,6 +263,7 @@ export function createDrawingContext(document: KJDocument, options: KJDrawingCon
   for (const value of [state.documentId, state.header.units, spaceId]) checkIdentity(value, maxBytes)
   const result: DrawingContextBuilder = {
     documentId: state.documentId, revision: state.revision, units: state.header.units, spaceId,
+    ...(bounds ? { spatialQuery: { bounds: [...bounds] as [number, number, number, number], coordinates: 'owner-xy' as const, mode: 'crossing' as const, unclassifiedIncluded: true as const } } : {}),
     layers: [], entities: [], truncated: false, truncationReasons: [], nextOffset: null, nextLayerOffset: null,
     limits: { limit, maxLayers, maxBytes, maxGeometryBytes: MAX_GEOMETRY_BYTES },
   }
@@ -276,10 +284,12 @@ export function createDrawingContext(document: KJDocument, options: KJDrawingCon
     const layer = layerId !== null && Object.hasOwn(state.objects, layerId) ? state.objects[layerId] : undefined
     const visible = entity.payload.visible !== false && layer?.payload.visible !== false && layer?.payload.frozen !== true
     if (!visible && !options.includeHidden) continue
+    const spatialMatch = bounds ? classifyEntityInBox(document, entity, bounds) : undefined
+    if (spatialMatch === 'outside') continue
     if (matched++ < offset) continue
     if (result.entities.length >= limit) { result.nextOffset = matched - 1; reasons.add('entity-limit'); break }
     for (const value of [entity.id, entity.type, entity.ownerId, layerId]) checkIdentity(value, maxBytes)
-    const item: DrawingContextEntityBuilder = { id: entity.id, type: entity.type, ownerId: entity.ownerId, layerId, visible, editable: visible && layer?.payload.locked !== true, ...nativeGeometry(entity) }
+    const item: DrawingContextEntityBuilder = { id: entity.id, type: entity.type, ownerId: entity.ownerId, layerId, visible, editable: visible && layer?.payload.locked !== true, ...nativeGeometry(entity), ...(spatialMatch ? { spatialMatch } : {}) }
     let bytes = jsonBytes(item) + (result.entities.length ? 1 : 0)
     if (usedBytes + bytes > maxBytes && item.geometry !== null) {
       item.geometry = null

@@ -32,6 +32,14 @@ assert.deepEqual(drawing.listEntities()[0].payload, proposal.preview.after[0].pa
 assert.equal((await session.approve(proposal.planId, 'example-reviewer')).ok, false)
 
 const saved = await sdk.writeDocument(drawing, { format: 'KJD' })
+const region = await session.call('cad_query_drawing', {
+  expectedRevision: drawing.revision, filters: { types: ['CIRCLE'], bounds: [22.9, 19.9, 23.1, 20.1] },
+  offset: 0, layerOffset: 0, limit: 10, maxLayers: 0, maxBytes: 2048,
+})
+assert.equal(region.ok, true)
+assert.deepEqual(region.value.entities.map(entity => entity.id), [proposal.preview.after[0].id])
+assert.equal(region.value.entities[0].spatialMatch, 'intersects')
+assert.ok(Buffer.byteLength(JSON.stringify(region.value)) <= 2048)
 const reopenedSdk = createKJDrawSDK()
 const reopened = await reopenedSdk.readDocument(saved, { format: 'KJD' })
 assert.deepEqual(reopened.listEntities()[0].payload.center, [20, 20, 0])

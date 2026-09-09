@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:eb46cd0cd603169b05049f69652519b990fa9cbcc189a1f704b515a970c51ff2",
+  "sourceDigest": "sha256:e787b4086561add3bf93640ee7a0a2b72e04a23a462a8402fd5227a65dfd1a8a",
   "locales": [
     "en",
     "zh"
@@ -265,6 +265,7 @@
           "en-agent-agent-tools",
           "en-agent-compose-drawing",
           "en-agent-drawing-context",
+          "en-agent-query-region",
           "en-agent-review-before-mutation",
           "en-agent-plan-and-execute",
           "en-agent-geometric-preview",
@@ -276,6 +277,7 @@
           "zh-agent-agent-tools",
           "zh-agent-compose-drawing",
           "zh-agent-drawing-context",
+          "zh-agent-query-region",
           "zh-agent-review-before-mutation",
           "zh-agent-plan-and-execute",
           "zh-agent-geometric-preview",

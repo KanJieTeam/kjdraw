@@ -14,6 +14,7 @@ The current source checkout adds `KJAgentToolSession` from `@kanjieteam/kjdraw/a
 | --- | --- |
 | `cad_read_drawing` | First page of visible model-space objects, layers and drawing units |
 | `cad_read_page` | Revision-bound continuation with independent entity/layer offsets |
+| `cad_query_drawing` | Filtered, revision-bound pages by ID, type, layer, owner space and XY region |
 | `cad_measure_distance` | Planar point-to-point distance in the supplied drawing units |
 | `cad_propose_lines` | Proposed batch of up to 64 XY lines |
 | `cad_propose_circles` | Proposed batch of up to 64 XY circles |
@@ -120,6 +121,24 @@ The response reports `truncated`, `truncationReasons` and `geometryOmittedReason
 `maxBytes` caps the UTF-8 size of the JSON response, not model tokens, snapshot memory or query time. Raw source tags, custom metadata, history and resource bytes are not included. Drawing text remains untrusted data; your host controls permissions and any transfer to an external model.
 
 Run the packaged [drawing context example](https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/drawing-context.mjs) for independent entity and layer pagination.
+
+## Query a region or selected objects {#query-region}
+
+Use `cad_query_drawing` with a revision from `cad_read_drawing` or the trusted editor. `filters` may contain `ids`, `types`, `layerIds`, `spaceId`, `includeHidden` and `bounds`; all filters intersect. Omitted filters are unrestricted; empty arrays match nothing. The default owner is model space. Hidden/frozen objects are excluded unless requested; locked objects remain readable and are marked noneditable.
+
+```ts
+import type { KJAgentDrawingQuery } from '@kanjieteam/kjdraw/agent-tools'
+const query: KJAgentDrawingQuery = {
+  expectedRevision: drawing.revision,
+  filters: { types: ['LINE', 'ARC'], bounds: [0, 0, 120, 60] },
+  offset: 0, layerOffset: 0, limit: 50, maxLayers: 20, maxBytes: 16384,
+}
+const page = await session.call('cad_query_drawing', query)
+```
+
+Continue with **this same tool and identical filters**, replacing offsets with `nextOffset` / `nextLayerOffset`. Set `limit: 0` or `maxLayers: 0` for a completed collection. A null next offset means that collection ended. `cad_read_page` is the older unfiltered query and does not remember filters. A revision mismatch requires a fresh query. Limits are 200 entities, 100 layers and 1–256 KiB for the JSON context (excluding the tool wrapper); geometry omissions and byte-budget continuation remain explicit. Scanning time is not bounded by the output byte cap.
+
+`bounds` is an ordered `[minX,minY,maxX,maxY]` crossing rectangle in the selected owner's XY coordinates. A host can derive it from `renderer.screenToWorld()` at opposite canvas corners. It is not a paper viewport projection or a screen pixel rectangle. Lines, rays, construction lines, points, circles, arcs and polyline segments/bulges use the shared CAD intersection geometry. A circle surrounding the rectangle without touching it is outside. Text, blocks, other unsupported types, tilted normals and polylines exceeding 4,096 vertices are conservatively retained as `spatialMatch: 'unclassified'`; they are not proof of intersection. Other results are marked `intersects`. `spatialQuery` echoes the coordinate semantics and bounds. No block contents are expanded or converted to world coordinates, and geometry stays in its original native coordinates. Inspect unclassified results before acting; never infer that unsupported geometry is absent.
 
 ## Review before mutation {#review-before-mutation}
 
@@ -248,6 +267,7 @@ Start with the stable [Agent integration contract](https://github.com/KanJieTeam
 | --- | --- |
 | `cad_read_drawing` | 可见模型空间对象、图层和单位的第一页 |
 | `cad_read_page` | 绑定图纸版本、分别按对象和图层偏移继续读取 |
+| `cad_query_drawing` | 按 ID、类型、图层、归属空间和 XY 范围筛选并绑定版本分页 |
 | `cad_measure_distance` | 使用图纸单位计算同一坐标系中两点的平面距离 |
 | `cad_propose_lines` | 最多 64 条 XY 直线的创建方案 |
 | `cad_propose_circles` | 最多 64 个 XY 圆的创建方案 |
@@ -354,6 +374,24 @@ const context = createDrawingContext(drawing, {
 `maxBytes` 限制 JSON 响应的 UTF-8 字节数，不限制模型 token、快照内存或查询耗时。结果不包含原始文件标签、自定义元数据、历史和资源字节。图纸文字仍是不可信数据；权限和发送到外部模型的决定由宿主负责。
 
 可运行包内的[图纸查询示例](https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/drawing-context.mjs)，查看对象和图层分别分页的完整做法。
+
+## 查询局部范围或指定对象 {#query-region}
+
+`cad_query_drawing` 使用 `cad_read_drawing` 或可信编辑器提供的修订号。`filters` 可包含 `ids`、`types`、`layerIds`、`spaceId`、`includeHidden` 和 `bounds`，各过滤条件取交集。省略条件表示不限制，空数组表示不匹配任何对象。默认查询模型空间；隐藏/冻结对象默认排除，锁定对象可读且标为不可编辑。
+
+```ts
+import type { KJAgentDrawingQuery } from '@kanjieteam/kjdraw/agent-tools'
+const query: KJAgentDrawingQuery = {
+  expectedRevision: drawing.revision,
+  filters: { types: ['LINE', 'ARC'], bounds: [0, 0, 120, 60] },
+  offset: 0, layerOffset: 0, limit: 50, maxLayers: 20, maxBytes: 16384,
+}
+const page = await session.call('cad_query_drawing', query)
+```
+
+继续分页时必须使用**相同工具和相同过滤条件**，将偏移替换为 `nextOffset` / `nextLayerOffset`。某个集合读完后将 `limit` 或 `maxLayers` 设为 0；下一偏移为 null 表示该集合结束。旧的 `cad_read_page` 不保存过滤条件。修订冲突必须重新查询。上限为 200 个对象、100 个图层和 1–256 KiB 的上下文 JSON（不含工具外层包装）；几何遗漏和字节预算分页都有明确字段。输出字节上限不是扫描耗时上限。
+
+`bounds` 是选定归属空间 XY 坐标下的有序交叉矩形 `[minX,minY,maxX,maxY]`，宿主可用画布对角的 `renderer.screenToWorld()` 得出；它不是屏幕像素或图纸视口投影。直线、射线、构造线、点、圆、圆弧和多段线直线/凸度段复用 CAD 的几何相交判断。完全包围矩形但圆周不接触的圆不算相交。文字、图块、其他不支持类型、倾斜法向量和超过 4096 顶点的多段线保守保留为 `spatialMatch: 'unclassified'`，不能把它当成已证明相交；其他返回对象标为 `intersects`。`spatialQuery` 返回坐标语义及范围。图块不展开，坐标不转世界坐标，返回几何保留原生坐标。操作前应检查未分类对象，不能推断不支持的图形不存在。
 
 ## 修改前先审核 {#review-before-mutation}
 
