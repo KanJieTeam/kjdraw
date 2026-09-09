@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/agent/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=100401b7f942091e">
+  <link rel="stylesheet" href="../style.css?v=db920f9d9fee6cad">
   <title>Agent workflows · KJDraw Docs</title>
 </head>
 <body>
@@ -66,9 +66,9 @@
           <p class="lead">Give your agent focused drawing context, review its proposed edits, and let a person keep working on the result.</p>
           <h2 id="en-agent-agent-tools">Model-neutral CAD tools<a class="heading-anchor" href="#en-agent-agent-tools" aria-label="Link to Model neutral CAD tools">#</a></h2>
 <p>The current source checkout adds <code>KJAgentToolSession</code> from <code>@kanjieteam/kjdraw/agent-tools</code>. Check source/package availability before using this new entry. The session binds one host-authorized document and provides serializable tool definitions plus a <code>call(name, arguments)</code> dispatcher.</p>
-<div class="table-wrap"><table><thead><tr><th>Tool</th><th>Result</th></tr></thead><tbody><tr><td><code>cad_read_drawing</code></td><td>First page of visible model-space objects, layers and drawing units</td></tr><tr><td><code>cad_read_page</code></td><td>Revision-bound continuation with independent entity/layer offsets</td></tr><tr><td><code>cad_measure_distance</code></td><td>Planar point-to-point distance in the supplied drawing units</td></tr><tr><td><code>cad_propose_lines</code></td><td>Proposed batch of up to 64 XY lines</td></tr><tr><td><code>cad_propose_circles</code></td><td>Proposed batch of up to 64 XY circles</td></tr><tr><td><code>cad_propose_move</code></td><td>Proposed XY move of up to 64 visible editable model-space LINE/CIRCLE objects</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Tool</th><th>Result</th></tr></thead><tbody><tr><td><code>cad_read_drawing</code></td><td>First page of visible model-space objects, layers and drawing units</td></tr><tr><td><code>cad_read_page</code></td><td>Revision-bound continuation with independent entity/layer offsets</td></tr><tr><td><code>cad_measure_distance</code></td><td>Planar point-to-point distance in the supplied drawing units</td></tr><tr><td><code>cad_propose_lines</code></td><td>Proposed batch of up to 64 XY lines</td></tr><tr><td><code>cad_propose_circles</code></td><td>Proposed batch of up to 64 XY circles</td></tr><tr><td><code>cad_propose_move</code></td><td>Proposed XY move of up to 64 visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE objects</td></tr><tr><td><code>cad_propose_drawing</code></td><td>One mixed drawing proposal with lines, circles, arcs and polylines; up to 64 objects total</td></tr></tbody></table></div>
 <p>Expose <strong>only the definitions and dispatcher</strong> to your model adapter. <code>approve(planId, reviewerId)</code> and <code>reject(planId, reviewerId)</code> are trusted-host methods: the host authenticates the user, checks permissions and collects review of the exact proposed arguments. A reviewer string by itself is not authentication. There is no model-callable approval, arbitrary command, file or network tool.</p>
-<p>Line, circle and move proposals return <strong>before/after geometry</strong> in <code>value.preview</code>. KJDraw runs the core operation on a detached copy, checking geometry and editing rules without changing the original drawing or its undo history. Creation IDs are allocated once and bound to the proposal, so approval uses the same objects that were previewed. Approval checks the drawing revision and the resulting geometry. Failed or uncertain approval attempts are never retried automatically.</p>
+<p>All drawing and move proposals return <strong>before/after geometry</strong> in <code>value.preview</code>. KJDraw runs the core operation on a detached copy, checking geometry and editing rules without changing the original drawing or its undo history. Creation IDs are allocated once and bound to the proposal, so approval uses the same objects that were previewed. Approval checks the drawing revision and the resulting geometry. Failed or uncertain approval attempts are never retried automatically.</p>
 <p>Paint the preview using your editor&#39;s renderer (clear and redraw the overlay after a camera change). <code>before</code> is the old geometry and <code>after</code> is the proposed result:</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import type { KJAgentGeometryPreview } from &#39;@kanjieteam/kjdraw/agent-tools&#39;
 
@@ -83,6 +83,29 @@ function showProposal(preview: KJAgentGeometryPreview) {
 <p>Run the installed <a href="https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/agent-tools.mjs">tool-session example</a>:</p>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs</code></pre>
 <p>It exercises proposal, simulated host approval, duplicate rejection, native-file reopen and undo without a model or API key. This verifies tool plumbing, not natural-language design success.</p>
+<h2 id="en-agent-compose-drawing">Draw a profile and holes in one proposal<a class="heading-anchor" href="#en-agent-compose-drawing" aria-label="Link to Draw a profile and holes in one proposal">#</a></h2>
+<p>Use <code>cad_propose_drawing</code> when one request describes multiple kinds of geometry. The groups share a total limit of 64 objects. All four arrays are required; leave unused ones empty. Polyline vertices form straight segments (2–64 vertices, at least 3 when closed). Arc angles use degrees from positive X, counterclockwise; for example, 270 → 90 wraps through 0 degrees. Use a circle for a full revolution.</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
+import { KJAgentToolSession, type KJAgentDrawingInput } from &#39;@kanjieteam/kjdraw/agent-tools&#39;
+
+const sdk = createKJDrawSDK()
+const drawing = sdk.createDocument({ units: &#39;millimeter&#39; })
+const session = new KJAgentToolSession(sdk, drawing)
+const input: KJAgentDrawingInput = {
+  expectedRevision: drawing.revision, units: &#39;millimeter&#39;,
+  lines: [], arcs: [],
+  circles: [{ center: { x: 20, y: 20 }, radius: 3 }],
+  polylines: [{
+    vertices: [{ x: 0, y: 0 }, { x: 80, y: 0 }, { x: 80, y: 40 }, { x: 0, y: 40 }],
+    closed: true,
+  }],
+}
+const proposal = await session.call(&#39;cad_propose_drawing&#39;, input)
+// Show proposal.value.preview when proposal.ok is true.
+// Apply only after host review. No model approval tool is provided.</code></pre>
+<p>The installed example builds a 120 × 60 mm profile with four holes and a rounded slot, then checks preview, test-only approval, KJD/DXF reopen, undo and redo:</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/agent-drawing.mjs</code></pre>
+<p>The example is deterministic and needs no API key. To connect a model, expose this same tool through <a href="https://kanjieteam.github.io/kjdraw/docs/latest/models/">Models and harnesses</a>. These shapes remain regular editable CAD entities. The tool does not infer dimensions, manufacturing tolerances, constraints or whether a design is fit for use.</p>
 <h2 id="en-agent-drawing-context">Give the agent the drawing it needs<a class="heading-anchor" href="#en-agent-drawing-context" aria-label="Link to Give the agent the drawing it needs">#</a></h2>
 <p>Your host connects the model and decides which drawing data it may receive. KJDraw provides the editing tools and a read-only context query. Query only the objects relevant to the task instead of sending the entire drawing file.</p>
 <p>Available in the current source checkout; check the installed package version before using this new entry point.</p>
@@ -201,9 +224,9 @@ await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
           <p class="lead">让 Agent 按需读取图纸，检查它提出的修改，再由人接手继续编辑。</p>
           <h2 id="zh-agent-agent-tools">模型无关的 CAD 工具<a class="heading-anchor" href="#zh-agent-agent-tools" aria-label="Link to 模型无关的 CAD 工具">#</a></h2>
 <p>当前源码新增 <code>@kanjieteam/kjdraw/agent-tools</code> 中的 <code>KJAgentToolSession</code>。使用前核对源码与安装包的发布状态。一个会话绑定一份由宿主授权的图纸，提供可序列化的工具定义和 <code>call(name, arguments)</code> 调用入口。</p>
-<div class="table-wrap"><table><thead><tr><th>工具</th><th>返回结果</th></tr></thead><tbody><tr><td><code>cad_read_drawing</code></td><td>可见模型空间对象、图层和单位的第一页</td></tr><tr><td><code>cad_read_page</code></td><td>绑定图纸版本、分别按对象和图层偏移继续读取</td></tr><tr><td><code>cad_measure_distance</code></td><td>使用图纸单位计算同一坐标系中两点的平面距离</td></tr><tr><td><code>cad_propose_lines</code></td><td>最多 64 条 XY 直线的创建方案</td></tr><tr><td><code>cad_propose_circles</code></td><td>最多 64 个 XY 圆的创建方案</td></tr><tr><td><code>cad_propose_move</code></td><td>最多 64 个可见且可编辑的模型空间直线或圆的 XY 移动方案</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>工具</th><th>返回结果</th></tr></thead><tbody><tr><td><code>cad_read_drawing</code></td><td>可见模型空间对象、图层和单位的第一页</td></tr><tr><td><code>cad_read_page</code></td><td>绑定图纸版本、分别按对象和图层偏移继续读取</td></tr><tr><td><code>cad_measure_distance</code></td><td>使用图纸单位计算同一坐标系中两点的平面距离</td></tr><tr><td><code>cad_propose_lines</code></td><td>最多 64 条 XY 直线的创建方案</td></tr><tr><td><code>cad_propose_circles</code></td><td>最多 64 个 XY 圆的创建方案</td></tr><tr><td><code>cad_propose_move</code></td><td>最多 64 个可见且可编辑的模型空间直线、圆、圆弧或轻量多段线的 XY 移动方案</td></tr><tr><td><code>cad_propose_drawing</code></td><td>将直线、圆、圆弧和多段线组成同一个绘图方案，总计最多 64 个对象</td></tr></tbody></table></div>
 <p>向模型适配器<strong>只提供工具定义和调用入口</strong>。<code>approve(planId, reviewerId)</code> 与 <code>reject(planId, reviewerId)</code> 仅供可信宿主使用：宿主验证身份、检查权限，并让用户审核确切的修改参数。填写审核人字符串不等于完成身份验证。工具列表没有批准、任意命令、文件或网络执行入口。</p>
-<p>画线、画圆和移动方案在 <code>value.preview</code> 中返回<strong>修改前后的真实几何</strong>。KJDraw 在图纸副本上执行核心操作，检查几何及编辑规则，不改动原图或撤销记录。新对象 ID 在提案时固定，批准时使用预览中的同一批对象，并核对图纸修订和实际修改结果。批准失败或结果不确定时不会自动重试。</p>
+<p>所有绘图和移动方案在 <code>value.preview</code> 中返回<strong>修改前后的真实几何</strong>。KJDraw 在图纸副本上执行核心操作，检查几何及编辑规则，不改动原图或撤销记录。新对象 ID 在提案时固定，批准时使用预览中的同一批对象，并核对图纸修订和实际修改结果。批准失败或结果不确定时不会自动重试。</p>
 <p>使用编辑器的渲染器叠加显示预览；相机变化后需清除并重绘。<code>before</code> 是修改前图形，<code>after</code> 是拟应用结果：</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import type { KJAgentGeometryPreview } from &#39;@kanjieteam/kjdraw/agent-tools&#39;
 
@@ -218,6 +241,29 @@ function showProposal(preview: KJAgentGeometryPreview) {
 <p>运行安装包中的<a href="https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/agent-tools.mjs">工具会话示例</a>：</p>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs</code></pre>
 <p>示例不调用模型或使用密钥，验证提案、模拟宿主批准、重复执行拒绝、原生文件重开和撤销。这是工具链验证，不是自然语言设计成功率的证明。</p>
+<h2 id="zh-agent-compose-drawing">一次提出轮廓和孔位的组合绘图方案<a class="heading-anchor" href="#zh-agent-compose-drawing" aria-label="Link to 一次提出轮廓和孔位的组合绘图方案">#</a></h2>
+<p>一个需求包含多种图形时，使用 <code>cad_propose_drawing</code>。四组图形合计最多 64 个对象；四个数组都必须提供，不使用的组填空数组。多段线由直线段组成，允许 2–64 个顶点，闭合时至少 3 个；无需重复首点。圆弧从 X 正方向逆时针计角，单位是度，例如 270 → 90 会跨过 0 度。整圆请放在 circles 中。</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
+import { KJAgentToolSession, type KJAgentDrawingInput } from &#39;@kanjieteam/kjdraw/agent-tools&#39;
+
+const sdk = createKJDrawSDK()
+const drawing = sdk.createDocument({ units: &#39;millimeter&#39; })
+const session = new KJAgentToolSession(sdk, drawing)
+const input: KJAgentDrawingInput = {
+  expectedRevision: drawing.revision, units: &#39;millimeter&#39;,
+  lines: [], arcs: [],
+  circles: [{ center: { x: 20, y: 20 }, radius: 3 }],
+  polylines: [{
+    vertices: [{ x: 0, y: 0 }, { x: 80, y: 0 }, { x: 80, y: 40 }, { x: 0, y: 40 }],
+    closed: true,
+  }],
+}
+const proposal = await session.call(&#39;cad_propose_drawing&#39;, input)
+// proposal.ok 为 true 时展示 proposal.value.preview。
+// 用户审核后才由宿主批准；不要向模型暴露批准入口。</code></pre>
+<p>安装包示例绘制 120 × 60 mm 轮廓、四个孔和一个长圆槽，并验证预览、模拟批准、KJD/DXF 重开、撤销和重做：</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/agent-drawing.mjs</code></pre>
+<p>示例无需 API Key，使用确定性输入。真实模型接入复用同一个工具，见<a href="https://kanjieteam.github.io/kjdraw/docs/latest/models/">模型与执行框架</a>。结果是可继续编辑的常规 CAD 对象；工具不自动推断标注、制造公差、约束或设计适用性。</p>
 <h2 id="zh-agent-drawing-context">先让 Agent 读到任务需要的图纸内容<a class="heading-anchor" href="#zh-agent-drawing-context" aria-label="Link to 先让 Agent 读到任务需要的图纸内容">#</a></h2>
 <p>宿主应用负责连接模型，并决定它可以读取哪些图纸数据。KJDraw 提供编辑工具和只读查询接口，让你按任务选取对象，不必把整份图纸文件发送出去。</p>
 <p>该接口已加入当前源码；使用前请确认安装的 npm 版本已包含这个新入口。</p>
@@ -332,10 +378,10 @@ await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
         </article>
         <nav class="pager" aria-label="Adjacent documentation"><a href="../vue/"><strong class="lang-en">Vue integration</strong><strong class="lang-zh">Vue 集成</strong></a><a href="../models/"><strong class="lang-en">Connect your model</strong><strong class="lang-zh">接入你的模型</strong></a></nav>
       </div>
-      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-agent-agent-tools">Model neutral CAD tools</a><a class="toc-level-2" href="#en-agent-drawing-context">Give the agent the drawing it needs</a><a class="toc-level-2" href="#en-agent-review-before-mutation">Review before mutation</a><a class="toc-level-2" href="#en-agent-plan-and-execute">Plan and execute</a><a class="toc-level-2" href="#en-agent-geometric-preview">Preview and apply a trim</a><a class="toc-level-2" href="#en-agent-fail-closed-cases">Fail closed cases</a><a class="toc-level-2" href="#en-agent-security-boundary">Security boundary</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-agent-agent-tools">模型无关的 CAD 工具</a><a class="toc-level-2" href="#zh-agent-drawing-context">先让 Agent 读到任务需要的图纸内容</a><a class="toc-level-2" href="#zh-agent-review-before-mutation">修改前先审核</a><a class="toc-level-2" href="#zh-agent-plan-and-execute">计划与执行</a><a class="toc-level-2" href="#zh-agent-geometric-preview">先预览，再应用修剪</a><a class="toc-level-2" href="#zh-agent-fail-closed-cases">关闭执行的情况</a><a class="toc-level-2" href="#zh-agent-security-boundary">安全边界</a></div></aside>
+      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-agent-agent-tools">Model neutral CAD tools</a><a class="toc-level-2" href="#en-agent-compose-drawing">Draw a profile and holes in one proposal</a><a class="toc-level-2" href="#en-agent-drawing-context">Give the agent the drawing it needs</a><a class="toc-level-2" href="#en-agent-review-before-mutation">Review before mutation</a><a class="toc-level-2" href="#en-agent-plan-and-execute">Plan and execute</a><a class="toc-level-2" href="#en-agent-geometric-preview">Preview and apply a trim</a><a class="toc-level-2" href="#en-agent-fail-closed-cases">Fail closed cases</a><a class="toc-level-2" href="#en-agent-security-boundary">Security boundary</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-agent-agent-tools">模型无关的 CAD 工具</a><a class="toc-level-2" href="#zh-agent-compose-drawing">一次提出轮廓和孔位的组合绘图方案</a><a class="toc-level-2" href="#zh-agent-drawing-context">先让 Agent 读到任务需要的图纸内容</a><a class="toc-level-2" href="#zh-agent-review-before-mutation">修改前先审核</a><a class="toc-level-2" href="#zh-agent-plan-and-execute">计划与执行</a><a class="toc-level-2" href="#zh-agent-geometric-preview">先预览，再应用修剪</a><a class="toc-level-2" href="#zh-agent-fail-closed-cases">关闭执行的情况</a><a class="toc-level-2" href="#zh-agent-security-boundary">安全边界</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=100401b7f942091e"></script>
+  <script type="module" src="../app.js?v=db920f9d9fee6cad"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:01259ceb719fcf680422a3a8bef81cce3eff7fafc45909e0be3677ed01591186",
+  "sourceDigest": "sha256:ed2005e5008592bcbac45791832537bb919a10fb6a49ec52a1519414d8f05234",
   "entries": [
     {
       "name": "createKJModelAdapter",
@@ -130,7 +130,7 @@
       "module": "@kanjieteam/kjdraw/agent-tools",
       "href": "./api/reference/#agent-tools-type-default",
       "anchor": "agent-tools-type-default",
-      "summary": "export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';"
+      "summary": "export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js'; export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';"
     },
     {
       "name": "KJAgentToolDefinition",
@@ -154,7 +154,7 @@
       "module": "@kanjieteam/kjdraw/agent-tools",
       "href": "./api/reference/#agent-tools-interface-kjagenttoolschema",
       "anchor": "agent-tools-interface-kjagenttoolschema",
-      "summary": "export interface KJAgentToolSchema { readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'null'; readonly properties?: Readonly<Record<string, KJAgentToolSchema>>; readonly required?: readonly string[];"
+      "summary": "export interface KJAgentToolSchema { readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null'; readonly properties?: Readonly<Record<string, KJAgentToolSchema>>; readonly required?: readon"
     },
     {
       "name": "KJAgentToolSession",
@@ -5514,7 +5514,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-type-default",
       "anchor": "root-type-default",
-      "summary": "export type { KJWorkbenchLayout } from './workbench.js'; export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js'; export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selec"
+      "summary": "export type { KJWorkbenchLayout } from './workbench.js'; export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js'; export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js'"
     },
     {
       "name": "DEFAULT_TOLERANCE",
@@ -6154,7 +6154,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjagenttoolschema",
       "anchor": "root-interface-kjagenttoolschema",
-      "summary": "export interface KJAgentToolSchema { readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'null'; readonly properties?: Readonly<Record<string, KJAgentToolSchema>>; readonly required?: readonly string[];"
+      "summary": "export interface KJAgentToolSchema { readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null'; readonly properties?: Readonly<Record<string, KJAgentToolSchema>>; readonly required?: readon"
     },
     {
       "name": "KJAgentToolSession",

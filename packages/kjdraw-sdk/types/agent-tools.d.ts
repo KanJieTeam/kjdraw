@@ -1,8 +1,9 @@
 import type { KJDrawSDK } from './sdk.js';
 import type { KJDocument } from './document.js';
+export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';
 export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';
 export interface KJAgentToolSchema {
-    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'null';
+    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';
     readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;
     readonly required?: readonly string[];
     readonly additionalProperties?: false;

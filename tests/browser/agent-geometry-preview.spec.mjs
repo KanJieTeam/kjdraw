@@ -1,6 +1,43 @@
 import { expect, test } from '@playwright/test'
+import { mountingProfile } from '../../packages/kjdraw-sdk/examples/fixtures/mounting-profile.mjs'
 
 test.use({ bypassCSP: true })
+
+test('mixed agent geometry opens in the packaged editor and remains selectable after undo and redo', async ({ page }) => {
+  await page.goto('/')
+  const result = await page.evaluate(async input => {
+    const [{ createKJDrawSDK }, { KJAgentToolSession }, { createKJDrawEditor }] = await Promise.all([
+      import('/packages/kjdraw-sdk/src/sdk.js'), import('/packages/kjdraw-sdk/src/agent-tools.js'),
+      import('/packages/kjdraw-sdk/src/editor.js'),
+    ])
+    const host = document.createElement('div')
+    host.style.cssText = 'width:1100px;height:760px'
+    document.body.replaceChildren(host)
+    const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ units: 'millimeter' })
+    const session = new KJAgentToolSession(sdk, drawing)
+    const editor = createKJDrawEditor(host, { sdk, document: drawing, grid: false })
+    await editor.ready
+    const result = await session.call('cad_propose_drawing', input)
+    if (!result.ok) throw new Error(JSON.stringify(result))
+    const approved = await session.approve(result.value.planId, 'browser-test-reviewer')
+    if (!approved.ok) throw new Error(JSON.stringify(approved))
+    editor.fit()
+    const renderer = editor.workbench.renderer
+    const rendered = renderer.render()
+    const ids = drawing.listEntities().map(entity => entity.id)
+    sdk.activeSelection.replace(ids)
+    await sdk.executeCommand('UNDO')
+    const undone = drawing.listEntities().length
+    await sdk.executeCommand('REDO')
+    editor.fit()
+    const restored = renderer.render()
+    sdk.activeSelection.replace(ids)
+    const selected = sdk.activeSelection.size
+    const exact = result.value.preview.after.every(expected => JSON.stringify(drawing.getObject(expected.id)?.payload) === JSON.stringify(expected.payload))
+    return { rendered: rendered.rendered, unsupported: rendered.unsupported, undone, restored: restored.rendered, selected, exact }
+  }, mountingProfile())
+  expect(result).toEqual({ rendered: 9, unsupported: 0, undone: 0, restored: 9, selected: 9, exact: true })
+})
 
 test('agent geometry paints a temporary overlay and approval preserves its exact geometry', async ({ page }) => {
   await page.goto('/')

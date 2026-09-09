@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:01259ceb719fcf680422a3a8bef81cce3eff7fafc45909e0be3677ed01591186",
+  "sourceDigest": "sha256:ed2005e5008592bcbac45791832537bb919a10fb6a49ec52a1519414d8f05234",
   "modules": [
     {
       "exportPath": "./model-adapters",
@@ -135,7 +135,7 @@
         {
           "name": "default",
           "kind": "type",
-          "declaration": "export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';",
+          "declaration": "export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';\nexport type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-type-default"
         },
@@ -156,7 +156,7 @@
         {
           "name": "KJAgentToolSchema",
           "kind": "interface",
-          "declaration": "export interface KJAgentToolSchema {\n    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'null';\n    readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;\n    readonly required?: readonly string[];\n    readonly additionalProperties?: false;\n    readonly items?: KJAgentToolSchema;\n    readonly minimum?: number;\n    readonly maximum?: number;\n    readonly exclusiveMinimum?: number;\n    readonly minItems?: number;\n    readonly maxItems?: number;\n    readonly minLength?: number;\n    readonly maxLength?: number;\n}",
+          "declaration": "export interface KJAgentToolSchema {\n    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';\n    readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;\n    readonly required?: readonly string[];\n    readonly additionalProperties?: false;\n    readonly items?: KJAgentToolSchema;\n    readonly minimum?: number;\n    readonly maximum?: number;\n    readonly exclusiveMinimum?: number;\n    readonly minItems?: number;\n    readonly maxItems?: number;\n    readonly minLength?: number;\n    readonly maxLength?: number;\n}",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-interface-kjagenttoolschema"
         },
@@ -4950,7 +4950,7 @@
         {
           "name": "default",
           "kind": "type",
-          "declaration": "export type { KJWorkbenchLayout } from './workbench.js';\nexport type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
+          "declaration": "export type { KJWorkbenchLayout } from './workbench.js';\nexport type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';\nexport type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
           "source": "editor.d.ts",
           "anchor": "root-type-default"
         },
@@ -5510,7 +5510,7 @@
         {
           "name": "KJAgentToolSchema",
           "kind": "interface",
-          "declaration": "export interface KJAgentToolSchema {\n    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'null';\n    readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;\n    readonly required?: readonly string[];\n    readonly additionalProperties?: false;\n    readonly items?: KJAgentToolSchema;\n    readonly minimum?: number;\n    readonly maximum?: number;\n    readonly exclusiveMinimum?: number;\n    readonly minItems?: number;\n    readonly maxItems?: number;\n    readonly minLength?: number;\n    readonly maxLength?: number;\n}",
+          "declaration": "export interface KJAgentToolSchema {\n    readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';\n    readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;\n    readonly required?: readonly string[];\n    readonly additionalProperties?: false;\n    readonly items?: KJAgentToolSchema;\n    readonly minimum?: number;\n    readonly maximum?: number;\n    readonly exclusiveMinimum?: number;\n    readonly minItems?: number;\n    readonly maxItems?: number;\n    readonly minLength?: number;\n    readonly maxLength?: number;\n}",
           "source": "agent-tools.d.ts",
           "anchor": "root-interface-kjagenttoolschema"
         },

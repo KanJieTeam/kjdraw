@@ -8,20 +8,20 @@ const project = (entity)=>({
         type: entity.type,
         payload: entity.payload
     });
+const supported = [
+    'LINE',
+    'CIRCLE',
+    'ARC',
+    'LWPOLYLINE'
+];
 export async function createAgentGeometryPreview(document, command, args) {
     if (![
         'CREATEBATCH',
         'MOVE'
     ].includes(command)) throw new KJValidationError('This preview supports only CREATEBATCH and MOVE');
     if (command === 'CREATEBATCH') {
-        if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > 64 || args.entities.some((spec)=>!spec || typeof spec !== 'object' || ![
-                'LINE',
-                'CIRCLE'
-            ].includes(String(spec.type)))) throw new KJValidationError('Preview creation requires 1–64 LINE/CIRCLE entities');
-    } else if (!Array.isArray(args.ids) || !args.ids.length || args.ids.length > 64 || args.ids.some((id)=>![
-            'LINE',
-            'CIRCLE'
-        ].includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError('Preview movement requires 1–64 LINE/CIRCLE entities');
+        if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > 64 || args.entities.some((spec)=>!spec || typeof spec !== 'object' || !supported.includes(String(spec.type)))) throw new KJValidationError('Preview creation requires 1–64 LINE/CIRCLE/ARC/LWPOLYLINE entities');
+    } else if (!Array.isArray(args.ids) || !args.ids.length || args.ids.length > 64 || args.ids.some((id)=>!supported.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError('Preview movement requires 1–64 LINE/CIRCLE/ARC/LWPOLYLINE entities');
     const source = document.serialize(), revision = document.revision;
     if (new TextEncoder().encode(source).length > 4194304) throw new KJValidationError('Agent preview document exceeds the 4 MiB source limit');
     const draft = KJDocument.open(source);

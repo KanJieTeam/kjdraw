@@ -273,9 +273,11 @@
   <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/agent-tools</code></h2></div><a class="permalink" href="#module-agent-tools" aria-label="Link to @kanjieteam/kjdraw/agent-tools">#</a></header>
   <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/agent-tools.d.ts</code></p>
   <div class="api-symbols">
-    <article class="api-symbol" id="agent-tools-type-default" data-search="default type @kanjieteam/kjdraw/agent-tools export type { kjagentgeometrypreview, kjagentpreviewentity } from &#39;./agent-preview.js&#39;;">
+    <article class="api-symbol" id="agent-tools-type-default" data-search="default type @kanjieteam/kjdraw/agent-tools export type { kjagentdrawinginput, kjagentpoint } from &#39;./agent-drawing.js&#39;;
+export type { kjagentgeometrypreview, kjagentpreviewentity } from &#39;./agent-preview.js&#39;;">
       <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#agent-tools-type-default" aria-label="Link to default">#</a></header>
-      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-preview.js&#39;;</code></pre>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJAgentDrawingInput, KJAgentPoint } from &#39;./agent-drawing.js&#39;;
+export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-preview.js&#39;;</code></pre>
       <p class="source-path">agent-tools.d.ts</p>
     </article>
 <article class="api-symbol" id="agent-tools-interface-kjagenttooldefinition" data-search="kjagenttooldefinition interface @kanjieteam/kjdraw/agent-tools export interface kjagenttooldefinition {
@@ -319,7 +321,7 @@
       <p class="source-path">agent-tools.d.ts</p>
     </article>
 <article class="api-symbol" id="agent-tools-interface-kjagenttoolschema" data-search="kjagenttoolschema interface @kanjieteam/kjdraw/agent-tools export interface kjagenttoolschema {
-    readonly type: &#39;object&#39; | &#39;array&#39; | &#39;string&#39; | &#39;number&#39; | &#39;integer&#39; | &#39;null&#39;;
+    readonly type: &#39;object&#39; | &#39;array&#39; | &#39;string&#39; | &#39;number&#39; | &#39;integer&#39; | &#39;boolean&#39; | &#39;null&#39;;
     readonly properties?: readonly&lt;record&lt;string, kjagenttoolschema&gt;&gt;;
     readonly required?: readonly string[];
     readonly additionalproperties?: false;
@@ -334,7 +336,7 @@
 }">
       <header><div><span class="kind">interface</span><h3>KJAgentToolSchema</h3></div><a class="permalink" href="#agent-tools-interface-kjagenttoolschema" aria-label="Link to KJAgentToolSchema">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentToolSchema {
-    readonly type: &#39;object&#39; | &#39;array&#39; | &#39;string&#39; | &#39;number&#39; | &#39;integer&#39; | &#39;null&#39;;
+    readonly type: &#39;object&#39; | &#39;array&#39; | &#39;string&#39; | &#39;number&#39; | &#39;integer&#39; | &#39;boolean&#39; | &#39;null&#39;;
     readonly properties?: Readonly&lt;Record&lt;string, KJAgentToolSchema&gt;&gt;;
     readonly required?: readonly string[];
     readonly additionalProperties?: false;
@@ -9499,10 +9501,12 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <p class="source-path">utils.d.ts</p>
     </article>
 <article class="api-symbol" id="root-type-default" data-search="default type @kanjieteam/kjdraw export type { kjworkbenchlayout } from &#39;./workbench.js&#39;;
+export type { kjagentdrawinginput, kjagentpoint } from &#39;./agent-drawing.js&#39;;
 export type { kjagentgeometrypreview, kjagentpreviewentity } from &#39;./agent-preview.js&#39;;
 export type { kjboxselectionmode, kjspatialselectionoptions } from &#39;./selection-geometry.js&#39;;">
       <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#root-type-default" aria-label="Link to default">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJWorkbenchLayout } from &#39;./workbench.js&#39;;
+export type { KJAgentDrawingInput, KJAgentPoint } from &#39;./agent-drawing.js&#39;;
 export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-preview.js&#39;;
 export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./selection-geometry.js&#39;;</code></pre>
       <p class="source-path">editor.d.ts</p>
@@ -10795,7 +10799,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <p class="source-path">agent-tools.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjagenttoolschema" data-search="kjagenttoolschema interface @kanjieteam/kjdraw export interface kjagenttoolschema {
-    readonly type: &#39;object&#39; | &#39;array&#39; | &#39;string&#39; | &#39;number&#39; | &#39;integer&#39; | &#39;null&#39;;
+    readonly type: &#39;object&#39; | &#39;array&#39; | &#39;string&#39; | &#39;number&#39; | &#39;integer&#39; | &#39;boolean&#39; | &#39;null&#39;;
     readonly properties?: readonly&lt;record&lt;string, kjagenttoolschema&gt;&gt;;
     readonly required?: readonly string[];
     readonly additionalproperties?: false;
@@ -10810,7 +10814,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }">
       <header><div><span class="kind">interface</span><h3>KJAgentToolSchema</h3></div><a class="permalink" href="#root-interface-kjagenttoolschema" aria-label="Link to KJAgentToolSchema">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentToolSchema {
-    readonly type: &#39;object&#39; | &#39;array&#39; | &#39;string&#39; | &#39;number&#39; | &#39;integer&#39; | &#39;null&#39;;
+    readonly type: &#39;object&#39; | &#39;array&#39; | &#39;string&#39; | &#39;number&#39; | &#39;integer&#39; | &#39;boolean&#39; | &#39;null&#39;;
     readonly properties?: Readonly&lt;Record&lt;string, KJAgentToolSchema&gt;&gt;;
     readonly required?: readonly string[];
     readonly additionalProperties?: false;

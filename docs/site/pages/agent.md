@@ -17,11 +17,12 @@ The current source checkout adds `KJAgentToolSession` from `@kanjieteam/kjdraw/a
 | `cad_measure_distance` | Planar point-to-point distance in the supplied drawing units |
 | `cad_propose_lines` | Proposed batch of up to 64 XY lines |
 | `cad_propose_circles` | Proposed batch of up to 64 XY circles |
-| `cad_propose_move` | Proposed XY move of up to 64 visible editable model-space LINE/CIRCLE objects |
+| `cad_propose_move` | Proposed XY move of up to 64 visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE objects |
+| `cad_propose_drawing` | One mixed drawing proposal with lines, circles, arcs and polylines; up to 64 objects total |
 
 Expose **only the definitions and dispatcher** to your model adapter. `approve(planId, reviewerId)` and `reject(planId, reviewerId)` are trusted-host methods: the host authenticates the user, checks permissions and collects review of the exact proposed arguments. A reviewer string by itself is not authentication. There is no model-callable approval, arbitrary command, file or network tool.
 
-Line, circle and move proposals return **before/after geometry** in `value.preview`. KJDraw runs the core operation on a detached copy, checking geometry and editing rules without changing the original drawing or its undo history. Creation IDs are allocated once and bound to the proposal, so approval uses the same objects that were previewed. Approval checks the drawing revision and the resulting geometry. Failed or uncertain approval attempts are never retried automatically.
+All drawing and move proposals return **before/after geometry** in `value.preview`. KJDraw runs the core operation on a detached copy, checking geometry and editing rules without changing the original drawing or its undo history. Creation IDs are allocated once and bound to the proposal, so approval uses the same objects that were previewed. Approval checks the drawing revision and the resulting geometry. Failed or uncertain approval attempts are never retried automatically.
 
 Paint the preview using your editor's renderer (clear and redraw the overlay after a camera change). `before` is the old geometry and `after` is the proposed result:
 
@@ -47,6 +48,39 @@ node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs
 ```
 
 It exercises proposal, simulated host approval, duplicate rejection, native-file reopen and undo without a model or API key. This verifies tool plumbing, not natural-language design success.
+
+## Draw a profile and holes in one proposal {#compose-drawing}
+
+Use `cad_propose_drawing` when one request describes multiple kinds of geometry. The groups share a total limit of 64 objects. All four arrays are required; leave unused ones empty. Polyline vertices form straight segments (2–64 vertices, at least 3 when closed). Arc angles use degrees from positive X, counterclockwise; for example, 270 → 90 wraps through 0 degrees. Use a circle for a full revolution.
+
+```ts
+import { createKJDrawSDK } from '@kanjieteam/kjdraw'
+import { KJAgentToolSession, type KJAgentDrawingInput } from '@kanjieteam/kjdraw/agent-tools'
+
+const sdk = createKJDrawSDK()
+const drawing = sdk.createDocument({ units: 'millimeter' })
+const session = new KJAgentToolSession(sdk, drawing)
+const input: KJAgentDrawingInput = {
+  expectedRevision: drawing.revision, units: 'millimeter',
+  lines: [], arcs: [],
+  circles: [{ center: { x: 20, y: 20 }, radius: 3 }],
+  polylines: [{
+    vertices: [{ x: 0, y: 0 }, { x: 80, y: 0 }, { x: 80, y: 40 }, { x: 0, y: 40 }],
+    closed: true,
+  }],
+}
+const proposal = await session.call('cad_propose_drawing', input)
+// Show proposal.value.preview when proposal.ok is true.
+// Apply only after host review. No model approval tool is provided.
+```
+
+The installed example builds a 120 × 60 mm profile with four holes and a rounded slot, then checks preview, test-only approval, KJD/DXF reopen, undo and redo:
+
+```sh
+node node_modules/@kanjieteam/kjdraw/examples/agent-drawing.mjs
+```
+
+The example is deterministic and needs no API key. To connect a model, expose this same tool through [Models and harnesses](https://kanjieteam.github.io/kjdraw/docs/latest/models/). These shapes remain regular editable CAD entities. The tool does not infer dimensions, manufacturing tolerances, constraints or whether a design is fit for use.
 
 ## Give the agent the drawing it needs {#drawing-context}
 
@@ -215,11 +249,12 @@ Start with the stable [Agent integration contract](https://github.com/KanJieTeam
 | `cad_measure_distance` | 使用图纸单位计算同一坐标系中两点的平面距离 |
 | `cad_propose_lines` | 最多 64 条 XY 直线的创建方案 |
 | `cad_propose_circles` | 最多 64 个 XY 圆的创建方案 |
-| `cad_propose_move` | 最多 64 个可见且可编辑的模型空间直线或圆的 XY 移动方案 |
+| `cad_propose_move` | 最多 64 个可见且可编辑的模型空间直线、圆、圆弧或轻量多段线的 XY 移动方案 |
+| `cad_propose_drawing` | 将直线、圆、圆弧和多段线组成同一个绘图方案，总计最多 64 个对象 |
 
 向模型适配器**只提供工具定义和调用入口**。`approve(planId, reviewerId)` 与 `reject(planId, reviewerId)` 仅供可信宿主使用：宿主验证身份、检查权限，并让用户审核确切的修改参数。填写审核人字符串不等于完成身份验证。工具列表没有批准、任意命令、文件或网络执行入口。
 
-画线、画圆和移动方案在 `value.preview` 中返回**修改前后的真实几何**。KJDraw 在图纸副本上执行核心操作，检查几何及编辑规则，不改动原图或撤销记录。新对象 ID 在提案时固定，批准时使用预览中的同一批对象，并核对图纸修订和实际修改结果。批准失败或结果不确定时不会自动重试。
+所有绘图和移动方案在 `value.preview` 中返回**修改前后的真实几何**。KJDraw 在图纸副本上执行核心操作，检查几何及编辑规则，不改动原图或撤销记录。新对象 ID 在提案时固定，批准时使用预览中的同一批对象，并核对图纸修订和实际修改结果。批准失败或结果不确定时不会自动重试。
 
 使用编辑器的渲染器叠加显示预览；相机变化后需清除并重绘。`before` 是修改前图形，`after` 是拟应用结果：
 
@@ -245,6 +280,39 @@ node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs
 ```
 
 示例不调用模型或使用密钥，验证提案、模拟宿主批准、重复执行拒绝、原生文件重开和撤销。这是工具链验证，不是自然语言设计成功率的证明。
+
+## 一次提出轮廓和孔位的组合绘图方案 {#compose-drawing}
+
+一个需求包含多种图形时，使用 `cad_propose_drawing`。四组图形合计最多 64 个对象；四个数组都必须提供，不使用的组填空数组。多段线由直线段组成，允许 2–64 个顶点，闭合时至少 3 个；无需重复首点。圆弧从 X 正方向逆时针计角，单位是度，例如 270 → 90 会跨过 0 度。整圆请放在 circles 中。
+
+```ts
+import { createKJDrawSDK } from '@kanjieteam/kjdraw'
+import { KJAgentToolSession, type KJAgentDrawingInput } from '@kanjieteam/kjdraw/agent-tools'
+
+const sdk = createKJDrawSDK()
+const drawing = sdk.createDocument({ units: 'millimeter' })
+const session = new KJAgentToolSession(sdk, drawing)
+const input: KJAgentDrawingInput = {
+  expectedRevision: drawing.revision, units: 'millimeter',
+  lines: [], arcs: [],
+  circles: [{ center: { x: 20, y: 20 }, radius: 3 }],
+  polylines: [{
+    vertices: [{ x: 0, y: 0 }, { x: 80, y: 0 }, { x: 80, y: 40 }, { x: 0, y: 40 }],
+    closed: true,
+  }],
+}
+const proposal = await session.call('cad_propose_drawing', input)
+// proposal.ok 为 true 时展示 proposal.value.preview。
+// 用户审核后才由宿主批准；不要向模型暴露批准入口。
+```
+
+安装包示例绘制 120 × 60 mm 轮廓、四个孔和一个长圆槽，并验证预览、模拟批准、KJD/DXF 重开、撤销和重做：
+
+```sh
+node node_modules/@kanjieteam/kjdraw/examples/agent-drawing.mjs
+```
+
+示例无需 API Key，使用确定性输入。真实模型接入复用同一个工具，见[模型与执行框架](https://kanjieteam.github.io/kjdraw/docs/latest/models/)。结果是可继续编辑的常规 CAD 对象；工具不自动推断标注、制造公差、约束或设计适用性。
 
 ## 先让 Agent 读到任务需要的图纸内容 {#drawing-context}
 

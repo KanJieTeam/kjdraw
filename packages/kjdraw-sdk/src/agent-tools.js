@@ -4,6 +4,7 @@ import { KJDrawError, KJRevisionConflictError, KJValidationError } from './error
 import { deepFreeze } from './utils.js';
 import { createId } from './ids.js';
 import { createAgentGeometryPreview, agentPreviewMatchesDocument } from './agent-preview.js';
+import { buildAgentDrawingEntities } from './agent-drawing.js';
 const number = {
     type: 'number',
     minimum: -1e12,
@@ -35,6 +36,19 @@ const collection = (items)=>({
         minItems: 1,
         maxItems: 64
     });
+const drawingGroup = (items)=>({
+        ...collection(items),
+        minItems: 0
+    });
+const radius = {
+    ...number,
+    exclusiveMinimum: 0
+};
+const angle = {
+    type: 'number',
+    minimum: 0,
+    maximum: 360
+};
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_read_drawing',
@@ -95,13 +109,45 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_move',
         effect: 'propose',
-        description: 'Propose an XY displacement of 1–64 visible editable model-space LINE/CIRCLE objects identified by exact IDs. Does not apply edits; the host must approve. Other entity types are outside this starter tool.',
+        description: 'Propose an XY displacement of 1–64 visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE objects identified by exact IDs. Returns before/after geometry; the host must approve before edits apply.',
         inputSchema: object({
             expectedRevision: revision,
             units: text,
             ids: collection(text),
             dx: number,
             dy: number
+        })
+    },
+    {
+        name: 'cad_propose_drawing',
+        effect: 'propose',
+        description: 'Compose 1–64 total LINE, CIRCLE, ARC and straight-segment LWPOLYLINE entities as one drawing proposal and one undoable edit. Supply all four groups; unused groups are empty arrays. Model XY, z=0, drawing units. Arc angles are degrees 0–360, counterclockwise from +X; a full circle belongs in circles. Closed polylines close automatically: do not repeat the first vertex. Returns before/after geometry without modifying the drawing. Host review and approval are required. No dimensions or design constraints are inferred.',
+        inputSchema: object({
+            expectedRevision: revision,
+            units: text,
+            lines: drawingGroup(object({
+                start: point,
+                end: point
+            })),
+            circles: drawingGroup(object({
+                center: point,
+                radius
+            })),
+            arcs: drawingGroup(object({
+                center: point,
+                radius,
+                startDegrees: angle,
+                endDegrees: angle
+            })),
+            polylines: drawingGroup(object({
+                vertices: {
+                    ...collection(point),
+                    minItems: 2
+                },
+                closed: {
+                    type: 'boolean'
+                }
+            }))
         })
     }
 ]);
@@ -129,6 +175,8 @@ function validate(schema, value, path = 'arguments') {
         for(let index = 0; index < items.length; index++)validate(schema.items, items[index], `${path}[${index}]`);
     } else if (schema.type === 'string') {
         if (typeof value !== 'string' || value.length < (schema.minLength ?? 0) || value.length > (schema.maxLength ?? 256) || !value.trim()) fail('expected a nonempty bounded string');
+    } else if (schema.type === 'boolean') {
+        if (typeof value !== 'boolean') fail('expected a boolean');
     } else if (schema.type === 'null') {
         if (value !== null) fail('expected null');
     } else {
@@ -202,7 +250,11 @@ export class KJAgentToolSession {
                         if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session');
                         let command = 'CREATEBATCH';
                         let commandArgs;
-                        if (name === 'cad_propose_lines') {
+                        if (name === 'cad_propose_drawing') {
+                            commandArgs = {
+                                entities: buildAgentDrawingEntities(args, document.snapshot().spaces.modelSpaceId)
+                            };
+                        } else if (name === 'cad_propose_lines') {
                             commandArgs = {
                                 entities: args.lines.map((line)=>{
                                     const start = xy(line.start), end = xy(line.end);
@@ -247,8 +299,10 @@ export class KJAgentToolSession {
                             });
                             if (context.entities.length !== ids.length || context.entities.some((entity)=>!entity.editable || ![
                                     'LINE',
-                                    'CIRCLE'
-                                ].includes(entity.type))) throw new KJValidationError('Move requires visible editable model-space LINE/CIRCLE objects');
+                                    'CIRCLE',
+                                    'ARC',
+                                    'LWPOLYLINE'
+                                ].includes(entity.type))) throw new KJValidationError('Move requires visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE objects');
                             command = 'MOVE';
                             commandArgs = {
                                 ids,

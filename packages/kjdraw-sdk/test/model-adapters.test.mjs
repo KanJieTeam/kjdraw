@@ -4,6 +4,7 @@ import { createKJDrawSDK } from '../src/sdk.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
 import { createKJModelAdapter } from '../src/model-adapters.js'
 import { runKJAgentTask } from '../src/agent-runner.js'
+import { mountingProfile } from '../examples/fixtures/mounting-profile.mjs'
 
 const protocols = ['responses', 'chat-completions', 'anthropic-messages', 'gemini-generate-content']
 const args = { expectedRevision: 0, units: 'millimeter', circles: [{ center: { x: 20, y: 25 }, radius: 3 }] }
@@ -49,6 +50,25 @@ function assertContinuation(protocol, body) {
 }
 
 for (const protocol of protocols) {
+  test(`${protocol}: mixed drawing schema and proposal use the same core`, async () => {
+    const { document, session } = fixture()
+    const model = createKJModelAdapter({ protocol, model: 'offline-profile-fixture', request: async ({ body }) => {
+      const definitions = protocol === 'gemini-generate-content' ? body.tools[0].functionDeclarations : body.tools
+      const definition = definitions.find(tool => (tool.function?.name ?? tool.name) === 'cad_propose_drawing')
+      const schema = definition.function?.parameters ?? definition.parameters ?? definition.input_schema ?? definition.parametersJsonSchema
+      assert.equal(schema.properties.polylines.items.properties.closed.type, 'boolean')
+      assert.equal(schema.properties.arcs.minItems, 0)
+      return wire(protocol, [call('profile', 'cad_propose_drawing', mountingProfile())])
+    } })
+    const result = await runKJAgentTask({ session, model, prompt: 'Draw the specified mounting profile for review.' })
+    assert.equal(result.status, 'awaiting-approval', JSON.stringify(result))
+    assert.equal(document.revision, 0)
+    assert.equal(result.outputs[0].result.value.preview.after.length, 9)
+    assert.equal((await session.approve(result.proposalIds[0], 'host-reviewer')).ok, true)
+    assert.equal(document.listEntities().length, 9)
+    assert.equal(document.revision, 1)
+  })
+
   test(`${protocol}: read, repair a unit error, propose, host approve, save/reopen and undo`, async () => {
     const { sdk, document, session } = fixture()
     let requests = 0
@@ -60,7 +80,7 @@ for (const protocol of protocols) {
       const body = request.body
       if (requests++ === 0) {
         const defs = protocol === 'gemini-generate-content' ? body.tools[0].functionDeclarations : body.tools
-        assert.equal(defs.length, 6)
+        assert.equal(defs.length, 7)
         assert.ok(!JSON.stringify(defs).includes('execute_anything'))
         return wire(protocol, [call('read', 'cad_read_drawing')])
       }
@@ -167,7 +187,7 @@ test('chat token-limit fields are host-selected without hardcoded model names', 
 test('a custom framework/model bridge uses the same runner without any built-in protocol', async () => {
   const { session, document } = fixture()
   const model = { createConversation({ tools, instructions }) {
-    assert.equal(tools.length, 6)
+    assert.equal(tools.length, 7)
     assert.match(instructions, /untrusted/)
     return { async next() { return { text: 'Review before editing.', calls: [call('custom', 'cad_propose_circles', args)] } } }
   } }

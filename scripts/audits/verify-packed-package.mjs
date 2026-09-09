@@ -424,6 +424,8 @@ console.log(JSON.stringify(results))
 
     const agentToolsProbe = run(process.execPath, [join(installedRoot, 'examples', 'agent-tools.mjs')], { cwd: consumerDirectory })
     assert.deepEqual(JSON.parse(agentToolsProbe.stdout), { agentTools: true, hostApproval: true, duplicateRejected: true, reopen: true, undo: true })
+    const drawingProbe = run(process.execPath, [join(installedRoot, 'examples', 'agent-drawing.mjs')], { cwd: consumerDirectory })
+    assert.deepEqual(JSON.parse(drawingProbe.stdout), { agentDrawing: true, entities: 9, preview: true, kjd: true, dxf: true, undo: true, redo: true, offline: true })
     const modelProbe = run(process.execPath, [join(installedRoot, 'examples', 'model-agent.mjs')], { cwd: consumerDirectory })
     assert.deepEqual(JSON.parse(modelProbe.stdout), { modelAdapters: true, protocols: 4, offline: true, approval: true, reopen: true, undo: true })
     const contextProbe = run(process.execPath, [join(installedRoot, 'examples', 'drawing-context.mjs')], { cwd: consumerDirectory })
