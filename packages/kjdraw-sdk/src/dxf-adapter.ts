@@ -527,6 +527,35 @@ function dxfCodePage(tags: readonly DxfTag[]): string {
   return index >= 0 ? String(tags.slice(index + 1).find(tag => tag.code === 3)?.value ?? 'UTF-8').trim() : 'UTF-8'
 }
 
+// DXF $INSUNITS codes. These label native coordinates; never rescale geometry.
+const DXF_UNIT_NAMES = ['unitless', 'inch', 'foot', 'mile', 'millimeter', 'centimeter', 'meter', 'kilometer', 'microinch', 'mil', 'yard', 'angstrom', 'nanometer', 'micron', 'decimeter', 'decameter', 'hectometer', 'gigameter', 'astronomical-unit', 'light-year', 'parsec', 'us-survey-foot', 'us-survey-inch', 'us-survey-yard', 'us-survey-mile'] as const
+const DXF_UNIT_ALIASES: Readonly<Record<string, string>> = { mm: 'millimeter', cm: 'centimeter', m: 'meter', km: 'kilometer', in: 'inch', inches: 'inch', ft: 'foot', feet: 'foot', yd: 'yard', millimeters: 'millimeter', millimetres: 'millimeter', millimetre: 'millimeter', meters: 'meter', metres: 'meter', metre: 'meter' }
+
+function dxfHeaderInteger(tags: readonly DxfTag[], name: string): number | undefined {
+  const header = section(tags, 'HEADER')
+  const index = header.findIndex(tag => tag.code === 9 && normalizeName(tag.value) === name)
+  if (index < 0) return undefined
+  const value = header[index + 1]
+  if (!value || value.code !== 70 || !/^\s*\d+\s*$/.test(String(value.value))) throw new KJValidationError(`Invalid DXF ${name} header value`)
+  return Number(value.value)
+}
+
+function dxfDrawingUnits(tags: readonly DxfTag[]): { units: string; measurement: string } {
+  const code = dxfHeaderInteger(tags, '$INSUNITS') ?? 0
+  const units = DXF_UNIT_NAMES[code]
+  if (!units) throw new KJValidationError(`Unsupported DXF insertion unit code: ${code}`)
+  const measurement = dxfHeaderInteger(tags, '$MEASUREMENT')
+  if (measurement !== undefined && measurement !== 0 && measurement !== 1) throw new KJValidationError('Invalid DXF $MEASUREMENT value')
+  return { units, measurement: measurement === 0 ? 'imperial' : 'metric' }
+}
+
+function dxfUnitCode(units: string): number {
+  const name = units.trim().toLowerCase()
+  const code = (DXF_UNIT_NAMES as readonly string[]).indexOf(DXF_UNIT_ALIASES[name] ?? name)
+  if (code < 0) throw new KJValidationError(`Cannot export unrecognized drawing units to DXF: ${units}`)
+  return code
+}
+
 function importResourceTables(transaction: KJTransaction, tableRecords: readonly DxfRecord[], document: KJDocument): { linetypeIds: Map<string, string>; textStyleIds: Map<string, string>; dimensionStyleIds: Map<string, string> } {
   const linetypeIds = new Map<string, string>(documentTableRecords(document, 'linetypes').map(record => [normalizeName(record.name), record.id]))
   const textStyleIds = new Map<string, string>(documentTableRecords(document, 'textStyles').map(record => [normalizeName(record.name), record.id]))
@@ -563,7 +592,7 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
   const tags = tagsFromText(await sourceText(source, limits), limits)
   if (!section(tags, 'ENTITIES').length && !tags.some(tag => tag.code === 0 && normalizeName(tag.value) === 'SECTION')) throw new KJValidationError('DXF has no valid SECTION structure')
   const version = dxfVersion(tags)
-  const document = KJDocument.create({ sourceFormat: 'DXF', sourceVersion: version, codePage: dxfCodePage(tags), title: 'Imported DXF' })
+  const document = KJDocument.create({ sourceFormat: 'DXF', sourceVersion: version, codePage: dxfCodePage(tags), ...dxfDrawingUnits(tags), title: 'Imported DXF' })
   await document.transact('Import ASCII DXF', transaction => {
     const tableRecords = records(section(tags, 'TABLES'))
     const resources = importResourceTables(transaction, tableRecords, document)
@@ -1256,7 +1285,13 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   }
   const populatedPaperSpaces = state.spaces.paperSpaceIds.filter(id => document.listEntities({ ownerId: id }).length)
   if (VERSION_RANK[version] < VERSION_RANK['2000'] && populatedPaperSpaces.length > 1) throw new KJValidationError(`DXF ${version} cannot preserve multiple named paper spaces without layout metadata`)
-  emit(output, 0, 'SECTION'); emit(output, 2, 'HEADER'); emit(output, 9, '$ACADVER'); emit(output, 1, ACADVER[version]); emit(output, 0, 'ENDSEC')
+  emit(output, 0, 'SECTION'); emit(output, 2, 'HEADER'); emit(output, 9, '$ACADVER'); emit(output, 1, ACADVER[version])
+  if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
+    emit(output, 9, '$INSUNITS'); emit(output, 70, dxfUnitCode(state.header.units))
+    if (!['metric', 'imperial', 'english'].includes(state.header.measurement)) throw new KJValidationError('Cannot export unrecognized DXF measurement system')
+    emit(output, 9, '$MEASUREMENT'); emit(output, 70, state.header.measurement === 'metric' ? 1 : 0)
+  }
+  emit(output, 0, 'ENDSEC')
   emit(output, 0, 'SECTION'); emit(output, 2, 'TABLES')
   emitLinetypeTable(output, linetypes, context, tableHandles.get('LTYPE')!)
   emitTextStyleTable(output, textStyles, context, tableHandles.get('STYLE')!)

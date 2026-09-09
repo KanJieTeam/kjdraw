@@ -8,7 +8,7 @@ summary.zh: 让 Agent 按需读取图纸，检查它提出的修改，再由人�
 :::en
 ## Model-neutral CAD tools {#agent-tools}
 
-The current source checkout adds `KJAgentToolSession` from `@kanjieteam/kjdraw/agent-tools`. Check source/package availability before using this new entry. The session binds one host-authorized document and provides serializable tool definitions plus a `call(name, arguments)` dispatcher.
+The current source checkout adds `KJAgentToolSession` from `@kanjieteam/kjdraw/agent-tools`. Check source/package availability before using this new entry. The session binds one host-authorized document and provides serializable tool definitions plus a `call(name, arguments)` dispatcher. Pass `session.definitions` to models: unit parameters are restricted to the current drawing's canonical unit name, such as `millimeter`, rather than relying on the model to guess an abbreviation.
 
 | Tool | Result |
 | --- | --- |
@@ -240,7 +240,7 @@ Start with the stable [Agent integration contract](https://github.com/KanJieTeam
 :::zh
 ## 模型无关的 CAD 工具 {#agent-tools}
 
-当前源码新增 `@kanjieteam/kjdraw/agent-tools` 中的 `KJAgentToolSession`。使用前核对源码与安装包的发布状态。一个会话绑定一份由宿主授权的图纸，提供可序列化的工具定义和 `call(name, arguments)` 调用入口。
+当前源码新增 `@kanjieteam/kjdraw/agent-tools` 中的 `KJAgentToolSession`。使用前核对源码与安装包的发布状态。一个会话绑定一份由宿主授权的图纸，提供可序列化的工具定义和 `call(name, arguments)` 调用入口。向模型传递 `session.definitions`：单位参数会限定为当前图纸的规范名称，例如 `millimeter`，不再让模型猜测缩写。
 
 | 工具 | 返回结果 |
 | --- | --- |

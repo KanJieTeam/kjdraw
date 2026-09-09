@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/agent/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=db920f9d9fee6cad">
+  <link rel="stylesheet" href="../style.css?v=06bbb8ef61d9ccd6">
   <title>Agent workflows · KJDraw Docs</title>
 </head>
 <body>
@@ -65,7 +65,7 @@
           <h1>Agent workflows</h1>
           <p class="lead">Give your agent focused drawing context, review its proposed edits, and let a person keep working on the result.</p>
           <h2 id="en-agent-agent-tools">Model-neutral CAD tools<a class="heading-anchor" href="#en-agent-agent-tools" aria-label="Link to Model neutral CAD tools">#</a></h2>
-<p>The current source checkout adds <code>KJAgentToolSession</code> from <code>@kanjieteam/kjdraw/agent-tools</code>. Check source/package availability before using this new entry. The session binds one host-authorized document and provides serializable tool definitions plus a <code>call(name, arguments)</code> dispatcher.</p>
+<p>The current source checkout adds <code>KJAgentToolSession</code> from <code>@kanjieteam/kjdraw/agent-tools</code>. Check source/package availability before using this new entry. The session binds one host-authorized document and provides serializable tool definitions plus a <code>call(name, arguments)</code> dispatcher. Pass <code>session.definitions</code> to models: unit parameters are restricted to the current drawing&#39;s canonical unit name, such as <code>millimeter</code>, rather than relying on the model to guess an abbreviation.</p>
 <div class="table-wrap"><table><thead><tr><th>Tool</th><th>Result</th></tr></thead><tbody><tr><td><code>cad_read_drawing</code></td><td>First page of visible model-space objects, layers and drawing units</td></tr><tr><td><code>cad_read_page</code></td><td>Revision-bound continuation with independent entity/layer offsets</td></tr><tr><td><code>cad_measure_distance</code></td><td>Planar point-to-point distance in the supplied drawing units</td></tr><tr><td><code>cad_propose_lines</code></td><td>Proposed batch of up to 64 XY lines</td></tr><tr><td><code>cad_propose_circles</code></td><td>Proposed batch of up to 64 XY circles</td></tr><tr><td><code>cad_propose_move</code></td><td>Proposed XY move of up to 64 visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE objects</td></tr><tr><td><code>cad_propose_drawing</code></td><td>One mixed drawing proposal with lines, circles, arcs and polylines; up to 64 objects total</td></tr></tbody></table></div>
 <p>Expose <strong>only the definitions and dispatcher</strong> to your model adapter. <code>approve(planId, reviewerId)</code> and <code>reject(planId, reviewerId)</code> are trusted-host methods: the host authenticates the user, checks permissions and collects review of the exact proposed arguments. A reviewer string by itself is not authentication. There is no model-callable approval, arbitrary command, file or network tool.</p>
 <p>All drawing and move proposals return <strong>before/after geometry</strong> in <code>value.preview</code>. KJDraw runs the core operation on a detached copy, checking geometry and editing rules without changing the original drawing or its undo history. Creation IDs are allocated once and bound to the proposal, so approval uses the same objects that were previewed. Approval checks the drawing revision and the resulting geometry. Failed or uncertain approval attempts are never retried automatically.</p>
@@ -223,7 +223,7 @@ await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
           <h1>Agent 工作流</h1>
           <p class="lead">让 Agent 按需读取图纸，检查它提出的修改，再由人接手继续编辑。</p>
           <h2 id="zh-agent-agent-tools">模型无关的 CAD 工具<a class="heading-anchor" href="#zh-agent-agent-tools" aria-label="Link to 模型无关的 CAD 工具">#</a></h2>
-<p>当前源码新增 <code>@kanjieteam/kjdraw/agent-tools</code> 中的 <code>KJAgentToolSession</code>。使用前核对源码与安装包的发布状态。一个会话绑定一份由宿主授权的图纸，提供可序列化的工具定义和 <code>call(name, arguments)</code> 调用入口。</p>
+<p>当前源码新增 <code>@kanjieteam/kjdraw/agent-tools</code> 中的 <code>KJAgentToolSession</code>。使用前核对源码与安装包的发布状态。一个会话绑定一份由宿主授权的图纸，提供可序列化的工具定义和 <code>call(name, arguments)</code> 调用入口。向模型传递 <code>session.definitions</code>：单位参数会限定为当前图纸的规范名称，例如 <code>millimeter</code>，不再让模型猜测缩写。</p>
 <div class="table-wrap"><table><thead><tr><th>工具</th><th>返回结果</th></tr></thead><tbody><tr><td><code>cad_read_drawing</code></td><td>可见模型空间对象、图层和单位的第一页</td></tr><tr><td><code>cad_read_page</code></td><td>绑定图纸版本、分别按对象和图层偏移继续读取</td></tr><tr><td><code>cad_measure_distance</code></td><td>使用图纸单位计算同一坐标系中两点的平面距离</td></tr><tr><td><code>cad_propose_lines</code></td><td>最多 64 条 XY 直线的创建方案</td></tr><tr><td><code>cad_propose_circles</code></td><td>最多 64 个 XY 圆的创建方案</td></tr><tr><td><code>cad_propose_move</code></td><td>最多 64 个可见且可编辑的模型空间直线、圆、圆弧或轻量多段线的 XY 移动方案</td></tr><tr><td><code>cad_propose_drawing</code></td><td>将直线、圆、圆弧和多段线组成同一个绘图方案，总计最多 64 个对象</td></tr></tbody></table></div>
 <p>向模型适配器<strong>只提供工具定义和调用入口</strong>。<code>approve(planId, reviewerId)</code> 与 <code>reject(planId, reviewerId)</code> 仅供可信宿主使用：宿主验证身份、检查权限，并让用户审核确切的修改参数。填写审核人字符串不等于完成身份验证。工具列表没有批准、任意命令、文件或网络执行入口。</p>
 <p>所有绘图和移动方案在 <code>value.preview</code> 中返回<strong>修改前后的真实几何</strong>。KJDraw 在图纸副本上执行核心操作，检查几何及编辑规则，不改动原图或撤销记录。新对象 ID 在提案时固定，批准时使用预览中的同一批对象，并核对图纸修订和实际修改结果。批准失败或结果不确定时不会自动重试。</p>
@@ -382,6 +382,6 @@ await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=db920f9d9fee6cad"></script>
+  <script type="module" src="../app.js?v=06bbb8ef61d9ccd6"></script>
 </body>
 </html>

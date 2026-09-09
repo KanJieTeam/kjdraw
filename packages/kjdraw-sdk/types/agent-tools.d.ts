@@ -15,6 +15,7 @@ export interface KJAgentToolSchema {
     readonly maxItems?: number;
     readonly minLength?: number;
     readonly maxLength?: number;
+    readonly enum?: readonly string[];
 }
 export interface KJAgentToolDefinition {
     readonly name: string;
@@ -40,7 +41,8 @@ export declare const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[];
  */
 export declare class KJAgentToolSession {
     #private;
-    readonly definitions: readonly KJAgentToolDefinition[];
+    /** Bind unit schemas to the drawing so models see its canonical unit name. */
+    get definitions(): readonly KJAgentToolDefinition[];
     constructor(sdk: KJDrawSDK, document: KJDocument);
     call(name: string, input: unknown): Promise<KJAgentToolResult>;
     /** Invoke only after an authenticated host collected review of these exact arguments. */

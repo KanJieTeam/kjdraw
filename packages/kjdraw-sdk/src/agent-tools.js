@@ -175,6 +175,7 @@ function validate(schema, value, path = 'arguments') {
         for(let index = 0; index < items.length; index++)validate(schema.items, items[index], `${path}[${index}]`);
     } else if (schema.type === 'string') {
         if (typeof value !== 'string' || value.length < (schema.minLength ?? 0) || value.length > (schema.maxLength ?? 256) || !value.trim()) fail('expected a nonempty bounded string');
+        if (schema.enum && !schema.enum.includes(value)) fail(`expected one of: ${schema.enum.join(', ')}`);
     } else if (schema.type === 'boolean') {
         if (typeof value !== 'boolean') fail('expected a boolean');
     } else if (schema.type === 'null') {
@@ -203,7 +204,27 @@ function failure(error) {
     });
 }
 export class KJAgentToolSession {
-    definitions = KJDRAW_AGENT_TOOLS;
+    get definitions() {
+        const units = this.#document.snapshot().header.units;
+        return deepFreeze(KJDRAW_AGENT_TOOLS.map((tool)=>{
+            if (!tool.inputSchema.properties?.units) return tool;
+            return {
+                ...tool,
+                inputSchema: {
+                    ...tool.inputSchema,
+                    properties: {
+                        ...tool.inputSchema.properties,
+                        units: {
+                            ...tool.inputSchema.properties.units,
+                            enum: [
+                                units
+                            ]
+                        }
+                    }
+                }
+            };
+        }));
+    }
     #sdk;
     #document;
     #pending = new Map();

@@ -1,0 +1,170 @@
+{
+  "model": "deepseek-v4-flash",
+  "protocol": "chat-completions",
+  "thinking": "disabled",
+  "temperature": 0,
+  "maxOutputTokens": 4096,
+  "maxRequests": 6,
+  "repetitions": 1,
+  "baseline": "Direct ASCII DXF, not an alternative CAD library",
+  "independentValidator": "ezdxf 1.4.4",
+  "tolerance": 0.000001,
+  "cost": null,
+  "runs": [
+    {
+      "task": "mounting-plate",
+      "arm": "kjdraw",
+      "startedAt": "2026-09-09T21:35:54+0800",
+      "modelSeconds": 2.731,
+      "usage": {
+        "prompt_tokens": 1476,
+        "completion_tokens": 464,
+        "total_tokens": 1940,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1476
+      },
+      "returnedModel": "deepseek-v4-flash",
+      "finishReason": "tool_calls",
+      "validation": {
+        "passed": true,
+        "unitsCorrect": true,
+        "extraShapes": 0,
+        "auditErrors": 0,
+        "auditFixes": 0,
+        "entities": 12
+      },
+      "totalSeconds": 3.157
+    },
+    {
+      "task": "mounting-plate",
+      "arm": "direct-dxf",
+      "startedAt": "2026-09-09T21:35:57+0800",
+      "modelSeconds": 2.752,
+      "usage": {
+        "prompt_tokens": 258,
+        "completion_tokens": 483,
+        "total_tokens": 741,
+        "prompt_tokens_details": {
+          "cached_tokens": 256
+        },
+        "prompt_cache_hit_tokens": 256,
+        "prompt_cache_miss_tokens": 2
+      },
+      "returnedModel": "deepseek-v4-flash",
+      "finishReason": "stop",
+      "validation": {
+        "passed": false,
+        "reason": "DXF validator ValueError"
+      },
+      "totalSeconds": 2.759
+    },
+    {
+      "task": "bolt-flange",
+      "arm": "direct-dxf",
+      "startedAt": "2026-09-09T21:36:00+0800",
+      "modelSeconds": 1.888,
+      "usage": {
+        "prompt_tokens": 186,
+        "completion_tokens": 344,
+        "total_tokens": 530,
+        "prompt_tokens_details": {
+          "cached_tokens": 128
+        },
+        "prompt_cache_hit_tokens": 128,
+        "prompt_cache_miss_tokens": 58
+      },
+      "returnedModel": "deepseek-v4-flash",
+      "finishReason": "stop",
+      "validation": {
+        "passed": true,
+        "unitsCorrect": true,
+        "extraShapes": 0,
+        "auditErrors": 0,
+        "auditFixes": 0,
+        "entities": 8
+      },
+      "totalSeconds": 1.893
+    },
+    {
+      "task": "bolt-flange",
+      "arm": "kjdraw",
+      "startedAt": "2026-09-09T21:36:02+0800",
+      "modelSeconds": 1.977,
+      "usage": {
+        "prompt_tokens": 1404,
+        "completion_tokens": 313,
+        "total_tokens": 1717,
+        "prompt_tokens_details": {
+          "cached_tokens": 384
+        },
+        "prompt_cache_hit_tokens": 384,
+        "prompt_cache_miss_tokens": 1020
+      },
+      "returnedModel": "deepseek-v4-flash",
+      "finishReason": "tool_calls",
+      "validation": {
+        "passed": true,
+        "unitsCorrect": true,
+        "extraShapes": 0,
+        "auditErrors": 0,
+        "auditFixes": 0,
+        "entities": 8
+      },
+      "totalSeconds": 2.37
+    },
+    {
+      "task": "stepped-profile",
+      "arm": "kjdraw",
+      "startedAt": "2026-09-09T21:36:04+0800",
+      "modelSeconds": 1.689,
+      "usage": {
+        "prompt_tokens": 1405,
+        "completion_tokens": 270,
+        "total_tokens": 1675,
+        "prompt_tokens_details": {
+          "cached_tokens": 1280
+        },
+        "prompt_cache_hit_tokens": 1280,
+        "prompt_cache_miss_tokens": 125
+      },
+      "returnedModel": "deepseek-v4-flash",
+      "finishReason": "tool_calls",
+      "validation": {
+        "passed": true,
+        "unitsCorrect": true,
+        "extraShapes": 0,
+        "auditErrors": 0,
+        "auditFixes": 0,
+        "entities": 4
+      },
+      "totalSeconds": 1.971
+    },
+    {
+      "task": "stepped-profile",
+      "arm": "direct-dxf",
+      "startedAt": "2026-09-09T21:36:06+0800",
+      "modelSeconds": 1.596,
+      "usage": {
+        "prompt_tokens": 187,
+        "completion_tokens": 345,
+        "total_tokens": 532,
+        "prompt_tokens_details": {
+          "cached_tokens": 128
+        },
+        "prompt_cache_hit_tokens": 128,
+        "prompt_cache_miss_tokens": 59
+      },
+      "returnedModel": "deepseek-v4-flash",
+      "finishReason": "stop",
+      "validation": {
+        "passed": false,
+        "reason": "DXF validator ValueError"
+      },
+      "totalSeconds": 1.6
+    }
+  ],
+  "round": "round-2-after-fixes"
+}

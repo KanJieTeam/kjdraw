@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:ed2005e5008592bcbac45791832537bb919a10fb6a49ec52a1519414d8f05234",
+  "sourceDigest": "sha256:96c3b84a9364c5cca718ca5104e29159aab8c76e27ef454c5bd6fde795d2c5d5",
   "entries": [
     {
       "name": "createKJModelAdapter",
@@ -162,7 +162,7 @@
       "module": "@kanjieteam/kjdraw/agent-tools",
       "href": "./api/reference/#agent-tools-class-kjagenttoolsession",
       "anchor": "agent-tools-class-kjagenttoolsession",
-      "summary": "export declare class KJAgentToolSession { #private; readonly definitions: readonly KJAgentToolDefinition[]; constructor(sdk: KJDrawSDK, document: KJDocument); call(name: string, input: unknown): Promise<KJAgentToolResult"
+      "summary": "export declare class KJAgentToolSession { #private; /** Bind unit schemas to the drawing so models see its canonical unit name. */ get definitions(): readonly KJAgentToolDefinition[]; constructor(sdk: KJDrawSDK, document"
     },
     {
       "name": "KJDRAW_AGENT_TOOLS",
@@ -6162,7 +6162,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-class-kjagenttoolsession",
       "anchor": "root-class-kjagenttoolsession",
-      "summary": "export declare class KJAgentToolSession { #private; readonly definitions: readonly KJAgentToolDefinition[]; constructor(sdk: KJDrawSDK, document: KJDocument); call(name: string, input: unknown): Promise<KJAgentToolResult"
+      "summary": "export declare class KJAgentToolSession { #private; /** Bind unit schemas to the drawing so models see its canonical unit name. */ get definitions(): readonly KJAgentToolDefinition[]; constructor(sdk: KJDrawSDK, document"
     },
     {
       "name": "KJArcConnector",

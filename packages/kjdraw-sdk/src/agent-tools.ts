@@ -24,6 +24,7 @@ export interface KJAgentToolSchema {
   readonly maxItems?: number
   readonly minLength?: number
   readonly maxLength?: number
+  readonly enum?: readonly string[]
 }
 
 export interface KJAgentToolDefinition {
@@ -77,6 +78,7 @@ function validate(schema: KJAgentToolSchema, value: unknown, path = 'arguments')
     for (let index = 0; index < items.length; index++) validate(schema.items!, items[index], `${path}[${index}]`)
   } else if (schema.type === 'string') {
     if (typeof value !== 'string' || value.length < (schema.minLength ?? 0) || value.length > (schema.maxLength ?? 256) || !value.trim()) fail('expected a nonempty bounded string')
+    if (schema.enum && !schema.enum.includes(value as string)) fail(`expected one of: ${schema.enum.join(', ')}`)
   } else if (schema.type === 'boolean') {
     if (typeof value !== 'boolean') fail('expected a boolean')
   } else if (schema.type === 'null') {
@@ -105,7 +107,14 @@ function failure(error: unknown): KJAgentToolResult {
  * host operations, not model-callable tools and not authentication mechanisms.
  */
 export class KJAgentToolSession {
-  readonly definitions = KJDRAW_AGENT_TOOLS
+  /** Bind unit schemas to the drawing so models see its canonical unit name. */
+  get definitions(): readonly KJAgentToolDefinition[] {
+    const units = this.#document.snapshot().header.units
+    return deepFreeze(KJDRAW_AGENT_TOOLS.map(tool => {
+      if (!tool.inputSchema.properties?.units) return tool
+      return { ...tool, inputSchema: { ...tool.inputSchema, properties: { ...tool.inputSchema.properties, units: { ...tool.inputSchema.properties.units, enum: [units] } } } }
+    })) as readonly KJAgentToolDefinition[]
+  }
   #sdk: KJDrawSDK
   #document: KJDocument
   #pending = new Map<string, { envelope: Readonly<KJCommandEnvelope>; preview: KJAgentGeometryPreview; definition: KJRegisteredCommand }>()

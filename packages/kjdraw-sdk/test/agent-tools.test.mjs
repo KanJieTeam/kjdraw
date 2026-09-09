@@ -34,6 +34,19 @@ test('reading and exact distance do not change geometry or history', async () =>
   assert.equal(document.serialize(), before)
 })
 
+test('model tool schemas expose the drawing canonical unit and reject ambiguous abbreviations', async () => {
+  const { document, session } = fixture()
+  const schema = session.definitions.find(tool => tool.name === 'cad_propose_lines').inputSchema
+  assert.deepEqual(schema.properties.units.enum, ['millimeter'])
+  assert.throws(() => schema.properties.units.enum.push('mm'), TypeError)
+  const wrong = await session.call('cad_propose_lines', { ...lineArgs(), units: 'mm' })
+  assert.equal(wrong.ok, false)
+  assert.match(wrong.error.message, /millimeter/)
+  assert.equal(document.revision, 0)
+  const sdk = createKJDrawSDK(), meters = sdk.createDocument({ units: 'meter' })
+  assert.deepEqual(new KJAgentToolSession(sdk, meters).definitions.find(tool => tool.name === 'cad_propose_drawing').inputSchema.properties.units.enum, ['meter'])
+})
+
 test('model proposals require host approval, create real geometry and undo as one edit', async () => {
   const { sdk, document, session } = fixture()
   const before = document.serialize()

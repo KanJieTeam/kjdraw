@@ -814,6 +814,75 @@ function dxfCodePage(tags) {
     const index = tags.findIndex((tag)=>tag.code === 9 && normalizeName(tag.value) === '$DWGCODEPAGE');
     return index >= 0 ? String(tags.slice(index + 1).find((tag)=>tag.code === 3)?.value ?? 'UTF-8').trim() : 'UTF-8';
 }
+const DXF_UNIT_NAMES = [
+    'unitless',
+    'inch',
+    'foot',
+    'mile',
+    'millimeter',
+    'centimeter',
+    'meter',
+    'kilometer',
+    'microinch',
+    'mil',
+    'yard',
+    'angstrom',
+    'nanometer',
+    'micron',
+    'decimeter',
+    'decameter',
+    'hectometer',
+    'gigameter',
+    'astronomical-unit',
+    'light-year',
+    'parsec',
+    'us-survey-foot',
+    'us-survey-inch',
+    'us-survey-yard',
+    'us-survey-mile'
+];
+const DXF_UNIT_ALIASES = {
+    mm: 'millimeter',
+    cm: 'centimeter',
+    m: 'meter',
+    km: 'kilometer',
+    in: 'inch',
+    inches: 'inch',
+    ft: 'foot',
+    feet: 'foot',
+    yd: 'yard',
+    millimeters: 'millimeter',
+    millimetres: 'millimeter',
+    millimetre: 'millimeter',
+    meters: 'meter',
+    metres: 'meter',
+    metre: 'meter'
+};
+function dxfHeaderInteger(tags, name) {
+    const header = section(tags, 'HEADER');
+    const index = header.findIndex((tag)=>tag.code === 9 && normalizeName(tag.value) === name);
+    if (index < 0) return undefined;
+    const value = header[index + 1];
+    if (!value || value.code !== 70 || !/^\s*\d+\s*$/.test(String(value.value))) throw new KJValidationError(`Invalid DXF ${name} header value`);
+    return Number(value.value);
+}
+function dxfDrawingUnits(tags) {
+    const code = dxfHeaderInteger(tags, '$INSUNITS') ?? 0;
+    const units = DXF_UNIT_NAMES[code];
+    if (!units) throw new KJValidationError(`Unsupported DXF insertion unit code: ${code}`);
+    const measurement = dxfHeaderInteger(tags, '$MEASUREMENT');
+    if (measurement !== undefined && measurement !== 0 && measurement !== 1) throw new KJValidationError('Invalid DXF $MEASUREMENT value');
+    return {
+        units,
+        measurement: measurement === 0 ? 'imperial' : 'metric'
+    };
+}
+function dxfUnitCode(units) {
+    const name = units.trim().toLowerCase();
+    const code = DXF_UNIT_NAMES.indexOf(DXF_UNIT_ALIASES[name] ?? name);
+    if (code < 0) throw new KJValidationError(`Cannot export unrecognized drawing units to DXF: ${units}`);
+    return code;
+}
 function importResourceTables(transaction, tableRecords, document) {
     const linetypeIds = new Map(documentTableRecords(document, 'linetypes').map((record)=>[
             normalizeName(record.name),
@@ -924,6 +993,7 @@ async function readDXF(source, options = {}) {
         sourceFormat: 'DXF',
         sourceVersion: version,
         codePage: dxfCodePage(tags),
+        ...dxfDrawingUnits(tags),
         title: 'Imported DXF'
     });
     await document.transact('Import ASCII DXF', (transaction)=>{
@@ -2036,6 +2106,17 @@ function writeDXF(document, options = {}) {
     emit(output, 2, 'HEADER');
     emit(output, 9, '$ACADVER');
     emit(output, 1, ACADVER[version]);
+    if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
+        emit(output, 9, '$INSUNITS');
+        emit(output, 70, dxfUnitCode(state.header.units));
+        if (![
+            'metric',
+            'imperial',
+            'english'
+        ].includes(state.header.measurement)) throw new KJValidationError('Cannot export unrecognized DXF measurement system');
+        emit(output, 9, '$MEASUREMENT');
+        emit(output, 70, state.header.measurement === 'metric' ? 1 : 0);
+    }
     emit(output, 0, 'ENDSEC');
     emit(output, 0, 'SECTION');
     emit(output, 2, 'TABLES');
