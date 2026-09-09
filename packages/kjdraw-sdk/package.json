@@ -57,6 +57,16 @@
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
+    "./model-adapters": {
+      "types": "./types/model-adapters.d.ts",
+      "import": "./src/model-adapters.js",
+      "default": "./src/model-adapters.js"
+    },
+    "./agent-runner": {
+      "types": "./types/agent-runner.d.ts",
+      "import": "./src/agent-runner.js",
+      "default": "./src/agent-runner.js"
+    },
     "./agent-tools": {
       "types": "./types/agent-tools.d.ts",
       "import": "./src/agent-tools.js",

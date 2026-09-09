@@ -1,9 +1,9 @@
 # @kanjieteam/kjdraw
 
-**A new generation of CAD.**
+**CAD infrastructure for engineering applications and AI agents.**
 
 An open-source CAD engine and ready-to-use editor.
-Create, edit, and automate engineering drawings—with code, with AI, or by hand.
+Create, edit, and automate engineering drawings — with code, with an agent, or by hand.
 
 [Live Demo](https://kanjieteam.github.io/kjdraw/) · [Developer Docs](https://kanjieteam.github.io/kjdraw/docs/latest/) · [GitHub](https://github.com/KanJieTeam/kjdraw)
 

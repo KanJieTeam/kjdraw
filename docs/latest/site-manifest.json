@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:8e73f889a8108bf5c7651fa52cffa5fafc33fe4735cdfdfeb72044302ac77705",
+  "sourceDigest": "sha256:39d847557b4bb92e09c88ca9382d9cbfc3024b3224fbebe47d62bead7da7bc5f",
   "locales": [
     "en",
     "zh"
@@ -283,6 +283,33 @@
       }
     },
     {
+      "slug": "models",
+      "output": "models/index.html",
+      "source": "docs/site/pages/models.md",
+      "title": {
+        "en": "Connect your model",
+        "zh": "接入你的模型"
+      },
+      "anchors": {
+        "en": [
+          "en-models",
+          "en-models-connection",
+          "en-models-quickstart",
+          "en-models-review",
+          "en-models-example",
+          "en-models-extend"
+        ],
+        "zh": [
+          "zh-models",
+          "zh-models-connection",
+          "zh-models-quickstart",
+          "zh-models-review",
+          "zh-models-example",
+          "zh-models-extend"
+        ]
+      }
+    },
+    {
       "slug": "plugins",
       "output": "plugins/index.html",
       "source": "docs/site/pages/plugins.md",
@@ -370,6 +397,7 @@
     "files/index.html",
     "index.html",
     "installation/index.html",
+    "models/index.html",
     "plugins/index.html",
     "quickstart/index.html",
     "react/index.html",

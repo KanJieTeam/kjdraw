@@ -2,6 +2,8 @@ export * from './editor.js';
 export * from './commands.js';
 export * from './agent-plans.js';
 export * from './agent-tools.js';
+export * from './model-adapters.js';
+export * from './agent-runner.js';
 export * from './capabilities.js';
 export * from './constants.js';
 export * from './document.js';

@@ -126,3 +126,21 @@ test('Agent tool guide has bilingual deep links, searchable tools and a usable n
   await page.locator('#search').fill('cad_propose_circles')
   await expect(page.locator('#results a[href*="/agent/#zh-agent-agent-tools"]')).toBeVisible()
 })
+
+test('model integration guide exposes all connection routes in both languages on narrow screens', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/docs/latest/models/')
+  await expect(page.locator('article.lang-en h1')).toHaveText('Connect your model')
+  await expect(page.locator('article.lang-en table').first().locator('tbody tr')).toHaveCount(5)
+  for (const protocol of ['responses', 'chat-completions', 'anthropic-messages', 'gemini-generate-content']) {
+    await expect(page.locator('article.lang-en')).toContainText(protocol)
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  await page.locator('#language').click()
+  await expect(page.locator('article.lang-zh h1')).toHaveText('接入你的模型')
+  await expect(page.locator('article.lang-zh')).toContainText('默认离线运行')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  await page.locator('#search-button').click()
+  await page.locator('#search').fill('chatTokenParameter')
+  await expect(page.locator('#results a[href*="/models/#zh-models-quickstart"]')).toBeVisible()
+})

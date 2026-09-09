@@ -19,7 +19,7 @@
     {
       "id": "extend",
       "title": { "en": "Extend and deploy", "zh": "扩展与部署" },
-      "pages": ["agent", "plugins", "deployment"]
+      "pages": ["agent", "models", "plugins", "deployment"]
     },
     {
       "id": "reference",

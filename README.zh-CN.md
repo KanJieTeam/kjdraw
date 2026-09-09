@@ -2,9 +2,9 @@
 
 <h1 align="center">KJDraw</h1>
 
-<p align="center"><strong>新一代 CAD。</strong></p>
+<p align="center"><strong>面向工程应用与AI智能体的CAD基础设施。</strong></p>
 
-<p align="center">开源 CAD 引擎，开箱即用的绘图编辑器。<br>用代码、用 AI，也用熟悉的绘图工具，创建、编辑和自动化处理工程图纸。</p>
+<p align="center">开源CAD引擎，以及开箱即用的编辑器。<br>创建、编辑和自动化工程图纸——用代码、用智能体，或亲手绘制。</p>
 
 <p align="center">
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>在线体验</strong></a> ·
