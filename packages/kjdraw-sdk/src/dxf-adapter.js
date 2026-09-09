@@ -262,6 +262,19 @@ function records(tags) {
     if (current) output.push(current);
     return output;
 }
+function recordOwner(record) {
+    let depth = 0;
+    for (const tag of record.tags){
+        if (tag.code === 102) {
+            if (String(tag.value).startsWith('{')) depth++;
+            else if (tag.value === '}') depth = Math.max(0, depth - 1);
+        } else if (tag.code === 330 && depth === 0) return String(tag.value).trim().toUpperCase();
+    }
+    return '';
+}
+function isSpaceBlock(name) {
+    return /^[*$](MODEL_SPACE|PAPER_SPACE(?:_?\d+)?)$/.test(normalizeName(name));
+}
 function collapseLegacyPolylines(source) {
     const output = [];
     for(let index = 0; index < source.length; index += 1){
@@ -1052,6 +1065,7 @@ async function readDXF(source, options = {}) {
         const blockIds = new Map();
         for (const block of documentTableRecords(document, 'blockRecords'))blockIds.set(normalizeName(block.name), block.id);
         for (const name of blockNames){
+            if (isSpaceBlock(name)) continue;
             const definition = definitions.find((value)=>normalizeName(value.name) === name);
             const block = transaction.upsertTableRecord('blockRecords', {
                 name: definition?.name ?? name,
@@ -1070,31 +1084,77 @@ async function readDXF(source, options = {}) {
             });
             blockIds.set(name, block.id);
         }
+        const modelSpaceId = document.snapshot().spaces.modelSpaceId;
         const paperSpaceIds = new Map();
         const defaultPaperLayoutId = document.snapshot().spaces.layoutIds.find((id)=>document.getObject(id)?.name !== 'Model');
         const defaultPaperLayout = defaultPaperLayoutId ? document.getObject(defaultPaperLayoutId) : null;
-        if (defaultPaperLayout && typeof defaultPaperLayout.payload.blockRecordId === 'string') paperSpaceIds.set(normalizeName(defaultPaperLayout.name), defaultPaperLayout.payload.blockRecordId);
-        const sourcePaperLayouts = [
-            ...new Set(sourceEntityRecords.filter((record)=>number(record, 67, 0) === 1 || first(record, 410) && normalizeName(first(record, 410)) !== 'MODEL').map((record)=>String(first(record, 410, 'Layout1')).trim() || 'Layout1'))
-        ];
-        for (const [index, layoutName] of sourcePaperLayouts.entries()){
+        const sourceLayouts = records(section(tags, 'OBJECTS')).filter((record)=>record.type === 'LAYOUT').map((record)=>{
+            const marker = record.tags.findIndex((tag)=>tag.code === 100 && tag.value === 'AcDbLayout');
+            const layout = {
+                ...record,
+                tags: marker < 0 ? record.tags : record.tags.slice(marker + 1)
+            };
+            return {
+                name: String(first(layout, 1) ?? '').trim(),
+                handle: String(first(record, 5) ?? '').toUpperCase(),
+                blockHandle: recordOwner(layout),
+                order: number(layout, 71, 0)
+            };
+        }).filter((layout)=>layout.name).sort((a, b)=>a.order - b.order);
+        const layoutNames = new Set(), layoutOwners = new Set();
+        for (const layout of sourceLayouts){
+            const key = normalizeName(layout.name);
+            if (layoutNames.has(key) || layout.blockHandle && layoutOwners.has(layout.blockHandle)) throw new KJValidationError('DXF contains duplicate layout names or block ownership');
+            layoutNames.add(key);
+            if (layout.blockHandle) layoutOwners.add(layout.blockHandle);
+        }
+        const ensurePaperSpace = (layoutName, order)=>{
             const key = normalizeName(layoutName);
-            if (paperSpaceIds.has(key)) continue;
-            if (index === 0 && defaultPaperLayout) {
-                transaction.updateObject(defaultPaperLayout.id, {
-                    name: layoutName
-                });
-                paperSpaceIds.clear();
-                if (typeof defaultPaperLayout.payload.blockRecordId !== 'string') throw new KJValidationError('DXF paper-space layout has no block record');
-                paperSpaceIds.set(key, defaultPaperLayout.payload.blockRecordId);
-            } else {
-                const layout = transaction.createLayout({
-                    name: layoutName
-                });
-                if (typeof layout.payload.blockRecordId !== 'string') throw new KJValidationError(`DXF layout ${layoutName} has no block record`);
-                paperSpaceIds.set(key, layout.payload.blockRecordId);
+            const existing = paperSpaceIds.get(key);
+            if (existing) return existing;
+            const layout = paperSpaceIds.size === 0 && defaultPaperLayout ? defaultPaperLayout : transaction.createLayout({
+                name: layoutName
+            });
+            transaction.updateObject(layout.id, {
+                name: layoutName,
+                ...order === undefined ? {} : {
+                    payload: {
+                        tabOrder: order
+                    }
+                }
+            });
+            if (typeof layout.payload.blockRecordId !== 'string') throw new KJValidationError('DXF paper-space layout has no block record');
+            paperSpaceIds.set(key, layout.payload.blockRecordId);
+            return layout.payload.blockRecordId;
+        };
+        for (const layout of sourceLayouts)if (normalizeName(layout.name) !== 'MODEL') ensurePaperSpace(layout.name, layout.order);
+        const sourceLayoutByBlock = new Map(sourceLayouts.map((layout)=>[
+                layout.blockHandle,
+                layout.name
+            ]));
+        const sourceLayoutByHandle = new Map(sourceLayouts.map((layout)=>[
+                layout.handle,
+                layout.name
+            ]));
+        const ownerSpaces = new Map();
+        for (const layout of sourceLayouts)if (layout.blockHandle) ownerSpaces.set(layout.blockHandle, normalizeName(layout.name) === 'MODEL' ? modelSpaceId : paperSpaceIds.get(normalizeName(layout.name)));
+        for (const record of tableRecords.filter((record)=>record.type === 'BLOCK_RECORD')){
+            const name = normalizeName(first(record, 2)), handle = String(first(record, 5) ?? '').toUpperCase();
+            const layoutName = sourceLayoutByBlock.get(handle) ?? sourceLayoutByHandle.get(String(first(record, 340) ?? '').toUpperCase());
+            const hint = sourceEntityRecords.find((entity)=>recordOwner(entity) === handle && first(entity, 410));
+            const ownerId = isSpaceBlock(name) && name.includes('MODEL_SPACE') ? modelSpaceId : layoutName ? ensurePaperSpace(layoutName) : isSpaceBlock(name) ? ensurePaperSpace(String(hint ? first(hint, 410) : name.replace(/^[*$]PAPER_SPACE/, 'Layout') || 'Layout1').replace(/^Layout$/, 'Layout1')) : blockIds.get(name);
+            if (ownerId) {
+                blockIds.set(name, ownerId);
+                ownerSpaces.set(handle, ownerId);
             }
         }
+        for (const definition of definitions)if (isSpaceBlock(definition.name)) {
+            const name = normalizeName(definition.name), handle = recordOwner(definition.header);
+            const ownerId = ownerSpaces.get(handle) ?? blockIds.get(name) ?? (name.includes('MODEL_SPACE') ? modelSpaceId : ensurePaperSpace(name.replace(/^[*$]PAPER_SPACE/, 'Layout').replace(/^Layout$/, 'Layout1')));
+            blockIds.set(name, ownerId);
+            if (handle) ownerSpaces.set(handle, ownerId);
+        }
+        for (const record of sourceEntityRecords)if (first(record, 410) && normalizeName(first(record, 410)) !== 'MODEL' && !ownerSpaces.has(recordOwner(record))) ensurePaperSpace(String(first(record, 410)));
         const occupiedHandles = new Set(Object.values(transaction._draft().objects).map((object)=>object.handle));
         const importRecord = (record, index, ownerId, scope)=>{
             const layerName = normalizeName(first(record, 8, '0'));
@@ -1142,17 +1202,35 @@ async function readDXF(source, options = {}) {
                 occupiedHandles.add(created.handle);
             }
         };
+        const importedSpaceHandles = new Map();
+        const importSpaceRecord = (record, index, ownerId, scope)=>{
+            const handle = String(first(record, 5) ?? '').toUpperCase();
+            if (handle) {
+                const previous = importedSpaceHandles.get(handle), serialized = JSON.stringify(record);
+                if (previous && previous.scope !== scope) {
+                    if (previous.ownerId === ownerId && previous.record === serialized) return;
+                    throw new KJValidationError('DXF contains conflicting duplicate space entity handles');
+                }
+                importedSpaceHandles.set(handle, {
+                    ownerId,
+                    record: serialized,
+                    scope
+                });
+            }
+            importRecord(record, index, ownerId, scope);
+        };
         for (const definition of definitions){
             const ownerId = blockIds.get(normalizeName(definition.name));
-            definition.records.forEach((record, index)=>importRecord(record, index, ownerId, `block:${definition.name}`));
+            definition.records.forEach((record, index)=>isSpaceBlock(definition.name) ? importSpaceRecord(record, index, ownerId, `block:${definition.name}`) : importRecord(record, index, ownerId, `block:${definition.name}`));
         }
-        const modelSpaceId = document.snapshot().spaces.modelSpaceId;
         sourceEntityRecords.forEach((record, index)=>{
             const layoutName = String(first(record, 410, 'Layout1')).trim() || 'Layout1';
             const paperSpace = number(record, 67, 0) === 1 || first(record, 410) && normalizeName(first(record, 410)) !== 'MODEL';
             const fallbackPaperSpaceId = typeof defaultPaperLayout?.payload.blockRecordId === 'string' ? defaultPaperLayout.payload.blockRecordId : modelSpaceId;
-            const ownerId = paperSpace ? paperSpaceIds.get(normalizeName(layoutName)) ?? fallbackPaperSpaceId : modelSpaceId;
-            importRecord(record, index, ownerId, paperSpace ? `paper-space:${layoutName}` : 'model-space');
+            const sourceOwner = recordOwner(record);
+            if (sourceOwner && !ownerSpaces.has(sourceOwner) && !first(record, 410) && !values(record, 67).length) throw new KJValidationError('DXF entity references an unknown owner without a space hint');
+            const ownerId = ownerSpaces.get(sourceOwner) ?? (paperSpace ? paperSpaceIds.get(normalizeName(layoutName)) ?? fallbackPaperSpaceId : modelSpaceId);
+            importSpaceRecord(record, index, ownerId, paperSpace ? `paper-space:${layoutName}` : 'model-space');
         });
     }, {
         source: 'adapter:dxf-ascii'
@@ -1837,13 +1915,14 @@ function emitViewTable(output, records, context, tableHandle) {
         emit(output, 50, (payload.twistAngle ?? 0) * 180 / Math.PI);
     });
 }
-function emitBlockRecordTable(output, records, context, tableHandle) {
+function emitBlockRecordTable(output, records, context, tableHandle, layoutHandles) {
     emitTable(output, 'BLOCK_RECORD', records, context, tableHandle, (record, ownerHandle, version)=>{
         emitSymbolTableRecordHeader(output, 'BLOCK_RECORD', record, ownerHandle, version, 'AcDbBlockTableRecord');
         emit(output, 2, record.name);
         emit(output, 70, record.payload?.dxfFlags ?? 0);
         emit(output, 280, 1);
         emit(output, 281, 0);
+        if (layoutHandles.has(record.id)) emit(output, 340, layoutHandles.get(record.id));
     });
 }
 function emitEntity(output, entity, layerName, ownerHandle, context, blockNames = new Map(), space = null, resources = {}) {
@@ -2049,6 +2128,11 @@ function writeDXF(document, options = {}) {
     const state = document.toJSON({
         includeRevisions: false
     });
+    const layouts = state.spaces.layoutIds.map((id)=>state.objects[id]).filter((layout)=>!layout.erased);
+    const layoutHandles = new Map(layouts.map((layout)=>[
+            String(layout.payload.blockRecordId),
+            layout.handle
+        ]));
     const context = {
         version,
         allocateHandle: createHandleAllocator(Object.values(state.objects).map((record)=>record.handle)),
@@ -2111,10 +2195,7 @@ function writeDXF(document, options = {}) {
         const sourceCode = isDxfVersion(sourceVersion) ? ACADVER[sourceVersion] : undefined;
         if (entity.type === 'PROXY_ENTITY' && sourceVersion !== 'UNKNOWN' && sourceCode !== ACADVER[version]) throw new KJValidationError(`Opaque ${entity.payload?.originalType ?? 'DXF'} data can only be preserved at its source format code ${sourceCode ?? sourceVersion}`);
     }
-    const populatedPaperSpaces = state.spaces.paperSpaceIds.filter((id)=>document.listEntities({
-            ownerId: id
-        }).length);
-    if (VERSION_RANK[version] < VERSION_RANK['2000'] && populatedPaperSpaces.length > 1) throw new KJValidationError(`DXF ${version} cannot preserve multiple named paper spaces without layout metadata`);
+    if (VERSION_RANK[version] < VERSION_RANK['2000'] && state.spaces.paperSpaceIds.length > 1) throw new KJValidationError(`DXF ${version} cannot preserve multiple named paper spaces without layout metadata`);
     emit(output, 0, 'SECTION');
     emit(output, 2, 'HEADER');
     emit(output, 9, '$ACADVER');
@@ -2152,7 +2233,7 @@ function writeDXF(document, options = {}) {
             emit(output, 370, payload.lineweight ?? -1);
         }
     });
-    if (isSubclassDXF(version)) emitBlockRecordTable(output, blocks, context, tableHandles.get('BLOCK_RECORD'));
+    if (isSubclassDXF(version)) emitBlockRecordTable(output, blocks, context, tableHandles.get('BLOCK_RECORD'), VERSION_RANK[version] >= VERSION_RANK['2000'] ? layoutHandles : new Map());
     emit(output, 0, 'ENDSEC');
     emit(output, 0, 'SECTION');
     emit(output, 2, 'BLOCKS');
@@ -2171,12 +2252,17 @@ function writeDXF(document, options = {}) {
         const synthetic = syntheticBlocks.get(block.id);
         if (synthetic) {
             for (const entity of synthetic.entities)emitEntity(output, entity, '0', block.handle, context, blockNames, null, resources);
-        } else if (!block.payload?.isSpace) {
+        } else if (!block.payload?.isSpace || state.spaces.paperSpaceIds.includes(block.id) && block.id !== state.spaces.paperSpaceIds[0]) {
+            const layout = layouts.find((layout)=>layout.payload.blockRecordId === block.id);
+            const space = layout ? {
+                paper: true,
+                layoutName: String(layout.name)
+            } : null;
             for (const sourceEntity of document.listEntities({
                 ownerId: block.id
             })){
                 const entity = dxfEntity(sourceEntity);
-                emitEntity(output, entity, layerNames.get(entity.payload?.layerId ?? '') ?? '0', block.handle, context, blockNames, null, resources);
+                emitEntity(output, entity, layerNames.get(entity.payload?.layerId ?? '') ?? '0', block.handle, context, blockNames, space, resources);
             }
         }
         emitEntityHeader(output, 'ENDBLK', context.allocateHandle(), '0', block.handle, null, version);
@@ -2203,6 +2289,7 @@ function writeDXF(document, options = {}) {
         ] : [];
     }));
     for (const paperSpaceId of state.spaces.paperSpaceIds){
+        if (VERSION_RANK[version] >= VERSION_RANK['2000'] && paperSpaceId !== state.spaces.paperSpaceIds[0]) continue;
         const space = {
             paper: true,
             layoutName: layoutsByBlock.get(paperSpaceId) ?? 'Layout1'
@@ -2216,6 +2303,77 @@ function writeDXF(document, options = {}) {
         }
     }
     emit(output, 0, 'ENDSEC');
+    if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
+        const rootHandle = context.allocateHandle(), dictionaryHandle = context.allocateHandle();
+        emit(output, 0, 'SECTION');
+        emit(output, 2, 'OBJECTS');
+        emit(output, 0, 'DICTIONARY');
+        emit(output, 5, rootHandle);
+        emit(output, 330, '0');
+        emit(output, 100, 'AcDbDictionary');
+        emit(output, 281, 1);
+        emit(output, 3, 'ACAD_LAYOUT');
+        emit(output, 350, dictionaryHandle);
+        emit(output, 0, 'DICTIONARY');
+        emit(output, 5, dictionaryHandle);
+        emit(output, 330, rootHandle);
+        emit(output, 100, 'AcDbDictionary');
+        emit(output, 280, 1);
+        emit(output, 281, 1);
+        for (const layout of layouts){
+            emit(output, 3, layout.name);
+            emit(output, 350, layout.handle);
+        }
+        for (const [index, layout] of layouts.entries()){
+            emit(output, 0, 'LAYOUT');
+            emit(output, 5, layout.handle);
+            emit(output, 102, '{ACAD_REACTORS');
+            emit(output, 330, dictionaryHandle);
+            emit(output, 102, '}');
+            emit(output, 330, dictionaryHandle);
+            emit(output, 100, 'AcDbPlotSettings');
+            emit(output, 100, 'AcDbLayout');
+            emit(output, 1, layout.name);
+            emit(output, 70, 1);
+            emit(output, 71, layout.payload.tabOrder ?? index);
+            emit(output, 10, 0);
+            emit(output, 20, 0);
+            emit(output, 11, 420);
+            emit(output, 21, 297);
+            emitPoint(output, [
+                0,
+                0,
+                0
+            ], 12);
+            emitPoint(output, [
+                0,
+                0,
+                0
+            ], 14);
+            emitPoint(output, [
+                0,
+                0,
+                0
+            ], 15);
+            emitPoint(output, [
+                0,
+                0,
+                0
+            ], 13);
+            emitPoint(output, [
+                1,
+                0,
+                0
+            ], 16);
+            emitPoint(output, [
+                0,
+                1,
+                0
+            ], 17);
+            emit(output, 330, state.objects[String(layout.payload.blockRecordId)].handle);
+        }
+        emit(output, 0, 'ENDSEC');
+    }
     emit(output, 0, 'EOF');
     return `${output.join('\r\n')}\r\n`;
 }

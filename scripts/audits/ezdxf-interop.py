@@ -207,6 +207,8 @@ def generate(path: Path) -> None:
     }
     model.add_arc((210, 0, 6), radius=10, start_angle=180, end_angle=360, dxfattribs=styled)
     model.add_line((220, 0, 6), (220, 15, 6), dxfattribs=styled)
+    document.layouts.new('Sheet 7').add_line((1, 2), (3, 4))
+    document.layouts.new('Empty 42')
     document.saveas(path)
 
 
@@ -230,6 +232,10 @@ def inspect(path: Path) -> dict[str, object]:
         "dxfVersion": document.dxfversion,
         "modelspaceEntities": counts,
         "layers": sorted(layer.dxf.name for layer in document.layers),
+        "layouts": [{"name": layout.name, "order": layout.dxf.taborder,
+                     "types": [entity.dxftype() for entity in layout],
+                     "lines": [{"start": vector(entity.dxf.start), "end": vector(entity.dxf.end)} for entity in layout.query('LINE')]}
+                    for layout in document.layouts if layout.name != 'Model'],
         "auditErrors": len(auditor.errors),
         "auditFixes": len(auditor.fixes),
         "styledEntities": assert_styled_geometry(document),

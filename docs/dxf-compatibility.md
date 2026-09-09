@@ -20,3 +20,5 @@ node scripts/audit-dxf-corpus.mjs --json
 ```
 
 This is evidence for the exact public subset, not a claim of all-version or cross-application certification. Binary DXF, DWG, arbitrary proxy/object records, complex plotting resources and font fidelity remain outside this gate. Contributions should add synthetic or clearly redistributable fixtures with provenance, never customer drawings.
+
+Layout identity and ownership are covered by `dxf-layouts.test.mjs` and the bidirectional `scripts/audits/dxf-interop.mjs` gate: empty sheets, sparse tab orders, owner references without 410 hints, reactor references, old space blocks and paper geometry. DXF 2000+ writes LAYOUT dictionaries and block-record links, with non-primary paper entities in BLOCKS. Independent ezdxf checks compare sheet names, tab order and actual line endpoints, and require zero audit repairs. Paper/plot settings and viewport fidelity are separate unfinished work.

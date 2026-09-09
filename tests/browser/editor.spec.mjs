@@ -53,6 +53,26 @@ test('editor public entry opens files, edits, selects, saves and restores histor
   await expect(page.locator('[data-document-name]')).toHaveText('Mechanical detail')
 })
 
+test('editor DXF save/open retains populated and empty sheets through native history', async ({ page }) => {
+  await mount(page)
+  const result = await page.evaluate(async () => {
+    const { editor } = window.editorTest
+    const { result: sheet } = await editor.execute('LAYOUT', { operation: 'create', name: 'Sheet 7' })
+    await editor.execute('LAYOUT', { operation: 'create', name: 'Empty 42' })
+    let line
+    await editor.document.transact('paper line', tx => { line = tx.createEntity('LINE', { start: [1, 2], end: [3, 4] }, { ownerId: sheet.payload.blockRecordId }) })
+    await editor.execute('MOVE', { id: line.id, dx: 10, dy: 20 })
+    await editor.undo(); await editor.redo()
+    const data = await editor.save({ format: 'DXF', download: false })
+    await editor.open(new File([data], 'sheets.dxf'))
+    return editor.document.snapshot().spaces.layoutIds.map(id => {
+      const layout = editor.document.getObject(id)
+      return { name: layout.name, lines: editor.document.listEntities({ ownerId: layout.payload.blockRecordId }).map(e => e.payload.start) }
+    })
+  })
+  expect(result).toEqual([{ name: 'Model', lines: [] }, { name: 'Layout1', lines: [] }, { name: 'Sheet 7', lines: [[11, 22, 0]] }, { name: 'Empty 42', lines: [] }])
+})
+
 test('typing in command input never invokes canvas shortcuts or erases a selection', async ({ page }) => {
   await mount(page)
   await page.evaluate(async () => {

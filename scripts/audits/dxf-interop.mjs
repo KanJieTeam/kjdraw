@@ -192,6 +192,11 @@ try {
   await reopenedSDK.executeCommand('MOVE', { id: movedDimension.id, dx: 7, dy: -3 })
   await writeFile(roundTrip, await reopenedSDK.writeDocument(imported, { format: 'DXF', version: '2018' }))
   const externalRoundTrip = runPython('inspect', roundTrip)
+  assert.deepEqual(externalRoundTrip.layouts, [
+    { name: 'Layout1', order: 1, types: [], lines: [] },
+    { name: 'Sheet 7', order: 3, types: ['LINE'], lines: [{ start: [1, 2, 0], end: [3, 4, 0] }] },
+    { name: 'Empty 42', order: 4, types: [], lines: [] },
+  ], 'independent layout identity, tab order, ownership and exact paper geometry')
   assert.equal(externalRoundTrip.auditErrors, 0)
   assert.equal(externalRoundTrip.auditFixes, 0)
   assert.equal(externalRoundTrip.styledEntities.length, 2)

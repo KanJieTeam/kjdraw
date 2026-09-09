@@ -32,6 +32,8 @@ const dxf = await sdk.writeDocument(drawing, {
 
 Adapters share the same document model. Keep the original input when evaluating interoperability, and treat an exported file as a new artifact rather than proof of application-specific durable storage.
 
+DXF 2000 and newer exports retain named and empty layout identities, tab order and entity ownership. Import resolves layout/block references even without entity `410` hints; non-primary paper entities are written inside their space blocks for independent readers. Full paper settings, viewports and plotting fidelity remain outside this guarantee. Conflicting layout identities or ambiguous entity ownership fail the import instead of silently moving geometry.
+
 ## Package a project {#package-a-project}
 
 Use `KJProjectSession` when the application needs active-drawing state, membership and a command journal. Use `createKjpPackage()` and `openKjpPackage()` for lower-level package assembly and inspection. A browser file binding can download and reopen a KJP; a desktop or server provider defines atomic replacement and fsync guarantees.
@@ -68,6 +70,8 @@ const dxf = await sdk.writeDocument(drawing, {
 ```
 
 不同适配器共用同一个图档模型。评估互操作时请保留原始输入；导出文件只是一个新产物，不能自动证明具体应用已经完成持久落盘。
+
+DXF 2000 及更新版本导出保留命名布局、空布局、标签顺序和实体归属。导入在没有实体 `410` 提示时仍解析布局与空间块引用；非主图纸空间实体写入对应空间块，供独立读取器正确识别。此保证不包含完整纸张设置、视口和打印保真。布局身份冲突或实体归属无法判定时导入会报错，避免静默移动图形。
 
 ## 打包工程 {#package-a-project}
 

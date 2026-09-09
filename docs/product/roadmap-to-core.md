@@ -2,6 +2,8 @@
 
 Review date: 2026-09-09. This is an implementation and acceptance plan, not a list of shipped capabilities. See the [detailed CAD workstreams](cad-completeness.md) for feature-level scope.
 
+For the full Chinese execution checklist and cross-task continuation order, see [1.0 交付与续作计划](1.0-delivery-plan.zh-CN.md). It uses the same W01–W12 programme and distinguishes the accepted baseline from uncommitted work.
+
 ## One programme, explicit evidence
 
 This is the master delivery plan for the CAD application, SDK and AI tools. The CAD workstream IDs below link to the detailed implementation checklist; the [release matrix](../KJDRAW_1_0_ACCEPTANCE_MATRIX.json) governs stable promotion, not feature completeness. Historical acceptance reports are evidence at their recorded commit, not current publication status.
@@ -13,6 +15,8 @@ The [local-corpus and loading record](local-corpus-acceptance-2026-09-09.md) now
 The subsequent [shared-core and Agent performance record](core-ai-performance-2026-09-09.md) measures a further loading improvement, detached copy-on-write previews that unblock the 9,029-entity corpus case, and a six-request live-model pilot. Full-document preview costs, missing HATCH/layout fidelity and total Agent token overhead remain open; the small pilot does not establish universal model quality or speed.
 
 ### Workstreams
+
+The [2026-09-10 layout increment](layout-acceptance-2026-09-10.md) closes the observed empty-layout and space-ownership regression with independent paper-geometry checks and editor/framework browser acceptance. Full paper settings, viewport/print fidelity, imported HATCH display and Agent input overhead remain open.
 
 | ID | Deliverables | Current position | Acceptance |
 | --- | --- | --- | --- |
