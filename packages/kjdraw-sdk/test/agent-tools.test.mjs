@@ -39,7 +39,10 @@ test('model proposals require host approval, create real geometry and undo as on
   const before = document.serialize()
   const proposal = value(await session.call('cad_propose_lines', lineArgs()))
   assert.equal(proposal.status, 'awaiting-host-approval')
-  assert.equal(proposal.previewKind, 'command-arguments')
+  assert.equal(proposal.previewKind, 'geometry')
+  assert.deepEqual(proposal.preview.before, [])
+  assert.deepEqual(proposal.preview.after[0].payload.end, [100, 0, 0])
+  assert.throws(() => { proposal.preview.after[0].payload.end[0] = 42 }, TypeError)
   assert.equal(document.serialize(), before)
   assert.equal((await session.call('approve', { planId: proposal.planId, reviewerId: 'model' })).ok, false)
   assert.equal(document.serialize(), before)
@@ -47,6 +50,8 @@ test('model proposals require host approval, create real geometry and undo as on
   const receipt = value(await session.approve(proposal.planId, 'trusted-user'))
   assert.equal(receipt.afterRevision, 1)
   assert.deepEqual(document.listEntities()[0].payload.end, [100, 0, 0])
+  assert.equal(document.listEntities()[0].id, proposal.preview.after[0].id)
+  assert.deepEqual(document.listEntities()[0].payload, proposal.preview.after[0].payload)
   assert.equal((await session.approve(proposal.planId, 'trusted-user')).ok, false)
   assert.equal(document.listEntities().length, 1)
   await sdk.executeCommand('UNDO')
@@ -60,6 +65,9 @@ test('circles and moves execute against the bound document even if the active do
   value(await session.approve(circle.planId, 'reviewer'))
   const id = document.listEntities()[0].id
   const proposal = value(await session.call('cad_propose_move', { expectedRevision: 1, units: 'millimeter', ids: [id], dx: 5, dy: -3 }))
+  assert.deepEqual(proposal.preview.before[0].payload.center, [20, 20, 0])
+  assert.deepEqual(proposal.preview.after[0].payload.center, [25, 17, 0])
+  assert.deepEqual(document.getObject(id).payload.center, [20, 20, 0])
   value(await session.approve(proposal.planId, 'reviewer'))
   assert.deepEqual(document.getObject(id).payload.center, [25, 17, 0])
   assert.equal(other.revision, 0)
@@ -158,4 +166,49 @@ test('expired and cross-session proposals fail closed', async () => {
   now += 20
   assert.equal((await session.approve(proposal.planId, 'user')).ok, false)
   assert.equal(document.revision, 0)
+})
+
+test('creation preflight rejects a locked default layer without registering or editing a plan', async () => {
+  const { sdk, document, session } = fixture()
+  const layer = document.getObject(document.snapshot().tables.layers.currentId)
+  await sdk.executeCommand('LAYERUPDATE', { id: layer.id, patch: { locked: true } })
+  const before = document.serialize()
+  const result = await session.call('cad_propose_lines', lineArgs(document.revision))
+  assert.equal(result.ok, false)
+  assert.equal(document.serialize(), before)
+  assert.equal(document.listEntities().length, 0)
+})
+
+test('a replacement host command is never executed against an existing preview', async () => {
+  const { sdk, document, session } = fixture()
+  const proposal = value(await session.call('cad_propose_lines', lineArgs()))
+  let executed = false
+  sdk.commands.register({ id: 'CREATEBATCH', execute() { executed = true } }, { replace: true })
+  const result = await session.approve(proposal.planId, 'reviewer')
+  assert.equal(result.ok, false)
+  assert.match(result.error.message, /Command changed/)
+  assert.equal(executed, false)
+  assert.equal(document.revision, 0)
+  assert.equal((await session.call('cad_propose_lines', lineArgs())).ok, false)
+})
+
+test('preview isolation preserves history and detects a concurrent source edit', async () => {
+  const { document, session } = fixture()
+  const proposing = session.call('cad_propose_lines', lineArgs())
+  await document.transact('Concurrent host edit', transaction => transaction.createEntity('POINT', { position: [7, 8] }))
+  const result = await proposing
+  assert.equal(result.ok, false)
+  assert.match(result.error.message, /changed while preparing/)
+  assert.equal(document.listEntities().length, 1)
+  assert.equal(document.listEntities()[0].type, 'POINT')
+})
+
+test('oversized drawing previews fail before touching the source', async () => {
+  const { document, session } = fixture()
+  await document.transact('Large imported metadata', transaction => transaction.createEntity('TEXT', { position: [0, 0], text: 'x'.repeat(4194304) }))
+  const before = document.serialize()
+  const result = await session.call('cad_propose_lines', lineArgs(document.revision))
+  assert.equal(result.ok, false)
+  assert.match(result.error.message, /4 MiB/)
+  assert.equal(document.serialize(), before)
 })

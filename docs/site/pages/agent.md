@@ -21,7 +21,22 @@ The current source checkout adds `KJAgentToolSession` from `@kanjieteam/kjdraw/a
 
 Expose **only the definitions and dispatcher** to your model adapter. `approve(planId, reviewerId)` and `reject(planId, reviewerId)` are trusted-host methods: the host authenticates the user, checks permissions and collects review of the exact proposed arguments. A reviewer string by itself is not authentication. There is no model-callable approval, arbitrary command, file or network tool.
 
-Proposals validate their inputs and bind the current drawing, but they are **command arguments, not rendered geometric previews**. Execution can still reject geometry or editing policy. Approval attempts are not automatically retried; inspect the drawing and make a fresh proposal after a failed/uncertain result. There is no durable task resume or model connector in this starter session.
+Line, circle and move proposals return **before/after geometry** in `value.preview`. KJDraw runs the core operation on a detached copy, checking geometry and editing rules without changing the original drawing or its undo history. Creation IDs are allocated once and bound to the proposal, so approval uses the same objects that were previewed. Approval checks the drawing revision and the resulting geometry. Failed or uncertain approval attempts are never retried automatically.
+
+Paint the preview using your editor's renderer (clear and redraw the overlay after a camera change). `before` is the old geometry and `after` is the proposed result:
+
+```ts
+import type { KJAgentGeometryPreview } from '@kanjieteam/kjdraw/agent-tools'
+
+function showProposal(preview: KJAgentGeometryPreview) {
+  renderer.render()
+  renderer.drawPreview(preview.before, '#e87979')
+  renderer.drawPreview(preview.after, '#52c99b')
+}
+// Clear the overlay with renderer.render() when rejected or applied.
+```
+
+Preview preparation currently accepts drawings up to 4 MiB and returns at most 64 changed objects and 256 KiB of geometry. It uses the built-in core commands, not host command replacements. A preview is not a mechanical-design or manufacturing validation. For model connections and the bounded execution loop, see [Models and harnesses](https://kanjieteam.github.io/kjdraw/docs/latest/models/).
 
 Creation uses the core batch command's default layer and explicitly targets model XY at z=0. Read results retain native coordinates and omission notices; they do not expand blocks or promise world-coordinate geometry. Each session accepts at most 128 proposals and permits one in-flight operation. The host still owns total session limits, model budgets, isolation, model-data disclosure and persistence. Provider-specific schema conversion must not remove the session's runtime validation.
 
@@ -204,7 +219,22 @@ Start with the stable [Agent integration contract](https://github.com/KanJieTeam
 
 向模型适配器**只提供工具定义和调用入口**。`approve(planId, reviewerId)` 与 `reject(planId, reviewerId)` 仅供可信宿主使用：宿主验证身份、检查权限，并让用户审核确切的修改参数。填写审核人字符串不等于完成身份验证。工具列表没有批准、任意命令、文件或网络执行入口。
 
-方案验证输入并绑定当前图纸，但返回的是**命令参数，不是图形预览**。实际执行仍可能因几何或编辑规则失败。批准尝试不会自动重放；失败或结果不确定时，先检查图纸，再创建新方案。此基础会话尚不包含持久化任务恢复或模型连接器。
+画线、画圆和移动方案在 `value.preview` 中返回**修改前后的真实几何**。KJDraw 在图纸副本上执行核心操作，检查几何及编辑规则，不改动原图或撤销记录。新对象 ID 在提案时固定，批准时使用预览中的同一批对象，并核对图纸修订和实际修改结果。批准失败或结果不确定时不会自动重试。
+
+使用编辑器的渲染器叠加显示预览；相机变化后需清除并重绘。`before` 是修改前图形，`after` 是拟应用结果：
+
+```ts
+import type { KJAgentGeometryPreview } from '@kanjieteam/kjdraw/agent-tools'
+
+function showProposal(preview: KJAgentGeometryPreview) {
+  renderer.render()
+  renderer.drawPreview(preview.before, '#e87979')
+  renderer.drawPreview(preview.after, '#52c99b')
+}
+// 拒绝或应用后调用 renderer.render() 清除叠加预览。
+```
+
+当前预览支持不超过 4 MiB 的图纸，返回最多 64 个修改对象和 256 KiB 几何。预演使用内置核心命令，不执行宿主替换命令；图形预览不等于机械设计或制造校核。模型接入与有预算限制的执行循环见[模型与执行框架](https://kanjieteam.github.io/kjdraw/docs/latest/models/)。
 
 创建操作使用核心批量命令的默认图层，明确在模型 XY 平面 z=0 上创建。读取保留原生坐标和省略说明，不展开图块或保证世界坐标。每个会话最多接受 128 个方案，同时只允许一个正在执行的操作。会话总量、模型费用、隔离、向模型发送数据的权限和持久化仍由宿主管理。厂家参数格式转换不能取消会话中的运行时验证。
 

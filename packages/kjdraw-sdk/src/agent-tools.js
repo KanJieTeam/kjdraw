@@ -2,6 +2,8 @@
 import { createDrawingContext } from './drawing-context.js';
 import { KJDrawError, KJRevisionConflictError, KJValidationError } from './errors.js';
 import { deepFreeze } from './utils.js';
+import { createId } from './ids.js';
+import { createAgentGeometryPreview, agentPreviewMatchesDocument } from './agent-preview.js';
 const number = {
     type: 'number',
     minimum: -1e12,
@@ -64,7 +66,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_lines',
         effect: 'propose',
-        description: 'Propose 1–64 straight LINE entities in model XY (z=0), using drawing units. Does not modify the drawing. A trusted host must review and approve the returned proposal; this is not a geometric preview.',
+        description: 'Propose 1–64 straight LINE entities in model XY (z=0), using drawing units. Returns before/after geometry without modifying the drawing. A trusted host must review and approve the returned proposal.',
         inputSchema: object({
             expectedRevision: revision,
             units: text,
@@ -212,6 +214,7 @@ export class KJAgentToolSession {
                                             end
                                         },
                                         options: {
+                                            id: createId('entity'),
                                             ownerId: document.snapshot().spaces.modelSpaceId
                                         }
                                     };
@@ -228,6 +231,7 @@ export class KJAgentToolSession {
                                             radius: circle.radius
                                         },
                                         options: {
+                                            id: createId('entity'),
                                             ownerId: document.snapshot().spaces.modelSpaceId
                                         }
                                     };
@@ -252,16 +256,23 @@ export class KJAgentToolSession {
                                 dy: args.dy
                             };
                         }
+                        const definition = this.#sdk.commands.resolve(command);
+                        if (!definition || definition.owner !== '@kanjieteam/kjdraw') throw new KJValidationError('Agent preview requires the built-in core command');
+                        const preview = await createAgentGeometryPreview(document, command, commandArgs);
                         const envelope = this.#sdk.createCommandEnvelope(command, commandArgs, {
                             document,
                             mode: 'plan',
                             origin: 'ai',
-                            expectedRevision: document.revision
+                            expectedRevision: preview.revision
                         });
                         await this.#sdk.executeCommandEnvelope(envelope, {
                             document
                         });
-                        this.#pending.set(envelope.id, envelope);
+                        this.#pending.set(envelope.id, {
+                            envelope,
+                            preview,
+                            definition
+                        });
                         this.#proposals++;
                         value = {
                             planId: envelope.id,
@@ -271,7 +282,8 @@ export class KJAgentToolSession {
                             command,
                             arguments: structuredClone(commandArgs),
                             status: 'awaiting-host-approval',
-                            previewKind: 'command-arguments'
+                            previewKind: 'geometry',
+                            preview
                         };
                     }
                 }
@@ -292,8 +304,10 @@ export class KJAgentToolSession {
         try {
             this.#assertAttached();
             if (typeof reviewerId !== 'string' || !reviewerId.trim() || reviewerId.length > 256) throw new KJValidationError('Host reviewer identity is required');
-            const plan = this.#pending.get(planId);
-            if (!plan) throw new KJValidationError('Proposal is unavailable in this session');
+            const pending = this.#pending.get(planId);
+            if (!pending) throw new KJValidationError('Proposal is unavailable in this session');
+            const plan = pending.envelope;
+            if (this.#sdk.commands.resolve(plan.command) !== pending.definition) throw new KJValidationError('Command changed since preview; reject and propose again');
             const envelope = this.#sdk.createCommandEnvelope(plan.command, plan.arguments, {
                 document: this.#document,
                 expectedRevision: plan.expectedRevision,
@@ -308,6 +322,7 @@ export class KJAgentToolSession {
             const receipt = await this.#sdk.executeCommandEnvelope(envelope, {
                 document: this.#document
             });
+            if (!agentPreviewMatchesDocument(this.#document, pending.preview)) throw new KJValidationError('Committed geometry differs from the reviewed preview; inspect the drawing before any retry');
             return deepFreeze({
                 ok: true,
                 value: {

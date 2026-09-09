@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:9147cdfe2316d59f0abb18683ad3d4309f684abe273a2cf135f60429f173d111",
+  "sourceDigest": "sha256:01259ceb719fcf680422a3a8bef81cce3eff7fafc45909e0be3677ed01591186",
   "entries": [
     {
       "name": "createKJModelAdapter",
@@ -123,6 +123,14 @@
       "href": "./api/reference/#agent-runner-function-runkjagenttask",
       "anchor": "agent-runner-function-runkjagenttask",
       "summary": "export declare function runKJAgentTask(options: KJAgentRunOptions): Promise<KJAgentRunResult>;"
+    },
+    {
+      "name": "default",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-type-default",
+      "anchor": "agent-tools-type-default",
+      "summary": "export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';"
     },
     {
       "name": "KJAgentToolDefinition",
@@ -5506,7 +5514,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-type-default",
       "anchor": "root-type-default",
-      "summary": "export type { KJWorkbenchLayout } from './workbench.js'; export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';"
+      "summary": "export type { KJWorkbenchLayout } from './workbench.js'; export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js'; export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selec"
     },
     {
       "name": "DEFAULT_TOLERANCE",

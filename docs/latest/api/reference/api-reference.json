@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:9147cdfe2316d59f0abb18683ad3d4309f684abe273a2cf135f60429f173d111",
+  "sourceDigest": "sha256:01259ceb719fcf680422a3a8bef81cce3eff7fafc45909e0be3677ed01591186",
   "modules": [
     {
       "exportPath": "./model-adapters",
@@ -132,6 +132,13 @@
       "declaration": "types/agent-tools.d.ts",
       "anchor": "module-agent-tools",
       "symbols": [
+        {
+          "name": "default",
+          "kind": "type",
+          "declaration": "export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-type-default"
+        },
         {
           "name": "KJAgentToolDefinition",
           "kind": "interface",
@@ -4943,7 +4950,7 @@
         {
           "name": "default",
           "kind": "type",
-          "declaration": "export type { KJWorkbenchLayout } from './workbench.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
+          "declaration": "export type { KJWorkbenchLayout } from './workbench.js';\nexport type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
           "source": "editor.d.ts",
           "anchor": "root-type-default"
         },

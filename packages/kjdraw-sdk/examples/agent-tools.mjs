@@ -17,6 +17,9 @@ assert.equal(result.ok, true)
 assert.equal(drawing.revision, 0)
 const proposal = result.value
 assert.equal(proposal.status, 'awaiting-host-approval')
+assert.equal(proposal.previewKind, 'geometry')
+assert.deepEqual(proposal.preview.before, [])
+assert.deepEqual(proposal.preview.after[0].payload.center, [20, 20, 0])
 
 // Test-only simulated approval. A real host authenticates the reviewer and
 // presents the exact proposed arguments before invoking this host-only method.
@@ -24,6 +27,8 @@ const approved = await session.approve(proposal.planId, 'example-reviewer')
 assert.equal(approved.ok, true)
 assert.equal(drawing.revision, 1)
 assert.equal(drawing.listEntities()[0].payload.radius, 3)
+assert.equal(drawing.listEntities()[0].id, proposal.preview.after[0].id)
+assert.deepEqual(drawing.listEntities()[0].payload, proposal.preview.after[0].payload)
 assert.equal((await session.approve(proposal.planId, 'example-reviewer')).ok, false)
 
 const saved = await sdk.writeDocument(drawing, { format: 'KJD' })

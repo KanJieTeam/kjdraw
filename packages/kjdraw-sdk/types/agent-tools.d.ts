@@ -1,5 +1,6 @@
 import type { KJDrawSDK } from './sdk.js';
 import type { KJDocument } from './document.js';
+export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';
 export interface KJAgentToolSchema {
     readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'null';
     readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;
