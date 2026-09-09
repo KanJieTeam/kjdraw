@@ -26,9 +26,9 @@
 
 ## Why KJDraw?
 
-- **Keep automated work editable.** Continue editing drawings created or modified by code or an AI agent, using the same drawing objects and undo history.
-- **Start with a ready-to-use editor.** Drawing tools, layers, properties and file operations are included, with three layouts and English and Chinese interfaces.
-- **Build on the CAD engine.** Embed the editor in your application, create your own interface, or extend the engine with tools for your industry.
+- **Give your agent CAD tools.** Read drawing objects, call drawing commands, and review proposed changes through a programmable API.
+- **Add CAD without starting from scratch.** Bring drawing tools, layers, properties and file operations into your JavaScript, React or Vue application.
+- **Use the editor. Extend the engine.** Start with the packaged interface, customize the workspace, or build your own tools on the CAD engine.
 
 ## Try the editor
 

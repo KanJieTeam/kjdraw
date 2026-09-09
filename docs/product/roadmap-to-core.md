@@ -14,16 +14,6 @@ The opportunity is a **complete, embeddable CAD workbench backed by an open, scr
 
 Browser delivery and an AI panel alone are not a differentiator. The defensible product must combine dependable editing, practical interoperability, straightforward integration, extensibility and trustworthy maintenance.
 
-## Reference products, with scope kept separate
-
-- [LibreCAD's drawing tools](https://docs.librecad.org/en/latest/ref/tools.html) provide a useful open-source 2D baseline: construction, polyline editing, snapping, selection, dimensions, modification and properties. Its [editing guide](https://docs.librecad.org/en/latest/guides/dwg-edit.html) demonstrates workflows rather than just naming commands.
-- [QCAD's feature list](https://www.qcad.org/en/documentation/features) includes drawing, layers, blocks, text, formats and plotting. It explicitly distinguishes Professional-only features and the Community Edition DXF scope; those editions must not be conflated.
-- [CurrentCAD's product page](https://home.currentcad.com/product/cad/) positions an integrated drafting, file, output, collaboration and SDK product. It is a commercial usability reference. Its compatibility and performance statements are vendor claims, not results measured by KJDraw.
-- [VJMap / VJCAD](https://www.vjmap.com/) advertises browser editing, large drawings, CAD/GIS integration, deployment options and AI. These are competitive requirements to investigate, not proof that merely adding WebAssembly or an agent makes KJDraw unique. Vendor entity-count/performance claims have not been independently reproduced here.
-- [FreeCAD's official repository](https://github.com/FreeCAD/FreeCAD) describes constraint-based sketches, parametric 3D modelling, production drawings and an extensible application using OpenCASCADE. This is the longer-term modelling ecosystem reference, not an equivalent scope to the current KJDraw 2D editor.
-
-No competitor code, assets or customer drawings are copied by this plan. The supplied CurrentCAD video has not been fully inspected. FreeCAD-class parametric modelling, assemblies and analysis are a separate programme, not features implied by the current bounded solid operations.
-
 ## Delivery sequence and acceptance
 
 | Stage | Deliverable | Current gap | Acceptance task |
