@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:4ca39c51560f1e49dd0d68027bbf408ee06b2a291c2a039c4e5315f4b0649126",
+  "sourceDigest": "sha256:bae2b6f791c075e2287b4f5bb247a78b724f2f2f5ae4f89a2d85d1a0d4c932ad",
   "locales": [
     "en",
     "zh"
@@ -99,6 +99,7 @@
           "en-workbench-dimensions",
           "en-workbench-move",
           "en-workbench-modify",
+          "en-workbench-continuous-editing",
           "en-workbench-save",
           "en-workbench-layouts",
           "en-workbench-troubleshooting"
@@ -114,6 +115,7 @@
           "zh-workbench-dimensions",
           "zh-workbench-move",
           "zh-workbench-modify",
+          "zh-workbench-continuous-editing",
           "zh-workbench-save",
           "zh-workbench-layouts",
           "zh-workbench-troubleshooting"
@@ -260,15 +262,19 @@
       "anchors": {
         "en": [
           "en-agent",
+          "en-agent-drawing-context",
           "en-agent-review-before-mutation",
           "en-agent-plan-and-execute",
+          "en-agent-geometric-preview",
           "en-agent-fail-closed-cases",
           "en-agent-security-boundary"
         ],
         "zh": [
           "zh-agent",
+          "zh-agent-drawing-context",
           "zh-agent-review-before-mutation",
           "zh-agent-plan-and-execute",
+          "zh-agent-geometric-preview",
           "zh-agent-fail-closed-cases",
           "zh-agent-security-boundary"
         ]

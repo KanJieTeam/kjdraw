@@ -4,6 +4,7 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
 const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url))
@@ -138,6 +139,128 @@ function collectLockedDependencyClosure(repositoryLock, directDependencies) {
   return Object.fromEntries(selected)
 }
 
+function visitSyntax(node, visit) {
+  if (!node || typeof node !== 'object') return
+  if (typeof node.type === 'string') visit(node)
+  for (const value of Object.values(node)) {
+    if (Array.isArray(value)) value.forEach(child => visitSyntax(child, visit))
+    else if (value && typeof value === 'object') visitSyntax(value, visit)
+  }
+}
+
+async function prepareReadmeConsumers(consumerDirectory, installedPackage) {
+  // Vue's existing locked dependency graph supplies the parsers. Resolve them
+  // from the isolated install, so this audit adds no development dependencies.
+  const requireConsumer = createRequire(join(consumerDirectory, 'package.json'))
+  const { babelParse, parse: parseSfc, compileScript, compileTemplate } = requireConsumer('@vue/compiler-sfc')
+  const { parse: parseTemplate, NodeTypes } = requireConsumer('@vue/compiler-dom')
+  const publicImports = new Set(Object.keys(installedPackage.exports).map(subpath =>
+    subpath === '.' ? installedPackage.name : `${installedPackage.name}/${subpath.slice(2)}`))
+  const allowedImports = new Set([...publicImports, ...Object.keys(installedPackage.peerDependencies ?? {})])
+  const report = []
+
+  function parseScript(source, filename, tsx = false) {
+    const ast = babelParse(source, { sourceType: 'module', plugins: ['typescript', ...(tsx ? ['jsx'] : [])] })
+    visitSyntax(ast, node => {
+      let specifier
+      if (['ImportDeclaration', 'ExportNamedDeclaration', 'ExportAllDeclaration'].includes(node.type)) specifier = node.source
+      if (node.type === 'TSImportType') specifier = node.argument
+      if (node.type === 'ImportExpression') specifier = node.source
+      if (node.type === 'CallExpression' && (node.callee.type === 'Import' || (node.callee.type === 'Identifier' && node.callee.name === 'require'))) specifier = node.arguments[0]
+      if (specifier !== undefined && specifier !== null) {
+        assert.equal(specifier.type, 'StringLiteral', `${filename}: example imports must use literal public package specifiers`)
+        assert.ok(allowedImports.has(specifier.value), `${filename}: ${specifier.value} is not a public SDK export or declared framework peer`)
+      }
+    })
+    return ast
+  }
+
+  for (const readme of ['README.md', 'README.zh-CN.md']) {
+    const markdown = (await readFile(join(repositoryRoot, readme), 'utf8')).replaceAll('\r\n', '\n')
+    const snippets = [...markdown.matchAll(/^```(ts|tsx|vue|html)\s*\n([\s\S]*?)^```\s*$/gm)]
+      .map((match, index) => ({ language: match[1], source: match[2], name: `${readme.replaceAll('.', '-')}-${index + 1}` }))
+    for (const language of ['ts', 'tsx', 'vue', 'html']) {
+      assert.ok(snippets.some(snippet => snippet.language === language), `${readme}: missing ${language} integration example`)
+    }
+    const html = snippets.filter(snippet => snippet.language === 'html').map(snippet => snippet.source).join('\n')
+    const hosts = new Map()
+    function visitTemplate(node, visit) {
+      if (node.type === NodeTypes.ELEMENT) visit(node)
+      for (const child of node.children ?? []) visitTemplate(child, visit)
+    }
+    visitTemplate(parseTemplate(html), node => {
+      const attributes = Object.fromEntries(node.props.filter(prop => prop.type === NodeTypes.ATTRIBUTE)
+        .map(prop => [prop.name, prop.value?.content ?? '']))
+      if (attributes.id) hosts.set(`#${attributes.id}`, attributes)
+    })
+    let checkedHosts = 0
+    let checkedVueProps = 0
+    for (const snippet of snippets) {
+      if (snippet.language === 'html') continue
+      const filename = `${snippet.name}.${snippet.language === 'tsx' ? 'tsx' : 'ts'}`
+      let source = snippet.source
+      if (snippet.language === 'vue') {
+        const { descriptor, errors } = parseSfc(source, { filename: `${snippet.name}.vue` })
+        assert.deepEqual(errors, [], `${readme}: Vue SFC parsing failed`)
+        assert.ok(descriptor.scriptSetup && !descriptor.script && descriptor.template, `${readme}: audit expects a script-setup Vue example with a template`)
+        const script = compileScript(descriptor, { id: snippet.name })
+        const template = compileTemplate({
+          source: descriptor.template.content,
+          filename: `${snippet.name}.vue`,
+          id: snippet.name,
+          compilerOptions: { bindingMetadata: script.bindings },
+        })
+        assert.deepEqual(template.errors, [], `${readme}: Vue template compilation failed`)
+        source = descriptor.scriptSetup.content
+        const ast = parseScript(source, filename)
+        const componentNames = ast.program.body.filter(node => node.type === 'ImportDeclaration' && node.source.value === `${installedPackage.name}/vue`)
+          .flatMap(node => node.specifiers.filter(specifier => specifier.type === 'ImportSpecifier' && specifier.imported.name === 'KJDraw').map(specifier => specifier.local.name))
+        let components = 0
+        visitTemplate(parseTemplate(descriptor.template.content), node => {
+          if (!componentNames.includes(node.tag)) return
+          components += 1
+          const props = node.props.map(prop => {
+            assert.equal(prop.type, NodeTypes.ATTRIBUTE, `${readme}: extend the Vue prop audit before using template directives`)
+            const name = prop.name.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
+            checkedVueProps += 1
+            return `${JSON.stringify(name)}: ${prop.value ? JSON.stringify(prop.value.content) : 'true'}`
+          })
+          // This checks the actual attributes against the public component
+          // props. SFC syntax compilation above is not full vue-tsc checking.
+          source += `\n({ ${props.join(', ')} } satisfies InstanceType<typeof ${node.tag}>['$props'])\n`
+        })
+        assert.ok(components > 0, `${readme}: Vue template must use its imported KJDraw component`)
+      } else {
+        const ast = parseScript(source, filename, snippet.language === 'tsx')
+        const editorNames = ast.program.body.filter(node => node.type === 'ImportDeclaration' && node.source.value === `${installedPackage.name}/editor`)
+          .flatMap(node => node.specifiers.filter(specifier => specifier.type === 'ImportSpecifier' && specifier.imported.name === 'createKJDrawEditor').map(specifier => specifier.local.name))
+        visitSyntax(ast, node => {
+          if (node.type !== 'CallExpression' || node.callee.type !== 'Identifier' || !editorNames.includes(node.callee.name)) return
+          assert.equal(node.arguments[0]?.type, 'StringLiteral', `${readme}: editor example must name its HTML host`)
+          const selector = node.arguments[0].value
+          const host = hosts.get(selector)
+          assert.ok(host, `${readme}: no HTML host matches ${selector}`)
+          const height = host.style?.match(/(?:^|;)\s*height\s*:\s*(\d+(?:\.\d+)?)(px|rem|em|vh|dvh|svh|lvh)\s*(?:;|$)/i)
+          assert.ok(height && Number(height[1]) > 0, `${readme}: ${selector} must have an explicit positive CSS height`)
+          checkedHosts += 1
+        })
+      }
+      await writeFile(join(consumerDirectory, 'src', filename), `${source}\n`)
+    }
+    assert.ok(checkedHosts > 0, `${readme}: no editor mount was checked against the HTML example`)
+    report.push({
+      file: readme,
+      typescriptSnippets: snippets.filter(snippet => snippet.language === 'ts').length,
+      reactSnippets: snippets.filter(snippet => snippet.language === 'tsx').length,
+      vueSnippets: snippets.filter(snippet => snippet.language === 'vue').length,
+      htmlHosts: checkedHosts,
+      vueProps: checkedVueProps,
+      vueValidation: 'SFC syntax compilation, script TypeScript and literal public component props; not full template typechecking',
+    })
+  }
+  return report
+}
+
 async function main() {
   const npmCli = await findNpmCli()
   const expectedPackage = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
@@ -192,7 +315,7 @@ async function main() {
     assert.equal(installedPackage.name, '@kanjieteam/kjdraw')
     assert.equal(installedPackage.version, packMetadata.version)
     if (fromRegistry) {
-      for (const artifact of ['src/editor.js', 'src/workbench.js', 'src/layout.js', 'src/drafting.js', 'src/modification-controls.js', 'src/canvas-renderer.js', 'src/dxf-adapter.js', 'src/react.js', 'src/vue.js', 'types/editor.d.ts', 'types/workbench.d.ts', 'types/drafting.d.ts']) {
+      for (const artifact of ['src/editor.js', 'src/workbench.js', 'src/layout.js', 'src/drafting.js', 'src/modification-controls.js', 'src/canvas-renderer.js', 'src/dxf-adapter.js', 'src/commands.js', 'src/editing.js', 'src/react.js', 'src/vue.js', 'types/editor.d.ts', 'types/workbench.d.ts', 'types/drafting.d.ts', 'types/editing.d.ts']) {
         assert.equal(await readFile(join(installedRoot, artifact), 'utf8'), await readFile(join(packageRoot, artifact), 'utf8'), `Registry artifact differs from the release checkout: ${artifact}`)
       }
     }
@@ -289,6 +412,19 @@ console.log(JSON.stringify(results))
     const importResults = JSON.parse(imports.stdout)
     assert.equal(importResults.length, publicSubpaths.length, 'Not every public export was imported')
 
+    const curveProbePath = join(consumerDirectory, 'verify-curve-editing.mjs')
+    await cp(join(repositoryRoot, 'fixtures', 'consumer-runtime', 'curved-editing.mjs'), curveProbePath)
+    const curveProbe = run(process.execPath, [curveProbePath], { cwd: consumerDirectory })
+    assert.deepEqual(JSON.parse(curveProbe.stdout), { curveEditing: true, nativeArc: true, undoRedo: true, dxfReopen: true })
+
+    const boundaryProbePath = join(consumerDirectory, 'verify-boundary-edit.mjs')
+    await cp(join(repositoryRoot, 'fixtures', 'consumer-runtime', 'boundary-edit.mjs'), boundaryProbePath)
+    const boundaryProbe = run(process.execPath, [boundaryProbePath], { cwd: consumerDirectory })
+    assert.deepEqual(JSON.parse(boundaryProbe.stdout), { boundarySession: true, preview: true, reviewedAgentEdit: true, continuousUiEdit: true, separateUndo: true })
+
+    const contextProbe = run(process.execPath, [join(installedRoot, 'examples', 'drawing-context.mjs')], { cwd: consumerDirectory })
+    assert.deepEqual(JSON.parse(contextProbe.stdout), { drawingContext: true, units: 'millimeter', circles: 3, pagination: true, readOnly: true })
+
     const quickstartPath = join(installedRoot, 'examples', 'quickstart.mjs')
     assert.ok(existsSync(quickstartPath), 'The packed quickstart example is missing')
     const quickstart = run(process.execPath, [quickstartPath], { cwd: consumerDirectory })
@@ -306,6 +442,36 @@ console.log(JSON.stringify(results))
 
     const consumerSources = join(consumerDirectory, 'src')
     await cp(fixturesRoot, consumerSources, { recursive: true })
+    const readmeConsumers = await prepareReadmeConsumers(consumerDirectory, installedPackage)
+    // Exercise the actual maintained guide, not a separately retyped example.
+    const agentGuide = (await readFile(join(repositoryRoot, 'docs/site/pages/agent.md'), 'utf8')).replaceAll('\r\n', '\n')
+    for (const locale of ['en', 'zh']) {
+      const localized = agentGuide.split(`:::${locale}\n`)[1]?.split('\n:::')[0]
+      const section = localized?.split('{#geometric-preview}\n')[1]?.split('\n## ')[0]
+      assert.ok(section, `Missing ${locale} geometric-preview guide`)
+      const snippets = [...section.matchAll(/```ts\n([\s\S]*?)\n```/g)].map(match => match[1])
+      assert.equal(snippets.length, 2, `Expected setup and approval snippets in ${locale} guide`)
+      const guideProbePath = join(consumerSources, `agent-boundary-guide-${locale}.ts`)
+      await writeFile(guideProbePath, `${snippets.join('\n\n')}\n
+const beforeApproval = drawing.revision
+if (beforeApproval !== 2 || !drawing.getObject(circle.id)) throw new Error('Guide planning mutated the drawing')
+const approved = await applyApprovedTrim('automated-guide-test-reviewer')
+if (approved.status !== 'committed' || drawing.revision !== beforeApproval + 1) throw new Error('Guide approval did not commit once')
+if (drawing.getObject(circle.id) || drawing.listEntities({ type: 'ARC' }).length !== 1) throw new Error('Guide did not retain a native arc')
+await sdk.executeCommand('UNDO')
+if (drawing.getObject(circle.id)?.type !== 'CIRCLE' || drawing.listEntities({ type: 'ARC' }).length) throw new Error('Guide undo did not restore the circle')
+console.log(JSON.stringify({ guide: '${locale}', geometricPreview: true, reviewedEdit: true, undo: true }))
+`)
+      const guideProbe = run(process.execPath, ['--experimental-strip-types', guideProbePath], { cwd: consumerDirectory })
+      assert.deepEqual(JSON.parse(guideProbe.stdout), { guide: locale, geometricPreview: true, reviewedEdit: true, undo: true })
+
+      const contextSection = localized.split('{#drawing-context}\n')[1]?.split('\n## ')[0]
+      const contextSnippets = [...(contextSection ?? '').matchAll(/```ts\n([\s\S]*?)\n```/g)].map(match => match[1])
+      assert.equal(contextSnippets.length, 1, `Expected the actual ${locale} drawing-context example`)
+      const contextGuidePath = join(consumerSources, `agent-context-guide-${locale}.ts`)
+      await writeFile(contextGuidePath, `${contextSnippets[0]}\nif (context.entities.length !== 1 || context.entities[0]?.geometry?.radius !== 4 || context.truncated || drawing.revision !== 1) throw new Error('Drawing context guide failed')\n`)
+      run(process.execPath, ['--experimental-strip-types', contextGuidePath], { cwd: consumerDirectory })
+    }
     await writeFile(join(consumerDirectory, 'tsconfig.json'), `${JSON.stringify({
       compilerOptions: {
         target: 'ES2022',
@@ -347,6 +513,7 @@ console.log(JSON.stringify(results))
         packages: peerVersions,
       },
       typedConsumers: ['Vanilla TypeScript', 'React TSX', 'Vue composable'],
+      readmeConsumers,
       cli: 'kjdraw --version',
       quickstart: {
         documentId: quickstartResult.documentId,

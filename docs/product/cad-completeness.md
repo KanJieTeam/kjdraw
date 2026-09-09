@@ -46,9 +46,9 @@ The following is the implementation baseline, not a claim that the listed work i
 | M03 | Mirror with source retained/deleted | Core exists; complete axis picking and options | Mirror a profile and check handedness and source retention |
 | M04 | Rectangular/polar arrays | Core exists; expose count, spacing, center and rotation options | Create a bolt circle and a repeated component grid |
 | M05 | Offset of lines/circles/arcs/polylines | Core supports a bounded subset; complete UI and extend geometry coverage | Offset inner/outer boundaries by exact distance |
-| M06 | Trim/extend | Core line-target implementation exists; add pick workflow and curved-target operations | Trim a mechanical profile against lines and circular boundaries |
+| M06 | Trim/extend | Local implementation covers LINE/ARC/CIRCLE trim and LINE/ARC extend, including boundary-first repeated editing and hover previews in both workbenches; compound targets remain | Trim a mechanical profile against lines and circular boundaries |
 | M07 | Fillet/chamfer | Core line-pair implementation exists; expose picked sides/parameters and expand geometry | Radius/tangency and setback tests plus visible undo |
-| M08 | Break/join/explode | Some core operations exist; complete selection/point UI and joining semantics | Split and recombine a contour without accidental topology loss |
+| M08 | Break/join/explode | Some core operations exist; complete selection/point UI, joining semantics and GROUP/saved-selection membership across derived pieces | Split and recombine a contour without accidental topology loss |
 | M09 | Stretch/lengthen/polyline editing | End-to-end work remains | Edit one part of a profile without moving the rest |
 | A01 | Linear/aligned dimensions | Native type exists but projection was incomplete; add construction and proper graphics | Dimensions include extension lines, arrows and measured text |
 | A02 | Radius/diameter/angular dimensions | Add construction and correct DXF point codes; angular workflow remains | Verify a bore and arc dimensions before/after export |
@@ -62,13 +62,13 @@ The following is the implementation baseline, not a claim that the listed work i
 | F03 | DWG input/output | No native DWG engine is established; implement an explicitly licensed provider path | Verify real DWG versions with a selected provider; never rename a DXF as DWG |
 | F04 | Undo/redo/autosave/recovery | Core history and project store exist; complete product recovery experience | Recover after tab interruption and verify saved revision |
 | O01 | Paper/model space, scale and print preview | Viewport data alone is insufficient; usable page setup remains | Produce an A3 drawing at a chosen physical scale |
-| O02 | PDF/SVG/image output | Snapshot exists; vector production output needs implementation | Check lineweights, fonts, dimensions and plotted scale |
+| O02 | PDF/SVG/image output | The existing project snapshot is not image/PDF export; implement usable image and vector production output | Check lineweights, fonts, dimensions and plotted scale |
 | U01 | Classic/Compact/Focus and navigation | Implemented this iteration; verify responsive canvas, control visibility and state preservation | Switch layouts mid-session, undo, save and reopen |
 | U02 | Command prompts, help and keyboard | Replace silent no-ops and invalid defaults; shared typed tool flow | New user finishes a drawing using prompts, without source inspection |
 | U03 | Bilingual UI/accessibility | Every new control/prompt needs both languages and keyboard access | Complete the same drawing in English and Chinese |
 | E01 | Ready-to-use Vanilla/React/Vue editor | Existing adapters now gain layout updates; every new common tool must ship here | Install packed/registry package in isolated apps and draw immediately |
 | E02 | Custom UI, tool/options/events APIs | Document stable high-level operations; keep internals out of the main guide | Host extends a command without copying the workbench source |
-| E03 | Plugins and AI operations | Common command/history path exists; product integration still needs normal tool parity | Agent and human edits produce the same undoable geometry |
+| E03 | Plugins and AI operations | Public continuous boundary-edit sessions now share native previews and reviewed SDK execution with the UI; broader previews, bounded context queries and real model-host integration remain | Agent and human edits produce the same undoable geometry |
 | Q01 | Large drawings and interaction latency | Establish a reproducible corpus, frame/selection/load/memory budgets | Publish hardware, fixture size and measured results |
 | Q02 | File safety, malformed inputs and limits | Existing checks must cover new tools and adapters | Fuzz inputs, cancel large loads and verify resource bounds |
 | Q03 | Distribution, provenance and documentation | Release checks exist; verify the exact artifact users install | Clean install, browser tests, hosted asset match and reproducible build |
@@ -85,9 +85,9 @@ This delivery closes usable slices of the programme; it does not mark an entire 
 | Moving objects | Select-first or command-first move/copy, direct dragging, frozen gesture targets, preview and cancellation | `tests/browser/cad-workflow.spec.mjs`, `tests/browser/workbench.spec.mjs` |
 | Selecting and reshaping | Directional window/crossing selection, open fence, add/remove/all selection, visible endpoint/radius/vertex grips | `spatial-selection.test.mjs`, `tests/browser/workbench-selection-grips.spec.mjs`, `tests/browser/playground-selection-grips.spec.mjs`; advanced topology and polyline insert/remove editing remain |
 | Layer protection | Locked/frozen/hidden layers block editing commands atomically; unlock/thaw controls in both workbenches | `edit-policy.test.mjs` plus browser layer tests; direct import/migration transactions remain low-level data operations, not an authorization system |
-| Editing | Parameterized rotate, scale, mirror, rectangular/polar array, offset, break/explode, line trim/extend and line-pair fillet/chamfer | `modification-controls.test.mjs` verifies all 12 controls and invalid input; broader curve targets, joining, stretch and block explode remain |
+| Editing | Parameterized rotate, scale, mirror, rectangular/polar array, offset, break/explode, line/curve trim/extend and line-pair fillet/chamfer | `modification-controls.test.mjs` and curve editing regressions; joining, stretch, compound targets and block explode remain |
 | Polyline decomposition | Exploding a polyline preserves its layer, drawing properties and planar elevation in the resulting native lines/arcs, through undo and file reopen | `explode-preservation.test.mjs` and the real-toolbar flow in `tests/browser/drafting.spec.mjs`; tilted extrusion and non-planar bulge arcs are rejected, not flattened |
-| Line trimming | Removing an internal interval keeps both remaining native line segments, drawing properties and interpolated elevation; ray and infinite-line boundaries respect their domains | Node editing regressions and real-toolbar Demo/embedded-editor tests cover undo and file reopen; curved trim targets and the boundary-first interactive workflow remain |
+| Continuous boundary editing | Choose boundaries once, preview and trim several LINE/ARC/CIRCLE targets or extend LINE/ARC endpoints; each edit remains independently undoable | `boundary-edit.test.mjs`, Demo/embedded browser workflows and packed consumers; local acceptance in [the continuous-editing record](boundary-workflows-2026-09-09.md), not evidence of an updated live registry |
 | DXF drawing properties | Per-entity ACI/RGB color, named linetype, linetype scale, lineweight and visibility survive supported DXF round trips | `dxf-drawing-properties.test.mjs`; older DXF versions that cannot represent explicit RGB color or lineweight reject that downgrade |
 | Annotation and fill | Aligned, rotated, radius and diameter dimensions; SOLID, ANSI31 and ANSI37 hatch construction | `annotation.test.mjs`, `hatch-pattern.test.mjs`; angular dimensions, complete styles and island-picking UI remain |
 | Layout and navigation | Classic, Compact and Focus; Select/Pan/Fit/Zoom navigation; layout changes retain the mounted drawing and history | Three-browser UI tests include language changes and ribbon hit areas; complete layer/property editing remains |
@@ -96,7 +96,20 @@ This delivery closes usable slices of the programme; it does not mark an entire 
 
 The `cad.production-workflows` stable-release gate remains partial until the remaining everyday CAD workflows are implemented and accepted. Publishing this candidate cannot pass that gate automatically.
 
+## Local work after the publication pause
+
+These changes are local, uncommitted and not part of the deployed Demo or published npm package. Regression evidence is recorded separately from the source-candidate features above.
+
+| Area | Local implementation | Remaining acceptance / scope |
+| --- | --- | --- |
+| Curved trim and extend | TRIM supports native LINE, ARC and CIRCLE targets; EXTEND supports LINE and ARC, with finite/ray/infinite-line and circular cutting boundaries | Boundary-first repeated trimming, polyline/spline targets and non-XY curve planes remain |
+| Topology-changing edits | Circle-to-arc and two-piece TRIM update ordinary GROUP and saved-selection membership atomically with the geometry | Generalize explicit membership rules to BREAK/EXPLODE and block decomposition; arbitrary host references are not automatically rewritten |
+| Clockwise DXF arcs | Export swaps directional endpoints so the native DXF ARC has the same locus and sweep, instead of the complementary arc | Independent-reader checks cover the accepted circular-arc cases, not arbitrary-file fidelity |
+| Consumer-level checks | Shared bilingual controls, real Demo/embedded canvas tests and isolated packed-package curve-editing consumers | The complete programme and production-workflow release gate remain partial |
+
 ## Implementation order
+
+The [adoption and product roadmap](roadmap-to-core.md) defines the staged user acceptance, integration and maintenance work behind this feature list.
 
 1. Shared geometric construction, exact input, real curve/dimension rendering and reliable selection/edit transactions.
 2. Complete everyday modification tools, annotation, layers, blocks and reusable parts in the same workbench used by consumers.

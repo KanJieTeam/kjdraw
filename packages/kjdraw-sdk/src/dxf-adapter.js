@@ -1808,8 +1808,10 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emitPoint(output, p.center);
         emit(output, 40, p.radius);
         emitSubclass(output, version, 'AcDbArc');
-        emit(output, 50, Number(p.startAngle) * 180 / Math.PI);
-        emit(output, 51, Number(p.endAngle) * 180 / Math.PI);
+        const startAngle = p.clockwise ? p.endAngle : p.startAngle;
+        const endAngle = p.clockwise ? p.startAngle : p.endAngle;
+        emit(output, 50, Number(startAngle) * 180 / Math.PI);
+        emit(output, 51, Number(endAngle) * 180 / Math.PI);
     } else if (entity.type === 'ELLIPSE') {
         emitSubclass(output, version, 'AcDbEllipse');
         emitPoint(output, p.center);

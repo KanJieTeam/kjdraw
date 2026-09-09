@@ -4,11 +4,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Turn model output into an immutable proposal that a human can inspect before one atomic drawing transaction executes.">
+  <meta name="description" content="Give your agent focused drawing context, review its proposed edits, and let a person keep working on the result.">
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/agent/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=4ca39c51560f1e49">
+  <link rel="stylesheet" href="../style.css?v=bae2b6f791c075e2">
   <title>Agent workflows · KJDraw Docs</title>
 </head>
 <body>
@@ -62,8 +62,34 @@
         <article class="lang-en" lang="en" id="en-agent">
           <p class="eyebrow">KJDRAW / AGENT WORKFLOWS</p>
           <h1>Agent workflows</h1>
-          <p class="lead">Turn model output into an immutable proposal that a human can inspect before one atomic drawing transaction executes.</p>
-          <h2 id="en-agent-review-before-mutation">Review before mutation<a class="heading-anchor" href="#en-agent-review-before-mutation" aria-label="Link to Review before mutation">#</a></h2>
+          <p class="lead">Give your agent focused drawing context, review its proposed edits, and let a person keep working on the result.</p>
+          <h2 id="en-agent-drawing-context">Give the agent the drawing it needs<a class="heading-anchor" href="#en-agent-drawing-context" aria-label="Link to Give the agent the drawing it needs">#</a></h2>
+<p>Your host connects the model and decides which drawing data it may receive. KJDraw provides the editing tools and a read-only context query. Query only the objects relevant to the task instead of sending the entire drawing file.</p>
+<p>Available in the current source checkout; check the installed package version before using this new entry point.</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
+import { createDrawingContext } from &#39;@kanjieteam/kjdraw/drawing-context&#39;
+
+const sdk = createKJDrawSDK()
+const drawing = sdk.createDocument({ units: &#39;millimeter&#39; })
+await sdk.executeCommand(&#39;CREATE&#39;, {
+  type: &#39;CIRCLE&#39;, payload: { center: [20, 30, 0], radius: 4 },
+})
+
+const context = createDrawingContext(drawing, {
+  types: [&#39;CIRCLE&#39;],
+  expectedRevision: drawing.revision,
+  limit: 20,
+  maxLayers: 0,
+  maxBytes: 16_384,
+})
+// context.entities contains native geometry, IDs and editing eligibility.
+// Reading context does not change the drawing or contact a model.</code></pre>
+<p>Use <code>ids</code> for a user selection, <code>types</code> for object kinds, or <code>layerIds</code> to focus on particular layers. These filters combine. Hidden and frozen objects are excluded by default; locked objects remain readable with <code>editable: false</code>. Editing eligibility is not authorization or a promise that every command supports the object.</p>
+<p>For another entity page, use <code>offset: context.nextOffset</code> and the same filters, with <code>expectedRevision: context.revision</code> and <code>maxLayers: 0</code>. Stop when <code>nextOffset === null</code>. Query the layer catalog separately with <code>limit: 0</code>, then use <code>layerOffset</code> / <code>nextLayerOffset</code>; zero is a valid continuation value. Keep the same revision for every page, including offset zero, and start over if the drawing changes.</p>
+<p>The response reports <code>truncated</code>, <code>truncationReasons</code> and <code>geometryOmittedReason</code>. An oversized or unsupported geometry is omitted as a whole, never shortened into a different shape. Native coordinates may be object-coordinate or block-local coordinates; orientation fields are retained, and INSERT definitions are not expanded. The response is a focused read result, not a replacement drawing file.</p>
+<p><code>maxBytes</code> caps the UTF-8 size of the JSON response, not model tokens, snapshot memory or query time. Raw source tags, custom metadata, history and resource bytes are not included. Drawing text remains untrusted data; your host controls permissions and any transfer to an external model.</p>
+<p>Run the packaged <a href="https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/drawing-context.mjs">drawing context example</a> for independent entity and layer pagination.</p>
+<h2 id="en-agent-review-before-mutation">Review before mutation<a class="heading-anchor" href="#en-agent-review-before-mutation" aria-label="Link to Review before mutation">#</a></h2>
 <pre data-language="text"><button class="copy" type="button">Copy</button><code>Intent → plan envelope → exact preview → human approval
        → verified one-shot execution → receipt → undo</code></pre>
 <p>An AI-origin command cannot mutate a document unless its exact proposal has first been registered, reviewed and confirmed. The SDK binds the plan to command arguments, document identity, full document digest, fingerprint, expected revision and expiry.</p>
@@ -78,8 +104,9 @@
   expectedRevision: drawing.revision,
 })
 
-const preview = await sdk.executeCommandEnvelope(plan)
-// Render preview.result, then collect explicit approval.
+const registeredPlan = await sdk.executeCommandEnvelope(plan)
+// This result is plan metadata, not a rendered geometric diff.
+// Show the proposed MOVE and collect explicit approval in your UI.
 
 const execution = sdk.createCommandEnvelope(plan.command, plan.arguments, {
   origin: &#39;ai&#39;,
@@ -92,6 +119,51 @@ const execution = sdk.createCommandEnvelope(plan.command, plan.arguments, {
 })
 
 const receipt = await sdk.executeCommandEnvelope(execution)</code></pre>
+<h2 id="en-agent-geometric-preview">Preview and apply a trim<a class="heading-anchor" href="#en-agent-geometric-preview" aria-label="Link to Preview and apply a trim">#</a></h2>
+<p>Give a reviewer the actual geometry before changing the drawing. The public boundary-editing API computes the same retained lines and arcs used by the Trim/Extend tools in the workbench. It works without a model provider, network service or API key.</p>
+<p>This example creates a circle and a cutting line. Picking the upper half proposes keeping the lower semicircle as an editable ARC:</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
+import { createBoundaryEditSession } from &#39;@kanjieteam/kjdraw/boundary-edit&#39;
+
+const sdk = createKJDrawSDK()
+const drawing = sdk.createDocument({ units: &#39;millimeter&#39; })
+const boundary = await sdk.executeCommand&lt;{ id: string }&gt;(&#39;CREATE&#39;, {
+  type: &#39;LINE&#39;, payload: { start: [-15, 0, 0], end: [15, 0, 0] },
+})
+const circle = await sdk.executeCommand&lt;{ id: string }&gt;(&#39;CREATE&#39;, {
+  type: &#39;CIRCLE&#39;, payload: { center: [0, 0, 0], radius: 10 },
+})
+const edit = createBoundaryEditSession(&#39;trim&#39;, {
+  document: drawing, boundaryIds: [boundary.id],
+})
+edit.confirmBoundaries()
+const geometry = edit.preview(circle.id, [0, 10])
+// geometry.pieces contains the retained ARC; no document mutation occurred.
+// With a mounted KJCanvasRenderer: renderer.drawPreview(geometry.pieces).
+
+const plan = sdk.createCommandEnvelope(
+  geometry.command.command, geometry.command.arguments,
+  { document: drawing, expectedRevision: geometry.revision, origin: &#39;ai&#39;, mode: &#39;plan&#39; },
+)
+await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
+<p>Present <code>geometry.pieces</code> alongside the original drawing. Only call the following function from your host&#39;s approval action, with the authenticated reviewer&#39;s identity:</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>async function applyApprovedTrim(confirmedBy: string) {
+  const receipt = await edit.apply(geometry, request =&gt;
+    sdk.executeCommandEnvelope(sdk.createCommandEnvelope(
+      request.command, request.arguments, {
+        document: drawing, expectedRevision: request.expectedRevision, origin: &#39;ai&#39;,
+        confirmation: { status: &#39;confirmed&#39;, planId: plan.id, confirmedBy },
+      },
+    ), { document: drawing }),
+  )
+  edit.finish()
+  return receipt
+}</code></pre>
+<p>For a rejected proposal, call <code>sdk.agentPlans.reject(plan.id, reviewerId)</code> and <code>edit.cancel()</code>. Clear the preview overlay when the review ends. A committed edit is one ordinary Undo step.</p>
+<p>For a person-operated tool, use the same <code>edit.apply</code> callback with <code>origin: &#39;ui&#39;</code> and no AI confirmation. Leave the session open to preview and edit another target against the same boundaries; create a fresh preview after each commit.</p>
+<div class="table-wrap"><table><thead><tr><th>API</th><th>What your application does</th></tr></thead><tbody><tr><td><code>setBoundaries(ids)</code> → <code>confirmBoundaries()</code></td><td>Choose the cutting boundaries once; confirm when the user is ready</td></tr><tr><td><code>preview(targetId, pickPoint)</code></td><td>Read immutable <code>pieces</code> and <code>command</code>; render a temporary overlay</td></tr><tr><td><code>apply(preview, execute)</code></td><td>Execute the supplied command through the SDK and return its envelope receipt</td></tr><tr><td><code>state</code> / <code>prompt</code> / <code>setLocale(&#39;zh&#39;)</code></td><td>Display the phase, completed-edit count and localized instruction</td></tr><tr><td><code>finish()</code> / <code>cancel()</code></td><td>End the session; already committed edits remain undoable</td></tr></tbody></table></div>
+<p>Changing the drawing revision, reusing a consumed preview or changing the command arguments prevents the session from reporting success. <code>apply</code> checks the actual commit and retained geometry as well as the SDK receipt. If a faulty host executor commits something else, the session ends with <code>boundary-edit.unexpected-commit</code>; it does not automatically undo that host mutation. Inspect the drawing and use the normal history controls.</p>
+<p>The preview is an in-process object: keep the original instance instead of serializing and reconstructing it. For a service-backed agent, send validated intent into the host, generate the preview there, then use the existing reviewed-plan flow. Bind <code>isDocumentCurrent</code> to the mounted document object and your readonly state when an editor can switch documents.</p>
 <h2 id="en-agent-fail-closed-cases">Fail-closed cases<a class="heading-anchor" href="#en-agent-fail-closed-cases" aria-label="Link to Fail closed cases">#</a></h2>
 <ul>
 <li>Missing, rejected, expired or already consumed plan.</li>
@@ -106,8 +178,34 @@ const receipt = await sdk.executeCommandEnvelope(execution)</code></pre>
         <article class="lang-zh" lang="zh-CN" id="zh-agent">
           <p class="eyebrow">KJDRAW / Agent 工作流</p>
           <h1>Agent 工作流</h1>
-          <p class="lead">把模型输出变成不可变提案，让人工检查后再执行一次原子图档事务。</p>
-          <h2 id="zh-agent-review-before-mutation">修改前先审核<a class="heading-anchor" href="#zh-agent-review-before-mutation" aria-label="Link to 修改前先审核">#</a></h2>
+          <p class="lead">让 Agent 按需读取图纸，检查它提出的修改，再由人接手继续编辑。</p>
+          <h2 id="zh-agent-drawing-context">先让 Agent 读到任务需要的图纸内容<a class="heading-anchor" href="#zh-agent-drawing-context" aria-label="Link to 先让 Agent 读到任务需要的图纸内容">#</a></h2>
+<p>宿主应用负责连接模型，并决定它可以读取哪些图纸数据。KJDraw 提供编辑工具和只读查询接口，让你按任务选取对象，不必把整份图纸文件发送出去。</p>
+<p>该接口已加入当前源码；使用前请确认安装的 npm 版本已包含这个新入口。</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
+import { createDrawingContext } from &#39;@kanjieteam/kjdraw/drawing-context&#39;
+
+const sdk = createKJDrawSDK()
+const drawing = sdk.createDocument({ units: &#39;millimeter&#39; })
+await sdk.executeCommand(&#39;CREATE&#39;, {
+  type: &#39;CIRCLE&#39;, payload: { center: [20, 30, 0], radius: 4 },
+})
+
+const context = createDrawingContext(drawing, {
+  types: [&#39;CIRCLE&#39;],
+  expectedRevision: drawing.revision,
+  limit: 20,
+  maxLayers: 0,
+  maxBytes: 16_384,
+})
+// context.entities 包含原生几何、对象 ID 和编辑条件。
+// 读取不会修改图纸，也不会连接模型。</code></pre>
+<p>用 <code>ids</code> 查询用户选中的对象，用 <code>types</code> 筛选图元类型，用 <code>layerIds</code> 筛选图层；多个条件同时生效。默认排除隐藏和冻结对象；锁定对象仍可读取，但标记为 <code>editable: false</code>。这个标记不代表访问权限，也不代表所有命令都支持该对象。</p>
+<p>查询下一页对象时，使用 <code>offset: context.nextOffset</code>、相同筛选条件、<code>expectedRevision: context.revision</code> 和 <code>maxLayers: 0</code>；<code>nextOffset === null</code> 表示结束。图层目录单独设置 <code>limit: 0</code> 查询，再使用 <code>layerOffset</code> / <code>nextLayerOffset</code> 翻页，零也是有效的续页位置。所有分页都保留同一修订号，包括位置为零的续页；图纸变化后重新开始。</p>
+<p>返回值通过 <code>truncated</code>、<code>truncationReasons</code> 和 <code>geometryOmittedReason</code> 明示省略内容。过大或尚不支持的几何会整体省略，不会截短坐标数组而变成另一种图形。原生坐标可能属于对象坐标系或块内局部坐标；接口保留方向字段，不展开 INSERT 块定义。查询结果只供任务读取，不能当作完整图纸覆盖原文件。</p>
+<p><code>maxBytes</code> 限制 JSON 响应的 UTF-8 字节数，不限制模型 token、快照内存或查询耗时。结果不包含原始文件标签、自定义元数据、历史和资源字节。图纸文字仍是不可信数据；权限和发送到外部模型的决定由宿主负责。</p>
+<p>可运行包内的<a href="https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/drawing-context.mjs">图纸查询示例</a>，查看对象和图层分别分页的完整做法。</p>
+<h2 id="zh-agent-review-before-mutation">修改前先审核<a class="heading-anchor" href="#zh-agent-review-before-mutation" aria-label="Link to 修改前先审核">#</a></h2>
 <pre data-language="text"><button class="copy" type="button">Copy</button><code>意图 → 计划信封 → 精确预览 → 人工批准
      → 校验后一次性执行 → 回执 → 撤销</code></pre>
 <p>AI 来源命令必须先完成精确提案的注册、审核和确认，才能修改图档。SDK 会把计划绑定到命令参数、图档身份、完整内容摘要、指纹、预期修订号和有效期。</p>
@@ -122,8 +220,9 @@ const receipt = await sdk.executeCommandEnvelope(execution)</code></pre>
   expectedRevision: drawing.revision,
 })
 
-const preview = await sdk.executeCommandEnvelope(plan)
-// 渲染 preview.result，然后收集明确批准。
+const registeredPlan = await sdk.executeCommandEnvelope(plan)
+// 返回值是计划元数据，不是图形差异。
+// 在界面展示 MOVE 的修改内容，并等待用户明确批准。
 
 const execution = sdk.createCommandEnvelope(plan.command, plan.arguments, {
   origin: &#39;ai&#39;,
@@ -136,6 +235,51 @@ const execution = sdk.createCommandEnvelope(plan.command, plan.arguments, {
 })
 
 const receipt = await sdk.executeCommandEnvelope(execution)</code></pre>
+<h2 id="zh-agent-geometric-preview">先预览，再应用修剪<a class="heading-anchor" href="#zh-agent-geometric-preview" aria-label="Link to 先预览，再应用修剪">#</a></h2>
+<p>让审核者先看到实际的图形变化。公开的连续边界编辑 API 与工作台的修剪、延伸工具使用同一套剩余线段和圆弧计算，不依赖模型服务、网络请求或 API Key。</p>
+<p>以下示例创建一个圆和一条切割线。点选上半圆后，预览结果是一条仍可继续编辑的下半圆弧：</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
+import { createBoundaryEditSession } from &#39;@kanjieteam/kjdraw/boundary-edit&#39;
+
+const sdk = createKJDrawSDK()
+const drawing = sdk.createDocument({ units: &#39;millimeter&#39; })
+const boundary = await sdk.executeCommand&lt;{ id: string }&gt;(&#39;CREATE&#39;, {
+  type: &#39;LINE&#39;, payload: { start: [-15, 0, 0], end: [15, 0, 0] },
+})
+const circle = await sdk.executeCommand&lt;{ id: string }&gt;(&#39;CREATE&#39;, {
+  type: &#39;CIRCLE&#39;, payload: { center: [0, 0, 0], radius: 10 },
+})
+const edit = createBoundaryEditSession(&#39;trim&#39;, {
+  document: drawing, boundaryIds: [boundary.id],
+})
+edit.confirmBoundaries()
+const geometry = edit.preview(circle.id, [0, 10])
+// geometry.pieces 是保留的 ARC，此时图纸尚未修改。
+// 已挂载 KJCanvasRenderer 时：renderer.drawPreview(geometry.pieces)。
+
+const plan = sdk.createCommandEnvelope(
+  geometry.command.command, geometry.command.arguments,
+  { document: drawing, expectedRevision: geometry.revision, origin: &#39;ai&#39;, mode: &#39;plan&#39; },
+)
+await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
+<p>把 <code>geometry.pieces</code> 与原图同时展示。仅在宿主的批准操作中调用下列函数，传入经过认证的审核者身份：</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>async function applyApprovedTrim(confirmedBy: string) {
+  const receipt = await edit.apply(geometry, request =&gt;
+    sdk.executeCommandEnvelope(sdk.createCommandEnvelope(
+      request.command, request.arguments, {
+        document: drawing, expectedRevision: request.expectedRevision, origin: &#39;ai&#39;,
+        confirmation: { status: &#39;confirmed&#39;, planId: plan.id, confirmedBy },
+      },
+    ), { document: drawing }),
+  )
+  edit.finish()
+  return receipt
+}</code></pre>
+<p>用户拒绝时，调用 <code>sdk.agentPlans.reject(plan.id, reviewerId)</code> 和 <code>edit.cancel()</code>；审核结束后清除预览覆盖层。成功提交后，一次普通撤销即可恢复图形。</p>
+<p>人工工具同样使用 <code>edit.apply</code>，但执行回调选择 <code>origin: &#39;ui&#39;</code>，不填写 AI 确认信息。保持会话开启，即可继续使用同一组边界修改其他目标；每次提交后重新生成预览。</p>
+<div class="table-wrap"><table><thead><tr><th>API</th><th>宿主应用的操作</th></tr></thead><tbody><tr><td><code>setBoundaries(ids)</code> → <code>confirmBoundaries()</code></td><td>选择一次切割边界，在用户准备好时确认</td></tr><tr><td><code>preview(targetId, pickPoint)</code></td><td>读取不可变的 <code>pieces</code> 与 <code>command</code>，绘制临时覆盖层</td></tr><tr><td><code>apply(preview, execute)</code></td><td>通过 SDK 执行收到的命令，并返回命令信封回执</td></tr><tr><td><code>state</code> / <code>prompt</code> / <code>setLocale(&#39;zh&#39;)</code></td><td>展示当前阶段、完成次数和本地化提示</td></tr><tr><td><code>finish()</code> / <code>cancel()</code></td><td>结束会话；已经提交的修改仍可逐次撤销</td></tr></tbody></table></div>
+<p>修订变化、重复使用预览或执行参数改变时，会话不会误报成功。<code>apply</code> 除了核对 SDK 回执，还会核对实际提交与保留图形。宿主执行器错误地提交其他修改时，会话以 <code>boundary-edit.unexpected-commit</code> 结束，不会自动撤销宿主提交；请检查图纸并通过正常历史操作处理。</p>
+<p>预览是进程内对象，请保留原实例，不要序列化后重新拼装。接入服务端 Agent 时，由宿主接收并校验意图、生成预览，再进入既有的计划审核流程。宿主允许切换图纸时，应把 <code>isDocumentCurrent</code> 绑定到当前图档对象及只读状态。</p>
 <h2 id="zh-agent-fail-closed-cases">关闭执行的情况<a class="heading-anchor" href="#zh-agent-fail-closed-cases" aria-label="Link to 关闭执行的情况">#</a></h2>
 <ul>
 <li>计划缺失、被拒绝、已过期或已消费。</li>
@@ -149,10 +293,10 @@ const receipt = await sdk.executeCommandEnvelope(execution)</code></pre>
         </article>
         <nav class="pager" aria-label="Adjacent documentation"><a href="../vue/"><strong class="lang-en">Vue integration</strong><strong class="lang-zh">Vue 集成</strong></a><a href="../plugins/"><strong class="lang-en">Plugins</strong><strong class="lang-zh">插件</strong></a></nav>
       </div>
-      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-agent-review-before-mutation">Review before mutation</a><a class="toc-level-2" href="#en-agent-plan-and-execute">Plan and execute</a><a class="toc-level-2" href="#en-agent-fail-closed-cases">Fail closed cases</a><a class="toc-level-2" href="#en-agent-security-boundary">Security boundary</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-agent-review-before-mutation">修改前先审核</a><a class="toc-level-2" href="#zh-agent-plan-and-execute">计划与执行</a><a class="toc-level-2" href="#zh-agent-fail-closed-cases">关闭执行的情况</a><a class="toc-level-2" href="#zh-agent-security-boundary">安全边界</a></div></aside>
+      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-agent-drawing-context">Give the agent the drawing it needs</a><a class="toc-level-2" href="#en-agent-review-before-mutation">Review before mutation</a><a class="toc-level-2" href="#en-agent-plan-and-execute">Plan and execute</a><a class="toc-level-2" href="#en-agent-geometric-preview">Preview and apply a trim</a><a class="toc-level-2" href="#en-agent-fail-closed-cases">Fail closed cases</a><a class="toc-level-2" href="#en-agent-security-boundary">Security boundary</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-agent-drawing-context">先让 Agent 读到任务需要的图纸内容</a><a class="toc-level-2" href="#zh-agent-review-before-mutation">修改前先审核</a><a class="toc-level-2" href="#zh-agent-plan-and-execute">计划与执行</a><a class="toc-level-2" href="#zh-agent-geometric-preview">先预览，再应用修剪</a><a class="toc-level-2" href="#zh-agent-fail-closed-cases">关闭执行的情况</a><a class="toc-level-2" href="#zh-agent-security-boundary">安全边界</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=4ca39c51560f1e49"></script>
+  <script type="module" src="../app.js?v=bae2b6f791c075e2"></script>
 </body>
 </html>

@@ -28,6 +28,9 @@ export interface KJModificationDefinition {
     readonly maxSelection?: number;
     /** When present, every selected entity must use one of these types. */
     readonly supportedEntityTypes?: readonly string[];
+    /** For boundary-based operations, the first selected entity is the target. */
+    readonly targetEntityTypes?: readonly string[];
+    readonly boundaryEntityTypes?: readonly string[];
     readonly fields: readonly KJModificationFieldDefinition[];
     readonly pointKeys: readonly KJModificationPointDefinition[];
 }
@@ -48,5 +51,11 @@ export declare function getKJModificationSelectionCenter(entities: readonly {
     readonly payload: Readonly<Record<string, unknown>>;
 }[]): KJModificationPoint;
 export declare function getKJModificationDefinition(id: KJModificationId): KJModificationDefinition;
+/** Shared preflight used by hosted and embedded workbenches before collecting points. */
+export declare function validateKJModificationSelection(definition: KJModificationDefinition, entities: readonly ({
+    readonly id: string;
+    readonly type: string;
+    readonly kind?: string;
+} | null)[], locale?: 'en' | 'zh'): void;
 /** Build a core command from UI-neutral form values and ordered canvas picks. */
 export declare function buildKJModificationCommand(id: KJModificationId, context: KJModificationBuildContext): KJModificationCommand;

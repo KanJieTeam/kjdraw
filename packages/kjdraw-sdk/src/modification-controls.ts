@@ -46,6 +46,9 @@ export interface KJModificationDefinition {
   readonly maxSelection?: number
   /** When present, every selected entity must use one of these types. */
   readonly supportedEntityTypes?: readonly string[]
+  /** For boundary-based operations, the first selected entity is the target. */
+  readonly targetEntityTypes?: readonly string[]
+  readonly boundaryEntityTypes?: readonly string[]
   readonly fields: readonly KJModificationFieldDefinition[]
   readonly pointKeys: readonly KJModificationPointDefinition[]
 }
@@ -160,18 +163,22 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
     fields: [], pointKeys: [],
   },
   {
-    id: 'trim', command: 'TRIM', label: text('Trim line', '修剪直线'),
-    description: text('Use the first selected LINE as target and the rest as boundaries.', '以第一个选中直线为目标，其余对象为边界。'),
+    id: 'trim', command: 'TRIM', label: text('Trim', '修剪'),
+    description: text('Select the line, arc or circle first, then Shift-select the cutting boundaries.', '先选择待修剪的直线、圆弧或圆，再按住 Shift 选择切割边界。'),
     minSelection: 2,
+    targetEntityTypes: ['LINE', 'ARC', 'CIRCLE'],
+    boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'],
     fields: [],
-    pointKeys: [pick('pickPoint', 'Pick the portion of the target to remove', '在目标直线上指定要删除的区段')],
+    pointKeys: [pick('pickPoint', 'Pick the portion of the target to remove', '在目标图形上指定要删除的区段')],
   },
   {
-    id: 'extend', command: 'EXTEND', label: text('Extend line', '延伸直线'),
-    description: text('Use the first selected LINE as target and the rest as boundaries.', '以第一个选中直线为目标，其余对象为边界。'),
+    id: 'extend', command: 'EXTEND', label: text('Extend', '延伸'),
+    description: text('Select the line or arc first, then Shift-select the limiting boundaries.', '先选择待延伸的直线或圆弧，再按住 Shift 选择延伸边界。'),
     minSelection: 2,
+    targetEntityTypes: ['LINE', 'ARC'],
+    boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'],
     fields: [],
-    pointKeys: [pick('pickPoint', 'Pick the end of the target to extend', '在目标直线上指定要延伸的一端')],
+    pointKeys: [pick('pickPoint', 'Pick near the end of the target to extend', '在目标图形上靠近要延伸的一端点选')],
   },
   {
     id: 'chamfer', command: 'CHAMFER', label: text('Chamfer lines', '直线倒角'),
@@ -221,6 +228,22 @@ export function getKJModificationDefinition(id: KJModificationId): KJModificatio
   const definition = definitionById.get(id)
   if (!definition) throw new RangeError(`Unsupported KJDraw modification: ${String(id)}`)
   return definition
+}
+
+/** Shared preflight used by hosted and embedded workbenches before collecting points. */
+export function validateKJModificationSelection(
+  definition: KJModificationDefinition,
+  entities: readonly ({ readonly id: string; readonly type: string; readonly kind?: string } | null)[],
+  locale: 'en' | 'zh' = 'en',
+): void {
+  const fail = (en: string, zh: string): never => { throw new RangeError(locale === 'zh' ? zh : en) }
+  if (entities.some(entity => !entity || (entity.kind !== undefined && entity.kind !== 'entity'))) fail('Selection contains an unavailable entity', '选择中包含不可用的图元')
+  if (new Set(entities.map(entity => entity!.id)).size !== entities.length) fail('Select each entity only once', '请勿重复选择同一图元')
+  if (entities.length < definition.minSelection) fail(`${definition.command} requires at least ${definition.minSelection} selected objects`, `${definition.label.zh}至少需要选择 ${definition.minSelection} 个对象`)
+  if (definition.maxSelection !== undefined && entities.length > definition.maxSelection) fail(`${definition.command} accepts at most ${definition.maxSelection} selected objects`, `${definition.label.zh}最多允许选择 ${definition.maxSelection} 个对象`)
+  if (definition.supportedEntityTypes && entities.some(entity => !definition.supportedEntityTypes!.includes(entity!.type))) fail(`${definition.command} supports ${definition.supportedEntityTypes.join(', ')}`, `${definition.label.zh}支持的图元：${definition.supportedEntityTypes.join('、')}`)
+  if (definition.targetEntityTypes && !definition.targetEntityTypes.includes(entities[0]!.type)) fail(`Select a ${definition.targetEntityTypes.join(', ')} target first, then Shift-select boundaries`, `请先选择目标图元（${definition.targetEntityTypes.join('、')}），再按住 Shift 选择边界`)
+  if (definition.boundaryEntityTypes && entities.slice(1).some(entity => !definition.boundaryEntityTypes!.includes(entity!.type))) fail(`Boundaries must be ${definition.boundaryEntityTypes.join(', ')}`, `边界必须是 ${definition.boundaryEntityTypes.join('、')}`)
 }
 
 function normalizedIds(definition: KJModificationDefinition, ids: readonly string[]): string[] {

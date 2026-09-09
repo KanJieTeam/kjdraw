@@ -16,7 +16,9 @@
     <nav class="top-links"><a href="../">Editor API</a><a href="../../"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="reference-shell">
-    <aside class="reference-sidebar"><div class="version"><span>TYPE REFERENCE</span><strong>v1.0.0-rc.3</strong></div><nav><a href="#module-drafting"><code>./drafting</code></a>
+    <aside class="reference-sidebar"><div class="version"><span>TYPE REFERENCE</span><strong>v1.0.0-rc.3</strong></div><nav><a href="#module-drawing-context"><code>./drawing-context</code></a>
+<a href="#module-boundary-edit"><code>./boundary-edit</code></a>
+<a href="#module-drafting"><code>./drafting</code></a>
 <a href="#module-modification-controls"><code>./modification-controls</code></a>
 <a href="#module-samples"><code>./samples</code></a>
 <a href="#module-editor"><code>./editor</code></a>
@@ -53,7 +55,325 @@
     <main class="reference-main"><article>
       <section class="reference-intro" id="api-reference"><p class="eyebrow">TYPESCRIPT</p><h1><span class="lang-en">Complete API reference</span><span class="lang-zh">完整 API 参考</span></h1><p class="lead"><span class="lang-en">Browse the declarations for the root package and every public subpath. Start with the Editor API for application integration.</span><span class="lang-zh">浏览根包及每个公开子路径的类型声明；应用接入请先从 Editor API 开始。</span></p><a class="primary-link" href="../"><span class="lang-en">Open Editor API</span><span class="lang-zh">打开 Editor API</span> →</a></section>
       <div id="empty-state" hidden><h2><span class="lang-en">No matching API</span><span class="lang-zh">未找到匹配 API</span></h2></div>
-      <section class="api-module" id="module-drafting" data-module="@kanjieteam/kjdraw/drafting">
+      <section class="api-module" id="module-drawing-context" data-module="@kanjieteam/kjdraw/drawing-context">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/drawing-context</code></h2></div><a class="permalink" href="#module-drawing-context" aria-label="Link to @kanjieteam/kjdraw/drawing-context">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/drawing-context.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="drawing-context-function-createdrawingcontext" data-search="createdrawingcontext function @kanjieteam/kjdraw/drawing-context export declare function createdrawingcontext(document: kjdocument, options?: kjdrawingcontextoptions): kjdrawingcontext;">
+      <header><div><span class="kind">function</span><h3>createDrawingContext</h3></div><a class="permalink" href="#drawing-context-function-createdrawingcontext" aria-label="Link to createDrawingContext">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createDrawingContext(document: KJDocument, options?: KJDrawingContextOptions): KJDrawingContext;</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-context-interface-kjdrawingcontext" data-search="kjdrawingcontext interface @kanjieteam/kjdraw/drawing-context export interface kjdrawingcontext {
+    readonly documentid: string;
+    readonly revision: number;
+    readonly units: string;
+    readonly spaceid: string;
+    readonly layers: readonly kjdrawingcontextlayer[];
+    readonly entities: readonly kjdrawingcontextentity[];
+    /** true when either collection or any requested native geometry was omitted. */
+    readonly truncated: boolean;
+    readonly truncationreasons: readonly kjdrawingcontexttruncationreason[];
+    readonly nextoffset: number | null;
+    readonly nextlayeroffset: number | null;
+    readonly limits: {
+        readonly limit: number;
+        readonly maxlayers: number;
+        readonly maxbytes: number;
+        readonly maxgeometrybytes: number;
+    };
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingContext</h3></div><a class="permalink" href="#drawing-context-interface-kjdrawingcontext" aria-label="Link to KJDrawingContext">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingContext {
+    readonly documentId: string;
+    readonly revision: number;
+    readonly units: string;
+    readonly spaceId: string;
+    readonly layers: readonly KJDrawingContextLayer[];
+    readonly entities: readonly KJDrawingContextEntity[];
+    /** True when either collection or any requested native geometry was omitted. */
+    readonly truncated: boolean;
+    readonly truncationReasons: readonly KJDrawingContextTruncationReason[];
+    readonly nextOffset: number | null;
+    readonly nextLayerOffset: number | null;
+    readonly limits: {
+        readonly limit: number;
+        readonly maxLayers: number;
+        readonly maxBytes: number;
+        readonly maxGeometryBytes: number;
+    };
+}</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-context-interface-kjdrawingcontextentity" data-search="kjdrawingcontextentity interface @kanjieteam/kjdraw/drawing-context export interface kjdrawingcontextentity {
+    readonly id: string;
+    readonly type: string;
+    readonly ownerid: string | null;
+    readonly layerid: string | null;
+    readonly visible: boolean;
+    /** visibility and locking eligibility only; command support is not implied. */
+    readonly editable: boolean;
+    /** allowlisted stored geometry; coordinates may be ocs or block-local, with native units/angles. */
+    readonly geometry: {
+        readonly [key: string]: kjdrawingcontextvalue;
+    } | null;
+    readonly geometryomittedreason: kjdrawinggeometryomittedreason | null;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingContextEntity</h3></div><a class="permalink" href="#drawing-context-interface-kjdrawingcontextentity" aria-label="Link to KJDrawingContextEntity">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingContextEntity {
+    readonly id: string;
+    readonly type: string;
+    readonly ownerId: string | null;
+    readonly layerId: string | null;
+    readonly visible: boolean;
+    /** Visibility and locking eligibility only; command support is not implied. */
+    readonly editable: boolean;
+    /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */
+    readonly geometry: {
+        readonly [key: string]: KJDrawingContextValue;
+    } | null;
+    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;
+}</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-context-interface-kjdrawingcontextlayer" data-search="kjdrawingcontextlayer interface @kanjieteam/kjdraw/drawing-context export interface kjdrawingcontextlayer {
+    readonly id: string;
+    readonly name: string | null;
+    readonly visible: boolean;
+    readonly frozen: boolean;
+    readonly locked: boolean;
+    /** visibility and locking eligibility only; this is not an authorization decision. */
+    readonly editable: boolean;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingContextLayer</h3></div><a class="permalink" href="#drawing-context-interface-kjdrawingcontextlayer" aria-label="Link to KJDrawingContextLayer">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingContextLayer {
+    readonly id: string;
+    readonly name: string | null;
+    readonly visible: boolean;
+    readonly frozen: boolean;
+    readonly locked: boolean;
+    /** Visibility and locking eligibility only; this is not an authorization decision. */
+    readonly editable: boolean;
+}</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-context-interface-kjdrawingcontextoptions" data-search="kjdrawingcontextoptions interface @kanjieteam/kjdraw/drawing-context export interface kjdrawingcontextoptions {
+    /** exact object ids; duplicates are ignored. filters are combined with and. */
+    ids?: readonly string[];
+    /** case-insensitive native entity types, for example line or arc. */
+    types?: readonly string[];
+    layerids?: readonly string[];
+    /** a live block record; defaults to model space. inserts are not expanded. */
+    spaceid?: string;
+    /** hidden and frozen entities are excluded by default. locked entities remain visible. */
+    includehidden?: boolean;
+    expectedrevision?: number;
+    /** matching entity offset. continuations require expectedrevision and the same filters. */
+    offset?: number;
+    /** registered layer offset, after layerids filtering. */
+    layeroffset?: number;
+    /** 0 disables entities; default 50, maximum 200. */
+    limit?: number;
+    /** 0 disables the layer catalog; default 50, maximum 100. */
+    maxlayers?: number;
+    /** maximum utf-8 bytes of json.stringify(result); default 65536, range 1024..262144. */
+    maxbytes?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingContextOptions</h3></div><a class="permalink" href="#drawing-context-interface-kjdrawingcontextoptions" aria-label="Link to KJDrawingContextOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingContextOptions {
+    /** Exact object IDs; duplicates are ignored. Filters are combined with AND. */
+    ids?: readonly string[];
+    /** Case-insensitive native entity types, for example LINE or ARC. */
+    types?: readonly string[];
+    layerIds?: readonly string[];
+    /** A live block record; defaults to model space. INSERTs are not expanded. */
+    spaceId?: string;
+    /** Hidden and frozen entities are excluded by default. Locked entities remain visible. */
+    includeHidden?: boolean;
+    expectedRevision?: number;
+    /** Matching entity offset. Continuations require expectedRevision and the same filters. */
+    offset?: number;
+    /** Registered layer offset, after layerIds filtering. */
+    layerOffset?: number;
+    /** 0 disables entities; default 50, maximum 200. */
+    limit?: number;
+    /** 0 disables the layer catalog; default 50, maximum 100. */
+    maxLayers?: number;
+    /** Maximum UTF-8 bytes of JSON.stringify(result); default 65536, range 1024..262144. */
+    maxBytes?: number;
+}</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-context-type-kjdrawingcontexttruncationreason" data-search="kjdrawingcontexttruncationreason type @kanjieteam/kjdraw/drawing-context export type kjdrawingcontexttruncationreason = &#39;entity-limit&#39; | &#39;layer-limit&#39; | &#39;response-budget&#39; | &#39;geometry-budget&#39; | &#39;unsupported-geometry&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDrawingContextTruncationReason</h3></div><a class="permalink" href="#drawing-context-type-kjdrawingcontexttruncationreason" aria-label="Link to KJDrawingContextTruncationReason">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDrawingContextTruncationReason = &#39;entity-limit&#39; | &#39;layer-limit&#39; | &#39;response-budget&#39; | &#39;geometry-budget&#39; | &#39;unsupported-geometry&#39;;</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-context-type-kjdrawingcontextvalue" data-search="kjdrawingcontextvalue type @kanjieteam/kjdraw/drawing-context export type kjdrawingcontextvalue = null | boolean | number | string | readonly kjdrawingcontextvalue[] | {
+    readonly [key: string]: kjdrawingcontextvalue;
+};">
+      <header><div><span class="kind">type</span><h3>KJDrawingContextValue</h3></div><a class="permalink" href="#drawing-context-type-kjdrawingcontextvalue" aria-label="Link to KJDrawingContextValue">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDrawingContextValue = null | boolean | number | string | readonly KJDrawingContextValue[] | {
+    readonly [key: string]: KJDrawingContextValue;
+};</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-context-type-kjdrawinggeometryomittedreason" data-search="kjdrawinggeometryomittedreason type @kanjieteam/kjdraw/drawing-context export type kjdrawinggeometryomittedreason = &#39;unsupported-type&#39; | &#39;unsupported-data&#39; | &#39;geometry-budget&#39; | &#39;response-budget&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDrawingGeometryOmittedReason</h3></div><a class="permalink" href="#drawing-context-type-kjdrawinggeometryomittedreason" aria-label="Link to KJDrawingGeometryOmittedReason">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDrawingGeometryOmittedReason = &#39;unsupported-type&#39; | &#39;unsupported-data&#39; | &#39;geometry-budget&#39; | &#39;response-budget&#39;;</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-boundary-edit" data-module="@kanjieteam/kjdraw/boundary-edit">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/boundary-edit</code></h2></div><a class="permalink" href="#module-boundary-edit" aria-label="Link to @kanjieteam/kjdraw/boundary-edit">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/boundary-edit.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="boundary-edit-function-createboundaryeditsession" data-search="createboundaryeditsession function @kanjieteam/kjdraw/boundary-edit export declare function createboundaryeditsession(operation: kjboundaryeditoperation, options: kjboundaryeditoptions): kjboundaryeditsession;">
+      <header><div><span class="kind">function</span><h3>createBoundaryEditSession</h3></div><a class="permalink" href="#boundary-edit-function-createboundaryeditsession" aria-label="Link to createBoundaryEditSession">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createBoundaryEditSession(operation: KJBoundaryEditOperation, options: KJBoundaryEditOptions): KJBoundaryEditSession;</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
+<article class="api-symbol" id="boundary-edit-interface-kjboundaryeditcommand" data-search="kjboundaryeditcommand interface @kanjieteam/kjdraw/boundary-edit export interface kjboundaryeditcommand {
+    readonly command: &#39;trim&#39; | &#39;extend&#39;;
+    readonly arguments: {
+        readonly id: string;
+        readonly boundaryids: readonly string[];
+        readonly pickpoint: readonly [number, number];
+    };
+    readonly expectedrevision: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJBoundaryEditCommand</h3></div><a class="permalink" href="#boundary-edit-interface-kjboundaryeditcommand" aria-label="Link to KJBoundaryEditCommand">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJBoundaryEditCommand {
+    readonly command: &#39;TRIM&#39; | &#39;EXTEND&#39;;
+    readonly arguments: {
+        readonly id: string;
+        readonly boundaryIds: readonly string[];
+        readonly pickPoint: readonly [number, number];
+    };
+    readonly expectedRevision: number;
+}</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
+<article class="api-symbol" id="boundary-edit-type-kjboundaryeditoperation" data-search="kjboundaryeditoperation type @kanjieteam/kjdraw/boundary-edit export type kjboundaryeditoperation = &#39;trim&#39; | &#39;extend&#39;;">
+      <header><div><span class="kind">type</span><h3>KJBoundaryEditOperation</h3></div><a class="permalink" href="#boundary-edit-type-kjboundaryeditoperation" aria-label="Link to KJBoundaryEditOperation">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJBoundaryEditOperation = &#39;trim&#39; | &#39;extend&#39;;</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
+<article class="api-symbol" id="boundary-edit-interface-kjboundaryeditoptions" data-search="kjboundaryeditoptions interface @kanjieteam/kjdraw/boundary-edit export interface kjboundaryeditoptions {
+    document: kjdocument;
+    boundaryids?: readonly string[];
+    locale?: &#39;en&#39; | &#39;zh&#39;;
+    /** hosts bind this to their mounted document/readonly state, not merely its id. */
+    isdocumentcurrent?: () =&gt; boolean;
+}">
+      <header><div><span class="kind">interface</span><h3>KJBoundaryEditOptions</h3></div><a class="permalink" href="#boundary-edit-interface-kjboundaryeditoptions" aria-label="Link to KJBoundaryEditOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJBoundaryEditOptions {
+    document: KJDocument;
+    boundaryIds?: readonly string[];
+    locale?: &#39;en&#39; | &#39;zh&#39;;
+    /** Hosts bind this to their mounted document/readonly state, not merely its ID. */
+    isDocumentCurrent?: () =&gt; boolean;
+}</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
+<article class="api-symbol" id="boundary-edit-type-kjboundaryeditphase" data-search="kjboundaryeditphase type @kanjieteam/kjdraw/boundary-edit export type kjboundaryeditphase = &#39;boundaries&#39; | &#39;targets&#39; | &#39;applying&#39; | &#39;finished&#39; | &#39;cancelled&#39;;">
+      <header><div><span class="kind">type</span><h3>KJBoundaryEditPhase</h3></div><a class="permalink" href="#boundary-edit-type-kjboundaryeditphase" aria-label="Link to KJBoundaryEditPhase">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJBoundaryEditPhase = &#39;boundaries&#39; | &#39;targets&#39; | &#39;applying&#39; | &#39;finished&#39; | &#39;cancelled&#39;;</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
+<article class="api-symbol" id="boundary-edit-type-kjboundaryeditpreview" data-search="kjboundaryeditpreview type @kanjieteam/kjdraw/boundary-edit export type kjboundaryeditpreview = readonlydeep&lt;{
+    documentid: string;
+    revision: number;
+    operation: kjboundaryeditoperation;
+    targetid: string;
+    boundaryids: string[];
+    pickpoint: [number, number];
+    pieces: kjderivedentitypayload[];
+    command: kjboundaryeditcommand;
+}&gt;;">
+      <header><div><span class="kind">type</span><h3>KJBoundaryEditPreview</h3></div><a class="permalink" href="#boundary-edit-type-kjboundaryeditpreview" aria-label="Link to KJBoundaryEditPreview">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJBoundaryEditPreview = ReadonlyDeep&lt;{
+    documentId: string;
+    revision: number;
+    operation: KJBoundaryEditOperation;
+    targetId: string;
+    boundaryIds: string[];
+    pickPoint: [number, number];
+    pieces: KJDerivedEntityPayload[];
+    command: KJBoundaryEditCommand;
+}&gt;;</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
+<article class="api-symbol" id="boundary-edit-class-kjboundaryeditsession" data-search="kjboundaryeditsession class @kanjieteam/kjdraw/boundary-edit export declare class kjboundaryeditsession {
+    #private;
+    constructor(operation: kjboundaryeditoperation, options: kjboundaryeditoptions);
+    get state(): kjboundaryeditstate;
+    get prompt(): string;
+    setlocale(locale: &#39;en&#39; | &#39;zh&#39;): void;
+    /** does not silently rebase a session after undo, replacement or another edit. */
+    iscurrent(): boolean;
+    setboundaries(ids: readonly string[]): void;
+    confirmboundaries(): void;
+    /** computes exact retained primitives without mutating the document or history. */
+    preview(targetid: string, pickpoint: readonly [number, number]): kjboundaryeditpreview;
+    /**
+     * execute through the host&#39;s normal sdk command path. the callback must
+     * propagate failures and return the sdk envelope receipt. the actual commit,
+     * arguments and retained geometry must match the preview, not just revision +1.
+     * successful edits are separate undo steps. cancel does not undo an already
+     * dispatched transaction; it prevents the session from resuming afterwards.
+     */
+    apply&lt;tresult extends readonly&lt;kjcommandreceipt&gt;&gt;(preview: kjboundaryeditpreview, execute: (request: kjboundaryeditcommand) =&gt; promise&lt;tresult&gt;): promise&lt;tresult&gt;;
+    finish(): void;
+    cancel(): void;
+}">
+      <header><div><span class="kind">class</span><h3>KJBoundaryEditSession</h3></div><a class="permalink" href="#boundary-edit-class-kjboundaryeditsession" aria-label="Link to KJBoundaryEditSession">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare class KJBoundaryEditSession {
+    #private;
+    constructor(operation: KJBoundaryEditOperation, options: KJBoundaryEditOptions);
+    get state(): KJBoundaryEditState;
+    get prompt(): string;
+    setLocale(locale: &#39;en&#39; | &#39;zh&#39;): void;
+    /** Does not silently rebase a session after undo, replacement or another edit. */
+    isCurrent(): boolean;
+    setBoundaries(ids: readonly string[]): void;
+    confirmBoundaries(): void;
+    /** Computes exact retained primitives without mutating the document or history. */
+    preview(targetId: string, pickPoint: readonly [number, number]): KJBoundaryEditPreview;
+    /**
+     * Execute through the host&#39;s normal SDK command path. The callback must
+     * propagate failures and return the SDK envelope receipt. The actual commit,
+     * arguments and retained geometry must match the preview, not just revision +1.
+     * Successful edits are separate undo steps. Cancel does not undo an already
+     * dispatched transaction; it prevents the session from resuming afterwards.
+     */
+    apply&lt;TResult extends Readonly&lt;KJCommandReceipt&gt;&gt;(preview: KJBoundaryEditPreview, execute: (request: KJBoundaryEditCommand) =&gt; Promise&lt;TResult&gt;): Promise&lt;TResult&gt;;
+    finish(): void;
+    cancel(): void;
+}</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
+<article class="api-symbol" id="boundary-edit-interface-kjboundaryeditstate" data-search="kjboundaryeditstate interface @kanjieteam/kjdraw/boundary-edit export interface kjboundaryeditstate {
+    readonly phase: kjboundaryeditphase;
+    readonly operation: kjboundaryeditoperation;
+    readonly boundaryids: readonly string[];
+    readonly expectedrevision: number;
+    readonly committedcount: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJBoundaryEditState</h3></div><a class="permalink" href="#boundary-edit-interface-kjboundaryeditstate" aria-label="Link to KJBoundaryEditState">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJBoundaryEditState {
+    readonly phase: KJBoundaryEditPhase;
+    readonly operation: KJBoundaryEditOperation;
+    readonly boundaryIds: readonly string[];
+    readonly expectedRevision: number;
+    readonly committedCount: number;
+}</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-drafting" data-module="@kanjieteam/kjdraw/drafting">
   <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/drafting</code></h2></div><a class="permalink" href="#module-drafting" aria-label="Link to @kanjieteam/kjdraw/drafting">#</a></header>
   <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/drafting.d.ts</code></p>
   <div class="api-symbols">
@@ -291,6 +611,9 @@
     readonly maxselection?: number;
     /** when present, every selected entity must use one of these types. */
     readonly supportedentitytypes?: readonly string[];
+    /** for boundary-based operations, the first selected entity is the target. */
+    readonly targetentitytypes?: readonly string[];
+    readonly boundaryentitytypes?: readonly string[];
     readonly fields: readonly kjmodificationfielddefinition[];
     readonly pointkeys: readonly kjmodificationpointdefinition[];
 }">
@@ -304,6 +627,9 @@
     readonly maxSelection?: number;
     /** When present, every selected entity must use one of these types. */
     readonly supportedEntityTypes?: readonly string[];
+    /** For boundary-based operations, the first selected entity is the target. */
+    readonly targetEntityTypes?: readonly string[];
+    readonly boundaryEntityTypes?: readonly string[];
     readonly fields: readonly KJModificationFieldDefinition[];
     readonly pointKeys: readonly KJModificationPointDefinition[];
 }</code></pre>
@@ -354,6 +680,19 @@
     readonly key: string;
     readonly label: KJLocalizedControlText;
 }</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="modification-controls-function-validatekjmodificationselection" data-search="validatekjmodificationselection function @kanjieteam/kjdraw/modification-controls export declare function validatekjmodificationselection(definition: kjmodificationdefinition, entities: readonly ({
+    readonly id: string;
+    readonly type: string;
+    readonly kind?: string;
+} | null)[], locale?: &#39;en&#39; | &#39;zh&#39;): void;">
+      <header><div><span class="kind">function</span><h3>validateKJModificationSelection</h3></div><a class="permalink" href="#modification-controls-function-validatekjmodificationselection" aria-label="Link to validateKJModificationSelection">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function validateKJModificationSelection(definition: KJModificationDefinition, entities: readonly ({
+    readonly id: string;
+    readonly type: string;
+    readonly kind?: string;
+} | null)[], locale?: &#39;en&#39; | &#39;zh&#39;): void;</code></pre>
       <p class="source-path">modification-controls.d.ts</p>
     </article>
   </div>
@@ -1257,6 +1596,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
 <article class="api-symbol" id="core-function-explodeentity" data-search="explodeentity function @kanjieteam/kjdraw/core export declare function explodeentity(entity: kjeditingentity | null | undefined): kjderivedentitypayload[];">
       <header><div><span class="kind">function</span><h3>explodeEntity</h3></div><a class="permalink" href="#core-function-explodeentity" aria-label="Link to explodeEntity">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function explodeEntity(entity: KJEditingEntity | null | undefined): KJDerivedEntityPayload[];</code></pre>
+      <p class="source-path">editing.d.ts</p>
+    </article>
+<article class="api-symbol" id="core-function-extendentitypayload" data-search="extendentitypayload function @kanjieteam/kjdraw/core export declare function extendentitypayload(target: kjeditingentity | null | undefined, boundaries: readonly kjeditingentity[], pickpoint: unknown): kjobjectpayload;">
+      <header><div><span class="kind">function</span><h3>extendEntityPayload</h3></div><a class="permalink" href="#core-function-extendentitypayload" aria-label="Link to extendEntityPayload">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;</code></pre>
       <p class="source-path">editing.d.ts</p>
     </article>
 <article class="api-symbol" id="core-function-extendlinepayload" data-search="extendlinepayload function @kanjieteam/kjdraw/core export declare function extendlinepayload(target: kjeditingentity | null | undefined, boundaries: readonly kjeditingentity[], pickpoint: unknown): kjobjectpayload;">
@@ -6717,6 +7061,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const translation3: (dx: number, dy: number) =&gt; AffineMatrix3;</code></pre>
       <p class="source-path">geometry/matrix3.d.ts</p>
     </article>
+<article class="api-symbol" id="core-function-trimentitypayloads" data-search="trimentitypayloads function @kanjieteam/kjdraw/core export declare function trimentitypayloads(target: kjeditingentity | null | undefined, boundaries: readonly kjeditingentity[], pickpoint: unknown): kjderivedentitypayload[];">
+      <header><div><span class="kind">function</span><h3>trimEntityPayloads</h3></div><a class="permalink" href="#core-function-trimentitypayloads" aria-label="Link to trimEntityPayloads">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];</code></pre>
+      <p class="source-path">editing.d.ts</p>
+    </article>
 <article class="api-symbol" id="core-function-trimlinepayload" data-search="trimlinepayload function @kanjieteam/kjdraw/core export declare function trimlinepayload(target: kjeditingentity | null | undefined, boundaries: readonly kjeditingentity[], pickpoint: unknown): kjobjectpayload;">
       <header><div><span class="kind">function</span><h3>trimLinePayload</h3></div><a class="permalink" href="#core-function-trimlinepayload" aria-label="Link to trimLinePayload">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function trimLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;</code></pre>
@@ -8712,6 +9061,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function closestPointOnSegment2(point: Point2Input, start: Point2Input, end: Point2Input, tolerance?: KJTolerance): ClosestPoint2;</code></pre>
       <p class="source-path">geometry/vector2.d.ts</p>
     </article>
+<article class="api-symbol" id="root-function-createboundaryeditsession" data-search="createboundaryeditsession function @kanjieteam/kjdraw export declare function createboundaryeditsession(operation: kjboundaryeditoperation, options: kjboundaryeditoptions): kjboundaryeditsession;">
+      <header><div><span class="kind">function</span><h3>createBoundaryEditSession</h3></div><a class="permalink" href="#root-function-createboundaryeditsession" aria-label="Link to createBoundaryEditSession">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createBoundaryEditSession(operation: KJBoundaryEditOperation, options: KJBoundaryEditOptions): KJBoundaryEditSession;</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-function-createcommandenvelope" data-search="createcommandenvelope function @kanjieteam/kjdraw export declare function createcommandenvelope&lt;targuments extends record&lt;string, unknown&gt; = record&lt;string, unknown&gt;&gt;(command: string, args?: targuments, options?: kjcreatecommandoptions): readonly&lt;kjcommandenvelope&lt;targuments&gt;&gt;;">
       <header><div><span class="kind">function</span><h3>createCommandEnvelope</h3></div><a class="permalink" href="#root-function-createcommandenvelope" aria-label="Link to createCommandEnvelope">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createCommandEnvelope&lt;TArguments extends Record&lt;string, unknown&gt; = Record&lt;string, unknown&gt;&gt;(command: string, args?: TArguments, options?: KJCreateCommandOptions): Readonly&lt;KJCommandEnvelope&lt;TArguments&gt;&gt;;</code></pre>
@@ -8731,6 +9085,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <header><div><span class="kind">function</span><h3>createDraftingSession</h3></div><a class="permalink" href="#root-function-createdraftingsession" aria-label="Link to createDraftingSession">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createDraftingSession(tool: KJDraftTool, options?: KJDraftingOptions): KJDraftingSession;</code></pre>
       <p class="source-path">drafting.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-function-createdrawingcontext" data-search="createdrawingcontext function @kanjieteam/kjdraw export declare function createdrawingcontext(document: kjdocument, options?: kjdrawingcontextoptions): kjdrawingcontext;">
+      <header><div><span class="kind">function</span><h3>createDrawingContext</h3></div><a class="permalink" href="#root-function-createdrawingcontext" aria-label="Link to createDrawingContext">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createDrawingContext(document: KJDocument, options?: KJDrawingContextOptions): KJDrawingContext;</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
     </article>
 <article class="api-symbol" id="root-function-createdxffileadapter" data-search="createdxffileadapter function @kanjieteam/kjdraw export declare function createdxffileadapter(options?: dxfadapteroptions): readonly&lt;kjfileadapter&lt;kjdocument, string&gt;&gt;;">
       <header><div><span class="kind">function</span><h3>createDXFFileAdapter</h3></div><a class="permalink" href="#root-function-createdxffileadapter" aria-label="Link to createDXFFileAdapter">#</a></header>
@@ -8962,6 +9321,11 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 <article class="api-symbol" id="root-function-explodeentity" data-search="explodeentity function @kanjieteam/kjdraw export declare function explodeentity(entity: kjeditingentity | null | undefined): kjderivedentitypayload[];">
       <header><div><span class="kind">function</span><h3>explodeEntity</h3></div><a class="permalink" href="#root-function-explodeentity" aria-label="Link to explodeEntity">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function explodeEntity(entity: KJEditingEntity | null | undefined): KJDerivedEntityPayload[];</code></pre>
+      <p class="source-path">editing.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-function-extendentitypayload" data-search="extendentitypayload function @kanjieteam/kjdraw export declare function extendentitypayload(target: kjeditingentity | null | undefined, boundaries: readonly kjeditingentity[], pickpoint: unknown): kjobjectpayload;">
+      <header><div><span class="kind">function</span><h3>extendEntityPayload</h3></div><a class="permalink" href="#root-function-extendentitypayload" aria-label="Link to extendEntityPayload">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;</code></pre>
       <p class="source-path">editing.d.ts</p>
     </article>
 <article class="api-symbol" id="root-function-extendlinepayload" data-search="extendlinepayload function @kanjieteam/kjdraw export declare function extendlinepayload(target: kjeditingentity | null | undefined, boundaries: readonly kjeditingentity[], pickpoint: unknown): kjobjectpayload;">
@@ -10020,6 +10384,143 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     };
 }</code></pre>
       <p class="source-path">editing.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjboundaryeditcommand" data-search="kjboundaryeditcommand interface @kanjieteam/kjdraw export interface kjboundaryeditcommand {
+    readonly command: &#39;trim&#39; | &#39;extend&#39;;
+    readonly arguments: {
+        readonly id: string;
+        readonly boundaryids: readonly string[];
+        readonly pickpoint: readonly [number, number];
+    };
+    readonly expectedrevision: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJBoundaryEditCommand</h3></div><a class="permalink" href="#root-interface-kjboundaryeditcommand" aria-label="Link to KJBoundaryEditCommand">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJBoundaryEditCommand {
+    readonly command: &#39;TRIM&#39; | &#39;EXTEND&#39;;
+    readonly arguments: {
+        readonly id: string;
+        readonly boundaryIds: readonly string[];
+        readonly pickPoint: readonly [number, number];
+    };
+    readonly expectedRevision: number;
+}</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjboundaryeditoperation" data-search="kjboundaryeditoperation type @kanjieteam/kjdraw export type kjboundaryeditoperation = &#39;trim&#39; | &#39;extend&#39;;">
+      <header><div><span class="kind">type</span><h3>KJBoundaryEditOperation</h3></div><a class="permalink" href="#root-type-kjboundaryeditoperation" aria-label="Link to KJBoundaryEditOperation">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJBoundaryEditOperation = &#39;trim&#39; | &#39;extend&#39;;</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjboundaryeditoptions" data-search="kjboundaryeditoptions interface @kanjieteam/kjdraw export interface kjboundaryeditoptions {
+    document: kjdocument;
+    boundaryids?: readonly string[];
+    locale?: &#39;en&#39; | &#39;zh&#39;;
+    /** hosts bind this to their mounted document/readonly state, not merely its id. */
+    isdocumentcurrent?: () =&gt; boolean;
+}">
+      <header><div><span class="kind">interface</span><h3>KJBoundaryEditOptions</h3></div><a class="permalink" href="#root-interface-kjboundaryeditoptions" aria-label="Link to KJBoundaryEditOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJBoundaryEditOptions {
+    document: KJDocument;
+    boundaryIds?: readonly string[];
+    locale?: &#39;en&#39; | &#39;zh&#39;;
+    /** Hosts bind this to their mounted document/readonly state, not merely its ID. */
+    isDocumentCurrent?: () =&gt; boolean;
+}</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjboundaryeditphase" data-search="kjboundaryeditphase type @kanjieteam/kjdraw export type kjboundaryeditphase = &#39;boundaries&#39; | &#39;targets&#39; | &#39;applying&#39; | &#39;finished&#39; | &#39;cancelled&#39;;">
+      <header><div><span class="kind">type</span><h3>KJBoundaryEditPhase</h3></div><a class="permalink" href="#root-type-kjboundaryeditphase" aria-label="Link to KJBoundaryEditPhase">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJBoundaryEditPhase = &#39;boundaries&#39; | &#39;targets&#39; | &#39;applying&#39; | &#39;finished&#39; | &#39;cancelled&#39;;</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjboundaryeditpreview" data-search="kjboundaryeditpreview type @kanjieteam/kjdraw export type kjboundaryeditpreview = readonlydeep&lt;{
+    documentid: string;
+    revision: number;
+    operation: kjboundaryeditoperation;
+    targetid: string;
+    boundaryids: string[];
+    pickpoint: [number, number];
+    pieces: kjderivedentitypayload[];
+    command: kjboundaryeditcommand;
+}&gt;;">
+      <header><div><span class="kind">type</span><h3>KJBoundaryEditPreview</h3></div><a class="permalink" href="#root-type-kjboundaryeditpreview" aria-label="Link to KJBoundaryEditPreview">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJBoundaryEditPreview = ReadonlyDeep&lt;{
+    documentId: string;
+    revision: number;
+    operation: KJBoundaryEditOperation;
+    targetId: string;
+    boundaryIds: string[];
+    pickPoint: [number, number];
+    pieces: KJDerivedEntityPayload[];
+    command: KJBoundaryEditCommand;
+}&gt;;</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-class-kjboundaryeditsession" data-search="kjboundaryeditsession class @kanjieteam/kjdraw export declare class kjboundaryeditsession {
+    #private;
+    constructor(operation: kjboundaryeditoperation, options: kjboundaryeditoptions);
+    get state(): kjboundaryeditstate;
+    get prompt(): string;
+    setlocale(locale: &#39;en&#39; | &#39;zh&#39;): void;
+    /** does not silently rebase a session after undo, replacement or another edit. */
+    iscurrent(): boolean;
+    setboundaries(ids: readonly string[]): void;
+    confirmboundaries(): void;
+    /** computes exact retained primitives without mutating the document or history. */
+    preview(targetid: string, pickpoint: readonly [number, number]): kjboundaryeditpreview;
+    /**
+     * execute through the host&#39;s normal sdk command path. the callback must
+     * propagate failures and return the sdk envelope receipt. the actual commit,
+     * arguments and retained geometry must match the preview, not just revision +1.
+     * successful edits are separate undo steps. cancel does not undo an already
+     * dispatched transaction; it prevents the session from resuming afterwards.
+     */
+    apply&lt;tresult extends readonly&lt;kjcommandreceipt&gt;&gt;(preview: kjboundaryeditpreview, execute: (request: kjboundaryeditcommand) =&gt; promise&lt;tresult&gt;): promise&lt;tresult&gt;;
+    finish(): void;
+    cancel(): void;
+}">
+      <header><div><span class="kind">class</span><h3>KJBoundaryEditSession</h3></div><a class="permalink" href="#root-class-kjboundaryeditsession" aria-label="Link to KJBoundaryEditSession">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare class KJBoundaryEditSession {
+    #private;
+    constructor(operation: KJBoundaryEditOperation, options: KJBoundaryEditOptions);
+    get state(): KJBoundaryEditState;
+    get prompt(): string;
+    setLocale(locale: &#39;en&#39; | &#39;zh&#39;): void;
+    /** Does not silently rebase a session after undo, replacement or another edit. */
+    isCurrent(): boolean;
+    setBoundaries(ids: readonly string[]): void;
+    confirmBoundaries(): void;
+    /** Computes exact retained primitives without mutating the document or history. */
+    preview(targetId: string, pickPoint: readonly [number, number]): KJBoundaryEditPreview;
+    /**
+     * Execute through the host&#39;s normal SDK command path. The callback must
+     * propagate failures and return the SDK envelope receipt. The actual commit,
+     * arguments and retained geometry must match the preview, not just revision +1.
+     * Successful edits are separate undo steps. Cancel does not undo an already
+     * dispatched transaction; it prevents the session from resuming afterwards.
+     */
+    apply&lt;TResult extends Readonly&lt;KJCommandReceipt&gt;&gt;(preview: KJBoundaryEditPreview, execute: (request: KJBoundaryEditCommand) =&gt; Promise&lt;TResult&gt;): Promise&lt;TResult&gt;;
+    finish(): void;
+    cancel(): void;
+}</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjboundaryeditstate" data-search="kjboundaryeditstate interface @kanjieteam/kjdraw export interface kjboundaryeditstate {
+    readonly phase: kjboundaryeditphase;
+    readonly operation: kjboundaryeditoperation;
+    readonly boundaryids: readonly string[];
+    readonly expectedrevision: number;
+    readonly committedcount: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJBoundaryEditState</h3></div><a class="permalink" href="#root-interface-kjboundaryeditstate" aria-label="Link to KJBoundaryEditState">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJBoundaryEditState {
+    readonly phase: KJBoundaryEditPhase;
+    readonly operation: KJBoundaryEditOperation;
+    readonly boundaryIds: readonly string[];
+    readonly expectedRevision: number;
+    readonly committedCount: number;
+}</code></pre>
+      <p class="source-path">boundary-edit.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjbreakoptions" data-search="kjbreakoptions interface @kanjieteam/kjdraw export interface kjbreakoptions {
     readonly point?: unknown;
@@ -12113,6 +12614,165 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }</code></pre>
       <p class="source-path">errors.d.ts</p>
     </article>
+<article class="api-symbol" id="root-interface-kjdrawingcontext" data-search="kjdrawingcontext interface @kanjieteam/kjdraw export interface kjdrawingcontext {
+    readonly documentid: string;
+    readonly revision: number;
+    readonly units: string;
+    readonly spaceid: string;
+    readonly layers: readonly kjdrawingcontextlayer[];
+    readonly entities: readonly kjdrawingcontextentity[];
+    /** true when either collection or any requested native geometry was omitted. */
+    readonly truncated: boolean;
+    readonly truncationreasons: readonly kjdrawingcontexttruncationreason[];
+    readonly nextoffset: number | null;
+    readonly nextlayeroffset: number | null;
+    readonly limits: {
+        readonly limit: number;
+        readonly maxlayers: number;
+        readonly maxbytes: number;
+        readonly maxgeometrybytes: number;
+    };
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingContext</h3></div><a class="permalink" href="#root-interface-kjdrawingcontext" aria-label="Link to KJDrawingContext">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingContext {
+    readonly documentId: string;
+    readonly revision: number;
+    readonly units: string;
+    readonly spaceId: string;
+    readonly layers: readonly KJDrawingContextLayer[];
+    readonly entities: readonly KJDrawingContextEntity[];
+    /** True when either collection or any requested native geometry was omitted. */
+    readonly truncated: boolean;
+    readonly truncationReasons: readonly KJDrawingContextTruncationReason[];
+    readonly nextOffset: number | null;
+    readonly nextLayerOffset: number | null;
+    readonly limits: {
+        readonly limit: number;
+        readonly maxLayers: number;
+        readonly maxBytes: number;
+        readonly maxGeometryBytes: number;
+    };
+}</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjdrawingcontextentity" data-search="kjdrawingcontextentity interface @kanjieteam/kjdraw export interface kjdrawingcontextentity {
+    readonly id: string;
+    readonly type: string;
+    readonly ownerid: string | null;
+    readonly layerid: string | null;
+    readonly visible: boolean;
+    /** visibility and locking eligibility only; command support is not implied. */
+    readonly editable: boolean;
+    /** allowlisted stored geometry; coordinates may be ocs or block-local, with native units/angles. */
+    readonly geometry: {
+        readonly [key: string]: kjdrawingcontextvalue;
+    } | null;
+    readonly geometryomittedreason: kjdrawinggeometryomittedreason | null;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingContextEntity</h3></div><a class="permalink" href="#root-interface-kjdrawingcontextentity" aria-label="Link to KJDrawingContextEntity">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingContextEntity {
+    readonly id: string;
+    readonly type: string;
+    readonly ownerId: string | null;
+    readonly layerId: string | null;
+    readonly visible: boolean;
+    /** Visibility and locking eligibility only; command support is not implied. */
+    readonly editable: boolean;
+    /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */
+    readonly geometry: {
+        readonly [key: string]: KJDrawingContextValue;
+    } | null;
+    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;
+}</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjdrawingcontextlayer" data-search="kjdrawingcontextlayer interface @kanjieteam/kjdraw export interface kjdrawingcontextlayer {
+    readonly id: string;
+    readonly name: string | null;
+    readonly visible: boolean;
+    readonly frozen: boolean;
+    readonly locked: boolean;
+    /** visibility and locking eligibility only; this is not an authorization decision. */
+    readonly editable: boolean;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingContextLayer</h3></div><a class="permalink" href="#root-interface-kjdrawingcontextlayer" aria-label="Link to KJDrawingContextLayer">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingContextLayer {
+    readonly id: string;
+    readonly name: string | null;
+    readonly visible: boolean;
+    readonly frozen: boolean;
+    readonly locked: boolean;
+    /** Visibility and locking eligibility only; this is not an authorization decision. */
+    readonly editable: boolean;
+}</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjdrawingcontextoptions" data-search="kjdrawingcontextoptions interface @kanjieteam/kjdraw export interface kjdrawingcontextoptions {
+    /** exact object ids; duplicates are ignored. filters are combined with and. */
+    ids?: readonly string[];
+    /** case-insensitive native entity types, for example line or arc. */
+    types?: readonly string[];
+    layerids?: readonly string[];
+    /** a live block record; defaults to model space. inserts are not expanded. */
+    spaceid?: string;
+    /** hidden and frozen entities are excluded by default. locked entities remain visible. */
+    includehidden?: boolean;
+    expectedrevision?: number;
+    /** matching entity offset. continuations require expectedrevision and the same filters. */
+    offset?: number;
+    /** registered layer offset, after layerids filtering. */
+    layeroffset?: number;
+    /** 0 disables entities; default 50, maximum 200. */
+    limit?: number;
+    /** 0 disables the layer catalog; default 50, maximum 100. */
+    maxlayers?: number;
+    /** maximum utf-8 bytes of json.stringify(result); default 65536, range 1024..262144. */
+    maxbytes?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingContextOptions</h3></div><a class="permalink" href="#root-interface-kjdrawingcontextoptions" aria-label="Link to KJDrawingContextOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingContextOptions {
+    /** Exact object IDs; duplicates are ignored. Filters are combined with AND. */
+    ids?: readonly string[];
+    /** Case-insensitive native entity types, for example LINE or ARC. */
+    types?: readonly string[];
+    layerIds?: readonly string[];
+    /** A live block record; defaults to model space. INSERTs are not expanded. */
+    spaceId?: string;
+    /** Hidden and frozen entities are excluded by default. Locked entities remain visible. */
+    includeHidden?: boolean;
+    expectedRevision?: number;
+    /** Matching entity offset. Continuations require expectedRevision and the same filters. */
+    offset?: number;
+    /** Registered layer offset, after layerIds filtering. */
+    layerOffset?: number;
+    /** 0 disables entities; default 50, maximum 200. */
+    limit?: number;
+    /** 0 disables the layer catalog; default 50, maximum 100. */
+    maxLayers?: number;
+    /** Maximum UTF-8 bytes of JSON.stringify(result); default 65536, range 1024..262144. */
+    maxBytes?: number;
+}</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjdrawingcontexttruncationreason" data-search="kjdrawingcontexttruncationreason type @kanjieteam/kjdraw export type kjdrawingcontexttruncationreason = &#39;entity-limit&#39; | &#39;layer-limit&#39; | &#39;response-budget&#39; | &#39;geometry-budget&#39; | &#39;unsupported-geometry&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDrawingContextTruncationReason</h3></div><a class="permalink" href="#root-type-kjdrawingcontexttruncationreason" aria-label="Link to KJDrawingContextTruncationReason">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDrawingContextTruncationReason = &#39;entity-limit&#39; | &#39;layer-limit&#39; | &#39;response-budget&#39; | &#39;geometry-budget&#39; | &#39;unsupported-geometry&#39;;</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjdrawingcontextvalue" data-search="kjdrawingcontextvalue type @kanjieteam/kjdraw export type kjdrawingcontextvalue = null | boolean | number | string | readonly kjdrawingcontextvalue[] | {
+    readonly [key: string]: kjdrawingcontextvalue;
+};">
+      <header><div><span class="kind">type</span><h3>KJDrawingContextValue</h3></div><a class="permalink" href="#root-type-kjdrawingcontextvalue" aria-label="Link to KJDrawingContextValue">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDrawingContextValue = null | boolean | number | string | readonly KJDrawingContextValue[] | {
+    readonly [key: string]: KJDrawingContextValue;
+};</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjdrawinggeometryomittedreason" data-search="kjdrawinggeometryomittedreason type @kanjieteam/kjdraw export type kjdrawinggeometryomittedreason = &#39;unsupported-type&#39; | &#39;unsupported-data&#39; | &#39;geometry-budget&#39; | &#39;response-budget&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDrawingGeometryOmittedReason</h3></div><a class="permalink" href="#root-type-kjdrawinggeometryomittedreason" aria-label="Link to KJDrawingGeometryOmittedReason">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDrawingGeometryOmittedReason = &#39;unsupported-type&#39; | &#39;unsupported-data&#39; | &#39;geometry-budget&#39; | &#39;response-budget&#39;;</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-class-kjdrawsdk" data-search="kjdrawsdk class @kanjieteam/kjdraw export declare class kjdrawsdk {
     readonly version: string;
     readonly events: kjeventbus&lt;kjdrawsdkevents&gt;;
@@ -12914,6 +13574,9 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     readonly maxselection?: number;
     /** when present, every selected entity must use one of these types. */
     readonly supportedentitytypes?: readonly string[];
+    /** for boundary-based operations, the first selected entity is the target. */
+    readonly targetentitytypes?: readonly string[];
+    readonly boundaryentitytypes?: readonly string[];
     readonly fields: readonly kjmodificationfielddefinition[];
     readonly pointkeys: readonly kjmodificationpointdefinition[];
 }">
@@ -12927,6 +13590,9 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     readonly maxSelection?: number;
     /** When present, every selected entity must use one of these types. */
     readonly supportedEntityTypes?: readonly string[];
+    /** For boundary-based operations, the first selected entity is the target. */
+    readonly targetEntityTypes?: readonly string[];
+    readonly boundaryEntityTypes?: readonly string[];
     readonly fields: readonly KJModificationFieldDefinition[];
     readonly pointKeys: readonly KJModificationPointDefinition[];
 }</code></pre>
@@ -14894,6 +15560,11 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const translation3: (dx: number, dy: number) =&gt; AffineMatrix3;</code></pre>
       <p class="source-path">geometry/matrix3.d.ts</p>
     </article>
+<article class="api-symbol" id="root-function-trimentitypayloads" data-search="trimentitypayloads function @kanjieteam/kjdraw export declare function trimentitypayloads(target: kjeditingentity | null | undefined, boundaries: readonly kjeditingentity[], pickpoint: unknown): kjderivedentitypayload[];">
+      <header><div><span class="kind">function</span><h3>trimEntityPayloads</h3></div><a class="permalink" href="#root-function-trimentitypayloads" aria-label="Link to trimEntityPayloads">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];</code></pre>
+      <p class="source-path">editing.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-function-trimlinepayload" data-search="trimlinepayload function @kanjieteam/kjdraw export declare function trimlinepayload(target: kjeditingentity | null | undefined, boundaries: readonly kjeditingentity[], pickpoint: unknown): kjobjectpayload;">
       <header><div><span class="kind">function</span><h3>trimLinePayload</h3></div><a class="permalink" href="#root-function-trimlinepayload" aria-label="Link to trimLinePayload">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function trimLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;</code></pre>
@@ -14929,6 +15600,19 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     previousState?: KJDocumentState;
 }): KJValidationResult;</code></pre>
       <p class="source-path">schema.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-function-validatekjmodificationselection" data-search="validatekjmodificationselection function @kanjieteam/kjdraw export declare function validatekjmodificationselection(definition: kjmodificationdefinition, entities: readonly ({
+    readonly id: string;
+    readonly type: string;
+    readonly kind?: string;
+} | null)[], locale?: &#39;en&#39; | &#39;zh&#39;): void;">
+      <header><div><span class="kind">function</span><h3>validateKJModificationSelection</h3></div><a class="permalink" href="#root-function-validatekjmodificationselection" aria-label="Link to validateKJModificationSelection">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function validateKJModificationSelection(definition: KJModificationDefinition, entities: readonly ({
+    readonly id: string;
+    readonly type: string;
+    readonly kind?: string;
+} | null)[], locale?: &#39;en&#39; | &#39;zh&#39;): void;</code></pre>
+      <p class="source-path">modification-controls.d.ts</p>
     </article>
 <article class="api-symbol" id="root-function-validatepluginmanifest" data-search="validatepluginmanifest function @kanjieteam/kjdraw export declare function validatepluginmanifest(input: unknown): readonlydeep&lt;kjpluginmanifest&gt;;">
       <header><div><span class="kind">function</span><h3>validatePluginManifest</h3></div><a class="permalink" href="#root-function-validatepluginmanifest" aria-label="Link to validatePluginManifest">#</a></header>
@@ -15768,6 +16452,11 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function explodeEntity(entity: KJEditingEntity | null | undefined): KJDerivedEntityPayload[];</code></pre>
       <p class="source-path">editing.d.ts</p>
     </article>
+<article class="api-symbol" id="editing-function-extendentitypayload" data-search="extendentitypayload function @kanjieteam/kjdraw/editing export declare function extendentitypayload(target: kjeditingentity | null | undefined, boundaries: readonly kjeditingentity[], pickpoint: unknown): kjobjectpayload;">
+      <header><div><span class="kind">function</span><h3>extendEntityPayload</h3></div><a class="permalink" href="#editing-function-extendentitypayload" aria-label="Link to extendEntityPayload">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;</code></pre>
+      <p class="source-path">editing.d.ts</p>
+    </article>
 <article class="api-symbol" id="editing-function-extendlinepayload" data-search="extendlinepayload function @kanjieteam/kjdraw/editing export declare function extendlinepayload(target: kjeditingentity | null | undefined, boundaries: readonly kjeditingentity[], pickpoint: unknown): kjobjectpayload;">
       <header><div><span class="kind">function</span><h3>extendLinePayload</h3></div><a class="permalink" href="#editing-function-extendlinepayload" aria-label="Link to extendLinePayload">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function extendLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;</code></pre>
@@ -15903,6 +16592,11 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 <article class="api-symbol" id="editing-function-offsetentitypayload" data-search="offsetentitypayload function @kanjieteam/kjdraw/editing export declare function offsetentitypayload(entity: kjeditingentity | null | undefined, distance: unknown, options?: kjoffsetoptions): kjobjectpayload;">
       <header><div><span class="kind">function</span><h3>offsetEntityPayload</h3></div><a class="permalink" href="#editing-function-offsetentitypayload" aria-label="Link to offsetEntityPayload">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function offsetEntityPayload(entity: KJEditingEntity | null | undefined, distance: unknown, options?: KJOffsetOptions): KJObjectPayload;</code></pre>
+      <p class="source-path">editing.d.ts</p>
+    </article>
+<article class="api-symbol" id="editing-function-trimentitypayloads" data-search="trimentitypayloads function @kanjieteam/kjdraw/editing export declare function trimentitypayloads(target: kjeditingentity | null | undefined, boundaries: readonly kjeditingentity[], pickpoint: unknown): kjderivedentitypayload[];">
+      <header><div><span class="kind">function</span><h3>trimEntityPayloads</h3></div><a class="permalink" href="#editing-function-trimentitypayloads" aria-label="Link to trimEntityPayloads">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];</code></pre>
       <p class="source-path">editing.d.ts</p>
     </article>
 <article class="api-symbol" id="editing-function-trimlinepayload" data-search="trimlinepayload function @kanjieteam/kjdraw/editing export declare function trimlinepayload(target: kjeditingentity | null | undefined, boundaries: readonly kjeditingentity[], pickpoint: unknown): kjobjectpayload;">

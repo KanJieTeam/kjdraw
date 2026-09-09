@@ -1,7 +1,7 @@
 {
   "name": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "description": "TypeScript CAD application kit with a browser workbench, file interoperability, plugins and reviewable AI-agent commands",
+  "description": "Open-source CAD engine and ready-to-use editor for engineering apps and AI agents",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/KanJieTeam/kjdraw.git",
@@ -57,6 +57,16 @@
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
+    "./drawing-context": {
+      "types": "./types/drawing-context.d.ts",
+      "import": "./src/drawing-context.js",
+      "default": "./src/drawing-context.js"
+    },
+    "./boundary-edit": {
+      "types": "./types/boundary-edit.d.ts",
+      "import": "./src/boundary-edit.js",
+      "default": "./src/boundary-edit.js"
+    },
     "./drafting": {
       "types": "./types/drafting.d.ts",
       "import": "./src/drafting.js",

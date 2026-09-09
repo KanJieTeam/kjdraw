@@ -182,7 +182,7 @@ function intersectCircleCircleReference2(
     throw new KJValidationError('Circle radii must be non-negative')
   }
   const difference = subtract2(resolvedCenterB, resolvedCenterA)
-  const distance = Math.sqrt(lengthSquared2(difference))
+  const distance = Math.hypot(difference[0], difference[1])
   const epsilon = tolerance.distanceFor(distance, resolvedRadiusA, resolvedRadiusB)
   if (distance <= epsilon && Math.abs(resolvedRadiusA - resolvedRadiusB) <= epsilon) {
     return { kind: 'overlap', points: [], parametersA: [], parametersB: [], infinite: true }
@@ -192,21 +192,32 @@ function intersectCircleCircleReference2(
     || distance < Math.abs(resolvedRadiusA - resolvedRadiusB) - epsilon
     || distance <= epsilon
   ) return none()
-  const along = (
-    resolvedRadiusA * resolvedRadiusA
-    - resolvedRadiusB * resolvedRadiusB
-    + distance * distance
-  ) / (2 * distance)
-  let heightSquared = resolvedRadiusA * resolvedRadiusA - along * along
-  if (heightSquared < 0 && Math.abs(heightSquared) <= epsilon * epsilon) heightSquared = 0
-  if (heightSquared < 0) return none()
+  // Construct the chord near the smaller circle. Subtracting two large squared
+  // radii (or rA² - along²) otherwise erases a small but genuine intersection.
+  const aIsSmall = resolvedRadiusA <= resolvedRadiusB
+  const small = Math.min(resolvedRadiusA, resolvedRadiusB)
+  const large = Math.max(resolvedRadiusA, resolvedRadiusB)
+  const along = small <= large / 2
+    ? ((distance - large) * (1 + large / distance) + small * (small / distance)) / 2
+    : (distance + (small - large) * (small / distance + large / distance)) / 2
+  // Kahan's factored Heron formula, with sorted triangle sides, keeps the
+  // small factors intact near both internal and external tangency. Dividing
+  // before multiplying also avoids forming fourth powers of the radii.
+  const [x, y, z] = [resolvedRadiusA, resolvedRadiusB, distance].sort((a, b) => b - a) as [number, number, number]
+  const near = z - (x - y), far = z + (x - y)
+  const factorA = x / distance + (y - z) / distance
+  const factorB = x / distance + y / distance + z / distance
+  let height = (Math.sqrt(Math.abs(near)) * Math.sqrt(factorA) / 2) * (Math.sqrt(far) * Math.sqrt(factorB))
+  if (near < 0) {
+    if (height > epsilon) return none()
+    height = 0
+  }
   const unit = multiply2(difference, 1 / distance)
-  const base = add2(resolvedCenterA, multiply2(unit, along))
-  if (heightSquared === 0) {
+  const base = add2(aIsSmall ? resolvedCenterA : resolvedCenterB, multiply2(unit, aIsSmall ? along : -along))
+  if (height === 0) {
     return { kind: 'point', points: [base], parametersA: [], parametersB: [] }
   }
   const normal: Point2 = [-unit[1], unit[0]]
-  const height = Math.sqrt(heightSquared)
   return {
     kind: 'point',
     points: [add2(base, multiply2(normal, height)), add2(base, multiply2(normal, -height))],
@@ -302,4 +313,3 @@ export function closestPointOnCircle2(
     angle: Math.atan2(unit[1], unit[0]),
   }
 }
-

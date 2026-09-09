@@ -162,7 +162,7 @@ export class KJTransaction {
       owner.payload.entityIds ??= []
       if (!owner.payload.entityIds.includes(id)) owner.payload.entityIds.push(id)
     }
-    this.#record('object.create', { id: object.id, handle: object.handle, kind: object.kind, type: object.type, ownerId: object.ownerId })
+    this.#record('object.create', { id: object.id, handle: object.handle, kind: object.kind, objectType: object.type, ownerId: object.ownerId })
     return clone(object)
   }
 

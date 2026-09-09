@@ -1,6 +1,6 @@
 // Generated from editing.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJValidationError } from './errors.js';
-import { add2, arcSweep, cross2, distance2, dot2, intersectLineCircle2, intersectLineLine2, length2, midpoint2, multiply2, normalize2, perpendicular2, projectParameter2, subtract2, vec2 } from './geometry/index.js';
+import { add2, arcSweep, cross2, distance2, dot2, intersectCircleCircle2, intersectLineCircle2, intersectLineLine2, length2, midpoint2, multiply2, normalize2, perpendicular2, projectParameter2, subtract2, vec2 } from './geometry/index.js';
 import { clone, normalizeName } from './utils.js';
 const TURN = Math.PI * 2;
 function pointInput(value) {
@@ -375,6 +375,222 @@ export function extendLinePayload(target, boundaries, pickPoint) {
     const payload = clone(targetPayload);
     payload[extendStart ? 'start' : 'end'] = linePointAt(targetPayload, candidates[0].parameter);
     return payload;
+}
+const EDIT_ANGLE_EPSILON = 1e-10;
+const EDIT_PLANE_EPSILON = 1e-8;
+function finiteEditPoint(value) {
+    const point = point3(value);
+    if (!point.every(Number.isFinite)) throw new KJValidationError('Editing coordinates must be finite');
+    return point;
+}
+function assertEditingXYPlane(payload) {
+    const normal = finiteEditPoint(payload.normal ?? [
+        0,
+        0,
+        1
+    ]);
+    if (Math.abs(normal[0]) > 1e-12 || Math.abs(normal[1]) > 1e-12 || normal[2] <= 0) {
+        throw new KJValidationError('Circular editing requires a positive XY extrusion normal');
+    }
+}
+function circularEditGeometry(entity, boundary = false) {
+    const payload = payloadOf(entity), circle = entity.type === 'CIRCLE';
+    assertEditingXYPlane(payload);
+    const center = finiteEditPoint(payload.center), radius = positive(payload.radius, 'Circular radius');
+    const start = circle ? 0 : Number(payload.startAngle), end = circle ? TURN : Number(payload.endAngle);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || Math.abs(end - start) > TURN + EDIT_ANGLE_EPSILON) {
+        throw new KJValidationError('Circular editing requires finite angles spanning at most one turn');
+    }
+    const direction = !circle && payload.clockwise ? -1 : 1;
+    const span = circle ? TURN : Math.abs(arcSweep(payload));
+    if (span <= EDIT_ANGLE_EPSILON || !circle && !boundary && span >= TURN - EDIT_ANGLE_EPSILON) {
+        throw new KJValidationError('Arc editing requires a non-empty, less-than-full-circle sweep');
+    }
+    return {
+        payload,
+        center,
+        radius,
+        start,
+        span,
+        direction,
+        circle
+    };
+}
+function circularOffset(geometry, point) {
+    const angle = Math.atan2(point[1] - geometry.center[1], point[0] - geometry.center[0]);
+    const offset = positiveTurn(geometry.direction * (angle - geometry.start));
+    return TURN - offset <= EDIT_ANGLE_EPSILON ? 0 : offset;
+}
+function circularPickOffset(geometry, pickPoint) {
+    const point = finiteEditPoint(pickPoint);
+    if (distance2(point, geometry.center) <= Math.max(1e-10, geometry.radius * 1e-12)) {
+        throw new KJValidationError('Pick a point on the circular portion, not its center');
+    }
+    const offset = circularOffset(geometry, point);
+    if (!geometry.circle && offset > geometry.span + EDIT_ANGLE_EPSILON) {
+        throw new KJValidationError('Pick must lie within the target arc sweep');
+    }
+    return !geometry.circle && Math.abs(offset - geometry.span) <= EDIT_ANGLE_EPSILON ? geometry.span : offset;
+}
+function assertSameEditPlane(point, elevation) {
+    if (Math.abs(point[2] - elevation) > EDIT_PLANE_EPSILON) {
+        throw new KJValidationError('Circular target and boundaries must lie in the same XY plane');
+    }
+}
+function circularBoundaryIntersections(target, boundary) {
+    const payload = payloadOf(boundary), type = boundary.type;
+    if (type === 'LINE' || type === 'RAY' || type === 'XLINE') {
+        const start = finiteEditPoint(type === 'LINE' ? payload.start : payload.origin);
+        const direction = type === 'LINE' ? subtract2(pointInput(payload.end), start) : vec2(pointInput(payload.direction));
+        assertSameEditPlane(start, target.center[2]);
+        if (type === 'LINE') assertSameEditPlane(finiteEditPoint(payload.end), target.center[2]);
+        else if (Math.abs(finiteEditPoint(payload.direction)[2]) > EDIT_PLANE_EPSILON) {
+            throw new KJValidationError('Circular editing requires boundary directions in the XY plane');
+        }
+        assertEditingXYPlane(payload);
+        const magnitude = Math.hypot(direction[0], direction[1]);
+        if (!Number.isFinite(magnitude) || magnitude === 0) throw new KJValidationError('Circular boundary requires a non-zero finite XY direction');
+        const unit = [
+            direction[0] / magnitude,
+            direction[1] / magnitude
+        ];
+        const relative = subtract2(target.center, start);
+        const signedDistance = cross2(unit, relative) / target.radius;
+        if (Math.abs(signedDistance) > 1 + EDIT_ANGLE_EPSILON) return [];
+        const nearest = [
+            unit[1] * signedDistance,
+            -unit[0] * signedDistance
+        ];
+        const intersections = intersectLineCircle2(nearest, add2(nearest, unit), [
+            0,
+            0
+        ], 1, {
+            mode: 'line'
+        }).points;
+        return intersections.filter((point)=>{
+            const along = dot2(relative, unit) + dot2(point, unit) * target.radius;
+            return type === 'XLINE' || along >= -EDIT_PLANE_EPSILON && (type === 'RAY' || along <= magnitude + EDIT_PLANE_EPSILON);
+        }).map((point)=>[
+                target.center[0] + point[0] * target.radius,
+                target.center[1] + point[1] * target.radius
+            ]);
+    }
+    if (type === 'CIRCLE' || type === 'ARC') {
+        const other = circularEditGeometry(boundary, true);
+        assertSameEditPlane(other.center, target.center[2]);
+        const result = intersectCircleCircle2(target.center, target.radius, other.center, other.radius);
+        if (result.kind === 'overlap') throw new KJValidationError('Coincident circular boundaries do not define an unambiguous cut');
+        return other.circle ? result.points : result.points.filter((point)=>circularOffset(other, point) <= other.span + EDIT_ANGLE_EPSILON);
+    }
+    throw new KJValidationError(`Circular boundary does not support ${String(type)}`);
+}
+function circularCutOffsets(target, boundaries) {
+    const offsets = boundaries.flatMap((boundary)=>circularBoundaryIntersections(target, boundary)).map((point)=>circularOffset(target, point)).sort((a, b)=>a - b);
+    return offsets.filter((value, index)=>index === 0 || value - offsets[index - 1] > EDIT_ANGLE_EPSILON);
+}
+function rejectExactCircularCut(pick, cuts) {
+    if (cuts.some((cut)=>Math.min(Math.abs(cut - pick), TURN - Math.abs(cut - pick)) <= EDIT_ANGLE_EPSILON)) {
+        throw new KJValidationError('Pick inside the interval, not exactly on a cutting boundary');
+    }
+}
+function circularResultPayload(geometry, first, last) {
+    const payload = clone(geometry.payload);
+    for (const key of [
+        'rawTags',
+        'rawData',
+        'originalType',
+        'fullCircle'
+    ])delete payload[key];
+    return {
+        ...payload,
+        center: [
+            ...geometry.center
+        ],
+        radius: geometry.radius,
+        startAngle: positiveTurn(geometry.start + geometry.direction * first),
+        endAngle: positiveTurn(geometry.start + geometry.direction * last),
+        clockwise: geometry.direction < 0
+    };
+}
+function rejectAmbiguousLineBoundaries(target, boundaries, mode) {
+    const payload = payloadOf(target);
+    for (const boundary of boundaries){
+        const other = payloadOf(boundary);
+        if (boundary.type === 'CIRCLE' || boundary.type === 'ARC') assertEditingXYPlane(other);
+        if (![
+            'LINE',
+            'RAY',
+            'XLINE'
+        ].includes(String(boundary.type))) continue;
+        const start = boundary.type === 'LINE' ? pointInput(other.start) : pointInput(other.origin);
+        const end = boundary.type === 'LINE' ? pointInput(other.end) : add2(start, pointInput(other.direction));
+        const result = intersectLineLine2(pointInput(payload.start), pointInput(payload.end), start, end, {
+            modeA: mode,
+            modeB: boundary.type === 'LINE' ? 'segment' : boundary.type === 'RAY' ? 'ray' : 'line'
+        });
+        if (result.kind === 'overlap') {
+            const direction = subtract2(pointInput(payload.end), pointInput(payload.start));
+            const first = projectParameter2(start, pointInput(payload.start), direction);
+            const last = projectParameter2(end, pointInput(payload.start), direction);
+            const lower = boundary.type === 'XLINE' || boundary.type === 'RAY' && last < first ? -Infinity : Math.min(first, last);
+            const upper = boundary.type === 'XLINE' || boundary.type === 'RAY' && last > first ? Infinity : Math.max(first, last);
+            const overlapStart = Math.max(mode === 'segment' ? 0 : -Infinity, boundary.type === 'RAY' && last > first ? first : lower);
+            const overlapEnd = Math.min(mode === 'segment' ? 1 : Infinity, boundary.type === 'RAY' && last < first ? first : upper);
+            if (overlapEnd - overlapStart > EDIT_ANGLE_EPSILON) throw new KJValidationError('Overlapping line boundaries do not define an unambiguous cut');
+        }
+    }
+}
+export function trimEntityPayloads(target, boundaries, pickPoint) {
+    if (target?.type === 'LINE') {
+        rejectAmbiguousLineBoundaries(target, boundaries, 'segment');
+        return trimLinePayloads(target, boundaries, pickPoint).map((payload)=>({
+                type: 'LINE',
+                payload
+            }));
+    }
+    if (target?.type !== 'ARC' && target?.type !== 'CIRCLE') throw new KJValidationError('Trim requires a LINE, ARC or CIRCLE target');
+    const geometry = circularEditGeometry(target), pick = circularPickOffset(geometry, pickPoint);
+    const cuts = circularCutOffsets(geometry, boundaries);
+    rejectExactCircularCut(pick, cuts);
+    if (geometry.circle) {
+        if (cuts.length < 2) throw new KJValidationError('Circle trim requires at least two distinct cutting points');
+        const lower = cuts.filter((value)=>value < pick).at(-1) ?? cuts.at(-1) - TURN;
+        const upper = cuts.find((value)=>value > pick) ?? cuts[0] + TURN;
+        return [
+            {
+                type: 'ARC',
+                payload: circularResultPayload(geometry, upper, lower + TURN)
+            }
+        ];
+    }
+    const interior = cuts.filter((value)=>value > EDIT_ANGLE_EPSILON && value < geometry.span - EDIT_ANGLE_EPSILON);
+    if (!interior.length) throw new KJValidationError('No trim intersection lies inside the target arc');
+    const lower = interior.filter((value)=>value < pick).at(-1) ?? 0;
+    const upper = interior.find((value)=>value > pick) ?? geometry.span;
+    const pieces = [];
+    if (lower > EDIT_ANGLE_EPSILON) pieces.push({
+        type: 'ARC',
+        payload: circularResultPayload(geometry, 0, lower)
+    });
+    if (upper < geometry.span - EDIT_ANGLE_EPSILON) pieces.push({
+        type: 'ARC',
+        payload: circularResultPayload(geometry, upper, geometry.span)
+    });
+    return pieces;
+}
+export function extendEntityPayload(target, boundaries, pickPoint) {
+    if (target?.type === 'LINE') {
+        rejectAmbiguousLineBoundaries(target, boundaries, 'line');
+        return extendLinePayload(target, boundaries, pickPoint);
+    }
+    if (target?.type !== 'ARC') throw new KJValidationError('Extend requires a LINE or ARC target');
+    const geometry = circularEditGeometry(target), pick = circularPickOffset(geometry, pickPoint);
+    if (Math.abs(pick - geometry.span / 2) <= EDIT_ANGLE_EPSILON) throw new KJValidationError('Pick closer to the arc end to extend, not its midpoint');
+    const cuts = circularCutOffsets(geometry, boundaries);
+    rejectExactCircularCut(pick, cuts);
+    const outside = cuts.filter((value)=>value > geometry.span + EDIT_ANGLE_EPSILON && value < TURN - EDIT_ANGLE_EPSILON);
+    if (!outside.length) throw new KJValidationError('No boundary is available before the arc reaches its opposite end');
+    return pick < geometry.span / 2 ? circularResultPayload(geometry, outside.at(-1) - TURN, geometry.span) : circularResultPayload(geometry, 0, outside[0]);
 }
 function selectedRay(line, intersection, pickPoint) {
     const payload = line.payload ?? {};

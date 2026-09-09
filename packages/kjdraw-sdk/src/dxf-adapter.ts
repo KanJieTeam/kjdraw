@@ -1147,7 +1147,15 @@ function emitEntity(
   if (entity.type === 'LINE') { emitSubclass(output, version, 'AcDbLine'); emitPoint(output, p.start!); emitPoint(output, p.end!, 11) }
   else if (entity.type === 'POINT') { emitSubclass(output, version, 'AcDbPoint'); emitPoint(output, p.position!) }
   else if (entity.type === 'CIRCLE') { emitSubclass(output, version, 'AcDbCircle'); emitPoint(output, p.center!); emit(output, 40, p.radius) }
-  else if (entity.type === 'ARC') { emitSubclass(output, version, 'AcDbCircle'); emitPoint(output, p.center!); emit(output, 40, p.radius); emitSubclass(output, version, 'AcDbArc'); emit(output, 50, Number(p.startAngle) * 180 / Math.PI); emit(output, 51, Number(p.endAngle) * 180 / Math.PI) }
+  else if (entity.type === 'ARC') {
+    emitSubclass(output, version, 'AcDbCircle'); emitPoint(output, p.center!); emit(output, 40, p.radius)
+    emitSubclass(output, version, 'AcDbArc')
+    // DXF ARC always travels counterclockwise around its extrusion normal.
+    // Swap endpoints for a clockwise SDK arc to preserve its locus, not its complement.
+    const startAngle = p.clockwise ? p.endAngle : p.startAngle
+    const endAngle = p.clockwise ? p.startAngle : p.endAngle
+    emit(output, 50, Number(startAngle) * 180 / Math.PI); emit(output, 51, Number(endAngle) * 180 / Math.PI)
+  }
   else if (entity.type === 'ELLIPSE') { emitSubclass(output, version, 'AcDbEllipse'); emitPoint(output, p.center!); emitPoint(output, p.majorAxis!, 11); emit(output, 40, p.ratio); emit(output, 41, p.startParameter); emit(output, 42, p.endParameter) }
   else if (entity.type === 'SPLINE') {
     emitSubclass(output, version, 'AcDbSpline')

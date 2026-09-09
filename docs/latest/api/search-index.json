@@ -2,8 +2,136 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:fac8aa0a6638c7a11617b912499bc21b6d337cdfc17048a4ca76e6d42d165c85",
+  "sourceDigest": "sha256:a32b0e23bf032aea271af47e72a200246c8bfe3f3baaf8287f185fa1ca9470fa",
   "entries": [
+    {
+      "name": "createDrawingContext",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/drawing-context",
+      "href": "./api/reference/#drawing-context-function-createdrawingcontext",
+      "anchor": "drawing-context-function-createdrawingcontext",
+      "summary": "export declare function createDrawingContext(document: KJDocument, options?: KJDrawingContextOptions): KJDrawingContext;"
+    },
+    {
+      "name": "KJDrawingContext",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drawing-context",
+      "href": "./api/reference/#drawing-context-interface-kjdrawingcontext",
+      "anchor": "drawing-context-interface-kjdrawingcontext",
+      "summary": "export interface KJDrawingContext { readonly documentId: string; readonly revision: number; readonly units: string; readonly spaceId: string; readonly layers: readonly KJDrawingContextLayer[]; readonly entities: readonly"
+    },
+    {
+      "name": "KJDrawingContextEntity",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drawing-context",
+      "href": "./api/reference/#drawing-context-interface-kjdrawingcontextentity",
+      "anchor": "drawing-context-interface-kjdrawingcontextentity",
+      "summary": "export interface KJDrawingContextEntity { readonly id: string; readonly type: string; readonly ownerId: string | null; readonly layerId: string | null; readonly visible: boolean; /** Visibility and locking eligibility on"
+    },
+    {
+      "name": "KJDrawingContextLayer",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drawing-context",
+      "href": "./api/reference/#drawing-context-interface-kjdrawingcontextlayer",
+      "anchor": "drawing-context-interface-kjdrawingcontextlayer",
+      "summary": "export interface KJDrawingContextLayer { readonly id: string; readonly name: string | null; readonly visible: boolean; readonly frozen: boolean; readonly locked: boolean; /** Visibility and locking eligibility only; this"
+    },
+    {
+      "name": "KJDrawingContextOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drawing-context",
+      "href": "./api/reference/#drawing-context-interface-kjdrawingcontextoptions",
+      "anchor": "drawing-context-interface-kjdrawingcontextoptions",
+      "summary": "export interface KJDrawingContextOptions { /** Exact object IDs; duplicates are ignored. Filters are combined with AND. */ ids?: readonly string[]; /** Case-insensitive native entity types, for example LINE or ARC. */ ty"
+    },
+    {
+      "name": "KJDrawingContextTruncationReason",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/drawing-context",
+      "href": "./api/reference/#drawing-context-type-kjdrawingcontexttruncationreason",
+      "anchor": "drawing-context-type-kjdrawingcontexttruncationreason",
+      "summary": "export type KJDrawingContextTruncationReason = 'entity-limit' | 'layer-limit' | 'response-budget' | 'geometry-budget' | 'unsupported-geometry';"
+    },
+    {
+      "name": "KJDrawingContextValue",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/drawing-context",
+      "href": "./api/reference/#drawing-context-type-kjdrawingcontextvalue",
+      "anchor": "drawing-context-type-kjdrawingcontextvalue",
+      "summary": "export type KJDrawingContextValue = null | boolean | number | string | readonly KJDrawingContextValue[] | { readonly [key: string]: KJDrawingContextValue; };"
+    },
+    {
+      "name": "KJDrawingGeometryOmittedReason",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/drawing-context",
+      "href": "./api/reference/#drawing-context-type-kjdrawinggeometryomittedreason",
+      "anchor": "drawing-context-type-kjdrawinggeometryomittedreason",
+      "summary": "export type KJDrawingGeometryOmittedReason = 'unsupported-type' | 'unsupported-data' | 'geometry-budget' | 'response-budget';"
+    },
+    {
+      "name": "createBoundaryEditSession",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/boundary-edit",
+      "href": "./api/reference/#boundary-edit-function-createboundaryeditsession",
+      "anchor": "boundary-edit-function-createboundaryeditsession",
+      "summary": "export declare function createBoundaryEditSession(operation: KJBoundaryEditOperation, options: KJBoundaryEditOptions): KJBoundaryEditSession;"
+    },
+    {
+      "name": "KJBoundaryEditCommand",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/boundary-edit",
+      "href": "./api/reference/#boundary-edit-interface-kjboundaryeditcommand",
+      "anchor": "boundary-edit-interface-kjboundaryeditcommand",
+      "summary": "export interface KJBoundaryEditCommand { readonly command: 'TRIM' | 'EXTEND'; readonly arguments: { readonly id: string; readonly boundaryIds: readonly string[]; readonly pickPoint: readonly [number, number]; }; readonly"
+    },
+    {
+      "name": "KJBoundaryEditOperation",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/boundary-edit",
+      "href": "./api/reference/#boundary-edit-type-kjboundaryeditoperation",
+      "anchor": "boundary-edit-type-kjboundaryeditoperation",
+      "summary": "export type KJBoundaryEditOperation = 'trim' | 'extend';"
+    },
+    {
+      "name": "KJBoundaryEditOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/boundary-edit",
+      "href": "./api/reference/#boundary-edit-interface-kjboundaryeditoptions",
+      "anchor": "boundary-edit-interface-kjboundaryeditoptions",
+      "summary": "export interface KJBoundaryEditOptions { document: KJDocument; boundaryIds?: readonly string[]; locale?: 'en' | 'zh'; /** Hosts bind this to their mounted document/readonly state, not merely its ID. */ isDocumentCurrent?"
+    },
+    {
+      "name": "KJBoundaryEditPhase",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/boundary-edit",
+      "href": "./api/reference/#boundary-edit-type-kjboundaryeditphase",
+      "anchor": "boundary-edit-type-kjboundaryeditphase",
+      "summary": "export type KJBoundaryEditPhase = 'boundaries' | 'targets' | 'applying' | 'finished' | 'cancelled';"
+    },
+    {
+      "name": "KJBoundaryEditPreview",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/boundary-edit",
+      "href": "./api/reference/#boundary-edit-type-kjboundaryeditpreview",
+      "anchor": "boundary-edit-type-kjboundaryeditpreview",
+      "summary": "export type KJBoundaryEditPreview = ReadonlyDeep<{ documentId: string; revision: number; operation: KJBoundaryEditOperation; targetId: string; boundaryIds: string[]; pickPoint: [number, number]; pieces: KJDerivedEntityPa"
+    },
+    {
+      "name": "KJBoundaryEditSession",
+      "kind": "class",
+      "module": "@kanjieteam/kjdraw/boundary-edit",
+      "href": "./api/reference/#boundary-edit-class-kjboundaryeditsession",
+      "anchor": "boundary-edit-class-kjboundaryeditsession",
+      "summary": "export declare class KJBoundaryEditSession { #private; constructor(operation: KJBoundaryEditOperation, options: KJBoundaryEditOptions); get state(): KJBoundaryEditState; get prompt(): string; setLocale(locale: 'en' | 'zh"
+    },
+    {
+      "name": "KJBoundaryEditState",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/boundary-edit",
+      "href": "./api/reference/#boundary-edit-interface-kjboundaryeditstate",
+      "anchor": "boundary-edit-interface-kjboundaryeditstate",
+      "summary": "export interface KJBoundaryEditState { readonly phase: KJBoundaryEditPhase; readonly operation: KJBoundaryEditOperation; readonly boundaryIds: readonly string[]; readonly expectedRevision: number; readonly committedCount"
+    },
     {
       "name": "createDraftingSession",
       "kind": "function",
@@ -219,6 +347,14 @@
       "href": "./api/reference/#modification-controls-interface-kjmodificationpointdefinition",
       "anchor": "modification-controls-interface-kjmodificationpointdefinition",
       "summary": "export interface KJModificationPointDefinition { readonly key: string; readonly label: KJLocalizedControlText; }"
+    },
+    {
+      "name": "validateKJModificationSelection",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/modification-controls",
+      "href": "./api/reference/#modification-controls-function-validatekjmodificationselection",
+      "anchor": "modification-controls-function-validatekjmodificationselection",
+      "summary": "export declare function validateKJModificationSelection(definition: KJModificationDefinition, entities: readonly ({ readonly id: string; readonly type: string; readonly kind?: string; } | null)[], locale?: 'en' | 'zh'): "
     },
     {
       "name": "createIndustrySample",
@@ -915,6 +1051,14 @@
       "href": "./api/reference/#core-function-explodeentity",
       "anchor": "core-function-explodeentity",
       "summary": "export declare function explodeEntity(entity: KJEditingEntity | null | undefined): KJDerivedEntityPayload[];"
+    },
+    {
+      "name": "extendEntityPayload",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/core",
+      "href": "./api/reference/#core-function-extendentitypayload",
+      "anchor": "core-function-extendentitypayload",
+      "summary": "export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;"
     },
     {
       "name": "extendLinePayload",
@@ -3877,6 +4021,14 @@
       "summary": "export declare const translation3: (dx: number, dy: number) => AffineMatrix3;"
     },
     {
+      "name": "trimEntityPayloads",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/core",
+      "href": "./api/reference/#core-function-trimentitypayloads",
+      "anchor": "core-function-trimentitypayloads",
+      "summary": "export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];"
+    },
+    {
       "name": "trimLinePayload",
       "kind": "function",
       "module": "@kanjieteam/kjdraw/core",
@@ -5005,6 +5157,14 @@
       "summary": "export declare function closestPointOnSegment2(point: Point2Input, start: Point2Input, end: Point2Input, tolerance?: KJTolerance): ClosestPoint2;"
     },
     {
+      "name": "createBoundaryEditSession",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-createboundaryeditsession",
+      "anchor": "root-function-createboundaryeditsession",
+      "summary": "export declare function createBoundaryEditSession(operation: KJBoundaryEditOperation, options: KJBoundaryEditOptions): KJBoundaryEditSession;"
+    },
+    {
       "name": "createCommandEnvelope",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -5035,6 +5195,14 @@
       "href": "./api/reference/#root-function-createdraftingsession",
       "anchor": "root-function-createdraftingsession",
       "summary": "export declare function createDraftingSession(tool: KJDraftTool, options?: KJDraftingOptions): KJDraftingSession;"
+    },
+    {
+      "name": "createDrawingContext",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-createdrawingcontext",
+      "anchor": "root-function-createdrawingcontext",
+      "summary": "export declare function createDrawingContext(document: KJDocument, options?: KJDrawingContextOptions): KJDrawingContext;"
     },
     {
       "name": "createDXFFileAdapter",
@@ -5339,6 +5507,14 @@
       "href": "./api/reference/#root-function-explodeentity",
       "anchor": "root-function-explodeentity",
       "summary": "export declare function explodeEntity(entity: KJEditingEntity | null | undefined): KJDerivedEntityPayload[];"
+    },
+    {
+      "name": "extendEntityPayload",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-extendentitypayload",
+      "anchor": "root-function-extendentitypayload",
+      "summary": "export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;"
     },
     {
       "name": "extendLinePayload",
@@ -5763,6 +5939,62 @@
       "href": "./api/reference/#root-interface-kjarcconnector",
       "anchor": "root-interface-kjarcconnector",
       "summary": "export interface KJArcConnector { type: 'ARC'; payload: KJObjectPayload & { center: Point3; radius: number; startAngle: number; endAngle: number; clockwise: boolean; normal: Point3; }; }"
+    },
+    {
+      "name": "KJBoundaryEditCommand",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjboundaryeditcommand",
+      "anchor": "root-interface-kjboundaryeditcommand",
+      "summary": "export interface KJBoundaryEditCommand { readonly command: 'TRIM' | 'EXTEND'; readonly arguments: { readonly id: string; readonly boundaryIds: readonly string[]; readonly pickPoint: readonly [number, number]; }; readonly"
+    },
+    {
+      "name": "KJBoundaryEditOperation",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjboundaryeditoperation",
+      "anchor": "root-type-kjboundaryeditoperation",
+      "summary": "export type KJBoundaryEditOperation = 'trim' | 'extend';"
+    },
+    {
+      "name": "KJBoundaryEditOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjboundaryeditoptions",
+      "anchor": "root-interface-kjboundaryeditoptions",
+      "summary": "export interface KJBoundaryEditOptions { document: KJDocument; boundaryIds?: readonly string[]; locale?: 'en' | 'zh'; /** Hosts bind this to their mounted document/readonly state, not merely its ID. */ isDocumentCurrent?"
+    },
+    {
+      "name": "KJBoundaryEditPhase",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjboundaryeditphase",
+      "anchor": "root-type-kjboundaryeditphase",
+      "summary": "export type KJBoundaryEditPhase = 'boundaries' | 'targets' | 'applying' | 'finished' | 'cancelled';"
+    },
+    {
+      "name": "KJBoundaryEditPreview",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjboundaryeditpreview",
+      "anchor": "root-type-kjboundaryeditpreview",
+      "summary": "export type KJBoundaryEditPreview = ReadonlyDeep<{ documentId: string; revision: number; operation: KJBoundaryEditOperation; targetId: string; boundaryIds: string[]; pickPoint: [number, number]; pieces: KJDerivedEntityPa"
+    },
+    {
+      "name": "KJBoundaryEditSession",
+      "kind": "class",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-class-kjboundaryeditsession",
+      "anchor": "root-class-kjboundaryeditsession",
+      "summary": "export declare class KJBoundaryEditSession { #private; constructor(operation: KJBoundaryEditOperation, options: KJBoundaryEditOptions); get state(): KJBoundaryEditState; get prompt(): string; setLocale(locale: 'en' | 'zh"
+    },
+    {
+      "name": "KJBoundaryEditState",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjboundaryeditstate",
+      "anchor": "root-interface-kjboundaryeditstate",
+      "summary": "export interface KJBoundaryEditState { readonly phase: KJBoundaryEditPhase; readonly operation: KJBoundaryEditOperation; readonly boundaryIds: readonly string[]; readonly expectedRevision: number; readonly committedCount"
     },
     {
       "name": "KJBreakOptions",
@@ -6643,6 +6875,62 @@
       "href": "./api/reference/#root-interface-kjdrawerroroptions",
       "anchor": "root-interface-kjdrawerroroptions",
       "summary": "export interface KJDrawErrorOptions { code?: string; details?: KJErrorDetails; cause?: unknown; }"
+    },
+    {
+      "name": "KJDrawingContext",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdrawingcontext",
+      "anchor": "root-interface-kjdrawingcontext",
+      "summary": "export interface KJDrawingContext { readonly documentId: string; readonly revision: number; readonly units: string; readonly spaceId: string; readonly layers: readonly KJDrawingContextLayer[]; readonly entities: readonly"
+    },
+    {
+      "name": "KJDrawingContextEntity",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdrawingcontextentity",
+      "anchor": "root-interface-kjdrawingcontextentity",
+      "summary": "export interface KJDrawingContextEntity { readonly id: string; readonly type: string; readonly ownerId: string | null; readonly layerId: string | null; readonly visible: boolean; /** Visibility and locking eligibility on"
+    },
+    {
+      "name": "KJDrawingContextLayer",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdrawingcontextlayer",
+      "anchor": "root-interface-kjdrawingcontextlayer",
+      "summary": "export interface KJDrawingContextLayer { readonly id: string; readonly name: string | null; readonly visible: boolean; readonly frozen: boolean; readonly locked: boolean; /** Visibility and locking eligibility only; this"
+    },
+    {
+      "name": "KJDrawingContextOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdrawingcontextoptions",
+      "anchor": "root-interface-kjdrawingcontextoptions",
+      "summary": "export interface KJDrawingContextOptions { /** Exact object IDs; duplicates are ignored. Filters are combined with AND. */ ids?: readonly string[]; /** Case-insensitive native entity types, for example LINE or ARC. */ ty"
+    },
+    {
+      "name": "KJDrawingContextTruncationReason",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjdrawingcontexttruncationreason",
+      "anchor": "root-type-kjdrawingcontexttruncationreason",
+      "summary": "export type KJDrawingContextTruncationReason = 'entity-limit' | 'layer-limit' | 'response-budget' | 'geometry-budget' | 'unsupported-geometry';"
+    },
+    {
+      "name": "KJDrawingContextValue",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjdrawingcontextvalue",
+      "anchor": "root-type-kjdrawingcontextvalue",
+      "summary": "export type KJDrawingContextValue = null | boolean | number | string | readonly KJDrawingContextValue[] | { readonly [key: string]: KJDrawingContextValue; };"
+    },
+    {
+      "name": "KJDrawingGeometryOmittedReason",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjdrawinggeometryomittedreason",
+      "anchor": "root-type-kjdrawinggeometryomittedreason",
+      "summary": "export type KJDrawingGeometryOmittedReason = 'unsupported-type' | 'unsupported-data' | 'geometry-budget' | 'response-budget';"
     },
     {
       "name": "KJDrawSDK",
@@ -8541,6 +8829,14 @@
       "summary": "export declare const translation3: (dx: number, dy: number) => AffineMatrix3;"
     },
     {
+      "name": "trimEntityPayloads",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-trimentitypayloads",
+      "anchor": "root-function-trimentitypayloads",
+      "summary": "export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];"
+    },
+    {
       "name": "trimLinePayload",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -8587,6 +8883,14 @@
       "href": "./api/reference/#root-function-validatedocumentstate",
       "anchor": "root-function-validatedocumentstate",
       "summary": "export declare function validateDocumentState(input: unknown, { throwOnError, previousState }?: { throwOnError?: boolean; previousState?: KJDocumentState; }): KJValidationResult;"
+    },
+    {
+      "name": "validateKJModificationSelection",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-validatekjmodificationselection",
+      "anchor": "root-function-validatekjmodificationselection",
+      "summary": "export declare function validateKJModificationSelection(definition: KJModificationDefinition, entities: readonly ({ readonly id: string; readonly type: string; readonly kind?: string; } | null)[], locale?: 'en' | 'zh'): "
     },
     {
       "name": "validatePluginManifest",
@@ -9021,6 +9325,14 @@
       "summary": "export declare function explodeEntity(entity: KJEditingEntity | null | undefined): KJDerivedEntityPayload[];"
     },
     {
+      "name": "extendEntityPayload",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/editing",
+      "href": "./api/reference/#editing-function-extendentitypayload",
+      "anchor": "editing-function-extendentitypayload",
+      "summary": "export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;"
+    },
+    {
       "name": "extendLinePayload",
       "kind": "function",
       "module": "@kanjieteam/kjdraw/editing",
@@ -9107,6 +9419,14 @@
       "href": "./api/reference/#editing-function-offsetentitypayload",
       "anchor": "editing-function-offsetentitypayload",
       "summary": "export declare function offsetEntityPayload(entity: KJEditingEntity | null | undefined, distance: unknown, options?: KJOffsetOptions): KJObjectPayload;"
+    },
+    {
+      "name": "trimEntityPayloads",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/editing",
+      "href": "./api/reference/#editing-function-trimentitypayloads",
+      "anchor": "editing-function-trimentitypayloads",
+      "summary": "export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];"
     },
     {
       "name": "trimLinePayload",

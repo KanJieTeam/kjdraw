@@ -58,5 +58,9 @@ export declare function trimLinePayloads(target: KJEditingEntity | null | undefi
 /** Single-result compatibility helper; use trimLinePayloads for interior cuts. */
 export declare function trimLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;
 export declare function extendLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;
+/** Remove the picked LINE/ARC interval, or replace a cut CIRCLE with its remaining ARC. */
+export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];
+/** Extend the picked end of a LINE or ARC to the nearest boundary in its continuation domain. */
+export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;
 export declare function chamferLinePair(first: KJEditingEntity, second: KJEditingEntity, options?: KJLinePairOptions): KJLinePairEditResult;
 export declare function filletLinePair(first: KJEditingEntity, second: KJEditingEntity, options?: KJLinePairOptions): KJLinePairEditResult;

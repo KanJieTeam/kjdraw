@@ -9,11 +9,13 @@ import type { KJFileAdapterOptions } from './file-adapters.js'
 import { createIndustrySample } from './samples.js'
 import { KJDRAW_THEME_CSS, kjdrawIcon } from './theme.js'
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout, type KJWorkbenchLayout } from './layout.js'
+import { createBoundaryEditSession, type KJBoundaryEditSession } from './boundary-edit.js'
 import {
   KJ_MODIFICATION_DEFINITIONS,
   buildKJModificationCommand,
   getKJModificationDefinition,
   getKJModificationSelectionCenter,
+  validateKJModificationSelection,
   type KJLocalizedControlText,
   type KJModificationDefinition,
   type KJModificationId,
@@ -110,6 +112,12 @@ interface KJWorkbenchBoxSelection extends KJWorkbenchPointerBinding {
   operation: 'replace' | 'add' | 'remove'
 }
 
+interface KJWorkbenchBoundaryPointer extends KJWorkbenchPointerBinding {
+  currentScreen: Point2
+  phase: 'boundaries' | 'targets'
+  operation: 'add' | 'remove'
+}
+
 interface KJWorkbenchGripGesture extends KJWorkbenchPointerBinding {
   grip: KJEntityGrip
   entity: KJReadonlyObjectRecord
@@ -139,6 +147,8 @@ const copy = {
     windowSelection: 'Window: fully enclosed objects', crossingSelection: 'Crossing: enclosed or intersecting objects', gripHint: 'Drag a square grip to edit geometry · Esc cancels', gripEditing: 'Specify the new grip position · Esc cancels', gestureCancelled: 'Drawing or view changed — gesture cancelled',
     fenceHint: 'Fence: click an open polyline · Enter selects · Backspace removes a point · Esc cancels · Shift/Ctrl/⌘ on first point adds/removes', fenceNeedsPoints: 'Fence selection needs at least two distinct points',
     showLayer: 'Show layer', hideLayer: 'Hide layer', lockLayer: 'Lock layer', unlockLayer: 'Unlock layer', freezeLayer: 'Freeze layer', thawLayer: 'Thaw layer',
+    editWorkflow: 'Workflow', boundaryWorkflow: 'Continuous · boundaries first', singleWorkflow: 'Single edit · target then boundaries',
+    confirmBoundaries: 'Confirm boundaries', boundarySelectionHint: 'Click or drag to add boundaries · Ctrl/⌘ removes · Enter confirms', boundaryTargetHint: 'Click target portions repeatedly · Enter or Esc finishes', boundaryEmpty: 'No editable target here — pick another portion', boundaryBusy: 'Applying the edit…',
   },
   'zh-CN': {
     open: '打开', saveKjd: '保存 KJD', exportDxf: '导出 DXF', draw: '绘图', modify: '修改', view: '视图',
@@ -155,6 +165,8 @@ const copy = {
     windowSelection: '框选：完全位于框内的对象', crossingSelection: '交叉选择：框内或与边界相交的对象', gripHint: '拖动方形夹点修改几何 · Esc 取消', gripEditing: '指定夹点的新位置 · Esc 取消', gestureCancelled: '图纸或视图已变化，操作已取消',
     fenceHint: '围栏：连续点击折线点 · Enter 选择 · Backspace 撤回点 · Esc 取消 · 首点按 Shift 增选、Ctrl/⌘ 减选', fenceNeedsPoints: '围栏至少需要两个不同的点',
     showLayer: '显示图层', hideLayer: '隐藏图层', lockLayer: '锁定图层', unlockLayer: '解锁图层', freezeLayer: '冻结图层', thawLayer: '解冻图层',
+    editWorkflow: '工作模式', boundaryWorkflow: '连续编辑 · 先选边界', singleWorkflow: '单次编辑 · 先目标后边界',
+    confirmBoundaries: '确认边界', boundarySelectionHint: '点击或框选添加边界 · Ctrl/⌘ 减选 · Enter 确认', boundaryTargetHint: '连续点选目标区段 · Enter 或 Esc 结束', boundaryEmpty: '这里没有可编辑目标，请重新点选区段', boundaryBusy: '正在应用修改…',
   },
 } as const
 
@@ -191,7 +203,7 @@ const WORKBENCH_STYLE = `
 .kjwb{--surface:var(--kj-surface,#fff);--surface-subtle:var(--kj-surface-subtle,#eef1f5);--chrome:var(--kj-chrome,#f6f7f9);--border:var(--kj-border,#d9dee6);--text:var(--kj-text,#202936);--muted:var(--kj-muted,#637083);--action:var(--kj-action,#2863df);--action-soft:var(--kj-action-soft,#eaf1ff);--brand:var(--kj-brand,#bdf878);--radius:var(--kj-radius,6px);height:100%;min-height:480px;display:grid;grid-template-rows:44px 92px minmax(300px,1fr) 32px;background:var(--chrome);color:var(--text);font:13px/1.4 var(--kj-font,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif);border:1px solid var(--border);overflow:hidden;isolation:isolate}
 /* Long status messages must never resize the canvas by expanding an implicit auto grid column. */
 .kjwb{grid-template-columns:minmax(0,1fr);min-width:0}.kjwb :is(.appbar,.ribbon,.workspace,.statusbar){min-width:0}
-@media(min-width:681px){.kjwb .appbar button,.kjwb .appbar .layout-select,.kjwb .appbar .brand{flex-shrink:0;white-space:nowrap}}
+.kjwb .appbar button,.kjwb .appbar .layout-select,.kjwb .appbar .brand{flex-shrink:0;white-space:nowrap}
 .kjwb *{box-sizing:border-box}.kjwb :where(:not(svg):not(svg *)){all:revert;box-sizing:border-box}.kjwb button,.kjwb select,.kjwb input{font:inherit}.kjwb .appbar{display:flex;align-items:center;gap:6px;padding:0 10px;background:var(--chrome);border-bottom:1px solid var(--border)}
 .kjwb .mark{display:grid;place-items:center;width:28px;height:28px;border-radius:var(--radius);background:var(--brand);color:#16220f;flex:0 0 auto}.kjwb .mark .icon{width:19px;height:19px}.kjwb .brand{font-size:14px;font-weight:700;letter-spacing:-.015em}.kjwb .docname{min-width:0;margin-left:8px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kjwb .spacer{flex:1}
 .kjwb button{min-height:32px;border:1px solid transparent;color:var(--text);background:transparent;border-radius:var(--radius);cursor:pointer}.kjwb button:hover:not(:disabled){background:var(--surface-subtle);border-color:var(--border)}.kjwb button:focus-visible{outline:2px solid var(--action);outline-offset:1px}.kjwb button:disabled{opacity:.38;cursor:default}.kjwb .icon{display:inline-grid;place-items:center;width:18px;height:18px;color:#526075;flex:0 0 auto}.kjwb .icon svg{display:block;width:100%;height:100%}
@@ -207,6 +219,7 @@ const WORKBENCH_STYLE = `
 .kjwb .canvas-wrap{position:relative;min-width:0;min-height:0;background:#081016;overflow:hidden}.kjwb.light .canvas-wrap{background:#f8fafc}.kjwb .canvas-wrap canvas{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none}.kjwb .canvas-wrap .overlay{pointer-events:none}.kjwb .crosshair{cursor:crosshair!important}.kjwb .pan{cursor:grab!important}.kjwb .pan.dragging{cursor:grabbing!important}
 .kjwb .navigator{position:absolute;z-index:4;right:12px;top:50%;transform:translateY(-50%);display:grid;gap:2px;padding:3px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff2;box-shadow:0 7px 22px #17233a24}.kjwb .navigator button{width:32px;height:32px;min-height:32px;padding:6px;display:grid;place-items:center}.kjwb .navigator button.active{background:var(--action-soft);border-color:#c8d8fa}.kjwb .navigator button.active .icon{color:var(--action)}
 .kjwb .draft-actions{position:absolute;z-index:4;left:12px;top:12px;display:flex;gap:4px;padding:3px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff2;box-shadow:0 6px 18px #17233a1f}.kjwb .draft-actions button{height:32px;padding:0 10px}.kjwb .draft-actions button:disabled{display:none}
+.kjwb .boundary-actions{flex-wrap:wrap;max-width:calc(100% - 24px);align-items:center}.kjwb .boundary-summary{min-width:0;padding:0 7px;font-size:12px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
 .kjwb .hint{position:absolute;left:12px;bottom:12px;max-width:min(540px,calc(100% - 24px));padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff2;color:var(--muted);box-shadow:0 4px 16px #17233a14;pointer-events:none}.kjwb .snap{position:absolute;width:9px;height:9px;border:2px solid var(--brand);box-shadow:0 0 0 2px #20293680;transform:translate(-50%,-50%);pointer-events:none;display:none}
 .kjwb .command{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:min(700px,calc(100% - 28px));min-height:40px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;padding:3px 4px 3px 11px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff5;box-shadow:0 8px 26px #17233a24}.kjwb .command span{font:12px/16px var(--kj-mono,ui-monospace,SFMono-Regular,Consolas,monospace);font-weight:700;color:var(--muted);letter-spacing:.025em}.kjwb .command input{min-width:0;height:32px;border:0;outline:0;background:transparent;color:var(--text)}.kjwb .command input::placeholder{color:#8b96a6}.kjwb .command button{height:32px;padding:0 14px;background:var(--action);border-color:var(--action);color:#fff}.kjwb .command+.hint{bottom:60px}
 .kjwb .inspector{padding:12px}.kjwb .empty{margin:2px 0;color:var(--muted);line-height:1.65}.kjwb .entity-title{padding-bottom:10px;border-bottom:1px solid var(--border);font-size:16px;font-weight:700;margin-bottom:8px}.kjwb .kv{display:grid;grid-template-columns:82px minmax(0,1fr);gap:9px;padding:8px 0;border-bottom:1px solid var(--surface-subtle)}.kjwb .kv span{color:var(--muted)}.kjwb .kv b{font-weight:600;overflow:hidden;text-overflow:ellipsis}.kjwb .field{display:grid;gap:6px;margin:12px 0}.kjwb .field span{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.025em}.kjwb .field input,.kjwb .field select{min-width:0;width:100%;height:32px;padding:0 9px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);outline:0}.kjwb .field input:focus,.kjwb .field select:focus{border-color:var(--action);box-shadow:0 0 0 2px var(--action-soft)}.kjwb .apply{width:100%;height:32px;background:var(--action);border-color:var(--action);color:#fff}.kjwb .warning{margin-top:12px;padding:9px;border:1px solid #e4b95f;border-radius:var(--radius);background:#fff8e8;color:#76530c;font-size:12px}
@@ -216,6 +229,7 @@ const WORKBENCH_STYLE = `
 .kjwb.layout-compact{grid-template-rows:44px 44px minmax(300px,1fr) 32px}.kjwb.layout-compact .group{align-items:center;padding:5px 6px}.kjwb.layout-compact .group>span{display:none}.kjwb.layout-compact .tool{min-width:auto;height:32px;display:inline-flex;grid-template-rows:none;gap:5px;padding:4px 8px}.kjwb.layout-compact .tool .icon{width:18px;height:18px}.kjwb.layout-focus{grid-template-rows:44px 0 minmax(300px,1fr) 32px}.kjwb.layout-focus .ribbon{visibility:hidden;overflow:hidden;pointer-events:none}.kjwb.layout-focus .workspace{grid-template-columns:minmax(0,1fr)!important}.kjwb.layout-focus .side,.kjwb.layout-focus .panel-toggle{display:none!important}
 @media(max-width:980px){.kjwb .workspace,.kjwb .workspace.no-layers{grid-template-columns:minmax(0,1fr) 230px}.kjwb .workspace.no-inspector,.kjwb .workspace.no-layers.no-inspector{grid-template-columns:minmax(0,1fr)}.kjwb .side.layers{display:none}.kjwb .panel-toggle[data-action="toggle-layers"]{display:none}.kjwb .tool{min-width:50px;padding-inline:5px}}
 @media(max-width:680px){.kjwb .workspace,.kjwb .workspace.no-layers,.kjwb .workspace.no-inspector,.kjwb .workspace.no-layers.no-inspector{grid-template-columns:minmax(0,1fr)}.kjwb .side.right{display:none}.kjwb .panel-toggle{display:none!important}.kjwb .hide-small{display:none!important}.kjwb .brand{font-size:13px}.kjwb .docname{display:none}.kjwb .group{padding-inline:4px}.kjwb .appbar{gap:3px;padding-inline:6px}.kjwb .layout-select{max-width:92px}}
+@media(max-width:680px){.kjwb .appbar .file-action{width:32px;padding:0}.kjwb .appbar .file-action>[data-copy]{display:none}}
 `
 
 function assertBrowser(): void {
@@ -368,6 +382,10 @@ export class KJDrawWorkbench {
   #ignoredPointers = new Set<number>()
   #transformGesture: { document: KJDocument; revision: number; ids: readonly string[]; operation: 'MOVE' | 'COPY'; base: Point2 | null } | null = null
   #modificationGesture: KJModificationGesture | null = null
+  #boundarySession: KJBoundaryEditSession | null = null
+  #boundaryPointer: KJWorkbenchBoundaryPointer | null = null
+  #boundaryPreview: ReturnType<KJBoundaryEditSession['preview']> | null = null
+  #gestureEpoch = 0
   #draftGesture: KJWorkbenchDraftGesture | null = null
   #draftOptions = new Map<KJDraftTool, KJDraftingOptions>()
   #message = ''
@@ -390,6 +408,12 @@ export class KJDrawWorkbench {
     this.root.className = `kjwb ${this.#theme} layout-${this.#layout}${options.toolbar === false ? ' no-toolbar' : ''}`
     this.root.tabIndex = 0
     this.root.innerHTML = this.#markup()
+    const boundaryActions = document.createElement('div')
+    boundaryActions.className = 'draft-actions boundary-actions'
+    boundaryActions.dataset.boundaryActions = ''
+    boundaryActions.hidden = true
+    boundaryActions.innerHTML = `<span class="boundary-summary" data-boundary-summary></span><button type="button" data-action="boundary-confirm" data-copy="confirmBoundaries">${this.#t('confirmBoundaries')}</button><button type="button" data-action="boundary-finish" data-copy="finish">${this.#t('finish')}</button><button type="button" data-action="boundary-cancel" data-copy="cancel">${this.#t('cancel')}</button>`
+    query<HTMLElement>(this.root, '.canvas-wrap').append(boundaryActions)
     container.append(this.root)
     this.#canvas = query<HTMLCanvasElement>(this.root, 'canvas[data-canvas]')
     this.#overlay = query<HTMLCanvasElement>(this.root, 'canvas[data-overlay]')
@@ -454,11 +478,15 @@ export class KJDrawWorkbench {
   setLocale(locale: KJWorkbenchLocale): this {
     if (locale !== 'en' && locale !== 'zh-CN') throw new RangeError(`Unsupported KJDraw workbench locale: ${String(locale)}`)
     this.#locale = locale
+    this.#boundarySession?.setLocale(locale === 'zh-CN' ? 'zh' : 'en')
     this.#updateCopy()
     this.#refreshDocumentPanels()
+    this.#syncBoundaryActions()
     const modificationPoint = this.#modificationGesture?.definition.pointKeys[this.#modificationGesture.points.length]
     this.#setMessage(this.#draftGesture
       ? this.#draftPrompt(this.#draftGesture.session.state.nextPoint)
+      : this.#boundarySession
+        ? this.#boundaryPrompt()
       : modificationPoint
         ? this.#localizedControlText(modificationPoint.label)
         : this.#fenceSelection ? this.#t('fenceHint') : this.#tool === 'select' ? this.#t('selectionHint') : this.#t('ready'))
@@ -496,7 +524,10 @@ export class KJDrawWorkbench {
   setLayout(value: KJWorkbenchLayout): this {
     if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed')
     const layout = normalizeWorkbenchLayout(value)
-    if (layout !== this.#layout) this.#cancelPointer()
+    if (layout !== this.#layout) {
+      if (this.#boundarySession) this.#cancelGesture()
+      else this.#cancelPointer()
+    }
     this.#layout = layout
     this.#options = { ...this.#options, layout }
     for (const candidate of KJDRAW_LAYOUTS) this.root.classList.toggle(`layout-${candidate}`, candidate === layout)
@@ -676,7 +707,7 @@ export class KJDrawWorkbench {
         <select class="layout-select" data-layout aria-label="${t('layout')}" title="${t('layout')}">${KJDRAW_LAYOUTS.map(layout => `<option value="${layout}" data-copy="${layoutCopy[layout]}"${layout === this.#layout ? ' selected' : ''}>${t(layoutCopy[layout])}</option>`).join('')}</select>
         <button type="button" class="panel-toggle hide-small ${showLayers ? 'active' : ''}" data-action="toggle-layers" aria-pressed="${showLayers}">${icon('layers')}<span data-copy="layers">${t('layers')}</span></button>
         <button type="button" class="panel-toggle hide-small ${showInspector ? 'active' : ''}" data-action="toggle-inspector" aria-pressed="${showInspector}">${icon('panel')}<span data-copy="properties">${t('properties')}</span></button>
-        <button type="button" data-action="open">${icon('open')}<span data-copy="open">${t('open')}</span></button><button type="button" class="hide-small" data-action="save-kjd">${icon('save')}<span data-copy="saveKjd">${t('saveKjd')}</span></button><button type="button" class="primary" data-action="save-dxf">${icon('export')}<span data-copy="exportDxf">${t('exportDxf')}</span></button><button type="button" data-action="theme" data-copy-title="theme" title="${t('theme')}">${icon(this.#theme === 'dark' ? 'sun' : 'moon', 'data-theme-icon')}</button><button type="button" data-action="language"><span data-copy="language">${t('language')}</span></button>
+        <button type="button" class="file-action" data-action="open" data-copy-title="open" aria-label="${t('open')}" title="${t('open')}">${icon('open')}<span data-copy="open">${t('open')}</span></button><button type="button" class="file-action hide-small" data-action="save-kjd" data-copy-title="saveKjd" aria-label="${t('saveKjd')}" title="${t('saveKjd')}">${icon('save')}<span data-copy="saveKjd">${t('saveKjd')}</span></button><button type="button" class="file-action primary" data-action="save-dxf" data-copy-title="exportDxf" aria-label="${t('exportDxf')}" title="${t('exportDxf')}">${icon('export')}<span data-copy="exportDxf">${t('exportDxf')}</span></button><button type="button" data-action="theme" data-copy-title="theme" title="${t('theme')}">${icon(this.#theme === 'dark' ? 'sun' : 'moon', 'data-theme-icon')}</button><button type="button" data-action="language"><span data-copy="language">${t('language')}</span></button>
       </header>
       <nav class="ribbon" aria-label="CAD tools">
         <div class="group"><button type="button" class="tool active" data-tool="select">${icon('select')}<small data-copy="select">${t('select')}</small></button><button type="button" class="tool" data-tool="pan">${icon('pan')}<small data-copy="pan">${t('pan')}</small></button><span data-copy="view">${t('view')}</span></div>
@@ -735,6 +766,9 @@ export class KJDrawWorkbench {
     query<HTMLButtonElement>(this.root, '[data-action="redo"]').addEventListener('click', () => void this.#run(() => this.execute('REDO')), { signal })
     query<HTMLButtonElement>(this.root, '[data-action="erase"]').addEventListener('click', () => void this.#eraseSelection(), { signal })
     query<HTMLButtonElement>(this.root, '[data-action="modify"]').addEventListener('click', () => this.#openModificationDialog(), { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="boundary-confirm"]').addEventListener('click', () => void this.#run(() => this.#confirmBoundaryEdit()), { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="boundary-finish"]').addEventListener('click', () => this.#finishBoundaryEdit(), { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="boundary-cancel"]').addEventListener('click', () => this.setTool('select'), { signal })
     const modificationDialog = query<HTMLDialogElement>(this.root, '[data-modification-dialog]')
     query<HTMLSelectElement>(this.root, '[data-modification]').addEventListener('change', () => this.#renderModificationForm(), { signal })
     query<HTMLButtonElement>(this.root, '[data-action="cancel-modification"]').addEventListener('click', () => modificationDialog.close(), { signal })
@@ -776,14 +810,14 @@ export class KJDrawWorkbench {
       this.#hideSnap(); this.#drawOverlay()
     }, { signal })
     this.#canvas.addEventListener('lostpointercapture', event => {
-      if ([this.#selectionDrag?.pointerId, this.#boxSelection?.pointerId, this.#gripGesture?.pointerId, this.#fencePointer, this.#activePointer].includes(event.pointerId)) {
+      if ([this.#boundaryPointer?.pointerId, this.#selectionDrag?.pointerId, this.#boxSelection?.pointerId, this.#gripGesture?.pointerId, this.#fencePointer, this.#activePointer].includes(event.pointerId)) {
         this.#cancelPointer(); this.#hideSnap(); this.#drawOverlay()
       }
     }, { signal })
     this.#canvas.addEventListener('pointerleave', event => {
       if (this.#ignoredPointers.has(event.pointerId) || this.#isForeignPointer(event)) return
       if (this.#gripGesture || this.#boxSelection || this.#selectionDrag) return
-      this.#cursorWorld = null; this.#hoverGrip = null; this.#hideSnap(); this.#drawOverlay()
+      this.#cursorWorld = null; this.#hoverGrip = null; this.#clearBoundaryPreview(); this.#hideSnap(); this.#drawOverlay()
     }, { signal })
     this.#canvas.addEventListener('dblclick', event => {
       if (this.#draftGesture?.session.state.canFinish) { event.preventDefault(); void this.#finishDraft(false) }
@@ -791,6 +825,16 @@ export class KJDrawWorkbench {
     this.root.addEventListener('keydown', event => {
       if (event.key === 'Escape') { this.setTool('select'); return }
       if (event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable="true"]')) return
+      if (this.#boundarySession && event.key === 'Enter') {
+        event.preventDefault()
+        if (this.#boundarySession.state.phase === 'boundaries') void this.#run(() => this.#confirmBoundaryEdit())
+        else if (this.#boundarySession.state.phase === 'targets') this.#finishBoundaryEdit()
+        return
+      }
+      if (this.#boundarySession && ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a' || event.key === 'Delete' || event.key === 'Backspace')) {
+        event.preventDefault()
+        return
+      }
       if (this.#fenceSelection && event.key === 'Enter') { event.preventDefault(); void this.#finishFence(); return }
       if (this.#fenceSelection && event.key === 'Backspace') { event.preventDefault(); this.#fenceSelection.points.pop(); this.#drawOverlay(); return }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
@@ -813,6 +857,10 @@ export class KJDrawWorkbench {
   #subscribeDocument(drawing: KJDocument): void {
     this.#disposeDocument?.(); this.#disposeSelection?.()
     this.#disposeDocument = drawing.on('document:change', () => {
+      const boundary = this.#boundarySession
+      if (boundary && boundary.state.phase !== 'applying' && !boundary.isCurrent()) {
+        this.setTool('select'); this.#setMessage(this.#t('gestureCancelled'))
+      }
       const gesture = this.#gripGesture ?? this.#boxSelection ?? this.#selectionDrag
       if (gesture && !this.#pointerBindingIsCurrent(gesture)) {
         this.#cancelPointer()
@@ -856,6 +904,11 @@ export class KJDrawWorkbench {
     const input = query<HTMLInputElement>(this.root, '[data-command]')
     const raw = input.value.trim()
     if (!raw) {
+      if (this.#boundarySession) {
+        if (this.#boundarySession.state.phase === 'boundaries') await this.#run(() => this.#confirmBoundaryEdit())
+        else if (this.#boundarySession.state.phase === 'targets') this.#finishBoundaryEdit()
+        return
+      }
       if (this.#fenceSelection) { await this.#finishFence(); return }
       if (this.#draftGesture?.session.state.canFinish) await this.#finishDraft(false)
       return
@@ -901,6 +954,10 @@ export class KJDrawWorkbench {
         return
       }
       if (this.#options.readonly && !['PAN', 'SELECT', 'FENCE', 'MEASURE'].includes(command)) throw new Error(this.#t('readonly'))
+      if ((command === 'TRIM' || command === 'EXTEND') && !tokens.length) {
+        this.#beginBoundaryEdit(command === 'TRIM' ? 'trim' : 'extend')
+        return
+      }
       if (command === 'PAN' || command === 'SELECT' || command === 'FENCE' || command === 'MEASURE') {
         this.setTool(command.toLowerCase() as KJWorkbenchTool)
         return
@@ -1253,7 +1310,27 @@ export class KJDrawWorkbench {
     const description = query<HTMLElement>(this.root, '[data-modification-description]')
     description.textContent = this.#localizedControlText(definition.description)
     const fields = query<HTMLElement>(this.root, '[data-modification-fields]')
+    const previousWorkflow = fields.querySelector<HTMLSelectElement>('[data-boundary-workflow]')?.value
     fields.replaceChildren()
+    if (id === 'trim' || id === 'extend') {
+      const label = document.createElement('label')
+      label.className = 'field'
+      label.style.gridColumn = '1 / -1'
+      const text = document.createElement('span')
+      text.textContent = this.#t('editWorkflow')
+      const workflow = document.createElement('select')
+      workflow.dataset.boundaryWorkflow = ''
+      workflow.setAttribute('aria-label', this.#t('editWorkflow'))
+      for (const [value, key] of [['boundaries', 'boundaryWorkflow'], ['single', 'singleWorkflow']] as const) {
+        const option = document.createElement('option')
+        option.value = value; option.textContent = this.#t(key); workflow.append(option)
+      }
+      workflow.value = previousWorkflow ?? ((this.#selection?.size ?? 0) >= 2 ? 'single' : 'boundaries')
+      const updateDescription = (): void => { description.textContent = workflow.value === 'boundaries' ? `${this.#t('boundarySelectionHint')} · ${this.#t('boundaryTargetHint')}` : this.#localizedControlText(definition.description) }
+      workflow.addEventListener('change', updateDescription, { signal: this.#abort.signal })
+      updateDescription()
+      label.append(text, workflow); fields.append(label)
+    }
     for (const field of definition.fields) {
       const label = document.createElement('label')
       if (field.type === 'boolean') {
@@ -1292,24 +1369,14 @@ export class KJDrawWorkbench {
     this.setTool('select')
     const select = query<HTMLSelectElement>(this.root, '[data-modification]')
     if (id) select.value = id
+    query<HTMLElement>(this.root, '[data-modification-fields]').replaceChildren()
     this.#renderModificationForm()
     const dialog = query<HTMLDialogElement>(this.root, '[data-modification-dialog]')
     if (!dialog.open) dialog.showModal()
   }
 
   #validateModificationSelection(definition: KJModificationDefinition, ids: readonly string[], drawing: KJDocument): void {
-    if (ids.length < definition.minSelection) throw new Error(`${definition.command} requires at least ${definition.minSelection} selected object${definition.minSelection === 1 ? '' : 's'}`)
-    if (definition.maxSelection !== undefined && ids.length > definition.maxSelection) throw new Error(`${definition.command} accepts at most ${definition.maxSelection} selected object${definition.maxSelection === 1 ? '' : 's'}`)
-    if (definition.supportedEntityTypes) {
-      const unsupported = ids.map(id => drawing.getObject(id)).find(entity => entity?.kind !== 'entity' || !definition.supportedEntityTypes?.includes(entity.type))
-      if (unsupported) throw new Error(`${definition.command} supports ${definition.supportedEntityTypes.join(', ')} in this workbench`)
-    }
-    if (definition.id === 'trim' || definition.id === 'extend') {
-      const target = drawing.getObject(ids[0]!)
-      if (target?.kind !== 'entity' || target.type !== 'LINE') throw new Error(`${definition.command} requires the first selected object to be a LINE`)
-      const boundaryTypes = new Set(['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'])
-      if (ids.slice(1).some(id => { const entity = drawing.getObject(id); return entity?.kind !== 'entity' || !boundaryTypes.has(entity.type) })) throw new Error(`${definition.command} boundaries must be LINE, RAY, XLINE, CIRCLE or ARC`)
-    }
+    validateKJModificationSelection(definition, ids.map(id => drawing.getObject(id)), this.#locale === 'zh-CN' ? 'zh' : 'en')
   }
 
   async #startModification(): Promise<void> {
@@ -1319,6 +1386,10 @@ export class KJDrawWorkbench {
     const drawing = this.document
     if (!drawing) throw new Error('No active KJDraw document')
     const definition = getKJModificationDefinition(query<HTMLSelectElement>(this.root, '[data-modification]').value as KJModificationId)
+    if ((definition.id === 'trim' || definition.id === 'extend') && form.querySelector<HTMLSelectElement>('[data-boundary-workflow]')?.value === 'boundaries') {
+      this.#beginBoundaryEdit(definition.id)
+      return
+    }
     const ids = Object.freeze([...(this.#selection?.ids ?? [])])
     this.#validateModificationSelection(definition, ids, drawing)
     const values: Record<string, unknown> = {}
@@ -1346,6 +1417,7 @@ export class KJDrawWorkbench {
   }
 
   async #commitModification(gesture: KJModificationGesture): Promise<void> {
+    const epoch = this.#gestureEpoch
     if (this.#modificationGesture === gesture) this.#modificationGesture = null
     if (this.document !== gesture.document) return
     const built = await this.#run(() => buildKJModificationCommand(gesture.definition.id, {
@@ -1354,6 +1426,7 @@ export class KJDrawWorkbench {
       points: gesture.points,
       selectionCenter: gesture.selectionCenter,
     }))
+    if (epoch !== this.#gestureEpoch || this.document !== gesture.document || gesture.document.revision !== gesture.revision) return
     if (!built) {
       if (gesture.definition.pointKeys.length) {
         if (gesture.points.length) gesture.points.pop()
@@ -1365,8 +1438,9 @@ export class KJDrawWorkbench {
     }
     const request = built
     const receipt = await this.#run(() => this.execute(request.command, request.arguments, { expectedRevision: gesture.revision }))
-    if (this.document !== gesture.document) return
+    if (epoch !== this.#gestureEpoch || this.document !== gesture.document) return
     if (!receipt) {
+      if (gesture.document.revision !== gesture.revision) { this.setTool('select'); return }
       if (gesture.definition.pointKeys.length) {
         if (gesture.points.length) gesture.points.pop()
         gesture.revision = gesture.document.revision
@@ -1398,6 +1472,133 @@ export class KJDrawWorkbench {
     const gesture = this.#modificationGesture
     if (!gesture || gesture.document !== this.document) { this.#cancelGesture(); return }
     await this.#addModificationPoint(parseDraftCoordinate(value, gesture.points.at(-1)))
+  }
+
+  #beginBoundaryEdit(operation: 'trim' | 'extend'): void {
+    if (this.#options.readonly) throw new Error(this.#t('readonly'))
+    const drawing = this.document
+    if (!drawing) throw new Error('No active KJDraw document')
+    const ids = [...(this.#selection?.ids ?? [])]
+    this.setTool('select')
+    this.#boundarySession = createBoundaryEditSession(operation, {
+      document: drawing, boundaryIds: ids, locale: this.#locale === 'zh-CN' ? 'zh' : 'en',
+      isDocumentCurrent: () => this.document === drawing && this.sdk.documents.get(drawing.id) === drawing
+        && !this.#options.readonly && !this.#abort.signal.aborted,
+    })
+    this.#canvas.classList.add('crosshair')
+    this.#syncBoundaryActions()
+    this.#setMessage(this.#boundaryPrompt())
+    this.#drawOverlay()
+  }
+
+  #boundaryPrompt(): string {
+    const session = this.#boundarySession
+    if (!session) return this.#t('ready')
+    return session.state.phase === 'boundaries' ? `${session.prompt} · ${this.#t('boundarySelectionHint')}` : session.prompt
+  }
+
+  #syncBoundaryActions(): void {
+    const host = this.root.querySelector<HTMLElement>('[data-boundary-actions]')
+    if (!host) return
+    const state = this.#boundarySession?.state
+    const phase = state?.phase
+    host.hidden = !phase || phase === 'finished' || phase === 'cancelled'
+    host.dataset.boundaryStage = phase ?? 'idle'
+    query<HTMLElement>(host, '[data-boundary-summary]').textContent = !state ? '' : this.#locale === 'zh-CN'
+      ? `${state.operation === 'trim' ? '修剪' : '延伸'} · ${state.boundaryIds.length} 条边界 · ${state.committedCount} 次`
+      : `${state.operation.toUpperCase()} · ${state.boundaryIds.length} ${state.boundaryIds.length === 1 ? 'boundary' : 'boundaries'} · ${state.committedCount} ${state.committedCount === 1 ? 'edit' : 'edits'}`
+    const confirm = query<HTMLButtonElement>(host, '[data-action="boundary-confirm"]')
+    const finish = query<HTMLButtonElement>(host, '[data-action="boundary-finish"]')
+    confirm.hidden = phase !== 'boundaries'
+    finish.hidden = phase === 'boundaries'
+    finish.disabled = phase === 'applying'
+    this.#refreshSelectionPanels()
+  }
+
+  #confirmBoundaryEdit(): void {
+    const session = this.#boundarySession
+    if (!session || session.state.phase !== 'boundaries') return
+    session.confirmBoundaries()
+    this.#cancelPointer()
+    this.#syncBoundaryActions()
+    this.#setMessage(this.#boundaryPrompt())
+    this.#drawOverlay()
+    this.root.focus({ preventScroll: true })
+  }
+
+  #finishBoundaryEdit(): void {
+    const session = this.#boundarySession
+    if (!session || session.state.phase === 'applying') return
+    session.finish()
+    const message = session.prompt
+    this.setTool('select')
+    this.#setMessage(message)
+  }
+
+  #clearBoundaryPreview(): void {
+    const hadPreview = this.#boundaryPreview !== null
+    this.#boundaryPreview = null
+    if (hadPreview) this.renderer.render()
+  }
+
+  #previewBoundaryTarget(location: Point2): void {
+    this.#clearBoundaryPreview()
+    const session = this.#boundarySession
+    if (!session || session.state.phase !== 'targets') return
+    if (!session.isCurrent()) { this.setTool('select'); this.#setMessage(this.#t('gestureCancelled')); return }
+    const hit = this.renderer.hitTest(location, 9)
+    if (!hit || session.state.boundaryIds.includes(hit.entity.id)) { this.#setMessage(session.prompt); return }
+    try {
+      const preview = session.preview(hit.entity.id, this.renderer.screenToWorld(location))
+      this.#boundaryPreview = preview
+      this.renderer.drawPreview(preview.pieces, this.#theme === 'dark' ? '#8fc0ff' : '#175fc8')
+      this.#setMessage(session.prompt)
+    } catch (error) {
+      // Hover errors are retryable hints, not failed transactions or onError events.
+      this.#setMessage(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  async #boundaryPointerUp(gesture: KJWorkbenchBoundaryPointer, location: Point2): Promise<void> {
+    const session = this.#boundarySession
+    if (!session || session.state.phase !== gesture.phase) return
+    if (!session.isCurrent() || !this.#pointerBindingIsCurrent(gesture)) {
+      this.setTool('select'); this.#setMessage(this.#t('gestureCancelled')); return
+    }
+    try {
+      if (gesture.phase === 'boundaries') {
+        const dragged = Math.hypot(location[0] - gesture.baseScreen[0], location[1] - gesture.baseScreen[1]) >= 3
+        const hit = dragged ? null : this.renderer.hitTest(location, 9, { includeLocked: true })
+        const found = dragged ? this.renderer.selectBox(gesture.baseScreen, location, { includeLocked: true }) : hit ? [hit.entity.id] : []
+        const ids = gesture.operation === 'remove'
+          ? session.state.boundaryIds.filter(id => !found.includes(id))
+          : [...new Set([...session.state.boundaryIds, ...found])]
+        session.setBoundaries(ids)
+        await this.execute('SELECT', { ids, operation: 'replace' }, { expectedRevision: gesture.revision })
+      } else {
+        // A trim pick is the raw clicked portion, not an object-snap endpoint:
+        // snapping can turn a valid interior pick into an ambiguous exact cut.
+        const hit = this.renderer.hitTest(location, 9)
+        if (!hit) { this.#setMessage(this.#t('boundaryEmpty')); return }
+        const preview = session.preview(hit.entity.id, this.renderer.screenToWorld(location))
+        this.#clearBoundaryPreview()
+        const applying = session.apply(preview, request => this.execute(request.command, request.arguments, { expectedRevision: request.expectedRevision }))
+        this.#syncBoundaryActions()
+        this.#setMessage(session.prompt)
+        await applying
+      }
+      if (this.#boundarySession !== session) return
+      if (!session.isCurrent()) { this.setTool('select'); this.#setMessage(this.#t('gestureCancelled')); return }
+      this.#syncBoundaryActions()
+      this.#setMessage(this.#boundaryPrompt())
+    } catch (error) {
+      if (this.#boundarySession !== session) return
+      if (!session.isCurrent()) this.setTool('select')
+      this.#handleError(error)
+      this.#syncBoundaryActions()
+    } finally {
+      if (this.#boundarySession === session) this.#drawOverlay()
+    }
   }
 
   #activeLayerPayload(): Record<string, unknown> {
@@ -1499,6 +1700,16 @@ export class KJDrawWorkbench {
       event.preventDefault(); this.#panStart = location; this.#activePointer = event.pointerId; this.#canvas.setPointerCapture(event.pointerId); this.#canvas.classList.add('dragging')
       return
     }
+    if (event.button === 0 && this.#boundarySession) {
+      const phase = this.#boundarySession.state.phase, drawing = this.document
+      if (!drawing || (phase !== 'boundaries' && phase !== 'targets')) return
+      this.#boundaryPointer = { pointerId: event.pointerId, document: drawing, revision: drawing.revision,
+        view: this.#viewIdentity(), baseScreen: location, currentScreen: location, phase,
+        operation: event.ctrlKey || event.metaKey ? 'remove' : 'add' }
+      this.#canvas.setPointerCapture(event.pointerId)
+      event.preventDefault()
+      return
+    }
     if (event.button === 0 && this.#fenceSelection) {
       this.#fencePointer = event.pointerId
       this.#canvas.setPointerCapture(event.pointerId)
@@ -1552,6 +1763,13 @@ export class KJDrawWorkbench {
     const location = point(event, this.#canvas), rawWorld = this.renderer.screenToWorld(location)
     const coordinate = this.root.querySelector<HTMLElement>('[data-coordinate]')
     if (coordinate) coordinate.textContent = `X ${rawWorld[0].toFixed(3)} · Y ${rawWorld[1].toFixed(3)}`
+    if (this.#boundarySession && !this.#panStart) {
+      if (this.#boundaryPointer) this.#boundaryPointer.currentScreen = location
+      this.#cursorWorld = rawWorld
+      this.#hoverGrip = null
+      this.#previewBoundaryTarget(location)
+      this.#hideSnap(); this.#drawOverlay(); return
+    }
     const pointerGesture = this.#gripGesture ?? this.#boxSelection ?? this.#selectionDrag
     if (pointerGesture && !this.#pointerBindingIsCurrent(pointerGesture)) {
       this.#cancelPointer(); this.#setMessage(this.#t('gestureCancelled')); this.#drawOverlay(); return
@@ -1599,6 +1817,13 @@ export class KJDrawWorkbench {
   async #pointerUp(event: PointerEvent): Promise<void> {
     if (this.#ignoredPointers.delete(event.pointerId) || this.#isForeignPointer(event)) return
     if (this.#cancelledPointers.delete(event.pointerId)) return
+    if (this.#boundaryPointer?.pointerId === event.pointerId) {
+      const gesture = this.#boundaryPointer
+      this.#boundaryPointer = null
+      if (this.#canvas.hasPointerCapture(event.pointerId)) this.#canvas.releasePointerCapture(event.pointerId)
+      await this.#boundaryPointerUp(gesture, point(event, this.#canvas))
+      return
+    }
     if (this.#fencePointer === event.pointerId) {
       this.#fencePointer = null
       if (this.#canvas.hasPointerCapture(event.pointerId)) this.#canvas.releasePointerCapture(event.pointerId)
@@ -1658,6 +1883,7 @@ export class KJDrawWorkbench {
       return
     }
     if (this.#activePointer === event.pointerId) { this.#cancelPointer(); return }
+    if (this.#boundarySession) return
     if (event.button !== 0 || !this.document) return
     const location = point(event, this.#canvas)
     const rawWorld = this.renderer.screenToWorld(location)
@@ -1790,9 +2016,11 @@ export class KJDrawWorkbench {
   }
 
   #cancelPointer(): void {
-    const ids = [this.#activePointer, this.#selectionDrag?.pointerId, this.#boxSelection?.pointerId, this.#gripGesture?.pointerId, this.#fencePointer]
+    const ids = [this.#activePointer, this.#selectionDrag?.pointerId, this.#boxSelection?.pointerId, this.#gripGesture?.pointerId, this.#fencePointer, this.#boundaryPointer?.pointerId]
     const hadGripPreview = this.#gripGesture !== null
     this.#activePointer = null; this.#panStart = null; this.#selectionDrag = null; this.#boxSelection = null; this.#gripGesture = null; this.#hoverGrip = null; this.#fencePointer = null
+    this.#boundaryPointer = null
+    this.#clearBoundaryPreview()
     for (const id of ids) if (id != null) {
       this.#cancelledPointers.add(id)
       if (this.#canvas.hasPointerCapture(id)) this.#canvas.releasePointerCapture(id)
@@ -1803,7 +2031,7 @@ export class KJDrawWorkbench {
   }
 
   #pointerOwnerId(): number | null {
-    return this.#gripGesture?.pointerId ?? this.#boxSelection?.pointerId ?? this.#selectionDrag?.pointerId ?? this.#fencePointer ?? this.#activePointer
+    return this.#boundaryPointer?.pointerId ?? this.#gripGesture?.pointerId ?? this.#boxSelection?.pointerId ?? this.#selectionDrag?.pointerId ?? this.#fencePointer ?? this.#activePointer
   }
 
   #isForeignPointer(event: PointerEvent): boolean {
@@ -1854,6 +2082,11 @@ export class KJDrawWorkbench {
   }
 
   #cancelGesture(): void {
+    this.#gestureEpoch += 1
+    const hadBoundarySession = this.#boundarySession !== null
+    this.#boundarySession?.cancel()
+    this.#boundarySession = null
+    if (hadBoundarySession) this.#canvas.classList.remove('crosshair')
     const hadDraft = this.#draftGesture !== null
     this.#draftGesture?.session.cancel()
     this.#draftGesture = null
@@ -1870,10 +2103,12 @@ export class KJDrawWorkbench {
     this.#hideSnap()
     if (hadDraft) this.renderer.render()
     this.#syncDraftActions()
+    this.#syncBoundaryActions()
     this.#drawOverlay()
   }
 
   async #eraseSelection(): Promise<void> {
+    if (this.#boundarySession) return
     const ids = this.#selection?.ids ?? []
     const drawing = this.document
     if (!ids.length || this.#options.readonly || !drawing) return
@@ -1899,9 +2134,10 @@ export class KJDrawWorkbench {
     context.fillStyle = context.strokeStyle
     context.lineWidth = 1.5
     context.setLineDash([6, 4])
-    const grips = this.#tool === 'select' && !this.#options.readonly && !this.#modificationGesture && (this.#selection?.size === 1 || this.#gripGesture) && !this.#boxSelection && !this.#selectionDrag
+    const grips = this.#tool === 'select' && !this.#options.readonly && !this.#modificationGesture && !this.#boundarySession && (this.#selection?.size === 1 || this.#gripGesture) && !this.#boxSelection && !this.#selectionDrag
       ? this.renderer.getGrips(this.#gripGesture ? [this.#gripGesture.entity.id] : undefined) : []
     this.#overlay.dataset.gripCount = String(grips.length)
+    this.#overlay.dataset.boundaryPreviewCount = String(this.#boundaryPreview?.pieces.length ?? 0)
     context.setLineDash([])
     for (const grip of grips) {
       const active = this.#gripGesture?.grip.id === grip.id && this.#gripGesture.grip.entityId === grip.entityId
@@ -1913,8 +2149,9 @@ export class KJDrawWorkbench {
       context.fillRect(position[0] - 4, position[1] - 4, 8, 8)
       context.strokeRect(position[0] - 4, position[1] - 4, 8, 8)
     }
-    if (this.#boxSelection) {
-      const { baseScreen: first, currentScreen: last } = this.#boxSelection
+    const selectionBox = this.#boxSelection ?? (this.#boundaryPointer?.phase === 'boundaries' ? this.#boundaryPointer : null)
+    if (selectionBox) {
+      const { baseScreen: first, currentScreen: last } = selectionBox
       const crossing = last[0] < first[0]
       this.#overlay.dataset.selectionMode = crossing ? 'crossing' : 'window'
       context.strokeStyle = crossing ? '#43c58b' : '#559bff'
@@ -2028,7 +2265,7 @@ export class KJDrawWorkbench {
     const output = this.root.querySelector<HTMLElement>('[data-selection]')
     if (output) output.textContent = `${selection?.size ?? 0} ${this.#t('selected')}`
     const erase = this.root.querySelector<HTMLButtonElement>('[data-action="erase"]')
-    if (erase) erase.disabled = this.#options.readonly === true || !(selection?.size)
+    if (erase) erase.disabled = this.#options.readonly === true || this.#boundarySession !== null || !(selection?.size)
     this.#refreshInspector()
   }
 

@@ -129,10 +129,32 @@ Selection order matters for operations that pair a target with boundaries or two
 | Offset | Select exactly one LINE, RAY, XLINE, CIRCLE or ARC; enter distance, then pick the offset side |
 | Break | Select exactly one LINE or ARC, then pick the break point |
 | Explode | Select one polyline-compatible object; no canvas point is required |
-| Trim / Extend | Select the target LINE first, Shift-select one or more boundaries, then pick the target side or end |
+| Trim · Single edit | Select a LINE, ARC or CIRCLE first, Shift-select the cutting boundaries, choose **Single edit**, then pick the portion to remove |
+| Extend · Single edit | Select a LINE or ARC first, Shift-select the limiting boundaries, choose **Single edit**, then pick near the end to extend |
 | Chamfer / Fillet | Select exactly two LINE objects in order, enter distances or radius, then pick the side to keep on the first line and the second line |
 
 To control selection order, click the first object normally, then Shift-click each additional object. If the order is wrong, click empty canvas to clear the selection and select again.
+
+Trim keeps both remaining sides when you remove an interior interval of a line or arc. Trimming a circle produces a native arc; Undo restores the original circle. Circular editing supports boundaries made from lines, rays, infinite lines, circles and arcs in the same XY plane. A circle needs two distinct cutting points. Pick inside the portion, not exactly at an intersection or at the circle center.
+
+To extend an arc, pick near the endpoint you want to move. The arc reaches the nearest boundary along that end's continuation without crossing its opposite endpoint. Pick again if the prompt reports an ambiguous point, or press Esc to cancel.
+
+## Trim or extend several objects {#continuous-editing}
+
+Use **Continuous** mode to reuse the same boundaries across several edits. This workflow is available in both the Live Demo and the embedded editor.
+
+1. Choose **Trim** or **Extend**, then choose continuous mode. Alternatively, enter `TRIM` or `EXTEND` without arguments in the command bar.
+2. Click the cutting boundaries. Further clicks add boundaries; **Ctrl / Command + click** removes one. You can also window-select them. A visible, locked boundary can be used without unlocking it.
+3. Press **Enter** or choose **Confirm boundaries**. The prompt now asks for targets.
+4. Hover over a line, arc or circle to preview the retained geometry, then click the portion to remove. For Extend, hover and click near the line or arc endpoint to extend. Hovering never changes the drawing or undo history.
+5. Continue clicking other targets. Each successful click is a separate undo step. Invalid or ambiguous picks show a prompt; pick another portion or end to retry.
+6. Press **Enter** or choose **Finish** to end the tool. **Esc** also ends the pending operation; it does not undo already completed edits.
+
+The options bar shows the current phase and number of completed edits. Switching language keeps your boundaries. Switching drawings or layouts, undoing, or modifying the drawing through another tool ends the session so a pending pick cannot affect a different drawing state.
+
+Single-edit mode remains available for target-first selection. When at least two objects are already selected, the tool dialog defaults to that mode; otherwise it defaults to continuous mode. Choose explicitly when the preselection is intended as boundaries rather than a target and boundaries.
+
+For applications that supply their own UI or Agent, see [geometric previews and reviewed edits](https://kanjieteam.github.io/kjdraw/docs/latest/agent/#geometric-preview). The same public session API drives both workbenches.
 
 ## Undo, navigate and save {#save}
 
@@ -165,7 +187,7 @@ editor.setLayout('compact')
 - Read the prompt above the command bar. The tool may still be waiting for an object, a base point or another vertex.
 - If a relative coordinate is rejected, enter the first point as `x,y` before using `@dx,dy` or `@distance<angle`.
 - For a variable-length tool, make sure the minimum number of points has been accepted before pressing Enter or C.
-- For Trim and Extend, make the target LINE the first selected object; for Chamfer and Fillet, select exactly two LINE objects.
+- For continuous Trim/Extend, confirm the boundaries before clicking targets. In single-edit mode, select the target first and the boundaries afterwards. For Chamfer and Fillet, select exactly two LINE objects.
 - If a drawing tool rejects a point as degenerate, choose a different last point. Use Esc only when you want to discard the whole in-progress object.
 - Check layer visibility and choose Fit view if a created or opened object is outside the current view.
 :::
@@ -293,10 +315,32 @@ editor.setLayout('compact')
 | 偏移 | 只能选择一条 LINE、RAY、XLINE、CIRCLE 或 ARC；输入距离，再指定偏移侧 |
 | 打断 | 只能选择一条 LINE 或 ARC，再指定打断点 |
 | 分解 | 选择一个可分解的多段线类对象，不需要继续取点 |
-| 修剪 / 延伸 | 先选择目标 LINE，再按住 Shift 选择一个或多个边界，最后在目标线上指定修剪侧或延伸端 |
+| 修剪 | 先选择待修剪的直线、圆弧或圆，再按住 Shift 选择切割边界，最后点选要删除的区段 |
+| 延伸 | 先选择待延伸的直线或圆弧，再按住 Shift 选择边界，最后靠近要延伸的一端点选 |
 | 倒角 / 圆角 | 按顺序选择两条 LINE，输入距离或半径，再依次指定第一条线和第二条线需要保留的一侧 |
 
 需要控制顺序时，先普通单击第一个对象，再按住 Shift 依次单击其他对象。顺序不对时，可单击画布空白处清空选择后重新选择。
+
+修剪直线或圆弧的中间一段时，两侧剩余部分都会保留。修剪圆会生成原生圆弧，撤销可恢复原圆。圆形图元的切割边界可以是同一 XY 平面内的直线、射线、构造线、圆或圆弧；修剪圆至少需要两个不同交点。请点选要删除的区段内部，不要点在交点或圆心上。
+
+延伸圆弧时，请靠近需要延伸的端点取点，圆弧会沿该端的延续方向到达最近边界，不会越过另一端绕成整圆。取点含混时可继续重新指定，或按 Esc 取消。
+
+## 连续修剪或延伸多个对象 {#continuous-editing}
+
+选择**连续模式**，即可复用同一组边界处理多个对象。在线 Demo 与嵌入式编辑器都提供这一流程。
+
+1. 选择**修剪**或**延伸**，在对话框中选择连续模式；也可在命令栏直接输入不带参数的 `TRIM` 或 `EXTEND`。
+2. 点选切割边界，后续点击会继续追加；按 **Ctrl / Command + 单击**移除边界，也可框选。可见的锁定边界无须解锁即可使用。
+3. 按 **Enter** 或点击**确认边界**，进入目标点选阶段。
+4. 鼠标移到直线、圆弧或圆上，查看修剪后的保留图形，再点击要删除的区段。延伸时，靠近直线或圆弧需要延长的一端预览并点击。悬停不会修改图纸或增加撤销记录。
+5. 继续点击其他目标。每次成功修改均可独立撤销；无效或含混的取点会显示提示，可换一个区段或端点重试。
+6. 按 **Enter** 或点击**完成**结束工具。**Esc** 也会结束待执行操作，但不会撤销已经完成的修改。
+
+浮动操作栏会显示当前阶段和完成次数。切换语言会保留边界；切换图纸、布局、撤销，或从其他工具修改图档，会结束当前会话，避免旧取点误作用到新的图纸状态。
+
+原来的目标优先**单次模式**仍然保留。预选至少两个对象时，对话框默认单次模式；否则默认连续模式。如果预选对象都是边界，请明确选择连续模式。
+
+需要自行提供 UI 或接入 Agent 时，参见[几何预览与审核后修改](https://kanjieteam.github.io/kjdraw/docs/latest/agent/#geometric-preview)。两个工作台使用的就是这套公开会话 API。
 
 ## 撤销、浏览与保存 {#save}
 
@@ -329,7 +373,7 @@ editor.setLayout('compact')
 - 先看命令栏上方的提示：工具可能仍在等待对象、基点或下一个顶点。
 - 相对坐标被拒绝时，先用 `x,y` 输入第一个点，再使用 `@dx,dy` 或 `@distance<angle`。
 - 使用可变点数工具时，确认达到最少点数后再按 Enter 或 C。
-- 修剪和延伸必须把目标 LINE 放在选择顺序第一位；倒角和圆角必须恰好选择两条 LINE。
+- 连续修剪、延伸需先确认边界，再点选目标；单次模式则先选择目标，再追加边界。倒角和圆角必须恰好选择两条 LINE。
 - 绘图工具提示图形退化时，请重新指定最后一点；只有准备放弃整个在绘对象时才按 Esc。
 - 检查图层是否可见；新建或打开的对象不在视野内时，点击全图。
 :::

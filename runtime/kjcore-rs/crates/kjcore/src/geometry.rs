@@ -487,7 +487,7 @@ pub fn intersect_circle_circle(
         return Err(GeometryError::InvalidRadius);
     }
     let difference = subtract(center_b, center_a);
-    let distance = (difference.x * difference.x + difference.y * difference.y).sqrt();
+    let distance = difference.x.hypot(difference.y);
     let epsilon = tolerance.distance_for(&[distance, radius_a, radius_b]);
     if distance <= epsilon && (radius_a - radius_b).abs() <= epsilon {
         return Ok(Intersection2 {
@@ -504,21 +504,39 @@ pub fn intersect_circle_circle(
     {
         return Ok(Intersection2::none());
     }
-    let along =
-        (radius_a * radius_a - radius_b * radius_b + distance * distance) / (2.0 * distance);
-    let mut height_squared = radius_a * radius_a - along * along;
-    if height_squared < 0.0 && height_squared.abs() <= epsilon * epsilon {
-        height_squared = 0.0;
-    }
-    if height_squared < 0.0 {
-        return Ok(Intersection2::none());
+    // Solve near the smaller circle, avoiding cancellation of large squares.
+    // Keep this algorithm in sync with the TypeScript reference primitive.
+    let a_is_small = radius_a <= radius_b;
+    let small = radius_a.min(radius_b);
+    let large = radius_a.max(radius_b);
+    let along = if small <= large / 2.0 {
+        ((distance - large) * (1.0 + large / distance) + small * (small / distance)) / 2.0
+    } else {
+        (distance + (small - large) * (small / distance + large / distance)) / 2.0
+    };
+    // Sorted, factored Heron formula retains the small factors at internal and
+    // external tangency without forming fourth powers of the radii.
+    let mut sides = [radius_a, radius_b, distance];
+    sides.sort_by(|a, b| b.total_cmp(a));
+    let [x, y, z] = sides;
+    let near = z - (x - y);
+    let far = z + (x - y);
+    let factor_a = x / distance + (y - z) / distance;
+    let factor_b = x / distance + y / distance + z / distance;
+    let mut height = (near.abs().sqrt() * factor_a.sqrt() / 2.0) * (far.sqrt() * factor_b.sqrt());
+    if near < 0.0 {
+        if height > epsilon {
+            return Ok(Intersection2::none());
+        }
+        height = 0.0;
     }
     let unit = Point2::new(difference.x / distance, difference.y / distance);
-    let base = Point2::new(center_a.x + unit.x * along, center_a.y + unit.y * along);
-    let points = if height_squared == 0.0 {
+    let center = if a_is_small { center_a } else { center_b };
+    let offset = if a_is_small { along } else { -along };
+    let base = Point2::new(center.x + unit.x * offset, center.y + unit.y * offset);
+    let points = if height == 0.0 {
         vec![base]
     } else {
-        let height = height_squared.sqrt();
         vec![
             Point2::new(base.x - unit.y * height, base.y + unit.x * height),
             Point2::new(base.x + unit.y * height, base.y - unit.x * height),
@@ -943,6 +961,123 @@ mod tests {
         .unwrap();
         assert_eq!(circles.points.len(), 2);
         close(circles.points[0].x, 1.5);
+    }
+
+    #[test]
+    fn circle_circle_preserves_tiny_chords_at_large_radius_ratios() {
+        for (large, small) in [(1e6, 0.01), (1e4, 0.001), (1e8, 0.001), (13.0, 5.0)] {
+            let expected_x = large - small * (small / large) / 2.0;
+            let ratio: f64 = small / (2.0 * large);
+            let expected_height = small * (1.0 - ratio * ratio).sqrt();
+            for (angle, origin) in [
+                (0.0_f64, Point2::new(0.0, 0.0)),
+                (0.37, Point2::new(23567.0, -98123.0)),
+                (2.8, Point2::new(1000.0, -2500.0)),
+            ] {
+                let transform = |x: f64, y: f64| {
+                    Point2::new(
+                        origin.x + x * angle.cos() - y * angle.sin(),
+                        origin.y + x * angle.sin() + y * angle.cos(),
+                    )
+                };
+                let expected = [
+                    transform(expected_x, expected_height),
+                    transform(expected_x, -expected_height),
+                ];
+                let epsilon = (16.0 * f64::EPSILON * large.max(origin.x.abs()).max(origin.y.abs()))
+                    .max(1e-12);
+                for swapped in [false, true] {
+                    let (a, ra, b, rb) = if swapped {
+                        (transform(large, 0.0), small, origin, large)
+                    } else {
+                        (origin, large, transform(large, 0.0), small)
+                    };
+                    let result =
+                        intersect_circle_circle(a, ra, b, rb, Tolerance::default()).unwrap();
+                    assert_eq!(result.kind, IntersectionKind::Point);
+                    assert_eq!(
+                        result.points.len(),
+                        2,
+                        "R={large}, r={small}, angle={angle}, swap={swapped}"
+                    );
+                    for point in expected {
+                        assert!(
+                            result
+                                .points
+                                .iter()
+                                .any(|actual| actual.distance(point) <= epsilon),
+                            "R={large}, r={small}, angle={angle}, swap={swapped}: {:?} vs {:?}",
+                            result.points,
+                            point
+                        );
+                    }
+                    if angle == 0.0 {
+                        for point in result.points {
+                            assert!(
+                                (point.y.abs() - expected_height).abs()
+                                    <= (small * 2e-14).max(1e-14),
+                                "tiny chord height: {} != {expected_height}",
+                                point.y
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        let result = intersect_circle_circle(
+            Point2::new(0.0, 0.0),
+            1e6,
+            Point2::new(0.00002, 0.0),
+            1e6,
+            Tolerance::default(),
+        )
+        .unwrap();
+        assert_eq!(result.points.len(), 2);
+        for point in result.points {
+            close(point.x, 0.00001);
+            close(point.y.abs(), 1e6);
+        }
+    }
+
+    #[test]
+    fn circle_circle_keeps_tangencies_and_disjoint_domains() {
+        for swapped in [false, true] {
+            let intersect = |ra: f64, d: f64, rb: f64| {
+                let a = Point2::new(0.0, 0.0);
+                let b = Point2::new(d, 0.0);
+                if swapped {
+                    intersect_circle_circle(b, rb, a, ra, Tolerance::default()).unwrap()
+                } else {
+                    intersect_circle_circle(a, ra, b, rb, Tolerance::default()).unwrap()
+                }
+            };
+            for (ra, d, rb, x) in [
+                (13.0, 18.0, 5.0, 13.0),
+                (13.0, 8.0, 5.0, 13.0),
+                (5.0, 5.0, 0.0, 5.0),
+            ] {
+                let result = intersect(ra, d, rb);
+                assert_eq!(result.points, vec![Point2::new(x, 0.0)]);
+            }
+            let distance = 10.0 - 2.0_f64.powi(-20);
+            let along = distance / 2.0;
+            let height = ((5.0 - along) * (5.0 + along)).sqrt();
+            let result = intersect(5.0, distance, 5.0);
+            assert_eq!(result.points.len(), 2);
+            for point in result.points {
+                assert!((point.x - along).abs() <= 1e-12);
+                assert!((point.y.abs() - height).abs() <= 1e-12);
+            }
+            for (ra, d, rb) in [
+                (5.0, 7.0, 1.0),
+                (5.0, 3.0, 1.0),
+                (5.0, 0.0, 1.0),
+                (5.0, 10.0 + 2.0_f64.powi(-20), 5.0),
+            ] {
+                assert_eq!(intersect(ra, d, rb).kind, IntersectionKind::None);
+            }
+            assert_eq!(intersect(5.0, 0.0, 5.0).kind, IntersectionKind::Overlap);
+        }
     }
 
     #[test]

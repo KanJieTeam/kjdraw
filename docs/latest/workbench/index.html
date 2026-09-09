@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/workbench/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=4ca39c51560f1e49">
+  <link rel="stylesheet" href="../style.css?v=bae2b6f791c075e2">
   <title>Using the workbench · KJDraw Docs</title>
 </head>
 <body>
@@ -117,8 +117,23 @@
 <h2 id="en-workbench-modify">Modify geometry<a class="heading-anchor" href="#en-workbench-modify" aria-label="Link to Modify geometry">#</a></h2>
 <p>Select the objects first, then choose <strong>More editing tools</strong>. Enter the parameters and continue on the canvas when prompted. Until the command commits, the selected IDs, drawing and revision stay fixed; <strong>Esc</strong> cancels the pending operation.</p>
 <p>Selection order matters for operations that pair a target with boundaries or two lines:</p>
-<div class="table-wrap"><table><thead><tr><th>Operation</th><th>Selection and point order</th></tr></thead><tbody><tr><td>Rotate / Scale</td><td>Select one or more objects, enter angle or factor, then pick the center</td></tr><tr><td>Mirror</td><td>Select one or more objects, choose whether to erase the source, then pick two axis points</td></tr><tr><td>Rectangular array</td><td>Select one or more objects, then enter rows, columns and their spacing</td></tr><tr><td>Polar array</td><td>Select one or more objects, enter count and fill angle, then pick the center</td></tr><tr><td>Offset</td><td>Select exactly one LINE, RAY, XLINE, CIRCLE or ARC; enter distance, then pick the offset side</td></tr><tr><td>Break</td><td>Select exactly one LINE or ARC, then pick the break point</td></tr><tr><td>Explode</td><td>Select one polyline-compatible object; no canvas point is required</td></tr><tr><td>Trim / Extend</td><td>Select the target LINE first, Shift-select one or more boundaries, then pick the target side or end</td></tr><tr><td>Chamfer / Fillet</td><td>Select exactly two LINE objects in order, enter distances or radius, then pick the side to keep on the first line and the second line</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Operation</th><th>Selection and point order</th></tr></thead><tbody><tr><td>Rotate / Scale</td><td>Select one or more objects, enter angle or factor, then pick the center</td></tr><tr><td>Mirror</td><td>Select one or more objects, choose whether to erase the source, then pick two axis points</td></tr><tr><td>Rectangular array</td><td>Select one or more objects, then enter rows, columns and their spacing</td></tr><tr><td>Polar array</td><td>Select one or more objects, enter count and fill angle, then pick the center</td></tr><tr><td>Offset</td><td>Select exactly one LINE, RAY, XLINE, CIRCLE or ARC; enter distance, then pick the offset side</td></tr><tr><td>Break</td><td>Select exactly one LINE or ARC, then pick the break point</td></tr><tr><td>Explode</td><td>Select one polyline-compatible object; no canvas point is required</td></tr><tr><td>Trim · Single edit</td><td>Select a LINE, ARC or CIRCLE first, Shift-select the cutting boundaries, choose <strong>Single edit</strong>, then pick the portion to remove</td></tr><tr><td>Extend · Single edit</td><td>Select a LINE or ARC first, Shift-select the limiting boundaries, choose <strong>Single edit</strong>, then pick near the end to extend</td></tr><tr><td>Chamfer / Fillet</td><td>Select exactly two LINE objects in order, enter distances or radius, then pick the side to keep on the first line and the second line</td></tr></tbody></table></div>
 <p>To control selection order, click the first object normally, then Shift-click each additional object. If the order is wrong, click empty canvas to clear the selection and select again.</p>
+<p>Trim keeps both remaining sides when you remove an interior interval of a line or arc. Trimming a circle produces a native arc; Undo restores the original circle. Circular editing supports boundaries made from lines, rays, infinite lines, circles and arcs in the same XY plane. A circle needs two distinct cutting points. Pick inside the portion, not exactly at an intersection or at the circle center.</p>
+<p>To extend an arc, pick near the endpoint you want to move. The arc reaches the nearest boundary along that end&#39;s continuation without crossing its opposite endpoint. Pick again if the prompt reports an ambiguous point, or press Esc to cancel.</p>
+<h2 id="en-workbench-continuous-editing">Trim or extend several objects<a class="heading-anchor" href="#en-workbench-continuous-editing" aria-label="Link to Trim or extend several objects">#</a></h2>
+<p>Use <strong>Continuous</strong> mode to reuse the same boundaries across several edits. This workflow is available in both the Live Demo and the embedded editor.</p>
+<ol>
+<li>Choose <strong>Trim</strong> or <strong>Extend</strong>, then choose continuous mode. Alternatively, enter <code>TRIM</code> or <code>EXTEND</code> without arguments in the command bar.</li>
+<li>Click the cutting boundaries. Further clicks add boundaries; <strong>Ctrl / Command + click</strong> removes one. You can also window-select them. A visible, locked boundary can be used without unlocking it.</li>
+<li>Press <strong>Enter</strong> or choose <strong>Confirm boundaries</strong>. The prompt now asks for targets.</li>
+<li>Hover over a line, arc or circle to preview the retained geometry, then click the portion to remove. For Extend, hover and click near the line or arc endpoint to extend. Hovering never changes the drawing or undo history.</li>
+<li>Continue clicking other targets. Each successful click is a separate undo step. Invalid or ambiguous picks show a prompt; pick another portion or end to retry.</li>
+<li>Press <strong>Enter</strong> or choose <strong>Finish</strong> to end the tool. <strong>Esc</strong> also ends the pending operation; it does not undo already completed edits.</li>
+</ol>
+<p>The options bar shows the current phase and number of completed edits. Switching language keeps your boundaries. Switching drawings or layouts, undoing, or modifying the drawing through another tool ends the session so a pending pick cannot affect a different drawing state.</p>
+<p>Single-edit mode remains available for target-first selection. When at least two objects are already selected, the tool dialog defaults to that mode; otherwise it defaults to continuous mode. Choose explicitly when the preselection is intended as boundaries rather than a target and boundaries.</p>
+<p>For applications that supply their own UI or Agent, see <a href="https://kanjieteam.github.io/kjdraw/docs/latest/agent/#geometric-preview">geometric previews and reviewed edits</a>. The same public session API drives both workbenches.</p>
 <h2 id="en-workbench-save">Undo, navigate and save<a class="heading-anchor" href="#en-workbench-save" aria-label="Link to Undo, navigate and save">#</a></h2>
 <p>Use <strong>Undo</strong> and <strong>Redo</strong> to step through committed drawing and modification commands. Removing an uncommitted draft point is different: use <strong>Backspace</strong> or <strong>Undo point</strong> before the object is created.</p>
 <p>The canvas toolbar contains Select, Pan, Fit view, Zoom in and Zoom out. With Pan selected, drag using the left mouse button. Middle-button dragging also pans, and the mouse wheel zooms. Navigation does not modify geometry or add undo history.</p>
@@ -135,7 +150,7 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
 <li>Read the prompt above the command bar. The tool may still be waiting for an object, a base point or another vertex.</li>
 <li>If a relative coordinate is rejected, enter the first point as <code>x,y</code> before using <code>@dx,dy</code> or <code>@distance&lt;angle</code>.</li>
 <li>For a variable-length tool, make sure the minimum number of points has been accepted before pressing Enter or C.</li>
-<li>For Trim and Extend, make the target LINE the first selected object; for Chamfer and Fillet, select exactly two LINE objects.</li>
+<li>For continuous Trim/Extend, confirm the boundaries before clicking targets. In single-edit mode, select the target first and the boundaries afterwards. For Chamfer and Fillet, select exactly two LINE objects.</li>
 <li>If a drawing tool rejects a point as degenerate, choose a different last point. Use Esc only when you want to discard the whole in-progress object.</li>
 <li>Check layer visibility and choose Fit view if a created or opened object is outside the current view.</li>
 </ul>
@@ -198,8 +213,23 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
 <h2 id="zh-workbench-modify">参数化修改图形<a class="heading-anchor" href="#zh-workbench-modify" aria-label="Link to 参数化修改图形">#</a></h2>
 <p>先选择对象，再打开<strong>更多修改工具</strong>。输入参数后，如果命令需要取点，就继续按照画布提示操作。命令提交前，选中的对象、图纸和修订版本都会保持绑定；按 <strong>Esc</strong> 可取消尚未提交的操作。</p>
 <p>涉及目标对象、边界或两条直线时，选择顺序很重要：</p>
-<div class="table-wrap"><table><thead><tr><th>操作</th><th>选择与取点顺序</th></tr></thead><tbody><tr><td>旋转 / 缩放</td><td>选择一个或多个对象，输入角度或比例，再指定中心</td></tr><tr><td>镜像</td><td>选择一个或多个对象，选择是否删除源对象，再依次指定镜像轴两点</td></tr><tr><td>矩形阵列</td><td>选择一个或多个对象，再输入行数、列数及其间距</td></tr><tr><td>环形阵列</td><td>选择一个或多个对象，输入项目数和填充角度，再指定中心</td></tr><tr><td>偏移</td><td>只能选择一条 LINE、RAY、XLINE、CIRCLE 或 ARC；输入距离，再指定偏移侧</td></tr><tr><td>打断</td><td>只能选择一条 LINE 或 ARC，再指定打断点</td></tr><tr><td>分解</td><td>选择一个可分解的多段线类对象，不需要继续取点</td></tr><tr><td>修剪 / 延伸</td><td>先选择目标 LINE，再按住 Shift 选择一个或多个边界，最后在目标线上指定修剪侧或延伸端</td></tr><tr><td>倒角 / 圆角</td><td>按顺序选择两条 LINE，输入距离或半径，再依次指定第一条线和第二条线需要保留的一侧</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>操作</th><th>选择与取点顺序</th></tr></thead><tbody><tr><td>旋转 / 缩放</td><td>选择一个或多个对象，输入角度或比例，再指定中心</td></tr><tr><td>镜像</td><td>选择一个或多个对象，选择是否删除源对象，再依次指定镜像轴两点</td></tr><tr><td>矩形阵列</td><td>选择一个或多个对象，再输入行数、列数及其间距</td></tr><tr><td>环形阵列</td><td>选择一个或多个对象，输入项目数和填充角度，再指定中心</td></tr><tr><td>偏移</td><td>只能选择一条 LINE、RAY、XLINE、CIRCLE 或 ARC；输入距离，再指定偏移侧</td></tr><tr><td>打断</td><td>只能选择一条 LINE 或 ARC，再指定打断点</td></tr><tr><td>分解</td><td>选择一个可分解的多段线类对象，不需要继续取点</td></tr><tr><td>修剪</td><td>先选择待修剪的直线、圆弧或圆，再按住 Shift 选择切割边界，最后点选要删除的区段</td></tr><tr><td>延伸</td><td>先选择待延伸的直线或圆弧，再按住 Shift 选择边界，最后靠近要延伸的一端点选</td></tr><tr><td>倒角 / 圆角</td><td>按顺序选择两条 LINE，输入距离或半径，再依次指定第一条线和第二条线需要保留的一侧</td></tr></tbody></table></div>
 <p>需要控制顺序时，先普通单击第一个对象，再按住 Shift 依次单击其他对象。顺序不对时，可单击画布空白处清空选择后重新选择。</p>
+<p>修剪直线或圆弧的中间一段时，两侧剩余部分都会保留。修剪圆会生成原生圆弧，撤销可恢复原圆。圆形图元的切割边界可以是同一 XY 平面内的直线、射线、构造线、圆或圆弧；修剪圆至少需要两个不同交点。请点选要删除的区段内部，不要点在交点或圆心上。</p>
+<p>延伸圆弧时，请靠近需要延伸的端点取点，圆弧会沿该端的延续方向到达最近边界，不会越过另一端绕成整圆。取点含混时可继续重新指定，或按 Esc 取消。</p>
+<h2 id="zh-workbench-continuous-editing">连续修剪或延伸多个对象<a class="heading-anchor" href="#zh-workbench-continuous-editing" aria-label="Link to 连续修剪或延伸多个对象">#</a></h2>
+<p>选择<strong>连续模式</strong>，即可复用同一组边界处理多个对象。在线 Demo 与嵌入式编辑器都提供这一流程。</p>
+<ol>
+<li>选择<strong>修剪</strong>或<strong>延伸</strong>，在对话框中选择连续模式；也可在命令栏直接输入不带参数的 <code>TRIM</code> 或 <code>EXTEND</code>。</li>
+<li>点选切割边界，后续点击会继续追加；按 <strong>Ctrl / Command + 单击</strong>移除边界，也可框选。可见的锁定边界无须解锁即可使用。</li>
+<li>按 <strong>Enter</strong> 或点击<strong>确认边界</strong>，进入目标点选阶段。</li>
+<li>鼠标移到直线、圆弧或圆上，查看修剪后的保留图形，再点击要删除的区段。延伸时，靠近直线或圆弧需要延长的一端预览并点击。悬停不会修改图纸或增加撤销记录。</li>
+<li>继续点击其他目标。每次成功修改均可独立撤销；无效或含混的取点会显示提示，可换一个区段或端点重试。</li>
+<li>按 <strong>Enter</strong> 或点击<strong>完成</strong>结束工具。<strong>Esc</strong> 也会结束待执行操作，但不会撤销已经完成的修改。</li>
+</ol>
+<p>浮动操作栏会显示当前阶段和完成次数。切换语言会保留边界；切换图纸、布局、撤销，或从其他工具修改图档，会结束当前会话，避免旧取点误作用到新的图纸状态。</p>
+<p>原来的目标优先<strong>单次模式</strong>仍然保留。预选至少两个对象时，对话框默认单次模式；否则默认连续模式。如果预选对象都是边界，请明确选择连续模式。</p>
+<p>需要自行提供 UI 或接入 Agent 时，参见<a href="https://kanjieteam.github.io/kjdraw/docs/latest/agent/#geometric-preview">几何预览与审核后修改</a>。两个工作台使用的就是这套公开会话 API。</p>
 <h2 id="zh-workbench-save">撤销、浏览与保存<a class="heading-anchor" href="#zh-workbench-save" aria-label="Link to 撤销、浏览与保存">#</a></h2>
 <p>使用<strong>撤销</strong>和<strong>重做</strong>回退或恢复已经提交的绘图与修改命令。尚未提交的绘图点不进入历史记录，应使用 <strong>Backspace</strong> 或<strong>退回一点</strong>。</p>
 <p>画布工具栏提供选择、平移、全图、放大和缩小。选择平移后，可按住鼠标左键拖动画布；鼠标中键拖动也可平移，滚轮用于缩放。这些视图操作不改变图形，也不占用撤销历史。</p>
@@ -216,17 +246,17 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
 <li>先看命令栏上方的提示：工具可能仍在等待对象、基点或下一个顶点。</li>
 <li>相对坐标被拒绝时，先用 <code>x,y</code> 输入第一个点，再使用 <code>@dx,dy</code> 或 <code>@distance&lt;angle</code>。</li>
 <li>使用可变点数工具时，确认达到最少点数后再按 Enter 或 C。</li>
-<li>修剪和延伸必须把目标 LINE 放在选择顺序第一位；倒角和圆角必须恰好选择两条 LINE。</li>
+<li>连续修剪、延伸需先确认边界，再点选目标；单次模式则先选择目标，再追加边界。倒角和圆角必须恰好选择两条 LINE。</li>
 <li>绘图工具提示图形退化时，请重新指定最后一点；只有准备放弃整个在绘对象时才按 Esc。</li>
 <li>检查图层是否可见；新建或打开的对象不在视野内时，点击全图。</li>
 </ul>
         </article>
         <nav class="pager" aria-label="Adjacent documentation"><a href="../installation/"><strong class="lang-en">Installation</strong><strong class="lang-zh">安装</strong></a><a href="../architecture/"><strong class="lang-en">Architecture</strong><strong class="lang-zh">架构</strong></a></nav>
       </div>
-      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-workbench-open">Open a drawing</a><a class="toc-level-2" href="#en-workbench-drawing-workflow">The drawing workflow</a><a class="toc-level-2" href="#en-workbench-coordinates">Enter exact coordinates</a><a class="toc-level-2" href="#en-workbench-draw-tools">Create basic geometry</a><a class="toc-level-2" href="#en-workbench-curves">Circles, arcs and ellipses</a><a class="toc-level-2" href="#en-workbench-spline-hatch">Splines and hatches</a><a class="toc-level-2" href="#en-workbench-dimensions">Add dimensions</a><a class="toc-level-2" href="#en-workbench-move">Select, move and copy</a><a class="toc-level-2" href="#en-workbench-modify">Modify geometry</a><a class="toc-level-2" href="#en-workbench-save">Undo, navigate and save</a><a class="toc-level-2" href="#en-workbench-layouts">Choose a layout</a><a class="toc-level-2" href="#en-workbench-troubleshooting">If an operation does not work</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-workbench-open">打开图纸</a><a class="toc-level-2" href="#zh-workbench-drawing-workflow">绘图的基本流程</a><a class="toc-level-2" href="#zh-workbench-coordinates">输入精确坐标</a><a class="toc-level-2" href="#zh-workbench-draw-tools">创建基础图形</a><a class="toc-level-2" href="#zh-workbench-curves">圆、圆弧与椭圆</a><a class="toc-level-2" href="#zh-workbench-spline-hatch">样条曲线与填充</a><a class="toc-level-2" href="#zh-workbench-dimensions">添加尺寸标注</a><a class="toc-level-2" href="#zh-workbench-move">选择、移动与复制</a><a class="toc-level-2" href="#zh-workbench-modify">参数化修改图形</a><a class="toc-level-2" href="#zh-workbench-save">撤销、浏览与保存</a><a class="toc-level-2" href="#zh-workbench-layouts">选择工作台布局</a><a class="toc-level-2" href="#zh-workbench-troubleshooting">操作没有生效时</a></div></aside>
+      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-workbench-open">Open a drawing</a><a class="toc-level-2" href="#en-workbench-drawing-workflow">The drawing workflow</a><a class="toc-level-2" href="#en-workbench-coordinates">Enter exact coordinates</a><a class="toc-level-2" href="#en-workbench-draw-tools">Create basic geometry</a><a class="toc-level-2" href="#en-workbench-curves">Circles, arcs and ellipses</a><a class="toc-level-2" href="#en-workbench-spline-hatch">Splines and hatches</a><a class="toc-level-2" href="#en-workbench-dimensions">Add dimensions</a><a class="toc-level-2" href="#en-workbench-move">Select, move and copy</a><a class="toc-level-2" href="#en-workbench-modify">Modify geometry</a><a class="toc-level-2" href="#en-workbench-continuous-editing">Trim or extend several objects</a><a class="toc-level-2" href="#en-workbench-save">Undo, navigate and save</a><a class="toc-level-2" href="#en-workbench-layouts">Choose a layout</a><a class="toc-level-2" href="#en-workbench-troubleshooting">If an operation does not work</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-workbench-open">打开图纸</a><a class="toc-level-2" href="#zh-workbench-drawing-workflow">绘图的基本流程</a><a class="toc-level-2" href="#zh-workbench-coordinates">输入精确坐标</a><a class="toc-level-2" href="#zh-workbench-draw-tools">创建基础图形</a><a class="toc-level-2" href="#zh-workbench-curves">圆、圆弧与椭圆</a><a class="toc-level-2" href="#zh-workbench-spline-hatch">样条曲线与填充</a><a class="toc-level-2" href="#zh-workbench-dimensions">添加尺寸标注</a><a class="toc-level-2" href="#zh-workbench-move">选择、移动与复制</a><a class="toc-level-2" href="#zh-workbench-modify">参数化修改图形</a><a class="toc-level-2" href="#zh-workbench-continuous-editing">连续修剪或延伸多个对象</a><a class="toc-level-2" href="#zh-workbench-save">撤销、浏览与保存</a><a class="toc-level-2" href="#zh-workbench-layouts">选择工作台布局</a><a class="toc-level-2" href="#zh-workbench-troubleshooting">操作没有生效时</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=4ca39c51560f1e49"></script>
+  <script type="module" src="../app.js?v=bae2b6f791c075e2"></script>
 </body>
 </html>

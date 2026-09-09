@@ -6,7 +6,7 @@ import { clone, deepFreeze, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js';
 import { KJ_SNAP_MODES } from './snapping.js';
-import { breakEntityPayloads, chamferLinePair, explodeEntity, extendLinePayload, filletLinePair, offsetEntityPayload, trimLinePayloads } from './editing.js';
+import { breakEntityPayloads, chamferLinePair, explodeEntity, extendEntityPayload, filletLinePair, offsetEntityPayload, trimEntityPayloads } from './editing.js';
 const AFFINE_ENTITY_TYPES = Object.freeze([
     'LINE',
     'RAY',
@@ -165,7 +165,9 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         domain: 'topology',
         precision: 'exact',
         targetEntityTypes: [
-            'LINE'
+            'LINE',
+            'ARC',
+            'CIRCLE'
         ],
         boundaryEntityTypes: [
             'LINE',
@@ -179,7 +181,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         domain: 'topology',
         precision: 'exact',
         targetEntityTypes: [
-            'LINE'
+            'LINE',
+            'ARC'
         ],
         boundaryEntityTypes: [
             'LINE',
@@ -552,6 +555,12 @@ export class KJCommandRegistry {
             expectedRevision: context.expectedRevision,
             metadata: {
                 commandId: command.id,
+                ...[
+                    'TRIM',
+                    'EXTEND'
+                ].includes(command.id) ? {
+                    commandArgumentsDigest: stableHash(args)
+                } : {},
                 commandEnvelopeId: context.commandEnvelope?.id ?? null,
                 commandProtocol: context.commandEnvelope ? `${context.commandEnvelope.schema}@${context.commandEnvelope.schemaVersion}` : null,
                 commandOrigin: context.commandEnvelope?.origin ?? null
@@ -1341,14 +1350,25 @@ export function registerCoreCommands(registry) {
         aliases: [
             'TR'
         ],
-        title: 'Trim line',
+        title: 'Trim entity',
         execute: ({ document, transaction }, args)=>{
-            const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds);
-            const pieces = trimLinePayloads(entity, boundaries, args.pickPoint);
-            const primary = transaction.updateObject(entity.id, {
-                payload: pieces[0]
+            const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds, entity.id);
+            const pieces = trimEntityPayloads(entity, boundaries, args.pickPoint);
+            const first = pieces[0];
+            if (!first) throw new KJValidationError('Trim must retain a non-empty entity');
+            let primary;
+            if (first.type === entity.type) primary = transaction.updateObject(entity.id, {
+                payload: first.payload
             });
-            for (const payload of pieces.slice(1))createDerived(transaction, entity, 'LINE', payload);
+            else {
+                transaction.eraseObject(entity.id);
+                primary = createDerived(transaction, entity, first.type, first.payload);
+            }
+            const retainedIds = [
+                primary.id
+            ];
+            for (const piece of pieces.slice(1))retainedIds.push(createDerived(transaction, entity, piece.type, piece.payload).id);
+            replaceTrimMemberships(transaction, entity.id, retainedIds);
             return primary;
         }
     }, {
@@ -1359,11 +1379,11 @@ export function registerCoreCommands(registry) {
         aliases: [
             'EX'
         ],
-        title: 'Extend line',
+        title: 'Extend entity',
         execute: ({ document, transaction }, args)=>{
-            const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds);
+            const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds, entity.id);
             return transaction.updateObject(entity.id, {
-                payload: extendLinePayload(entity, boundaries, args.pickPoint)
+                payload: extendEntityPayload(entity, boundaries, args.pickPoint)
             });
         }
     }, {
@@ -1952,8 +1972,32 @@ function createDerived(transaction, source, type, payload) {
         }
     });
 }
-function requiredBoundaries(document, ids) {
+function replaceTrimMemberships(transaction, sourceId, retainedIds) {
+    for (const group of Object.values(transaction._draft().objects)){
+        if (group.erased || group.kind !== 'group' || ![
+            'GROUP',
+            'SELECTION_SET'
+        ].includes(group.type)) continue;
+        const members = group.payload.memberIds;
+        if (!Array.isArray(members) || !members.includes(sourceId)) continue;
+        const memberIds = [
+            ...new Set(members.flatMap((id)=>id === sourceId ? [
+                    ...retainedIds
+                ] : [
+                    id
+                ]))
+        ];
+        if (memberIds.length === members.length && memberIds.every((id, index)=>id === members[index])) continue;
+        transaction.updateObject(group.id, {
+            payload: {
+                memberIds
+            }
+        });
+    }
+}
+function requiredBoundaries(document, ids, targetId) {
     if (!Array.isArray(ids) || !ids.length) throw new KJValidationError('Boundary entity ids are required');
+    if (targetId && ids.includes(targetId)) throw new KJValidationError('The target cannot also be a cutting boundary');
     return ids.map((id)=>requiredEntity(document, id));
 }
 function editLinePair({ document, transaction }, args, operation) {

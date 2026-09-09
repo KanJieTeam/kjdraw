@@ -4,7 +4,8 @@ import { kjdrawIcon } from '../../packages/kjdraw-sdk/src/theme.js'
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from '../../packages/kjdraw-sdk/src/layout.js'
 import { createDraftingSession, parseDraftCoordinate } from '../../packages/kjdraw-sdk/src/drafting.js'
 import { editEntityGrip } from '../../packages/kjdraw-sdk/src/grips.js'
-import { KJ_MODIFICATION_DEFINITIONS, getKJModificationDefinition, buildKJModificationCommand, getKJModificationSelectionCenter } from '../../packages/kjdraw-sdk/src/modification-controls.js'
+import { createBoundaryEditSession } from '../../packages/kjdraw-sdk/src/boundary-edit.js'
+import { KJ_MODIFICATION_DEFINITIONS, getKJModificationDefinition, buildKJModificationCommand, getKJModificationSelectionCenter, validateKJModificationSelection } from '../../packages/kjdraw-sdk/src/modification-controls.js'
 import { createSample } from '../../examples/sample.js'
 import { createI18n } from './i18n.js'
 import { AGENT_REVISION_COMMAND, createShowcaseRevision, getShowcaseIntent, isShowcaseIntent, registerShowcaseCommand, resolveShowcasePreset } from './agent-showcase.js'
@@ -30,6 +31,7 @@ const SAMPLE_DESCRIPTORS = Object.freeze([
 let sdk, session, selection = new Set(), tool = 'select', start = null, draft = [], cursor = null, snapEnabled = true, gridEnabled = true, orthoEnabled = false, pendingPlan = null, pan = null, busy = false, authority = null, solidAuthority = null, measurement = null, width = 1, height = 1, lastReceipt = null
 let translation = null, dragMove = null, drafting = null, modification = null
 let selectionBox = null, gripDrag = null, fence = null, hoveredGrip = null, disposeInteractionDocument = null
+let boundaryEdit = null
 const doc = () => sdk.activeDocument
 const documentTitle = drawing => {
   const metadata = drawing?.snapshot().metadata
@@ -81,6 +83,7 @@ function cancelSelectionGestures(){
 function cancelInteraction(){
   const pointerIds=new Set([pan?.pointerId].filter(Number.isInteger))
   cancelSelectionGestures()
+  cancelBoundaryEdit()
   pan=null;dragMove=null;translation=null;start=null;draft=[];cursor=null;drafting?.session.cancel();drafting=null;modification=null
   for(const pointerId of pointerIds)if(canvas.hasPointerCapture(pointerId))canvas.releasePointerCapture(pointerId)
 }
@@ -193,19 +196,22 @@ function drawOverlayEntity(entity, color, offset = [0,0]) {
 }
 function render() {
   if(!sdk?.activeDocument)return
+  if(boundaryEdit&&boundaryEdit.session.state.phase!=='applying'&&!boundaryEdit.session.isCurrent())cancelBoundaryEdit({announce:true})
   let rendered=false
   if(canvasRenderer.document!==doc()){
     disposeInteractionDocument?.();cancelSelectionGestures();canvasRenderer.setDocument(doc());rendererSelectionKey='';rendered=true
     const drawing=doc();disposeInteractionDocument=drawing.on('document:change',()=>{
       if(doc()!==drawing)return
+      if(boundaryEdit&&boundaryEdit.session.state.phase!=='applying'&&!boundaryEdit.session.isCurrent())cancelBoundaryEdit({announce:true})
       if(selectionBox||gripDrag||dragMove||fence){cancelSelectionGestures();message(t('interactionChanged'))}
       replaceSelection(selectedIds());render()
     })
   }
   if([selectionBox,gripDrag,dragMove,fence].some(binding=>binding&&!pointerBindingValid(binding))){cancelSelectionGestures();message(t('interactionChanged'))}
   if(canvasRenderer.grid!==gridEnabled){canvasRenderer.setGrid(gridEnabled);rendered=true}
-  const selectionKey=selectedIds().sort().join('|')
-  if(selectionKey!==rendererSelectionKey){canvasRenderer.setSelection(selectedIds());rendererSelectionKey=selectionKey;rendered=true}
+  const renderedSelection=boundaryEdit?boundaryEdit.session.state.boundaryIds.filter(id=>isVisible(doc().getObject(id))):selectedIds()
+  const selectionKey=[...renderedSelection].sort().join('|')
+  if(selectionKey!==rendererSelectionKey){canvasRenderer.setSelection(renderedSelection);rendererSelectionKey=selectionKey;rendered=true}
   if(!rendered)canvasRenderer.render()
   const entities=modelEntities()
   if(pendingPlan){
@@ -226,7 +232,8 @@ function render() {
     drawOverlayEntity({type:'LINE',payload:{start,end:cursor}},'#bdf878')
   }
   if(gripDrag?.preview)drawOverlayEntity(gripDrag.preview,'#77a7ff')
-  if(tool==='select'&&selectedIds().length===1&&!selectionBox&&!dragMove?.started)canvasRenderer.drawGrips(hoveredGrip??undefined)
+  if(boundaryEdit?.preview){const target=doc().getObject(boundaryEdit.preview.targetId);if(target)drawOverlayEntity(target,'#ff7077');for(const piece of boundaryEdit.preview.pieces)drawOverlayEntity(piece,'#77a7ff')}
+  if(!boundaryEdit&&tool==='select'&&selectedIds().length===1&&!selectionBox&&!dragMove?.started)canvasRenderer.drawGrips(hoveredGrip??undefined)
   if(selectionBox){
     const a=selectionBox.start,b=selectionBox.current,crossing=b[0]<a[0]
     workbench.dataset.selectionMode=crossing?'crossing':'window'
@@ -368,11 +375,84 @@ function requestLocalCommand({title,description='',submitLabel,fields=[]}) {
 async function transformSelection(command){
   return beginModification(command.toLowerCase())
 }
-async function beginModification(id){
+function cancelBoundaryEdit({announce=false}={}){
+  const task=boundaryEdit;if(!task)return
+  boundaryEdit=null;task.session.cancel();$('boundary-edit-controls')?.setAttribute('hidden','')
+  delete workbench.dataset.boundaryEdit;delete workbench.dataset.boundaryOperation
+  canvas.style.cursor=tool==='pan'?'grab':'default'
+  if(announce){$('hint').textContent=t('drawingChanged');message($('hint').textContent)}
+}
+function boundaryControls(){
+  let controls=$('boundary-edit-controls');if(controls)return controls
+  controls=document.createElement('div');controls.id='boundary-edit-controls';controls.className='draft-options';controls.setAttribute('role','toolbar')
+  const title=document.createElement('strong');title.id='boundary-edit-title'
+  const count=document.createElement('span');count.id='boundary-edit-count'
+  controls.append(title,count)
+  for(const [id,action] of [['boundary-edit-confirm',()=>run(confirmBoundaryEdit)],['boundary-edit-finish',finishBoundaryEdit],['boundary-edit-cancel',()=>{setTool('select');message(i18n.locale==='zh'?'已取消边界操作；已完成的修改仍可撤销。':'Boundary editing cancelled; completed edits remain undoable.')} ]]){
+    const button=document.createElement('button');button.id=id;button.type='button';button.onclick=action;controls.append(button)
+  }
+  $('drop-zone').append(controls);return controls
+}
+function updateBoundaryEditHint(){
+  const task=boundaryEdit;if(!task)return
+  const state=task.session.state,zh=i18n.locale==='zh',controls=boundaryControls(),choosing=state.phase==='boundaries'
+  controls.hidden=false;controls.setAttribute('aria-label',zh?'连续边界编辑':'Continuous boundary editing')
+  workbench.dataset.boundaryEdit=state.phase;workbench.dataset.boundaryOperation=state.operation
+  $('boundary-edit-title').textContent=state.operation.toUpperCase()
+  $('boundary-edit-count').textContent=zh?`${state.boundaryIds.length} 个边界 · ${state.committedCount} 次修改`:`${state.boundaryIds.length} ${state.boundaryIds.length===1?'boundary':'boundaries'} · ${state.committedCount} ${state.committedCount===1?'edit':'edits'}`
+  $('boundary-edit-confirm').textContent=zh?'确认边界 ↵':'Confirm boundaries ↵';$('boundary-edit-confirm').hidden=!choosing
+  $('boundary-edit-finish').textContent=zh?'完成 ↵':'Finish ↵';$('boundary-edit-finish').hidden=choosing
+  $('boundary-edit-cancel').textContent=zh?'取消 Esc':'Cancel Esc'
+  for(const button of controls.querySelectorAll('button'))button.disabled=state.phase==='applying'
+  $('hint').textContent=task.session.prompt;message(task.session.prompt)
+}
+function beginBoundaryEdit(operation){
+  const drawing=doc(),operationSdk=sdk,ids=selectedIds()
+  setTool('select')
+  const current=createBoundaryEditSession(operation,{document:drawing,boundaryIds:ids,locale:i18n.locale==='zh'?'zh':'en',isDocumentCurrent:()=>sdk===operationSdk&&doc()===drawing})
+  boundaryEdit={session:current,document:drawing,preview:null};canvas.style.cursor='crosshair'
+  delete workbench.dataset.lastError;updateBoundaryEditHint();render();canvas.focus()
+}
+function setBoundarySelection(ids,operation='replace',initialIds=boundaryEdit?.session.state.boundaryIds??[]){
+  const task=boundaryEdit;if(!task||task.session.state.phase!=='boundaries')return
+  const next=operation==='add'?[...new Set([...initialIds,...ids])]:operation==='remove'?initialIds.filter(id=>!ids.includes(id)):ids
+  task.session.setBoundaries(next);replaceSelection(task.session.state.boundaryIds)
+  delete workbench.dataset.lastError;refresh();updateBoundaryEditHint()
+}
+function confirmBoundaryEdit(){
+  if(!boundaryEdit)return
+  boundaryEdit.session.confirmBoundaries();boundaryEdit.preview=null
+  delete workbench.dataset.lastError;cancelSelectionGestures();updateBoundaryEditHint();render();canvas.focus()
+}
+function finishBoundaryEdit({allowBusy=false}={}){
+  const task=boundaryEdit;if(!task)return
+  if(busy&&!allowBusy)return busyNotice()
+  task.session.finish();boundaryEdit=null;$('boundary-edit-controls').hidden=true
+  delete workbench.dataset.boundaryEdit;delete workbench.dataset.boundaryOperation
+  setTool('select');refresh();message(i18n.locale==='zh'?'边界编辑完成。每次修改均可单独撤销。':'Boundary editing finished. Each edit can be undone separately.');canvas.focus()
+}
+async function applyBoundaryTarget(location){
+  const task=boundaryEdit;if(!task||task.session.state.phase!=='targets')return
+  const hit=canvasRenderer.hitTest(location,9,{includeLocked:true})
+  if(!hit)throw new Error(i18n.locale==='zh'?'未找到目标，请点击要修剪的区段或要延伸的一端。':'No target found. Click a portion to trim or an end to extend.')
+  const preview=task.session.preview(hit.entity.id,world(location));task.preview=null
+  try{await task.session.apply(preview,request=>{updateBoundaryEditHint();return execute(request.command,request.arguments,{expectedRevision:request.expectedRevision})})}
+  finally{if(boundaryEdit===task){if(task.session.isCurrent()){updateBoundaryEditHint();render()}else cancelBoundaryEdit({announce:true})}}
+  if(boundaryEdit!==task)return
+  delete workbench.dataset.lastError;replaceSelection(task.session.state.boundaryIds);refresh();updateBoundaryEditHint()
+}
+async function beginModification(id,{boundaryMode='choose'}={}){
   const definition=getKJModificationDefinition(id),ids=selectedIds(),drawing=doc(),locale=i18n.locale==='zh'?'zh':'en'
-  if(ids.length<definition.minSelection||(definition.maxSelection!=null&&ids.length>definition.maxSelection))throw new Error(`${definition.label[locale]} · ${i18n.locale==='zh'?'需要选择':'Select'} ${definition.minSelection}${definition.maxSelection===definition.minSelection?'': '+'} ${i18n.locale==='zh'?'个对象':'objects'}`)
-  if(definition.supportedEntityTypes&&ids.some(id=>!definition.supportedEntityTypes.includes(drawing.getObject(id).type)))throw new Error(`${definition.label[locale]}: ${definition.supportedEntityTypes.join(', ')}`)
-  if(['trim','extend'].includes(id)&&drawing.getObject(ids[0]).type!=='LINE')throw new Error(i18n.locale==='zh'?'先选待编辑直线，再按 Shift 选择边界。':'Select the target line first, then Shift-select boundaries.')
+  if(id==='trim'||id==='extend'){
+    let mode=boundaryMode
+    if(mode==='choose'){
+      const values=await requestLocalCommand({title:definition.label[locale],description:locale==='zh'?'连续操作：先选边界，再逐个点击目标。单次操作：使用已选目标及边界。':'Continuous: select boundaries, then click targets. Single operation: use the preselected target and boundaries.',fields:[{name:'mode',label:locale==='zh'?'工作模式':'Working mode',value:ids.length>=2?'single':'continuous',options:[['continuous',locale==='zh'?'先选边界 · 连续编辑':'Boundaries first · Continuous'],['single',locale==='zh'?'已选对象 · 单次编辑':'Preselected objects · Single operation']]}]})
+      if(!values)return;mode=values.mode
+    }
+    if(doc()!==drawing)throw new Error(t('drawingChanged'))
+    if(mode==='continuous'){beginBoundaryEdit(id);return}
+  }
+  validateKJModificationSelection(definition,ids.map(id=>drawing.getObject(id)),locale)
   const bound={documentId:drawing.id,revision:drawing.revision,ids,selectionCenter:getKJModificationSelectionCenter(ids.map(id=>drawing.getObject(id)))}
   let values={}
   if(definition.fields.length){values=await requestLocalCommand({title:definition.label[locale],description:definition.description[locale],fields:definition.fields.map(field=>({name:field.key,label:field.label[locale],type:field.type==='boolean'?'checkbox':'number',value:field.default,min:field.min,max:field.max,step:field.type==='integer'?1:field.step??'any',required:field.type!=='boolean'}))});if(!values)return}
@@ -397,7 +477,8 @@ async function commitModification(){
   if(ids.length)replaceSelection([...new Set(ids)]);setTool('select');refresh()
 }
 async function runTypedCommand(){
-  const raw=$('command-input').value.trim();if(!raw){if(fence)finishFence();else if(drafting?.session.state.canFinish)await applyDraftInput(null,{finish:true});return}
+  const raw=$('command-input').value.trim();if(!raw){if(boundaryEdit){if(boundaryEdit.session.state.phase==='boundaries')confirmBoundaryEdit();else finishBoundaryEdit({allowBusy:true})}else if(fence)finishFence();else if(drafting?.session.state.canFinish)await applyDraftInput(null,{finish:true});return}
+  if(/^(?:TRIM|EXTEND)$/i.test(raw)){$('command-input').value='';await beginModification(raw.toLowerCase(),{boundaryMode:'continuous'});return}
   if(/^FENCE$/i.test(raw)){$('command-input').value='';setTool('fence');canvas.focus();return}
   if(/^(?:SELECTALL|ALL)$/i.test(raw)){$('command-input').value='';setTool('select');applySelection(canvasRenderer.selectAll(),'replace');return}
   if(modification&&/^@?[+\-.\d]/.test(raw)){$('command-input').value='';await addModificationPoint(parseDraftCoordinate(raw,modification.points.at(-1)));return}
@@ -473,7 +554,7 @@ $('reset').onclick=()=>run(async()=>{const accepted=await requestLocalCommand({t
 $('snap').onclick=()=>{snapEnabled=!snapEnabled;$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');$('snap').setAttribute('aria-pressed',String(snapEnabled))}
 $('grid').onclick=()=>{gridEnabled=!gridEnabled;$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('grid').setAttribute('aria-pressed',String(gridEnabled));render()}
 $('ortho').onclick=()=>{orthoEnabled=!orthoEnabled;$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('ortho').setAttribute('aria-pressed',String(orthoEnabled));render()}
-$('language').onclick=()=>{const canonical=knownIntent($('agent-intent').value);i18n.toggle();if(canonical)setCanonicalIntent();$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');if(sdk){populateSampleSelector();refresh();message(`${t('ready')} · ${documentTitle(doc())}`)}if(pendingPlan)displayAgentPlan(pendingPlan);if(translation)updateTranslationHint();else if(drafting)updateDraftHint();else if(modification)updateModificationHint();else if(tool==='select')$('hint').textContent=t('canvasHint');else if(tool==='pan')$('hint').textContent=t('panHint');else if(tool==='fence')$('hint').textContent=t('fenceHint')}
+$('language').onclick=()=>{const canonical=knownIntent($('agent-intent').value);i18n.toggle();if(canonical)setCanonicalIntent();$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');if(sdk){populateSampleSelector();refresh();message(`${t('ready')} · ${documentTitle(doc())}`)}if(pendingPlan)displayAgentPlan(pendingPlan);if(boundaryEdit){boundaryEdit.session.setLocale(i18n.locale==='zh'?'zh':'en');updateBoundaryEditHint()}else if(translation)updateTranslationHint();else if(drafting)updateDraftHint();else if(modification)updateModificationHint();else if(tool==='select')$('hint').textContent=t('canvasHint');else if(tool==='pan')$('hint').textContent=t('panHint');else if(tool==='fence')$('hint').textContent=t('fenceHint')}
 for(const b of document.querySelectorAll('[data-tool]'))b.onclick=()=>{setTool(b.dataset.tool);canvas.focus()}
 function planStep(title,detail){const item=document.createElement('li'),heading=document.createElement('b');heading.textContent=title;item.append(heading,document.createTextNode(detail));$('plan-steps').append(item)}
 function displayAgentPlan(plan){
@@ -542,6 +623,11 @@ canvas.onpointermove=e=>{
     try{gripDrag.preview={type:gripDrag.entity.type,payload:editEntityGrip(gripDrag.entity,gripDrag.grip.id,cursor)};gripDrag.error=null}catch(error){gripDrag.preview=null;gripDrag.error=error;message(error.message)}
     $('coordinates').textContent=`X ${cursor[0].toFixed(2)} · Y ${cursor[1].toFixed(2)}`;render();return
   }
+  if(boundaryEdit){
+    cursor=world(p);$('coordinates').textContent=`X ${cursor[0].toFixed(2)} · Y ${cursor[1].toFixed(2)}`;boundaryEdit.preview=null
+    if(boundaryEdit.session.state.phase==='targets'&&!busy){const hit=canvasRenderer.hitTest(p,9,{includeLocked:true});if(hit)try{boundaryEdit.preview=boundaryEdit.session.preview(hit.entity.id,cursor)}catch{}}
+    render();return
+  }
   if(dragMove&&Math.hypot(p[0]-dragMove.screenStart[0],p[1]-dragMove.screenStart[1])>4)dragMove.started=true
   cursor=translationPoint(constrainedPoint(world(p)),translation?.base??dragMove?.worldStart);$('coordinates').textContent=`X ${cursor[0].toFixed(2)} · Y ${cursor[1].toFixed(2)}`
   const grip=tool==='select'&&selectedIds().length===1&&!dragMove?canvasRenderer.hitGrip(p):null,nextHover=grip?`${grip.entityId}:${grip.id}`:null
@@ -555,6 +641,16 @@ canvas.onpointerdown=e=>{
   if(busy){busyNotice();return}
   canvas.focus({preventScroll:true})
   const p=constrainedPoint(world(pointer(e)))
+  if(boundaryEdit){
+    const location=pointer(e),state=boundaryEdit.session.state
+    if(state.phase==='boundaries'){
+      const id=canvasRenderer.hitTest(location,9,{includeLocked:true})?.entity.id
+      const operation=e.ctrlKey||e.metaKey?'remove':e.shiftKey?'add':id&&state.boundaryIds.includes(id)?'remove':'add'
+      if(id)run(()=>setBoundarySelection([id],operation))
+      else {selectionBox={...pointerBinding(),boundary:boundaryEdit,pointerId:e.pointerId,start:location,current:location,operation,initialIds:[...state.boundaryIds]};canvas.setPointerCapture(e.pointerId);e.preventDefault();render()}
+    }else if(state.phase==='targets')run(()=>applyBoundaryTarget(location))
+    return
+  }
   if(fence){if(!pointerBindingValid(fence)){setTool('select');message(t('interactionChanged'));return}if(!fence.points.length)fence.operation=selectionOperation(e);fence.points.push(pointer(e));cursor=world(pointer(e));render();return}
   if(translation){
     if(!translationValid(translation)){setTool('select');message(t('drawingChanged'));return}
@@ -589,7 +685,7 @@ canvas.onpointerup=e=>{
   if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId)
   canvas.style.cursor=tool==='pan'?'grab':tool==='select'?'default':'crosshair'
   if(!valid){message(t('interactionChanged'));render();return}
-  if(box){const moved=Math.hypot(location[0]-box.start[0],location[1]-box.start[1])>=3;applySelection(moved?canvasRenderer.selectBox(box.start,location):[],box.operation,box.initialIds);$('hint').textContent=t('canvasHint');return}
+  if(box){const moved=Math.hypot(location[0]-box.start[0],location[1]-box.start[1])>=3;if(box.boundary){if(boundaryEdit===box.boundary)run(()=>setBoundarySelection(moved?canvasRenderer.selectBox(box.start,location,{includeLocked:true}):[],box.operation,box.initialIds));return}applySelection(moved?canvasRenderer.selectBox(box.start,location):[],box.operation,box.initialIds);$('hint').textContent=t('canvasHint');return}
   if(grip){
     if(grip.started){const point=translationPoint(world(location),grip.grip.point,[grip.grip.entityId]),target=[point[0],point[1],grip.grip.point[2]];run(async()=>{editEntityGrip(grip.entity,grip.grip.id,target);await execute('GRIPEDIT',{id:grip.grip.entityId,gripId:grip.grip.id,point:target},{expectedRevision:grip.revision});message(t('gripApplied'))})}
     $('hint').textContent=t('canvasHint');render();return
@@ -598,6 +694,7 @@ canvas.onpointerup=e=>{
   else render()
 }
 canvas.onpointercancel=e=>{if(!unrelatedPointer(e))setTool('select')}
+canvas.onpointerleave=e=>{if(!unrelatedPointer(e)&&boundaryEdit?.preview){boundaryEdit.preview=null;render()}}
 canvas.onlostpointercapture=e=>{if(pan?.pointerId===e.pointerId)pan=null;if([dragMove,selectionBox,gripDrag].some(binding=>binding?.pointerId===e.pointerId)){cancelSelectionGestures();render()}}
 canvas.addEventListener('wheel',e=>{e.preventDefault();cancelSelectionGestures();canvasRenderer.zoomAt(Math.exp(-e.deltaY*.001),pointer(e));render()},{passive:false})
 window.addEventListener('keydown',e=>{
@@ -613,6 +710,10 @@ window.addEventListener('keydown',e=>{
     return
   }
   if(e.altKey)return
+  if(boundaryEdit){
+    if(e.key==='Enter'){e.preventDefault();if(boundaryEdit.session.state.phase==='boundaries')run(confirmBoundaryEdit);else finishBoundaryEdit();return}
+    if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();updateBoundaryEditHint();return}
+  }
   if(fence){if(e.key==='Enter'){e.preventDefault();finishFence();return}if(e.key==='Backspace'){e.preventDefault();fence.points.pop();render();return}}
   if(drafting){
     if(e.key==='Enter'&&drafting.session.state.canFinish){e.preventDefault();run(()=>applyDraftInput(null,{finish:true}));return}
@@ -628,7 +729,7 @@ i18n.apply()
 new ResizeObserver(()=>requestAnimationFrame(resize)).observe($('drop-zone'))
 const narrowLayout=window.matchMedia('(max-width: 780px)')
 if(narrowLayout.matches)setPanelOpen('inspector',false)
-narrowLayout.addEventListener('change',event=>{if(event.matches){setPanelOpen('layers',false);setPanelOpen('inspector',false);requestAnimationFrame(resize)}})
+narrowLayout.addEventListener('change',event=>{if(boundaryEdit)setTool('select');if(event.matches){setPanelOpen('layers',false);setPanelOpen('inspector',false);requestAnimationFrame(resize)}})
 try {
   const {instance}=await instantiateKJCoreWasm(new URL('../../web/public/kjcore/kjcore.wasm',import.meta.url))
   registerGeometryBackend(createWasmGeometryBackend(instance));authority=createKJCoreDocumentAuthority(instance);solidAuthority=createKJCoreSolidBackend(instance)
@@ -649,7 +750,7 @@ function initializeWorkbenchChrome(){
   for(const layout of KJDRAW_LAYOUTS){const option=document.createElement('option');option.value=layout;option.dataset.i18n=`layout_${layout}`;option.textContent=t(option.dataset.i18n);layoutSelect.append(option)}
   let savedLayout='classic';try{savedLayout=normalizeWorkbenchLayout(localStorage.getItem('kjdraw.layout'))}catch{}
   layoutSelect.value=savedLayout;workbench.dataset.layout=savedLayout
-  layoutSelect.onchange=()=>{const layout=normalizeWorkbenchLayout(layoutSelect.value);workbench.dataset.layout=layout;try{localStorage.setItem('kjdraw.layout',layout)}catch{}requestAnimationFrame(()=>{resize();canvas.focus()})}
+  layoutSelect.onchange=()=>{if(boundaryEdit)setTool('select');const layout=normalizeWorkbenchLayout(layoutSelect.value);workbench.dataset.layout=layout;try{localStorage.setItem('kjdraw.layout',layout)}catch{}requestAnimationFrame(()=>{resize();canvas.focus()})}
   document.querySelector('.site-header').insertBefore(layoutSelect,document.querySelector('.top-document'))
   $('move-selection').dataset.tool='move';$('copy-selection').dataset.tool='copy'
   document.querySelector('.ribbon-tabs > span').textContent='2D'

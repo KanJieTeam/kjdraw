@@ -3,8 +3,136 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:fac8aa0a6638c7a11617b912499bc21b6d337cdfc17048a4ca76e6d42d165c85",
+  "sourceDigest": "sha256:a32b0e23bf032aea271af47e72a200246c8bfe3f3baaf8287f185fa1ca9470fa",
   "modules": [
+    {
+      "exportPath": "./drawing-context",
+      "packageName": "@kanjieteam/kjdraw/drawing-context",
+      "declaration": "types/drawing-context.d.ts",
+      "anchor": "module-drawing-context",
+      "symbols": [
+        {
+          "name": "createDrawingContext",
+          "kind": "function",
+          "declaration": "export declare function createDrawingContext(document: KJDocument, options?: KJDrawingContextOptions): KJDrawingContext;",
+          "source": "drawing-context.d.ts",
+          "anchor": "drawing-context-function-createdrawingcontext"
+        },
+        {
+          "name": "KJDrawingContext",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingContext {\n    readonly documentId: string;\n    readonly revision: number;\n    readonly units: string;\n    readonly spaceId: string;\n    readonly layers: readonly KJDrawingContextLayer[];\n    readonly entities: readonly KJDrawingContextEntity[];\n    /** True when either collection or any requested native geometry was omitted. */\n    readonly truncated: boolean;\n    readonly truncationReasons: readonly KJDrawingContextTruncationReason[];\n    readonly nextOffset: number | null;\n    readonly nextLayerOffset: number | null;\n    readonly limits: {\n        readonly limit: number;\n        readonly maxLayers: number;\n        readonly maxBytes: number;\n        readonly maxGeometryBytes: number;\n    };\n}",
+          "source": "drawing-context.d.ts",
+          "anchor": "drawing-context-interface-kjdrawingcontext"
+        },
+        {
+          "name": "KJDrawingContextEntity",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingContextEntity {\n    readonly id: string;\n    readonly type: string;\n    readonly ownerId: string | null;\n    readonly layerId: string | null;\n    readonly visible: boolean;\n    /** Visibility and locking eligibility only; command support is not implied. */\n    readonly editable: boolean;\n    /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */\n    readonly geometry: {\n        readonly [key: string]: KJDrawingContextValue;\n    } | null;\n    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;\n}",
+          "source": "drawing-context.d.ts",
+          "anchor": "drawing-context-interface-kjdrawingcontextentity"
+        },
+        {
+          "name": "KJDrawingContextLayer",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingContextLayer {\n    readonly id: string;\n    readonly name: string | null;\n    readonly visible: boolean;\n    readonly frozen: boolean;\n    readonly locked: boolean;\n    /** Visibility and locking eligibility only; this is not an authorization decision. */\n    readonly editable: boolean;\n}",
+          "source": "drawing-context.d.ts",
+          "anchor": "drawing-context-interface-kjdrawingcontextlayer"
+        },
+        {
+          "name": "KJDrawingContextOptions",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingContextOptions {\n    /** Exact object IDs; duplicates are ignored. Filters are combined with AND. */\n    ids?: readonly string[];\n    /** Case-insensitive native entity types, for example LINE or ARC. */\n    types?: readonly string[];\n    layerIds?: readonly string[];\n    /** A live block record; defaults to model space. INSERTs are not expanded. */\n    spaceId?: string;\n    /** Hidden and frozen entities are excluded by default. Locked entities remain visible. */\n    includeHidden?: boolean;\n    expectedRevision?: number;\n    /** Matching entity offset. Continuations require expectedRevision and the same filters. */\n    offset?: number;\n    /** Registered layer offset, after layerIds filtering. */\n    layerOffset?: number;\n    /** 0 disables entities; default 50, maximum 200. */\n    limit?: number;\n    /** 0 disables the layer catalog; default 50, maximum 100. */\n    maxLayers?: number;\n    /** Maximum UTF-8 bytes of JSON.stringify(result); default 65536, range 1024..262144. */\n    maxBytes?: number;\n}",
+          "source": "drawing-context.d.ts",
+          "anchor": "drawing-context-interface-kjdrawingcontextoptions"
+        },
+        {
+          "name": "KJDrawingContextTruncationReason",
+          "kind": "type",
+          "declaration": "export type KJDrawingContextTruncationReason = 'entity-limit' | 'layer-limit' | 'response-budget' | 'geometry-budget' | 'unsupported-geometry';",
+          "source": "drawing-context.d.ts",
+          "anchor": "drawing-context-type-kjdrawingcontexttruncationreason"
+        },
+        {
+          "name": "KJDrawingContextValue",
+          "kind": "type",
+          "declaration": "export type KJDrawingContextValue = null | boolean | number | string | readonly KJDrawingContextValue[] | {\n    readonly [key: string]: KJDrawingContextValue;\n};",
+          "source": "drawing-context.d.ts",
+          "anchor": "drawing-context-type-kjdrawingcontextvalue"
+        },
+        {
+          "name": "KJDrawingGeometryOmittedReason",
+          "kind": "type",
+          "declaration": "export type KJDrawingGeometryOmittedReason = 'unsupported-type' | 'unsupported-data' | 'geometry-budget' | 'response-budget';",
+          "source": "drawing-context.d.ts",
+          "anchor": "drawing-context-type-kjdrawinggeometryomittedreason"
+        }
+      ]
+    },
+    {
+      "exportPath": "./boundary-edit",
+      "packageName": "@kanjieteam/kjdraw/boundary-edit",
+      "declaration": "types/boundary-edit.d.ts",
+      "anchor": "module-boundary-edit",
+      "symbols": [
+        {
+          "name": "createBoundaryEditSession",
+          "kind": "function",
+          "declaration": "export declare function createBoundaryEditSession(operation: KJBoundaryEditOperation, options: KJBoundaryEditOptions): KJBoundaryEditSession;",
+          "source": "boundary-edit.d.ts",
+          "anchor": "boundary-edit-function-createboundaryeditsession"
+        },
+        {
+          "name": "KJBoundaryEditCommand",
+          "kind": "interface",
+          "declaration": "export interface KJBoundaryEditCommand {\n    readonly command: 'TRIM' | 'EXTEND';\n    readonly arguments: {\n        readonly id: string;\n        readonly boundaryIds: readonly string[];\n        readonly pickPoint: readonly [number, number];\n    };\n    readonly expectedRevision: number;\n}",
+          "source": "boundary-edit.d.ts",
+          "anchor": "boundary-edit-interface-kjboundaryeditcommand"
+        },
+        {
+          "name": "KJBoundaryEditOperation",
+          "kind": "type",
+          "declaration": "export type KJBoundaryEditOperation = 'trim' | 'extend';",
+          "source": "boundary-edit.d.ts",
+          "anchor": "boundary-edit-type-kjboundaryeditoperation"
+        },
+        {
+          "name": "KJBoundaryEditOptions",
+          "kind": "interface",
+          "declaration": "export interface KJBoundaryEditOptions {\n    document: KJDocument;\n    boundaryIds?: readonly string[];\n    locale?: 'en' | 'zh';\n    /** Hosts bind this to their mounted document/readonly state, not merely its ID. */\n    isDocumentCurrent?: () => boolean;\n}",
+          "source": "boundary-edit.d.ts",
+          "anchor": "boundary-edit-interface-kjboundaryeditoptions"
+        },
+        {
+          "name": "KJBoundaryEditPhase",
+          "kind": "type",
+          "declaration": "export type KJBoundaryEditPhase = 'boundaries' | 'targets' | 'applying' | 'finished' | 'cancelled';",
+          "source": "boundary-edit.d.ts",
+          "anchor": "boundary-edit-type-kjboundaryeditphase"
+        },
+        {
+          "name": "KJBoundaryEditPreview",
+          "kind": "type",
+          "declaration": "export type KJBoundaryEditPreview = ReadonlyDeep<{\n    documentId: string;\n    revision: number;\n    operation: KJBoundaryEditOperation;\n    targetId: string;\n    boundaryIds: string[];\n    pickPoint: [number, number];\n    pieces: KJDerivedEntityPayload[];\n    command: KJBoundaryEditCommand;\n}>;",
+          "source": "boundary-edit.d.ts",
+          "anchor": "boundary-edit-type-kjboundaryeditpreview"
+        },
+        {
+          "name": "KJBoundaryEditSession",
+          "kind": "class",
+          "declaration": "export declare class KJBoundaryEditSession {\n    #private;\n    constructor(operation: KJBoundaryEditOperation, options: KJBoundaryEditOptions);\n    get state(): KJBoundaryEditState;\n    get prompt(): string;\n    setLocale(locale: 'en' | 'zh'): void;\n    /** Does not silently rebase a session after undo, replacement or another edit. */\n    isCurrent(): boolean;\n    setBoundaries(ids: readonly string[]): void;\n    confirmBoundaries(): void;\n    /** Computes exact retained primitives without mutating the document or history. */\n    preview(targetId: string, pickPoint: readonly [number, number]): KJBoundaryEditPreview;\n    /**\n     * Execute through the host's normal SDK command path. The callback must\n     * propagate failures and return the SDK envelope receipt. The actual commit,\n     * arguments and retained geometry must match the preview, not just revision +1.\n     * Successful edits are separate undo steps. Cancel does not undo an already\n     * dispatched transaction; it prevents the session from resuming afterwards.\n     */\n    apply<TResult extends Readonly<KJCommandReceipt>>(preview: KJBoundaryEditPreview, execute: (request: KJBoundaryEditCommand) => Promise<TResult>): Promise<TResult>;\n    finish(): void;\n    cancel(): void;\n}",
+          "source": "boundary-edit.d.ts",
+          "anchor": "boundary-edit-class-kjboundaryeditsession"
+        },
+        {
+          "name": "KJBoundaryEditState",
+          "kind": "interface",
+          "declaration": "export interface KJBoundaryEditState {\n    readonly phase: KJBoundaryEditPhase;\n    readonly operation: KJBoundaryEditOperation;\n    readonly boundaryIds: readonly string[];\n    readonly expectedRevision: number;\n    readonly committedCount: number;\n}",
+          "source": "boundary-edit.d.ts",
+          "anchor": "boundary-edit-interface-kjboundaryeditstate"
+        }
+      ]
+    },
     {
       "exportPath": "./drafting",
       "packageName": "@kanjieteam/kjdraw/drafting",
@@ -169,7 +297,7 @@
         {
           "name": "KJModificationDefinition",
           "kind": "interface",
-          "declaration": "export interface KJModificationDefinition {\n    readonly id: KJModificationId;\n    readonly command: string;\n    readonly label: KJLocalizedControlText;\n    readonly description: KJLocalizedControlText;\n    readonly minSelection: number;\n    readonly maxSelection?: number;\n    /** When present, every selected entity must use one of these types. */\n    readonly supportedEntityTypes?: readonly string[];\n    readonly fields: readonly KJModificationFieldDefinition[];\n    readonly pointKeys: readonly KJModificationPointDefinition[];\n}",
+          "declaration": "export interface KJModificationDefinition {\n    readonly id: KJModificationId;\n    readonly command: string;\n    readonly label: KJLocalizedControlText;\n    readonly description: KJLocalizedControlText;\n    readonly minSelection: number;\n    readonly maxSelection?: number;\n    /** When present, every selected entity must use one of these types. */\n    readonly supportedEntityTypes?: readonly string[];\n    /** For boundary-based operations, the first selected entity is the target. */\n    readonly targetEntityTypes?: readonly string[];\n    readonly boundaryEntityTypes?: readonly string[];\n    readonly fields: readonly KJModificationFieldDefinition[];\n    readonly pointKeys: readonly KJModificationPointDefinition[];\n}",
           "source": "modification-controls.d.ts",
           "anchor": "modification-controls-interface-kjmodificationdefinition"
         },
@@ -207,6 +335,13 @@
           "declaration": "export interface KJModificationPointDefinition {\n    readonly key: string;\n    readonly label: KJLocalizedControlText;\n}",
           "source": "modification-controls.d.ts",
           "anchor": "modification-controls-interface-kjmodificationpointdefinition"
+        },
+        {
+          "name": "validateKJModificationSelection",
+          "kind": "function",
+          "declaration": "export declare function validateKJModificationSelection(definition: KJModificationDefinition, entities: readonly ({\n    readonly id: string;\n    readonly type: string;\n    readonly kind?: string;\n} | null)[], locale?: 'en' | 'zh'): void;",
+          "source": "modification-controls.d.ts",
+          "anchor": "modification-controls-function-validatekjmodificationselection"
         }
       ]
     },
@@ -840,6 +975,13 @@
           "declaration": "export declare function explodeEntity(entity: KJEditingEntity | null | undefined): KJDerivedEntityPayload[];",
           "source": "editing.d.ts",
           "anchor": "core-function-explodeentity"
+        },
+        {
+          "name": "extendEntityPayload",
+          "kind": "function",
+          "declaration": "export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;",
+          "source": "editing.d.ts",
+          "anchor": "core-function-extendentitypayload"
         },
         {
           "name": "extendLinePayload",
@@ -3432,6 +3574,13 @@
           "anchor": "core-const-translation3"
         },
         {
+          "name": "trimEntityPayloads",
+          "kind": "function",
+          "declaration": "export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];",
+          "source": "editing.d.ts",
+          "anchor": "core-function-trimentitypayloads"
+        },
+        {
           "name": "trimLinePayload",
           "kind": "function",
           "declaration": "export declare function trimLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;",
@@ -4467,6 +4616,13 @@
           "anchor": "root-function-closestpointonsegment2"
         },
         {
+          "name": "createBoundaryEditSession",
+          "kind": "function",
+          "declaration": "export declare function createBoundaryEditSession(operation: KJBoundaryEditOperation, options: KJBoundaryEditOptions): KJBoundaryEditSession;",
+          "source": "boundary-edit.d.ts",
+          "anchor": "root-function-createboundaryeditsession"
+        },
+        {
           "name": "createCommandEnvelope",
           "kind": "function",
           "declaration": "export declare function createCommandEnvelope<TArguments extends Record<string, unknown> = Record<string, unknown>>(command: string, args?: TArguments, options?: KJCreateCommandOptions): Readonly<KJCommandEnvelope<TArguments>>;",
@@ -4493,6 +4649,13 @@
           "declaration": "export declare function createDraftingSession(tool: KJDraftTool, options?: KJDraftingOptions): KJDraftingSession;",
           "source": "drafting.d.ts",
           "anchor": "root-function-createdraftingsession"
+        },
+        {
+          "name": "createDrawingContext",
+          "kind": "function",
+          "declaration": "export declare function createDrawingContext(document: KJDocument, options?: KJDrawingContextOptions): KJDrawingContext;",
+          "source": "drawing-context.d.ts",
+          "anchor": "root-function-createdrawingcontext"
         },
         {
           "name": "createDXFFileAdapter",
@@ -4759,6 +4922,13 @@
           "declaration": "export declare function explodeEntity(entity: KJEditingEntity | null | undefined): KJDerivedEntityPayload[];",
           "source": "editing.d.ts",
           "anchor": "root-function-explodeentity"
+        },
+        {
+          "name": "extendEntityPayload",
+          "kind": "function",
+          "declaration": "export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;",
+          "source": "editing.d.ts",
+          "anchor": "root-function-extendentitypayload"
         },
         {
           "name": "extendLinePayload",
@@ -5130,6 +5300,55 @@
           "declaration": "export interface KJArcConnector {\n    type: 'ARC';\n    payload: KJObjectPayload & {\n        center: Point3;\n        radius: number;\n        startAngle: number;\n        endAngle: number;\n        clockwise: boolean;\n        normal: Point3;\n    };\n}",
           "source": "editing.d.ts",
           "anchor": "root-interface-kjarcconnector"
+        },
+        {
+          "name": "KJBoundaryEditCommand",
+          "kind": "interface",
+          "declaration": "export interface KJBoundaryEditCommand {\n    readonly command: 'TRIM' | 'EXTEND';\n    readonly arguments: {\n        readonly id: string;\n        readonly boundaryIds: readonly string[];\n        readonly pickPoint: readonly [number, number];\n    };\n    readonly expectedRevision: number;\n}",
+          "source": "boundary-edit.d.ts",
+          "anchor": "root-interface-kjboundaryeditcommand"
+        },
+        {
+          "name": "KJBoundaryEditOperation",
+          "kind": "type",
+          "declaration": "export type KJBoundaryEditOperation = 'trim' | 'extend';",
+          "source": "boundary-edit.d.ts",
+          "anchor": "root-type-kjboundaryeditoperation"
+        },
+        {
+          "name": "KJBoundaryEditOptions",
+          "kind": "interface",
+          "declaration": "export interface KJBoundaryEditOptions {\n    document: KJDocument;\n    boundaryIds?: readonly string[];\n    locale?: 'en' | 'zh';\n    /** Hosts bind this to their mounted document/readonly state, not merely its ID. */\n    isDocumentCurrent?: () => boolean;\n}",
+          "source": "boundary-edit.d.ts",
+          "anchor": "root-interface-kjboundaryeditoptions"
+        },
+        {
+          "name": "KJBoundaryEditPhase",
+          "kind": "type",
+          "declaration": "export type KJBoundaryEditPhase = 'boundaries' | 'targets' | 'applying' | 'finished' | 'cancelled';",
+          "source": "boundary-edit.d.ts",
+          "anchor": "root-type-kjboundaryeditphase"
+        },
+        {
+          "name": "KJBoundaryEditPreview",
+          "kind": "type",
+          "declaration": "export type KJBoundaryEditPreview = ReadonlyDeep<{\n    documentId: string;\n    revision: number;\n    operation: KJBoundaryEditOperation;\n    targetId: string;\n    boundaryIds: string[];\n    pickPoint: [number, number];\n    pieces: KJDerivedEntityPayload[];\n    command: KJBoundaryEditCommand;\n}>;",
+          "source": "boundary-edit.d.ts",
+          "anchor": "root-type-kjboundaryeditpreview"
+        },
+        {
+          "name": "KJBoundaryEditSession",
+          "kind": "class",
+          "declaration": "export declare class KJBoundaryEditSession {\n    #private;\n    constructor(operation: KJBoundaryEditOperation, options: KJBoundaryEditOptions);\n    get state(): KJBoundaryEditState;\n    get prompt(): string;\n    setLocale(locale: 'en' | 'zh'): void;\n    /** Does not silently rebase a session after undo, replacement or another edit. */\n    isCurrent(): boolean;\n    setBoundaries(ids: readonly string[]): void;\n    confirmBoundaries(): void;\n    /** Computes exact retained primitives without mutating the document or history. */\n    preview(targetId: string, pickPoint: readonly [number, number]): KJBoundaryEditPreview;\n    /**\n     * Execute through the host's normal SDK command path. The callback must\n     * propagate failures and return the SDK envelope receipt. The actual commit,\n     * arguments and retained geometry must match the preview, not just revision +1.\n     * Successful edits are separate undo steps. Cancel does not undo an already\n     * dispatched transaction; it prevents the session from resuming afterwards.\n     */\n    apply<TResult extends Readonly<KJCommandReceipt>>(preview: KJBoundaryEditPreview, execute: (request: KJBoundaryEditCommand) => Promise<TResult>): Promise<TResult>;\n    finish(): void;\n    cancel(): void;\n}",
+          "source": "boundary-edit.d.ts",
+          "anchor": "root-class-kjboundaryeditsession"
+        },
+        {
+          "name": "KJBoundaryEditState",
+          "kind": "interface",
+          "declaration": "export interface KJBoundaryEditState {\n    readonly phase: KJBoundaryEditPhase;\n    readonly operation: KJBoundaryEditOperation;\n    readonly boundaryIds: readonly string[];\n    readonly expectedRevision: number;\n    readonly committedCount: number;\n}",
+          "source": "boundary-edit.d.ts",
+          "anchor": "root-interface-kjboundaryeditstate"
         },
         {
           "name": "KJBreakOptions",
@@ -5902,6 +6121,55 @@
           "anchor": "root-interface-kjdrawerroroptions"
         },
         {
+          "name": "KJDrawingContext",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingContext {\n    readonly documentId: string;\n    readonly revision: number;\n    readonly units: string;\n    readonly spaceId: string;\n    readonly layers: readonly KJDrawingContextLayer[];\n    readonly entities: readonly KJDrawingContextEntity[];\n    /** True when either collection or any requested native geometry was omitted. */\n    readonly truncated: boolean;\n    readonly truncationReasons: readonly KJDrawingContextTruncationReason[];\n    readonly nextOffset: number | null;\n    readonly nextLayerOffset: number | null;\n    readonly limits: {\n        readonly limit: number;\n        readonly maxLayers: number;\n        readonly maxBytes: number;\n        readonly maxGeometryBytes: number;\n    };\n}",
+          "source": "drawing-context.d.ts",
+          "anchor": "root-interface-kjdrawingcontext"
+        },
+        {
+          "name": "KJDrawingContextEntity",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingContextEntity {\n    readonly id: string;\n    readonly type: string;\n    readonly ownerId: string | null;\n    readonly layerId: string | null;\n    readonly visible: boolean;\n    /** Visibility and locking eligibility only; command support is not implied. */\n    readonly editable: boolean;\n    /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */\n    readonly geometry: {\n        readonly [key: string]: KJDrawingContextValue;\n    } | null;\n    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;\n}",
+          "source": "drawing-context.d.ts",
+          "anchor": "root-interface-kjdrawingcontextentity"
+        },
+        {
+          "name": "KJDrawingContextLayer",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingContextLayer {\n    readonly id: string;\n    readonly name: string | null;\n    readonly visible: boolean;\n    readonly frozen: boolean;\n    readonly locked: boolean;\n    /** Visibility and locking eligibility only; this is not an authorization decision. */\n    readonly editable: boolean;\n}",
+          "source": "drawing-context.d.ts",
+          "anchor": "root-interface-kjdrawingcontextlayer"
+        },
+        {
+          "name": "KJDrawingContextOptions",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingContextOptions {\n    /** Exact object IDs; duplicates are ignored. Filters are combined with AND. */\n    ids?: readonly string[];\n    /** Case-insensitive native entity types, for example LINE or ARC. */\n    types?: readonly string[];\n    layerIds?: readonly string[];\n    /** A live block record; defaults to model space. INSERTs are not expanded. */\n    spaceId?: string;\n    /** Hidden and frozen entities are excluded by default. Locked entities remain visible. */\n    includeHidden?: boolean;\n    expectedRevision?: number;\n    /** Matching entity offset. Continuations require expectedRevision and the same filters. */\n    offset?: number;\n    /** Registered layer offset, after layerIds filtering. */\n    layerOffset?: number;\n    /** 0 disables entities; default 50, maximum 200. */\n    limit?: number;\n    /** 0 disables the layer catalog; default 50, maximum 100. */\n    maxLayers?: number;\n    /** Maximum UTF-8 bytes of JSON.stringify(result); default 65536, range 1024..262144. */\n    maxBytes?: number;\n}",
+          "source": "drawing-context.d.ts",
+          "anchor": "root-interface-kjdrawingcontextoptions"
+        },
+        {
+          "name": "KJDrawingContextTruncationReason",
+          "kind": "type",
+          "declaration": "export type KJDrawingContextTruncationReason = 'entity-limit' | 'layer-limit' | 'response-budget' | 'geometry-budget' | 'unsupported-geometry';",
+          "source": "drawing-context.d.ts",
+          "anchor": "root-type-kjdrawingcontexttruncationreason"
+        },
+        {
+          "name": "KJDrawingContextValue",
+          "kind": "type",
+          "declaration": "export type KJDrawingContextValue = null | boolean | number | string | readonly KJDrawingContextValue[] | {\n    readonly [key: string]: KJDrawingContextValue;\n};",
+          "source": "drawing-context.d.ts",
+          "anchor": "root-type-kjdrawingcontextvalue"
+        },
+        {
+          "name": "KJDrawingGeometryOmittedReason",
+          "kind": "type",
+          "declaration": "export type KJDrawingGeometryOmittedReason = 'unsupported-type' | 'unsupported-data' | 'geometry-budget' | 'response-budget';",
+          "source": "drawing-context.d.ts",
+          "anchor": "root-type-kjdrawinggeometryomittedreason"
+        },
+        {
           "name": "KJDrawSDK",
           "kind": "class",
           "declaration": "export declare class KJDrawSDK {\n    readonly version: string;\n    readonly events: KJEventBus<KJDrawSDKEvents>;\n    readonly extensions: KJExtensionRegistry;\n    readonly commands: KJCommandRegistry;\n    readonly fileAdapters: KJFileAdapterRegistry;\n    readonly documents: Map<string, KJDocument>;\n    readonly selections: Map<string, KJSelectionManager>;\n    readonly agentPlans: KJAgentPlanRegistry;\n    activeDocumentId: string | null;\n    documentAuthority: KJDocumentAuthorityProvider | null;\n    solidAuthority: Readonly<KJCoreSolidBackend> | null;\n    constructor(options?: KJDrawSDKOptions);\n    createDocument(options?: KJDocumentOptions & KJDocumentConstructorOptions): KJDocument;\n    openDocument(input: KJOpenDocumentInput, options?: KJDocumentConstructorOptions): KJDocument;\n    attachDocument(document: KJDocument): KJDocument;\n    closeDocument(inputId: string): boolean;\n    get activeDocument(): KJDocument | null;\n    get activeSelection(): KJSelectionSet | null;\n    getSelectionManager(documentId?: string | null): KJSelectionManager | null;\n    setDocumentAuthority(authority: KJDocumentAuthorityProvider): KJDocumentAuthorityProvider;\n    setSolidAuthority(authority: Readonly<KJCoreSolidBackend>): Readonly<KJCoreSolidBackend>;\n    setActiveDocument(inputId: string): KJDocument;\n    executeCommand<TResult = unknown>(id: string, args?: KJCommandArguments, options?: KJExecuteCommandOptions): Promise<TResult>;\n    executeCommand<TResult = unknown>(envelope: Readonly<KJCommandEnvelope>, options?: KJExecuteCommandEnvelopeOptions): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    createCommandEnvelope<TArguments extends Record<string, unknown> = KJCommandArguments>(command: string, args?: TArguments, options?: KJCreateSDKCommandEnvelopeOptions): Readonly<KJCommandEnvelope<TArguments>>;\n    executeCommandEnvelope<TResult = unknown>(input: unknown, options?: KJExecuteCommandEnvelopeOptions): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    snap(cursor: KJSnapPointInput, options?: KJSnapSDKOptions): readonly Readonly<KJSnapCandidate>[];\n    readDocument(source: unknown, options?: KJFileAdapterOptions): Promise<KJDocument>;\n    writeDocument<TResult = unknown>(document?: KJDocument | null, options?: KJFileAdapterOptions): Promise<TResult>;\n    capabilities(): ReturnType<typeof buildSDKCapabilityManifest>;\n    createPluginScope(manifestInput: unknown, { grantedPermissions }?: KJPluginScopeOptions): Readonly<KJPluginScope>;\n}",
@@ -6282,7 +6550,7 @@
         {
           "name": "KJModificationDefinition",
           "kind": "interface",
-          "declaration": "export interface KJModificationDefinition {\n    readonly id: KJModificationId;\n    readonly command: string;\n    readonly label: KJLocalizedControlText;\n    readonly description: KJLocalizedControlText;\n    readonly minSelection: number;\n    readonly maxSelection?: number;\n    /** When present, every selected entity must use one of these types. */\n    readonly supportedEntityTypes?: readonly string[];\n    readonly fields: readonly KJModificationFieldDefinition[];\n    readonly pointKeys: readonly KJModificationPointDefinition[];\n}",
+          "declaration": "export interface KJModificationDefinition {\n    readonly id: KJModificationId;\n    readonly command: string;\n    readonly label: KJLocalizedControlText;\n    readonly description: KJLocalizedControlText;\n    readonly minSelection: number;\n    readonly maxSelection?: number;\n    /** When present, every selected entity must use one of these types. */\n    readonly supportedEntityTypes?: readonly string[];\n    /** For boundary-based operations, the first selected entity is the target. */\n    readonly targetEntityTypes?: readonly string[];\n    readonly boundaryEntityTypes?: readonly string[];\n    readonly fields: readonly KJModificationFieldDefinition[];\n    readonly pointKeys: readonly KJModificationPointDefinition[];\n}",
           "source": "modification-controls.d.ts",
           "anchor": "root-interface-kjmodificationdefinition"
         },
@@ -7561,6 +7829,13 @@
           "anchor": "root-const-translation3"
         },
         {
+          "name": "trimEntityPayloads",
+          "kind": "function",
+          "declaration": "export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];",
+          "source": "editing.d.ts",
+          "anchor": "root-function-trimentitypayloads"
+        },
+        {
           "name": "trimLinePayload",
           "kind": "function",
           "declaration": "export declare function trimLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;",
@@ -7601,6 +7876,13 @@
           "declaration": "export declare function validateDocumentState(input: unknown, { throwOnError, previousState }?: {\n    throwOnError?: boolean;\n    previousState?: KJDocumentState;\n}): KJValidationResult;",
           "source": "schema.d.ts",
           "anchor": "root-function-validatedocumentstate"
+        },
+        {
+          "name": "validateKJModificationSelection",
+          "kind": "function",
+          "declaration": "export declare function validateKJModificationSelection(definition: KJModificationDefinition, entities: readonly ({\n    readonly id: string;\n    readonly type: string;\n    readonly kind?: string;\n} | null)[], locale?: 'en' | 'zh'): void;",
+          "source": "modification-controls.d.ts",
+          "anchor": "root-function-validatekjmodificationselection"
         },
         {
           "name": "validatePluginManifest",
@@ -8021,6 +8303,13 @@
           "anchor": "editing-function-explodeentity"
         },
         {
+          "name": "extendEntityPayload",
+          "kind": "function",
+          "declaration": "export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;",
+          "source": "editing.d.ts",
+          "anchor": "editing-function-extendentitypayload"
+        },
+        {
           "name": "extendLinePayload",
           "kind": "function",
           "declaration": "export declare function extendLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;",
@@ -8096,6 +8385,13 @@
           "declaration": "export declare function offsetEntityPayload(entity: KJEditingEntity | null | undefined, distance: unknown, options?: KJOffsetOptions): KJObjectPayload;",
           "source": "editing.d.ts",
           "anchor": "editing-function-offsetentitypayload"
+        },
+        {
+          "name": "trimEntityPayloads",
+          "kind": "function",
+          "declaration": "export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];",
+          "source": "editing.d.ts",
+          "anchor": "editing-function-trimentitypayloads"
         },
         {
           "name": "trimLinePayload",

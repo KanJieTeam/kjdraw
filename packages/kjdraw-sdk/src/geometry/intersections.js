@@ -133,7 +133,7 @@ function intersectCircleCircleReference2(centerA, radiusA, centerB, radiusB, opt
         throw new KJValidationError('Circle radii must be non-negative');
     }
     const difference = subtract2(resolvedCenterB, resolvedCenterA);
-    const distance = Math.sqrt(lengthSquared2(difference));
+    const distance = Math.hypot(difference[0], difference[1]);
     const epsilon = tolerance.distanceFor(distance, resolvedRadiusA, resolvedRadiusB);
     if (distance <= epsilon && Math.abs(resolvedRadiusA - resolvedRadiusB) <= epsilon) {
         return {
@@ -145,13 +145,26 @@ function intersectCircleCircleReference2(centerA, radiusA, centerB, radiusB, opt
         };
     }
     if (distance > resolvedRadiusA + resolvedRadiusB + epsilon || distance < Math.abs(resolvedRadiusA - resolvedRadiusB) - epsilon || distance <= epsilon) return none();
-    const along = (resolvedRadiusA * resolvedRadiusA - resolvedRadiusB * resolvedRadiusB + distance * distance) / (2 * distance);
-    let heightSquared = resolvedRadiusA * resolvedRadiusA - along * along;
-    if (heightSquared < 0 && Math.abs(heightSquared) <= epsilon * epsilon) heightSquared = 0;
-    if (heightSquared < 0) return none();
+    const aIsSmall = resolvedRadiusA <= resolvedRadiusB;
+    const small = Math.min(resolvedRadiusA, resolvedRadiusB);
+    const large = Math.max(resolvedRadiusA, resolvedRadiusB);
+    const along = small <= large / 2 ? ((distance - large) * (1 + large / distance) + small * (small / distance)) / 2 : (distance + (small - large) * (small / distance + large / distance)) / 2;
+    const [x, y, z] = [
+        resolvedRadiusA,
+        resolvedRadiusB,
+        distance
+    ].sort((a, b)=>b - a);
+    const near = z - (x - y), far = z + (x - y);
+    const factorA = x / distance + (y - z) / distance;
+    const factorB = x / distance + y / distance + z / distance;
+    let height = Math.sqrt(Math.abs(near)) * Math.sqrt(factorA) / 2 * (Math.sqrt(far) * Math.sqrt(factorB));
+    if (near < 0) {
+        if (height > epsilon) return none();
+        height = 0;
+    }
     const unit = multiply2(difference, 1 / distance);
-    const base = add2(resolvedCenterA, multiply2(unit, along));
-    if (heightSquared === 0) {
+    const base = add2(aIsSmall ? resolvedCenterA : resolvedCenterB, multiply2(unit, aIsSmall ? along : -along));
+    if (height === 0) {
         return {
             kind: 'point',
             points: [
@@ -165,7 +178,6 @@ function intersectCircleCircleReference2(centerA, radiusA, centerB, radiusB, opt
         -unit[1],
         unit[0]
     ];
-    const height = Math.sqrt(heightSquared);
     return {
         kind: 'point',
         points: [

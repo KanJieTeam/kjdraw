@@ -138,7 +138,7 @@ export class KJTransaction {
             id: object.id,
             handle: object.handle,
             kind: object.kind,
-            type: object.type,
+            objectType: object.type,
             ownerId: object.ownerId
         });
         return clone(object);

@@ -196,23 +196,46 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
     {
         id: 'trim',
         command: 'TRIM',
-        label: text('Trim line', '修剪直线'),
-        description: text('Use the first selected LINE as target and the rest as boundaries.', '以第一个选中直线为目标，其余对象为边界。'),
+        label: text('Trim', '修剪'),
+        description: text('Select the line, arc or circle first, then Shift-select the cutting boundaries.', '先选择待修剪的直线、圆弧或圆，再按住 Shift 选择切割边界。'),
         minSelection: 2,
+        targetEntityTypes: [
+            'LINE',
+            'ARC',
+            'CIRCLE'
+        ],
+        boundaryEntityTypes: [
+            'LINE',
+            'RAY',
+            'XLINE',
+            'CIRCLE',
+            'ARC'
+        ],
         fields: [],
         pointKeys: [
-            pick('pickPoint', 'Pick the portion of the target to remove', '在目标直线上指定要删除的区段')
+            pick('pickPoint', 'Pick the portion of the target to remove', '在目标图形上指定要删除的区段')
         ]
     },
     {
         id: 'extend',
         command: 'EXTEND',
-        label: text('Extend line', '延伸直线'),
-        description: text('Use the first selected LINE as target and the rest as boundaries.', '以第一个选中直线为目标，其余对象为边界。'),
+        label: text('Extend', '延伸'),
+        description: text('Select the line or arc first, then Shift-select the limiting boundaries.', '先选择待延伸的直线或圆弧，再按住 Shift 选择延伸边界。'),
         minSelection: 2,
+        targetEntityTypes: [
+            'LINE',
+            'ARC'
+        ],
+        boundaryEntityTypes: [
+            'LINE',
+            'RAY',
+            'XLINE',
+            'CIRCLE',
+            'ARC'
+        ],
         fields: [],
         pointKeys: [
-            pick('pickPoint', 'Pick the end of the target to extend', '在目标直线上指定要延伸的一端')
+            pick('pickPoint', 'Pick near the end of the target to extend', '在目标图形上靠近要延伸的一端点选')
         ]
     },
     {
@@ -316,6 +339,18 @@ export function getKJModificationDefinition(id) {
     const definition = definitionById.get(id);
     if (!definition) throw new RangeError(`Unsupported KJDraw modification: ${String(id)}`);
     return definition;
+}
+export function validateKJModificationSelection(definition, entities, locale = 'en') {
+    const fail = (en, zh)=>{
+        throw new RangeError(locale === 'zh' ? zh : en);
+    };
+    if (entities.some((entity)=>!entity || entity.kind !== undefined && entity.kind !== 'entity')) fail('Selection contains an unavailable entity', '选择中包含不可用的图元');
+    if (new Set(entities.map((entity)=>entity.id)).size !== entities.length) fail('Select each entity only once', '请勿重复选择同一图元');
+    if (entities.length < definition.minSelection) fail(`${definition.command} requires at least ${definition.minSelection} selected objects`, `${definition.label.zh}至少需要选择 ${definition.minSelection} 个对象`);
+    if (definition.maxSelection !== undefined && entities.length > definition.maxSelection) fail(`${definition.command} accepts at most ${definition.maxSelection} selected objects`, `${definition.label.zh}最多允许选择 ${definition.maxSelection} 个对象`);
+    if (definition.supportedEntityTypes && entities.some((entity)=>!definition.supportedEntityTypes.includes(entity.type))) fail(`${definition.command} supports ${definition.supportedEntityTypes.join(', ')}`, `${definition.label.zh}支持的图元：${definition.supportedEntityTypes.join('、')}`);
+    if (definition.targetEntityTypes && !definition.targetEntityTypes.includes(entities[0].type)) fail(`Select a ${definition.targetEntityTypes.join(', ')} target first, then Shift-select boundaries`, `请先选择目标图元（${definition.targetEntityTypes.join('、')}），再按住 Shift 选择边界`);
+    if (definition.boundaryEntityTypes && entities.slice(1).some((entity)=>!definition.boundaryEntityTypes.includes(entity.type))) fail(`Boundaries must be ${definition.boundaryEntityTypes.join(', ')}`, `边界必须是 ${definition.boundaryEntityTypes.join('、')}`);
 }
 function normalizedIds(definition, ids) {
     const result = [

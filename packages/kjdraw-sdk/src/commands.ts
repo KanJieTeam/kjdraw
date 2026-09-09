@@ -35,10 +35,10 @@ import {
   breakEntityPayloads,
   chamferLinePair,
   explodeEntity,
-  extendLinePayload,
+  extendEntityPayload,
   filletLinePair,
   offsetEntityPayload,
-  trimLinePayloads,
+  trimEntityPayloads,
 } from './editing.js'
 import type { KJLinePairEditResult, KJLinePairOptions } from './editing.js'
 
@@ -276,8 +276,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   OFFSET: { domain: 'geometry', precision: 'exact', supportedEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
   BREAK: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC'] },
   EXPLODE: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE', 'REVISION_CLOUD', 'WIPEOUT'] },
-  TRIM: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
-  EXTEND: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
+  TRIM: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE', 'ARC', 'CIRCLE'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
+  EXTEND: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE', 'ARC'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
   CHAMFER: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE'] },
   FILLET: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE'] },
   GRIPEDIT: { domain: 'geometry', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },
@@ -376,6 +376,7 @@ export class KJCommandRegistry {
       expectedRevision: context.expectedRevision,
       metadata: {
         commandId: command.id,
+        ...(['TRIM', 'EXTEND'].includes(command.id) ? { commandArgumentsDigest: stableHash(args) } : {}),
         commandEnvelopeId: context.commandEnvelope?.id ?? null,
         commandProtocol: context.commandEnvelope ? `${context.commandEnvelope.schema}@${context.commandEnvelope.schemaVersion}` : null,
         commandOrigin: context.commandEnvelope?.origin ?? null,
@@ -730,20 +731,31 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
-    id: 'TRIM', aliases: ['TR'], title: 'Trim line',
+    id: 'TRIM', aliases: ['TR'], title: 'Trim entity',
     execute: ({ document, transaction }, args) => {
-      const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds)
-      const pieces = trimLinePayloads(entity, boundaries, args.pickPoint)
-      const primary = transaction.updateObject(entity.id, { payload: pieces[0]! })
-      for (const payload of pieces.slice(1)) createDerived(transaction, entity, 'LINE', payload)
+      const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds, entity.id)
+      const pieces = trimEntityPayloads(entity, boundaries, args.pickPoint)
+      const first = pieces[0]
+      if (!first) throw new KJValidationError('Trim must retain a non-empty entity')
+      let primary: KJObjectRecord
+      if (first.type === entity.type) primary = transaction.updateObject(entity.id, { payload: first.payload })
+      else {
+        // Entity types are immutable. A trimmed circle produces a derived ARC;
+        // one transaction restores the original circle on Undo.
+        transaction.eraseObject(entity.id)
+        primary = createDerived(transaction, entity, first.type, first.payload)
+      }
+      const retainedIds = [primary.id]
+      for (const piece of pieces.slice(1)) retainedIds.push(createDerived(transaction, entity, piece.type, piece.payload).id)
+      replaceTrimMemberships(transaction, entity.id, retainedIds)
       return primary
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
-    id: 'EXTEND', aliases: ['EX'], title: 'Extend line',
+    id: 'EXTEND', aliases: ['EX'], title: 'Extend entity',
     execute: ({ document, transaction }, args) => {
-      const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds)
-      return transaction.updateObject(entity.id, { payload: extendLinePayload(entity, boundaries, args.pickPoint) })
+      const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds, entity.id)
+      return transaction.updateObject(entity.id, { payload: extendEntityPayload(entity, boundaries, args.pickPoint) })
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
@@ -1104,8 +1116,20 @@ function createDerived(transaction: KJTransaction, source: KJReadonlyObjectRecor
   })
 }
 
-function requiredBoundaries(document: KJDocument, ids: readonly string[] | undefined): KJReadonlyObjectRecord[] {
+function replaceTrimMemberships(transaction: KJTransaction, sourceId: string, retainedIds: readonly string[]): void {
+  for (const group of Object.values(transaction._draft().objects)) {
+    if (group.erased || group.kind !== 'group' || !['GROUP', 'SELECTION_SET'].includes(group.type)) continue
+    const members = group.payload.memberIds
+    if (!Array.isArray(members) || !members.includes(sourceId)) continue
+    const memberIds = [...new Set(members.flatMap(id => id === sourceId ? [...retainedIds] : [id]))]
+    if (memberIds.length === members.length && memberIds.every((id, index) => id === members[index])) continue
+    transaction.updateObject(group.id, { payload: { memberIds } })
+  }
+}
+
+function requiredBoundaries(document: KJDocument, ids: readonly string[] | undefined, targetId?: string): KJReadonlyObjectRecord[] {
   if (!Array.isArray(ids) || !ids.length) throw new KJValidationError('Boundary entity ids are required')
+  if (targetId && ids.includes(targetId)) throw new KJValidationError('The target cannot also be a cutting boundary')
   return ids.map(id => requiredEntity(document, id))
 }
 

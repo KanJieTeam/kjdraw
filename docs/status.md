@@ -28,6 +28,7 @@ node scripts/audits/release-readiness.mjs
 - KJP packages carry multiple drawings, hashes, snapshots and command journals with bounded ZIP64 decoding.
 - The public plugin starter exercises manifest validation, compatibility, explicit permission grants, activation, a real transaction and disposal.
 - Agent plans use SHA-256 content binding over exact arguments and complete document content, plus expected revision, expiry, reviewer identity and one-shot consumption.
+- The source-tree `drawing-context` entry provides read-only, revision-bound entity/layer queries with native geometry, editing eligibility, pagination and explicit response/geometry omissions. It does not connect a model or authorize data access.
 - The synthetic 10,000-line core profile is enforced by a CI budget for batch creation, a single-entity edit, snapshot, KJD/KJP round trips and memory growth.
 - The headless CLI inspects, validates and converts KJD, KJP and the supported DXF profile without uploading files.
 
@@ -37,6 +38,7 @@ These statements describe repository-owned evidence. They are not a claim that a
 
 Stable promotion remains blocked until the exact release-candidate commit has all required gates green, including:
 
+- the mechanical, building-plan and site-drawing production workflows in the [CAD programme](product/cad-completeness.md), not merely the currently tested command subset;
 - the configured Chromium, Firefox and WebKit acceptance journeys in hosted CI;
 - live Demo, Docs, search and API deep-link checks against the deployed candidate;
 - npm provenance, GitHub artifact attestation, SBOM and checksum verification from the real release run.
@@ -44,6 +46,8 @@ Stable promotion remains blocked until the exact release-candidate commit has al
 The isolated packed artifact already installs and compiles the Vanilla TypeScript, React and Vue consumers locally. The DXF gate also has pinned ezdxf 1.4.4 cross-implementation evidence for the published subset. Both must continue to pass in candidate CI, but they no longer represent missing repository evidence.
 
 Governance policy and release/security responsibilities are documented. A second authorized backup maintainer is still an operational continuity risk that must remain visible before promotion.
+
+The [route to a dependable CAD foundation](product/roadmap-to-core.md) orders the remaining product work and defines user-level acceptance for each stage. GitHub push authorization resumed on 2026-09-09; source commits, deployed pages and npm releases still require separate verification. See the [README and Agent context acceptance](product/readme-agent-context-2026-09-09.md) for this update.
 
 ## Exact product boundary
 
