@@ -140,6 +140,8 @@ Continue with **this same tool and identical filters**, replacing offsets with `
 
 `bounds` is an ordered `[minX,minY,maxX,maxY]` crossing rectangle in the selected owner's XY coordinates. A host can derive it from `renderer.screenToWorld()` at opposite canvas corners. It is not a paper viewport projection or a screen pixel rectangle. Lines, rays, construction lines, points, circles, arcs and polyline segments/bulges use the shared CAD intersection geometry. A circle surrounding the rectangle without touching it is outside. Text, blocks, other unsupported types, tilted normals and polylines exceeding 4,096 vertices are conservatively retained as `spatialMatch: 'unclassified'`; they are not proof of intersection. Other results are marked `intersects`. `spatialQuery` echoes the coordinate semantics and bounds. No block contents are expanded or converted to world coordinates, and geometry stays in its original native coordinates. Inspect unclassified results before acting; never infer that unsupported geometry is absent.
 
+HATCH regions with straight polygon or LINE-edge boundaries also support the even-odd rule: holes are excluded and nested solid islands included. Queries concern the filled geometric region, not individual pattern ink or gaps. Curved HATCH boundaries, unknown patterns, more than 128 loops or more than 4,096 boundary edges remain `unclassified`; dense drawing budgets do not change the stored region.
+
 ## Review before mutation {#review-before-mutation}
 
 ```text
@@ -392,6 +394,8 @@ const page = await session.call('cad_query_drawing', query)
 继续分页时必须使用**相同工具和相同过滤条件**，将偏移替换为 `nextOffset` / `nextLayerOffset`。某个集合读完后将 `limit` 或 `maxLayers` 设为 0；下一偏移为 null 表示该集合结束。旧的 `cad_read_page` 不保存过滤条件。修订冲突必须重新查询。上限为 200 个对象、100 个图层和 1–256 KiB 的上下文 JSON（不含工具外层包装）；几何遗漏和字节预算分页都有明确字段。输出字节上限不是扫描耗时上限。
 
 `bounds` 是选定归属空间 XY 坐标下的有序交叉矩形 `[minX,minY,maxX,maxY]`，宿主可用画布对角的 `renderer.screenToWorld()` 得出；它不是屏幕像素或图纸视口投影。直线、射线、构造线、点、圆、圆弧和多段线直线/凸度段复用 CAD 的几何相交判断。完全包围矩形但圆周不接触的圆不算相交。文字、图块、其他不支持类型、倾斜法向量和超过 4096 顶点的多段线保守保留为 `spatialMatch: 'unclassified'`，不能把它当成已证明相交；其他返回对象标为 `intersects`。`spatialQuery` 返回坐标语义及范围。图块不展开，坐标不转世界坐标，返回几何保留原生坐标。操作前应检查未分类对象，不能推断不支持的图形不存在。
+
+HATCH 的直线多边形和 LINE 边界环也支持奇偶填充规则：排除孔洞，包含孔洞中嵌套的实心区域。查询的是填充几何区域，不是某条虚线的墨迹或间隙。曲线填充边界、未知图案、超过 128 个边界环或 4096 条边仍返回 `unclassified`；密集绘制预算不改变图档中的区域。
 
 ## 修改前先审核 {#review-before-mutation}
 

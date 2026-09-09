@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/agent/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=e787b4086561add3">
+  <link rel="stylesheet" href="../style.css?v=f1c9e717a3a2bb7d">
   <title>Agent workflows · KJDraw Docs</title>
 </head>
 <body>
@@ -144,6 +144,7 @@ const query: KJAgentDrawingQuery = {
 const page = await session.call(&#39;cad_query_drawing&#39;, query)</code></pre>
 <p>Continue with <strong>this same tool and identical filters</strong>, replacing offsets with <code>nextOffset</code> / <code>nextLayerOffset</code>. Set <code>limit: 0</code> or <code>maxLayers: 0</code> for a completed collection. A null next offset means that collection ended. <code>cad_read_page</code> is the older unfiltered query and does not remember filters. A revision mismatch requires a fresh query. Limits are 200 entities, 100 layers and 1–256 KiB for the JSON context (excluding the tool wrapper); geometry omissions and byte-budget continuation remain explicit. Scanning time is not bounded by the output byte cap.</p>
 <p><code>bounds</code> is an ordered <code>[minX,minY,maxX,maxY]</code> crossing rectangle in the selected owner&#39;s XY coordinates. A host can derive it from <code>renderer.screenToWorld()</code> at opposite canvas corners. It is not a paper viewport projection or a screen pixel rectangle. Lines, rays, construction lines, points, circles, arcs and polyline segments/bulges use the shared CAD intersection geometry. A circle surrounding the rectangle without touching it is outside. Text, blocks, other unsupported types, tilted normals and polylines exceeding 4,096 vertices are conservatively retained as <code>spatialMatch: &#39;unclassified&#39;</code>; they are not proof of intersection. Other results are marked <code>intersects</code>. <code>spatialQuery</code> echoes the coordinate semantics and bounds. No block contents are expanded or converted to world coordinates, and geometry stays in its original native coordinates. Inspect unclassified results before acting; never infer that unsupported geometry is absent.</p>
+<p>HATCH regions with straight polygon or LINE-edge boundaries also support the even-odd rule: holes are excluded and nested solid islands included. Queries concern the filled geometric region, not individual pattern ink or gaps. Curved HATCH boundaries, unknown patterns, more than 128 loops or more than 4,096 boundary edges remain <code>unclassified</code>; dense drawing budgets do not change the stored region.</p>
 <h2 id="en-agent-review-before-mutation">Review before mutation<a class="heading-anchor" href="#en-agent-review-before-mutation" aria-label="Link to Review before mutation">#</a></h2>
 <pre data-language="text"><button class="copy" type="button">Copy</button><code>Intent → plan envelope → exact preview → human approval
        → verified one-shot execution → receipt → undo</code></pre>
@@ -314,6 +315,7 @@ const query: KJAgentDrawingQuery = {
 const page = await session.call(&#39;cad_query_drawing&#39;, query)</code></pre>
 <p>继续分页时必须使用<strong>相同工具和相同过滤条件</strong>，将偏移替换为 <code>nextOffset</code> / <code>nextLayerOffset</code>。某个集合读完后将 <code>limit</code> 或 <code>maxLayers</code> 设为 0；下一偏移为 null 表示该集合结束。旧的 <code>cad_read_page</code> 不保存过滤条件。修订冲突必须重新查询。上限为 200 个对象、100 个图层和 1–256 KiB 的上下文 JSON（不含工具外层包装）；几何遗漏和字节预算分页都有明确字段。输出字节上限不是扫描耗时上限。</p>
 <p><code>bounds</code> 是选定归属空间 XY 坐标下的有序交叉矩形 <code>[minX,minY,maxX,maxY]</code>，宿主可用画布对角的 <code>renderer.screenToWorld()</code> 得出；它不是屏幕像素或图纸视口投影。直线、射线、构造线、点、圆、圆弧和多段线直线/凸度段复用 CAD 的几何相交判断。完全包围矩形但圆周不接触的圆不算相交。文字、图块、其他不支持类型、倾斜法向量和超过 4096 顶点的多段线保守保留为 <code>spatialMatch: &#39;unclassified&#39;</code>，不能把它当成已证明相交；其他返回对象标为 <code>intersects</code>。<code>spatialQuery</code> 返回坐标语义及范围。图块不展开，坐标不转世界坐标，返回几何保留原生坐标。操作前应检查未分类对象，不能推断不支持的图形不存在。</p>
+<p>HATCH 的直线多边形和 LINE 边界环也支持奇偶填充规则：排除孔洞，包含孔洞中嵌套的实心区域。查询的是填充几何区域，不是某条虚线的墨迹或间隙。曲线填充边界、未知图案、超过 128 个边界环或 4096 条边仍返回 <code>unclassified</code>；密集绘制预算不改变图档中的区域。</p>
 <h2 id="zh-agent-review-before-mutation">修改前先审核<a class="heading-anchor" href="#zh-agent-review-before-mutation" aria-label="Link to 修改前先审核">#</a></h2>
 <pre data-language="text"><button class="copy" type="button">Copy</button><code>意图 → 计划信封 → 精确预览 → 人工批准
      → 校验后一次性执行 → 回执 → 撤销</code></pre>
@@ -406,6 +408,6 @@ await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=e787b4086561add3"></script>
+  <script type="module" src="../app.js?v=f1c9e717a3a2bb7d"></script>
 </body>
 </html>

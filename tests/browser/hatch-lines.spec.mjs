@@ -7,6 +7,7 @@ test('imported custom pattern paints dashes and dots, clips holes and survives e
   const result = await page.evaluate(async () => {
     const { createKJDrawSDK, createKJDrawEditor } = await import('/packages/kjdraw-sdk/src/index.js')
     const { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js')
+    const { createDrawingContext } = await import('/packages/kjdraw-sdk/src/drawing-context.js')
     const sdk = createKJDrawSDK(), doc = sdk.createDocument()
     await doc.transact('original pattern', tx => tx.createEntity('HATCH', {
       trueColor: 0, solid: false, patternName: 'ORIGINAL_DASH_DOT', patternScale: 1, patternAngle: 0,
@@ -31,6 +32,7 @@ test('imported custom pattern paints dashes and dots, clips holes and survives e
     }
     // Row y=4 has base x=7 after the move. Row y=12 crosses the inner hole.
     const pixels = { dash: ink([8, 4]), gap: ink([10, 4]), dot: ink([11, 4]), hole: ink([14, 12]), outside: ink([3, 4]) }
+    const regionMatches = [[7, 3, 9, 5], [13, 11, 15, 13], [0, 0, 1, 1]].map(bounds => createDrawingContext(editor.document, { types: ['HATCH'], bounds, maxLayers: 0 }).entities.map(e => e.spatialMatch))
     const hit = renderer.selectBox(renderer.worldToScreen([4, 1]), renderer.worldToScreen([11, 7]), { mode: 'crossing' })
     renderer.panBy(13, -17); renderer.zoomAt(1.4)
     const afterNavigation = { dash: ink([8, 4]), dot: ink([11, 4]), hole: ink([14, 12]) }
@@ -42,10 +44,11 @@ test('imported custom pattern paints dashes and dots, clips holes and survives e
     })
     renderer.fit()
     const blockPixels = { dash: ink([24, 40]), dot: ink([24, 46]), hole: ink([8, 52]) }
-    return { pixels, afterNavigation, blockPixels, report: renderer.report, selected: hit.length, first }
+    return { pixels, regionMatches, afterNavigation, blockPixels, report: renderer.report, selected: hit.length, first }
   })
   expect(result.pixels.dash).toBeGreaterThan(0); expect(result.pixels.dot).toBeGreaterThan(0)
   expect(result.pixels.gap).toBe(0); expect(result.pixels.hole).toBe(0); expect(result.pixels.outside).toBe(0)
+  expect(result.regionMatches).toEqual([['intersects'], [], []])
   expect(result.afterNavigation.dash).toBeGreaterThan(0); expect(result.afterNavigation.dot).toBeGreaterThan(0); expect(result.afterNavigation.hole).toBe(0)
   expect(result.blockPixels.dash).toBeGreaterThan(0); expect(result.blockPixels.dot).toBeGreaterThan(0); expect(result.blockPixels.hole).toBe(0)
   expect(result.report.unsupported).toBe(0); expect(result.report.hatchDiagnostics).toEqual([])

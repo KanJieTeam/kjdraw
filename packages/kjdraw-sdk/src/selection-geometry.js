@@ -2,6 +2,7 @@
 import { arcSweep, multiply3, rotation3, scale3, transformEntityPayload, translation3 } from './geometry/index.js';
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js';
 import { projectDimension } from './geometry/annotation.js';
+import { hatchPatternLines } from './geometry/hatch.js';
 const TAU = Math.PI * 2;
 const point = (value)=>Array.isArray(value) && value.length >= 2 && value.slice(0, 2).every((v)=>Number.isFinite(Number(v))) ? [
         Number(value[0]),
@@ -423,7 +424,8 @@ export function classifyEntityInBox(document, entity, bounds) {
         'CIRCLE',
         'ARC',
         'LWPOLYLINE',
-        'POLYLINE'
+        'POLYLINE',
+        'HATCH'
     ].includes(entity.type)) return 'unclassified';
     for (const normal of [
         entity.payload.normal,
@@ -432,6 +434,29 @@ export function classifyEntityInBox(document, entity, bounds) {
         if (normal !== undefined && (!Array.isArray(normal) || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) return 'unclassified';
     }
     if (Array.isArray(entity.payload.vertices) && entity.payload.vertices.length > 4096) return 'unclassified';
+    if (entity.type === 'HATCH') {
+        const loops = entity.payload.boundaryLoops;
+        if (!Array.isArray(loops) || !loops.length || loops.length > 128) return 'unclassified';
+        let edges = 0;
+        for (const loop of loops){
+            if (!loop || typeof loop !== 'object') return 'unclassified';
+            if (Array.isArray(loop.vertices)) {
+                edges += loop.vertices.length;
+                if (loop.vertices.length < 3 || loop.vertices.some((v)=>!vertex(v) || finite(v?.bulge) !== 0)) return 'unclassified';
+            } else if (Array.isArray(loop.edges)) {
+                edges += loop.edges.length;
+                if (!loop.edges.length || loop.edges.some((e)=>e.type !== 'LINE' || !point(e.start) || !point(e.end))) return 'unclassified';
+            } else return 'unclassified';
+            if (edges > 4096) return 'unclassified';
+        }
+        if (entity.payload.solid !== true && String(entity.payload.patternName).toUpperCase() !== 'SOLID') {
+            try {
+                hatchPatternLines(entity.payload);
+            } catch  {
+                return 'unclassified';
+            }
+        }
+    }
     const [minX, minY, maxX, maxY] = bounds, tolerance = 1e-8;
     const corners = [
         [
@@ -455,7 +480,9 @@ export function classifyEntityInBox(document, entity, bounds) {
     try {
         const projection = project(entity, document);
         if (!projection.complete || !projection.parts.length) return 'unclassified';
-        return projection.parts.some((part)=>criticalPoints(part).some(inside) || corners.some((corner, i)=>intersects(part, corner, corners[(i + 1) % 4], tolerance))) ? 'intersects' : 'outside';
+        const touchesBoundary = projection.parts.some((part)=>criticalPoints(part).some(inside) || corners.some((corner, i)=>intersects(part, corner, corners[(i + 1) % 4], tolerance)));
+        const insideFill = projection.fills.some((loops)=>corners.some((corner)=>insideFills(corner, loops)));
+        return touchesBoundary || insideFill ? 'intersects' : 'outside';
     } catch  {
         return 'unclassified';
     }

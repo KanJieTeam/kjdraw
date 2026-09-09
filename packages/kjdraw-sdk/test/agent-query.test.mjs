@@ -84,3 +84,33 @@ test('filtered byte-budget pagination makes progress over a large drawing withou
   } while (offset !== null)
   assert.deepEqual(ids, Array.from({ length: 11 }, (_, i) => `line-${995 + i}`))
 })
+
+test('hatch region queries respect polygon holes and nested islands before and after move, undo and DXF reopen', async () => {
+  const sdk = createKJDrawSDK(), doc = sdk.createDocument()
+  await doc.transact('islands', tx => tx.createEntity('HATCH', {
+    solid: false, patternName: 'ORIGINAL_GRID', patternLines: [{ angle: 0, base: [0, 0], offset: [0, 2], dashes: [] }],
+    boundaryLoops: [{ vertices: [[0, 0], [30, 0], [30, 30], [0, 30]] }, { external: false, vertices: [[5, 5], [25, 5], [25, 25], [5, 25]] }, { external: false, vertices: [[10, 10], [20, 10], [20, 20], [10, 20]] }],
+  }, { id: 'hatch' }))
+  const regions = (document, dx = 0) => [[1, 1, 2, 2], [6, 6, 7, 7], [11, 11, 12, 12], [29, 15, 31, 16], [40, 40, 41, 41]].map(bounds => createDrawingContext(document, { bounds: bounds.map((n, i) => i % 2 === 0 ? n + dx : n), types: ['HATCH'], maxLayers: 0 }).entities.map(e => e.spatialMatch))
+  const expected = [['intersects'], [], ['intersects'], ['intersects'], []]
+  assert.deepEqual(regions(doc), expected)
+  await sdk.executeCommand('MOVE', { id: 'hatch', dx: 50, dy: 0 })
+  assert.deepEqual(regions(doc, 50), expected)
+  await sdk.executeCommand('UNDO'); assert.deepEqual(regions(doc), expected)
+  await sdk.executeCommand('REDO')
+  const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(doc, { format: 'DXF' }), { format: 'DXF' })
+  assert.deepEqual(regions(reopened, 50), expected)
+})
+
+test('hatch LINE edge regions are classified while curved or unsupported patterns remain explicit', async () => {
+  const sdk = createKJDrawSDK(), doc = sdk.createDocument()
+  await doc.transact('hatch boundaries', tx => {
+    tx.createEntity('HATCH', { solid: true, boundaryLoops: [{ edges: [{ type: 'LINE', start: [0, 0], end: [10, 0] }, { type: 'LINE', start: [10, 0], end: [10, 10] }, { type: 'LINE', start: [10, 10], end: [0, 10] }, { type: 'LINE', start: [0, 10], end: [0, 0] }] }] }, { id: 'edges' })
+    tx.createEntity('HATCH', { solid: true, boundaryLoops: [{ vertices: [{ point: [0, 0], bulge: 1 }, { point: [10, 0] }, { point: [10, 10] }] }] }, { id: 'curved' })
+    tx.createEntity('HATCH', { solid: false, patternName: 'UNDEFINED', boundaryLoops: [{ vertices: [[0, 0], [10, 0], [10, 10]] }] }, { id: 'unknown' })
+  })
+  const result = createDrawingContext(doc, { bounds: [1, 1, 2, 2], maxLayers: 0 })
+  assert.deepEqual(result.entities.map(e => [e.id, e.spatialMatch]), [['edges', 'intersects'], ['curved', 'unclassified'], ['unknown', 'unclassified']])
+  const outside = createDrawingContext(doc, { bounds: [100, 100, 101, 101], maxLayers: 0 })
+  assert.deepEqual(outside.entities.map(e => e.id), ['curved', 'unknown'])
+})
