@@ -320,7 +320,9 @@ test('embedded boundary controls remain visible, clickable and within a 390px Ch
       await expect(button).toHaveAccessibleName(name)
       await expect(button).toHaveAttribute('title', name)
       await expect(button.locator('[data-copy]')).not.toBeVisible()
-      expect((await button.boundingBox()).width).toBe(32)
+      // Firefox can return 31.999984741210938 for a 32px layout box.
+      // Keep the size requirement within 0.0005 CSS px, not exact float equality.
+      expect((await button.boundingBox()).width).toBeCloseTo(32, 3)
     }
     const visibleButtons = appbar.locator('button:visible')
     expect(await visibleButtons.count()).toBeGreaterThan(0)
@@ -343,7 +345,7 @@ test('embedded boundary controls remain visible, clickable and within a 390px Ch
     })
     expect(metrics.bounds.left).toBeGreaterThanOrEqual(0)
     expect(metrics.bounds.right).toBeLessThanOrEqual(390)
-    expect(metrics.bounds.height).toBe(44)
+    expect(metrics.bounds.height).toBeCloseTo(44, 3)
     expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.clientHeight + 1)
     expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1)
     for (const button of metrics.buttons) {
