@@ -223,8 +223,11 @@ test('native and mirrored HATCH arc edges retain both stored direction conventio
   const contextEdges = createDrawingContext(document, { ids: [hatch.id] }).entities[0].geometry.boundaryLoops[0].edges
   assert.deepEqual(contextEdges, storedEdges)
   assert.equal(contextEdges[0].clockwise, false)
-  assert.equal(contextEdges[1].clockwise, true)
-  assert.equal(contextEdges[1].counterClockwise, false)
+  // Reflection reverses the actual sweep regardless of which direction field was supplied.
+  assert.equal(contextEdges[1].clockwise, false)
+  assert.equal(contextEdges[1].counterClockwise, true)
+  assert.ok(Math.abs(contextEdges[1].startAngle - Math.PI / 2) < 1e-9)
+  assert.ok(Math.abs(contextEdges[1].endAngle) < 1e-9)
   assert.deepEqual(contextEdges[0].center, [-3, 4, 0])
 })
 

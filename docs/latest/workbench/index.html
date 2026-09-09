@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/workbench/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=44b7d4a98e7e1b66">
+  <link rel="stylesheet" href="../style.css?v=d9767aed933206b6">
   <title>Using the workbench · KJDraw Docs</title>
 </head>
 <body>
@@ -101,6 +101,8 @@
 <p>For a <strong>Spline</strong>, choose the degree first. Pick at least <code>degree + 1</code> control points, then press <strong>Enter</strong> to finish. Use <strong>Backspace</strong> to revise the last control point before committing. <strong>C</strong> produces a closed spline when enough points are available.</p>
 <p>For a <strong>Hatch</strong>, choose <strong>SOLID</strong>, <strong>ANSI31</strong> or <strong>ANSI37</strong> and set the scale before drawing the boundary. Pick at least three boundary vertices, then press <strong>Enter</strong> or <strong>C</strong>. KJDraw closes the boundary when it creates the hatch. ANSI31 is a single diagonal pattern; ANSI37 is a crossed diagonal pattern. In the embedded drawing dialog, clear <strong>Solid fill</strong> when choosing a line pattern.</p>
 <p>Hatch creation currently uses one polygon boundary per operation. Draw separate hatches for separate regions.</p>
+<p>Imported DXF hatches use their actual line definitions, including custom names, dashed lines, dots and staggered row origins. Polygon/bulge and LINE/ARC boundaries use even-odd hole clipping. Moving, rotating, uniformly scaling or mirroring a hatch transforms its pattern with its boundary; saving DXF retains the transformed definition. Ellipse/spline hatch boundaries and nonstandard collinear dash offsets remain unsupported. Very dense patterns draw partially within a bounded work budget; the editor prompts you to zoom in. A partial pattern is not complete plotting output.</p>
+<p>For an application-defined pattern, supply <code>patternLines</code> in drawing coordinates: each line has an <code>angle</code> in radians, <code>base: [x,y]</code>, <code>offset: [dx,dy]</code> and signed <code>dashes</code> (positive stroke, negative gap, zero dot; <code>[]</code> is continuous). These values already include the current <code>patternAngle</code>/<code>patternScale</code>. Store those settings as <code>patternDefinitionAngle</code>/<code>patternDefinitionScale</code> if your application will later change the global settings without rewriting the definitions. The renderer&#39;s <code>report.hatchDiagnostics</code> identifies <code>budget</code>, <code>unsupported-pattern</code> or <code>unsupported-boundary</code> limitations by entity ID.</p>
 <h2 id="en-workbench-dimensions">Add dimensions<a class="heading-anchor" href="#en-workbench-dimensions" aria-label="Link to Add dimensions">#</a></h2>
 <p>Choose <strong>Dimension</strong>, select a type, and follow this point order:</p>
 <div class="table-wrap"><table><thead><tr><th>Type</th><th>Point order</th></tr></thead><tbody><tr><td>Aligned</td><td>First measured point, second measured point, dimension-line position</td></tr><tr><td>Linear / rotated</td><td>First measured point, second measured point, dimension-line position; set the direction or rotation first</td></tr><tr><td>Radius</td><td>Circle center, point on the circle</td></tr><tr><td>Diameter</td><td>One diameter endpoint, opposite endpoint</td></tr></tbody></table></div>
@@ -194,6 +196,8 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
 </ul>
 <p>重合点、零半径，以及三点圆中的共线点会被拒绝。此时重新指定最后一点即可，按 Esc 前已经接受的前置点会保留。</p>
 <h2 id="zh-workbench-spline-hatch">样条曲线与填充<a class="heading-anchor" href="#zh-workbench-spline-hatch" aria-label="Link to 样条曲线与填充">#</a></h2>
+<p>导入 DXF 填充按实际图案线定义绘制，支持自定义名称、虚线、点和交错行起点。多边形/凸度及 LINE/ARC 边界采用奇偶规则裁剪孔洞；移动、旋转、等比缩放和镜像会同时变换边界和图案，导出 DXF 保留变换后的定义。椭圆/样条填充边界及非整周期的共线虚线偏移仍不支持。过密图案受绘制预算限制，编辑器会提示放大查看；部分显示不代表完整出图。</p>
+<p>开发者可提供 <code>patternLines</code>：每条含弧度 <code>angle</code>、<code>base: [x,y]</code>、<code>offset: [dx,dy]</code> 和有符号 <code>dashes</code>（正数为笔画、负数为空隙、零为点，<code>[]</code> 为连续线）。这些绘图坐标值已包含当前 <code>patternAngle</code>/<code>patternScale</code>；若后续只修改全局参数，应同时记录初始的 <code>patternDefinitionAngle</code>/<code>patternDefinitionScale</code>。渲染器 <code>report.hatchDiagnostics</code> 按实体 ID 返回预算、图案或边界限制。</p>
 <p>绘制<strong>样条曲线</strong>前先选择次数。至少输入“次数 + 1”个控制点，再按 <strong>Enter</strong> 完成。提交前可用 <strong>Backspace</strong> 调整最后一个控制点；达到需要的点数后，按 <strong>C</strong> 可创建闭合样条。</p>
 <p>绘制<strong>填充</strong>前，选择 <strong>SOLID</strong>、<strong>ANSI31</strong> 或 <strong>ANSI37</strong>，并设置比例。依次指定至少三个边界顶点，再按 <strong>Enter</strong> 或 <strong>C</strong>；KJDraw 创建填充时会自动闭合边界。ANSI31 为单向斜线，ANSI37 为交叉斜线。在嵌入式绘图对话框中使用线图案时，需要取消勾选<strong>实体填充</strong>。</p>
 <p>目前每次填充操作创建一个多边形边界；互相分离的区域请分别创建填充。</p>
@@ -258,6 +262,6 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=44b7d4a98e7e1b66"></script>
+  <script type="module" src="../app.js?v=d9767aed933206b6"></script>
 </body>
 </html>

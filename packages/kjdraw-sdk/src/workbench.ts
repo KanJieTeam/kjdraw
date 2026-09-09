@@ -2253,6 +2253,7 @@ export class KJDrawWorkbench {
   }
 
   #refreshViewport(): void {
+    this.#refreshHatchWarning()
     const zoom = this.root.querySelector<HTMLElement>('[data-zoom]')
     if (zoom) zoom.textContent = `${Math.round(this.renderer.camera.scale * 100)}%`
     if (this.#snapWorld) this.#showSnap(this.#snapWorld)
@@ -2353,6 +2354,18 @@ export class KJDrawWorkbench {
       host.append(apply)
     }
     if (this.renderer.report.unsupported) { const warning = document.createElement('div'); warning.className = 'warning'; warning.textContent = `${this.renderer.report.unsupportedTypes.join(', ')} · ${this.#t('unsupported')}`; host.append(warning) }
+    const warning = document.createElement('div'); warning.className = 'warning'; warning.dataset.hatchWarning = ''; warning.setAttribute('role', 'status'); host.append(warning)
+    this.#refreshHatchWarning()
+  }
+
+  #refreshHatchWarning(): void {
+    const warning = this.root.querySelector<HTMLElement>('[data-hatch-warning]')
+    if (!warning) return
+    const denseHatches = this.renderer.report.hatchDiagnostics?.filter(item => item.reason === 'budget').length ?? 0
+    warning.hidden = denseHatches === 0
+    if (denseHatches) {
+      warning.textContent = this.#locale === 'zh-CN' ? `${denseHatches} 个填充过密，当前仅显示部分图案。请放大查看。` : `${denseHatches} dense hatches are partially displayed. Zoom in to inspect their patterns.`
+    }
   }
 
   #kv(label: string, value: unknown): HTMLElement {

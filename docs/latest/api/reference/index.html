@@ -20516,6 +20516,10 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <p class="source-path">canvas-renderer.d.ts</p>
     </article>
 <article class="api-symbol" id="renderer-canvas-interface-kjcanvasrenderreport" data-search="kjcanvasrenderreport interface @kanjieteam/kjdraw/renderer/canvas export interface kjcanvasrenderreport {
+    hatchdiagnostics?: readonly {
+        entityid: string;
+        reason: &#39;budget&#39; | &#39;unsupported-pattern&#39; | &#39;unsupported-boundary&#39;;
+    }[];
     total: number;
     rendered: number;
     approximated: number;
@@ -20529,6 +20533,10 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }">
       <header><div><span class="kind">interface</span><h3>KJCanvasRenderReport</h3></div><a class="permalink" href="#renderer-canvas-interface-kjcanvasrenderreport" aria-label="Link to KJCanvasRenderReport">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJCanvasRenderReport {
+    hatchDiagnostics?: readonly {
+        entityId: string;
+        reason: &#39;budget&#39; | &#39;unsupported-pattern&#39; | &#39;unsupported-boundary&#39;;
+    }[];
     total: number;
     rendered: number;
     approximated: number;

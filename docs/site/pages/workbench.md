@@ -75,6 +75,10 @@ For a **Hatch**, choose **SOLID**, **ANSI31** or **ANSI37** and set the scale be
 
 Hatch creation currently uses one polygon boundary per operation. Draw separate hatches for separate regions.
 
+Imported DXF hatches use their actual line definitions, including custom names, dashed lines, dots and staggered row origins. Polygon/bulge and LINE/ARC boundaries use even-odd hole clipping. Moving, rotating, uniformly scaling or mirroring a hatch transforms its pattern with its boundary; saving DXF retains the transformed definition. Ellipse/spline hatch boundaries and nonstandard collinear dash offsets remain unsupported. Very dense patterns draw partially within a bounded work budget; the editor prompts you to zoom in. A partial pattern is not complete plotting output.
+
+For an application-defined pattern, supply `patternLines` in drawing coordinates: each line has an `angle` in radians, `base: [x,y]`, `offset: [dx,dy]` and signed `dashes` (positive stroke, negative gap, zero dot; `[]` is continuous). These values already include the current `patternAngle`/`patternScale`. Store those settings as `patternDefinitionAngle`/`patternDefinitionScale` if your application will later change the global settings without rewriting the definitions. The renderer's `report.hatchDiagnostics` identifies `budget`, `unsupported-pattern` or `unsupported-boundary` limitations by entity ID.
+
 ## Add dimensions {#dimensions}
 
 Choose **Dimension**, select a type, and follow this point order:
@@ -254,6 +258,10 @@ editor.setLayout('compact')
 重合点、零半径，以及三点圆中的共线点会被拒绝。此时重新指定最后一点即可，按 Esc 前已经接受的前置点会保留。
 
 ## 样条曲线与填充 {#spline-hatch}
+
+导入 DXF 填充按实际图案线定义绘制，支持自定义名称、虚线、点和交错行起点。多边形/凸度及 LINE/ARC 边界采用奇偶规则裁剪孔洞；移动、旋转、等比缩放和镜像会同时变换边界和图案，导出 DXF 保留变换后的定义。椭圆/样条填充边界及非整周期的共线虚线偏移仍不支持。过密图案受绘制预算限制，编辑器会提示放大查看；部分显示不代表完整出图。
+
+开发者可提供 `patternLines`：每条含弧度 `angle`、`base: [x,y]`、`offset: [dx,dy]` 和有符号 `dashes`（正数为笔画、负数为空隙、零为点，`[]` 为连续线）。这些绘图坐标值已包含当前 `patternAngle`/`patternScale`；若后续只修改全局参数，应同时记录初始的 `patternDefinitionAngle`/`patternDefinitionScale`。渲染器 `report.hatchDiagnostics` 按实体 ID 返回预算、图案或边界限制。
 
 绘制**样条曲线**前先选择次数。至少输入“次数 + 1”个控制点，再按 **Enter** 完成。提交前可用 **Backspace** 调整最后一个控制点；达到需要的点数后，按 **C** 可创建闭合样条。
 

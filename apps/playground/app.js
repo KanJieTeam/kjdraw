@@ -213,6 +213,11 @@ function render() {
   const selectionKey=[...renderedSelection].sort().join('|')
   if(selectionKey!==rendererSelectionKey){canvasRenderer.setSelection(renderedSelection);rendererSelectionKey=selectionKey;rendered=true}
   if(!rendered)canvasRenderer.render()
+  let hatchWarning=document.querySelector('[data-hatch-warning]')
+  if(!hatchWarning){hatchWarning=document.createElement('span');hatchWarning.dataset.hatchWarning='';hatchWarning.setAttribute('role','status');document.querySelector('.statusbar').prepend(hatchWarning)}
+  const denseHatches=canvasRenderer.report.hatchDiagnostics?.filter(item=>item.reason==='budget').length??0
+  hatchWarning.hidden=!denseHatches
+  if(denseHatches)hatchWarning.textContent=i18n.locale==='zh'?`${denseHatches} 个填充仅部分显示，请放大查看。`:`${denseHatches} hatches partially displayed; zoom in to inspect.`
   const entities=modelEntities()
   if(pendingPlan){
     const args=pendingPlan.envelope.arguments,deleted=new Set(args.deleteIds),moved=new Set(args.moveIds)

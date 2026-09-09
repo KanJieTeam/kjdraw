@@ -139,7 +139,7 @@ function project(entity: KJReadonlyObjectRecord, document: KJDocument, depth = 0
         result.complete = result.complete && boundary.complete
       }
       const pattern = String(payload.patternName ?? 'ANSI31').toUpperCase()
-      if (payload.solid === true || ['SOLID', 'ANSI31', 'ANSI37', 'CROSS'].includes(pattern)) result.fills.push(loops)
+      if (payload.solid === true || ['SOLID', 'ANSI31', 'ANSI37', 'CROSS'].includes(pattern) || Array.isArray(payload.patternLines) || (Array.isArray(payload.rawTags) && payload.rawTags.some(tag => tag.code === 78 && Number(tag.value) > 0))) result.fills.push(loops)
       break
     }
     case 'SOLID': case 'TRACE': case 'WIPEOUT': case 'REVISION_CLOUD': path(Array.isArray(payload.vertices) ? payload.vertices : [], true, true); break

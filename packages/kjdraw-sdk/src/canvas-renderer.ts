@@ -8,6 +8,7 @@ import {
 import { nearestPointOnEntity2 } from './snapping.js'
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js'
 import { projectDimension } from './geometry/annotation.js'
+import { hatchPatternLines, hatchStrokes } from './geometry/hatch.js'
 import { getEntityGrips, type KJEntityGrip } from './grips.js'
 import { isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence, type KJBoxSelectionMode } from './selection-geometry.js'
 import type { KJDocument } from './document.js'
@@ -46,6 +47,7 @@ export interface KJCanvasCamera {
 }
 
 export interface KJCanvasRenderReport {
+  hatchDiagnostics?: readonly { entityId: string; reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary' }[]
   total: number
   rendered: number
   approximated: number
@@ -213,7 +215,14 @@ function entityPoints(entity: KJReadonlyObjectRecord): Point2[] {
     }
   }
   for (const loop of Array.isArray(payload.boundaryLoops) ? payload.boundaryLoops : []) {
-    output.push(...points((loop as { vertices?: unknown }).vertices))
+    if (Array.isArray(loop.vertices)) output.push(...polylineSamples({ vertices: loop.vertices, closed: true }))
+    for (const edge of Array.isArray(loop.edges) ? loop.edges : []) {
+      if (edge.type === 'LINE') output.push(...points([edge.start, edge.end]))
+      else if (edge.type === 'ARC') {
+        const center = point2(edge.center), radius = Math.abs(finite(edge.radius))
+        if (center && radius) output.push([center[0] - radius, center[1] - radius], [center[0] + radius, center[1] + radius])
+      }
+    }
   }
   return output
 }
@@ -244,6 +253,8 @@ export class KJCanvasRenderer {
   #fittedCamera: KJCanvasCamera | null = null
   #disposeDocument: (() => void) | null = null
   #observer: ResizeObserver | null = null
+  #hatchDiagnostics: NonNullable<KJCanvasRenderReport['hatchDiagnostics']>[number][] = []
+  #hatchWorkRemaining = 100000
   #report: KJCanvasRenderReport = Object.freeze({ total: 0, rendered: 0, approximated: 0, hidden: 0, unsupported: 0, approximateTypes: Object.freeze([]), unsupportedTypes: Object.freeze([]), width: 1, height: 1, scale: 4 })
 
   constructor(canvas: HTMLCanvasElement, options: KJCanvasRendererOptions = {}) {
@@ -479,6 +490,8 @@ export class KJCanvasRenderer {
   }
 
   render(): Readonly<KJCanvasRenderReport> {
+    this.#hatchDiagnostics = []
+    this.#hatchWorkRemaining = 100000
     const context = this.context
     const ratio = this.canvas.width / Math.max(1, this.#width)
     context.setTransform(ratio, 0, 0, ratio, 0, 0)
@@ -504,7 +517,7 @@ export class KJCanvasRenderer {
       const color = this.#selection.has(entity.id)
         ? this.#selectionColor ?? (this.#theme === 'dark' ? '#b9ff72' : '#0b67e3')
         : this.#color(entity, layer) ?? palette[colorIndex(layer?.color)]!
-      if (this.#drawEntity(entity, color, 0)) {
+      if (this.#drawEntity(entity, color, 0, this.#selection.has(entity.id))) {
         rendered += 1
         if (APPROXIMATE_TYPES.has(entity.type)) { approximated += 1; approximateTypes.add(entity.type) }
       }
@@ -518,6 +531,7 @@ export class KJCanvasRenderer {
       unsupported: entities.length - rendered - hidden,
       approximateTypes: Object.freeze([...approximateTypes].sort()),
       unsupportedTypes: Object.freeze([...unsupported].sort()),
+      hatchDiagnostics: Object.freeze(this.#hatchDiagnostics.map(item => Object.freeze(item))),
       width: this.#width,
       height: this.#height,
       scale: this.camera.scale,
@@ -530,7 +544,7 @@ export class KJCanvasRenderer {
     for (const [index, spec] of entities.entries()) {
       let payload = structuredClone(spec.payload) as KJObjectPayload
       if (offset[0] || offset[1]) payload = transformEntityPayload(spec.type, payload, translation3(offset[0], offset[1]))
-      this.#drawEntity({ id: `preview-${index}`, handle: '', kind: 'entity', type: spec.type, ownerId: null, name: null, payload, extension: { xdata: {}, xrecordIds: [], reactorIds: [], hyperlinks: [] }, erased: false, source: null }, color, 0)
+      this.#drawEntity({ id: `preview-${index}`, handle: '', kind: 'entity', type: spec.type, ownerId: null, name: null, payload, extension: { xdata: {}, xrecordIds: [], reactorIds: [], hyperlinks: [] }, erased: false, source: null }, color, 0, true)
     }
     return this
   }
@@ -619,7 +633,7 @@ export class KJCanvasRenderer {
     return true
   }
 
-  #drawEntity(entity: KJReadonlyObjectRecord, color: string, depth: number): boolean {
+  #drawEntity(entity: KJReadonlyObjectRecord, color: string, depth: number, overrideColor = false): boolean {
     if (depth > 12) return false
     const context = this.context, payload = entity.payload
     const layer = this.#document?.getObject(String(payload.layerId ?? ''))
@@ -692,6 +706,7 @@ export class KJCanvasRenderer {
       }
     } else if (entity.type === 'HATCH') {
       const loops = Array.isArray(payload.boundaryLoops) ? payload.boundaryLoops : []
+      const unsupportedBoundary = loops.some(loop => Array.isArray(loop.edges) && loop.edges.some((edge: Record<string, unknown>) => !['LINE', 'ARC'].includes(String(edge.type).toUpperCase())))
       const paths = loops.map(loop => {
         const value = loop as Record<string, unknown>
         if (Array.isArray(value.vertices)) return polylineSamples({ vertices: value.vertices, closed: true })
@@ -706,7 +721,8 @@ export class KJCanvasRenderer {
         }
         return result
       }).filter(path => path.length >= 3)
-      drawn = paths.length > 0
+      drawn = paths.length > 0 && !unsupportedBoundary
+      if (unsupportedBoundary) this.#hatchDiagnostics.push({ entityId: entity.id, reason: 'unsupported-boundary' })
       if (drawn) {
         context.beginPath()
         for (const path of paths) {
@@ -714,22 +730,24 @@ export class KJCanvasRenderer {
         }
         const patternName = String(payload.patternName ?? 'ANSI31').toUpperCase()
         if (payload.solid === true || patternName === 'SOLID') context.fill('evenodd')
-        else if (!['ANSI31', 'ANSI37', 'CROSS'].includes(patternName)) {
-          // Keep the boundary visible, but never substitute a different pattern.
-          context.stroke(); drawn = false
-        }
         else {
-          context.clip('evenodd')
-          const baseAngle = finite(payload.patternAngle) + Math.PI / 4
-          const angles = patternName === 'ANSI37' || patternName === 'CROSS' ? [baseAngle, baseAngle + Math.PI / 2] : [baseAngle]
-          const all = paths.flat(), spacing = Math.max(.000001, 3.175 * finite(payload.patternScale, 1))
-          for (const angle of angles) {
-            const u: Point2 = [Math.cos(angle), Math.sin(angle)], n: Point2 = [-u[1], u[0]]
-            let minU = Infinity, maxU = -Infinity, minN = Infinity, maxN = -Infinity
-            for (const p of all) { const a = p[0] * u[0] + p[1] * u[1], b = p[0] * n[0] + p[1] * n[1]; minU = Math.min(minU, a); maxU = Math.max(maxU, a); minN = Math.min(minN, b); maxN = Math.max(maxN, b) }
-            // Bound dense offscreen patterns rather than hanging the editor.
-            const increment = spacing * Math.max(1, Math.ceil((maxN - minN) / spacing / 2000))
-            for (let b = Math.floor(minN / increment) * increment; b <= maxN; b += increment) this.#strokePath([[u[0] * minU + n[0] * b, u[1] * minU + n[1] * b], [u[0] * maxU + n[0] * b, u[1] * maxU + n[1] * b]])
+          try {
+            const all = paths.flat(), lower = this.screenToWorld([0, this.#height]), upper = this.screenToWorld([this.#width, 0])
+            let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+            for (const p of all) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]) }
+            const strokes = this.#hatchWorkRemaining > 0 ? hatchStrokes(hatchPatternLines(payload), [Math.max(x0, lower[0]), Math.max(y0, lower[1]), Math.min(x1, upper[0]), Math.min(y1, upper[1])], Math.min(20000, this.#hatchWorkRemaining)) : { segments: [], dots: [], limited: true, work: 0 }
+            this.#hatchWorkRemaining -= strokes.work
+            context.clip('evenodd'); context.setLineDash([])
+            context.beginPath()
+            for (const [a, b] of strokes.segments) { const p = this.worldToScreen(a), q = this.worldToScreen(b); context.moveTo(p[0], p[1]); context.lineTo(q[0], q[1]) }
+            context.stroke()
+            context.beginPath()
+            for (const dot of strokes.dots) { const p = this.worldToScreen(dot), radius = Math.max(.75, context.lineWidth / 2); context.moveTo(p[0] + radius, p[1]); context.arc(p[0], p[1], radius, 0, Math.PI * 2) }
+            context.fill()
+            if (strokes.limited) this.#hatchDiagnostics.push({ entityId: entity.id, reason: 'budget' })
+          } catch {
+            context.stroke(); drawn = false
+            this.#hatchDiagnostics.push({ entityId: entity.id, reason: 'unsupported-pattern' })
           }
         }
       }
@@ -803,9 +821,14 @@ export class KJCanvasRenderer {
         const children = this.#document?.listEntities({ ownerId: blockRecordId }) ?? []
         drawn = children.length > 0
         for (const child of children) {
+          const childLayer = this.#document?.getObject(String(child.payload.layerId ?? ''))
+          if (child.payload.visible === false || childLayer?.payload.visible === false || childLayer?.payload.frozen === true) continue
           try {
             const transformed = { ...child, payload: transformEntityPayload(child.type, structuredClone(child.payload) as KJObjectPayload, matrix) }
-            this.#drawEntity(transformed, color, depth + 1)
+            const byBlock = child.payload.trueColor == null && (child.payload.color === 0 || /^byblock$/i.test(String(child.payload.color)))
+            const effectiveLayer = childLayer?.name === '0' ? layer?.payload : childLayer?.payload
+            const childColor = overrideColor || byBlock ? color : this.#color(child, effectiveLayer)
+            if (!this.#drawEntity(transformed, childColor, depth + 1, overrideColor)) drawn = false
           } catch { drawn = false }
         }
       }

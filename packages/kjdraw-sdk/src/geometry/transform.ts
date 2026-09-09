@@ -1,5 +1,6 @@
 import { KJValidationError } from '../errors.js'
 import { clone } from '../utils.js'
+import { hatchPatternLines } from './hatch.js'
 import {
   determinant3,
   similarityScale3,
@@ -77,13 +78,16 @@ function transformEdge(
     }
   }
   if (type === 'ARC') {
+    const clockwise = record.clockwise === true || record.counterClockwise === false
+    const transformedClockwise = mirrored ? !clockwise : clockwise
     return {
       ...clone(record),
       center: transformPoint3(matrix, record.center as Point2Input),
       radius: Number(record.radius) * scale,
       startAngle: transformAngle(matrix, record.startAngle),
       endAngle: transformAngle(matrix, record.endAngle),
-      clockwise: mirrored ? !record.clockwise : record.clockwise,
+      clockwise: transformedClockwise,
+      ...(record.counterClockwise === undefined ? {} : { counterClockwise: !transformedClockwise }),
     }
   }
   throw new KJValidationError(`Unsupported hatch edge transform: ${type}`)
@@ -193,13 +197,20 @@ export function transformEntityPayload(
         uVector: transformVector3(matrix, payload.uVector as Point2Input),
         vVector: transformVector3(matrix, payload.vVector as Point2Input),
       }
-    case 'HATCH':
+    case 'HATCH': {
+      const patternScale = Number(payload.patternScale ?? 1) * scale(), patternAngle = transformAngle(matrix, payload.patternAngle ?? 0)
+      const solid = payload.solid === true || String(payload.patternName).toUpperCase() === 'SOLID'
+      const patternLines = solid ? undefined : hatchPatternLines(payload).map(line => {
+        const base = transformPoint3(matrix, line.base), offset = transformVector3(matrix, line.offset)
+        return { angle: transformAngle(matrix, line.angle), base: [base[0], base[1]], offset: [offset[0], offset[1]], dashes: line.dashes.map(d => d * scale()) }
+      })
       return {
         ...payload,
         boundaryLoops: transformLoops(matrix, payload.boundaryLoops, mirrored, scale()),
-        patternScale: payload.patternScale == null ? undefined : Number(payload.patternScale) * scale(),
-        patternAngle: transformAngle(matrix, payload.patternAngle ?? 0),
+        patternScale, patternAngle,
+        ...(patternLines ? { patternLines, patternDefinitionScale: patternScale, patternDefinitionAngle: patternAngle } : {}),
       }
+    }
     case 'LEADER':
     case 'MLEADER':
       return {

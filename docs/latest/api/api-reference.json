@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:1404476d536995efbcf5293076cede7c438265996ea9e30fe8b086b8259f2c71",
+  "sourceDigest": "sha256:9e0bdaa995ecd79534b1bd083bd9830efe84ebee2465de3ea9e2932c524941bb",
   "modules": [
     {
       "exportPath": "./model-adapters",
@@ -10831,7 +10831,7 @@
         {
           "name": "KJCanvasRenderReport",
           "kind": "interface",
-          "declaration": "export interface KJCanvasRenderReport {\n    total: number;\n    rendered: number;\n    approximated: number;\n    hidden: number;\n    unsupported: number;\n    approximateTypes: readonly string[];\n    unsupportedTypes: readonly string[];\n    width: number;\n    height: number;\n    scale: number;\n}",
+          "declaration": "export interface KJCanvasRenderReport {\n    hatchDiagnostics?: readonly {\n        entityId: string;\n        reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary';\n    }[];\n    total: number;\n    rendered: number;\n    approximated: number;\n    hidden: number;\n    unsupported: number;\n    approximateTypes: readonly string[];\n    unsupportedTypes: readonly string[];\n    width: number;\n    height: number;\n    scale: number;\n}",
           "source": "canvas-renderer.d.ts",
           "anchor": "renderer-canvas-interface-kjcanvasrenderreport"
         },

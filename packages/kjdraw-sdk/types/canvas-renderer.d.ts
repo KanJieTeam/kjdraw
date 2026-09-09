@@ -33,6 +33,10 @@ export interface KJCanvasCamera {
     scale: number;
 }
 export interface KJCanvasRenderReport {
+    hatchDiagnostics?: readonly {
+        entityId: string;
+        reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary';
+    }[];
     total: number;
     rendered: number;
     approximated: number;

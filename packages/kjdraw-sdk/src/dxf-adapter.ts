@@ -6,6 +6,7 @@ import type { KJTableName } from './constants.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 import type { KJTransaction } from './transaction.js'
 import { projectDimension } from './geometry/annotation.js'
+import { hatchPatternLines } from './geometry/hatch.js'
 import { normalizeStandardEntityPayload } from './standard-entities.js'
 import { normalizeName } from './utils.js'
 
@@ -998,13 +999,6 @@ function emitSpaceOwnership(output: string[], space: DxfSpace | null, version: D
   if (VERSION_RANK[version] >= VERSION_RANK['2000']) emit(output, 410, space.layoutName ?? 'Layout1')
 }
 
-interface DxfHatchPatternDefinition {
-  angle: number
-  base: readonly [number, number]
-  offset: readonly [number, number]
-  dashes: readonly number[]
-}
-
 interface DxfHatchPatternLine {
   angleDegrees: number
   base: readonly [number, number]
@@ -1012,41 +1006,8 @@ interface DxfHatchPatternLine {
   dashes: readonly number[]
 }
 
-// ANSI31 is 0.125 in in acad.pat and 3.175 mm in acadiso.pat. KJDraw's
-// engineering workbench uses millimetres, so native hatches use the ISO
-// spacing. ANSI37 is the corresponding crossed 45/135-degree definition.
-const NATIVE_HATCH_PATTERNS: Readonly<Record<string, readonly DxfHatchPatternDefinition[]>> = Object.freeze({
-  ANSI31: Object.freeze([{ angle: Math.PI / 4, base: [0, 0], offset: [0, 3.175], dashes: [] }] as const),
-  ANSI37: Object.freeze([
-    { angle: Math.PI / 4, base: [0, 0], offset: [0, 3.175], dashes: [] },
-    { angle: Math.PI * 3 / 4, base: [0, 0], offset: [0, 3.175], dashes: [] },
-  ] as const),
-})
-
-function rotatePatternPoint(point: readonly [number, number], angle: number, scale: number): readonly [number, number] {
-  const x = point[0] * scale, y = point[1] * scale, cosine = Math.cos(angle), sine = Math.sin(angle)
-  return [x * cosine - y * sine, x * sine + y * cosine]
-}
-
 function nativeHatchPatternLines(payload: DxfPayload): readonly DxfHatchPatternLine[] {
-  const patternName = normalizeName(payload.patternName ?? 'SOLID')
-  const definitions = NATIVE_HATCH_PATTERNS[patternName]
-  if (!definitions) throw new KJValidationError(`DXF HATCH writer supports native pattern data for ANSI31 and ANSI37; unsupported pattern: ${patternName || '(empty)'}`)
-  const patternAngle = Number(payload.patternAngle ?? 0), patternScale = Number(payload.patternScale ?? 1)
-  if (!Number.isFinite(patternAngle)) throw new KJValidationError('DXF HATCH patternAngle must be finite')
-  if (!Number.isFinite(patternScale) || patternScale <= 0) throw new KJValidationError('DXF HATCH patternScale must be positive and finite')
-  return definitions.map(definition => {
-    const lineAngle = definition.angle + patternAngle
-    // DXF pattern offsets are OCS vectors, not PAT line-local coordinates.
-    // Rotate the local along/perpendicular offset by the final line angle;
-    // Autodesk's emitted ANSI31 data uses this same transformed basis.
-    return {
-      angleDegrees: ((lineAngle * 180 / Math.PI) % 360 + 360) % 360,
-      base: rotatePatternPoint(definition.base, lineAngle, patternScale),
-      offset: rotatePatternPoint(definition.offset, lineAngle, patternScale),
-      dashes: definition.dashes.map(dash => dash * patternScale),
-    }
-  })
+  return hatchPatternLines(payload).map(line => ({ angleDegrees: ((line.angle * 180 / Math.PI) % 360 + 360) % 360, base: line.base, offset: line.offset, dashes: line.dashes }))
 }
 
 function hasUnchangedHatchGeometry(payload: DxfPayload): payload is DxfPayload & { rawTags: readonly DxfTag[] } {
@@ -1056,6 +1017,7 @@ function hasUnchangedHatchGeometry(payload: DxfPayload): payload is DxfPayload &
   const state = (value: Readonly<Record<string, unknown>>): string => JSON.stringify([
     normalizeName(value.patternName), Boolean(value.solid), Boolean(value.associative),
     Number(value.patternScale ?? 1), Number(value.patternAngle ?? 0), value.boundaryLoops,
+    value.patternLines, value.patternDefinitionAngle, value.patternDefinitionScale,
   ])
   return state(payload) === state(normalized)
 }

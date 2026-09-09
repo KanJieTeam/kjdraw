@@ -87,7 +87,8 @@ test('hatch patterns clip to compound boundaries and never fake unsupported patt
   context.calls.length = 0; renderer.render()
   assert.ok(context.calls.some(call => call[0] === 'clip' && call[1] === 'evenodd'))
   assert.ok(context.calls.filter(call => call[0] === 'closePath').length >= 2)
-  assert.ok(context.calls.filter(call => call[0] === 'stroke').length > 4)
+  // Pattern segments are now batched in one stroke; require geometry beyond the eight boundary vertices.
+  assert.ok(context.calls.filter(call => call[0] === 'lineTo').length > 12)
   await document.transact('solid', tx => tx.updateObject(hatch.id, { payload: { solid: true, patternName: 'SOLID' } }))
   assert.ok(context.calls.some(call => call[0] === 'fill' && call[1] === 'evenodd'))
   await document.transact('unrecognized pattern', tx => tx.updateObject(hatch.id, { payload: { solid: false, patternName: 'UNSUPPORTED_PATTERN' } }))

@@ -271,7 +271,7 @@ function project(entity, document, depth = 0) {
                     'ANSI31',
                     'ANSI37',
                     'CROSS'
-                ].includes(pattern)) result.fills.push(loops);
+                ].includes(pattern) || Array.isArray(payload.patternLines) || Array.isArray(payload.rawTags) && payload.rawTags.some((tag)=>tag.code === 78 && Number(tag.value) > 0)) result.fills.push(loops);
                 break;
             }
         case 'SOLID':

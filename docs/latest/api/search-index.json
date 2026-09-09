@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:1404476d536995efbcf5293076cede7c438265996ea9e30fe8b086b8259f2c71",
+  "sourceDigest": "sha256:9e0bdaa995ecd79534b1bd083bd9830efe84ebee2465de3ea9e2932c524941bb",
   "entries": [
     {
       "name": "createKJModelAdapter",
@@ -12034,7 +12034,7 @@
       "module": "@kanjieteam/kjdraw/renderer/canvas",
       "href": "./api/reference/#renderer-canvas-interface-kjcanvasrenderreport",
       "anchor": "renderer-canvas-interface-kjcanvasrenderreport",
-      "summary": "export interface KJCanvasRenderReport { total: number; rendered: number; approximated: number; hidden: number; unsupported: number; approximateTypes: readonly string[]; unsupportedTypes: readonly string[]; width: number;"
+      "summary": "export interface KJCanvasRenderReport { hatchDiagnostics?: readonly { entityId: string; reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary'; }[]; total: number; rendered: number; approximated: number; hidde"
     },
     {
       "name": "KJCanvasSceneProvider",

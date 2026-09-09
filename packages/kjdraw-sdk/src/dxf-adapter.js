@@ -3,6 +3,7 @@ import { KJDocument } from './document.js';
 import { KJValidationError } from './errors.js';
 import { defineFileAdapter } from './file-adapters.js';
 import { projectDimension } from './geometry/annotation.js';
+import { hatchPatternLines } from './geometry/hatch.js';
 import { normalizeStandardEntityPayload } from './standard-entities.js';
 import { normalizeName } from './utils.js';
 function dxfPayload(record) {
@@ -1556,71 +1557,13 @@ function emitSpaceOwnership(output, space, version) {
     emit(output, 67, 1);
     if (VERSION_RANK[version] >= VERSION_RANK['2000']) emit(output, 410, space.layoutName ?? 'Layout1');
 }
-const NATIVE_HATCH_PATTERNS = Object.freeze({
-    ANSI31: Object.freeze([
-        {
-            angle: Math.PI / 4,
-            base: [
-                0,
-                0
-            ],
-            offset: [
-                0,
-                3.175
-            ],
-            dashes: []
-        }
-    ]),
-    ANSI37: Object.freeze([
-        {
-            angle: Math.PI / 4,
-            base: [
-                0,
-                0
-            ],
-            offset: [
-                0,
-                3.175
-            ],
-            dashes: []
-        },
-        {
-            angle: Math.PI * 3 / 4,
-            base: [
-                0,
-                0
-            ],
-            offset: [
-                0,
-                3.175
-            ],
-            dashes: []
-        }
-    ])
-});
-function rotatePatternPoint(point, angle, scale) {
-    const x = point[0] * scale, y = point[1] * scale, cosine = Math.cos(angle), sine = Math.sin(angle);
-    return [
-        x * cosine - y * sine,
-        x * sine + y * cosine
-    ];
-}
 function nativeHatchPatternLines(payload) {
-    const patternName = normalizeName(payload.patternName ?? 'SOLID');
-    const definitions = NATIVE_HATCH_PATTERNS[patternName];
-    if (!definitions) throw new KJValidationError(`DXF HATCH writer supports native pattern data for ANSI31 and ANSI37; unsupported pattern: ${patternName || '(empty)'}`);
-    const patternAngle = Number(payload.patternAngle ?? 0), patternScale = Number(payload.patternScale ?? 1);
-    if (!Number.isFinite(patternAngle)) throw new KJValidationError('DXF HATCH patternAngle must be finite');
-    if (!Number.isFinite(patternScale) || patternScale <= 0) throw new KJValidationError('DXF HATCH patternScale must be positive and finite');
-    return definitions.map((definition)=>{
-        const lineAngle = definition.angle + patternAngle;
-        return {
-            angleDegrees: (lineAngle * 180 / Math.PI % 360 + 360) % 360,
-            base: rotatePatternPoint(definition.base, lineAngle, patternScale),
-            offset: rotatePatternPoint(definition.offset, lineAngle, patternScale),
-            dashes: definition.dashes.map((dash)=>dash * patternScale)
-        };
-    });
+    return hatchPatternLines(payload).map((line)=>({
+            angleDegrees: (line.angle * 180 / Math.PI % 360 + 360) % 360,
+            base: line.base,
+            offset: line.offset,
+            dashes: line.dashes
+        }));
 }
 function hasUnchangedHatchGeometry(payload) {
     if (!payload.rawTags?.length) return false;
@@ -1637,7 +1580,10 @@ function hasUnchangedHatchGeometry(payload) {
             Boolean(value.associative),
             Number(value.patternScale ?? 1),
             Number(value.patternAngle ?? 0),
-            value.boundaryLoops
+            value.boundaryLoops,
+            value.patternLines,
+            value.patternDefinitionAngle,
+            value.patternDefinitionScale
         ]);
     return state(payload) === state(normalized);
 }
