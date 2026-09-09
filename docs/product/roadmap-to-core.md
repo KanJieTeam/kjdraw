@@ -8,6 +8,8 @@ This is the master delivery plan for the CAD application, SDK and AI tools. The 
 
 Each delivery item advances through **planned → implemented → accepted → published**. Record its source commit, remaining scope, tests, affected consumers and first published package version. A passing core test does not establish UI availability; a deployed Demo does not establish npm availability. No overall percentage is inferred from command or test counts.
 
+The [local-corpus and loading record](local-corpus-acceptance-2026-09-09.md) now supplies concrete W05/W07/W11 priorities: layout/ownership loss and missing HATCH rendering first, large-document import and bounded Agent working sets next. Encoding/whitespace and handle-index fixes are accepted in source; comparative speed and complete private-drawing fidelity are not. Use the [opt-in browser protocol](../benchmarks/browser-load-comparison.md) for subsequent measurements.
+
 ### Workstreams
 
 | ID | Deliverables | Current position | Acceptance |

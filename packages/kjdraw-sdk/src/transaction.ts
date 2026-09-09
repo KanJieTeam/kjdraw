@@ -81,6 +81,7 @@ export class KJTransaction {
   #closed = false
   #operations: KJTransactionOperation[] = []
   #ownedObjects = new Set<string>()
+  #handles: Set<string> | null = null
   #readonlyDraftCache = new WeakMap<object, object>()
   readonly label: string
   readonly metadata: Record<string, unknown>
@@ -132,7 +133,8 @@ export class KJTransaction {
     const normalized = String(handle ?? '').trim().toUpperCase()
     if (!normalized) return allocateHandle(this.#state)
     const numeric = fromHexHandle(normalized)
-    if (Object.values(this.#state.objects).some(object => object.handle === normalized)) throw new KJValidationError(`Duplicate handle: ${normalized}`)
+    this.#handles ??= new Set(Object.values(this.#state.objects).map(object => object.handle))
+    if (this.#handles.has(normalized)) throw new KJValidationError(`Duplicate handle: ${normalized}`)
     const handseed = fromHexHandle(this.#state.header.handseed)
     if (numeric >= handseed) this.#state.header.handseed = toHexHandle(numeric + 1n)
     return normalized
@@ -155,6 +157,7 @@ export class KJTransaction {
       : spec
     const object = createObjectRecord({ ...normalizedSpec, id, handle: this.#claimHandle(spec.handle) })
     this.#state.objects[id] = object
+    this.#handles?.add(object.handle)
     this.#ownedObjects.add(id)
     if (object.kind === 'entity') {
       const owner = this.#mutableObject(object.ownerId ?? '')
@@ -238,6 +241,7 @@ export class KJTransaction {
       if (owner?.payload?.entityIds) owner.payload.entityIds = owner.payload.entityIds.filter(value => value !== id)
     }
     delete this.#state.objects[id]
+    this.#handles?.delete(object.handle)
     this.#record('object.purge', { object })
     return clone(object)
   }

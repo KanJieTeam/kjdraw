@@ -228,6 +228,12 @@ function assertSourceSize(size: number | undefined, limits: DxfReadLimits): void
 
 function decodeBytes(bytes: Uint8Array): string {
   const probe = new TextDecoder('windows-1252').decode(bytes.subarray(0, Math.min(bytes.length, 65536)))
+  const version = probe.match(/\$ACADVER\s*\r?\n\s*1\s*\r?\n\s*AC(\d+)/i)
+  // R2007+ byte streams are UTF-8 even when DWGCODEPAGE still names a legacy codepage.
+  if (version && Number(version[1]) >= 1021) {
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes) }
+    catch { throw new KJValidationError('Modern DXF requires valid UTF-8 bytes; decode a nonstandard source explicitly before importing') }
+  }
   const match = probe.match(/\$DWGCODEPAGE\s*\r?\n\s*3\s*\r?\n\s*([^\r\n]+)/i)
   const codePage = normalizeName(match?.[1] ?? 'UTF-8')
   const label = CODE_PAGE_LABELS[codePage] ?? 'utf-8'
@@ -264,7 +270,8 @@ function tagsFromText(text: string, options: DxfReadOptions | Partial<DxfReadLim
   for (let index = 0; index + 1 < lines.length; index += 2) {
     const code = Number(lines[index]!.trim())
     if (!Number.isInteger(code)) throw new KJValidationError(`Invalid DXF group code at line ${index + 1}`)
-    tags.push({ code, value: lines[index + 1]!.trimEnd() })
+    // TEXT/ATTRIB content and MTEXT chunks may contain significant trailing spaces.
+    tags.push({ code, value: code === 1 || code === 3 ? lines[index + 1]! : lines[index + 1]!.trimEnd() })
   }
   return tags
 }
@@ -645,23 +652,26 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
       }
     }
 
+    const occupiedHandles = new Set(Object.values(transaction._draft().objects).map(object => object.handle))
     const importRecord = (record: DxfRecord, index: number, ownerId: string | undefined, scope: string): void => {
       const layerName = normalizeName(first(record, 8, '0'))
       const layerId = layerIds.get(layerName) ?? defaultLayerId
       const converted = entityPayload(record, blockIds, resources)
       const sourceHandle = String(first(record, 5, '')).toUpperCase()
-      const handleAvailable = /^[0-9A-F]+$/.test(sourceHandle) && !Object.values(transaction._draft().objects).some(object => object.handle === sourceHandle)
+      const handleAvailable = /^[0-9A-F]+$/.test(sourceHandle) && !occupiedHandles.has(sourceHandle)
       try {
-        transaction.createEntity(converted.type, { ...converted.payload, ...entityDrawingProperties(record, resources), layerId }, {
+        const created = transaction.createEntity(converted.type, { ...converted.payload, ...entityDrawingProperties(record, resources), layerId }, {
           ...(ownerId === undefined ? {} : { ownerId }),
           ...(handleAvailable ? { handle: sourceHandle } : {}),
           source: { format: 'DXF', scope, entityIndex: index, originalHandle: sourceHandle || null },
         })
+        occupiedHandles.add(created.handle)
       } catch (error) {
-        transaction.createEntity('PROXY_ENTITY', { originalType: record.type, rawTags: record.tags, importError: error instanceof Error ? error.message : String(error), layerId }, {
+        const created = transaction.createEntity('PROXY_ENTITY', { originalType: record.type, rawTags: record.tags, importError: error instanceof Error ? error.message : String(error), layerId }, {
           ...(ownerId === undefined ? {} : { ownerId }),
           source: { format: 'DXF', scope, entityIndex: index, originalHandle: sourceHandle || null },
         })
+        occupiedHandles.add(created.handle)
       }
     }
     for (const definition of definitions) {

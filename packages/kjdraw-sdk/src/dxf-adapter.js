@@ -173,6 +173,16 @@ function assertSourceSize(size, limits) {
 }
 function decodeBytes(bytes) {
     const probe = new TextDecoder('windows-1252').decode(bytes.subarray(0, Math.min(bytes.length, 65536)));
+    const version = probe.match(/\$ACADVER\s*\r?\n\s*1\s*\r?\n\s*AC(\d+)/i);
+    if (version && Number(version[1]) >= 1021) {
+        try {
+            return new TextDecoder('utf-8', {
+                fatal: true
+            }).decode(bytes);
+        } catch  {
+            throw new KJValidationError('Modern DXF requires valid UTF-8 bytes; decode a nonstandard source explicitly before importing');
+        }
+    }
     const match = probe.match(/\$DWGCODEPAGE\s*\r?\n\s*3\s*\r?\n\s*([^\r\n]+)/i);
     const codePage = normalizeName(match?.[1] ?? 'UTF-8');
     const label = CODE_PAGE_LABELS[codePage] ?? 'utf-8';
@@ -222,7 +232,7 @@ function tagsFromText(text, options = {}) {
         if (!Number.isInteger(code)) throw new KJValidationError(`Invalid DXF group code at line ${index + 1}`);
         tags.push({
             code,
-            value: lines[index + 1].trimEnd()
+            value: code === 1 || code === 3 ? lines[index + 1] : lines[index + 1].trimEnd()
         });
     }
     return tags;
@@ -1085,14 +1095,15 @@ async function readDXF(source, options = {}) {
                 paperSpaceIds.set(key, layout.payload.blockRecordId);
             }
         }
+        const occupiedHandles = new Set(Object.values(transaction._draft().objects).map((object)=>object.handle));
         const importRecord = (record, index, ownerId, scope)=>{
             const layerName = normalizeName(first(record, 8, '0'));
             const layerId = layerIds.get(layerName) ?? defaultLayerId;
             const converted = entityPayload(record, blockIds, resources);
             const sourceHandle = String(first(record, 5, '')).toUpperCase();
-            const handleAvailable = /^[0-9A-F]+$/.test(sourceHandle) && !Object.values(transaction._draft().objects).some((object)=>object.handle === sourceHandle);
+            const handleAvailable = /^[0-9A-F]+$/.test(sourceHandle) && !occupiedHandles.has(sourceHandle);
             try {
-                transaction.createEntity(converted.type, {
+                const created = transaction.createEntity(converted.type, {
                     ...converted.payload,
                     ...entityDrawingProperties(record, resources),
                     layerId
@@ -1110,8 +1121,9 @@ async function readDXF(source, options = {}) {
                         originalHandle: sourceHandle || null
                     }
                 });
+                occupiedHandles.add(created.handle);
             } catch (error) {
-                transaction.createEntity('PROXY_ENTITY', {
+                const created = transaction.createEntity('PROXY_ENTITY', {
                     originalType: record.type,
                     rawTags: record.tags,
                     importError: error instanceof Error ? error.message : String(error),
@@ -1127,6 +1139,7 @@ async function readDXF(source, options = {}) {
                         originalHandle: sourceHandle || null
                     }
                 });
+                occupiedHandles.add(created.handle);
             }
         };
         for (const definition of definitions){
