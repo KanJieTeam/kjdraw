@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/models/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=d9767aed933206b6">
+  <link rel="stylesheet" href="../style.css?v=eb46cd0cd603169b">
   <title>Connect your model · KJDraw Docs</title>
 </head>
 <body>
@@ -87,11 +87,15 @@ const result = await runKJAgentTask({
   session,
   model,
   prompt: &#39;Propose a circle at (20, 25) mm with a radius of 3 mm.&#39;,
+  toolNames: [&#39;cad_read_drawing&#39;, &#39;cad_propose_circles&#39;],
   maxTurns: 8,
   maxToolCalls: 32,
 })</code></pre>
 <p><code>selectedModel</code> and <code>hostModelGateway</code> belong to your application. The gateway returns parsed, non-streaming provider JSON and rejects HTTP failures. For Gemini, send the body to the configured model URL; this is a REST adapter, not the Google SDK&#39;s nested <code>config</code> argument. Keep keys, endpoint allowlists and user permissions on your server. The CAD package does not discover keys, choose an endpoint or send network requests by itself.</p>
 <p>Chat-compatible endpoints differ in output token fields: the default is <code>max_tokens</code>; set <code>chatTokenParameter: &#39;max_completion_tokens&#39;</code> when required. The other adapters map <code>maxOutputTokens</code> to their protocol. Full runtime argument validation remains enabled; Responses explicitly uses non-strict tool generation rather than promising identical provider-side schema support.</p>
+<h2 id="en-models-task-tools">Choose tools for a task<a class="heading-anchor" href="#en-models-task-tools" aria-label="Link to Choose tools for a task">#</a></h2>
+<p><code>toolNames</code> is an optional host policy for one run. Omit it to retain all session tools. Supply a nonempty list of unique exact names from <code>session.definitions</code>; unknown names, duplicates and empty lists fail before opening a model conversation. Definitions retain their canonical order and complete schemas, including drawing units. The runner snapshots the selection before invoking the model, so later array changes cannot widen access.</p>
+<p>Every adapter and custom bridge receives the same selected definitions. If a response requests an omitted tool, the runner returns <code>failed</code> with <code>KJAGENT_TOOL_NOT_ALLOWED</code> before dispatching any call in that batch. The next run selects its own policy. This does not restrict trusted host calls made directly on the session, replace authentication, or allow the model to approve proposals. Include reading and pagination tools when the task needs them. Smaller schemas reduce JSON bytes; actual model token counts and task success still require provider measurements.</p>
 <h2 id="en-models-review">Review the result<a class="heading-anchor" href="#en-models-review" aria-label="Link to Review the result">#</a></h2>
 <div class="table-wrap"><table><thead><tr><th>Status</th><th>What the host should do</th></tr></thead><tbody><tr><td><code>awaiting-approval</code></td><td>Display the exact proposals in <code>outputs</code>; use <code>proposalIds</code> to approve or reject from your review UI</td></tr><tr><td><code>responded</code></td><td>Show the model&#39;s answer or clarification; it is not evidence that a drawing task succeeded</td></tr><tr><td><code>limit-reached</code></td><td>Inspect results and adjust the task or budget; do not automatically retry forever</td></tr><tr><td><code>cancelled</code></td><td>The host cancelled or the run timed out; late model calls are not dispatched</td></tr><tr><td><code>failed</code></td><td>Handle the structured error; inspect private transport diagnostics on the server</td></tr></tbody></table></div>
 <p>The runner stops when it has proposals. It never calls <code>approve()</code>. After an authenticated user reviews the exact arguments, your host calls <code>session.approve(planId, user.id)</code> or <code>session.reject(planId, user.id)</code> and checks the result. Model text must be displayed as untrusted text, not unsanitized HTML.</p>
@@ -132,11 +136,15 @@ const result = await runKJAgentTask({
   session,
   model,
   prompt: &#39;提出一个圆的绘制方案：圆心 (20, 25) 毫米，半径 3 毫米。&#39;,
+  toolNames: [&#39;cad_read_drawing&#39;, &#39;cad_propose_circles&#39;],
   maxTurns: 8,
   maxToolCalls: 32,
 })</code></pre>
 <p><code>selectedModel</code> 与 <code>hostModelGateway</code> 由应用提供。网关返回解析后的非流式模型 JSON，HTTP 失败时抛错。Gemini 适配器使用 REST 请求体，不是 Google SDK 的嵌套 <code>config</code> 参数。密钥、接口白名单和用户权限放在服务端；CAD 包不会搜索密钥、选择地址或自行联网。</p>
 <p>兼容接口的输出 token 字段并不完全相同：默认使用 <code>max_tokens</code>，需要时设置 <code>chatTokenParameter: &#39;max_completion_tokens&#39;</code>；其他适配器按各自协议映射 <code>maxOutputTokens</code>。所有工具参数仍由运行时严格校验；Responses 显式使用非 strict 生成模式，不假设各厂商的服务端 Schema 支持完全一致。</p>
+<h2 id="zh-models-task-tools">按任务选择工具<a class="heading-anchor" href="#zh-models-task-tools" aria-label="Link to 按任务选择工具">#</a></h2>
+<p><code>toolNames</code> 是宿主为一次运行设置的可选权限范围。省略时保留全部会话工具；提供时必须是 <code>session.definitions</code> 中非空、不重复的确切名称。未知名称、重复项和空列表在打开模型会话前报错。选中定义保持原始顺序和完整参数约束，包括图档单位。运行器在调用模型前复制选择结果，之后修改传入数组不会扩大权限。</p>
+<p>所有协议适配器与自定义桥接收到同一份选中定义。模型请求被省略的工具时，整批调用在任何工具执行前被拒绝，返回 <code>failed</code> 和 <code>KJAGENT_TOOL_NOT_ALLOWED</code>。下一次运行可以重新选择。这不限制宿主直接调用会话，也不代替认证，更不允许模型批准自身提案。需要读取和分页的任务应包含对应工具。缩小 Schema 能减少 JSON 字节，但实际 Token 和任务成功率仍需模型端测量。</p>
 <h2 id="zh-models-review">处理运行结果<a class="heading-anchor" href="#zh-models-review" aria-label="Link to 处理运行结果">#</a></h2>
 <div class="table-wrap"><table><thead><tr><th>状态</th><th>宿主应该做什么</th></tr></thead><tbody><tr><td><code>awaiting-approval</code></td><td>展示 <code>outputs</code> 中的确切修改，用 <code>proposalIds</code> 在审核界面批准或拒绝</td></tr><tr><td><code>responded</code></td><td>展示模型回答或澄清问题；这不证明绘图任务已成功</td></tr><tr><td><code>limit-reached</code></td><td>检查结果并调整任务或预算，不无限自动重试</td></tr><tr><td><code>cancelled</code></td><td>用户取消或运行超时；迟到的模型调用不会再执行</td></tr><tr><td><code>failed</code></td><td>处理结构化错误，在服务端检查私有请求日志</td></tr></tbody></table></div>
 <p>一旦得到提案，运行器就停止，不会调用 <code>approve()</code>。经过认证的用户审核后，宿主再调用 <code>session.approve(planId, user.id)</code> 或 <code>session.reject(planId, user.id)</code>，并核对结果。模型回复应当作为不可信文字展示，不能直接当作 HTML 渲染。</p>
@@ -152,10 +160,10 @@ const result = await runKJAgentTask({
         </article>
         <nav class="pager" aria-label="Adjacent documentation"><a href="../agent/"><strong class="lang-en">Agent workflows</strong><strong class="lang-zh">Agent 工作流</strong></a><a href="../plugins/"><strong class="lang-en">Plugins</strong><strong class="lang-zh">插件</strong></a></nav>
       </div>
-      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-models-connection">Choose a connection</a><a class="toc-level-2" href="#en-models-quickstart">Wire the model once</a><a class="toc-level-2" href="#en-models-review">Review the result</a><a class="toc-level-2" href="#en-models-example">Run the packaged example</a><a class="toc-level-2" href="#en-models-extend">Extend and validate</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-models-connection">选择接入方式</a><a class="toc-level-2" href="#zh-models-quickstart">配置一次模型连接</a><a class="toc-level-2" href="#zh-models-review">处理运行结果</a><a class="toc-level-2" href="#zh-models-example">运行包内示例</a><a class="toc-level-2" href="#zh-models-extend">扩展与验证</a></div></aside>
+      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-models-connection">Choose a connection</a><a class="toc-level-2" href="#en-models-quickstart">Wire the model once</a><a class="toc-level-2" href="#en-models-task-tools">Choose tools for a task</a><a class="toc-level-2" href="#en-models-review">Review the result</a><a class="toc-level-2" href="#en-models-example">Run the packaged example</a><a class="toc-level-2" href="#en-models-extend">Extend and validate</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-models-connection">选择接入方式</a><a class="toc-level-2" href="#zh-models-quickstart">配置一次模型连接</a><a class="toc-level-2" href="#zh-models-task-tools">按任务选择工具</a><a class="toc-level-2" href="#zh-models-review">处理运行结果</a><a class="toc-level-2" href="#zh-models-example">运行包内示例</a><a class="toc-level-2" href="#zh-models-extend">扩展与验证</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=d9767aed933206b6"></script>
+  <script type="module" src="../app.js?v=eb46cd0cd603169b"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:9e0bdaa995ecd79534b1bd083bd9830efe84ebee2465de3ea9e2932c524941bb",
+  "sourceDigest": "sha256:3b5733514d5ea220b5b2d6e4ade0cb4141b52c7f62490559cf5da5dadab50f6f",
   "modules": [
     {
       "exportPath": "./model-adapters",
@@ -99,7 +99,7 @@
         {
           "name": "KJAgentRunOptions",
           "kind": "interface",
-          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    maxTurns?: number;\n    maxToolCalls?: number;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n}",
+          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    maxTurns?: number;\n    maxToolCalls?: number;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n}",
           "source": "agent-runner.d.ts",
           "anchor": "agent-runner-interface-kjagentrunoptions"
         },
@@ -5482,7 +5482,7 @@
         {
           "name": "KJAgentRunOptions",
           "kind": "interface",
-          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    maxTurns?: number;\n    maxToolCalls?: number;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n}",
+          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    maxTurns?: number;\n    maxToolCalls?: number;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n}",
           "source": "agent-runner.d.ts",
           "anchor": "root-interface-kjagentrunoptions"
         },

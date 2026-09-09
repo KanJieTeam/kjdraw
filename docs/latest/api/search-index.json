@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:9e0bdaa995ecd79534b1bd083bd9830efe84ebee2465de3ea9e2932c524941bb",
+  "sourceDigest": "sha256:3b5733514d5ea220b5b2d6e4ade0cb4141b52c7f62490559cf5da5dadab50f6f",
   "entries": [
     {
       "name": "createKJModelAdapter",
@@ -98,7 +98,7 @@
       "module": "@kanjieteam/kjdraw/agent-runner",
       "href": "./api/reference/#agent-runner-interface-kjagentrunoptions",
       "anchor": "agent-runner-interface-kjagentrunoptions",
-      "summary": "export interface KJAgentRunOptions { session: KJAgentToolSession; model: KJAgentModel; prompt: string; maxTurns?: number; maxToolCalls?: number; timeoutMs?: number; signal?: AbortSignal; }"
+      "summary": "export interface KJAgentRunOptions { session: KJAgentToolSession; model: KJAgentModel; prompt: string; /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. "
     },
     {
       "name": "KJAgentRunResult",
@@ -6122,7 +6122,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjagentrunoptions",
       "anchor": "root-interface-kjagentrunoptions",
-      "summary": "export interface KJAgentRunOptions { session: KJAgentToolSession; model: KJAgentModel; prompt: string; maxTurns?: number; maxToolCalls?: number; timeoutMs?: number; signal?: AbortSignal; }"
+      "summary": "export interface KJAgentRunOptions { session: KJAgentToolSession; model: KJAgentModel; prompt: string; /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. "
     },
     {
       "name": "KJAgentRunResult",

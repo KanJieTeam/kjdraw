@@ -8,6 +8,8 @@ export interface KJAgentRunOptions {
   session: KJAgentToolSession
   model: KJAgentModel
   prompt: string
+  /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */
+  toolNames?: readonly string[]
   maxTurns?: number
   maxToolCalls?: number
   timeoutMs?: number
@@ -44,6 +46,16 @@ export async function runKJAgentTask(options: KJAgentRunOptions): Promise<KJAgen
   const maxTurns = integer(options.maxTurns, 8, 32), maxToolCalls = integer(options.maxToolCalls, 32, 128)
   const timeoutMs = integer(options.timeoutMs, 120000, 300000)
   if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 16000) throw new KJModelError('KJAGENT_OPTIONS', 'Supply a nonempty prompt of at most 16000 characters')
+  const definitions = session.definitions
+  let allowedTools: Set<string> | null = null
+  if (options.toolNames !== undefined) {
+    if (!Array.isArray(options.toolNames) || !options.toolNames.length || options.toolNames.length > definitions.length) throw new KJModelError('KJAGENT_OPTIONS', 'Supply a nonempty list of unique session tool names')
+    const names = [...options.toolNames], known = new Set(definitions.map(tool => tool.name))
+    allowedTools = new Set(names)
+    if (allowedTools.size !== names.length || names.some(name => typeof name !== 'string' || !known.has(name))) throw new KJModelError('KJAGENT_OPTIONS', 'Tool names must be unique exact names from session.definitions')
+  }
+  // Snapshot host policy before invoking model code. Caller or bridge mutation cannot widen it.
+  const tools = Object.freeze(definitions.filter(tool => !allowedTools || allowedTools.has(tool.name)))
   if (activeSessions.has(session)) throw new KJModelError('KJAGENT_BUSY', 'This tool session already has an active agent run')
   activeSessions.add(session)
   const controller = new AbortController()
@@ -57,7 +69,7 @@ export async function runKJAgentTask(options: KJAgentRunOptions): Promise<KJAgen
   const finish = (status: KJAgentRunResult['status'], error?: KJAgentRunResult['error']): KJAgentRunResult => deepFreeze({ status, text, turns, toolCalls, outputs, proposalIds, ...(error ? { error } : {}) }) as KJAgentRunResult
   try {
     if (controller.signal.aborted) return finish('cancelled')
-    const conversation = model.createConversation({ instructions: KJDRAW_AGENT_INSTRUCTIONS, tools: session.definitions })
+    const conversation = model.createConversation({ instructions: KJDRAW_AGENT_INSTRUCTIONS, tools })
     let input: KJModelInput = { kind: 'prompt', text: prompt }
     for (; turns < maxTurns;) {
       turns++
@@ -68,6 +80,7 @@ export async function runKJAgentTask(options: KJAgentRunOptions): Promise<KJAgen
       // Validate the whole batch before dispatching any tool; never replay call IDs.
       for (const call of turn.calls) {
         if (!call || typeof call.id !== 'string' || !call.id.trim() || call.id.length > 256 || typeof call.name !== 'string' || !call.name.trim() || call.name.length > 256 || seen.has(call.id) || batchIds.has(call.id)) throw new KJModelError('KJMODEL_CALL_ID', 'Invalid or repeated model call ID/name; no calls in this batch were dispatched')
+        if (allowedTools && !allowedTools.has(call.name)) throw new KJModelError('KJAGENT_TOOL_NOT_ALLOWED', 'Model requested a tool outside the host-selected set; no calls in this batch were dispatched')
         batchIds.add(call.id)
       }
       if (!turn.calls.length) {

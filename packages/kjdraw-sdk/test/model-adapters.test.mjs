@@ -50,6 +50,46 @@ function assertContinuation(protocol, body) {
 }
 
 for (const protocol of protocols) {
+  test(`${protocol}: selected tools retain units, error correction, host approval and saved geometry`, async () => {
+    const { sdk, document, session } = fixture()
+    let requests = 0
+    const selected = ['cad_propose_circles', 'cad_read_drawing']
+    const model = createKJModelAdapter({ protocol, model: 'offline-selected-tools', request: async ({ body }) => {
+      const defs = protocol === 'gemini-generate-content' ? body.tools[0].functionDeclarations : body.tools
+      assert.deepEqual(defs.map(tool => tool.function?.name ?? tool.name), ['cad_read_drawing', 'cad_propose_circles'])
+      if (requests++ === 0) return wire(protocol, [call('read', 'cad_read_drawing')])
+      if (requests === 2) {
+        assertContinuation(protocol, body)
+        assert.equal(resultAtEnd(protocol, body).value.units, 'millimeter')
+        return wire(protocol, [call('bad-units', 'cad_propose_circles', { ...args, units: 'meter' })])
+      }
+      assert.equal(resultAtEnd(protocol, body).ok, false)
+      return wire(protocol, [call('proposal', 'cad_propose_circles', args)])
+    } })
+    const result = await runKJAgentTask({ session, model, prompt: 'Read and propose the specified circle.', toolNames: selected })
+    assert.equal(result.status, 'awaiting-approval', JSON.stringify(result))
+    assert.equal(requests, 3); assert.equal(document.revision, 0)
+    assert.equal((await session.approve(result.proposalIds[0], 'host-review')).ok, true)
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format: 'DXF' }), { format: 'DXF' })
+    assert.deepEqual(reopened.listEntities()[0].payload.center, [20, 25, 0])
+    assert.equal(reopened.listEntities()[0].payload.radius, 3)
+    await sdk.executeCommand('UNDO'); assert.equal(document.listEntities().length, 0)
+    await sdk.executeCommand('REDO'); assert.equal(document.listEntities()[0].payload.radius, 3)
+  })
+
+  test(`${protocol}: one omitted tool rejects the whole batch before any dispatch`, async () => {
+    const { session, document } = fixture()
+    let dispatched = 0
+    const original = session.call.bind(session)
+    session.call = (...params) => { dispatched++; return original(...params) }
+    const model = createKJModelAdapter({ protocol, model: 'offline-host-policy', request: async () => wire(protocol, [call('allowed', 'cad_read_drawing'), call('omitted', 'cad_propose_circles', args)]) })
+    const result = await runKJAgentTask({ session, model, prompt: 'Inspect only.', toolNames: ['cad_read_drawing'] })
+    assert.equal(result.status, 'failed'); assert.equal(result.error.code, 'KJAGENT_TOOL_NOT_ALLOWED')
+    assert.equal(dispatched, 0); assert.equal(result.toolCalls, 0)
+    assert.deepEqual(result.outputs, []); assert.deepEqual(result.proposalIds, [])
+    assert.equal(document.revision, 0)
+  })
+
   test(`${protocol}: mixed drawing schema and proposal use the same core`, async () => {
     const { document, session } = fixture()
     const model = createKJModelAdapter({ protocol, model: 'offline-profile-fixture', request: async ({ body }) => {
@@ -126,6 +166,33 @@ for (const protocol of protocols) {
     assert.deepEqual(result.proposalIds, [])
   })
 }
+
+test('host tool selection rejects invalid options before opening a model conversation', async () => {
+  const { session } = fixture()
+  let opened = 0
+  const model = { createConversation() { opened++; return { next: async () => ({ text: 'Ready.', calls: [] }) } } }
+  for (const toolNames of [null, 'cad_read_drawing', [], ['cad_read_drawing', 'cad_read_drawing'], ['approve'], ['cad_read_drawing '], [1], new Array(1)]) {
+    await assert.rejects(runKJAgentTask({ session, model, prompt: 'inspect', toolNames }), { code: 'KJAGENT_OPTIONS' })
+  }
+  assert.equal(opened, 0)
+  assert.equal((await runKJAgentTask({ session, model, prompt: 'inspect', toolNames: ['cad_read_drawing'] })).status, 'responded')
+})
+
+test('caller and custom bridge cannot widen the selected set, and the next run has independent policy', async () => {
+  const { session, document } = fixture()
+  const names = ['cad_read_drawing']
+  const model = { createConversation({ tools }) {
+    names.push('cad_propose_circles')
+    assert.ok(Object.isFrozen(tools)); assert.ok(Object.isFrozen(tools[0].inputSchema))
+    assert.throws(() => tools.push(session.definitions[4]), TypeError)
+    return { next: async () => ({ text: '', calls: [call('escape', 'cad_propose_circles', args)] }) }
+  } }
+  const result = await runKJAgentTask({ session, model, prompt: 'inspect', toolNames: names })
+  assert.equal(result.error.code, 'KJAGENT_TOOL_NOT_ALLOWED'); assert.equal(result.toolCalls, 0)
+  assert.equal(document.revision, 0)
+  const next = await runKJAgentTask({ session, prompt: 'propose', toolNames: ['cad_propose_circles'], model: { createConversation: () => ({ next: async () => ({ text: '', calls: [call('new-run', 'cad_propose_circles', args)] }) }) } })
+  assert.equal(next.status, 'awaiting-approval'); assert.equal(document.revision, 0)
+})
 
 test('malformed JSON arguments become tool errors and can be corrected without evaluating code', async () => {
   const { session } = fixture()

@@ -6,9 +6,10 @@ test.use({ bypassCSP: true })
 test('mixed agent geometry opens in the packaged editor and remains selectable after undo and redo', async ({ page }) => {
   await page.goto('/')
   const result = await page.evaluate(async input => {
-    const [{ createKJDrawSDK }, { KJAgentToolSession }, { createKJDrawEditor }] = await Promise.all([
+    const [{ createKJDrawSDK }, { KJAgentToolSession }, { createKJDrawEditor }, { runKJAgentTask }] = await Promise.all([
       import('/packages/kjdraw-sdk/src/sdk.js'), import('/packages/kjdraw-sdk/src/agent-tools.js'),
       import('/packages/kjdraw-sdk/src/editor.js'),
+      import('/packages/kjdraw-sdk/src/agent-runner.js'),
     ])
     const host = document.createElement('div')
     host.style.cssText = 'width:1100px;height:760px'
@@ -17,7 +18,18 @@ test('mixed agent geometry opens in the packaged editor and remains selectable a
     const session = new KJAgentToolSession(sdk, drawing)
     const editor = createKJDrawEditor(host, { sdk, document: drawing, grid: false })
     await editor.ready
-    const result = await session.call('cad_propose_drawing', input)
+    const blocked = await runKJAgentTask({ session, prompt: 'Use only the host-selected tool.', toolNames: ['cad_propose_drawing'], model: {
+      createConversation: () => ({ next: async () => ({ text: '', calls: [{ id: 'omitted', name: 'cad_propose_circles', arguments: {} }] }) }),
+    } })
+    if (blocked.error?.code !== 'KJAGENT_TOOL_NOT_ALLOWED' || blocked.toolCalls !== 0 || drawing.revision !== 0) throw new Error('Tool policy was not enforced')
+    const run = await runKJAgentTask({ session, prompt: 'Propose the fully specified profile.', toolNames: ['cad_propose_drawing'], model: {
+      createConversation({ tools }) {
+        if (tools.length !== 1 || tools[0].name !== 'cad_propose_drawing') throw new Error('Unexpected tool definitions')
+        return { next: async () => ({ text: '', calls: [{ id: 'profile', name: 'cad_propose_drawing', arguments: input }] }) }
+      },
+    } })
+    if (run.status !== 'awaiting-approval') throw new Error(JSON.stringify(run))
+    const result = run.outputs[0].result
     if (!result.ok) throw new Error(JSON.stringify(result))
     const approved = await session.approve(result.value.planId, 'browser-test-reviewer')
     if (!approved.ok) throw new Error(JSON.stringify(approved))

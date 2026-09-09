@@ -211,6 +211,8 @@
     session: kjagenttoolsession;
     model: kjagentmodel;
     prompt: string;
+    /** host-selected tools for this run. omit for all session tools; explicit lists must be nonempty, unique and known. */
+    toolnames?: readonly string[];
     maxturns?: number;
     maxtoolcalls?: number;
     timeoutms?: number;
@@ -221,6 +223,8 @@
     session: KJAgentToolSession;
     model: KJAgentModel;
     prompt: string;
+    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */
+    toolNames?: readonly string[];
     maxTurns?: number;
     maxToolCalls?: number;
     timeoutMs?: number;
@@ -10724,6 +10728,8 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     session: kjagenttoolsession;
     model: kjagentmodel;
     prompt: string;
+    /** host-selected tools for this run. omit for all session tools; explicit lists must be nonempty, unique and known. */
+    toolnames?: readonly string[];
     maxturns?: number;
     maxtoolcalls?: number;
     timeoutms?: number;
@@ -10734,6 +10740,8 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     session: KJAgentToolSession;
     model: KJAgentModel;
     prompt: string;
+    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */
+    toolNames?: readonly string[];
     maxTurns?: number;
     maxToolCalls?: number;
     timeoutMs?: number;

@@ -24,7 +24,7 @@ async function run(protocol, modelName, request, live = false) {
   const drawing = sdk.createDocument({ units: 'millimeter' })
   const session = new KJAgentToolSession(sdk, drawing)
   const model = createKJModelAdapter({ protocol, model: modelName, request })
-  const result = await runKJAgentTask({ session, model, prompt, maxTurns: 4, maxToolCalls: 8, timeoutMs: 60000 })
+  const result = await runKJAgentTask({ session, model, prompt, toolNames: ['cad_read_drawing', 'cad_propose_circles'], maxTurns: 4, maxToolCalls: 8, timeoutMs: 60000 })
   if (live) {
     // No automatic approval in the live path. Use a host review UI to approve/reject.
     console.log(JSON.stringify({ mode: 'live-proposal-only', protocol, model: modelName, result }, null, 2))

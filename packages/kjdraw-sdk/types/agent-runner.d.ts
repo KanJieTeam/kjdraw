@@ -5,6 +5,8 @@ export interface KJAgentRunOptions {
     session: KJAgentToolSession;
     model: KJAgentModel;
     prompt: string;
+    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */
+    toolNames?: readonly string[];
     maxTurns?: number;
     maxToolCalls?: number;
     timeoutMs?: number;

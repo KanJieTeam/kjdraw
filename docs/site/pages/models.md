@@ -42,6 +42,7 @@ const result = await runKJAgentTask({
   session,
   model,
   prompt: 'Propose a circle at (20, 25) mm with a radius of 3 mm.',
+  toolNames: ['cad_read_drawing', 'cad_propose_circles'],
   maxTurns: 8,
   maxToolCalls: 32,
 })
@@ -50,6 +51,12 @@ const result = await runKJAgentTask({
 `selectedModel` and `hostModelGateway` belong to your application. The gateway returns parsed, non-streaming provider JSON and rejects HTTP failures. For Gemini, send the body to the configured model URL; this is a REST adapter, not the Google SDK's nested `config` argument. Keep keys, endpoint allowlists and user permissions on your server. The CAD package does not discover keys, choose an endpoint or send network requests by itself.
 
 Chat-compatible endpoints differ in output token fields: the default is `max_tokens`; set `chatTokenParameter: 'max_completion_tokens'` when required. The other adapters map `maxOutputTokens` to their protocol. Full runtime argument validation remains enabled; Responses explicitly uses non-strict tool generation rather than promising identical provider-side schema support.
+
+## Choose tools for a task {#task-tools}
+
+`toolNames` is an optional host policy for one run. Omit it to retain all session tools. Supply a nonempty list of unique exact names from `session.definitions`; unknown names, duplicates and empty lists fail before opening a model conversation. Definitions retain their canonical order and complete schemas, including drawing units. The runner snapshots the selection before invoking the model, so later array changes cannot widen access.
+
+Every adapter and custom bridge receives the same selected definitions. If a response requests an omitted tool, the runner returns `failed` with `KJAGENT_TOOL_NOT_ALLOWED` before dispatching any call in that batch. The next run selects its own policy. This does not restrict trusted host calls made directly on the session, replace authentication, or allow the model to approve proposals. Include reading and pagination tools when the task needs them. Smaller schemas reduce JSON bytes; actual model token counts and task success still require provider measurements.
 
 ## Review the result {#review}
 
@@ -120,6 +127,7 @@ const result = await runKJAgentTask({
   session,
   model,
   prompt: '提出一个圆的绘制方案：圆心 (20, 25) 毫米，半径 3 毫米。',
+  toolNames: ['cad_read_drawing', 'cad_propose_circles'],
   maxTurns: 8,
   maxToolCalls: 32,
 })
@@ -128,6 +136,12 @@ const result = await runKJAgentTask({
 `selectedModel` 与 `hostModelGateway` 由应用提供。网关返回解析后的非流式模型 JSON，HTTP 失败时抛错。Gemini 适配器使用 REST 请求体，不是 Google SDK 的嵌套 `config` 参数。密钥、接口白名单和用户权限放在服务端；CAD 包不会搜索密钥、选择地址或自行联网。
 
 兼容接口的输出 token 字段并不完全相同：默认使用 `max_tokens`，需要时设置 `chatTokenParameter: 'max_completion_tokens'`；其他适配器按各自协议映射 `maxOutputTokens`。所有工具参数仍由运行时严格校验；Responses 显式使用非 strict 生成模式，不假设各厂商的服务端 Schema 支持完全一致。
+
+## 按任务选择工具 {#task-tools}
+
+`toolNames` 是宿主为一次运行设置的可选权限范围。省略时保留全部会话工具；提供时必须是 `session.definitions` 中非空、不重复的确切名称。未知名称、重复项和空列表在打开模型会话前报错。选中定义保持原始顺序和完整参数约束，包括图档单位。运行器在调用模型前复制选择结果，之后修改传入数组不会扩大权限。
+
+所有协议适配器与自定义桥接收到同一份选中定义。模型请求被省略的工具时，整批调用在任何工具执行前被拒绝，返回 `failed` 和 `KJAGENT_TOOL_NOT_ALLOWED`。下一次运行可以重新选择。这不限制宿主直接调用会话，也不代替认证，更不允许模型批准自身提案。需要读取和分页的任务应包含对应工具。缩小 Schema 能减少 JSON 字节，但实际 Token 和任务成功率仍需模型端测量。
 
 ## 处理运行结果 {#review}
 

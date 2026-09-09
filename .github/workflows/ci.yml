@@ -69,6 +69,7 @@ jobs:
       - run: node scripts/audits/dxf-interop.mjs
       - run: node scripts/audits/dxf-curves-interop.mjs
       - run: node scripts/audits/dxf-hatch-interop.mjs
+      - run: node scripts/benchmarks/agent-tool-selection.mjs
       - run: python scripts/benchmarks/deepseek-drawing-pilot.py --self-test
   browser:
     runs-on: ubuntu-latest
