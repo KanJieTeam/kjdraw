@@ -1,5 +1,5 @@
 import { KJCommandRegistry, registerCoreCommands } from './commands.js'
-import { KJDocument } from './document.js'
+import type { KJDocument } from './document.js'
 import { KJValidationError } from './errors.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 import { canonicalStringify, deepFreeze, type ReadonlyDeep } from './utils.js'
@@ -25,13 +25,15 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   if (command === 'CREATEBATCH') {
     if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > 64 || args.entities.some(spec => !spec || typeof spec !== 'object' || !supported.includes(String(spec.type)))) throw new KJValidationError('Preview creation requires 1–64 LINE/CIRCLE/ARC/LWPOLYLINE entities')
   } else if (!Array.isArray(args.ids) || !args.ids.length || args.ids.length > 64 || args.ids.some(id => !supported.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError('Preview movement requires 1–64 LINE/CIRCLE/ARC/LWPOLYLINE entities')
-  const source = document.serialize(), revision = document.revision
-  if (new TextEncoder().encode(source).length > 4194304) throw new KJValidationError('Agent preview document exceeds the 4 MiB source limit')
-  const draft = KJDocument.open(source)
+  const source = document.snapshot(), revision = document.revision
+  if (Object.keys(source.objects).length > 250000) throw new KJValidationError('Agent preview exceeds the 250000 object document limit')
+  const workingSet = command === 'MOVE' ? (args.ids as string[]).map(id => document.getObject(String(id))) : args.entities
+  if (new TextEncoder().encode(JSON.stringify({ args, workingSet })).length > 4194304) throw new KJValidationError('Agent preview working set exceeds the 4 MiB limit')
+  const draft = document.fork()
   const commands = new KJCommandRegistry()
   registerCoreCommands(commands)
   await commands.execute(command, { document: draft, expectedRevision: revision }, args)
-  if (document.revision !== revision || document.serialize() !== source) throw new KJValidationError('Drawing changed while preparing the preview; propose again')
+  if (document.revision !== revision || document.snapshot() !== source) throw new KJValidationError('Drawing changed while preparing the preview; propose again')
   const before: KJAgentPreviewEntity[] = [], after: KJAgentPreviewEntity[] = []
   const old = new Map(document.listEntities().map(entity => [entity.id, entity]))
   for (const entity of draft.listEntities()) {

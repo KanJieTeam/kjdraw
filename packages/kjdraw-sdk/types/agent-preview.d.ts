@@ -1,4 +1,4 @@
-import { KJDocument } from './document.js';
+import type { KJDocument } from './document.js';
 import type { KJObjectPayload } from './schema.js';
 import { type ReadonlyDeep } from './utils.js';
 export interface KJAgentPreviewEntity {

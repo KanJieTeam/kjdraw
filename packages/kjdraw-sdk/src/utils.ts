@@ -29,7 +29,8 @@ export function assertPlainObject(value: unknown, label: string): Record<string,
 }
 
 export function normalizeName(value: unknown): string {
-  return String(value ?? '').trim().toLocaleUpperCase('en-US')
+  const text = String(value ?? '').trim()
+  return /^[\x00-\x7f]*$/.test(text) ? text.toUpperCase() : text.toLocaleUpperCase('en-US')
 }
 
 export function canonicalize(value: unknown): unknown {
@@ -46,12 +47,16 @@ export function canonicalStringify(value: unknown, space: number | string = 0): 
 }
 
 export function fnv1a64(text: unknown): string {
-  let hash = 0xcbf29ce484222325n
+  // FNV's 64-bit prime is 2^40 + 435. Two unsigned words preserve exactly the
+  // existing modulo-2^64 result without allocating BigInts for every UTF-8 byte.
+  let high = 0xcbf29ce4, low = 0x84222325
   for (const byte of new TextEncoder().encode(String(text))) {
-    hash ^= BigInt(byte)
-    hash = BigInt.asUintN(64, hash * 0x100000001b3n)
+    low = (low ^ byte) >>> 0
+    const carry = Math.floor(low * 435 / 0x100000000)
+    high = (Math.imul(high, 435) + (low << 8) + carry) >>> 0
+    low = Math.imul(low, 435) >>> 0
   }
-  return hash.toString(16).padStart(16, '0')
+  return high.toString(16).padStart(8, '0') + low.toString(16).padStart(8, '0')
 }
 
 export function stableHash(value: unknown): string {

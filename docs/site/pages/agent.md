@@ -37,7 +37,9 @@ function showProposal(preview: KJAgentGeometryPreview) {
 // Clear the overlay with renderer.render() when rejected or applied.
 ```
 
-Preview preparation currently accepts drawings up to 4 MiB and returns at most 64 changed objects and 256 KiB of geometry. It uses the built-in core commands, not host command replacements. A preview is not a mechanical-design or manufacturing validation. For model connections and the bounded execution loop, see [Models and harnesses](https://kanjieteam.github.io/kjdraw/docs/latest/models/).
+Preview preparation uses a detached copy-on-write document branch: unrelated drawing data no longer has to fit a 4 MiB serialized-source limit. The current limits are 250,000 document objects, 4 MiB of combined command arguments and touched input records, 64 changed objects and 256 KiB of returned geometry. Full-document validation and change inspection still run; this is not a constant-time or isolated-memory guarantee. It uses built-in core commands, not host replacements. A preview is not a mechanical-design or manufacturing validation. For model connections and the bounded execution loop, see [Models and harnesses](https://kanjieteam.github.io/kjdraw/docs/latest/models/).
+
+For custom host-side experiments, `document.fork()` creates a branch at the current revision with independent edits and undo history. It retains the document ID but does not inherit authority, listeners, queued edits or earlier undo entries. Do not attach both branches to the same SDK document map under that ID. A fork does not approve or merge changes; apply reviewed commands through the original document's normal host approval flow.
 
 Creation uses the core batch command's default layer and explicitly targets model XY at z=0. Read results retain native coordinates and omission notices; they do not expand blocks or promise world-coordinate geometry. Each session accepts at most 128 proposals and permits one in-flight operation. The host still owns total session limits, model budgets, isolation, model-data disclosure and persistence. Provider-specific schema conversion must not remove the session's runtime validation.
 
@@ -269,7 +271,9 @@ function showProposal(preview: KJAgentGeometryPreview) {
 // 拒绝或应用后调用 renderer.render() 清除叠加预览。
 ```
 
-当前预览支持不超过 4 MiB 的图纸，返回最多 64 个修改对象和 256 KiB 几何。预演使用内置核心命令，不执行宿主替换命令；图形预览不等于机械设计或制造校核。模型接入与有预算限制的执行循环见[模型与执行框架](https://kanjieteam.github.io/kjdraw/docs/latest/models/)。
+预览改用隔离的写时复制图档分支，不再要求整张图序列化后小于 4 MiB。当前限制为图档最多 250,000 个对象、命令参数与待修改输入记录合计最多 4 MiB、最多 64 个修改对象和 256 KiB 返回几何。仍会执行完整图档校验和变化检查，不保证恒定耗时或独立内存上限。预演使用内置核心命令，不执行宿主替换命令；图形预览不等于机械设计或制造校核。模型接入与有预算限制的执行循环见[模型与执行框架](https://kanjieteam.github.io/kjdraw/docs/latest/models/)。
+
+宿主需要自行试算时，可调用 `document.fork()`：分支从当前修订开始，修改和撤销记录彼此独立，保留图档 ID，但不继承权威后端、监听器、排队任务或已有撤销记录。不要把同 ID 的原图和分支同时注册到同一个 SDK 图档表。分支不会批准或合并修改；正式应用仍须通过原图的正常宿主审核流程。
 
 创建操作使用核心批量命令的默认图层，明确在模型 XY 平面 z=0 上创建。读取保留原生坐标和省略说明，不展开图块或保证世界坐标。每个会话最多接受 128 个方案，同时只允许一个正在执行的操作。会话总量、模型费用、隔离、向模型发送数据的权限和持久化仍由宿主管理。厂家参数格式转换不能取消会话中的运行时验证。
 

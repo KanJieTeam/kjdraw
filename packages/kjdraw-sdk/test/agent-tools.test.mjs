@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { KJAgentToolSession, KJDRAW_AGENT_TOOLS } from '../src/agent-tools.js'
 import { createKJDrawSDK } from '../src/sdk.js'
+import { createAgentGeometryPreview } from '../src/agent-preview.js'
 
 function fixture(options = {}) {
   const sdk = createKJDrawSDK(options)
@@ -216,12 +217,36 @@ test('preview isolation preserves history and detects a concurrent source edit',
   assert.equal(document.listEntities()[0].type, 'POINT')
 })
 
-test('oversized drawing previews fail before touching the source', async () => {
+test('large unrelated drawing data no longer prevents a bounded proposal', async () => {
   const { document, session } = fixture()
   await document.transact('Large imported metadata', transaction => transaction.createEntity('TEXT', { position: [0, 0], text: 'x'.repeat(4194304) }))
   const before = document.serialize()
   const result = await session.call('cad_propose_lines', lineArgs(document.revision))
-  assert.equal(result.ok, false)
-  assert.match(result.error.message, /4 MiB/)
+  assert.equal(result.ok, true)
   assert.equal(document.serialize(), before)
+  assert.equal(result.value.preview.after.length, 1)
+  assert.equal((await session.approve(result.value.planId, 'reviewer')).ok, true)
+  assert.equal(document.listEntities({ type: 'TEXT' })[0].payload.text.length, 4194304)
+  await document.undo()
+  assert.equal(document.listEntities().length, 1)
+})
+
+test('oversized touched payload still fails without mutating the drawing', async () => {
+  const { document, session } = fixture()
+  await document.transact('Large touched object', tx => tx.createEntity('LINE', { start: [0, 0], end: [1, 0], custom: 'x'.repeat(4194304) }, { id: 'large-line' }))
+  const before = document.serialize()
+  const result = await session.call('cad_propose_move', { expectedRevision: document.revision, units: 'millimeter', ids: ['large-line'], dx: 1, dy: 0 })
+  assert.equal(result.ok, false)
+  assert.match(result.error.message, /working set.*4 MiB/)
+  assert.equal(document.serialize(), before)
+})
+
+test('geometry preview no longer serializes and reopens the entire source', async () => {
+  const { document } = fixture()
+  const snapshot = document.snapshot()
+  document.serialize = () => { throw new Error('Unexpected full serialization') }
+  const preview = await createAgentGeometryPreview(document, 'CREATEBATCH', { entities: [{ type: 'CIRCLE', payload: { center: [0, 0], radius: 3 }, options: { id: 'preview-circle' } }] })
+  assert.equal(preview.after[0].id, 'preview-circle')
+  assert.equal(document.snapshot(), snapshot)
+  assert.equal(document.history.canUndo, false)
 })

@@ -168,6 +168,17 @@ export class KJDocument {
   static create(options: KJDocumentOptions & KJDocumentConstructorOptions = {}): KJDocument { return new KJDocument(options, options) }
   static open(input: string | KJDocumentState | KJLegacyScene | Record<string, unknown>, options: KJDocumentConstructorOptions = {}): KJDocument { return new KJDocument(typeof input === 'string' ? JSON.parse(input) as KJDocumentState : input, options) }
 
+  /** Detached copy-on-write branch at the current revision. Shares unchanged
+   * internal records, never authority, listeners, queued work or undo history.
+   * Edits on either branch still undergo normal document validation. */
+  fork(): KJDocument {
+    const branch = KJDocument.create({ historyLimit: this.#historyLimit })
+    branch.#state = this.#state
+    branch.#snapshotCache = this.#snapshotCache
+    branch.#fingerprintCache = this.#fingerprintCache
+    return branch
+  }
+
   get id(): string { return this.#state.documentId }
   get revision(): number { return this.#state.revision }
   get schemaVersion(): number { return this.#state.schemaVersion }
@@ -243,12 +254,12 @@ export class KJDocument {
     const key = `${kind ?? ''}|${normalizedType ?? ''}|${ownerId ?? ''}|${includeErased ? '1' : '0'}`
     const cached = this.#queryCache.get(key)
     if (cached) return cached
-    const result = deepFreeze(Object.values(this.#state.objects)
+    const result = Object.freeze(Object.values(this.#state.objects)
       .filter(object => includeErased || !object.erased)
       .filter(object => kind == null || object.kind === kind)
       .filter(object => normalizedType == null || object.type === normalizedType)
       .filter(object => ownerId == null || object.ownerId === ownerId)
-      .map(object => clone(object))) as ReadonlyArray<KJReadonlyObjectRecord>
+      .map(object => this.getObject(object.id, { includeErased })!)) as ReadonlyArray<KJReadonlyObjectRecord>
     this.#queryCache.set(key, result)
     return result
   }
@@ -259,7 +270,7 @@ export class KJDocument {
     if (this.#tableCache.has(key)) return this.#tableCache.get(key) ?? null
     const table = this.#state.tables[key as KJTableName]
     const result = table
-      ? deepFreeze({ currentId: table.currentId, records: table.recordIds.map(id => clone(this.#state.objects[id])).filter((record): record is NonNullable<typeof record> => Boolean(record)) })
+      ? Object.freeze({ currentId: table.currentId, records: Object.freeze(table.recordIds.map(id => this.getObject(id, { includeErased: true })).filter((record): record is NonNullable<typeof record> => Boolean(record))) })
       : null
     this.#tableCache.set(key, result)
     return result

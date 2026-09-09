@@ -41,6 +41,7 @@ export class KJTransaction {
     #operations = [];
     #ownedObjects = new Set();
     #handles = null;
+    #entityMembership = new WeakMap();
     #readonlyDraftCache = new WeakMap();
     label;
     metadata;
@@ -105,6 +106,18 @@ export class KJTransaction {
         if (numeric >= handseed) this.#state.header.handseed = toHexHandle(numeric + 1n);
         return normalized;
     }
+    #appendEntity(owner, id) {
+        const ids = owner.payload.entityIds ??= [];
+        let members = this.#entityMembership.get(ids);
+        if (!members) {
+            members = new Set(ids);
+            this.#entityMembership.set(ids, members);
+        }
+        if (!members.has(id)) {
+            ids.push(id);
+            members.add(id);
+        }
+    }
     getObject(id) {
         this.#assertOpen();
         const object = this.#state.objects[String(id)];
@@ -134,8 +147,7 @@ export class KJTransaction {
         if (object.kind === 'entity') {
             const owner = this.#mutableObject(object.ownerId ?? '');
             if (owner?.kind !== 'block-record') throw new KJValidationError('Entity owner must be a block record');
-            owner.payload.entityIds ??= [];
-            if (!owner.payload.entityIds.includes(id)) owner.payload.entityIds.push(id);
+            this.#appendEntity(owner, id);
         }
         this.#record('object.create', {
             id: object.id,
@@ -154,10 +166,12 @@ export class KJTransaction {
             kind: 'entity',
             type,
             ownerId,
-            payload: normalizeStandardEntityPayload(type, {
+            payload: {
                 ...payload,
-                layerId
-            })
+                ...layerId == null ? {} : {
+                    layerId
+                }
+            }
         });
     }
     updateObject(id, patch = {}) {
@@ -212,8 +226,7 @@ export class KJTransaction {
             const previous = previousOwnerId ? this.#mutableObject(previousOwnerId) : null;
             if (previous?.payload?.entityIds) previous.payload.entityIds = previous.payload.entityIds.filter((value)=>value !== id);
             const next = this.#mutableObject(ownerId ?? '');
-            next.payload.entityIds ??= [];
-            if (!next.payload.entityIds.includes(id)) next.payload.entityIds.push(id);
+            this.#appendEntity(next, id);
         }
         object.ownerId = ownerId;
         this.#record('object.reparent', {

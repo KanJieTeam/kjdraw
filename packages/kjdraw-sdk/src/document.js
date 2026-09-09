@@ -95,6 +95,15 @@ export class KJDocument {
     static open(input, options = {}) {
         return new KJDocument(typeof input === 'string' ? JSON.parse(input) : input, options);
     }
+    fork() {
+        const branch = KJDocument.create({
+            historyLimit: this.#historyLimit
+        });
+        branch.#state = this.#state;
+        branch.#snapshotCache = this.#snapshotCache;
+        branch.#fingerprintCache = this.#fingerprintCache;
+        return branch;
+    }
     get id() {
         return this.#state.documentId;
     }
@@ -184,7 +193,9 @@ export class KJDocument {
         const key = `${kind ?? ''}|${normalizedType ?? ''}|${ownerId ?? ''}|${includeErased ? '1' : '0'}`;
         const cached = this.#queryCache.get(key);
         if (cached) return cached;
-        const result = deepFreeze(Object.values(this.#state.objects).filter((object)=>includeErased || !object.erased).filter((object)=>kind == null || object.kind === kind).filter((object)=>normalizedType == null || object.type === normalizedType).filter((object)=>ownerId == null || object.ownerId === ownerId).map((object)=>clone(object)));
+        const result = Object.freeze(Object.values(this.#state.objects).filter((object)=>includeErased || !object.erased).filter((object)=>kind == null || object.kind === kind).filter((object)=>normalizedType == null || object.type === normalizedType).filter((object)=>ownerId == null || object.ownerId === ownerId).map((object)=>this.getObject(object.id, {
+                includeErased
+            })));
         this.#queryCache.set(key, result);
         return result;
     }
@@ -198,9 +209,11 @@ export class KJDocument {
         const key = String(name);
         if (this.#tableCache.has(key)) return this.#tableCache.get(key) ?? null;
         const table = this.#state.tables[key];
-        const result = table ? deepFreeze({
+        const result = table ? Object.freeze({
             currentId: table.currentId,
-            records: table.recordIds.map((id)=>clone(this.#state.objects[id])).filter((record)=>Boolean(record))
+            records: Object.freeze(table.recordIds.map((id)=>this.getObject(id, {
+                    includeErased: true
+                })).filter((record)=>Boolean(record)))
         }) : null;
         this.#tableCache.set(key, result);
         return result;

@@ -82,6 +82,7 @@ export class KJTransaction {
   #operations: KJTransactionOperation[] = []
   #ownedObjects = new Set<string>()
   #handles: Set<string> | null = null
+  #entityMembership = new WeakMap<string[], Set<string>>()
   #readonlyDraftCache = new WeakMap<object, object>()
   readonly label: string
   readonly metadata: Record<string, unknown>
@@ -140,6 +141,13 @@ export class KJTransaction {
     return normalized
   }
 
+  #appendEntity(owner: KJObjectRecord, id: string): void {
+    const ids = owner.payload.entityIds ??= []
+    let members = this.#entityMembership.get(ids)
+    if (!members) { members = new Set(ids); this.#entityMembership.set(ids, members) }
+    if (!members.has(id)) { ids.push(id); members.add(id) }
+  }
+
   getObject(id: string): KJObjectRecord | null {
     this.#assertOpen()
     const object = this.#state.objects[String(id)]
@@ -162,8 +170,7 @@ export class KJTransaction {
     if (object.kind === 'entity') {
       const owner = this.#mutableObject(object.ownerId ?? '')
       if (owner?.kind !== 'block-record') throw new KJValidationError('Entity owner must be a block record')
-      owner.payload.entityIds ??= []
-      if (!owner.payload.entityIds.includes(id)) owner.payload.entityIds.push(id)
+      this.#appendEntity(owner, id)
     }
     this.#record('object.create', { id: object.id, handle: object.handle, kind: object.kind, objectType: object.type, ownerId: object.ownerId })
     return clone(object)
@@ -172,7 +179,9 @@ export class KJTransaction {
   createEntity(type: string, payload: KJObjectPayload = {}, options: KJObjectSpec = {}): KJObjectRecord {
     const ownerId = options.ownerId ?? this.#state.spaces.modelSpaceId
     const layerId = payload.layerId ?? this.#state.tables.layers.currentId
-    return this.createObject({ ...options, kind: 'entity', type, ownerId, payload: normalizeStandardEntityPayload(type, { ...payload, layerId }) })
+    // createObject normalizes standard geometry and isolates its payload. Do not
+    // repeat the same normalization here; commit still validates the full graph.
+    return this.createObject({ ...options, kind: 'entity', type, ownerId, payload: { ...payload, ...(layerId == null ? {} : { layerId }) } })
   }
 
   updateObject(id: string, patch: KJObjectPatch = {}): KJObjectRecord {
@@ -217,8 +226,7 @@ export class KJTransaction {
       const previous = previousOwnerId ? this.#mutableObject(previousOwnerId) : null
       if (previous?.payload?.entityIds) previous.payload.entityIds = previous.payload.entityIds.filter(value => value !== id)
       const next = this.#mutableObject(ownerId ?? '')
-      next.payload.entityIds ??= []
-      if (!next.payload.entityIds.includes(id)) next.payload.entityIds.push(id)
+      this.#appendEntity(next, id)
     }
     object.ownerId = ownerId
     this.#record('object.reparent', { id, previousOwnerId, ownerId })

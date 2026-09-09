@@ -19,7 +19,8 @@ export function assertPlainObject(value, label) {
     return value;
 }
 export function normalizeName(value) {
-    return String(value ?? '').trim().toLocaleUpperCase('en-US');
+    const text = String(value ?? '').trim();
+    return /^[\x00-\x7f]*$/.test(text) ? text.toUpperCase() : text.toLocaleUpperCase('en-US');
 }
 export function canonicalize(value) {
     if (Array.isArray(value)) return value.map(canonicalize);
@@ -34,12 +35,14 @@ export function canonicalStringify(value, space = 0) {
     return JSON.stringify(canonicalize(value), null, space);
 }
 export function fnv1a64(text) {
-    let hash = 0xcbf29ce484222325n;
+    let high = 0xcbf29ce4, low = 0x84222325;
     for (const byte of new TextEncoder().encode(String(text))){
-        hash ^= BigInt(byte);
-        hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+        low = (low ^ byte) >>> 0;
+        const carry = Math.floor(low * 435 / 0x100000000);
+        high = Math.imul(high, 435) + (low << 8) + carry >>> 0;
+        low = Math.imul(low, 435) >>> 0;
     }
-    return hash.toString(16).padStart(16, '0');
+    return high.toString(16).padStart(8, '0') + low.toString(16).padStart(8, '0');
 }
 export function stableHash(value) {
     return fnv1a64(canonicalStringify(value));

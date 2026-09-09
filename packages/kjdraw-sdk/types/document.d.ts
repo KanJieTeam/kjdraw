@@ -63,6 +63,10 @@ export declare class KJDocument {
     constructor(input?: KJDocumentInput, options?: KJDocumentConstructorOptions);
     static create(options?: KJDocumentOptions & KJDocumentConstructorOptions): KJDocument;
     static open(input: string | KJDocumentState | KJLegacyScene | Record<string, unknown>, options?: KJDocumentConstructorOptions): KJDocument;
+    /** Detached copy-on-write branch at the current revision. Shares unchanged
+     * internal records, never authority, listeners, queued work or undo history.
+     * Edits on either branch still undergo normal document validation. */
+    fork(): KJDocument;
     get id(): string;
     get revision(): number;
     get schemaVersion(): number;

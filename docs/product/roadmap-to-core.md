@@ -10,6 +10,8 @@ Each delivery item advances through **planned → implemented → accepted → p
 
 The [local-corpus and loading record](local-corpus-acceptance-2026-09-09.md) now supplies concrete W05/W07/W11 priorities: layout/ownership loss and missing HATCH rendering first, large-document import and bounded Agent working sets next. Encoding/whitespace and handle-index fixes are accepted in source; comparative speed and complete private-drawing fidelity are not. Use the [opt-in browser protocol](../benchmarks/browser-load-comparison.md) for subsequent measurements.
 
+The subsequent [shared-core and Agent performance record](core-ai-performance-2026-09-09.md) measures a further loading improvement, detached copy-on-write previews that unblock the 9,029-entity corpus case, and a six-request live-model pilot. Full-document preview costs, missing HATCH/layout fidelity and total Agent token overhead remain open; the small pilot does not establish universal model quality or speed.
+
 ### Workstreams
 
 | ID | Deliverables | Current position | Acceptance |
