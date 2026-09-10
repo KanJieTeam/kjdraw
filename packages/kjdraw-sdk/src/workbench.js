@@ -11,6 +11,9 @@ import { KJ_MODIFICATION_DEFINITIONS, buildKJModificationCommand, getKJModificat
 import { createDraftingSession, parseDraftCoordinate } from './drafting.js';
 const copy = {
     en: {
+        drawingSpace: 'Drawing space',
+        modelSpace: 'Model',
+        paperPreview: 'Paper preview · return to Model to edit',
         pageSetup: 'Page setup',
         pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.',
         pageSheet: 'Sheet',
@@ -146,6 +149,9 @@ const copy = {
         boundaryBusy: 'Applying the edit…'
     },
     'zh-CN': {
+        drawingSpace: '图纸空间',
+        modelSpace: '模型',
+        paperPreview: '纸空间只读预览 · 返回模型后编辑',
         pageSetup: '页面设置',
         pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。',
         pageSheet: '图纸布局',
@@ -552,6 +558,7 @@ const WORKBENCH_STYLE = `
 @media(max-width:980px){.kjwb .workspace,.kjwb .workspace.no-layers{grid-template-columns:minmax(0,1fr) 230px}.kjwb .workspace.no-inspector,.kjwb .workspace.no-layers.no-inspector{grid-template-columns:minmax(0,1fr)}.kjwb .side.layers{display:none}.kjwb .panel-toggle[data-action="toggle-layers"]{display:none}.kjwb .tool{min-width:50px;padding-inline:5px}}
 @media(max-width:680px){.kjwb .workspace,.kjwb .workspace.no-layers,.kjwb .workspace.no-inspector,.kjwb .workspace.no-layers.no-inspector{grid-template-columns:minmax(0,1fr)}.kjwb .side.right{display:none}.kjwb .panel-toggle{display:none!important}.kjwb .hide-small{display:none!important}.kjwb .brand{font-size:13px}.kjwb .docname{display:none}.kjwb .group{padding-inline:4px}.kjwb .appbar{gap:3px;padding-inline:6px}.kjwb .layout-select{max-width:92px}}
 @media(max-width:680px){.kjwb .appbar .file-action{width:32px;padding:0}.kjwb .appbar .file-action>[data-copy]{display:none}}
+.kjwb .drawing-space{position:absolute;top:10px;left:10px;z-index:4;display:flex;align-items:center;flex-wrap:wrap;gap:8px;max-width:calc(100% - 70px);font-size:12px}.kjwb .drawing-space select{max-width:210px;min-height:30px;padding:4px 8px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}.kjwb .drawing-space span{padding:5px 8px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--radius)}
 `;
 function assertBrowser() {
     if (typeof document === 'undefined') throw new Error('KJDraw workbench requires a browser DOM');
@@ -670,6 +677,7 @@ export class KJDrawWorkbench {
     #locale;
     #theme;
     #layout;
+    #drawingLayoutId = null;
     #tool = 'select';
     #canvas;
     #overlay;
@@ -765,12 +773,118 @@ export class KJDrawWorkbench {
     get layout() {
         return this.#layout;
     }
+    get drawingLayoutId() {
+        return this.#drawingLayoutId;
+    }
+    get spaceId() {
+        return this.renderer.spaceId ?? this.document?.snapshot().spaces.modelSpaceId ?? null;
+    }
+    get paperPreview() {
+        return this.#drawingLayoutId !== null;
+    }
+    get #readOnly() {
+        return this.#options.readonly === true || this.paperPreview;
+    }
     get tool() {
         return this.#tool;
     }
+    setDrawingLayout(layoutId) {
+        if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed');
+        const drawing = this.document;
+        if (!drawing) throw new Error('No active KJDraw document');
+        const layout = layoutId === null ? null : this.#paperLayouts().find((item)=>item.id === layoutId);
+        if (layoutId !== null && !layout) throw new RangeError('Drawing layout must be an existing paper-space layout');
+        if (this.#drawingLayoutId === layoutId) return this;
+        this.#cancelGesture();
+        this.#drawingLayoutId = layoutId;
+        this.renderer.setSpace(layout ? String(layout.payload.blockRecordId) : null);
+        this.#selection?.clear();
+        this.renderer.setSelection([]);
+        this.setTool('select');
+        this.#refreshDocumentPanels();
+        this.renderer.fit();
+        this.#refreshViewport();
+        this.#setMessage(this.#t(this.paperPreview ? 'paperPreview' : 'ready'));
+        this.root.dispatchEvent(new CustomEvent('kjdraw:space', {
+            detail: {
+                document: drawing,
+                layoutId,
+                spaceId: this.spaceId,
+                readonly: this.#readOnly
+            },
+            bubbles: true,
+            composed: true
+        }));
+        return this;
+    }
+    #paperLayouts() {
+        const drawing = this.document;
+        if (!drawing) return [];
+        const state = drawing.snapshot(), result = [];
+        for (const id of state.spaces.layoutIds){
+            const layout = drawing.getObject(id), ownerId = String(layout?.payload.blockRecordId ?? ''), owner = drawing.getObject(ownerId);
+            if (layout?.kind === 'layout' && !layout.erased && owner?.kind === 'block-record' && !owner.erased && owner.payload.isSpace === true && state.spaces.paperSpaceIds.includes(ownerId)) result.push(layout);
+        }
+        return result.sort((a, b)=>Number(a.payload.tabOrder ?? 0) - Number(b.payload.tabOrder ?? 0));
+    }
+    #syncDrawingLayouts() {
+        const layouts = this.#paperLayouts();
+        if (this.#drawingLayoutId !== null && !layouts.some((layout)=>layout.id === this.#drawingLayoutId)) {
+            this.#cancelGesture();
+            this.#drawingLayoutId = null;
+            this.renderer.setSpace(null);
+            this.#selection?.clear();
+            this.renderer.setSelection([]);
+            this.setTool('select');
+            this.renderer.fit();
+        }
+        const select = this.root.querySelector('[data-drawing-layout]');
+        if (select) {
+            const rows = [
+                {
+                    id: '',
+                    name: this.#t('modelSpace')
+                },
+                ...layouts.map((layout)=>({
+                        id: layout.id,
+                        name: String(layout.name ?? layout.id)
+                    }))
+            ];
+            select.replaceChildren(...rows.map((row)=>{
+                const option = document.createElement('option');
+                option.value = row.id;
+                option.textContent = row.name;
+                return option;
+            }));
+            select.value = this.#drawingLayoutId ?? '';
+            select.setAttribute('aria-label', this.#t('drawingSpace'));
+            select.title = this.#t('drawingSpace');
+        }
+        this.root.dataset.drawingSpace = this.paperPreview ? 'paper' : 'model';
+        const notice = this.root.querySelector('[data-paper-preview]');
+        if (notice) {
+            notice.hidden = !this.paperPreview;
+            notice.textContent = this.#t('paperPreview');
+        }
+    }
+    #syncEditability() {
+        const allowed = this.paperPreview ? [
+            'select',
+            'fence',
+            'pan'
+        ] : [
+            'select',
+            'fence',
+            'pan',
+            'measure'
+        ];
+        for (const button of this.root.querySelectorAll('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-action="page-setup"],[data-tool]'))button.disabled = this.#readOnly && !allowed.includes(button.dataset.tool ?? '');
+        const command = this.root.querySelector('[data-command]'), run = this.root.querySelector('[data-action="run-command"]');
+        if (command) command.disabled = this.paperPreview;
+        if (run) run.disabled = this.paperPreview;
+    }
     setOptions(options) {
         if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed');
-        const wasReadonly = this.#options.readonly === true;
         if (options.maxFileBytes !== undefined) {
             const nextLimit = Number(options.maxFileBytes);
             if (!Number.isSafeInteger(nextLimit) || nextLimit <= 0) throw new RangeError('maxFileBytes must be a positive safe integer');
@@ -781,7 +895,7 @@ export class KJDrawWorkbench {
             ...options
         };
         if (options.layout !== undefined) this.setLayout(options.layout);
-        if (!wasReadonly && this.#options.readonly === true) this.#cancelGesture();
+        if (options.readonly === true) this.#cancelGesture();
         if (options.grid !== undefined) this.renderer.setGrid(options.grid);
         const workspace = query(this.root, '.workspace');
         workspace.classList.toggle('no-layers', this.#options.showLayers === false);
@@ -798,15 +912,8 @@ export class KJDrawWorkbench {
         };
         syncPanelToggle(layersToggle, this.#options.showLayers !== false);
         syncPanelToggle(inspectorToggle, this.#options.showInspector !== false);
-        for (const button of this.root.querySelectorAll('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-action="page-setup"],[data-tool]')){
-            button.disabled = this.#options.readonly === true && ![
-                'select',
-                'fence',
-                'pan',
-                'measure'
-            ].includes(button.dataset.tool ?? '');
-        }
-        if (this.#options.readonly && ![
+        this.#syncEditability();
+        if (this.#readOnly && ![
             'select',
             'fence',
             'pan',
@@ -834,6 +941,9 @@ export class KJDrawWorkbench {
             locale: this.#locale,
             theme: this.#theme,
             layout: this.#layout,
+            drawingLayoutId: this.drawingLayoutId,
+            spaceId: this.spaceId,
+            paperPreview: this.paperPreview,
             tool: this.#tool,
             documentId: drawing?.id ?? null,
             revision: drawing?.revision ?? 0,
@@ -887,13 +997,17 @@ export class KJDrawWorkbench {
             'copy'
         ];
         if (!tools.includes(tool)) throw new RangeError(`Unsupported KJDraw workbench tool: ${String(tool)}`);
-        if (this.#options.readonly && ![
+        if (this.#readOnly && !(this.paperPreview ? [
+            'select',
+            'fence',
+            'pan'
+        ] : [
             'select',
             'fence',
             'pan',
             'measure'
-        ].includes(tool)) {
-            this.#setMessage(this.#t('readonly'));
+        ]).includes(tool)) {
+            this.#setMessage(this.#t(this.paperPreview ? 'paperPreview' : 'readonly'));
             return this;
         }
         this.#cancelGesture();
@@ -935,9 +1049,14 @@ export class KJDrawWorkbench {
         const acquire = previousLease !== document1;
         if (acquire) acquireDocumentLease(this.sdk, this, document1, generated);
         try {
+            this.#drawingLayoutId = null;
+            this.renderer.setSpace(null);
             this.renderer.setDocument(document1);
             this.#subscribeDocument(document1);
-            this.renderer.setSelection(this.sdk.getSelectionManager(document1.id)?.active.ids ?? []);
+            const selection = this.sdk.getSelectionManager(document1.id)?.active;
+            const modelIds = selection?.ids.filter((id)=>document1.getObject(id)?.ownerId === document1.snapshot().spaces.modelSpaceId) ?? [];
+            if (selection && modelIds.length !== selection.ids.length) selection.replace(modelIds);
+            this.renderer.setSelection(modelIds);
             if (DRAFT_TOOLS.includes(this.#tool)) this.#beginDraftGesture(this.#tool);
             if (this.#tool === 'fence') this.#fenceSelection = {
                 document: document1,
@@ -994,7 +1113,9 @@ export class KJDrawWorkbench {
     }
     async execute(command, args = {}, options = {}) {
         if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed');
-        if (this.#options.readonly && ![
+        if (this.paperPreview && command.toUpperCase() !== 'SELECT') throw new Error(this.#t('paperPreview'));
+        if (this.paperPreview && (!Array.isArray(args.ids) || args.ids.some((id)=>this.document?.getObject(String(id))?.ownerId !== this.spaceId))) throw new Error('Selection must belong to the displayed paper space');
+        if (this.#readOnly && ![
             'SELECT',
             'SEARCH',
             'FIND',
@@ -1076,7 +1197,7 @@ export class KJDrawWorkbench {
     #markup() {
         const t = (key)=>this.#t(key);
         const icon = (name, attributes = '')=>`<span class="icon" aria-hidden="true" ${attributes}>${kjdrawIcon(name)}</span>`;
-        const readonly = this.#options.readonly === true;
+        const readonly = this.#readOnly === true;
         const showLayers = this.#options.showLayers !== false;
         const showInspector = this.#options.showInspector !== false;
         const layoutCopy = {
@@ -1101,7 +1222,7 @@ export class KJDrawWorkbench {
       </nav>
       <div class="workspace ${this.#options.showLayers === false ? 'no-layers' : ''} ${this.#options.showInspector === false ? 'no-inspector' : ''}">
         <aside class="side layers" ${this.#options.showLayers === false ? 'hidden' : ''}><h2 data-copy="layers">${t('layers')}</h2><div data-layers></div></aside>
-        <main class="canvas-wrap"><canvas class="cad-canvas" data-canvas aria-label="KJDraw CAD canvas"></canvas><canvas class="overlay" data-overlay aria-hidden="true"></canvas><span class="snap" data-snap></span><nav class="navigator" aria-label="${t('view')}"><button type="button" class="active" data-tool="select" data-copy-title="select" title="${t('select')}">${icon('select')}</button><button type="button" data-tool="pan" data-copy-title="pan" title="${t('pan')}">${icon('pan')}</button><button type="button" data-action="nav-fit" data-copy-title="fit" title="${t('fit')}">${icon('fit')}</button><button type="button" data-action="zoom-in" data-copy-title="zoomIn" title="${t('zoomIn')}">${icon('zoom-in')}</button><button type="button" data-action="zoom-out" data-copy-title="zoomOut" title="${t('zoomOut')}">${icon('zoom-out')}</button></nav><div class="draft-actions" data-draft-actions hidden><button type="button" data-action="draft-undo" data-copy="undoPoint">${t('undoPoint')}</button><button type="button" data-action="draft-finish" data-copy="finish">${t('finish')}</button><button type="button" data-action="draft-close" data-copy="closeShape">${t('closeShape')}</button></div><div class="command"><span data-copy="command">${t('command')}</span><input data-command aria-label="${t('command')}" placeholder="${t('commandHint')}" autocomplete="off"><button type="button" data-action="run-command" data-copy="run">${t('run')}</button></div><div class="hint" data-hint>${t('ready')}</div></main>
+        <main class="canvas-wrap"><div class="drawing-space"><select data-drawing-layout></select><span data-paper-preview role="status" hidden></span></div><canvas class="cad-canvas" data-canvas aria-label="KJDraw CAD canvas"></canvas><canvas class="overlay" data-overlay aria-hidden="true"></canvas><span class="snap" data-snap></span><nav class="navigator" aria-label="${t('view')}"><button type="button" class="active" data-tool="select" data-copy-title="select" title="${t('select')}">${icon('select')}</button><button type="button" data-tool="pan" data-copy-title="pan" title="${t('pan')}">${icon('pan')}</button><button type="button" data-action="nav-fit" data-copy-title="fit" title="${t('fit')}">${icon('fit')}</button><button type="button" data-action="zoom-in" data-copy-title="zoomIn" title="${t('zoomIn')}">${icon('zoom-in')}</button><button type="button" data-action="zoom-out" data-copy-title="zoomOut" title="${t('zoomOut')}">${icon('zoom-out')}</button></nav><div class="draft-actions" data-draft-actions hidden><button type="button" data-action="draft-undo" data-copy="undoPoint">${t('undoPoint')}</button><button type="button" data-action="draft-finish" data-copy="finish">${t('finish')}</button><button type="button" data-action="draft-close" data-copy="closeShape">${t('closeShape')}</button></div><div class="command"><span data-copy="command">${t('command')}</span><input data-command aria-label="${t('command')}" placeholder="${t('commandHint')}" autocomplete="off"><button type="button" data-action="run-command" data-copy="run">${t('run')}</button></div><div class="hint" data-hint>${t('ready')}</div></main>
         <aside class="side right" ${this.#options.showInspector === false ? 'hidden' : ''}><h2 data-copy="properties">${t('properties')}</h2><div class="inspector" data-inspector><p class="empty">${t('noSelection')}</p></div></aside>
       </div>
       <footer class="statusbar"><span class="message" data-message>${readonly ? t('readonly') : t('ready')}</span><span data-coordinate>X 0.000 · Y 0.000</span><span data-selection>0 ${t('selected')}</span><b data-count>0 ${t('entities')}</b><span data-revision>REV 0</span><span data-zoom>100%</span></footer>
@@ -1129,6 +1250,11 @@ export class KJDrawWorkbench {
     }
     #bind() {
         const signal = this.#abort.signal;
+        query(this.root, '[data-drawing-layout]').addEventListener('change', (event)=>{
+            void this.#run(()=>this.setDrawingLayout(event.currentTarget.value || null));
+        }, {
+            signal
+        });
         const pageDialog = query(this.root, '[data-page-dialog]');
         query(this.root, '[data-action="page-setup"]').addEventListener('click', ()=>this.#openPageSetup(), {
             signal
@@ -1441,15 +1567,15 @@ export class KJDrawWorkbench {
                 this.#undoDraftPoint();
                 return;
             }
-            if (!this.#options.readonly && (event.key === 'Delete' || event.key === 'Backspace')) {
+            if (!this.#readOnly && (event.key === 'Delete' || event.key === 'Backspace')) {
                 event.preventDefault();
                 void this.#eraseSelection();
             }
-            if (!this.#options.readonly && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+            if (!this.#readOnly && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
                 event.preventDefault();
                 void this.#run(()=>this.execute(event.shiftKey ? 'REDO' : 'UNDO'));
             }
-            if (!this.#options.readonly && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+            if (!this.#readOnly && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
                 event.preventDefault();
                 void this.#run(()=>this.execute('REDO'));
             }
@@ -1524,6 +1650,10 @@ export class KJDrawWorkbench {
         releaseDocumentLease(this.sdk, this, drawing);
     }
     async #runCommand() {
+        if (this.paperPreview) {
+            this.#setMessage(this.#t('paperPreview'));
+            return;
+        }
         const input = query(this.root, '[data-command]');
         const raw = input.value.trim();
         if (!raw) {
@@ -1580,13 +1710,13 @@ export class KJDrawWorkbench {
                 return;
             }
             if (remainder.startsWith('{')) {
-                if (this.#options.readonly) throw new Error(this.#t('readonly'));
+                if (this.#readOnly) throw new Error(this.#t('readonly'));
                 const parsed = JSON.parse(remainder);
                 if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Command JSON arguments must be an object');
                 await this.execute(command, parsed);
                 return;
             }
-            if (this.#options.readonly && ![
+            if (this.#readOnly && ![
                 'PAN',
                 'SELECT',
                 'FENCE',
@@ -2167,7 +2297,7 @@ export class KJDrawWorkbench {
         }
     }
     #openDraftDialog(tool) {
-        if (this.#options.readonly) {
+        if (this.#readOnly) {
             this.#setMessage(this.#t('readonly'));
             return;
         }
@@ -2224,7 +2354,7 @@ export class KJDrawWorkbench {
     }
     #openPageSetup() {
         const drawing = this.document;
-        if (!drawing || this.#options.readonly || this.#abort.signal.aborted) return;
+        if (!drawing || this.#readOnly || this.#abort.signal.aborted) return;
         this.#cancelGesture();
         this.#pageBinding = {
             document: drawing,
@@ -2437,7 +2567,7 @@ export class KJDrawWorkbench {
         }
         button.disabled = true;
         try {
-            if (this.#options.readonly) throw new Error(this.#t('readonly'));
+            if (this.#readOnly) throw new Error(this.#t('readonly'));
             if (this.document !== binding.document || binding.document.revision !== binding.revision) throw new Error(this.#t('pageStale'));
             const patch = {};
             for (const input of dialog.querySelectorAll('[data-page-field]')){
@@ -2544,7 +2674,7 @@ export class KJDrawWorkbench {
         submit.textContent = this.#t(copyKey);
     }
     #openModificationDialog(id) {
-        if (this.#options.readonly) {
+        if (this.#readOnly) {
             this.#setMessage(this.#t('readonly'));
             return;
         }
@@ -2672,7 +2802,7 @@ export class KJDrawWorkbench {
         await this.#addModificationPoint(parseDraftCoordinate(value, gesture.points.at(-1)));
     }
     #beginBoundaryEdit(operation) {
-        if (this.#options.readonly) throw new Error(this.#t('readonly'));
+        if (this.#readOnly) throw new Error(this.#t('readonly'));
         const drawing = this.document;
         if (!drawing) throw new Error('No active KJDraw document');
         const ids = [
@@ -2683,7 +2813,7 @@ export class KJDrawWorkbench {
             document: drawing,
             boundaryIds: ids,
             locale: this.#locale === 'zh-CN' ? 'zh' : 'en',
-            isDocumentCurrent: ()=>this.document === drawing && this.sdk.documents.get(drawing.id) === drawing && !this.#options.readonly && !this.#abort.signal.aborted
+            isDocumentCurrent: ()=>this.document === drawing && this.sdk.documents.get(drawing.id) === drawing && !this.#readOnly && !this.#abort.signal.aborted
         });
         this.#canvas.classList.add('crosshair');
         this.#syncBoundaryActions();
@@ -2900,7 +3030,7 @@ export class KJDrawWorkbench {
     #visibleModelEntityIds() {
         const drawing = this.document;
         if (!drawing) return [];
-        const modelSpaceId = drawing.snapshot().spaces.modelSpaceId;
+        const modelSpaceId = this.spaceId ?? drawing.snapshot().spaces.modelSpaceId;
         const layers = new Map(drawing.getTable('layers')?.records.map((layer)=>[
                 layer.id,
                 layer.payload
@@ -2913,6 +3043,7 @@ export class KJDrawWorkbench {
         }).map((entity)=>entity.id);
     }
     #snapAt(world, excludeIds = []) {
+        if (this.paperPreview) return null;
         const drawing = this.document;
         if (!drawing || !this.#snappableEntityIds.length) return null;
         const candidate = this.sdk.snap(world, {
@@ -3007,7 +3138,7 @@ export class KJDrawWorkbench {
                 view: this.#viewIdentity(),
                 baseScreen: location
             };
-            const grip = operation === 'replace' && !this.#options.readonly && selection?.size === 1 ? this.renderer.hitGrip(location, 7) : null;
+            const grip = operation === 'replace' && !this.#readOnly && selection?.size === 1 ? this.renderer.hitGrip(location, 7) : null;
             const entity = grip ? drawing.getObject(grip.entityId) : null;
             if (grip && entity?.kind === 'entity') {
                 this.#gripGesture = {
@@ -3038,7 +3169,7 @@ export class KJDrawWorkbench {
                 event.preventDefault();
                 return;
             }
-            if (operation === 'replace' && !this.#options.readonly && selection?.has(hit.entity.id)) {
+            if (operation === 'replace' && !this.#readOnly && selection?.has(hit.entity.id)) {
                 const baseWorld = this.renderer.screenToWorld(location);
                 const editable = new Set(this.renderer.selectAll());
                 this.#selectionDrag = {
@@ -3112,7 +3243,7 @@ export class KJDrawWorkbench {
             'move',
             'copy'
         ].includes(this.#tool);
-        this.#hoverGrip = this.#tool === 'select' && !this.#options.readonly && this.#selection?.size === 1 ? this.renderer.hitGrip(location, 7) : null;
+        this.#hoverGrip = this.#tool === 'select' && !this.#readOnly && this.#selection?.size === 1 ? this.renderer.hitGrip(location, 7) : null;
         this.#canvas.style.cursor = this.#hoverGrip ? 'crosshair' : '';
         const snapped = drawingTool ? this.#snapAt(rawWorld) : null;
         this.#cursorWorld = snapped ?? rawWorld;
@@ -3168,7 +3299,7 @@ export class KJDrawWorkbench {
             this.#hoverGrip = null;
             this.#hideSnap();
             this.renderer.render();
-            if (this.#pointerBindingIsCurrent(gesture) && !this.#options.readonly) {
+            if (this.#pointerBindingIsCurrent(gesture) && !this.#readOnly) {
                 if (Math.hypot(location[0] - gesture.baseScreen[0], location[1] - gesture.baseScreen[1]) >= 3) {
                     await this.#run(()=>this.execute('GRIPEDIT', {
                             id: gesture.entity.id,
@@ -3256,7 +3387,7 @@ export class KJDrawWorkbench {
                     ] : [],
                     operation
                 }));
-            this.#setMessage(this.#selection?.size === 1 && !this.#options.readonly ? this.#t('gripHint') : this.#t('selectionHint'));
+            this.#setMessage(this.#selection?.size === 1 && !this.#readOnly ? this.#t('gripHint') : this.#t('selectionHint'));
             return;
         }
         if (this.#tool === 'pan') return;
@@ -3325,7 +3456,7 @@ export class KJDrawWorkbench {
             return;
         }
         if (this.#tool === 'text') {
-            if (this.#options.readonly) return;
+            if (this.#readOnly) return;
             await this.#run(()=>this.execute('CREATE', {
                     type: 'TEXT',
                     payload: {
@@ -3396,7 +3527,7 @@ export class KJDrawWorkbench {
             this.#drawOverlay();
             return;
         }
-        if (this.#options.readonly) return;
+        if (this.#readOnly) return;
         let type = 'LINE', payload = {
             start: [
                 ...start,
@@ -3457,7 +3588,7 @@ export class KJDrawWorkbench {
         this.#drawOverlay();
     }
     async #finishPolyline() {
-        if (this.#options.readonly) return;
+        if (this.#readOnly) return;
         if (this.#draftPoints.length < 2) {
             this.#setMessage(this.#t('nextPoint'));
             return;
@@ -3615,7 +3746,7 @@ export class KJDrawWorkbench {
         if (this.#boundarySession) return;
         const ids = this.#selection?.ids ?? [];
         const drawing = this.document;
-        if (!ids.length || this.#options.readonly || !drawing) return;
+        if (!ids.length || this.#readOnly || !drawing) return;
         const receipt = await this.#run(()=>this.execute('ERASE', {
                 ids
             }));
@@ -3647,7 +3778,7 @@ export class KJDrawWorkbench {
             6,
             4
         ]);
-        const grips = this.#tool === 'select' && !this.#options.readonly && !this.#modificationGesture && !this.#boundarySession && (this.#selection?.size === 1 || this.#gripGesture) && !this.#boxSelection && !this.#selectionDrag ? this.renderer.getGrips(this.#gripGesture ? [
+        const grips = this.#tool === 'select' && !this.#readOnly && !this.#modificationGesture && !this.#boundarySession && (this.#selection?.size === 1 || this.#gripGesture) && !this.#boxSelection && !this.#selectionDrag ? this.renderer.getGrips(this.#gripGesture ? [
             this.#gripGesture.entity.id
         ] : undefined) : [];
         this.#overlay.dataset.gripCount = String(grips.length);
@@ -3863,12 +3994,14 @@ export class KJDrawWorkbench {
         const output = this.root.querySelector('[data-selection]');
         if (output) output.textContent = `${selection?.size ?? 0} ${this.#t('selected')}`;
         const erase = this.root.querySelector('[data-action="erase"]');
-        if (erase) erase.disabled = this.#options.readonly === true || this.#boundarySession !== null || !selection?.size;
+        if (erase) erase.disabled = this.#readOnly === true || this.#boundarySession !== null || !selection?.size;
         this.#refreshInspector();
     }
     #refreshDocumentPanels() {
         const drawing = this.document;
         if (!drawing) return;
+        this.#syncDrawingLayouts();
+        this.#syncEditability();
         this.#snappableEntityIds = this.#visibleModelEntityIds();
         const name = this.root.querySelector('[data-document-name]');
         if (name) name.textContent = this.#options.title ?? String(drawing.snapshot().metadata.title ?? drawing.id);
@@ -3880,8 +4013,8 @@ export class KJDrawWorkbench {
         set('[data-count]', `${count.toLocaleString()} ${this.#t('entities')}`);
         set('[data-revision]', `REV ${drawing.revision}`);
         const undo = this.root.querySelector('[data-action="undo"]'), redo = this.root.querySelector('[data-action="redo"]');
-        if (undo) undo.disabled = this.#options.readonly === true || !drawing.history.canUndo;
-        if (redo) redo.disabled = this.#options.readonly === true || !drawing.history.canRedo;
+        if (undo) undo.disabled = this.#readOnly === true || !drawing.history.canUndo;
+        if (redo) redo.disabled = this.#readOnly === true || !drawing.history.canRedo;
         this.#refreshLayers();
         this.#refreshSelectionPanels();
         this.#refreshViewport();
@@ -3901,7 +4034,7 @@ export class KJDrawWorkbench {
             const input = document.createElement('input');
             input.type = 'checkbox';
             input.checked = layer.payload.visible !== false;
-            input.disabled = this.#options.readonly === true;
+            input.disabled = this.#readOnly === true;
             input.title = `${this.#t(input.checked ? 'hideLayer' : 'showLayer')}: ${layer.name ?? '0'}`;
             input.setAttribute('aria-label', input.title);
             input.addEventListener('change', ()=>void this.#run(()=>this.execute('LAYERUPDATE', {
@@ -3927,7 +4060,7 @@ export class KJDrawWorkbench {
                 button.type = 'button';
                 button.className = 'layer-state';
                 button.dataset.layerProperty = property;
-                button.disabled = this.#options.readonly === true;
+                button.disabled = this.#readOnly === true;
                 button.title = `${this.#t(property === 'locked' ? active ? 'unlockLayer' : 'lockLayer' : active ? 'thawLayer' : 'freezeLayer')}: ${layer.name ?? '0'}`;
                 button.setAttribute('aria-label', button.title);
                 button.setAttribute('aria-pressed', String(active));
@@ -3966,7 +4099,7 @@ export class KJDrawWorkbench {
         layerField.className = 'field';
         layerField.innerHTML = `<span>${this.#t('layer')}</span>`;
         const layerSelect = document.createElement('select');
-        layerSelect.disabled = this.#options.readonly === true;
+        layerSelect.disabled = this.#readOnly === true;
         for (const layer of drawing.getTable('layers')?.records ?? []){
             const option = document.createElement('option');
             option.value = layer.id;
@@ -3986,7 +4119,7 @@ export class KJDrawWorkbench {
             valueInput.min = '0.000001';
             valueInput.step = '0.1';
             valueInput.value = String(entity.payload.radius ?? '');
-            valueInput.disabled = this.#options.readonly === true;
+            valueInput.disabled = this.#readOnly === true;
             field.append(valueInput);
             host.append(field);
         } else if ([
@@ -4000,11 +4133,11 @@ export class KJDrawWorkbench {
             field.innerHTML = `<span>${this.#t('text')}</span>`;
             valueInput = document.createElement('input');
             valueInput.value = String(entity.payload.text ?? '');
-            valueInput.disabled = this.#options.readonly === true;
+            valueInput.disabled = this.#readOnly === true;
             field.append(valueInput);
             host.append(field);
         }
-        if (!this.#options.readonly) {
+        if (!this.#readOnly) {
             const apply = document.createElement('button');
             apply.type = 'button';
             apply.className = 'apply';

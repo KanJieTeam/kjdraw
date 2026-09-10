@@ -1,3 +1,4 @@
+import { captureDrawingView } from '../../packages/kjdraw-sdk/src/drawing-image.js'
 import { createKJDrawSDK, KJProjectSession, instantiateKJCoreWasm, createWasmGeometryBackend, registerGeometryBackend, createKJCoreDocumentAuthority, createKJCoreSolidBackend } from '../../packages/kjdraw-sdk/src/index.js'
 import { KJCanvasRenderer, aciColor } from '../../packages/kjdraw-sdk/src/canvas-renderer.js'
 import { kjdrawIcon } from '../../packages/kjdraw-sdk/src/theme.js'
@@ -11,6 +12,7 @@ import { createI18n } from './i18n.js'
 import { AGENT_REVISION_COMMAND, createShowcaseRevision, getShowcaseIntent, isShowcaseIntent, registerShowcaseCommand, resolveShowcasePreset } from './agent-showcase.js'
 import { createIndustrySamples, INDUSTRY_SAMPLES } from './industry-samples.js'
 import { createAgentChat } from './agent-chat.js'
+import { persistApprovedRoadRecipe, prepareRoadDrawingContext } from './road-recipes.js'
 
 const $ = id => document.getElementById(id)
 const i18n = createI18n(), t = key => i18n.t(key)
@@ -236,7 +238,7 @@ function render() {
     ctx.save();ctx.strokeStyle='#77a7ff';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(ex,ey);ctx.stroke();ctx.restore()
   }
   if(drafting){const preview=drafting.session.preview(cursor??undefined);if(preview)drawOverlayEntity(preview,'#77a7ff')}
-  if(agentChat?.preview){canvasRenderer.drawPreview(agentChat.preview.before,'#e6a04b');canvasRenderer.drawPreview(agentChat.preview.after,'#77a7ff')}
+  if(agentChat?.preview){canvasRenderer.drawPreview(agentChat.preview.before,'#e6a04b');canvasRenderer.drawPreview(agentChat.preview.after,'#77a7ff',[0,0],agentChat.preview.resources)}
   if(!drafting&&start&&cursor){
     drawOverlayEntity({type:'LINE',payload:{start,end:cursor}},'#bdf878')
   }
@@ -257,6 +259,16 @@ function resize() {
   canvasRenderer.resize(width,height);render()
 }
 function fit(){cancelSelectionGestures();canvasRenderer.fit();render()}
+function previewAgentDrawing(view){
+  const bounds=view?.bounds
+  if(agentChat?.preview&&Array.isArray(bounds)&&bounds.length===4&&bounds.every(Number.isFinite)&&bounds[2]>bounds[0]&&bounds[3]>bounds[1]){
+    cancelSelectionGestures()
+    canvasRenderer.panBy(0,0)
+    camera.x=bounds[0]+(bounds[2]-bounds[0])/2;camera.y=bounds[1]+(bounds[3]-bounds[1])/2
+    camera.scale=Math.max(1e-7,Math.min(1e7,Math.max(1,width-164)/(bounds[2]-bounds[0]),Math.max(1,height-164)/(bounds[3]-bounds[1])))
+  }
+  requestAnimationFrame(render)
+}
 function focusRegion([x0,y0,x1,y1]){camera.x=(x0+x1)/2;camera.y=(y0+y1)/2;camera.scale=Math.max(.00001,Math.min((width-90)/Math.max(1,x1-x0),(height-110)/Math.max(1,y1-y0)));render()}
 function field(container,label,value) { const row=document.createElement('div');row.className='kv';const k=document.createElement('span'),v=document.createElement('b');k.textContent=label;v.textContent=String(value);row.append(k,v);container.append(row) }
 function populateSampleSelector() {
@@ -746,7 +758,7 @@ try {
   registerGeometryBackend(createWasmGeometryBackend(instance));authority=createKJCoreDocumentAuthority(instance);solidAuthority=createKJCoreSolidBackend(instance)
 } catch(e){message('WASM unavailable · JavaScript reference mode');console.warn(e.message)}
 await freshSample();resize();fit()
-agentChat=createAgentChat(document.querySelector('.agent-panel'),{locale:()=>i18n.locale,getContext:()=>({sdk,document:doc()}),getSelected:()=>selectedIds(),onBeforeRun:()=>{invalidatePlan();render()},onPreview:()=>requestAnimationFrame(render),runMutation:async operation=>{let result;await run(async()=>{result=await operation()});return result},onApplied:()=>{invalidatePlan();$('file-state').textContent=i18n.locale==='zh'?'内存中已修改':'Modified in memory';refresh();render()},onSave:()=>saveProject()})
+agentChat=createAgentChat(document.querySelector('.agent-panel'),{locale:()=>i18n.locale,getContext:()=>({sdk,document:doc(),project:session}),getSelected:()=>selectedIds(),captureView:()=>{const a=world([0,0]),b=world([width,height]);return captureDrawingView(doc(),{bounds:[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[0],b[0]),Math.max(a[1],b[1])],width:Math.min(1200,Math.max(1,Math.round(width))),height:Math.min(900,Math.max(1,Math.round(height))),theme:'light'})},onBeforeRun:()=>{invalidatePlan();render()},onPreview:previewAgentDrawing,onProposalApplied:value=>persistApprovedRoadRecipe(value,()=>({sdk,document:doc(),project:session})),prepareRoadContext:(context,tools)=>prepareRoadDrawingContext(context,()=>({sdk,document:doc(),project:session}),tools),runMutation:async operation=>{let result;await run(async()=>{result=await operation()});return result},onApplied:()=>{invalidatePlan();$('file-state').textContent=i18n.locale==='zh'?'内存中已修改':'Modified in memory';refresh();render()},onSave:()=>saveProject()})
 
 function filterLayers(){
   const term=$('layer-search').value.trim().toLocaleLowerCase()

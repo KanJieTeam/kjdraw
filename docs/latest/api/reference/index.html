@@ -57,7 +57,13 @@
 <a href="#module-selection"><code>./selection</code></a>
 <a href="#module-snapping"><code>./snapping</code></a>
 <a href="#module-renderer-canvas"><code>./renderer/canvas</code></a>
-<a href="#module-workbench"><code>./workbench</code></a></nav></aside>
+<a href="#module-workbench"><code>./workbench</code></a>
+<a href="#module-road-design"><code>./road-design</code></a>
+<a href="#module-drawing-image"><code>./drawing-image</code></a>
+<a href="#module-road-drawing"><code>./road-drawing</code></a>
+<a href="#module-road-drawing-update"><code>./road-drawing-update</code></a>
+<a href="#module-agent-road-drawing"><code>./agent-road-drawing</code></a>
+<a href="#module-road-drawing-recipe"><code>./road-drawing-recipe</code></a></nav></aside>
     <main class="reference-main"><article>
       <section class="reference-intro" id="api-reference"><p class="eyebrow">TYPESCRIPT</p><h1><span class="lang-en">Complete API reference</span><span class="lang-zh">完整 API 参考</span></h1><p class="lead"><span class="lang-en">Browse the declarations for the root package and every public subpath. Start with the Editor API for application integration.</span><span class="lang-zh">浏览根包及每个公开子路径的类型声明；应用接入请先从 Editor API 开始。</span></p><a class="primary-link" href="../"><span class="lang-en">Open Editor API</span><span class="lang-zh">打开 Editor API</span> →</a></section>
       <div id="empty-state" hidden><h2><span class="lang-en">No matching API</span><span class="lang-zh">未找到匹配 API</span></h2></div>
@@ -502,9 +508,25 @@
 }</code></pre>
       <p class="source-path">model-adapters.d.ts</p>
     </article>
+<article class="api-symbol" id="model-adapters-type-kjmodelimage" data-search="kjmodelimage type @kanjieteam/kjdraw/model-adapters export type kjmodelimage = {
+    readonly dataurl: string;
+} | {
+    readonly mimetype: &#39;image/png&#39; | &#39;image/jpeg&#39;;
+    readonly base64: string;
+};">
+      <header><div><span class="kind">type</span><h3>KJModelImage</h3></div><a class="permalink" href="#model-adapters-type-kjmodelimage" aria-label="Link to KJModelImage">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJModelImage = {
+    readonly dataUrl: string;
+} | {
+    readonly mimeType: &#39;image/png&#39; | &#39;image/jpeg&#39;;
+    readonly base64: string;
+};</code></pre>
+      <p class="source-path">model-adapters.d.ts</p>
+    </article>
 <article class="api-symbol" id="model-adapters-type-kjmodelinput" data-search="kjmodelinput type @kanjieteam/kjdraw/model-adapters export type kjmodelinput = {
     readonly kind: &#39;prompt&#39;;
     readonly text: string;
+    readonly images?: readonly kjmodelimage[];
 } | {
     readonly kind: &#39;tool-results&#39;;
     readonly results: readonly kjmodeltooloutput[];
@@ -513,6 +535,7 @@
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJModelInput = {
     readonly kind: &#39;prompt&#39;;
     readonly text: string;
+    readonly images?: readonly KJModelImage[];
 } | {
     readonly kind: &#39;tool-results&#39;;
     readonly results: readonly KJModelToolOutput[];
@@ -613,6 +636,8 @@
     session: kjagenttoolsession;
     model: kjagentmodel;
     prompt: string;
+    /** explicit host-supplied drawing images; the selected model must support vision. */
+    images?: readonly kjmodelimage[];
     /** host-selected tools for this run. omit for all session tools; explicit lists must be nonempty, unique and known. */
     toolnames?: readonly string[];
     /** host-trusted domain knowledge, selected by an exact project lock. never grants extra tools. */
@@ -632,6 +657,8 @@
     session: KJAgentToolSession;
     model: KJAgentModel;
     prompt: string;
+    /** Explicit host-supplied drawing images; the selected model must support vision. */
+    images?: readonly KJModelImage[];
     /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */
     toolNames?: readonly string[];
     /** Host-trusted domain knowledge, selected by an exact project lock. Never grants extra tools. */
@@ -725,11 +752,64 @@
   <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/agent-tools</code></h2></div><a class="permalink" href="#module-agent-tools" aria-label="Link to @kanjieteam/kjdraw/agent-tools">#</a></header>
   <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/agent-tools.d.ts</code></p>
   <div class="api-symbols">
-    <article class="api-symbol" id="agent-tools-type-default" data-search="default type @kanjieteam/kjdraw/agent-tools export type { kjagentdrawinginput, kjagentpoint } from &#39;./agent-drawing.js&#39;;
+    <article class="api-symbol" id="agent-tools-type-default" data-search="default type @kanjieteam/kjdraw/agent-tools export type { kjagentroadrevisioninput, kjagentroadrevisionproposal } from &#39;./agent-road-revision.js&#39;;
+export type { kjagentroaddrawinginput } from &#39;./agent-road-drawing.js&#39;;
+export type { kjagentdrawinginput, kjagentpoint } from &#39;./agent-drawing.js&#39;;
+export type { kjagentcompactdrawinginput } from &#39;./agent-drawing-compact.js&#39;;
 export type { kjagentgeometrypreview, kjagentpreviewentity } from &#39;./agent-preview.js&#39;;">
       <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#agent-tools-type-default" aria-label="Link to default">#</a></header>
-      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJAgentDrawingInput, KJAgentPoint } from &#39;./agent-drawing.js&#39;;
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from &#39;./agent-road-revision.js&#39;;
+export type { KJAgentRoadDrawingInput } from &#39;./agent-road-drawing.js&#39;;
+export type { KJAgentDrawingInput, KJAgentPoint } from &#39;./agent-drawing.js&#39;;
+export type { KJAgentCompactDrawingInput } from &#39;./agent-drawing-compact.js&#39;;
 export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-preview.js&#39;;</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
+<article class="api-symbol" id="agent-tools-interface-kjagentannotateddrawinginput" data-search="kjagentannotateddrawinginput interface @kanjieteam/kjdraw/agent-tools export interface kjagentannotateddrawinginput extends kjagentpatterndrawinginput {
+    styles: {
+        name: string;
+        sources: string[];
+        pattern: number[];
+        color: number;
+        lineweight: number;
+    }[];
+    texts: kjagentannotationinput[&#39;texts&#39;];
+    aligneddimensions: omit&lt;extract&lt;kjagentannotationinput[&#39;dimensions&#39;][number], {
+        type: &#39;aligned&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+    rotateddimensions: omit&lt;extract&lt;kjagentannotationinput[&#39;dimensions&#39;][number], {
+        type: &#39;rotated&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+    radiusdimensions: omit&lt;extract&lt;kjagentannotationinput[&#39;dimensions&#39;][number], {
+        type: &#39;radius&#39; | &#39;diameter&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+    diameterdimensions: omit&lt;extract&lt;kjagentannotationinput[&#39;dimensions&#39;][number], {
+        type: &#39;radius&#39; | &#39;diameter&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentAnnotatedDrawingInput</h3></div><a class="permalink" href="#agent-tools-interface-kjagentannotateddrawinginput" aria-label="Link to KJAgentAnnotatedDrawingInput">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput {
+    styles: {
+        name: string;
+        sources: string[];
+        pattern: number[];
+        color: number;
+        lineweight: number;
+    }[];
+    texts: KJAgentAnnotationInput[&#39;texts&#39;];
+    alignedDimensions: Omit&lt;Extract&lt;KJAgentAnnotationInput[&#39;dimensions&#39;][number], {
+        type: &#39;ALIGNED&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+    rotatedDimensions: Omit&lt;Extract&lt;KJAgentAnnotationInput[&#39;dimensions&#39;][number], {
+        type: &#39;ROTATED&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+    radiusDimensions: Omit&lt;Extract&lt;KJAgentAnnotationInput[&#39;dimensions&#39;][number], {
+        type: &#39;RADIUS&#39; | &#39;DIAMETER&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+    diameterDimensions: Omit&lt;Extract&lt;KJAgentAnnotationInput[&#39;dimensions&#39;][number], {
+        type: &#39;RADIUS&#39; | &#39;DIAMETER&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+}</code></pre>
       <p class="source-path">agent-tools.d.ts</p>
     </article>
 <article class="api-symbol" id="agent-tools-interface-kjagentdrawingquery" data-search="kjagentdrawingquery interface @kanjieteam/kjdraw/agent-tools export interface kjagentdrawingquery {
@@ -827,6 +907,19 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
 }</code></pre>
       <p class="source-path">agent-tools.d.ts</p>
     </article>
+<article class="api-symbol" id="agent-tools-interface-kjagentpatterndrawinginput" data-search="kjagentpatterndrawinginput interface @kanjieteam/kjdraw/agent-tools export interface kjagentpatterndrawinginput extends kjagentcompactdrawinginput {
+    arrays: (kjrectangulardrawingpattern &amp; {
+        sources: string[];
+    })[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentPatternDrawingInput</h3></div><a class="permalink" href="#agent-tools-interface-kjagentpatterndrawinginput" aria-label="Link to KJAgentPatternDrawingInput">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentPatternDrawingInput extends KJAgentCompactDrawingInput {
+    arrays: (KJRectangularDrawingPattern &amp; {
+        sources: string[];
+    })[];
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
 <article class="api-symbol" id="agent-tools-interface-kjagenttooldefinition" data-search="kjagenttooldefinition interface @kanjieteam/kjdraw/agent-tools export interface kjagenttooldefinition {
     readonly name: string;
     readonly description: string;
@@ -905,6 +998,9 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     /** bind unit schemas to the drawing so models see its canonical unit name. */
     get definitions(): readonly kjagenttooldefinition[];
     constructor(sdk: kjdrawsdk, document: kjdocument);
+    /** trusted host operation: verify saved parameters against all current generated objects.
+     * registration is bound to this exact document revision and is not model-callable. */
+    registerroaddrawingrecipe(recipe: unknown): promise&lt;readonlydeep&lt;kjrestoredroaddrawingrecipe&gt;&gt;;
     call(name: string, input: unknown): promise&lt;kjagenttoolresult&gt;;
     /** invoke only after an authenticated host collected review of these exact arguments. */
     approve(planid: string, reviewerid: string): promise&lt;kjagenttoolresult&gt;;
@@ -916,6 +1012,9 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     /** Bind unit schemas to the drawing so models see its canonical unit name. */
     get definitions(): readonly KJAgentToolDefinition[];
     constructor(sdk: KJDrawSDK, document: KJDocument);
+    /** Trusted host operation: verify saved parameters against all current generated objects.
+     * Registration is bound to this exact document revision and is not model-callable. */
+    registerRoadDrawingRecipe(recipe: unknown): Promise&lt;ReadonlyDeep&lt;KJRestoredRoadDrawingRecipe&gt;&gt;;
     call(name: string, input: unknown): Promise&lt;KJAgentToolResult&gt;;
     /** Invoke only after an authenticated host collected review of these exact arguments. */
     approve(planId: string, reviewerId: string): Promise&lt;KJAgentToolResult&gt;;
@@ -2763,6 +2862,12 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         atomic: boolean;
         maximumentities: number;
     };
+    readonly road_drawing_update: {
+        domain: string;
+        atomic: boolean;
+        stableids: boolean;
+        requiresunmodifiedprevious: boolean;
+    };
     readonly erase: {
         domain: string;
         supportedobjectkinds: string;
@@ -3066,6 +3171,12 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         supportedEntityTypes: string;
         atomic: boolean;
         maximumEntities: number;
+    };
+    readonly ROAD_DRAWING_UPDATE: {
+        domain: string;
+        atomic: boolean;
+        stableIds: boolean;
+        requiresUnmodifiedPrevious: boolean;
     };
     readonly ERASE: {
         domain: string;
@@ -3692,6 +3803,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <p class="source-path">utils.d.ts</p>
     </article>
 <article class="api-symbol" id="core-interface-kjcommandarguments" data-search="kjcommandarguments interface @kanjieteam/kjdraw/core export interface kjcommandarguments extends record&lt;string, unknown&gt; {
+    resources?: kjentitybatchresources;
     id?: string;
     ids?: readonly string[];
     firstid?: string;
@@ -3811,6 +3923,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }">
       <header><div><span class="kind">interface</span><h3>KJCommandArguments</h3></div><a class="permalink" href="#core-interface-kjcommandarguments" aria-label="Link to KJCommandArguments">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJCommandArguments extends Record&lt;string, unknown&gt; {
+    resources?: KJEntityBatchResources;
     id?: string;
     ids?: readonly string[];
     firstId?: string;
@@ -5550,6 +5663,37 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     kind: &#39;entity&#39;;
 };</code></pre>
       <p class="source-path">schema.d.ts</p>
+    </article>
+<article class="api-symbol" id="core-interface-kjentitybatchresources" data-search="kjentitybatchresources interface @kanjieteam/kjdraw/core export interface kjentitybatchresources {
+    linetypes: {
+        id: string;
+        name: string;
+        pattern: number[];
+    }[];
+    layers: {
+        id: string;
+        name: string;
+        color: number;
+        linetypeid: string;
+        lineweight: number;
+    }[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJEntityBatchResources</h3></div><a class="permalink" href="#core-interface-kjentitybatchresources" aria-label="Link to KJEntityBatchResources">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJEntityBatchResources {
+    linetypes: {
+        id: string;
+        name: string;
+        pattern: number[];
+    }[];
+    layers: {
+        id: string;
+        name: string;
+        color: number;
+        linetypeId: string;
+        lineweight: number;
+    }[];
+}</code></pre>
+      <p class="source-path">commands.d.ts</p>
     </article>
 <article class="api-symbol" id="core-interface-kjentitybatchspec" data-search="kjentitybatchspec interface @kanjieteam/kjdraw/core export interface kjentitybatchspec extends record&lt;string, unknown&gt; {
     type?: string;
@@ -10177,14 +10321,20 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <p class="source-path">utils.d.ts</p>
     </article>
 <article class="api-symbol" id="root-type-default" data-search="default type @kanjieteam/kjdraw export type { kjworkbenchlayout } from &#39;./workbench.js&#39;;
+export type { kjagentroadrevisioninput, kjagentroadrevisionproposal } from &#39;./agent-road-revision.js&#39;;
+export type { kjagentroaddrawinginput } from &#39;./agent-road-drawing.js&#39;;
 export type { kjagentdrawinginput, kjagentpoint } from &#39;./agent-drawing.js&#39;;
+export type { kjagentcompactdrawinginput } from &#39;./agent-drawing-compact.js&#39;;
 export type { kjagentgeometrypreview, kjagentpreviewentity } from &#39;./agent-preview.js&#39;;
 export type { kjdxfplotsettings } from &#39;./plot-settings.js&#39;;
 export type { kjboxselectionmode, kjspatialselectionoptions } from &#39;./selection-geometry.js&#39;;
 export type { kjboxselectionmode, kjspatialselectionoptions } from &#39;./selection-geometry.js&#39;;">
       <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#root-type-default" aria-label="Link to default">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJWorkbenchLayout } from &#39;./workbench.js&#39;;
+export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from &#39;./agent-road-revision.js&#39;;
+export type { KJAgentRoadDrawingInput } from &#39;./agent-road-drawing.js&#39;;
 export type { KJAgentDrawingInput, KJAgentPoint } from &#39;./agent-drawing.js&#39;;
+export type { KJAgentCompactDrawingInput } from &#39;./agent-drawing-compact.js&#39;;
 export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-preview.js&#39;;
 export type { KJDxfPlotSettings } from &#39;./plot-settings.js&#39;;
 export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./selection-geometry.js&#39;;
@@ -10541,6 +10691,12 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         atomic: boolean;
         maximumentities: number;
     };
+    readonly road_drawing_update: {
+        domain: string;
+        atomic: boolean;
+        stableids: boolean;
+        requiresunmodifiedprevious: boolean;
+    };
     readonly erase: {
         domain: string;
         supportedobjectkinds: string;
@@ -10844,6 +11000,12 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         supportedEntityTypes: string;
         atomic: boolean;
         maximumEntities: number;
+    };
+    readonly ROAD_DRAWING_UPDATE: {
+        domain: string;
+        atomic: boolean;
+        stableIds: boolean;
+        requiresUnmodifiedPrevious: boolean;
     };
     readonly ERASE: {
         domain: string;
@@ -11248,6 +11410,53 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }</code></pre>
       <p class="source-path">errors.d.ts</p>
     </article>
+<article class="api-symbol" id="root-interface-kjagentannotateddrawinginput" data-search="kjagentannotateddrawinginput interface @kanjieteam/kjdraw export interface kjagentannotateddrawinginput extends kjagentpatterndrawinginput {
+    styles: {
+        name: string;
+        sources: string[];
+        pattern: number[];
+        color: number;
+        lineweight: number;
+    }[];
+    texts: kjagentannotationinput[&#39;texts&#39;];
+    aligneddimensions: omit&lt;extract&lt;kjagentannotationinput[&#39;dimensions&#39;][number], {
+        type: &#39;aligned&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+    rotateddimensions: omit&lt;extract&lt;kjagentannotationinput[&#39;dimensions&#39;][number], {
+        type: &#39;rotated&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+    radiusdimensions: omit&lt;extract&lt;kjagentannotationinput[&#39;dimensions&#39;][number], {
+        type: &#39;radius&#39; | &#39;diameter&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+    diameterdimensions: omit&lt;extract&lt;kjagentannotationinput[&#39;dimensions&#39;][number], {
+        type: &#39;radius&#39; | &#39;diameter&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentAnnotatedDrawingInput</h3></div><a class="permalink" href="#root-interface-kjagentannotateddrawinginput" aria-label="Link to KJAgentAnnotatedDrawingInput">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput {
+    styles: {
+        name: string;
+        sources: string[];
+        pattern: number[];
+        color: number;
+        lineweight: number;
+    }[];
+    texts: KJAgentAnnotationInput[&#39;texts&#39;];
+    alignedDimensions: Omit&lt;Extract&lt;KJAgentAnnotationInput[&#39;dimensions&#39;][number], {
+        type: &#39;ALIGNED&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+    rotatedDimensions: Omit&lt;Extract&lt;KJAgentAnnotationInput[&#39;dimensions&#39;][number], {
+        type: &#39;ROTATED&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+    radiusDimensions: Omit&lt;Extract&lt;KJAgentAnnotationInput[&#39;dimensions&#39;][number], {
+        type: &#39;RADIUS&#39; | &#39;DIAMETER&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+    diameterDimensions: Omit&lt;Extract&lt;KJAgentAnnotationInput[&#39;dimensions&#39;][number], {
+        type: &#39;RADIUS&#39; | &#39;DIAMETER&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-interface-kjagentcapabilitylockentry" data-search="kjagentcapabilitylockentry interface @kanjieteam/kjdraw export interface kjagentcapabilitylockentry extends kjagentcapabilityreference {
     /** change detection only: not a cryptographic signature or publisher authentication. */
     readonly contenthash: string;
@@ -11453,6 +11662,19 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }</code></pre>
       <p class="source-path">model-adapters.d.ts</p>
     </article>
+<article class="api-symbol" id="root-interface-kjagentpatterndrawinginput" data-search="kjagentpatterndrawinginput interface @kanjieteam/kjdraw export interface kjagentpatterndrawinginput extends kjagentcompactdrawinginput {
+    arrays: (kjrectangulardrawingpattern &amp; {
+        sources: string[];
+    })[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentPatternDrawingInput</h3></div><a class="permalink" href="#root-interface-kjagentpatterndrawinginput" aria-label="Link to KJAgentPatternDrawingInput">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentPatternDrawingInput extends KJAgentCompactDrawingInput {
+    arrays: (KJRectangularDrawingPattern &amp; {
+        sources: string[];
+    })[];
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-interface-kjagentplanbindingcontext" data-search="kjagentplanbindingcontext interface @kanjieteam/kjdraw export interface kjagentplanbindingcontext {
     phase: &#39;create&#39; | &#39;verify&#39;;
     planid: string;
@@ -11614,6 +11836,8 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     session: kjagenttoolsession;
     model: kjagentmodel;
     prompt: string;
+    /** explicit host-supplied drawing images; the selected model must support vision. */
+    images?: readonly kjmodelimage[];
     /** host-selected tools for this run. omit for all session tools; explicit lists must be nonempty, unique and known. */
     toolnames?: readonly string[];
     /** host-trusted domain knowledge, selected by an exact project lock. never grants extra tools. */
@@ -11633,6 +11857,8 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     session: KJAgentToolSession;
     model: KJAgentModel;
     prompt: string;
+    /** Explicit host-supplied drawing images; the selected model must support vision. */
+    images?: readonly KJModelImage[];
     /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */
     toolNames?: readonly string[];
     /** Host-trusted domain knowledge, selected by an exact project lock. Never grants extra tools. */
@@ -11775,6 +12001,9 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     /** bind unit schemas to the drawing so models see its canonical unit name. */
     get definitions(): readonly kjagenttooldefinition[];
     constructor(sdk: kjdrawsdk, document: kjdocument);
+    /** trusted host operation: verify saved parameters against all current generated objects.
+     * registration is bound to this exact document revision and is not model-callable. */
+    registerroaddrawingrecipe(recipe: unknown): promise&lt;readonlydeep&lt;kjrestoredroaddrawingrecipe&gt;&gt;;
     call(name: string, input: unknown): promise&lt;kjagenttoolresult&gt;;
     /** invoke only after an authenticated host collected review of these exact arguments. */
     approve(planid: string, reviewerid: string): promise&lt;kjagenttoolresult&gt;;
@@ -11786,6 +12015,9 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     /** Bind unit schemas to the drawing so models see its canonical unit name. */
     get definitions(): readonly KJAgentToolDefinition[];
     constructor(sdk: KJDrawSDK, document: KJDocument);
+    /** Trusted host operation: verify saved parameters against all current generated objects.
+     * Registration is bound to this exact document revision and is not model-callable. */
+    registerRoadDrawingRecipe(recipe: unknown): Promise&lt;ReadonlyDeep&lt;KJRestoredRoadDrawingRecipe&gt;&gt;;
     call(name: string, input: unknown): Promise&lt;KJAgentToolResult&gt;;
     /** Invoke only after an authenticated host collected review of these exact arguments. */
     approve(planId: string, reviewerId: string): Promise&lt;KJAgentToolResult&gt;;
@@ -12041,6 +12273,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <p class="source-path">utils.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjcommandarguments" data-search="kjcommandarguments interface @kanjieteam/kjdraw export interface kjcommandarguments extends record&lt;string, unknown&gt; {
+    resources?: kjentitybatchresources;
     id?: string;
     ids?: readonly string[];
     firstid?: string;
@@ -12160,6 +12393,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }">
       <header><div><span class="kind">interface</span><h3>KJCommandArguments</h3></div><a class="permalink" href="#root-interface-kjcommandarguments" aria-label="Link to KJCommandArguments">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJCommandArguments extends Record&lt;string, unknown&gt; {
+    resources?: KJEntityBatchResources;
     id?: string;
     ids?: readonly string[];
     firstId?: string;
@@ -14559,6 +14793,37 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 };</code></pre>
       <p class="source-path">schema.d.ts</p>
     </article>
+<article class="api-symbol" id="root-interface-kjentitybatchresources" data-search="kjentitybatchresources interface @kanjieteam/kjdraw export interface kjentitybatchresources {
+    linetypes: {
+        id: string;
+        name: string;
+        pattern: number[];
+    }[];
+    layers: {
+        id: string;
+        name: string;
+        color: number;
+        linetypeid: string;
+        lineweight: number;
+    }[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJEntityBatchResources</h3></div><a class="permalink" href="#root-interface-kjentitybatchresources" aria-label="Link to KJEntityBatchResources">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJEntityBatchResources {
+    linetypes: {
+        id: string;
+        name: string;
+        pattern: number[];
+    }[];
+    layers: {
+        id: string;
+        name: string;
+        color: number;
+        linetypeId: string;
+        lineweight: number;
+    }[];
+}</code></pre>
+      <p class="source-path">commands.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-interface-kjentitybatchspec" data-search="kjentitybatchspec interface @kanjieteam/kjdraw export interface kjentitybatchspec extends record&lt;string, unknown&gt; {
     type?: string;
     payload?: kjobjectpayload;
@@ -15308,9 +15573,25 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }</code></pre>
       <p class="source-path">model-adapters.d.ts</p>
     </article>
+<article class="api-symbol" id="root-type-kjmodelimage" data-search="kjmodelimage type @kanjieteam/kjdraw export type kjmodelimage = {
+    readonly dataurl: string;
+} | {
+    readonly mimetype: &#39;image/png&#39; | &#39;image/jpeg&#39;;
+    readonly base64: string;
+};">
+      <header><div><span class="kind">type</span><h3>KJModelImage</h3></div><a class="permalink" href="#root-type-kjmodelimage" aria-label="Link to KJModelImage">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJModelImage = {
+    readonly dataUrl: string;
+} | {
+    readonly mimeType: &#39;image/png&#39; | &#39;image/jpeg&#39;;
+    readonly base64: string;
+};</code></pre>
+      <p class="source-path">model-adapters.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-type-kjmodelinput" data-search="kjmodelinput type @kanjieteam/kjdraw export type kjmodelinput = {
     readonly kind: &#39;prompt&#39;;
     readonly text: string;
+    readonly images?: readonly kjmodelimage[];
 } | {
     readonly kind: &#39;tool-results&#39;;
     readonly results: readonly kjmodeltooloutput[];
@@ -15319,6 +15600,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJModelInput = {
     readonly kind: &#39;prompt&#39;;
     readonly text: string;
+    readonly images?: readonly KJModelImage[];
 } | {
     readonly kind: &#39;tool-results&#39;;
     readonly results: readonly KJModelToolOutput[];
@@ -21706,6 +21988,17 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }</code></pre>
       <p class="source-path">canvas-renderer.d.ts</p>
     </article>
+<article class="api-symbol" id="renderer-canvas-interface-kjcanvaspreviewresource" data-search="kjcanvaspreviewresource interface @kanjieteam/kjdraw/renderer/canvas export interface kjcanvaspreviewresource {
+    readonly id: string;
+    readonly payload: readonly&lt;record&lt;string, unknown&gt;&gt;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJCanvasPreviewResource</h3></div><a class="permalink" href="#renderer-canvas-interface-kjcanvaspreviewresource" aria-label="Link to KJCanvasPreviewResource">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJCanvasPreviewResource {
+    readonly id: string;
+    readonly payload: Readonly&lt;Record&lt;string, unknown&gt;&gt;;
+}</code></pre>
+      <p class="source-path">canvas-renderer.d.ts</p>
+    </article>
 <article class="api-symbol" id="renderer-canvas-class-kjcanvasrenderer" data-search="kjcanvasrenderer class @kanjieteam/kjdraw/renderer/canvas export declare class kjcanvasrenderer {
     #private;
     readonly canvas: htmlcanvaselement;
@@ -21741,8 +22034,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     /** optional handle overlay; render() clears it, leaving inspect/read-only hosts in control. */
     drawgrips(hoverid?: string): this;
     render(): readonly&lt;kjcanvasrenderreport&gt;;
-    /** paint temporary native geometry without inserting objects or changing history. call render() to clear it. */
-    drawpreview(entities: readonly kjcanvaspreviewentity[], color?: string, offset?: point2): this;
+    drawpreview(entities: readonly kjcanvaspreviewentity[], color?: string, offset?: point2, resources?: readonly kjcanvaspreviewresource[]): this;
     dispose(): void;
 }">
       <header><div><span class="kind">class</span><h3>KJCanvasRenderer</h3></div><a class="permalink" href="#renderer-canvas-class-kjcanvasrenderer" aria-label="Link to KJCanvasRenderer">#</a></header>
@@ -21781,8 +22073,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     /** Optional handle overlay; render() clears it, leaving inspect/read-only hosts in control. */
     drawGrips(hoverId?: string): this;
     render(): Readonly&lt;KJCanvasRenderReport&gt;;
-    /** Paint temporary native geometry without inserting objects or changing history. Call render() to clear it. */
-    drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2): this;
+    drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2, resources?: readonly KJCanvasPreviewResource[]): this;
     dispose(): void;
 }</code></pre>
       <p class="source-path">canvas-renderer.d.ts</p>
@@ -21815,6 +22106,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <p class="source-path">canvas-renderer.d.ts</p>
     </article>
 <article class="api-symbol" id="renderer-canvas-interface-kjcanvasrenderreport" data-search="kjcanvasrenderreport interface @kanjieteam/kjdraw/renderer/canvas export interface kjcanvasrenderreport {
+    viewportdiagnostics?: readonly kjcanvasviewportdiagnostic[];
     hatchdiagnostics?: readonly {
         entityid: string;
         reason: &#39;budget&#39; | &#39;unsupported-pattern&#39; | &#39;unsupported-boundary&#39;;
@@ -21833,6 +22125,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }">
       <header><div><span class="kind">interface</span><h3>KJCanvasRenderReport</h3></div><a class="permalink" href="#renderer-canvas-interface-kjcanvasrenderreport" aria-label="Link to KJCanvasRenderReport">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJCanvasRenderReport {
+    viewportDiagnostics?: readonly KJCanvasViewportDiagnostic[];
     hatchDiagnostics?: readonly {
         entityId: string;
         reason: &#39;budget&#39; | &#39;unsupported-pattern&#39; | &#39;unsupported-boundary&#39;;
@@ -21893,6 +22186,25 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJCanvasTheme = &#39;dark&#39; | &#39;light&#39;;</code></pre>
       <p class="source-path">canvas-renderer.d.ts</p>
     </article>
+<article class="api-symbol" id="renderer-canvas-interface-kjcanvasviewportdiagnostic" data-search="kjcanvasviewportdiagnostic interface @kanjieteam/kjdraw/renderer/canvas export interface kjcanvasviewportdiagnostic {
+    entityid: string;
+    rendered: number;
+    hidden: number;
+    approximated: number;
+    unsupported: number;
+    reason?: &#39;invalid-view&#39; | &#39;unsupported-view&#39; | &#39;not-paper-space&#39; | &#39;budget&#39;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJCanvasViewportDiagnostic</h3></div><a class="permalink" href="#renderer-canvas-interface-kjcanvasviewportdiagnostic" aria-label="Link to KJCanvasViewportDiagnostic">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJCanvasViewportDiagnostic {
+    entityId: string;
+    rendered: number;
+    hidden: number;
+    approximated: number;
+    unsupported: number;
+    reason?: &#39;invalid-view&#39; | &#39;unsupported-view&#39; | &#39;not-paper-space&#39; | &#39;budget&#39;;
+}</code></pre>
+      <p class="source-path">canvas-renderer.d.ts</p>
+    </article>
   </div>
 </section>
 <section class="api-module" id="module-workbench" data-module="@kanjieteam/kjdraw/workbench">
@@ -21921,7 +22233,15 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     get locale(): kjworkbenchlocale;
     get theme(): kjworkbenchtheme;
     get layout(): kjworkbenchlayout;
+    /** null means model space; independent of the classic/compact/focus interface layout. */
+    get drawinglayoutid(): string | null;
+    get spaceid(): string | null;
+    get paperpreview(): boolean;
     get tool(): kjworkbenchtool;
+    /** switch the displayed model/paper space without changing document state or undo history.
+     * existing paper layouts are read-only previews; return to null (model) to edit.
+     */
+    setdrawinglayout(layoutid: string | null): this;
     /** change presentation without replacing the drawing or its undo history. */
     setoptions(options: pick&lt;kjdrawworkbenchoptions, &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;showlayers&#39; | &#39;showinspector&#39; | &#39;title&#39; | &#39;maxfilebytes&#39; | &#39;layout&#39;&gt;): this;
     setlocale(locale: kjworkbenchlocale): this;
@@ -21950,7 +22270,15 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     get locale(): KJWorkbenchLocale;
     get theme(): KJWorkbenchTheme;
     get layout(): KJWorkbenchLayout;
+    /** Null means model space; independent of the classic/compact/focus interface layout. */
+    get drawingLayoutId(): string | null;
+    get spaceId(): string | null;
+    get paperPreview(): boolean;
     get tool(): KJWorkbenchTool;
+    /** Switch the displayed model/paper space without changing document state or undo history.
+     * Existing paper layouts are read-only previews; return to null (Model) to edit.
+     */
+    setDrawingLayout(layoutId: string | null): this;
     /** Change presentation without replacing the drawing or its undo history. */
     setOptions(options: Pick&lt;KJDrawWorkbenchOptions, &#39;readonly&#39; | &#39;grid&#39; | &#39;toolbar&#39; | &#39;showLayers&#39; | &#39;showInspector&#39; | &#39;title&#39; | &#39;maxFileBytes&#39; | &#39;layout&#39;&gt;): this;
     setLocale(locale: KJWorkbenchLocale): this;
@@ -22047,6 +22375,9 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     locale: kjworkbenchlocale;
     theme: kjworkbenchtheme;
     layout: kjworkbenchlayout;
+    drawinglayoutid: string | null;
+    spaceid: string | null;
+    paperpreview: boolean;
     tool: kjworkbenchtool;
     documentid: string | null;
     revision: number;
@@ -22059,6 +22390,9 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     locale: KJWorkbenchLocale;
     theme: KJWorkbenchTheme;
     layout: KJWorkbenchLayout;
+    drawingLayoutId: string | null;
+    spaceId: string | null;
+    paperPreview: boolean;
     tool: KJWorkbenchTool;
     documentId: string | null;
     revision: number;
@@ -22082,6 +22416,675 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <header><div><span class="kind">function</span><h3>mountKJDrawWorkbench</h3></div><a class="permalink" href="#workbench-function-mountkjdrawworkbench" aria-label="Link to mountKJDrawWorkbench">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function mountKJDrawWorkbench(container: HTMLElement | ShadowRoot, options?: KJDrawWorkbenchOptions): KJDrawWorkbench;</code></pre>
       <p class="source-path">workbench.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-road-design" data-module="@kanjieteam/kjdraw/road-design">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/road-design</code></h2></div><a class="permalink" href="#module-road-design" aria-label="Link to @kanjieteam/kjdraw/road-design">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/road-design.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="road-design-function-computeroaddesign" data-search="computeroaddesign function @kanjieteam/kjdraw/road-design export declare function computeroaddesign(input: kjroaddesigninput): readonlydeep&lt;kjroaddesignresult&gt;;">
+      <header><div><span class="kind">function</span><h3>computeRoadDesign</h3></div><a class="permalink" href="#road-design-function-computeroaddesign" aria-label="Link to computeRoadDesign">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function computeRoadDesign(input: KJRoadDesignInput): ReadonlyDeep&lt;KJRoadDesignResult&gt;;</code></pre>
+      <p class="source-path">road-design.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-design-interface-kjroadalignmentsegment" data-search="kjroadalignmentsegment interface @kanjieteam/kjdraw/road-design export interface kjroadalignmentsegment {
+    startstation: number;
+    endstation: number;
+    start: kjroadpoint;
+    end: kjroadpoint;
+    length: number;
+    tangent: kjroadpoint;
+}">
+      <header><div><span class="kind">interface</span><h3>KJRoadAlignmentSegment</h3></div><a class="permalink" href="#road-design-interface-kjroadalignmentsegment" aria-label="Link to KJRoadAlignmentSegment">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJRoadAlignmentSegment {
+    startStation: number;
+    endStation: number;
+    start: KJRoadPoint;
+    end: KJRoadPoint;
+    length: number;
+    tangent: KJRoadPoint;
+}</code></pre>
+      <p class="source-path">road-design.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-design-interface-kjroaddesigninput" data-search="kjroaddesigninput interface @kanjieteam/kjdraw/road-design export interface kjroaddesigninput {
+    units: &#39;meter&#39;;
+    startstation: number;
+    alignment: readonly kjroadpoint[];
+    profile: readonly {
+        station: number;
+        elevation: number;
+    }[];
+    /** offsets increase toward the left when looking along increasing station. */
+    sections: readonly {
+        station: number;
+        ground: readonly kjroadpoint[];
+    }[];
+    /** crossfall is signed outward rise/run on each side; negative values form a crown. */
+    pavement: {
+        leftwidth: number;
+        rightwidth: number;
+        leftcrossfall: number;
+        rightcrossfall: number;
+    };
+    slopes: {
+        cuthtov: number;
+        fillhtov: number;
+    };
+}">
+      <header><div><span class="kind">interface</span><h3>KJRoadDesignInput</h3></div><a class="permalink" href="#road-design-interface-kjroaddesigninput" aria-label="Link to KJRoadDesignInput">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJRoadDesignInput {
+    units: &#39;meter&#39;;
+    startStation: number;
+    alignment: readonly KJRoadPoint[];
+    profile: readonly {
+        station: number;
+        elevation: number;
+    }[];
+    /** Offsets increase toward the left when looking along increasing station. */
+    sections: readonly {
+        station: number;
+        ground: readonly KJRoadPoint[];
+    }[];
+    /** Crossfall is signed outward rise/run on each side; negative values form a crown. */
+    pavement: {
+        leftWidth: number;
+        rightWidth: number;
+        leftCrossfall: number;
+        rightCrossfall: number;
+    };
+    slopes: {
+        cutHtoV: number;
+        fillHtoV: number;
+    };
+}</code></pre>
+      <p class="source-path">road-design.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-design-interface-kjroaddesignresult" data-search="kjroaddesignresult interface @kanjieteam/kjdraw/road-design export interface kjroaddesignresult {
+    units: &#39;meter&#39;;
+    areaunits: &#39;square-meter&#39;;
+    volumeunits: &#39;cubic-meter&#39;;
+    startstation: number;
+    endstation: number;
+    length: number;
+    alignment: kjroadalignmentsegment[];
+    grades: {
+        fromstation: number;
+        tostation: number;
+        fromelevation: number;
+        toelevation: number;
+        grade: number;
+    }[];
+    sections: kjroadsectionresult[];
+    volumemethod: &#39;average-end-area&#39;;
+    volumerange: kjroadpoint;
+    intervals: {
+        fromstation: number;
+        tostation: number;
+        length: number;
+        cutvolume: number;
+        fillvolume: number;
+    }[];
+    totalvolume: {
+        cut: number;
+        fill: number;
+    };
+    limitations: readonly string[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJRoadDesignResult</h3></div><a class="permalink" href="#road-design-interface-kjroaddesignresult" aria-label="Link to KJRoadDesignResult">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJRoadDesignResult {
+    units: &#39;meter&#39;;
+    areaUnits: &#39;square-meter&#39;;
+    volumeUnits: &#39;cubic-meter&#39;;
+    startStation: number;
+    endStation: number;
+    length: number;
+    alignment: KJRoadAlignmentSegment[];
+    grades: {
+        fromStation: number;
+        toStation: number;
+        fromElevation: number;
+        toElevation: number;
+        grade: number;
+    }[];
+    sections: KJRoadSectionResult[];
+    volumeMethod: &#39;average-end-area&#39;;
+    volumeRange: KJRoadPoint;
+    intervals: {
+        fromStation: number;
+        toStation: number;
+        length: number;
+        cutVolume: number;
+        fillVolume: number;
+    }[];
+    totalVolume: {
+        cut: number;
+        fill: number;
+    };
+    limitations: readonly string[];
+}</code></pre>
+      <p class="source-path">road-design.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-design-type-kjroadpoint" data-search="kjroadpoint type @kanjieteam/kjdraw/road-design export type kjroadpoint = readonly [number, number];">
+      <header><div><span class="kind">type</span><h3>KJRoadPoint</h3></div><a class="permalink" href="#road-design-type-kjroadpoint" aria-label="Link to KJRoadPoint">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJRoadPoint = readonly [number, number];</code></pre>
+      <p class="source-path">road-design.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-design-interface-kjroadsectionresult" data-search="kjroadsectionresult interface @kanjieteam/kjdraw/road-design export interface kjroadsectionresult {
+    station: number;
+    center: kjroadpoint;
+    tangent: kjroadpoint;
+    designelevation: number;
+    groundcenterelevation: number;
+    longitudinalgrade: number;
+    ground: kjroadpoint[];
+    pavement: kjroadpoint[];
+    design: kjroadpoint[];
+    worlddesign: [number, number, number][];
+    daylight: {
+        left: {
+            point: kjroadpoint;
+            mode: &#39;cut&#39; | &#39;fill&#39; | &#39;none&#39;;
+        };
+        right: {
+            point: kjroadpoint;
+            mode: &#39;cut&#39; | &#39;fill&#39; | &#39;none&#39;;
+        };
+    };
+    areas: {
+        cut: number;
+        fill: number;
+    };
+    strips: {
+        fromoffset: number;
+        tooffset: number;
+        cutarea: number;
+        fillarea: number;
+    }[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJRoadSectionResult</h3></div><a class="permalink" href="#road-design-interface-kjroadsectionresult" aria-label="Link to KJRoadSectionResult">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJRoadSectionResult {
+    station: number;
+    center: KJRoadPoint;
+    tangent: KJRoadPoint;
+    designElevation: number;
+    groundCenterElevation: number;
+    longitudinalGrade: number;
+    ground: KJRoadPoint[];
+    pavement: KJRoadPoint[];
+    design: KJRoadPoint[];
+    worldDesign: [number, number, number][];
+    daylight: {
+        left: {
+            point: KJRoadPoint;
+            mode: &#39;cut&#39; | &#39;fill&#39; | &#39;none&#39;;
+        };
+        right: {
+            point: KJRoadPoint;
+            mode: &#39;cut&#39; | &#39;fill&#39; | &#39;none&#39;;
+        };
+    };
+    areas: {
+        cut: number;
+        fill: number;
+    };
+    strips: {
+        fromOffset: number;
+        toOffset: number;
+        cutArea: number;
+        fillArea: number;
+    }[];
+}</code></pre>
+      <p class="source-path">road-design.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-drawing-image" data-module="@kanjieteam/kjdraw/drawing-image">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/drawing-image</code></h2></div><a class="permalink" href="#module-drawing-image" aria-label="Link to @kanjieteam/kjdraw/drawing-image">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/drawing-image.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="drawing-image-function-capturedrawingview" data-search="capturedrawingview function @kanjieteam/kjdraw/drawing-image export declare function capturedrawingview(drawing: kjdocument, options: kjdrawingviewoptions): promise&lt;kjdrawingviewimage&gt;;">
+      <header><div><span class="kind">function</span><h3>captureDrawingView</h3></div><a class="permalink" href="#drawing-image-function-capturedrawingview" aria-label="Link to captureDrawingView">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function captureDrawingView(drawing: KJDocument, options: KJDrawingViewOptions): Promise&lt;KJDrawingViewImage&gt;;</code></pre>
+      <p class="source-path">drawing-image.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-image-interface-kjdrawingviewimage" data-search="kjdrawingviewimage interface @kanjieteam/kjdraw/drawing-image export interface kjdrawingviewimage {
+    readonly dataurl: string;
+    readonly mimetype: &#39;image/png&#39;;
+    readonly documentid: string;
+    readonly revision: number;
+    readonly units: string;
+    readonly documentunits: string;
+    readonly spaceid: string;
+    readonly coordinatesystem: &#39;modelxy&#39; | &#39;paperxy&#39;;
+    readonly bounds: readonly [number, number, number, number];
+    /** actual viewport after fitting bounds without distorting geometry. */
+    readonly viewbounds: readonly [number, number, number, number];
+    readonly width: number;
+    readonly height: number;
+    readonly pixelratio: number;
+    readonly pixelwidth: number;
+    readonly pixelheight: number;
+    /** renderer diagnostics include approximated/unsupported objects and paper viewports. */
+    readonly renderreport: readonly&lt;kjcanvasrenderreport&gt;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingViewImage</h3></div><a class="permalink" href="#drawing-image-interface-kjdrawingviewimage" aria-label="Link to KJDrawingViewImage">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingViewImage {
+    readonly dataUrl: string;
+    readonly mimeType: &#39;image/png&#39;;
+    readonly documentId: string;
+    readonly revision: number;
+    readonly units: string;
+    readonly documentUnits: string;
+    readonly spaceId: string;
+    readonly coordinateSystem: &#39;modelXY&#39; | &#39;paperXY&#39;;
+    readonly bounds: readonly [number, number, number, number];
+    /** Actual viewport after fitting bounds without distorting geometry. */
+    readonly viewBounds: readonly [number, number, number, number];
+    readonly width: number;
+    readonly height: number;
+    readonly pixelRatio: number;
+    readonly pixelWidth: number;
+    readonly pixelHeight: number;
+    /** Renderer diagnostics include approximated/unsupported objects and paper viewports. */
+    readonly renderReport: Readonly&lt;KJCanvasRenderReport&gt;;
+}</code></pre>
+      <p class="source-path">drawing-image.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-image-interface-kjdrawingviewoptions" data-search="kjdrawingviewoptions interface @kanjieteam/kjdraw/drawing-image export interface kjdrawingviewoptions {
+    /** requested xy bounds in the selected space coordinate units. */
+    bounds: readonly [number, number, number, number];
+    /** defaults to model space. explicit paper spaces use the native viewport renderer. */
+    spaceid?: string;
+    /** logical image width and height; no physical print size is implied. */
+    width: number;
+    height: number;
+    /** defaults to 1, independently of the browser/device dpr. */
+    pixelratio?: number;
+    theme?: kjcanvastheme;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingViewOptions</h3></div><a class="permalink" href="#drawing-image-interface-kjdrawingviewoptions" aria-label="Link to KJDrawingViewOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingViewOptions {
+    /** Requested XY bounds in the selected space coordinate units. */
+    bounds: readonly [number, number, number, number];
+    /** Defaults to model space. Explicit paper spaces use the native viewport renderer. */
+    spaceId?: string;
+    /** Logical image width and height; no physical print size is implied. */
+    width: number;
+    height: number;
+    /** Defaults to 1, independently of the browser/device DPR. */
+    pixelRatio?: number;
+    theme?: KJCanvasTheme;
+}</code></pre>
+      <p class="source-path">drawing-image.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-road-drawing" data-module="@kanjieteam/kjdraw/road-drawing">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/road-drawing</code></h2></div><a class="permalink" href="#module-road-drawing" aria-label="Link to @kanjieteam/kjdraw/road-drawing">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/road-drawing.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="road-drawing-function-buildroaddrawing" data-search="buildroaddrawing function @kanjieteam/kjdraw/road-drawing export declare function buildroaddrawing(input: kjroaddesigninput, options: kjroaddrawingoptions): readonlydeep&lt;kjroaddrawingresult&gt;;">
+      <header><div><span class="kind">function</span><h3>buildRoadDrawing</h3></div><a class="permalink" href="#road-drawing-function-buildroaddrawing" aria-label="Link to buildRoadDrawing">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function buildRoadDrawing(input: KJRoadDesignInput, options: KJRoadDrawingOptions): ReadonlyDeep&lt;KJRoadDrawingResult&gt;;</code></pre>
+      <p class="source-path">road-drawing.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-drawing-type-kjroaddrawingbounds" data-search="kjroaddrawingbounds type @kanjieteam/kjdraw/road-drawing export type kjroaddrawingbounds = [number, number, number, number];">
+      <header><div><span class="kind">type</span><h3>KJRoadDrawingBounds</h3></div><a class="permalink" href="#road-drawing-type-kjroaddrawingbounds" aria-label="Link to KJRoadDrawingBounds">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJRoadDrawingBounds = [number, number, number, number];</code></pre>
+      <p class="source-path">road-drawing.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-drawing-interface-kjroaddrawingentity" data-search="kjroaddrawingentity interface @kanjieteam/kjdraw/road-drawing export interface kjroaddrawingentity {
+    key: string;
+    type: &#39;line&#39; | &#39;lwpolyline&#39; | &#39;text&#39;;
+    payload: kjobjectpayload;
+    options: {
+        id: string;
+    };
+}">
+      <header><div><span class="kind">interface</span><h3>KJRoadDrawingEntity</h3></div><a class="permalink" href="#road-drawing-interface-kjroaddrawingentity" aria-label="Link to KJRoadDrawingEntity">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJRoadDrawingEntity {
+    key: string;
+    type: &#39;LINE&#39; | &#39;LWPOLYLINE&#39; | &#39;TEXT&#39;;
+    payload: KJObjectPayload;
+    options: {
+        id: string;
+    };
+}</code></pre>
+      <p class="source-path">road-drawing.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-drawing-interface-kjroaddrawingoptions" data-search="kjroaddrawingoptions interface @kanjieteam/kjdraw/road-drawing export interface kjroaddrawingoptions {
+    drawingid: string;
+    title: string;
+    /** drawing xy units per physical metre. these are diagram transformations, not paper scales. */
+    profilescale: {
+        horizontal: number;
+        vertical: number;
+    };
+    sectionscale: {
+        horizontal: number;
+        vertical: number;
+    };
+    /** lower-left corner of the profile frame; never translates the true-xy plan. */
+    origin?: kjroadpoint;
+    textheight?: number;
+    sectioncolumns?: number;
+    precision?: number;
+    maxentities?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJRoadDrawingOptions</h3></div><a class="permalink" href="#road-drawing-interface-kjroaddrawingoptions" aria-label="Link to KJRoadDrawingOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJRoadDrawingOptions {
+    drawingId: string;
+    title: string;
+    /** Drawing XY units per physical metre. These are diagram transformations, not paper scales. */
+    profileScale: {
+        horizontal: number;
+        vertical: number;
+    };
+    sectionScale: {
+        horizontal: number;
+        vertical: number;
+    };
+    /** Lower-left corner of the profile frame; never translates the true-XY plan. */
+    origin?: KJRoadPoint;
+    textHeight?: number;
+    sectionColumns?: number;
+    precision?: number;
+    maxEntities?: number;
+}</code></pre>
+      <p class="source-path">road-drawing.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-drawing-interface-kjroaddrawingresult" data-search="kjroaddrawingresult interface @kanjieteam/kjdraw/road-drawing export interface kjroaddrawingresult {
+    units: &#39;meter&#39;;
+    calculation: readonlydeep&lt;kjroaddesignresult&gt;;
+    entities: kjroaddrawingentity[];
+    resources: {
+        linetypes: {
+            id: string;
+            name: string;
+            pattern: number[];
+        }[];
+        layers: {
+            id: string;
+            name: string;
+            color: number;
+            linetypeid: string;
+            lineweight: number;
+        }[];
+    };
+    frames: {
+        key: &#39;plan&#39; | &#39;profile-tables&#39; | &#39;sections&#39;;
+        bounds: kjroaddrawingbounds;
+    }[];
+    bounds: kjroaddrawingbounds;
+    projections: {
+        plan: {
+            coordinatesystem: &#39;native-world-xy&#39;;
+            horizontal: 1;
+            vertical: 1;
+        };
+        profile: {
+            horizontal: number;
+            vertical: number;
+            stationdatum: number;
+            elevationdatum: number;
+            origin: kjroadpoint;
+        };
+        sections: {
+            station: number;
+            horizontal: number;
+            vertical: number;
+            offsetdatum: number;
+            elevationdatum: number;
+            origin: kjroadpoint;
+        }[];
+    };
+    /** stable keys support host-managed comparisons; this function does not mutate or associate a document. */
+    limitations: readonly string[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJRoadDrawingResult</h3></div><a class="permalink" href="#road-drawing-interface-kjroaddrawingresult" aria-label="Link to KJRoadDrawingResult">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJRoadDrawingResult {
+    units: &#39;meter&#39;;
+    calculation: ReadonlyDeep&lt;KJRoadDesignResult&gt;;
+    entities: KJRoadDrawingEntity[];
+    resources: {
+        linetypes: {
+            id: string;
+            name: string;
+            pattern: number[];
+        }[];
+        layers: {
+            id: string;
+            name: string;
+            color: number;
+            linetypeId: string;
+            lineweight: number;
+        }[];
+    };
+    frames: {
+        key: &#39;plan&#39; | &#39;profile-tables&#39; | &#39;sections&#39;;
+        bounds: KJRoadDrawingBounds;
+    }[];
+    bounds: KJRoadDrawingBounds;
+    projections: {
+        plan: {
+            coordinateSystem: &#39;native-world-XY&#39;;
+            horizontal: 1;
+            vertical: 1;
+        };
+        profile: {
+            horizontal: number;
+            vertical: number;
+            stationDatum: number;
+            elevationDatum: number;
+            origin: KJRoadPoint;
+        };
+        sections: {
+            station: number;
+            horizontal: number;
+            vertical: number;
+            offsetDatum: number;
+            elevationDatum: number;
+            origin: KJRoadPoint;
+        }[];
+    };
+    /** Stable keys support host-managed comparisons; this function does not mutate or associate a document. */
+    limitations: readonly string[];
+}</code></pre>
+      <p class="source-path">road-drawing.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-road-drawing-update" data-module="@kanjieteam/kjdraw/road-drawing-update">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/road-drawing-update</code></h2></div><a class="permalink" href="#module-road-drawing-update" aria-label="Link to @kanjieteam/kjdraw/road-drawing-update">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/road-drawing-update.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="road-drawing-update-function-applyroaddrawingrevision" data-search="applyroaddrawingrevision function @kanjieteam/kjdraw/road-drawing-update export declare function applyroaddrawingrevision(document: kjdocument, previous: readonlydeep&lt;kjroaddrawingresult&gt;, next: readonlydeep&lt;kjroaddrawingresult&gt;, options: kjroaddrawingrevisionoptions): promise&lt;readonlydeep&lt;kjroaddrawingrevisionreceipt&gt;&gt;;">
+      <header><div><span class="kind">function</span><h3>applyRoadDrawingRevision</h3></div><a class="permalink" href="#road-drawing-update-function-applyroaddrawingrevision" aria-label="Link to applyRoadDrawingRevision">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function applyRoadDrawingRevision(document: KJDocument, previous: ReadonlyDeep&lt;KJRoadDrawingResult&gt;, next: ReadonlyDeep&lt;KJRoadDrawingResult&gt;, options: KJRoadDrawingRevisionOptions): Promise&lt;ReadonlyDeep&lt;KJRoadDrawingRevisionReceipt&gt;&gt;;</code></pre>
+      <p class="source-path">road-drawing-update.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-drawing-update-interface-kjroaddrawingrevisionoptions" data-search="kjroaddrawingrevisionoptions interface @kanjieteam/kjdraw/road-drawing-update export interface kjroaddrawingrevisionoptions {
+    expectedrevision: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJRoadDrawingRevisionOptions</h3></div><a class="permalink" href="#road-drawing-update-interface-kjroaddrawingrevisionoptions" aria-label="Link to KJRoadDrawingRevisionOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJRoadDrawingRevisionOptions {
+    expectedRevision: number;
+}</code></pre>
+      <p class="source-path">road-drawing-update.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-drawing-update-interface-kjroaddrawingrevisionreceipt" data-search="kjroaddrawingrevisionreceipt interface @kanjieteam/kjdraw/road-drawing-update export interface kjroaddrawingrevisionreceipt {
+    documentid: string;
+    drawingid: string;
+    previousrevision: number;
+    revision: number;
+    updatedids: string[];
+    createdids: string[];
+    removedids: string[];
+    unchangedids: string[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJRoadDrawingRevisionReceipt</h3></div><a class="permalink" href="#road-drawing-update-interface-kjroaddrawingrevisionreceipt" aria-label="Link to KJRoadDrawingRevisionReceipt">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJRoadDrawingRevisionReceipt {
+    documentId: string;
+    drawingId: string;
+    previousRevision: number;
+    revision: number;
+    updatedIds: string[];
+    createdIds: string[];
+    removedIds: string[];
+    unchangedIds: string[];
+}</code></pre>
+      <p class="source-path">road-drawing-update.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-agent-road-drawing" data-module="@kanjieteam/kjdraw/agent-road-drawing">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/agent-road-drawing</code></h2></div><a class="permalink" href="#module-agent-road-drawing" aria-label="Link to @kanjieteam/kjdraw/agent-road-drawing">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/agent-road-drawing.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="agent-road-drawing-function-buildagentroaddrawing" data-search="buildagentroaddrawing function @kanjieteam/kjdraw/agent-road-drawing export declare function buildagentroaddrawing(document: kjdocument, input: kjagentroaddrawinginput): readonlydeep&lt;kjagentroaddrawingproposal&gt;;">
+      <header><div><span class="kind">function</span><h3>buildAgentRoadDrawing</h3></div><a class="permalink" href="#agent-road-drawing-function-buildagentroaddrawing" aria-label="Link to buildAgentRoadDrawing">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function buildAgentRoadDrawing(document: KJDocument, input: KJAgentRoadDrawingInput): ReadonlyDeep&lt;KJAgentRoadDrawingProposal&gt;;</code></pre>
+      <p class="source-path">agent-road-drawing.d.ts</p>
+    </article>
+<article class="api-symbol" id="agent-road-drawing-interface-kjagentroaddrawinginput" data-search="kjagentroaddrawinginput interface @kanjieteam/kjdraw/agent-road-drawing export interface kjagentroaddrawinginput extends kjroaddesigninput {
+    expectedrevision: number;
+    drawingid: string;
+    title: string;
+    profilescale: kjroaddrawingoptions[&#39;profilescale&#39;];
+    sectionscale: kjroaddrawingoptions[&#39;sectionscale&#39;];
+    textheight: number;
+    sectioncolumns: number;
+    precision: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentRoadDrawingInput</h3></div><a class="permalink" href="#agent-road-drawing-interface-kjagentroaddrawinginput" aria-label="Link to KJAgentRoadDrawingInput">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentRoadDrawingInput extends KJRoadDesignInput {
+    expectedRevision: number;
+    drawingId: string;
+    title: string;
+    profileScale: KJRoadDrawingOptions[&#39;profileScale&#39;];
+    sectionScale: KJRoadDrawingOptions[&#39;sectionScale&#39;];
+    textHeight: number;
+    sectionColumns: number;
+    precision: number;
+}</code></pre>
+      <p class="source-path">agent-road-drawing.d.ts</p>
+    </article>
+<article class="api-symbol" id="agent-road-drawing-interface-kjagentroaddrawingproposal" data-search="kjagentroaddrawingproposal interface @kanjieteam/kjdraw/agent-road-drawing export interface kjagentroaddrawingproposal {
+    commandargs: {
+        entities: (kjroaddrawingresult[&#39;entities&#39;][number] &amp; {
+            options: {
+                id: string;
+                ownerid: string;
+            };
+        })[];
+        resources: kjroaddrawingresult[&#39;resources&#39;];
+    };
+    evidence: {
+        drawingid: string;
+        units: &#39;meter&#39;;
+        expectedrevision: number;
+        entitycount: number;
+        /** exact validated source parameters for host-managed recovery after approval. */
+        designparameters: {
+            input: kjroaddesigninput;
+            options: kjroaddrawingoptions;
+        };
+        calculation: kjroaddrawingresult[&#39;calculation&#39;];
+        frames: readonlydeep&lt;kjroaddrawingresult[&#39;frames&#39;]&gt;;
+        bounds: readonlydeep&lt;kjroaddrawingresult[&#39;bounds&#39;]&gt;;
+        projections: readonlydeep&lt;kjroaddrawingresult[&#39;projections&#39;]&gt;;
+        limitations: readonly string[];
+    };
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentRoadDrawingProposal</h3></div><a class="permalink" href="#agent-road-drawing-interface-kjagentroaddrawingproposal" aria-label="Link to KJAgentRoadDrawingProposal">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentRoadDrawingProposal {
+    commandArgs: {
+        entities: (KJRoadDrawingResult[&#39;entities&#39;][number] &amp; {
+            options: {
+                id: string;
+                ownerId: string;
+            };
+        })[];
+        resources: KJRoadDrawingResult[&#39;resources&#39;];
+    };
+    evidence: {
+        drawingId: string;
+        units: &#39;meter&#39;;
+        expectedRevision: number;
+        entityCount: number;
+        /** Exact validated source parameters for host-managed recovery after approval. */
+        designParameters: {
+            input: KJRoadDesignInput;
+            options: KJRoadDrawingOptions;
+        };
+        calculation: KJRoadDrawingResult[&#39;calculation&#39;];
+        frames: ReadonlyDeep&lt;KJRoadDrawingResult[&#39;frames&#39;]&gt;;
+        bounds: ReadonlyDeep&lt;KJRoadDrawingResult[&#39;bounds&#39;]&gt;;
+        projections: ReadonlyDeep&lt;KJRoadDrawingResult[&#39;projections&#39;]&gt;;
+        limitations: readonly string[];
+    };
+}</code></pre>
+      <p class="source-path">agent-road-drawing.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-road-drawing-recipe" data-module="@kanjieteam/kjdraw/road-drawing-recipe">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/road-drawing-recipe</code></h2></div><a class="permalink" href="#module-road-drawing-recipe" aria-label="Link to @kanjieteam/kjdraw/road-drawing-recipe">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/road-drawing-recipe.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="road-drawing-recipe-function-createroaddrawingrecipe" data-search="createroaddrawingrecipe function @kanjieteam/kjdraw/road-drawing-recipe export declare function createroaddrawingrecipe(document: kjdocument, input: readonlydeep&lt;kjroaddesigninput&gt;, options: readonlydeep&lt;kjroaddrawingoptions&gt;): promise&lt;readonlydeep&lt;kjroaddrawingrecipe&gt;&gt;;">
+      <header><div><span class="kind">function</span><h3>createRoadDrawingRecipe</h3></div><a class="permalink" href="#road-drawing-recipe-function-createroaddrawingrecipe" aria-label="Link to createRoadDrawingRecipe">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createRoadDrawingRecipe(document: KJDocument, input: ReadonlyDeep&lt;KJRoadDesignInput&gt;, options: ReadonlyDeep&lt;KJRoadDrawingOptions&gt;): Promise&lt;ReadonlyDeep&lt;KJRoadDrawingRecipe&gt;&gt;;</code></pre>
+      <p class="source-path">road-drawing-recipe.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-drawing-recipe-const-kjdraw-road-recipe-schema" data-search="kjdraw_road_recipe_schema const @kanjieteam/kjdraw/road-drawing-recipe export declare const kjdraw_road_recipe_schema = &quot;com.kanjie.kjdraw.road-drawing-recipe&quot;;">
+      <header><div><span class="kind">const</span><h3>KJDRAW_ROAD_RECIPE_SCHEMA</h3></div><a class="permalink" href="#road-drawing-recipe-const-kjdraw-road-recipe-schema" aria-label="Link to KJDRAW_ROAD_RECIPE_SCHEMA">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_ROAD_RECIPE_SCHEMA = &quot;com.kanjie.kjdraw.road-drawing-recipe&quot;;</code></pre>
+      <p class="source-path">road-drawing-recipe.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-drawing-recipe-interface-kjrestoredroaddrawingrecipe" data-search="kjrestoredroaddrawingrecipe interface @kanjieteam/kjdraw/road-drawing-recipe export interface kjrestoredroaddrawingrecipe {
+    recipe: readonlydeep&lt;kjroaddrawingrecipe&gt;;
+    drawing: readonlydeep&lt;kjroaddrawingresult&gt;;
+    documentid: string;
+    /** the source revision actually validated, suitable for the next explicit update. */
+    revision: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJRestoredRoadDrawingRecipe</h3></div><a class="permalink" href="#road-drawing-recipe-interface-kjrestoredroaddrawingrecipe" aria-label="Link to KJRestoredRoadDrawingRecipe">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJRestoredRoadDrawingRecipe {
+    recipe: ReadonlyDeep&lt;KJRoadDrawingRecipe&gt;;
+    drawing: ReadonlyDeep&lt;KJRoadDrawingResult&gt;;
+    documentId: string;
+    /** The source revision actually validated, suitable for the next explicit update. */
+    revision: number;
+}</code></pre>
+      <p class="source-path">road-drawing-recipe.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-drawing-recipe-interface-kjroaddrawingrecipe" data-search="kjroaddrawingrecipe interface @kanjieteam/kjdraw/road-drawing-recipe export interface kjroaddrawingrecipe {
+    schema: typeof kjdraw_road_recipe_schema;
+    schemaversion: 1;
+    /** exact compiler contract. unknown versions require an explicit future migration. */
+    compilerversion: 1;
+    documentid: string;
+    input: kjroaddesigninput;
+    options: kjroaddrawingoptions;
+}">
+      <header><div><span class="kind">interface</span><h3>KJRoadDrawingRecipe</h3></div><a class="permalink" href="#road-drawing-recipe-interface-kjroaddrawingrecipe" aria-label="Link to KJRoadDrawingRecipe">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJRoadDrawingRecipe {
+    schema: typeof KJDRAW_ROAD_RECIPE_SCHEMA;
+    schemaVersion: 1;
+    /** Exact compiler contract. Unknown versions require an explicit future migration. */
+    compilerVersion: 1;
+    documentId: string;
+    input: KJRoadDesignInput;
+    options: KJRoadDrawingOptions;
+}</code></pre>
+      <p class="source-path">road-drawing-recipe.d.ts</p>
+    </article>
+<article class="api-symbol" id="road-drawing-recipe-function-restoreroaddrawingrecipe" data-search="restoreroaddrawingrecipe function @kanjieteam/kjdraw/road-drawing-recipe export declare function restoreroaddrawingrecipe(document: kjdocument, input: unknown): promise&lt;readonlydeep&lt;kjrestoredroaddrawingrecipe&gt;&gt;;">
+      <header><div><span class="kind">function</span><h3>restoreRoadDrawingRecipe</h3></div><a class="permalink" href="#road-drawing-recipe-function-restoreroaddrawingrecipe" aria-label="Link to restoreRoadDrawingRecipe">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function restoreRoadDrawingRecipe(document: KJDocument, input: unknown): Promise&lt;ReadonlyDeep&lt;KJRestoredRoadDrawingRecipe&gt;&gt;;</code></pre>
+      <p class="source-path">road-drawing-recipe.d.ts</p>
     </article>
   </div>
 </section>

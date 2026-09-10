@@ -42,6 +42,9 @@ export interface KJWorkbenchSnapshot {
     locale: KJWorkbenchLocale;
     theme: KJWorkbenchTheme;
     layout: KJWorkbenchLayout;
+    drawingLayoutId: string | null;
+    spaceId: string | null;
+    paperPreview: boolean;
     tool: KJWorkbenchTool;
     documentId: string | null;
     revision: number;
@@ -62,7 +65,15 @@ export declare class KJDrawWorkbench {
     get locale(): KJWorkbenchLocale;
     get theme(): KJWorkbenchTheme;
     get layout(): KJWorkbenchLayout;
+    /** Null means model space; independent of the classic/compact/focus interface layout. */
+    get drawingLayoutId(): string | null;
+    get spaceId(): string | null;
+    get paperPreview(): boolean;
     get tool(): KJWorkbenchTool;
+    /** Switch the displayed model/paper space without changing document state or undo history.
+     * Existing paper layouts are read-only previews; return to null (Model) to edit.
+     */
+    setDrawingLayout(layoutId: string | null): this;
     /** Change presentation without replacing the drawing or its undo history. */
     setOptions(options: Pick<KJDrawWorkbenchOptions, 'readonly' | 'grid' | 'toolbar' | 'showLayers' | 'showInspector' | 'title' | 'maxFileBytes' | 'layout'>): this;
     setLocale(locale: KJWorkbenchLocale): this;

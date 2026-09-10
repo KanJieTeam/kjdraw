@@ -1,5 +1,5 @@
 import type { KJAgentToolSession, KJAgentToolResult } from './agent-tools.js'
-import { KJModelError, type KJAgentModel, type KJModelInput, type KJModelToolOutput, type KJModelTurn } from './model-adapters.js'
+import { KJModelError, type KJAgentModel, type KJModelInput, type KJModelImage, type KJModelToolOutput, type KJModelTurn } from './model-adapters.js'
 import { deepFreeze } from './utils.js'
 import { KJAgentCapabilityRegistry, type KJAgentCapabilityLockEntry } from './agent-capabilities.js'
 import type { KJModelUsage } from './model-usage.js'
@@ -10,6 +10,8 @@ export interface KJAgentRunOptions {
   session: KJAgentToolSession
   model: KJAgentModel
   prompt: string
+  /** Explicit host-supplied drawing images; the selected model must support vision. */
+  images?: readonly KJModelImage[]
   /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */
   toolNames?: readonly string[]
   /** Host-trusted domain knowledge, selected by an exact project lock. Never grants extra tools. */
@@ -170,7 +172,7 @@ export async function runKJAgentTask(options: KJAgentRunOptions): Promise<KJAgen
   try {
     if (controller.signal.aborted) return finish('cancelled')
     const conversation = model.createConversation({ instructions, tools, onUsage: observe })
-    let input: KJModelInput = { kind: 'prompt', text: prompt }
+    let input: KJModelInput = { kind: 'prompt', text: prompt, ...(options.images !== undefined ? { images: options.images } : {}) }
     for (; turns < maxTurns;) {
       turns++
       turnUsage.push({ turn: turns, status: 'missing', usage: null })

@@ -266,6 +266,36 @@
       "types": "./types/workbench.d.ts",
       "import": "./src/workbench.js",
       "default": "./src/workbench.js"
+    },
+    "./road-design": {
+      "types": "./types/road-design.d.ts",
+      "import": "./src/road-design.js",
+      "default": "./src/road-design.js"
+    },
+    "./drawing-image": {
+      "types": "./types/drawing-image.d.ts",
+      "import": "./src/drawing-image.js",
+      "default": "./src/drawing-image.js"
+    },
+    "./road-drawing": {
+      "types": "./types/road-drawing.d.ts",
+      "import": "./src/road-drawing.js",
+      "default": "./src/road-drawing.js"
+    },
+    "./road-drawing-update": {
+      "types": "./types/road-drawing-update.d.ts",
+      "import": "./src/road-drawing-update.js",
+      "default": "./src/road-drawing-update.js"
+    },
+    "./agent-road-drawing": {
+      "types": "./types/agent-road-drawing.d.ts",
+      "import": "./src/agent-road-drawing.js",
+      "default": "./src/agent-road-drawing.js"
+    },
+    "./road-drawing-recipe": {
+      "types": "./types/road-drawing-recipe.d.ts",
+      "import": "./src/road-drawing-recipe.js",
+      "default": "./src/road-drawing-recipe.js"
     }
   },
   "scripts": {

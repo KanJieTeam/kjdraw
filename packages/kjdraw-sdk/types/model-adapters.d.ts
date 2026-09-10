@@ -17,9 +17,17 @@ export interface KJModelTurn {
     readonly calls: readonly KJModelToolCall[];
     readonly usage?: KJModelUsage;
 }
+/** Explicit host-provided attachment. Wire support does not imply the selected model supports vision. */
+export type KJModelImage = {
+    readonly dataUrl: string;
+} | {
+    readonly mimeType: 'image/png' | 'image/jpeg';
+    readonly base64: string;
+};
 export type KJModelInput = {
     readonly kind: 'prompt';
     readonly text: string;
+    readonly images?: readonly KJModelImage[];
 } | {
     readonly kind: 'tool-results';
     readonly results: readonly KJModelToolOutput[];

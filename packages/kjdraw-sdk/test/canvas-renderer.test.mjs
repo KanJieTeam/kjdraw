@@ -307,3 +307,21 @@ test('fit with only a construction line centers its origin without an extreme zo
   assert.equal(renderer.report.unsupported, 0)
   renderer.dispose()
 })
+
+
+test('preview uses proposed layer and linetype resources then restores the source drawing styles', () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument()
+  const { canvas, context } = mockCanvas()
+  const renderer = new KJCanvasRenderer(canvas, { document, grid: false, pixelRatio: 1 })
+  renderer.camera.scale = 2
+  const entities = [{ type: 'LINE', payload: { start: [0,0,0], end: [30,0,0], layerId: 'future-layer' } }]
+  const before = document.serialize()
+  context.calls.length = 0
+  renderer.drawPreview(entities, '#77a7ff', [0,0], [{ id: 'future-layer', payload: { linetypeId: 'future-type', lineweight: 18 } }, { id: 'future-type', payload: { patternSegments: [3,-1] } }])
+  assert.deepEqual(context.calls.find(call => call[0] === 'setLineDash')[1], [6,2])
+  context.calls.length = 0
+  renderer.drawPreview(entities)
+  assert.deepEqual(context.calls.find(call => call[0] === 'setLineDash')[1], [])
+  assert.equal(document.serialize(), before)
+  renderer.dispose()
+})

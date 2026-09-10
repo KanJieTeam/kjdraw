@@ -1,6 +1,8 @@
 import { KJRegistrationError, KJValidationError } from './errors.js'
 import { validatePlotSettings } from './plot-settings.js'
 import { createCommandEditScope } from './edit-policy.js'
+import { applyRoadDrawingRevision } from './road-drawing-update.js'
+import type { KJRoadDrawingResult } from './road-drawing.js'
 import {
   entityArea2,
   entityLength2,
@@ -15,7 +17,7 @@ import {
   vec2,
   subtract2,
 } from './geometry/index.js'
-import { clone, deepFreeze, stableHash } from './utils.js'
+import { clone, deepFreeze, normalizeName, stableHash } from './utils.js'
 import type { ReadonlyDeep } from './utils.js'
 import { editEntityGrip } from './grips.js'
 import type { KJPointInput } from './grips.js'
@@ -100,12 +102,18 @@ export interface KJEntityBatchSpec extends Record<string, unknown> {
   }
 }
 
+export interface KJEntityBatchResources {
+  linetypes: { id: string; name: string; pattern: number[] }[]
+  layers: { id: string; name: string; color: number; linetypeId: string; lineweight: number }[]
+}
+
 /**
  * Extensible command argument bag. Known core fields are typed for editor and
  * framework consumers; third-party commands may add names through the index
  * signature without weakening the SDK through an untyped escape hatch.
  */
 export interface KJCommandArguments extends Record<string, unknown> {
+  resources?: KJEntityBatchResources
   id?: string
   ids?: readonly string[]
   firstId?: string
@@ -259,6 +267,7 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   SELECTIONRESTORE: { domain: 'selection', persistence: 'document-dictionary' },
   CREATE: { domain: 'entity', supportedEntityTypes: '*' },
   CREATEBATCH: { domain: 'entity', supportedEntityTypes: '*', atomic: true, maximumEntities: 100000 },
+  ROAD_DRAWING_UPDATE: { domain: 'road-drawing', atomic: true, stableIds: true, requiresUnmodifiedPrevious: true },
   ERASE: { domain: 'object', supportedObjectKinds: '*' },
   RESTORE: { domain: 'object', supportedObjectKinds: '*' },
   PROPERTIES: { domain: 'object', supportedObjectKinds: '*' },
@@ -363,6 +372,10 @@ export class KJCommandRegistry {
   async execute(id: unknown, context: KJCommandInputContext = {}, args: KJCommandArguments = {}): Promise<unknown> {
     const command = this.resolve(id)
     if (!command) throw new KJValidationError(`Unknown command: ${id}`)
+    // Explicit resource batches are a strict data boundary. Check before clone can
+    // invoke accessors or normalize unusual object/array properties away.
+    if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'resources')) validateCommandData(args)
+    if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE')
     if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`)
     if (command.transactional === false) return command.execute({ ...context, transaction: null } as unknown as KJCommandContext, clone(args))
     if (!context.document) throw new KJValidationError(`Command ${command.id} requires a document`)
@@ -388,6 +401,14 @@ export class KJCommandRegistry {
 
 export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   const disposers: Array<() => boolean> = []
+  disposers.push(registry.register({
+    id: 'ROAD_DRAWING_UPDATE', title: 'Update road drawing', transactional: false,
+    execute: ({ document, expectedRevision }, args) => {
+      if (!document) throw new KJValidationError('ROAD_DRAWING_UPDATE requires a document')
+      if (Object.keys(args).length !== 2 || !Object.hasOwn(args, 'previous') || !Object.hasOwn(args, 'next')) throw new KJValidationError('ROAD_DRAWING_UPDATE requires exactly previous and next compiled drawings')
+      return applyRoadDrawingRevision(document, args.previous as KJRoadDrawingResult, args.next as KJRoadDrawingResult, { expectedRevision: expectedRevision ?? document.revision })
+    },
+  }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'UNDO', aliases: ['U'], title: 'Undo', transactional: false,
     execute: ({ document, expectedRevision }, args) => document.undo({ author: args.author, source: 'command:UNDO', expectedRevision } as KJDocumentHistoryOptions),
@@ -933,11 +954,80 @@ function normalizePlotSettings(value: KJPlotSettingsInput = {}): KJPlotSettings 
   return { device, media: String(value.media ?? 'ISO_A4'), area, window, scale, centered: value.centered !== false, rotation, plotStyleId: value.plotStyleId == null ? null : String(value.plotStyleId), lineweights: value.lineweights !== false, outputQualityDpi: Number(value.outputQualityDpi ?? 600) }
 }
 
+const BATCH_LINEWEIGHTS = new Set([-3, -2, -1, 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211])
+
+function validateCommandData(input: unknown, label = 'CREATEBATCH resources'): void {
+  let nodes = 0
+  const visit = (value: unknown, depth: number): void => {
+    if (++nodes > 1000000 || depth > 32) throw new KJValidationError(`${label} exceeds the data traversal budget`)
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') return
+    if (typeof value === 'number' && Number.isFinite(value)) return
+    if (!value || typeof value !== 'object') throw new KJValidationError(`${label} requires finite JSON data`)
+    const array = Array.isArray(value)
+    if (array ? Object.getPrototypeOf(value) !== Array.prototype : ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new KJValidationError(`${label} requires plain data objects and arrays`)
+    for (const key of Reflect.ownKeys(value)) {
+      if (array && key === 'length') continue
+      const descriptor = Object.getOwnPropertyDescriptor(value, key)!
+      if (typeof key !== 'string' || ['__proto__', 'constructor', 'prototype'].includes(key) || !('value' in descriptor) || !descriptor.enumerable) throw new KJValidationError(`${label} rejects accessors and hidden or unsafe fields`)
+      if (array && (!/^(0|[1-9]\d*)$/.test(key) || Number(key) >= (value as unknown[]).length)) throw new KJValidationError(`${label} arrays reject custom properties`)
+      visit(descriptor.value, depth + 1)
+    }
+    if (array) for (let index = 0; index < (value as unknown[]).length; index++) if (!Object.hasOwn(value, index)) throw new KJValidationError(`${label} arrays must be dense`)
+  }
+  visit(input, 0)
+}
+
+function createBatchResources(document: KJDocument, transaction: KJTransaction, resources: KJEntityBatchResources): void {
+  const fields = (value: unknown, expected: string[]): void => {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== expected.length || expected.some(key => !Object.hasOwn(value, key))) throw new KJValidationError('CREATEBATCH resource fields do not match the declared format')
+  }
+  fields(resources, ['linetypes', 'layers'])
+  for (const group of [resources.linetypes, resources.layers]) if (!Array.isArray(group) || group.length > 16) throw new KJValidationError('CREATEBATCH resources allow at most 16 records per table')
+  const ids = new Set<string>(), linetypes = new Map(document.getTable('linetypes')!.records.filter(item => !item.erased).map(item => [item.id, item.name!]))
+  const validateIdentity = (value: { id: string; name: string }, names: Set<string>): void => {
+    if (typeof value.id !== 'string' || !value.id.trim() || value.id.length > 256 || value.id !== value.id.trim() || /[\u0000-\u001f\u007f]/.test(value.id) || ['__proto__', 'constructor', 'prototype'].includes(value.id)) throw new KJValidationError('CREATEBATCH resource IDs must be bounded nonempty data strings')
+    if (ids.has(value.id) || Object.hasOwn(document.snapshot().objects, value.id)) throw new KJValidationError('CREATEBATCH resource IDs must be new and globally unique')
+    if (typeof value.name !== 'string' || !value.name.trim() || value.name.length > 128 || value.name !== value.name.trim() || /[\u0000-\u001f\u007f<>/\\":;?*|=]/.test(value.name)) throw new KJValidationError('CREATEBATCH resource names must be bounded table names')
+    const name = normalizeName(value.name)
+    if (names.has(name)) throw new KJValidationError('CREATEBATCH resources cannot overwrite an existing table name')
+    ids.add(value.id); names.add(name)
+  }
+  const typeNames = new Set(document.getTable('linetypes')!.records.map(item => normalizeName(String(item.name))))
+  for (const type of resources.linetypes) {
+    fields(type, ['id', 'name', 'pattern']); validateIdentity(type, typeNames)
+    if (['BYLAYER', 'BYBLOCK'].includes(normalizeName(type.name))) throw new KJValidationError('CREATEBATCH resource linetype names cannot shadow inheritance keywords')
+    if (!Array.isArray(type.pattern) || type.pattern.length > 32 || type.pattern.length % 2 !== 0 || type.pattern.some((segment, index) => typeof segment !== 'number' || !Number.isFinite(segment) || Math.abs(segment) > 1e12 || (index % 2 === 0 ? segment <= 0 : segment >= 0))) throw new KJValidationError('CREATEBATCH linetype patterns must be empty for continuous lines or contain alternating positive dashes and negative gaps')
+    const length = type.pattern.reduce((sum, segment) => sum + Math.abs(segment), 0)
+    if ((type.pattern.length > 0 && !(length > 0)) || !Number.isFinite(length)) throw new KJValidationError('CREATEBATCH nonempty linetype length must be finite and positive')
+    linetypes.set(type.id, type.name)
+  }
+  const layerNames = new Set(document.getTable('layers')!.records.map(item => normalizeName(String(item.name))))
+  for (const layer of resources.layers) {
+    fields(layer, ['id', 'name', 'color', 'linetypeId', 'lineweight']); validateIdentity(layer, layerNames)
+    if (!Number.isInteger(layer.color) || layer.color < 1 || layer.color > 255) throw new KJValidationError('CREATEBATCH layer color must be an ACI integer from 1 to 255')
+    if (!BATCH_LINEWEIGHTS.has(layer.lineweight)) throw new KJValidationError('CREATEBATCH layer lineweight must be a supported DXF hundredth-millimetre value')
+    if (typeof layer.linetypeId !== 'string' || !linetypes.has(layer.linetypeId)) throw new KJValidationError('CREATEBATCH layer linetypeId must reference the linetype table')
+  }
+  for (const type of resources.linetypes) transaction.upsertTableRecord('linetypes', { id: type.id, name: type.name, type: 'LINETYPE', payload: { description: '', pattern: clone(type.pattern), totalPatternLength: type.pattern.reduce((sum, segment) => sum + Math.abs(segment), 0), dxfFlags: 0 } })
+  for (const layer of resources.layers) transaction.upsertTableRecord('layers', { id: layer.id, name: layer.name, type: 'LAYER', payload: { color: layer.color, linetypeId: layer.linetypeId, linetypeName: linetypes.get(layer.linetypeId), lineweight: layer.lineweight, visible: true, frozen: false, locked: false, plottable: true } })
+}
+
 function createEntityBatch({ document, transaction }: KJCommandContext, args: KJCommandArguments = {}): KJObjectRecord[] {
   const specs = args.entities
   if (!Array.isArray(specs) || !specs.length) throw new KJValidationError('CREATEBATCH requires at least one entity')
   if (specs.length > 100000) throw new KJValidationError('CREATEBATCH exceeds the 100000 entity safety limit')
+  if (Object.hasOwn(args, 'resources')) {
+    createBatchResources(document, transaction, args.resources!)
+    const tableIds = (table: 'layers' | 'linetypes') => new Set([...document.getTable(table)!.records.filter(item => !item.erased).map(item => item.id), ...args.resources![table].map(item => item.id)])
+    const layers = tableIds('layers'), linetypes = tableIds('linetypes')
+    for (const spec of specs) {
+      if (spec?.payload?.layerId !== undefined && !layers.has(spec.payload.layerId as string)) throw new KJValidationError('CREATEBATCH entity layerId must reference the layer table')
+      if (spec?.payload?.linetypeId !== undefined && !linetypes.has(spec.payload.linetypeId as string)) throw new KJValidationError('CREATEBATCH entity linetypeId must reference the linetype table')
+      if (spec?.payload?.lineweight !== undefined && !BATCH_LINEWEIGHTS.has(spec.payload.lineweight as number)) throw new KJValidationError('CREATEBATCH entity lineweight must be a supported DXF hundredth-millimetre value')
+    }
+  }
   const layerIds = new Map(document.getTable('layers')!.records.map(record => [String(record.name).toUpperCase(), record.id]))
+  for (const layer of args.resources?.layers ?? []) layerIds.set(layer.name.toUpperCase(), layer.id)
   const created: KJObjectRecord[] = []
   for (const spec of specs) {
     if (!spec || typeof spec !== 'object' || Array.isArray(spec)) throw new KJValidationError('CREATEBATCH entity specs must be objects')
@@ -945,6 +1035,7 @@ function createEntityBatch({ document, transaction }: KJCommandContext, args: KJ
     const layerKey = layerName.toUpperCase()
     let layerId = spec.payload?.layerId ?? layerIds.get(layerKey)
     if (!layerId) {
+      if (Object.hasOwn(args, 'resources')) throw new KJValidationError('CREATEBATCH resource batches require an existing or explicitly declared layer')
       const layer = transaction.upsertTableRecord('layers', {
         name: layerName,
         type: 'LAYER',

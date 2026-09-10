@@ -9,9 +9,13 @@ import { KJAgentToolSession } from '../../packages/kjdraw-sdk/src/agent-tools.js
 import { createKJModelAdapter } from '../../packages/kjdraw-sdk/src/model-adapters.js'
 import { extractKJModelUsage } from '../../packages/kjdraw-sdk/src/model-usage.js'
 import { pilotTasks } from './model-drawing-pilot.mjs'
+import { engineeringDrawingTasks, engineeringDrawingScope } from './engineering-drawing-tasks.mjs'
+import { parametricDrawingTasks } from './parametric-drawing-tasks.mjs'
 
 const protocol = 'chat-completions'
 const arms = ['kjdraw-tool', 'direct-dxf']
+const drawingTools = ['cad_propose_drawing', 'cad_propose_drawing_compact', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated']
+const taskSuites = { pilot: pilotTasks, parametric: parametricDrawingTasks, engineering: engineeringDrawingTasks.map(({ id, prompt, requirements }) => ({ id, prompt, expected: requirements })) }
 const validatorScript = fileURLToPath(new URL('./paired-model-validator.py', import.meta.url))
 const hash = value => createHash('sha256').update(value).digest('hex')
 const byteLength = value => Buffer.byteLength(JSON.stringify(value))
@@ -20,33 +24,63 @@ class BenchmarkFailure extends Error {
 }
 const fail = (code, stop = false, status = null) => { throw new BenchmarkFailure(code, stop, status) }
 
-export function pairedModelPlan({ repetitions = 5, maxRequests = 30 } = {}) {
-  if (!Number.isSafeInteger(repetitions) || repetitions < 5 || repetitions > 30) throw new Error('Choose 5–30 repetitions')
-  const plannedRequests = pilotTasks.length * arms.length * repetitions
+function providerSettings({ chatTokenParameter = 'max_tokens', maxOutputTokens = 4096, thinkingMode, enableThinking, reasoningEffort } = {}) {
+  if (!['max_tokens', 'max_completion_tokens'].includes(chatTokenParameter)) throw new Error('chatTokenParameter must be max_tokens or max_completion_tokens')
+  if (thinkingMode !== undefined && !['disabled', 'enabled'].includes(thinkingMode)) throw new Error('thinkingMode must be disabled or enabled')
+  if (enableThinking !== undefined && typeof enableThinking !== 'boolean') throw new Error('enableThinking must be boolean')
+  if (thinkingMode !== undefined && enableThinking !== undefined) throw new Error('Configure only one thinking format')
+  if (reasoningEffort !== undefined && !['low', 'medium', 'high', 'xhigh'].includes(reasoningEffort)) throw new Error('reasoningEffort must be low, medium, high or xhigh')
+  if (reasoningEffort !== undefined && (thinkingMode === 'disabled' || enableThinking === false)) throw new Error('reasoningEffort conflicts with disabled thinking')
+  return { temperature: 0, [chatTokenParameter]: maxOutputTokens, stream: false, ...(thinkingMode !== undefined ? { thinking: { type: thinkingMode } } : {}), ...(enableThinking !== undefined ? { enable_thinking: enableThinking } : {}), ...(reasoningEffort !== undefined ? { reasoning_effort: reasoningEffort } : {}) }
+}
+
+export function pairedModelPlan({ repetitions = 5, maxRequests = 30, taskSuite = 'pilot', maxOutputTokens = 4096, exploratory = false, chatTokenParameter = 'max_tokens', thinkingMode, enableThinking, reasoningEffort } = {}) {
+  if (typeof exploratory !== 'boolean') throw new Error('Exploratory mode must be explicit boolean')
+  if (!Object.hasOwn(taskSuites, taskSuite)) throw new Error('Choose an explicit supported task suite')
+  if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 4096 || maxOutputTokens > 32768) throw new Error('Choose an output cap from 4096 to 32768 tokens')
+  const tasks = taskSuites[taskSuite]
+  if (!Number.isSafeInteger(repetitions) || repetitions < (exploratory ? 1 : 5) || repetitions > 30) throw new Error('Choose 5–30 repetitions, or explicitly exploratory 1–30')
+  const plannedRequests = tasks.length * arms.length * repetitions
   if (!Number.isSafeInteger(maxRequests) || maxRequests < plannedRequests || maxRequests > 180) throw new Error('Explicit request budget must cover the complete paired plan and be at most 180')
-  return { mode: 'dry-run', protocol, repetitions, maxRequests, plannedRequests, actualRequests: 0, tasks: pilotTasks.map(task => ({ id: task.id, prompt: task.prompt })), arms, settings: { temperature: 0, max_tokens: 4096, stream: false }, scope: 'Three simple fully specified synthetic tasks, repeated one-shot generation. This is not a complex autonomous CAD evaluation.' }
+  return { mode: 'dry-run', exploratory, protocol, repetitions, maxRequests, plannedRequests, actualRequests: 0, tasks: tasks.map(task => ({ id: task.id, prompt: task.prompt })), taskSuite, arms, chatTokenParameter, settings: providerSettings({ chatTokenParameter, maxOutputTokens, thinkingMode, enableThinking, reasoningEffort }), scope: taskSuite === 'engineering' ? engineeringDrawingScope : taskSuite === 'pilot' ? 'Three simple fully specified synthetic tasks, repeated one-shot generation. This is not a complex autonomous CAD evaluation.' : 'Three fully specified synthetic 2D geometry tasks with repeated patterns, repeated one-shot generation. No dimensions, annotations, complete drawing sheets or autonomous design are evaluated.' }
 }
 
 export function liveModelConfiguration(env = process.env) {
   if (env.KJDRAW_BENCH_PROTOCOL !== protocol || !env.KJDRAW_BENCH_MODEL || !env.KJDRAW_BENCH_ENDPOINT || !env.KJDRAW_BENCH_API_KEY) throw new Error('Set explicit KJDRAW_BENCH_PROTOCOL, KJDRAW_BENCH_MODEL, KJDRAW_BENCH_ENDPOINT and KJDRAW_BENCH_API_KEY')
+  const drawingTool = env.KJDRAW_BENCH_DRAWING_TOOL ?? 'cad_propose_drawing'
+  if (!drawingTools.includes(drawingTool)) throw new Error('Unsupported explicit drawing tool')
   const thinkingMode = env.KJDRAW_BENCH_THINKING
   if (thinkingMode !== undefined && !['disabled', 'enabled'].includes(thinkingMode)) throw new Error('KJDRAW_BENCH_THINKING must be disabled or enabled when configured')
-  return { mode: 'live', protocol, model: env.KJDRAW_BENCH_MODEL, endpoint: env.KJDRAW_BENCH_ENDPOINT, apiKey: env.KJDRAW_BENCH_API_KEY, ...(thinkingMode !== undefined ? { thinkingMode } : {}) }
+  const toolChoiceMode = env.KJDRAW_BENCH_TOOL_CHOICE ?? 'forced'
+  if (!['auto', 'forced'].includes(toolChoiceMode)) throw new Error('KJDRAW_BENCH_TOOL_CHOICE must be auto or forced')
+  const enableThinking = env.KJDRAW_BENCH_ENABLE_THINKING
+  if (enableThinking !== undefined && !['true', 'false'].includes(enableThinking)) throw new Error('KJDRAW_BENCH_ENABLE_THINKING must be true or false when configured')
+  if (thinkingMode !== undefined && enableThinking !== undefined) throw new Error('Configure only one thinking format')
+  const chatTokenParameter = env.KJDRAW_BENCH_CHAT_TOKEN_PARAMETER ?? 'max_tokens'
+  const reasoningEffort = env.KJDRAW_BENCH_REASONING_EFFORT
+  const explicit = { chatTokenParameter, ...(thinkingMode !== undefined ? { thinkingMode } : {}), ...(enableThinking !== undefined ? { enableThinking: enableThinking === 'true' } : {}), ...(reasoningEffort !== undefined ? { reasoningEffort } : {}) }
+  providerSettings(explicit)
+  return { mode: 'live', protocol, model: env.KJDRAW_BENCH_MODEL, endpoint: env.KJDRAW_BENCH_ENDPOINT, apiKey: env.KJDRAW_BENCH_API_KEY, toolChoiceMode, drawingTool, ...explicit }
 }
 
-export function independentValidation({ python = process.env.KJDRAW_PYTHON ?? 'python', dxf, expected, timeoutMs = 30000 } = {}) {
-  const result = spawnSync(python, ['-B', validatorScript, ...(dxf === undefined ? ['--probe'] : [])], { input: dxf === undefined ? undefined : JSON.stringify({ dxf, expected }), encoding: 'utf8', timeout: timeoutMs, maxBuffer: 65536, windowsHide: true })
+export function independentValidation({ python = process.env.KJDRAW_PYTHON ?? 'python', dxf, expected, timeoutMs = 30000, taskSuite = 'pilot' } = {}) {
+  const script = taskSuite === 'engineering' ? fileURLToPath(new URL('./engineering-model-validator.py', import.meta.url)) : validatorScript
+  const result = spawnSync(python, ['-B', script, ...(dxf === undefined ? ['--probe'] : [])], { input: dxf === undefined ? undefined : JSON.stringify({ dxf, expected }), encoding: 'utf8', timeout: timeoutMs, maxBuffer: 65536, windowsHide: true })
   if (result.status !== 0 || result.error) throw new BenchmarkFailure('INDEPENDENT_VALIDATOR_UNAVAILABLE', true)
   let value
   try { value = JSON.parse(result.stdout) } catch { throw new BenchmarkFailure('INDEPENDENT_VALIDATOR_INVALID', true) }
-  if (value.validator !== 'ezdxf' || typeof value.version !== 'string' || !/^\d+(?:\.\d+){1,3}$/.test(value.version) || (dxf !== undefined && typeof value.passed !== 'boolean')) throw new BenchmarkFailure('INDEPENDENT_VALIDATOR_INVALID', true)
+  if (value.validator !== (taskSuite === 'engineering' ? 'ezdxf-engineering' : 'ezdxf') || typeof value.version !== 'string' || !/^\d+(?:\.\d+){1,3}$/.test(value.version) || (dxf !== undefined && typeof value.passed !== 'boolean')) throw new BenchmarkFailure('INDEPENDENT_VALIDATOR_INVALID', true)
   return value
 }
 
 function configuration(options) {
   const plan = pairedModelPlan(options)
-  if (options.thinkingMode !== undefined && !['disabled', 'enabled'].includes(options.thinkingMode)) throw new Error('thinkingMode must be disabled or enabled')
-  if (options.thinkingMode !== undefined) plan.settings.thinking = { type: options.thinkingMode }
+  const drawingTool = options.drawingTool ?? 'cad_propose_drawing'
+  if (!drawingTools.includes(drawingTool)) throw new Error('Unsupported explicit drawing tool')
+  plan.drawingTool = drawingTool
+  const toolChoiceMode = options.toolChoiceMode ?? 'forced'
+  if (!['auto', 'forced'].includes(toolChoiceMode)) throw new Error('toolChoiceMode must be auto or forced')
+  plan.toolChoiceMode = toolChoiceMode
   if (!['live', 'fixture'].includes(options.mode) || options.protocol !== protocol || typeof options.model !== 'string' || !options.model.trim() || options.model.length > 256) throw new Error('Select an explicit live or fixture chat-completions configuration')
   let url
   try { url = new URL(options.endpoint) } catch { throw new Error('Invalid explicit benchmark endpoint') }
@@ -61,18 +95,19 @@ function configuration(options) {
   return { ...plan, mode: options.mode, model: options.model, endpoint: url.href, apiKey: options.apiKey, timeoutMs, output: resolve(options.output), python: options.python ?? process.env.KJDRAW_PYTHON ?? 'python' }
 }
 
-function toolDefinition() {
+function toolDefinition(name) {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
-  const definition = new KJAgentToolSession(sdk, document).definitions.find(tool => tool.name === 'cad_propose_drawing')
+  const definition = new KJAgentToolSession(sdk, document).definitions.find(tool => tool.name === name)
   return { type: 'function', function: { name: definition.name, description: definition.description, parameters: definition.inputSchema } }
 }
 
 function requestBody(task, arm, config, tool) {
-  const common = 'Create a 2D engineering drawing from the following fully specified synthetic request. All coordinates and lengths are millimeters, model XY at z=0. The drawing is empty, revision 0. No text, dimensions, hatch, construction lines or additional geometry. '
+  const engineering = config.taskSuite === 'engineering'
+  const common = engineering ? 'The drawing is empty, revision 0, units millimeter, model XY at z=0. Produce all geometry, dimensions, text and styles explicitly requested below. ' : 'Create a 2D engineering drawing from the following fully specified synthetic request. All coordinates and lengths are millimeters, model XY at z=0. The drawing is empty, revision 0. No text, dimensions, hatch, construction lines or additional geometry. '
   const system = arm === 'kjdraw-tool'
-    ? 'Use exactly one cad_propose_drawing tool call. The current units and revision have already been supplied. Return requested editable geometry for synthetic benchmark review.'
-    : 'Return only a complete valid ASCII DXF file, no markdown or commentary. Use DXF AC1027 or newer and set $INSUNITS to 4 (millimeters). Use LINE, CIRCLE, ARC and/or straight LWPOLYLINE entities. Do not use any CAD library or tool.'
-  return { model: config.model, messages: [{ role: 'system', content: system }, { role: 'user', content: common + task.prompt }], ...config.settings, ...(arm === 'kjdraw-tool' ? { tools: [tool], tool_choice: { type: 'function', function: { name: 'cad_propose_drawing' } } } : {}) }
+    ? `Use exactly one ${config.drawingTool} tool call. The current units and revision have already been supplied. Return requested editable geometry for synthetic benchmark review.`
+    : `Return only a complete valid ASCII DXF file, no markdown or commentary. Use DXF AC1027 or newer and set $INSUNITS to 4 (millimeters). ${engineering ? 'Use editable LINE, CIRCLE, ARC, straight LWPOLYLINE, TEXT and native DIMENSION entities, with valid dimension graphics blocks, layer and linetype tables as requested.' : 'Use LINE, CIRCLE, ARC and/or straight LWPOLYLINE entities.'} Do not use any CAD library or tool.`
+  return { model: config.model, messages: [{ role: 'system', content: system }, { role: 'user', content: common + task.prompt }], ...config.settings, ...(arm === 'kjdraw-tool' ? { tools: [tool], tool_choice: config.toolChoiceMode === 'auto' ? 'auto' : { type: 'function', function: { name: config.drawingTool } } } : {}) }
 }
 
 async function transport(config, body) {
@@ -117,7 +152,7 @@ export function safeResponse(response, usage, key) {
   return result
 }
 
-async function materialize(response, arm, modelName) {
+async function materialize(response, arm, modelName, name) {
   const message = response.choices[0].message, finish = response.choices[0].finish_reason
   if (arm === 'direct-dxf') {
     if (finish !== 'stop' || typeof message.content !== 'string' || !message.content.trim() || message.content.includes('```') || message.tool_calls?.length) fail('INVALID_DIRECT_DXF_RESPONSE')
@@ -127,8 +162,8 @@ async function materialize(response, arm, modelName) {
   const session = new KJAgentToolSession(sdk, document)
   const model = createKJModelAdapter({ protocol, model: modelName, request: async () => response })
   let turn
-  try { turn = await model.createConversation({ instructions: 'Materialize a captured synthetic benchmark proposal.', tools: [session.definitions.find(tool => tool.name === 'cad_propose_drawing')] }).next({ kind: 'prompt', text: 'Return one drawing proposal.' }, new AbortController().signal) } catch { fail('MODEL_TOOL_RESPONSE_REJECTED') }
-  if (turn.calls.length !== 1 || turn.calls[0].name !== 'cad_propose_drawing') fail('MODEL_TOOL_RESPONSE_REJECTED')
+  try { turn = await model.createConversation({ instructions: 'Materialize a captured synthetic benchmark proposal.', tools: [session.definitions.find(tool => tool.name === name)] }).next({ kind: 'prompt', text: 'Return one drawing proposal.' }, new AbortController().signal) } catch { fail('MODEL_TOOL_RESPONSE_REJECTED') }
+  if (turn.calls.length !== 1 || turn.calls[0].name !== name) fail('MODEL_TOOL_RESPONSE_REJECTED')
   const proposal = await session.call(turn.calls[0].name, turn.calls[0].arguments)
   if (!proposal.ok) fail('MODEL_PROPOSAL_REJECTED')
   // Synthetic test documents only. This never approves an existing user document.
@@ -149,8 +184,11 @@ function summary(runs) {
 export async function runPairedModelBenchmark(options) {
   const config = configuration(options)
   await mkdir(dirname(config.output), { recursive: true }); await mkdir(config.output)
-  const report = { schema: 'com.kanjie.kjdraw.benchmark.paired-model@1', mode: config.mode, publishableModelEvidence: false, publicationReviewRequired: config.mode === 'live', status: 'preparing', createdAt: new Date().toISOString(), model: config.model, protocol, endpointOrigin: new URL(config.endpoint).origin, settings: config.settings, repetitions: config.repetitions, maxRequests: config.maxRequests, plannedRequests: config.plannedRequests, attemptedRequests: 0, unexecutedRequests: config.plannedRequests, timeoutMs: config.timeoutMs, cost: null, scope: config.scope, fixtureWarning: config.mode === 'fixture' ? 'LOCAL FAKE PROVIDER: transport/SDK/validator conformance only. Never use these simulated usage counters in public model rankings or savings claims.' : null, tasks: pilotTasks.map(task => ({ ...task, fixtureSha256: hash(JSON.stringify(task.expected)) })), validator: null, source: {}, runs: [], summary: {} }
-  for (const name of ['paired-model-benchmark.mjs', 'paired-model-validator.py', 'model-drawing-pilot.mjs', 'deepseek-drawing-pilot.py']) report.source[name] = hash(await readFile(new URL(name, import.meta.url)))
+  const report = { schema: 'com.kanjie.kjdraw.benchmark.paired-model@1', mode: config.mode, exploratory: config.exploratory, publishableModelEvidence: false, publicationReviewRequired: config.mode === 'live', status: 'preparing', createdAt: new Date().toISOString(), model: config.model, protocol, endpointOrigin: new URL(config.endpoint).origin, settings: config.settings, repetitions: config.repetitions, maxRequests: config.maxRequests, plannedRequests: config.plannedRequests, attemptedRequests: 0, unexecutedRequests: config.plannedRequests, timeoutMs: config.timeoutMs, cost: null, scope: config.scope, fixtureWarning: config.mode === 'fixture' ? 'LOCAL FAKE PROVIDER: transport/SDK/validator conformance only. Never use these simulated usage counters in public model rankings or savings claims.' : null, taskSuite: config.taskSuite, tasks: taskSuites[config.taskSuite].map(task => ({ ...task, fixtureSha256: hash(JSON.stringify(task.expected)) })), validator: null, source: {}, runs: [], summary: {} }
+  report.toolChoiceMode = config.toolChoiceMode
+  report.drawingTool = config.drawingTool
+  report.chatTokenParameter = config.chatTokenParameter
+  for (const name of ['paired-model-benchmark.mjs', 'paired-model-validator.py', 'model-drawing-pilot.mjs', 'deepseek-drawing-pilot.py', 'parametric-drawing-tasks.mjs', 'drawing-strategies.mjs', 'engineering-drawing-tasks.mjs', 'engineering-model-validator.py']) report.source[name] = hash(await readFile(new URL(name, import.meta.url)))
   report.source['model-usage.js'] = hash(await readFile(new URL('../../packages/kjdraw-sdk/src/model-usage.js', import.meta.url)))
   const sdkFolder = new URL('../../packages/kjdraw-sdk/src/', import.meta.url), sdkHash = createHash('sha256')
   for (const name of (await readdir(sdkFolder, { recursive: true })).map(name => name.replaceAll('\\', '/')).filter(name => name.endsWith('.js')).sort()) { sdkHash.update(name); sdkHash.update(await readFile(new URL(name, sdkFolder))) }
@@ -165,12 +203,13 @@ export async function runPairedModelBenchmark(options) {
     await writeFile(temporary, JSON.stringify(report, null, 2), { flag: 'wx' })
     await rename(temporary, resolve(config.output, 'report.json'))
   }
-  try { report.validator = independentValidation({ python: config.python }) }
+  try { report.validator = independentValidation({ python: config.python, taskSuite: config.taskSuite }) }
   catch { report.status = 'setup-failed'; report.stopReason = 'INDEPENDENT_VALIDATOR_UNAVAILABLE'; await persist(); return report }
-  const tool = toolDefinition()
+  const tool = toolDefinition(config.drawingTool)
+  const tasks = taskSuites[config.taskSuite]
   report.status = 'running'; await persist()
-  for (let repetition = 0; repetition < config.repetitions; repetition++) for (let taskIndex = 0; taskIndex < pilotTasks.length; taskIndex++) {
-    const task = pilotTasks[taskIndex], order = (repetition + taskIndex) % 2 ? [...arms].reverse() : arms
+  for (let repetition = 0; repetition < config.repetitions; repetition++) for (let taskIndex = 0; taskIndex < tasks.length; taskIndex++) {
+    const task = tasks[taskIndex], order = (repetition + taskIndex) % 2 ? [...arms].reverse() : arms
     for (const arm of order) {
       const body = requestBody(task, arm, config, tool)
       const prefix = `${task.id}-${arm}-${repetition + 1}`
@@ -194,8 +233,8 @@ export async function runPairedModelBenchmark(options) {
         const responseText = JSON.stringify(safe)
         run.files.response = `${prefix}-response.json`; run.responseSha256 = hash(responseText)
         await writeFile(resolve(config.output, run.files.response), responseText, { flag: 'wx' })
-        const dxf = await materialize(safe, arm, config.model)
-        run.validation = independentValidation({ python: config.python, dxf, expected: task.expected })
+        const dxf = await materialize(safe, arm, config.model, config.drawingTool)
+        run.validation = independentValidation({ python: config.python, dxf, expected: task.expected, taskSuite: config.taskSuite })
         run.status = run.validation.passed ? 'passed' : 'geometry-failed'
         run.files.dxf = `${prefix}.dxf`; run.dxfSha256 = hash(dxf)
         await writeFile(resolve(config.output, run.files.dxf), dxf, { flag: 'wx' })
@@ -216,12 +255,16 @@ export async function runPairedModelBenchmark(options) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2)
-  if (args.some(argument => argument !== '--live' && !/^--(?:output|repetitions|max-requests|timeout-ms)=.+$/.test(argument))) throw new Error('Use --live only with explicit configuration; options: --output, --repetitions, --max-requests, --timeout-ms')
+  if (args.some(argument => argument !== '--live' && argument !== '--explore' && !/^--(?:output|repetitions|max-requests|timeout-ms|task-suite|max-output-tokens|chat-token-parameter|reasoning-effort)=.+$/.test(argument))) throw new Error('Use --live only with explicit configuration; options: --output, --repetitions, --max-requests, --timeout-ms, --task-suite, --max-output-tokens, --chat-token-parameter, --reasoning-effort')
   const value = (name, fallback) => args.find(argument => argument.startsWith(`--${name}=`))?.slice(name.length + 3) ?? fallback
-  const repetitions = Number(value('repetitions', 5)), maxRequests = Number(value('max-requests', 30))
-  if (!args.includes('--live')) console.log(JSON.stringify(pairedModelPlan({ repetitions, maxRequests }), null, 2))
+  const exploratory = args.includes('--explore')
+  const repetitions = Number(value('repetitions', 5)), maxRequests = Number(value('max-requests', 30)), taskSuite = value('task-suite', 'pilot'), maxOutputTokens = Number(value('max-output-tokens', 4096))
+  const chatTokenParameter = value('chat-token-parameter', process.env.KJDRAW_BENCH_CHAT_TOKEN_PARAMETER ?? 'max_tokens'), reasoningEffort = value('reasoning-effort', process.env.KJDRAW_BENCH_REASONING_EFFORT)
+  const enableThinkingValue = process.env.KJDRAW_BENCH_ENABLE_THINKING
+  if (enableThinkingValue !== undefined && !['true', 'false'].includes(enableThinkingValue)) throw new Error('KJDRAW_BENCH_ENABLE_THINKING must be true or false when configured')
+  if (!args.includes('--live')) console.log(JSON.stringify(pairedModelPlan({ repetitions, maxRequests, taskSuite, maxOutputTokens, exploratory, chatTokenParameter, reasoningEffort, thinkingMode: process.env.KJDRAW_BENCH_THINKING, ...(enableThinkingValue !== undefined ? { enableThinking: enableThinkingValue === 'true' } : {}) }), null, 2))
   else {
-    const report = await runPairedModelBenchmark({ ...liveModelConfiguration(), repetitions, maxRequests, timeoutMs: Number(value('timeout-ms', 60000)), output: value('output') })
+    const report = await runPairedModelBenchmark({ ...liveModelConfiguration(), repetitions, maxRequests, taskSuite, maxOutputTokens, exploratory, chatTokenParameter, reasoningEffort, timeoutMs: Number(value('timeout-ms', 60000)), output: value('output') })
     console.log(JSON.stringify({ mode: report.mode, status: report.status, attemptedRequests: report.attemptedRequests, unexecutedRequests: report.unexecutedRequests, passed: report.runs.filter(run => run.validation.passed).length, stopReason: report.stopReason ?? null }))
     if (report.status !== 'complete' || report.runs.some(run => !run.validation.passed)) process.exitCode = 1
   }

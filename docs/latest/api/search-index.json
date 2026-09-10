@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:050f3b9d2eb2eee104da34db6ccc576e389f6813178cf5771079407c36a12d0a",
+  "sourceDigest": "sha256:db549d63203c02902c46f7538976d958171d355baf5f52ccfaf286b107f6d4b1",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -221,12 +221,20 @@
       "summary": "export declare class KJModelError extends KJDrawError { constructor(code: string, message: string); }"
     },
     {
+      "name": "KJModelImage",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/model-adapters",
+      "href": "./api/reference/#model-adapters-type-kjmodelimage",
+      "anchor": "model-adapters-type-kjmodelimage",
+      "summary": "export type KJModelImage = { readonly dataUrl: string; } | { readonly mimeType: 'image/png' | 'image/jpeg'; readonly base64: string; };"
+    },
+    {
       "name": "KJModelInput",
       "kind": "type",
       "module": "@kanjieteam/kjdraw/model-adapters",
       "href": "./api/reference/#model-adapters-type-kjmodelinput",
       "anchor": "model-adapters-type-kjmodelinput",
-      "summary": "export type KJModelInput = { readonly kind: 'prompt'; readonly text: string; } | { readonly kind: 'tool-results'; readonly results: readonly KJModelToolOutput[]; };"
+      "summary": "export type KJModelInput = { readonly kind: 'prompt'; readonly text: string; readonly images?: readonly KJModelImage[]; } | { readonly kind: 'tool-results'; readonly results: readonly KJModelToolOutput[]; };"
     },
     {
       "name": "KJModelProtocol",
@@ -282,7 +290,7 @@
       "module": "@kanjieteam/kjdraw/agent-runner",
       "href": "./api/reference/#agent-runner-interface-kjagentrunoptions",
       "anchor": "agent-runner-interface-kjagentrunoptions",
-      "summary": "export interface KJAgentRunOptions { session: KJAgentToolSession; model: KJAgentModel; prompt: string; /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. "
+      "summary": "export interface KJAgentRunOptions { session: KJAgentToolSession; model: KJAgentModel; prompt: string; /** Explicit host-supplied drawing images; the selected model must support vision. */ images?: readonly KJModelImage["
     },
     {
       "name": "KJAgentRunProgress",
@@ -330,7 +338,15 @@
       "module": "@kanjieteam/kjdraw/agent-tools",
       "href": "./api/reference/#agent-tools-type-default",
       "anchor": "agent-tools-type-default",
-      "summary": "export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js'; export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';"
+      "summary": "export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-revision.js'; export type { KJAgentRoadDrawingInput } from './agent-road-drawing.js'; export type { KJAgentDrawingInput, KJAgentPoi"
+    },
+    {
+      "name": "KJAgentAnnotatedDrawingInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-interface-kjagentannotateddrawinginput",
+      "anchor": "agent-tools-interface-kjagentannotateddrawinginput",
+      "summary": "export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput { styles: { name: string; sources: string[]; pattern: number[]; color: number; lineweight: number; }[]; texts: KJAgentAnnotationInput['text"
     },
     {
       "name": "KJAgentDrawingQuery",
@@ -355,6 +371,14 @@
       "href": "./api/reference/#agent-tools-interface-kjagentlayoutquery",
       "anchor": "agent-tools-interface-kjagentlayoutquery",
       "summary": "export interface KJAgentLayoutQuery { expectedRevision: number; offset: number; limit: number; maxBytes: number; }"
+    },
+    {
+      "name": "KJAgentPatternDrawingInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-interface-kjagentpatterndrawinginput",
+      "anchor": "agent-tools-interface-kjagentpatterndrawinginput",
+      "summary": "export interface KJAgentPatternDrawingInput extends KJAgentCompactDrawingInput { arrays: (KJRectangularDrawingPattern & { sources: string[]; })[]; }"
     },
     {
       "name": "KJAgentToolDefinition",
@@ -1914,7 +1938,7 @@
       "module": "@kanjieteam/kjdraw/core",
       "href": "./api/reference/#core-interface-kjcommandarguments",
       "anchor": "core-interface-kjcommandarguments",
-      "summary": "export interface KJCommandArguments extends Record<string, unknown> { id?: string; ids?: readonly string[]; firstId?: string; secondId?: string; boundaryIds?: readonly string[]; ownerId?: string | null; layerId?: string;"
+      "summary": "export interface KJCommandArguments extends Record<string, unknown> { resources?: KJEntityBatchResources; id?: string; ids?: readonly string[]; firstId?: string; secondId?: string; boundaryIds?: readonly string[]; ownerI"
     },
     {
       "name": "KJCommandBeforeExecuteEvent",
@@ -2691,6 +2715,14 @@
       "href": "./api/reference/#core-type-kjentity",
       "anchor": "core-type-kjentity",
       "summary": "export type KJEntity<TPayload extends KJObjectPayload = KJObjectPayload> = KJObjectRecord<TPayload> & { kind: 'entity'; };"
+    },
+    {
+      "name": "KJEntityBatchResources",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/core",
+      "href": "./api/reference/#core-interface-kjentitybatchresources",
+      "anchor": "core-interface-kjentitybatchresources",
+      "summary": "export interface KJEntityBatchResources { linetypes: { id: string; name: string; pattern: number[]; }[]; layers: { id: string; name: string; color: number; linetypeId: string; lineweight: number; }[]; }"
     },
     {
       "name": "KJEntityBatchSpec",
@@ -5778,7 +5810,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-type-default",
       "anchor": "root-type-default",
-      "summary": "export type { KJWorkbenchLayout } from './workbench.js'; export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js'; export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js'"
+      "summary": "export type { KJWorkbenchLayout } from './workbench.js'; export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-revision.js'; export type { KJAgentRoadDrawingInput } from './agent-road-d"
     },
     {
       "name": "DEFAULT_TOLERANCE",
@@ -6333,6 +6365,14 @@
       "summary": "export declare class KJAdapterError extends KJDrawError { constructor(message: string, details?: KJErrorDetails, cause?: unknown); }"
     },
     {
+      "name": "KJAgentAnnotatedDrawingInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentannotateddrawinginput",
+      "anchor": "root-interface-kjagentannotateddrawinginput",
+      "summary": "export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput { styles: { name: string; sources: string[]; pattern: number[]; color: number; lineweight: number; }[]; texts: KJAgentAnnotationInput['text"
+    },
+    {
       "name": "KJAgentCapabilityLockEntry",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -6405,6 +6445,14 @@
       "summary": "export interface KJAgentModel { createConversation(options: KJModelConversationOptions): KJModelConversation; }"
     },
     {
+      "name": "KJAgentPatternDrawingInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentpatterndrawinginput",
+      "anchor": "root-interface-kjagentpatterndrawinginput",
+      "summary": "export interface KJAgentPatternDrawingInput extends KJAgentCompactDrawingInput { arrays: (KJRectangularDrawingPattern & { sources: string[]; })[]; }"
+    },
+    {
       "name": "KJAgentPlanBindingContext",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -6466,7 +6514,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjagentrunoptions",
       "anchor": "root-interface-kjagentrunoptions",
-      "summary": "export interface KJAgentRunOptions { session: KJAgentToolSession; model: KJAgentModel; prompt: string; /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. "
+      "summary": "export interface KJAgentRunOptions { session: KJAgentToolSession; model: KJAgentModel; prompt: string; /** Explicit host-supplied drawing images; the selected model must support vision. */ images?: readonly KJModelImage["
     },
     {
       "name": "KJAgentRunProgress",
@@ -6626,7 +6674,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjcommandarguments",
       "anchor": "root-interface-kjcommandarguments",
-      "summary": "export interface KJCommandArguments extends Record<string, unknown> { id?: string; ids?: readonly string[]; firstId?: string; secondId?: string; boundaryIds?: readonly string[]; ownerId?: string | null; layerId?: string;"
+      "summary": "export interface KJCommandArguments extends Record<string, unknown> { resources?: KJEntityBatchResources; id?: string; ids?: readonly string[]; firstId?: string; secondId?: string; boundaryIds?: readonly string[]; ownerI"
     },
     {
       "name": "KJCommandBeforeExecuteEvent",
@@ -7685,6 +7733,14 @@
       "summary": "export type KJEntity<TPayload extends KJObjectPayload = KJObjectPayload> = KJObjectRecord<TPayload> & { kind: 'entity'; };"
     },
     {
+      "name": "KJEntityBatchResources",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjentitybatchresources",
+      "anchor": "root-interface-kjentitybatchresources",
+      "summary": "export interface KJEntityBatchResources { linetypes: { id: string; name: string; pattern: number[]; }[]; layers: { id: string; name: string; color: number; linetypeId: string; lineweight: number; }[]; }"
+    },
+    {
       "name": "KJEntityBatchSpec",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -8093,12 +8149,20 @@
       "summary": "export declare class KJModelError extends KJDrawError { constructor(code: string, message: string); }"
     },
     {
+      "name": "KJModelImage",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjmodelimage",
+      "anchor": "root-type-kjmodelimage",
+      "summary": "export type KJModelImage = { readonly dataUrl: string; } | { readonly mimeType: 'image/png' | 'image/jpeg'; readonly base64: string; };"
+    },
+    {
       "name": "KJModelInput",
       "kind": "type",
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-type-kjmodelinput",
       "anchor": "root-type-kjmodelinput",
-      "summary": "export type KJModelInput = { readonly kind: 'prompt'; readonly text: string; } | { readonly kind: 'tool-results'; readonly results: readonly KJModelToolOutput[]; };"
+      "summary": "export type KJModelInput = { readonly kind: 'prompt'; readonly text: string; readonly images?: readonly KJModelImage[]; } | { readonly kind: 'tool-results'; readonly results: readonly KJModelToolOutput[]; };"
     },
     {
       "name": "KJModelProtocol",
@@ -12525,6 +12589,14 @@
       "summary": "export interface KJCanvasPreviewEntity { type: string; payload: Readonly<Record<string, unknown>>; }"
     },
     {
+      "name": "KJCanvasPreviewResource",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/renderer/canvas",
+      "href": "./api/reference/#renderer-canvas-interface-kjcanvaspreviewresource",
+      "anchor": "renderer-canvas-interface-kjcanvaspreviewresource",
+      "summary": "export interface KJCanvasPreviewResource { readonly id: string; readonly payload: Readonly<Record<string, unknown>>; }"
+    },
+    {
       "name": "KJCanvasRenderer",
       "kind": "class",
       "module": "@kanjieteam/kjdraw/renderer/canvas",
@@ -12546,7 +12618,7 @@
       "module": "@kanjieteam/kjdraw/renderer/canvas",
       "href": "./api/reference/#renderer-canvas-interface-kjcanvasrenderreport",
       "anchor": "renderer-canvas-interface-kjcanvasrenderreport",
-      "summary": "export interface KJCanvasRenderReport { hatchDiagnostics?: readonly { entityId: string; reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary'; samplingReason?: KJHatchCoverageReason | 'pixel-budget' | 'canvas"
+      "summary": "export interface KJCanvasRenderReport { viewportDiagnostics?: readonly KJCanvasViewportDiagnostic[]; hatchDiagnostics?: readonly { entityId: string; reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary'; samp"
     },
     {
       "name": "KJCanvasSceneProvider",
@@ -12579,6 +12651,14 @@
       "href": "./api/reference/#renderer-canvas-type-kjcanvastheme",
       "anchor": "renderer-canvas-type-kjcanvastheme",
       "summary": "export type KJCanvasTheme = 'dark' | 'light';"
+    },
+    {
+      "name": "KJCanvasViewportDiagnostic",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/renderer/canvas",
+      "href": "./api/reference/#renderer-canvas-interface-kjcanvasviewportdiagnostic",
+      "anchor": "renderer-canvas-interface-kjcanvasviewportdiagnostic",
+      "summary": "export interface KJCanvasViewportDiagnostic { entityId: string; rendered: number; hidden: number; approximated: number; unsupported: number; reason?: 'invalid-view' | 'unsupported-view' | 'not-paper-space' | 'budget'; }"
     },
     {
       "name": "default",
@@ -12650,7 +12730,7 @@
       "module": "@kanjieteam/kjdraw/workbench",
       "href": "./api/reference/#workbench-interface-kjworkbenchsnapshot",
       "anchor": "workbench-interface-kjworkbenchsnapshot",
-      "summary": "export interface KJWorkbenchSnapshot { locale: KJWorkbenchLocale; theme: KJWorkbenchTheme; layout: KJWorkbenchLayout; tool: KJWorkbenchTool; documentId: string | null; revision: number; entityCount: number; selectedIds: "
+      "summary": "export interface KJWorkbenchSnapshot { locale: KJWorkbenchLocale; theme: KJWorkbenchTheme; layout: KJWorkbenchLayout; drawingLayoutId: string | null; spaceId: string | null; paperPreview: boolean; tool: KJWorkbenchTool; "
     },
     {
       "name": "KJWorkbenchTheme",
@@ -12675,6 +12755,206 @@
       "href": "./api/reference/#workbench-function-mountkjdrawworkbench",
       "anchor": "workbench-function-mountkjdrawworkbench",
       "summary": "export declare function mountKJDrawWorkbench(container: HTMLElement | ShadowRoot, options?: KJDrawWorkbenchOptions): KJDrawWorkbench;"
+    },
+    {
+      "name": "computeRoadDesign",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/road-design",
+      "href": "./api/reference/#road-design-function-computeroaddesign",
+      "anchor": "road-design-function-computeroaddesign",
+      "summary": "export declare function computeRoadDesign(input: KJRoadDesignInput): ReadonlyDeep<KJRoadDesignResult>;"
+    },
+    {
+      "name": "KJRoadAlignmentSegment",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/road-design",
+      "href": "./api/reference/#road-design-interface-kjroadalignmentsegment",
+      "anchor": "road-design-interface-kjroadalignmentsegment",
+      "summary": "export interface KJRoadAlignmentSegment { startStation: number; endStation: number; start: KJRoadPoint; end: KJRoadPoint; length: number; tangent: KJRoadPoint; }"
+    },
+    {
+      "name": "KJRoadDesignInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/road-design",
+      "href": "./api/reference/#road-design-interface-kjroaddesigninput",
+      "anchor": "road-design-interface-kjroaddesigninput",
+      "summary": "export interface KJRoadDesignInput { units: 'meter'; startStation: number; alignment: readonly KJRoadPoint[]; profile: readonly { station: number; elevation: number; }[]; /** Offsets increase toward the left when looking"
+    },
+    {
+      "name": "KJRoadDesignResult",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/road-design",
+      "href": "./api/reference/#road-design-interface-kjroaddesignresult",
+      "anchor": "road-design-interface-kjroaddesignresult",
+      "summary": "export interface KJRoadDesignResult { units: 'meter'; areaUnits: 'square-meter'; volumeUnits: 'cubic-meter'; startStation: number; endStation: number; length: number; alignment: KJRoadAlignmentSegment[]; grades: { fromSt"
+    },
+    {
+      "name": "KJRoadPoint",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/road-design",
+      "href": "./api/reference/#road-design-type-kjroadpoint",
+      "anchor": "road-design-type-kjroadpoint",
+      "summary": "export type KJRoadPoint = readonly [number, number];"
+    },
+    {
+      "name": "KJRoadSectionResult",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/road-design",
+      "href": "./api/reference/#road-design-interface-kjroadsectionresult",
+      "anchor": "road-design-interface-kjroadsectionresult",
+      "summary": "export interface KJRoadSectionResult { station: number; center: KJRoadPoint; tangent: KJRoadPoint; designElevation: number; groundCenterElevation: number; longitudinalGrade: number; ground: KJRoadPoint[]; pavement: KJRoa"
+    },
+    {
+      "name": "captureDrawingView",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/drawing-image",
+      "href": "./api/reference/#drawing-image-function-capturedrawingview",
+      "anchor": "drawing-image-function-capturedrawingview",
+      "summary": "export declare function captureDrawingView(drawing: KJDocument, options: KJDrawingViewOptions): Promise<KJDrawingViewImage>;"
+    },
+    {
+      "name": "KJDrawingViewImage",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drawing-image",
+      "href": "./api/reference/#drawing-image-interface-kjdrawingviewimage",
+      "anchor": "drawing-image-interface-kjdrawingviewimage",
+      "summary": "export interface KJDrawingViewImage { readonly dataUrl: string; readonly mimeType: 'image/png'; readonly documentId: string; readonly revision: number; readonly units: string; readonly documentUnits: string; readonly spa"
+    },
+    {
+      "name": "KJDrawingViewOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drawing-image",
+      "href": "./api/reference/#drawing-image-interface-kjdrawingviewoptions",
+      "anchor": "drawing-image-interface-kjdrawingviewoptions",
+      "summary": "export interface KJDrawingViewOptions { /** Requested XY bounds in the selected space coordinate units. */ bounds: readonly [number, number, number, number]; /** Defaults to model space. Explicit paper spaces use the nat"
+    },
+    {
+      "name": "buildRoadDrawing",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/road-drawing",
+      "href": "./api/reference/#road-drawing-function-buildroaddrawing",
+      "anchor": "road-drawing-function-buildroaddrawing",
+      "summary": "export declare function buildRoadDrawing(input: KJRoadDesignInput, options: KJRoadDrawingOptions): ReadonlyDeep<KJRoadDrawingResult>;"
+    },
+    {
+      "name": "KJRoadDrawingBounds",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/road-drawing",
+      "href": "./api/reference/#road-drawing-type-kjroaddrawingbounds",
+      "anchor": "road-drawing-type-kjroaddrawingbounds",
+      "summary": "export type KJRoadDrawingBounds = [number, number, number, number];"
+    },
+    {
+      "name": "KJRoadDrawingEntity",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/road-drawing",
+      "href": "./api/reference/#road-drawing-interface-kjroaddrawingentity",
+      "anchor": "road-drawing-interface-kjroaddrawingentity",
+      "summary": "export interface KJRoadDrawingEntity { key: string; type: 'LINE' | 'LWPOLYLINE' | 'TEXT'; payload: KJObjectPayload; options: { id: string; }; }"
+    },
+    {
+      "name": "KJRoadDrawingOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/road-drawing",
+      "href": "./api/reference/#road-drawing-interface-kjroaddrawingoptions",
+      "anchor": "road-drawing-interface-kjroaddrawingoptions",
+      "summary": "export interface KJRoadDrawingOptions { drawingId: string; title: string; /** Drawing XY units per physical metre. These are diagram transformations, not paper scales. */ profileScale: { horizontal: number; vertical: num"
+    },
+    {
+      "name": "KJRoadDrawingResult",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/road-drawing",
+      "href": "./api/reference/#road-drawing-interface-kjroaddrawingresult",
+      "anchor": "road-drawing-interface-kjroaddrawingresult",
+      "summary": "export interface KJRoadDrawingResult { units: 'meter'; calculation: ReadonlyDeep<KJRoadDesignResult>; entities: KJRoadDrawingEntity[]; resources: { linetypes: { id: string; name: string; pattern: number[]; }[]; layers: {"
+    },
+    {
+      "name": "applyRoadDrawingRevision",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/road-drawing-update",
+      "href": "./api/reference/#road-drawing-update-function-applyroaddrawingrevision",
+      "anchor": "road-drawing-update-function-applyroaddrawingrevision",
+      "summary": "export declare function applyRoadDrawingRevision(document: KJDocument, previous: ReadonlyDeep<KJRoadDrawingResult>, next: ReadonlyDeep<KJRoadDrawingResult>, options: KJRoadDrawingRevisionOptions): Promise<ReadonlyDeep<KJ"
+    },
+    {
+      "name": "KJRoadDrawingRevisionOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/road-drawing-update",
+      "href": "./api/reference/#road-drawing-update-interface-kjroaddrawingrevisionoptions",
+      "anchor": "road-drawing-update-interface-kjroaddrawingrevisionoptions",
+      "summary": "export interface KJRoadDrawingRevisionOptions { expectedRevision: number; }"
+    },
+    {
+      "name": "KJRoadDrawingRevisionReceipt",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/road-drawing-update",
+      "href": "./api/reference/#road-drawing-update-interface-kjroaddrawingrevisionreceipt",
+      "anchor": "road-drawing-update-interface-kjroaddrawingrevisionreceipt",
+      "summary": "export interface KJRoadDrawingRevisionReceipt { documentId: string; drawingId: string; previousRevision: number; revision: number; updatedIds: string[]; createdIds: string[]; removedIds: string[]; unchangedIds: string[];"
+    },
+    {
+      "name": "buildAgentRoadDrawing",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/agent-road-drawing",
+      "href": "./api/reference/#agent-road-drawing-function-buildagentroaddrawing",
+      "anchor": "agent-road-drawing-function-buildagentroaddrawing",
+      "summary": "export declare function buildAgentRoadDrawing(document: KJDocument, input: KJAgentRoadDrawingInput): ReadonlyDeep<KJAgentRoadDrawingProposal>;"
+    },
+    {
+      "name": "KJAgentRoadDrawingInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-road-drawing",
+      "href": "./api/reference/#agent-road-drawing-interface-kjagentroaddrawinginput",
+      "anchor": "agent-road-drawing-interface-kjagentroaddrawinginput",
+      "summary": "export interface KJAgentRoadDrawingInput extends KJRoadDesignInput { expectedRevision: number; drawingId: string; title: string; profileScale: KJRoadDrawingOptions['profileScale']; sectionScale: KJRoadDrawingOptions['sec"
+    },
+    {
+      "name": "KJAgentRoadDrawingProposal",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-road-drawing",
+      "href": "./api/reference/#agent-road-drawing-interface-kjagentroaddrawingproposal",
+      "anchor": "agent-road-drawing-interface-kjagentroaddrawingproposal",
+      "summary": "export interface KJAgentRoadDrawingProposal { commandArgs: { entities: (KJRoadDrawingResult['entities'][number] & { options: { id: string; ownerId: string; }; })[]; resources: KJRoadDrawingResult['resources']; }; evidenc"
+    },
+    {
+      "name": "createRoadDrawingRecipe",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/road-drawing-recipe",
+      "href": "./api/reference/#road-drawing-recipe-function-createroaddrawingrecipe",
+      "anchor": "road-drawing-recipe-function-createroaddrawingrecipe",
+      "summary": "export declare function createRoadDrawingRecipe(document: KJDocument, input: ReadonlyDeep<KJRoadDesignInput>, options: ReadonlyDeep<KJRoadDrawingOptions>): Promise<ReadonlyDeep<KJRoadDrawingRecipe>>;"
+    },
+    {
+      "name": "KJDRAW_ROAD_RECIPE_SCHEMA",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw/road-drawing-recipe",
+      "href": "./api/reference/#road-drawing-recipe-const-kjdraw-road-recipe-schema",
+      "anchor": "road-drawing-recipe-const-kjdraw-road-recipe-schema",
+      "summary": "export declare const KJDRAW_ROAD_RECIPE_SCHEMA = \"com.kanjie.kjdraw.road-drawing-recipe\";"
+    },
+    {
+      "name": "KJRestoredRoadDrawingRecipe",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/road-drawing-recipe",
+      "href": "./api/reference/#road-drawing-recipe-interface-kjrestoredroaddrawingrecipe",
+      "anchor": "road-drawing-recipe-interface-kjrestoredroaddrawingrecipe",
+      "summary": "export interface KJRestoredRoadDrawingRecipe { recipe: ReadonlyDeep<KJRoadDrawingRecipe>; drawing: ReadonlyDeep<KJRoadDrawingResult>; documentId: string; /** The source revision actually validated, suitable for the next "
+    },
+    {
+      "name": "KJRoadDrawingRecipe",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/road-drawing-recipe",
+      "href": "./api/reference/#road-drawing-recipe-interface-kjroaddrawingrecipe",
+      "anchor": "road-drawing-recipe-interface-kjroaddrawingrecipe",
+      "summary": "export interface KJRoadDrawingRecipe { schema: typeof KJDRAW_ROAD_RECIPE_SCHEMA; schemaVersion: 1; /** Exact compiler contract. Unknown versions require an explicit future migration. */ compilerVersion: 1; documentId: st"
+    },
+    {
+      "name": "restoreRoadDrawingRecipe",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/road-drawing-recipe",
+      "href": "./api/reference/#road-drawing-recipe-function-restoreroaddrawingrecipe",
+      "anchor": "road-drawing-recipe-function-restoreroaddrawingrecipe",
+      "summary": "export declare function restoreRoadDrawingRecipe(document: KJDocument, input: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;"
     }
   ]
 }

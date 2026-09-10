@@ -305,22 +305,73 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                 rotation: finite(payload.rotation ?? 0, 'rotation')
             };
         case 'VIEWPORT':
-            return {
-                ...base(payload),
-                center: point3(payload.center, 'center'),
-                width: positive(payload.width, 'width'),
-                height: positive(payload.height, 'height'),
-                viewCenter: point3(payload.viewCenter ?? [
-                    0,
-                    0,
-                    0
-                ], 'viewCenter'),
-                viewHeight: positive(payload.viewHeight, 'viewHeight'),
-                twistAngle: finite(payload.twistAngle ?? 0, 'twistAngle'),
-                frozenLayerIds: [
-                    ...payload.frozenLayerIds ?? []
-                ].map(String)
-            };
+            {
+                const integer = (value, label, min, max)=>{
+                    const result = finite(value, label);
+                    if (!Number.isInteger(result) || result < min || result > max) throw new KJValidationError(`${label} must be an integer from ${min} to ${max}`);
+                    return result;
+                };
+                let flags = integer(payload.flags ?? 0, 'flags', 0, 2147483647);
+                for (const [name, mask] of [
+                    [
+                        'perspective',
+                        1
+                    ],
+                    [
+                        'nonRectangularClip',
+                        65536
+                    ]
+                ]){
+                    if (payload[name] !== undefined) {
+                        if (typeof payload[name] !== 'boolean') throw new KJValidationError(`${name} must be boolean`);
+                        flags = payload[name] ? flags | mask : flags & ~mask;
+                    }
+                }
+                const frozenLayerIds = payload.frozenLayerIds ?? [];
+                if (!Array.isArray(frozenLayerIds) || frozenLayerIds.length > 4096 || frozenLayerIds.some((id)=>typeof id !== 'string' || !id.trim() || id.length > 512) || new Set(frozenLayerIds).size !== frozenLayerIds.length) throw new KJValidationError('frozenLayerIds must be unique bounded layer IDs');
+                const clippingBoundaryId = payload.clippingBoundaryId ?? payload.clipBoundaryId ?? null;
+                if (clippingBoundaryId !== null && (typeof clippingBoundaryId !== 'string' || !clippingBoundaryId.trim() || clippingBoundaryId.length > 512)) throw new KJValidationError('clippingBoundaryId must be a bounded entity ID');
+                if (payload.clippingBoundaryId && payload.clipBoundaryId && payload.clippingBoundaryId !== payload.clipBoundaryId) throw new KJValidationError('Conflicting clipping boundary IDs');
+                const normalizedBase = base(payload);
+                delete normalizedBase.perspective;
+                delete normalizedBase.nonRectangularClip;
+                delete normalizedBase.clipBoundaryId;
+                return {
+                    ...normalizedBase,
+                    center: point3(payload.center, 'center'),
+                    width: positive(payload.width, 'width'),
+                    height: positive(payload.height, 'height'),
+                    viewCenter: point3(payload.viewCenter ?? [
+                        0,
+                        0,
+                        0
+                    ], 'viewCenter'),
+                    viewHeight: positive(payload.viewHeight, 'viewHeight'),
+                    twistAngle: finite(payload.twistAngle ?? 0, 'twistAngle'),
+                    viewTarget: point3(payload.viewTarget ?? [
+                        0,
+                        0,
+                        0
+                    ], 'viewTarget'),
+                    viewDirection: vector3(payload.viewDirection ?? [
+                        0,
+                        0,
+                        1
+                    ], 'viewDirection'),
+                    status: integer(payload.status ?? 1, 'status', -1, 32767),
+                    ...payload.viewportId !== undefined ? {
+                        viewportId: integer(payload.viewportId, 'viewportId', -1, 32767)
+                    } : {},
+                    flags,
+                    lensLength: positive(payload.lensLength ?? 50, 'lensLength'),
+                    frontClipDistance: finite(payload.frontClipDistance ?? 0, 'frontClipDistance'),
+                    backClipDistance: finite(payload.backClipDistance ?? 0, 'backClipDistance'),
+                    frozenLayerIds: [
+                        ...frozenLayerIds
+                    ],
+                    clippingBoundaryId
+                };
+            }
         case 'WIPEOUT':
         case 'REVISION_CLOUD':
             return normalizePolyline({

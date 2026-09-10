@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:050f3b9d2eb2eee104da34db6ccc576e389f6813178cf5771079407c36a12d0a",
+  "sourceDigest": "sha256:db549d63203c02902c46f7538976d958171d355baf5f52ccfaf286b107f6d4b1",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -225,9 +225,16 @@
           "anchor": "model-adapters-class-kjmodelerror"
         },
         {
+          "name": "KJModelImage",
+          "kind": "type",
+          "declaration": "export type KJModelImage = {\n    readonly dataUrl: string;\n} | {\n    readonly mimeType: 'image/png' | 'image/jpeg';\n    readonly base64: string;\n};",
+          "source": "model-adapters.d.ts",
+          "anchor": "model-adapters-type-kjmodelimage"
+        },
+        {
           "name": "KJModelInput",
           "kind": "type",
-          "declaration": "export type KJModelInput = {\n    readonly kind: 'prompt';\n    readonly text: string;\n} | {\n    readonly kind: 'tool-results';\n    readonly results: readonly KJModelToolOutput[];\n};",
+          "declaration": "export type KJModelInput = {\n    readonly kind: 'prompt';\n    readonly text: string;\n    readonly images?: readonly KJModelImage[];\n} | {\n    readonly kind: 'tool-results';\n    readonly results: readonly KJModelToolOutput[];\n};",
           "source": "model-adapters.d.ts",
           "anchor": "model-adapters-type-kjmodelinput"
         },
@@ -284,7 +291,7 @@
         {
           "name": "KJAgentRunOptions",
           "kind": "interface",
-          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    /** Host-trusted domain knowledge, selected by an exact project lock. Never grants extra tools. */\n    capabilities?: {\n        registry: KJAgentCapabilityRegistry;\n        lock: readonly KJAgentCapabilityLockEntry[];\n    };\n    maxTurns?: number;\n    maxToolCalls?: number;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n    /** Host UI progress; contains no drawing payload or model reasoning. */\n    onProgress?: (progress: Readonly<KJAgentRunProgress>) => void;\n}",
+          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Explicit host-supplied drawing images; the selected model must support vision. */\n    images?: readonly KJModelImage[];\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    /** Host-trusted domain knowledge, selected by an exact project lock. Never grants extra tools. */\n    capabilities?: {\n        registry: KJAgentCapabilityRegistry;\n        lock: readonly KJAgentCapabilityLockEntry[];\n    };\n    maxTurns?: number;\n    maxToolCalls?: number;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n    /** Host UI progress; contains no drawing payload or model reasoning. */\n    onProgress?: (progress: Readonly<KJAgentRunProgress>) => void;\n}",
           "source": "agent-runner.d.ts",
           "anchor": "agent-runner-interface-kjagentrunoptions"
         },
@@ -334,9 +341,16 @@
         {
           "name": "default",
           "kind": "type",
-          "declaration": "export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';\nexport type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';",
+          "declaration": "export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-revision.js';\nexport type { KJAgentRoadDrawingInput } from './agent-road-drawing.js';\nexport type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';\nexport type { KJAgentCompactDrawingInput } from './agent-drawing-compact.js';\nexport type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-type-default"
+        },
+        {
+          "name": "KJAgentAnnotatedDrawingInput",
+          "kind": "interface",
+          "declaration": "export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput {\n    styles: {\n        name: string;\n        sources: string[];\n        pattern: number[];\n        color: number;\n        lineweight: number;\n    }[];\n    texts: KJAgentAnnotationInput['texts'];\n    alignedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'ALIGNED';\n    }>, 'type'>[];\n    rotatedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'ROTATED';\n    }>, 'type'>[];\n    radiusDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'RADIUS' | 'DIAMETER';\n    }>, 'type'>[];\n    diameterDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'RADIUS' | 'DIAMETER';\n    }>, 'type'>[];\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-interface-kjagentannotateddrawinginput"
         },
         {
           "name": "KJAgentDrawingQuery",
@@ -358,6 +372,13 @@
           "declaration": "export interface KJAgentLayoutQuery {\n    expectedRevision: number;\n    offset: number;\n    limit: number;\n    maxBytes: number;\n}",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-interface-kjagentlayoutquery"
+        },
+        {
+          "name": "KJAgentPatternDrawingInput",
+          "kind": "interface",
+          "declaration": "export interface KJAgentPatternDrawingInput extends KJAgentCompactDrawingInput {\n    arrays: (KJRectangularDrawingPattern & {\n        sources: string[];\n    })[];\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-interface-kjagentpatterndrawinginput"
         },
         {
           "name": "KJAgentToolDefinition",
@@ -383,7 +404,7 @@
         {
           "name": "KJAgentToolSession",
           "kind": "class",
-          "declaration": "export declare class KJAgentToolSession {\n    #private;\n    /** Bind unit schemas to the drawing so models see its canonical unit name. */\n    get definitions(): readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument);\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
+          "declaration": "export declare class KJAgentToolSession {\n    #private;\n    /** Bind unit schemas to the drawing so models see its canonical unit name. */\n    get definitions(): readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument);\n    /** Trusted host operation: verify saved parameters against all current generated objects.\n     * Registration is bound to this exact document revision and is not model-callable. */\n    registerRoadDrawingRecipe(recipe: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-class-kjagenttoolsession"
         },
@@ -1601,7 +1622,7 @@
         {
           "name": "KJ_CORE_COMMAND_CAPABILITIES",
           "kind": "const",
-          "declaration": "export declare const KJ_CORE_COMMAND_CAPABILITIES: {\n    readonly UNDO: {\n        domain: string;\n    };\n    readonly REDO: {\n        domain: string;\n    };\n    readonly SELECT: {\n        readonly domain: string;\n        readonly operations: readonly string[];\n    };\n    readonly SELECTIONSAVE: {\n        domain: string;\n        persistence: string;\n    };\n    readonly SELECTIONRESTORE: {\n        domain: string;\n        persistence: string;\n    };\n    readonly CREATE: {\n        domain: string;\n        supportedEntityTypes: string;\n    };\n    readonly CREATEBATCH: {\n        domain: string;\n        supportedEntityTypes: string;\n        atomic: boolean;\n        maximumEntities: number;\n    };\n    readonly ERASE: {\n        domain: string;\n        supportedObjectKinds: string;\n    };\n    readonly RESTORE: {\n        domain: string;\n        supportedObjectKinds: string;\n    };\n    readonly PROPERTIES: {\n        domain: string;\n        supportedObjectKinds: string;\n    };\n    readonly SETVAR: {\n        domain: string;\n    };\n    readonly LAYERNEW: {\n        domain: string;\n    };\n    readonly LAYERCURRENT: {\n        domain: string;\n    };\n    readonly LAYERUPDATE: {\n        domain: string;\n    };\n    readonly LAYERDELETE: {\n        domain: string;\n        guard: string;\n    };\n    readonly MOVE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly ROTATE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly SCALE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly COPY: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly MIRROR: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly ARRAYRECT: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly ARRAYPOLAR: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly OFFSET: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly BREAK: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly EXPLODE: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly TRIM: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly targetEntityTypes: readonly string[];\n        readonly boundaryEntityTypes: readonly string[];\n    };\n    readonly EXTEND: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly targetEntityTypes: readonly string[];\n        readonly boundaryEntityTypes: readonly string[];\n    };\n    readonly CHAMFER: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly FILLET: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly GRIPEDIT: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly LENGTH: {\n        readonly domain: string;\n        readonly exactEntityTypes: readonly string[];\n        readonly approximateEntityTypes: readonly string[];\n    };\n    readonly AREA: {\n        readonly domain: string;\n        readonly exactEntityTypes: readonly string[];\n    };\n    readonly DISTANCE: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly modes: readonly string[];\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly ANGLE: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly modes: readonly string[];\n    };\n    readonly INTERSECT: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly NEAREST: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly ORTHO: {\n        domain: string;\n        systemVariable: string;\n    };\n    readonly SNAPSETTINGS: {\n        domain: string;\n        snapModes: readonly [\"endpoint\", \"midpoint\", \"center\", \"quadrant\", \"insertion\", \"node\", \"nearest\", \"intersection\"];\n    };\n    readonly BLOCKCREATE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly BLOCKINSERT: {\n        domain: string;\n        entityType: string;\n    };\n    readonly XREFATTACH: {\n        domain: string;\n        authority: string;\n        remoteUrls: boolean;\n    };\n    readonly XREFRELOAD: {\n        domain: string;\n        authority: string;\n    };\n    readonly XREFDETACH: {\n        domain: string;\n    };\n    readonly GROUP: {\n        domain: string;\n        persistence: string;\n    };\n    readonly HATCH: {\n        readonly domain: string;\n        readonly entityType: string;\n        readonly boundaryModes: readonly string[];\n    };\n    readonly LINETYPE: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly TEXTSTYLE: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly DIMSTYLE: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly UCS: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly LAYOUT: {\n        readonly domain: string;\n        readonly operations: readonly string[];\n    };\n    readonly VIEWPORT: {\n        readonly domain: string;\n        readonly entityType: string;\n        readonly operations: readonly string[];\n    };\n    readonly PLOTSETUP: {\n        readonly domain: string;\n        readonly persistence: string;\n        readonly devices: readonly string[];\n    };\n    readonly PLOTSTYLE: {\n        domain: string;\n        persistence: string;\n    };\n    readonly SEARCH: {\n        readonly domain: string;\n        readonly fields: readonly string[];\n    };\n    readonly COMPARE: {\n        readonly domain: string;\n        readonly identity: string;\n        readonly classifications: readonly string[];\n    };\n    readonly SOLIDBOX: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDCYLINDER: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDCONE: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDSPHERE: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDSWEEP: {\n        domain: string;\n        authority: string;\n        operation: string;\n        profile: string;\n    };\n    readonly SOLIDLOFT: {\n        domain: string;\n        authority: string;\n        operation: string;\n        profile: string;\n    };\n    readonly SOLIDTRANSFORM: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDBOOLEAN: {\n        readonly domain: string;\n        readonly authority: string;\n        readonly operations: readonly string[];\n        readonly exactScope: string;\n    };\n    readonly SOLIDVALIDATE: {\n        readonly domain: string;\n        readonly authority: string;\n        readonly checks: readonly string[];\n    };\n    readonly SOLIDVOLUME: {\n        domain: string;\n        authority: string;\n        precision: string;\n    };\n};",
+          "declaration": "export declare const KJ_CORE_COMMAND_CAPABILITIES: {\n    readonly UNDO: {\n        domain: string;\n    };\n    readonly REDO: {\n        domain: string;\n    };\n    readonly SELECT: {\n        readonly domain: string;\n        readonly operations: readonly string[];\n    };\n    readonly SELECTIONSAVE: {\n        domain: string;\n        persistence: string;\n    };\n    readonly SELECTIONRESTORE: {\n        domain: string;\n        persistence: string;\n    };\n    readonly CREATE: {\n        domain: string;\n        supportedEntityTypes: string;\n    };\n    readonly CREATEBATCH: {\n        domain: string;\n        supportedEntityTypes: string;\n        atomic: boolean;\n        maximumEntities: number;\n    };\n    readonly ROAD_DRAWING_UPDATE: {\n        domain: string;\n        atomic: boolean;\n        stableIds: boolean;\n        requiresUnmodifiedPrevious: boolean;\n    };\n    readonly ERASE: {\n        domain: string;\n        supportedObjectKinds: string;\n    };\n    readonly RESTORE: {\n        domain: string;\n        supportedObjectKinds: string;\n    };\n    readonly PROPERTIES: {\n        domain: string;\n        supportedObjectKinds: string;\n    };\n    readonly SETVAR: {\n        domain: string;\n    };\n    readonly LAYERNEW: {\n        domain: string;\n    };\n    readonly LAYERCURRENT: {\n        domain: string;\n    };\n    readonly LAYERUPDATE: {\n        domain: string;\n    };\n    readonly LAYERDELETE: {\n        domain: string;\n        guard: string;\n    };\n    readonly MOVE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly ROTATE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly SCALE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly COPY: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly MIRROR: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly ARRAYRECT: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly ARRAYPOLAR: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly OFFSET: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly BREAK: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly EXPLODE: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly TRIM: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly targetEntityTypes: readonly string[];\n        readonly boundaryEntityTypes: readonly string[];\n    };\n    readonly EXTEND: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly targetEntityTypes: readonly string[];\n        readonly boundaryEntityTypes: readonly string[];\n    };\n    readonly CHAMFER: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly FILLET: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly GRIPEDIT: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly LENGTH: {\n        readonly domain: string;\n        readonly exactEntityTypes: readonly string[];\n        readonly approximateEntityTypes: readonly string[];\n    };\n    readonly AREA: {\n        readonly domain: string;\n        readonly exactEntityTypes: readonly string[];\n    };\n    readonly DISTANCE: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly modes: readonly string[];\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly ANGLE: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly modes: readonly string[];\n    };\n    readonly INTERSECT: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly NEAREST: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly ORTHO: {\n        domain: string;\n        systemVariable: string;\n    };\n    readonly SNAPSETTINGS: {\n        domain: string;\n        snapModes: readonly [\"endpoint\", \"midpoint\", \"center\", \"quadrant\", \"insertion\", \"node\", \"nearest\", \"intersection\"];\n    };\n    readonly BLOCKCREATE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly BLOCKINSERT: {\n        domain: string;\n        entityType: string;\n    };\n    readonly XREFATTACH: {\n        domain: string;\n        authority: string;\n        remoteUrls: boolean;\n    };\n    readonly XREFRELOAD: {\n        domain: string;\n        authority: string;\n    };\n    readonly XREFDETACH: {\n        domain: string;\n    };\n    readonly GROUP: {\n        domain: string;\n        persistence: string;\n    };\n    readonly HATCH: {\n        readonly domain: string;\n        readonly entityType: string;\n        readonly boundaryModes: readonly string[];\n    };\n    readonly LINETYPE: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly TEXTSTYLE: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly DIMSTYLE: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly UCS: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly LAYOUT: {\n        readonly domain: string;\n        readonly operations: readonly string[];\n    };\n    readonly VIEWPORT: {\n        readonly domain: string;\n        readonly entityType: string;\n        readonly operations: readonly string[];\n    };\n    readonly PLOTSETUP: {\n        readonly domain: string;\n        readonly persistence: string;\n        readonly devices: readonly string[];\n    };\n    readonly PLOTSTYLE: {\n        domain: string;\n        persistence: string;\n    };\n    readonly SEARCH: {\n        readonly domain: string;\n        readonly fields: readonly string[];\n    };\n    readonly COMPARE: {\n        readonly domain: string;\n        readonly identity: string;\n        readonly classifications: readonly string[];\n    };\n    readonly SOLIDBOX: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDCYLINDER: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDCONE: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDSPHERE: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDSWEEP: {\n        domain: string;\n        authority: string;\n        operation: string;\n        profile: string;\n    };\n    readonly SOLIDLOFT: {\n        domain: string;\n        authority: string;\n        operation: string;\n        profile: string;\n    };\n    readonly SOLIDTRANSFORM: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDBOOLEAN: {\n        readonly domain: string;\n        readonly authority: string;\n        readonly operations: readonly string[];\n        readonly exactScope: string;\n    };\n    readonly SOLIDVALIDATE: {\n        readonly domain: string;\n        readonly authority: string;\n        readonly checks: readonly string[];\n    };\n    readonly SOLIDVOLUME: {\n        domain: string;\n        authority: string;\n        precision: string;\n    };\n};",
           "source": "commands.d.ts",
           "anchor": "core-const-kj-core-command-capabilities"
         },
@@ -1776,7 +1797,7 @@
         {
           "name": "KJCommandArguments",
           "kind": "interface",
-          "declaration": "export interface KJCommandArguments extends Record<string, unknown> {\n    id?: string;\n    ids?: readonly string[];\n    firstId?: string;\n    secondId?: string;\n    boundaryIds?: readonly string[];\n    ownerId?: string | null;\n    layerId?: string;\n    layoutId?: string;\n    layoutName?: string;\n    blockRecordId?: string;\n    name?: string;\n    newName?: string | null;\n    type?: string;\n    operation?: string;\n    mode?: string;\n    query?: string;\n    status?: string;\n    referenceType?: string;\n    gripId?: string;\n    sha256?: string | null;\n    checkedAt?: unknown;\n    author?: unknown;\n    value?: unknown;\n    source?: unknown;\n    other?: unknown;\n    otherDocument?: unknown;\n    payload?: KJObjectPayload;\n    patch?: KJObjectPatch;\n    properties?: KJObjectPayload;\n    options?: KJObjectSpec;\n    payloadPatch?: KJObjectPayload;\n    connectorPayloadPatch?: KJObjectPayload;\n    entities?: readonly KJEntityBatchSpec[];\n    modes?: readonly string[];\n    kinds?: readonly string[];\n    types?: readonly string[];\n    boundaryLoops?: unknown;\n    attributes?: unknown;\n    mappings?: unknown;\n    pattern?: unknown;\n    settings?: Record<string, unknown>;\n    position?: unknown;\n    insertionPoint?: unknown;\n    center?: KJPointInput;\n    basePoint?: KJPointInput;\n    from?: KJPointInput;\n    to?: KJPointInput;\n    start?: KJPointInput;\n    end?: KJPointInput;\n    lineStart?: KJPointInput;\n    lineEnd?: KJPointInput;\n    point?: KJPointInput;\n    firstPoint?: KJPointInput;\n    secondPoint?: KJPointInput;\n    firstVector?: KJPointInput;\n    secondVector?: KJPointInput;\n    vertex?: KJPointInput;\n    pickPoint?: KJPointInput;\n    sidePoint?: KJPointInput;\n    points?: readonly KJPointInput[];\n    origin?: unknown;\n    xAxis?: unknown;\n    yAxis?: unknown;\n    viewCenter?: unknown;\n    frozenLayerIds?: readonly string[];\n    matrix?: unknown;\n    scale?: unknown;\n    factor?: unknown;\n    angle?: unknown;\n    angleDegrees?: unknown;\n    rotation?: unknown;\n    radius?: unknown;\n    distance?: unknown;\n    distance1?: unknown;\n    distance2?: unknown;\n    dx?: unknown;\n    dy?: unknown;\n    rows?: unknown;\n    columns?: unknown;\n    rowSpacing?: unknown;\n    columnSpacing?: unknown;\n    count?: unknown;\n    items?: unknown;\n    width?: unknown;\n    height?: unknown;\n    viewHeight?: unknown;\n    twistAngle?: unknown;\n    patternScale?: unknown;\n    patternAngle?: unknown;\n    color?: unknown;\n    lineweight?: unknown;\n    linetypeId?: unknown;\n    fontFamily?: unknown;\n    fontFile?: unknown;\n    bigFontFile?: unknown;\n    fixedHeight?: unknown;\n    widthFactor?: unknown;\n    obliqueAngle?: unknown;\n    description?: unknown;\n    patternName?: unknown;\n    enabled?: unknown;\n    visible?: unknown;\n    frozen?: unknown;\n    locked?: unknown;\n    plottable?: unknown;\n    solid?: unknown;\n    append?: unknown;\n    keepSource?: unknown;\n    eraseSource?: unknown;\n    eraseSources?: unknown;\n    includeErased?: unknown;\n    includeSource?: unknown;\n    rotateItems?: unknown;\n    selectable?: unknown;\n    side?: unknown;\n    limit?: unknown;\n}",
+          "declaration": "export interface KJCommandArguments extends Record<string, unknown> {\n    resources?: KJEntityBatchResources;\n    id?: string;\n    ids?: readonly string[];\n    firstId?: string;\n    secondId?: string;\n    boundaryIds?: readonly string[];\n    ownerId?: string | null;\n    layerId?: string;\n    layoutId?: string;\n    layoutName?: string;\n    blockRecordId?: string;\n    name?: string;\n    newName?: string | null;\n    type?: string;\n    operation?: string;\n    mode?: string;\n    query?: string;\n    status?: string;\n    referenceType?: string;\n    gripId?: string;\n    sha256?: string | null;\n    checkedAt?: unknown;\n    author?: unknown;\n    value?: unknown;\n    source?: unknown;\n    other?: unknown;\n    otherDocument?: unknown;\n    payload?: KJObjectPayload;\n    patch?: KJObjectPatch;\n    properties?: KJObjectPayload;\n    options?: KJObjectSpec;\n    payloadPatch?: KJObjectPayload;\n    connectorPayloadPatch?: KJObjectPayload;\n    entities?: readonly KJEntityBatchSpec[];\n    modes?: readonly string[];\n    kinds?: readonly string[];\n    types?: readonly string[];\n    boundaryLoops?: unknown;\n    attributes?: unknown;\n    mappings?: unknown;\n    pattern?: unknown;\n    settings?: Record<string, unknown>;\n    position?: unknown;\n    insertionPoint?: unknown;\n    center?: KJPointInput;\n    basePoint?: KJPointInput;\n    from?: KJPointInput;\n    to?: KJPointInput;\n    start?: KJPointInput;\n    end?: KJPointInput;\n    lineStart?: KJPointInput;\n    lineEnd?: KJPointInput;\n    point?: KJPointInput;\n    firstPoint?: KJPointInput;\n    secondPoint?: KJPointInput;\n    firstVector?: KJPointInput;\n    secondVector?: KJPointInput;\n    vertex?: KJPointInput;\n    pickPoint?: KJPointInput;\n    sidePoint?: KJPointInput;\n    points?: readonly KJPointInput[];\n    origin?: unknown;\n    xAxis?: unknown;\n    yAxis?: unknown;\n    viewCenter?: unknown;\n    frozenLayerIds?: readonly string[];\n    matrix?: unknown;\n    scale?: unknown;\n    factor?: unknown;\n    angle?: unknown;\n    angleDegrees?: unknown;\n    rotation?: unknown;\n    radius?: unknown;\n    distance?: unknown;\n    distance1?: unknown;\n    distance2?: unknown;\n    dx?: unknown;\n    dy?: unknown;\n    rows?: unknown;\n    columns?: unknown;\n    rowSpacing?: unknown;\n    columnSpacing?: unknown;\n    count?: unknown;\n    items?: unknown;\n    width?: unknown;\n    height?: unknown;\n    viewHeight?: unknown;\n    twistAngle?: unknown;\n    patternScale?: unknown;\n    patternAngle?: unknown;\n    color?: unknown;\n    lineweight?: unknown;\n    linetypeId?: unknown;\n    fontFamily?: unknown;\n    fontFile?: unknown;\n    bigFontFile?: unknown;\n    fixedHeight?: unknown;\n    widthFactor?: unknown;\n    obliqueAngle?: unknown;\n    description?: unknown;\n    patternName?: unknown;\n    enabled?: unknown;\n    visible?: unknown;\n    frozen?: unknown;\n    locked?: unknown;\n    plottable?: unknown;\n    solid?: unknown;\n    append?: unknown;\n    keepSource?: unknown;\n    eraseSource?: unknown;\n    eraseSources?: unknown;\n    includeErased?: unknown;\n    includeSource?: unknown;\n    rotateItems?: unknown;\n    selectable?: unknown;\n    side?: unknown;\n    limit?: unknown;\n}",
           "source": "commands.d.ts",
           "anchor": "core-interface-kjcommandarguments"
         },
@@ -2458,6 +2479,13 @@
           "declaration": "export type KJEntity<TPayload extends KJObjectPayload = KJObjectPayload> = KJObjectRecord<TPayload> & {\n    kind: 'entity';\n};",
           "source": "schema.d.ts",
           "anchor": "core-type-kjentity"
+        },
+        {
+          "name": "KJEntityBatchResources",
+          "kind": "interface",
+          "declaration": "export interface KJEntityBatchResources {\n    linetypes: {\n        id: string;\n        name: string;\n        pattern: number[];\n    }[];\n    layers: {\n        id: string;\n        name: string;\n        color: number;\n        linetypeId: string;\n        lineweight: number;\n    }[];\n}",
+          "source": "commands.d.ts",
+          "anchor": "core-interface-kjentitybatchresources"
         },
         {
           "name": "KJEntityBatchSpec",
@@ -5205,7 +5233,7 @@
         {
           "name": "default",
           "kind": "type",
-          "declaration": "export type { KJWorkbenchLayout } from './workbench.js';\nexport type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';\nexport type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';\nexport type { KJDxfPlotSettings } from './plot-settings.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
+          "declaration": "export type { KJWorkbenchLayout } from './workbench.js';\nexport type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-revision.js';\nexport type { KJAgentRoadDrawingInput } from './agent-road-drawing.js';\nexport type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';\nexport type { KJAgentCompactDrawingInput } from './agent-drawing-compact.js';\nexport type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';\nexport type { KJDxfPlotSettings } from './plot-settings.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
           "source": "editor.d.ts",
           "anchor": "root-type-default"
         },
@@ -5583,7 +5611,7 @@
         {
           "name": "KJ_CORE_COMMAND_CAPABILITIES",
           "kind": "const",
-          "declaration": "export declare const KJ_CORE_COMMAND_CAPABILITIES: {\n    readonly UNDO: {\n        domain: string;\n    };\n    readonly REDO: {\n        domain: string;\n    };\n    readonly SELECT: {\n        readonly domain: string;\n        readonly operations: readonly string[];\n    };\n    readonly SELECTIONSAVE: {\n        domain: string;\n        persistence: string;\n    };\n    readonly SELECTIONRESTORE: {\n        domain: string;\n        persistence: string;\n    };\n    readonly CREATE: {\n        domain: string;\n        supportedEntityTypes: string;\n    };\n    readonly CREATEBATCH: {\n        domain: string;\n        supportedEntityTypes: string;\n        atomic: boolean;\n        maximumEntities: number;\n    };\n    readonly ERASE: {\n        domain: string;\n        supportedObjectKinds: string;\n    };\n    readonly RESTORE: {\n        domain: string;\n        supportedObjectKinds: string;\n    };\n    readonly PROPERTIES: {\n        domain: string;\n        supportedObjectKinds: string;\n    };\n    readonly SETVAR: {\n        domain: string;\n    };\n    readonly LAYERNEW: {\n        domain: string;\n    };\n    readonly LAYERCURRENT: {\n        domain: string;\n    };\n    readonly LAYERUPDATE: {\n        domain: string;\n    };\n    readonly LAYERDELETE: {\n        domain: string;\n        guard: string;\n    };\n    readonly MOVE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly ROTATE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly SCALE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly COPY: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly MIRROR: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly ARRAYRECT: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly ARRAYPOLAR: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly OFFSET: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly BREAK: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly EXPLODE: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly TRIM: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly targetEntityTypes: readonly string[];\n        readonly boundaryEntityTypes: readonly string[];\n    };\n    readonly EXTEND: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly targetEntityTypes: readonly string[];\n        readonly boundaryEntityTypes: readonly string[];\n    };\n    readonly CHAMFER: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly FILLET: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly GRIPEDIT: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly LENGTH: {\n        readonly domain: string;\n        readonly exactEntityTypes: readonly string[];\n        readonly approximateEntityTypes: readonly string[];\n    };\n    readonly AREA: {\n        readonly domain: string;\n        readonly exactEntityTypes: readonly string[];\n    };\n    readonly DISTANCE: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly modes: readonly string[];\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly ANGLE: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly modes: readonly string[];\n    };\n    readonly INTERSECT: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly NEAREST: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly ORTHO: {\n        domain: string;\n        systemVariable: string;\n    };\n    readonly SNAPSETTINGS: {\n        domain: string;\n        snapModes: readonly [\"endpoint\", \"midpoint\", \"center\", \"quadrant\", \"insertion\", \"node\", \"nearest\", \"intersection\"];\n    };\n    readonly BLOCKCREATE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly BLOCKINSERT: {\n        domain: string;\n        entityType: string;\n    };\n    readonly XREFATTACH: {\n        domain: string;\n        authority: string;\n        remoteUrls: boolean;\n    };\n    readonly XREFRELOAD: {\n        domain: string;\n        authority: string;\n    };\n    readonly XREFDETACH: {\n        domain: string;\n    };\n    readonly GROUP: {\n        domain: string;\n        persistence: string;\n    };\n    readonly HATCH: {\n        readonly domain: string;\n        readonly entityType: string;\n        readonly boundaryModes: readonly string[];\n    };\n    readonly LINETYPE: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly TEXTSTYLE: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly DIMSTYLE: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly UCS: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly LAYOUT: {\n        readonly domain: string;\n        readonly operations: readonly string[];\n    };\n    readonly VIEWPORT: {\n        readonly domain: string;\n        readonly entityType: string;\n        readonly operations: readonly string[];\n    };\n    readonly PLOTSETUP: {\n        readonly domain: string;\n        readonly persistence: string;\n        readonly devices: readonly string[];\n    };\n    readonly PLOTSTYLE: {\n        domain: string;\n        persistence: string;\n    };\n    readonly SEARCH: {\n        readonly domain: string;\n        readonly fields: readonly string[];\n    };\n    readonly COMPARE: {\n        readonly domain: string;\n        readonly identity: string;\n        readonly classifications: readonly string[];\n    };\n    readonly SOLIDBOX: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDCYLINDER: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDCONE: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDSPHERE: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDSWEEP: {\n        domain: string;\n        authority: string;\n        operation: string;\n        profile: string;\n    };\n    readonly SOLIDLOFT: {\n        domain: string;\n        authority: string;\n        operation: string;\n        profile: string;\n    };\n    readonly SOLIDTRANSFORM: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDBOOLEAN: {\n        readonly domain: string;\n        readonly authority: string;\n        readonly operations: readonly string[];\n        readonly exactScope: string;\n    };\n    readonly SOLIDVALIDATE: {\n        readonly domain: string;\n        readonly authority: string;\n        readonly checks: readonly string[];\n    };\n    readonly SOLIDVOLUME: {\n        domain: string;\n        authority: string;\n        precision: string;\n    };\n};",
+          "declaration": "export declare const KJ_CORE_COMMAND_CAPABILITIES: {\n    readonly UNDO: {\n        domain: string;\n    };\n    readonly REDO: {\n        domain: string;\n    };\n    readonly SELECT: {\n        readonly domain: string;\n        readonly operations: readonly string[];\n    };\n    readonly SELECTIONSAVE: {\n        domain: string;\n        persistence: string;\n    };\n    readonly SELECTIONRESTORE: {\n        domain: string;\n        persistence: string;\n    };\n    readonly CREATE: {\n        domain: string;\n        supportedEntityTypes: string;\n    };\n    readonly CREATEBATCH: {\n        domain: string;\n        supportedEntityTypes: string;\n        atomic: boolean;\n        maximumEntities: number;\n    };\n    readonly ROAD_DRAWING_UPDATE: {\n        domain: string;\n        atomic: boolean;\n        stableIds: boolean;\n        requiresUnmodifiedPrevious: boolean;\n    };\n    readonly ERASE: {\n        domain: string;\n        supportedObjectKinds: string;\n    };\n    readonly RESTORE: {\n        domain: string;\n        supportedObjectKinds: string;\n    };\n    readonly PROPERTIES: {\n        domain: string;\n        supportedObjectKinds: string;\n    };\n    readonly SETVAR: {\n        domain: string;\n    };\n    readonly LAYERNEW: {\n        domain: string;\n    };\n    readonly LAYERCURRENT: {\n        domain: string;\n    };\n    readonly LAYERUPDATE: {\n        domain: string;\n    };\n    readonly LAYERDELETE: {\n        domain: string;\n        guard: string;\n    };\n    readonly MOVE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly ROTATE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly SCALE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly COPY: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly MIRROR: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly ARRAYRECT: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly ARRAYPOLAR: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly OFFSET: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly BREAK: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly EXPLODE: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly TRIM: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly targetEntityTypes: readonly string[];\n        readonly boundaryEntityTypes: readonly string[];\n    };\n    readonly EXTEND: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly targetEntityTypes: readonly string[];\n        readonly boundaryEntityTypes: readonly string[];\n    };\n    readonly CHAMFER: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly FILLET: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly GRIPEDIT: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly LENGTH: {\n        readonly domain: string;\n        readonly exactEntityTypes: readonly string[];\n        readonly approximateEntityTypes: readonly string[];\n    };\n    readonly AREA: {\n        readonly domain: string;\n        readonly exactEntityTypes: readonly string[];\n    };\n    readonly DISTANCE: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly modes: readonly string[];\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly ANGLE: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly modes: readonly string[];\n    };\n    readonly INTERSECT: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly NEAREST: {\n        readonly domain: string;\n        readonly precision: string;\n        readonly supportedEntityTypes: readonly string[];\n    };\n    readonly ORTHO: {\n        domain: string;\n        systemVariable: string;\n    };\n    readonly SNAPSETTINGS: {\n        domain: string;\n        snapModes: readonly [\"endpoint\", \"midpoint\", \"center\", \"quadrant\", \"insertion\", \"node\", \"nearest\", \"intersection\"];\n    };\n    readonly BLOCKCREATE: {\n        domain: string;\n        precision: string;\n        supportedEntityTypes: readonly string[];\n    };\n    readonly BLOCKINSERT: {\n        domain: string;\n        entityType: string;\n    };\n    readonly XREFATTACH: {\n        domain: string;\n        authority: string;\n        remoteUrls: boolean;\n    };\n    readonly XREFRELOAD: {\n        domain: string;\n        authority: string;\n    };\n    readonly XREFDETACH: {\n        domain: string;\n    };\n    readonly GROUP: {\n        domain: string;\n        persistence: string;\n    };\n    readonly HATCH: {\n        readonly domain: string;\n        readonly entityType: string;\n        readonly boundaryModes: readonly string[];\n    };\n    readonly LINETYPE: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly TEXTSTYLE: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly DIMSTYLE: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly UCS: {\n        readonly domain: string;\n        readonly table: string;\n        readonly operations: readonly string[];\n    };\n    readonly LAYOUT: {\n        readonly domain: string;\n        readonly operations: readonly string[];\n    };\n    readonly VIEWPORT: {\n        readonly domain: string;\n        readonly entityType: string;\n        readonly operations: readonly string[];\n    };\n    readonly PLOTSETUP: {\n        readonly domain: string;\n        readonly persistence: string;\n        readonly devices: readonly string[];\n    };\n    readonly PLOTSTYLE: {\n        domain: string;\n        persistence: string;\n    };\n    readonly SEARCH: {\n        readonly domain: string;\n        readonly fields: readonly string[];\n    };\n    readonly COMPARE: {\n        readonly domain: string;\n        readonly identity: string;\n        readonly classifications: readonly string[];\n    };\n    readonly SOLIDBOX: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDCYLINDER: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDCONE: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDSPHERE: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDSWEEP: {\n        domain: string;\n        authority: string;\n        operation: string;\n        profile: string;\n    };\n    readonly SOLIDLOFT: {\n        domain: string;\n        authority: string;\n        operation: string;\n        profile: string;\n    };\n    readonly SOLIDTRANSFORM: {\n        domain: string;\n        authority: string;\n        operation: string;\n    };\n    readonly SOLIDBOOLEAN: {\n        readonly domain: string;\n        readonly authority: string;\n        readonly operations: readonly string[];\n        readonly exactScope: string;\n    };\n    readonly SOLIDVALIDATE: {\n        readonly domain: string;\n        readonly authority: string;\n        readonly checks: readonly string[];\n    };\n    readonly SOLIDVOLUME: {\n        domain: string;\n        authority: string;\n        precision: string;\n    };\n};",
           "source": "commands.d.ts",
           "anchor": "root-const-kj-core-command-capabilities"
         },
@@ -5693,6 +5721,13 @@
           "anchor": "root-class-kjadaptererror"
         },
         {
+          "name": "KJAgentAnnotatedDrawingInput",
+          "kind": "interface",
+          "declaration": "export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput {\n    styles: {\n        name: string;\n        sources: string[];\n        pattern: number[];\n        color: number;\n        lineweight: number;\n    }[];\n    texts: KJAgentAnnotationInput['texts'];\n    alignedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'ALIGNED';\n    }>, 'type'>[];\n    rotatedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'ROTATED';\n    }>, 'type'>[];\n    radiusDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'RADIUS' | 'DIAMETER';\n    }>, 'type'>[];\n    diameterDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'RADIUS' | 'DIAMETER';\n    }>, 'type'>[];\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-interface-kjagentannotateddrawinginput"
+        },
+        {
           "name": "KJAgentCapabilityLockEntry",
           "kind": "interface",
           "declaration": "export interface KJAgentCapabilityLockEntry extends KJAgentCapabilityReference {\n    /** Change detection only: not a cryptographic signature or publisher authentication. */\n    readonly contentHash: string;\n}",
@@ -5756,6 +5791,13 @@
           "anchor": "root-interface-kjagentmodel"
         },
         {
+          "name": "KJAgentPatternDrawingInput",
+          "kind": "interface",
+          "declaration": "export interface KJAgentPatternDrawingInput extends KJAgentCompactDrawingInput {\n    arrays: (KJRectangularDrawingPattern & {\n        sources: string[];\n    })[];\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-interface-kjagentpatterndrawinginput"
+        },
+        {
           "name": "KJAgentPlanBindingContext",
           "kind": "interface",
           "declaration": "export interface KJAgentPlanBindingContext {\n    phase: 'create' | 'verify';\n    planId: string;\n    command: string;\n    documentId: string;\n    expectedRevision: number;\n}",
@@ -5807,7 +5849,7 @@
         {
           "name": "KJAgentRunOptions",
           "kind": "interface",
-          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    /** Host-trusted domain knowledge, selected by an exact project lock. Never grants extra tools. */\n    capabilities?: {\n        registry: KJAgentCapabilityRegistry;\n        lock: readonly KJAgentCapabilityLockEntry[];\n    };\n    maxTurns?: number;\n    maxToolCalls?: number;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n    /** Host UI progress; contains no drawing payload or model reasoning. */\n    onProgress?: (progress: Readonly<KJAgentRunProgress>) => void;\n}",
+          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Explicit host-supplied drawing images; the selected model must support vision. */\n    images?: readonly KJModelImage[];\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    /** Host-trusted domain knowledge, selected by an exact project lock. Never grants extra tools. */\n    capabilities?: {\n        registry: KJAgentCapabilityRegistry;\n        lock: readonly KJAgentCapabilityLockEntry[];\n    };\n    maxTurns?: number;\n    maxToolCalls?: number;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n    /** Host UI progress; contains no drawing payload or model reasoning. */\n    onProgress?: (progress: Readonly<KJAgentRunProgress>) => void;\n}",
           "source": "agent-runner.d.ts",
           "anchor": "root-interface-kjagentrunoptions"
         },
@@ -5849,7 +5891,7 @@
         {
           "name": "KJAgentToolSession",
           "kind": "class",
-          "declaration": "export declare class KJAgentToolSession {\n    #private;\n    /** Bind unit schemas to the drawing so models see its canonical unit name. */\n    get definitions(): readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument);\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
+          "declaration": "export declare class KJAgentToolSession {\n    #private;\n    /** Bind unit schemas to the drawing so models see its canonical unit name. */\n    get definitions(): readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument);\n    /** Trusted host operation: verify saved parameters against all current generated objects.\n     * Registration is bound to this exact document revision and is not model-callable. */\n    registerRoadDrawingRecipe(recipe: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
           "source": "agent-tools.d.ts",
           "anchor": "root-class-kjagenttoolsession"
         },
@@ -5947,7 +5989,7 @@
         {
           "name": "KJCommandArguments",
           "kind": "interface",
-          "declaration": "export interface KJCommandArguments extends Record<string, unknown> {\n    id?: string;\n    ids?: readonly string[];\n    firstId?: string;\n    secondId?: string;\n    boundaryIds?: readonly string[];\n    ownerId?: string | null;\n    layerId?: string;\n    layoutId?: string;\n    layoutName?: string;\n    blockRecordId?: string;\n    name?: string;\n    newName?: string | null;\n    type?: string;\n    operation?: string;\n    mode?: string;\n    query?: string;\n    status?: string;\n    referenceType?: string;\n    gripId?: string;\n    sha256?: string | null;\n    checkedAt?: unknown;\n    author?: unknown;\n    value?: unknown;\n    source?: unknown;\n    other?: unknown;\n    otherDocument?: unknown;\n    payload?: KJObjectPayload;\n    patch?: KJObjectPatch;\n    properties?: KJObjectPayload;\n    options?: KJObjectSpec;\n    payloadPatch?: KJObjectPayload;\n    connectorPayloadPatch?: KJObjectPayload;\n    entities?: readonly KJEntityBatchSpec[];\n    modes?: readonly string[];\n    kinds?: readonly string[];\n    types?: readonly string[];\n    boundaryLoops?: unknown;\n    attributes?: unknown;\n    mappings?: unknown;\n    pattern?: unknown;\n    settings?: Record<string, unknown>;\n    position?: unknown;\n    insertionPoint?: unknown;\n    center?: KJPointInput;\n    basePoint?: KJPointInput;\n    from?: KJPointInput;\n    to?: KJPointInput;\n    start?: KJPointInput;\n    end?: KJPointInput;\n    lineStart?: KJPointInput;\n    lineEnd?: KJPointInput;\n    point?: KJPointInput;\n    firstPoint?: KJPointInput;\n    secondPoint?: KJPointInput;\n    firstVector?: KJPointInput;\n    secondVector?: KJPointInput;\n    vertex?: KJPointInput;\n    pickPoint?: KJPointInput;\n    sidePoint?: KJPointInput;\n    points?: readonly KJPointInput[];\n    origin?: unknown;\n    xAxis?: unknown;\n    yAxis?: unknown;\n    viewCenter?: unknown;\n    frozenLayerIds?: readonly string[];\n    matrix?: unknown;\n    scale?: unknown;\n    factor?: unknown;\n    angle?: unknown;\n    angleDegrees?: unknown;\n    rotation?: unknown;\n    radius?: unknown;\n    distance?: unknown;\n    distance1?: unknown;\n    distance2?: unknown;\n    dx?: unknown;\n    dy?: unknown;\n    rows?: unknown;\n    columns?: unknown;\n    rowSpacing?: unknown;\n    columnSpacing?: unknown;\n    count?: unknown;\n    items?: unknown;\n    width?: unknown;\n    height?: unknown;\n    viewHeight?: unknown;\n    twistAngle?: unknown;\n    patternScale?: unknown;\n    patternAngle?: unknown;\n    color?: unknown;\n    lineweight?: unknown;\n    linetypeId?: unknown;\n    fontFamily?: unknown;\n    fontFile?: unknown;\n    bigFontFile?: unknown;\n    fixedHeight?: unknown;\n    widthFactor?: unknown;\n    obliqueAngle?: unknown;\n    description?: unknown;\n    patternName?: unknown;\n    enabled?: unknown;\n    visible?: unknown;\n    frozen?: unknown;\n    locked?: unknown;\n    plottable?: unknown;\n    solid?: unknown;\n    append?: unknown;\n    keepSource?: unknown;\n    eraseSource?: unknown;\n    eraseSources?: unknown;\n    includeErased?: unknown;\n    includeSource?: unknown;\n    rotateItems?: unknown;\n    selectable?: unknown;\n    side?: unknown;\n    limit?: unknown;\n}",
+          "declaration": "export interface KJCommandArguments extends Record<string, unknown> {\n    resources?: KJEntityBatchResources;\n    id?: string;\n    ids?: readonly string[];\n    firstId?: string;\n    secondId?: string;\n    boundaryIds?: readonly string[];\n    ownerId?: string | null;\n    layerId?: string;\n    layoutId?: string;\n    layoutName?: string;\n    blockRecordId?: string;\n    name?: string;\n    newName?: string | null;\n    type?: string;\n    operation?: string;\n    mode?: string;\n    query?: string;\n    status?: string;\n    referenceType?: string;\n    gripId?: string;\n    sha256?: string | null;\n    checkedAt?: unknown;\n    author?: unknown;\n    value?: unknown;\n    source?: unknown;\n    other?: unknown;\n    otherDocument?: unknown;\n    payload?: KJObjectPayload;\n    patch?: KJObjectPatch;\n    properties?: KJObjectPayload;\n    options?: KJObjectSpec;\n    payloadPatch?: KJObjectPayload;\n    connectorPayloadPatch?: KJObjectPayload;\n    entities?: readonly KJEntityBatchSpec[];\n    modes?: readonly string[];\n    kinds?: readonly string[];\n    types?: readonly string[];\n    boundaryLoops?: unknown;\n    attributes?: unknown;\n    mappings?: unknown;\n    pattern?: unknown;\n    settings?: Record<string, unknown>;\n    position?: unknown;\n    insertionPoint?: unknown;\n    center?: KJPointInput;\n    basePoint?: KJPointInput;\n    from?: KJPointInput;\n    to?: KJPointInput;\n    start?: KJPointInput;\n    end?: KJPointInput;\n    lineStart?: KJPointInput;\n    lineEnd?: KJPointInput;\n    point?: KJPointInput;\n    firstPoint?: KJPointInput;\n    secondPoint?: KJPointInput;\n    firstVector?: KJPointInput;\n    secondVector?: KJPointInput;\n    vertex?: KJPointInput;\n    pickPoint?: KJPointInput;\n    sidePoint?: KJPointInput;\n    points?: readonly KJPointInput[];\n    origin?: unknown;\n    xAxis?: unknown;\n    yAxis?: unknown;\n    viewCenter?: unknown;\n    frozenLayerIds?: readonly string[];\n    matrix?: unknown;\n    scale?: unknown;\n    factor?: unknown;\n    angle?: unknown;\n    angleDegrees?: unknown;\n    rotation?: unknown;\n    radius?: unknown;\n    distance?: unknown;\n    distance1?: unknown;\n    distance2?: unknown;\n    dx?: unknown;\n    dy?: unknown;\n    rows?: unknown;\n    columns?: unknown;\n    rowSpacing?: unknown;\n    columnSpacing?: unknown;\n    count?: unknown;\n    items?: unknown;\n    width?: unknown;\n    height?: unknown;\n    viewHeight?: unknown;\n    twistAngle?: unknown;\n    patternScale?: unknown;\n    patternAngle?: unknown;\n    color?: unknown;\n    lineweight?: unknown;\n    linetypeId?: unknown;\n    fontFamily?: unknown;\n    fontFile?: unknown;\n    bigFontFile?: unknown;\n    fixedHeight?: unknown;\n    widthFactor?: unknown;\n    obliqueAngle?: unknown;\n    description?: unknown;\n    patternName?: unknown;\n    enabled?: unknown;\n    visible?: unknown;\n    frozen?: unknown;\n    locked?: unknown;\n    plottable?: unknown;\n    solid?: unknown;\n    append?: unknown;\n    keepSource?: unknown;\n    eraseSource?: unknown;\n    eraseSources?: unknown;\n    includeErased?: unknown;\n    includeSource?: unknown;\n    rotateItems?: unknown;\n    selectable?: unknown;\n    side?: unknown;\n    limit?: unknown;\n}",
           "source": "commands.d.ts",
           "anchor": "root-interface-kjcommandarguments"
         },
@@ -6876,6 +6918,13 @@
           "anchor": "root-type-kjentity"
         },
         {
+          "name": "KJEntityBatchResources",
+          "kind": "interface",
+          "declaration": "export interface KJEntityBatchResources {\n    linetypes: {\n        id: string;\n        name: string;\n        pattern: number[];\n    }[];\n    layers: {\n        id: string;\n        name: string;\n        color: number;\n        linetypeId: string;\n        lineweight: number;\n    }[];\n}",
+          "source": "commands.d.ts",
+          "anchor": "root-interface-kjentitybatchresources"
+        },
+        {
           "name": "KJEntityBatchSpec",
           "kind": "interface",
           "declaration": "export interface KJEntityBatchSpec extends Record<string, unknown> {\n    type?: string;\n    payload?: KJObjectPayload;\n    options?: KJObjectSpec;\n    layerName?: string;\n    layer?: {\n        color?: unknown;\n        visible?: unknown;\n        frozen?: unknown;\n        locked?: unknown;\n        plottable?: unknown;\n    };\n}",
@@ -7233,9 +7282,16 @@
           "anchor": "root-class-kjmodelerror"
         },
         {
+          "name": "KJModelImage",
+          "kind": "type",
+          "declaration": "export type KJModelImage = {\n    readonly dataUrl: string;\n} | {\n    readonly mimeType: 'image/png' | 'image/jpeg';\n    readonly base64: string;\n};",
+          "source": "model-adapters.d.ts",
+          "anchor": "root-type-kjmodelimage"
+        },
+        {
           "name": "KJModelInput",
           "kind": "type",
-          "declaration": "export type KJModelInput = {\n    readonly kind: 'prompt';\n    readonly text: string;\n} | {\n    readonly kind: 'tool-results';\n    readonly results: readonly KJModelToolOutput[];\n};",
+          "declaration": "export type KJModelInput = {\n    readonly kind: 'prompt';\n    readonly text: string;\n    readonly images?: readonly KJModelImage[];\n} | {\n    readonly kind: 'tool-results';\n    readonly results: readonly KJModelToolOutput[];\n};",
           "source": "model-adapters.d.ts",
           "anchor": "root-type-kjmodelinput"
         },
@@ -11287,9 +11343,16 @@
           "anchor": "renderer-canvas-interface-kjcanvaspreviewentity"
         },
         {
+          "name": "KJCanvasPreviewResource",
+          "kind": "interface",
+          "declaration": "export interface KJCanvasPreviewResource {\n    readonly id: string;\n    readonly payload: Readonly<Record<string, unknown>>;\n}",
+          "source": "canvas-renderer.d.ts",
+          "anchor": "renderer-canvas-interface-kjcanvaspreviewresource"
+        },
+        {
           "name": "KJCanvasRenderer",
           "kind": "class",
-          "declaration": "export declare class KJCanvasRenderer {\n    #private;\n    readonly canvas: HTMLCanvasElement;\n    readonly context: CanvasRenderingContext2D;\n    readonly camera: KJCanvasCamera;\n    constructor(canvas: HTMLCanvasElement, options?: KJCanvasRendererOptions);\n    get document(): KJDocument | null;\n    get spaceId(): string | null;\n    get theme(): KJCanvasTheme;\n    get grid(): boolean;\n    get selection(): readonly string[];\n    get report(): Readonly<KJCanvasRenderReport>;\n    setDocument(document: KJDocument | null): this;\n    setTheme(theme: KJCanvasTheme): this;\n    setGrid(enabled: boolean): this;\n    setSelection(ids?: readonly string[]): this;\n    setSpace(spaceId: string | null): this;\n    setSceneProvider(provider: KJCanvasSceneProvider | null): this;\n    resize(width?: number, height?: number): this;\n    worldToScreen(input: Point2): Point2;\n    screenToWorld(input: Point2): Point2;\n    panBy(screenDx: number, screenDy: number): this;\n    zoomAt(factor: number, screenPoint?: Point2): this;\n    fit(): this;\n    hitTest(screenPoint: Point2, tolerancePixels?: number, options?: KJCanvasSelectionOptions): KJCanvasHit | null;\n    /** Screen-coordinate box query. Left to right defaults to window; right to left to crossing. */\n    selectBox(first: Point2, second: Point2, options?: KJCanvasBoxSelectionOptions): readonly string[];\n    selectFence(points: readonly Point2[], options?: KJCanvasSelectionOptions): readonly string[];\n    selectAll(options?: KJCanvasSelectionOptions): readonly string[];\n    /** Returns editable model-space handles without changing selection or document history. */\n    getGrips(ids?: readonly string[]): readonly KJEntityGrip[];\n    hitGrip(screenPoint: Point2, tolerancePixels?: number): KJEntityGrip | null;\n    /** Optional handle overlay; render() clears it, leaving inspect/read-only hosts in control. */\n    drawGrips(hoverId?: string): this;\n    render(): Readonly<KJCanvasRenderReport>;\n    /** Paint temporary native geometry without inserting objects or changing history. Call render() to clear it. */\n    drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2): this;\n    dispose(): void;\n}",
+          "declaration": "export declare class KJCanvasRenderer {\n    #private;\n    readonly canvas: HTMLCanvasElement;\n    readonly context: CanvasRenderingContext2D;\n    readonly camera: KJCanvasCamera;\n    constructor(canvas: HTMLCanvasElement, options?: KJCanvasRendererOptions);\n    get document(): KJDocument | null;\n    get spaceId(): string | null;\n    get theme(): KJCanvasTheme;\n    get grid(): boolean;\n    get selection(): readonly string[];\n    get report(): Readonly<KJCanvasRenderReport>;\n    setDocument(document: KJDocument | null): this;\n    setTheme(theme: KJCanvasTheme): this;\n    setGrid(enabled: boolean): this;\n    setSelection(ids?: readonly string[]): this;\n    setSpace(spaceId: string | null): this;\n    setSceneProvider(provider: KJCanvasSceneProvider | null): this;\n    resize(width?: number, height?: number): this;\n    worldToScreen(input: Point2): Point2;\n    screenToWorld(input: Point2): Point2;\n    panBy(screenDx: number, screenDy: number): this;\n    zoomAt(factor: number, screenPoint?: Point2): this;\n    fit(): this;\n    hitTest(screenPoint: Point2, tolerancePixels?: number, options?: KJCanvasSelectionOptions): KJCanvasHit | null;\n    /** Screen-coordinate box query. Left to right defaults to window; right to left to crossing. */\n    selectBox(first: Point2, second: Point2, options?: KJCanvasBoxSelectionOptions): readonly string[];\n    selectFence(points: readonly Point2[], options?: KJCanvasSelectionOptions): readonly string[];\n    selectAll(options?: KJCanvasSelectionOptions): readonly string[];\n    /** Returns editable model-space handles without changing selection or document history. */\n    getGrips(ids?: readonly string[]): readonly KJEntityGrip[];\n    hitGrip(screenPoint: Point2, tolerancePixels?: number): KJEntityGrip | null;\n    /** Optional handle overlay; render() clears it, leaving inspect/read-only hosts in control. */\n    drawGrips(hoverId?: string): this;\n    render(): Readonly<KJCanvasRenderReport>;\n    drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2, resources?: readonly KJCanvasPreviewResource[]): this;\n    dispose(): void;\n}",
           "source": "canvas-renderer.d.ts",
           "anchor": "renderer-canvas-class-kjcanvasrenderer"
         },
@@ -11303,7 +11366,7 @@
         {
           "name": "KJCanvasRenderReport",
           "kind": "interface",
-          "declaration": "export interface KJCanvasRenderReport {\n    hatchDiagnostics?: readonly {\n        entityId: string;\n        reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary';\n        samplingReason?: KJHatchCoverageReason | 'pixel-budget' | 'canvas-unavailable';\n    }[];\n    total: number;\n    rendered: number;\n    approximated: number;\n    hidden: number;\n    unsupported: number;\n    approximateTypes: readonly string[];\n    unsupportedTypes: readonly string[];\n    width: number;\n    height: number;\n    scale: number;\n}",
+          "declaration": "export interface KJCanvasRenderReport {\n    viewportDiagnostics?: readonly KJCanvasViewportDiagnostic[];\n    hatchDiagnostics?: readonly {\n        entityId: string;\n        reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary';\n        samplingReason?: KJHatchCoverageReason | 'pixel-budget' | 'canvas-unavailable';\n    }[];\n    total: number;\n    rendered: number;\n    approximated: number;\n    hidden: number;\n    unsupported: number;\n    approximateTypes: readonly string[];\n    unsupportedTypes: readonly string[];\n    width: number;\n    height: number;\n    scale: number;\n}",
           "source": "canvas-renderer.d.ts",
           "anchor": "renderer-canvas-interface-kjcanvasrenderreport"
         },
@@ -11334,6 +11397,13 @@
           "declaration": "export type KJCanvasTheme = 'dark' | 'light';",
           "source": "canvas-renderer.d.ts",
           "anchor": "renderer-canvas-type-kjcanvastheme"
+        },
+        {
+          "name": "KJCanvasViewportDiagnostic",
+          "kind": "interface",
+          "declaration": "export interface KJCanvasViewportDiagnostic {\n    entityId: string;\n    rendered: number;\n    hidden: number;\n    approximated: number;\n    unsupported: number;\n    reason?: 'invalid-view' | 'unsupported-view' | 'not-paper-space' | 'budget';\n}",
+          "source": "canvas-renderer.d.ts",
+          "anchor": "renderer-canvas-interface-kjcanvasviewportdiagnostic"
         }
       ]
     },
@@ -11360,7 +11430,7 @@
         {
           "name": "KJDrawWorkbench",
           "kind": "class",
-          "declaration": "export declare class KJDrawWorkbench {\n    #private;\n    readonly container: HTMLElement | ShadowRoot;\n    readonly root: HTMLElement;\n    readonly sdk: KJDrawSDK;\n    readonly renderer: KJCanvasRenderer;\n    readonly ready: Promise<this>;\n    constructor(container: HTMLElement | ShadowRoot, options?: KJDrawWorkbenchOptions);\n    get document(): KJDocument | null;\n    get locale(): KJWorkbenchLocale;\n    get theme(): KJWorkbenchTheme;\n    get layout(): KJWorkbenchLayout;\n    get tool(): KJWorkbenchTool;\n    /** Change presentation without replacing the drawing or its undo history. */\n    setOptions(options: Pick<KJDrawWorkbenchOptions, 'readonly' | 'grid' | 'toolbar' | 'showLayers' | 'showInspector' | 'title' | 'maxFileBytes' | 'layout'>): this;\n    setLocale(locale: KJWorkbenchLocale): this;\n    snapshot(): Readonly<KJWorkbenchSnapshot>;\n    setTheme(theme: KJWorkbenchTheme): this;\n    setLayout(value: KJWorkbenchLayout): this;\n    setTool(tool: KJWorkbenchTool): this;\n    setDocument(document: KJDocument): Promise<this>;\n    open(source: unknown, options?: KJWorkbenchOpenOptions): Promise<KJDocument>;\n    execute<TResult = unknown>(command: string, args?: KJCommandArguments, options?: {\n        expectedRevision?: number;\n    }): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    save(format?: 'KJD' | 'DXF', options?: KJWorkbenchSaveOptions): Promise<unknown>;\n    dispose(): void;\n}",
+          "declaration": "export declare class KJDrawWorkbench {\n    #private;\n    readonly container: HTMLElement | ShadowRoot;\n    readonly root: HTMLElement;\n    readonly sdk: KJDrawSDK;\n    readonly renderer: KJCanvasRenderer;\n    readonly ready: Promise<this>;\n    constructor(container: HTMLElement | ShadowRoot, options?: KJDrawWorkbenchOptions);\n    get document(): KJDocument | null;\n    get locale(): KJWorkbenchLocale;\n    get theme(): KJWorkbenchTheme;\n    get layout(): KJWorkbenchLayout;\n    /** Null means model space; independent of the classic/compact/focus interface layout. */\n    get drawingLayoutId(): string | null;\n    get spaceId(): string | null;\n    get paperPreview(): boolean;\n    get tool(): KJWorkbenchTool;\n    /** Switch the displayed model/paper space without changing document state or undo history.\n     * Existing paper layouts are read-only previews; return to null (Model) to edit.\n     */\n    setDrawingLayout(layoutId: string | null): this;\n    /** Change presentation without replacing the drawing or its undo history. */\n    setOptions(options: Pick<KJDrawWorkbenchOptions, 'readonly' | 'grid' | 'toolbar' | 'showLayers' | 'showInspector' | 'title' | 'maxFileBytes' | 'layout'>): this;\n    setLocale(locale: KJWorkbenchLocale): this;\n    snapshot(): Readonly<KJWorkbenchSnapshot>;\n    setTheme(theme: KJWorkbenchTheme): this;\n    setLayout(value: KJWorkbenchLayout): this;\n    setTool(tool: KJWorkbenchTool): this;\n    setDocument(document: KJDocument): Promise<this>;\n    open(source: unknown, options?: KJWorkbenchOpenOptions): Promise<KJDocument>;\n    execute<TResult = unknown>(command: string, args?: KJCommandArguments, options?: {\n        expectedRevision?: number;\n    }): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    save(format?: 'KJD' | 'DXF', options?: KJWorkbenchSaveOptions): Promise<unknown>;\n    dispose(): void;\n}",
           "source": "workbench.d.ts",
           "anchor": "workbench-class-kjdrawworkbench"
         },
@@ -11402,7 +11472,7 @@
         {
           "name": "KJWorkbenchSnapshot",
           "kind": "interface",
-          "declaration": "export interface KJWorkbenchSnapshot {\n    locale: KJWorkbenchLocale;\n    theme: KJWorkbenchTheme;\n    layout: KJWorkbenchLayout;\n    tool: KJWorkbenchTool;\n    documentId: string | null;\n    revision: number;\n    entityCount: number;\n    selectedIds: readonly string[];\n    render: ReturnType<KJCanvasRenderer['render']>;\n}",
+          "declaration": "export interface KJWorkbenchSnapshot {\n    locale: KJWorkbenchLocale;\n    theme: KJWorkbenchTheme;\n    layout: KJWorkbenchLayout;\n    drawingLayoutId: string | null;\n    spaceId: string | null;\n    paperPreview: boolean;\n    tool: KJWorkbenchTool;\n    documentId: string | null;\n    revision: number;\n    entityCount: number;\n    selectedIds: readonly string[];\n    render: ReturnType<KJCanvasRenderer['render']>;\n}",
           "source": "workbench.d.ts",
           "anchor": "workbench-interface-kjworkbenchsnapshot"
         },
@@ -11426,6 +11496,229 @@
           "declaration": "export declare function mountKJDrawWorkbench(container: HTMLElement | ShadowRoot, options?: KJDrawWorkbenchOptions): KJDrawWorkbench;",
           "source": "workbench.d.ts",
           "anchor": "workbench-function-mountkjdrawworkbench"
+        }
+      ]
+    },
+    {
+      "exportPath": "./road-design",
+      "packageName": "@kanjieteam/kjdraw/road-design",
+      "declaration": "types/road-design.d.ts",
+      "anchor": "module-road-design",
+      "symbols": [
+        {
+          "name": "computeRoadDesign",
+          "kind": "function",
+          "declaration": "export declare function computeRoadDesign(input: KJRoadDesignInput): ReadonlyDeep<KJRoadDesignResult>;",
+          "source": "road-design.d.ts",
+          "anchor": "road-design-function-computeroaddesign"
+        },
+        {
+          "name": "KJRoadAlignmentSegment",
+          "kind": "interface",
+          "declaration": "export interface KJRoadAlignmentSegment {\n    startStation: number;\n    endStation: number;\n    start: KJRoadPoint;\n    end: KJRoadPoint;\n    length: number;\n    tangent: KJRoadPoint;\n}",
+          "source": "road-design.d.ts",
+          "anchor": "road-design-interface-kjroadalignmentsegment"
+        },
+        {
+          "name": "KJRoadDesignInput",
+          "kind": "interface",
+          "declaration": "export interface KJRoadDesignInput {\n    units: 'meter';\n    startStation: number;\n    alignment: readonly KJRoadPoint[];\n    profile: readonly {\n        station: number;\n        elevation: number;\n    }[];\n    /** Offsets increase toward the left when looking along increasing station. */\n    sections: readonly {\n        station: number;\n        ground: readonly KJRoadPoint[];\n    }[];\n    /** Crossfall is signed outward rise/run on each side; negative values form a crown. */\n    pavement: {\n        leftWidth: number;\n        rightWidth: number;\n        leftCrossfall: number;\n        rightCrossfall: number;\n    };\n    slopes: {\n        cutHtoV: number;\n        fillHtoV: number;\n    };\n}",
+          "source": "road-design.d.ts",
+          "anchor": "road-design-interface-kjroaddesigninput"
+        },
+        {
+          "name": "KJRoadDesignResult",
+          "kind": "interface",
+          "declaration": "export interface KJRoadDesignResult {\n    units: 'meter';\n    areaUnits: 'square-meter';\n    volumeUnits: 'cubic-meter';\n    startStation: number;\n    endStation: number;\n    length: number;\n    alignment: KJRoadAlignmentSegment[];\n    grades: {\n        fromStation: number;\n        toStation: number;\n        fromElevation: number;\n        toElevation: number;\n        grade: number;\n    }[];\n    sections: KJRoadSectionResult[];\n    volumeMethod: 'average-end-area';\n    volumeRange: KJRoadPoint;\n    intervals: {\n        fromStation: number;\n        toStation: number;\n        length: number;\n        cutVolume: number;\n        fillVolume: number;\n    }[];\n    totalVolume: {\n        cut: number;\n        fill: number;\n    };\n    limitations: readonly string[];\n}",
+          "source": "road-design.d.ts",
+          "anchor": "road-design-interface-kjroaddesignresult"
+        },
+        {
+          "name": "KJRoadPoint",
+          "kind": "type",
+          "declaration": "export type KJRoadPoint = readonly [number, number];",
+          "source": "road-design.d.ts",
+          "anchor": "road-design-type-kjroadpoint"
+        },
+        {
+          "name": "KJRoadSectionResult",
+          "kind": "interface",
+          "declaration": "export interface KJRoadSectionResult {\n    station: number;\n    center: KJRoadPoint;\n    tangent: KJRoadPoint;\n    designElevation: number;\n    groundCenterElevation: number;\n    longitudinalGrade: number;\n    ground: KJRoadPoint[];\n    pavement: KJRoadPoint[];\n    design: KJRoadPoint[];\n    worldDesign: [number, number, number][];\n    daylight: {\n        left: {\n            point: KJRoadPoint;\n            mode: 'cut' | 'fill' | 'none';\n        };\n        right: {\n            point: KJRoadPoint;\n            mode: 'cut' | 'fill' | 'none';\n        };\n    };\n    areas: {\n        cut: number;\n        fill: number;\n    };\n    strips: {\n        fromOffset: number;\n        toOffset: number;\n        cutArea: number;\n        fillArea: number;\n    }[];\n}",
+          "source": "road-design.d.ts",
+          "anchor": "road-design-interface-kjroadsectionresult"
+        }
+      ]
+    },
+    {
+      "exportPath": "./drawing-image",
+      "packageName": "@kanjieteam/kjdraw/drawing-image",
+      "declaration": "types/drawing-image.d.ts",
+      "anchor": "module-drawing-image",
+      "symbols": [
+        {
+          "name": "captureDrawingView",
+          "kind": "function",
+          "declaration": "export declare function captureDrawingView(drawing: KJDocument, options: KJDrawingViewOptions): Promise<KJDrawingViewImage>;",
+          "source": "drawing-image.d.ts",
+          "anchor": "drawing-image-function-capturedrawingview"
+        },
+        {
+          "name": "KJDrawingViewImage",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingViewImage {\n    readonly dataUrl: string;\n    readonly mimeType: 'image/png';\n    readonly documentId: string;\n    readonly revision: number;\n    readonly units: string;\n    readonly documentUnits: string;\n    readonly spaceId: string;\n    readonly coordinateSystem: 'modelXY' | 'paperXY';\n    readonly bounds: readonly [number, number, number, number];\n    /** Actual viewport after fitting bounds without distorting geometry. */\n    readonly viewBounds: readonly [number, number, number, number];\n    readonly width: number;\n    readonly height: number;\n    readonly pixelRatio: number;\n    readonly pixelWidth: number;\n    readonly pixelHeight: number;\n    /** Renderer diagnostics include approximated/unsupported objects and paper viewports. */\n    readonly renderReport: Readonly<KJCanvasRenderReport>;\n}",
+          "source": "drawing-image.d.ts",
+          "anchor": "drawing-image-interface-kjdrawingviewimage"
+        },
+        {
+          "name": "KJDrawingViewOptions",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingViewOptions {\n    /** Requested XY bounds in the selected space coordinate units. */\n    bounds: readonly [number, number, number, number];\n    /** Defaults to model space. Explicit paper spaces use the native viewport renderer. */\n    spaceId?: string;\n    /** Logical image width and height; no physical print size is implied. */\n    width: number;\n    height: number;\n    /** Defaults to 1, independently of the browser/device DPR. */\n    pixelRatio?: number;\n    theme?: KJCanvasTheme;\n}",
+          "source": "drawing-image.d.ts",
+          "anchor": "drawing-image-interface-kjdrawingviewoptions"
+        }
+      ]
+    },
+    {
+      "exportPath": "./road-drawing",
+      "packageName": "@kanjieteam/kjdraw/road-drawing",
+      "declaration": "types/road-drawing.d.ts",
+      "anchor": "module-road-drawing",
+      "symbols": [
+        {
+          "name": "buildRoadDrawing",
+          "kind": "function",
+          "declaration": "export declare function buildRoadDrawing(input: KJRoadDesignInput, options: KJRoadDrawingOptions): ReadonlyDeep<KJRoadDrawingResult>;",
+          "source": "road-drawing.d.ts",
+          "anchor": "road-drawing-function-buildroaddrawing"
+        },
+        {
+          "name": "KJRoadDrawingBounds",
+          "kind": "type",
+          "declaration": "export type KJRoadDrawingBounds = [number, number, number, number];",
+          "source": "road-drawing.d.ts",
+          "anchor": "road-drawing-type-kjroaddrawingbounds"
+        },
+        {
+          "name": "KJRoadDrawingEntity",
+          "kind": "interface",
+          "declaration": "export interface KJRoadDrawingEntity {\n    key: string;\n    type: 'LINE' | 'LWPOLYLINE' | 'TEXT';\n    payload: KJObjectPayload;\n    options: {\n        id: string;\n    };\n}",
+          "source": "road-drawing.d.ts",
+          "anchor": "road-drawing-interface-kjroaddrawingentity"
+        },
+        {
+          "name": "KJRoadDrawingOptions",
+          "kind": "interface",
+          "declaration": "export interface KJRoadDrawingOptions {\n    drawingId: string;\n    title: string;\n    /** Drawing XY units per physical metre. These are diagram transformations, not paper scales. */\n    profileScale: {\n        horizontal: number;\n        vertical: number;\n    };\n    sectionScale: {\n        horizontal: number;\n        vertical: number;\n    };\n    /** Lower-left corner of the profile frame; never translates the true-XY plan. */\n    origin?: KJRoadPoint;\n    textHeight?: number;\n    sectionColumns?: number;\n    precision?: number;\n    maxEntities?: number;\n}",
+          "source": "road-drawing.d.ts",
+          "anchor": "road-drawing-interface-kjroaddrawingoptions"
+        },
+        {
+          "name": "KJRoadDrawingResult",
+          "kind": "interface",
+          "declaration": "export interface KJRoadDrawingResult {\n    units: 'meter';\n    calculation: ReadonlyDeep<KJRoadDesignResult>;\n    entities: KJRoadDrawingEntity[];\n    resources: {\n        linetypes: {\n            id: string;\n            name: string;\n            pattern: number[];\n        }[];\n        layers: {\n            id: string;\n            name: string;\n            color: number;\n            linetypeId: string;\n            lineweight: number;\n        }[];\n    };\n    frames: {\n        key: 'plan' | 'profile-tables' | 'sections';\n        bounds: KJRoadDrawingBounds;\n    }[];\n    bounds: KJRoadDrawingBounds;\n    projections: {\n        plan: {\n            coordinateSystem: 'native-world-XY';\n            horizontal: 1;\n            vertical: 1;\n        };\n        profile: {\n            horizontal: number;\n            vertical: number;\n            stationDatum: number;\n            elevationDatum: number;\n            origin: KJRoadPoint;\n        };\n        sections: {\n            station: number;\n            horizontal: number;\n            vertical: number;\n            offsetDatum: number;\n            elevationDatum: number;\n            origin: KJRoadPoint;\n        }[];\n    };\n    /** Stable keys support host-managed comparisons; this function does not mutate or associate a document. */\n    limitations: readonly string[];\n}",
+          "source": "road-drawing.d.ts",
+          "anchor": "road-drawing-interface-kjroaddrawingresult"
+        }
+      ]
+    },
+    {
+      "exportPath": "./road-drawing-update",
+      "packageName": "@kanjieteam/kjdraw/road-drawing-update",
+      "declaration": "types/road-drawing-update.d.ts",
+      "anchor": "module-road-drawing-update",
+      "symbols": [
+        {
+          "name": "applyRoadDrawingRevision",
+          "kind": "function",
+          "declaration": "export declare function applyRoadDrawingRevision(document: KJDocument, previous: ReadonlyDeep<KJRoadDrawingResult>, next: ReadonlyDeep<KJRoadDrawingResult>, options: KJRoadDrawingRevisionOptions): Promise<ReadonlyDeep<KJRoadDrawingRevisionReceipt>>;",
+          "source": "road-drawing-update.d.ts",
+          "anchor": "road-drawing-update-function-applyroaddrawingrevision"
+        },
+        {
+          "name": "KJRoadDrawingRevisionOptions",
+          "kind": "interface",
+          "declaration": "export interface KJRoadDrawingRevisionOptions {\n    expectedRevision: number;\n}",
+          "source": "road-drawing-update.d.ts",
+          "anchor": "road-drawing-update-interface-kjroaddrawingrevisionoptions"
+        },
+        {
+          "name": "KJRoadDrawingRevisionReceipt",
+          "kind": "interface",
+          "declaration": "export interface KJRoadDrawingRevisionReceipt {\n    documentId: string;\n    drawingId: string;\n    previousRevision: number;\n    revision: number;\n    updatedIds: string[];\n    createdIds: string[];\n    removedIds: string[];\n    unchangedIds: string[];\n}",
+          "source": "road-drawing-update.d.ts",
+          "anchor": "road-drawing-update-interface-kjroaddrawingrevisionreceipt"
+        }
+      ]
+    },
+    {
+      "exportPath": "./agent-road-drawing",
+      "packageName": "@kanjieteam/kjdraw/agent-road-drawing",
+      "declaration": "types/agent-road-drawing.d.ts",
+      "anchor": "module-agent-road-drawing",
+      "symbols": [
+        {
+          "name": "buildAgentRoadDrawing",
+          "kind": "function",
+          "declaration": "export declare function buildAgentRoadDrawing(document: KJDocument, input: KJAgentRoadDrawingInput): ReadonlyDeep<KJAgentRoadDrawingProposal>;",
+          "source": "agent-road-drawing.d.ts",
+          "anchor": "agent-road-drawing-function-buildagentroaddrawing"
+        },
+        {
+          "name": "KJAgentRoadDrawingInput",
+          "kind": "interface",
+          "declaration": "export interface KJAgentRoadDrawingInput extends KJRoadDesignInput {\n    expectedRevision: number;\n    drawingId: string;\n    title: string;\n    profileScale: KJRoadDrawingOptions['profileScale'];\n    sectionScale: KJRoadDrawingOptions['sectionScale'];\n    textHeight: number;\n    sectionColumns: number;\n    precision: number;\n}",
+          "source": "agent-road-drawing.d.ts",
+          "anchor": "agent-road-drawing-interface-kjagentroaddrawinginput"
+        },
+        {
+          "name": "KJAgentRoadDrawingProposal",
+          "kind": "interface",
+          "declaration": "export interface KJAgentRoadDrawingProposal {\n    commandArgs: {\n        entities: (KJRoadDrawingResult['entities'][number] & {\n            options: {\n                id: string;\n                ownerId: string;\n            };\n        })[];\n        resources: KJRoadDrawingResult['resources'];\n    };\n    evidence: {\n        drawingId: string;\n        units: 'meter';\n        expectedRevision: number;\n        entityCount: number;\n        /** Exact validated source parameters for host-managed recovery after approval. */\n        designParameters: {\n            input: KJRoadDesignInput;\n            options: KJRoadDrawingOptions;\n        };\n        calculation: KJRoadDrawingResult['calculation'];\n        frames: ReadonlyDeep<KJRoadDrawingResult['frames']>;\n        bounds: ReadonlyDeep<KJRoadDrawingResult['bounds']>;\n        projections: ReadonlyDeep<KJRoadDrawingResult['projections']>;\n        limitations: readonly string[];\n    };\n}",
+          "source": "agent-road-drawing.d.ts",
+          "anchor": "agent-road-drawing-interface-kjagentroaddrawingproposal"
+        }
+      ]
+    },
+    {
+      "exportPath": "./road-drawing-recipe",
+      "packageName": "@kanjieteam/kjdraw/road-drawing-recipe",
+      "declaration": "types/road-drawing-recipe.d.ts",
+      "anchor": "module-road-drawing-recipe",
+      "symbols": [
+        {
+          "name": "createRoadDrawingRecipe",
+          "kind": "function",
+          "declaration": "export declare function createRoadDrawingRecipe(document: KJDocument, input: ReadonlyDeep<KJRoadDesignInput>, options: ReadonlyDeep<KJRoadDrawingOptions>): Promise<ReadonlyDeep<KJRoadDrawingRecipe>>;",
+          "source": "road-drawing-recipe.d.ts",
+          "anchor": "road-drawing-recipe-function-createroaddrawingrecipe"
+        },
+        {
+          "name": "KJDRAW_ROAD_RECIPE_SCHEMA",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_ROAD_RECIPE_SCHEMA = \"com.kanjie.kjdraw.road-drawing-recipe\";",
+          "source": "road-drawing-recipe.d.ts",
+          "anchor": "road-drawing-recipe-const-kjdraw-road-recipe-schema"
+        },
+        {
+          "name": "KJRestoredRoadDrawingRecipe",
+          "kind": "interface",
+          "declaration": "export interface KJRestoredRoadDrawingRecipe {\n    recipe: ReadonlyDeep<KJRoadDrawingRecipe>;\n    drawing: ReadonlyDeep<KJRoadDrawingResult>;\n    documentId: string;\n    /** The source revision actually validated, suitable for the next explicit update. */\n    revision: number;\n}",
+          "source": "road-drawing-recipe.d.ts",
+          "anchor": "road-drawing-recipe-interface-kjrestoredroaddrawingrecipe"
+        },
+        {
+          "name": "KJRoadDrawingRecipe",
+          "kind": "interface",
+          "declaration": "export interface KJRoadDrawingRecipe {\n    schema: typeof KJDRAW_ROAD_RECIPE_SCHEMA;\n    schemaVersion: 1;\n    /** Exact compiler contract. Unknown versions require an explicit future migration. */\n    compilerVersion: 1;\n    documentId: string;\n    input: KJRoadDesignInput;\n    options: KJRoadDrawingOptions;\n}",
+          "source": "road-drawing-recipe.d.ts",
+          "anchor": "road-drawing-recipe-interface-kjroaddrawingrecipe"
+        },
+        {
+          "name": "restoreRoadDrawingRecipe",
+          "kind": "function",
+          "declaration": "export declare function restoreRoadDrawingRecipe(document: KJDocument, input: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;",
+          "source": "road-drawing-recipe.d.ts",
+          "anchor": "road-drawing-recipe-function-restoreroaddrawingrecipe"
         }
       ]
     }

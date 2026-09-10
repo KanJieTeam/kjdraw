@@ -58,12 +58,27 @@ export interface KJEntityBatchSpec extends Record<string, unknown> {
         plottable?: unknown;
     };
 }
+export interface KJEntityBatchResources {
+    linetypes: {
+        id: string;
+        name: string;
+        pattern: number[];
+    }[];
+    layers: {
+        id: string;
+        name: string;
+        color: number;
+        linetypeId: string;
+        lineweight: number;
+    }[];
+}
 /**
  * Extensible command argument bag. Known core fields are typed for editor and
  * framework consumers; third-party commands may add names through the index
  * signature without weakening the SDK through an untyped escape hatch.
  */
 export interface KJCommandArguments extends Record<string, unknown> {
+    resources?: KJEntityBatchResources;
     id?: string;
     ids?: readonly string[];
     firstId?: string;
@@ -227,6 +242,12 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         supportedEntityTypes: string;
         atomic: boolean;
         maximumEntities: number;
+    };
+    readonly ROAD_DRAWING_UPDATE: {
+        domain: string;
+        atomic: boolean;
+        stableIds: boolean;
+        requiresUnmodifiedPrevious: boolean;
     };
     readonly ERASE: {
         domain: string;

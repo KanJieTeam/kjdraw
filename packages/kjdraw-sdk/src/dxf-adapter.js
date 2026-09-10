@@ -7,6 +7,33 @@ import { hatchPatternLines } from './geometry/hatch.js';
 import { normalizeStandardEntityPayload } from './standard-entities.js';
 import { normalizeName } from './utils.js';
 import { PLOT_SETTING_FIELDS, validatePlotSettings } from './plot-settings.js';
+function readDimensionOverrides(record) {
+    const result = {};
+    let acad = false;
+    for(let index = 0; index < record.tags.length; index++){
+        const tag = record.tags[index];
+        if (tag.code === 1001) {
+            acad = tag.value === 'ACAD';
+            continue;
+        }
+        if (!acad || tag.code !== 1000 || tag.value !== 'DSTYLE' || record.tags[index + 1]?.code !== 1002 || record.tags[index + 1]?.value !== '{') continue;
+        index += 2;
+        while(index < record.tags.length){
+            const key = record.tags[index], value = record.tags[index + 1];
+            if (key.code === 1002 && key.value === '}') break;
+            if (key.code !== 1070 || !value) throw new KJValidationError('Malformed DIMENSION DSTYLE override');
+            const code = Number(key.value), number = Number(value.value);
+            if (code === 140 || code === 271) {
+                if (!value.value.trim() || !Number.isFinite(number) || (code === 140 ? value.code !== 1040 || number <= 0 : value.code !== 1070 || !Number.isInteger(number) || number < 0 || number > 8)) throw new KJValidationError('Invalid DIMENSION text height or precision override');
+                const property = code === 140 ? 'textHeight' : 'precision';
+                if (result[property] !== undefined) throw new KJValidationError('Duplicate DIMENSION DSTYLE override');
+                result[property] = number;
+            }
+            index += 2;
+        }
+    }
+    return result;
+}
 function readPlotSettings(record) {
     const start = record.tags.findIndex((tag)=>tag.code === 100 && tag.value === 'AcDbPlotSettings');
     if (start < 0) return undefined;
@@ -29,6 +56,7 @@ function dxfEntity(record) {
     return {
         type: record.type,
         handle: record.handle,
+        ownerId: record.ownerId,
         payload: dxfPayload(record)
     };
 }
@@ -165,7 +193,8 @@ const MIN_ENTITY_VERSION = Object.freeze({
     HATCH: 'R14',
     WIPEOUT: '2000',
     XLINE: '2000',
-    RAY: '2000'
+    RAY: '2000',
+    VIEWPORT: 'R14'
 });
 const CODE_PAGE_LABELS = Object.freeze({
     'ANSI_936': 'gb18030',
@@ -749,6 +778,7 @@ function entityPayload(record, blockIds, resources = {}) {
                     type: 'DIMENSION',
                     payload: {
                         dimensionType: DIMENSION_TYPE_BY_CODE[dxfDimensionType & 7] ?? 'ROTATED',
+                        ...readDimensionOverrides(record),
                         dxfDimensionType,
                         definitionPoints,
                         textPosition: optionalPoint(record, 11, 21, 31),
@@ -783,7 +813,24 @@ function entityPayload(record, blockIds, resources = {}) {
                     height: number(record, 41),
                     viewCenter: point(record, 12, 22, 32),
                     viewHeight: number(record, 45),
-                    twistAngle: number(record, 51, 0) * Math.PI / 180
+                    twistAngle: number(record, 51, 0) * Math.PI / 180,
+                    viewTarget: optionalPoint(record, 17, 27, 37) ?? [
+                        0,
+                        0,
+                        0
+                    ],
+                    viewDirection: optionalPoint(record, 16, 26, 36) ?? [
+                        0,
+                        0,
+                        1
+                    ],
+                    status: number(record, 68, 0),
+                    viewportId: number(record, 69, 2),
+                    flags: number(record, 90, 0),
+                    lensLength: number(record, 42, 50),
+                    frontClipDistance: number(record, 43, 0),
+                    backClipDistance: number(record, 44, 0),
+                    rawTags: record.tags
                 }
             };
         case 'WIPEOUT':
@@ -996,6 +1043,9 @@ function importResourceTables(transaction, tableRecords, document) {
                 extensionBeyond: number(record, 44, 1.25),
                 rounding: number(record, 45, 0),
                 textHeight: number(record, 140, 2.5),
+                ...values(record, 271).length ? {
+                    decimalPlaces: number(record, 271)
+                } : {},
                 centerMarkSize: number(record, 141, 2.5),
                 textGap: number(record, 147, 0.625),
                 dxfFlags: number(record, 70, 0)
@@ -1062,6 +1112,7 @@ async function readDXF(source, options = {}) {
                 defaultLayerId
             ]
         ]);
+        const layerHandleIds = new Map();
         for (const record of tableRecords.filter((record)=>record.type === 'LAYER')){
             const name = String(first(record, 2, '0')).trim() || '0';
             const color = number(record, 62, 7);
@@ -1081,6 +1132,8 @@ async function readDXF(source, options = {}) {
                 }
             });
             layerIds.set(normalizeName(name), layer.id);
+            const sourceHandle = String(first(record, 5, '')).toUpperCase();
+            if (sourceHandle) layerHandleIds.set(sourceHandle, layer.id);
         }
         const definitions = blockDefinitions(section(tags, 'BLOCKS'));
         const sourceEntityRecords = entityRecords(section(tags, 'ENTITIES'));
@@ -1198,6 +1251,8 @@ async function readDXF(source, options = {}) {
         }
         for (const record of sourceEntityRecords)if (first(record, 410) && normalizeName(first(record, 410)) !== 'MODEL' && !ownerSpaces.has(recordOwner(record))) ensurePaperSpace(String(first(record, 410)));
         const occupiedHandles = new Set(Object.values(transaction._draft().objects).map((object)=>object.handle));
+        const entityHandleIds = new Map();
+        const viewportReferences = [];
         const importRecord = (record, index, ownerId, scope)=>{
             const layerName = normalizeName(first(record, 8, '0'));
             const layerId = layerIds.get(layerName) ?? defaultLayerId;
@@ -1224,6 +1279,11 @@ async function readDXF(source, options = {}) {
                     }
                 });
                 occupiedHandles.add(created.handle);
+                if (sourceHandle) entityHandleIds.set(sourceHandle, entityHandleIds.has(sourceHandle) ? '' : created.id);
+                if (created.type === 'VIEWPORT') viewportReferences.push({
+                    id: created.id,
+                    record
+                });
             } catch (error) {
                 const created = transaction.createEntity('PROXY_ENTITY', {
                     originalType: record.type,
@@ -1242,6 +1302,7 @@ async function readDXF(source, options = {}) {
                     }
                 });
                 occupiedHandles.add(created.handle);
+                if (sourceHandle) entityHandleIds.set(sourceHandle, entityHandleIds.has(sourceHandle) ? '' : created.id);
             }
         };
         const importedSpaceHandles = new Map();
@@ -1274,6 +1335,31 @@ async function readDXF(source, options = {}) {
             const ownerId = ownerSpaces.get(sourceOwner) ?? (paperSpace ? paperSpaceIds.get(normalizeName(layoutName)) ?? fallbackPaperSpaceId : modelSpaceId);
             importSpaceRecord(record, index, ownerId, paperSpace ? `paper-space:${layoutName}` : 'model-space');
         });
+        for (const { id, record } of viewportReferences){
+            const unresolved = [], frozenLayerIds = [];
+            for (const handle of values(record, 331).map((value)=>String(value).toUpperCase())){
+                const layerId = layerHandleIds.get(handle);
+                if (!layerId) unresolved.push(`frozen-layer:${handle}`);
+                else if (!frozenLayerIds.includes(layerId)) frozenLayerIds.push(layerId);
+            }
+            const clipHandle = String(first(record, 340, '')).toUpperCase();
+            let clippingBoundaryId = null;
+            if (clipHandle && clipHandle !== '0') {
+                clippingBoundaryId = entityHandleIds.get(clipHandle) || null;
+                if (!clippingBoundaryId) unresolved.push(`clipping-boundary:${clipHandle}`);
+            }
+            const current = transaction._draft().objects[id];
+            if (clippingBoundaryId && transaction._draft().objects[clippingBoundaryId]?.ownerId !== current.ownerId) unresolved.push('clipping-boundary:wrong-owner');
+            transaction.updateObject(id, {
+                payload: {
+                    frozenLayerIds,
+                    clippingBoundaryId,
+                    ...unresolved.length ? {
+                        unresolvedViewportReferences: unresolved
+                    } : {}
+                }
+            });
+        }
     }, {
         source: 'adapter:dxf-ascii'
     });
@@ -1368,6 +1454,7 @@ function dimensionRawTagsMatchPayload(payload, dimensionStyles) {
     const currentStyleName = (payload.styleId ? dimensionStyles.find((record)=>record.id === payload.styleId)?.name : undefined) ?? payload.styleName ?? 'STANDARD';
     if (normalizeName(currentStyleName) !== normalizeName(raw.styleName ?? 'STANDARD')) return false;
     if ((payload.textOverride ?? null) !== (raw.textOverride ?? null)) return false;
+    if ((payload.textHeight ?? null) !== (raw.textHeight ?? null) || (payload.precision ?? null) !== (raw.precision ?? null)) return false;
     if (normalizeName(payload.blockName) !== normalizeName(raw.blockName)) return false;
     if (Number(payload.dxfDimensionType ?? DIMENSION_CODE_BY_TYPE[normalizeName(payload.dimensionType)] ?? 0) !== Number(raw.dxfDimensionType ?? 0)) return false;
     return true;
@@ -1394,6 +1481,7 @@ function buildDimensionExportBlocks(document, entities, sourceBlocks, dimensionS
     for (const entity of entities){
         if (entity.type !== 'DIMENSION') continue;
         const payload = entity.payload ?? {};
+        if (VERSION_RANK[context.version] < VERSION_RANK['2000'] && payload.precision != null) throw new KJValidationError('Explicit dimension precision requires DXF 2000 or newer');
         const referencedBlock = payload.blockName ? sourceBlocksByName.get(normalizeName(payload.blockName)) : undefined;
         if (payload.rawTags?.length && referencedBlock && populatedSourceBlocks.has(referencedBlock.id) && dimensionRawTagsMatchPayload(payload, dimensionStyles)) {
             dimensions.set(entity.handle, {
@@ -1407,6 +1495,7 @@ function buildDimensionExportBlocks(document, entities, sourceBlocks, dimensionS
         const dimensionType = DIMENSION_TYPE_BY_CODE[subtype];
         assertNativeDimensionIsXY(payload, entity.handle);
         const style = (payload.styleId ? dimensionStyles.find((record)=>record.id === payload.styleId) : dimensionStyles.find((record)=>normalizeName(record.name) === normalizeName(payload.styleName)))?.payload ?? {};
+        if (VERSION_RANK[context.version] < VERSION_RANK['2000'] && (payload.precision != null || style.decimalPlaces != null)) throw new KJValidationError('Explicit dimension precision requires DXF 2000 or newer');
         const projection = projectDimension({
             ...payload,
             dimensionType
@@ -1504,6 +1593,8 @@ function buildDimensionExportBlocks(document, entities, sourceBlocks, dimensionS
             blockName,
             preserveRaw: false,
             measurement: projection.measurement,
+            textHeight: projection.label.height / Math.max(1e-9, Number.isFinite(Number(style.overallScale)) && style.overallScale != null ? Number(style.overallScale) : 1),
+            precision: Math.max(0, Math.min(8, Math.trunc(Number.isFinite(Number(payload.precision ?? style.decimalPlaces)) && (payload.precision ?? style.decimalPlaces) != null ? Number(payload.precision ?? style.decimalPlaces) : 2))),
             textPosition: [
                 projection.label.position[0],
                 projection.label.position[1],
@@ -1840,6 +1931,8 @@ function emitDimensionStyleTable(output, records, context, tableHandle) {
     emitTable(output, 'DIMSTYLE', records, context, tableHandle, (record, ownerHandle, version)=>{
         const payload = record.payload ?? {};
         emitSymbolTableRecordHeader(output, 'DIMSTYLE', record, ownerHandle, version, 'AcDbDimStyleTableRecord');
+        if (payload.decimalPlaces != null && (VERSION_RANK[version] < VERSION_RANK['2000'] || !Number.isInteger(payload.decimalPlaces) || Number(payload.decimalPlaces) < 0 || Number(payload.decimalPlaces) > 8)) throw new KJValidationError('Dimension style decimalPlaces requires an integer 0–8 and DXF 2000 or newer');
+        if (payload.decimalPlaces != null) emit(output, 271, payload.decimalPlaces);
         emit(output, 2, record.name);
         emit(output, 70, payload.dxfFlags ?? 0);
         emit(output, 40, payload.overallScale ?? 1);
@@ -1847,7 +1940,7 @@ function emitDimensionStyleTable(output, records, context, tableHandle) {
         emit(output, 42, payload.extensionOffset ?? 0.625);
         emit(output, 43, payload.baselineSpacing ?? 3.75);
         emit(output, 44, payload.extensionBeyond ?? 1.25);
-        emit(output, 45, payload.rounding ?? 0);
+        if (payload.rounding) emit(output, 45, payload.rounding);
         emit(output, 140, payload.textHeight ?? 2.5);
         emit(output, 141, payload.centerMarkSize ?? 2.5);
         emit(output, 147, payload.textGap ?? 0.625);
@@ -2092,18 +2185,116 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
             16
         ];
         p.definitionPoints.slice(1, codes.length + 1).forEach((value, index)=>emitPoint(output, value, codes[index]));
-        if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI);
+        const alignedStart = p.definitionPoints[1], alignedEnd = p.definitionPoints[2];
+        const dimensionRotation = subtype === 1 && alignedStart && alignedEnd ? Math.atan2(Number(alignedEnd[1]) - Number(alignedStart[1]), Number(alignedEnd[0]) - Number(alignedStart[0])) : Number(p.rotation ?? 0);
+        if (dimensionRotation) emit(output, 50, dimensionRotation * 180 / Math.PI);
         if (subtype === 0) emitSubclass(output, version, 'AcDbRotatedDimension');
     } else if (entity.type === 'VIEWPORT') {
+        if (p.unresolvedViewportReferences?.length) throw new KJValidationError('Cannot export VIEWPORT with unresolved source references');
+        if (p.viewCenter?.[2]) throw new KJValidationError('VIEWPORT viewCenter must be a two-dimensional DCS point');
         emitSubclass(output, version, 'AcDbViewport');
         emitPoint(output, p.center);
         emit(output, 40, p.width);
         emit(output, 41, p.height);
-        emitPoint(output, p.viewCenter, 12);
+        emit(output, 68, p.status ?? 1);
+        emit(output, 69, resources.viewportIds?.get(entity.handle) ?? p.viewportId ?? 2);
+        emit(output, 12, p.viewCenter[0]);
+        emit(output, 22, p.viewCenter[1]);
+        emitPoint(output, p.viewDirection ?? [
+            0,
+            0,
+            1
+        ], 16);
+        emitPoint(output, p.viewTarget ?? [
+            0,
+            0,
+            0
+        ], 17);
+        emit(output, 42, p.lensLength ?? 50);
+        emit(output, 43, p.frontClipDistance ?? 0);
+        emit(output, 44, p.backClipDistance ?? 0);
         emit(output, 45, p.viewHeight);
-        if (p.twistAngle) emit(output, 51, p.twistAngle * 180 / Math.PI);
+        emit(output, 51, (p.twistAngle ?? 0) * 180 / Math.PI);
+        emit(output, 90, p.flags ?? 0);
+        for (const id of p.frozenLayerIds ?? []){
+            const layer = resources.objects?.get(id);
+            if (!layer || layer.type !== 'LAYER' || layer.erased) throw new KJValidationError('VIEWPORT frozen layer reference is missing or is not a layer');
+            emit(output, 331, layer.handle);
+        }
+        if (p.clippingBoundaryId) {
+            const boundary = resources.objects?.get(p.clippingBoundaryId);
+            if (!boundary || boundary.kind !== 'entity' || boundary.erased || boundary.ownerId !== entity.ownerId) throw new KJValidationError('VIEWPORT clipping boundary must reference an existing entity in the same space');
+            emit(output, 340, boundary.handle);
+        } else if (Number(p.flags ?? 0) & 65536) throw new KJValidationError('Nonrectangular VIEWPORT requires a clipping boundary');
+        const canonical = new Set([
+            5,
+            6,
+            8,
+            48,
+            60,
+            62,
+            67,
+            330,
+            370,
+            410,
+            420,
+            100,
+            10,
+            20,
+            30,
+            40,
+            41,
+            68,
+            69,
+            12,
+            22,
+            32,
+            16,
+            26,
+            36,
+            17,
+            27,
+            37,
+            42,
+            43,
+            44,
+            45,
+            51,
+            90,
+            331,
+            340,
+            210,
+            220,
+            230
+        ]);
+        for (const tag of p.rawTags ?? []){
+            if (canonical.has(tag.code)) continue;
+            if (tag.code === 102 || tag.code >= 1000 || (tag.code >= 320 && tag.code <= 369 || tag.code >= 390 && tag.code <= 399 || tag.code === 480 || tag.code === 481) && tag.value !== '0') throw new KJValidationError('Cannot safely export unsupported VIEWPORT raw reference or XDATA');
+            emit(output, tag.code, tag.value);
+        }
     }
     emitEntityExtrusion(output, p);
+    const dimensionStyle = entity.type === 'DIMENSION' ? resources.dimensions?.get(entity.handle) : undefined;
+    if (dimensionStyle && !dimensionStyle.preserveRaw) {
+        emit(output, 1001, 'ACAD');
+        emit(output, 1000, 'DSTYLE');
+        emit(output, 1002, '{');
+        emit(output, 1070, 140);
+        emit(output, 1040, dimensionStyle.textHeight);
+        emit(output, 1070, 144);
+        emit(output, 1040, 1);
+        emit(output, 1070, 78);
+        emit(output, 1070, 8);
+        if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
+            emit(output, 1070, 271);
+            emit(output, 1070, dimensionStyle.precision);
+            emit(output, 1070, 277);
+            emit(output, 1070, 2);
+            emit(output, 1070, 278);
+            emit(output, 1070, 46);
+        }
+        emit(output, 1002, '}');
+    }
 }
 function isDxfVersion(value) {
     return VERSIONS.includes(value);
@@ -2142,7 +2333,8 @@ function writeDXF(document, options = {}) {
         'UCS',
         'VIEW',
         'LAYER',
-        'BLOCK_RECORD'
+        'BLOCK_RECORD',
+        'APPID'
     ].map((name)=>[
             name,
             context.allocateHandle()
@@ -2154,6 +2346,25 @@ function writeDXF(document, options = {}) {
     const ucsRecords = documentTableRecords(document, 'ucs').map(dxfNamedRecord);
     const views = documentTableRecords(document, 'views').map(dxfNamedRecord);
     const allEntities = document.listEntities().map(dxfEntity);
+    const viewportIds = new Map(), usedViewportIds = new Map();
+    for (const entity of allEntities.filter((entity)=>entity.type === 'VIEWPORT')){
+        const owner = String(entity.ownerId), used = usedViewportIds.get(owner) ?? new Set();
+        usedViewportIds.set(owner, used);
+        const id = entity.payload?.viewportId;
+        if (id !== undefined) {
+            if (id > 0 && used.has(id)) throw new KJValidationError('Conflicting explicit VIEWPORT IDs in the same space');
+            if (id > 0) used.add(id);
+            viewportIds.set(entity.handle, id);
+        }
+    }
+    for (const entity of allEntities.filter((entity)=>entity.type === 'VIEWPORT' && !viewportIds.has(entity.handle))){
+        const used = usedViewportIds.get(String(entity.ownerId));
+        let id = 2;
+        while(used.has(id))id += 1;
+        if (id > 32767) throw new KJValidationError('VIEWPORT ID space exhausted');
+        used.add(id);
+        viewportIds.set(entity.handle, id);
+    }
     const dimensionExports = buildDimensionExportBlocks(document, allEntities, sourceBlocks, dimensionStyles, context);
     const syntheticBlocks = new Map(dimensionExports.blocks.map((block)=>[
             block.record.id,
@@ -2168,6 +2379,10 @@ function writeDXF(document, options = {}) {
             block.name
         ]));
     const resources = {
+        objects: new Map(Object.values(state.objects).map((record)=>[
+                record.id,
+                record
+            ])),
         textStyleNames: new Map(textStyles.map((record)=>[
                 record.id,
                 record.name
@@ -2176,7 +2391,8 @@ function writeDXF(document, options = {}) {
                 record.id,
                 record.name
             ])),
-        dimensions: dimensionExports.dimensions
+        dimensions: dimensionExports.dimensions,
+        viewportIds
     };
     const linetypeNames = new Map(linetypes.map((record)=>[
             record.id,
@@ -2212,6 +2428,19 @@ function writeDXF(document, options = {}) {
     emitLinetypeTable(output, linetypes, context, tableHandles.get('LTYPE'));
     emitTextStyleTable(output, textStyles, context, tableHandles.get('STYLE'));
     emitDimensionStyleTable(output, dimensionStyles, context, tableHandles.get('DIMSTYLE'));
+    if (dimensionExports.dimensions.size) emitTable(output, 'APPID', [
+        {
+            id: 'dxf-acad-appid',
+            type: 'APPID',
+            name: 'ACAD',
+            handle: context.allocateHandle(),
+            payload: {}
+        }
+    ], context, tableHandles.get('APPID'), (record, ownerHandle, version)=>{
+        emitSymbolTableRecordHeader(output, 'APPID', record, ownerHandle, version, 'AcDbRegAppTableRecord');
+        emit(output, 2, 'ACAD');
+        emit(output, 70, 0);
+    });
     emitUcsTable(output, ucsRecords, context, tableHandles.get('UCS'));
     emitViewTable(output, views, context, tableHandles.get('VIEW'));
     emitTable(output, 'LAYER', layers, context, tableHandles.get('LAYER'), (layer, ownerHandle, tableVersion)=>{

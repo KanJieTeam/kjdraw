@@ -234,6 +234,19 @@ function polylineSamples(payload) {
 function entityPoints(entity) {
     const payload = entity.payload;
     const output = [];
+    if (entity.type === 'VIEWPORT') {
+        const center = point2(payload.center), width = finite(payload.width), height = finite(payload.height);
+        return center && width > 0 && height > 0 ? [
+            [
+                center[0] - width / 2,
+                center[1] - height / 2
+            ],
+            [
+                center[0] + width / 2,
+                center[1] + height / 2
+            ]
+        ] : [];
+    }
     for (const key of [
         'start',
         'end',
@@ -296,6 +309,9 @@ function entityPoints(entity) {
     return output;
 }
 export class KJCanvasRenderer {
+    #viewportDiagnostics = [];
+    #viewportWorkRemaining = 100000;
+    #viewportState = null;
     canvas;
     context;
     camera = {
@@ -675,6 +691,8 @@ export class KJCanvasRenderer {
         return this;
     }
     render() {
+        this.#viewportDiagnostics = [];
+        this.#viewportWorkRemaining = 100000;
         this.#hatchDiagnostics = [];
         this.#hatchWorkRemaining = 100000;
         this.#hatchSampleWorkRemaining = HATCH_RASTER_FRAME_WORK;
@@ -720,7 +738,7 @@ export class KJCanvasRenderer {
             const color = this.#selection.has(entity.id) ? this.#selectionColor ?? (this.#theme === 'dark' ? '#b9ff72' : '#0b67e3') : this.#color(entity, layer) ?? palette[colorIndex(layer?.color)];
             if (this.#drawEntity(entity, color, 0, this.#selection.has(entity.id))) {
                 rendered += 1;
-                if (APPROXIMATE_TYPES.has(entity.type)) {
+                if (APPROXIMATE_TYPES.has(entity.type) || entity.type === 'VIEWPORT' && this.#viewportDiagnostics.at(-1)?.approximated) {
                     approximated += 1;
                     approximateTypes.add(entity.type);
                 }
@@ -739,38 +757,51 @@ export class KJCanvasRenderer {
                 ...unsupported
             ].sort()),
             hatchDiagnostics: Object.freeze(this.#hatchDiagnostics.map((item)=>Object.freeze(item))),
+            viewportDiagnostics: Object.freeze(this.#viewportDiagnostics.map((item)=>Object.freeze({
+                    ...item
+                }))),
             width: this.#width,
             height: this.#height,
             scale: this.camera.scale
         });
         return this.#report;
     }
+    #previewResources = new Map();
     drawPreview(entities, color = '#77a7ff', offset = [
         0,
         0
-    ]) {
-        for (const [index, spec] of entities.entries()){
-            let payload = structuredClone(spec.payload);
-            if (offset[0] || offset[1]) payload = transformEntityPayload(spec.type, payload, translation3(offset[0], offset[1]));
-            this.#drawEntity({
-                id: `preview-${index}`,
-                handle: '',
-                kind: 'entity',
-                type: spec.type,
-                ownerId: null,
-                name: null,
-                payload,
-                extension: {
-                    xdata: {},
-                    xrecordIds: [],
-                    reactorIds: [],
-                    hyperlinks: []
-                },
-                erased: false,
-                source: null
-            }, color, 0, true);
+    ], resources = []) {
+        const previous = this.#previewResources;
+        this.#previewResources = new Map(resources.map((item)=>[
+                item.id,
+                item
+            ]));
+        try {
+            for (const [index, spec] of entities.entries()){
+                let payload = structuredClone(spec.payload);
+                if (offset[0] || offset[1]) payload = transformEntityPayload(spec.type, payload, translation3(offset[0], offset[1]));
+                this.#drawEntity({
+                    id: `preview-${index}`,
+                    handle: '',
+                    kind: 'entity',
+                    type: spec.type,
+                    ownerId: null,
+                    name: null,
+                    payload,
+                    extension: {
+                        xdata: {},
+                        xrecordIds: [],
+                        reactorIds: [],
+                        hyperlinks: []
+                    },
+                    erased: false,
+                    source: null
+                }, color, 0, true);
+            }
+            return this;
+        } finally{
+            this.#previewResources = previous;
         }
-        return this;
     }
     dispose() {
         this.#disposeDocument?.();
@@ -998,7 +1029,19 @@ export class KJCanvasRenderer {
     #drawEntity(entity, color, depth, overrideColor = false, projection) {
         if (depth > 12) return false;
         const context = this.context, payload = entity.payload;
-        const layer = this.#document?.getObject(String(payload.layerId ?? ''));
+        const view = this.#viewportState;
+        if (view) {
+            if (--this.#viewportWorkRemaining < 0) {
+                view.diagnostic.reason = 'budget';
+                view.diagnostic.unsupported++;
+                return false;
+            }
+            if (view.frozen.has(String(payload.layerId ?? ''))) {
+                view.diagnostic.hidden++;
+                return true;
+            }
+        }
+        const layer = this.#previewResources.get(String(payload.layerId ?? '')) ?? this.#document?.getObject(String(payload.layerId ?? ''));
         context.save();
         context.strokeStyle = color;
         context.fillStyle = color;
@@ -1007,9 +1050,10 @@ export class KJCanvasRenderer {
         context.lineWidth = this.#selection.has(entity.id) ? 2 : this.#showLineweights && millimeters > 0 ? Math.max(0.5, Math.min(8, millimeters * 96 / 25.4)) : 1;
         const transparency = finite(payload.transparency ?? layer?.payload.transparency, 0);
         context.globalAlpha = transparency > 1 ? Math.max(0.05, 1 - transparency / 255) : transparency > 0 ? Math.max(0.05, 1 - transparency) : 1;
-        const linetype = this.#document?.getObject(String(payload.linetypeId ?? layer?.payload.linetypeId ?? ''));
+        const linetypeId = String(payload.linetypeId ?? layer?.payload.linetypeId ?? '');
+        const linetype = this.#previewResources.get(linetypeId) ?? this.#document?.getObject(linetypeId);
         const pattern = Array.isArray(linetype?.payload.patternSegments) ? linetype.payload.patternSegments : Array.isArray(linetype?.payload.pattern) ? linetype.payload.pattern : [];
-        const dash = pattern.map((value)=>Math.max(1, Math.abs(finite(value)) * this.camera.scale)).filter((value)=>value > 0);
+        const dash = pattern.map((value)=>Math.max(1, Math.abs(finite(value)) * this.camera.scale * (view?.scale ?? 1))).filter((value)=>value > 0);
         context.setLineDash(dash);
         let drawn = true;
         if (entity.type === 'LINE') drawn = this.#strokePath(points([
@@ -1255,7 +1299,7 @@ export class KJCanvasRenderer {
                 }
             }
         } else if (entity.type === 'DIMENSION') {
-            const projected = projectDimension(payload, this.#document?.getObject(String(payload.styleId ?? ''))?.payload);
+            const projected = projection?.dimension ?? projectDimension(payload, this.#document?.getObject(String(payload.styleId ?? ''))?.payload);
             drawn = projected !== null;
             if (projected) {
                 for (const segment of projected.lines)this.#strokePath(segment);
@@ -1300,6 +1344,7 @@ export class KJCanvasRenderer {
             const center = point2(payload.center), width = Math.abs(finite(payload.width)), height = Math.abs(finite(payload.height));
             if (!center || !width || !height) drawn = false;
             else {
+                drawn = this.#drawViewport(entity, depth);
                 const screen = this.worldToScreen([
                     center[0] - width / 2,
                     center[1] + height / 2
@@ -1377,6 +1422,11 @@ export class KJCanvasRenderer {
                 }) ?? [];
                 drawn = children.length > 0;
                 for (const child of children){
+                    if (view && this.#viewportWorkRemaining-- <= 0) {
+                        view.diagnostic.reason = 'budget';
+                        drawn = false;
+                        break;
+                    }
                     const childLayer = this.#document?.getObject(String(child.payload.layerId ?? ''));
                     if (child.payload.visible === false || childLayer?.payload.visible === false || childLayer?.payload.frozen === true) continue;
                     try {
@@ -1389,7 +1439,10 @@ export class KJCanvasRenderer {
                         const childColor = overrideColor || byBlock ? color : this.#color(child, effectiveLayer);
                         const identity = {
                             payload: child.payload,
-                            instanceKey: `${projection?.instanceKey ?? ''};${matrix.join(',')}`
+                            instanceKey: `${projection?.instanceKey ?? ''};${matrix.join(',')}`,
+                            ...child.type === 'DIMENSION' && view ? {
+                                dimension: this.#dimensionInView(child, matrix)
+                            } : {}
                         };
                         if (!this.#drawEntity(transformed, childColor, depth + 1, overrideColor, identity)) drawn = false;
                     } catch  {
@@ -1424,6 +1477,156 @@ export class KJCanvasRenderer {
             }
         } else drawn = false;
         context.restore();
+        if (view && entity.type !== 'INSERT') {
+            if (drawn) {
+                view.diagnostic.rendered++;
+                if (APPROXIMATE_TYPES.has(entity.type)) view.diagnostic.approximated++;
+            } else view.diagnostic.unsupported++;
+        }
         return drawn;
+    }
+    #dimensionInView(entity, matrix) {
+        const original = projectDimension(entity.payload, this.#document?.getObject(String(entity.payload.styleId ?? ''))?.payload);
+        if (!original) return null;
+        const point = (p)=>[
+                matrix[0] * p[0] + matrix[2] * p[1] + matrix[4],
+                matrix[1] * p[0] + matrix[3] * p[1] + matrix[5]
+            ];
+        return {
+            ...original,
+            lines: original.lines.map(([a, b])=>[
+                    point(a),
+                    point(b)
+                ]),
+            arrows: original.arrows.map((arrow)=>arrow.map(point)),
+            label: {
+                ...original.label,
+                position: point(original.label.position),
+                height: original.label.height * Math.hypot(matrix[0], matrix[1]),
+                rotation: original.label.rotation + Math.atan2(matrix[1], matrix[0])
+            }
+        };
+    }
+    #drawViewport(entity, depth) {
+        if (this.#viewportState) return false;
+        const diagnostic = {
+            entityId: entity.id,
+            rendered: 0,
+            hidden: 0,
+            approximated: 0,
+            unsupported: 0
+        };
+        this.#viewportDiagnostics.push(diagnostic);
+        const document = this.#document, p = entity.payload, center = point2(p.center), viewCenter = point2(p.viewCenter);
+        const width = finite(p.width), height = finite(p.height), viewHeight = finite(p.viewHeight), twist = finite(p.twistAngle);
+        if (!document || entity.ownerId === document.snapshot().spaces.modelSpaceId || entity.ownerId !== this.#activeSpaceId()) {
+            diagnostic.reason = 'not-paper-space';
+            return false;
+        }
+        if (!center || !viewCenter || width <= 0 || height <= 0 || viewHeight <= 0 || !Number.isFinite(height / viewHeight)) {
+            diagnostic.reason = 'invalid-view';
+            return false;
+        }
+        const target = p.viewTarget == null ? [
+            0,
+            0
+        ] : point2(p.viewTarget);
+        const direction = p.viewDirection;
+        const topView = direction == null || Array.isArray(direction) && direction[0] === 0 && direction[1] === 0 && direction[2] === 1;
+        const flags = finite(p.flags);
+        if (p.status === 0 || (flags & 0x20000) !== 0 || p.viewportId === 1) {
+            diagnostic.hidden++;
+            return true;
+        }
+        if (p.perspective === true || p.clipBoundaryId || p.clippingBoundaryId || !target || !topView || p.nonRectangularClip === true || (flags & (0x1 | 0x2 | 0x4 | 0x10 | 0x10000)) !== 0 || Array.isArray(p.unresolvedViewportReferences) && p.unresolvedViewportReferences.length > 0) {
+            diagnostic.reason = 'unsupported-view';
+            return false;
+        }
+        const scale = height / viewHeight;
+        const matrix = multiply3(translation3(center[0] - scale * viewCenter[0], center[1] - scale * viewCenter[1]), multiply3(scale3(scale), multiply3(rotation3(twist), translation3(-target[0], -target[1]))));
+        if (!matrix.every(Number.isFinite)) {
+            diagnostic.reason = 'invalid-view';
+            return false;
+        }
+        const context = this.context, corners = [
+            [
+                center[0] - width / 2,
+                center[1] - height / 2
+            ],
+            [
+                center[0] + width / 2,
+                center[1] - height / 2
+            ],
+            [
+                center[0] + width / 2,
+                center[1] + height / 2
+            ],
+            [
+                center[0] - width / 2,
+                center[1] + height / 2
+            ]
+        ];
+        context.save();
+        const previous = this.#viewportState;
+        this.#viewportState = {
+            frozen: new Set(Array.isArray(p.frozenLayerIds) ? p.frozenLayerIds.map(String) : []),
+            scale,
+            diagnostic
+        };
+        let complete = true;
+        try {
+            context.beginPath();
+            corners.forEach((point, i)=>{
+                const screen = this.worldToScreen(point);
+                i ? context.lineTo(...screen) : context.moveTo(...screen);
+            });
+            context.closePath();
+            context.clip();
+            const query = {
+                document,
+                spaceId: document.snapshot().spaces.modelSpaceId
+            };
+            for (const model of this.#sceneProvider?.listEntities(query) ?? document.listEntities({
+                ownerId: query.spaceId
+            })){
+                if (this.#viewportWorkRemaining <= 0) {
+                    diagnostic.reason = 'budget';
+                    complete = false;
+                    break;
+                }
+                this.#viewportWorkRemaining--;
+                if (model.ownerId !== query.spaceId) continue;
+                const layer = document.getObject(String(model.payload.layerId ?? ''))?.payload;
+                if (model.payload.visible === false || layer?.visible === false || layer?.frozen === true || this.#viewportState.frozen.has(String(model.payload.layerId ?? ''))) {
+                    diagnostic.hidden++;
+                    continue;
+                }
+                try {
+                    const transformed = {
+                        ...model,
+                        payload: transformEntityPayload(model.type, structuredClone(model.payload), matrix)
+                    };
+                    const identity = {
+                        payload: model.payload,
+                        instanceKey: `viewport:${entity.id};${matrix.join(',')}`,
+                        ...model.type === 'DIMENSION' ? {
+                            dimension: this.#dimensionInView(model, matrix)
+                        } : {}
+                    };
+                    const before = diagnostic.unsupported;
+                    if (!this.#drawEntity(transformed, this.#color(model, layer), depth + 1, false, identity)) {
+                        complete = false;
+                        if (diagnostic.unsupported === before) diagnostic.unsupported++;
+                    }
+                } catch  {
+                    diagnostic.unsupported++;
+                    complete = false;
+                }
+            }
+        } finally{
+            this.#viewportState = previous;
+            context.restore();
+        }
+        return complete;
     }
 }

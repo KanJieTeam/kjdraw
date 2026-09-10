@@ -74,6 +74,9 @@ export interface KJWorkbenchSnapshot {
   locale: KJWorkbenchLocale
   theme: KJWorkbenchTheme
   layout: KJWorkbenchLayout
+  drawingLayoutId: string | null
+  spaceId: string | null
+  paperPreview: boolean
   tool: KJWorkbenchTool
   documentId: string | null
   revision: number
@@ -134,6 +137,7 @@ interface KJWorkbenchFenceSelection {
 
 const copy = {
   en: {
+    drawingSpace: 'Drawing space', modelSpace: 'Model', paperPreview: 'Paper preview · return to Model to edit',
     pageSetup: 'Page setup', pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.', pageSheet: 'Sheet', pageStale: 'The drawing changed. Close and reopen page setup before applying.', pageWidth: 'Paper width (mm)', pageHeight: 'Paper height (mm)', pageLeft: 'Left margin (mm)', pageRight: 'Right margin (mm)', pageTop: 'Top margin (mm)', pageBottom: 'Bottom margin (mm)', pageUnits: 'Plot units', pageRotation: 'Rotation (counterclockwise)', pageNumerator: 'Custom scale: paper units', pageDenominator: 'Custom scale: drawing units', pageScaleNote: 'Choose Fit to paper or edit the custom ratio. Window coordinates use drawing units; physical offsets use millimeters.', pageUnchanged: 'Keep existing', pageInches: 'Inches', pageMm: 'Millimeters', pagePixels: 'Pixels', pageArea: 'Plot area', pageDisplay: 'Last display', pageExtents: 'Drawing extents', pageLimits: 'Drawing limits', pageView: 'Named view', pageWindow: 'Window', pageLayout: 'Layout', pageViewName: 'View name', pageMinX: 'Window minimum X', pageMinY: 'Window minimum Y', pageMaxX: 'Window maximum X', pageMaxY: 'Window maximum Y', pageOriginX: 'Origin X (mm)', pageOriginY: 'Origin Y (mm)', pageScaleMode: 'Scale mode', pageFit: 'Fit to paper', pageCustom: 'Custom ratio',
     open: 'Open', saveKjd: 'Save KJD', exportDxf: 'Export DXF', draw: 'Draw', modify: 'Modify', view: 'View',
     select: 'Select', pan: 'Pan', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', rectangle: 'Rectangle', text: 'Text', measure: 'Measure',
@@ -153,6 +157,7 @@ const copy = {
     confirmBoundaries: 'Confirm boundaries', boundarySelectionHint: 'Click or drag to add boundaries · Ctrl/⌘ removes · Enter confirms', boundaryTargetHint: 'Click target portions repeatedly · Enter or Esc finishes', boundaryEmpty: 'No editable target here — pick another portion', boundaryBusy: 'Applying the edit…',
   },
   'zh-CN': {
+    drawingSpace: '图纸空间', modelSpace: '模型', paperPreview: '纸空间只读预览 · 返回模型后编辑',
     pageSetup: '页面设置', pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。', pageSheet: '图纸布局', pageStale: '图档已变更，请关闭并重新打开页面设置后再应用。', pageWidth: '纸张宽度（毫米）', pageHeight: '纸张高度（毫米）', pageLeft: '左边距（毫米）', pageRight: '右边距（毫米）', pageTop: '上边距（毫米）', pageBottom: '下边距（毫米）', pageUnits: '打印单位', pageRotation: '旋转（逆时针）', pageNumerator: '自定义比例：纸张单位', pageDenominator: '自定义比例：图形单位', pageScaleNote: '可选适合纸张或编辑自定义比例。窗口坐标使用绘图单位，物理偏移使用毫米。', pageUnchanged: '保留已有值', pageInches: '英寸', pageMm: '毫米', pagePixels: '像素', pageArea: '打印范围', pageDisplay: '上次显示范围', pageExtents: '图形范围', pageLimits: '图形界限', pageView: '命名视图', pageWindow: '窗口', pageLayout: '布局', pageViewName: '视图名称', pageMinX: '窗口最小 X', pageMinY: '窗口最小 Y', pageMaxX: '窗口最大 X', pageMaxY: '窗口最大 Y', pageOriginX: '原点 X（毫米）', pageOriginY: '原点 Y（毫米）', pageScaleMode: '比例模式', pageFit: '适合纸张', pageCustom: '自定义比例',
     open: '打开', saveKjd: '保存 KJD', exportDxf: '导出 DXF', draw: '绘图', modify: '修改', view: '视图',
     select: '选择', pan: '平移', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', rectangle: '矩形', text: '文字', measure: '测距',
@@ -233,6 +238,7 @@ const WORKBENCH_STYLE = `
 @media(max-width:980px){.kjwb .workspace,.kjwb .workspace.no-layers{grid-template-columns:minmax(0,1fr) 230px}.kjwb .workspace.no-inspector,.kjwb .workspace.no-layers.no-inspector{grid-template-columns:minmax(0,1fr)}.kjwb .side.layers{display:none}.kjwb .panel-toggle[data-action="toggle-layers"]{display:none}.kjwb .tool{min-width:50px;padding-inline:5px}}
 @media(max-width:680px){.kjwb .workspace,.kjwb .workspace.no-layers,.kjwb .workspace.no-inspector,.kjwb .workspace.no-layers.no-inspector{grid-template-columns:minmax(0,1fr)}.kjwb .side.right{display:none}.kjwb .panel-toggle{display:none!important}.kjwb .hide-small{display:none!important}.kjwb .brand{font-size:13px}.kjwb .docname{display:none}.kjwb .group{padding-inline:4px}.kjwb .appbar{gap:3px;padding-inline:6px}.kjwb .layout-select{max-width:92px}}
 @media(max-width:680px){.kjwb .appbar .file-action{width:32px;padding:0}.kjwb .appbar .file-action>[data-copy]{display:none}}
+.kjwb .drawing-space{position:absolute;top:10px;left:10px;z-index:4;display:flex;align-items:center;flex-wrap:wrap;gap:8px;max-width:calc(100% - 70px);font-size:12px}.kjwb .drawing-space select{max-width:210px;min-height:30px;padding:4px 8px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}.kjwb .drawing-space span{padding:5px 8px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--radius)}
 `
 
 function assertBrowser(): void {
@@ -359,6 +365,7 @@ export class KJDrawWorkbench {
   #locale: KJWorkbenchLocale
   #theme: KJWorkbenchTheme
   #layout: KJWorkbenchLayout
+  #drawingLayoutId: string | null = null
   #tool: KJWorkbenchTool = 'select'
   #canvas: HTMLCanvasElement
   #overlay: HTMLCanvasElement
@@ -439,12 +446,75 @@ export class KJDrawWorkbench {
   get locale(): KJWorkbenchLocale { return this.#locale }
   get theme(): KJWorkbenchTheme { return this.#theme }
   get layout(): KJWorkbenchLayout { return this.#layout }
+  /** Null means model space; independent of the classic/compact/focus interface layout. */
+  get drawingLayoutId(): string | null { return this.#drawingLayoutId }
+  get spaceId(): string | null { return this.renderer.spaceId ?? this.document?.snapshot().spaces.modelSpaceId ?? null }
+  get paperPreview(): boolean { return this.#drawingLayoutId !== null }
+  get #readOnly(): boolean { return this.#options.readonly === true || this.paperPreview }
   get tool(): KJWorkbenchTool { return this.#tool }
+
+  /** Switch the displayed model/paper space without changing document state or undo history.
+   * Existing paper layouts are read-only previews; return to null (Model) to edit.
+   */
+  setDrawingLayout(layoutId: string | null): this {
+    if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed')
+    const drawing = this.document
+    if (!drawing) throw new Error('No active KJDraw document')
+    const layout = layoutId === null ? null : this.#paperLayouts().find(item => item.id === layoutId)
+    if (layoutId !== null && !layout) throw new RangeError('Drawing layout must be an existing paper-space layout')
+    if (this.#drawingLayoutId === layoutId) return this
+    this.#cancelGesture()
+    this.#drawingLayoutId = layoutId
+    this.renderer.setSpace(layout ? String(layout.payload.blockRecordId) : null)
+    this.#selection?.clear()
+    this.renderer.setSelection([])
+    this.setTool('select')
+    this.#refreshDocumentPanels()
+    this.renderer.fit(); this.#refreshViewport()
+    this.#setMessage(this.#t(this.paperPreview ? 'paperPreview' : 'ready'))
+    this.root.dispatchEvent(new CustomEvent('kjdraw:space', { detail: { document: drawing, layoutId, spaceId: this.spaceId, readonly: this.#readOnly }, bubbles: true, composed: true }))
+    return this
+  }
+
+  #paperLayouts(): KJReadonlyObjectRecord[] {
+    const drawing = this.document
+    if (!drawing) return []
+    const state = drawing.snapshot(), result: KJReadonlyObjectRecord[] = []
+    for (const id of state.spaces.layoutIds) {
+      const layout = drawing.getObject(id), ownerId = String(layout?.payload.blockRecordId ?? ''), owner = drawing.getObject(ownerId)
+      if (layout?.kind === 'layout' && !layout.erased && owner?.kind === 'block-record' && !owner.erased && owner.payload.isSpace === true && state.spaces.paperSpaceIds.includes(ownerId)) result.push(layout)
+    }
+    return result.sort((a, b) => Number(a.payload.tabOrder ?? 0) - Number(b.payload.tabOrder ?? 0))
+  }
+
+  #syncDrawingLayouts(): void {
+    const layouts = this.#paperLayouts()
+    if (this.#drawingLayoutId !== null && !layouts.some(layout => layout.id === this.#drawingLayoutId)) {
+      this.#cancelGesture(); this.#drawingLayoutId = null; this.renderer.setSpace(null)
+      this.#selection?.clear(); this.renderer.setSelection([]); this.setTool('select'); this.renderer.fit()
+    }
+    const select = this.root.querySelector<HTMLSelectElement>('[data-drawing-layout]')
+    if (select) {
+      const rows = [{ id: '', name: this.#t('modelSpace') }, ...layouts.map(layout => ({ id: layout.id, name: String(layout.name ?? layout.id) }))]
+      select.replaceChildren(...rows.map(row => { const option = document.createElement('option'); option.value = row.id; option.textContent = row.name; return option }))
+      select.value = this.#drawingLayoutId ?? ''; select.setAttribute('aria-label', this.#t('drawingSpace')); select.title = this.#t('drawingSpace')
+    }
+    this.root.dataset.drawingSpace = this.paperPreview ? 'paper' : 'model'
+    const notice = this.root.querySelector<HTMLElement>('[data-paper-preview]')
+    if (notice) { notice.hidden = !this.paperPreview; notice.textContent = this.#t('paperPreview') }
+  }
+
+  #syncEditability(): void {
+    const allowed = this.paperPreview ? ['select', 'fence', 'pan'] : ['select', 'fence', 'pan', 'measure']
+    for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-action="page-setup"],[data-tool]')) button.disabled = this.#readOnly && !allowed.includes(button.dataset.tool ?? '')
+    const command = this.root.querySelector<HTMLInputElement>('[data-command]'), run = this.root.querySelector<HTMLButtonElement>('[data-action="run-command"]')
+    if (command) command.disabled = this.paperPreview
+    if (run) run.disabled = this.paperPreview
+  }
 
   /** Change presentation without replacing the drawing or its undo history. */
   setOptions(options: Pick<KJDrawWorkbenchOptions, 'readonly' | 'grid' | 'toolbar' | 'showLayers' | 'showInspector' | 'title' | 'maxFileBytes' | 'layout'>): this {
     if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed')
-    const wasReadonly = this.#options.readonly === true
     if (options.maxFileBytes !== undefined) {
       const nextLimit = Number(options.maxFileBytes)
       if (!Number.isSafeInteger(nextLimit) || nextLimit <= 0) throw new RangeError('maxFileBytes must be a positive safe integer')
@@ -452,7 +522,7 @@ export class KJDrawWorkbench {
     }
     this.#options = { ...this.#options, ...options }
     if (options.layout !== undefined) this.setLayout(options.layout)
-    if (!wasReadonly && this.#options.readonly === true) this.#cancelGesture()
+    if (options.readonly === true) this.#cancelGesture()
     if (options.grid !== undefined) this.renderer.setGrid(options.grid)
     const workspace = query<HTMLElement>(this.root, '.workspace')
     workspace.classList.toggle('no-layers', this.#options.showLayers === false)
@@ -469,10 +539,8 @@ export class KJDrawWorkbench {
     }
     syncPanelToggle(layersToggle, this.#options.showLayers !== false)
     syncPanelToggle(inspectorToggle, this.#options.showInspector !== false)
-    for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-action="page-setup"],[data-tool]')) {
-      button.disabled = this.#options.readonly === true && !['select', 'fence', 'pan', 'measure'].includes(button.dataset.tool ?? '')
-    }
-    if (this.#options.readonly && !['select', 'fence', 'pan', 'measure'].includes(this.#tool)) this.setTool('select')
+    this.#syncEditability()
+    if (this.#readOnly && !['select', 'fence', 'pan', 'measure'].includes(this.#tool)) this.setTool('select')
     this.#refreshDocumentPanels()
     this.renderer.resize()
     this.#drawOverlay()
@@ -503,6 +571,9 @@ export class KJDrawWorkbench {
       locale: this.#locale,
       theme: this.#theme,
       layout: this.#layout,
+      drawingLayoutId: this.drawingLayoutId,
+      spaceId: this.spaceId,
+      paperPreview: this.paperPreview,
       tool: this.#tool,
       documentId: drawing?.id ?? null,
       revision: drawing?.revision ?? 0,
@@ -545,8 +616,8 @@ export class KJDrawWorkbench {
   setTool(tool: KJWorkbenchTool): this {
     const tools: readonly KJWorkbenchTool[] = ['select', 'fence', 'pan', ...DRAFT_TOOLS, 'text', 'measure', 'move', 'copy']
     if (!tools.includes(tool)) throw new RangeError(`Unsupported KJDraw workbench tool: ${String(tool)}`)
-    if (this.#options.readonly && !['select', 'fence', 'pan', 'measure'].includes(tool)) {
-      this.#setMessage(this.#t('readonly'))
+    if (this.#readOnly && !(this.paperPreview ? ['select', 'fence', 'pan'] : ['select', 'fence', 'pan', 'measure']).includes(tool)) {
+      this.#setMessage(this.#t(this.paperPreview ? 'paperPreview' : 'readonly'))
       return this
     }
     this.#cancelGesture()
@@ -587,9 +658,14 @@ export class KJDrawWorkbench {
     const acquire = previousLease !== document
     if (acquire) acquireDocumentLease(this.sdk, this, document, generated)
     try {
+      this.#drawingLayoutId = null
+      this.renderer.setSpace(null)
       this.renderer.setDocument(document)
       this.#subscribeDocument(document)
-      this.renderer.setSelection(this.sdk.getSelectionManager(document.id)?.active.ids ?? [])
+      const selection = this.sdk.getSelectionManager(document.id)?.active
+      const modelIds = selection?.ids.filter(id => document.getObject(id)?.ownerId === document.snapshot().spaces.modelSpaceId) ?? []
+      if (selection && modelIds.length !== selection.ids.length) selection.replace(modelIds)
+      this.renderer.setSelection(modelIds)
       if (DRAFT_TOOLS.includes(this.#tool as KJDraftTool)) this.#beginDraftGesture(this.#tool as KJDraftTool)
       if (this.#tool === 'fence') this.#fenceSelection = { document, revision: document.revision, points: [], operation: 'replace' }
       this.#leasedDocument = document
@@ -633,7 +709,9 @@ export class KJDrawWorkbench {
 
   async execute<TResult = unknown>(command: string, args: KJCommandArguments = {}, options: { expectedRevision?: number } = {}): Promise<KJSDKCommandEnvelopeReceipt<TResult>> {
     if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed')
-    if (this.#options.readonly && !['SELECT', 'SEARCH', 'FIND', 'LENGTH', 'AREA', 'DISTANCE', 'NEAREST', 'INTERSECT', 'ANGLE'].includes(command.toUpperCase())) throw new Error('This editor is read only')
+    if (this.paperPreview && command.toUpperCase() !== 'SELECT') throw new Error(this.#t('paperPreview'))
+    if (this.paperPreview && (!Array.isArray(args.ids) || args.ids.some(id => this.document?.getObject(String(id))?.ownerId !== this.spaceId))) throw new Error('Selection must belong to the displayed paper space')
+    if (this.#readOnly && !['SELECT', 'SEARCH', 'FIND', 'LENGTH', 'AREA', 'DISTANCE', 'NEAREST', 'INTERSECT', 'ANGLE'].includes(command.toUpperCase())) throw new Error('This editor is read only')
     const drawing = this.document
     if (!drawing) throw new Error('No active KJDraw document')
     if (this.sdk.documents.get(drawing.id) !== drawing) throw new Error('This drawing was closed or replaced by the host; setDocument before editing')
@@ -701,7 +779,7 @@ export class KJDrawWorkbench {
   #markup(): string {
     const t = (key: keyof typeof copy.en) => this.#t(key)
     const icon = (name: string, attributes = '') => `<span class="icon" aria-hidden="true" ${attributes}>${kjdrawIcon(name)}</span>`
-    const readonly = this.#options.readonly === true
+    const readonly = this.#readOnly === true
     const showLayers = this.#options.showLayers !== false
     const showInspector = this.#options.showInspector !== false
     const layoutCopy: Record<KJWorkbenchLayout, keyof typeof copy.en> = { classic: 'layoutClassic', compact: 'layoutCompact', focus: 'layoutFocus' }
@@ -722,7 +800,7 @@ export class KJDrawWorkbench {
       </nav>
       <div class="workspace ${this.#options.showLayers === false ? 'no-layers' : ''} ${this.#options.showInspector === false ? 'no-inspector' : ''}">
         <aside class="side layers" ${this.#options.showLayers === false ? 'hidden' : ''}><h2 data-copy="layers">${t('layers')}</h2><div data-layers></div></aside>
-        <main class="canvas-wrap"><canvas class="cad-canvas" data-canvas aria-label="KJDraw CAD canvas"></canvas><canvas class="overlay" data-overlay aria-hidden="true"></canvas><span class="snap" data-snap></span><nav class="navigator" aria-label="${t('view')}"><button type="button" class="active" data-tool="select" data-copy-title="select" title="${t('select')}">${icon('select')}</button><button type="button" data-tool="pan" data-copy-title="pan" title="${t('pan')}">${icon('pan')}</button><button type="button" data-action="nav-fit" data-copy-title="fit" title="${t('fit')}">${icon('fit')}</button><button type="button" data-action="zoom-in" data-copy-title="zoomIn" title="${t('zoomIn')}">${icon('zoom-in')}</button><button type="button" data-action="zoom-out" data-copy-title="zoomOut" title="${t('zoomOut')}">${icon('zoom-out')}</button></nav><div class="draft-actions" data-draft-actions hidden><button type="button" data-action="draft-undo" data-copy="undoPoint">${t('undoPoint')}</button><button type="button" data-action="draft-finish" data-copy="finish">${t('finish')}</button><button type="button" data-action="draft-close" data-copy="closeShape">${t('closeShape')}</button></div><div class="command"><span data-copy="command">${t('command')}</span><input data-command aria-label="${t('command')}" placeholder="${t('commandHint')}" autocomplete="off"><button type="button" data-action="run-command" data-copy="run">${t('run')}</button></div><div class="hint" data-hint>${t('ready')}</div></main>
+        <main class="canvas-wrap"><div class="drawing-space"><select data-drawing-layout></select><span data-paper-preview role="status" hidden></span></div><canvas class="cad-canvas" data-canvas aria-label="KJDraw CAD canvas"></canvas><canvas class="overlay" data-overlay aria-hidden="true"></canvas><span class="snap" data-snap></span><nav class="navigator" aria-label="${t('view')}"><button type="button" class="active" data-tool="select" data-copy-title="select" title="${t('select')}">${icon('select')}</button><button type="button" data-tool="pan" data-copy-title="pan" title="${t('pan')}">${icon('pan')}</button><button type="button" data-action="nav-fit" data-copy-title="fit" title="${t('fit')}">${icon('fit')}</button><button type="button" data-action="zoom-in" data-copy-title="zoomIn" title="${t('zoomIn')}">${icon('zoom-in')}</button><button type="button" data-action="zoom-out" data-copy-title="zoomOut" title="${t('zoomOut')}">${icon('zoom-out')}</button></nav><div class="draft-actions" data-draft-actions hidden><button type="button" data-action="draft-undo" data-copy="undoPoint">${t('undoPoint')}</button><button type="button" data-action="draft-finish" data-copy="finish">${t('finish')}</button><button type="button" data-action="draft-close" data-copy="closeShape">${t('closeShape')}</button></div><div class="command"><span data-copy="command">${t('command')}</span><input data-command aria-label="${t('command')}" placeholder="${t('commandHint')}" autocomplete="off"><button type="button" data-action="run-command" data-copy="run">${t('run')}</button></div><div class="hint" data-hint>${t('ready')}</div></main>
         <aside class="side right" ${this.#options.showInspector === false ? 'hidden' : ''}><h2 data-copy="properties">${t('properties')}</h2><div class="inspector" data-inspector><p class="empty">${t('noSelection')}</p></div></aside>
       </div>
       <footer class="statusbar"><span class="message" data-message>${readonly ? t('readonly') : t('ready')}</span><span data-coordinate>X 0.000 · Y 0.000</span><span data-selection>0 ${t('selected')}</span><b data-count>0 ${t('entities')}</b><span data-revision>REV 0</span><span data-zoom>100%</span></footer>
@@ -751,6 +829,9 @@ export class KJDrawWorkbench {
 
   #bind(): void {
     const signal = this.#abort.signal
+    query<HTMLSelectElement>(this.root, '[data-drawing-layout]').addEventListener('change', event => {
+      void this.#run(() => this.setDrawingLayout((event.currentTarget as HTMLSelectElement).value || null))
+    }, { signal })
     const pageDialog = query<HTMLDialogElement>(this.root, '[data-page-dialog]')
     query<HTMLButtonElement>(this.root, '[data-action="page-setup"]').addEventListener('click', () => this.#openPageSetup(), { signal })
     query<HTMLButtonElement>(this.root, '[data-action="cancel-page"]').addEventListener('click', () => pageDialog.close(), { signal })
@@ -867,9 +948,9 @@ export class KJDrawWorkbench {
       if (event.key === 'Enter' && this.#draftGesture?.session.state.canFinish) { event.preventDefault(); void this.#finishDraft(false); return }
       if (event.key.toLowerCase() === 'c' && this.#draftGesture?.session.state.canClose && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); void this.#finishDraft(true); return }
       if (event.key === 'Backspace' && this.#draftGesture?.session.points.length) { event.preventDefault(); this.#undoDraftPoint(); return }
-      if (!this.#options.readonly && (event.key === 'Delete' || event.key === 'Backspace')) { event.preventDefault(); void this.#eraseSelection() }
-      if (!this.#options.readonly && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); void this.#run(() => this.execute(event.shiftKey ? 'REDO' : 'UNDO')) }
-      if (!this.#options.readonly && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') { event.preventDefault(); void this.#run(() => this.execute('REDO')) }
+      if (!this.#readOnly && (event.key === 'Delete' || event.key === 'Backspace')) { event.preventDefault(); void this.#eraseSelection() }
+      if (!this.#readOnly && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); void this.#run(() => this.execute(event.shiftKey ? 'REDO' : 'UNDO')) }
+      if (!this.#readOnly && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') { event.preventDefault(); void this.#run(() => this.execute('REDO')) }
       if (event.ctrlKey || event.metaKey || event.altKey) return
       if (event.key.toLowerCase() === 'f') { this.renderer.fit(); this.#refreshViewport() }
     }, { signal })
@@ -922,6 +1003,7 @@ export class KJDrawWorkbench {
   }
 
   async #runCommand(): Promise<void> {
+    if (this.paperPreview) { this.#setMessage(this.#t('paperPreview')); return }
     const input = query<HTMLInputElement>(this.root, '[data-command]')
     const raw = input.value.trim()
     if (!raw) {
@@ -968,13 +1050,13 @@ export class KJDrawWorkbench {
         this.renderer.fit(); this.#refreshViewport(); return
       }
       if (remainder.startsWith('{')) {
-        if (this.#options.readonly) throw new Error(this.#t('readonly'))
+        if (this.#readOnly) throw new Error(this.#t('readonly'))
         const parsed = JSON.parse(remainder) as unknown
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Command JSON arguments must be an object')
         await this.execute(command, parsed as KJCommandArguments)
         return
       }
-      if (this.#options.readonly && !['PAN', 'SELECT', 'FENCE', 'MEASURE'].includes(command)) throw new Error(this.#t('readonly'))
+      if (this.#readOnly && !['PAN', 'SELECT', 'FENCE', 'MEASURE'].includes(command)) throw new Error(this.#t('readonly'))
       if ((command === 'TRIM' || command === 'EXTEND') && !tokens.length) {
         this.#beginBoundaryEdit(command === 'TRIM' ? 'trim' : 'extend')
         return
@@ -1284,7 +1366,7 @@ export class KJDrawWorkbench {
   }
 
   #openDraftDialog(tool?: KJDraftTool): void {
-    if (this.#options.readonly) { this.#setMessage(this.#t('readonly')); return }
+    if (this.#readOnly) { this.#setMessage(this.#t('readonly')); return }
     if (this.#draftGesture?.session.points.length) {
       this.#setMessage(this.#locale === 'zh-CN' ? '请先完成或按 Esc 取消当前绘图' : 'Finish the current drawing or press Esc to cancel it first')
       return
@@ -1322,7 +1404,7 @@ export class KJDrawWorkbench {
 
   #openPageSetup(): void {
     const drawing = this.document
-    if (!drawing || this.#options.readonly || this.#abort.signal.aborted) return
+    if (!drawing || this.#readOnly || this.#abort.signal.aborted) return
     this.#cancelGesture()
     this.#pageBinding = { document: drawing, revision: drawing.revision, layoutId: '', settings: {} }
     const select = query<HTMLSelectElement>(this.root, '[data-page-sheet]')
@@ -1397,7 +1479,7 @@ export class KJDrawWorkbench {
     if (invalid) { invalid.reportValidity(); return }
     button.disabled = true
     try {
-      if (this.#options.readonly) throw new Error(this.#t('readonly'))
+      if (this.#readOnly) throw new Error(this.#t('readonly'))
       if (this.document !== binding.document || binding.document.revision !== binding.revision) throw new Error(this.#t('pageStale'))
       const patch: Record<string, number | string> = {}
       for (const input of dialog.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-page-field]')) {
@@ -1481,7 +1563,7 @@ export class KJDrawWorkbench {
   }
 
   #openModificationDialog(id?: KJModificationId): void {
-    if (this.#options.readonly) { this.#setMessage(this.#t('readonly')); return }
+    if (this.#readOnly) { this.#setMessage(this.#t('readonly')); return }
     this.setTool('select')
     const select = query<HTMLSelectElement>(this.root, '[data-modification]')
     if (id) select.value = id
@@ -1591,7 +1673,7 @@ export class KJDrawWorkbench {
   }
 
   #beginBoundaryEdit(operation: 'trim' | 'extend'): void {
-    if (this.#options.readonly) throw new Error(this.#t('readonly'))
+    if (this.#readOnly) throw new Error(this.#t('readonly'))
     const drawing = this.document
     if (!drawing) throw new Error('No active KJDraw document')
     const ids = [...(this.#selection?.ids ?? [])]
@@ -1599,7 +1681,7 @@ export class KJDrawWorkbench {
     this.#boundarySession = createBoundaryEditSession(operation, {
       document: drawing, boundaryIds: ids, locale: this.#locale === 'zh-CN' ? 'zh' : 'en',
       isDocumentCurrent: () => this.document === drawing && this.sdk.documents.get(drawing.id) === drawing
-        && !this.#options.readonly && !this.#abort.signal.aborted,
+        && !this.#readOnly && !this.#abort.signal.aborted,
     })
     this.#canvas.classList.add('crosshair')
     this.#syncBoundaryActions()
@@ -1764,7 +1846,7 @@ export class KJDrawWorkbench {
   #visibleModelEntityIds(): string[] {
     const drawing = this.document
     if (!drawing) return []
-    const modelSpaceId = drawing.snapshot().spaces.modelSpaceId
+    const modelSpaceId = this.spaceId ?? drawing.snapshot().spaces.modelSpaceId
     const layers = new Map(drawing.getTable('layers')?.records.map(layer => [layer.id, layer.payload]) ?? [])
     return drawing.listEntities({ ownerId: modelSpaceId }).filter(entity => {
       const layer = layers.get(String(entity.payload.layerId ?? ''))
@@ -1773,6 +1855,7 @@ export class KJDrawWorkbench {
   }
 
   #snapAt(world: Point2, excludeIds: readonly string[] = []): Point2 | null {
+    if (this.paperPreview) return null
     const drawing = this.document
     if (!drawing || !this.#snappableEntityIds.length) return null
     const candidate = this.sdk.snap(world, {
@@ -1839,7 +1922,7 @@ export class KJDrawWorkbench {
       const binding: KJWorkbenchPointerBinding = {
         pointerId: event.pointerId, document: drawing, revision: drawing.revision, view: this.#viewIdentity(), baseScreen: location,
       }
-      const grip = operation === 'replace' && !this.#options.readonly && selection?.size === 1 ? this.renderer.hitGrip(location, 7) : null
+      const grip = operation === 'replace' && !this.#readOnly && selection?.size === 1 ? this.renderer.hitGrip(location, 7) : null
       const entity = grip ? drawing.getObject(grip.entityId) : null
       if (grip && entity?.kind === 'entity') {
         this.#gripGesture = { ...binding, grip, entity, currentWorld: [grip.point[0], grip.point[1]] }
@@ -1858,7 +1941,7 @@ export class KJDrawWorkbench {
         event.preventDefault()
         return
       }
-      if (operation === 'replace' && !this.#options.readonly && selection?.has(hit.entity.id)) {
+      if (operation === 'replace' && !this.#readOnly && selection?.has(hit.entity.id)) {
         const baseWorld = this.renderer.screenToWorld(location)
         const editable = new Set(this.renderer.selectAll())
         this.#selectionDrag = {
@@ -1921,7 +2004,7 @@ export class KJDrawWorkbench {
       return
     }
     const drawingTool = this.#draftGesture !== null || this.#modificationGesture !== null || ['text', 'measure', 'move', 'copy'].includes(this.#tool)
-    this.#hoverGrip = this.#tool === 'select' && !this.#options.readonly && this.#selection?.size === 1 ? this.renderer.hitGrip(location, 7) : null
+    this.#hoverGrip = this.#tool === 'select' && !this.#readOnly && this.#selection?.size === 1 ? this.renderer.hitGrip(location, 7) : null
     this.#canvas.style.cursor = this.#hoverGrip ? 'crosshair' : ''
     const snapped = drawingTool ? this.#snapAt(rawWorld) : null
     this.#cursorWorld = snapped ?? rawWorld
@@ -1969,7 +2052,7 @@ export class KJDrawWorkbench {
       this.#hoverGrip = null
       this.#hideSnap()
       this.renderer.render()
-      if (this.#pointerBindingIsCurrent(gesture) && !this.#options.readonly) {
+      if (this.#pointerBindingIsCurrent(gesture) && !this.#readOnly) {
         if (Math.hypot(location[0] - gesture.baseScreen[0], location[1] - gesture.baseScreen[1]) >= 3) {
           await this.#run(() => this.execute('GRIPEDIT', {
             id: gesture.entity.id, gripId: gesture.grip.id, point: [destination[0], destination[1], gesture.grip.point[2]],
@@ -2021,7 +2104,7 @@ export class KJDrawWorkbench {
       if ((event.shiftKey || event.ctrlKey || event.metaKey) && !hit) return
       const operation = event.ctrlKey || event.metaKey ? 'remove' : event.shiftKey ? 'add' : 'replace'
       await this.#run(() => this.execute('SELECT', { ids: hit ? [hit.entity.id] : [], operation }))
-      this.#setMessage(this.#selection?.size === 1 && !this.#options.readonly ? this.#t('gripHint') : this.#t('selectionHint'))
+      this.#setMessage(this.#selection?.size === 1 && !this.#readOnly ? this.#t('gripHint') : this.#t('selectionHint'))
       return
     }
     if (this.#tool === 'pan') return
@@ -2072,7 +2155,7 @@ export class KJDrawWorkbench {
       return
     }
     if (this.#tool === 'text') {
-      if (this.#options.readonly) return
+      if (this.#readOnly) return
       await this.#run(() => this.execute('CREATE', { type: 'TEXT', payload: { position: [...world, 0], text: this.#pendingText, height: Math.max(1, 16 / this.renderer.camera.scale), rotation: 0, ...this.#activeLayerPayload() } }))
       this.#setMessage(this.#t('textPrompt'))
       this.#drawOverlay()
@@ -2109,7 +2192,7 @@ export class KJDrawWorkbench {
       this.#drawOverlay()
       return
     }
-    if (this.#options.readonly) return
+    if (this.#readOnly) return
     let type = 'LINE', payload: Record<string, unknown> = { start: [...start, 0], end: [...world, 0], ...this.#activeLayerPayload() }
     if (this.#tool === 'circle') {
       type = 'CIRCLE'; payload = { center: [...start, 0], radius: Math.hypot(world[0] - start[0], world[1] - start[1]), ...this.#activeLayerPayload() }
@@ -2122,7 +2205,7 @@ export class KJDrawWorkbench {
   }
 
   async #finishPolyline(): Promise<void> {
-    if (this.#options.readonly) return
+    if (this.#readOnly) return
     if (this.#draftPoints.length < 2) { this.#setMessage(this.#t('nextPoint')); return }
     const vertices = this.#draftPoints.map(value => ({ point: [value[0], value[1], 0] }))
     this.#draftPoints = []
@@ -2230,7 +2313,7 @@ export class KJDrawWorkbench {
     if (this.#boundarySession) return
     const ids = this.#selection?.ids ?? []
     const drawing = this.document
-    if (!ids.length || this.#options.readonly || !drawing) return
+    if (!ids.length || this.#readOnly || !drawing) return
     const receipt = await this.#run(() => this.execute('ERASE', { ids }))
     if (!receipt) return
     await this.sdk.executeCommand('SELECT', { ids: [], operation: 'clear' }, { document: drawing })
@@ -2253,7 +2336,7 @@ export class KJDrawWorkbench {
     context.fillStyle = context.strokeStyle
     context.lineWidth = 1.5
     context.setLineDash([6, 4])
-    const grips = this.#tool === 'select' && !this.#options.readonly && !this.#modificationGesture && !this.#boundarySession && (this.#selection?.size === 1 || this.#gripGesture) && !this.#boxSelection && !this.#selectionDrag
+    const grips = this.#tool === 'select' && !this.#readOnly && !this.#modificationGesture && !this.#boundarySession && (this.#selection?.size === 1 || this.#gripGesture) && !this.#boxSelection && !this.#selectionDrag
       ? this.renderer.getGrips(this.#gripGesture ? [this.#gripGesture.entity.id] : undefined) : []
     this.#overlay.dataset.gripCount = String(grips.length)
     this.#overlay.dataset.boundaryPreviewCount = String(this.#boundaryPreview?.pieces.length ?? 0)
@@ -2385,13 +2468,15 @@ export class KJDrawWorkbench {
     const output = this.root.querySelector<HTMLElement>('[data-selection]')
     if (output) output.textContent = `${selection?.size ?? 0} ${this.#t('selected')}`
     const erase = this.root.querySelector<HTMLButtonElement>('[data-action="erase"]')
-    if (erase) erase.disabled = this.#options.readonly === true || this.#boundarySession !== null || !(selection?.size)
+    if (erase) erase.disabled = this.#readOnly === true || this.#boundarySession !== null || !(selection?.size)
     this.#refreshInspector()
   }
 
   #refreshDocumentPanels(): void {
     const drawing = this.document
     if (!drawing) return
+    this.#syncDrawingLayouts()
+    this.#syncEditability()
     this.#snappableEntityIds = this.#visibleModelEntityIds()
     const name = this.root.querySelector<HTMLElement>('[data-document-name]')
     if (name) name.textContent = this.#options.title ?? String(drawing.snapshot().metadata.title ?? drawing.id)
@@ -2400,8 +2485,8 @@ export class KJDrawWorkbench {
     set('[data-count]', `${count.toLocaleString()} ${this.#t('entities')}`)
     set('[data-revision]', `REV ${drawing.revision}`)
     const undo = this.root.querySelector<HTMLButtonElement>('[data-action="undo"]'), redo = this.root.querySelector<HTMLButtonElement>('[data-action="redo"]')
-    if (undo) undo.disabled = this.#options.readonly === true || !drawing.history.canUndo
-    if (redo) redo.disabled = this.#options.readonly === true || !drawing.history.canRedo
+    if (undo) undo.disabled = this.#readOnly === true || !drawing.history.canUndo
+    if (redo) redo.disabled = this.#readOnly === true || !drawing.history.canRedo
     this.#refreshLayers()
     this.#refreshSelectionPanels()
     this.#refreshViewport()
@@ -2416,7 +2501,7 @@ export class KJDrawWorkbench {
     for (const layer of drawing.getTable('layers')?.records ?? []) {
       const row = document.createElement('div'); row.className = 'layer'; row.dataset.layerId = layer.id
       const label = document.createElement('label'); label.className = 'layer-name'
-      const input = document.createElement('input'); input.type = 'checkbox'; input.checked = layer.payload.visible !== false; input.disabled = this.#options.readonly === true
+      const input = document.createElement('input'); input.type = 'checkbox'; input.checked = layer.payload.visible !== false; input.disabled = this.#readOnly === true
       input.title = `${this.#t(input.checked ? 'hideLayer' : 'showLayer')}: ${layer.name ?? '0'}`
       input.setAttribute('aria-label', input.title)
       input.addEventListener('change', () => void this.#run(() => this.execute('LAYERUPDATE', { id: layer.id, patch: { visible: input.checked } })), { signal: this.#abort.signal })
@@ -2427,7 +2512,7 @@ export class KJDrawWorkbench {
       const controls = (['locked', 'frozen'] as const).map(property => {
         const active = layer.payload[property] === true
         const button = document.createElement('button'); button.type = 'button'; button.className = 'layer-state'; button.dataset.layerProperty = property
-        button.disabled = this.#options.readonly === true
+        button.disabled = this.#readOnly === true
         button.title = `${this.#t(property === 'locked' ? active ? 'unlockLayer' : 'lockLayer' : active ? 'thawLayer' : 'freezeLayer')}: ${layer.name ?? '0'}`
         button.setAttribute('aria-label', button.title); button.setAttribute('aria-pressed', String(active))
         button.innerHTML = property === 'locked' ? kjdrawIcon(active ? 'lock' : 'unlock') : active
@@ -2449,7 +2534,7 @@ export class KJDrawWorkbench {
     const title = document.createElement('div'); title.className = 'entity-title'; title.textContent = entity.type
     host.append(title, this.#kv('Handle', entity.handle), this.#kv(this.#t('layer'), drawing.getObject(String(entity.payload.layerId ?? ''))?.name ?? '0'))
     const layerField = document.createElement('label'); layerField.className = 'field'; layerField.innerHTML = `<span>${this.#t('layer')}</span>`
-    const layerSelect = document.createElement('select'); layerSelect.disabled = this.#options.readonly === true
+    const layerSelect = document.createElement('select'); layerSelect.disabled = this.#readOnly === true
     for (const layer of drawing.getTable('layers')?.records ?? []) {
       const option = document.createElement('option'); option.value = layer.id; option.textContent = layer.name ?? '0'; option.selected = entity.payload.layerId === layer.id; layerSelect.append(option)
     }
@@ -2457,12 +2542,12 @@ export class KJDrawWorkbench {
     let valueInput: HTMLInputElement | null = null
     if (entity.type === 'CIRCLE' || entity.type === 'ARC') {
       const field = document.createElement('label'); field.className = 'field'; field.innerHTML = `<span>${this.#t('radius')}</span>`
-      valueInput = document.createElement('input'); valueInput.type = 'number'; valueInput.min = '0.000001'; valueInput.step = '0.1'; valueInput.value = String(entity.payload.radius ?? ''); valueInput.disabled = this.#options.readonly === true; field.append(valueInput); host.append(field)
+      valueInput = document.createElement('input'); valueInput.type = 'number'; valueInput.min = '0.000001'; valueInput.step = '0.1'; valueInput.value = String(entity.payload.radius ?? ''); valueInput.disabled = this.#readOnly === true; field.append(valueInput); host.append(field)
     } else if (['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(entity.type)) {
       const field = document.createElement('label'); field.className = 'field'; field.innerHTML = `<span>${this.#t('text')}</span>`
-      valueInput = document.createElement('input'); valueInput.value = String(entity.payload.text ?? ''); valueInput.disabled = this.#options.readonly === true; field.append(valueInput); host.append(field)
+      valueInput = document.createElement('input'); valueInput.value = String(entity.payload.text ?? ''); valueInput.disabled = this.#readOnly === true; field.append(valueInput); host.append(field)
     }
-    if (!this.#options.readonly) {
+    if (!this.#readOnly) {
       const apply = document.createElement('button'); apply.type = 'button'; apply.className = 'apply'; apply.textContent = this.#t('apply')
       apply.addEventListener('click', () => void this.#run(async () => {
         const payload: Record<string, unknown> = { ...structuredClone(entity.payload), layerId: layerSelect.value }

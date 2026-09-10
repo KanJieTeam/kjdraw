@@ -51,3 +51,7 @@
 .chat-example-content > textarea, .chat-example-content > select { width: 100%; min-width: 0; margin-bottom: 10px; }
 .chat-example-content > textarea { min-height: 90px; }
 @media (max-width: 780px) { .workbench[data-active-panel="agent"] .right-panel { width: min(390px, calc(100% - 24px)); } .chat-welcome { padding-top: 18px; } }
+
+.chat-attach-view{display:flex;align-items:center;gap:6px;font-size:12px;margin:6px 0;color:var(--kj-text-muted,#66758a)}
+.chat-attach-view input{width:auto;margin:0}
+.chat-view-thumbnail{display:block;width:100%;max-height:180px;object-fit:contain;margin-top:8px;border:1px solid var(--kj-border,#dce2eb);border-radius:6px;background:#fff}

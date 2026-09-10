@@ -247,7 +247,7 @@ for (const protocol of protocols) {
       const body = request.body
       if (requests++ === 0) {
         const defs = protocol === 'gemini-generate-content' ? body.tools[0].functionDeclarations : body.tools
-        assert.equal(defs.length, 10)
+        assert.deepEqual(defs.map(tool => tool.function?.name ?? tool.name).sort(), session.definitions.map(tool => tool.name).sort())
         assert.ok(!JSON.stringify(defs).includes('execute_anything'))
         return wire(protocol, [call('read', 'cad_read_drawing')])
       }
@@ -381,7 +381,7 @@ test('chat token-limit fields are host-selected without hardcoded model names', 
 test('a custom framework/model bridge uses the same runner without any built-in protocol', async () => {
   const { session, document } = fixture()
   const model = { createConversation({ tools, instructions }) {
-    assert.equal(tools.length, 10)
+    assert.deepEqual(tools.map(tool => tool.name).sort(), session.definitions.map(tool => tool.name).sort())
     assert.match(instructions, /untrusted/)
     return { async next() { return { text: 'Review before editing.', calls: [call('custom', 'cad_propose_circles', args)] } } }
   } }
@@ -437,4 +437,56 @@ test('cancellation and timeout ignore late model calls, and concurrent runs cann
   assert.equal(document.revision, 0)
   const timedOut = await runKJAgentTask({ session, prompt: 'inspect', timeoutMs: 10, model: { createConversation: () => ({ next: () => new Promise(() => {}) }) } })
   assert.equal(timedOut.status, 'cancelled')
+})
+
+test('Chat stop with complete tool calls continues through real CAD reads and a host-reviewed proposal', async () => {
+  const { session, document } = fixture()
+  let step = 0
+  const model = createKJModelAdapter({ protocol: 'chat-completions', model: 'compatible-stop-fixture', request: async ({ body }) => {
+    if (step++ === 0) {
+      const response = wire('chat-completions', [call('read', 'cad_read_drawing')])
+      response.choices[0].finish_reason = 'stop'
+      return response
+    }
+    assertContinuation('chat-completions', body)
+    assert.equal(resultAtEnd('chat-completions', body).ok, true)
+    const response = wire('chat-completions', [call('circle', 'cad_propose_circles', args)])
+    response.choices[0].finish_reason = 'stop'
+    return response
+  } })
+  const result = await runKJAgentTask({ session, model, prompt: 'Read and propose a circle', toolNames: ['cad_read_drawing', 'cad_propose_circles'] })
+  assert.equal(result.status, 'awaiting-approval'); assert.equal(result.toolCalls, 2); assert.equal(step, 2)
+  assert.equal(document.revision, 0); assert.equal(result.proposalIds.length, 1)
+  assert.equal((await session.approve(result.proposalIds[0], 'test-host-reviewer')).ok, true)
+  assert.equal(document.revision, 1)
+  const drawing = await session.call('cad_read_drawing', {})
+  assert.equal(drawing.ok, true); assert.equal(drawing.value.entities.length, 1)
+  assert.equal(drawing.value.entities[0].type, 'CIRCLE')
+})
+
+test('Chat stop compatibility does not accept incomplete, refused, empty or structurally invalid calls', async () => {
+  const cases = [
+    ['length', r => { r.choices[0].finish_reason = 'length' }, 'KJMODEL_INCOMPLETE'],
+    ['filter', r => { r.choices[0].finish_reason = 'content_filter' }, 'KJMODEL_INCOMPLETE'],
+    ['refusal', r => { r.choices[0].message.refusal = 'Refused.' }, 'KJMODEL_REFUSED'],
+    ['wrong type', r => { r.choices[0].message.tool_calls[0].type = 'code' }, 'KJMODEL_PROTOCOL'],
+    ['missing id', r => { delete r.choices[0].message.tool_calls[0].id }, 'KJMODEL_PROTOCOL'],
+    ['nonarray', r => { r.choices[0].message.tool_calls = {} }, 'KJMODEL_PROTOCOL'],
+    ['duplicate id', r => { r.choices[0].message.tool_calls.push(r.choices[0].message.tool_calls[0]) }, 'KJMODEL_PROTOCOL'],
+    ['empty tool_calls finish', r => { r.choices[0].finish_reason = 'tool_calls'; r.choices[0].message.tool_calls = [] }, 'KJMODEL_PROTOCOL'],
+    ['empty stop', r => { r.choices[0].message.tool_calls = [] }, 'KJMODEL_PROTOCOL'],
+  ]
+  for (const [name, mutate, code] of cases) {
+    const { session, document } = fixture(), before = document.serialize()
+    const response = wire('chat-completions', [call('circle', 'cad_propose_circles', args)])
+    response.choices[0].finish_reason = 'stop'; mutate(response)
+    const result = await runKJAgentTask({ session, model: createKJModelAdapter({ protocol: 'chat-completions', model: 'compatible-stop-fixture', request: async () => response }), prompt: 'circle' })
+    assert.equal(result.status, 'failed', name); assert.equal(result.error.code, code, name)
+    assert.equal(result.toolCalls, 0, name); assert.equal(document.serialize(), before, name)
+  }
+  const { session, document } = fixture(), response = wire('chat-completions', [call('bad-json', 'cad_propose_circles', args)])
+  response.choices[0].finish_reason = 'stop'; response.choices[0].message.tool_calls[0].function.arguments = '{broken'
+  const result = await runKJAgentTask({ session, model: createKJModelAdapter({ protocol: 'chat-completions', model: 'compatible-stop-fixture', request: async () => response }), prompt: 'circle', maxTurns: 1 })
+  assert.equal(result.status, 'limit-reached'); assert.equal(result.outputs[0].result.ok, false)
+  assert.equal(result.proposalIds.length, 0); assert.equal(document.revision, 0)
 })

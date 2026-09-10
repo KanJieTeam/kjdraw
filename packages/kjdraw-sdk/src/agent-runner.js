@@ -258,7 +258,10 @@ export async function runKJAgentTask(options) {
         });
         let input = {
             kind: 'prompt',
-            text: prompt
+            text: prompt,
+            ...options.images !== undefined ? {
+                images: options.images
+            } : {}
         };
         for(; turns < maxTurns;){
             turns++;

@@ -1,9 +1,45 @@
 import type { KJDrawSDK } from './sdk.js';
 import type { KJDocument } from './document.js';
 import { type KJDrawingContextOptions } from './drawing-context.js';
+import { type KJRestoredRoadDrawingRecipe } from './road-drawing-recipe.js';
+import type { ReadonlyDeep } from './utils.js';
+export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-revision.js';
+export type { KJAgentRoadDrawingInput } from './agent-road-drawing.js';
+import { type KJAgentAnnotationInput } from './agent-annotations.js';
+import { type KJAgentCompactDrawingInput } from './agent-drawing-compact.js';
+import { type KJRectangularDrawingPattern } from './agent-drawing-patterns.js';
 import { type KJDrawingValidationPointReference } from './drawing-validation.js';
 export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';
+export type { KJAgentCompactDrawingInput } from './agent-drawing-compact.js';
 export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';
+export interface KJAgentPatternDrawingInput extends KJAgentCompactDrawingInput {
+    arrays: (KJRectangularDrawingPattern & {
+        sources: string[];
+    })[];
+}
+/** One reviewed batch of geometry, notes and kernel-measured native dimensions. */
+export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput {
+    styles: {
+        name: string;
+        sources: string[];
+        pattern: number[];
+        color: number;
+        lineweight: number;
+    }[];
+    texts: KJAgentAnnotationInput['texts'];
+    alignedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {
+        type: 'ALIGNED';
+    }>, 'type'>[];
+    rotatedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {
+        type: 'ROTATED';
+    }>, 'type'>[];
+    radiusDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {
+        type: 'RADIUS' | 'DIAMETER';
+    }>, 'type'>[];
+    diameterDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {
+        type: 'RADIUS' | 'DIAMETER';
+    }>, 'type'>[];
+}
 export interface KJAgentDrawingQuery {
     expectedRevision: number;
     filters: Pick<KJDrawingContextOptions, 'ids' | 'types' | 'layerIds' | 'spaceId' | 'includeHidden' | 'bounds'>;
@@ -89,6 +125,9 @@ export declare class KJAgentToolSession {
     /** Bind unit schemas to the drawing so models see its canonical unit name. */
     get definitions(): readonly KJAgentToolDefinition[];
     constructor(sdk: KJDrawSDK, document: KJDocument);
+    /** Trusted host operation: verify saved parameters against all current generated objects.
+     * Registration is bound to this exact document revision and is not model-callable. */
+    registerRoadDrawingRecipe(recipe: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;
     call(name: string, input: unknown): Promise<KJAgentToolResult>;
     /** Invoke only after an authenticated host collected review of these exact arguments. */
     approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;

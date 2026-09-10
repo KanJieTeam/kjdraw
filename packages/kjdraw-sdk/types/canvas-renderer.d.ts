@@ -34,6 +34,7 @@ export interface KJCanvasCamera {
     scale: number;
 }
 export interface KJCanvasRenderReport {
+    viewportDiagnostics?: readonly KJCanvasViewportDiagnostic[];
     hatchDiagnostics?: readonly {
         entityId: string;
         reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary';
@@ -50,6 +51,14 @@ export interface KJCanvasRenderReport {
     height: number;
     scale: number;
 }
+export interface KJCanvasViewportDiagnostic {
+    entityId: string;
+    rendered: number;
+    hidden: number;
+    approximated: number;
+    unsupported: number;
+    reason?: 'invalid-view' | 'unsupported-view' | 'not-paper-space' | 'budget';
+}
 export interface KJCanvasHit {
     entity: KJReadonlyObjectRecord;
     distance: number;
@@ -64,6 +73,10 @@ export interface KJCanvasBoxSelectionOptions extends KJCanvasSelectionOptions {
 export interface KJCanvasPreviewEntity {
     type: string;
     payload: Readonly<Record<string, unknown>>;
+}
+export interface KJCanvasPreviewResource {
+    readonly id: string;
+    readonly payload: Readonly<Record<string, unknown>>;
 }
 type Point2 = readonly [number, number];
 /** AutoCAD Color Index projection including the 24 hue ramps and gray tail. */
@@ -109,8 +122,7 @@ export declare class KJCanvasRenderer {
     /** Optional handle overlay; render() clears it, leaving inspect/read-only hosts in control. */
     drawGrips(hoverId?: string): this;
     render(): Readonly<KJCanvasRenderReport>;
-    /** Paint temporary native geometry without inserting objects or changing history. Call render() to clear it. */
-    drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2): this;
+    drawPreview(entities: readonly KJCanvasPreviewEntity[], color?: string, offset?: Point2, resources?: readonly KJCanvasPreviewResource[]): this;
     dispose(): void;
 }
 export {};
