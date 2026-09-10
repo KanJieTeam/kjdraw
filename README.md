@@ -32,6 +32,10 @@ Describe what you need. Our goal is for AI to work through the details and deliv
 
 We are building toward this workflow: **understand requirements → break down the drawing → construct and check each part → correct errors → deliver a verified drawing**. The architecture needs a persistent drawing workspace, focused context for each task, reusable CAD operations and independent geometry checks. Completion means satisfying the requested geometry and relationships, retaining editable objects, and passing save/reopen and output checks.
 
+The intended architecture has three layers: a precise CAD core, a model-neutral task executor, and versioned capability packs (Skills) for reusable industry methods and user preferences. Users should be able to improve, share and upgrade those packs while continuing to edit existing drawings. Skills guide the work; executable CAD operations and geometry checks establish whether it is correct. This complete workflow remains under development.
+
+**The next README animation target:** type a scenario and a few requirements into the editor's conversation panel, watch a real AI model build a complex drawing, then zoom in to inspect the details and request a revision. We will record it after the actual workflow passes geometry and save/reopen checks, with the prompt, model, elapsed time and reproducible drawing available alongside it.
+
 **Current status:** bounded drawing queries, geometry proposals, previews, host approval and undo/redo are implemented. Autonomous delivery of complete complex drawings is still in development; the animation above demonstrates today's editor. The [1.0 delivery programme](docs/product/1.0-delivery-plan.zh-CN.md) tracks the remaining work and acceptance requirements.
 
 ## Why KJDraw?
