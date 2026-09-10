@@ -1,4 +1,41 @@
 import type { KJDocument } from './document.js';
+export interface KJLayoutContextOptions {
+    expectedRevision?: number;
+    offset?: number;
+    /** Default 20, maximum 100 layouts per page. */
+    limit?: number;
+    /** UTF-8 JSON result budget; default 16384, range 1024..262144. */
+    maxBytes?: number;
+}
+export interface KJLayoutContextEntry {
+    readonly id: string;
+    readonly name: string | null;
+    /** Feed this exact owner ID to createDrawingContext/cad_query_drawing. */
+    readonly spaceId: string;
+    readonly model: boolean;
+    readonly active: boolean;
+    readonly tabOrder: number | null;
+    /** Numeric DXF fields only; printer/style/setup/view resource names are excluded. */
+    readonly pageSettings: Readonly<Record<string, number>> | null;
+    readonly omitted: readonly ('name' | 'page-settings')[];
+}
+export interface KJLayoutContext {
+    readonly documentId: string;
+    readonly revision: number;
+    readonly layouts: readonly KJLayoutContextEntry[];
+    readonly nextOffset: number | null;
+    readonly truncated: boolean;
+    readonly pageSemantics: {
+        readonly physicalUnits: 'millimeter';
+        readonly rotation: 'quarter-turns-counterclockwise';
+        readonly windowCoordinates: 'drawing-units';
+        readonly resourceNamesIncluded: false;
+    };
+    readonly limits: {
+        readonly limit: number;
+        readonly maxBytes: number;
+    };
+}
 export interface KJDrawingContextOptions {
     /** Exact object IDs; duplicates are ignored. Filters are combined with AND. */
     ids?: readonly string[];
@@ -78,6 +115,10 @@ export interface KJDrawingContext {
         readonly maxGeometryBytes: number;
     };
 }
+/** Read a bounded layout catalog without exposing raw payloads, external resource
+ * names or native output preferences. This does not expand/project viewports or
+ * authorize edits. Limits cover output bytes, not snapshot allocation/scan time. */
+export declare function createLayoutContext(document: KJDocument, options?: KJLayoutContextOptions): KJLayoutContext;
 /**
  * Build a model-neutral, immutable read result for a host's tool wrapper. This
  * reads a single KJDocument snapshot and never executes commands. The output

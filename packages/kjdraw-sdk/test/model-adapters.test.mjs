@@ -50,6 +50,38 @@ function assertContinuation(protocol, body) {
 }
 
 for (const protocol of protocols) {
+  test(`${protocol}: discover paper layouts and query their exact owner space in a read-only conversation`, async () => {
+    const { document, session } = fixture()
+    await document.transact('paper geometry', tx => {
+      const sheet = tx.createLayout({ name: 'Target sheet', dxfPlotSettings: { paperWidth: 420, paperHeight: 297, printerName: 'PRIVATE_PRINTER' } })
+      tx.createEntity('LINE', { start: [1, 2], end: [3, 4] }, { id: 'paper-target', ownerId: sheet.payload.blockRecordId })
+      tx.createEntity('LINE', { start: [10, 20], end: [30, 40] }, { id: 'model-other' })
+    })
+    const before = document.serialize()
+    let step = 0
+    const model = createKJModelAdapter({ protocol, model: 'offline-layout-fixture', request: async ({ body }) => {
+      const defs = protocol === 'gemini-generate-content' ? body.tools[0].functionDeclarations : body.tools
+      const def = defs.find(t => (t.function?.name ?? t.name) === 'cad_read_layouts')
+      const schema = def.function?.parameters ?? def.parameters ?? def.input_schema ?? def.parametersJsonSchema
+      assert.equal(schema.additionalProperties, false)
+      assert.deepEqual(schema.required, ['expectedRevision', 'offset', 'limit', 'maxBytes'])
+      assert.equal(schema.properties.limit.maximum, 100)
+      if (step++ === 0) return wire(protocol, [call('layouts', 'cad_read_layouts', { expectedRevision: 1, offset: 0, limit: 20, maxBytes: 4096 })])
+      const result = resultAtEnd(protocol, body)
+      assert.equal(result.ok, true, JSON.stringify(result))
+      if (step === 2) {
+        assert.ok(!JSON.stringify(result).includes('PRIVATE_PRINTER'))
+        const sheet = result.value.layouts.find(l => l.name === 'Target sheet')
+        assert.equal(sheet.pageSettings.paperWidth, 420)
+        return wire(protocol, [call('paper', 'cad_query_drawing', { expectedRevision: result.value.revision, filters: { spaceId: sheet.spaceId, types: ['LINE'] }, offset: 0, layerOffset: 0, limit: 10, maxLayers: 0, maxBytes: 2048 })])
+      }
+      assert.deepEqual(result.value.entities.map(e => e.id), ['paper-target'])
+      return wire(protocol, [], 'Inspected the target paper space.')
+    } })
+    const result = await runKJAgentTask({ session, model, prompt: 'Inspect the lines on Target sheet.', toolNames: ['cad_read_layouts', 'cad_query_drawing'] })
+    assert.equal(result.status, 'responded', JSON.stringify(result))
+    assert.equal(step, 3); assert.equal(document.serialize(), before)
+  })
   test(`${protocol}: filtered query schema and pagination select exact geometry for a reviewed move`, async () => {
     const { sdk, document, session } = fixture()
     await document.transact('source', tx => {
@@ -154,7 +186,7 @@ for (const protocol of protocols) {
       const body = request.body
       if (requests++ === 0) {
         const defs = protocol === 'gemini-generate-content' ? body.tools[0].functionDeclarations : body.tools
-        assert.equal(defs.length, 8)
+        assert.equal(defs.length, 9)
         assert.ok(!JSON.stringify(defs).includes('execute_anything'))
         return wire(protocol, [call('read', 'cad_read_drawing')])
       }
@@ -288,7 +320,7 @@ test('chat token-limit fields are host-selected without hardcoded model names', 
 test('a custom framework/model bridge uses the same runner without any built-in protocol', async () => {
   const { session, document } = fixture()
   const model = { createConversation({ tools, instructions }) {
-    assert.equal(tools.length, 8)
+    assert.equal(tools.length, 9)
     assert.match(instructions, /untrusted/)
     return { async next() { return { text: 'Review before editing.', calls: [call('custom', 'cad_propose_circles', args)] } } }
   } }

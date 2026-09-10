@@ -305,6 +305,21 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
 }</code></pre>
       <p class="source-path">agent-tools.d.ts</p>
     </article>
+<article class="api-symbol" id="agent-tools-interface-kjagentlayoutquery" data-search="kjagentlayoutquery interface @kanjieteam/kjdraw/agent-tools export interface kjagentlayoutquery {
+    expectedrevision: number;
+    offset: number;
+    limit: number;
+    maxbytes: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentLayoutQuery</h3></div><a class="permalink" href="#agent-tools-interface-kjagentlayoutquery" aria-label="Link to KJAgentLayoutQuery">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentLayoutQuery {
+    expectedRevision: number;
+    offset: number;
+    limit: number;
+    maxBytes: number;
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
 <article class="api-symbol" id="agent-tools-interface-kjagenttooldefinition" data-search="kjagenttooldefinition interface @kanjieteam/kjdraw/agent-tools export interface kjagenttooldefinition {
     readonly name: string;
     readonly description: string;
@@ -415,6 +430,11 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     <article class="api-symbol" id="drawing-context-function-createdrawingcontext" data-search="createdrawingcontext function @kanjieteam/kjdraw/drawing-context export declare function createdrawingcontext(document: kjdocument, options?: kjdrawingcontextoptions): kjdrawingcontext;">
       <header><div><span class="kind">function</span><h3>createDrawingContext</h3></div><a class="permalink" href="#drawing-context-function-createdrawingcontext" aria-label="Link to createDrawingContext">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createDrawingContext(document: KJDocument, options?: KJDrawingContextOptions): KJDrawingContext;</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-context-function-createlayoutcontext" data-search="createlayoutcontext function @kanjieteam/kjdraw/drawing-context export declare function createlayoutcontext(document: kjdocument, options?: kjlayoutcontextoptions): kjlayoutcontext;">
+      <header><div><span class="kind">function</span><h3>createLayoutContext</h3></div><a class="permalink" href="#drawing-context-function-createlayoutcontext" aria-label="Link to createLayoutContext">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createLayoutContext(document: KJDocument, options?: KJLayoutContextOptions): KJLayoutContext;</code></pre>
       <p class="source-path">drawing-context.d.ts</p>
     </article>
 <article class="api-symbol" id="drawing-context-interface-kjdrawingcontext" data-search="kjdrawingcontext interface @kanjieteam/kjdraw/drawing-context export interface kjdrawingcontext {
@@ -592,6 +612,89 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
 <article class="api-symbol" id="drawing-context-type-kjdrawinggeometryomittedreason" data-search="kjdrawinggeometryomittedreason type @kanjieteam/kjdraw/drawing-context export type kjdrawinggeometryomittedreason = &#39;unsupported-type&#39; | &#39;unsupported-data&#39; | &#39;geometry-budget&#39; | &#39;response-budget&#39;;">
       <header><div><span class="kind">type</span><h3>KJDrawingGeometryOmittedReason</h3></div><a class="permalink" href="#drawing-context-type-kjdrawinggeometryomittedreason" aria-label="Link to KJDrawingGeometryOmittedReason">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDrawingGeometryOmittedReason = &#39;unsupported-type&#39; | &#39;unsupported-data&#39; | &#39;geometry-budget&#39; | &#39;response-budget&#39;;</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-context-interface-kjlayoutcontext" data-search="kjlayoutcontext interface @kanjieteam/kjdraw/drawing-context export interface kjlayoutcontext {
+    readonly documentid: string;
+    readonly revision: number;
+    readonly layouts: readonly kjlayoutcontextentry[];
+    readonly nextoffset: number | null;
+    readonly truncated: boolean;
+    readonly pagesemantics: {
+        readonly physicalunits: &#39;millimeter&#39;;
+        readonly rotation: &#39;quarter-turns-counterclockwise&#39;;
+        readonly windowcoordinates: &#39;drawing-units&#39;;
+        readonly resourcenamesincluded: false;
+    };
+    readonly limits: {
+        readonly limit: number;
+        readonly maxbytes: number;
+    };
+}">
+      <header><div><span class="kind">interface</span><h3>KJLayoutContext</h3></div><a class="permalink" href="#drawing-context-interface-kjlayoutcontext" aria-label="Link to KJLayoutContext">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJLayoutContext {
+    readonly documentId: string;
+    readonly revision: number;
+    readonly layouts: readonly KJLayoutContextEntry[];
+    readonly nextOffset: number | null;
+    readonly truncated: boolean;
+    readonly pageSemantics: {
+        readonly physicalUnits: &#39;millimeter&#39;;
+        readonly rotation: &#39;quarter-turns-counterclockwise&#39;;
+        readonly windowCoordinates: &#39;drawing-units&#39;;
+        readonly resourceNamesIncluded: false;
+    };
+    readonly limits: {
+        readonly limit: number;
+        readonly maxBytes: number;
+    };
+}</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-context-interface-kjlayoutcontextentry" data-search="kjlayoutcontextentry interface @kanjieteam/kjdraw/drawing-context export interface kjlayoutcontextentry {
+    readonly id: string;
+    readonly name: string | null;
+    /** feed this exact owner id to createdrawingcontext/cad_query_drawing. */
+    readonly spaceid: string;
+    readonly model: boolean;
+    readonly active: boolean;
+    readonly taborder: number | null;
+    /** numeric dxf fields only; printer/style/setup/view resource names are excluded. */
+    readonly pagesettings: readonly&lt;record&lt;string, number&gt;&gt; | null;
+    readonly omitted: readonly (&#39;name&#39; | &#39;page-settings&#39;)[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJLayoutContextEntry</h3></div><a class="permalink" href="#drawing-context-interface-kjlayoutcontextentry" aria-label="Link to KJLayoutContextEntry">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJLayoutContextEntry {
+    readonly id: string;
+    readonly name: string | null;
+    /** Feed this exact owner ID to createDrawingContext/cad_query_drawing. */
+    readonly spaceId: string;
+    readonly model: boolean;
+    readonly active: boolean;
+    readonly tabOrder: number | null;
+    /** Numeric DXF fields only; printer/style/setup/view resource names are excluded. */
+    readonly pageSettings: Readonly&lt;Record&lt;string, number&gt;&gt; | null;
+    readonly omitted: readonly (&#39;name&#39; | &#39;page-settings&#39;)[];
+}</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-context-interface-kjlayoutcontextoptions" data-search="kjlayoutcontextoptions interface @kanjieteam/kjdraw/drawing-context export interface kjlayoutcontextoptions {
+    expectedrevision?: number;
+    offset?: number;
+    /** default 20, maximum 100 layouts per page. */
+    limit?: number;
+    /** utf-8 json result budget; default 16384, range 1024..262144. */
+    maxbytes?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJLayoutContextOptions</h3></div><a class="permalink" href="#drawing-context-interface-kjlayoutcontextoptions" aria-label="Link to KJLayoutContextOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJLayoutContextOptions {
+    expectedRevision?: number;
+    offset?: number;
+    /** Default 20, maximum 100 layouts per page. */
+    limit?: number;
+    /** UTF-8 JSON result budget; default 16384, range 1024..262144. */
+    maxBytes?: number;
+}</code></pre>
       <p class="source-path">drawing-context.d.ts</p>
     </article>
   </div>
@@ -9526,6 +9629,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createKjpPackage(options?: KjpCreateOptions): Promise&lt;Uint8Array&gt;;</code></pre>
       <p class="source-path">project-package.d.ts</p>
     </article>
+<article class="api-symbol" id="root-function-createlayoutcontext" data-search="createlayoutcontext function @kanjieteam/kjdraw export declare function createlayoutcontext(document: kjdocument, options?: kjlayoutcontextoptions): kjlayoutcontext;">
+      <header><div><span class="kind">function</span><h3>createLayoutContext</h3></div><a class="permalink" href="#root-function-createlayoutcontext" aria-label="Link to createLayoutContext">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createLayoutContext(document: KJDocument, options?: KJLayoutContextOptions): KJLayoutContext;</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-function-createobjectrecord" data-search="createobjectrecord function @kanjieteam/kjdraw export declare function createobjectrecord&lt;tpayload extends kjobjectpayload = kjobjectpayload&gt;({ id, handle, kind, type, ownerid, name, payload, extension, erased, source, }?: kjobjectspec&lt;tpayload&gt;): kjobjectrecord&lt;tpayload&gt;;">
       <header><div><span class="kind">function</span><h3>createObjectRecord</h3></div><a class="permalink" href="#root-function-createobjectrecord" aria-label="Link to createObjectRecord">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createObjectRecord&lt;TPayload extends KJObjectPayload = KJObjectPayload&gt;({ id, handle, kind, type, ownerId, name, payload, extension, erased, source, }?: KJObjectSpec&lt;TPayload&gt;): KJObjectRecord&lt;TPayload&gt;;</code></pre>
@@ -10641,6 +10749,21 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     layerOffset: number;
     limit: number;
     maxLayers: number;
+    maxBytes: number;
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjagentlayoutquery" data-search="kjagentlayoutquery interface @kanjieteam/kjdraw export interface kjagentlayoutquery {
+    expectedrevision: number;
+    offset: number;
+    limit: number;
+    maxbytes: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentLayoutQuery</h3></div><a class="permalink" href="#root-interface-kjagentlayoutquery" aria-label="Link to KJAgentLayoutQuery">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentLayoutQuery {
+    expectedRevision: number;
+    offset: number;
+    limit: number;
     maxBytes: number;
 }</code></pre>
       <p class="source-path">agent-tools.d.ts</p>
@@ -14046,6 +14169,89 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     infinite?: boolean;
 }</code></pre>
       <p class="source-path">geometry/intersections.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjlayoutcontext" data-search="kjlayoutcontext interface @kanjieteam/kjdraw export interface kjlayoutcontext {
+    readonly documentid: string;
+    readonly revision: number;
+    readonly layouts: readonly kjlayoutcontextentry[];
+    readonly nextoffset: number | null;
+    readonly truncated: boolean;
+    readonly pagesemantics: {
+        readonly physicalunits: &#39;millimeter&#39;;
+        readonly rotation: &#39;quarter-turns-counterclockwise&#39;;
+        readonly windowcoordinates: &#39;drawing-units&#39;;
+        readonly resourcenamesincluded: false;
+    };
+    readonly limits: {
+        readonly limit: number;
+        readonly maxbytes: number;
+    };
+}">
+      <header><div><span class="kind">interface</span><h3>KJLayoutContext</h3></div><a class="permalink" href="#root-interface-kjlayoutcontext" aria-label="Link to KJLayoutContext">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJLayoutContext {
+    readonly documentId: string;
+    readonly revision: number;
+    readonly layouts: readonly KJLayoutContextEntry[];
+    readonly nextOffset: number | null;
+    readonly truncated: boolean;
+    readonly pageSemantics: {
+        readonly physicalUnits: &#39;millimeter&#39;;
+        readonly rotation: &#39;quarter-turns-counterclockwise&#39;;
+        readonly windowCoordinates: &#39;drawing-units&#39;;
+        readonly resourceNamesIncluded: false;
+    };
+    readonly limits: {
+        readonly limit: number;
+        readonly maxBytes: number;
+    };
+}</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjlayoutcontextentry" data-search="kjlayoutcontextentry interface @kanjieteam/kjdraw export interface kjlayoutcontextentry {
+    readonly id: string;
+    readonly name: string | null;
+    /** feed this exact owner id to createdrawingcontext/cad_query_drawing. */
+    readonly spaceid: string;
+    readonly model: boolean;
+    readonly active: boolean;
+    readonly taborder: number | null;
+    /** numeric dxf fields only; printer/style/setup/view resource names are excluded. */
+    readonly pagesettings: readonly&lt;record&lt;string, number&gt;&gt; | null;
+    readonly omitted: readonly (&#39;name&#39; | &#39;page-settings&#39;)[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJLayoutContextEntry</h3></div><a class="permalink" href="#root-interface-kjlayoutcontextentry" aria-label="Link to KJLayoutContextEntry">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJLayoutContextEntry {
+    readonly id: string;
+    readonly name: string | null;
+    /** Feed this exact owner ID to createDrawingContext/cad_query_drawing. */
+    readonly spaceId: string;
+    readonly model: boolean;
+    readonly active: boolean;
+    readonly tabOrder: number | null;
+    /** Numeric DXF fields only; printer/style/setup/view resource names are excluded. */
+    readonly pageSettings: Readonly&lt;Record&lt;string, number&gt;&gt; | null;
+    readonly omitted: readonly (&#39;name&#39; | &#39;page-settings&#39;)[];
+}</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjlayoutcontextoptions" data-search="kjlayoutcontextoptions interface @kanjieteam/kjdraw export interface kjlayoutcontextoptions {
+    expectedrevision?: number;
+    offset?: number;
+    /** default 20, maximum 100 layouts per page. */
+    limit?: number;
+    /** utf-8 json result budget; default 16384, range 1024..262144. */
+    maxbytes?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJLayoutContextOptions</h3></div><a class="permalink" href="#root-interface-kjlayoutcontextoptions" aria-label="Link to KJLayoutContextOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJLayoutContextOptions {
+    expectedRevision?: number;
+    offset?: number;
+    /** Default 20, maximum 100 layouts per page. */
+    limit?: number;
+    /** UTF-8 JSON result budget; default 16384, range 1024..262144. */
+    maxBytes?: number;
+}</code></pre>
+      <p class="source-path">drawing-context.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjlayoutoptions" data-search="kjlayoutoptions interface @kanjieteam/kjdraw export interface kjlayoutoptions {
     name?: string;

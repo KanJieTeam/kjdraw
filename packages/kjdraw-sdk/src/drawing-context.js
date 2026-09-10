@@ -2,6 +2,7 @@
 import { KJRevisionConflictError, KJValidationError } from './errors.js';
 import { deepFreeze } from './utils.js';
 import { classifyEntityInBox } from './selection-geometry.js';
+import { PLOT_SETTING_FIELDS } from './plot-settings.js';
 const MAX_GEOMETRY_BYTES = 8192;
 const REASONS = [
     'entity-limit',
@@ -358,6 +359,109 @@ function checkIdentity(value, maxBytes) {
     if (value !== null && (typeof value !== 'string' || value.length > maxBytes)) {
         throw new KJValidationError('Drawing context identity or layer name cannot fit the response budget');
     }
+}
+export function createLayoutContext(document, options = {}) {
+    if (!options || typeof options !== 'object' || Array.isArray(options)) throw new KJValidationError('Layout context options must be an object');
+    for (const key of Object.keys(options))if (![
+        'expectedRevision',
+        'offset',
+        'limit',
+        'maxBytes'
+    ].includes(key)) throw new KJValidationError('Unknown layout context option');
+    const limit = integer(options.limit, 20, 1, 100, 'limit'), maxBytes = integer(options.maxBytes, 16384, 1024, 262144, 'maxBytes');
+    const offset = integer(options.offset, 0, 0, Number.MAX_SAFE_INTEGER, 'offset');
+    const revision = options.expectedRevision === undefined ? undefined : integer(options.expectedRevision, 0, 0, Number.MAX_SAFE_INTEGER, 'expectedRevision');
+    if (offset && revision === undefined) throw new KJValidationError('Layout context continuation requires expectedRevision');
+    if (!document || typeof document.snapshot !== 'function') throw new KJValidationError('Layout context requires a KJDocument');
+    if (revision !== undefined && revision !== document.revision) throw new KJRevisionConflictError(revision, document.revision);
+    const state = document.snapshot();
+    if (revision !== undefined && revision !== state.revision) throw new KJRevisionConflictError(revision, state.revision);
+    checkIdentity(state.documentId, maxBytes);
+    const layouts = [];
+    const result = {
+        documentId: state.documentId,
+        revision: state.revision,
+        layouts,
+        nextOffset: null,
+        truncated: false,
+        pageSemantics: {
+            physicalUnits: 'millimeter',
+            rotation: 'quarter-turns-counterclockwise',
+            windowCoordinates: 'drawing-units',
+            resourceNamesIncluded: false
+        },
+        limits: {
+            limit,
+            maxBytes
+        }
+    };
+    const live = state.spaces.layoutIds.filter((id)=>state.objects[id]?.kind === 'layout' && !state.objects[id]?.erased);
+    const fits = (entry)=>jsonBytes({
+            ...result,
+            layouts: entry ? [
+                ...layouts,
+                entry
+            ] : layouts,
+            nextOffset: Number.MAX_SAFE_INTEGER,
+            truncated: false
+        }) <= maxBytes;
+    if (!fits()) throw new KJValidationError('Layout context document identity cannot fit the response budget');
+    let cursor = offset;
+    while(cursor < live.length && layouts.length < limit){
+        const layout = state.objects[live[cursor]], spaceId = layout.payload.blockRecordId;
+        if (typeof spaceId !== 'string' || state.objects[spaceId]?.kind !== 'block-record' || state.objects[spaceId].erased) throw new KJValidationError('Layout context requires a live owner space');
+        for (const value of [
+            layout.id,
+            spaceId
+        ])checkIdentity(value, maxBytes);
+        const omitted = [];
+        let name = layout.name;
+        if (name !== null && name.length > 512) {
+            name = null;
+            omitted.push('name');
+        }
+        let pageSettings = null;
+        if (layout.payload.dxfPlotSettings !== undefined) {
+            pageSettings = {};
+            for (const [key, [, kind]] of Object.entries(PLOT_SETTING_FIELDS)){
+                if (kind === 'string') continue;
+                const value = layout.payload.dxfPlotSettings[key];
+                if (typeof value === 'number' && Number.isFinite(value)) pageSettings[key] = value;
+            }
+        }
+        const entry = {
+            id: layout.id,
+            name,
+            spaceId,
+            model: spaceId === state.spaces.modelSpaceId,
+            active: layout.id === state.spaces.activeLayoutId,
+            tabOrder: typeof layout.payload.tabOrder === 'number' && Number.isFinite(layout.payload.tabOrder) ? layout.payload.tabOrder : null,
+            pageSettings,
+            omitted
+        };
+        if (!fits(entry)) {
+            if (layouts.length) break;
+            if (name !== null) {
+                name = null;
+                omitted.push('name');
+            }
+            if (pageSettings !== null) {
+                pageSettings = null;
+                omitted.push('page-settings');
+            }
+            const reduced = {
+                ...entry,
+                name,
+                pageSettings
+            };
+            if (!fits(reduced)) throw new KJValidationError('Layout identity cannot fit the response budget');
+            layouts.push(reduced);
+        } else layouts.push(entry);
+        cursor++;
+    }
+    result.nextOffset = cursor < live.length ? cursor : null;
+    result.truncated = result.nextOffset !== null || layouts.some((layout)=>layout.omitted.length > 0);
+    return deepFreeze(result);
 }
 export function createDrawingContext(document, options = {}) {
     if (!options || typeof options !== 'object' || Array.isArray(options)) throw new KJValidationError('Drawing context options must be an object');

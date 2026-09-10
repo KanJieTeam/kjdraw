@@ -27,3 +27,10 @@ function paintGeometry(renderer: KJCanvasRenderer, preview: KJAgentGeometryPrevi
 }
 void composedInput
 void paintGeometry
+
+import { createLayoutContext, type KJLayoutContext } from '@kanjieteam/kjdraw'
+import type { KJAgentLayoutQuery } from '@kanjieteam/kjdraw/agent-tools'
+const layoutQuery: KJAgentLayoutQuery = { expectedRevision: drawing.revision, offset: 0, limit: 20, maxBytes: 4096 }
+const layouts: KJLayoutContext = createLayoutContext(drawing, layoutQuery)
+const owner: string | undefined = layouts.layouts[0]?.spaceId
+void owner

@@ -14,6 +14,7 @@ The current source checkout adds `KJAgentToolSession` from `@kanjieteam/kjdraw/a
 | --- | --- |
 | `cad_read_drawing` | First page of visible model-space objects, layers and drawing units |
 | `cad_read_page` | Revision-bound continuation with independent entity/layer offsets |
+| `cad_read_layouts` | Discover layout IDs, owner spaces and numeric page settings with bounded pagination |
 | `cad_query_drawing` | Filtered, revision-bound pages by ID, type, layer, owner space and XY region |
 | `cad_measure_distance` | Planar point-to-point distance in the supplied drawing units |
 | `cad_propose_lines` | Proposed batch of up to 64 XY lines |
@@ -123,6 +124,10 @@ The response reports `truncated`, `truncationReasons` and `geometryOmittedReason
 Run the packaged [drawing context example](https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/drawing-context.mjs) for independent entity and layer pagination.
 
 ## Query a region or selected objects {#query-region}
+
+To discover paper space before querying its contents, call `cad_read_layouts` with `expectedRevision`, `offset: 0`, `limit` (1–100), and `maxBytes` (1024–262144). Use the returned layout's exact `spaceId` in `cad_query_drawing.filters.spaceId`. The public `createLayoutContext(document, options)` API returns the same immutable catalog; its default page is 20 layouts and 16 KiB. Continuations require the same revision and `nextOffset`; restart after a revision conflict.
+
+Each row includes layout identity/name, model/active flags, tab order, and numeric `pageSettings` from `dxfPlotSettings`. Paper dimensions, margins and origin offsets remain millimeters even when `paperUnits` is 0 (inches) or 2 (pixels). Rotation is a 0–3 quarter-turn index; window coordinates use drawing units. Printer, paper, setup, view and style resource names, native output preferences and custom payloads are excluded. `null` page settings mean unavailable unless `omitted` contains `page-settings`; over-budget names/settings are explicitly omitted and identities are never shortened. `truncated` covers both continuation and omitted fields. Layout names are untrusted drawing data. Byte limits cover the context JSON, excluding tool/protocol wrappers, and do not bound snapshot allocation or scan time. This reads owner-space geometry; viewport projection and page-edit proposals remain outside this tool.
 
 Use `cad_query_drawing` with a revision from `cad_read_drawing` or the trusted editor. `filters` may contain `ids`, `types`, `layerIds`, `spaceId`, `includeHidden` and `bounds`; all filters intersect. Omitted filters are unrestricted; empty arrays match nothing. The default owner is model space. Hidden/frozen objects are excluded unless requested; locked objects remain readable and are marked noneditable.
 
@@ -269,6 +274,7 @@ Start with the stable [Agent integration contract](https://github.com/KanJieTeam
 | --- | --- |
 | `cad_read_drawing` | 可见模型空间对象、图层和单位的第一页 |
 | `cad_read_page` | 绑定图纸版本、分别按对象和图层偏移继续读取 |
+| `cad_read_layouts` | 有界分页发现布局 ID、归属空间和数值页面参数 |
 | `cad_query_drawing` | 按 ID、类型、图层、归属空间和 XY 范围筛选并绑定版本分页 |
 | `cad_measure_distance` | 使用图纸单位计算同一坐标系中两点的平面距离 |
 | `cad_propose_lines` | 最多 64 条 XY 直线的创建方案 |
@@ -378,6 +384,10 @@ const context = createDrawingContext(drawing, {
 可运行包内的[图纸查询示例](https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/drawing-context.mjs)，查看对象和图层分别分页的完整做法。
 
 ## 查询局部范围或指定对象 {#query-region}
+
+查询纸空间内容前，先以 `expectedRevision`、`offset: 0`、`limit`（1–100）和 `maxBytes`（1024–262144）调用 `cad_read_layouts`，将目标布局返回的准确 `spaceId` 传给 `cad_query_drawing.filters.spaceId`。公开 API `createLayoutContext(document, options)` 返回同一不可变目录，默认每页 20 布局、16 KiB；继续分页使用相同修订和 `nextOffset`，版本冲突后重新读取。
+
+每行包含布局标识/名称、模型/活动状态、页签顺序和 `dxfPlotSettings` 的数值 `pageSettings`。纸张、边距和原点偏移仍以毫米计，即使 `paperUnits` 为 0（英寸）或 2（像素）；旋转为 0–3 的四分之一圈索引，窗口坐标为绘图单位。不输出打印机、纸型、设置、视图或样式资源名称，也不输出原生输出偏好和自定义负载。页面参数为 `null` 表示未提供，若因预算省略则 `omitted` 明确包含 `page-settings`；名称和页面参数可省略，身份字符串绝不截短。`truncated` 同时标记未读完与字段省略。布局名称是非可信图纸数据。字节上限只涵盖上下文 JSON（不含工具和协议包装），不限制快照分配或扫描时间。本工具读取对象归属空间，不执行视口投影或页面编辑提案。
 
 `cad_query_drawing` 使用 `cad_read_drawing` 或可信编辑器提供的修订号。`filters` 可包含 `ids`、`types`、`layerIds`、`spaceId`、`includeHidden` 和 `bounds`，各过滤条件取交集。省略条件表示不限制，空数组表示不匹配任何对象。默认查询模型空间；隐藏/冻结对象默认排除，锁定对象可读且标为不可编辑。
 

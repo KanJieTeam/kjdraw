@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:5d4c7612aabed6201b039a7aa8d886c19668ea2c9d5dec2debe3d0db913cddbd",
+  "sourceDigest": "sha256:a97a788a9f8b9e0535094106718972acb101c8afb51336260f89088617a1ad68",
   "modules": [
     {
       "exportPath": "./model-adapters",
@@ -147,6 +147,13 @@
           "anchor": "agent-tools-interface-kjagentdrawingquery"
         },
         {
+          "name": "KJAgentLayoutQuery",
+          "kind": "interface",
+          "declaration": "export interface KJAgentLayoutQuery {\n    expectedRevision: number;\n    offset: number;\n    limit: number;\n    maxBytes: number;\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-interface-kjagentlayoutquery"
+        },
+        {
           "name": "KJAgentToolDefinition",
           "kind": "interface",
           "declaration": "export interface KJAgentToolDefinition {\n    readonly name: string;\n    readonly description: string;\n    /** JSON Schema; provider adapters must preserve validation semantics. */\n    readonly inputSchema: KJAgentToolSchema;\n    readonly effect: 'read' | 'propose';\n}",
@@ -197,6 +204,13 @@
           "anchor": "drawing-context-function-createdrawingcontext"
         },
         {
+          "name": "createLayoutContext",
+          "kind": "function",
+          "declaration": "export declare function createLayoutContext(document: KJDocument, options?: KJLayoutContextOptions): KJLayoutContext;",
+          "source": "drawing-context.d.ts",
+          "anchor": "drawing-context-function-createlayoutcontext"
+        },
+        {
           "name": "KJDrawingContext",
           "kind": "interface",
           "declaration": "export interface KJDrawingContext {\n    readonly documentId: string;\n    readonly revision: number;\n    readonly units: string;\n    readonly spaceId: string;\n    readonly spatialQuery?: {\n        readonly bounds: readonly [number, number, number, number];\n        readonly coordinates: 'owner-xy';\n        readonly mode: 'crossing';\n        readonly unclassifiedIncluded: true;\n    };\n    readonly layers: readonly KJDrawingContextLayer[];\n    readonly entities: readonly KJDrawingContextEntity[];\n    /** True when either collection or any requested native geometry was omitted. */\n    readonly truncated: boolean;\n    readonly truncationReasons: readonly KJDrawingContextTruncationReason[];\n    readonly nextOffset: number | null;\n    readonly nextLayerOffset: number | null;\n    readonly limits: {\n        readonly limit: number;\n        readonly maxLayers: number;\n        readonly maxBytes: number;\n        readonly maxGeometryBytes: number;\n    };\n}",
@@ -244,6 +258,27 @@
           "declaration": "export type KJDrawingGeometryOmittedReason = 'unsupported-type' | 'unsupported-data' | 'geometry-budget' | 'response-budget';",
           "source": "drawing-context.d.ts",
           "anchor": "drawing-context-type-kjdrawinggeometryomittedreason"
+        },
+        {
+          "name": "KJLayoutContext",
+          "kind": "interface",
+          "declaration": "export interface KJLayoutContext {\n    readonly documentId: string;\n    readonly revision: number;\n    readonly layouts: readonly KJLayoutContextEntry[];\n    readonly nextOffset: number | null;\n    readonly truncated: boolean;\n    readonly pageSemantics: {\n        readonly physicalUnits: 'millimeter';\n        readonly rotation: 'quarter-turns-counterclockwise';\n        readonly windowCoordinates: 'drawing-units';\n        readonly resourceNamesIncluded: false;\n    };\n    readonly limits: {\n        readonly limit: number;\n        readonly maxBytes: number;\n    };\n}",
+          "source": "drawing-context.d.ts",
+          "anchor": "drawing-context-interface-kjlayoutcontext"
+        },
+        {
+          "name": "KJLayoutContextEntry",
+          "kind": "interface",
+          "declaration": "export interface KJLayoutContextEntry {\n    readonly id: string;\n    readonly name: string | null;\n    /** Feed this exact owner ID to createDrawingContext/cad_query_drawing. */\n    readonly spaceId: string;\n    readonly model: boolean;\n    readonly active: boolean;\n    readonly tabOrder: number | null;\n    /** Numeric DXF fields only; printer/style/setup/view resource names are excluded. */\n    readonly pageSettings: Readonly<Record<string, number>> | null;\n    readonly omitted: readonly ('name' | 'page-settings')[];\n}",
+          "source": "drawing-context.d.ts",
+          "anchor": "drawing-context-interface-kjlayoutcontextentry"
+        },
+        {
+          "name": "KJLayoutContextOptions",
+          "kind": "interface",
+          "declaration": "export interface KJLayoutContextOptions {\n    expectedRevision?: number;\n    offset?: number;\n    /** Default 20, maximum 100 layouts per page. */\n    limit?: number;\n    /** UTF-8 JSON result budget; default 16384, range 1024..262144. */\n    maxBytes?: number;\n}",
+          "source": "drawing-context.d.ts",
+          "anchor": "drawing-context-interface-kjlayoutcontextoptions"
         }
       ]
     },
@@ -4906,6 +4941,13 @@
           "anchor": "root-function-createkjppackage"
         },
         {
+          "name": "createLayoutContext",
+          "kind": "function",
+          "declaration": "export declare function createLayoutContext(document: KJDocument, options?: KJLayoutContextOptions): KJLayoutContext;",
+          "source": "drawing-context.d.ts",
+          "anchor": "root-function-createlayoutcontext"
+        },
+        {
           "name": "createObjectRecord",
           "kind": "function",
           "declaration": "export declare function createObjectRecord<TPayload extends KJObjectPayload = KJObjectPayload>({ id, handle, kind, type, ownerId, name, payload, extension, erased, source, }?: KJObjectSpec<TPayload>): KJObjectRecord<TPayload>;",
@@ -5443,6 +5485,13 @@
           "declaration": "export interface KJAgentDrawingQuery {\n    expectedRevision: number;\n    filters: Pick<KJDrawingContextOptions, 'ids' | 'types' | 'layerIds' | 'spaceId' | 'includeHidden' | 'bounds'>;\n    offset: number;\n    layerOffset: number;\n    limit: number;\n    maxLayers: number;\n    maxBytes: number;\n}",
           "source": "agent-tools.d.ts",
           "anchor": "root-interface-kjagentdrawingquery"
+        },
+        {
+          "name": "KJAgentLayoutQuery",
+          "kind": "interface",
+          "declaration": "export interface KJAgentLayoutQuery {\n    expectedRevision: number;\n    offset: number;\n    limit: number;\n    maxBytes: number;\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-interface-kjagentlayoutquery"
         },
         {
           "name": "KJAgentModel",
@@ -6731,6 +6780,27 @@
           "declaration": "export interface KJIntersectionResult {\n    kind: KJIntersectionKind;\n    points: Point2[];\n    parametersA: number[];\n    parametersB: number[];\n    infinite?: boolean;\n}",
           "source": "geometry/intersections.d.ts",
           "anchor": "root-interface-kjintersectionresult"
+        },
+        {
+          "name": "KJLayoutContext",
+          "kind": "interface",
+          "declaration": "export interface KJLayoutContext {\n    readonly documentId: string;\n    readonly revision: number;\n    readonly layouts: readonly KJLayoutContextEntry[];\n    readonly nextOffset: number | null;\n    readonly truncated: boolean;\n    readonly pageSemantics: {\n        readonly physicalUnits: 'millimeter';\n        readonly rotation: 'quarter-turns-counterclockwise';\n        readonly windowCoordinates: 'drawing-units';\n        readonly resourceNamesIncluded: false;\n    };\n    readonly limits: {\n        readonly limit: number;\n        readonly maxBytes: number;\n    };\n}",
+          "source": "drawing-context.d.ts",
+          "anchor": "root-interface-kjlayoutcontext"
+        },
+        {
+          "name": "KJLayoutContextEntry",
+          "kind": "interface",
+          "declaration": "export interface KJLayoutContextEntry {\n    readonly id: string;\n    readonly name: string | null;\n    /** Feed this exact owner ID to createDrawingContext/cad_query_drawing. */\n    readonly spaceId: string;\n    readonly model: boolean;\n    readonly active: boolean;\n    readonly tabOrder: number | null;\n    /** Numeric DXF fields only; printer/style/setup/view resource names are excluded. */\n    readonly pageSettings: Readonly<Record<string, number>> | null;\n    readonly omitted: readonly ('name' | 'page-settings')[];\n}",
+          "source": "drawing-context.d.ts",
+          "anchor": "root-interface-kjlayoutcontextentry"
+        },
+        {
+          "name": "KJLayoutContextOptions",
+          "kind": "interface",
+          "declaration": "export interface KJLayoutContextOptions {\n    expectedRevision?: number;\n    offset?: number;\n    /** Default 20, maximum 100 layouts per page. */\n    limit?: number;\n    /** UTF-8 JSON result budget; default 16384, range 1024..262144. */\n    maxBytes?: number;\n}",
+          "source": "drawing-context.d.ts",
+          "anchor": "root-interface-kjlayoutcontextoptions"
         },
         {
           "name": "KJLayoutOptions",

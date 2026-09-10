@@ -12,6 +12,12 @@ export interface KJAgentDrawingQuery {
     maxLayers: number;
     maxBytes: number;
 }
+export interface KJAgentLayoutQuery {
+    expectedRevision: number;
+    offset: number;
+    limit: number;
+    maxBytes: number;
+}
 export interface KJAgentToolSchema {
     readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';
     readonly properties?: Readonly<Record<string, KJAgentToolSchema>>;

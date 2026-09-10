@@ -3,6 +3,39 @@ import { KJRevisionConflictError, KJValidationError } from './errors.js'
 import type { KJReadonlyObjectRecord } from './schema.js'
 import { deepFreeze } from './utils.js'
 import { classifyEntityInBox } from './selection-geometry.js'
+import { PLOT_SETTING_FIELDS } from './plot-settings.js'
+
+export interface KJLayoutContextOptions {
+  expectedRevision?: number
+  offset?: number
+  /** Default 20, maximum 100 layouts per page. */
+  limit?: number
+  /** UTF-8 JSON result budget; default 16384, range 1024..262144. */
+  maxBytes?: number
+}
+
+export interface KJLayoutContextEntry {
+  readonly id: string
+  readonly name: string | null
+  /** Feed this exact owner ID to createDrawingContext/cad_query_drawing. */
+  readonly spaceId: string
+  readonly model: boolean
+  readonly active: boolean
+  readonly tabOrder: number | null
+  /** Numeric DXF fields only; printer/style/setup/view resource names are excluded. */
+  readonly pageSettings: Readonly<Record<string, number>> | null
+  readonly omitted: readonly ('name' | 'page-settings')[]
+}
+
+export interface KJLayoutContext {
+  readonly documentId: string
+  readonly revision: number
+  readonly layouts: readonly KJLayoutContextEntry[]
+  readonly nextOffset: number | null
+  readonly truncated: boolean
+  readonly pageSemantics: { readonly physicalUnits: 'millimeter'; readonly rotation: 'quarter-turns-counterclockwise'; readonly windowCoordinates: 'drawing-units'; readonly resourceNamesIncluded: false }
+  readonly limits: { readonly limit: number; readonly maxBytes: number }
+}
 
 export interface KJDrawingContextOptions {
   /** Exact object IDs; duplicates are ignored. Filters are combined with AND. */
@@ -224,6 +257,64 @@ function checkIdentity(value: string | null, maxBytes: number): void {
   if (value !== null && (typeof value !== 'string' || value.length > maxBytes)) {
     throw new KJValidationError('Drawing context identity or layer name cannot fit the response budget')
   }
+}
+
+/** Read a bounded layout catalog without exposing raw payloads, external resource
+ * names or native output preferences. This does not expand/project viewports or
+ * authorize edits. Limits cover output bytes, not snapshot allocation/scan time. */
+export function createLayoutContext(document: KJDocument, options: KJLayoutContextOptions = {}): KJLayoutContext {
+  if (!options || typeof options !== 'object' || Array.isArray(options)) throw new KJValidationError('Layout context options must be an object')
+  for (const key of Object.keys(options)) if (!['expectedRevision', 'offset', 'limit', 'maxBytes'].includes(key)) throw new KJValidationError('Unknown layout context option')
+  const limit = integer(options.limit, 20, 1, 100, 'limit'), maxBytes = integer(options.maxBytes, 16384, 1024, 262144, 'maxBytes')
+  const offset = integer(options.offset, 0, 0, Number.MAX_SAFE_INTEGER, 'offset')
+  const revision = options.expectedRevision === undefined ? undefined : integer(options.expectedRevision, 0, 0, Number.MAX_SAFE_INTEGER, 'expectedRevision')
+  if (offset && revision === undefined) throw new KJValidationError('Layout context continuation requires expectedRevision')
+  if (!document || typeof document.snapshot !== 'function') throw new KJValidationError('Layout context requires a KJDocument')
+  if (revision !== undefined && revision !== document.revision) throw new KJRevisionConflictError(revision, document.revision)
+  const state = document.snapshot()
+  if (revision !== undefined && revision !== state.revision) throw new KJRevisionConflictError(revision, state.revision)
+  checkIdentity(state.documentId, maxBytes)
+  const layouts: KJLayoutContextEntry[] = []
+  const result = {
+    documentId: state.documentId, revision: state.revision, layouts, nextOffset: null as number | null, truncated: false,
+    pageSemantics: { physicalUnits: 'millimeter' as const, rotation: 'quarter-turns-counterclockwise' as const, windowCoordinates: 'drawing-units' as const, resourceNamesIncluded: false as const },
+    limits: { limit, maxBytes },
+  }
+  const live = state.spaces.layoutIds.filter(id => state.objects[id]?.kind === 'layout' && !state.objects[id]?.erased)
+  const fits = (entry?: KJLayoutContextEntry) => jsonBytes({ ...result, layouts: entry ? [...layouts, entry] : layouts, nextOffset: Number.MAX_SAFE_INTEGER, truncated: false }) <= maxBytes
+  if (!fits()) throw new KJValidationError('Layout context document identity cannot fit the response budget')
+  let cursor = offset
+  while (cursor < live.length && layouts.length < limit) {
+    const layout = state.objects[live[cursor]!]!, spaceId = layout.payload.blockRecordId
+    if (typeof spaceId !== 'string' || state.objects[spaceId]?.kind !== 'block-record' || state.objects[spaceId]!.erased) throw new KJValidationError('Layout context requires a live owner space')
+    for (const value of [layout.id, spaceId]) checkIdentity(value, maxBytes)
+    const omitted: ('name' | 'page-settings')[] = []
+    let name = layout.name
+    if (name !== null && name.length > 512) { name = null; omitted.push('name') }
+    let pageSettings: Record<string, number> | null = null
+    if (layout.payload.dxfPlotSettings !== undefined) {
+      pageSettings = {}
+      for (const [key, [, kind]] of Object.entries(PLOT_SETTING_FIELDS)) {
+        if (kind === 'string') continue
+        const value = layout.payload.dxfPlotSettings[key as keyof typeof layout.payload.dxfPlotSettings]
+        if (typeof value === 'number' && Number.isFinite(value)) pageSettings[key] = value
+      }
+    }
+    const entry: KJLayoutContextEntry = { id: layout.id, name, spaceId, model: spaceId === state.spaces.modelSpaceId, active: layout.id === state.spaces.activeLayoutId, tabOrder: typeof layout.payload.tabOrder === 'number' && Number.isFinite(layout.payload.tabOrder) ? layout.payload.tabOrder : null, pageSettings, omitted }
+    if (!fits(entry)) {
+      if (layouts.length) break
+      // A single large row must still advance. Never truncate identity strings.
+      if (name !== null) { name = null; omitted.push('name') }
+      if (pageSettings !== null) { pageSettings = null; omitted.push('page-settings') }
+      const reduced = { ...entry, name, pageSettings }
+      if (!fits(reduced)) throw new KJValidationError('Layout identity cannot fit the response budget')
+      layouts.push(reduced)
+    } else layouts.push(entry)
+    cursor++
+  }
+  result.nextOffset = cursor < live.length ? cursor : null
+  result.truncated = result.nextOffset !== null || layouts.some(layout => layout.omitted.length > 0)
+  return deepFreeze(result)
 }
 
 /**

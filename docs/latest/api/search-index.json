@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:5d4c7612aabed6201b039a7aa8d886c19668ea2c9d5dec2debe3d0db913cddbd",
+  "sourceDigest": "sha256:a97a788a9f8b9e0535094106718972acb101c8afb51336260f89088617a1ad68",
   "entries": [
     {
       "name": "createKJModelAdapter",
@@ -141,6 +141,14 @@
       "summary": "export interface KJAgentDrawingQuery { expectedRevision: number; filters: Pick<KJDrawingContextOptions, 'ids' | 'types' | 'layerIds' | 'spaceId' | 'includeHidden' | 'bounds'>; offset: number; layerOffset: number; limit: "
     },
     {
+      "name": "KJAgentLayoutQuery",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-interface-kjagentlayoutquery",
+      "anchor": "agent-tools-interface-kjagentlayoutquery",
+      "summary": "export interface KJAgentLayoutQuery { expectedRevision: number; offset: number; limit: number; maxBytes: number; }"
+    },
+    {
       "name": "KJAgentToolDefinition",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw/agent-tools",
@@ -187,6 +195,14 @@
       "href": "./api/reference/#drawing-context-function-createdrawingcontext",
       "anchor": "drawing-context-function-createdrawingcontext",
       "summary": "export declare function createDrawingContext(document: KJDocument, options?: KJDrawingContextOptions): KJDrawingContext;"
+    },
+    {
+      "name": "createLayoutContext",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/drawing-context",
+      "href": "./api/reference/#drawing-context-function-createlayoutcontext",
+      "anchor": "drawing-context-function-createlayoutcontext",
+      "summary": "export declare function createLayoutContext(document: KJDocument, options?: KJLayoutContextOptions): KJLayoutContext;"
     },
     {
       "name": "KJDrawingContext",
@@ -243,6 +259,30 @@
       "href": "./api/reference/#drawing-context-type-kjdrawinggeometryomittedreason",
       "anchor": "drawing-context-type-kjdrawinggeometryomittedreason",
       "summary": "export type KJDrawingGeometryOmittedReason = 'unsupported-type' | 'unsupported-data' | 'geometry-budget' | 'response-budget';"
+    },
+    {
+      "name": "KJLayoutContext",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drawing-context",
+      "href": "./api/reference/#drawing-context-interface-kjlayoutcontext",
+      "anchor": "drawing-context-interface-kjlayoutcontext",
+      "summary": "export interface KJLayoutContext { readonly documentId: string; readonly revision: number; readonly layouts: readonly KJLayoutContextEntry[]; readonly nextOffset: number | null; readonly truncated: boolean; readonly page"
+    },
+    {
+      "name": "KJLayoutContextEntry",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drawing-context",
+      "href": "./api/reference/#drawing-context-interface-kjlayoutcontextentry",
+      "anchor": "drawing-context-interface-kjlayoutcontextentry",
+      "summary": "export interface KJLayoutContextEntry { readonly id: string; readonly name: string | null; /** Feed this exact owner ID to createDrawingContext/cad_query_drawing. */ readonly spaceId: string; readonly model: boolean; rea"
+    },
+    {
+      "name": "KJLayoutContextOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drawing-context",
+      "href": "./api/reference/#drawing-context-interface-kjlayoutcontextoptions",
+      "anchor": "drawing-context-interface-kjlayoutcontextoptions",
+      "summary": "export interface KJLayoutContextOptions { expectedRevision?: number; offset?: number; /** Default 20, maximum 100 layouts per page. */ limit?: number; /** UTF-8 JSON result budget; default 16384, range 1024..262144. */ m"
     },
     {
       "name": "createBoundaryEditSession",
@@ -5461,6 +5501,14 @@
       "summary": "export declare function createKjpPackage(options?: KjpCreateOptions): Promise<Uint8Array>;"
     },
     {
+      "name": "createLayoutContext",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-createlayoutcontext",
+      "anchor": "root-function-createlayoutcontext",
+      "summary": "export declare function createLayoutContext(document: KJDocument, options?: KJLayoutContextOptions): KJLayoutContext;"
+    },
+    {
       "name": "createObjectRecord",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -6075,6 +6123,14 @@
       "href": "./api/reference/#root-interface-kjagentdrawingquery",
       "anchor": "root-interface-kjagentdrawingquery",
       "summary": "export interface KJAgentDrawingQuery { expectedRevision: number; filters: Pick<KJDrawingContextOptions, 'ids' | 'types' | 'layerIds' | 'spaceId' | 'includeHidden' | 'bounds'>; offset: number; layerOffset: number; limit: "
+    },
+    {
+      "name": "KJAgentLayoutQuery",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentlayoutquery",
+      "anchor": "root-interface-kjagentlayoutquery",
+      "summary": "export interface KJAgentLayoutQuery { expectedRevision: number; offset: number; limit: number; maxBytes: number; }"
     },
     {
       "name": "KJAgentModel",
@@ -7547,6 +7603,30 @@
       "href": "./api/reference/#root-interface-kjintersectionresult",
       "anchor": "root-interface-kjintersectionresult",
       "summary": "export interface KJIntersectionResult { kind: KJIntersectionKind; points: Point2[]; parametersA: number[]; parametersB: number[]; infinite?: boolean; }"
+    },
+    {
+      "name": "KJLayoutContext",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjlayoutcontext",
+      "anchor": "root-interface-kjlayoutcontext",
+      "summary": "export interface KJLayoutContext { readonly documentId: string; readonly revision: number; readonly layouts: readonly KJLayoutContextEntry[]; readonly nextOffset: number | null; readonly truncated: boolean; readonly page"
+    },
+    {
+      "name": "KJLayoutContextEntry",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjlayoutcontextentry",
+      "anchor": "root-interface-kjlayoutcontextentry",
+      "summary": "export interface KJLayoutContextEntry { readonly id: string; readonly name: string | null; /** Feed this exact owner ID to createDrawingContext/cad_query_drawing. */ readonly spaceId: string; readonly model: boolean; rea"
+    },
+    {
+      "name": "KJLayoutContextOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjlayoutcontextoptions",
+      "anchor": "root-interface-kjlayoutcontextoptions",
+      "summary": "export interface KJLayoutContextOptions { expectedRevision?: number; offset?: number; /** Default 20, maximum 100 layouts per page. */ limit?: number; /** UTF-8 JSON result budget; default 16384, range 1024..262144. */ m"
     },
     {
       "name": "KJLayoutOptions",
