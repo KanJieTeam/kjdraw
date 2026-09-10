@@ -32,6 +32,7 @@ test('2,294-entity Agent launch journey is deterministic and reversible', async 
   await expect(page.locator('#undo')).toBeDisabled()
 
   await page.locator('#agent-tab').click()
+  await page.locator('#agent-examples > summary').click()
   await page.locator('#plan').click()
   await expect(page.locator('#plan-state')).toContainText('NO MUTATION')
   await expect(page.locator('#plan-steps')).toContainText('MOVE 33')

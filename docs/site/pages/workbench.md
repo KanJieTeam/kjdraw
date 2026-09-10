@@ -6,6 +6,14 @@ summary.en: Open a drawing, create and modify geometry with exact coordinates, t
 summary.zh: 打开图纸，用精确坐标创建和修改图形，再保存结果。
 ---
 :::en
+## Talk to a drawing model {#ai-conversation}
+
+Open **AI Chat** in the side panel to describe a drawing or ask for changes. The conversation keeps a bounded recent history in memory. **Enter** sends, **Shift+Enter** adds a line, and **Stop** cancels the current request. Starting a new conversation or opening another drawing clears the current conversation and cancels pending proposals.
+
+Use **Connect model** to choose the protocol, model name and your application's same-origin server endpoint. Keys stay on that server. Sending a message shares your request and queried drawing data with the configured model. For local setup, follow [model proxy setup](https://github.com/KanJieTeam/kjdraw/blob/main/docs/deployment.md#connect-the-local-editor-to-a-model). The public static demo does not include a model service; its three offline scenarios are under **Local examples**.
+
+The chat displays real reading, measurement and proposal activity. A proposed edit appears as a review card: **Preview on drawing**, **Apply changes**, or **Discard**. Applied changes can be undone or saved as a KJP project. The current tools support bounded creation and movement; this is not yet autonomous delivery of a complete complex drawing. Model text is displayed as text and is not treated as an execution receipt. A changed drawing requires a fresh proposal.
+
 ## Open a drawing {#open}
 
 Open the Live Demo and choose an industry drawing, or choose **Open** to load a DXF, KJD or KJP file. You can also drag a supported file onto the canvas. The embedded editor opens DXF and KJD; the Demo project workspace also opens multi-drawing KJP packages.
@@ -202,6 +210,14 @@ editor.setLayout('compact')
 - Check layer visibility and choose Fit view if a created or opened object is outside the current view.
 :::
 :::zh
+## 与绘图模型对话 {#ai-conversation}
+
+在侧栏打开 **AI 对话**，描述图纸或提出修改。对话在内存中保留有预算限制的近期上下文。**Enter** 发送，**Shift+Enter** 换行，**停止** 取消本次请求。开启新对话或打开另一张图，会清除当前对话并取消待处理方案。
+
+通过 **连接模型** 选择协议、模型名称和应用同源的服务端地址，密钥留在服务端。发送消息会将需求和查询到的图纸数据交给所选模型。本地接入步骤见[模型代理配置](https://github.com/KanJieTeam/kjdraw/blob/main/docs/deployment.md#connect-the-local-editor-to-a-model)。公开静态演示站不提供模型服务，原有三个离线场景收在 **本地示例** 中。
+
+对话显示实际的读图、测量和方案生成状态。绘图方案以卡片呈现，可选择 **在图中预览**、**应用修改** 或 **放弃方案**；应用后可撤销或保存为 KJP 工程。当前工具支持有范围限制的创建和移动，尚未完成复杂图纸的全自动交付。模型文字按普通文本显示，不作为执行成功的回执。图纸发生变化后需要重新提出方案。
+
 ## 打开图纸 {#open}
 
 进入在线 Demo 后，可以选择一张行业图纸，也可以点击**打开**载入 DXF、KJD、KJP 文件；还可以把支持的文件直接拖到画布。嵌入式编辑器支持 DXF、KJD，Demo 工程工作区还支持包含多张图纸的 KJP 包。

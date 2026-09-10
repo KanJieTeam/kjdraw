@@ -10,6 +10,7 @@ import { createSample } from '../../examples/sample.js'
 import { createI18n } from './i18n.js'
 import { AGENT_REVISION_COMMAND, createShowcaseRevision, getShowcaseIntent, isShowcaseIntent, registerShowcaseCommand, resolveShowcasePreset } from './agent-showcase.js'
 import { createIndustrySamples, INDUSTRY_SAMPLES } from './industry-samples.js'
+import { createAgentChat } from './agent-chat.js'
 
 const $ = id => document.getElementById(id)
 const i18n = createI18n(), t = key => i18n.t(key)
@@ -32,6 +33,7 @@ let sdk, session, selection = new Set(), tool = 'select', start = null, draft = 
 let translation = null, dragMove = null, drafting = null, modification = null
 let selectionBox = null, gripDrag = null, fence = null, hoveredGrip = null, disposeInteractionDocument = null
 let boundaryEdit = null
+let agentChat = null
 const doc = () => sdk.activeDocument
 const documentTitle = drawing => {
   const metadata = drawing?.snapshot().metadata
@@ -234,6 +236,7 @@ function render() {
     ctx.save();ctx.strokeStyle='#77a7ff';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(ex,ey);ctx.stroke();ctx.restore()
   }
   if(drafting){const preview=drafting.session.preview(cursor??undefined);if(preview)drawOverlayEntity(preview,'#77a7ff')}
+  if(agentChat?.preview){canvasRenderer.drawPreview(agentChat.preview.before,'#e6a04b');canvasRenderer.drawPreview(agentChat.preview.after,'#77a7ff')}
   if(!drafting&&start&&cursor){
     drawOverlayEntity({type:'LINE',payload:{start,end:cursor}},'#bdf878')
   }
@@ -266,6 +269,7 @@ function populateSampleSelector() {
   select.hidden=!select.options.length
 }
 function syncAgentAvailability() {
+  agentChat?.syncContext()
   const available=doc()?.id===SHOWCASE_DOCUMENT_ID
   document.querySelector('.agent-panel').classList.toggle('unavailable',!available)
   $('open-agent-sample').hidden=available
@@ -533,7 +537,7 @@ $('close-layers').onclick=()=>{$('toggle-layers').click()}
 $('close-inspector').onclick=()=>{$('toggle-inspector').click()}
 $('show-all-layers').onclick=()=>run(async()=>{for(const layer of doc().getTable('layers').records)if(layer.payload.visible===false||layer.payload.frozen)await execute('LAYERUPDATE',{id:layer.id,patch:{visible:true,frozen:false}})})
 $('sample-select').onchange=e=>activateDrawing(e.target.value)
-function selectSidePanel(name){for(const button of document.querySelectorAll('.right-tabs [data-panel]')){const active=button.dataset.panel===name;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active))}for(const view of document.querySelectorAll('[data-panel-view]'))view.hidden=view.dataset.panelView!==name}
+function selectSidePanel(name){workbench.dataset.activePanel=name;for(const button of document.querySelectorAll('.right-tabs [data-panel]')){const active=button.dataset.panel===name;button.classList.toggle('active',active);button.setAttribute('aria-selected',String(active))}for(const view of document.querySelectorAll('[data-panel-view]'))view.hidden=view.dataset.panelView!==name}
 for(const tab of document.querySelectorAll('.right-tabs [data-panel]'))tab.onclick=()=>selectSidePanel(tab.dataset.panel)
 $('file-input').onchange=e=>run(async()=>{try{await openFile(e.target.files[0])}finally{e.target.value=''}})
 for(const eventName of ['dragenter','dragover'])$('drop-zone').addEventListener(eventName,e=>{e.preventDefault();$('drop-zone').classList.add('dragging')})
@@ -575,6 +579,7 @@ function displayAgentPlan(plan){
   $('confirm').disabled=false;workbench.dataset.demoState='planned';render()
 }
 async function previewAgentPlan(){
+  agentChat?.cancelProposals()
   invalidatePlan();const task=createAgentTask()
   const envelope=sdk.createCommandEnvelope(AGENT_REVISION_COMMAND,task.arguments,{origin:'ai',mode:'plan',expectedRevision:doc().revision})
   const planned=await sdk.executeCommandEnvelope(envelope)
@@ -741,6 +746,7 @@ try {
   registerGeometryBackend(createWasmGeometryBackend(instance));authority=createKJCoreDocumentAuthority(instance);solidAuthority=createKJCoreSolidBackend(instance)
 } catch(e){message('WASM unavailable · JavaScript reference mode');console.warn(e.message)}
 await freshSample();resize();fit()
+agentChat=createAgentChat(document.querySelector('.agent-panel'),{locale:()=>i18n.locale,getContext:()=>({sdk,document:doc()}),getSelected:()=>selectedIds(),onBeforeRun:()=>{invalidatePlan();render()},onPreview:()=>requestAnimationFrame(render),runMutation:async operation=>{let result;await run(async()=>{result=await operation()});return result},onApplied:()=>{invalidatePlan();$('file-state').textContent=i18n.locale==='zh'?'内存中已修改':'Modified in memory';refresh();render()},onSave:()=>saveProject()})
 
 function filterLayers(){
   const term=$('layer-search').value.trim().toLocaleLowerCase()

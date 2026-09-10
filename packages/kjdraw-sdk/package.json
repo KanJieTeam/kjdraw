@@ -57,6 +57,11 @@
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
+    "./agent-capabilities": {
+      "types": "./types/agent-capabilities.d.ts",
+      "import": "./src/agent-capabilities.js",
+      "default": "./src/agent-capabilities.js"
+    },
     "./model-adapters": {
       "types": "./types/model-adapters.d.ts",
       "import": "./src/model-adapters.js",

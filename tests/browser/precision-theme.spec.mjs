@@ -59,6 +59,7 @@ test('ribbon sections and example review do what their labels promise',async({pa
   await page.locator('.ribbon-tabs button[data-i18n=home]').click()
   await expect(page.locator('[data-tool=line]')).toBeVisible()
   await page.locator('#agent-tab').click()
+  await page.locator('#agent-examples > summary').click()
   await expect(page.locator('#plan')).toBeDisabled()
   await page.locator('#open-agent-sample').click()
   await expect(page.locator('#sample-select')).toHaveValue('sample-resilient-campus')

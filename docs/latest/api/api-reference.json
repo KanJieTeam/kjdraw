@@ -3,8 +3,86 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:a97a788a9f8b9e0535094106718972acb101c8afb51336260f89088617a1ad68",
+  "sourceDigest": "sha256:f949474ddd82721d411275260ac7a2f09c6ab868c7de9aadcc1e5121153c2c8e",
   "modules": [
+    {
+      "exportPath": "./agent-capabilities",
+      "packageName": "@kanjieteam/kjdraw/agent-capabilities",
+      "declaration": "types/agent-capabilities.d.ts",
+      "anchor": "module-agent-capabilities",
+      "symbols": [
+        {
+          "name": "KJAgentCapabilityLockEntry",
+          "kind": "interface",
+          "declaration": "export interface KJAgentCapabilityLockEntry extends KJAgentCapabilityReference {\n    /** Change detection only: not a cryptographic signature or publisher authentication. */\n    readonly contentHash: string;\n}",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "agent-capabilities-interface-kjagentcapabilitylockentry"
+        },
+        {
+          "name": "KJAgentCapabilityManifest",
+          "kind": "interface",
+          "declaration": "export interface KJAgentCapabilityManifest {\n    schema: typeof KJDRAW_AGENT_CAPABILITY_SCHEMA;\n    schemaVersion: typeof KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION;\n    id: string;\n    name: string;\n    version: string;\n    toolApiVersion: number;\n    /** Domain guidance explicitly trusted by the host; it grants no tools or approval rights. */\n    instructions: string;\n    requiredToolNames: string[];\n    requirements: KJAgentCapabilityRequirement[];\n}",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "agent-capabilities-interface-kjagentcapabilitymanifest"
+        },
+        {
+          "name": "KJAgentCapabilityReference",
+          "kind": "interface",
+          "declaration": "export interface KJAgentCapabilityReference {\n    readonly id: string;\n    readonly version: string;\n}",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "agent-capabilities-interface-kjagentcapabilityreference"
+        },
+        {
+          "name": "KJAgentCapabilityRegistry",
+          "kind": "class",
+          "declaration": "export declare class KJAgentCapabilityRegistry {\n    #private;\n    constructor({ toolApiVersion }?: {\n        toolApiVersion?: number;\n    });\n    register(input: unknown): ReadonlyDeep<KJAgentCapabilityManifest>;\n    list(): readonly ReadonlyDeep<KJAgentCapabilityManifest>[];\n    /** Persist this JSON lock with the project; supplying new references is an explicit upgrade. */\n    createLock(references: readonly KJAgentCapabilityReference[]): readonly KJAgentCapabilityLockEntry[];\n    resolve({ lock, allowedToolNames }: {\n        lock: readonly KJAgentCapabilityLockEntry[];\n        allowedToolNames: readonly string[];\n    }): KJResolvedAgentCapabilities;\n}",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "agent-capabilities-class-kjagentcapabilityregistry"
+        },
+        {
+          "name": "KJAgentCapabilityRequirement",
+          "kind": "interface",
+          "declaration": "export interface KJAgentCapabilityRequirement {\n    id: string;\n    description: string;\n    /** A requested evidence check, not executable code or a successful validation receipt. */\n    check: {\n        toolName: string;\n        assertion: string;\n    };\n}",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "agent-capabilities-interface-kjagentcapabilityrequirement"
+        },
+        {
+          "name": "KJDRAW_AGENT_CAPABILITY_SCHEMA",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_AGENT_CAPABILITY_SCHEMA = \"com.kanjie.kjdraw.agent-capability\";",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "agent-capabilities-const-kjdraw-agent-capability-schema"
+        },
+        {
+          "name": "KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION = 1;",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "agent-capabilities-const-kjdraw-agent-capability-schema-version"
+        },
+        {
+          "name": "KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION = 1;",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "agent-capabilities-const-kjdraw-agent-capability-tool-api-version"
+        },
+        {
+          "name": "KJResolvedAgentCapabilities",
+          "kind": "interface",
+          "declaration": "export interface KJResolvedAgentCapabilities {\n    readonly lock: readonly KJAgentCapabilityLockEntry[];\n    readonly instructions: string;\n    readonly toolNames: readonly string[];\n    readonly requirements: readonly (ReadonlyDeep<KJAgentCapabilityRequirement> & {\n        readonly capabilityId: string;\n        readonly capabilityVersion: string;\n    })[];\n}",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "agent-capabilities-interface-kjresolvedagentcapabilities"
+        },
+        {
+          "name": "validateAgentCapabilityManifest",
+          "kind": "function",
+          "declaration": "export declare function validateAgentCapabilityManifest(input: unknown): ReadonlyDeep<KJAgentCapabilityManifest>;",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "agent-capabilities-function-validateagentcapabilitymanifest"
+        }
+      ]
+    },
     {
       "exportPath": "./model-adapters",
       "packageName": "@kanjieteam/kjdraw/model-adapters",
@@ -99,9 +177,16 @@
         {
           "name": "KJAgentRunOptions",
           "kind": "interface",
-          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    maxTurns?: number;\n    maxToolCalls?: number;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n}",
+          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    /** Host-trusted domain knowledge, selected by an exact project lock. Never grants extra tools. */\n    capabilities?: {\n        registry: KJAgentCapabilityRegistry;\n        lock: readonly KJAgentCapabilityLockEntry[];\n    };\n    maxTurns?: number;\n    maxToolCalls?: number;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n    /** Host UI progress; contains no drawing payload or model reasoning. */\n    onProgress?: (progress: Readonly<KJAgentRunProgress>) => void;\n}",
           "source": "agent-runner.d.ts",
           "anchor": "agent-runner-interface-kjagentrunoptions"
+        },
+        {
+          "name": "KJAgentRunProgress",
+          "kind": "interface",
+          "declaration": "export interface KJAgentRunProgress {\n    readonly phase: 'model' | 'tool-start' | 'tool-complete';\n    readonly turns: number;\n    readonly toolCalls: number;\n    readonly toolName?: string;\n    readonly ok?: boolean;\n}",
+          "source": "agent-runner.d.ts",
+          "anchor": "agent-runner-interface-kjagentrunprogress"
         },
         {
           "name": "KJAgentRunResult",
@@ -5480,6 +5565,41 @@
           "anchor": "root-class-kjadaptererror"
         },
         {
+          "name": "KJAgentCapabilityLockEntry",
+          "kind": "interface",
+          "declaration": "export interface KJAgentCapabilityLockEntry extends KJAgentCapabilityReference {\n    /** Change detection only: not a cryptographic signature or publisher authentication. */\n    readonly contentHash: string;\n}",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "root-interface-kjagentcapabilitylockentry"
+        },
+        {
+          "name": "KJAgentCapabilityManifest",
+          "kind": "interface",
+          "declaration": "export interface KJAgentCapabilityManifest {\n    schema: typeof KJDRAW_AGENT_CAPABILITY_SCHEMA;\n    schemaVersion: typeof KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION;\n    id: string;\n    name: string;\n    version: string;\n    toolApiVersion: number;\n    /** Domain guidance explicitly trusted by the host; it grants no tools or approval rights. */\n    instructions: string;\n    requiredToolNames: string[];\n    requirements: KJAgentCapabilityRequirement[];\n}",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "root-interface-kjagentcapabilitymanifest"
+        },
+        {
+          "name": "KJAgentCapabilityReference",
+          "kind": "interface",
+          "declaration": "export interface KJAgentCapabilityReference {\n    readonly id: string;\n    readonly version: string;\n}",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "root-interface-kjagentcapabilityreference"
+        },
+        {
+          "name": "KJAgentCapabilityRegistry",
+          "kind": "class",
+          "declaration": "export declare class KJAgentCapabilityRegistry {\n    #private;\n    constructor({ toolApiVersion }?: {\n        toolApiVersion?: number;\n    });\n    register(input: unknown): ReadonlyDeep<KJAgentCapabilityManifest>;\n    list(): readonly ReadonlyDeep<KJAgentCapabilityManifest>[];\n    /** Persist this JSON lock with the project; supplying new references is an explicit upgrade. */\n    createLock(references: readonly KJAgentCapabilityReference[]): readonly KJAgentCapabilityLockEntry[];\n    resolve({ lock, allowedToolNames }: {\n        lock: readonly KJAgentCapabilityLockEntry[];\n        allowedToolNames: readonly string[];\n    }): KJResolvedAgentCapabilities;\n}",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "root-class-kjagentcapabilityregistry"
+        },
+        {
+          "name": "KJAgentCapabilityRequirement",
+          "kind": "interface",
+          "declaration": "export interface KJAgentCapabilityRequirement {\n    id: string;\n    description: string;\n    /** A requested evidence check, not executable code or a successful validation receipt. */\n    check: {\n        toolName: string;\n        assertion: string;\n    };\n}",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "root-interface-kjagentcapabilityrequirement"
+        },
+        {
           "name": "KJAgentDrawingQuery",
           "kind": "interface",
           "declaration": "export interface KJAgentDrawingQuery {\n    expectedRevision: number;\n    filters: Pick<KJDrawingContextOptions, 'ids' | 'types' | 'layerIds' | 'spaceId' | 'includeHidden' | 'bounds'>;\n    offset: number;\n    layerOffset: number;\n    limit: number;\n    maxLayers: number;\n    maxBytes: number;\n}",
@@ -5545,9 +5665,16 @@
         {
           "name": "KJAgentRunOptions",
           "kind": "interface",
-          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    maxTurns?: number;\n    maxToolCalls?: number;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n}",
+          "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    /** Host-trusted domain knowledge, selected by an exact project lock. Never grants extra tools. */\n    capabilities?: {\n        registry: KJAgentCapabilityRegistry;\n        lock: readonly KJAgentCapabilityLockEntry[];\n    };\n    maxTurns?: number;\n    maxToolCalls?: number;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n    /** Host UI progress; contains no drawing payload or model reasoning. */\n    onProgress?: (progress: Readonly<KJAgentRunProgress>) => void;\n}",
           "source": "agent-runner.d.ts",
           "anchor": "root-interface-kjagentrunoptions"
+        },
+        {
+          "name": "KJAgentRunProgress",
+          "kind": "interface",
+          "declaration": "export interface KJAgentRunProgress {\n    readonly phase: 'model' | 'tool-start' | 'tool-complete';\n    readonly turns: number;\n    readonly toolCalls: number;\n    readonly toolName?: string;\n    readonly ok?: boolean;\n}",
+          "source": "agent-runner.d.ts",
+          "anchor": "root-interface-kjagentrunprogress"
         },
         {
           "name": "KJAgentRunResult",
@@ -6325,6 +6452,27 @@
           "declaration": "export declare const KJDRAW_1_0_READINESS_PROFILE: Readonly<KJSDKReadinessProfile>;",
           "source": "capabilities.d.ts",
           "anchor": "root-const-kjdraw-1-0-readiness-profile"
+        },
+        {
+          "name": "KJDRAW_AGENT_CAPABILITY_SCHEMA",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_AGENT_CAPABILITY_SCHEMA = \"com.kanjie.kjdraw.agent-capability\";",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "root-const-kjdraw-agent-capability-schema"
+        },
+        {
+          "name": "KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION = 1;",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "root-const-kjdraw-agent-capability-schema-version"
+        },
+        {
+          "name": "KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION",
+          "kind": "const",
+          "declaration": "export declare const KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION = 1;",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "root-const-kjdraw-agent-capability-tool-api-version"
         },
         {
           "name": "KJDRAW_AGENT_INSTRUCTIONS",
@@ -7405,6 +7553,13 @@
           "anchor": "root-class-kjregistrationerror"
         },
         {
+          "name": "KJResolvedAgentCapabilities",
+          "kind": "interface",
+          "declaration": "export interface KJResolvedAgentCapabilities {\n    readonly lock: readonly KJAgentCapabilityLockEntry[];\n    readonly instructions: string;\n    readonly toolNames: readonly string[];\n    readonly requirements: readonly (ReadonlyDeep<KJAgentCapabilityRequirement> & {\n        readonly capabilityId: string;\n        readonly capabilityVersion: string;\n    })[];\n}",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "root-interface-kjresolvedagentcapabilities"
+        },
+        {
           "name": "KJResourceCollection",
           "kind": "type",
           "declaration": "export type KJResourceCollection = Record<string, unknown>;",
@@ -8250,6 +8405,13 @@
           "declaration": "export declare function unregisterGeometryBackend(): void;",
           "source": "geometry/backend.d.ts",
           "anchor": "root-function-unregistergeometrybackend"
+        },
+        {
+          "name": "validateAgentCapabilityManifest",
+          "kind": "function",
+          "declaration": "export declare function validateAgentCapabilityManifest(input: unknown): ReadonlyDeep<KJAgentCapabilityManifest>;",
+          "source": "agent-capabilities.d.ts",
+          "anchor": "root-function-validateagentcapabilitymanifest"
         },
         {
           "name": "validateCommandEnvelope",

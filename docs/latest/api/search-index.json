@@ -2,8 +2,88 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:a97a788a9f8b9e0535094106718972acb101c8afb51336260f89088617a1ad68",
+  "sourceDigest": "sha256:f949474ddd82721d411275260ac7a2f09c6ab868c7de9aadcc1e5121153c2c8e",
   "entries": [
+    {
+      "name": "KJAgentCapabilityLockEntry",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-capabilities",
+      "href": "./api/reference/#agent-capabilities-interface-kjagentcapabilitylockentry",
+      "anchor": "agent-capabilities-interface-kjagentcapabilitylockentry",
+      "summary": "export interface KJAgentCapabilityLockEntry extends KJAgentCapabilityReference { /** Change detection only: not a cryptographic signature or publisher authentication. */ readonly contentHash: string; }"
+    },
+    {
+      "name": "KJAgentCapabilityManifest",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-capabilities",
+      "href": "./api/reference/#agent-capabilities-interface-kjagentcapabilitymanifest",
+      "anchor": "agent-capabilities-interface-kjagentcapabilitymanifest",
+      "summary": "export interface KJAgentCapabilityManifest { schema: typeof KJDRAW_AGENT_CAPABILITY_SCHEMA; schemaVersion: typeof KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION; id: string; name: string; version: string; toolApiVersion: number;"
+    },
+    {
+      "name": "KJAgentCapabilityReference",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-capabilities",
+      "href": "./api/reference/#agent-capabilities-interface-kjagentcapabilityreference",
+      "anchor": "agent-capabilities-interface-kjagentcapabilityreference",
+      "summary": "export interface KJAgentCapabilityReference { readonly id: string; readonly version: string; }"
+    },
+    {
+      "name": "KJAgentCapabilityRegistry",
+      "kind": "class",
+      "module": "@kanjieteam/kjdraw/agent-capabilities",
+      "href": "./api/reference/#agent-capabilities-class-kjagentcapabilityregistry",
+      "anchor": "agent-capabilities-class-kjagentcapabilityregistry",
+      "summary": "export declare class KJAgentCapabilityRegistry { #private; constructor({ toolApiVersion }?: { toolApiVersion?: number; }); register(input: unknown): ReadonlyDeep<KJAgentCapabilityManifest>; list(): readonly ReadonlyDeep<"
+    },
+    {
+      "name": "KJAgentCapabilityRequirement",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-capabilities",
+      "href": "./api/reference/#agent-capabilities-interface-kjagentcapabilityrequirement",
+      "anchor": "agent-capabilities-interface-kjagentcapabilityrequirement",
+      "summary": "export interface KJAgentCapabilityRequirement { id: string; description: string; /** A requested evidence check, not executable code or a successful validation receipt. */ check: { toolName: string; assertion: string; };"
+    },
+    {
+      "name": "KJDRAW_AGENT_CAPABILITY_SCHEMA",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw/agent-capabilities",
+      "href": "./api/reference/#agent-capabilities-const-kjdraw-agent-capability-schema",
+      "anchor": "agent-capabilities-const-kjdraw-agent-capability-schema",
+      "summary": "export declare const KJDRAW_AGENT_CAPABILITY_SCHEMA = \"com.kanjie.kjdraw.agent-capability\";"
+    },
+    {
+      "name": "KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw/agent-capabilities",
+      "href": "./api/reference/#agent-capabilities-const-kjdraw-agent-capability-schema-version",
+      "anchor": "agent-capabilities-const-kjdraw-agent-capability-schema-version",
+      "summary": "export declare const KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION = 1;"
+    },
+    {
+      "name": "KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw/agent-capabilities",
+      "href": "./api/reference/#agent-capabilities-const-kjdraw-agent-capability-tool-api-version",
+      "anchor": "agent-capabilities-const-kjdraw-agent-capability-tool-api-version",
+      "summary": "export declare const KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION = 1;"
+    },
+    {
+      "name": "KJResolvedAgentCapabilities",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-capabilities",
+      "href": "./api/reference/#agent-capabilities-interface-kjresolvedagentcapabilities",
+      "anchor": "agent-capabilities-interface-kjresolvedagentcapabilities",
+      "summary": "export interface KJResolvedAgentCapabilities { readonly lock: readonly KJAgentCapabilityLockEntry[]; readonly instructions: string; readonly toolNames: readonly string[]; readonly requirements: readonly (ReadonlyDeep<KJA"
+    },
+    {
+      "name": "validateAgentCapabilityManifest",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/agent-capabilities",
+      "href": "./api/reference/#agent-capabilities-function-validateagentcapabilitymanifest",
+      "anchor": "agent-capabilities-function-validateagentcapabilitymanifest",
+      "summary": "export declare function validateAgentCapabilityManifest(input: unknown): ReadonlyDeep<KJAgentCapabilityManifest>;"
+    },
     {
       "name": "createKJModelAdapter",
       "kind": "function",
@@ -99,6 +179,14 @@
       "href": "./api/reference/#agent-runner-interface-kjagentrunoptions",
       "anchor": "agent-runner-interface-kjagentrunoptions",
       "summary": "export interface KJAgentRunOptions { session: KJAgentToolSession; model: KJAgentModel; prompt: string; /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. "
+    },
+    {
+      "name": "KJAgentRunProgress",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-runner",
+      "href": "./api/reference/#agent-runner-interface-kjagentrunprogress",
+      "anchor": "agent-runner-interface-kjagentrunprogress",
+      "summary": "export interface KJAgentRunProgress { readonly phase: 'model' | 'tool-start' | 'tool-complete'; readonly turns: number; readonly toolCalls: number; readonly toolName?: string; readonly ok?: boolean; }"
     },
     {
       "name": "KJAgentRunResult",
@@ -6117,6 +6205,46 @@
       "summary": "export declare class KJAdapterError extends KJDrawError { constructor(message: string, details?: KJErrorDetails, cause?: unknown); }"
     },
     {
+      "name": "KJAgentCapabilityLockEntry",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentcapabilitylockentry",
+      "anchor": "root-interface-kjagentcapabilitylockentry",
+      "summary": "export interface KJAgentCapabilityLockEntry extends KJAgentCapabilityReference { /** Change detection only: not a cryptographic signature or publisher authentication. */ readonly contentHash: string; }"
+    },
+    {
+      "name": "KJAgentCapabilityManifest",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentcapabilitymanifest",
+      "anchor": "root-interface-kjagentcapabilitymanifest",
+      "summary": "export interface KJAgentCapabilityManifest { schema: typeof KJDRAW_AGENT_CAPABILITY_SCHEMA; schemaVersion: typeof KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION; id: string; name: string; version: string; toolApiVersion: number;"
+    },
+    {
+      "name": "KJAgentCapabilityReference",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentcapabilityreference",
+      "anchor": "root-interface-kjagentcapabilityreference",
+      "summary": "export interface KJAgentCapabilityReference { readonly id: string; readonly version: string; }"
+    },
+    {
+      "name": "KJAgentCapabilityRegistry",
+      "kind": "class",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-class-kjagentcapabilityregistry",
+      "anchor": "root-class-kjagentcapabilityregistry",
+      "summary": "export declare class KJAgentCapabilityRegistry { #private; constructor({ toolApiVersion }?: { toolApiVersion?: number; }); register(input: unknown): ReadonlyDeep<KJAgentCapabilityManifest>; list(): readonly ReadonlyDeep<"
+    },
+    {
+      "name": "KJAgentCapabilityRequirement",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentcapabilityrequirement",
+      "anchor": "root-interface-kjagentcapabilityrequirement",
+      "summary": "export interface KJAgentCapabilityRequirement { id: string; description: string; /** A requested evidence check, not executable code or a successful validation receipt. */ check: { toolName: string; assertion: string; };"
+    },
+    {
       "name": "KJAgentDrawingQuery",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -6195,6 +6323,14 @@
       "href": "./api/reference/#root-interface-kjagentrunoptions",
       "anchor": "root-interface-kjagentrunoptions",
       "summary": "export interface KJAgentRunOptions { session: KJAgentToolSession; model: KJAgentModel; prompt: string; /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. "
+    },
+    {
+      "name": "KJAgentRunProgress",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentrunprogress",
+      "anchor": "root-interface-kjagentrunprogress",
+      "summary": "export interface KJAgentRunProgress { readonly phase: 'model' | 'tool-start' | 'tool-complete'; readonly turns: number; readonly toolCalls: number; readonly toolName?: string; readonly ok?: boolean; }"
     },
     {
       "name": "KJAgentRunResult",
@@ -7083,6 +7219,30 @@
       "href": "./api/reference/#root-const-kjdraw-1-0-readiness-profile",
       "anchor": "root-const-kjdraw-1-0-readiness-profile",
       "summary": "export declare const KJDRAW_1_0_READINESS_PROFILE: Readonly<KJSDKReadinessProfile>;"
+    },
+    {
+      "name": "KJDRAW_AGENT_CAPABILITY_SCHEMA",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-const-kjdraw-agent-capability-schema",
+      "anchor": "root-const-kjdraw-agent-capability-schema",
+      "summary": "export declare const KJDRAW_AGENT_CAPABILITY_SCHEMA = \"com.kanjie.kjdraw.agent-capability\";"
+    },
+    {
+      "name": "KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-const-kjdraw-agent-capability-schema-version",
+      "anchor": "root-const-kjdraw-agent-capability-schema-version",
+      "summary": "export declare const KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION = 1;"
+    },
+    {
+      "name": "KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-const-kjdraw-agent-capability-tool-api-version",
+      "anchor": "root-const-kjdraw-agent-capability-tool-api-version",
+      "summary": "export declare const KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION = 1;"
     },
     {
       "name": "KJDRAW_AGENT_INSTRUCTIONS",
@@ -8317,6 +8477,14 @@
       "summary": "export declare class KJRegistrationError extends KJDrawError { constructor(message: string, details?: KJErrorDetails); }"
     },
     {
+      "name": "KJResolvedAgentCapabilities",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjresolvedagentcapabilities",
+      "anchor": "root-interface-kjresolvedagentcapabilities",
+      "summary": "export interface KJResolvedAgentCapabilities { readonly lock: readonly KJAgentCapabilityLockEntry[]; readonly instructions: string; readonly toolNames: readonly string[]; readonly requirements: readonly (ReadonlyDeep<KJA"
+    },
+    {
       "name": "KJResourceCollection",
       "kind": "type",
       "module": "@kanjieteam/kjdraw",
@@ -9283,6 +9451,14 @@
       "href": "./api/reference/#root-function-unregistergeometrybackend",
       "anchor": "root-function-unregistergeometrybackend",
       "summary": "export declare function unregisterGeometryBackend(): void;"
+    },
+    {
+      "name": "validateAgentCapabilityManifest",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-validateagentcapabilitymanifest",
+      "anchor": "root-function-validateagentcapabilitymanifest",
+      "summary": "export declare function validateAgentCapabilityManifest(input: unknown): ReadonlyDeep<KJAgentCapabilityManifest>;"
     },
     {
       "name": "validateCommandEnvelope",

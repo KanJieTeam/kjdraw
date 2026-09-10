@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:947614f69130fb4c3b50e25d273f774c3ad480a3a4a707f9c10c540472cb9120",
+  "sourceDigest": "sha256:84fdc1a443fc170a8237ecb03cf65bddc18f023209f6f5db9f4964ac9632da64",
   "locales": [
     "en",
     "zh"
@@ -90,6 +90,7 @@
       "anchors": {
         "en": [
           "en-workbench",
+          "en-workbench-ai-conversation",
           "en-workbench-open",
           "en-workbench-drawing-workflow",
           "en-workbench-coordinates",
@@ -106,6 +107,7 @@
         ],
         "zh": [
           "zh-workbench",
+          "zh-workbench-ai-conversation",
           "zh-workbench-open",
           "zh-workbench-drawing-workflow",
           "zh-workbench-coordinates",
@@ -265,6 +267,7 @@
         "en": [
           "en-agent",
           "en-agent-agent-tools",
+          "en-agent-domain-capabilities",
           "en-agent-compose-drawing",
           "en-agent-drawing-context",
           "en-agent-query-region",
@@ -277,6 +280,7 @@
         "zh": [
           "zh-agent",
           "zh-agent-agent-tools",
+          "zh-agent-domain-capabilities",
           "zh-agent-compose-drawing",
           "zh-agent-drawing-context",
           "zh-agent-query-region",

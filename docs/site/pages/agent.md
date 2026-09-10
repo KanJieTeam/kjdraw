@@ -53,6 +53,36 @@ node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs
 
 It exercises proposal, simulated host approval, duplicate rejection, native-file reopen and undo without a model or API key. This verifies tool plumbing, not natural-language design success.
 
+## Keep domain capabilities with the project {#domain-capabilities}
+
+`KJAgentCapabilityRegistry` adds versioned domain guidance above the shared CAD tools. Hosts explicitly trust and register JSON manifests containing instructions, required tool names and requested evidence checks. These manifests contain no executable code. The core retains geometry, schema, budget and approval enforcement; a check description is not a validator or a passing result.
+
+```ts
+import { KJAgentCapabilityRegistry } from '@kanjieteam/kjdraw/agent-capabilities'
+import { runKJAgentTask } from '@kanjieteam/kjdraw/agent-runner'
+
+const registry = new KJAgentCapabilityRegistry()
+registry.register({
+  schema: 'com.kanjie.kjdraw.agent-capability', schemaVersion: 1, toolApiVersion: 1,
+  id: 'example.inspection', name: 'Inspection', version: '1.0.0',
+  instructions: 'Read drawing units and ask for missing inspection dimensions.',
+  requiredToolNames: ['cad_read_drawing'], requirements: [],
+})
+const lock = registry.createLock([{ id: 'example.inspection', version: '1.0.0' }])
+const result = await runKJAgentTask({ session, model, prompt: 'Inspect this drawing.',
+  capabilities: { registry, lock } })
+```
+
+Persist `lock` using KJD document custom metadata or KJP project metadata. Reopen it with `registry.resolve({ lock, allowedToolNames })`, or pass it to the runner as above. The runner exposes only the selected capability tools and rejects a capability that exceeds the host's `toolNames` policy. Registering a newer package preserves existing locks; upgrading a project requires explicitly creating a new lock. Locks detect changed content at the same version, but the content hash is not a publisher signature. The host owns source trust, distribution and project persistence; KJDraw does not download packages or learn from user drawings automatically.
+
+Run the included offline integration example:
+
+```sh
+node node_modules/@kanjieteam/kjdraw/examples/agent-capabilities.mjs
+```
+
+It exercises registration, an exact lock, narrowed tools, a pending proposal and KJD reopen without network requests. It uses a deterministic model fixture, leaves approval to the host, and provides no evidence of natural-language drawing success or passed design requirements.
+
 ## Draw a profile and holes in one proposal {#compose-drawing}
 
 Use `cad_propose_drawing` when one request describes multiple kinds of geometry. The groups share a total limit of 64 objects. All four arrays are required; leave unused ones empty. Polyline vertices form straight segments (2–64 vertices, at least 3 when closed). Arc angles use degrees from positive X, counterclockwise; for example, 270 → 90 wraps through 0 degrees. Use a circle for a full revolution.
@@ -312,6 +342,36 @@ node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs
 ```
 
 示例不调用模型或使用密钥，验证提案、模拟宿主批准、重复执行拒绝、原生文件重开和撤销。这是工具链验证，不是自然语言设计成功率的证明。
+
+## 让行业能力随项目保持版本 {#domain-capabilities}
+
+`KJAgentCapabilityRegistry` 在共享 CAD 工具之上提供可版本化的行业说明。宿主明确选择可信来源，并注册包含指导说明、必需工具和待检查证据的 JSON 清单；清单不包含可执行代码。几何、参数校验、预算和审批仍由核心负责，检查说明本身不是验证器，也不代表已经通过。
+
+```ts
+import { KJAgentCapabilityRegistry } from '@kanjieteam/kjdraw/agent-capabilities'
+import { runKJAgentTask } from '@kanjieteam/kjdraw/agent-runner'
+
+const registry = new KJAgentCapabilityRegistry()
+registry.register({
+  schema: 'com.kanjie.kjdraw.agent-capability', schemaVersion: 1, toolApiVersion: 1,
+  id: 'example.inspection', name: '图纸检查', version: '1.0.0',
+  instructions: '先读取图纸单位，缺少检查尺寸时向用户询问。',
+  requiredToolNames: ['cad_read_drawing'], requirements: [],
+})
+const lock = registry.createLock([{ id: 'example.inspection', version: '1.0.0' }])
+const result = await runKJAgentTask({ session, model, prompt: '检查这张图纸。',
+  capabilities: { registry, lock } })
+```
+
+用 KJD 图档自定义 metadata 或 KJP 项目 metadata 保存 `lock`。重开后调用 `registry.resolve({ lock, allowedToolNames })`，或如上直接交给 runner。runner 只开放所选能力需要的工具；超过宿主 `toolNames` 权限范围的能力会被拒绝。注册新版本不会改变旧项目锁；项目升级须明确创建新锁。同一版本内容变化会被检测，但内容指纹不是发布者签名。可信来源、分发和项目保存由宿主负责；KJDraw 不会自动下载能力包，也不会自动从用户图纸中学习。
+
+运行随包提供的离线接入示例：
+
+```sh
+node node_modules/@kanjieteam/kjdraw/examples/agent-capabilities.mjs
+```
+
+示例实际执行注册、精确版本锁、工具选择、待审核绘图方案及 KJD 重开，不发起网络请求。它使用确定的模型测试桩，把审批留给宿主；不能作为自然语言绘图成功率或设计要求已通过的证明。
 
 ## 一次提出轮廓和孔位的组合绘图方案 {#compose-drawing}
 

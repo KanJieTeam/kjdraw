@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/agent/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=947614f69130fb4c">
+  <link rel="stylesheet" href="../style.css?v=84fdc1a443fc170a">
   <title>Agent workflows · KJDraw Docs</title>
 </head>
 <body>
@@ -84,6 +84,25 @@ function showProposal(preview: KJAgentGeometryPreview) {
 <p>Run the installed <a href="https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/agent-tools.mjs">tool-session example</a>:</p>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs</code></pre>
 <p>It exercises proposal, simulated host approval, duplicate rejection, native-file reopen and undo without a model or API key. This verifies tool plumbing, not natural-language design success.</p>
+<h2 id="en-agent-domain-capabilities">Keep domain capabilities with the project<a class="heading-anchor" href="#en-agent-domain-capabilities" aria-label="Link to Keep domain capabilities with the project">#</a></h2>
+<p><code>KJAgentCapabilityRegistry</code> adds versioned domain guidance above the shared CAD tools. Hosts explicitly trust and register JSON manifests containing instructions, required tool names and requested evidence checks. These manifests contain no executable code. The core retains geometry, schema, budget and approval enforcement; a check description is not a validator or a passing result.</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { KJAgentCapabilityRegistry } from &#39;@kanjieteam/kjdraw/agent-capabilities&#39;
+import { runKJAgentTask } from &#39;@kanjieteam/kjdraw/agent-runner&#39;
+
+const registry = new KJAgentCapabilityRegistry()
+registry.register({
+  schema: &#39;com.kanjie.kjdraw.agent-capability&#39;, schemaVersion: 1, toolApiVersion: 1,
+  id: &#39;example.inspection&#39;, name: &#39;Inspection&#39;, version: &#39;1.0.0&#39;,
+  instructions: &#39;Read drawing units and ask for missing inspection dimensions.&#39;,
+  requiredToolNames: [&#39;cad_read_drawing&#39;], requirements: [],
+})
+const lock = registry.createLock([{ id: &#39;example.inspection&#39;, version: &#39;1.0.0&#39; }])
+const result = await runKJAgentTask({ session, model, prompt: &#39;Inspect this drawing.&#39;,
+  capabilities: { registry, lock } })</code></pre>
+<p>Persist <code>lock</code> using KJD document custom metadata or KJP project metadata. Reopen it with <code>registry.resolve({ lock, allowedToolNames })</code>, or pass it to the runner as above. The runner exposes only the selected capability tools and rejects a capability that exceeds the host&#39;s <code>toolNames</code> policy. Registering a newer package preserves existing locks; upgrading a project requires explicitly creating a new lock. Locks detect changed content at the same version, but the content hash is not a publisher signature. The host owns source trust, distribution and project persistence; KJDraw does not download packages or learn from user drawings automatically.</p>
+<p>Run the included offline integration example:</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/agent-capabilities.mjs</code></pre>
+<p>It exercises registration, an exact lock, narrowed tools, a pending proposal and KJD reopen without network requests. It uses a deterministic model fixture, leaves approval to the host, and provides no evidence of natural-language drawing success or passed design requirements.</p>
 <h2 id="en-agent-compose-drawing">Draw a profile and holes in one proposal<a class="heading-anchor" href="#en-agent-compose-drawing" aria-label="Link to Draw a profile and holes in one proposal">#</a></h2>
 <p>Use <code>cad_propose_drawing</code> when one request describes multiple kinds of geometry. The groups share a total limit of 64 objects. All four arrays are required; leave unused ones empty. Polyline vertices form straight segments (2–64 vertices, at least 3 when closed). Arc angles use degrees from positive X, counterclockwise; for example, 270 → 90 wraps through 0 degrees. Use a circle for a full revolution.</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
@@ -257,6 +276,25 @@ function showProposal(preview: KJAgentGeometryPreview) {
 <p>运行安装包中的<a href="https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/agent-tools.mjs">工具会话示例</a>：</p>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs</code></pre>
 <p>示例不调用模型或使用密钥，验证提案、模拟宿主批准、重复执行拒绝、原生文件重开和撤销。这是工具链验证，不是自然语言设计成功率的证明。</p>
+<h2 id="zh-agent-domain-capabilities">让行业能力随项目保持版本<a class="heading-anchor" href="#zh-agent-domain-capabilities" aria-label="Link to 让行业能力随项目保持版本">#</a></h2>
+<p><code>KJAgentCapabilityRegistry</code> 在共享 CAD 工具之上提供可版本化的行业说明。宿主明确选择可信来源，并注册包含指导说明、必需工具和待检查证据的 JSON 清单；清单不包含可执行代码。几何、参数校验、预算和审批仍由核心负责，检查说明本身不是验证器，也不代表已经通过。</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { KJAgentCapabilityRegistry } from &#39;@kanjieteam/kjdraw/agent-capabilities&#39;
+import { runKJAgentTask } from &#39;@kanjieteam/kjdraw/agent-runner&#39;
+
+const registry = new KJAgentCapabilityRegistry()
+registry.register({
+  schema: &#39;com.kanjie.kjdraw.agent-capability&#39;, schemaVersion: 1, toolApiVersion: 1,
+  id: &#39;example.inspection&#39;, name: &#39;图纸检查&#39;, version: &#39;1.0.0&#39;,
+  instructions: &#39;先读取图纸单位，缺少检查尺寸时向用户询问。&#39;,
+  requiredToolNames: [&#39;cad_read_drawing&#39;], requirements: [],
+})
+const lock = registry.createLock([{ id: &#39;example.inspection&#39;, version: &#39;1.0.0&#39; }])
+const result = await runKJAgentTask({ session, model, prompt: &#39;检查这张图纸。&#39;,
+  capabilities: { registry, lock } })</code></pre>
+<p>用 KJD 图档自定义 metadata 或 KJP 项目 metadata 保存 <code>lock</code>。重开后调用 <code>registry.resolve({ lock, allowedToolNames })</code>，或如上直接交给 runner。runner 只开放所选能力需要的工具；超过宿主 <code>toolNames</code> 权限范围的能力会被拒绝。注册新版本不会改变旧项目锁；项目升级须明确创建新锁。同一版本内容变化会被检测，但内容指纹不是发布者签名。可信来源、分发和项目保存由宿主负责；KJDraw 不会自动下载能力包，也不会自动从用户图纸中学习。</p>
+<p>运行随包提供的离线接入示例：</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/agent-capabilities.mjs</code></pre>
+<p>示例实际执行注册、精确版本锁、工具选择、待审核绘图方案及 KJD 重开，不发起网络请求。它使用确定的模型测试桩，把审批留给宿主；不能作为自然语言绘图成功率或设计要求已通过的证明。</p>
 <h2 id="zh-agent-compose-drawing">一次提出轮廓和孔位的组合绘图方案<a class="heading-anchor" href="#zh-agent-compose-drawing" aria-label="Link to 一次提出轮廓和孔位的组合绘图方案">#</a></h2>
 <p>一个需求包含多种图形时，使用 <code>cad_propose_drawing</code>。四组图形合计最多 64 个对象；四个数组都必须提供，不使用的组填空数组。多段线由直线段组成，允许 2–64 个顶点，闭合时至少 3 个；无需重复首点。圆弧从 X 正方向逆时针计角，单位是度，例如 270 → 90 会跨过 0 度。整圆请放在 circles 中。</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
@@ -408,10 +446,10 @@ await sdk.executeCommandEnvelope(plan, { document: drawing })</code></pre>
         </article>
         <nav class="pager" aria-label="Adjacent documentation"><a href="../vue/"><strong class="lang-en">Vue integration</strong><strong class="lang-zh">Vue 集成</strong></a><a href="../models/"><strong class="lang-en">Connect your model</strong><strong class="lang-zh">接入你的模型</strong></a></nav>
       </div>
-      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-agent-agent-tools">Model neutral CAD tools</a><a class="toc-level-2" href="#en-agent-compose-drawing">Draw a profile and holes in one proposal</a><a class="toc-level-2" href="#en-agent-drawing-context">Give the agent the drawing it needs</a><a class="toc-level-2" href="#en-agent-query-region">Query a region or selected objects</a><a class="toc-level-2" href="#en-agent-review-before-mutation">Review before mutation</a><a class="toc-level-2" href="#en-agent-plan-and-execute">Plan and execute</a><a class="toc-level-2" href="#en-agent-geometric-preview">Preview and apply a trim</a><a class="toc-level-2" href="#en-agent-fail-closed-cases">Fail closed cases</a><a class="toc-level-2" href="#en-agent-security-boundary">Security boundary</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-agent-agent-tools">模型无关的 CAD 工具</a><a class="toc-level-2" href="#zh-agent-compose-drawing">一次提出轮廓和孔位的组合绘图方案</a><a class="toc-level-2" href="#zh-agent-drawing-context">先让 Agent 读到任务需要的图纸内容</a><a class="toc-level-2" href="#zh-agent-query-region">查询局部范围或指定对象</a><a class="toc-level-2" href="#zh-agent-review-before-mutation">修改前先审核</a><a class="toc-level-2" href="#zh-agent-plan-and-execute">计划与执行</a><a class="toc-level-2" href="#zh-agent-geometric-preview">先预览，再应用修剪</a><a class="toc-level-2" href="#zh-agent-fail-closed-cases">关闭执行的情况</a><a class="toc-level-2" href="#zh-agent-security-boundary">安全边界</a></div></aside>
+      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-agent-agent-tools">Model neutral CAD tools</a><a class="toc-level-2" href="#en-agent-domain-capabilities">Keep domain capabilities with the project</a><a class="toc-level-2" href="#en-agent-compose-drawing">Draw a profile and holes in one proposal</a><a class="toc-level-2" href="#en-agent-drawing-context">Give the agent the drawing it needs</a><a class="toc-level-2" href="#en-agent-query-region">Query a region or selected objects</a><a class="toc-level-2" href="#en-agent-review-before-mutation">Review before mutation</a><a class="toc-level-2" href="#en-agent-plan-and-execute">Plan and execute</a><a class="toc-level-2" href="#en-agent-geometric-preview">Preview and apply a trim</a><a class="toc-level-2" href="#en-agent-fail-closed-cases">Fail closed cases</a><a class="toc-level-2" href="#en-agent-security-boundary">Security boundary</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-agent-agent-tools">模型无关的 CAD 工具</a><a class="toc-level-2" href="#zh-agent-domain-capabilities">让行业能力随项目保持版本</a><a class="toc-level-2" href="#zh-agent-compose-drawing">一次提出轮廓和孔位的组合绘图方案</a><a class="toc-level-2" href="#zh-agent-drawing-context">先让 Agent 读到任务需要的图纸内容</a><a class="toc-level-2" href="#zh-agent-query-region">查询局部范围或指定对象</a><a class="toc-level-2" href="#zh-agent-review-before-mutation">修改前先审核</a><a class="toc-level-2" href="#zh-agent-plan-and-execute">计划与执行</a><a class="toc-level-2" href="#zh-agent-geometric-preview">先预览，再应用修剪</a><a class="toc-level-2" href="#zh-agent-fail-closed-cases">关闭执行的情况</a><a class="toc-level-2" href="#zh-agent-security-boundary">安全边界</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=947614f69130fb4c"></script>
+  <script type="module" src="../app.js?v=84fdc1a443fc170a"></script>
 </body>
 </html>
