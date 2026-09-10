@@ -188,7 +188,7 @@ const DRAFT_COMMAND_TO_TOOL = new Map<string, KJDraftTool>([
 ])
 
 const DIMENSION_COMMAND_TO_TYPE = new Map<string, NonNullable<KJDraftingOptions['dimensionType']>>([
-  ['DIMALIGNED', 'ALIGNED'], ['DIMLINEAR', 'ROTATED'], ['DIMRADIUS', 'RADIUS'], ['DIMDIAMETER', 'DIAMETER'],
+  ['DIMALIGNED', 'ALIGNED'], ['DIMLINEAR', 'ROTATED'], ['DIMRADIUS', 'RADIUS'], ['DIMDIAMETER', 'DIAMETER'], ['DIMANGULAR', 'ANGULAR_3_POINT'], ['DIMANGULAR3P', 'ANGULAR_3_POINT'],
 ])
 
 const draftToolText: Readonly<Record<KJDraftTool, KJLocalizedControlText>> = Object.freeze({
@@ -203,6 +203,7 @@ const draftPointText: Readonly<Record<KJDraftPointRole, KJLocalizedControlText>>
   diameterPoint1: { en: 'Specify the first diameter point', zh: '指定直径第一点' }, diameterPoint2: { en: 'Specify the second diameter point', zh: '指定直径第二点' }, throughPoint: { en: 'Specify a point on the arc', zh: '指定圆弧经过点' }, majorAxisPoint: { en: 'Specify the major-axis endpoint', zh: '指定长轴端点' },
   minorAxisPoint: { en: 'Specify the minor-axis endpoint', zh: '指定短轴端点' }, firstCorner: { en: 'Specify the first corner', zh: '指定第一个角点' }, oppositeCorner: { en: 'Specify the opposite corner', zh: '指定对角点' }, controlPoint: { en: 'Specify the next control point', zh: '指定下一控制点' },
   boundaryPoint: { en: 'Specify the next boundary point', zh: '指定下一边界点' }, extensionOrigin1: { en: 'Specify the first extension origin', zh: '指定第一尺寸界线原点' }, extensionOrigin2: { en: 'Specify the second extension origin', zh: '指定第二尺寸界线原点' }, placement: { en: 'Specify the dimension-line position', zh: '指定尺寸线位置' },
+  angleVertex: { en: 'Three-point angle 1/4: vertex → first ray → second ray → arc position', zh: '三点角度 1/4：顶点 → 第一射线点 → 第二射线点 → 弧位置' }, firstRayPoint: { en: '2/4: specify a point on the first ray', zh: '2/4：指定第一条射线上的点' }, secondRayPoint: { en: '3/4: specify a point on the second ray', zh: '3/4：指定第二条射线上的点' }, angularPlacement: { en: '4/4: place the angle arc; choose the opposite sector for a reflex angle', zh: '4/4：指定角度弧位置；在另一角域放置可标注反角' },
   oppositePoint: { en: 'Specify the opposite point', zh: '指定对侧点' }, pointOnCircle: { en: 'Specify a point on the circle', zh: '指定圆上一点' },
 })
 
@@ -1248,7 +1249,9 @@ export class KJDrawWorkbench {
   async #addDraftPoint(world: Point2): Promise<void> {
     const gesture = this.#draftGesture
     if (!gesture || gesture.document !== this.document) { this.#cancelGesture(); return }
-    const spec = await this.#run(() => gesture.session.addPoint(world))
+    const result = await this.#run(() => ({ spec: gesture.session.addPoint(world) }))
+    if (!result) return // Keep the validation error visible; no point was accepted.
+    const { spec } = result
     if (spec) { await this.#commitDraft(gesture, spec); return }
     if (spec === null && gesture.session.state.status !== 'collecting') return
     this.#setMessage(this.#draftPrompt(gesture.session.state.nextPoint))
@@ -1260,7 +1263,9 @@ export class KJDrawWorkbench {
   async #addDraftCoordinate(value: string): Promise<void> {
     const gesture = this.#draftGesture
     if (!gesture || gesture.document !== this.document) { this.#cancelGesture(); return }
-    const spec = await this.#run(() => gesture.session.addCoordinate(value))
+    const result = await this.#run(() => ({ spec: gesture.session.addCoordinate(value) }))
+    if (!result) return // Keep the validation error visible; no point was accepted.
+    const { spec } = result
     if (spec) { await this.#commitDraft(gesture, spec); return }
     if (spec === null && gesture.session.state.status !== 'collecting') return
     this.#setMessage(this.#draftPrompt(gesture.session.state.nextPoint))
@@ -1362,6 +1367,7 @@ export class KJDrawWorkbench {
       this.#draftSelect(host, 'dimensionType', { en: 'Dimension type', zh: '标注类型' }, [
         { value: 'ALIGNED', label: { en: 'Aligned', zh: '对齐' } }, { value: 'ROTATED', label: { en: 'Rotated', zh: '线性' } },
         { value: 'RADIUS', label: { en: 'Radius', zh: '半径' } }, { value: 'DIAMETER', label: { en: 'Diameter', zh: '直径' } },
+        { value: 'ANGULAR_3_POINT', label: { en: 'Three-point angle (including reflex)', zh: '三点角度（含反角）' } },
       ], configured.dimensionType ?? 'ALIGNED')
       this.#draftField(host, 'rotationDegrees', { en: 'Rotation (°)', zh: '旋转角度（°）' }, { value: String(Number(configured.rotation ?? 0) * 180 / Math.PI), step: 1 })
     }

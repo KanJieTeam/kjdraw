@@ -1,5 +1,6 @@
 // Generated from drafting.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJValidationError } from './errors.js';
+import { projectDimension } from './geometry/annotation.js';
 const TOOLS = new Set([
     'line',
     'polyline',
@@ -28,7 +29,8 @@ const DIMENSION_TYPES = new Set([
     'ALIGNED',
     'ROTATED',
     'RADIUS',
-    'DIAMETER'
+    'DIAMETER',
+    'ANGULAR_3_POINT'
 ]);
 const TAU = Math.PI * 2;
 function finite(value, label) {
@@ -195,7 +197,7 @@ function pointCounts(tool, options) {
         maximum: 3
     };
     if (tool === 'dimension') {
-        const count = [
+        const count = options.dimensionType === 'ANGULAR_3_POINT' ? 4 : [
             'ALIGNED',
             'ROTATED'
         ].includes(options.dimensionType) ? 3 : 2;
@@ -241,6 +243,12 @@ function nextPointRole(tool, count, options) {
             'end'
         ][Math.min(count, 2)];
     }
+    if (options.dimensionType === 'ANGULAR_3_POINT') return [
+        'angleVertex',
+        'firstRayPoint',
+        'secondRayPoint',
+        'angularPlacement'
+    ][Math.min(count, 3)];
     if (options.dimensionType === 'ALIGNED' || options.dimensionType === 'ROTATED') return [
         'extensionOrigin1',
         'extensionOrigin2',
@@ -324,6 +332,7 @@ export class KJDraftingSession {
         const point = point2(value, `points[${this.#points.length}]`);
         const previous = this.#points.at(-1);
         if (previous && near(previous, point, this.#options.tolerance)) throw new KJValidationError('Consecutive draft points must be distinct');
+        if (this.tool === 'dimension' && this.#options.dimensionType === 'ANGULAR_3_POINT' && this.#points.length === 2) requireDistinct(this.#points[0], point, this.#options.tolerance, 'Angular second ray and vertex');
         this.#points.push(point);
         if (maximum === null || this.#points.length !== maximum) return null;
         try {
@@ -360,6 +369,11 @@ export class KJDraftingSession {
         } catch (error) {
             if (!(error instanceof KJValidationError)) throw error;
         }
+        if (this.tool === 'dimension' && this.#options.dimensionType === 'ANGULAR_3_POINT' && points.length >= 3) return this.#polyline([
+            points[1],
+            points[0],
+            points[2]
+        ], false);
         if (points.length === 1) return this.#spec('POINT', {
             position: point3(points[0])
         });
@@ -461,7 +475,22 @@ export class KJDraftingSession {
             dimensionType: type,
             styleName: this.#options.styleName
         };
-        if (type === 'ALIGNED' || type === 'ROTATED') {
+        if (type === 'ANGULAR_3_POINT') {
+            requirePoints(points, 4, 'Three-point angular dimension');
+            const [center, first, second, placement] = points;
+            requireDistinct(center, first, this.#options.tolerance, 'Angular first ray and vertex');
+            requireDistinct(center, second, this.#options.tolerance, 'Angular second ray and vertex');
+            requireDistinct(center, placement, this.#options.tolerance, 'Angular arc placement and vertex');
+            payload.definitionPoints = [
+                point3(placement),
+                point3(first),
+                point3(second),
+                point3(center)
+            ];
+            const projection = projectDimension(payload);
+            if (!projection) throw new KJValidationError('Angular dimension has coincident rays or ambiguous arc placement; choose a point between the rays, including the reflex sector');
+            payload.measurement = projection.measurement;
+        } else if (type === 'ALIGNED' || type === 'ROTATED') {
             requirePoints(points, 3, `${type} dimension`);
             const [a, b, placement] = points;
             requireDistinct(a, b, this.#options.tolerance, `${type} dimension origins`);

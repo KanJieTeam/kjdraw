@@ -1,4 +1,5 @@
 import { KJValidationError } from './errors.js'
+import { projectDimension } from './geometry/annotation.js'
 import type { KJStandardEntityType } from './constants.js'
 import type { KJObjectPayload, KJObjectSpec } from './schema.js'
 
@@ -21,7 +22,7 @@ export type KJDraftTool =
 
 export type KJDraftCircleMode = 'center-radius' | '2-point' | '3-point'
 export type KJDraftArcMode = 'center-start-end' | '3-point'
-export type KJDraftDimensionType = 'ALIGNED' | 'ROTATED' | 'RADIUS' | 'DIAMETER'
+export type KJDraftDimensionType = 'ALIGNED' | 'ROTATED' | 'RADIUS' | 'DIAMETER' | 'ANGULAR_3_POINT'
 export type KJDraftStatus = 'collecting' | 'complete' | 'cancelled'
 export type KJDraftPointRole =
   | 'start'
@@ -46,6 +47,10 @@ export type KJDraftPointRole =
   | 'placement'
   | 'oppositePoint'
   | 'pointOnCircle'
+  | 'angleVertex'
+  | 'firstRayPoint'
+  | 'secondRayPoint'
+  | 'angularPlacement'
 
 export interface KJDraftEntitySpec {
   type: KJStandardEntityType
@@ -107,7 +112,7 @@ interface NormalizedOptions {
 const TOOLS = new Set<KJDraftTool>(['line', 'polyline', 'circle', 'arc', 'ellipse', 'rectangle', 'polygon', 'point', 'ray', 'xline', 'spline', 'hatch', 'dimension'])
 const CIRCLE_MODES = new Set<KJDraftCircleMode>(['center-radius', '2-point', '3-point'])
 const ARC_MODES = new Set<KJDraftArcMode>(['center-start-end', '3-point'])
-const DIMENSION_TYPES = new Set<KJDraftDimensionType>(['ALIGNED', 'ROTATED', 'RADIUS', 'DIAMETER'])
+const DIMENSION_TYPES = new Set<KJDraftDimensionType>(['ALIGNED', 'ROTATED', 'RADIUS', 'DIAMETER', 'ANGULAR_3_POINT'])
 const TAU = Math.PI * 2
 
 function finite(value: unknown, label: string): number {
@@ -234,7 +239,7 @@ function pointCounts(tool: KJDraftTool, options: NormalizedOptions): { minimum: 
   if (tool === 'hatch') return { minimum: 3, maximum: null }
   if (tool === 'circle') { const count = options.circleMode === '3-point' ? 3 : 2; return { minimum: count, maximum: count } }
   if (tool === 'arc' || tool === 'ellipse') return { minimum: 3, maximum: 3 }
-  if (tool === 'dimension') { const count = ['ALIGNED', 'ROTATED'].includes(options.dimensionType) ? 3 : 2; return { minimum: count, maximum: count } }
+  if (tool === 'dimension') { const count = options.dimensionType === 'ANGULAR_3_POINT' ? 4 : ['ALIGNED', 'ROTATED'].includes(options.dimensionType) ? 3 : 2; return { minimum: count, maximum: count } }
   return { minimum: 2, maximum: 2 }
 }
 
@@ -256,6 +261,7 @@ function nextPointRole(tool: KJDraftTool, count: number, options: NormalizedOpti
     if (options.circleMode === '2-point') return count === 0 ? 'diameterPoint1' : 'diameterPoint2'
     return (['start', 'throughPoint', 'end'] as const)[Math.min(count, 2)]!
   }
+  if (options.dimensionType === 'ANGULAR_3_POINT') return (['angleVertex', 'firstRayPoint', 'secondRayPoint', 'angularPlacement'] as const)[Math.min(count, 3)]!
   if (options.dimensionType === 'ALIGNED' || options.dimensionType === 'ROTATED') return (['extensionOrigin1', 'extensionOrigin2', 'placement'] as const)[Math.min(count, 2)]!
   if (options.dimensionType === 'RADIUS') return count === 0 ? 'center' : 'pointOnCircle'
   return count === 0 ? 'oppositePoint' : 'pointOnCircle'
@@ -321,6 +327,7 @@ export class KJDraftingSession {
     const point = point2(value, `points[${this.#points.length}]`)
     const previous = this.#points.at(-1)
     if (previous && near(previous, point, this.#options.tolerance)) throw new KJValidationError('Consecutive draft points must be distinct')
+    if (this.tool === 'dimension' && this.#options.dimensionType === 'ANGULAR_3_POINT' && this.#points.length === 2) requireDistinct(this.#points[0]!, point, this.#options.tolerance, 'Angular second ray and vertex')
     this.#points.push(point)
     if (maximum === null || this.#points.length !== maximum) return null
     try { return this.#complete(this.#build(this.#points, false)) }
@@ -352,6 +359,7 @@ export class KJDraftingSession {
     } catch (error) {
       if (!(error instanceof KJValidationError)) throw error
     }
+    if (this.tool === 'dimension' && this.#options.dimensionType === 'ANGULAR_3_POINT' && points.length >= 3) return this.#polyline([points[1]!, points[0]!, points[2]!], false)
     if (points.length === 1) return this.#spec('POINT', { position: point3(points[0]!) })
     return this.#polyline(points, false)
   }
@@ -432,7 +440,17 @@ export class KJDraftingSession {
   #dimension(points: readonly KJDraftPoint[]): KJDraftEntitySpec {
     const type = this.#options.dimensionType
     const payload: KJObjectPayload = { dimensionType: type, styleName: this.#options.styleName }
-    if (type === 'ALIGNED' || type === 'ROTATED') {
+    if (type === 'ANGULAR_3_POINT') {
+      requirePoints(points, 4, 'Three-point angular dimension')
+      const [center, first, second, placement] = points as readonly [KJDraftPoint, KJDraftPoint, KJDraftPoint, KJDraftPoint]
+      requireDistinct(center, first, this.#options.tolerance, 'Angular first ray and vertex')
+      requireDistinct(center, second, this.#options.tolerance, 'Angular second ray and vertex')
+      requireDistinct(center, placement, this.#options.tolerance, 'Angular arc placement and vertex')
+      payload.definitionPoints = [point3(placement), point3(first), point3(second), point3(center)]
+      const projection = projectDimension(payload)
+      if (!projection) throw new KJValidationError('Angular dimension has coincident rays or ambiguous arc placement; choose a point between the rays, including the reflex sector')
+      payload.measurement = projection.measurement
+    } else if (type === 'ALIGNED' || type === 'ROTATED') {
       requirePoints(points, 3, `${type} dimension`)
       const [a, b, placement] = points as readonly [KJDraftPoint, KJDraftPoint, KJDraftPoint]
       requireDistinct(a, b, this.#options.tolerance, `${type} dimension origins`)

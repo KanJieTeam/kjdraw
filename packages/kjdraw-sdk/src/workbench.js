@@ -382,6 +382,14 @@ const DIMENSION_COMMAND_TO_TYPE = new Map([
     [
         'DIMDIAMETER',
         'DIAMETER'
+    ],
+    [
+        'DIMANGULAR',
+        'ANGULAR_3_POINT'
+    ],
+    [
+        'DIMANGULAR3P',
+        'ANGULAR_3_POINT'
     ]
 ]);
 const draftToolText = Object.freeze({
@@ -518,6 +526,22 @@ const draftPointText = Object.freeze({
     placement: {
         en: 'Specify the dimension-line position',
         zh: '指定尺寸线位置'
+    },
+    angleVertex: {
+        en: 'Three-point angle 1/4: vertex → first ray → second ray → arc position',
+        zh: '三点角度 1/4：顶点 → 第一射线点 → 第二射线点 → 弧位置'
+    },
+    firstRayPoint: {
+        en: '2/4: specify a point on the first ray',
+        zh: '2/4：指定第一条射线上的点'
+    },
+    secondRayPoint: {
+        en: '3/4: specify a point on the second ray',
+        zh: '3/4：指定第二条射线上的点'
+    },
+    angularPlacement: {
+        en: '4/4: place the angle arc; choose the opposite sector for a reflex angle',
+        zh: '4/4：指定角度弧位置；在另一角域放置可标注反角'
     },
     oppositePoint: {
         en: 'Specify the opposite point',
@@ -2076,7 +2100,11 @@ export class KJDrawWorkbench {
             this.#cancelGesture();
             return;
         }
-        const spec = await this.#run(()=>gesture.session.addPoint(world));
+        const result = await this.#run(()=>({
+                spec: gesture.session.addPoint(world)
+            }));
+        if (!result) return;
+        const { spec } = result;
         if (spec) {
             await this.#commitDraft(gesture, spec);
             return;
@@ -2093,7 +2121,11 @@ export class KJDrawWorkbench {
             this.#cancelGesture();
             return;
         }
-        const spec = await this.#run(()=>gesture.session.addCoordinate(value));
+        const result = await this.#run(()=>({
+                spec: gesture.session.addCoordinate(value)
+            }));
+        if (!result) return;
+        const { spec } = result;
         if (spec) {
             await this.#commitDraft(gesture, spec);
             return;
@@ -2293,6 +2325,13 @@ export class KJDrawWorkbench {
                     label: {
                         en: 'Diameter',
                         zh: '直径'
+                    }
+                },
+                {
+                    value: 'ANGULAR_3_POINT',
+                    label: {
+                        en: 'Three-point angle (including reflex)',
+                        zh: '三点角度（含反角）'
                     }
                 }
             ], configured.dimensionType ?? 'ALIGNED');
