@@ -151,6 +151,7 @@ async function applyDraftInput(value,{coordinate=false,finish=false,close=false}
     }else spec=task.session.addCoordinate(value)
   }else spec=task.session.addPoint(value)
   start=task.session.points.at(-1)??null
+  cursor=start
   if(spec){
     try{await execute('CREATE',spec,{expectedRevision:task.revision})}
     catch(error){task.session=createDraftingSession(task.session.tool,task.options);for(const p of previousPoints)task.session.addPoint(p);start=task.session.points.at(-1)??null;updateDraftHint();render();throw error}

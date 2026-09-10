@@ -14,6 +14,22 @@ test('CAD coordinate parser accepts absolute, relative Cartesian and relative po
   assert.throws(()=>parseDraftCoordinate('@-2<45',[0,0]),/non-negative/)
 })
 
+test('unbounded tools preview a finite direction guide until the second point is confirmed',()=>{
+  for (const tool of ['xline','ray']) {
+    const draft=createDraftingSession(tool)
+    assert.equal(draft.preview(),null)
+    assert.equal(draft.addPoint([20,30]),null)
+    assert.equal(draft.preview([20,30]).type,'POINT')
+    const preview=draft.preview([80,60])
+    assert.deepEqual(preview,{type:'LINE',payload:{start:[20,30,0],end:[80,60,0]}})
+    assert.deepEqual(draft.points,[[20,30]])
+    assert.equal(draft.state.status,'collecting')
+    assert.equal(draft.addPoint([80,60]).type,tool.toUpperCase())
+    const cancelled=createDraftingSession(tool);cancelled.addPoint([0,0]);cancelled.cancel()
+    assert.equal(cancelled.preview([50,60]),null)
+  }
+})
+
 test('fixed point tools create native CREATE-ready entity specifications',()=>{
   const line=createDraftingSession('line',{payload:{layerId:'layer-a'}})
   assert.equal(line.state.nextPoint,'start');assert.equal(line.addPoint([0,0]),null);assert.equal(line.state.nextPoint,'end')

@@ -52,6 +52,8 @@ Example: choose **Line**, enter `100,50`, then enter `@40<0`. This creates a 40-
 | Ray | Origin, direction point |
 | Construction line | Origin, direction point; extends in both directions |
 
+Ray and construction-line tools do not create an object when selected or when placing the origin. Moving the pointer shows a finite direction guide. The second point commits the infinite construction line (or one-way ray); **Esc** before confirmation removes the preview without changing the drawing.
+
 For example, to make a closed outline, choose **Polyline**, enter `0,0`, `@80,0`, `@0,50`, `@-80,0`, then press **C**. The outline is committed as one closed polyline and can be undone in one step.
 
 ## Circles, arcs and ellipses {#curves}
@@ -241,6 +243,8 @@ editor.setLayout('compact')
 | 正多边形 | 中心、外接圆上的一个顶点；先设置**边数** |
 | 射线 | 原点、方向点 |
 | 构造线 | 原点、方向点；向两个方向无限延伸 |
+
+选择射线或构造线工具、指定第一点时都不会创建对象。移动鼠标只显示原点到方向点的有限引导线，第二点确认后才生成无限构造线（或单向射线）。确认前按 **Esc** 清除预览，不改变图档。
 
 例如，要绘制一个闭合轮廓：选择**多段线**，依次输入 `0,0`、`@80,0`、`@0,50`、`@-80,0`，然后按 **C**。结果会作为一条闭合多段线提交，一次即可撤销。
 

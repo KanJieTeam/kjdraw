@@ -41,6 +41,42 @@ async function platePoint(page, x, y) {
   return { x: box.x + box.width / 2 + (x - 90) * scale, y: box.y + box.height / 2 - (y - 60) * scale }
 }
 
+test('construction-line toolbar and first point never commit geometry; second point creates one undoable line', async ({ page }) => {
+  await emptyDrawing(page)
+  await page.evaluate(async () => {
+    const { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js')
+    const original = KJCanvasRenderer.prototype.drawPreview
+    window.draftPreviewTypes = []
+    KJCanvasRenderer.prototype.drawPreview = function (entities, ...args) {
+      window.draftPreviewTypes.push(...entities.map(entity => entity.type))
+      return original.call(this, entities, ...args)
+    }
+  })
+  await page.locator('[data-tool="xline"]').first().click()
+  await expect(page.locator('#entity-count')).toHaveText('0 entities')
+  await expect(page.locator('#hint')).toContainText('0 points')
+  const box = await page.locator('#canvas').boundingBox()
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+  await expect(page.locator('#entity-count')).toHaveText('0 entities')
+  await expect(page.locator('#hint')).toContainText('1 points')
+  await page.mouse.move(box.x + box.width / 2 + 90, box.y + box.height / 2 - 50)
+  await expect(page.locator('#entity-count')).toHaveText('0 entities')
+  const preview = await page.evaluate(() => window.draftPreviewTypes)
+  expect(preview).toContain('LINE')
+  expect(preview).not.toContain('XLINE')
+  await page.keyboard.press('Escape')
+  expect((await save(page)).entities).toHaveLength(0)
+  await page.locator('[data-tool="xline"]').first().click()
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.click(box.x + box.width / 2 + 90, box.y + box.height / 2 - 50)
+  await expect(page.locator('#entity-count')).toHaveText('1 entities')
+  await page.keyboard.press('Escape')
+  const saved = await save(page)
+  expect(saved.entities.map(entity => entity.type)).toEqual(['XLINE'])
+  await command(page, 'UNDO'); await expect(page.locator('#entity-count')).toHaveText('0 entities')
+  await command(page, 'REDO'); await expect(page.locator('#entity-count')).toHaveText('1 entities')
+})
+
 test('draw a mounting plate from empty, polar-array holes, annotate, undo and reopen', async ({ page }, testInfo) => {
   const errors = []; page.on('pageerror', error => errors.push(error.message))
   await emptyDrawing(page)

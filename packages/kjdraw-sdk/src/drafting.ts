@@ -341,6 +341,9 @@ export class KJDraftingSession {
     }
     if (!points.length) return null
     try {
+      // The first point establishes only the origin. While choosing direction,
+      // show a finite guide; an infinite entity belongs to the committed result.
+      if ((this.tool === 'ray' || this.tool === 'xline') && points.length >= 2) return this.#spec('LINE', { start: point3(points[0]!), end: point3(points[1]!) })
       if (this.tool === 'polyline' && points.length >= 2) return this.#polyline(points, false)
       if (this.tool === 'spline' && points.length >= this.#options.splineDegree + 1) return this.#spline(points, false)
       if (this.tool === 'hatch' && points.length >= 3) return this.#hatch(points)

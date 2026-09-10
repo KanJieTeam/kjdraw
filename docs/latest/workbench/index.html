@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/workbench/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=2a56b91de73deee2">
+  <link rel="stylesheet" href="../style.css?v=ee132de5dccfcec2">
   <title>Using the workbench · KJDraw Docs</title>
 </head>
 <body>
@@ -85,6 +85,7 @@
 <p>Example: choose <strong>Line</strong>, enter <code>100,50</code>, then enter <code>@40&lt;0</code>. This creates a 40-unit horizontal line from <code>(100,50)</code> to <code>(140,50)</code>.</p>
 <h2 id="en-workbench-draw-tools">Create basic geometry<a class="heading-anchor" href="#en-workbench-draw-tools" aria-label="Link to Create basic geometry">#</a></h2>
 <div class="table-wrap"><table><thead><tr><th>Tool</th><th>Point order and finish action</th></tr></thead><tbody><tr><td>Point</td><td>Position</td></tr><tr><td>Line</td><td>Start, endpoint</td></tr><tr><td>Rectangle</td><td>First corner, opposite corner</td></tr><tr><td>Polyline</td><td>Two or more vertices; <strong>Enter</strong> keeps it open, <strong>C</strong> closes it</td></tr><tr><td>Polygon</td><td>Center, one vertex on the circumscribed circle; set <strong>Sides</strong> first</td></tr><tr><td>Ray</td><td>Origin, direction point</td></tr><tr><td>Construction line</td><td>Origin, direction point; extends in both directions</td></tr></tbody></table></div>
+<p>Ray and construction-line tools do not create an object when selected or when placing the origin. Moving the pointer shows a finite direction guide. The second point commits the infinite construction line (or one-way ray); <strong>Esc</strong> before confirmation removes the preview without changing the drawing.</p>
 <p>For example, to make a closed outline, choose <strong>Polyline</strong>, enter <code>0,0</code>, <code>@80,0</code>, <code>@0,50</code>, <code>@-80,0</code>, then press <strong>C</strong>. The outline is committed as one closed polyline and can be undone in one step.</p>
 <h2 id="en-workbench-curves">Circles, arcs and ellipses<a class="heading-anchor" href="#en-workbench-curves" aria-label="Link to Circles, arcs and ellipses">#</a></h2>
 <p>Choose the construction mode before placing points:</p>
@@ -183,6 +184,7 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
 <p>例如：选择<strong>直线</strong>，输入 <code>100,50</code>，再输入 <code>@40&lt;0</code>，即可从 <code>(100,50)</code> 画到 <code>(140,50)</code>，线长为 40。</p>
 <h2 id="zh-workbench-draw-tools">创建基础图形<a class="heading-anchor" href="#zh-workbench-draw-tools" aria-label="Link to 创建基础图形">#</a></h2>
 <div class="table-wrap"><table><thead><tr><th>工具</th><th>取点顺序与完成方式</th></tr></thead><tbody><tr><td>点</td><td>位置</td></tr><tr><td>直线</td><td>起点、终点</td></tr><tr><td>矩形</td><td>第一角点、对角点</td></tr><tr><td>多段线</td><td>两个或更多顶点；按 <strong>Enter</strong> 保持开口，按 <strong>C</strong> 闭合</td></tr><tr><td>正多边形</td><td>中心、外接圆上的一个顶点；先设置<strong>边数</strong></td></tr><tr><td>射线</td><td>原点、方向点</td></tr><tr><td>构造线</td><td>原点、方向点；向两个方向无限延伸</td></tr></tbody></table></div>
+<p>选择射线或构造线工具、指定第一点时都不会创建对象。移动鼠标只显示原点到方向点的有限引导线，第二点确认后才生成无限构造线（或单向射线）。确认前按 <strong>Esc</strong> 清除预览，不改变图档。</p>
 <p>例如，要绘制一个闭合轮廓：选择<strong>多段线</strong>，依次输入 <code>0,0</code>、<code>@80,0</code>、<code>@0,50</code>、<code>@-80,0</code>，然后按 <strong>C</strong>。结果会作为一条闭合多段线提交，一次即可撤销。</p>
 <h2 id="zh-workbench-curves">圆、圆弧与椭圆<a class="heading-anchor" href="#zh-workbench-curves" aria-label="Link to 圆、圆弧与椭圆">#</a></h2>
 <p>取点前先选择构造方式：</p>
@@ -262,6 +264,6 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=2a56b91de73deee2"></script>
+  <script type="module" src="../app.js?v=ee132de5dccfcec2"></script>
 </body>
 </html>
