@@ -8,7 +8,8 @@ import {
 import { nearestPointOnEntity2 } from './snapping.js'
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js'
 import { projectDimension } from './geometry/annotation.js'
-import { hatchPatternLines, hatchStrokes } from './geometry/hatch.js'
+import { hatchPatternLines, hatchStrokes, type KJHatchPatternLine } from './geometry/hatch.js'
+import { createHatchStrokeCoverage, type KJHatchCoverageReason } from './geometry/hatch-coverage.js'
 import { getEntityGrips, type KJEntityGrip } from './grips.js'
 import { isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence, type KJBoxSelectionMode } from './selection-geometry.js'
 import type { KJDocument } from './document.js'
@@ -47,7 +48,7 @@ export interface KJCanvasCamera {
 }
 
 export interface KJCanvasRenderReport {
-  hatchDiagnostics?: readonly { entityId: string; reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary' }[]
+  hatchDiagnostics?: readonly { entityId: string; reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary'; samplingReason?: KJHatchCoverageReason | 'pixel-budget' | 'canvas-unavailable' }[]
   total: number
   rendered: number
   approximated: number
@@ -76,6 +77,12 @@ export interface KJCanvasPreviewEntity {
 
 type Point2 = readonly [number, number]
 type Point3 = readonly [number, number, number]
+type HatchRaster = { source: HTMLCanvasElement | OffscreenCanvas | null; x: number; y: number; width: number; height: number; reason?: KJHatchCoverageReason | 'pixel-budget' | 'canvas-unavailable' }
+type HatchRasterCacheEntry = { payload: Readonly<Record<string, unknown>>; key: string; raster: HatchRaster; bytes: number }
+type HatchProjectionIdentity = { payload: Readonly<Record<string, unknown>>; instanceKey: string }
+const HATCH_RASTER_PIXEL_LIMIT = 1048576
+const HATCH_RASTER_FRAME_WORK = 4000000
+const HATCH_RASTER_CACHE_BYTES = 32 * 1024 * 1024
 
 const DARK_PALETTE = Object.freeze([
   '#d8e6f3', '#ff767d', '#f2d46f', '#7ce38b', '#62d8e8', '#75a7ff', '#c997ff', '#f29fd1', '#9fb4c8',
@@ -255,6 +262,9 @@ export class KJCanvasRenderer {
   #observer: ResizeObserver | null = null
   #hatchDiagnostics: NonNullable<KJCanvasRenderReport['hatchDiagnostics']>[number][] = []
   #hatchWorkRemaining = 100000
+  #hatchSampleWorkRemaining = HATCH_RASTER_FRAME_WORK
+  #hatchSamplePixelsRemaining = HATCH_RASTER_PIXEL_LIMIT
+  #hatchRasterCache: HatchRasterCacheEntry[] = []
   #report: KJCanvasRenderReport = Object.freeze({ total: 0, rendered: 0, approximated: 0, hidden: 0, unsupported: 0, approximateTypes: Object.freeze([]), unsupportedTypes: Object.freeze([]), width: 1, height: 1, scale: 4 })
 
   constructor(canvas: HTMLCanvasElement, options: KJCanvasRendererOptions = {}) {
@@ -291,6 +301,7 @@ export class KJCanvasRenderer {
     this.#disposeDocument?.()
     this.#disposeDocument = null
     this.#document = document
+    this.#hatchRasterCache = []
     if (document) this.#disposeDocument = document.on('document:change', () => this.render())
     this.#selection.clear()
     this.render()
@@ -495,6 +506,8 @@ export class KJCanvasRenderer {
   render(): Readonly<KJCanvasRenderReport> {
     this.#hatchDiagnostics = []
     this.#hatchWorkRemaining = 100000
+    this.#hatchSampleWorkRemaining = HATCH_RASTER_FRAME_WORK
+    this.#hatchSamplePixelsRemaining = HATCH_RASTER_PIXEL_LIMIT
     const context = this.context
     const ratio = this.canvas.width / Math.max(1, this.#width)
     context.setTransform(ratio, 0, 0, ratio, 0, 0)
@@ -559,6 +572,7 @@ export class KJCanvasRenderer {
     this.#observer = null
     this.#document = null
     this.#selection.clear()
+    this.#hatchRasterCache = []
   }
 
   #activeSpaceId(): string {
@@ -641,7 +655,68 @@ export class KJCanvasRenderer {
     return true
   }
 
-  #drawEntity(entity: KJReadonlyObjectRecord, color: string, depth: number, overrideColor = false): boolean {
+  /** Physical-pixel fallback for otherwise unbounded row enumeration. A single unknown
+   * subsample rejects the mask, retaining vector output and a partial-render diagnostic.
+   * Two-by-two sampling approximates antialiasing, never the original dash lattice. */
+  #denseHatchRaster(payload: Readonly<Record<string, unknown>>, lines: readonly KJHatchPatternLine[], bounds: readonly [number, number, number, number], color: string, create: boolean, projection?: HatchProjectionIdentity): HatchRaster | null {
+    const ratio = this.canvas.width / Math.max(1, this.#width)
+    const topLeft = this.worldToScreen([bounds[0], bounds[3]]), bottomRight = this.worldToScreen([bounds[2], bounds[1]])
+    const x = Math.max(0, Math.floor(topLeft[0] * ratio)), y = Math.max(0, Math.floor(topLeft[1] * ratio))
+    const width = Math.max(0, Math.min(this.canvas.width, Math.ceil(bottomRight[0] * ratio)) - x)
+    const height = Math.max(0, Math.min(this.canvas.height, Math.ceil(bottomRight[1] * ratio)) - y)
+    const key = [this.camera.centerX, this.camera.centerY, this.camera.scale, this.#width, this.#height, ratio, x, y, width, height, this.context.lineWidth, color, projection?.instanceKey ?? ''].join('|')
+    const sourcePayload = projection?.payload ?? payload
+    const index = this.#hatchRasterCache.findIndex(entry => entry.payload === sourcePayload && entry.key === key)
+    if (index >= 0) {
+      const entry = this.#hatchRasterCache.splice(index, 1)[0]!
+      this.#hatchRasterCache.push(entry)
+      return entry.raster
+    }
+    if (!create) return null
+    const result: HatchRaster = { source: null, x: x / ratio, y: y / ratio, width: width / ratio, height: height / ratio }
+    const pixels = width * height
+    if (!pixels) return result
+    if (!Number.isSafeInteger(pixels) || pixels > HATCH_RASTER_PIXEL_LIMIT || pixels > this.#hatchSamplePixelsRemaining) return { ...result, reason: 'pixel-budget' }
+    this.#hatchSamplePixelsRemaining -= pixels
+    const source = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(width, height) : this.canvas.ownerDocument?.createElement('canvas')
+    if (!source) return { ...result, reason: 'canvas-unavailable' }
+    source.width = width; source.height = height
+    const target = source.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null
+    if (!target) return { ...result, reason: 'canvas-unavailable' }
+    const data = target.createImageData(width, height)
+    const sampler = createHatchStrokeCoverage(lines, this.context.lineWidth / this.camera.scale)
+    let reason: KJHatchCoverageReason | undefined
+    sampling: for (let row = 0; row < height; row++) {
+      for (let column = 0; column < width; column++) {
+        let covered = 0
+        for (const dy of [.25, .75]) for (const dx of [.25, .75]) {
+          if (this.#hatchSampleWorkRemaining < 1) { reason = 'budget'; break sampling }
+          const point = this.screenToWorld([(x + column + dx) / ratio, (y + row + dy) / ratio])
+          const sample = sampler.sample(point, Math.min(32, this.#hatchSampleWorkRemaining))
+          this.#hatchSampleWorkRemaining -= Math.max(1, sample.work)
+          if (sample.covered === null) { reason = sample.reason ?? 'budget'; break sampling }
+          if (sample.covered) covered++
+        }
+        const offset = (row * width + column) * 4
+        data.data[offset] = data.data[offset + 1] = data.data[offset + 2] = 255
+        data.data[offset + 3] = Math.round(255 * covered / 4)
+      }
+    }
+    if (reason) result.reason = reason
+    else {
+      target.putImageData(data, 0, 0)
+      target.globalCompositeOperation = 'source-in'; target.fillStyle = color; target.fillRect(0, 0, width, height)
+      result.source = source
+    }
+    // A per-frame budget failure may succeed in another frame; do not cache it.
+    if (reason !== 'budget') {
+      this.#hatchRasterCache.push({ payload: sourcePayload, key, raster: result, bytes: result.source ? pixels * 4 : 0 })
+      while (this.#hatchRasterCache.length > 8 || this.#hatchRasterCache.reduce((sum, entry) => sum + entry.bytes, 0) > HATCH_RASTER_CACHE_BYTES) this.#hatchRasterCache.shift()
+    }
+    return result
+  }
+
+  #drawEntity(entity: KJReadonlyObjectRecord, color: string, depth: number, overrideColor = false, projection?: HatchProjectionIdentity): boolean {
     if (depth > 12) return false
     const context = this.context, payload = entity.payload
     const layer = this.#document?.getObject(String(payload.layerId ?? ''))
@@ -760,16 +835,27 @@ export class KJCanvasRenderer {
             const all = paths.flat(), lower = this.screenToWorld([0, this.#height]), upper = this.screenToWorld([this.#width, 0])
             let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
             for (const p of all) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]) }
-            const strokes = this.#hatchWorkRemaining > 0 ? hatchStrokes(hatchPatternLines(payload), [Math.max(x0, lower[0]), Math.max(y0, lower[1]), Math.min(x1, upper[0]), Math.min(y1, upper[1])], Math.min(20000, this.#hatchWorkRemaining)) : { segments: [], dots: [], limited: true, work: 0 }
-            this.#hatchWorkRemaining -= strokes.work
-            context.clip('evenodd'); context.setLineDash([])
-            context.beginPath()
-            for (const [a, b] of strokes.segments) { const p = this.worldToScreen(a), q = this.worldToScreen(b); context.moveTo(p[0], p[1]); context.lineTo(q[0], q[1]) }
-            context.stroke()
-            context.beginPath()
-            for (const dot of strokes.dots) { const p = this.worldToScreen(dot), radius = Math.max(.75, context.lineWidth / 2); context.moveTo(p[0] + radius, p[1]); context.arc(p[0], p[1], radius, 0, Math.PI * 2) }
-            context.fill()
-            if (strokes.limited) this.#hatchDiagnostics.push({ entityId: entity.id, reason: 'budget' })
+            const bounds = [Math.max(x0, lower[0]), Math.max(y0, lower[1]), Math.min(x1, upper[0]), Math.min(y1, upper[1])] as const
+            if (bounds[0] <= bounds[2] && bounds[1] <= bounds[3]) {
+              const lines = hatchPatternLines(payload)
+              let raster = this.#denseHatchRaster(payload, lines, bounds, color, false, projection)
+              const strokes = raster?.source ? { segments: [], dots: [], limited: true, work: 0 } : this.#hatchWorkRemaining > 0 ? hatchStrokes(lines, bounds, Math.min(20000, this.#hatchWorkRemaining)) : { segments: [], dots: [], limited: true, work: 0 }
+              this.#hatchWorkRemaining -= strokes.work
+              if (strokes.limited && !raster) raster = this.#denseHatchRaster(payload, lines, bounds, color, true, projection)
+              context.clip('evenodd'); context.setLineDash([]); context.lineCap = 'butt'
+              if (raster?.source) {
+                context.imageSmoothingEnabled = false
+                context.drawImage(raster.source, raster.x, raster.y, raster.width, raster.height)
+              } else {
+                context.beginPath()
+                for (const [a, b] of strokes.segments) { const p = this.worldToScreen(a), q = this.worldToScreen(b); context.moveTo(p[0], p[1]); context.lineTo(q[0], q[1]) }
+                context.stroke()
+                context.beginPath()
+                for (const dot of strokes.dots) { const p = this.worldToScreen(dot), radius = Math.max(.75, context.lineWidth / 2); context.moveTo(p[0] + radius, p[1]); context.arc(p[0], p[1], radius, 0, Math.PI * 2) }
+                context.fill()
+                if (strokes.limited) this.#hatchDiagnostics.push({ entityId: entity.id, reason: 'budget', ...(raster?.reason ? { samplingReason: raster.reason } : {}) })
+              }
+            }
           } catch {
             context.stroke(); drawn = false
             this.#hatchDiagnostics.push({ entityId: entity.id, reason: 'unsupported-pattern' })
@@ -853,7 +939,11 @@ export class KJCanvasRenderer {
             const byBlock = child.payload.trueColor == null && (child.payload.color === 0 || /^byblock$/i.test(String(child.payload.color)))
             const effectiveLayer = childLayer?.name === '0' ? layer?.payload : childLayer?.payload
             const childColor = overrideColor || byBlock ? color : this.#color(child, effectiveLayer)
-            if (!this.#drawEntity(transformed, childColor, depth + 1, overrideColor)) drawn = false
+            // Transformed payloads are transient. Preserve the immutable source and
+            // complete matrix chain (bounded by recursion depth, without input IDs)
+            // so separate inserts cannot share a stale phase or recompute each frame.
+            const identity = { payload: child.payload, instanceKey: `${projection?.instanceKey ?? ''};${matrix.join(',')}` }
+            if (!this.#drawEntity(transformed, childColor, depth + 1, overrideColor, identity)) drawn = false
           } catch { drawn = false }
         }
       }

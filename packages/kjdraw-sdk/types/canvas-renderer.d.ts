@@ -1,3 +1,4 @@
+import { type KJHatchCoverageReason } from './geometry/hatch-coverage.js';
 import { type KJEntityGrip } from './grips.js';
 import { type KJBoxSelectionMode } from './selection-geometry.js';
 import type { KJDocument } from './document.js';
@@ -36,6 +37,7 @@ export interface KJCanvasRenderReport {
     hatchDiagnostics?: readonly {
         entityId: string;
         reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary';
+        samplingReason?: KJHatchCoverageReason | 'pixel-budget' | 'canvas-unavailable';
     }[];
     total: number;
     rendered: number;
