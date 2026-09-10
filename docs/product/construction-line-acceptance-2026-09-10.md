@@ -21,3 +21,9 @@ Validation: 43 targeted core tests passed; strict TypeScript passed. The Chromiu
 A separate regression reproduced a finite 100 × 40 detail shrinking from scale 5.44 to 0.000272 after adding guides with origins at ±1,000,000. Fit now measures finite geometry independently of XLINE/RAY origins, including nested blocks. With only unbounded geometry, it centers the first visible guide origin and keeps the current zoom. Hidden block children do not contribute to fit bounds.
 
 Validation: all 14 renderer core tests passed, including nested guide-only blocks, unchanged document/history, responsive fitting and the guide-only fallback. Both Chromium construction-line tests passed: DPR 1/2 pixels after DXF reopen and navigation, plus opening a real DXF in the playground and clicking **Fit view**, which keeps the finite detail over 400 pixels wide. Strict TypeScript and generated declarations passed. Full multi-browser acceptance remains deferred.
+
+## Reviewed AI moves of guides
+
+`cad_propose_move` now accepts visible editable model-space XLINE/RAY objects. The isolated preview and the approved core MOVE preserve direction vectors and Z coordinates. Creation tools retain their existing entity scope. Hidden, locked, paper-space and stale selections remain rejected. Rejection and preview leave source history untouched; approval is single-use and the resulting move supports undo/redo and native DXF reopening.
+
+Validation: 79 related core/plan/query/adapter tests passed, including four offline protocol conversations that read guides, propose a move and stop for host approval. All three Chromium agent-preview tests passed; the new case measures a distant construction line's temporary overlay, removal, committed pixels and undo. These are executable tool and protocol checks, not live-model complex drawing acceptance. Strict TypeScript passed.

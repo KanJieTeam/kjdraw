@@ -3,6 +3,39 @@ import { mountingProfile } from '../../packages/kjdraw-sdk/examples/fixtures/mou
 
 test.use({ bypassCSP: true })
 
+test('a moved construction line paints only a temporary reviewed overlay before approval', async ({ page }) => {
+  await page.goto('/')
+  const result = await page.evaluate(async () => {
+    const [{ createKJDrawSDK }, { KJAgentToolSession }, { KJCanvasRenderer }] = await Promise.all([
+      import('/packages/kjdraw-sdk/src/sdk.js'), import('/packages/kjdraw-sdk/src/agent-tools.js'), import('/packages/kjdraw-sdk/src/canvas-renderer.js'),
+    ])
+    const canvas = document.createElement('canvas'); canvas.style.cssText = 'width:640px;height:480px'
+    document.body.replaceChildren(canvas)
+    const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ units: 'millimeter' })
+    await drawing.transact('guide', tx => tx.createEntity('XLINE', { origin: [1000000,0], direction: [1,0] }, { id: 'guide' }))
+    const renderer = new KJCanvasRenderer(canvas, { document: drawing, grid: false, pixelRatio: 1 })
+    renderer.resize(640,480); Object.assign(renderer.camera, { centerX: 0, centerY: 0, scale: 4 }); renderer.render()
+    const pixel = () => {
+      const [x,y] = renderer.worldToScreen([0,20])
+      return JSON.stringify([...canvas.getContext('2d').getImageData(x-2,y-2,5,5).data])
+    }
+    const empty = pixel(), before = drawing.serialize(), session = new KJAgentToolSession(sdk, drawing)
+    const result = await session.call('cad_propose_move', { expectedRevision: drawing.revision, units: 'millimeter', ids: ['guide'], dx: 0, dy: 20 })
+    if (!result.ok) throw new Error(JSON.stringify(result))
+    const proposal = result.value
+    renderer.drawPreview(proposal.preview.after)
+    const overlay = pixel() !== empty, unchanged = drawing.serialize() === before
+    renderer.render(); const cleared = pixel() === empty
+    const approved = await session.approve(proposal.planId, 'browser-test-reviewer')
+    renderer.render(); const committed = pixel() !== empty
+    const exact = JSON.stringify(drawing.getObject('guide').payload) === JSON.stringify(proposal.preview.after[0].payload)
+    await sdk.executeCommand('UNDO'); renderer.render(); const undone = pixel() === empty
+    renderer.dispose()
+    return { overlay, unchanged, cleared, approved: approved.ok, committed, exact, undone }
+  })
+  expect(result).toEqual({ overlay: true, unchanged: true, cleared: true, approved: true, committed: true, exact: true, undone: true })
+})
+
 test('mixed agent geometry opens in the packaged editor and remains selectable after undo and redo', async ({ page }) => {
   await page.goto('/')
   const result = await page.evaluate(async input => {

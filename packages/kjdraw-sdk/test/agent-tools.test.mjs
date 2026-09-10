@@ -98,6 +98,66 @@ test('rejecting proposals and rejecting a forged approval never changes the draw
   assert.equal(document.revision, 0)
 })
 
+test('construction-line and ray move proposals preserve direction, history and native DXF geometry', async () => {
+  const { sdk, document, session } = fixture()
+  await document.transact('construction geometry', tx => {
+    tx.createEntity('XLINE', { origin: [1000000,0,3], direction: [3,4,12] }, { id: 'guide' })
+    tx.createEntity('RAY', { origin: [-1000000,40,6], direction: [-3,0,4] }, { id: 'ray' })
+    tx.createEntity('LINE', { start: [0,0], end: [100,40] }, { id: 'unrelated' })
+  })
+  const source = document.serialize(), unrelated = document.getObject('unrelated')
+  const args = { expectedRevision: document.revision, units: 'millimeter', ids: ['guide','ray'], dx: 15, dy: -10 }
+  const rejected = value(await session.call('cad_propose_move', args))
+  value(session.reject(rejected.planId, 'reviewer'))
+  assert.equal(document.serialize(), source)
+  const proposal = value(await session.call('cad_propose_move', args))
+  assert.equal(document.serialize(), source)
+  for (const item of proposal.preview.after) {
+    const original = document.getObject(item.id)
+    assert.equal(item.type, original.type)
+    assert.deepEqual(item.payload.origin, [original.payload.origin[0]+15, original.payload.origin[1]-10, original.payload.origin[2]])
+    assert.deepEqual(item.payload.direction, original.payload.direction)
+  }
+  value(await session.approve(proposal.planId, 'reviewer'))
+  for (const item of proposal.preview.after) assert.deepEqual(document.getObject(item.id).payload, item.payload)
+  assert.deepEqual(document.getObject('unrelated'), unrelated)
+  const copy = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  for (const type of ['XLINE','RAY']) {
+    const actual = copy.listEntities({ type })[0].payload
+    const expected = document.listEntities({ type })[0].payload
+    assert.deepEqual(actual.origin, expected.origin)
+    const length = Math.hypot(...expected.direction)
+    actual.direction.forEach((n,i)=>assert.ok(Math.abs(n-expected.direction[i]/length)<1e-12))
+  }
+  await sdk.executeCommand('UNDO')
+  assert.deepEqual(document.getObject('guide').payload.origin, [1000000,0,3])
+  assert.deepEqual(document.getObject('ray').payload.origin, [-1000000,40,6])
+  await sdk.executeCommand('REDO')
+  assert.deepEqual(document.getObject('ray').payload.origin, [-999985,30,6])
+  assert.equal((await session.approve(proposal.planId, 'reviewer')).ok, false)
+})
+
+test('guide move proposals reject hidden, locked, paper-space and stale selections without edits', async () => {
+  const { sdk, document, session } = fixture()
+  await document.transact('protected guides', tx => {
+    const layer = tx.upsertTableRecord('layers', { name: 'Locked guides', payload: { locked: true } })
+    const paper = document.getObject(document.snapshot().spaces.layoutIds[1])
+    for (const [id, payload, options] of [
+      ['locked', { layerId: layer.id }, {}], ['hidden', { visible: false }, {}],
+      ['paper', {}, { ownerId: paper.payload.blockRecordId }], ['visible', {}, {}],
+    ]) tx.createEntity('RAY', { origin: [0,0], direction: [1,0], ...payload }, { id, ...options })
+  })
+  const before = document.serialize()
+  const args = { expectedRevision: document.revision, units: 'millimeter', dx: 5, dy: 2 }
+  for (const ids of [['locked'], ['hidden'], ['paper'], ['visible','locked']]) assert.equal((await session.call('cad_propose_move', {...args, ids})).ok, false)
+  assert.equal(document.serialize(), before)
+  const proposal = value(await session.call('cad_propose_move', {...args, ids: ['visible']}))
+  await sdk.executeCommand('MOVE', { id: 'visible', dx: 1, dy: 0 })
+  const changed = document.serialize()
+  assert.equal((await session.approve(proposal.planId, 'reviewer')).ok, false)
+  assert.equal(document.serialize(), changed)
+})
+
 test('stale revisions and changed drawings require a fresh proposal', async () => {
   const { sdk, document, session } = fixture()
   const proposal = value(await session.call('cad_propose_lines', lineArgs()))

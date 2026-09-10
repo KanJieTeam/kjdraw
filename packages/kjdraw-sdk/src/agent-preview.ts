@@ -18,13 +18,14 @@ export interface KJAgentGeometryPreview {
 }
 const project = (entity: KJReadonlyObjectRecord): KJAgentPreviewEntity => ({ id: entity.id, type: entity.type, payload: entity.payload })
 const supported = ['LINE', 'CIRCLE', 'ARC', 'LWPOLYLINE']
+const movable = [...supported, 'XLINE', 'RAY']
 
 /** Run bounded core geometry on a detached document. No host plugins, authority, network or source history is invoked. */
 export async function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'MOVE', args: Record<string, unknown>): Promise<KJAgentGeometryPreview> {
   if (!['CREATEBATCH', 'MOVE'].includes(command)) throw new KJValidationError('This preview supports only CREATEBATCH and MOVE')
   if (command === 'CREATEBATCH') {
     if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > 64 || args.entities.some(spec => !spec || typeof spec !== 'object' || !supported.includes(String(spec.type)))) throw new KJValidationError('Preview creation requires 1–64 LINE/CIRCLE/ARC/LWPOLYLINE entities')
-  } else if (!Array.isArray(args.ids) || !args.ids.length || args.ids.length > 64 || args.ids.some(id => !supported.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError('Preview movement requires 1–64 LINE/CIRCLE/ARC/LWPOLYLINE entities')
+  } else if (!Array.isArray(args.ids) || !args.ids.length || args.ids.length > 64 || args.ids.some(id => !movable.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError('Preview movement requires 1–64 LINE/CIRCLE/ARC/LWPOLYLINE/XLINE/RAY entities')
   const source = document.snapshot(), revision = document.revision
   if (Object.keys(source.objects).length > 250000) throw new KJValidationError('Agent preview exceeds the 250000 object document limit')
   const workingSet = command === 'MOVE' ? (args.ids as string[]).map(id => document.getObject(String(id))) : args.entities

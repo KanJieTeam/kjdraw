@@ -139,7 +139,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_move',
         effect: 'propose',
-        description: 'Propose an XY displacement of 1–64 visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE objects identified by exact IDs. Returns before/after geometry; the host must approve before edits apply.',
+        description: 'Propose an XY displacement of 1–64 visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE/XLINE/RAY objects identified by exact IDs. Construction-line and ray directions are preserved. Returns before/after geometry; the host must approve before edits apply.',
         inputSchema: object({
             expectedRevision: revision,
             units: text,
@@ -409,8 +409,10 @@ export class KJAgentToolSession {
                                     'LINE',
                                     'CIRCLE',
                                     'ARC',
-                                    'LWPOLYLINE'
-                                ].includes(entity.type))) throw new KJValidationError('Move requires visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE objects');
+                                    'LWPOLYLINE',
+                                    'XLINE',
+                                    'RAY'
+                                ].includes(entity.type))) throw new KJValidationError('Move requires visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE/XLINE/RAY objects');
                             command = 'MOVE';
                             commandArgs = {
                                 ids,

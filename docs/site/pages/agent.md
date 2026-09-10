@@ -19,7 +19,7 @@ The current source checkout adds `KJAgentToolSession` from `@kanjieteam/kjdraw/a
 | `cad_measure_distance` | Planar point-to-point distance in the supplied drawing units |
 | `cad_propose_lines` | Proposed batch of up to 64 XY lines |
 | `cad_propose_circles` | Proposed batch of up to 64 XY circles |
-| `cad_propose_move` | Proposed XY move of up to 64 visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE objects |
+| `cad_propose_move` | Proposed XY move of up to 64 visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE/XLINE/RAY objects; preserves guide directions |
 | `cad_propose_drawing` | One mixed drawing proposal with lines, circles, arcs and polylines; up to 64 objects total |
 
 Expose **only the definitions and dispatcher** to your model adapter. `approve(planId, reviewerId)` and `reject(planId, reviewerId)` are trusted-host methods: the host authenticates the user, checks permissions and collects review of the exact proposed arguments. A reviewer string by itself is not authentication. There is no model-callable approval, arbitrary command, file or network tool.
@@ -279,7 +279,7 @@ Start with the stable [Agent integration contract](https://github.com/KanJieTeam
 | `cad_measure_distance` | 使用图纸单位计算同一坐标系中两点的平面距离 |
 | `cad_propose_lines` | 最多 64 条 XY 直线的创建方案 |
 | `cad_propose_circles` | 最多 64 个 XY 圆的创建方案 |
-| `cad_propose_move` | 最多 64 个可见且可编辑的模型空间直线、圆、圆弧或轻量多段线的 XY 移动方案 |
+| `cad_propose_move` | 最多 64 个可见且可编辑的模型空间直线、圆、圆弧、轻量多段线、构造线或射线的 XY 移动方案；保留辅助线方向 |
 | `cad_propose_drawing` | 将直线、圆、圆弧和多段线组成同一个绘图方案，总计最多 64 个对象 |
 
 向模型适配器**只提供工具定义和调用入口**。`approve(planId, reviewerId)` 与 `reject(planId, reviewerId)` 仅供可信宿主使用：宿主验证身份、检查权限，并让用户审核确切的修改参数。填写审核人字符串不等于完成身份验证。工具列表没有批准、任意命令、文件或网络执行入口。

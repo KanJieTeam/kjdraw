@@ -50,6 +50,30 @@ function assertContinuation(protocol, body) {
 }
 
 for (const protocol of protocols) {
+  test(`${protocol}: queried construction lines become a reviewed direction-preserving move`, async () => {
+    const { document, session } = fixture()
+    await document.transact('guides', tx => {
+      tx.createEntity('XLINE', { origin: [1000000,10,3], direction: [3,4,0] }, { id: 'guide' })
+      tx.createEntity('RAY', { origin: [-1000000,20,6], direction: [-3,0,4] }, { id: 'ray' })
+    })
+    const before = document.serialize()
+    let requests = 0
+    const model = createKJModelAdapter({ protocol, model: 'offline-guide-fixture', request: async ({ body }) => {
+      if (requests++ === 0) return wire(protocol, [call('read', 'cad_read_drawing')])
+      const result = resultAtEnd(protocol, body)
+      assert.equal(result.ok, true)
+      assert.deepEqual(result.value.entities.map(e=>e.type), ['XLINE','RAY'])
+      return wire(protocol, [call('move', 'cad_propose_move', { expectedRevision: result.value.revision, units: result.value.units, ids: result.value.entities.map(e=>e.id), dx: 2, dy: 3 })])
+    } })
+    const result = await runKJAgentTask({ session, model, prompt: 'Move the construction guides by (2,3).', toolNames: ['cad_read_drawing','cad_propose_move'] })
+    assert.equal(result.status, 'awaiting-approval', JSON.stringify(result))
+    assert.equal(document.serialize(), before)
+    assert.equal((await session.approve(result.proposalIds[0], 'host-review')).ok, true)
+    assert.deepEqual(document.getObject('guide').payload.origin, [1000002,13,3])
+    assert.deepEqual(document.getObject('ray').payload.origin, [-999998,23,6])
+    assert.deepEqual(document.getObject('guide').payload.direction, [3,4,0])
+    assert.deepEqual(document.getObject('ray').payload.direction, [-3,0,4])
+  })
   test(`${protocol}: discover paper layouts and query their exact owner space in a read-only conversation`, async () => {
     const { document, session } = fixture()
     await document.transact('paper geometry', tx => {
