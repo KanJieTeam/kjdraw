@@ -8301,6 +8301,11 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createKjpPackage(options?: KjpCreateOptions): Promise&lt;Uint8Array&gt;;</code></pre>
       <p class="source-path">project-package.d.ts</p>
     </article>
+<article class="api-symbol" id="files-function-createsvgfileadapter" data-search="createsvgfileadapter function @kanjieteam/kjdraw/files export declare function createsvgfileadapter(): readonly&lt;kjfileadapter&lt;never, string&gt;&gt;;">
+      <header><div><span class="kind">function</span><h3>createSVGFileAdapter</h3></div><a class="permalink" href="#files-function-createsvgfileadapter" aria-label="Link to createSVGFileAdapter">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createSVGFileAdapter(): Readonly&lt;KJFileAdapter&lt;never, string&gt;&gt;;</code></pre>
+      <p class="source-path">svg-adapter.d.ts</p>
+    </article>
 <article class="api-symbol" id="files-function-decodezip64" data-search="decodezip64 function @kanjieteam/kjdraw/files export declare function decodezip64(source: kjpsource, inputlimits?: partial&lt;kjpreadlimits&gt;, signal?: abortsignal): map&lt;string, uint8array&gt;;">
       <header><div><span class="kind">function</span><h3>decodeZip64</h3></div><a class="permalink" href="#files-function-decodezip64" aria-label="Link to decodeZip64">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function decodeZip64(source: KjpSource, inputLimits?: Partial&lt;KjpReadLimits&gt;, signal?: AbortSignal): Map&lt;string, Uint8Array&gt;;</code></pre>
@@ -8320,6 +8325,11 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <header><div><span class="kind">function</span><h3>encodeZip64</h3></div><a class="permalink" href="#files-function-encodezip64" aria-label="Link to encodeZip64">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function encodeZip64(input: KjpEntryInput): Uint8Array;</code></pre>
       <p class="source-path">project-package.d.ts</p>
+    </article>
+<article class="api-symbol" id="files-function-exportdrawingsvg" data-search="exportdrawingsvg function @kanjieteam/kjdraw/files export declare function exportdrawingsvg(document: kjdocument, options: kjsvgexportoptions): kjsvgdrawingexport;">
+      <header><div><span class="kind">function</span><h3>exportDrawingSvg</h3></div><a class="permalink" href="#files-function-exportdrawingsvg" aria-label="Link to exportDrawingSvg">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptions): KJSvgDrawingExport;</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
     </article>
 <article class="api-symbol" id="files-const-kjd-default-read-limits" data-search="kjd_default_read_limits const @kanjieteam/kjdraw/files export declare const kjd_default_read_limits: readonly&lt;kjdreadlimits&gt;;">
       <header><div><span class="kind">const</span><h3>KJD_DEFAULT_READ_LIMITS</h3></div><a class="permalink" href="#files-const-kjd-default-read-limits" aria-label="Link to KJD_DEFAULT_READ_LIMITS">#</a></header>
@@ -8739,6 +8749,88 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <header><div><span class="kind">type</span><h3>KjpSource</h3></div><a class="permalink" href="#files-type-kjpsource" aria-label="Link to KjpSource">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KjpSource = string | Uint8Array | ArrayBuffer | ArrayBufferView;</code></pre>
       <p class="source-path">project-package.d.ts</p>
+    </article>
+<article class="api-symbol" id="files-interface-kjsvgdiagnostic" data-search="kjsvgdiagnostic interface @kanjieteam/kjdraw/files export interface kjsvgdiagnostic {
+    entityid: string;
+    type: string;
+    reason: string;
+}">
+      <header><div><span class="kind">interface</span><h3>KJSvgDiagnostic</h3></div><a class="permalink" href="#files-interface-kjsvgdiagnostic" aria-label="Link to KJSvgDiagnostic">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJSvgDiagnostic {
+    entityId: string;
+    type: string;
+    reason: string;
+}</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="files-interface-kjsvgdrawingexport" data-search="kjsvgdrawingexport interface @kanjieteam/kjdraw/files export interface kjsvgdrawingexport {
+    svg: string;
+    mimetype: &#39;image/svg+xml&#39;;
+    documentid: string;
+    revision: number;
+    layoutid: string;
+    paper: {
+        widthmm: number;
+        heightmm: number;
+        millimetersperdrawingunit: number;
+    };
+    report: kjsvgexportreport;
+}">
+      <header><div><span class="kind">interface</span><h3>KJSvgDrawingExport</h3></div><a class="permalink" href="#files-interface-kjsvgdrawingexport" aria-label="Link to KJSvgDrawingExport">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJSvgDrawingExport {
+    svg: string;
+    mimeType: &#39;image/svg+xml&#39;;
+    documentId: string;
+    revision: number;
+    layoutId: string;
+    paper: {
+        widthMm: number;
+        heightMm: number;
+        millimetersPerDrawingUnit: number;
+    };
+    report: KJSvgExportReport;
+}</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="files-interface-kjsvgexportoptions" data-search="kjsvgexportoptions interface @kanjieteam/kjdraw/files export interface kjsvgexportoptions {
+    layoutid: string;
+    allowpartial?: boolean;
+    maxentities?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJSvgExportOptions</h3></div><a class="permalink" href="#files-interface-kjsvgexportoptions" aria-label="Link to KJSvgExportOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJSvgExportOptions {
+    layoutId: string;
+    allowPartial?: boolean;
+    maxEntities?: number;
+}</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="files-interface-kjsvgexportreport" data-search="kjsvgexportreport interface @kanjieteam/kjdraw/files export interface kjsvgexportreport {
+    status: &#39;complete&#39; | &#39;approximate&#39; | &#39;partial&#39;;
+    rendered: number;
+    hidden: number;
+    diagnostics: kjsvgdiagnostic[];
+    approximations: kjsvgdiagnostic[];
+    viewports: {
+        entityid: string;
+        millimeterspermodelunit: number;
+        matrix: affinematrix3;
+    }[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJSvgExportReport</h3></div><a class="permalink" href="#files-interface-kjsvgexportreport" aria-label="Link to KJSvgExportReport">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJSvgExportReport {
+    status: &#39;complete&#39; | &#39;approximate&#39; | &#39;partial&#39;;
+    rendered: number;
+    hidden: number;
+    diagnostics: KJSvgDiagnostic[];
+    approximations: KJSvgDiagnostic[];
+    viewports: {
+        entityId: string;
+        millimetersPerModelUnit: number;
+        matrix: AffineMatrix3;
+    }[];
+}</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
     </article>
 <article class="api-symbol" id="files-function-openkjppackage" data-search="openkjppackage function @kanjieteam/kjdraw/files export declare function openkjppackage(source: kjpsource, options?: kjpopenoptions): promise&lt;kjpopenresult&gt;;">
       <header><div><span class="kind">function</span><h3>openKjpPackage</h3></div><a class="permalink" href="#files-function-openkjppackage" aria-label="Link to openKjpPackage">#</a></header>
@@ -10300,6 +10392,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createSha256AgentPlanBindingProvider(): KJAgentPlanBindingProvider;</code></pre>
       <p class="source-path">agent-plans.d.ts</p>
     </article>
+<article class="api-symbol" id="root-function-createsvgfileadapter" data-search="createsvgfileadapter function @kanjieteam/kjdraw export declare function createsvgfileadapter(): readonly&lt;kjfileadapter&lt;never, string&gt;&gt;;">
+      <header><div><span class="kind">function</span><h3>createSVGFileAdapter</h3></div><a class="permalink" href="#root-function-createsvgfileadapter" aria-label="Link to createSVGFileAdapter">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createSVGFileAdapter(): Readonly&lt;KJFileAdapter&lt;never, string&gt;&gt;;</code></pre>
+      <p class="source-path">svg-adapter.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-function-createwasmgeometrybackend" data-search="createwasmgeometrybackend function @kanjieteam/kjdraw export declare function createwasmgeometrybackend(wasmmoduleorinstance: unknown): kjgeometrybackend;">
       <header><div><span class="kind">function</span><h3>createWasmGeometryBackend</h3></div><a class="permalink" href="#root-function-createwasmgeometrybackend" aria-label="Link to createWasmGeometryBackend">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createWasmGeometryBackend(wasmModuleOrInstance: unknown): KJGeometryBackend;</code></pre>
@@ -10485,6 +10582,11 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <header><div><span class="kind">function</span><h3>explodeEntity</h3></div><a class="permalink" href="#root-function-explodeentity" aria-label="Link to explodeEntity">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function explodeEntity(entity: KJEditingEntity | null | undefined): KJDerivedEntityPayload[];</code></pre>
       <p class="source-path">editing.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-function-exportdrawingsvg" data-search="exportdrawingsvg function @kanjieteam/kjdraw export declare function exportdrawingsvg(document: kjdocument, options: kjsvgexportoptions): kjsvgdrawingexport;">
+      <header><div><span class="kind">function</span><h3>exportDrawingSvg</h3></div><a class="permalink" href="#root-function-exportdrawingsvg" aria-label="Link to exportDrawingSvg">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptions): KJSvgDrawingExport;</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
     </article>
 <article class="api-symbol" id="root-function-extendentitypayload" data-search="extendentitypayload function @kanjieteam/kjdraw export declare function extendentitypayload(target: kjeditingentity | null | undefined, boundaries: readonly kjeditingentity[], pickpoint: unknown): kjobjectpayload;">
       <header><div><span class="kind">function</span><h3>extendEntityPayload</h3></div><a class="permalink" href="#root-function-extendentitypayload" aria-label="Link to extendEntityPayload">#</a></header>
@@ -17161,6 +17263,88 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJStandardType = KJStandardEntityType | KJStandardObjectType;</code></pre>
       <p class="source-path">constants.d.ts</p>
     </article>
+<article class="api-symbol" id="root-interface-kjsvgdiagnostic" data-search="kjsvgdiagnostic interface @kanjieteam/kjdraw export interface kjsvgdiagnostic {
+    entityid: string;
+    type: string;
+    reason: string;
+}">
+      <header><div><span class="kind">interface</span><h3>KJSvgDiagnostic</h3></div><a class="permalink" href="#root-interface-kjsvgdiagnostic" aria-label="Link to KJSvgDiagnostic">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJSvgDiagnostic {
+    entityId: string;
+    type: string;
+    reason: string;
+}</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjsvgdrawingexport" data-search="kjsvgdrawingexport interface @kanjieteam/kjdraw export interface kjsvgdrawingexport {
+    svg: string;
+    mimetype: &#39;image/svg+xml&#39;;
+    documentid: string;
+    revision: number;
+    layoutid: string;
+    paper: {
+        widthmm: number;
+        heightmm: number;
+        millimetersperdrawingunit: number;
+    };
+    report: kjsvgexportreport;
+}">
+      <header><div><span class="kind">interface</span><h3>KJSvgDrawingExport</h3></div><a class="permalink" href="#root-interface-kjsvgdrawingexport" aria-label="Link to KJSvgDrawingExport">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJSvgDrawingExport {
+    svg: string;
+    mimeType: &#39;image/svg+xml&#39;;
+    documentId: string;
+    revision: number;
+    layoutId: string;
+    paper: {
+        widthMm: number;
+        heightMm: number;
+        millimetersPerDrawingUnit: number;
+    };
+    report: KJSvgExportReport;
+}</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjsvgexportoptions" data-search="kjsvgexportoptions interface @kanjieteam/kjdraw export interface kjsvgexportoptions {
+    layoutid: string;
+    allowpartial?: boolean;
+    maxentities?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJSvgExportOptions</h3></div><a class="permalink" href="#root-interface-kjsvgexportoptions" aria-label="Link to KJSvgExportOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJSvgExportOptions {
+    layoutId: string;
+    allowPartial?: boolean;
+    maxEntities?: number;
+}</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjsvgexportreport" data-search="kjsvgexportreport interface @kanjieteam/kjdraw export interface kjsvgexportreport {
+    status: &#39;complete&#39; | &#39;approximate&#39; | &#39;partial&#39;;
+    rendered: number;
+    hidden: number;
+    diagnostics: kjsvgdiagnostic[];
+    approximations: kjsvgdiagnostic[];
+    viewports: {
+        entityid: string;
+        millimeterspermodelunit: number;
+        matrix: affinematrix3;
+    }[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJSvgExportReport</h3></div><a class="permalink" href="#root-interface-kjsvgexportreport" aria-label="Link to KJSvgExportReport">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJSvgExportReport {
+    status: &#39;complete&#39; | &#39;approximate&#39; | &#39;partial&#39;;
+    rendered: number;
+    hidden: number;
+    diagnostics: KJSvgDiagnostic[];
+    approximations: KJSvgDiagnostic[];
+    viewports: {
+        entityId: string;
+        millimetersPerModelUnit: number;
+        matrix: AffineMatrix3;
+    }[];
+}</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-type-kjtablename" data-search="kjtablename type @kanjieteam/kjdraw export type kjtablename = typeof kj_table_names[number];">
       <header><div><span class="kind">type</span><h3>KJTableName</h3></div><a class="permalink" href="#root-type-kjtablename" aria-label="Link to KJTableName">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJTableName = typeof KJ_TABLE_NAMES[number];</code></pre>
@@ -22254,7 +22438,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     execute&lt;tresult = unknown&gt;(command: string, args?: kjcommandarguments, options?: {
         expectedrevision?: number;
     }): promise&lt;kjsdkcommandenvelopereceipt&lt;tresult&gt;&gt;;
-    save(format?: &#39;kjd&#39; | &#39;dxf&#39;, options?: kjworkbenchsaveoptions): promise&lt;unknown&gt;;
+    save(format?: &#39;kjd&#39; | &#39;dxf&#39; | &#39;svg&#39;, options?: kjworkbenchsaveoptions): promise&lt;unknown&gt;;
     dispose(): void;
 }">
       <header><div><span class="kind">class</span><h3>KJDrawWorkbench</h3></div><a class="permalink" href="#workbench-class-kjdrawworkbench" aria-label="Link to KJDrawWorkbench">#</a></header>
@@ -22291,7 +22475,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     execute&lt;TResult = unknown&gt;(command: string, args?: KJCommandArguments, options?: {
         expectedRevision?: number;
     }): Promise&lt;KJSDKCommandEnvelopeReceipt&lt;TResult&gt;&gt;;
-    save(format?: &#39;KJD&#39; | &#39;DXF&#39;, options?: KJWorkbenchSaveOptions): Promise&lt;unknown&gt;;
+    save(format?: &#39;KJD&#39; | &#39;DXF&#39; | &#39;SVG&#39;, options?: KJWorkbenchSaveOptions): Promise&lt;unknown&gt;;
     dispose(): void;
 }</code></pre>
       <p class="source-path">workbench.d.ts</p>

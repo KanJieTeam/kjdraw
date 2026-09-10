@@ -86,7 +86,7 @@ export declare class KJDrawWorkbench {
     execute<TResult = unknown>(command: string, args?: KJCommandArguments, options?: {
         expectedRevision?: number;
     }): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;
-    save(format?: 'KJD' | 'DXF', options?: KJWorkbenchSaveOptions): Promise<unknown>;
+    save(format?: 'KJD' | 'DXF' | 'SVG', options?: KJWorkbenchSaveOptions): Promise<unknown>;
     dispose(): void;
 }
 export declare function mountKJDrawWorkbench(container: HTMLElement | ShadowRoot, options?: KJDrawWorkbenchOptions): KJDrawWorkbench;
