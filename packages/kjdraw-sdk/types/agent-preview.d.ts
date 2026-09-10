@@ -20,6 +20,7 @@ export interface KJAgentGeometryPreview {
     readonly before: readonly KJAgentPreviewEntity[];
     readonly after: readonly KJAgentPreviewEntity[];
 }
+export declare const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[];
 export interface KJAgentGeometryPreviewOptions {
     /** Trusted host creation budget; defaults to 64, hard maximum 512. MOVE remains limited to 64. */
     maxCreatedEntities?: number;
