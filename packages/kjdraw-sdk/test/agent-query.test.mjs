@@ -102,7 +102,7 @@ test('hatch region queries respect polygon holes and nested islands before and a
   assert.deepEqual(regions(reopened, 50), expected)
 })
 
-test('hatch LINE edge regions are classified while curved or unsupported patterns remain explicit', async () => {
+test('hatch LINE and bulged regions are classified while unsupported patterns remain explicit', async () => {
   const sdk = createKJDrawSDK(), doc = sdk.createDocument()
   await doc.transact('hatch boundaries', tx => {
     tx.createEntity('HATCH', { solid: true, boundaryLoops: [{ edges: [{ type: 'LINE', start: [0, 0], end: [10, 0] }, { type: 'LINE', start: [10, 0], end: [10, 10] }, { type: 'LINE', start: [10, 10], end: [0, 10] }, { type: 'LINE', start: [0, 10], end: [0, 0] }] }] }, { id: 'edges' })
@@ -110,7 +110,38 @@ test('hatch LINE edge regions are classified while curved or unsupported pattern
     tx.createEntity('HATCH', { solid: false, patternName: 'UNDEFINED', boundaryLoops: [{ vertices: [[0, 0], [10, 0], [10, 10]] }] }, { id: 'unknown' })
   })
   const result = createDrawingContext(doc, { bounds: [1, 1, 2, 2], maxLayers: 0 })
-  assert.deepEqual(result.entities.map(e => [e.id, e.spatialMatch]), [['edges', 'intersects'], ['curved', 'unclassified'], ['unknown', 'unclassified']])
+  assert.deepEqual(result.entities.map(e => [e.id, e.spatialMatch]), [['edges', 'intersects'], ['curved', 'intersects'], ['unknown', 'unclassified']])
   const outside = createDrawingContext(doc, { bounds: [100, 100, 101, 101], maxLayers: 0 })
-  assert.deepEqual(outside.entities.map(e => e.id), ['curved', 'unknown'])
+  assert.deepEqual(outside.entities.map(e => e.id), ['unknown'])
+})
+
+test('circular hatch holes use exact arcs in either direction, including tiny regions between display chords', async () => {
+  for (const clockwise of [false, true]) {
+    const sdk = createKJDrawSDK(), doc = sdk.createDocument()
+    await doc.transact('annulus', tx => tx.createEntity('HATCH', { solid: true, boundaryLoops: [10, 5].map(radius => ({ edges: [{ type: 'ARC', center: [0, 0], radius, startAngle: 0, endAngle: Math.PI * 2, clockwise }] })) }, { id: 'ring' }))
+    const hit = (x, y, r = 0) => createDrawingContext(doc, { bounds: [x - r, y - r, x + r, y + r], maxLayers: 0 }).entities.length > 0
+    for (let x = -11; x <= 11; x += .5) for (let y = -11; y <= 11; y += .5) {
+      const radius = Math.hypot(x, y)
+      assert.equal(hit(x, y), radius >= 5 - 1e-8 && radius <= 10 + 1e-8, `${clockwise}: ${x},${y}`)
+    }
+    const a = Math.PI / 72
+    assert.equal(hit(9.999 * Math.cos(a), 9.999 * Math.sin(a), .00001), true)
+    assert.equal(hit(4.999 * Math.cos(a), 4.999 * Math.sin(a), .00001), false)
+    assert.equal(hit(10, 0, .001), true)
+    assert.equal(hit(0, 10.01, .001), false)
+  }
+})
+
+test('two-bulge circular boundaries retain exact holes through reflection, history and independent SDK reopen', async () => {
+  const sdk = createKJDrawSDK(), doc = sdk.createDocument()
+  await doc.transact('bulged annulus', tx => tx.createEntity('HATCH', { solid: true, boundaryLoops: [10, 5].map(r => ({ vertices: [{ point: [-r, 0], bulge: 1 }, { point: [r, 0], bulge: 1 }] })) }, { id: 'bulged' }))
+  const regions = document => [[0, 0], [7, 0], [0, -7], [0, 7], [12, 0]].map(([x, y]) => createDrawingContext(document, { bounds: [x, y, x, y], maxLayers: 0 }).entities.length)
+  assert.deepEqual(regions(doc), [0, 1, 1, 1, 0])
+  const { transformEntityPayload } = await import('../src/geometry/transform.js')
+  const { scale3 } = await import('../src/geometry/matrix3.js')
+  await doc.transact('reflect', tx => tx.updateObject('bulged', { payload: transformEntityPayload('HATCH', doc.getObject('bulged').payload, scale3(-1, 1)) }))
+  assert.deepEqual(regions(doc), [0, 1, 1, 1, 0])
+  await sdk.executeCommand('UNDO'); await sdk.executeCommand('REDO')
+  const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(doc, { format: 'DXF' }), { format: 'DXF' })
+  assert.deepEqual(regions(reopened), [0, 1, 1, 1, 0])
 })

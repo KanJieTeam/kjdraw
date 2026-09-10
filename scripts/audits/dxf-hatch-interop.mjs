@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { createKJDrawSDK } from '../../packages/kjdraw-sdk/src/sdk.js'
+import { createDrawingContext } from '../../packages/kjdraw-sdk/src/drawing-context.js'
 import { transformEntityPayload } from '../../packages/kjdraw-sdk/src/geometry/transform.js'
 import { multiply3, translation3, rotation3, scale3 } from '../../packages/kjdraw-sdk/src/geometry/matrix3.js'
 
@@ -35,5 +36,17 @@ try {
   await sdk.executeCommand('UNDO'); await sdk.executeCommand('REDO')
   await writeFile(target, await sdk.writeDocument(doc, { format: 'DXF', version: '2018' }))
   assert.deepEqual(python('inspect', target), result)
-  console.log(JSON.stringify({ ok: true, independentReader: `ezdxf ${result.version}`, checks: ['pattern angles', 'base phase', 'offset vectors', 'dash lengths and dots', 'outer/hole coordinates', 'undo/redo', 'zero audit repairs'] }))
+  const curvedSource = join(directory, 'curved-source.dxf'), curvedOutput = join(directory, 'curved-edited.dxf')
+  python('generate-curved', curvedSource)
+  const curvedSDK = createKJDrawSDK(), curved = await curvedSDK.readDocument(await readFile(curvedSource), { format: 'DXF' })
+  const query = (x, y) => createDrawingContext(curved, { bounds: [x, y, x, y], maxLayers: 0 }).entities.length
+  assert.equal(query(0, 0), 0); assert.equal(query(7, 0), 1); assert.equal(query(11, 0), 0)
+  const entity = curved.listEntities()[0]
+  await curved.transact('reflect curved hatch', tx => tx.updateObject(entity.id, { payload: transformEntityPayload('HATCH', entity.payload, multiply3(translation3(20, 3), scale3(-1, 1))) }))
+  assert.equal(query(20, 3), 0); assert.equal(query(13, 3), 1); assert.equal(query(9, 3), 0)
+  await curvedSDK.executeCommand('UNDO'); assert.equal(query(7, 0), 1)
+  await curvedSDK.executeCommand('REDO'); assert.equal(query(13, 3), 1)
+  await writeFile(curvedOutput, await curvedSDK.writeDocument(curved, { format: 'DXF', version: '2018' }))
+  assert.deepEqual(python('inspect-curved', curvedOutput), { curvedHatch: true, reflection: true, auditClean: true })
+  console.log(JSON.stringify({ ok: true, independentReader: `ezdxf ${result.version}`, checks: ['pattern angles', 'base phase', 'offset vectors', 'dash lengths and dots', 'outer/hole coordinates', 'circular hole queries', 'reflected arc directions', 'undo/redo', 'zero audit repairs'] }))
 } finally { await rm(directory, { recursive: true, force: true }) }

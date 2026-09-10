@@ -412,6 +412,41 @@ function criticalPoints(part) {
         part.b
     ];
 }
+function insideCurvedLoops(p, loops) {
+    let inside = false;
+    const startOf = (part)=>part.kind === 'curve' ? curveAt(part, part.start) : part.kind === 'point' ? part.point : part.a;
+    for (const parts of loops)for(let index = 0; index < parts.length; index++){
+        const part = parts[index], end = startOf(parts[(index + 1) % parts.length]);
+        if (part.kind === 'point') continue;
+        if (part.kind !== 'curve') {
+            const a = part.a;
+            if (a[1] > p[1] !== end[1] > p[1] && p[0] < a[0] + (end[0] - a[0]) * (p[1] - a[1]) / (end[1] - a[1])) inside = !inside;
+            continue;
+        }
+        const cuts = [
+            0,
+            1
+        ], sweep = Math.abs(part.sweep);
+        for (const angle of [
+            Math.PI / 2,
+            3 * Math.PI / 2
+        ]){
+            const t = mod((angle - part.start) * Math.sign(part.sweep)) / sweep;
+            if (t > 0 && t < 1) cuts.push(t);
+        }
+        cuts.sort((a, b)=>a - b);
+        for(let i = 1; i < cuts.length; i++){
+            const lo = cuts[i - 1], hi = cuts[i];
+            const a = curveAt(part, part.start + part.sweep * lo), b = hi === 1 ? end : curveAt(part, part.start + part.sweep * hi);
+            if (a[1] > p[1] === b[1] > p[1]) continue;
+            const radius = part.u[0], dy = p[1] - part.center[1];
+            const side = Math.cos(part.start + part.sweep * (lo + hi) / 2) >= 0 ? 1 : -1;
+            const x = part.center[0] + side * Math.sqrt(Math.max(0, (radius - dy) * (radius + dy)));
+            if (p[0] < x) inside = !inside;
+        }
+    }
+    return inside;
+}
 export function classifyEntityInBox(document, entity, bounds) {
     if (!Array.isArray(bounds) || bounds.length !== 4 || [
         ...bounds
@@ -434,6 +469,7 @@ export function classifyEntityInBox(document, entity, bounds) {
         if (normal !== undefined && (!Array.isArray(normal) || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) return 'unclassified';
     }
     if (Array.isArray(entity.payload.vertices) && entity.payload.vertices.length > 4096) return 'unclassified';
+    const hatchLoops = [];
     if (entity.type === 'HATCH') {
         const loops = entity.payload.boundaryLoops;
         if (!Array.isArray(loops) || !loops.length || loops.length > 128) return 'unclassified';
@@ -442,13 +478,22 @@ export function classifyEntityInBox(document, entity, bounds) {
             if (!loop || typeof loop !== 'object') return 'unclassified';
             if (Array.isArray(loop.vertices)) {
                 edges += loop.vertices.length;
-                if (loop.vertices.length < 3 || loop.vertices.some((v)=>!vertex(v) || finite(v?.bulge) !== 0)) return 'unclassified';
+                if (edges > 4096) return 'unclassified';
+                if (loop.vertices.length < 2 || loop.vertices.some((v)=>!vertex(v) || v?.bulge !== undefined && !Number.isFinite(v.bulge))) return 'unclassified';
+                const parts = polyline(loop.vertices, true);
+                if (loop.vertices.length < 3 && !parts.some((part)=>part.kind === 'curve')) return 'unclassified';
+                hatchLoops.push(parts);
             } else if (Array.isArray(loop.edges)) {
                 edges += loop.edges.length;
-                if (!loop.edges.length || loop.edges.some((e)=>e.type !== 'LINE' || !point(e.start) || !point(e.end))) return 'unclassified';
+                if (edges > 4096) return 'unclassified';
+                if (!loop.edges.length || loop.edges.some((e)=>!e || (e.type === 'LINE' ? !point(e.start) || !point(e.end) : e.type !== 'ARC' || !point(e.center) || typeof e.radius !== 'number' || e.radius <= 0 || !Number.isFinite(e.radius) || !Number.isFinite(e.startAngle) || !Number.isFinite(e.endAngle)))) return 'unclassified';
+                const boundary = hatchEdges(loop.edges);
+                if (!boundary.complete) return 'unclassified';
+                hatchLoops.push(boundary.parts);
             } else return 'unclassified';
             if (edges > 4096) return 'unclassified';
         }
+        if (hatchLoops.some((parts)=>parts.some((part)=>part.kind === 'curve' && (!Number.isFinite(part.sweep) || Math.abs(part.sweep) > TAU + 1e-10 || !Number.isFinite(part.u[0]))))) return 'unclassified';
         if (entity.payload.solid !== true && String(entity.payload.patternName).toUpperCase() !== 'SOLID') {
             try {
                 hatchPatternLines(entity.payload);
@@ -478,10 +523,14 @@ export function classifyEntityInBox(document, entity, bounds) {
     ];
     const inside = (p)=>p[0] >= minX - tolerance && p[0] <= maxX + tolerance && p[1] >= minY - tolerance && p[1] <= maxY + tolerance;
     try {
-        const projection = project(entity, document);
+        const projection = hatchLoops.length ? {
+            parts: hatchLoops.flat(),
+            fills: [],
+            complete: true
+        } : project(entity, document);
         if (!projection.complete || !projection.parts.length) return 'unclassified';
         const touchesBoundary = projection.parts.some((part)=>criticalPoints(part).some(inside) || corners.some((corner, i)=>intersects(part, corner, corners[(i + 1) % 4], tolerance)));
-        const insideFill = projection.fills.some((loops)=>corners.some((corner)=>insideFills(corner, loops)));
+        const insideFill = hatchLoops.length ? corners.some((corner)=>insideCurvedLoops(corner, hatchLoops)) : projection.fills.some((loops)=>corners.some((corner)=>insideFills(corner, loops)));
         return touchesBoundary || insideFill ? 'intersects' : 'outside';
     } catch  {
         return 'unclassified';

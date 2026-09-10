@@ -26,3 +26,18 @@ The subsequent source increment after `28401c2` classifies straight polygon and 
 This increment passes Node 22/24 **392/392 each**, including package consumers, plus **9/9** Chrome/Firefox/WebKit hatch and viewport-query browser cases. Added native tests cover holes, nested islands, LINE edges, uncertainty, MOVE/undo/redo and DXF save/reopen. Browser tests compare query results against a visible custom-pattern interior, a pixel-empty hole and the exterior, while retaining dash/dot phase and rotated-block pixel assertions. Type, generated module/declaration/API/docs and repository checks pass.
 
 The preceding `28401c23f3e8cc2d724137e125577afb31601db6` was pushed successfully together with the previously pending hatch and tool-selection commits. Its [CI run](https://github.com/KanJieTeam/kjdraw/actions/runs/34416427985) has all nine jobs successful (six OS/Node SDK combinations, browser, Rust and independent DXF), and its [Pages run](https://github.com/KanJieTeam/kjdraw/actions/runs/34416427968) succeeded. These remote results apply to that exact preceding commit; they do not establish a later commit's CI status or npm publication.
+
+## Follow-up: circular and bulged hatch regions
+
+The next increment after `2acf113` adds analytic fill classification for HATCH LINE/ARC edge loops and polygon bulges, including two semicircles forming a closed circle. Horizontal-ray crossings split circular arcs at their vertical extrema; boundary intersection and hole parity use the actual curves without building display chords. Tiny rectangles between a chord and its arc therefore retain the correct geometric inclusion. Both arc directions, reflected boundaries and nested holes are supported within the existing loop/edge budgets.
+
+Validation:
+
+- Node 22 and Node 24 full suites: **394/394 each**, including packed consumers. A 4,050-point grid checks clockwise/counterclockwise annuli against independent radial inclusion, alongside tiny near-arc rectangles, tangencies, bulges, reflection, history and SDK DXF reopen.
+- Chromium, Firefox and WebKit: **12/12** hatch/agent-query browser cases. Public-editor tests check visible ring ink, empty hole/exterior, matching query results and save/reopen. WebKit initially exposed a test probe using CSS coordinates against high-DPI bitmap pixels; corrected probes convert both axes and require in-bounds, opaque pixels. The final three-browser run passes all assertions.
+- Independent ezdxf 1.4.4 generates circular edge loops; KJDraw queries, reflects/translates and saves them; ezdxf verifies both centers, radii, full sweeps and reversed directions with zero audit errors or repairs. Undo/redo is included. Existing custom-pattern phase, offsets and dash/dot checks remain active.
+- Runtime/declaration/API/docs generation, strict TypeScript and the 528-file repository checks pass.
+
+Ellipse/spline hatch boundaries, unknown patterns, tilted normals and oversized loops remain explicitly unclassified. Rendering still approximates circular fill boundaries with chords; analytic query precision is not a claim of exact Canvas coverage. Four previously recorded dense hatches remain partially drawn under budget. Block expansion, full viewport projection, complex live-model evaluation and stable 1.0 gates remain open.
+
+The preceding `2acf113b08b87b6a375599cc1c9bacded9bc09c9` is now pushed. Its [CI](https://github.com/KanJieTeam/kjdraw/actions/runs/34419123772) and [Pages](https://github.com/KanJieTeam/kjdraw/actions/runs/34419123807) completed successfully; these results apply to that preceding SHA only. This increment does not publish an npm package or stable tag.

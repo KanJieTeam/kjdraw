@@ -37,3 +37,34 @@ test('editor camera bounds drive a filtered query and reviewed local move withou
   })
   expect(result).toEqual({ first: ['inside'], second: ['outside'], moved: [-8, 3, 0], undone: [-10, 0, 0], unrelated: true, reopened: true })
 })
+
+test('curved hatch queries match the visible annulus and retain holes through public editor reopen', async ({ page }) => {
+  await page.goto('/')
+  const result = await page.evaluate(async () => {
+    const { createKJDrawSDK, createKJDrawEditor } = await import('/packages/kjdraw-sdk/src/index.js')
+    const { createDrawingContext } = await import('/packages/kjdraw-sdk/src/drawing-context.js')
+    const sdk = createKJDrawSDK(), doc = sdk.createDocument()
+    await doc.transact('original annulus', tx => tx.createEntity('HATCH', { trueColor: 0, solid: true, boundaryLoops: [10, 5].map(radius => ({ edges: [{ type: 'ARC', center: [0, 0], radius, startAngle: 0, endAngle: Math.PI * 2, clockwise: true }] })) }))
+    const host = document.createElement('div'); host.style.cssText = 'width:1000px;height:650px'; document.body.replaceChildren(host)
+    const editor = createKJDrawEditor(host, { sdk, document: doc, theme: 'light', grid: false }); await editor.ready
+    editor.fit()
+    const renderer = editor.workbench.renderer
+    const points = [[0, 0], [7, 0], [0, -7], [12, 0]]
+    const pixel = p => {
+      const [x, y] = renderer.worldToScreen(p)
+      const canvas = renderer.context.canvas, rect = canvas.getBoundingClientRect()
+      const px = Math.round(x * canvas.width / rect.width), py = Math.round(y * canvas.height / rect.height)
+      if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) throw new Error('Pixel probe is outside the canvas')
+      const data = renderer.context.getImageData(px, py, 1, 1).data
+      if (data[3] !== 255) throw new Error('Pixel probe has no opaque rendered background')
+      return data[0] < 100 && data[1] < 100 && data[2] < 100
+    }
+    const pixels = points.map(pixel)
+    const matches = () => points.map(([x, y]) => createDrawingContext(editor.document, { bounds: [x, y, x, y], types: ['HATCH'], maxLayers: 0 }).entities.map(e => e.spatialMatch))
+    const before = matches()
+    const saved = await editor.save({ format: 'DXF', download: false })
+    await editor.open(new File([saved], 'annulus.dxf'))
+    return { pixels, before, after: matches() }
+  })
+  expect(result).toEqual({ pixels: [false, true, true, false], before: [[], ['intersects'], ['intersects'], []], after: [[], ['intersects'], ['intersects'], []] })
+})

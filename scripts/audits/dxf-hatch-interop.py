@@ -23,5 +23,26 @@ elif action == 'inspect':
     assert len(h.paths) == 2
     print(json.dumps({'version': ezdxf.__version__, 'paths': [list(p.vertices) for p in h.paths],
                       'lines': [{'angle': l.angle, 'base': list(l.base_point), 'offset': list(l.offset), 'dashes': list(l.dash_length_items)} for l in h.pattern.lines]}))
+elif action == 'generate-curved':
+    doc = ezdxf.new('R2018')
+    hatch = doc.modelspace().add_hatch()
+    for radius in [10, 5]:
+        loop = hatch.paths.add_edge_path(flags=1 if radius == 10 else 0)
+        loop.add_arc((0, 0), radius, 0, 360, ccw=True)
+    doc.saveas(path)
+elif action == 'inspect-curved':
+    doc = ezdxf.readfile(path)
+    audit = doc.audit()
+    assert not audit.errors and not audit.fixes
+    hatch, = doc.modelspace().query('HATCH')
+    assert len(hatch.paths) == 2
+    for loop, radius in zip(hatch.paths, [10, 5]):
+        edge, = loop.edges
+        assert math.isclose(edge.center.x, 20, abs_tol=1e-8)
+        assert math.isclose(edge.center.y, 3, abs_tol=1e-8)
+        assert math.isclose(edge.radius, radius, abs_tol=1e-8)
+        assert not edge.ccw
+        assert math.isclose(abs(edge.end_angle - edge.start_angle), 360, abs_tol=1e-8)
+    print(json.dumps({'curvedHatch': True, 'reflection': True, 'auditClean': True}))
 else:
     raise ValueError('unknown action')
