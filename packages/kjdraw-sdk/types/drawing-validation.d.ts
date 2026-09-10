@@ -1,0 +1,55 @@
+import type { KJDocument } from './document.js';
+export type KJDrawingValidationFeature = 'start' | 'end' | 'center' | 'origin';
+export interface KJDrawingValidationPointReference {
+    objectId: string;
+    feature: KJDrawingValidationFeature;
+}
+export type KJDrawingValidationCheck = {
+    id: string;
+    kind: 'line-length' | 'circle-radius';
+    objectId: string;
+    expected: number;
+    tolerance: number;
+} | {
+    id: string;
+    kind: 'point-distance';
+    from: KJDrawingValidationPointReference;
+    to: KJDrawingValidationPointReference;
+    expected: number;
+    tolerance: number;
+} | {
+    id: string;
+    kind: 'polyline-closed';
+    objectId: string;
+    expected: boolean;
+    tolerance: 0;
+};
+export interface KJDrawingValidationInput {
+    expectedRevision: number;
+    units: string;
+    checks: readonly KJDrawingValidationCheck[];
+}
+export interface KJDrawingValidationReference {
+    readonly objectId: string;
+    readonly ownerId: string;
+    readonly feature?: KJDrawingValidationFeature;
+}
+export interface KJDrawingValidationCheckResult {
+    readonly id: string;
+    readonly kind: KJDrawingValidationCheck['kind'];
+    readonly actual: number | boolean;
+    readonly expected: number | boolean;
+    readonly error: number;
+    readonly tolerance: number;
+    readonly passed: boolean;
+    readonly references: readonly KJDrawingValidationReference[];
+}
+export interface KJDrawingValidationResult {
+    readonly documentId: string;
+    readonly revision: number;
+    readonly units: string;
+    readonly passed: boolean;
+    readonly checks: readonly KJDrawingValidationCheckResult[];
+}
+/** Check explicit requirements against actual native geometry. No edits, inferred constraints or INSERT expansion. */
+export declare function validateDrawingGeometry(document: KJDocument, input: KJDrawingValidationInput): KJDrawingValidationResult;

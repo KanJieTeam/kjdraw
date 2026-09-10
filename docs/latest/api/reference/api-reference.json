@@ -3,8 +3,72 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:f949474ddd82721d411275260ac7a2f09c6ab868c7de9aadcc1e5121153c2c8e",
+  "sourceDigest": "sha256:cf9244aee6da79d466c17396619e88a581477de44c773e993f13d3732483ac5e",
   "modules": [
+    {
+      "exportPath": "./drawing-validation",
+      "packageName": "@kanjieteam/kjdraw/drawing-validation",
+      "declaration": "types/drawing-validation.d.ts",
+      "anchor": "module-drawing-validation",
+      "symbols": [
+        {
+          "name": "KJDrawingValidationCheck",
+          "kind": "type",
+          "declaration": "export type KJDrawingValidationCheck = {\n    id: string;\n    kind: 'line-length' | 'circle-radius';\n    objectId: string;\n    expected: number;\n    tolerance: number;\n} | {\n    id: string;\n    kind: 'point-distance';\n    from: KJDrawingValidationPointReference;\n    to: KJDrawingValidationPointReference;\n    expected: number;\n    tolerance: number;\n} | {\n    id: string;\n    kind: 'polyline-closed';\n    objectId: string;\n    expected: boolean;\n    tolerance: 0;\n};",
+          "source": "drawing-validation.d.ts",
+          "anchor": "drawing-validation-type-kjdrawingvalidationcheck"
+        },
+        {
+          "name": "KJDrawingValidationCheckResult",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingValidationCheckResult {\n    readonly id: string;\n    readonly kind: KJDrawingValidationCheck['kind'];\n    readonly actual: number | boolean;\n    readonly expected: number | boolean;\n    readonly error: number;\n    readonly tolerance: number;\n    readonly passed: boolean;\n    readonly references: readonly KJDrawingValidationReference[];\n}",
+          "source": "drawing-validation.d.ts",
+          "anchor": "drawing-validation-interface-kjdrawingvalidationcheckresult"
+        },
+        {
+          "name": "KJDrawingValidationFeature",
+          "kind": "type",
+          "declaration": "export type KJDrawingValidationFeature = 'start' | 'end' | 'center' | 'origin';",
+          "source": "drawing-validation.d.ts",
+          "anchor": "drawing-validation-type-kjdrawingvalidationfeature"
+        },
+        {
+          "name": "KJDrawingValidationInput",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingValidationInput {\n    expectedRevision: number;\n    units: string;\n    checks: readonly KJDrawingValidationCheck[];\n}",
+          "source": "drawing-validation.d.ts",
+          "anchor": "drawing-validation-interface-kjdrawingvalidationinput"
+        },
+        {
+          "name": "KJDrawingValidationPointReference",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingValidationPointReference {\n    objectId: string;\n    feature: KJDrawingValidationFeature;\n}",
+          "source": "drawing-validation.d.ts",
+          "anchor": "drawing-validation-interface-kjdrawingvalidationpointreference"
+        },
+        {
+          "name": "KJDrawingValidationReference",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingValidationReference {\n    readonly objectId: string;\n    readonly ownerId: string;\n    readonly feature?: KJDrawingValidationFeature;\n}",
+          "source": "drawing-validation.d.ts",
+          "anchor": "drawing-validation-interface-kjdrawingvalidationreference"
+        },
+        {
+          "name": "KJDrawingValidationResult",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingValidationResult {\n    readonly documentId: string;\n    readonly revision: number;\n    readonly units: string;\n    readonly passed: boolean;\n    readonly checks: readonly KJDrawingValidationCheckResult[];\n}",
+          "source": "drawing-validation.d.ts",
+          "anchor": "drawing-validation-interface-kjdrawingvalidationresult"
+        },
+        {
+          "name": "validateDrawingGeometry",
+          "kind": "function",
+          "declaration": "export declare function validateDrawingGeometry(document: KJDocument, input: KJDrawingValidationInput): KJDrawingValidationResult;",
+          "source": "drawing-validation.d.ts",
+          "anchor": "drawing-validation-function-validatedrawinggeometry"
+        }
+      ]
+    },
     {
       "exportPath": "./agent-capabilities",
       "packageName": "@kanjieteam/kjdraw/agent-capabilities",
@@ -230,6 +294,13 @@
           "declaration": "export interface KJAgentDrawingQuery {\n    expectedRevision: number;\n    filters: Pick<KJDrawingContextOptions, 'ids' | 'types' | 'layerIds' | 'spaceId' | 'includeHidden' | 'bounds'>;\n    offset: number;\n    layerOffset: number;\n    limit: number;\n    maxLayers: number;\n    maxBytes: number;\n}",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-interface-kjagentdrawingquery"
+        },
+        {
+          "name": "KJAgentGeometryValidationInput",
+          "kind": "interface",
+          "declaration": "export interface KJAgentGeometryValidationInput {\n    expectedRevision: number;\n    units: string;\n    lineLengths: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    circleRadii: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    pointDistances: {\n        id: string;\n        from: KJDrawingValidationPointReference;\n        to: KJDrawingValidationPointReference;\n        expected: number;\n        tolerance: number;\n    }[];\n    polylineClosures: {\n        id: string;\n        objectId: string;\n        expected: boolean;\n    }[];\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "agent-tools-interface-kjagentgeometryvalidationinput"
         },
         {
           "name": "KJAgentLayoutQuery",
@@ -5607,6 +5678,13 @@
           "anchor": "root-interface-kjagentdrawingquery"
         },
         {
+          "name": "KJAgentGeometryValidationInput",
+          "kind": "interface",
+          "declaration": "export interface KJAgentGeometryValidationInput {\n    expectedRevision: number;\n    units: string;\n    lineLengths: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    circleRadii: {\n        id: string;\n        objectId: string;\n        expected: number;\n        tolerance: number;\n    }[];\n    pointDistances: {\n        id: string;\n        from: KJDrawingValidationPointReference;\n        to: KJDrawingValidationPointReference;\n        expected: number;\n        tolerance: number;\n    }[];\n    polylineClosures: {\n        id: string;\n        objectId: string;\n        expected: boolean;\n    }[];\n}",
+          "source": "agent-tools.d.ts",
+          "anchor": "root-interface-kjagentgeometryvalidationinput"
+        },
+        {
           "name": "KJAgentLayoutQuery",
           "kind": "interface",
           "declaration": "export interface KJAgentLayoutQuery {\n    expectedRevision: number;\n    offset: number;\n    limit: number;\n    maxBytes: number;\n}",
@@ -6620,6 +6698,55 @@
           "declaration": "export type KJDrawingGeometryOmittedReason = 'unsupported-type' | 'unsupported-data' | 'geometry-budget' | 'response-budget';",
           "source": "drawing-context.d.ts",
           "anchor": "root-type-kjdrawinggeometryomittedreason"
+        },
+        {
+          "name": "KJDrawingValidationCheck",
+          "kind": "type",
+          "declaration": "export type KJDrawingValidationCheck = {\n    id: string;\n    kind: 'line-length' | 'circle-radius';\n    objectId: string;\n    expected: number;\n    tolerance: number;\n} | {\n    id: string;\n    kind: 'point-distance';\n    from: KJDrawingValidationPointReference;\n    to: KJDrawingValidationPointReference;\n    expected: number;\n    tolerance: number;\n} | {\n    id: string;\n    kind: 'polyline-closed';\n    objectId: string;\n    expected: boolean;\n    tolerance: 0;\n};",
+          "source": "drawing-validation.d.ts",
+          "anchor": "root-type-kjdrawingvalidationcheck"
+        },
+        {
+          "name": "KJDrawingValidationCheckResult",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingValidationCheckResult {\n    readonly id: string;\n    readonly kind: KJDrawingValidationCheck['kind'];\n    readonly actual: number | boolean;\n    readonly expected: number | boolean;\n    readonly error: number;\n    readonly tolerance: number;\n    readonly passed: boolean;\n    readonly references: readonly KJDrawingValidationReference[];\n}",
+          "source": "drawing-validation.d.ts",
+          "anchor": "root-interface-kjdrawingvalidationcheckresult"
+        },
+        {
+          "name": "KJDrawingValidationFeature",
+          "kind": "type",
+          "declaration": "export type KJDrawingValidationFeature = 'start' | 'end' | 'center' | 'origin';",
+          "source": "drawing-validation.d.ts",
+          "anchor": "root-type-kjdrawingvalidationfeature"
+        },
+        {
+          "name": "KJDrawingValidationInput",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingValidationInput {\n    expectedRevision: number;\n    units: string;\n    checks: readonly KJDrawingValidationCheck[];\n}",
+          "source": "drawing-validation.d.ts",
+          "anchor": "root-interface-kjdrawingvalidationinput"
+        },
+        {
+          "name": "KJDrawingValidationPointReference",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingValidationPointReference {\n    objectId: string;\n    feature: KJDrawingValidationFeature;\n}",
+          "source": "drawing-validation.d.ts",
+          "anchor": "root-interface-kjdrawingvalidationpointreference"
+        },
+        {
+          "name": "KJDrawingValidationReference",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingValidationReference {\n    readonly objectId: string;\n    readonly ownerId: string;\n    readonly feature?: KJDrawingValidationFeature;\n}",
+          "source": "drawing-validation.d.ts",
+          "anchor": "root-interface-kjdrawingvalidationreference"
+        },
+        {
+          "name": "KJDrawingValidationResult",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingValidationResult {\n    readonly documentId: string;\n    readonly revision: number;\n    readonly units: string;\n    readonly passed: boolean;\n    readonly checks: readonly KJDrawingValidationCheckResult[];\n}",
+          "source": "drawing-validation.d.ts",
+          "anchor": "root-interface-kjdrawingvalidationresult"
         },
         {
           "name": "KJDrawSDK",
@@ -8433,6 +8560,13 @@
           "declaration": "export declare function validateDocumentState(input: unknown, { throwOnError, previousState }?: {\n    throwOnError?: boolean;\n    previousState?: KJDocumentState;\n}): KJValidationResult;",
           "source": "schema.d.ts",
           "anchor": "root-function-validatedocumentstate"
+        },
+        {
+          "name": "validateDrawingGeometry",
+          "kind": "function",
+          "declaration": "export declare function validateDrawingGeometry(document: KJDocument, input: KJDrawingValidationInput): KJDrawingValidationResult;",
+          "source": "drawing-validation.d.ts",
+          "anchor": "root-function-validatedrawinggeometry"
         },
         {
           "name": "validateKJModificationSelection",

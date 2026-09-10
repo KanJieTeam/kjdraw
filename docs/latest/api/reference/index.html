@@ -16,7 +16,8 @@
     <nav class="top-links"><a href="../">Editor API</a><a href="../../"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="reference-shell">
-    <aside class="reference-sidebar"><div class="version"><span>TYPE REFERENCE</span><strong>v1.0.0-rc.3</strong></div><nav><a href="#module-agent-capabilities"><code>./agent-capabilities</code></a>
+    <aside class="reference-sidebar"><div class="version"><span>TYPE REFERENCE</span><strong>v1.0.0-rc.3</strong></div><nav><a href="#module-drawing-validation"><code>./drawing-validation</code></a>
+<a href="#module-agent-capabilities"><code>./agent-capabilities</code></a>
 <a href="#module-model-adapters"><code>./model-adapters</code></a>
 <a href="#module-agent-runner"><code>./agent-runner</code></a>
 <a href="#module-agent-tools"><code>./agent-tools</code></a>
@@ -59,7 +60,143 @@
     <main class="reference-main"><article>
       <section class="reference-intro" id="api-reference"><p class="eyebrow">TYPESCRIPT</p><h1><span class="lang-en">Complete API reference</span><span class="lang-zh">完整 API 参考</span></h1><p class="lead"><span class="lang-en">Browse the declarations for the root package and every public subpath. Start with the Editor API for application integration.</span><span class="lang-zh">浏览根包及每个公开子路径的类型声明；应用接入请先从 Editor API 开始。</span></p><a class="primary-link" href="../"><span class="lang-en">Open Editor API</span><span class="lang-zh">打开 Editor API</span> →</a></section>
       <div id="empty-state" hidden><h2><span class="lang-en">No matching API</span><span class="lang-zh">未找到匹配 API</span></h2></div>
-      <section class="api-module" id="module-agent-capabilities" data-module="@kanjieteam/kjdraw/agent-capabilities">
+      <section class="api-module" id="module-drawing-validation" data-module="@kanjieteam/kjdraw/drawing-validation">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/drawing-validation</code></h2></div><a class="permalink" href="#module-drawing-validation" aria-label="Link to @kanjieteam/kjdraw/drawing-validation">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/drawing-validation.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="drawing-validation-type-kjdrawingvalidationcheck" data-search="kjdrawingvalidationcheck type @kanjieteam/kjdraw/drawing-validation export type kjdrawingvalidationcheck = {
+    id: string;
+    kind: &#39;line-length&#39; | &#39;circle-radius&#39;;
+    objectid: string;
+    expected: number;
+    tolerance: number;
+} | {
+    id: string;
+    kind: &#39;point-distance&#39;;
+    from: kjdrawingvalidationpointreference;
+    to: kjdrawingvalidationpointreference;
+    expected: number;
+    tolerance: number;
+} | {
+    id: string;
+    kind: &#39;polyline-closed&#39;;
+    objectid: string;
+    expected: boolean;
+    tolerance: 0;
+};">
+      <header><div><span class="kind">type</span><h3>KJDrawingValidationCheck</h3></div><a class="permalink" href="#drawing-validation-type-kjdrawingvalidationcheck" aria-label="Link to KJDrawingValidationCheck">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDrawingValidationCheck = {
+    id: string;
+    kind: &#39;line-length&#39; | &#39;circle-radius&#39;;
+    objectId: string;
+    expected: number;
+    tolerance: number;
+} | {
+    id: string;
+    kind: &#39;point-distance&#39;;
+    from: KJDrawingValidationPointReference;
+    to: KJDrawingValidationPointReference;
+    expected: number;
+    tolerance: number;
+} | {
+    id: string;
+    kind: &#39;polyline-closed&#39;;
+    objectId: string;
+    expected: boolean;
+    tolerance: 0;
+};</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-validation-interface-kjdrawingvalidationcheckresult" data-search="kjdrawingvalidationcheckresult interface @kanjieteam/kjdraw/drawing-validation export interface kjdrawingvalidationcheckresult {
+    readonly id: string;
+    readonly kind: kjdrawingvalidationcheck[&#39;kind&#39;];
+    readonly actual: number | boolean;
+    readonly expected: number | boolean;
+    readonly error: number;
+    readonly tolerance: number;
+    readonly passed: boolean;
+    readonly references: readonly kjdrawingvalidationreference[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingValidationCheckResult</h3></div><a class="permalink" href="#drawing-validation-interface-kjdrawingvalidationcheckresult" aria-label="Link to KJDrawingValidationCheckResult">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingValidationCheckResult {
+    readonly id: string;
+    readonly kind: KJDrawingValidationCheck[&#39;kind&#39;];
+    readonly actual: number | boolean;
+    readonly expected: number | boolean;
+    readonly error: number;
+    readonly tolerance: number;
+    readonly passed: boolean;
+    readonly references: readonly KJDrawingValidationReference[];
+}</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-validation-type-kjdrawingvalidationfeature" data-search="kjdrawingvalidationfeature type @kanjieteam/kjdraw/drawing-validation export type kjdrawingvalidationfeature = &#39;start&#39; | &#39;end&#39; | &#39;center&#39; | &#39;origin&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDrawingValidationFeature</h3></div><a class="permalink" href="#drawing-validation-type-kjdrawingvalidationfeature" aria-label="Link to KJDrawingValidationFeature">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDrawingValidationFeature = &#39;start&#39; | &#39;end&#39; | &#39;center&#39; | &#39;origin&#39;;</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-validation-interface-kjdrawingvalidationinput" data-search="kjdrawingvalidationinput interface @kanjieteam/kjdraw/drawing-validation export interface kjdrawingvalidationinput {
+    expectedrevision: number;
+    units: string;
+    checks: readonly kjdrawingvalidationcheck[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingValidationInput</h3></div><a class="permalink" href="#drawing-validation-interface-kjdrawingvalidationinput" aria-label="Link to KJDrawingValidationInput">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingValidationInput {
+    expectedRevision: number;
+    units: string;
+    checks: readonly KJDrawingValidationCheck[];
+}</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-validation-interface-kjdrawingvalidationpointreference" data-search="kjdrawingvalidationpointreference interface @kanjieteam/kjdraw/drawing-validation export interface kjdrawingvalidationpointreference {
+    objectid: string;
+    feature: kjdrawingvalidationfeature;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingValidationPointReference</h3></div><a class="permalink" href="#drawing-validation-interface-kjdrawingvalidationpointreference" aria-label="Link to KJDrawingValidationPointReference">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingValidationPointReference {
+    objectId: string;
+    feature: KJDrawingValidationFeature;
+}</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-validation-interface-kjdrawingvalidationreference" data-search="kjdrawingvalidationreference interface @kanjieteam/kjdraw/drawing-validation export interface kjdrawingvalidationreference {
+    readonly objectid: string;
+    readonly ownerid: string;
+    readonly feature?: kjdrawingvalidationfeature;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingValidationReference</h3></div><a class="permalink" href="#drawing-validation-interface-kjdrawingvalidationreference" aria-label="Link to KJDrawingValidationReference">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingValidationReference {
+    readonly objectId: string;
+    readonly ownerId: string;
+    readonly feature?: KJDrawingValidationFeature;
+}</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-validation-interface-kjdrawingvalidationresult" data-search="kjdrawingvalidationresult interface @kanjieteam/kjdraw/drawing-validation export interface kjdrawingvalidationresult {
+    readonly documentid: string;
+    readonly revision: number;
+    readonly units: string;
+    readonly passed: boolean;
+    readonly checks: readonly kjdrawingvalidationcheckresult[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingValidationResult</h3></div><a class="permalink" href="#drawing-validation-interface-kjdrawingvalidationresult" aria-label="Link to KJDrawingValidationResult">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingValidationResult {
+    readonly documentId: string;
+    readonly revision: number;
+    readonly units: string;
+    readonly passed: boolean;
+    readonly checks: readonly KJDrawingValidationCheckResult[];
+}</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
+    </article>
+<article class="api-symbol" id="drawing-validation-function-validatedrawinggeometry" data-search="validatedrawinggeometry function @kanjieteam/kjdraw/drawing-validation export declare function validatedrawinggeometry(document: kjdocument, input: kjdrawingvalidationinput): kjdrawingvalidationresult;">
+      <header><div><span class="kind">function</span><h3>validateDrawingGeometry</h3></div><a class="permalink" href="#drawing-validation-function-validatedrawinggeometry" aria-label="Link to validateDrawingGeometry">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function validateDrawingGeometry(document: KJDocument, input: KJDrawingValidationInput): KJDrawingValidationResult;</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-agent-capabilities" data-module="@kanjieteam/kjdraw/agent-capabilities">
   <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/agent-capabilities</code></h2></div><a class="permalink" href="#module-agent-capabilities" aria-label="Link to @kanjieteam/kjdraw/agent-capabilities">#</a></header>
   <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/agent-capabilities.d.ts</code></p>
   <div class="api-symbols">
@@ -482,6 +619,65 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     limit: number;
     maxLayers: number;
     maxBytes: number;
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
+<article class="api-symbol" id="agent-tools-interface-kjagentgeometryvalidationinput" data-search="kjagentgeometryvalidationinput interface @kanjieteam/kjdraw/agent-tools export interface kjagentgeometryvalidationinput {
+    expectedrevision: number;
+    units: string;
+    linelengths: {
+        id: string;
+        objectid: string;
+        expected: number;
+        tolerance: number;
+    }[];
+    circleradii: {
+        id: string;
+        objectid: string;
+        expected: number;
+        tolerance: number;
+    }[];
+    pointdistances: {
+        id: string;
+        from: kjdrawingvalidationpointreference;
+        to: kjdrawingvalidationpointreference;
+        expected: number;
+        tolerance: number;
+    }[];
+    polylineclosures: {
+        id: string;
+        objectid: string;
+        expected: boolean;
+    }[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentGeometryValidationInput</h3></div><a class="permalink" href="#agent-tools-interface-kjagentgeometryvalidationinput" aria-label="Link to KJAgentGeometryValidationInput">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentGeometryValidationInput {
+    expectedRevision: number;
+    units: string;
+    lineLengths: {
+        id: string;
+        objectId: string;
+        expected: number;
+        tolerance: number;
+    }[];
+    circleRadii: {
+        id: string;
+        objectId: string;
+        expected: number;
+        tolerance: number;
+    }[];
+    pointDistances: {
+        id: string;
+        from: KJDrawingValidationPointReference;
+        to: KJDrawingValidationPointReference;
+        expected: number;
+        tolerance: number;
+    }[];
+    polylineClosures: {
+        id: string;
+        objectId: string;
+        expected: boolean;
+    }[];
 }</code></pre>
       <p class="source-path">agent-tools.d.ts</p>
     </article>
@@ -11034,6 +11230,65 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }</code></pre>
       <p class="source-path">agent-tools.d.ts</p>
     </article>
+<article class="api-symbol" id="root-interface-kjagentgeometryvalidationinput" data-search="kjagentgeometryvalidationinput interface @kanjieteam/kjdraw export interface kjagentgeometryvalidationinput {
+    expectedrevision: number;
+    units: string;
+    linelengths: {
+        id: string;
+        objectid: string;
+        expected: number;
+        tolerance: number;
+    }[];
+    circleradii: {
+        id: string;
+        objectid: string;
+        expected: number;
+        tolerance: number;
+    }[];
+    pointdistances: {
+        id: string;
+        from: kjdrawingvalidationpointreference;
+        to: kjdrawingvalidationpointreference;
+        expected: number;
+        tolerance: number;
+    }[];
+    polylineclosures: {
+        id: string;
+        objectid: string;
+        expected: boolean;
+    }[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentGeometryValidationInput</h3></div><a class="permalink" href="#root-interface-kjagentgeometryvalidationinput" aria-label="Link to KJAgentGeometryValidationInput">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentGeometryValidationInput {
+    expectedRevision: number;
+    units: string;
+    lineLengths: {
+        id: string;
+        objectId: string;
+        expected: number;
+        tolerance: number;
+    }[];
+    circleRadii: {
+        id: string;
+        objectId: string;
+        expected: number;
+        tolerance: number;
+    }[];
+    pointDistances: {
+        id: string;
+        from: KJDrawingValidationPointReference;
+        to: KJDrawingValidationPointReference;
+        expected: number;
+        tolerance: number;
+    }[];
+    polylineClosures: {
+        id: string;
+        objectId: string;
+        expected: boolean;
+    }[];
+}</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-interface-kjagentlayoutquery" data-search="kjagentlayoutquery interface @kanjieteam/kjdraw export interface kjagentlayoutquery {
     expectedrevision: number;
     offset: number;
@@ -13842,6 +14097,131 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <header><div><span class="kind">type</span><h3>KJDrawingGeometryOmittedReason</h3></div><a class="permalink" href="#root-type-kjdrawinggeometryomittedreason" aria-label="Link to KJDrawingGeometryOmittedReason">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDrawingGeometryOmittedReason = &#39;unsupported-type&#39; | &#39;unsupported-data&#39; | &#39;geometry-budget&#39; | &#39;response-budget&#39;;</code></pre>
       <p class="source-path">drawing-context.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjdrawingvalidationcheck" data-search="kjdrawingvalidationcheck type @kanjieteam/kjdraw export type kjdrawingvalidationcheck = {
+    id: string;
+    kind: &#39;line-length&#39; | &#39;circle-radius&#39;;
+    objectid: string;
+    expected: number;
+    tolerance: number;
+} | {
+    id: string;
+    kind: &#39;point-distance&#39;;
+    from: kjdrawingvalidationpointreference;
+    to: kjdrawingvalidationpointreference;
+    expected: number;
+    tolerance: number;
+} | {
+    id: string;
+    kind: &#39;polyline-closed&#39;;
+    objectid: string;
+    expected: boolean;
+    tolerance: 0;
+};">
+      <header><div><span class="kind">type</span><h3>KJDrawingValidationCheck</h3></div><a class="permalink" href="#root-type-kjdrawingvalidationcheck" aria-label="Link to KJDrawingValidationCheck">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDrawingValidationCheck = {
+    id: string;
+    kind: &#39;line-length&#39; | &#39;circle-radius&#39;;
+    objectId: string;
+    expected: number;
+    tolerance: number;
+} | {
+    id: string;
+    kind: &#39;point-distance&#39;;
+    from: KJDrawingValidationPointReference;
+    to: KJDrawingValidationPointReference;
+    expected: number;
+    tolerance: number;
+} | {
+    id: string;
+    kind: &#39;polyline-closed&#39;;
+    objectId: string;
+    expected: boolean;
+    tolerance: 0;
+};</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjdrawingvalidationcheckresult" data-search="kjdrawingvalidationcheckresult interface @kanjieteam/kjdraw export interface kjdrawingvalidationcheckresult {
+    readonly id: string;
+    readonly kind: kjdrawingvalidationcheck[&#39;kind&#39;];
+    readonly actual: number | boolean;
+    readonly expected: number | boolean;
+    readonly error: number;
+    readonly tolerance: number;
+    readonly passed: boolean;
+    readonly references: readonly kjdrawingvalidationreference[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingValidationCheckResult</h3></div><a class="permalink" href="#root-interface-kjdrawingvalidationcheckresult" aria-label="Link to KJDrawingValidationCheckResult">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingValidationCheckResult {
+    readonly id: string;
+    readonly kind: KJDrawingValidationCheck[&#39;kind&#39;];
+    readonly actual: number | boolean;
+    readonly expected: number | boolean;
+    readonly error: number;
+    readonly tolerance: number;
+    readonly passed: boolean;
+    readonly references: readonly KJDrawingValidationReference[];
+}</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjdrawingvalidationfeature" data-search="kjdrawingvalidationfeature type @kanjieteam/kjdraw export type kjdrawingvalidationfeature = &#39;start&#39; | &#39;end&#39; | &#39;center&#39; | &#39;origin&#39;;">
+      <header><div><span class="kind">type</span><h3>KJDrawingValidationFeature</h3></div><a class="permalink" href="#root-type-kjdrawingvalidationfeature" aria-label="Link to KJDrawingValidationFeature">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDrawingValidationFeature = &#39;start&#39; | &#39;end&#39; | &#39;center&#39; | &#39;origin&#39;;</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjdrawingvalidationinput" data-search="kjdrawingvalidationinput interface @kanjieteam/kjdraw export interface kjdrawingvalidationinput {
+    expectedrevision: number;
+    units: string;
+    checks: readonly kjdrawingvalidationcheck[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingValidationInput</h3></div><a class="permalink" href="#root-interface-kjdrawingvalidationinput" aria-label="Link to KJDrawingValidationInput">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingValidationInput {
+    expectedRevision: number;
+    units: string;
+    checks: readonly KJDrawingValidationCheck[];
+}</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjdrawingvalidationpointreference" data-search="kjdrawingvalidationpointreference interface @kanjieteam/kjdraw export interface kjdrawingvalidationpointreference {
+    objectid: string;
+    feature: kjdrawingvalidationfeature;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingValidationPointReference</h3></div><a class="permalink" href="#root-interface-kjdrawingvalidationpointreference" aria-label="Link to KJDrawingValidationPointReference">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingValidationPointReference {
+    objectId: string;
+    feature: KJDrawingValidationFeature;
+}</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjdrawingvalidationreference" data-search="kjdrawingvalidationreference interface @kanjieteam/kjdraw export interface kjdrawingvalidationreference {
+    readonly objectid: string;
+    readonly ownerid: string;
+    readonly feature?: kjdrawingvalidationfeature;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingValidationReference</h3></div><a class="permalink" href="#root-interface-kjdrawingvalidationreference" aria-label="Link to KJDrawingValidationReference">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingValidationReference {
+    readonly objectId: string;
+    readonly ownerId: string;
+    readonly feature?: KJDrawingValidationFeature;
+}</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjdrawingvalidationresult" data-search="kjdrawingvalidationresult interface @kanjieteam/kjdraw export interface kjdrawingvalidationresult {
+    readonly documentid: string;
+    readonly revision: number;
+    readonly units: string;
+    readonly passed: boolean;
+    readonly checks: readonly kjdrawingvalidationcheckresult[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingValidationResult</h3></div><a class="permalink" href="#root-interface-kjdrawingvalidationresult" aria-label="Link to KJDrawingValidationResult">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingValidationResult {
+    readonly documentId: string;
+    readonly revision: number;
+    readonly units: string;
+    readonly passed: boolean;
+    readonly checks: readonly KJDrawingValidationCheckResult[];
+}</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
     </article>
 <article class="api-symbol" id="root-class-kjdrawsdk" data-search="kjdrawsdk class @kanjieteam/kjdraw export declare class kjdrawsdk {
     readonly version: string;
@@ -16907,6 +17287,11 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     previousState?: KJDocumentState;
 }): KJValidationResult;</code></pre>
       <p class="source-path">schema.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-function-validatedrawinggeometry" data-search="validatedrawinggeometry function @kanjieteam/kjdraw export declare function validatedrawinggeometry(document: kjdocument, input: kjdrawingvalidationinput): kjdrawingvalidationresult;">
+      <header><div><span class="kind">function</span><h3>validateDrawingGeometry</h3></div><a class="permalink" href="#root-function-validatedrawinggeometry" aria-label="Link to validateDrawingGeometry">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function validateDrawingGeometry(document: KJDocument, input: KJDrawingValidationInput): KJDrawingValidationResult;</code></pre>
+      <p class="source-path">drawing-validation.d.ts</p>
     </article>
 <article class="api-symbol" id="root-function-validatekjmodificationselection" data-search="validatekjmodificationselection function @kanjieteam/kjdraw export declare function validatekjmodificationselection(definition: kjmodificationdefinition, entities: readonly ({
     readonly id: string;

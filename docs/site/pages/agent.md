@@ -17,6 +17,7 @@ The current source checkout adds `KJAgentToolSession` from `@kanjieteam/kjdraw/a
 | `cad_read_layouts` | Discover layout IDs, owner spaces and numeric page settings with bounded pagination |
 | `cad_query_drawing` | Filtered, revision-bound pages by ID, type, layer, owner space and XY region |
 | `cad_measure_distance` | Planar point-to-point distance in the supplied drawing units |
+| `cad_check_geometry` | Revision-bound evidence for explicit native object lengths, radii, feature distances and polyline closure |
 | `cad_propose_lines` | Proposed batch of up to 64 XY lines |
 | `cad_propose_circles` | Proposed batch of up to 64 XY circles |
 | `cad_propose_move` | Proposed XY move of up to 64 visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE/XLINE/RAY objects; preserves guide directions |
@@ -52,6 +53,26 @@ node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs
 ```
 
 It exercises proposal, simulated host approval, duplicate rejection, native-file reopen and undo without a model or API key. This verifies tool plumbing, not natural-language design success.
+
+## Check the actual drawing geometry {#check-geometry}
+
+Use `cad_check_geometry` after reading the actual object IDs. Supply all four arrays, with 1–64 checks in total. Numeric expectations and tolerances must be explicit, finite and nonnegative. An unmet requirement returns `ok: true` with `value.passed: false`: the read succeeded and the geometry failed the requested check.
+
+```ts
+import type { KJAgentGeometryValidationInput } from '@kanjieteam/kjdraw/agent-tools'
+
+const checks: KJAgentGeometryValidationInput = {
+  expectedRevision: drawing.revision, units: 'millimeter',
+  lineLengths: [{ id: 'required-length', objectId: lineId, expected: 20, tolerance: 0.001 }],
+  circleRadii: [], pointDistances: [], polylineClosures: [],
+}
+const result = await session.call('cad_check_geometry', checks)
+// Display result.value.checks (actual, expected, error, tolerance and passed) when result.ok.
+```
+
+Lengths and feature distances measure native owner coordinates in 3D. Point pairs must have the same owner; supported features are LINE start/end, CIRCLE/ARC center in the default +Z plane, and XLINE/RAY origin. Block instances are not expanded. Circle radius is intrinsic. Polyline checks inspect the canonical closed flag and valid vertices, including curved two-vertex loops; they do not certify self-intersection, area or general topology. Up to 20,000 total polyline vertices may be inspected. Wrong types, absent objects, stale revisions or mismatched units are rejected. The same read-only implementation is public as `validateDrawingGeometry` from `@kanjieteam/kjdraw/drawing-validation`.
+
+Each result binds actual evidence to a document revision and reports reference IDs and owners. It only proves the supplied checks: the host must preserve user-approved expectations and tolerances instead of allowing a model to relax them and call the entire design correct. Capability-package check descriptions remain guidance; a model's success text is not this execution evidence.
 
 ## Keep domain capabilities with the project {#domain-capabilities}
 
@@ -307,6 +328,7 @@ Start with the stable [Agent integration contract](https://github.com/KanJieTeam
 | `cad_read_layouts` | 有界分页发现布局 ID、归属空间和数值页面参数 |
 | `cad_query_drawing` | 按 ID、类型、图层、归属空间和 XY 范围筛选并绑定版本分页 |
 | `cad_measure_distance` | 使用图纸单位计算同一坐标系中两点的平面距离 |
+| `cad_check_geometry` | 绑定修订，按明确要求检查真实对象的长度、半径、特征点距离和多段线闭合 |
 | `cad_propose_lines` | 最多 64 条 XY 直线的创建方案 |
 | `cad_propose_circles` | 最多 64 个 XY 圆的创建方案 |
 | `cad_propose_move` | 最多 64 个可见且可编辑的模型空间直线、圆、圆弧、轻量多段线、构造线或射线的 XY 移动方案；保留辅助线方向 |
@@ -342,6 +364,26 @@ node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs
 ```
 
 示例不调用模型或使用密钥，验证提案、模拟宿主批准、重复执行拒绝、原生文件重开和撤销。这是工具链验证，不是自然语言设计成功率的证明。
+
+## 检查图纸中的实际几何 {#check-geometry}
+
+先读取真实对象 ID，再调用 `cad_check_geometry`。四组数组均须提供，总计 1–64 项检查；数值期望与容差须明确、有限且非负。不满足要求时返回 `ok: true`、`value.passed: false`，表示读取成功，但几何未满足指定检查。
+
+```ts
+import type { KJAgentGeometryValidationInput } from '@kanjieteam/kjdraw/agent-tools'
+
+const checks: KJAgentGeometryValidationInput = {
+  expectedRevision: drawing.revision, units: 'millimeter',
+  lineLengths: [{ id: 'required-length', objectId: lineId, expected: 20, tolerance: 0.001 }],
+  circleRadii: [], pointDistances: [], polylineClosures: [],
+}
+const result = await session.call('cad_check_geometry', checks)
+// result.ok 时展示 result.value.checks 的实际值、期望值、偏差、容差及通过状态。
+```
+
+长度和特征点距离使用对象原生归属坐标系中的三维坐标。点对必须属于同一 owner；支持 LINE 的 start/end、默认 +Z 平面 CIRCLE/ARC 的 center，以及 XLINE/RAY 的 origin；不展开块实例。圆半径为原生半径。多段线检查规范 closed 标志与有效顶点，支持两顶点圆弧闭合，但不证明无自交、面积或完整拓扑正确；每次最多检查 20,000 个多段线顶点。对象类型错误、对象缺失、修订过期或单位不一致会被拒绝。同一只读实现通过 `@kanjieteam/kjdraw/drawing-validation` 的 `validateDrawingGeometry` 提供给开发者。
+
+结果绑定文档修订，并包含引用对象 ID 与 owner，只证明传入的这些检查。宿主需要保存用户认可的期望与容差，不能让模型自行放宽后宣称整张图纸正确。能力包中的检查说明仍是指导信息；模型口头成功也不能替代实际执行证据。
 
 ## 让行业能力随项目保持版本 {#domain-capabilities}
 

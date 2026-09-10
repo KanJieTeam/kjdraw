@@ -57,6 +57,11 @@
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
+    "./drawing-validation": {
+      "types": "./types/drawing-validation.d.ts",
+      "import": "./src/drawing-validation.js",
+      "default": "./src/drawing-validation.js"
+    },
     "./agent-capabilities": {
       "types": "./types/agent-capabilities.d.ts",
       "import": "./src/agent-capabilities.js",

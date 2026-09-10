@@ -245,3 +245,57 @@ test('an old chat undo cannot erase a later manual edit', async ({ page }) => {
   await expect(page.locator('#entity-count')).toHaveText('10 entities')
   await expect(page.locator('#revision')).toHaveText(revision)
 })
+
+test('geometry validation shows real failed requirements even when the model claims success', async ({ page }) => {
+  await openChat(page)
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'checked-drawing', units: 'millimeter' })
+  await document.transact('measurable line', transaction => transaction.createEntity('LINE', { start: [0,0,0], end: [10,0,0] }, { id: 'measured-line' }))
+  await page.locator('#file-input').setInputFiles({ name: 'checked-line.kjd', mimeType: 'application/json', buffer: Buffer.from(await sdk.writeDocument(document, { format: 'KJD' })) })
+  await expect(page.locator('#entity-count')).toHaveText('1 entities')
+  const revision = await page.locator('#revision').textContent(), requests = [], errors = []
+  page.on('pageerror', error => errors.push(error.message))
+  await page.route('**/api/model', async route => {
+    const body = route.request().postDataJSON(); requests.push(body)
+    if (requests.length === 1) return route.fulfill({ json: wire([['read', 'cad_read_drawing']]) })
+    const result = JSON.parse(body.messages.at(-1).content)
+    expect(result.ok).toBe(true)
+    if (requests.length === 2) {
+      expect(result.value.entities).toHaveLength(1)
+      expect(result.value.entities[0].id).toBe('measured-line')
+      return route.fulfill({ json: wire([['check', 'cad_check_geometry', {
+        expectedRevision: result.value.revision, units: result.value.units,
+        lineLengths: [{ id: 'required-length', objectId: result.value.entities[0].id, expected: 12, tolerance: 0.01 }],
+        circleRadii: [], pointDistances: [], polylineClosures: [],
+      }]]) })
+    }
+    expect(result.value.documentId).toBe('checked-drawing')
+    expect(result.value.passed).toBe(false)
+    expect(result.value.checks).toHaveLength(1)
+    expect(result.value.checks[0]).toMatchObject({ id: 'required-length', kind: 'line-length', actual: 10, expected: 12, tolerance: 0.01, passed: false })
+    return route.fulfill({ json: wire([], 'All requirements passed. The drawing is perfect.') })
+  })
+  await connect(page)
+  await send(page, 'Check whether this line has length 12 mm within 0.01 mm tolerance.')
+  const validation = page.locator('.chat-validation')
+  await expect(validation).toBeVisible()
+  await expect(validation).toContainText('Failed')
+  await expect(validation).toContainText('required-length')
+  const requirement = validation.locator('tbody tr[data-check-id="required-length"]')
+  await expect(requirement).toHaveAttribute('data-passed', 'false')
+  await expect(requirement.locator('[data-field="actual"]')).toHaveText('10')
+  await expect(requirement.locator('[data-field="expected"]')).toHaveText('12')
+  await expect(requirement.locator('[data-field="tolerance"]')).toHaveText('0.01')
+  await expect(page.locator('#chat-messages')).toContainText('All requirements passed. The drawing is perfect.')
+  await expect(validation).not.toContainText('The drawing is perfect')
+  expect(requests).toHaveLength(3)
+  await expect(page.locator('#revision')).toHaveText(revision)
+  await expect(page.locator('#entity-count')).toHaveText('1 entities')
+  await expect(page.getByRole('button', { name: 'Apply changes', exact: true })).toHaveCount(0)
+  const downloadEvent = page.waitForEvent('download')
+  await page.locator('#save').click()
+  const download = await downloadEvent, reopened = await openKjpPackage(await readFile(await download.path()))
+  expect(reopened.activeDocument.getObject('measured-line').payload).toEqual(document.getObject('measured-line').payload)
+  expect(reopened.activeDocument.revision).toBe(document.revision)
+  expect(errors).toEqual([])
+  await snapshot(page, 1440, 'failed-geometry-validation')
+})

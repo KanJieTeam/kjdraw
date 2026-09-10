@@ -5,6 +5,7 @@ import { deepFreeze } from './utils.js';
 import { createId } from './ids.js';
 import { createAgentGeometryPreview, agentPreviewMatchesDocument } from './agent-preview.js';
 import { buildAgentDrawingEntities } from './agent-drawing.js';
+import { validateDrawingGeometry } from './drawing-validation.js';
 const number = {
     type: 'number',
     minimum: -1e12,
@@ -79,7 +80,54 @@ const queryFilters = {
     }),
     required: []
 };
+const nonnegative = {
+    ...number,
+    minimum: 0
+};
+const measuredObject = object({
+    id: text,
+    objectId: text,
+    expected: nonnegative,
+    tolerance: nonnegative
+});
+const pointReference = object({
+    objectId: text,
+    feature: {
+        type: 'string',
+        enum: [
+            'start',
+            'end',
+            'center',
+            'origin'
+        ]
+    }
+});
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
+    {
+        name: 'cad_check_geometry',
+        effect: 'read',
+        description: 'Check 1–64 explicit requirements against actual drawing objects at expectedRevision. Supply all four groups, unused groups as empty arrays. LINE lengths and point distances use native owner coordinates in 3D; point pairs must share an owner. CIRCLE radius is intrinsic. Point features are limited to supported native entities, not expanded block instances. Polyline closure checks the stored closed flag and valid vertices, not self-intersection or topology. Returns actual values, deviations, tolerances and pass/fail for supplied requirements only. Does not infer the user intent, certify a design, modify or approve a drawing.',
+        inputSchema: object({
+            expectedRevision: revision,
+            units: text,
+            lineLengths: drawingGroup(measuredObject),
+            circleRadii: drawingGroup(measuredObject),
+            pointDistances: drawingGroup(object({
+                id: text,
+                from: pointReference,
+                to: pointReference,
+                expected: nonnegative,
+                tolerance: nonnegative
+            })),
+            polylineClosures: drawingGroup(object({
+                id: text,
+                objectId: text,
+                expected: {
+                    type: 'boolean'
+                }
+            }))
+        })
+    },
     {
         name: 'cad_read_drawing',
         effect: 'read',
@@ -247,7 +295,17 @@ function validate(schema, value, path = 'arguments') {
         if (!Array.isArray(value)) fail('expected an array');
         const items = value;
         if (items.length < (schema.minItems ?? 0) || items.length > (schema.maxItems ?? 64)) fail('array length outside allowed bounds');
-        for(let index = 0; index < items.length; index++)validate(schema.items, items[index], `${path}[${index}]`);
+        for (const key of Reflect.ownKeys(items)){
+            if (key === 'length') continue;
+            if (typeof key !== 'string' || !/^(0|[1-9]\d*)$/.test(key) || Number(key) >= items.length) fail('unknown array property');
+            const descriptor = Object.getOwnPropertyDescriptor(items, key);
+            if (!('value' in descriptor) || !descriptor.enumerable) fail('array accessors and hidden properties are not accepted');
+        }
+        for(let index = 0; index < items.length; index++){
+            const descriptor = Object.getOwnPropertyDescriptor(items, String(index));
+            if (!descriptor || !('value' in descriptor)) fail('expected a dense data array');
+            validate(schema.items, descriptor.value, `${path}[${index}]`);
+        }
     } else if (schema.type === 'string') {
         if (typeof value !== 'string' || value.length < (schema.minLength ?? 0) || value.length > (schema.maxLength ?? 256) || !value.trim()) fail('expected a nonempty bounded string');
         if (schema.enum && !schema.enum.includes(value)) fail(`expected one of: ${schema.enum.join(', ')}`);
@@ -346,7 +404,32 @@ export class KJAgentToolSession {
                     });
                 } else {
                     if (args.units !== document.snapshot().header.units) throw new KJValidationError('Unit mismatch; read the drawing units before calling this tool');
-                    if (name === 'cad_measure_distance') {
+                    if (name === 'cad_check_geometry') {
+                        const input = args;
+                        value = validateDrawingGeometry(document, {
+                            expectedRevision: input.expectedRevision,
+                            units: input.units,
+                            checks: [
+                                ...input.lineLengths.map((item)=>({
+                                        ...item,
+                                        kind: 'line-length'
+                                    })),
+                                ...input.circleRadii.map((item)=>({
+                                        ...item,
+                                        kind: 'circle-radius'
+                                    })),
+                                ...input.pointDistances.map((item)=>({
+                                        ...item,
+                                        kind: 'point-distance'
+                                    })),
+                                ...input.polylineClosures.map((item)=>({
+                                        ...item,
+                                        kind: 'polyline-closed',
+                                        tolerance: 0
+                                    }))
+                            ]
+                        });
+                    } else if (name === 'cad_measure_distance') {
                         const a = xy(args.start), b = xy(args.end);
                         value = {
                             documentId: document.id,

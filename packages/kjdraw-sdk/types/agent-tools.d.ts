@@ -1,6 +1,7 @@
 import type { KJDrawSDK } from './sdk.js';
 import type { KJDocument } from './document.js';
 import { type KJDrawingContextOptions } from './drawing-context.js';
+import { type KJDrawingValidationPointReference } from './drawing-validation.js';
 export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';
 export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';
 export interface KJAgentDrawingQuery {
@@ -17,6 +18,34 @@ export interface KJAgentLayoutQuery {
     offset: number;
     limit: number;
     maxBytes: number;
+}
+export interface KJAgentGeometryValidationInput {
+    expectedRevision: number;
+    units: string;
+    lineLengths: {
+        id: string;
+        objectId: string;
+        expected: number;
+        tolerance: number;
+    }[];
+    circleRadii: {
+        id: string;
+        objectId: string;
+        expected: number;
+        tolerance: number;
+    }[];
+    pointDistances: {
+        id: string;
+        from: KJDrawingValidationPointReference;
+        to: KJDrawingValidationPointReference;
+        expected: number;
+        tolerance: number;
+    }[];
+    polylineClosures: {
+        id: string;
+        objectId: string;
+        expected: boolean;
+    }[];
 }
 export interface KJAgentToolSchema {
     readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';

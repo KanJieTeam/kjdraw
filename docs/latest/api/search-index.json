@@ -2,8 +2,72 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:f949474ddd82721d411275260ac7a2f09c6ab868c7de9aadcc1e5121153c2c8e",
+  "sourceDigest": "sha256:cf9244aee6da79d466c17396619e88a581477de44c773e993f13d3732483ac5e",
   "entries": [
+    {
+      "name": "KJDrawingValidationCheck",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/drawing-validation",
+      "href": "./api/reference/#drawing-validation-type-kjdrawingvalidationcheck",
+      "anchor": "drawing-validation-type-kjdrawingvalidationcheck",
+      "summary": "export type KJDrawingValidationCheck = { id: string; kind: 'line-length' | 'circle-radius'; objectId: string; expected: number; tolerance: number; } | { id: string; kind: 'point-distance'; from: KJDrawingValidationPointR"
+    },
+    {
+      "name": "KJDrawingValidationCheckResult",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drawing-validation",
+      "href": "./api/reference/#drawing-validation-interface-kjdrawingvalidationcheckresult",
+      "anchor": "drawing-validation-interface-kjdrawingvalidationcheckresult",
+      "summary": "export interface KJDrawingValidationCheckResult { readonly id: string; readonly kind: KJDrawingValidationCheck['kind']; readonly actual: number | boolean; readonly expected: number | boolean; readonly error: number; read"
+    },
+    {
+      "name": "KJDrawingValidationFeature",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/drawing-validation",
+      "href": "./api/reference/#drawing-validation-type-kjdrawingvalidationfeature",
+      "anchor": "drawing-validation-type-kjdrawingvalidationfeature",
+      "summary": "export type KJDrawingValidationFeature = 'start' | 'end' | 'center' | 'origin';"
+    },
+    {
+      "name": "KJDrawingValidationInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drawing-validation",
+      "href": "./api/reference/#drawing-validation-interface-kjdrawingvalidationinput",
+      "anchor": "drawing-validation-interface-kjdrawingvalidationinput",
+      "summary": "export interface KJDrawingValidationInput { expectedRevision: number; units: string; checks: readonly KJDrawingValidationCheck[]; }"
+    },
+    {
+      "name": "KJDrawingValidationPointReference",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drawing-validation",
+      "href": "./api/reference/#drawing-validation-interface-kjdrawingvalidationpointreference",
+      "anchor": "drawing-validation-interface-kjdrawingvalidationpointreference",
+      "summary": "export interface KJDrawingValidationPointReference { objectId: string; feature: KJDrawingValidationFeature; }"
+    },
+    {
+      "name": "KJDrawingValidationReference",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drawing-validation",
+      "href": "./api/reference/#drawing-validation-interface-kjdrawingvalidationreference",
+      "anchor": "drawing-validation-interface-kjdrawingvalidationreference",
+      "summary": "export interface KJDrawingValidationReference { readonly objectId: string; readonly ownerId: string; readonly feature?: KJDrawingValidationFeature; }"
+    },
+    {
+      "name": "KJDrawingValidationResult",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/drawing-validation",
+      "href": "./api/reference/#drawing-validation-interface-kjdrawingvalidationresult",
+      "anchor": "drawing-validation-interface-kjdrawingvalidationresult",
+      "summary": "export interface KJDrawingValidationResult { readonly documentId: string; readonly revision: number; readonly units: string; readonly passed: boolean; readonly checks: readonly KJDrawingValidationCheckResult[]; }"
+    },
+    {
+      "name": "validateDrawingGeometry",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/drawing-validation",
+      "href": "./api/reference/#drawing-validation-function-validatedrawinggeometry",
+      "anchor": "drawing-validation-function-validatedrawinggeometry",
+      "summary": "export declare function validateDrawingGeometry(document: KJDocument, input: KJDrawingValidationInput): KJDrawingValidationResult;"
+    },
     {
       "name": "KJAgentCapabilityLockEntry",
       "kind": "interface",
@@ -227,6 +291,14 @@
       "href": "./api/reference/#agent-tools-interface-kjagentdrawingquery",
       "anchor": "agent-tools-interface-kjagentdrawingquery",
       "summary": "export interface KJAgentDrawingQuery { expectedRevision: number; filters: Pick<KJDrawingContextOptions, 'ids' | 'types' | 'layerIds' | 'spaceId' | 'includeHidden' | 'bounds'>; offset: number; layerOffset: number; limit: "
+    },
+    {
+      "name": "KJAgentGeometryValidationInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-interface-kjagentgeometryvalidationinput",
+      "anchor": "agent-tools-interface-kjagentgeometryvalidationinput",
+      "summary": "export interface KJAgentGeometryValidationInput { expectedRevision: number; units: string; lineLengths: { id: string; objectId: string; expected: number; tolerance: number; }[]; circleRadii: { id: string; objectId: strin"
     },
     {
       "name": "KJAgentLayoutQuery",
@@ -6253,6 +6325,14 @@
       "summary": "export interface KJAgentDrawingQuery { expectedRevision: number; filters: Pick<KJDrawingContextOptions, 'ids' | 'types' | 'layerIds' | 'spaceId' | 'includeHidden' | 'bounds'>; offset: number; layerOffset: number; limit: "
     },
     {
+      "name": "KJAgentGeometryValidationInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentgeometryvalidationinput",
+      "anchor": "root-interface-kjagentgeometryvalidationinput",
+      "summary": "export interface KJAgentGeometryValidationInput { expectedRevision: number; units: string; lineLengths: { id: string; objectId: string; expected: number; tolerance: number; }[]; circleRadii: { id: string; objectId: strin"
+    },
+    {
       "name": "KJAgentLayoutQuery",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw",
@@ -7411,6 +7491,62 @@
       "href": "./api/reference/#root-type-kjdrawinggeometryomittedreason",
       "anchor": "root-type-kjdrawinggeometryomittedreason",
       "summary": "export type KJDrawingGeometryOmittedReason = 'unsupported-type' | 'unsupported-data' | 'geometry-budget' | 'response-budget';"
+    },
+    {
+      "name": "KJDrawingValidationCheck",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjdrawingvalidationcheck",
+      "anchor": "root-type-kjdrawingvalidationcheck",
+      "summary": "export type KJDrawingValidationCheck = { id: string; kind: 'line-length' | 'circle-radius'; objectId: string; expected: number; tolerance: number; } | { id: string; kind: 'point-distance'; from: KJDrawingValidationPointR"
+    },
+    {
+      "name": "KJDrawingValidationCheckResult",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdrawingvalidationcheckresult",
+      "anchor": "root-interface-kjdrawingvalidationcheckresult",
+      "summary": "export interface KJDrawingValidationCheckResult { readonly id: string; readonly kind: KJDrawingValidationCheck['kind']; readonly actual: number | boolean; readonly expected: number | boolean; readonly error: number; read"
+    },
+    {
+      "name": "KJDrawingValidationFeature",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjdrawingvalidationfeature",
+      "anchor": "root-type-kjdrawingvalidationfeature",
+      "summary": "export type KJDrawingValidationFeature = 'start' | 'end' | 'center' | 'origin';"
+    },
+    {
+      "name": "KJDrawingValidationInput",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdrawingvalidationinput",
+      "anchor": "root-interface-kjdrawingvalidationinput",
+      "summary": "export interface KJDrawingValidationInput { expectedRevision: number; units: string; checks: readonly KJDrawingValidationCheck[]; }"
+    },
+    {
+      "name": "KJDrawingValidationPointReference",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdrawingvalidationpointreference",
+      "anchor": "root-interface-kjdrawingvalidationpointreference",
+      "summary": "export interface KJDrawingValidationPointReference { objectId: string; feature: KJDrawingValidationFeature; }"
+    },
+    {
+      "name": "KJDrawingValidationReference",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdrawingvalidationreference",
+      "anchor": "root-interface-kjdrawingvalidationreference",
+      "summary": "export interface KJDrawingValidationReference { readonly objectId: string; readonly ownerId: string; readonly feature?: KJDrawingValidationFeature; }"
+    },
+    {
+      "name": "KJDrawingValidationResult",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdrawingvalidationresult",
+      "anchor": "root-interface-kjdrawingvalidationresult",
+      "summary": "export interface KJDrawingValidationResult { readonly documentId: string; readonly revision: number; readonly units: string; readonly passed: boolean; readonly checks: readonly KJDrawingValidationCheckResult[]; }"
     },
     {
       "name": "KJDrawSDK",
@@ -9483,6 +9619,14 @@
       "href": "./api/reference/#root-function-validatedocumentstate",
       "anchor": "root-function-validatedocumentstate",
       "summary": "export declare function validateDocumentState(input: unknown, { throwOnError, previousState }?: { throwOnError?: boolean; previousState?: KJDocumentState; }): KJValidationResult;"
+    },
+    {
+      "name": "validateDrawingGeometry",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-validatedrawinggeometry",
+      "anchor": "root-function-validatedrawinggeometry",
+      "summary": "export declare function validateDrawingGeometry(document: KJDocument, input: KJDrawingValidationInput): KJDrawingValidationResult;"
     },
     {
       "name": "validateKJModificationSelection",

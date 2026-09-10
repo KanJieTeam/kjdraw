@@ -4,6 +4,9 @@ import { runKJAgentTask } from '../../packages/kjdraw-sdk/src/agent-runner.js'
 
 const copy = {
   title: ['KJDraw AI', 'KJDraw AI'], newChat: ['New conversation', '新对话'], connect: ['Connect model', '连接模型'],
+  geometryChecks: ['Geometry checks', '几何检查'], passed: ['Passed', '通过'], checkFailed: ['Failed', '未通过'],
+  actual: ['Actual', '实测'], expected: ['Expected', '目标'], tolerance: ['Tolerance', '容差'], check: ['Check', '检查项'],
+  checkScope: ['Checks the supplied requirements at this revision; does not certify the complete design.', '仅检查该版本中提供的要求，不代表整张图纸已完成验收。'],
   offline: ['No model connected', '尚未连接模型'], configured: ['Model configured', '模型已配置'],
   welcome: ['What would you like to draw?', '你想绘制什么？'], welcomeBody: ['Describe a drawing, inspect this document, or ask for a change.', '描述一张图纸、查看当前内容，或者提出修改需求。'],
   inspect: ['Inspect this drawing', '查看这张图'], inspectPrompt: ['Read this drawing and summarize its geometry and units.', '请读取当前图纸，概括图形内容和使用的单位。'],
@@ -164,6 +167,22 @@ export function createAgentChat(container, options) {
     }
     log.scrollTop=log.scrollHeight
   }
+  function showValidation(result) {
+    const card=append('assistant',L('geometryChecks'),false)
+    card.classList.add('chat-validation'); card.dataset.passed=String(result.passed)
+    card.append(element('p','chat-validation-status',`${L(result.passed?'passed':'checkFailed')} · REV ${result.revision} · ${result.units}`))
+    const scroll=element('div','chat-validation-scroll'), table=element('table'), head=element('thead'), headings=element('tr'), body=element('tbody')
+    for(const key of ['check','actual','expected','tolerance'])headings.append(element('th','',L(key)))
+    head.append(headings)
+    for(const check of result.checks){
+      const row=element('tr'); row.dataset.checkId=check.id; row.dataset.passed=String(check.passed)
+      row.append(element('td','',`${check.id} · ${L(check.passed?'passed':'checkFailed')}`))
+      for(const key of ['actual','expected','tolerance']){const cell=element('td','',String(check[key]));cell.dataset.field=key;row.append(cell)}
+      body.append(row)
+    }
+    table.append(head,body);scroll.append(table);card.append(scroll,element('p','chat-validation-scope',L('checkScope')))
+    log.scrollTop=log.scrollHeight
+  }
   async function submit() {
     const text=input.value.trim(); if(!text||controller||applying)return
     syncContext()
@@ -181,11 +200,12 @@ export function createAgentChat(container, options) {
     try {
       const result=await runKJAgentTask({session:tools,model,prompt,signal:controller.signal,onProgress:event=>{
         if(current!==epoch)return
-        const key=event.phase==='model'?'working':event.toolName?.startsWith('cad_propose_')?'proposing':event.toolName==='cad_measure_distance'?'measuring':'reading'
+        const key=event.phase==='model'?'working':event.toolName?.startsWith('cad_propose_')?'proposing':['cad_measure_distance','cad_check_geometry'].includes(event.toolName)?'measuring':'reading'
         activity.querySelector('.chat-message-body').textContent=L(key)
       }})
       if(current!==epoch||binding!==source)return
       activity.remove()
+      for(const output of result.outputs)if(output.name==='cad_check_geometry'&&output.result.ok)showValidation(output.result.value)
       if(result.status==='cancelled')append('assistant',L('cancelled'))
       else if(result.status==='failed')append('assistant',L('failed'))
       else if(result.status==='limit-reached')append('assistant',L('limit'))

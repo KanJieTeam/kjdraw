@@ -17,6 +17,13 @@
 .chat-user { margin-left: 24px; padding: 10px 14px; border-radius: 14px 14px 4px 14px; background: var(--kj-surface-subtle); }
 .chat-user .chat-speaker { display: none; }
 .chat-card-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.chat-validation { border: 1px solid var(--kj-border); border-radius: 10px; padding: 10px; }
+.chat-validation-scroll { overflow-x: auto; }
+.chat-validation table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.chat-validation th, .chat-validation td { padding: 5px 4px; border-bottom: 1px solid var(--kj-border); text-align: left; }
+.chat-validation th { color: var(--kj-muted); font-weight: 500; }
+.chat-validation tr[data-passed="false"], .chat-validation[data-passed="false"] .chat-validation-status { color: #bc3340; }
+.chat-panel .chat-validation-scope { font-size: 10px; color: var(--kj-muted); margin: 8px 0 0; }
 .chat-card-actions button { border-radius: 8px; padding: 7px 10px; font-size: 12px; }
 .chat-panel .chat-proposal-summary { font: 11px var(--kj-mono); margin: 10px 0; padding: 10px; background: var(--kj-chrome); border-radius: 8px; }
 .chat-panel .chat-proposal-state { font-size: 12px; margin: 0 0 12px; }

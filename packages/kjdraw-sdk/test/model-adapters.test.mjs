@@ -50,6 +50,43 @@ function assertContinuation(protocol, body) {
 }
 
 for (const protocol of protocols) {
+  test(`${protocol}: actual object checks return failed requirements as successful read results`, async () => {
+    const { document, session } = fixture()
+    await document.transact('Measured geometry', tx => tx.createEntity('LINE', { start: [0, 0, 0], end: [3, 4, 12] }, { id: 'inspection-line' }))
+    const before = document.serialize()
+    let step = 0
+    const model = createKJModelAdapter({ protocol, model: 'offline-geometry-check-fixture', request: async ({ body }) => {
+      const defs = protocol === 'gemini-generate-content' ? body.tools[0].functionDeclarations : body.tools
+      assert.deepEqual(defs.map(tool => tool.function?.name ?? tool.name).sort(), ['cad_check_geometry', 'cad_read_drawing'])
+      const def = defs.find(tool => (tool.function?.name ?? tool.name) === 'cad_check_geometry')
+      const schema = def.function?.parameters ?? def.parameters ?? def.input_schema ?? def.parametersJsonSchema
+      assert.equal(schema.additionalProperties, false)
+      assert.deepEqual(schema.required, ['expectedRevision', 'units', 'lineLengths', 'circleRadii', 'pointDistances', 'polylineClosures'])
+      assert.equal(schema.properties.lineLengths.maxItems, 64)
+      if (step++ === 0) return wire(protocol, [call('read', 'cad_read_drawing')])
+      const toolResult = resultAtEnd(protocol, body)
+      assert.equal(toolResult.ok, true, JSON.stringify(toolResult))
+      if (step === 2) {
+        const entity = toolResult.value.entities.find(item => item.type === 'LINE')
+        assert.equal(entity.id, 'inspection-line')
+        return wire(protocol, [call('check', 'cad_check_geometry', { expectedRevision: toolResult.value.revision, units: toolResult.value.units,
+          lineLengths: [{ id: 'requested-length', objectId: entity.id, expected: 20, tolerance: 0.001 }], circleRadii: [], pointDistances: [], polylineClosures: [] })])
+      }
+      assert.equal(toolResult.value.passed, false)
+      assert.equal(toolResult.value.checks[0].actual, 13)
+      assert.equal(toolResult.value.checks[0].expected, 20)
+      assert.equal(toolResult.value.checks[0].error, 7)
+      if (protocol === 'anthropic-messages') assert.equal(body.messages.at(-1).content[0].is_error, false)
+      return wire(protocol, [], 'The actual line is 13 mm; the required 20 mm length failed by 7 mm. No edits were applied.')
+    } })
+    const result = await runKJAgentTask({ session, model, prompt: 'Check that the existing line is 20 mm long within 0.001 mm.', toolNames: ['cad_read_drawing', 'cad_check_geometry'] })
+    assert.equal(result.status, 'responded', JSON.stringify(result))
+    assert.match(result.text, /failed by 7 mm/)
+    assert.equal(result.outputs[1].result.ok, true)
+    assert.equal(result.outputs[1].result.value.passed, false)
+    assert.deepEqual(result.proposalIds, [])
+    assert.equal(document.serialize(), before)
+  })
   test(`${protocol}: queried construction lines become a reviewed direction-preserving move`, async () => {
     const { document, session } = fixture()
     await document.transact('guides', tx => {
@@ -210,7 +247,7 @@ for (const protocol of protocols) {
       const body = request.body
       if (requests++ === 0) {
         const defs = protocol === 'gemini-generate-content' ? body.tools[0].functionDeclarations : body.tools
-        assert.equal(defs.length, 9)
+        assert.equal(defs.length, 10)
         assert.ok(!JSON.stringify(defs).includes('execute_anything'))
         return wire(protocol, [call('read', 'cad_read_drawing')])
       }
@@ -344,7 +381,7 @@ test('chat token-limit fields are host-selected without hardcoded model names', 
 test('a custom framework/model bridge uses the same runner without any built-in protocol', async () => {
   const { session, document } = fixture()
   const model = { createConversation({ tools, instructions }) {
-    assert.equal(tools.length, 9)
+    assert.equal(tools.length, 10)
     assert.match(instructions, /untrusted/)
     return { async next() { return { text: 'Review before editing.', calls: [call('custom', 'cad_propose_circles', args)] } } }
   } }
