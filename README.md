@@ -6,6 +6,8 @@
 
 <p align="center">An open-source CAD engine and ready-to-use editor.<br>Create, edit, and automate engineering drawings — with code, with an agent, or by hand.</p>
 
+<p align="center"><strong>Our goal: one prompt, a few requirements — AI draws a complete, complex CAD drawing.</strong></p>
+
 <p align="center">
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>Try the editor</strong></a> ·
   <a href="#add-cad-to-your-app"><strong>Add CAD to your app</strong></a> ·
@@ -23,6 +25,14 @@
 <p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow.gif" alt="KJDraw workbench: explore drawings, review a preset change, draw a mounting plate, repeat its bolt holes and add dimensions" width="100%"></a></p>
 
 <p align="center"><sub>Recorded in the workbench: explore drawings, review a preset change, then draw and dimension a part. The built-in Agent scene uses a preset workflow, not a connected language model.</sub></p>
+
+## From a few requirements to a complete drawing
+
+Describe what you need. Our goal is for AI to work through the details and deliver a complex engineering drawing with editable geometry, dimensions, layers and layouts. Continue the conversation to revise it, and keep working in the same CAD document.
+
+We are building toward this workflow: **understand requirements → break down the drawing → construct and check each part → correct errors → deliver a verified drawing**. The architecture needs a persistent drawing workspace, focused context for each task, reusable CAD operations and independent geometry checks. Completion means satisfying the requested geometry and relationships, retaining editable objects, and passing save/reopen and output checks.
+
+**Current status:** bounded drawing queries, geometry proposals, previews, host approval and undo/redo are implemented. Autonomous delivery of complete complex drawings is still in development; the animation above demonstrates today's editor. The [1.0 delivery programme](docs/product/1.0-delivery-plan.zh-CN.md) tracks the remaining work and acceptance requirements.
 
 ## Why KJDraw?
 
