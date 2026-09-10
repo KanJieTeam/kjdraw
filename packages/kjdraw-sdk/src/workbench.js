@@ -11,6 +11,25 @@ import { KJ_MODIFICATION_DEFINITIONS, buildKJModificationCommand, getKJModificat
 import { createDraftingSession, parseDraftCoordinate } from './drafting.js';
 const copy = {
     en: {
+        pageSetup: 'Page setup',
+        pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.',
+        pageSheet: 'Sheet',
+        pageStale: 'The drawing changed. Close and reopen page setup before applying.',
+        pageWidth: 'Paper width (mm)',
+        pageHeight: 'Paper height (mm)',
+        pageLeft: 'Left margin (mm)',
+        pageRight: 'Right margin (mm)',
+        pageTop: 'Top margin (mm)',
+        pageBottom: 'Bottom margin (mm)',
+        pageUnits: 'Plot units',
+        pageRotation: 'Rotation (counterclockwise)',
+        pageNumerator: 'Custom scale: paper units',
+        pageDenominator: 'Custom scale: drawing units',
+        pageScaleNote: 'Changing either scale value selects custom scale. Other imported settings stay unchanged.',
+        pageUnchanged: 'Keep existing',
+        pageInches: 'Inches',
+        pageMm: 'Millimeters',
+        pagePixels: 'Pixels',
         open: 'Open',
         saveKjd: 'Save KJD',
         exportDxf: 'Export DXF',
@@ -110,6 +129,25 @@ const copy = {
         boundaryBusy: 'Applying the edit…'
     },
     'zh-CN': {
+        pageSetup: '页面设置',
+        pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。',
+        pageSheet: '图纸布局',
+        pageStale: '图档已变更，请关闭并重新打开页面设置后再应用。',
+        pageWidth: '纸张宽度（毫米）',
+        pageHeight: '纸张高度（毫米）',
+        pageLeft: '左边距（毫米）',
+        pageRight: '右边距（毫米）',
+        pageTop: '上边距（毫米）',
+        pageBottom: '下边距（毫米）',
+        pageUnits: '打印单位',
+        pageRotation: '旋转（逆时针）',
+        pageNumerator: '自定义比例：纸张单位',
+        pageDenominator: '自定义比例：图形单位',
+        pageScaleNote: '修改任一比例值会启用自定义比例，其余导入配置保持不变。',
+        pageUnchanged: '保留已有值',
+        pageInches: '英寸',
+        pageMm: '毫米',
+        pagePixels: '像素',
         open: '打开',
         saveKjd: '保存 KJD',
         exportDxf: '导出 DXF',
@@ -624,6 +662,7 @@ export class KJDrawWorkbench {
     #ignoredPointers = new Set();
     #transformGesture = null;
     #modificationGesture = null;
+    #pageBinding = null;
     #boundarySession = null;
     #boundaryPointer = null;
     #boundaryPreview = null;
@@ -725,7 +764,7 @@ export class KJDrawWorkbench {
         };
         syncPanelToggle(layersToggle, this.#options.showLayers !== false);
         syncPanelToggle(inspectorToggle, this.#options.showInspector !== false);
-        for (const button of this.root.querySelectorAll('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-tool]')){
+        for (const button of this.root.querySelectorAll('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-action="page-setup"],[data-tool]')){
             button.disabled = this.#options.readonly === true && ![
                 'select',
                 'fence',
@@ -1018,6 +1057,7 @@ export class KJDrawWorkbench {
         <button type="button" class="panel-toggle hide-small ${showLayers ? 'active' : ''}" data-action="toggle-layers" aria-pressed="${showLayers}">${icon('layers')}<span data-copy="layers">${t('layers')}</span></button>
         <button type="button" class="panel-toggle hide-small ${showInspector ? 'active' : ''}" data-action="toggle-inspector" aria-pressed="${showInspector}">${icon('panel')}<span data-copy="properties">${t('properties')}</span></button>
         <button type="button" class="file-action" data-action="open" data-copy-title="open" aria-label="${t('open')}" title="${t('open')}">${icon('open')}<span data-copy="open">${t('open')}</span></button><button type="button" class="file-action hide-small" data-action="save-kjd" data-copy-title="saveKjd" aria-label="${t('saveKjd')}" title="${t('saveKjd')}">${icon('save')}<span data-copy="saveKjd">${t('saveKjd')}</span></button><button type="button" class="file-action primary" data-action="save-dxf" data-copy-title="exportDxf" aria-label="${t('exportDxf')}" title="${t('exportDxf')}">${icon('export')}<span data-copy="exportDxf">${t('exportDxf')}</span></button><button type="button" data-action="theme" data-copy-title="theme" title="${t('theme')}">${icon(this.#theme === 'dark' ? 'sun' : 'moon', 'data-theme-icon')}</button><button type="button" data-action="language"><span data-copy="language">${t('language')}</span></button>
+        <button type="button" class="file-action" data-action="page-setup" data-copy-title="pageSetup" title="${t('pageSetup')}" aria-label="${t('pageSetup')}" ${readonly ? 'disabled' : ''}>${icon('panel')}<span data-copy="pageSetup">${t('pageSetup')}</span></button>
       </header>
       <nav class="ribbon" aria-label="CAD tools">
         <div class="group"><button type="button" class="tool active" data-tool="select">${icon('select')}<small data-copy="select">${t('select')}</small></button><button type="button" class="tool" data-tool="pan">${icon('pan')}<small data-copy="pan">${t('pan')}</small></button><span data-copy="view">${t('view')}</span></div>
@@ -1044,10 +1084,38 @@ export class KJDrawWorkbench {
           <div class="modify-body"><label class="field"><span data-copy="drawingTool">${t('drawingTool')}</span><select data-draft-tool>${DRAFT_TOOLS.map((tool)=>`<option value="${tool}">${this.#localizedControlText(draftToolText[tool])}</option>`).join('')}</select></label><div class="modify-fields draft-options" data-draft-options></div></div>
           <footer class="modify-actions"><button type="button" data-action="cancel-draft" data-copy="cancel">${t('cancel')}</button><button type="button" class="confirm" data-action="start-draft" data-copy="startDrawing">${t('startDrawing')}</button></footer>
         </div>
+      </dialog>
+      <dialog class="modify-dialog" data-page-dialog aria-label="${t('pageSetup')}">
+        <form class="modify-form" data-page-form>
+          <header class="modify-head"><h2 data-copy="pageSetup">${t('pageSetup')}</h2><p data-copy="pageDescription">${t('pageDescription')}</p></header>
+          <div class="modify-body"><label class="field"><span data-copy="pageSheet">${t('pageSheet')}</span><select data-page-sheet></select></label><div class="modify-fields" data-page-fields></div><p class="modify-order" data-copy="pageScaleNote">${t('pageScaleNote')}</p><p role="alert" data-page-error></p></div>
+          <footer class="modify-actions"><button type="button" data-action="cancel-page" data-copy="cancel">${t('cancel')}</button><button type="submit" class="confirm" data-copy="apply">${t('apply')}</button></footer>
+        </form>
       </dialog>`;
     }
     #bind() {
         const signal = this.#abort.signal;
+        const pageDialog = query(this.root, '[data-page-dialog]');
+        query(this.root, '[data-action="page-setup"]').addEventListener('click', ()=>this.#openPageSetup(), {
+            signal
+        });
+        query(this.root, '[data-action="cancel-page"]').addEventListener('click', ()=>pageDialog.close(), {
+            signal
+        });
+        pageDialog.addEventListener('close', ()=>{
+            this.#pageBinding = null;
+        }, {
+            signal
+        });
+        query(this.root, '[data-page-sheet]').addEventListener('change', ()=>this.#loadPageSheet(), {
+            signal
+        });
+        query(this.root, '[data-page-form]').addEventListener('submit', (event)=>{
+            event.preventDefault();
+            void this.#applyPageSetup();
+        }, {
+            signal
+        });
         this.root.addEventListener('focusin', ()=>this.#activateDocument(), {
             signal
         });
@@ -2113,6 +2181,154 @@ export class KJDrawWorkbench {
     }
     #localizedControlText(value) {
         return this.#locale === 'zh-CN' ? value.zh : value.en;
+    }
+    #openPageSetup() {
+        const drawing = this.document;
+        if (!drawing || this.#options.readonly || this.#abort.signal.aborted) return;
+        this.#cancelGesture();
+        this.#pageBinding = {
+            document: drawing,
+            revision: drawing.revision,
+            layoutId: '',
+            settings: {}
+        };
+        const select = query(this.root, '[data-page-sheet]');
+        select.replaceChildren(...drawing.snapshot().spaces.layoutIds.map((id)=>new Option(drawing.getObject(id)?.name ?? id, id)));
+        select.value = drawing.snapshot().spaces.activeLayoutId;
+        this.#loadPageSheet();
+        query(this.root, '[data-page-dialog]').showModal();
+    }
+    #loadPageSheet() {
+        const binding = this.#pageBinding;
+        if (!binding) return;
+        const id = query(this.root, '[data-page-sheet]').value;
+        const layout = binding.document.getObject(id);
+        if (!layout || layout.kind !== 'layout') return;
+        binding.layoutId = id;
+        binding.settings = {
+            ...layout.payload.dxfPlotSettings
+        };
+        const fields = query(this.root, '[data-page-fields]');
+        fields.replaceChildren();
+        const numbers = [
+            [
+                'paperWidth',
+                'pageWidth',
+                0
+            ],
+            [
+                'paperHeight',
+                'pageHeight',
+                0
+            ],
+            [
+                'marginLeft',
+                'pageLeft',
+                0
+            ],
+            [
+                'marginRight',
+                'pageRight',
+                0
+            ],
+            [
+                'marginTop',
+                'pageTop',
+                0
+            ],
+            [
+                'marginBottom',
+                'pageBottom',
+                0
+            ],
+            [
+                'scaleNumerator',
+                'pageNumerator',
+                .000000001
+            ],
+            [
+                'scaleDenominator',
+                'pageDenominator',
+                .000000001
+            ]
+        ];
+        const labelFor = (key, text)=>{
+            const label = document.createElement('label');
+            label.className = 'field';
+            const span = document.createElement('span');
+            span.dataset.copy = text;
+            span.textContent = this.#t(text);
+            label.append(span);
+            fields.append(label);
+            return label;
+        };
+        for (const [key, text, minimum] of numbers){
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.step = 'any';
+            input.min = String(minimum);
+            input.dataset.pageField = key;
+            input.value = binding.settings[key] === undefined ? '' : String(binding.settings[key]);
+            input.placeholder = this.#t('pageUnchanged');
+            labelFor(key, text).append(input);
+        }
+        for (const [key, text, values] of [
+            [
+                'paperUnits',
+                'pageUnits',
+                [
+                    this.#t('pageInches'),
+                    this.#t('pageMm'),
+                    this.#t('pagePixels')
+                ]
+            ],
+            [
+                'rotation',
+                'pageRotation',
+                [
+                    '0°',
+                    '90°',
+                    '180°',
+                    '270°'
+                ]
+            ]
+        ]){
+            const select = document.createElement('select');
+            select.dataset.pageField = key;
+            select.add(new Option(this.#t('pageUnchanged'), ''));
+            values.forEach((value, index)=>select.add(new Option(value, String(index))));
+            select.value = binding.settings[key] === undefined ? '' : String(binding.settings[key]);
+            labelFor(key, text).append(select);
+        }
+        query(this.root, '[data-page-error]').textContent = '';
+    }
+    async #applyPageSetup() {
+        const binding = this.#pageBinding, dialog = query(this.root, '[data-page-dialog]');
+        if (!binding || !dialog.open) return;
+        const button = query(dialog, '[type="submit"]');
+        button.disabled = true;
+        try {
+            if (this.#options.readonly) throw new Error(this.#t('readonly'));
+            if (this.document !== binding.document || binding.document.revision !== binding.revision) throw new Error(this.#t('pageStale'));
+            const patch = {};
+            for (const input of dialog.querySelectorAll('[data-page-field]')){
+                if (!input.value.trim()) continue;
+                const key = input.dataset.pageField, value = Number(input.value);
+                if (value !== binding.settings[key]) patch[key] = value;
+            }
+            if (patch.scaleNumerator !== undefined || patch.scaleDenominator !== undefined) patch.flags = (binding.settings.flags ?? 688) & ~16;
+            if (Object.keys(patch).length) await this.execute('PAGESETUP', {
+                layoutId: binding.layoutId,
+                dxf: patch
+            }, {
+                expectedRevision: binding.revision
+            });
+            dialog.close();
+        } catch (error) {
+            query(dialog, '[data-page-error]').textContent = error instanceof Error ? error.message : String(error);
+        } finally{
+            button.disabled = false;
+        }
     }
     #renderModificationForm() {
         const select = query(this.root, '[data-modification]');
@@ -3252,6 +3468,9 @@ export class KJDrawWorkbench {
         if (dialog?.open) dialog.close();
         const draftDialog = this.root.querySelector('[data-draft-dialog]');
         if (draftDialog?.open) draftDialog.close();
+        const pageDialog = this.root.querySelector('[data-page-dialog]');
+        if (pageDialog?.open) pageDialog.close();
+        this.#pageBinding = null;
         this.#cancelPointer();
         this.#hideSnap();
         if (hadDraft) this.renderer.render();
@@ -3745,6 +3964,8 @@ export class KJDrawWorkbench {
         if (modificationDialog) modificationDialog.setAttribute('aria-label', this.#t('modifyTitle'));
         const draftDialog = this.root.querySelector('[data-draft-dialog]');
         if (draftDialog) draftDialog.setAttribute('aria-label', this.#t('drawTitle'));
+        const pageDialog = this.root.querySelector('[data-page-dialog]');
+        if (pageDialog) pageDialog.setAttribute('aria-label', this.#t('pageSetup'));
         this.#syncDraftActions();
         this.#canvas.setAttribute('aria-label', `${this.#t('drawing')} · KJDraw CAD`);
     }

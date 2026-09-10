@@ -21,3 +21,15 @@ Scope still open: layout limits/extents/UCS, full viewport projection, standalon
 The preceding `ba8e1a70133f729af76d4be8f25a36850b35e20d` is pushed; its [CI](https://github.com/KanJieTeam/kjdraw/actions/runs/34434417267) and [Pages](https://github.com/KanJieTeam/kjdraw/actions/runs/34434417266) completed successfully. These results apply only to that preceding SHA.
 
 Reference: [Autodesk PLOTSETTINGS group codes](https://help.autodesk.com/cloudhelp/2025/ENU/AutoCAD-DXF/files/GUID-1113675E-AB07-4567-801A-310CDE0D56E9.htm).
+
+## Follow-up: workbench page setup
+
+The subsequent increment after `430bc16` adds a real **Page setup** entry to the embedded editor's top bar. Users choose a model or paper layout and edit physical width/height, four margins, plot units, rotation and custom scale with labeled controls. The form reads stored values; blank fields keep existing values. Only changed fields are sent through the existing revision-bound PAGESETUP command. Editing custom scale clears the standard-scale flag and preserves other flags. Native plotting preferences and unexposed DXF fields remain unchanged.
+
+Cancel/Escape and unchanged Apply make no document/history changes. Stale revisions produce an inline alert instead of overwriting concurrent changes. Readonly transitions close the dialog and disable its entry. The layout form uses existing Precision controls, modal focus behavior, a scrollable field area and visible footer actions; the existing theme uses light control surfaces with a dark/light canvas.
+
+Validation: Node 22/24 **398/398 each**; Chromium/Firefox/WebKit **39/39** public-editor, framework, page roundtrip and real page-form cases. The new controls are exercised by clicking, filling, selecting and keyboard submission, with assertions for exact page values/flags, unchanged geometry/other layouts, undo/redo, DXF reopen, cancellation, invalid numbers, stale revisions, readonly changes, no-op history and 390px Chinese layout. Chromium and WebKit screenshots were visually inspected. Generated runtime/declaration/API/docs checks and the 537-file repository check pass.
+
+Initial browser attempts are not counted as acceptance: the new fixture initially inherited the hosted playground's CSP and lost inline SDK styles; it now uses the same `bypassCSP` integration setting as the existing editor fixtures and verifies actual style application. A second run had an incorrect dark-control expectation and lost its shared server when an overlapping earlier test run exited. The corrected final matrix ran alone and passed all 39 cases; the earlier failures were retained in local logs. No hosted CSP policy or theme contract was weakened.
+
+This completes the listed scalar field editor, not graphical plotting preview, all 30 fields in UI, viewport projection or production printing. The [CI](https://github.com/KanJieTeam/kjdraw/actions/runs/34436790656) and [Pages](https://github.com/KanJieTeam/kjdraw/actions/runs/34436790638) for the preceding `430bc1654ee330a744c3aa6bc3aa39b057d663ab` succeeded; these results do not establish the new UI commit's remote status. No npm/stable release.
