@@ -3,7 +3,7 @@ import { createDrawingContext, createLayoutContext } from './drawing-context.js'
 import { KJDrawError, KJRevisionConflictError, KJValidationError } from './errors.js';
 import { deepFreeze } from './utils.js';
 import { createId } from './ids.js';
-import { createAgentGeometryPreview, agentPreviewMatchesDocument } from './agent-preview.js';
+import { createAgentGeometryPreview, agentPreviewMatchesDocument, KJDRAW_AGENT_MOVABLE_TYPES } from './agent-preview.js';
 import { buildAgentDrawingEntities } from './agent-drawing.js';
 import { buildAgentRoadDrawing } from './agent-road-drawing.js';
 import { buildAgentRoadRevision } from './agent-road-revision.js';
@@ -457,7 +457,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_move',
         effect: 'propose',
-        description: 'Propose an XY displacement of 1–64 visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE/XLINE/RAY objects identified by exact IDs. Construction-line and ray directions are preserved. Returns before/after geometry; the host must approve before edits apply.',
+        description: `Propose an XY displacement of 1–64 visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} objects identified by exact IDs. TEXT and supported native DIMENSION must have drawable geometry on model XY at z=0 with default +Z orientation. All annotation points translate together; dimension measurements, text and guide directions are preserved. Include both geometry and its annotations to move a complete detail; this does not establish associative constraints or move only a dimension label. INSERT and other types are not supported. Returns complete before/after native geometry; the host must approve before edits apply.`,
         inputSchema: object({
             expectedRevision: revision,
             units: text,
@@ -1044,14 +1044,7 @@ export class KJAgentToolSession {
                                 limit: 64,
                                 maxBytes: 262144
                             });
-                            if (context.entities.length !== ids.length || context.entities.some((entity)=>!entity.editable || ![
-                                    'LINE',
-                                    'CIRCLE',
-                                    'ARC',
-                                    'LWPOLYLINE',
-                                    'XLINE',
-                                    'RAY'
-                                ].includes(entity.type))) throw new KJValidationError('Move requires visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE/XLINE/RAY objects');
+                            if (context.entities.length !== ids.length || context.entities.some((entity)=>!entity.editable || !KJDRAW_AGENT_MOVABLE_TYPES.includes(entity.type))) throw new KJValidationError(`Move requires visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} objects`);
                             command = 'MOVE';
                             commandArgs = {
                                 ids,
