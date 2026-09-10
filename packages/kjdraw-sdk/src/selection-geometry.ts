@@ -148,6 +148,7 @@ function project(entity: KJReadonlyObjectRecord, document: KJDocument, depth = 0
     case 'DIMENSION': {
       const annotation = projectDimension(payload, document.getObject(String(payload.styleId ?? ''))?.payload)
       if (!annotation) { result.complete = false; break }
+      for (const arc of annotation.arcs) result.parts.push(circle(arc.center, arc.radius, arc.startAngle, arc.endAngle - arc.startAngle))
       for (const [a, b] of annotation.lines) result.parts.push({ kind: 'segment', a, b })
       for (const arrow of annotation.arrows) path(arrow, true, true)
       path(textBox(annotation.label.position, annotation.label.text, annotation.label.height, annotation.label.rotation, true), true, true)
@@ -259,7 +260,7 @@ function insideCurvedLoops(p: Point, loops: readonly Primitive[][]): boolean {
 /** Conservative owner-XY query classification. Unknown geometry must remain visible to inspection callers. */
 export function classifyEntityInBox(document: KJDocument, entity: KJReadonlyObjectRecord, bounds: readonly [number, number, number, number]): 'intersects' | 'outside' | 'unclassified' {
   if (!Array.isArray(bounds) || bounds.length !== 4 || [...bounds].some(n => typeof n !== 'number' || !Number.isFinite(n)) || bounds[0] > bounds[2] || bounds[1] > bounds[3]) throw new TypeError('Query bounds must be finite ordered XY extents')
-  if (!['LINE', 'RAY', 'XLINE', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'HATCH'].includes(entity.type)) return 'unclassified'
+  if (!['LINE', 'RAY', 'XLINE', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'HATCH', 'DIMENSION'].includes(entity.type)) return 'unclassified'
   for (const normal of [entity.payload.normal, entity.payload.extrusionDirection]) {
     if (normal !== undefined && (!Array.isArray(normal) || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) return 'unclassified'
   }

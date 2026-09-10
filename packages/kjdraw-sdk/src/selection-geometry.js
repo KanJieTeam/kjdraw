@@ -292,6 +292,7 @@ function project(entity, document, depth = 0) {
                     result.complete = false;
                     break;
                 }
+                for (const arc of annotation.arcs)result.parts.push(circle(arc.center, arc.radius, arc.startAngle, arc.endAngle - arc.startAngle));
                 for (const [a, b] of annotation.lines)result.parts.push({
                     kind: 'segment',
                     a,
@@ -460,7 +461,8 @@ export function classifyEntityInBox(document, entity, bounds) {
         'ARC',
         'LWPOLYLINE',
         'POLYLINE',
-        'HATCH'
+        'HATCH',
+        'DIMENSION'
     ].includes(entity.type)) return 'unclassified';
     for (const normal of [
         entity.payload.normal,

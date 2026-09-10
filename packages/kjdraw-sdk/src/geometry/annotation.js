@@ -26,6 +26,7 @@ export function projectDimension(payload, style = {}) {
     const beyond = Math.max(0, finite(style.extensionBeyond, height * .35 / overall) * overall);
     const lines = [];
     const arrows = [];
+    const arcs = [];
     const arrow = (tip, direction)=>{
         const rear = plus(tip, direction, arrowSize), normal = [
             -direction[1],
@@ -80,6 +81,153 @@ export function projectDimension(payload, style = {}) {
             (q1[1] + q2[1]) / 2
         ], n, height * .65);
         rotation = angle;
+    } else if (type === 'ANGULAR' || type === 'ANGULAR_3_POINT') {
+        if (payload.incompleteAngularDefinition === true) return null;
+        if (payload.definitionPoints.some((value)=>!Array.isArray(value) || value.length > 2 && (!Number.isFinite(Number(value[2])) || Math.abs(Number(value[2])) > 1e-12))) return null;
+        for (const key of [
+            'normal',
+            'extrusionDirection'
+        ]){
+            const normal = payload[key];
+            if (Array.isArray(normal) && (Math.abs(Number(normal[0])) > 1e-12 || Math.abs(Number(normal[1])) > 1e-12 || Math.abs(Number(normal[2]) - 1) > 1e-12)) return null;
+        }
+        const third = points[2], fourth = points[3];
+        if (!third || !fourth) return null;
+        let center, u, v, location, origin1, origin2;
+        if (type === 'ANGULAR') {
+            location = points[4];
+            if (!location) return null;
+            const d1 = delta(third, second), d2 = delta(first, fourth), l1 = length(d1), l2 = length(d2);
+            if (l1 < 1e-12 || l2 < 1e-12) return null;
+            u = [
+                d1[0] / l1,
+                d1[1] / l1
+            ];
+            v = [
+                d2[0] / l2,
+                d2[1] / l2
+            ];
+            const cross = u[0] * v[1] - u[1] * v[0];
+            if (Math.abs(cross) < 1e-12) return null;
+            const separation = delta(fourth, second), t = (separation[0] * v[1] - separation[1] * v[0]) / cross;
+            center = plus(second, u, t);
+            origin1 = length(delta(second, center)) > 1e-12 ? second : third;
+            origin2 = length(delta(fourth, center)) > 1e-12 ? fourth : first;
+        } else {
+            center = fourth;
+            location = first;
+            origin1 = second;
+            origin2 = third;
+            const d1 = delta(second, center), d2 = delta(third, center), l1 = length(d1), l2 = length(d2);
+            if (l1 < 1e-12 || l2 < 1e-12) return null;
+            u = [
+                d1[0] / l1,
+                d1[1] / l1
+            ];
+            v = [
+                d2[0] / l2,
+                d2[1] / l2
+            ];
+        }
+        const turn = Math.PI * 2, positive = (angle)=>(angle % turn + turn) % turn;
+        const radius = length(delta(location, center)), placement = positive(Math.atan2(location[1] - center[1], location[0] - center[0]));
+        let startAngle = positive(Math.atan2(u[1], u[0])), endAngle = positive(Math.atan2(v[1], v[0]));
+        if (radius < 1e-12 || ![
+            ...center,
+            radius,
+            placement
+        ].every(Number.isFinite)) return null;
+        if (type === 'ANGULAR') {
+            const rays = [
+                startAngle,
+                positive(startAngle + Math.PI),
+                endAngle,
+                positive(endAngle + Math.PI)
+            ].sort((a, b)=>a - b);
+            let selected = false;
+            for(let i = 0; i < rays.length; i++){
+                const a = rays[i], b = rays[(i + 1) % rays.length], offset = positive(placement - a), span = positive(b - a);
+                if (offset > 1e-10 && offset < span - 1e-10) {
+                    const nextU = [
+                        Math.cos(a),
+                        Math.sin(a)
+                    ], nextV = [
+                        Math.cos(b),
+                        Math.sin(b)
+                    ];
+                    if (Math.abs(dot(nextU, u)) < 1 - 1e-9) [origin1, origin2] = [
+                        origin2,
+                        origin1
+                    ];
+                    startAngle = a;
+                    endAngle = b;
+                    u = nextU;
+                    v = nextV;
+                    selected = true;
+                    break;
+                }
+            }
+            if (!selected) return null;
+        } else {
+            const span = positive(endAngle - startAngle), offset = positive(placement - startAngle);
+            if (span < 1e-10 || offset < 1e-10 || Math.abs(offset - span) < 1e-10) return null;
+            if (offset > span) {
+                [startAngle, endAngle] = [
+                    endAngle,
+                    startAngle
+                ];
+                [u, v] = [
+                    v,
+                    u
+                ];
+                [origin1, origin2] = [
+                    origin2,
+                    origin1
+                ];
+            }
+        }
+        const sweep = positive(endAngle - startAngle);
+        if (sweep < 1e-12) return null;
+        const q1 = plus(center, u, radius), q2 = plus(center, v, radius);
+        for (const [origin, direction, q] of [
+            [
+                origin1,
+                u,
+                q1
+            ],
+            [
+                origin2,
+                v,
+                q2
+            ]
+        ]){
+            const sign = Math.sign(dot(delta(q, origin), direction)) || 1;
+            lines.push([
+                plus(origin, direction, sign * gap),
+                plus(q, direction, sign * beyond)
+            ]);
+        }
+        arcs.push({
+            center,
+            radius,
+            startAngle,
+            endAngle: startAngle + sweep
+        });
+        arrow(q1, [
+            -u[1],
+            u[0]
+        ]);
+        arrow(q2, [
+            v[1],
+            -v[0]
+        ]);
+        measurement = sweep * 180 / Math.PI;
+        const mid = startAngle + sweep / 2, radial = [
+            Math.cos(mid),
+            Math.sin(mid)
+        ];
+        textPoint = plus(center, radial, radius + height * .65);
+        rotation = mid - Math.PI / 2;
     } else if (type === 'RADIUS' || type === 'DIAMETER') {
         const direction = delta(second, first), span = length(direction);
         if (span < 1e-12) return null;
@@ -100,10 +248,14 @@ export function projectDimension(payload, style = {}) {
         if (type === 'DIAMETER') arrow(first, u);
         textPoint = plus(second, u, height * 1.1);
     } else return null;
-    const precision = Math.max(0, Math.min(8, Math.trunc(finite(payload.precision ?? style.decimalPlaces, 2))));
+    const angular = type === 'ANGULAR' || type === 'ANGULAR_3_POINT';
+    if (angular && Number(payload.angularUnits ?? style.angularUnits ?? 0) !== 0) return null;
+    const stylePrecision = angular && Number(style.angularDecimalPlaces) >= 0 ? style.angularDecimalPlaces : style.decimalPlaces;
+    const precision = Math.max(0, Math.min(8, Math.trunc(finite(Number(payload.precision) === -1 ? payload.linearPrecision ?? style.decimalPlaces : payload.precision ?? stylePrecision, 2))));
     const measuredText = `${prefix}${measurement.toFixed(precision).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}`;
+    const suffix = type === 'ANGULAR' || type === 'ANGULAR_3_POINT' ? '°' : '';
     const override = payload.textOverride;
-    const text = override == null || override === '' ? measuredText : String(override).replaceAll('<>', measuredText);
+    const text = override == null || override === '' ? measuredText + suffix : String(override).replaceAll('<>', measuredText + suffix);
     const overridePoint = point(payload.textPosition);
     if (overridePoint && (type === 'RADIUS' || type === 'DIAMETER')) lines.push([
         second,
@@ -112,6 +264,7 @@ export function projectDimension(payload, style = {}) {
     if (rotation > Math.PI / 2 || rotation < -Math.PI / 2) rotation += Math.PI;
     return {
         lines,
+        arcs,
         arrows,
         label: {
             position: overridePoint ?? textPoint,

@@ -124,7 +124,7 @@ test('DXF DIMENSION preserves a populated imported picture block and rejects uns
   const unsupported = sdk.createDocument({ documentId: 'unsupported-native-dimension' })
   await sdk.executeCommand('CREATE', { type: 'DIMENSION', payload: { dimensionType: 'ANGULAR', definitionPoints: [[0, 0, 0], [10, 0, 0], [0, 10, 0]] } })
   const before = unsupported.toJSON({ includeRevisions: true })
-  await assert.rejects(sdk.writeDocument(unsupported, { format: 'DXF', version: '2018' }), error => error.cause instanceof KJValidationError && /ALIGNED, ROTATED, RADIUS, or DIAMETER/.test(error.cause.message))
+  await assert.rejects(sdk.writeDocument(unsupported, { format: 'DXF', version: '2018' }), error => error.cause instanceof KJValidationError && /incomplete, non-finite, or degenerate/.test(error.cause.message))
   assert.deepEqual(unsupported.toJSON({ includeRevisions: true }), before)
 
   const rawUnsupported = await adapter.read([
@@ -138,7 +138,7 @@ test('DXF DIMENSION preserves a populated imported picture block and rejects uns
   rawSDK.attachDocument(rawUnsupported)
   const rawAngular = rawUnsupported.listEntities({ type: 'DIMENSION' })[0]
   await rawSDK.executeCommand('MOVE', { id: rawAngular.id, dx: 1, dy: 2 })
-  await assert.rejects(rawSDK.writeDocument(rawUnsupported, { format: 'DXF', version: '2018' }), error => error.cause instanceof KJValidationError && /ALIGNED, ROTATED, RADIUS, or DIAMETER/.test(error.cause.message))
+  await assert.rejects(rawSDK.writeDocument(rawUnsupported, { format: 'DXF', version: '2018' }), error => error.cause instanceof KJValidationError && /incomplete, non-finite, or degenerate/.test(error.cause.message))
 })
 
 test('native DXF dimensions get unique non-empty picture blocks and reject non-XY projection', async () => {

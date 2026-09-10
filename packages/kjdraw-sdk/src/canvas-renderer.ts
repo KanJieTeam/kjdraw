@@ -229,6 +229,17 @@ function entityPoints(entity: KJReadonlyObjectRecord): Point2[] {
     const center = point2(payload.center), radius = Math.abs(finite(payload.radius))
     if (center && radius) output.push([center[0] - radius, center[1] - radius], [center[0] + radius, center[1] + radius])
   }
+  if (entity.type === 'DIMENSION') {
+    const projection = projectDimension(payload)
+    if (projection) {
+      output.push(...projection.lines.flat(), ...projection.arrows.flat(), projection.label.position)
+      for (const arc of projection.arcs) {
+        const angles = [arc.startAngle, arc.endAngle]
+        for (let quadrant = Math.ceil(arc.startAngle / (Math.PI / 2)); quadrant * Math.PI / 2 <= arc.endAngle; quadrant++) angles.push(quadrant * Math.PI / 2)
+        output.push(...angles.map(angle => [arc.center[0] + arc.radius * Math.cos(angle), arc.center[1] + arc.radius * Math.sin(angle)] as Point2))
+      }
+    }
+  }
   if (entity.type === 'ELLIPSE') {
     const center = point2(payload.center), axis = point2(payload.majorAxis)
     if (center && axis) {
@@ -445,6 +456,10 @@ export class KJCanvasRenderer {
         if (entity.type === 'DIMENSION') {
           const projected = projectDimension(entity.payload, this.#document?.getObject(String(entity.payload.styleId ?? ''))?.payload)
           if (projected) {
+            for (const arc of projected.arcs) {
+              const nearest = nearestPointOnEntity2({ ...entity, type: 'ARC', payload: { ...arc } }, point)
+              if (nearest.distance <= radius && (!best || nearest.distance < best.distance)) best = { entity, distance: nearest.distance, point: nearest.point }
+            }
             for (const [start, end] of projected.lines) {
               const nearest = nearestPointOnEntity2({ ...entity, type: 'LINE', payload: { start, end } }, point)
               if (nearest.distance <= radius && (!best || nearest.distance < best.distance)) best = { entity, distance: nearest.distance, point: nearest.point }
@@ -899,6 +914,10 @@ export class KJCanvasRenderer {
       const projected = projection?.dimension ?? projectDimension(payload, this.#document?.getObject(String(payload.styleId ?? ''))?.payload)
       drawn = projected !== null
       if (projected) {
+        for (const arc of projected.arcs) {
+          const screen = this.worldToScreen(arc.center)
+          context.beginPath(); context.arc(screen[0], screen[1], arc.radius * this.camera.scale, -arc.startAngle, -arc.endAngle, true); context.stroke()
+        }
         for (const segment of projected.lines) this.#strokePath(segment)
         for (const arrow of projected.arrows) { this.#strokePath(arrow, true); context.fill() }
         const label = projected.label, screen = this.worldToScreen(label.position)
@@ -1005,7 +1024,10 @@ export class KJCanvasRenderer {
     const original = projectDimension(entity.payload, this.#document?.getObject(String(entity.payload.styleId ?? ''))?.payload)
     if (!original) return null
     const point = (p: Point2): Point2 => [matrix[0]! * p[0] + matrix[2]! * p[1] + matrix[4]!, matrix[1]! * p[0] + matrix[3]! * p[1] + matrix[5]!]
-    return { ...original, lines: original.lines.map(([a, b]) => [point(a), point(b)]), arrows: original.arrows.map(arrow => arrow.map(point)), label: { ...original.label, position: point(original.label.position), height: original.label.height * Math.hypot(matrix[0]!, matrix[1]!), rotation: original.label.rotation + Math.atan2(matrix[1]!, matrix[0]!) } }
+    const angle = Math.atan2(matrix[1]!, matrix[0]!), scale = Math.hypot(matrix[0]!, matrix[1]!)
+    const reflected = matrix[0]! * matrix[3]! - matrix[1]! * matrix[2]! < 0
+    const arcs = original.arcs.map(arc => ({ ...arc, center: point(arc.center), radius: arc.radius * scale, startAngle: reflected ? angle - arc.endAngle : arc.startAngle + angle, endAngle: reflected ? angle - arc.startAngle : arc.endAngle + angle }))
+    return { ...original, arcs, lines: original.lines.map(([a, b]) => [point(a), point(b)]), arrows: original.arrows.map(arrow => arrow.map(point)), label: { ...original.label, position: point(original.label.position), height: original.label.height * Math.hypot(matrix[0]!, matrix[1]!), rotation: original.label.rotation + Math.atan2(matrix[1]!, matrix[0]!) } }
   }
 
   #drawViewport(entity: KJReadonlyObjectRecord, depth: number): boolean {

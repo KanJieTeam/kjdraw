@@ -21,8 +21,8 @@ interface DxfTag { code: number; value: string }
 interface DxfRecord { type: string; tags: DxfTag[]; vertices?: DxfRecord[]; sequenceEnd?: DxfRecord | null }
 
 // DXF per-entity dimension style overrides use ACAD/DSTYLE xdata pairs.
-function readDimensionOverrides(record: DxfRecord): { textHeight?: number; precision?: number } {
-  const result: { textHeight?: number; precision?: number } = {}
+function readDimensionOverrides(record: DxfRecord): { textHeight?: number; precision?: number; angularUnits?: number; linearPrecision?: number } {
+  const result: { textHeight?: number; precision?: number; angularUnits?: number; linearPrecision?: number } = {}
   let acad = false
   for (let index = 0; index < record.tags.length; index++) {
     const tag = record.tags[index]!
@@ -34,11 +34,20 @@ function readDimensionOverrides(record: DxfRecord): { textHeight?: number; preci
       if (key.code === 1002 && key.value === '}') break
       if (key.code !== 1070 || !value) throw new KJValidationError('Malformed DIMENSION DSTYLE override')
       const code = Number(key.value), number = Number(value.value)
-      if (code === 140 || code === 271) {
-        if (!value.value.trim() || !Number.isFinite(number) || (code === 140 ? value.code !== 1040 || number <= 0 : value.code !== 1070 || !Number.isInteger(number) || number < 0 || number > 8)) throw new KJValidationError('Invalid DIMENSION text height or precision override')
+      const precisionCode = [2, 5].includes(Number(first(record, 70, '0')) & 7) ? 179 : 271
+      if (code === 140 || code === precisionCode) {
+        if (!value.value.trim() || !Number.isFinite(number) || (code === 140 ? value.code !== 1040 || number <= 0 : value.code !== 1070 || !Number.isInteger(number) || number < (code === 179 ? -1 : 0) || number > 8)) throw new KJValidationError('Invalid DIMENSION text height or precision override')
         const property = code === 140 ? 'textHeight' : 'precision'
         if (result[property] !== undefined) throw new KJValidationError('Duplicate DIMENSION DSTYLE override')
         result[property] = number
+      }
+      if (precisionCode === 179 && code === 271) {
+        if (value.code !== 1070 || !Number.isInteger(number) || number < 0 || number > 8 || result.linearPrecision !== undefined) throw new KJValidationError('Invalid DIMENSION inherited linear precision override')
+        result.linearPrecision = number
+      }
+      if (code === 275) {
+        if (value.code !== 1070 || !Number.isInteger(number) || number < 0 || number > 3 || result.angularUnits !== undefined) throw new KJValidationError('Invalid DIMENSION angular units override')
+        result.angularUnits = number
       }
       index += 2
     }
@@ -72,7 +81,7 @@ interface DxfReadOptions extends KJFileAdapterOptions {
 }
 interface DxfAdapterOptions extends DxfReadOptions { id?: string; priority?: number }
 interface DxfImportResources { linetypeIds?: ReadonlyMap<string, string>; textStyleIds?: ReadonlyMap<string, string>; dimensionStyleIds?: ReadonlyMap<string, string> }
-interface DxfDimensionExport { blockName: string; preserveRaw: boolean; measurement?: number; textPosition?: Point3; textHeight?: number; precision?: number }
+interface DxfDimensionExport { blockName: string; preserveRaw: boolean; measurement?: number; textPosition?: Point3; textHeight?: number; precision?: number; definitionPoints?: readonly Point3[] }
 interface DxfExportResources {
   textStyleNames?: ReadonlyMap<string, string>
   dimensionStyleNames?: ReadonlyMap<string, string>
@@ -565,9 +574,11 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
     case 'LEADER': return { type: 'LEADER', payload: { vertices: repeatedPoints(record), annotationHandle: first(record, 340), textPosition: point(record, 11, 21, 31) } }
     case 'DIMENSION': {
       const dxfDimensionType = number(record, 70, 0)
+      const subtype = dxfDimensionType & 7
+      const incompleteAngularDefinition = [2, 5].includes(subtype) && (subtype === 2 ? [10, 13, 14, 15, 16] : [10, 13, 14, 15]).some(code => !optionalPoint(record, code, code + 10, code + 20))
       const definitionPoints = [optionalPoint(record, 10, 20, 30), optionalPoint(record, 13, 23, 33), optionalPoint(record, 14, 24, 34), optionalPoint(record, 15, 25, 35), optionalPoint(record, 16, 26, 36)].filter((value): value is Point3 => Boolean(value))
       const styleName = first(record, 3, 'STANDARD')
-      return { type: 'DIMENSION', payload: { dimensionType: DIMENSION_TYPE_BY_CODE[dxfDimensionType & 7] ?? 'ROTATED', ...readDimensionOverrides(record), dxfDimensionType, definitionPoints, textPosition: optionalPoint(record, 11, 21, 31), textOverride: first(record, 1), styleName, styleId: resources.dimensionStyleIds?.get(normalizeName(styleName)) ?? null, blockName: first(record, 2), measurement: values(record, 42).length ? number(record, 42) : null, rotation: number(record, 50, 0) * Math.PI / 180, rawTags: record.tags } }
+      return { type: 'DIMENSION', payload: { dimensionType: DIMENSION_TYPE_BY_CODE[dxfDimensionType & 7] ?? 'ROTATED', ...(incompleteAngularDefinition ? { incompleteAngularDefinition: true } : {}), ...readDimensionOverrides(record), dxfDimensionType, definitionPoints, textPosition: optionalPoint(record, 11, 21, 31), textOverride: first(record, 1), styleName, styleId: resources.dimensionStyleIds?.get(normalizeName(styleName)) ?? null, blockName: first(record, 2), measurement: values(record, 42).length ? number(record, 42) : null, rotation: number(record, 50, 0) * Math.PI / 180, rawTags: record.tags } }
     }
     case 'SOLID': return { type: 'SOLID', payload: { vertices: [point(record), point(record, 11, 21, 31), point(record, 12, 22, 32), point(record, 13, 23, 33)] } }
     case 'VIEWPORT': return { type: 'VIEWPORT', payload: { center: point(record), width: number(record, 40), height: number(record, 41), viewCenter: point(record, 12, 22, 32), viewHeight: number(record, 45), twistAngle: number(record, 51, 0) * Math.PI / 180,
@@ -655,7 +666,7 @@ function importResourceTables(transaction: KJTransaction, tableRecords: readonly
   }
   for (const record of tableRecords.filter(value => value.type === 'DIMSTYLE')) {
     const name = String(first(record, 2, 'STANDARD')).trim() || 'STANDARD'
-    const imported = transaction.upsertTableRecord('dimensionStyles', { name, type: 'DIM_STYLE', payload: { overallScale: number(record, 40, 1), arrowSize: number(record, 41, 2.5), extensionOffset: number(record, 42, 0.625), baselineSpacing: number(record, 43, 3.75), extensionBeyond: number(record, 44, 1.25), rounding: number(record, 45, 0), textHeight: number(record, 140, 2.5), ...(values(record, 271).length ? { decimalPlaces: number(record, 271) } : {}), centerMarkSize: number(record, 141, 2.5), textGap: number(record, 147, 0.625), dxfFlags: number(record, 70, 0) } })
+    const imported = transaction.upsertTableRecord('dimensionStyles', { name, type: 'DIM_STYLE', payload: { overallScale: number(record, 40, 1), arrowSize: number(record, 41, 2.5), extensionOffset: number(record, 42, 0.625), baselineSpacing: number(record, 43, 3.75), extensionBeyond: number(record, 44, 1.25), rounding: number(record, 45, 0), textHeight: number(record, 140, 2.5), ...(values(record, 271).length ? { decimalPlaces: number(record, 271) } : {}), ...(values(record, 179).length ? { angularDecimalPlaces: number(record, 179) } : {}), ...(values(record, 275).length ? { angularUnits: number(record, 275) } : {}), centerMarkSize: number(record, 141, 2.5), textGap: number(record, 147, 0.625), dxfFlags: number(record, 70, 0) } })
     dimensionStyleIds.set(normalizeName(name), imported.id)
   }
   for (const record of tableRecords.filter(value => value.type === 'UCS')) {
@@ -856,14 +867,14 @@ function createHandleAllocator(handles: readonly string[]): () => string {
   }
 }
 
-const NATIVE_DIMENSION_SUBTYPES = new Set([0, 1, 3, 4])
+const NATIVE_DIMENSION_SUBTYPES = new Set([0, 1, 2, 3, 4, 5])
 
 function nativeDimensionCode(payload: DxfPayload): number {
   const namedType = normalizeName(payload.dimensionType)
   const mapped = namedType === 'LINEAR' ? 0 : DIMENSION_CODE_BY_TYPE[namedType]
   const value = payload.dxfDimensionType == null ? mapped : Number(payload.dxfDimensionType)
   if (!Number.isInteger(value) || value! < 0 || !NATIVE_DIMENSION_SUBTYPES.has(value! & 7)) {
-    throw new KJValidationError(`DXF export requires a valid ALIGNED, ROTATED, RADIUS, or DIAMETER dimension; received ${payload.dimensionType ?? payload.dxfDimensionType ?? 'unknown'}`)
+    throw new KJValidationError(`DXF export requires a valid ALIGNED, ROTATED, ANGULAR, ANGULAR_3_POINT, RADIUS, or DIAMETER dimension; received ${payload.dimensionType ?? payload.dxfDimensionType ?? 'unknown'}`)
   }
   return value!
 }
@@ -900,10 +911,54 @@ function dimensionRawTagsMatchPayload(payload: DxfPayload, dimensionStyles: read
   const currentStyleName = (payload.styleId ? dimensionStyles.find(record => record.id === payload.styleId)?.name : undefined) ?? payload.styleName ?? 'STANDARD'
   if (normalizeName(currentStyleName) !== normalizeName(raw.styleName ?? 'STANDARD')) return false
   if ((payload.textOverride ?? null) !== (raw.textOverride ?? null)) return false
+  if ((payload.angularUnits ?? null) !== (raw.angularUnits ?? null) || (payload.linearPrecision ?? null) !== (raw.linearPrecision ?? null)) return false
   if ((payload.textHeight ?? null) !== (raw.textHeight ?? null) || (payload.precision ?? null) !== (raw.precision ?? null)) return false
   if (normalizeName(payload.blockName) !== normalizeName(raw.blockName)) return false
   if (Number(payload.dxfDimensionType ?? DIMENSION_CODE_BY_TYPE[normalizeName(payload.dimensionType)] ?? 0) !== Number(raw.dxfDimensionType ?? 0)) return false
   return true
+}
+
+/** Reject regeneration of an imported picture whose angular sector contradicts its
+ * native definitions. Untouched opaque DXF still round-trips via preserveRaw. */
+function assertAngularPictureSector(document: KJDocument, block: DxfNamedRecord, payload: DxfPayload, style: Readonly<Record<string, unknown>>): void {
+  const raw = entityPayload({ type: 'DIMENSION', tags: [...payload.rawTags!] }, new Map()).payload as DxfPayload
+  const original = projectDimension(raw, style), expected = original?.arcs[0]
+  const fail = () => { throw new KJValidationError('Cannot regenerate imported angular DIMENSION: original picture and definition sector are inconsistent or ambiguous') }
+  if (!expected) return fail()
+  const turn = Math.PI * 2, positive = (angle: number) => (angle % turn + turn) % turn
+  const candidates = document.listEntities({ ownerId: block.id }).filter(entity => {
+    const p = entity.payload
+    return entity.type === 'ARC' && Array.isArray(p.center) && Math.hypot(Number(p.center[0]) - expected.center[0], Number(p.center[1]) - expected.center[1]) <= 1e-7 * Math.max(1, expected.radius) && Math.abs(Number(p.radius) - expected.radius) <= 1e-7 * Math.max(1, expected.radius)
+  })
+  if (!candidates.length) return fail()
+  // Small arrow overshoots are legitimate; a supplementary/reflex sector is not.
+  const margin = Math.min(.25, Math.max(1e-8, Number(style.arrowSize ?? original!.label.height * .7) / expected.radius * 1.5))
+  const span = expected.endAngle - expected.startAngle
+  for (const entity of candidates) {
+    const p = entity.payload, start = Number(p.startAngle), end = Number(p.endAngle)
+    const sweep = positive(end - start), offset = positive(start - expected.startAngle + margin)
+    if (![start, end, sweep, offset].every(Number.isFinite) || sweep < 1e-12 || offset + sweep > span + 2 * margin + 1e-8) return fail()
+  }
+}
+
+/** Reorder equivalent native endpoints so independent CCW measurement agrees
+ * with the placement-selected sector, without changing the underlying lines. */
+function angularExportPoints(payload: DxfPayload, projection: NonNullable<ReturnType<typeof projectDimension>>, subtype: number): readonly Point3[] | undefined {
+  if (subtype !== 2 && subtype !== 5) return undefined
+  const p = payload.definitionPoints!, arc = projection.arcs[0]!, direction = [Math.cos(arc.startAngle), Math.sin(arc.startAngle)]
+  if (subtype === 5) {
+    const ray = [p[1]![0] - p[3]![0], p[1]![1] - p[3]![1]], norm = Math.hypot(...ray)
+    return (ray[0]! * direction[0]! + ray[1]! * direction[1]!) / norm > 1 - 1e-9 ? p : [p[0]!, p[2]!, p[1]!, ...p.slice(3)]
+  }
+  let first: [Point3, Point3] = [p[1]!, p[2]!], second: [Point3, Point3] = [p[3]!, p[0]!]
+  const aligned = (line: [Point3, Point3], angle: number) => {
+    const d = [line[1][0] - line[0][0], line[1][1] - line[0][1]]
+    return (d[0]! * Math.cos(angle) + d[1]! * Math.sin(angle)) / Math.hypot(...d)
+  }
+  if (Math.abs(aligned(first, arc.startAngle)) < 1 - 1e-9) [first, second] = [second, first]
+  if (aligned(first, arc.startAngle) < 0) first = [first[1], first[0]]
+  if (aligned(second, arc.endAngle) < 0) second = [second[1], second[0]]
+  return [second[1], first[0], first[1], second[0], p[4]!]
 }
 
 function buildDimensionExportBlocks(
@@ -945,8 +1000,12 @@ function buildDimensionExportBlocks(
       ? dimensionStyles.find(record => record.id === payload.styleId)
       : dimensionStyles.find(record => normalizeName(record.name) === normalizeName(payload.styleName)))?.payload ?? {}
     if (VERSION_RANK[context.version] < VERSION_RANK['2000'] && (payload.precision != null || style.decimalPlaces != null)) throw new KJValidationError('Explicit dimension precision requires DXF 2000 or newer')
+    if ([2, 5].includes(subtype) && Number(payload.angularUnits ?? style.angularUnits ?? 0) !== 0) throw new KJValidationError('Angular DIMENSION regeneration currently supports decimal degrees only')
+    const angularPrecision = Number(style.angularDecimalPlaces) >= 0 ? style.angularDecimalPlaces : style.decimalPlaces
+    const precision = [2, 5].includes(subtype) ? (Number(payload.precision) === -1 ? payload.linearPrecision ?? style.decimalPlaces : payload.precision ?? angularPrecision) : payload.precision ?? style.decimalPlaces
     const projection = projectDimension({ ...payload, dimensionType }, style)
     if (!projection) throw new KJValidationError(`DXF ${dimensionType} dimension ${entity.handle} has incomplete, non-finite, or degenerate definition points`)
+    if ([2, 5].includes(subtype) && payload.rawTags?.length && referencedBlock && populatedSourceBlocks.has(referencedBlock.id)) assertAngularPictureSector(document, referencedBlock, payload, style)
     const blockName = allocateName()
     const blockHandle = context.allocateHandle()
     const geometry: DxfEntity[] = [
@@ -954,6 +1013,10 @@ function buildDimensionExportBlocks(
         type: 'LINE',
         handle: context.allocateHandle(),
         payload: { start: [start[0], start[1], 0], end: [end[0], end[1], 0] },
+      } as DxfEntity)),
+      ...projection.arcs.map(arc => ({
+        type: 'ARC', handle: context.allocateHandle(),
+        payload: { center: [arc.center[0], arc.center[1], 0], radius: arc.radius, startAngle: arc.startAngle, endAngle: arc.endAngle },
       } as DxfEntity)),
       ...projection.arrows.map(([tip, rearA, rearB]) => ({
         type: 'SOLID',
@@ -991,8 +1054,9 @@ function buildDimensionExportBlocks(
       blockName,
       preserveRaw: false,
       measurement: projection.measurement,
+      ...([2, 5].includes(subtype) ? { definitionPoints: angularExportPoints(payload, projection, subtype)! } : {}),
       textHeight: projection.label.height / Math.max(1e-9, Number.isFinite(Number(style.overallScale)) && style.overallScale != null ? Number(style.overallScale) : 1),
-      precision: Math.max(0, Math.min(8, Math.trunc(Number.isFinite(Number(payload.precision ?? style.decimalPlaces)) && (payload.precision ?? style.decimalPlaces) != null ? Number(payload.precision ?? style.decimalPlaces) : 2))),
+      precision: Math.max(0, Math.min(8, Math.trunc(Number.isFinite(Number(precision)) && precision != null ? Number(precision) : 2))),
       textPosition: [projection.label.position[0], projection.label.position[1], 0],
     })
   }
@@ -1277,6 +1341,12 @@ function emitDimensionStyleTable(output: string[], records: readonly DxfNamedRec
     emitSymbolTableRecordHeader(output, 'DIMSTYLE', record, ownerHandle, version, 'AcDbDimStyleTableRecord')
     if (payload.decimalPlaces != null && (VERSION_RANK[version] < VERSION_RANK['2000'] || !Number.isInteger(payload.decimalPlaces) || Number(payload.decimalPlaces) < 0 || Number(payload.decimalPlaces) > 8)) throw new KJValidationError('Dimension style decimalPlaces requires an integer 0–8 and DXF 2000 or newer')
     if (payload.decimalPlaces != null) emit(output, 271, payload.decimalPlaces)
+    for (const [field, code, min, max] of [['angularDecimalPlaces', 179, -1, 8], ['angularUnits', 275, 0, 3]] as const) {
+      const value = payload[field]
+      if (value == null) continue
+      if (VERSION_RANK[version] < VERSION_RANK['2000'] || !Number.isInteger(value) || Number(value) < min || Number(value) > max) throw new KJValidationError(`Dimension style ${field} requires a valid native value and DXF 2000 or newer`)
+      emit(output, code, value)
+    }
     emit(output, 2, record.name); emit(output, 70, payload.dxfFlags ?? 0); emit(output, 40, payload.overallScale ?? 1); emit(output, 41, payload.arrowSize ?? 2.5); emit(output, 42, payload.extensionOffset ?? 0.625); emit(output, 43, payload.baselineSpacing ?? 3.75); emit(output, 44, payload.extensionBeyond ?? 1.25); if (payload.rounding) emit(output, 45, payload.rounding); emit(output, 140, payload.textHeight ?? 2.5); emit(output, 141, payload.centerMarkSize ?? 2.5); emit(output, 147, payload.textGap ?? 0.625)
   })
 }
@@ -1390,24 +1460,26 @@ function emitEntity(
     const dimensionCode = nativeDimensionCode(p)
     emitSubclass(output, version, 'AcDbDimension')
     emit(output, 2, dimension.blockName)
-    emitPoint(output, p.definitionPoints[0]!)
+    const definitionPoints = dimension.definitionPoints ?? p.definitionPoints
+    emitPoint(output, definitionPoints[0]!)
     emitPoint(output, dimension.textPosition ?? p.textPosition ?? p.definitionPoints[0]!, 11)
     emit(output, 3, (p.styleId ? resources.dimensionStyleNames?.get(p.styleId) : undefined) ?? p.styleName ?? 'STANDARD')
     emit(output, 70, isSubclassDXF(version) ? dimensionCode | 32 : dimensionCode)
     if (p.textOverride != null) emit(output, 1, p.textOverride)
-    if (dimension.measurement != null) emit(output, 42, dimension.measurement)
+    // Angular group 42 is optional: consumers derive it from native definitions.
+    if (dimension.measurement != null && ![2, 5].includes(dimensionCode & 7)) emit(output, 42, dimension.measurement)
     const subtype = dimensionCode & 7
     const subclass = ['AcDbAlignedDimension', 'AcDbAlignedDimension', 'AcDb2LineAngularDimension', 'AcDbDiametricDimension', 'AcDbRadialDimension', 'AcDb3PointAngularDimension', 'AcDbOrdinateDimension'][subtype]
     if (subclass) emitSubclass(output, version, subclass)
     const codes = subtype === 3 || subtype === 4 ? [15] : [13, 14, 15, 16]
-    p.definitionPoints.slice(1, codes.length + 1).forEach((value, index) => emitPoint(output, value, codes[index]!))
+    definitionPoints.slice(1, codes.length + 1).forEach((value, index) => emitPoint(output, value, codes[index]!))
     // Native ALIGNED geometry is determined by its extension origins, including the direction
     // reported to independent CAD measurement APIs; stale user rotation must not change it.
     const alignedStart = p.definitionPoints[1], alignedEnd = p.definitionPoints[2]
     const dimensionRotation = subtype === 1 && alignedStart && alignedEnd
       ? Math.atan2(Number(alignedEnd[1]) - Number(alignedStart[1]), Number(alignedEnd[0]) - Number(alignedStart[0]))
       : Number(p.rotation ?? 0)
-    if (dimensionRotation) emit(output, 50, dimensionRotation * 180 / Math.PI)
+    if (dimensionRotation && [0, 1].includes(subtype)) emit(output, 50, dimensionRotation * 180 / Math.PI)
     if (subtype === 0) emitSubclass(output, version, 'AcDbRotatedDimension')
   }
   else if (entity.type === 'VIEWPORT') {
@@ -1452,7 +1524,9 @@ function emitEntity(
     emit(output, 1070, 144); emit(output, 1040, 1)
     emit(output, 1070, 78); emit(output, 1070, 8)
     if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
-      emit(output, 1070, 271); emit(output, 1070, dimensionStyle.precision)
+      const angular = [2, 5].includes(nativeDimensionCode(p) & 7)
+      emit(output, 1070, angular ? 179 : 271); emit(output, 1070, dimensionStyle.precision)
+      if (angular) { emit(output, 1070, 275); emit(output, 1070, 0); emit(output, 1070, 79); emit(output, 1070, 2) }
       emit(output, 1070, 277); emit(output, 1070, 2)
       emit(output, 1070, 278); emit(output, 1070, 46)
     }
