@@ -395,6 +395,9 @@ export class KJTransaction {
                     height: 297,
                     unit: 'mm'
                 }),
+                ...options.dxfPlotSettings === undefined ? {} : {
+                    dxfPlotSettings: clone(options.dxfPlotSettings)
+                },
                 viewportIds: []
             }
         });

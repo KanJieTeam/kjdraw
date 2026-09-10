@@ -18,6 +18,9 @@ import {
   toHexHandle,
 } from './utils.js'
 import type { ReadonlyDeep } from './utils.js'
+import { validatePlotSettings } from './plot-settings.js'
+import type { KJDxfPlotSettings } from './plot-settings.js'
+export type { KJDxfPlotSettings } from './plot-settings.js'
 
 export interface KJObjectExtension {
   xdata: Record<string, unknown>
@@ -34,6 +37,7 @@ export interface KJObjectPayload extends Record<string, unknown> {
   viewportIds?: string[]
   entries?: Record<string, string | string[]>
   memberIds?: string[]
+  dxfPlotSettings?: KJDxfPlotSettings
 }
 
 export interface KJObjectRecord<TPayload extends KJObjectPayload = KJObjectPayload> {
@@ -338,6 +342,10 @@ function validateObjectGraph(state: KJDocumentState, issues: KJValidationIssue[]
       if (object.payload?.contractVersion !== 1) issues.push({ path: `objects.${id}.payload.contractVersion`, message: 'Standard entity payload is not canonical' })
       try { normalizeStandardEntityPayload(object.type, object.payload) }
       catch (error) { issues.push({ path: `objects.${id}.payload`, message: errorMessage(error) }) }
+    }
+    if (object?.kind === 'layout' && object.payload?.dxfPlotSettings !== undefined) {
+      try { validatePlotSettings(object.payload.dxfPlotSettings) }
+      catch (error) { issues.push({ path: `objects.${id}.payload.dxfPlotSettings`, message: errorMessage(error) }) }
     }
     if (object?.kind === 'entity' && object.type === 'INSERT' && state.objects[object.payload?.blockRecordId ?? '']?.kind !== 'block-record') {
       issues.push({ path: `objects.${id}.payload.blockRecordId`, message: `Block definition is missing: ${object.payload?.blockRecordId}` })

@@ -26,6 +26,7 @@ export interface KJTableRecordInput extends KJObjectSpec {
 export interface KJLayoutOptions {
     name?: string;
     paper?: unknown;
+    dxfPlotSettings?: import('./plot-settings.js').KJDxfPlotSettings;
 }
 export declare class KJTransaction {
     #private;

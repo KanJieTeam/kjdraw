@@ -74,6 +74,7 @@ export interface KJTableRecordInput extends KJObjectSpec {
 export interface KJLayoutOptions {
   name?: string
   paper?: unknown
+  dxfPlotSettings?: import('./plot-settings.js').KJDxfPlotSettings
 }
 
 export class KJTransaction {
@@ -346,6 +347,7 @@ export class KJTransaction {
         blockRecordId: block.id,
         tabOrder: this.#state.spaces.layoutIds.length,
         paper: clone(options.paper ?? { width: 420, height: 297, unit: 'mm' }),
+        ...(options.dxfPlotSettings === undefined ? {} : { dxfPlotSettings: clone(options.dxfPlotSettings) }),
         viewportIds: [],
       },
     })

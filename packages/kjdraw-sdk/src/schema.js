@@ -4,6 +4,7 @@ import { KJValidationError } from './errors.js';
 import { createId } from './ids.js';
 import { isStandardEntityType, normalizeLegacyEntityPayload, normalizeStandardEntityPayload } from './standard-entities.js';
 import { assertPlainObject, clone, fromHexHandle, normalizeName, nowIso, toHexHandle } from './utils.js';
+import { validatePlotSettings } from './plot-settings.js';
 function errorMessage(error) {
     return error instanceof Error ? error.message : String(error);
 }
@@ -315,6 +316,16 @@ function validateObjectGraph(state, issues, previousState) {
             } catch (error) {
                 issues.push({
                     path: `objects.${id}.payload`,
+                    message: errorMessage(error)
+                });
+            }
+        }
+        if (object?.kind === 'layout' && object.payload?.dxfPlotSettings !== undefined) {
+            try {
+                validatePlotSettings(object.payload.dxfPlotSettings);
+            } catch (error) {
+                issues.push({
+                    path: `objects.${id}.payload.dxfPlotSettings`,
                     message: errorMessage(error)
                 });
             }

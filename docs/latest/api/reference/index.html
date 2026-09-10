@@ -1819,10 +1819,12 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function deepFreeze&lt;T&gt;(value: T, seen?: WeakSet&lt;object&gt;): ReadonlyDeep&lt;T&gt;;</code></pre>
       <p class="source-path">utils.d.ts</p>
     </article>
-<article class="api-symbol" id="core-type-default" data-search="default type @kanjieteam/kjdraw/core export type { kjboxselectionmode, kjspatialselectionoptions } from &#39;./selection-geometry.js&#39;;">
+<article class="api-symbol" id="core-type-default" data-search="default type @kanjieteam/kjdraw/core export type { kjdxfplotsettings } from &#39;./plot-settings.js&#39;;
+export type { kjboxselectionmode, kjspatialselectionoptions } from &#39;./selection-geometry.js&#39;;">
       <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#core-type-default" aria-label="Link to default">#</a></header>
-      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./selection-geometry.js&#39;;</code></pre>
-      <p class="source-path">selection.d.ts</p>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJDxfPlotSettings } from &#39;./plot-settings.js&#39;;
+export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./selection-geometry.js&#39;;</code></pre>
+      <p class="source-path">schema.d.ts</p>
     </article>
 <article class="api-symbol" id="core-const-default-tolerance" data-search="default_tolerance const @kanjieteam/kjdraw/core export declare const default_tolerance: kjtolerance;">
       <header><div><span class="kind">const</span><h3>DEFAULT_TOLERANCE</h3></div><a class="permalink" href="#core-const-default-tolerance" aria-label="Link to DEFAULT_TOLERANCE">#</a></header>
@@ -5432,11 +5434,13 @@ export declare function assertPlainObject(value: unknown, label: string): Record
 <article class="api-symbol" id="core-interface-kjlayoutoptions" data-search="kjlayoutoptions interface @kanjieteam/kjdraw/core export interface kjlayoutoptions {
     name?: string;
     paper?: unknown;
+    dxfplotsettings?: import(&#39;./plot-settings.js&#39;).kjdxfplotsettings;
 }">
       <header><div><span class="kind">interface</span><h3>KJLayoutOptions</h3></div><a class="permalink" href="#core-interface-kjlayoutoptions" aria-label="Link to KJLayoutOptions">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJLayoutOptions {
     name?: string;
     paper?: unknown;
+    dxfPlotSettings?: import(&#39;./plot-settings.js&#39;).KJDxfPlotSettings;
 }</code></pre>
       <p class="source-path">transaction.d.ts</p>
     </article>
@@ -5635,6 +5639,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     viewportids?: string[];
     entries?: record&lt;string, string | string[]&gt;;
     memberids?: string[];
+    dxfplotsettings?: kjdxfplotsettings;
 }">
       <header><div><span class="kind">interface</span><h3>KJObjectPayload</h3></div><a class="permalink" href="#core-interface-kjobjectpayload" aria-label="Link to KJObjectPayload">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJObjectPayload extends Record&lt;string, unknown&gt; {
@@ -5645,6 +5650,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     viewportIds?: string[];
     entries?: Record&lt;string, string | string[]&gt;;
     memberIds?: string[];
+    dxfPlotSettings?: KJDxfPlotSettings;
 }</code></pre>
       <p class="source-path">schema.d.ts</p>
     </article>
@@ -9558,11 +9564,15 @@ export declare function assertPlainObject(value: unknown, label: string): Record
 <article class="api-symbol" id="root-type-default" data-search="default type @kanjieteam/kjdraw export type { kjworkbenchlayout } from &#39;./workbench.js&#39;;
 export type { kjagentdrawinginput, kjagentpoint } from &#39;./agent-drawing.js&#39;;
 export type { kjagentgeometrypreview, kjagentpreviewentity } from &#39;./agent-preview.js&#39;;
+export type { kjdxfplotsettings } from &#39;./plot-settings.js&#39;;
+export type { kjboxselectionmode, kjspatialselectionoptions } from &#39;./selection-geometry.js&#39;;
 export type { kjboxselectionmode, kjspatialselectionoptions } from &#39;./selection-geometry.js&#39;;">
       <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#root-type-default" aria-label="Link to default">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJWorkbenchLayout } from &#39;./workbench.js&#39;;
 export type { KJAgentDrawingInput, KJAgentPoint } from &#39;./agent-drawing.js&#39;;
 export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-preview.js&#39;;
+export type { KJDxfPlotSettings } from &#39;./plot-settings.js&#39;;
+export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./selection-geometry.js&#39;;
 export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./selection-geometry.js&#39;;</code></pre>
       <p class="source-path">editor.d.ts</p>
     </article>
@@ -14040,11 +14050,13 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 <article class="api-symbol" id="root-interface-kjlayoutoptions" data-search="kjlayoutoptions interface @kanjieteam/kjdraw export interface kjlayoutoptions {
     name?: string;
     paper?: unknown;
+    dxfplotsettings?: import(&#39;./plot-settings.js&#39;).kjdxfplotsettings;
 }">
       <header><div><span class="kind">interface</span><h3>KJLayoutOptions</h3></div><a class="permalink" href="#root-interface-kjlayoutoptions" aria-label="Link to KJLayoutOptions">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJLayoutOptions {
     name?: string;
     paper?: unknown;
+    dxfPlotSettings?: import(&#39;./plot-settings.js&#39;).KJDxfPlotSettings;
 }</code></pre>
       <p class="source-path">transaction.d.ts</p>
     </article>
@@ -14479,6 +14491,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     viewportids?: string[];
     entries?: record&lt;string, string | string[]&gt;;
     memberids?: string[];
+    dxfplotsettings?: kjdxfplotsettings;
 }">
       <header><div><span class="kind">interface</span><h3>KJObjectPayload</h3></div><a class="permalink" href="#root-interface-kjobjectpayload" aria-label="Link to KJObjectPayload">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJObjectPayload extends Record&lt;string, unknown&gt; {
@@ -14489,6 +14502,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     viewportIds?: string[];
     entries?: Record&lt;string, string | string[]&gt;;
     memberIds?: string[];
+    dxfPlotSettings?: KJDxfPlotSettings;
 }</code></pre>
       <p class="source-path">schema.d.ts</p>
     </article>

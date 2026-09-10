@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:a5453821fe25bdbe051cfc9b0e8694319ed345e6d24a1cd89f91ecfdd0e6221b",
+  "sourceDigest": "sha256:5d4c7612aabed6201b039a7aa8d886c19668ea2c9d5dec2debe3d0db913cddbd",
   "modules": [
     {
       "exportPath": "./model-adapters",
@@ -1003,8 +1003,8 @@
         {
           "name": "default",
           "kind": "type",
-          "declaration": "export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
-          "source": "selection.d.ts",
+          "declaration": "export type { KJDxfPlotSettings } from './plot-settings.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
+          "source": "schema.d.ts",
           "anchor": "core-type-default"
         },
         {
@@ -2473,7 +2473,7 @@
         {
           "name": "KJLayoutOptions",
           "kind": "interface",
-          "declaration": "export interface KJLayoutOptions {\n    name?: string;\n    paper?: unknown;\n}",
+          "declaration": "export interface KJLayoutOptions {\n    name?: string;\n    paper?: unknown;\n    dxfPlotSettings?: import('./plot-settings.js').KJDxfPlotSettings;\n}",
           "source": "transaction.d.ts",
           "anchor": "core-interface-kjlayoutoptions"
         },
@@ -2571,7 +2571,7 @@
         {
           "name": "KJObjectPayload",
           "kind": "interface",
-          "declaration": "export interface KJObjectPayload extends Record<string, unknown> {\n    layerId?: string;\n    contractVersion?: number;\n    entityIds?: string[];\n    blockRecordId?: string;\n    viewportIds?: string[];\n    entries?: Record<string, string | string[]>;\n    memberIds?: string[];\n}",
+          "declaration": "export interface KJObjectPayload extends Record<string, unknown> {\n    layerId?: string;\n    contractVersion?: number;\n    entityIds?: string[];\n    blockRecordId?: string;\n    viewportIds?: string[];\n    entries?: Record<string, string | string[]>;\n    memberIds?: string[];\n    dxfPlotSettings?: KJDxfPlotSettings;\n}",
           "source": "schema.d.ts",
           "anchor": "core-interface-kjobjectpayload"
         },
@@ -4957,7 +4957,7 @@
         {
           "name": "default",
           "kind": "type",
-          "declaration": "export type { KJWorkbenchLayout } from './workbench.js';\nexport type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';\nexport type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
+          "declaration": "export type { KJWorkbenchLayout } from './workbench.js';\nexport type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';\nexport type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';\nexport type { KJDxfPlotSettings } from './plot-settings.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';\nexport type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';",
           "source": "editor.d.ts",
           "anchor": "root-type-default"
         },
@@ -6735,7 +6735,7 @@
         {
           "name": "KJLayoutOptions",
           "kind": "interface",
-          "declaration": "export interface KJLayoutOptions {\n    name?: string;\n    paper?: unknown;\n}",
+          "declaration": "export interface KJLayoutOptions {\n    name?: string;\n    paper?: unknown;\n    dxfPlotSettings?: import('./plot-settings.js').KJDxfPlotSettings;\n}",
           "source": "transaction.d.ts",
           "anchor": "root-interface-kjlayoutoptions"
         },
@@ -6959,7 +6959,7 @@
         {
           "name": "KJObjectPayload",
           "kind": "interface",
-          "declaration": "export interface KJObjectPayload extends Record<string, unknown> {\n    layerId?: string;\n    contractVersion?: number;\n    entityIds?: string[];\n    blockRecordId?: string;\n    viewportIds?: string[];\n    entries?: Record<string, string | string[]>;\n    memberIds?: string[];\n}",
+          "declaration": "export interface KJObjectPayload extends Record<string, unknown> {\n    layerId?: string;\n    contractVersion?: number;\n    entityIds?: string[];\n    blockRecordId?: string;\n    viewportIds?: string[];\n    entries?: Record<string, string | string[]>;\n    memberIds?: string[];\n    dxfPlotSettings?: KJDxfPlotSettings;\n}",
           "source": "schema.d.ts",
           "anchor": "root-interface-kjobjectpayload"
         },

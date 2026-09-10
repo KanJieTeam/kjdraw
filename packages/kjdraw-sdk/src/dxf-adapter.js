@@ -6,6 +6,22 @@ import { projectDimension } from './geometry/annotation.js';
 import { hatchPatternLines } from './geometry/hatch.js';
 import { normalizeStandardEntityPayload } from './standard-entities.js';
 import { normalizeName } from './utils.js';
+import { PLOT_SETTING_FIELDS, validatePlotSettings } from './plot-settings.js';
+function readPlotSettings(record) {
+    const start = record.tags.findIndex((tag)=>tag.code === 100 && tag.value === 'AcDbPlotSettings');
+    if (start < 0) return undefined;
+    const end = record.tags.findIndex((tag, index)=>index > start && tag.code === 100);
+    const tags = record.tags.slice(start + 1, end < 0 ? undefined : end);
+    const result = {};
+    for (const [key, [code, kind]] of Object.entries(PLOT_SETTING_FIELDS)){
+        const matches = tags.filter((tag)=>tag.code === code);
+        if (matches.length > 1) throw new KJValidationError(`Duplicate DXF plot setting: ${key}`);
+        const tag = matches[0];
+        if (tag) result[key] = kind === 'string' ? tag.value : tag.value.trim() ? Number(tag.value) : NaN;
+    }
+    validatePlotSettings(result);
+    return Object.keys(result).length ? result : undefined;
+}
 function dxfPayload(record) {
     return record.payload ?? {};
 }
@@ -1099,7 +1115,8 @@ async function readDXF(source, options = {}) {
                 name: String(first(layout, 1) ?? '').trim(),
                 handle: String(first(record, 5) ?? '').toUpperCase(),
                 blockHandle: recordOwner(layout),
-                order: number(layout, 71, 0)
+                order: number(layout, 71, 0),
+                plotSettings: readPlotSettings(record)
             };
         }).filter((layout)=>layout.name).sort((a, b)=>a.order - b.order);
         const layoutNames = new Set(), layoutOwners = new Set();
@@ -1129,6 +1146,15 @@ async function readDXF(source, options = {}) {
             return layout.payload.blockRecordId;
         };
         for (const layout of sourceLayouts)if (normalizeName(layout.name) !== 'MODEL') ensurePaperSpace(layout.name, layout.order);
+        for (const layout of sourceLayouts)if (layout.plotSettings) {
+            const id = transaction._draft().spaces.layoutIds.find((id)=>normalizeName(transaction.getObject(id)?.name) === normalizeName(layout.name));
+            if (!id) throw new KJValidationError('DXF page configuration has no layout');
+            transaction.updateObject(id, {
+                payload: {
+                    dxfPlotSettings: layout.plotSettings
+                }
+            });
+        }
         const sourceLayoutByBlock = new Map(sourceLayouts.map((layout)=>[
                 layout.blockHandle,
                 layout.name
@@ -2142,6 +2168,7 @@ function writeDXF(document, options = {}) {
         if (entity.type === 'PROXY_ENTITY' && sourceVersion !== 'UNKNOWN' && sourceCode !== ACADVER[version]) throw new KJValidationError(`Opaque ${entity.payload?.originalType ?? 'DXF'} data can only be preserved at its source format code ${sourceCode ?? sourceVersion}`);
     }
     if (VERSION_RANK[version] < VERSION_RANK['2000'] && state.spaces.paperSpaceIds.length > 1) throw new KJValidationError(`DXF ${version} cannot preserve multiple named paper spaces without layout metadata`);
+    if (VERSION_RANK[version] < VERSION_RANK['2000'] && layouts.some((layout)=>layout.payload.dxfPlotSettings && Object.keys(layout.payload.dxfPlotSettings).length)) throw new KJValidationError(`DXF ${version} cannot preserve layout plot settings; minimum target is 2000`);
     emit(output, 0, 'SECTION');
     emit(output, 2, 'HEADER');
     emit(output, 9, '$ACADVER');
@@ -2278,6 +2305,13 @@ function writeDXF(document, options = {}) {
             emit(output, 102, '}');
             emit(output, 330, dictionaryHandle);
             emit(output, 100, 'AcDbPlotSettings');
+            if (layout.payload.dxfPlotSettings !== undefined) {
+                validatePlotSettings(layout.payload.dxfPlotSettings);
+                for (const [key, [code]] of Object.entries(PLOT_SETTING_FIELDS)){
+                    const value = layout.payload.dxfPlotSettings[key];
+                    if (value !== undefined) emit(output, code, value);
+                }
+            }
             emit(output, 100, 'AcDbLayout');
             emit(output, 1, layout.name);
             emit(output, 70, 1);

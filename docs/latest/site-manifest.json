@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:2445755bbd4ce323c157a21089a64f275d4bf46058ab9524b69bbf53f052c1c2",
+  "sourceDigest": "sha256:4921ed046ca5c1fdcd3adea8b615a677b9838b90f5e10f066c6f10839aef841d",
   "locales": [
     "en",
     "zh"
@@ -160,6 +160,7 @@
           "en-files",
           "en-files-choose-a-format",
           "en-files-read-and-write",
+          "en-files-dxf-page-configuration",
           "en-files-package-a-project",
           "en-files-limits-and-dxf-evidence"
         ],
@@ -167,6 +168,7 @@
           "zh-files",
           "zh-files-choose-a-format",
           "zh-files-read-and-write",
+          "zh-files-dxf-page-configuration",
           "zh-files-package-a-project",
           "zh-files-limits-and-dxf-evidence"
         ]

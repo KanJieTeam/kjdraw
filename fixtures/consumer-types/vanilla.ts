@@ -3,6 +3,7 @@ import {
   type KJCommandReceipt,
   type KJDocument,
   type KJEntity,
+  type KJDxfPlotSettings,
 } from '@kanjieteam/kjdraw'
 import { createKJDrawEditor, type KJWorkbenchLayout } from '@kanjieteam/kjdraw/editor'
 import { trimEntityPayloads, extendEntityPayload, type KJDerivedEntityPayload } from '@kanjieteam/kjdraw/editing'
@@ -39,6 +40,8 @@ const created = await sdk.executeCommand<KJEntity>('CREATE', {
   type: 'LINE',
   payload: { start: [0, 0, 0], end: [100, 0, 0] },
 })
+const pageSettings: KJDxfPlotSettings = { paperWidth: 594, paperHeight: 841, paperUnits: 1, rotation: 1, scaleDenominator: 100 }
+await drawing.transact('typed page setup', tx => tx.createLayout({ name: 'A1 output', dxfPlotSettings: pageSettings }))
 const envelope = sdk.createCommandEnvelope('MOVE', { id: created.id, dx: 25, dy: 10 })
 const receipt: KJCommandReceipt | unknown = await sdk.executeCommandEnvelope(envelope)
 

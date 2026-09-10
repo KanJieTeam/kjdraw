@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:a5453821fe25bdbe051cfc9b0e8694319ed345e6d24a1cd89f91ecfdd0e6221b",
+  "sourceDigest": "sha256:5d4c7612aabed6201b039a7aa8d886c19668ea2c9d5dec2debe3d0db913cddbd",
   "entries": [
     {
       "name": "createKJModelAdapter",
@@ -1058,7 +1058,7 @@
       "module": "@kanjieteam/kjdraw/core",
       "href": "./api/reference/#core-type-default",
       "anchor": "core-type-default",
-      "summary": "export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';"
+      "summary": "export type { KJDxfPlotSettings } from './plot-settings.js'; export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';"
     },
     {
       "name": "DEFAULT_TOLERANCE",
@@ -2738,7 +2738,7 @@
       "module": "@kanjieteam/kjdraw/core",
       "href": "./api/reference/#core-interface-kjlayoutoptions",
       "anchor": "core-interface-kjlayoutoptions",
-      "summary": "export interface KJLayoutOptions { name?: string; paper?: unknown; }"
+      "summary": "export interface KJLayoutOptions { name?: string; paper?: unknown; dxfPlotSettings?: import('./plot-settings.js').KJDxfPlotSettings; }"
     },
     {
       "name": "KJLegacyEntity",
@@ -7554,7 +7554,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjlayoutoptions",
       "anchor": "root-interface-kjlayoutoptions",
-      "summary": "export interface KJLayoutOptions { name?: string; paper?: unknown; }"
+      "summary": "export interface KJLayoutOptions { name?: string; paper?: unknown; dxfPlotSettings?: import('./plot-settings.js').KJDxfPlotSettings; }"
     },
     {
       "name": "KJLegacyEntity",

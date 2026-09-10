@@ -34,6 +34,22 @@ Adapters share the same document model. Keep the original input when evaluating 
 
 DXF 2000 and newer exports retain named and empty layout identities, tab order and entity ownership. Import resolves layout/block references even without entity `410` hints; non-primary paper entities are written inside their space blocks for independent readers. Full paper settings, viewports and plotting fidelity remain outside this guarantee. Conflicting layout identities or ambiguous entity ownership fail the import instead of silently moving geometry.
 
+## Preserve DXF page configuration {#dxf-page-configuration}
+
+Imported layout `payload.dxfPlotSettings` retains 30 scalar `AcDbPlotSettings` fields, including paper dimensions, margins, offsets, window, units, rotation, scale and resource names. `KJDxfPlotSettings` is exported from the package; `transaction.createLayout({ name, dxfPlotSettings })` also accepts it. The fields remain in KJD and DXF 2000+.
+
+```ts
+await sdk.executeCommand('PAGESETUP', {
+  layoutName: 'Layout1',
+  dxf: { paperWidth: 594, paperHeight: 841, paperUnits: 1, rotation: 1,
+    scaleNumerator: 1, scaleDenominator: 100 },
+})
+```
+
+`dxf` patches only supplied fields and supports undo/redo. Physical paper dimensions, margins and origin offsets always use millimeters; `paperUnits` is 0/inches, 1/mm or 2/pixels. `rotation` is the DXF index 0/1/2/3 for 0/90/180/270 degrees counterclockwise. This explicit mode preserves the existing native `PLOTSETUP` settings contract (degree rotation, nested scale, output device). Native `plotSettings` and the legacy `paper` envelope are not silently converted to DXF configuration; use `dxf` for interchange. R12/R14 exports reject populated DXF page settings. Invalid settings fail atomically.
+
+This is configuration preservation, not physical printing or a page preview. Layout limits/extents, viewport projection, named page-setup dictionaries, shade-object handles, transparency XDATA and referenced printer/style files remain outside this guarantee. KJDraw does not execute resource names or load local printer configuration.
+
 ## Package a project {#package-a-project}
 
 Use `KJProjectSession` when the application needs active-drawing state, membership and a command journal. Use `createKjpPackage()` and `openKjpPackage()` for lower-level package assembly and inspection. A browser file binding can download and reopen a KJP; a desktop or server provider defines atomic replacement and fsync guarantees.
@@ -72,6 +88,22 @@ const dxf = await sdk.writeDocument(drawing, {
 不同适配器共用同一个图档模型。评估互操作时请保留原始输入；导出文件只是一个新产物，不能自动证明具体应用已经完成持久落盘。
 
 DXF 2000 及更新版本导出保留命名布局、空布局、标签顺序和实体归属。导入在没有实体 `410` 提示时仍解析布局与空间块引用；非主图纸空间实体写入对应空间块，供独立读取器正确识别。此保证不包含完整纸张设置、视口和打印保真。布局身份冲突或实体归属无法判定时导入会报错，避免静默移动图形。
+
+## 保留 DXF 页面配置 {#dxf-page-configuration}
+
+导入布局的 `payload.dxfPlotSettings` 保留 30 个 `AcDbPlotSettings` 标量字段，包括纸张尺寸、边距、偏移、窗口、单位、旋转、比例及资源名称。包导出 `KJDxfPlotSettings` 类型，`transaction.createLayout({ name, dxfPlotSettings })` 也可设置。字段保存在 KJD 和 DXF 2000+ 中。
+
+```ts
+await sdk.executeCommand('PAGESETUP', {
+  layoutName: 'Layout1',
+  dxf: { paperWidth: 594, paperHeight: 841, paperUnits: 1, rotation: 1,
+    scaleNumerator: 1, scaleDenominator: 100 },
+})
+```
+
+`dxf` 仅修改提供的字段，支持撤销/重做。物理纸张、边距和原点偏移始终以毫米表示；`paperUnits` 的 0/1/2 分别表示英寸/毫米/像素。`rotation` 使用 DXF 索引 0/1/2/3，对应逆时针 0/90/180/270 度。显式模式兼容现有原生 `PLOTSETUP` 契约（角度旋转、嵌套比例、输出设备）；原生 `plotSettings` 与旧 `paper` 信息不会静默转换为 DXF 配置，交换页面参数请使用 `dxf`。R12/R14 导出会拒绝丢失已设置的 DXF 页面参数；非法修改完整回滚。
+
+本项保留配置，尚不等于实际打印或页面预览。布局范围、视口投影、命名页面设置字典、着色对象句柄、透明度 XDATA 及引用的打印机/样式文件仍不在保证内。资源名称不会被执行，也不会自动加载本地打印机配置。
 
 ## 打包工程 {#package-a-project}
 

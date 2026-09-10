@@ -1,5 +1,7 @@
 import type { KJObjectKind, KJTableName } from './constants.js';
 import type { ReadonlyDeep } from './utils.js';
+import type { KJDxfPlotSettings } from './plot-settings.js';
+export type { KJDxfPlotSettings } from './plot-settings.js';
 export interface KJObjectExtension {
     xdata: Record<string, unknown>;
     xrecordIds: string[];
@@ -14,6 +16,7 @@ export interface KJObjectPayload extends Record<string, unknown> {
     viewportIds?: string[];
     entries?: Record<string, string | string[]>;
     memberIds?: string[];
+    dxfPlotSettings?: KJDxfPlotSettings;
 }
 export interface KJObjectRecord<TPayload extends KJObjectPayload = KJObjectPayload> {
     id: string;

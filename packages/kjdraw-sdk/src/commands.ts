@@ -1,4 +1,5 @@
 import { KJRegistrationError, KJValidationError } from './errors.js'
+import { validatePlotSettings } from './plot-settings.js'
 import { createCommandEditScope } from './edit-policy.js'
 import {
   entityArea2,
@@ -622,6 +623,11 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'PLOTSETUP', aliases: ['PAGESETUP'], title: 'Configure layout plotting',
     execute: ({ document, transaction }, args) => {
       const layout = resolveLayout(document, args.layoutId ?? args.layoutName ?? document.snapshot().spaces.activeLayoutId)
+      if (args.dxf !== undefined) {
+        validatePlotSettings(args.dxf)
+        if (args.settings !== undefined) throw new KJValidationError('PLOTSETUP cannot mix dxf and native settings')
+        return transaction.updateObject(layout.id, { payload: { dxfPlotSettings: { ...layout.payload.dxfPlotSettings, ...args.dxf } } })
+      }
       const settings = normalizePlotSettings(args.settings ?? args)
       if (settings.plotStyleId && !document.snapshot().resources.plotStyles?.[settings.plotStyleId]) throw new KJValidationError(`Plot style does not exist: ${settings.plotStyleId}`)
       return transaction.updateObject(layout.id, { payload: { plotSettings: settings } })

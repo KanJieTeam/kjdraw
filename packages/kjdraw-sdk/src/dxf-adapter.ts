@@ -9,6 +9,8 @@ import { projectDimension } from './geometry/annotation.js'
 import { hatchPatternLines } from './geometry/hatch.js'
 import { normalizeStandardEntityPayload } from './standard-entities.js'
 import { normalizeName } from './utils.js'
+import { PLOT_SETTING_FIELDS, validatePlotSettings } from './plot-settings.js'
+import type { KJDxfPlotSettings } from './plot-settings.js'
 
 type DxfVersion = 'R12' | 'R14' | '2000' | '2004' | '2010' | '2013' | '2018' | '2024'
 type DxfProductVersion = Exclude<DxfVersion, 'R12'>
@@ -16,6 +18,22 @@ type Point3 = [number, number, number]
 
 interface DxfTag { code: number; value: string }
 interface DxfRecord { type: string; tags: DxfTag[]; vertices?: DxfRecord[]; sequenceEnd?: DxfRecord | null }
+
+function readPlotSettings(record: DxfRecord): KJDxfPlotSettings | undefined {
+  const start = record.tags.findIndex(tag => tag.code === 100 && tag.value === 'AcDbPlotSettings')
+  if (start < 0) return undefined
+  const end = record.tags.findIndex((tag, index) => index > start && tag.code === 100)
+  const tags = record.tags.slice(start + 1, end < 0 ? undefined : end)
+  const result: Record<string, unknown> = {}
+  for (const [key, [code, kind]] of Object.entries(PLOT_SETTING_FIELDS)) {
+    const matches = tags.filter(tag => tag.code === code)
+    if (matches.length > 1) throw new KJValidationError(`Duplicate DXF plot setting: ${key}`)
+    const tag = matches[0]
+    if (tag) result[key] = kind === 'string' ? tag.value : tag.value.trim() ? Number(tag.value) : NaN
+  }
+  validatePlotSettings(result)
+  return Object.keys(result).length ? result : undefined
+}
 interface DxfBlockDefinition { name: string; header: DxfRecord; basePoint: Point3; flags: number; records: DxfRecord[] }
 interface DxfReadLimits { maxBytes: number; maxTags: number; maxEntities: number }
 interface DxfReadOptions extends KJFileAdapterOptions {
@@ -652,7 +670,7 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
     const sourceLayouts = records(section(tags, 'OBJECTS')).filter(record => record.type === 'LAYOUT').map(record => {
       const marker = record.tags.findIndex(tag => tag.code === 100 && tag.value === 'AcDbLayout')
       const layout = { ...record, tags: marker < 0 ? record.tags : record.tags.slice(marker + 1) }
-      return { name: String(first(layout, 1) ?? '').trim(), handle: String(first(record, 5) ?? '').toUpperCase(), blockHandle: recordOwner(layout), order: number(layout, 71, 0) }
+      return { name: String(first(layout, 1) ?? '').trim(), handle: String(first(record, 5) ?? '').toUpperCase(), blockHandle: recordOwner(layout), order: number(layout, 71, 0), plotSettings: readPlotSettings(record) }
     }).filter(layout => layout.name).sort((a, b) => a.order - b.order)
     const layoutNames = new Set<string>(), layoutOwners = new Set<string>()
     for (const layout of sourceLayouts) {
@@ -672,6 +690,11 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
       return layout.payload.blockRecordId
     }
     for (const layout of sourceLayouts) if (normalizeName(layout.name) !== 'MODEL') ensurePaperSpace(layout.name, layout.order)
+    for (const layout of sourceLayouts) if (layout.plotSettings) {
+      const id = transaction._draft().spaces.layoutIds.find(id => normalizeName(transaction.getObject(id)?.name) === normalizeName(layout.name))
+      if (!id) throw new KJValidationError('DXF page configuration has no layout')
+      transaction.updateObject(id, { payload: { dxfPlotSettings: layout.plotSettings } })
+    }
     const sourceLayoutByBlock = new Map(sourceLayouts.map(layout => [layout.blockHandle, layout.name]))
     const sourceLayoutByHandle = new Map(sourceLayouts.map(layout => [layout.handle, layout.name]))
     const ownerSpaces = new Map<string, string>()
@@ -1311,6 +1334,7 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
     if (entity.type === 'PROXY_ENTITY' && sourceVersion !== 'UNKNOWN' && sourceCode !== ACADVER[version]) throw new KJValidationError(`Opaque ${entity.payload?.originalType ?? 'DXF'} data can only be preserved at its source format code ${sourceCode ?? sourceVersion}`)
   }
   if (VERSION_RANK[version] < VERSION_RANK['2000'] && state.spaces.paperSpaceIds.length > 1) throw new KJValidationError(`DXF ${version} cannot preserve multiple named paper spaces without layout metadata`)
+  if (VERSION_RANK[version] < VERSION_RANK['2000'] && layouts.some(layout => layout.payload.dxfPlotSettings && Object.keys(layout.payload.dxfPlotSettings).length)) throw new KJValidationError(`DXF ${version} cannot preserve layout plot settings; minimum target is 2000`)
   emit(output, 0, 'SECTION'); emit(output, 2, 'HEADER'); emit(output, 9, '$ACADVER'); emit(output, 1, ACADVER[version])
   if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
     emit(output, 9, '$INSUNITS'); emit(output, 70, dxfUnitCode(state.header.units))
@@ -1389,7 +1413,15 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
     for (const [index, layout] of layouts.entries()) {
       emit(output, 0, 'LAYOUT'); emit(output, 5, layout.handle)
       emit(output, 102, '{ACAD_REACTORS'); emit(output, 330, dictionaryHandle); emit(output, 102, '}')
-      emit(output, 330, dictionaryHandle); emit(output, 100, 'AcDbPlotSettings'); emit(output, 100, 'AcDbLayout')
+      emit(output, 330, dictionaryHandle); emit(output, 100, 'AcDbPlotSettings')
+      if (layout.payload.dxfPlotSettings !== undefined) {
+        validatePlotSettings(layout.payload.dxfPlotSettings)
+        for (const [key, [code]] of Object.entries(PLOT_SETTING_FIELDS)) {
+          const value = layout.payload.dxfPlotSettings[key as keyof KJDxfPlotSettings]
+          if (value !== undefined) emit(output, code, value)
+        }
+      }
+      emit(output, 100, 'AcDbLayout')
       emit(output, 1, layout.name); emit(output, 70, 1); emit(output, 71, layout.payload.tabOrder ?? index)
       emit(output, 10, 0); emit(output, 20, 0); emit(output, 11, 420); emit(output, 21, 297)
       emitPoint(output, [0, 0, 0], 12); emitPoint(output, [0, 0, 0], 14); emitPoint(output, [0, 0, 0], 15)
