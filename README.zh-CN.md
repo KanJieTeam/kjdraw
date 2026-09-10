@@ -40,6 +40,20 @@
 
 ## 为什么选择 KJDraw？
 
+### 可复现的绘图对比
+
+首组实测比较**同一 KJDraw 核心中的逐实体提案与批量提案**：4 个原创任务，每种策略各跑 5 轮，实际生成可编辑 CAD，检查几何、KJD/DXF 保存重开及撤销重做。两种策略各 20 次实测全部通过。209 实体面板的调用从 209 次降到 4 次，调用 JSON 从 37,224 B 降到 9,443 B；本机提案与应用的中位耗时为 3,788 ms 与 85 ms。这里测量的是 CAD 批处理收益，真实模型 token、推理耗时与费用尚未在这组对比中测量。
+
+![工具调用 JSON 负载对比；字节不等于 token](docs/benchmarks/local-drawing-strategies-2026-09-10/tool-payload.svg)
+![本地 CAD 提案与应用耗时对比](docs/benchmarks/local-drawing-strategies-2026-09-10/local-time.svg)
+![几何和保存回读通过率；两种策略均通过](docs/benchmarks/local-drawing-strategies-2026-09-10/geometry-correctness.svg)
+
+[测量方法与复现命令](docs/product/local-drawing-strategy-benchmark.md) · [逐次数据与源码指纹](docs/benchmarks/local-drawing-strategies-2026-09-10/report.json) · [实际生成的 209 实体图纸](docs/benchmarks/local-drawing-strategies-2026-09-10/perforated-panel-209-batched-64-1.svg) · [可编辑 DXF](docs/benchmarks/local-drawing-strategies-2026-09-10/perforated-panel-209-batched-64-1.dxf)
+
+下一阶段对比相同任务、模型和设置下的真实模型运行，记录接口返回的 token 与缓存用量、耗时、失败及独立几何要求。相同结果和退步也会保留；当前本地实测不代表模型榜单名次或绘图质量提升。
+
+### 基于引擎构建应用
+
 - **让 AI Agent 真正用上 CAD。** 通过接口读取图形对象、调用绘图命令，并审核拟执行的修改。
 - **接入 CAD，不必从零搭建编辑器。** 将绘图工具、图层、特性和文件操作直接接入 JavaScript、React 或 Vue 应用。
 - **直接使用编辑器，也能扩展底层能力。** 使用现成界面、调整工作区，或者基于 CAD 引擎开发自己的工具。

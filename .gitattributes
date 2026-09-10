@@ -3,3 +3,5 @@
 *.png binary
 *.jpg binary
 *.kjp binary
+# Benchmark manifests hash the original output bytes, including DXF line endings.
+docs/benchmarks/**/*.dxf -text

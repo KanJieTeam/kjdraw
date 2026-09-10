@@ -1,0 +1,1570 @@
+[
+  {
+    "name": "cad_propose_drawing",
+    "arguments": {
+      "expectedRevision": 0,
+      "units": "millimeter",
+      "lines": [
+        {
+          "start": {
+            "x": 160,
+            "y": 1210
+          },
+          "end": {
+            "x": 260,
+            "y": 1210
+          }
+        },
+        {
+          "start": {
+            "x": 260,
+            "y": 1230
+          },
+          "end": {
+            "x": 160,
+            "y": 1230
+          }
+        },
+        {
+          "start": {
+            "x": 560,
+            "y": 1210
+          },
+          "end": {
+            "x": 660,
+            "y": 1210
+          }
+        },
+        {
+          "start": {
+            "x": 660,
+            "y": 1230
+          },
+          "end": {
+            "x": 560,
+            "y": 1230
+          }
+        },
+        {
+          "start": {
+            "x": 960,
+            "y": 1210
+          },
+          "end": {
+            "x": 1060,
+            "y": 1210
+          }
+        },
+        {
+          "start": {
+            "x": 1060,
+            "y": 1230
+          },
+          "end": {
+            "x": 960,
+            "y": 1230
+          }
+        },
+        {
+          "start": {
+            "x": 1360,
+            "y": 1210
+          },
+          "end": {
+            "x": 1460,
+            "y": 1210
+          }
+        },
+        {
+          "start": {
+            "x": 1460,
+            "y": 1230
+          },
+          "end": {
+            "x": 1360,
+            "y": 1230
+          }
+        }
+      ],
+      "circles": [
+        {
+          "center": {
+            "x": 40,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 140,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 240,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 340,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 440,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 540,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 640,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 740,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 840,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 940,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1040,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1140,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1240,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1340,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1440,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1540,
+            "y": 50
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 40,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 140,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 240,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 340,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 440,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 540,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 640,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 740,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 840,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 940,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1040,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1140,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1240,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1340,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1440,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1540,
+            "y": 150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 40,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 140,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 240,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 340,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 440,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 540,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 640,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 740,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 840,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 940,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1040,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1140,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1240,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1340,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1440,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1540,
+            "y": 250
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 40,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 140,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 240,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 340,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 440,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 540,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 640,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 740,
+            "y": 350
+          },
+          "radius": 8
+        }
+      ],
+      "arcs": [],
+      "polylines": []
+    }
+  },
+  {
+    "name": "cad_propose_drawing",
+    "arguments": {
+      "expectedRevision": 1,
+      "units": "millimeter",
+      "lines": [],
+      "circles": [
+        {
+          "center": {
+            "x": 840,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 940,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1040,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1140,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1240,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1340,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1440,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1540,
+            "y": 350
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 40,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 140,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 240,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 340,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 440,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 540,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 640,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 740,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 840,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 940,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1040,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1140,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1240,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1340,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1440,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1540,
+            "y": 450
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 40,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 140,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 240,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 340,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 440,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 540,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 640,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 740,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 840,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 940,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1040,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1140,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1240,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1340,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1440,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1540,
+            "y": 550
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 40,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 140,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 240,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 340,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 440,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 540,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 640,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 740,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 840,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 940,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1040,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1140,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1240,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1340,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1440,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1540,
+            "y": 650
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 40,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 140,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 240,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 340,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 440,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 540,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 640,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 740,
+            "y": 750
+          },
+          "radius": 8
+        }
+      ],
+      "arcs": [],
+      "polylines": []
+    }
+  },
+  {
+    "name": "cad_propose_drawing",
+    "arguments": {
+      "expectedRevision": 2,
+      "units": "millimeter",
+      "lines": [],
+      "circles": [
+        {
+          "center": {
+            "x": 840,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 940,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1040,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1140,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1240,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1340,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1440,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1540,
+            "y": 750
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 40,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 140,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 240,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 340,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 440,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 540,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 640,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 740,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 840,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 940,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1040,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1140,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1240,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1340,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1440,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1540,
+            "y": 850
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 40,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 140,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 240,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 340,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 440,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 540,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 640,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 740,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 840,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 940,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1040,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1140,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1240,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1340,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1440,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1540,
+            "y": 950
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 40,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 140,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 240,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 340,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 440,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 540,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 640,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 740,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 840,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 940,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1040,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1140,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1240,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1340,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1440,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1540,
+            "y": 1050
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 40,
+            "y": 1150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 140,
+            "y": 1150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 240,
+            "y": 1150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 340,
+            "y": 1150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 440,
+            "y": 1150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 540,
+            "y": 1150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 640,
+            "y": 1150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 740,
+            "y": 1150
+          },
+          "radius": 8
+        }
+      ],
+      "arcs": [],
+      "polylines": []
+    }
+  },
+  {
+    "name": "cad_propose_drawing",
+    "arguments": {
+      "expectedRevision": 3,
+      "units": "millimeter",
+      "lines": [],
+      "circles": [
+        {
+          "center": {
+            "x": 840,
+            "y": 1150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 940,
+            "y": 1150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1040,
+            "y": 1150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1140,
+            "y": 1150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1240,
+            "y": 1150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1340,
+            "y": 1150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1440,
+            "y": 1150
+          },
+          "radius": 8
+        },
+        {
+          "center": {
+            "x": 1540,
+            "y": 1150
+          },
+          "radius": 8
+        }
+      ],
+      "arcs": [
+        {
+          "center": {
+            "x": 260,
+            "y": 1220
+          },
+          "radius": 10,
+          "startDegrees": 270,
+          "endDegrees": 90
+        },
+        {
+          "center": {
+            "x": 160,
+            "y": 1220
+          },
+          "radius": 10,
+          "startDegrees": 90,
+          "endDegrees": 270
+        },
+        {
+          "center": {
+            "x": 660,
+            "y": 1220
+          },
+          "radius": 10,
+          "startDegrees": 270,
+          "endDegrees": 90
+        },
+        {
+          "center": {
+            "x": 560,
+            "y": 1220
+          },
+          "radius": 10,
+          "startDegrees": 90,
+          "endDegrees": 270
+        },
+        {
+          "center": {
+            "x": 1060,
+            "y": 1220
+          },
+          "radius": 10,
+          "startDegrees": 270,
+          "endDegrees": 90
+        },
+        {
+          "center": {
+            "x": 960,
+            "y": 1220
+          },
+          "radius": 10,
+          "startDegrees": 90,
+          "endDegrees": 270
+        },
+        {
+          "center": {
+            "x": 1460,
+            "y": 1220
+          },
+          "radius": 10,
+          "startDegrees": 270,
+          "endDegrees": 90
+        },
+        {
+          "center": {
+            "x": 1360,
+            "y": 1220
+          },
+          "radius": 10,
+          "startDegrees": 90,
+          "endDegrees": 270
+        }
+      ],
+      "polylines": [
+        {
+          "vertices": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 1680,
+              "y": 0
+            },
+            {
+              "x": 1680,
+              "y": 1280
+            },
+            {
+              "x": 0,
+              "y": 1280
+            }
+          ],
+          "closed": true
+        }
+      ]
+    }
+  }
+]

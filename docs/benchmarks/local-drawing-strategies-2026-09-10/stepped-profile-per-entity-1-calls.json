@@ -1,0 +1,100 @@
+[
+  {
+    "name": "cad_propose_drawing",
+    "arguments": {
+      "expectedRevision": 0,
+      "units": "millimeter",
+      "lines": [],
+      "circles": [
+        {
+          "center": {
+            "x": 15,
+            "y": 15
+          },
+          "radius": 4
+        }
+      ],
+      "arcs": [],
+      "polylines": []
+    }
+  },
+  {
+    "name": "cad_propose_drawing",
+    "arguments": {
+      "expectedRevision": 1,
+      "units": "millimeter",
+      "lines": [],
+      "circles": [
+        {
+          "center": {
+            "x": 75,
+            "y": 12
+          },
+          "radius": 4
+        }
+      ],
+      "arcs": [],
+      "polylines": []
+    }
+  },
+  {
+    "name": "cad_propose_drawing",
+    "arguments": {
+      "expectedRevision": 2,
+      "units": "millimeter",
+      "lines": [],
+      "circles": [
+        {
+          "center": {
+            "x": 20,
+            "y": 55
+          },
+          "radius": 4
+        }
+      ],
+      "arcs": [],
+      "polylines": []
+    }
+  },
+  {
+    "name": "cad_propose_drawing",
+    "arguments": {
+      "expectedRevision": 3,
+      "units": "millimeter",
+      "lines": [],
+      "circles": [],
+      "arcs": [],
+      "polylines": [
+        {
+          "vertices": [
+            {
+              "x": 0,
+              "y": 0
+            },
+            {
+              "x": 90,
+              "y": 0
+            },
+            {
+              "x": 90,
+              "y": 25
+            },
+            {
+              "x": 40,
+              "y": 25
+            },
+            {
+              "x": 40,
+              "y": 70
+            },
+            {
+              "x": 0,
+              "y": 70
+            }
+          ],
+          "closed": true
+        }
+      ]
+    }
+  }
+]

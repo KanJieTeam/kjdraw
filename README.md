@@ -40,6 +40,20 @@ The intended architecture has three layers: a precise CAD core, a model-neutral 
 
 ## Why KJDraw?
 
+### Reproducible drawing benchmarks
+
+The first measured comparison tests **per-entity versus batched proposals inside the same KJDraw core**: four original tasks, five repetitions per strategy, actual editable CAD output, geometry checks, KJD/DXF reopening and undo/redo. Both strategies passed all 20 measured runs. On the 209-entity panel, batching reduced calls from 209 to 4 and call-envelope JSON from 37,224 to 9,443 bytes; local proposal/approval median time was 3,788 ms versus 85 ms on this workstation. This measures CAD batching, not model inference. Real model tokens, latency and cost are not yet measured in this comparison.
+
+![Tool-call JSON payload comparison; bytes are not tokens](docs/benchmarks/local-drawing-strategies-2026-09-10/tool-payload.svg)
+![Local CAD proposal and approval timing comparison](docs/benchmarks/local-drawing-strategies-2026-09-10/local-time.svg)
+![Geometry and persistence pass rates; both strategies pass](docs/benchmarks/local-drawing-strategies-2026-09-10/geometry-correctness.svg)
+
+[Method and reproduction command](docs/product/local-drawing-strategy-benchmark.md) · [Raw runs and source fingerprints](docs/benchmarks/local-drawing-strategies-2026-09-10/report.json) · [Actual 209-entity drawing](docs/benchmarks/local-drawing-strategies-2026-09-10/perforated-panel-209-batched-64-1.svg) · [Editable DXF](docs/benchmarks/local-drawing-strategies-2026-09-10/perforated-panel-209-batched-64-1.dxf)
+
+The next benchmark stage compares real model runs with the same tasks and settings, provider-reported tokens and cache usage, elapsed time, failures and independent geometry requirements. Results will show parity or regressions as well as improvements; this local run establishes no model leaderboard position or quality advantage.
+
+### Build on the engine
+
 - **Give your agent CAD tools.** Read drawing objects, call drawing commands, and review proposed changes through a programmable API.
 - **Add CAD without starting from scratch.** Bring drawing tools, layers, properties and file operations into your JavaScript, React or Vue application.
 - **Use the editor. Extend the engine.** Start with the packaged interface, customize the workspace, or build your own tools on the CAD engine.
