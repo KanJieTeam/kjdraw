@@ -56,6 +56,8 @@ Ray and construction-line tools do not create an object when selected or when pl
 
 Confirmed construction lines and rays export as native XLINE/RAY in DXF 2000–2024, including their space ownership and 3D direction. R12/R14 export is outside this supported subset. Rendering clips each line to the current viewport, so a distant origin does not make a line disappear when you pan or zoom.
 
+**Fit view** frames finite geometry without including construction-line or ray origins, including guides inside blocks. If the drawing only contains guides, it centers the first visible guide origin and keeps the current zoom.
+
 For example, to make a closed outline, choose **Polyline**, enter `0,0`, `@80,0`, `@0,50`, `@-80,0`, then press **C**. The outline is committed as one closed polyline and can be undone in one step.
 
 ## Circles, arcs and ellipses {#curves}
@@ -249,6 +251,8 @@ editor.setLayout('compact')
 选择射线或构造线工具、指定第一点时都不会创建对象。移动鼠标只显示原点到方向点的有限引导线，第二点确认后才生成无限构造线（或单向射线）。确认前按 **Esc** 清除预览，不改变图档。
 
 确认后的构造线和射线可通过 DXF 2000–2024 导出为原生 XLINE/RAY，保留所属空间和三维方向；本子集不支持向 R12/R14 导出这些对象。显示按当前视口裁剪，因此原点很远也不会导致平移、缩放时经过屏幕的线消失。
+
+**全图** 按有限图形取景，构造线和射线的原点不参与图幅计算，图块中的辅助线也一样。图中只有辅助线时，会定位到第一条可见辅助线的原点，保留当前缩放比例。
 
 例如，要绘制一个闭合轮廓：选择**多段线**，依次输入 `0,0`、`@80,0`、`@0,50`、`@-80,0`，然后按 **C**。结果会作为一条闭合多段线提交，一次即可撤销。
 

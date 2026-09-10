@@ -273,3 +273,37 @@ test('fit includes transformed nested block geometry and remains finite in a sma
   assert.ok(Number.isFinite(renderer.camera.scale) && renderer.camera.scale > 0)
   renderer.dispose()
 })
+
+test('fit ignores distant construction origins, including guide-only nested blocks', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument()
+  await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0,0], end: [100,40] } })
+  const { canvas } = mockCanvas(), renderer = new KJCanvasRenderer(canvas, { document, grid: false, pixelRatio: 1 }).fit()
+  const expected = { ...renderer.camera }
+  const xline = await sdk.executeCommand('CREATE', { type: 'XLINE', payload: { origin: [1000000,0], direction: [1,0] } })
+  await sdk.executeCommand('CREATE', { type: 'RAY', payload: { origin: [-1000000,40], direction: [1,0] } })
+  renderer.fit(); assert.deepEqual(renderer.camera, expected)
+  const inner = await sdk.executeCommand('BLOCKCREATE', { name: 'guides', id: xline.id, basePoint: [1000000,0] })
+  const outer = await sdk.executeCommand('BLOCKCREATE', { name: 'nested guides', id: inner.insert.id, basePoint: [1000000,0] })
+  await sdk.executeCommand('MOVE', { id: outer.insert.id, dx: 500000, dy: 700000 })
+  const before = document.serialize()
+  renderer.fit(); assert.deepEqual(renderer.camera, expected)
+  assert.equal(document.serialize(), before)
+  renderer.resize(480,240).fit()
+  assert.equal(renderer.camera.centerX, 50); assert.equal(renderer.camera.centerY, 20)
+  assert.ok(renderer.camera.scale > 1)
+  renderer.dispose()
+})
+
+test('fit with only a construction line centers its origin without an extreme zoom', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument()
+  const xline = await sdk.executeCommand('CREATE', { type: 'XLINE', payload: { origin: [1000000,250000], direction: [1,0] } })
+  await sdk.executeCommand('BLOCKCREATE', { name: 'only guide', id: xline.id, basePoint: [1000000,250000] })
+  const { canvas } = mockCanvas(), renderer = new KJCanvasRenderer(canvas, { document, grid: false, pixelRatio: 1 })
+  renderer.camera.scale = 2
+  renderer.fit()
+  assert.deepEqual(renderer.camera, { centerX: 1000000, centerY: 250000, scale: 2 })
+  renderer.resize(320,180).fit()
+  assert.equal(renderer.camera.scale, 2)
+  assert.equal(renderer.report.unsupported, 0)
+  renderer.dispose()
+})

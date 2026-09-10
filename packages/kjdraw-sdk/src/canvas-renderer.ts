@@ -364,16 +364,19 @@ export class KJCanvasRenderer {
     const document = this.#document
     if (!document) return this
     const layers = new Map(document.getTable('layers')?.records.map(layer => [layer.id, layer.payload]) ?? [])
+    const unboundedOrigins: Point2[] = []
     const values = this.#entities()
       .filter(entity => {
         const layer = layers.get(String(entity.payload.layerId ?? ''))
         return entity.payload.visible !== false && layer?.visible !== false && layer?.frozen !== true
       })
-      .flatMap(entity => this.#fitPoints(entity))
+      .flatMap(entity => this.#fitPoints(entity, 0, unboundedOrigins))
     if (!values.length) {
-      this.camera.centerX = 50
-      this.camera.centerY = 40
-      this.camera.scale = 4
+      // Infinite geometry has no finite extent. Center one visible guide without
+      // changing zoom; its arbitrary origin must not shrink finite drawing content.
+      this.camera.centerX = unboundedOrigins[0]?.[0] ?? 50
+      this.camera.centerY = unboundedOrigins[0]?.[1] ?? 40
+      if (!unboundedOrigins.length) this.camera.scale = 4
       this.#fittedCamera = { ...this.camera }
       return this.render(), this
     }
@@ -578,7 +581,12 @@ export class KJCanvasRenderer {
       ?? aciColor(layer?.color ?? 7, this.#theme)
   }
 
-  #fitPoints(entity: KJReadonlyObjectRecord, depth = 0): Point2[] {
+  #fitPoints(entity: KJReadonlyObjectRecord, depth = 0, unboundedOrigins: Point2[] = []): Point2[] {
+    if (entity.type === 'XLINE' || entity.type === 'RAY') {
+      const origin = point2(entity.payload.origin)
+      if (origin) unboundedOrigins.push(origin)
+      return []
+    }
     if (entity.type !== 'INSERT' || depth > 12) return entityPoints(entity)
     const payload = entity.payload
     const blockId = String(payload.blockRecordId ?? '')
@@ -590,11 +598,11 @@ export class KJCanvasRenderer {
     const output: Point2[] = []
     for (const child of this.#document?.listEntities({ ownerId: blockId }) ?? []) {
       const layer = this.#document?.getObject(String(child.payload.layerId ?? ''))?.payload
-      if (layer?.visible === false || layer?.frozen === true) continue
-      try { output.push(...this.#fitPoints({ ...child, payload: transformEntityPayload(child.type, structuredClone(child.payload) as KJObjectPayload, matrix) }, depth + 1)) }
+      if (child.payload.visible === false || layer?.visible === false || layer?.frozen === true) continue
+      try { output.push(...this.#fitPoints({ ...child, payload: transformEntityPayload(child.type, structuredClone(child.payload) as KJObjectPayload, matrix) }, depth + 1, unboundedOrigins)) }
       catch { output.push(position) }
     }
-    return output.length ? output : [position]
+    return output
   }
 
   #entities(): ReadonlyArray<KJReadonlyObjectRecord> {

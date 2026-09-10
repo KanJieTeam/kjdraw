@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { createKJDrawSDK } from '../../packages/kjdraw-sdk/src/index.js'
 
 test('distant construction lines remain visible and selectable after pan, zoom and DXF reopening', async ({ page }) => {
   await page.goto('/')
@@ -35,4 +36,33 @@ test('distant construction lines remain visible and selectable after pan, zoom a
     return output
   })
   expect(checks).toEqual([1,2].map(dpr=>({dpr,initial:true,navigated:true,hit:'XLINE',unchanged:true})))
+})
+
+test('the playground Fit view button keeps finite geometry readable beside distant guides', async ({ page }) => {
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument()
+  await drawing.transact('finite detail and distant guides', tx => {
+    tx.createEntity('LWPOLYLINE', { vertices: [[0,0],[100,0],[100,40],[0,40]], closed: true })
+    tx.createEntity('XLINE', { origin: [1000000,20], direction: [1,0] })
+    tx.createEntity('RAY', { origin: [-1000000,40], direction: [1,0] })
+  })
+  const content = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await page.goto('/')
+  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  await page.evaluate(async () => {
+    const { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js')
+    const fit = KJCanvasRenderer.prototype.fit
+    KJCanvasRenderer.prototype.fit = function (...args) {
+      const before = this.document.serialize(), result = fit.apply(this, args)
+      window.fitCheck = { camera: {...this.camera}, width: this.worldToScreen([100,0])[0]-this.worldToScreen([0,0])[0], unchanged: before===this.document.serialize() }
+      return result
+    }
+  })
+  await page.locator('#file-input').setInputFiles({ name: 'distant-guides.dxf', mimeType: 'application/dxf', buffer: Buffer.from(content) })
+  await expect(page.locator('#file-state')).toContainText('Opened locally')
+  await expect(page.locator('#entity-count')).toHaveText('3 entities')
+  await page.locator('#fit-ribbon').click()
+  const result = await page.evaluate(() => window.fitCheck)
+  expect(result.camera.centerX).toBe(50); expect(result.camera.centerY).toBe(20)
+  expect(result.width).toBeGreaterThan(400); expect(result.unchanged).toBe(true)
 })
