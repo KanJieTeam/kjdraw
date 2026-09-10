@@ -69,6 +69,32 @@ async function expectLineStartsWithinPixels(page, expected, tolerancePixels) {
   }, { expected, tolerancePixels })).toEqual({ count: expected.length, zIsExact: true, withinPixelTolerance: true })
 }
 
+test('page settings click and Enter never submit or validate the surrounding host form', async ({ page }) => {
+  await mountWorkbench(page)
+  await page.evaluate(() => {
+    const required = document.createElement('input'); required.required = true
+    document.querySelector('#workbench-form').prepend(required)
+  })
+  const root = page.locator('.kjwb'), modal = root.locator('[data-page-dialog]')
+  await root.locator('[data-action="page-setup"]').click()
+  await expect(modal).toBeVisible()
+  await expect(root.locator('form')).toHaveCount(0)
+  await modal.locator('[data-page-field="paperWidth"]').fill('-1')
+  await modal.locator('[data-page-field="paperWidth"]').press('Enter')
+  await expect(modal).toBeVisible()
+  await modal.locator('[data-page-field="paperWidth"]').fill('594')
+  await modal.locator('[data-page-field="paperWidth"]').press('Enter')
+  await expect(modal).not.toBeVisible()
+  await root.locator('[data-action="page-setup"]').click()
+  await modal.locator('[data-page-field="paperHeight"]').fill('841')
+  await modal.locator('[data-action="apply-page"]').click()
+  await expect(modal).not.toBeVisible()
+  expect(await page.evaluate(() => {
+    const { workbench, submits } = window.__workbenchTest
+    return { submits, settings: workbench.document.getObject(workbench.document.snapshot().spaces.activeLayoutId).payload.dxfPlotSettings }
+  })).toEqual({ submits: 0, settings: { paperWidth: 594, paperHeight: 841 } })
+})
+
 test('embeddable workbench isolates its UI and keeps document, locale, selection and snapping coherent', async ({ page }) => {
   await mountWorkbench(page)
 

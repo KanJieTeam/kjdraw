@@ -741,11 +741,11 @@ export class KJDrawWorkbench {
         </div>
       </dialog>
       <dialog class="modify-dialog" data-page-dialog aria-label="${t('pageSetup')}">
-        <form class="modify-form" data-page-form>
+        <div class="modify-form" data-page-form>
           <header class="modify-head"><h2 data-copy="pageSetup">${t('pageSetup')}</h2><p data-copy="pageDescription">${t('pageDescription')}</p></header>
           <div class="modify-body"><label class="field"><span data-copy="pageSheet">${t('pageSheet')}</span><select data-page-sheet></select></label><div class="modify-fields" data-page-fields></div><p class="modify-order" data-copy="pageScaleNote">${t('pageScaleNote')}</p><p role="alert" data-page-error></p></div>
-          <footer class="modify-actions"><button type="button" data-action="cancel-page" data-copy="cancel">${t('cancel')}</button><button type="submit" class="confirm" data-copy="apply">${t('apply')}</button></footer>
-        </form>
+          <footer class="modify-actions"><button type="button" data-action="cancel-page" data-copy="cancel">${t('cancel')}</button><button type="button" data-action="apply-page" class="confirm" data-copy="apply">${t('apply')}</button></footer>
+        </div>
       </dialog>`
   }
 
@@ -756,7 +756,10 @@ export class KJDrawWorkbench {
     query<HTMLButtonElement>(this.root, '[data-action="cancel-page"]').addEventListener('click', () => pageDialog.close(), { signal })
     pageDialog.addEventListener('close', () => { this.#pageBinding = null }, { signal })
     query<HTMLSelectElement>(this.root, '[data-page-sheet]').addEventListener('change', () => this.#loadPageSheet(), { signal })
-    query<HTMLFormElement>(this.root, '[data-page-form]').addEventListener('submit', event => { event.preventDefault(); void this.#applyPageSetup() }, { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="apply-page"]').addEventListener('click', () => void this.#applyPageSetup(), { signal })
+    pageDialog.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && event.target instanceof HTMLInputElement) { event.preventDefault(); event.stopPropagation(); if (!event.repeat && !event.isComposing) void this.#applyPageSetup() }
+    }, { signal })
     this.root.addEventListener('focusin', () => this.#activateDocument(), { signal })
     this.root.addEventListener('pointerdown', () => this.#activateDocument(), { signal })
     for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-tool]')) button.addEventListener('click', () => this.setTool(button.dataset.tool as KJWorkbenchTool), { signal })
@@ -1388,7 +1391,10 @@ export class KJDrawWorkbench {
   async #applyPageSetup(): Promise<void> {
     const binding = this.#pageBinding, dialog = query<HTMLDialogElement>(this.root, '[data-page-dialog]')
     if (!binding || !dialog.open) return
-    const button = query<HTMLButtonElement>(dialog, '[type="submit"]')
+    const button = query<HTMLButtonElement>(dialog, '[data-action="apply-page"]')
+    if (button.disabled) return
+    const invalid = dialog.querySelector<HTMLInputElement | HTMLSelectElement>('input:invalid,select:invalid')
+    if (invalid) { invalid.reportValidity(); return }
     button.disabled = true
     try {
       if (this.#options.readonly) throw new Error(this.#t('readonly'))
