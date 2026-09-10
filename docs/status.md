@@ -42,7 +42,7 @@ These statements describe repository-owned evidence. They are not a claim that a
 
 Stable promotion remains blocked until the exact release-candidate commit has all required gates green, including:
 
-- the mechanical, building-plan and site-drawing production workflows in the [CAD programme](product/cad-completeness.md), not merely the currently tested command subset;
+- complete mechanical, building-plan and site-drawing production workflows, beyond the currently tested command subset;
 - the configured Chromium, Firefox and WebKit acceptance journeys in hosted CI;
 - live Demo, Docs, search and API deep-link checks against the deployed candidate;
 - npm provenance, GitHub artifact attestation, SBOM and checksum verification from the real release run.
@@ -51,7 +51,7 @@ The isolated packed artifact already installs and compiles the Vanilla TypeScrip
 
 Governance policy and release/security responsibilities are documented. A second authorized backup maintainer is still an operational continuity risk that must remain visible before promotion.
 
-The [route to a dependable CAD foundation](product/roadmap-to-core.md) orders the remaining product work and defines user-level acceptance for each stage. GitHub push authorization resumed on 2026-09-09; source commits, deployed pages and npm releases still require separate verification. See the [README and Agent context acceptance](product/readme-agent-context-2026-09-09.md) for this update.
+The [roadmap](roadmap.md) describes the project's development direction. Source commits, deployed pages and npm releases require separate verification.
 
 ## Exact product boundary
 

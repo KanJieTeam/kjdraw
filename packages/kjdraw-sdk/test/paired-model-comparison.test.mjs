@@ -42,7 +42,7 @@ test('complete evidence renders three accessible SVGs, retains failed denominato
   assert.equal(result.summaries['direct-dxf'].outputTokens, 600)
   assert.equal(result.summaries['kjdraw-tool'].transportMedianMs, 1014)
   assert.equal(result.summaries['direct-dxf'].endToEndMedianMs, 1515)
-  for (const file of result.charts) { const svg = await readFile(join(f.output, file), 'utf8'); assert.match(svg, /<svg /); assert.match(svg, /SYNTHETIC-DO-NOT-PUBLISH/); assert.match(svg, /SYNTHETIC-SERVED/); assert.match(svg, /15 attempts per arm/); assert.match(svg, /Source report SHA-256/); assert.doesNotMatch(svg, /NaN|undefined/) }
+  for (const file of result.charts) { const svg = await readFile(join(f.output, file), 'utf8'); assert.match(svg, /<svg /); assert.match(svg, /SYNTHETIC-DO-NOT-PUBLISH/); assert.match(svg, /SYNTHETIC-SERVED/); assert.match(svg, /15 attempts per arm/); assert.match(svg, /Source report SHA-256/); assert.doesNotMatch(svg, /NaN|undefined/); assert.match(svg, /href="comparison.json"/); assert.doesNotMatch(svg, /product\//) }
   const geometry = await readFile(join(f.output, 'geometry.svg'), 'utf8')
   assert.match(geometry, /Strict DXF \+ geometry pass rate/)
   assert.match(geometry, /Native format, units, independent geometry and zero audit errors\/fixes/)

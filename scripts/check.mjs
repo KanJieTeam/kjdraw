@@ -15,6 +15,7 @@ async function walk(dir = '') {
 const files=await walk()
 for(const required of ['LICENSE','NOTICE','README.md','README.zh-CN.md','CONTRIBUTING.md','SECURITY.md','SECURITY_ARCHITECTURE.md','docs/assets/hero.svg','docs/assets/mark.svg','docs/capability-matrix.md','docs/deployment.md','docs/open-source-boundary.md','web/public/kjcore/kjcore.wasm'])if(!files.includes(required))failures.push(`Missing ${required}`)
 for(const p of files){
+  if(/^docs\/(?:product|benchmarks)(?:\/|$)|^docs\/audits\/.*\d{4}-\d{2}-\d{2}/.test(p))failures.push(`Internal development material must remain outside the public repository: ${p}`)
   if(/(^|\/)(storage|server|vendor|\.env)(\/|$)|\.(mdb|accdb|docx|dwg|exe|dll|pfx|pem)$/i.test(p))failures.push(`Excluded release path: ${p}`)
   if(!['.md','.json','.js','.mjs','.ts','.tsx','.rs','.toml','.yml','.yaml','.html','.css','.svg'].includes(extname(p)))continue
   const text=await readFile(resolve(root,p),'utf8')

@@ -108,7 +108,7 @@
       "verifyOnCandidate": true,
       "status": "partial",
       "evidence": [
-        "docs/product/cad-completeness.md",
+        "tests/browser/workbench-paper-space.spec.mjs",
         "docs/site/pages/workbench.md",
         "tests/browser/drafting.spec.mjs",
         "tests/browser/cad-workflow.spec.mjs",

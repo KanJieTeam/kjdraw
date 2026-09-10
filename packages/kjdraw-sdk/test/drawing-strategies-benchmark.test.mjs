@@ -7,17 +7,21 @@ import { join } from 'node:path'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { strategyTasks, proposalBatches, executeStrategy, checkDrawing, summarizeRuns, comparisonCharts, runStrategyBenchmark } from '../../../scripts/benchmarks/drawing-strategies.mjs'
 
-test('published benchmark artifacts retain their measured byte hashes across checkouts', async () => {
-  const base = new URL('../../../docs/benchmarks/local-drawing-strategies-2026-09-10/', import.meta.url)
-  const report = JSON.parse(await readFile(new URL('report.json', base), 'utf8'))
-  assert.equal(report.runs.length, 40)
-  let checked = 0
-  for (const run of report.runs) for (const [kind, name] of Object.entries(run.files ?? {})) {
-    const bytes = await readFile(new URL(name, base))
-    assert.equal(createHash('sha256').update(bytes).digest('hex'), run.sha256[kind], name)
-    checked++
-  }
-  assert.equal(checked, 32)
+test('fresh benchmark artifacts retain their measured byte hashes for every task and strategy', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'kjdraw-strategy-hashes-'))
+  try {
+    const output = join(folder, 'run')
+    await runStrategyBenchmark({ output, repetitions: 5 })
+    const report = JSON.parse(await readFile(join(output, 'report.json'), 'utf8'))
+    assert.equal(report.runs.length, 40)
+    let checked = 0
+    for (const run of report.runs) for (const [kind, name] of Object.entries(run.files ?? {})) {
+      const bytes = await readFile(join(output, name))
+      assert.equal(createHash('sha256').update(bytes).digest('hex'), run.sha256[kind], name)
+      checked++
+    }
+    assert.equal(checked, 32)
+  } finally { await rm(folder, { recursive: true, force: true }) }
 })
 
 test('strategy benchmark batches preserve every original entity and both strategies produce the same verified CAD geometry', async () => {

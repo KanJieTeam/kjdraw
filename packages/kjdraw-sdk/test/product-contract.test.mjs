@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { readFile } from 'node:fs/promises'
+import { access, readFile } from 'node:fs/promises'
 import {
   KJDRAW_1_0_PRODUCT_CONTRACT,
   KJDRAW_CAD_VERSION_MATRIX,
@@ -119,6 +119,7 @@ test('acceptance matrix is machine-readable and passed scope is backed by releas
   for (const gate of matrix.gates) {
     assert.ok(['passed', 'partial', 'blocked', 'not-started', 'out-of-scope', 'experimental'].includes(gate.status), gate.id)
     if (gate.status === 'passed') assert.ok(gate.evidence?.length, `${gate.id} requires evidence`)
+    for (const evidence of gate.evidence ?? []) await access(new URL(`../../../${evidence}`, import.meta.url))
   }
   const candidateOnlyGates = matrix.gates.filter(gate => gate.verifyOnCandidate === true)
   assert.deepEqual(candidateOnlyGates.map(gate => gate.id), [
@@ -129,7 +130,7 @@ test('acceptance matrix is machine-readable and passed scope is backed by releas
   ])
   assert.equal(candidateOnlyGates.every(gate => gate.requiredForStable && gate.status === 'partial'), true)
   const productionWorkflows = matrix.gates.find(gate => gate.id === 'cad.production-workflows')
-  assert.ok(productionWorkflows.evidence.includes('docs/product/cad-completeness.md'))
+  assert.ok(productionWorkflows.evidence.includes('tests/browser/workbench-paper-space.spec.mjs'))
   assert.match(productionWorkflows.gap, /Passing CI, publishing npm or renaming a version cannot pass this gate/)
   const localAuthority = matrix.gates.find(row => row.id === 'file.local-authority')
   assert.equal(localAuthority.status, 'passed')

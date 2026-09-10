@@ -136,7 +136,7 @@ npm run dev
 
 Open **http://localhost:4173**. Before submitting changes, run `npm run typecheck` and `npm test`; UI changes also need `npm run test:browser`.
 
-[Documentation](https://kanjieteam.github.io/kjdraw/docs/latest/) · [API reference](https://kanjieteam.github.io/kjdraw/docs/latest/api/) · [Roadmap](docs/product/roadmap-to-core.md) · [Support](SUPPORT.md) · [Release status](docs/status.md) · [License](LICENSE)
+[Documentation](https://kanjieteam.github.io/kjdraw/docs/latest/) · [API reference](https://kanjieteam.github.io/kjdraw/docs/latest/api/) · [Roadmap](docs/roadmap.md) · [Support](SUPPORT.md) · [Release status](docs/status.md) · [License](LICENSE)
 
 **Built by [KanJieTeam](https://github.com/KanJieTeam), open to contributors everywhere.**
 

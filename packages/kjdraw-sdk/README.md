@@ -112,6 +112,6 @@ KJDraw supports native KJD drawings and KJP projects, plus a documented [DXF com
 
 ## Contributing
 
-Our mission is to make KJDraw the default open-source CAD engine for the AI era. Explore the [roadmap](https://github.com/KanJieTeam/kjdraw/blob/main/docs/product/roadmap-to-core.md) or [contribute](https://github.com/KanJieTeam/kjdraw#contributing).
+Our mission is to make KJDraw the default open-source CAD engine for the AI era. Explore the [roadmap](https://github.com/KanJieTeam/kjdraw/blob/main/docs/roadmap.md) or [contribute](https://github.com/KanJieTeam/kjdraw#contributing).
 
 Apache-2.0 · Built by [KanJieTeam](https://github.com/KanJieTeam)
