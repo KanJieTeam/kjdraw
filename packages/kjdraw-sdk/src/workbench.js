@@ -53,6 +53,7 @@ const copy = {
         open: 'Open',
         saveKjd: 'Save KJD',
         exportDxf: 'Export DXF',
+        exportSvg: 'Export SVG',
         draw: 'Draw',
         modify: 'Modify',
         view: 'View',
@@ -191,6 +192,7 @@ const copy = {
         open: '打开',
         saveKjd: '保存 KJD',
         exportDxf: '导出 DXF',
+        exportSvg: '导出 SVG',
         draw: '绘图',
         modify: '修改',
         view: '视图',
@@ -1146,6 +1148,9 @@ export class KJDrawWorkbench {
         const output = await this.sdk.writeDocument(drawing, {
             ...options,
             format,
+            ...format === 'SVG' ? {
+                layoutId: options.layoutId ?? this.#drawingLayoutId ?? drawing.snapshot().spaces.activeLayoutId
+            } : {},
             ...format === 'DXF' && options.version == null ? {
                 version: '2018'
             } : {}
@@ -1154,7 +1159,7 @@ export class KJDrawWorkbench {
         if (options.download !== false) {
             const extension = format.toLowerCase();
             const base = (options.fileName ?? this.#fileName).replace(/\.[^.]+$/, '') || drawing.id;
-            downloadBytes(output, `${base}.${extension}`, format === 'DXF' ? 'application/dxf' : 'application/vnd.kanjie.kjdraw+json');
+            downloadBytes(output, `${base}.${extension}`, format === 'DXF' ? 'application/dxf' : format === 'SVG' ? 'image/svg+xml' : 'application/vnd.kanjie.kjdraw+json');
         }
         this.#setMessage(`${format} · ${drawing.fingerprint()}`);
         return output;
@@ -1212,6 +1217,7 @@ export class KJDrawWorkbench {
         <button type="button" class="panel-toggle hide-small ${showLayers ? 'active' : ''}" data-action="toggle-layers" aria-pressed="${showLayers}">${icon('layers')}<span data-copy="layers">${t('layers')}</span></button>
         <button type="button" class="panel-toggle hide-small ${showInspector ? 'active' : ''}" data-action="toggle-inspector" aria-pressed="${showInspector}">${icon('panel')}<span data-copy="properties">${t('properties')}</span></button>
         <button type="button" class="file-action" data-action="open" data-copy-title="open" aria-label="${t('open')}" title="${t('open')}">${icon('open')}<span data-copy="open">${t('open')}</span></button><button type="button" class="file-action hide-small" data-action="save-kjd" data-copy-title="saveKjd" aria-label="${t('saveKjd')}" title="${t('saveKjd')}">${icon('save')}<span data-copy="saveKjd">${t('saveKjd')}</span></button><button type="button" class="file-action primary" data-action="save-dxf" data-copy-title="exportDxf" aria-label="${t('exportDxf')}" title="${t('exportDxf')}">${icon('export')}<span data-copy="exportDxf">${t('exportDxf')}</span></button><button type="button" data-action="theme" data-copy-title="theme" title="${t('theme')}">${icon(this.#theme === 'dark' ? 'sun' : 'moon', 'data-theme-icon')}</button><button type="button" data-action="language"><span data-copy="language">${t('language')}</span></button>
+        <button type="button" class="file-action" data-action="save-svg" data-copy-title="exportSvg" title="${t('exportSvg')}" aria-label="${t('exportSvg')}">${icon('export')}<span data-copy="exportSvg">${t('exportSvg')}</span></button>
         <button type="button" class="file-action" data-action="page-setup" data-copy-title="pageSetup" title="${t('pageSetup')}" aria-label="${t('pageSetup')}" ${readonly ? 'disabled' : ''}>${icon('panel')}<span data-copy="pageSetup">${t('pageSetup')}</span></button>
       </header>
       <nav class="ribbon" aria-label="CAD tools">
@@ -1326,6 +1332,9 @@ export class KJDrawWorkbench {
             signal
         });
         query(this.root, '[data-action="save-dxf"]').addEventListener('click', ()=>void this.#run(()=>this.save('DXF')), {
+            signal
+        });
+        query(this.root, '[data-action="save-svg"]').addEventListener('click', ()=>void this.#run(()=>this.save('SVG')), {
             signal
         });
         query(this.root, '[data-action="undo"]').addEventListener('click', ()=>void this.#run(()=>this.execute('UNDO')), {

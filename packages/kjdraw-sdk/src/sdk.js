@@ -4,6 +4,7 @@ import { buildSDKCapabilityManifest } from './capabilities.js';
 import { KJCommandRegistry, registerCoreCommands } from './commands.js';
 import { KJDocument } from './document.js';
 import { createDXFFileAdapter } from './dxf-adapter.js';
+import { createSVGFileAdapter } from './svg-adapter.js';
 import { KJValidationError } from './errors.js';
 import { KJEventBus } from './events.js';
 import { KJExtensionRegistry } from './extensions.js';
@@ -50,6 +51,7 @@ export class KJDrawSDK {
         if (options.registerDefaultAdapters !== false) {
             this.fileAdapters.register(createKJDFileAdapter());
             this.fileAdapters.register(createDXFFileAdapter());
+            this.fileAdapters.register(createSVGFileAdapter());
         }
     }
     createDocument(options = {}) {
