@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:955082c47e335d3d70701cf0438df3fa4d9764d384c5237832aef78505ecdb81",
+  "sourceDigest": "sha256:994141127dc1c27139df2462daa2a150439b7b025302e8d7eb7ffade88836504",
   "locales": [
     "en",
     "zh"
@@ -309,6 +309,7 @@
           "en-models-quickstart",
           "en-models-task-tools",
           "en-models-review",
+          "en-models-usage",
           "en-models-example",
           "en-models-extend"
         ],
@@ -318,6 +319,7 @@
           "zh-models-quickstart",
           "zh-models-task-tools",
           "zh-models-review",
+          "zh-models-usage",
           "zh-models-example",
           "zh-models-extend"
         ]

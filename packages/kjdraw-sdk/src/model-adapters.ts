@@ -1,18 +1,25 @@
 import type { KJAgentToolDefinition, KJAgentToolResult } from './agent-tools.js'
 import { KJDrawError } from './errors.js'
 import { deepFreeze } from './utils.js'
+import { extractKJModelUsage, type KJModelUsage } from './model-usage.js'
 
 export type KJModelProtocol = 'responses' | 'chat-completions' | 'anthropic-messages' | 'gemini-generate-content'
 export interface KJModelToolCall { readonly id: string; readonly name: string; readonly arguments: unknown }
 export interface KJModelToolOutput { readonly id: string; readonly name: string; readonly result: KJAgentToolResult }
-export interface KJModelTurn { readonly text: string; readonly calls: readonly KJModelToolCall[] }
+export interface KJModelTurn { readonly text: string; readonly calls: readonly KJModelToolCall[]; readonly usage?: KJModelUsage }
 export type KJModelInput = { readonly kind: 'prompt'; readonly text: string } | { readonly kind: 'tool-results'; readonly results: readonly KJModelToolOutput[] }
 export interface KJModelConversation {
   next(input: KJModelInput, signal: AbortSignal): Promise<KJModelTurn>
 }
 /** Custom models and framework/harness bridges implement this interface; no vendor SDK is required. */
 export interface KJAgentModel {
-  createConversation(options: { readonly instructions: string; readonly tools: readonly KJAgentToolDefinition[] }): KJModelConversation
+  createConversation(options: KJModelConversationOptions): KJModelConversation
+}
+export interface KJModelConversationOptions {
+  readonly instructions: string
+  readonly tools: readonly KJAgentToolDefinition[]
+  /** One observation per received transport response, even when response parsing later fails. Exceptions are isolated. */
+  readonly onUsage?: (usage: KJModelUsage) => void
 }
 export interface KJModelRequest {
   readonly protocol: KJModelProtocol
@@ -31,6 +38,8 @@ export interface KJModelAdapterOptions {
   chatTokenParameter?: 'max_tokens' | 'max_completion_tokens'
   maxResponseBytes?: number
   maxHistoryBytes?: number
+  /** Host-only observer; contains counters and timing, never response text or credentials. Exceptions are isolated. */
+  onUsage?: (usage: KJModelUsage) => void
 }
 export class KJModelError extends KJDrawError {
   constructor(code: string, message: string) { super(message, { code }) }
@@ -63,11 +72,15 @@ function limit(value: number | undefined, fallback: number, maximum: number): nu
   if (!Number.isSafeInteger(resolved) || resolved < 1 || resolved > maximum) invalid('Invalid model adapter limit')
   return resolved
 }
+function notifyUsage(observer: ((usage: KJModelUsage) => void) | undefined, usage: KJModelUsage): void {
+  try { void Promise.resolve(observer?.(usage)).catch(() => {}) } catch { /* Accounting observers must not alter CAD or model execution. */ }
+}
 
 /** Four wire formats, one CAD tool schema. This adapter never fetches, approves edits or selects a model. */
 export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentModel {
-  const { protocol, request } = options
+  const { protocol, request, onUsage: adapterUsage } = options
   if (!['responses', 'chat-completions', 'anthropic-messages', 'gemini-generate-content'].includes(protocol) || typeof request !== 'function') invalid('Choose an explicit protocol and host transport')
+  if (adapterUsage !== undefined && typeof adapterUsage !== 'function') invalid('onUsage must be a function')
   const model = identifier(options.model)
   const outputTokens = limit(options.maxOutputTokens, 4096, 131072)
   const chatTokenParameter = options.chatTokenParameter ?? 'max_tokens'
@@ -75,7 +88,8 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
   const responseBytes = limit(options.maxResponseBytes, 1048576, 16777216)
   const historyBytes = limit(options.maxHistoryBytes, 2097152, 16777216)
   return Object.freeze({
-    createConversation({ instructions, tools }: { instructions: string; tools: readonly KJAgentToolDefinition[] }): KJModelConversation {
+    createConversation({ instructions, tools, onUsage }: KJModelConversationOptions): KJModelConversation {
+      if (onUsage !== undefined && typeof onUsage !== 'function') invalid('onUsage must be a function')
       const definitions = tools.map(tool => ({ name: tool.name, description: tool.description, parameters: tool.inputSchema }))
       const schema = jsonCopy(definitions, historyBytes)
       const history: unknown[] = []
@@ -111,7 +125,12 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
             else body = { systemInstruction: { parts: [{ text: instructions }] }, contents: history, tools: [{ functionDeclarations: schema.map(tool => ({ name: tool.name, description: tool.description, parametersJsonSchema: tool.parameters })) }], generationConfig: { maxOutputTokens: outputTokens, candidateCount: 1 } }
             // Never expose mutable internal history, or credentials, through the public result.
             const outgoing = deepFreeze(jsonCopy(body, historyBytes))
-            const response = record(jsonCopy(await request({ protocol, model, body: outgoing, signal }), responseBytes))
+            const startedAt = performance.now()
+            const rawResponse = await request({ protocol, model, body: outgoing, signal })
+            const usage = extractKJModelUsage(protocol, rawResponse, { latencyMs: Math.max(0, performance.now() - startedAt) })
+            notifyUsage(onUsage, usage)
+            notifyUsage(adapterUsage, usage)
+            const response = record(jsonCopy(rawResponse, responseBytes))
             signal.throwIfAborted()
             turnNumber++
             let text = ''
@@ -172,7 +191,7 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
             if (!calls.length && !text.trim()) invalid('Model returned neither tool calls nor user-visible text')
             pending = calls
             ended = !calls.length
-            return deepFreeze({ text, calls }) as KJModelTurn
+            return deepFreeze({ text, calls, usage }) as KJModelTurn
           } catch (error) { ended = true; throw error } finally { busy = false }
         },
       }

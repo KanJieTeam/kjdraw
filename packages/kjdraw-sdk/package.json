@@ -57,6 +57,11 @@
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "exports": {
+    "./model-usage": {
+      "types": "./types/model-usage.d.ts",
+      "import": "./src/model-usage.js",
+      "default": "./src/model-usage.js"
+    },
     "./drawing-validation": {
       "types": "./types/drawing-validation.d.ts",
       "import": "./src/drawing-validation.js",

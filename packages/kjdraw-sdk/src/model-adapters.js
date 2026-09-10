@@ -1,6 +1,7 @@
 // Generated from model-adapters.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJDrawError } from './errors.js';
 import { deepFreeze } from './utils.js';
+import { extractKJModelUsage } from './model-usage.js';
 export class KJModelError extends KJDrawError {
     constructor(code, message){
         super(message, {
@@ -41,14 +42,20 @@ function limit(value, fallback, maximum) {
     if (!Number.isSafeInteger(resolved) || resolved < 1 || resolved > maximum) invalid('Invalid model adapter limit');
     return resolved;
 }
+function notifyUsage(observer, usage) {
+    try {
+        void Promise.resolve(observer?.(usage)).catch(()=>{});
+    } catch  {}
+}
 export function createKJModelAdapter(options) {
-    const { protocol, request } = options;
+    const { protocol, request, onUsage: adapterUsage } = options;
     if (![
         'responses',
         'chat-completions',
         'anthropic-messages',
         'gemini-generate-content'
     ].includes(protocol) || typeof request !== 'function') invalid('Choose an explicit protocol and host transport');
+    if (adapterUsage !== undefined && typeof adapterUsage !== 'function') invalid('onUsage must be a function');
     const model = identifier(options.model);
     const outputTokens = limit(options.maxOutputTokens, 4096, 131072);
     const chatTokenParameter = options.chatTokenParameter ?? 'max_tokens';
@@ -59,7 +66,8 @@ export function createKJModelAdapter(options) {
     const responseBytes = limit(options.maxResponseBytes, 1048576, 16777216);
     const historyBytes = limit(options.maxHistoryBytes, 2097152, 16777216);
     return Object.freeze({
-        createConversation ({ instructions, tools }) {
+        createConversation ({ instructions, tools, onUsage }) {
+            if (onUsage !== undefined && typeof onUsage !== 'function') invalid('onUsage must be a function');
             const definitions = tools.map((tool)=>({
                     name: tool.name,
                     description: tool.description,
@@ -197,12 +205,19 @@ export function createKJModelAdapter(options) {
                             }
                         };
                         const outgoing = deepFreeze(jsonCopy(body, historyBytes));
-                        const response = record(jsonCopy(await request({
+                        const startedAt = performance.now();
+                        const rawResponse = await request({
                             protocol,
                             model,
                             body: outgoing,
                             signal
-                        }), responseBytes));
+                        });
+                        const usage = extractKJModelUsage(protocol, rawResponse, {
+                            latencyMs: Math.max(0, performance.now() - startedAt)
+                        });
+                        notifyUsage(onUsage, usage);
+                        notifyUsage(adapterUsage, usage);
+                        const response = record(jsonCopy(rawResponse, responseBytes));
                         signal.throwIfAborted();
                         turnNumber++;
                         let text = '';
@@ -297,7 +312,8 @@ export function createKJModelAdapter(options) {
                         ended = !calls.length;
                         return deepFreeze({
                             text,
-                            calls
+                            calls,
+                            usage
                         });
                     } catch (error) {
                         ended = true;

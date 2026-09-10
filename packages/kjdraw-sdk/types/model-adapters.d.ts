@@ -1,5 +1,6 @@
 import type { KJAgentToolDefinition, KJAgentToolResult } from './agent-tools.js';
 import { KJDrawError } from './errors.js';
+import { type KJModelUsage } from './model-usage.js';
 export type KJModelProtocol = 'responses' | 'chat-completions' | 'anthropic-messages' | 'gemini-generate-content';
 export interface KJModelToolCall {
     readonly id: string;
@@ -14,6 +15,7 @@ export interface KJModelToolOutput {
 export interface KJModelTurn {
     readonly text: string;
     readonly calls: readonly KJModelToolCall[];
+    readonly usage?: KJModelUsage;
 }
 export type KJModelInput = {
     readonly kind: 'prompt';
@@ -27,10 +29,13 @@ export interface KJModelConversation {
 }
 /** Custom models and framework/harness bridges implement this interface; no vendor SDK is required. */
 export interface KJAgentModel {
-    createConversation(options: {
-        readonly instructions: string;
-        readonly tools: readonly KJAgentToolDefinition[];
-    }): KJModelConversation;
+    createConversation(options: KJModelConversationOptions): KJModelConversation;
+}
+export interface KJModelConversationOptions {
+    readonly instructions: string;
+    readonly tools: readonly KJAgentToolDefinition[];
+    /** One observation per received transport response, even when response parsing later fails. Exceptions are isolated. */
+    readonly onUsage?: (usage: KJModelUsage) => void;
 }
 export interface KJModelRequest {
     readonly protocol: KJModelProtocol;
@@ -49,6 +54,8 @@ export interface KJModelAdapterOptions {
     chatTokenParameter?: 'max_tokens' | 'max_completion_tokens';
     maxResponseBytes?: number;
     maxHistoryBytes?: number;
+    /** Host-only observer; contains counters and timing, never response text or credentials. Exceptions are isolated. */
+    onUsage?: (usage: KJModelUsage) => void;
 }
 export declare class KJModelError extends KJDrawError {
     constructor(code: string, message: string);

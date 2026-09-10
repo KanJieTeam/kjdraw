@@ -3,8 +3,37 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:cf9244aee6da79d466c17396619e88a581477de44c773e993f13d3732483ac5e",
+  "sourceDigest": "sha256:050f3b9d2eb2eee104da34db6ccc576e389f6813178cf5771079407c36a12d0a",
   "modules": [
+    {
+      "exportPath": "./model-usage",
+      "packageName": "@kanjieteam/kjdraw/model-usage",
+      "declaration": "types/model-usage.d.ts",
+      "anchor": "module-model-usage",
+      "symbols": [
+        {
+          "name": "extractKJModelUsage",
+          "kind": "function",
+          "declaration": "export declare function extractKJModelUsage(protocol: KJModelProtocol, response: unknown, { latencyMs }?: {\n    latencyMs?: number | null;\n}): KJModelUsage;",
+          "source": "model-usage.d.ts",
+          "anchor": "model-usage-function-extractkjmodelusage"
+        },
+        {
+          "name": "KJModelUsage",
+          "kind": "interface",
+          "declaration": "export interface KJModelUsage {\n    readonly protocol: KJModelProtocol;\n    /** Inclusive input, including cache reads and writes. Null means unavailable or invalid. */\n    readonly inputTokens: number | null;\n    /** Inclusive output, including reasoning. Null means unavailable or invalid. */\n    readonly outputTokens: number | null;\n    readonly totalTokens: number | null;\n    readonly inputTokensSource: KJModelUsageSource;\n    readonly outputTokensSource: KJModelUsageSource;\n    readonly totalTokensSource: KJModelUsageSource;\n    /** Original provider counters: Anthropic input excludes caches; Gemini output excludes thoughts. */\n    readonly reportedInputTokens: number | null;\n    readonly reportedOutputTokens: number | null;\n    readonly reportedTotalTokens: number | null;\n    readonly cacheReadInputTokens: number | null;\n    /** Explicitly reported uncached input (DeepSeek Chat); never inferred by subtraction. */\n    readonly cacheMissInputTokens: number | null;\n    readonly cacheWriteInputTokens: number | null;\n    readonly reasoningOutputTokens: number | null;\n    /** Gemini's separately reported tool-use prompt count; never added to input a second time. */\n    readonly toolUsePromptTokens: number | null;\n    /** Host-observed transport-call wall time, including network/server work but excluding CAD execution. */\n    readonly latencyMs: number | null;\n    readonly latencyScope: 'transport-wall' | null;\n    /** Known field paths with invalid types, unsafe values, overflow or inconsistent totals. No payloads. */\n    readonly invalidFields: readonly string[];\n}",
+          "source": "model-usage.d.ts",
+          "anchor": "model-usage-interface-kjmodelusage"
+        },
+        {
+          "name": "KJModelUsageSource",
+          "kind": "type",
+          "declaration": "export type KJModelUsageSource = 'reported' | 'sum-components' | null;",
+          "source": "model-usage.d.ts",
+          "anchor": "model-usage-type-kjmodelusagesource"
+        }
+      ]
+    },
     {
       "exportPath": "./drawing-validation",
       "packageName": "@kanjieteam/kjdraw/drawing-validation",
@@ -163,14 +192,14 @@
         {
           "name": "KJAgentModel",
           "kind": "interface",
-          "declaration": "export interface KJAgentModel {\n    createConversation(options: {\n        readonly instructions: string;\n        readonly tools: readonly KJAgentToolDefinition[];\n    }): KJModelConversation;\n}",
+          "declaration": "export interface KJAgentModel {\n    createConversation(options: KJModelConversationOptions): KJModelConversation;\n}",
           "source": "model-adapters.d.ts",
           "anchor": "model-adapters-interface-kjagentmodel"
         },
         {
           "name": "KJModelAdapterOptions",
           "kind": "interface",
-          "declaration": "export interface KJModelAdapterOptions {\n    protocol: KJModelProtocol;\n    model: string;\n    /** Trusted host transport owns credentials, endpoint allowlisting and HTTP errors; return parsed, non-streaming JSON. */\n    request: (request: KJModelRequest) => Promise<unknown>;\n    maxOutputTokens?: number;\n    /** Compatible endpoints differ; choose the field accepted by the selected model. */\n    chatTokenParameter?: 'max_tokens' | 'max_completion_tokens';\n    maxResponseBytes?: number;\n    maxHistoryBytes?: number;\n}",
+          "declaration": "export interface KJModelAdapterOptions {\n    protocol: KJModelProtocol;\n    model: string;\n    /** Trusted host transport owns credentials, endpoint allowlisting and HTTP errors; return parsed, non-streaming JSON. */\n    request: (request: KJModelRequest) => Promise<unknown>;\n    maxOutputTokens?: number;\n    /** Compatible endpoints differ; choose the field accepted by the selected model. */\n    chatTokenParameter?: 'max_tokens' | 'max_completion_tokens';\n    maxResponseBytes?: number;\n    maxHistoryBytes?: number;\n    /** Host-only observer; contains counters and timing, never response text or credentials. Exceptions are isolated. */\n    onUsage?: (usage: KJModelUsage) => void;\n}",
           "source": "model-adapters.d.ts",
           "anchor": "model-adapters-interface-kjmodeladapteroptions"
         },
@@ -180,6 +209,13 @@
           "declaration": "export interface KJModelConversation {\n    next(input: KJModelInput, signal: AbortSignal): Promise<KJModelTurn>;\n}",
           "source": "model-adapters.d.ts",
           "anchor": "model-adapters-interface-kjmodelconversation"
+        },
+        {
+          "name": "KJModelConversationOptions",
+          "kind": "interface",
+          "declaration": "export interface KJModelConversationOptions {\n    readonly instructions: string;\n    readonly tools: readonly KJAgentToolDefinition[];\n    /** One observation per received transport response, even when response parsing later fails. Exceptions are isolated. */\n    readonly onUsage?: (usage: KJModelUsage) => void;\n}",
+          "source": "model-adapters.d.ts",
+          "anchor": "model-adapters-interface-kjmodelconversationoptions"
         },
         {
           "name": "KJModelError",
@@ -226,7 +262,7 @@
         {
           "name": "KJModelTurn",
           "kind": "interface",
-          "declaration": "export interface KJModelTurn {\n    readonly text: string;\n    readonly calls: readonly KJModelToolCall[];\n}",
+          "declaration": "export interface KJModelTurn {\n    readonly text: string;\n    readonly calls: readonly KJModelToolCall[];\n    readonly usage?: KJModelUsage;\n}",
           "source": "model-adapters.d.ts",
           "anchor": "model-adapters-interface-kjmodelturn"
         }
@@ -238,6 +274,13 @@
       "declaration": "types/agent-runner.d.ts",
       "anchor": "module-agent-runner",
       "symbols": [
+        {
+          "name": "KJAgentRunMeasurements",
+          "kind": "interface",
+          "declaration": "export interface KJAgentRunMeasurements {\n    readonly turns: readonly KJAgentTurnUsage[];\n    readonly totals: Readonly<Record<'inputTokens' | 'outputTokens' | 'totalTokens' | 'cacheReadInputTokens' | 'cacheMissInputTokens' | 'cacheWriteInputTokens' | 'reasoningOutputTokens', number | null>>;\n    /** Sum of observed transport response latencies; null when any attempted turn has no timing. Excludes CAD. */\n    readonly transportWallMs: number | null;\n    /** Runner wall time through its return, including model waits, CAD work and host callbacks. */\n    readonly runWallMs: number;\n    /** Every attempted turn supplied valid input/output/total counts. Optional breakdowns may still be null. Not a billing receipt. */\n    readonly complete: boolean;\n}",
+          "source": "agent-runner.d.ts",
+          "anchor": "agent-runner-interface-kjagentrunmeasurements"
+        },
         {
           "name": "KJAgentRunOptions",
           "kind": "interface",
@@ -255,9 +298,16 @@
         {
           "name": "KJAgentRunResult",
           "kind": "interface",
-          "declaration": "export interface KJAgentRunResult {\n    readonly status: 'responded' | 'awaiting-approval' | 'limit-reached' | 'cancelled' | 'failed';\n    /** Untrusted model text, not evidence of CAD success. Never render as unsanitized HTML. */\n    readonly text: string;\n    readonly turns: number;\n    readonly toolCalls: number;\n    readonly outputs: readonly KJModelToolOutput[];\n    readonly proposalIds: readonly string[];\n    readonly error?: {\n        readonly code: string;\n        readonly message: string;\n    };\n}",
+          "declaration": "export interface KJAgentRunResult {\n    readonly status: 'responded' | 'awaiting-approval' | 'limit-reached' | 'cancelled' | 'failed';\n    /** Untrusted model text, not evidence of CAD success. Never render as unsanitized HTML. */\n    readonly text: string;\n    readonly turns: number;\n    readonly toolCalls: number;\n    readonly outputs: readonly KJModelToolOutput[];\n    readonly proposalIds: readonly string[];\n    readonly measurements: KJAgentRunMeasurements;\n    readonly error?: {\n        readonly code: string;\n        readonly message: string;\n    };\n}",
           "source": "agent-runner.d.ts",
           "anchor": "agent-runner-interface-kjagentrunresult"
+        },
+        {
+          "name": "KJAgentTurnUsage",
+          "kind": "interface",
+          "declaration": "export interface KJAgentTurnUsage {\n    readonly turn: number;\n    readonly status: 'reported' | 'missing' | 'invalid' | 'multiple-observations';\n    readonly usage: KJModelUsage | null;\n}",
+          "source": "agent-runner.d.ts",
+          "anchor": "agent-runner-interface-kjagentturnusage"
         },
         {
           "name": "KJDRAW_AGENT_INSTRUCTIONS",
@@ -5321,6 +5371,13 @@
           "anchor": "root-function-extendlinepayload"
         },
         {
+          "name": "extractKJModelUsage",
+          "kind": "function",
+          "declaration": "export declare function extractKJModelUsage(protocol: KJModelProtocol, response: unknown, { latencyMs }?: {\n    latencyMs?: number | null;\n}): KJModelUsage;",
+          "source": "model-usage.d.ts",
+          "anchor": "root-function-extractkjmodelusage"
+        },
+        {
           "name": "filletLinePair",
           "kind": "function",
           "declaration": "export declare function filletLinePair(first: KJEditingEntity, second: KJEditingEntity, options?: KJLinePairOptions): KJLinePairEditResult;",
@@ -5694,7 +5751,7 @@
         {
           "name": "KJAgentModel",
           "kind": "interface",
-          "declaration": "export interface KJAgentModel {\n    createConversation(options: {\n        readonly instructions: string;\n        readonly tools: readonly KJAgentToolDefinition[];\n    }): KJModelConversation;\n}",
+          "declaration": "export interface KJAgentModel {\n    createConversation(options: KJModelConversationOptions): KJModelConversation;\n}",
           "source": "model-adapters.d.ts",
           "anchor": "root-interface-kjagentmodel"
         },
@@ -5741,6 +5798,13 @@
           "anchor": "root-interface-kjagentplanregistryoptions"
         },
         {
+          "name": "KJAgentRunMeasurements",
+          "kind": "interface",
+          "declaration": "export interface KJAgentRunMeasurements {\n    readonly turns: readonly KJAgentTurnUsage[];\n    readonly totals: Readonly<Record<'inputTokens' | 'outputTokens' | 'totalTokens' | 'cacheReadInputTokens' | 'cacheMissInputTokens' | 'cacheWriteInputTokens' | 'reasoningOutputTokens', number | null>>;\n    /** Sum of observed transport response latencies; null when any attempted turn has no timing. Excludes CAD. */\n    readonly transportWallMs: number | null;\n    /** Runner wall time through its return, including model waits, CAD work and host callbacks. */\n    readonly runWallMs: number;\n    /** Every attempted turn supplied valid input/output/total counts. Optional breakdowns may still be null. Not a billing receipt. */\n    readonly complete: boolean;\n}",
+          "source": "agent-runner.d.ts",
+          "anchor": "root-interface-kjagentrunmeasurements"
+        },
+        {
           "name": "KJAgentRunOptions",
           "kind": "interface",
           "declaration": "export interface KJAgentRunOptions {\n    session: KJAgentToolSession;\n    model: KJAgentModel;\n    prompt: string;\n    /** Host-selected tools for this run. Omit for all session tools; explicit lists must be nonempty, unique and known. */\n    toolNames?: readonly string[];\n    /** Host-trusted domain knowledge, selected by an exact project lock. Never grants extra tools. */\n    capabilities?: {\n        registry: KJAgentCapabilityRegistry;\n        lock: readonly KJAgentCapabilityLockEntry[];\n    };\n    maxTurns?: number;\n    maxToolCalls?: number;\n    timeoutMs?: number;\n    signal?: AbortSignal;\n    /** Host UI progress; contains no drawing payload or model reasoning. */\n    onProgress?: (progress: Readonly<KJAgentRunProgress>) => void;\n}",
@@ -5757,7 +5821,7 @@
         {
           "name": "KJAgentRunResult",
           "kind": "interface",
-          "declaration": "export interface KJAgentRunResult {\n    readonly status: 'responded' | 'awaiting-approval' | 'limit-reached' | 'cancelled' | 'failed';\n    /** Untrusted model text, not evidence of CAD success. Never render as unsanitized HTML. */\n    readonly text: string;\n    readonly turns: number;\n    readonly toolCalls: number;\n    readonly outputs: readonly KJModelToolOutput[];\n    readonly proposalIds: readonly string[];\n    readonly error?: {\n        readonly code: string;\n        readonly message: string;\n    };\n}",
+          "declaration": "export interface KJAgentRunResult {\n    readonly status: 'responded' | 'awaiting-approval' | 'limit-reached' | 'cancelled' | 'failed';\n    /** Untrusted model text, not evidence of CAD success. Never render as unsanitized HTML. */\n    readonly text: string;\n    readonly turns: number;\n    readonly toolCalls: number;\n    readonly outputs: readonly KJModelToolOutput[];\n    readonly proposalIds: readonly string[];\n    readonly measurements: KJAgentRunMeasurements;\n    readonly error?: {\n        readonly code: string;\n        readonly message: string;\n    };\n}",
           "source": "agent-runner.d.ts",
           "anchor": "root-interface-kjagentrunresult"
         },
@@ -5788,6 +5852,13 @@
           "declaration": "export declare class KJAgentToolSession {\n    #private;\n    /** Bind unit schemas to the drawing so models see its canonical unit name. */\n    get definitions(): readonly KJAgentToolDefinition[];\n    constructor(sdk: KJDrawSDK, document: KJDocument);\n    call(name: string, input: unknown): Promise<KJAgentToolResult>;\n    /** Invoke only after an authenticated host collected review of these exact arguments. */\n    approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;\n    reject(planId: string, reviewerId: string): KJAgentToolResult;\n}",
           "source": "agent-tools.d.ts",
           "anchor": "root-class-kjagenttoolsession"
+        },
+        {
+          "name": "KJAgentTurnUsage",
+          "kind": "interface",
+          "declaration": "export interface KJAgentTurnUsage {\n    readonly turn: number;\n    readonly status: 'reported' | 'missing' | 'invalid' | 'multiple-observations';\n    readonly usage: KJModelUsage | null;\n}",
+          "source": "agent-runner.d.ts",
+          "anchor": "root-interface-kjagentturnusage"
         },
         {
           "name": "KJArcConnector",
@@ -7136,7 +7207,7 @@
         {
           "name": "KJModelAdapterOptions",
           "kind": "interface",
-          "declaration": "export interface KJModelAdapterOptions {\n    protocol: KJModelProtocol;\n    model: string;\n    /** Trusted host transport owns credentials, endpoint allowlisting and HTTP errors; return parsed, non-streaming JSON. */\n    request: (request: KJModelRequest) => Promise<unknown>;\n    maxOutputTokens?: number;\n    /** Compatible endpoints differ; choose the field accepted by the selected model. */\n    chatTokenParameter?: 'max_tokens' | 'max_completion_tokens';\n    maxResponseBytes?: number;\n    maxHistoryBytes?: number;\n}",
+          "declaration": "export interface KJModelAdapterOptions {\n    protocol: KJModelProtocol;\n    model: string;\n    /** Trusted host transport owns credentials, endpoint allowlisting and HTTP errors; return parsed, non-streaming JSON. */\n    request: (request: KJModelRequest) => Promise<unknown>;\n    maxOutputTokens?: number;\n    /** Compatible endpoints differ; choose the field accepted by the selected model. */\n    chatTokenParameter?: 'max_tokens' | 'max_completion_tokens';\n    maxResponseBytes?: number;\n    maxHistoryBytes?: number;\n    /** Host-only observer; contains counters and timing, never response text or credentials. Exceptions are isolated. */\n    onUsage?: (usage: KJModelUsage) => void;\n}",
           "source": "model-adapters.d.ts",
           "anchor": "root-interface-kjmodeladapteroptions"
         },
@@ -7146,6 +7217,13 @@
           "declaration": "export interface KJModelConversation {\n    next(input: KJModelInput, signal: AbortSignal): Promise<KJModelTurn>;\n}",
           "source": "model-adapters.d.ts",
           "anchor": "root-interface-kjmodelconversation"
+        },
+        {
+          "name": "KJModelConversationOptions",
+          "kind": "interface",
+          "declaration": "export interface KJModelConversationOptions {\n    readonly instructions: string;\n    readonly tools: readonly KJAgentToolDefinition[];\n    /** One observation per received transport response, even when response parsing later fails. Exceptions are isolated. */\n    readonly onUsage?: (usage: KJModelUsage) => void;\n}",
+          "source": "model-adapters.d.ts",
+          "anchor": "root-interface-kjmodelconversationoptions"
         },
         {
           "name": "KJModelError",
@@ -7192,9 +7270,23 @@
         {
           "name": "KJModelTurn",
           "kind": "interface",
-          "declaration": "export interface KJModelTurn {\n    readonly text: string;\n    readonly calls: readonly KJModelToolCall[];\n}",
+          "declaration": "export interface KJModelTurn {\n    readonly text: string;\n    readonly calls: readonly KJModelToolCall[];\n    readonly usage?: KJModelUsage;\n}",
           "source": "model-adapters.d.ts",
           "anchor": "root-interface-kjmodelturn"
+        },
+        {
+          "name": "KJModelUsage",
+          "kind": "interface",
+          "declaration": "export interface KJModelUsage {\n    readonly protocol: KJModelProtocol;\n    /** Inclusive input, including cache reads and writes. Null means unavailable or invalid. */\n    readonly inputTokens: number | null;\n    /** Inclusive output, including reasoning. Null means unavailable or invalid. */\n    readonly outputTokens: number | null;\n    readonly totalTokens: number | null;\n    readonly inputTokensSource: KJModelUsageSource;\n    readonly outputTokensSource: KJModelUsageSource;\n    readonly totalTokensSource: KJModelUsageSource;\n    /** Original provider counters: Anthropic input excludes caches; Gemini output excludes thoughts. */\n    readonly reportedInputTokens: number | null;\n    readonly reportedOutputTokens: number | null;\n    readonly reportedTotalTokens: number | null;\n    readonly cacheReadInputTokens: number | null;\n    /** Explicitly reported uncached input (DeepSeek Chat); never inferred by subtraction. */\n    readonly cacheMissInputTokens: number | null;\n    readonly cacheWriteInputTokens: number | null;\n    readonly reasoningOutputTokens: number | null;\n    /** Gemini's separately reported tool-use prompt count; never added to input a second time. */\n    readonly toolUsePromptTokens: number | null;\n    /** Host-observed transport-call wall time, including network/server work but excluding CAD execution. */\n    readonly latencyMs: number | null;\n    readonly latencyScope: 'transport-wall' | null;\n    /** Known field paths with invalid types, unsafe values, overflow or inconsistent totals. No payloads. */\n    readonly invalidFields: readonly string[];\n}",
+          "source": "model-usage.d.ts",
+          "anchor": "root-interface-kjmodelusage"
+        },
+        {
+          "name": "KJModelUsageSource",
+          "kind": "type",
+          "declaration": "export type KJModelUsageSource = 'reported' | 'sum-components' | null;",
+          "source": "model-usage.d.ts",
+          "anchor": "root-type-kjmodelusagesource"
         },
         {
           "name": "KJModificationBuildContext",
@@ -11211,7 +11303,7 @@
         {
           "name": "KJCanvasRenderReport",
           "kind": "interface",
-          "declaration": "export interface KJCanvasRenderReport {\n    hatchDiagnostics?: readonly {\n        entityId: string;\n        reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary';\n    }[];\n    total: number;\n    rendered: number;\n    approximated: number;\n    hidden: number;\n    unsupported: number;\n    approximateTypes: readonly string[];\n    unsupportedTypes: readonly string[];\n    width: number;\n    height: number;\n    scale: number;\n}",
+          "declaration": "export interface KJCanvasRenderReport {\n    hatchDiagnostics?: readonly {\n        entityId: string;\n        reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary';\n        samplingReason?: KJHatchCoverageReason | 'pixel-budget' | 'canvas-unavailable';\n    }[];\n    total: number;\n    rendered: number;\n    approximated: number;\n    hidden: number;\n    unsupported: number;\n    approximateTypes: readonly string[];\n    unsupportedTypes: readonly string[];\n    width: number;\n    height: number;\n    scale: number;\n}",
           "source": "canvas-renderer.d.ts",
           "anchor": "renderer-canvas-interface-kjcanvasrenderreport"
         },

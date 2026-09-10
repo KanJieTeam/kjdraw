@@ -2,7 +2,7 @@ import { createKJDrawSDK, type KJAgentModel } from '@kanjieteam/kjdraw'
 import { KJAgentToolSession, type KJAgentGeometryValidationInput } from '@kanjieteam/kjdraw/agent-tools'
 import { validateDrawingGeometry, type KJDrawingValidationResult } from '@kanjieteam/kjdraw/drawing-validation'
 import { createKJModelAdapter, type KJModelRequest } from '@kanjieteam/kjdraw/model-adapters'
-import { runKJAgentTask, type KJAgentRunResult } from '@kanjieteam/kjdraw/agent-runner'
+import { runKJAgentTask, type KJAgentRunResult, type KJAgentRunMeasurements } from '@kanjieteam/kjdraw/agent-runner'
 import { KJAgentCapabilityRegistry, type KJResolvedAgentCapabilities } from '@kanjieteam/kjdraw/agent-capabilities'
 
 const sdk = createKJDrawSDK()
@@ -11,6 +11,9 @@ const transport = async (_request: KJModelRequest): Promise<unknown> => ({ statu
 const model: KJAgentModel = createKJModelAdapter({ protocol: 'responses', model: 'host-selected', request: transport })
 const result: KJAgentRunResult = await runKJAgentTask({ session, model, prompt: 'Draw a part.' })
 if (result.status === 'awaiting-approval') console.log(result.proposalIds)
+const measurements: KJAgentRunMeasurements = result.measurements
+const totalTokens: number | null = measurements.totals.totalTokens
+console.log(totalTokens, measurements.transportWallMs, measurements.runWallMs)
 const registry = new KJAgentCapabilityRegistry()
 registry.register({
   schema: 'com.kanjie.kjdraw.agent-capability', schemaVersion: 1, toolApiVersion: 1,

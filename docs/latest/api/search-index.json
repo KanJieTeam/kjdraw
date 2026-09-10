@@ -2,8 +2,32 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:cf9244aee6da79d466c17396619e88a581477de44c773e993f13d3732483ac5e",
+  "sourceDigest": "sha256:050f3b9d2eb2eee104da34db6ccc576e389f6813178cf5771079407c36a12d0a",
   "entries": [
+    {
+      "name": "extractKJModelUsage",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/model-usage",
+      "href": "./api/reference/#model-usage-function-extractkjmodelusage",
+      "anchor": "model-usage-function-extractkjmodelusage",
+      "summary": "export declare function extractKJModelUsage(protocol: KJModelProtocol, response: unknown, { latencyMs }?: { latencyMs?: number | null; }): KJModelUsage;"
+    },
+    {
+      "name": "KJModelUsage",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/model-usage",
+      "href": "./api/reference/#model-usage-interface-kjmodelusage",
+      "anchor": "model-usage-interface-kjmodelusage",
+      "summary": "export interface KJModelUsage { readonly protocol: KJModelProtocol; /** Inclusive input, including cache reads and writes. Null means unavailable or invalid. */ readonly inputTokens: number | null; /** Inclusive output, "
+    },
+    {
+      "name": "KJModelUsageSource",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/model-usage",
+      "href": "./api/reference/#model-usage-type-kjmodelusagesource",
+      "anchor": "model-usage-type-kjmodelusagesource",
+      "summary": "export type KJModelUsageSource = 'reported' | 'sum-components' | null;"
+    },
     {
       "name": "KJDrawingValidationCheck",
       "kind": "type",
@@ -162,7 +186,7 @@
       "module": "@kanjieteam/kjdraw/model-adapters",
       "href": "./api/reference/#model-adapters-interface-kjagentmodel",
       "anchor": "model-adapters-interface-kjagentmodel",
-      "summary": "export interface KJAgentModel { createConversation(options: { readonly instructions: string; readonly tools: readonly KJAgentToolDefinition[]; }): KJModelConversation; }"
+      "summary": "export interface KJAgentModel { createConversation(options: KJModelConversationOptions): KJModelConversation; }"
     },
     {
       "name": "KJModelAdapterOptions",
@@ -179,6 +203,14 @@
       "href": "./api/reference/#model-adapters-interface-kjmodelconversation",
       "anchor": "model-adapters-interface-kjmodelconversation",
       "summary": "export interface KJModelConversation { next(input: KJModelInput, signal: AbortSignal): Promise<KJModelTurn>; }"
+    },
+    {
+      "name": "KJModelConversationOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/model-adapters",
+      "href": "./api/reference/#model-adapters-interface-kjmodelconversationoptions",
+      "anchor": "model-adapters-interface-kjmodelconversationoptions",
+      "summary": "export interface KJModelConversationOptions { readonly instructions: string; readonly tools: readonly KJAgentToolDefinition[]; /** One observation per received transport response, even when response parsing later fails. "
     },
     {
       "name": "KJModelError",
@@ -234,7 +266,15 @@
       "module": "@kanjieteam/kjdraw/model-adapters",
       "href": "./api/reference/#model-adapters-interface-kjmodelturn",
       "anchor": "model-adapters-interface-kjmodelturn",
-      "summary": "export interface KJModelTurn { readonly text: string; readonly calls: readonly KJModelToolCall[]; }"
+      "summary": "export interface KJModelTurn { readonly text: string; readonly calls: readonly KJModelToolCall[]; readonly usage?: KJModelUsage; }"
+    },
+    {
+      "name": "KJAgentRunMeasurements",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-runner",
+      "href": "./api/reference/#agent-runner-interface-kjagentrunmeasurements",
+      "anchor": "agent-runner-interface-kjagentrunmeasurements",
+      "summary": "export interface KJAgentRunMeasurements { readonly turns: readonly KJAgentTurnUsage[]; readonly totals: Readonly<Record<'inputTokens' | 'outputTokens' | 'totalTokens' | 'cacheReadInputTokens' | 'cacheMissInputTokens' | '"
     },
     {
       "name": "KJAgentRunOptions",
@@ -259,6 +299,14 @@
       "href": "./api/reference/#agent-runner-interface-kjagentrunresult",
       "anchor": "agent-runner-interface-kjagentrunresult",
       "summary": "export interface KJAgentRunResult { readonly status: 'responded' | 'awaiting-approval' | 'limit-reached' | 'cancelled' | 'failed'; /** Untrusted model text, not evidence of CAD success. Never render as unsanitized HTML. "
+    },
+    {
+      "name": "KJAgentTurnUsage",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/agent-runner",
+      "href": "./api/reference/#agent-runner-interface-kjagentturnusage",
+      "anchor": "agent-runner-interface-kjagentturnusage",
+      "summary": "export interface KJAgentTurnUsage { readonly turn: number; readonly status: 'reported' | 'missing' | 'invalid' | 'multiple-observations'; readonly usage: KJModelUsage | null; }"
     },
     {
       "name": "KJDRAW_AGENT_INSTRUCTIONS",
@@ -5917,6 +5965,14 @@
       "summary": "export declare function extendLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;"
     },
     {
+      "name": "extractKJModelUsage",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-extractkjmodelusage",
+      "anchor": "root-function-extractkjmodelusage",
+      "summary": "export declare function extractKJModelUsage(protocol: KJModelProtocol, response: unknown, { latencyMs }?: { latencyMs?: number | null; }): KJModelUsage;"
+    },
+    {
       "name": "filletLinePair",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -6346,7 +6402,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjagentmodel",
       "anchor": "root-interface-kjagentmodel",
-      "summary": "export interface KJAgentModel { createConversation(options: { readonly instructions: string; readonly tools: readonly KJAgentToolDefinition[]; }): KJModelConversation; }"
+      "summary": "export interface KJAgentModel { createConversation(options: KJModelConversationOptions): KJModelConversation; }"
     },
     {
       "name": "KJAgentPlanBindingContext",
@@ -6395,6 +6451,14 @@
       "href": "./api/reference/#root-interface-kjagentplanregistryoptions",
       "anchor": "root-interface-kjagentplanregistryoptions",
       "summary": "export interface KJAgentPlanRegistryOptions { clock?: () => number; defaultTtlMs?: number; bindingProvider?: KJAgentPlanBindingProvider; }"
+    },
+    {
+      "name": "KJAgentRunMeasurements",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentrunmeasurements",
+      "anchor": "root-interface-kjagentrunmeasurements",
+      "summary": "export interface KJAgentRunMeasurements { readonly turns: readonly KJAgentTurnUsage[]; readonly totals: Readonly<Record<'inputTokens' | 'outputTokens' | 'totalTokens' | 'cacheReadInputTokens' | 'cacheMissInputTokens' | '"
     },
     {
       "name": "KJAgentRunOptions",
@@ -6451,6 +6515,14 @@
       "href": "./api/reference/#root-class-kjagenttoolsession",
       "anchor": "root-class-kjagenttoolsession",
       "summary": "export declare class KJAgentToolSession { #private; /** Bind unit schemas to the drawing so models see its canonical unit name. */ get definitions(): readonly KJAgentToolDefinition[]; constructor(sdk: KJDrawSDK, document"
+    },
+    {
+      "name": "KJAgentTurnUsage",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjagentturnusage",
+      "anchor": "root-interface-kjagentturnusage",
+      "summary": "export interface KJAgentTurnUsage { readonly turn: number; readonly status: 'reported' | 'missing' | 'invalid' | 'multiple-observations'; readonly usage: KJModelUsage | null; }"
     },
     {
       "name": "KJArcConnector",
@@ -8005,6 +8077,14 @@
       "summary": "export interface KJModelConversation { next(input: KJModelInput, signal: AbortSignal): Promise<KJModelTurn>; }"
     },
     {
+      "name": "KJModelConversationOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjmodelconversationoptions",
+      "anchor": "root-interface-kjmodelconversationoptions",
+      "summary": "export interface KJModelConversationOptions { readonly instructions: string; readonly tools: readonly KJAgentToolDefinition[]; /** One observation per received transport response, even when response parsing later fails. "
+    },
+    {
       "name": "KJModelError",
       "kind": "class",
       "module": "@kanjieteam/kjdraw",
@@ -8058,7 +8138,23 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjmodelturn",
       "anchor": "root-interface-kjmodelturn",
-      "summary": "export interface KJModelTurn { readonly text: string; readonly calls: readonly KJModelToolCall[]; }"
+      "summary": "export interface KJModelTurn { readonly text: string; readonly calls: readonly KJModelToolCall[]; readonly usage?: KJModelUsage; }"
+    },
+    {
+      "name": "KJModelUsage",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjmodelusage",
+      "anchor": "root-interface-kjmodelusage",
+      "summary": "export interface KJModelUsage { readonly protocol: KJModelProtocol; /** Inclusive input, including cache reads and writes. Null means unavailable or invalid. */ readonly inputTokens: number | null; /** Inclusive output, "
+    },
+    {
+      "name": "KJModelUsageSource",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjmodelusagesource",
+      "anchor": "root-type-kjmodelusagesource",
+      "summary": "export type KJModelUsageSource = 'reported' | 'sum-components' | null;"
     },
     {
       "name": "KJModificationBuildContext",
@@ -12450,7 +12546,7 @@
       "module": "@kanjieteam/kjdraw/renderer/canvas",
       "href": "./api/reference/#renderer-canvas-interface-kjcanvasrenderreport",
       "anchor": "renderer-canvas-interface-kjcanvasrenderreport",
-      "summary": "export interface KJCanvasRenderReport { hatchDiagnostics?: readonly { entityId: string; reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary'; }[]; total: number; rendered: number; approximated: number; hidde"
+      "summary": "export interface KJCanvasRenderReport { hatchDiagnostics?: readonly { entityId: string; reason: 'budget' | 'unsupported-pattern' | 'unsupported-boundary'; samplingReason?: KJHatchCoverageReason | 'pixel-budget' | 'canvas"
     },
     {
       "name": "KJCanvasSceneProvider",

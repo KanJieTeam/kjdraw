@@ -72,6 +72,18 @@ The runner stops when it has proposals. It never calls `approve()`. After an aut
 
 Each run starts a fresh model conversation. After applying a proposal, start a new run with the next user request and let it read the current drawing. This version does not provide durable conversation resume, automatic file saving, rendered previews for every tool or a built-in MCP server. See [Agent workflows](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) for the available CAD tools and geometric review API.
 
+## Measure tokens and time {#usage}
+
+`result.measurements` retains each attempted turn's usage, normalized totals, transport wall time and runner wall time. Counters come from provider response fields; missing or invalid counters remain `null`. Cache and reasoning counters are subsets or additional components according to each protocol, so they are not blindly added twice. A cancelled request without a received response has missing usage. `complete` describes observed token counters, not design completion or a billing receipt.
+
+```ts
+const { totals, transportWallMs, runWallMs, complete } = result.measurements
+// Keep null as unavailable; do not replace it with zero in a benchmark.
+console.log({ totals, transportWallMs, runWallMs, complete })
+```
+
+Adapters also accept `onUsage: usage => hostMetrics.record(usage)` for response observations, including rejected or truncated responses. Observer failures do not change drawing behavior. A late response after cancellation may still reach that host observer; it cannot rewrite the runner's returned measurement snapshot. `extractKJModelUsage` is available from `/model-usage` for a custom transport. No response text, credentials, inferred token counts or prices are included. Controlled live-model comparisons still require repeated matched tasks and actual provider configuration.
+
 ## Run the packaged example {#example}
 
 ```sh
@@ -156,6 +168,18 @@ const result = await runKJAgentTask({
 一旦得到提案，运行器就停止，不会调用 `approve()`。经过认证的用户审核后，宿主再调用 `session.approve(planId, user.id)` 或 `session.reject(planId, user.id)`，并核对结果。模型回复应当作为不可信文字展示，不能直接当作 HTML 渲染。
 
 每次运行新建模型会话。应用修改后，用用户的新需求再次运行，让模型重新读取当前图纸。这一版不包含持久会话恢复、自动保存、全部工具的几何预览或内置 MCP 服务。可用绘图工具与几何审核接口见 [Agent 工作流](https://kanjieteam.github.io/kjdraw/docs/latest/agent/)。
+
+## 测量 token 与耗时 {#usage}
+
+`result.measurements` 保存每个尝试轮次的用量、归一化累计值、传输墙钟耗时和运行器总耗时。计数来自服务端响应字段；缺失或无效值保留 `null`。缓存与推理 token 按各协议的包含关系处理，避免重复相加。取消后没有收到响应的请求属于用量缺失，`complete` 仅表示已观测 token 数据完整，不代表绘图完成或完整账单。
+
+```ts
+const { totals, transportWallMs, runWallMs, complete } = result.measurements
+// null 表示无法取得，不能在跑分中当作零。
+console.log({ totals, transportWallMs, runWallMs, complete })
+```
+
+适配器还支持 `onUsage: usage => hostMetrics.record(usage)`，用于记录已收到响应的用量，包括被拒绝或截断的回答。观察回调异常不改变绘图行为。取消后的迟到响应仍可送到宿主观察器，但不会改写运行器已返回的测量快照。自定义传输可以使用 `/model-usage` 的 `extractKJModelUsage`。这些记录不包含回答文本、密钥、推算 token 或价格。真实模型对比仍需相同任务的重复实验与明确配置的模型服务。
 
 ## 运行包内示例 {#example}
 

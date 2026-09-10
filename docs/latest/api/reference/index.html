@@ -16,7 +16,8 @@
     <nav class="top-links"><a href="../">Editor API</a><a href="../../"><span class="lang-en">Guides</span><span class="lang-zh">指南</span></a><a href="https://github.com/KanJieTeam/kjdraw">GitHub</a><button id="language" type="button">中文</button></nav>
   </header>
   <div class="reference-shell">
-    <aside class="reference-sidebar"><div class="version"><span>TYPE REFERENCE</span><strong>v1.0.0-rc.3</strong></div><nav><a href="#module-drawing-validation"><code>./drawing-validation</code></a>
+    <aside class="reference-sidebar"><div class="version"><span>TYPE REFERENCE</span><strong>v1.0.0-rc.3</strong></div><nav><a href="#module-model-usage"><code>./model-usage</code></a>
+<a href="#module-drawing-validation"><code>./drawing-validation</code></a>
 <a href="#module-agent-capabilities"><code>./agent-capabilities</code></a>
 <a href="#module-model-adapters"><code>./model-adapters</code></a>
 <a href="#module-agent-runner"><code>./agent-runner</code></a>
@@ -60,7 +61,84 @@
     <main class="reference-main"><article>
       <section class="reference-intro" id="api-reference"><p class="eyebrow">TYPESCRIPT</p><h1><span class="lang-en">Complete API reference</span><span class="lang-zh">完整 API 参考</span></h1><p class="lead"><span class="lang-en">Browse the declarations for the root package and every public subpath. Start with the Editor API for application integration.</span><span class="lang-zh">浏览根包及每个公开子路径的类型声明；应用接入请先从 Editor API 开始。</span></p><a class="primary-link" href="../"><span class="lang-en">Open Editor API</span><span class="lang-zh">打开 Editor API</span> →</a></section>
       <div id="empty-state" hidden><h2><span class="lang-en">No matching API</span><span class="lang-zh">未找到匹配 API</span></h2></div>
-      <section class="api-module" id="module-drawing-validation" data-module="@kanjieteam/kjdraw/drawing-validation">
+      <section class="api-module" id="module-model-usage" data-module="@kanjieteam/kjdraw/model-usage">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/model-usage</code></h2></div><a class="permalink" href="#module-model-usage" aria-label="Link to @kanjieteam/kjdraw/model-usage">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/model-usage.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="model-usage-function-extractkjmodelusage" data-search="extractkjmodelusage function @kanjieteam/kjdraw/model-usage export declare function extractkjmodelusage(protocol: kjmodelprotocol, response: unknown, { latencyms }?: {
+    latencyms?: number | null;
+}): kjmodelusage;">
+      <header><div><span class="kind">function</span><h3>extractKJModelUsage</h3></div><a class="permalink" href="#model-usage-function-extractkjmodelusage" aria-label="Link to extractKJModelUsage">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function extractKJModelUsage(protocol: KJModelProtocol, response: unknown, { latencyMs }?: {
+    latencyMs?: number | null;
+}): KJModelUsage;</code></pre>
+      <p class="source-path">model-usage.d.ts</p>
+    </article>
+<article class="api-symbol" id="model-usage-interface-kjmodelusage" data-search="kjmodelusage interface @kanjieteam/kjdraw/model-usage export interface kjmodelusage {
+    readonly protocol: kjmodelprotocol;
+    /** inclusive input, including cache reads and writes. null means unavailable or invalid. */
+    readonly inputtokens: number | null;
+    /** inclusive output, including reasoning. null means unavailable or invalid. */
+    readonly outputtokens: number | null;
+    readonly totaltokens: number | null;
+    readonly inputtokenssource: kjmodelusagesource;
+    readonly outputtokenssource: kjmodelusagesource;
+    readonly totaltokenssource: kjmodelusagesource;
+    /** original provider counters: anthropic input excludes caches; gemini output excludes thoughts. */
+    readonly reportedinputtokens: number | null;
+    readonly reportedoutputtokens: number | null;
+    readonly reportedtotaltokens: number | null;
+    readonly cachereadinputtokens: number | null;
+    /** explicitly reported uncached input (deepseek chat); never inferred by subtraction. */
+    readonly cachemissinputtokens: number | null;
+    readonly cachewriteinputtokens: number | null;
+    readonly reasoningoutputtokens: number | null;
+    /** gemini&#39;s separately reported tool-use prompt count; never added to input a second time. */
+    readonly tooluseprompttokens: number | null;
+    /** host-observed transport-call wall time, including network/server work but excluding cad execution. */
+    readonly latencyms: number | null;
+    readonly latencyscope: &#39;transport-wall&#39; | null;
+    /** known field paths with invalid types, unsafe values, overflow or inconsistent totals. no payloads. */
+    readonly invalidfields: readonly string[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJModelUsage</h3></div><a class="permalink" href="#model-usage-interface-kjmodelusage" aria-label="Link to KJModelUsage">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModelUsage {
+    readonly protocol: KJModelProtocol;
+    /** Inclusive input, including cache reads and writes. Null means unavailable or invalid. */
+    readonly inputTokens: number | null;
+    /** Inclusive output, including reasoning. Null means unavailable or invalid. */
+    readonly outputTokens: number | null;
+    readonly totalTokens: number | null;
+    readonly inputTokensSource: KJModelUsageSource;
+    readonly outputTokensSource: KJModelUsageSource;
+    readonly totalTokensSource: KJModelUsageSource;
+    /** Original provider counters: Anthropic input excludes caches; Gemini output excludes thoughts. */
+    readonly reportedInputTokens: number | null;
+    readonly reportedOutputTokens: number | null;
+    readonly reportedTotalTokens: number | null;
+    readonly cacheReadInputTokens: number | null;
+    /** Explicitly reported uncached input (DeepSeek Chat); never inferred by subtraction. */
+    readonly cacheMissInputTokens: number | null;
+    readonly cacheWriteInputTokens: number | null;
+    readonly reasoningOutputTokens: number | null;
+    /** Gemini&#39;s separately reported tool-use prompt count; never added to input a second time. */
+    readonly toolUsePromptTokens: number | null;
+    /** Host-observed transport-call wall time, including network/server work but excluding CAD execution. */
+    readonly latencyMs: number | null;
+    readonly latencyScope: &#39;transport-wall&#39; | null;
+    /** Known field paths with invalid types, unsafe values, overflow or inconsistent totals. No payloads. */
+    readonly invalidFields: readonly string[];
+}</code></pre>
+      <p class="source-path">model-usage.d.ts</p>
+    </article>
+<article class="api-symbol" id="model-usage-type-kjmodelusagesource" data-search="kjmodelusagesource type @kanjieteam/kjdraw/model-usage export type kjmodelusagesource = &#39;reported&#39; | &#39;sum-components&#39; | null;">
+      <header><div><span class="kind">type</span><h3>KJModelUsageSource</h3></div><a class="permalink" href="#model-usage-type-kjmodelusagesource" aria-label="Link to KJModelUsageSource">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJModelUsageSource = &#39;reported&#39; | &#39;sum-components&#39; | null;</code></pre>
+      <p class="source-path">model-usage.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-drawing-validation" data-module="@kanjieteam/kjdraw/drawing-validation">
   <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/drawing-validation</code></h2></div><a class="permalink" href="#module-drawing-validation" aria-label="Link to @kanjieteam/kjdraw/drawing-validation">#</a></header>
   <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/drawing-validation.d.ts</code></p>
   <div class="api-symbols">
@@ -354,17 +432,11 @@
       <p class="source-path">model-adapters.d.ts</p>
     </article>
 <article class="api-symbol" id="model-adapters-interface-kjagentmodel" data-search="kjagentmodel interface @kanjieteam/kjdraw/model-adapters export interface kjagentmodel {
-    createconversation(options: {
-        readonly instructions: string;
-        readonly tools: readonly kjagenttooldefinition[];
-    }): kjmodelconversation;
+    createconversation(options: kjmodelconversationoptions): kjmodelconversation;
 }">
       <header><div><span class="kind">interface</span><h3>KJAgentModel</h3></div><a class="permalink" href="#model-adapters-interface-kjagentmodel" aria-label="Link to KJAgentModel">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentModel {
-    createConversation(options: {
-        readonly instructions: string;
-        readonly tools: readonly KJAgentToolDefinition[];
-    }): KJModelConversation;
+    createConversation(options: KJModelConversationOptions): KJModelConversation;
 }</code></pre>
       <p class="source-path">model-adapters.d.ts</p>
     </article>
@@ -378,6 +450,8 @@
     chattokenparameter?: &#39;max_tokens&#39; | &#39;max_completion_tokens&#39;;
     maxresponsebytes?: number;
     maxhistorybytes?: number;
+    /** host-only observer; contains counters and timing, never response text or credentials. exceptions are isolated. */
+    onusage?: (usage: kjmodelusage) =&gt; void;
 }">
       <header><div><span class="kind">interface</span><h3>KJModelAdapterOptions</h3></div><a class="permalink" href="#model-adapters-interface-kjmodeladapteroptions" aria-label="Link to KJModelAdapterOptions">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModelAdapterOptions {
@@ -390,6 +464,8 @@
     chatTokenParameter?: &#39;max_tokens&#39; | &#39;max_completion_tokens&#39;;
     maxResponseBytes?: number;
     maxHistoryBytes?: number;
+    /** Host-only observer; contains counters and timing, never response text or credentials. Exceptions are isolated. */
+    onUsage?: (usage: KJModelUsage) =&gt; void;
 }</code></pre>
       <p class="source-path">model-adapters.d.ts</p>
     </article>
@@ -399,6 +475,21 @@
       <header><div><span class="kind">interface</span><h3>KJModelConversation</h3></div><a class="permalink" href="#model-adapters-interface-kjmodelconversation" aria-label="Link to KJModelConversation">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModelConversation {
     next(input: KJModelInput, signal: AbortSignal): Promise&lt;KJModelTurn&gt;;
+}</code></pre>
+      <p class="source-path">model-adapters.d.ts</p>
+    </article>
+<article class="api-symbol" id="model-adapters-interface-kjmodelconversationoptions" data-search="kjmodelconversationoptions interface @kanjieteam/kjdraw/model-adapters export interface kjmodelconversationoptions {
+    readonly instructions: string;
+    readonly tools: readonly kjagenttooldefinition[];
+    /** one observation per received transport response, even when response parsing later fails. exceptions are isolated. */
+    readonly onusage?: (usage: kjmodelusage) =&gt; void;
+}">
+      <header><div><span class="kind">interface</span><h3>KJModelConversationOptions</h3></div><a class="permalink" href="#model-adapters-interface-kjmodelconversationoptions" aria-label="Link to KJModelConversationOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModelConversationOptions {
+    readonly instructions: string;
+    readonly tools: readonly KJAgentToolDefinition[];
+    /** One observation per received transport response, even when response parsing later fails. Exceptions are isolated. */
+    readonly onUsage?: (usage: KJModelUsage) =&gt; void;
 }</code></pre>
       <p class="source-path">model-adapters.d.ts</p>
     </article>
@@ -479,11 +570,13 @@
 <article class="api-symbol" id="model-adapters-interface-kjmodelturn" data-search="kjmodelturn interface @kanjieteam/kjdraw/model-adapters export interface kjmodelturn {
     readonly text: string;
     readonly calls: readonly kjmodeltoolcall[];
+    readonly usage?: kjmodelusage;
 }">
       <header><div><span class="kind">interface</span><h3>KJModelTurn</h3></div><a class="permalink" href="#model-adapters-interface-kjmodelturn" aria-label="Link to KJModelTurn">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModelTurn {
     readonly text: string;
     readonly calls: readonly KJModelToolCall[];
+    readonly usage?: KJModelUsage;
 }</code></pre>
       <p class="source-path">model-adapters.d.ts</p>
     </article>
@@ -493,7 +586,30 @@
   <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/agent-runner</code></h2></div><a class="permalink" href="#module-agent-runner" aria-label="Link to @kanjieteam/kjdraw/agent-runner">#</a></header>
   <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/agent-runner.d.ts</code></p>
   <div class="api-symbols">
-    <article class="api-symbol" id="agent-runner-interface-kjagentrunoptions" data-search="kjagentrunoptions interface @kanjieteam/kjdraw/agent-runner export interface kjagentrunoptions {
+    <article class="api-symbol" id="agent-runner-interface-kjagentrunmeasurements" data-search="kjagentrunmeasurements interface @kanjieteam/kjdraw/agent-runner export interface kjagentrunmeasurements {
+    readonly turns: readonly kjagentturnusage[];
+    readonly totals: readonly&lt;record&lt;&#39;inputtokens&#39; | &#39;outputtokens&#39; | &#39;totaltokens&#39; | &#39;cachereadinputtokens&#39; | &#39;cachemissinputtokens&#39; | &#39;cachewriteinputtokens&#39; | &#39;reasoningoutputtokens&#39;, number | null&gt;&gt;;
+    /** sum of observed transport response latencies; null when any attempted turn has no timing. excludes cad. */
+    readonly transportwallms: number | null;
+    /** runner wall time through its return, including model waits, cad work and host callbacks. */
+    readonly runwallms: number;
+    /** every attempted turn supplied valid input/output/total counts. optional breakdowns may still be null. not a billing receipt. */
+    readonly complete: boolean;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentRunMeasurements</h3></div><a class="permalink" href="#agent-runner-interface-kjagentrunmeasurements" aria-label="Link to KJAgentRunMeasurements">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentRunMeasurements {
+    readonly turns: readonly KJAgentTurnUsage[];
+    readonly totals: Readonly&lt;Record&lt;&#39;inputTokens&#39; | &#39;outputTokens&#39; | &#39;totalTokens&#39; | &#39;cacheReadInputTokens&#39; | &#39;cacheMissInputTokens&#39; | &#39;cacheWriteInputTokens&#39; | &#39;reasoningOutputTokens&#39;, number | null&gt;&gt;;
+    /** Sum of observed transport response latencies; null when any attempted turn has no timing. Excludes CAD. */
+    readonly transportWallMs: number | null;
+    /** Runner wall time through its return, including model waits, CAD work and host callbacks. */
+    readonly runWallMs: number;
+    /** Every attempted turn supplied valid input/output/total counts. Optional breakdowns may still be null. Not a billing receipt. */
+    readonly complete: boolean;
+}</code></pre>
+      <p class="source-path">agent-runner.d.ts</p>
+    </article>
+<article class="api-symbol" id="agent-runner-interface-kjagentrunoptions" data-search="kjagentrunoptions interface @kanjieteam/kjdraw/agent-runner export interface kjagentrunoptions {
     session: kjagenttoolsession;
     model: kjagentmodel;
     prompt: string;
@@ -557,6 +673,7 @@
     readonly toolcalls: number;
     readonly outputs: readonly kjmodeltooloutput[];
     readonly proposalids: readonly string[];
+    readonly measurements: kjagentrunmeasurements;
     readonly error?: {
         readonly code: string;
         readonly message: string;
@@ -571,10 +688,24 @@
     readonly toolCalls: number;
     readonly outputs: readonly KJModelToolOutput[];
     readonly proposalIds: readonly string[];
+    readonly measurements: KJAgentRunMeasurements;
     readonly error?: {
         readonly code: string;
         readonly message: string;
     };
+}</code></pre>
+      <p class="source-path">agent-runner.d.ts</p>
+    </article>
+<article class="api-symbol" id="agent-runner-interface-kjagentturnusage" data-search="kjagentturnusage interface @kanjieteam/kjdraw/agent-runner export interface kjagentturnusage {
+    readonly turn: number;
+    readonly status: &#39;reported&#39; | &#39;missing&#39; | &#39;invalid&#39; | &#39;multiple-observations&#39;;
+    readonly usage: kjmodelusage | null;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentTurnUsage</h3></div><a class="permalink" href="#agent-runner-interface-kjagentturnusage" aria-label="Link to KJAgentTurnUsage">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentTurnUsage {
+    readonly turn: number;
+    readonly status: &#39;reported&#39; | &#39;missing&#39; | &#39;invalid&#39; | &#39;multiple-observations&#39;;
+    readonly usage: KJModelUsage | null;
 }</code></pre>
       <p class="source-path">agent-runner.d.ts</p>
     </article>
@@ -10215,6 +10346,15 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function extendLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;</code></pre>
       <p class="source-path">editing.d.ts</p>
     </article>
+<article class="api-symbol" id="root-function-extractkjmodelusage" data-search="extractkjmodelusage function @kanjieteam/kjdraw export declare function extractkjmodelusage(protocol: kjmodelprotocol, response: unknown, { latencyms }?: {
+    latencyms?: number | null;
+}): kjmodelusage;">
+      <header><div><span class="kind">function</span><h3>extractKJModelUsage</h3></div><a class="permalink" href="#root-function-extractkjmodelusage" aria-label="Link to extractKJModelUsage">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function extractKJModelUsage(protocol: KJModelProtocol, response: unknown, { latencyMs }?: {
+    latencyMs?: number | null;
+}): KJModelUsage;</code></pre>
+      <p class="source-path">model-usage.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-function-filletlinepair" data-search="filletlinepair function @kanjieteam/kjdraw export declare function filletlinepair(first: kjeditingentity, second: kjeditingentity, options?: kjlinepairoptions): kjlinepaireditresult;">
       <header><div><span class="kind">function</span><h3>filletLinePair</h3></div><a class="permalink" href="#root-function-filletlinepair" aria-label="Link to filletLinePair">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function filletLinePair(first: KJEditingEntity, second: KJEditingEntity, options?: KJLinePairOptions): KJLinePairEditResult;</code></pre>
@@ -11305,17 +11445,11 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <p class="source-path">agent-tools.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjagentmodel" data-search="kjagentmodel interface @kanjieteam/kjdraw export interface kjagentmodel {
-    createconversation(options: {
-        readonly instructions: string;
-        readonly tools: readonly kjagenttooldefinition[];
-    }): kjmodelconversation;
+    createconversation(options: kjmodelconversationoptions): kjmodelconversation;
 }">
       <header><div><span class="kind">interface</span><h3>KJAgentModel</h3></div><a class="permalink" href="#root-interface-kjagentmodel" aria-label="Link to KJAgentModel">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentModel {
-    createConversation(options: {
-        readonly instructions: string;
-        readonly tools: readonly KJAgentToolDefinition[];
-    }): KJModelConversation;
+    createConversation(options: KJModelConversationOptions): KJModelConversation;
 }</code></pre>
       <p class="source-path">model-adapters.d.ts</p>
     </article>
@@ -11453,6 +11587,29 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }</code></pre>
       <p class="source-path">agent-plans.d.ts</p>
     </article>
+<article class="api-symbol" id="root-interface-kjagentrunmeasurements" data-search="kjagentrunmeasurements interface @kanjieteam/kjdraw export interface kjagentrunmeasurements {
+    readonly turns: readonly kjagentturnusage[];
+    readonly totals: readonly&lt;record&lt;&#39;inputtokens&#39; | &#39;outputtokens&#39; | &#39;totaltokens&#39; | &#39;cachereadinputtokens&#39; | &#39;cachemissinputtokens&#39; | &#39;cachewriteinputtokens&#39; | &#39;reasoningoutputtokens&#39;, number | null&gt;&gt;;
+    /** sum of observed transport response latencies; null when any attempted turn has no timing. excludes cad. */
+    readonly transportwallms: number | null;
+    /** runner wall time through its return, including model waits, cad work and host callbacks. */
+    readonly runwallms: number;
+    /** every attempted turn supplied valid input/output/total counts. optional breakdowns may still be null. not a billing receipt. */
+    readonly complete: boolean;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentRunMeasurements</h3></div><a class="permalink" href="#root-interface-kjagentrunmeasurements" aria-label="Link to KJAgentRunMeasurements">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentRunMeasurements {
+    readonly turns: readonly KJAgentTurnUsage[];
+    readonly totals: Readonly&lt;Record&lt;&#39;inputTokens&#39; | &#39;outputTokens&#39; | &#39;totalTokens&#39; | &#39;cacheReadInputTokens&#39; | &#39;cacheMissInputTokens&#39; | &#39;cacheWriteInputTokens&#39; | &#39;reasoningOutputTokens&#39;, number | null&gt;&gt;;
+    /** Sum of observed transport response latencies; null when any attempted turn has no timing. Excludes CAD. */
+    readonly transportWallMs: number | null;
+    /** Runner wall time through its return, including model waits, CAD work and host callbacks. */
+    readonly runWallMs: number;
+    /** Every attempted turn supplied valid input/output/total counts. Optional breakdowns may still be null. Not a billing receipt. */
+    readonly complete: boolean;
+}</code></pre>
+      <p class="source-path">agent-runner.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-interface-kjagentrunoptions" data-search="kjagentrunoptions interface @kanjieteam/kjdraw export interface kjagentrunoptions {
     session: kjagenttoolsession;
     model: kjagentmodel;
@@ -11517,6 +11674,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     readonly toolcalls: number;
     readonly outputs: readonly kjmodeltooloutput[];
     readonly proposalids: readonly string[];
+    readonly measurements: kjagentrunmeasurements;
     readonly error?: {
         readonly code: string;
         readonly message: string;
@@ -11531,6 +11689,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     readonly toolCalls: number;
     readonly outputs: readonly KJModelToolOutput[];
     readonly proposalIds: readonly string[];
+    readonly measurements: KJAgentRunMeasurements;
     readonly error?: {
         readonly code: string;
         readonly message: string;
@@ -11633,6 +11792,19 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     reject(planId: string, reviewerId: string): KJAgentToolResult;
 }</code></pre>
       <p class="source-path">agent-tools.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjagentturnusage" data-search="kjagentturnusage interface @kanjieteam/kjdraw export interface kjagentturnusage {
+    readonly turn: number;
+    readonly status: &#39;reported&#39; | &#39;missing&#39; | &#39;invalid&#39; | &#39;multiple-observations&#39;;
+    readonly usage: kjmodelusage | null;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentTurnUsage</h3></div><a class="permalink" href="#root-interface-kjagentturnusage" aria-label="Link to KJAgentTurnUsage">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentTurnUsage {
+    readonly turn: number;
+    readonly status: &#39;reported&#39; | &#39;missing&#39; | &#39;invalid&#39; | &#39;multiple-observations&#39;;
+    readonly usage: KJModelUsage | null;
+}</code></pre>
+      <p class="source-path">agent-runner.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjarcconnector" data-search="kjarcconnector interface @kanjieteam/kjdraw export interface kjarcconnector {
     type: &#39;arc&#39;;
@@ -15084,6 +15256,8 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     chattokenparameter?: &#39;max_tokens&#39; | &#39;max_completion_tokens&#39;;
     maxresponsebytes?: number;
     maxhistorybytes?: number;
+    /** host-only observer; contains counters and timing, never response text or credentials. exceptions are isolated. */
+    onusage?: (usage: kjmodelusage) =&gt; void;
 }">
       <header><div><span class="kind">interface</span><h3>KJModelAdapterOptions</h3></div><a class="permalink" href="#root-interface-kjmodeladapteroptions" aria-label="Link to KJModelAdapterOptions">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModelAdapterOptions {
@@ -15096,6 +15270,8 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     chatTokenParameter?: &#39;max_tokens&#39; | &#39;max_completion_tokens&#39;;
     maxResponseBytes?: number;
     maxHistoryBytes?: number;
+    /** Host-only observer; contains counters and timing, never response text or credentials. Exceptions are isolated. */
+    onUsage?: (usage: KJModelUsage) =&gt; void;
 }</code></pre>
       <p class="source-path">model-adapters.d.ts</p>
     </article>
@@ -15105,6 +15281,21 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <header><div><span class="kind">interface</span><h3>KJModelConversation</h3></div><a class="permalink" href="#root-interface-kjmodelconversation" aria-label="Link to KJModelConversation">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModelConversation {
     next(input: KJModelInput, signal: AbortSignal): Promise&lt;KJModelTurn&gt;;
+}</code></pre>
+      <p class="source-path">model-adapters.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjmodelconversationoptions" data-search="kjmodelconversationoptions interface @kanjieteam/kjdraw export interface kjmodelconversationoptions {
+    readonly instructions: string;
+    readonly tools: readonly kjagenttooldefinition[];
+    /** one observation per received transport response, even when response parsing later fails. exceptions are isolated. */
+    readonly onusage?: (usage: kjmodelusage) =&gt; void;
+}">
+      <header><div><span class="kind">interface</span><h3>KJModelConversationOptions</h3></div><a class="permalink" href="#root-interface-kjmodelconversationoptions" aria-label="Link to KJModelConversationOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModelConversationOptions {
+    readonly instructions: string;
+    readonly tools: readonly KJAgentToolDefinition[];
+    /** One observation per received transport response, even when response parsing later fails. Exceptions are isolated. */
+    readonly onUsage?: (usage: KJModelUsage) =&gt; void;
 }</code></pre>
       <p class="source-path">model-adapters.d.ts</p>
     </article>
@@ -15185,13 +15376,77 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 <article class="api-symbol" id="root-interface-kjmodelturn" data-search="kjmodelturn interface @kanjieteam/kjdraw export interface kjmodelturn {
     readonly text: string;
     readonly calls: readonly kjmodeltoolcall[];
+    readonly usage?: kjmodelusage;
 }">
       <header><div><span class="kind">interface</span><h3>KJModelTurn</h3></div><a class="permalink" href="#root-interface-kjmodelturn" aria-label="Link to KJModelTurn">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModelTurn {
     readonly text: string;
     readonly calls: readonly KJModelToolCall[];
+    readonly usage?: KJModelUsage;
 }</code></pre>
       <p class="source-path">model-adapters.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjmodelusage" data-search="kjmodelusage interface @kanjieteam/kjdraw export interface kjmodelusage {
+    readonly protocol: kjmodelprotocol;
+    /** inclusive input, including cache reads and writes. null means unavailable or invalid. */
+    readonly inputtokens: number | null;
+    /** inclusive output, including reasoning. null means unavailable or invalid. */
+    readonly outputtokens: number | null;
+    readonly totaltokens: number | null;
+    readonly inputtokenssource: kjmodelusagesource;
+    readonly outputtokenssource: kjmodelusagesource;
+    readonly totaltokenssource: kjmodelusagesource;
+    /** original provider counters: anthropic input excludes caches; gemini output excludes thoughts. */
+    readonly reportedinputtokens: number | null;
+    readonly reportedoutputtokens: number | null;
+    readonly reportedtotaltokens: number | null;
+    readonly cachereadinputtokens: number | null;
+    /** explicitly reported uncached input (deepseek chat); never inferred by subtraction. */
+    readonly cachemissinputtokens: number | null;
+    readonly cachewriteinputtokens: number | null;
+    readonly reasoningoutputtokens: number | null;
+    /** gemini&#39;s separately reported tool-use prompt count; never added to input a second time. */
+    readonly tooluseprompttokens: number | null;
+    /** host-observed transport-call wall time, including network/server work but excluding cad execution. */
+    readonly latencyms: number | null;
+    readonly latencyscope: &#39;transport-wall&#39; | null;
+    /** known field paths with invalid types, unsafe values, overflow or inconsistent totals. no payloads. */
+    readonly invalidfields: readonly string[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJModelUsage</h3></div><a class="permalink" href="#root-interface-kjmodelusage" aria-label="Link to KJModelUsage">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJModelUsage {
+    readonly protocol: KJModelProtocol;
+    /** Inclusive input, including cache reads and writes. Null means unavailable or invalid. */
+    readonly inputTokens: number | null;
+    /** Inclusive output, including reasoning. Null means unavailable or invalid. */
+    readonly outputTokens: number | null;
+    readonly totalTokens: number | null;
+    readonly inputTokensSource: KJModelUsageSource;
+    readonly outputTokensSource: KJModelUsageSource;
+    readonly totalTokensSource: KJModelUsageSource;
+    /** Original provider counters: Anthropic input excludes caches; Gemini output excludes thoughts. */
+    readonly reportedInputTokens: number | null;
+    readonly reportedOutputTokens: number | null;
+    readonly reportedTotalTokens: number | null;
+    readonly cacheReadInputTokens: number | null;
+    /** Explicitly reported uncached input (DeepSeek Chat); never inferred by subtraction. */
+    readonly cacheMissInputTokens: number | null;
+    readonly cacheWriteInputTokens: number | null;
+    readonly reasoningOutputTokens: number | null;
+    /** Gemini&#39;s separately reported tool-use prompt count; never added to input a second time. */
+    readonly toolUsePromptTokens: number | null;
+    /** Host-observed transport-call wall time, including network/server work but excluding CAD execution. */
+    readonly latencyMs: number | null;
+    readonly latencyScope: &#39;transport-wall&#39; | null;
+    /** Known field paths with invalid types, unsafe values, overflow or inconsistent totals. No payloads. */
+    readonly invalidFields: readonly string[];
+}</code></pre>
+      <p class="source-path">model-usage.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjmodelusagesource" data-search="kjmodelusagesource type @kanjieteam/kjdraw export type kjmodelusagesource = &#39;reported&#39; | &#39;sum-components&#39; | null;">
+      <header><div><span class="kind">type</span><h3>KJModelUsageSource</h3></div><a class="permalink" href="#root-type-kjmodelusagesource" aria-label="Link to KJModelUsageSource">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJModelUsageSource = &#39;reported&#39; | &#39;sum-components&#39; | null;</code></pre>
+      <p class="source-path">model-usage.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjmodificationbuildcontext" data-search="kjmodificationbuildcontext interface @kanjieteam/kjdraw export interface kjmodificationbuildcontext {
     readonly ids: readonly string[];
@@ -21563,6 +21818,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     hatchdiagnostics?: readonly {
         entityid: string;
         reason: &#39;budget&#39; | &#39;unsupported-pattern&#39; | &#39;unsupported-boundary&#39;;
+        samplingreason?: kjhatchcoveragereason | &#39;pixel-budget&#39; | &#39;canvas-unavailable&#39;;
     }[];
     total: number;
     rendered: number;
@@ -21580,6 +21836,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     hatchDiagnostics?: readonly {
         entityId: string;
         reason: &#39;budget&#39; | &#39;unsupported-pattern&#39; | &#39;unsupported-boundary&#39;;
+        samplingReason?: KJHatchCoverageReason | &#39;pixel-budget&#39; | &#39;canvas-unavailable&#39;;
     }[];
     total: number;
     rendered: number;

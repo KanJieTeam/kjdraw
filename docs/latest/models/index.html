@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/models/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=955082c47e335d3d">
+  <link rel="stylesheet" href="../style.css?v=994141127dc1c271">
   <title>Connect your model · KJDraw Docs</title>
 </head>
 <body>
@@ -100,6 +100,12 @@ const result = await runKJAgentTask({
 <div class="table-wrap"><table><thead><tr><th>Status</th><th>What the host should do</th></tr></thead><tbody><tr><td><code>awaiting-approval</code></td><td>Display the exact proposals in <code>outputs</code>; use <code>proposalIds</code> to approve or reject from your review UI</td></tr><tr><td><code>responded</code></td><td>Show the model&#39;s answer or clarification; it is not evidence that a drawing task succeeded</td></tr><tr><td><code>limit-reached</code></td><td>Inspect results and adjust the task or budget; do not automatically retry forever</td></tr><tr><td><code>cancelled</code></td><td>The host cancelled or the run timed out; late model calls are not dispatched</td></tr><tr><td><code>failed</code></td><td>Handle the structured error; inspect private transport diagnostics on the server</td></tr></tbody></table></div>
 <p>The runner stops when it has proposals. It never calls <code>approve()</code>. After an authenticated user reviews the exact arguments, your host calls <code>session.approve(planId, user.id)</code> or <code>session.reject(planId, user.id)</code> and checks the result. Model text must be displayed as untrusted text, not unsanitized HTML.</p>
 <p>Each run starts a fresh model conversation. After applying a proposal, start a new run with the next user request and let it read the current drawing. This version does not provide durable conversation resume, automatic file saving, rendered previews for every tool or a built-in MCP server. See <a href="https://kanjieteam.github.io/kjdraw/docs/latest/agent/">Agent workflows</a> for the available CAD tools and geometric review API.</p>
+<h2 id="en-models-usage">Measure tokens and time<a class="heading-anchor" href="#en-models-usage" aria-label="Link to Measure tokens and time">#</a></h2>
+<p><code>result.measurements</code> retains each attempted turn&#39;s usage, normalized totals, transport wall time and runner wall time. Counters come from provider response fields; missing or invalid counters remain <code>null</code>. Cache and reasoning counters are subsets or additional components according to each protocol, so they are not blindly added twice. A cancelled request without a received response has missing usage. <code>complete</code> describes observed token counters, not design completion or a billing receipt.</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>const { totals, transportWallMs, runWallMs, complete } = result.measurements
+// Keep null as unavailable; do not replace it with zero in a benchmark.
+console.log({ totals, transportWallMs, runWallMs, complete })</code></pre>
+<p>Adapters also accept <code>onUsage: usage =&gt; hostMetrics.record(usage)</code> for response observations, including rejected or truncated responses. Observer failures do not change drawing behavior. A late response after cancellation may still reach that host observer; it cannot rewrite the runner&#39;s returned measurement snapshot. <code>extractKJModelUsage</code> is available from <code>/model-usage</code> for a custom transport. No response text, credentials, inferred token counts or prices are included. Controlled live-model comparisons still require repeated matched tasks and actual provider configuration.</p>
 <h2 id="en-models-example">Run the packaged example<a class="heading-anchor" href="#en-models-example" aria-label="Link to Run the packaged example">#</a></h2>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/model-agent.mjs</code></pre>
 <p>The default is offline: it tests all four wire formats, simulated host approval, saved geometry and undo. It makes no model calls.</p>
@@ -149,6 +155,12 @@ const result = await runKJAgentTask({
 <div class="table-wrap"><table><thead><tr><th>状态</th><th>宿主应该做什么</th></tr></thead><tbody><tr><td><code>awaiting-approval</code></td><td>展示 <code>outputs</code> 中的确切修改，用 <code>proposalIds</code> 在审核界面批准或拒绝</td></tr><tr><td><code>responded</code></td><td>展示模型回答或澄清问题；这不证明绘图任务已成功</td></tr><tr><td><code>limit-reached</code></td><td>检查结果并调整任务或预算，不无限自动重试</td></tr><tr><td><code>cancelled</code></td><td>用户取消或运行超时；迟到的模型调用不会再执行</td></tr><tr><td><code>failed</code></td><td>处理结构化错误，在服务端检查私有请求日志</td></tr></tbody></table></div>
 <p>一旦得到提案，运行器就停止，不会调用 <code>approve()</code>。经过认证的用户审核后，宿主再调用 <code>session.approve(planId, user.id)</code> 或 <code>session.reject(planId, user.id)</code>，并核对结果。模型回复应当作为不可信文字展示，不能直接当作 HTML 渲染。</p>
 <p>每次运行新建模型会话。应用修改后，用用户的新需求再次运行，让模型重新读取当前图纸。这一版不包含持久会话恢复、自动保存、全部工具的几何预览或内置 MCP 服务。可用绘图工具与几何审核接口见 <a href="https://kanjieteam.github.io/kjdraw/docs/latest/agent/">Agent 工作流</a>。</p>
+<h2 id="zh-models-usage">测量 token 与耗时<a class="heading-anchor" href="#zh-models-usage" aria-label="Link to 测量 token 与耗时">#</a></h2>
+<p><code>result.measurements</code> 保存每个尝试轮次的用量、归一化累计值、传输墙钟耗时和运行器总耗时。计数来自服务端响应字段；缺失或无效值保留 <code>null</code>。缓存与推理 token 按各协议的包含关系处理，避免重复相加。取消后没有收到响应的请求属于用量缺失，<code>complete</code> 仅表示已观测 token 数据完整，不代表绘图完成或完整账单。</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>const { totals, transportWallMs, runWallMs, complete } = result.measurements
+// null 表示无法取得，不能在跑分中当作零。
+console.log({ totals, transportWallMs, runWallMs, complete })</code></pre>
+<p>适配器还支持 <code>onUsage: usage =&gt; hostMetrics.record(usage)</code>，用于记录已收到响应的用量，包括被拒绝或截断的回答。观察回调异常不改变绘图行为。取消后的迟到响应仍可送到宿主观察器，但不会改写运行器已返回的测量快照。自定义传输可以使用 <code>/model-usage</code> 的 <code>extractKJModelUsage</code>。这些记录不包含回答文本、密钥、推算 token 或价格。真实模型对比仍需相同任务的重复实验与明确配置的模型服务。</p>
 <h2 id="zh-models-example">运行包内示例<a class="heading-anchor" href="#zh-models-example" aria-label="Link to 运行包内示例">#</a></h2>
 <pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/model-agent.mjs</code></pre>
 <p>默认离线运行，检查四种消息格式、模拟宿主批准、保存后的图元与撤销，不调用模型。</p>
@@ -160,10 +172,10 @@ const result = await runKJAgentTask({
         </article>
         <nav class="pager" aria-label="Adjacent documentation"><a href="../agent/"><strong class="lang-en">Agent workflows</strong><strong class="lang-zh">Agent 工作流</strong></a><a href="../plugins/"><strong class="lang-en">Plugins</strong><strong class="lang-zh">插件</strong></a></nav>
       </div>
-      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-models-connection">Choose a connection</a><a class="toc-level-2" href="#en-models-quickstart">Wire the model once</a><a class="toc-level-2" href="#en-models-task-tools">Choose tools for a task</a><a class="toc-level-2" href="#en-models-review">Review the result</a><a class="toc-level-2" href="#en-models-example">Run the packaged example</a><a class="toc-level-2" href="#en-models-extend">Extend and validate</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-models-connection">选择接入方式</a><a class="toc-level-2" href="#zh-models-quickstart">配置一次模型连接</a><a class="toc-level-2" href="#zh-models-task-tools">按任务选择工具</a><a class="toc-level-2" href="#zh-models-review">处理运行结果</a><a class="toc-level-2" href="#zh-models-example">运行包内示例</a><a class="toc-level-2" href="#zh-models-extend">扩展与验证</a></div></aside>
+      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-models-connection">Choose a connection</a><a class="toc-level-2" href="#en-models-quickstart">Wire the model once</a><a class="toc-level-2" href="#en-models-task-tools">Choose tools for a task</a><a class="toc-level-2" href="#en-models-review">Review the result</a><a class="toc-level-2" href="#en-models-usage">Measure tokens and time</a><a class="toc-level-2" href="#en-models-example">Run the packaged example</a><a class="toc-level-2" href="#en-models-extend">Extend and validate</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-models-connection">选择接入方式</a><a class="toc-level-2" href="#zh-models-quickstart">配置一次模型连接</a><a class="toc-level-2" href="#zh-models-task-tools">按任务选择工具</a><a class="toc-level-2" href="#zh-models-review">处理运行结果</a><a class="toc-level-2" href="#zh-models-usage">测量 token 与耗时</a><a class="toc-level-2" href="#zh-models-example">运行包内示例</a><a class="toc-level-2" href="#zh-models-extend">扩展与验证</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=955082c47e335d3d"></script>
+  <script type="module" src="../app.js?v=994141127dc1c271"></script>
 </body>
 </html>
