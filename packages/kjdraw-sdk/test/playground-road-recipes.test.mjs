@@ -107,8 +107,19 @@ test('reopened KJP supplies bounded local road context, revises the same drawing
   assert.deepEqual(next.activeDocument.getObject(external.id),external)
   await sdk.executeCommand('UNDO',{}, {document})
   const undone=await prepareRoadDrawingContext(context,()=>context,new KJAgentToolSession(sdk,document))
-  assert.deepEqual(undone.drawingIds,[]);assert.equal(undone.unavailableCount,1)
-  assert.ok(!getKJDrawChatToolNames(document,undone.drawingIds).includes('cad_propose_road_revision'))
+  assert.deepEqual(undone.drawingIds,prepared.drawingIds);assert.equal(undone.unavailableCount,0)
+  assert.ok(getKJDrawChatToolNames(document,undone.drawingIds).includes('cad_propose_road_revision'))
+  assert.match(undone.contextText,/"leftWidth":3.5/)
+  assert.equal(project.metadata.roadDrawingRecipes[key].input.pavement.leftWidth,4)
+  const undonePackage=await KJProjectSession.open(await project.package(),{sdk:createKJDrawSDK()})
+  const undoneContext={project:undonePackage,sdk:undonePackage.sdk,document:undonePackage.activeDocument}
+  const continued=new KJAgentToolSession(undoneContext.sdk,undoneContext.document)
+  const recovered=await prepareRoadDrawingContext(undoneContext,()=>undoneContext,continued)
+  assert.deepEqual(recovered.drawingIds,prepared.drawingIds)
+  const nextProposal=await continued.call('cad_propose_road_revision',{expectedRevision:undoneContext.document.revision,units:'meter',drawingId:prepared.drawingIds[0],leftWidthDelta:.25,rightWidthDelta:0,elevationDelta:0})
+  assert.equal(nextProposal.ok,true,JSON.stringify(nextProposal))
+  assert.equal(nextProposal.value.engineeringEvidence.designParameters.input.pavement.leftWidth,3.75)
+  undonePackage.destroy()
   await sdk.executeCommand('REDO',{}, {document})
   assert.deepEqual((await prepareRoadDrawingContext(context,()=>context,new KJAgentToolSession(sdk,document))).drawingIds,prepared.drawingIds)
   initial.project.destroy();project.destroy();next.destroy()
@@ -136,6 +147,13 @@ test('multiple saved road identities remain explicit and revision bookkeeping pr
   assert.deepEqual(project.metadata.roadDrawingRecipes[firstKey],firstRecipe)
   assert.equal(project.metadata.roadDrawingRecipes[`${document.id}:${drawingId}`].input.pavement.leftWidth,3.75)
   await restoreRoadDrawingRecipe(document,firstRecipe)
+  assert.deepEqual(Object.keys(project.metadata.roadDrawingRecipeHistory),[`${document.id}:${drawingId}`])
+  await sdk.executeCommand('UNDO',{}, {document})
+  const beforeRecovery=document.serialize(),metadata=JSON.stringify(project.metadata)
+  const recovered=await prepareRoadDrawingContext(context,()=>context,new KJAgentToolSession(sdk,document))
+  assert.deepEqual(recovered.drawingIds,prepared.drawingIds)
+  assert.equal(recovered.unavailableCount,0)
+  assert.equal(document.serialize(),beforeRecovery);assert.equal(JSON.stringify(project.metadata),metadata)
   project.destroy()
 })
 
@@ -160,5 +178,83 @@ test('road model context excludes wrong identities and edited recipes, rejects r
   const entity=document.listEntities({type:'LINE'})[0]
   await sdk.executeCommand('MOVE',{ids:[entity.id],dx:1,dy:0},{document})
   assert.deepEqual((await prepareRoadDrawingContext(context,()=>context,new KJAgentToolSession(sdk,document))).drawingIds,[])
+  project.destroy()
+})
+
+async function revise(context,delta=.1){
+  const session=new KJAgentToolSession(context.sdk,context.document)
+  const prepared=await prepareRoadDrawingContext(context,()=>context,session)
+  assert.deepEqual(prepared.drawingIds,[roadDrawingFixtureOptions.drawingId])
+  const proposal=await session.call('cad_propose_road_revision',{expectedRevision:context.document.revision,units:'meter',drawingId:prepared.drawingIds[0],leftWidthDelta:delta,rightWidthDelta:0,elevationDelta:0})
+  assert.equal(proposal.ok,true,JSON.stringify(proposal))
+  const approved=await session.approve(proposal.value.planId,'explicit-history-review')
+  assert.equal(approved.ok,true,JSON.stringify(approved))
+  return {context,proposal:proposal.value,receipt:approved.value}
+}
+
+test('bounded history chooses exact Undo/Redo versions, branches from the matched recipe and rejects manual edits',async()=>{
+  const {context,value,project,document,sdk}=await fixture()
+  await persistApprovedRoadRecipe(value,()=>context)
+  const key=`${document.id}:${roadDrawingFixtureOptions.drawingId}`
+  for(let i=0;i<10;i++)await persistApprovedRoadRecipe(await revise(context),()=>context)
+  assert.equal(project.metadata.roadDrawingRecipeHistory[key].length,8)
+  assert.equal(new Set(project.metadata.roadDrawingRecipeHistory[key].map(item=>JSON.stringify(item))).size,8)
+  const metadata=JSON.stringify(project.metadata)
+  await sdk.executeCommand('UNDO',{}, {document})
+  const before=document.serialize(),history=document.history
+  let prepared=await prepareRoadDrawingContext(context,()=>context,new KJAgentToolSession(sdk,document))
+  assert.deepEqual(prepared.drawingIds,[roadDrawingFixtureOptions.drawingId])
+  assert.equal(JSON.stringify(project.metadata),metadata);assert.equal(document.serialize(),before);assert.deepEqual(document.history,history)
+  await sdk.executeCommand('REDO',{}, {document})
+  assert.equal((await prepareRoadDrawingContext(context,()=>context,new KJAgentToolSession(sdk,document))).unavailableCount,0)
+  for(let i=0;i<9;i++)await sdk.executeCommand('UNDO',{}, {document})
+  prepared=await prepareRoadDrawingContext(context,()=>context,new KJAgentToolSession(sdk,document))
+  assert.deepEqual(prepared.drawingIds,[]);assert.equal(prepared.unavailableCount,1)
+  await sdk.executeCommand('REDO',{}, {document})
+  const branched=await revise(context,.25)
+  const expectedOld=branched.proposal.engineeringEvidence.previousDesignParameters.input.pavement.leftWidth
+  await persistApprovedRoadRecipe(branched,()=>context)
+  assert.equal(project.metadata.roadDrawingRecipeHistory[key][0].input.pavement.leftWidth,expectedOld)
+  assert.equal(project.metadata.roadDrawingRecipes[key].input.pavement.leftWidth,expectedOld+.25)
+  const line=document.listEntities({type:'LINE'})[0]
+  await sdk.executeCommand('MOVE',{ids:[line.id],dx:1,dy:0},{document})
+  assert.deepEqual((await prepareRoadDrawingContext(context,()=>context,new KJAgentToolSession(sdk,document))).drawingIds,[])
+  project.destroy()
+})
+
+test('history provenance is bound to the approved previous compiled drawing, not loose parameter text',async()=>{
+  const {context,value,project,document}=await fixture()
+  await persistApprovedRoadRecipe(value,()=>context)
+  const revision=await revise(context),before=document.serialize(),metadata=project.metadata
+  const spoofed=structuredClone(revision.proposal)
+  spoofed.engineeringEvidence.previousDesignParameters.input.pavement.leftWidth+=1
+  await assert.rejects(persistApprovedRoadRecipe({...revision,proposal:spoofed},()=>context),/previous parameters/)
+  assert.equal(document.serialize(),before);assert.equal(project.metadata,metadata)
+  await persistApprovedRoadRecipe(revision,()=>context)
+  assert.equal(project.metadata.roadDrawingRecipeHistory[`${document.id}:${roadDrawingFixtureOptions.drawingId}`][0].input.pavement.leftWidth,3.5)
+  project.destroy()
+})
+
+test('historical metadata accessors, version limits and combined byte/drawing quotas fail without changing approved geometry',async()=>{
+  const {context,value,project,document}=await fixture()
+  await persistApprovedRoadRecipe(value,()=>context)
+  const key=`${document.id}:${roadDrawingFixtureOptions.drawingId}`,recipe=project.metadata.roadDrawingRecipes[key],before=document.serialize()
+  let invoked=0
+  const malicious={...recipe};Object.defineProperty(malicious,'input',{enumerable:true,get(){invoked++;return recipe.input}})
+  const otherKeys=Object.fromEntries(Array.from({length:16},(_,i)=>[`other-${i}`,[]]))
+  const padded={...recipe,input:{...recipe.input,padding:'x'.repeat(800000)}}
+  for(const [recipes,history,pattern] of [
+    [{[key]:recipe},{[key]:[malicious]},/accessors/],
+    [{[key]:recipe},{[key]:Array(9).fill(recipe)},/8 historical/],
+    [{[key]:recipe},otherKeys,/16 road recipes/],
+    [{padding:'x'.repeat(2000000)},{[key]:[padded,padded,padded]},/combined road metadata exceeds 4 MiB/],
+  ]){
+    project.metadata={roadDrawingRecipes:recipes,roadDrawingRecipeHistory:history}
+    const metadata=project.metadata
+    await assert.rejects(persistApprovedRoadRecipe(value,()=>context),pattern)
+    assert.equal(project.metadata,metadata);assert.equal(document.serialize(),before)
+    assert.equal((await prepareRoadDrawingContext(context,()=>context,new KJAgentToolSession(context.sdk,document))).unavailableCount,1)
+  }
+  assert.equal(invoked,0)
   project.destroy()
 })

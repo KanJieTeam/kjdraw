@@ -1,4 +1,6 @@
-import { createRoadDrawingRecipe } from '../../packages/kjdraw-sdk/src/road-drawing-recipe.js'
+import { createRoadDrawingRecipe, KJDRAW_ROAD_RECIPE_SCHEMA } from '../../packages/kjdraw-sdk/src/road-drawing-recipe.js'
+import { buildRoadDrawing } from '../../packages/kjdraw-sdk/src/road-drawing.js'
+import { canonicalStringify } from '../../packages/kjdraw-sdk/src/utils.js'
 
 function fail(message){throw new Error(`Road parameters: ${message}`)}
 function storeSnapshot(value){
@@ -28,6 +30,24 @@ function storeSnapshot(value){
   return result
 }
 
+function recipeStores(recipes,history){
+  recipes=storeSnapshot(recipes);history=storeSnapshot(history)
+  if(new Set([...Object.keys(recipes),...Object.keys(history)]).size>16)fail('at most 16 road recipes are allowed')
+  for(const versions of Object.values(history)){
+    if(!Array.isArray(versions)||versions.length>8)fail('at most 8 historical versions per drawing are allowed')
+    for(const recipe of versions){
+      if(!recipe||Array.isArray(recipe)||typeof recipe!=='object'||recipe.schema!==KJDRAW_ROAD_RECIPE_SCHEMA||recipe.schemaVersion!==1||recipe.compilerVersion!==1||typeof recipe.documentId!=='string'||!recipe.input||!recipe.options||Object.keys(recipe).length!==6)fail('historical recipe must use the supported data schema')
+      if(new TextEncoder().encode(JSON.stringify(recipe)).length>1048576)fail('historical recipe exceeds 1 MiB')
+    }
+  }
+  if(new TextEncoder().encode(JSON.stringify({roadDrawingRecipes:recipes,roadDrawingRecipeHistory:history})).length>4194304)fail('combined road metadata exceeds 4 MiB')
+  return {recipes,history}
+}
+function readRecipeStores(metadata){
+  const read=key=>{const descriptor=Object.getOwnPropertyDescriptor(metadata,key);if(descriptor&&!('value'in descriptor))fail('metadata store must be data');return descriptor?.value??{}}
+  return recipeStores(read('roadDrawingRecipes'),read('roadDrawingRecipeHistory'))
+}
+
 /** Explicit post-approval host bookkeeping. Does not apply, approve, retry or restore geometry. */
 export async function persistApprovedRoadRecipe({context,proposal,receipt},getContext){
   const parameters=proposal.engineeringEvidence?.designParameters
@@ -41,15 +61,22 @@ export async function persistApprovedRoadRecipe({context,proposal,receipt},getCo
   assertCurrent()
   const recipe=await createRoadDrawingRecipe(document,parameters.input,parameters.options)
   assertCurrent()
-  const descriptor=Object.getOwnPropertyDescriptor(project.metadata,'roadDrawingRecipes')
-  if(descriptor&&!('value'in descriptor))fail('metadata store must be data')
-  const recipes=storeSnapshot(descriptor?.value??{})
+  const {recipes,history}=readRecipeStores(project.metadata)
   const key=`${document.id}:${recipe.options.drawingId}`
+  if(receipt.command==='ROAD_DRAWING_UPDATE'){
+    const previous=proposal.engineeringEvidence.previousDesignParameters
+    // The approved standard command binds the full previous compiled drawing.
+    // Its original geometry no longer exists here, so never validate it against the new source.
+    if(!previous||previous.options?.drawingId!==recipe.options.drawingId||canonicalStringify(buildRoadDrawing(previous.input,previous.options))!==canonicalStringify(proposal.arguments?.previous))fail('previous parameters do not match the approved command')
+    const archived={schema:KJDRAW_ROAD_RECIPE_SCHEMA,schemaVersion:1,compilerVersion:1,documentId:document.id,input:previous.input,options:previous.options}
+    const seen=new Set([canonicalStringify(recipe)])
+    history[key]=[archived,...(history[key]??[])].filter(version=>{const token=canonicalStringify(version);if(seen.has(token))return false;seen.add(token);return true}).slice(0,8)
+  }
   recipes[key]=recipe
-  const next=storeSnapshot(recipes)
+  const next=recipeStores(recipes,history)
   assertCurrent()
   const previous=project.metadata
-  project.metadata={...previous,roadDrawingRecipes:next}
+  project.metadata={...previous,roadDrawingRecipes:next.recipes,roadDrawingRecipeHistory:next.history}
   try{project.markDirty('road-design-parameters')}
   catch(error){project.metadata=previous;throw error}
   return recipe
@@ -67,20 +94,23 @@ export async function prepareRoadDrawingContext(context,getContext,session){
     if(document.revision!==revision||document.snapshot()!==snapshot)fail('drawing changed while restoring parameters')
   }
   assertCurrent()
-  let recipes
+  let recipes,history
   try{
-    const descriptor=Object.getOwnPropertyDescriptor(project.metadata,'roadDrawingRecipes')
-    if(descriptor&&!('value'in descriptor))fail('metadata store must be data')
-    recipes=storeSnapshot(descriptor?.value??{})
+    ;({recipes,history}=readRecipeStores(project.metadata))
   }catch{return {...empty,unavailableCount:1,contextText:'Stored road parameters are unavailable. Do not recreate or overwrite an existing road drawing; request corrected parameters from the user.'}}
   const summaries=[],drawingIds=[];let unavailableCount=0
-  for(const [key,recipe] of Object.entries(recipes)){
-    if(recipe?.documentId!==document.id)continue
-    if(key!==`${document.id}:${recipe.options?.drawingId}`){unavailableCount++;continue}
+  for(const key of new Set([...Object.keys(recipes),...Object.keys(history)])){
+    const candidates=[recipes[key],...(history[key]??[])].filter(recipe=>recipe?.documentId===document.id)
+    if(!candidates.length)continue
     let restored
-    try{
-      restored=await session.registerRoadDrawingRecipe(recipe)
-    }catch{assertCurrent();unavailableCount++;continue}
+    const tried=new Set()
+    for(const recipe of candidates){
+      if(key!==`${document.id}:${recipe.options?.drawingId}`)continue
+      const token=canonicalStringify(recipe);if(tried.has(token))continue;tried.add(token)
+      try{restored=await session.registerRoadDrawingRecipe(recipe)}catch{assertCurrent();continue}
+      assertCurrent();break
+    }
+    if(!restored){unavailableCount++;continue}
     assertCurrent()
     const {input,options}=restored.recipe, elevations=input.profile.map(point=>point.elevation)
     const summary={drawingId:options.drawingId,title:options.title.slice(0,96),pavement:input.pavement,

@@ -535,10 +535,10 @@ test('reopened road project revises the same drawing in chat, preserves external
     expect(userText).not.toContain('never-send-project-metadata')
     expect(userText).not.toContain('3300000')
     expect(userText).not.toContain('"ground"')
-    if(requests.length===1)return route.fulfill({json:wire([['read-reopen','cad_read_drawing']])})
+    if(requests.length%2===1)return route.fulfill({json:wire([['read-reopen','cad_read_drawing']])})
     const read=JSON.parse(body.messages.at(-1).content)
     expect(read.ok).toBe(true);expect(read.value.documentId).toBe(drawing.id)
-    return route.fulfill({json:wire([['revise-road','cad_propose_road_revision',{expectedRevision:read.value.revision,units:'meter',drawingId:roadDrawingFixtureOptions.drawingId,leftWidthDelta:.5,rightWidthDelta:.5,elevationDelta:.25}]],'Protocol fixture: review the proposed width and elevation change.')})
+    return route.fulfill({json:wire([['revise-road','cad_propose_road_revision',{expectedRevision:read.value.revision,units:'meter',drawingId:roadDrawingFixtureOptions.drawingId,leftWidthDelta:requests.length>2?.25:.5,rightWidthDelta:requests.length>2?.25:.5,elevationDelta:requests.length>2?0:.25}]],'Protocol fixture: review the proposed width and elevation change.')})
   })
   await connect(page)
   await send(page,`Modify saved drawing ${roadDrawingFixtureOptions.drawingId}: add 0.5 m to each pavement side and raise all design profile elevations 0.25 m. Keep its supplied terrain and identity.`)
@@ -566,9 +566,10 @@ test('reopened road project revises the same drawing in chat, preserves external
   await page.getByRole('button',{name:'Apply changes',exact:true}).click()
   await expect(page.locator('.chat-proposal-state')).toContainText('Changes applied')
   await expect(page.locator('.chat-proposal-state')).not.toContainText('not saved')
+  let lastSavedBytes
   const save=async selector=>{
     const promised=page.waitForEvent('download');await page.locator(selector).click()
-    return openKjpPackage(await readFile(await (await promised).path()))
+    lastSavedBytes=await readFile(await (await promised).path());return openKjpPackage(lastSavedBytes)
   }
   const applied=await save('#save'),updated=applied.activeDocument
   expect(updated.id).toBe(drawing.id)
@@ -583,16 +584,36 @@ test('reopened road project revises the same drawing in chat, preserves external
   await snapshot(page,1440,'road-revision-applied')
   await page.getByRole('button',{name:'Undo this change',exact:true}).click()
   await expect(page.locator('.chat-proposal-state')).toContainText('Change undone')
-  const undone=await save('#save')
+  const undone=await save('#save'),undoneBytes=lastSavedBytes
   // KJP canonicalizes object-key order and omits undefined values. Compare every
   // persisted entity field by stable ID, independently of dictionary enumeration.
   const persistedEntities=document=>JSON.parse(JSON.stringify(Object.fromEntries(document.listEntities().map(entity=>[entity.id,entity]))))
   expect(persistedEntities(undone.activeDocument)).toEqual(persistedEntities(drawing))
-  await expect(restoreRoadDrawingRecipe(undone.activeDocument,undone.manifest.metadata.roadDrawingRecipes[key])).rejects.toThrow()
+  const historical=await restoreRoadDrawingRecipe(undone.activeDocument,undone.manifest.metadata.roadDrawingRecipeHistory[key][0])
+  expect(historical.recipe.input).toEqual(input)
   await page.locator('#redo').click()
   const redone=await save('#save')
   expect(persistedEntities(redone.activeDocument)).toEqual(persistedEntities(updated))
   await restoreRoadDrawingRecipe(redone.activeDocument,redone.manifest.metadata.roadDrawingRecipes[key])
-  expect(requests).toHaveLength(2);expect(errors).toEqual([])
+  // Reload the saved Undo state: current recipe is newer than geometry, so chat
+  // must recover the exact historical input before allowing another revision.
+  await page.locator('#file-input').setInputFiles({name:'undone-road.kjp',mimeType:'application/octet-stream',buffer:undoneBytes})
+  await expect(page.locator('#revision')).toHaveText(`REV ${undone.activeDocument.revision}`)
+  await expect(page.locator('#entity-count')).toHaveText(`${original.entities.length+1} entities`)
+  await page.locator('#agent-tab').click()
+  await send(page,`Continue editing ${roadDrawingFixtureOptions.drawingId} from this saved Undo state: widen each side by 0.25 m without shifting elevations.`)
+  await expect(page.getByRole('button',{name:'Apply changes',exact:true})).toBeEnabled()
+  await expect(page.locator('.chat-proposal-state')).toContainText('Your drawing is unchanged')
+  await page.getByRole('button',{name:'Apply changes',exact:true}).click()
+  await expect(page.locator('.chat-proposal-state')).toContainText('Changes applied')
+  await expect(page.locator('.chat-proposal-state')).not.toContainText('not saved')
+  const continued=await save('#save'),continuedRecipe=continued.manifest.metadata.roadDrawingRecipes[key]
+  const checked=await restoreRoadDrawingRecipe(continued.activeDocument,continuedRecipe)
+  expect(checked.recipe.input.pavement.leftWidth).toBe(3.75)
+  expect(checked.recipe.input.pavement.rightWidth).toBe(3.75)
+  expect(checked.recipe.input.profile).toEqual(input.profile)
+  expect(continued.activeDocument.getObject(outside.id)).toEqual(outside)
+  await snapshot(page,1440,'road-revision-history-continued')
+  expect(requests).toHaveLength(4);expect(errors).toEqual([])
   project.destroy()
 })
