@@ -88,6 +88,8 @@ const VERSION_BY_CODE = Object.freeze({
 });
 const READ_TYPES = Object.freeze([
     'LINE',
+    'XLINE',
+    'RAY',
     'POINT',
     'CIRCLE',
     'ARC',
@@ -110,6 +112,8 @@ const READ_TYPES = Object.freeze([
 ]);
 const WRITE_TYPES = new Set([
     'LINE',
+    'XLINE',
+    'RAY',
     'POINT',
     'CIRCLE',
     'ARC',
@@ -159,7 +163,9 @@ const MIN_ENTITY_VERSION = Object.freeze({
     MTEXT: 'R14',
     LEADER: 'R14',
     HATCH: 'R14',
-    WIPEOUT: '2000'
+    WIPEOUT: '2000',
+    XLINE: '2000',
+    RAY: '2000'
 });
 const CODE_PAGE_LABELS = Object.freeze({
     'ANSI_936': 'gb18030',
@@ -568,6 +574,15 @@ function entityPayload(record, blockIds, resources = {}) {
                 payload: {
                     start: point(record),
                     end: point(record, 11, 21, 31)
+                }
+            };
+        case 'XLINE':
+        case 'RAY':
+            return {
+                type: record.type,
+                payload: {
+                    origin: point(record),
+                    direction: point(record, 11, 21, 31)
                 }
             };
         case 'POINT':
@@ -1930,6 +1945,13 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emitSubclass(output, version, 'AcDbLine');
         emitPoint(output, p.start);
         emitPoint(output, p.end, 11);
+    } else if (entity.type === 'XLINE' || entity.type === 'RAY') {
+        const direction = p.direction, magnitude = Math.max(...direction.map(Math.abs));
+        const scaled = direction.map((value)=>value / magnitude), length = Math.hypot(...scaled);
+        if (!(length > 0) || !Number.isFinite(length)) throw new KJValidationError(`${entity.type} requires a finite nonzero direction`);
+        emitSubclass(output, version, entity.type === 'XLINE' ? 'AcDbXline' : 'AcDbRay');
+        emitPoint(output, p.origin);
+        emitPoint(output, scaled.map((value)=>value / length), 11);
     } else if (entity.type === 'POINT') {
         emitSubclass(output, version, 'AcDbPoint');
         emitPoint(output, p.position);

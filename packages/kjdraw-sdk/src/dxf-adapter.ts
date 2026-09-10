@@ -207,15 +207,15 @@ const PRODUCT_VERSIONS: readonly DxfProductVersion[] = Object.freeze(['R14', '20
 const VERSIONS: readonly DxfVersion[] = Object.freeze(['R12', ...PRODUCT_VERSIONS])
 const ACADVER: Readonly<Record<DxfVersion, string>> = Object.freeze({ R12: 'AC1009', R14: 'AC1014', 2000: 'AC1015', 2004: 'AC1018', 2010: 'AC1024', 2013: 'AC1027', 2018: 'AC1032', 2024: 'AC1032' })
 const VERSION_BY_CODE: Readonly<Record<string, DxfVersion>> = Object.freeze({ AC1009: 'R12', AC1014: 'R14', AC1015: '2000', AC1018: '2004', AC1024: '2010', AC1027: '2013', AC1032: '2018' })
-const READ_TYPES = Object.freeze(['LINE', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
-const WRITE_TYPES = new Set(['LINE', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
+const READ_TYPES = Object.freeze(['LINE', 'XLINE', 'RAY', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
+const WRITE_TYPES = new Set(['LINE', 'XLINE', 'RAY', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
 
 const DIMENSION_TYPE_BY_CODE: Readonly<Record<number, string>> = Object.freeze({ 0: 'ROTATED', 1: 'ALIGNED', 2: 'ANGULAR', 3: 'DIAMETER', 4: 'RADIUS', 5: 'ANGULAR_3_POINT', 6: 'ORDINATE' })
 const DIMENSION_CODE_BY_TYPE: Readonly<Record<string, number>> = Object.freeze(Object.fromEntries(Object.entries(DIMENSION_TYPE_BY_CODE).map(([code, type]) => [type, Number(code)])))
 const VERSION_RANK: Readonly<Record<DxfVersion, number>> = Object.freeze({ R12: 0, R14: 1, 2000: 2, 2004: 3, 2010: 4, 2013: 5, 2018: 6, 2024: 6 })
 const MIN_ENTITY_VERSION: Readonly<Record<string, DxfVersion>> = Object.freeze({
   ELLIPSE: 'R14', SPLINE: 'R14', MTEXT: 'R14', LEADER: 'R14', HATCH: 'R14',
-  WIPEOUT: '2000',
+  WIPEOUT: '2000', XLINE: '2000', RAY: '2000',
 })
 
 const CODE_PAGE_LABELS: Readonly<Record<string, string>> = Object.freeze({
@@ -504,6 +504,8 @@ function hatchBoundaryLoops(record: DxfRecord): DxfHatchLoop[] {
 function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>, resources: DxfImportResources = {}): DxfEntitySpec {
   switch (record.type) {
     case 'LINE': return { type: 'LINE', payload: { start: point(record), end: point(record, 11, 21, 31) } }
+    case 'XLINE':
+    case 'RAY': return { type: record.type, payload: { origin: point(record), direction: point(record, 11, 21, 31) } }
     case 'POINT': return { type: 'POINT', payload: { position: point(record) } }
     case 'CIRCLE': return { type: 'CIRCLE', payload: { center: point(record), radius: number(record, 40) } }
     case 'ARC': return { type: 'ARC', payload: { center: point(record), radius: number(record, 40), startAngle: number(record, 50) * Math.PI / 180, endAngle: number(record, 51) * Math.PI / 180 } }
@@ -1222,6 +1224,14 @@ function emitEntity(
   }
   emitEntityHeader(output, entity.type, entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames)
   if (entity.type === 'LINE') { emitSubclass(output, version, 'AcDbLine'); emitPoint(output, p.start!); emitPoint(output, p.end!, 11) }
+  else if (entity.type === 'XLINE' || entity.type === 'RAY') {
+    // DXF requires a WCS unit direction, while the SDK accepts any nonzero vector.
+    const direction = p.direction!, magnitude = Math.max(...direction.map(Math.abs))
+    const scaled = direction.map(value => value / magnitude), length = Math.hypot(...scaled)
+    if (!(length > 0) || !Number.isFinite(length)) throw new KJValidationError(`${entity.type} requires a finite nonzero direction`)
+    emitSubclass(output, version, entity.type === 'XLINE' ? 'AcDbXline' : 'AcDbRay')
+    emitPoint(output, p.origin!); emitPoint(output, scaled.map(value => value / length) as Point3, 11)
+  }
   else if (entity.type === 'POINT') { emitSubclass(output, version, 'AcDbPoint'); emitPoint(output, p.position!) }
   else if (entity.type === 'CIRCLE') { emitSubclass(output, version, 'AcDbCircle'); emitPoint(output, p.center!); emit(output, 40, p.radius) }
   else if (entity.type === 'ARC') {

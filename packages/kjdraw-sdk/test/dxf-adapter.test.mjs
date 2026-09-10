@@ -20,7 +20,7 @@ test('default ASCII DXF adapter reads layers and core entities and writes a reop
 test('DXF export rejects unsupported entities instead of silently dropping them', async () => {
   const sdk = createKJDrawSDK()
   const document = sdk.createDocument({ documentId: 'dxf-loss-gate' })
-  await sdk.executeCommand('CREATE', { type: 'RAY', payload: { origin: [0, 0, 0], direction: [1, 0, 0] } })
+  await sdk.executeCommand('CREATE', { type: 'CUSTOM_UNSUPPORTED', payload: { data: 'retain me' } })
   await assert.rejects(sdk.writeDocument(document, { format: 'DXF', version: '2018' }), error => error.cause instanceof KJValidationError && /prevent data loss/.test(error.cause.message))
 })
 

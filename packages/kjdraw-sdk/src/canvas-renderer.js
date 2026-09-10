@@ -891,23 +891,50 @@ export class KJCanvasRenderer {
             const origin = point2(payload.origin), direction = point2(payload.direction);
             if (!origin || !direction) drawn = false;
             else {
-                const length = Math.hypot(direction[0], direction[1]) || 1;
-                const span = Math.max(this.#width, this.#height) * 2 / this.camera.scale;
-                const delta = [
-                    direction[0] / length * span,
-                    direction[1] / length * span
-                ];
-                const start = entity.type === 'XLINE' ? [
-                    origin[0] - delta[0],
-                    origin[1] - delta[1]
-                ] : origin;
-                drawn = this.#strokePath([
-                    start,
-                    [
-                        origin[0] + delta[0],
-                        origin[1] + delta[1]
-                    ]
-                ]);
+                const length = Math.hypot(direction[0], direction[1]);
+                if (!(length > 0)) drawn = false;
+                else {
+                    const p = this.worldToScreen(origin), u = [
+                        direction[0] / length,
+                        -direction[1] / length
+                    ];
+                    let lo = entity.type === 'RAY' ? 0 : -Infinity, hi = Infinity;
+                    for (const [axis, extent] of [
+                        [
+                            0,
+                            this.#width
+                        ],
+                        [
+                            1,
+                            this.#height
+                        ]
+                    ]){
+                        if (u[axis] === 0) {
+                            if (p[axis] < 0 || p[axis] > extent) {
+                                lo = 1;
+                                hi = 0;
+                                break;
+                            }
+                        } else {
+                            const a = -p[axis] / u[axis], b = (extent - p[axis]) / u[axis];
+                            lo = Math.max(lo, Math.min(a, b));
+                            hi = Math.min(hi, Math.max(a, b));
+                        }
+                    }
+                    if (lo <= hi && Number.isFinite(lo) && Number.isFinite(hi)) {
+                        const at = (t)=>[
+                                Math.max(0, Math.min(this.#width, p[0] + u[0] * t)),
+                                Math.max(0, Math.min(this.#height, p[1] + u[1] * t))
+                            ];
+                        const a = at(lo), b = at(hi);
+                        const dashCycle = dash.reduce((sum, value)=>sum + value, 0) * (dash.length % 2 ? 2 : 1);
+                        if (dashCycle > 0) context.lineDashOffset = lo % dashCycle;
+                        context.beginPath();
+                        context.moveTo(a[0], a[1]);
+                        context.lineTo(b[0], b[1]);
+                        context.stroke();
+                    }
+                }
             }
         } else if (entity.type === 'CIRCLE' || entity.type === 'ARC') {
             const center = point2(payload.center), radius = Math.abs(finite(payload.radius));

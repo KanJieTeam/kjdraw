@@ -46,6 +46,29 @@ function mockCanvas(width = 640, height = 360) {
   return { canvas, context }
 }
 
+test('unbounded lines clip to the viewport even when their origin is far offscreen', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument()
+  const { canvas, context } = mockCanvas(640,360)
+  const renderer = new KJCanvasRenderer(canvas, { document, grid: false, pixelRatio: 1 })
+  Object.assign(renderer.camera, { centerX: 0, centerY: 0, scale: 1 })
+  for (const [type, origin, direction, expected] of [
+    ['XLINE', [1000000,0], [1,0], [[0,180],[640,180]]],
+    ['XLINE', [0,-1000000], [0,1], [[320,360],[320,0]]],
+    ['RAY', [-1000000,0], [1,0], [[0,180],[640,180]]],
+    ['RAY', [1000000,0], [1,0], []],
+    ['RAY', [0,0], [1,0], [[320,180],[640,180]]],
+    ['XLINE', [0,1000], [1,0], []],
+    ['XLINE', [1000000,1000000], [1,1], [[140,360],[500,0]]],
+  ]) {
+    context.calls.length = 0
+    renderer.drawPreview([{ type, payload: { origin, direction } }])
+    const path = context.calls.filter(call => call[0] === 'moveTo' || call[0] === 'lineTo').map(call=>call.slice(1))
+    assert.equal(path.length,expected.length)
+    path.forEach((point,index)=>point.forEach((value,axis)=>assert.ok(Math.abs(value-expected[index][axis])<1e-7)))
+  }
+  renderer.dispose()
+})
+
 test('curve painting and hit testing follow the spline, not its control polygon', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'evaluated-curves' })
   const spline = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: { degree: 2, controlPoints: [[0,0],[5,10],[10,0]], knots: [0,0,0,1,1,1] } })
