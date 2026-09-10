@@ -6,8 +6,6 @@
 
 <p align="center">开源CAD引擎，以及开箱即用的编辑器。<br>创建、编辑和自动化工程图纸——用代码、用智能体，或亲手绘制。</p>
 
-<p align="center"><strong>我们的目标：一句话、几个需求，让 AI 自动画出复杂、完整的 CAD 图纸。</strong></p>
-
 <p align="center">
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>在线体验</strong></a> ·
   <a href="#接入你的应用"><strong>接入你的应用</strong></a> ·
@@ -26,33 +24,7 @@
 
 <p align="center"><sub>真实工作台录制：浏览图纸、审核预设修改，再从空白绘制零件并标注尺寸。当前 Agent 场景使用预设流程，未连接语言模型。</sub></p>
 
-## 从几个需求，到一张完整图纸
-
-说清你需要什么，AI 自动完成后续绘制，交付包含可编辑图形、尺寸标注、图层和布局的复杂工程图纸。继续对话提出修改，就在同一份 CAD 图档上接着完成。这是 KJDraw 正在实现的核心体验。
-
-架构围绕这条流程推进：**理解需求 → 拆解图纸 → 逐部件绘制与校验 → 自动纠错 → 交付通过验证的图纸**。持续保存的绘图工作区、面向当前任务的局部上下文、可复用 CAD 操作和独立几何校验共同支撑这一过程。完成意味着满足要求中的几何与关系约束、保留可编辑对象，并通过保存重开与出图检查。
-
-目标架构分为三层：精确的 CAD 核心、模型中立的任务执行层，以及承载行业方法和用户偏好的版本化能力包（Skill）。用户应能持续改进、分享和升级能力包，同时继续编辑已有图纸。Skill 指导怎么做，可执行 CAD 操作和几何检查判定做得是否正确。这套完整流程仍在开发。
-
-**下一版 README 主动图的目标：**在编辑器对话框输入一个场景和几个需求，看到真实 AI 模型逐步画出复杂图纸，再放大检查细节、对话提出修改。实际流程通过几何与保存重开验收后再录制，并附上输入需求、模型、实际耗时和可复现图纸。
-
-**当前进度：**已实现有范围和预算限制的图纸查询、几何提案、预览、宿主审核和撤销重做。复杂完整图纸的自主交付仍在开发，上方动图展示的是当前编辑器能力。[1.0 开发计划](docs/product/1.0-delivery-plan.zh-CN.md)持续记录剩余工作与验收要求。
-
 ## 为什么选择 KJDraw？
-
-### 可复现的绘图对比
-
-首组实测比较**同一 KJDraw 核心中的逐实体提案与批量提案**：4 个原创任务，每种策略各跑 5 轮，实际生成可编辑 CAD，检查几何、KJD/DXF 保存重开及撤销重做。两种策略各 20 次实测全部通过。209 实体面板的调用从 209 次降到 4 次，调用 JSON 从 37,224 B 降到 9,443 B；本机提案与应用的中位耗时为 3,788 ms 与 85 ms。这里测量的是 CAD 批处理收益，真实模型 token、推理耗时与费用尚未在这组对比中测量。
-
-![工具调用 JSON 负载对比；字节不等于 token](docs/benchmarks/local-drawing-strategies-2026-09-10/tool-payload.svg)
-![本地 CAD 提案与应用耗时对比](docs/benchmarks/local-drawing-strategies-2026-09-10/local-time.svg)
-![几何和保存回读通过率；两种策略均通过](docs/benchmarks/local-drawing-strategies-2026-09-10/geometry-correctness.svg)
-
-[测量方法与复现命令](docs/product/local-drawing-strategy-benchmark.md) · [逐次数据与源码指纹](docs/benchmarks/local-drawing-strategies-2026-09-10/report.json) · [实际生成的 209 实体图纸](docs/benchmarks/local-drawing-strategies-2026-09-10/perforated-panel-209-batched-64-1.svg) · [可编辑 DXF](docs/benchmarks/local-drawing-strategies-2026-09-10/perforated-panel-209-batched-64-1.dxf)
-
-下一阶段对比相同任务、模型和设置下的真实模型运行，记录接口返回的 token 与缓存用量、耗时、失败及独立几何要求。相同结果和退步也会保留；当前本地实测不代表模型榜单名次或绘图质量提升。
-
-### 基于引擎构建应用
 
 - **让 AI Agent 真正用上 CAD。** 通过接口读取图形对象、调用绘图命令，并审核拟执行的修改。
 - **接入 CAD，不必从零搭建编辑器。** 将绘图工具、图层、特性和文件操作直接接入 JavaScript、React 或 Vue 应用。

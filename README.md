@@ -6,8 +6,6 @@
 
 <p align="center">An open-source CAD engine and ready-to-use editor.<br>Create, edit, and automate engineering drawings — with code, with an agent, or by hand.</p>
 
-<p align="center"><strong>Our goal: one prompt, a few requirements — AI draws a complete, complex CAD drawing.</strong></p>
-
 <p align="center">
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>Try the editor</strong></a> ·
   <a href="#add-cad-to-your-app"><strong>Add CAD to your app</strong></a> ·
@@ -26,33 +24,7 @@
 
 <p align="center"><sub>Recorded in the workbench: explore drawings, review a preset change, then draw and dimension a part. The built-in Agent scene uses a preset workflow, not a connected language model.</sub></p>
 
-## From a few requirements to a complete drawing
-
-Describe what you need. Our goal is for AI to work through the details and deliver a complex engineering drawing with editable geometry, dimensions, layers and layouts. Continue the conversation to revise it, and keep working in the same CAD document.
-
-We are building toward this workflow: **understand requirements → break down the drawing → construct and check each part → correct errors → deliver a verified drawing**. The architecture needs a persistent drawing workspace, focused context for each task, reusable CAD operations and independent geometry checks. Completion means satisfying the requested geometry and relationships, retaining editable objects, and passing save/reopen and output checks.
-
-The intended architecture has three layers: a precise CAD core, a model-neutral task executor, and versioned capability packs (Skills) for reusable industry methods and user preferences. Users should be able to improve, share and upgrade those packs while continuing to edit existing drawings. Skills guide the work; executable CAD operations and geometry checks establish whether it is correct. This complete workflow remains under development.
-
-**The next README animation target:** type a scenario and a few requirements into the editor's conversation panel, watch a real AI model build a complex drawing, then zoom in to inspect the details and request a revision. We will record it after the actual workflow passes geometry and save/reopen checks, with the prompt, model, elapsed time and reproducible drawing available alongside it.
-
-**Current status:** bounded drawing queries, geometry proposals, previews, host approval and undo/redo are implemented. Autonomous delivery of complete complex drawings is still in development; the animation above demonstrates today's editor. The [1.0 delivery programme](docs/product/1.0-delivery-plan.zh-CN.md) tracks the remaining work and acceptance requirements.
-
 ## Why KJDraw?
-
-### Reproducible drawing benchmarks
-
-The first measured comparison tests **per-entity versus batched proposals inside the same KJDraw core**: four original tasks, five repetitions per strategy, actual editable CAD output, geometry checks, KJD/DXF reopening and undo/redo. Both strategies passed all 20 measured runs. On the 209-entity panel, batching reduced calls from 209 to 4 and call-envelope JSON from 37,224 to 9,443 bytes; local proposal/approval median time was 3,788 ms versus 85 ms on this workstation. This measures CAD batching, not model inference. Real model tokens, latency and cost are not yet measured in this comparison.
-
-![Tool-call JSON payload comparison; bytes are not tokens](docs/benchmarks/local-drawing-strategies-2026-09-10/tool-payload.svg)
-![Local CAD proposal and approval timing comparison](docs/benchmarks/local-drawing-strategies-2026-09-10/local-time.svg)
-![Geometry and persistence pass rates; both strategies pass](docs/benchmarks/local-drawing-strategies-2026-09-10/geometry-correctness.svg)
-
-[Method and reproduction command](docs/product/local-drawing-strategy-benchmark.md) · [Raw runs and source fingerprints](docs/benchmarks/local-drawing-strategies-2026-09-10/report.json) · [Actual 209-entity drawing](docs/benchmarks/local-drawing-strategies-2026-09-10/perforated-panel-209-batched-64-1.svg) · [Editable DXF](docs/benchmarks/local-drawing-strategies-2026-09-10/perforated-panel-209-batched-64-1.dxf)
-
-The next benchmark stage compares real model runs with the same tasks and settings, provider-reported tokens and cache usage, elapsed time, failures and independent geometry requirements. Results will show parity or regressions as well as improvements; this local run establishes no model leaderboard position or quality advantage.
-
-### Build on the engine
 
 - **Give your agent CAD tools.** Read drawing objects, call drawing commands, and review proposed changes through a programmable API.
 - **Add CAD without starting from scratch.** Bring drawing tools, layers, properties and file operations into your JavaScript, React or Vue application.
