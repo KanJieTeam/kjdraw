@@ -3,6 +3,7 @@ import { KJDocument } from './document.js';
 import { KJValidationError } from './errors.js';
 import { defineFileAdapter } from './file-adapters.js';
 import { projectDimension } from './geometry/annotation.js';
+import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js';
 import { hatchPatternLines } from './geometry/hatch.js';
 import { normalizeStandardEntityPayload } from './standard-entities.js';
 import { normalizeName } from './utils.js';
@@ -1844,6 +1845,39 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
         }
     }
 }
+function validateViewportBoundary(boundary) {
+    const p = dxfPayload(boundary);
+    if (boundary.type === 'CIRCLE') return;
+    if (boundary.type === 'LWPOLYLINE' || boundary.type === 'POLYLINE') {
+        if (p.closed !== true) throw new KJValidationError('VIEWPORT clipping polyline must be explicitly closed');
+        if (boundary.type === 'POLYLINE' && Number(p.dxfFlags ?? 0) & (8 | 16 | 64)) throw new KJValidationError('VIEWPORT clipping boundary requires a 2D polyline');
+        return;
+    }
+    if (boundary.type === 'ELLIPSE') {
+        const span = Number(p.endParameter ?? Math.PI * 2) - Number(p.startParameter ?? 0);
+        if (Math.abs(span - Math.PI * 2) > 1e-12) throw new KJValidationError('VIEWPORT clipping ellipse must be complete; elliptic arcs are not supported');
+        return;
+    }
+    if (boundary.type === 'SPLINE') {
+        if (p.closed !== true) throw new KJValidationError('VIEWPORT clipping spline must be explicitly closed');
+        if (!p.knots?.length) throw new KJValidationError('VIEWPORT clipping spline requires explicit native knots');
+        if ((p.controlPoints?.length ?? 0) > 16384 || (p.degree ?? 0) > 64) throw new KJValidationError('VIEWPORT clipping spline exceeds the closure validation budget');
+        const spline = normalizeSplineDefinition(p);
+        const start = spline.knots[spline.degree], end = spline.knots[spline.controlPoints.length];
+        const xyStart = splinePoint2(spline, start), xyEnd = splinePoint2(spline, end);
+        const yz = {
+            ...spline,
+            controlPoints: p.controlPoints.map((point)=>[
+                    point[1],
+                    point[2]
+                ])
+        };
+        const yzStart = splinePoint2(yz, start), yzEnd = splinePoint2(yz, end);
+        if (Math.hypot(xyEnd[0] - xyStart[0], xyEnd[1] - xyStart[1], yzEnd[1] - yzStart[1]) > 1e-9) throw new KJValidationError('VIEWPORT clipping spline endpoints are not closed');
+        return;
+    }
+    throw new KJValidationError(`VIEWPORT clipping boundary type ${boundary.type} is unsupported; requires a verified closed native curve`);
+}
 function emitRawEntity(output, entity, layerName, ownerHandle, space, context) {
     const { version } = context;
     const properties = {
@@ -2224,6 +2258,7 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         if (p.clippingBoundaryId) {
             const boundary = resources.objects?.get(p.clippingBoundaryId);
             if (!boundary || boundary.kind !== 'entity' || boundary.erased || boundary.ownerId !== entity.ownerId) throw new KJValidationError('VIEWPORT clipping boundary must reference an existing entity in the same space');
+            validateViewportBoundary(boundary);
             emit(output, 340, boundary.handle);
         } else if (Number(p.flags ?? 0) & 65536) throw new KJValidationError('Nonrectangular VIEWPORT requires a clipping boundary');
         const canonical = new Set([

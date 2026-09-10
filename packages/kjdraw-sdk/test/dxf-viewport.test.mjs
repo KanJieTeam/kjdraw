@@ -124,3 +124,87 @@ print(json.dumps({'first':[v.dxf.id for v in D.layouts.get('Three details').quer
   await sdk.executeCommand('VIEWPORT',{operation:'update',id:created[2].id,patch:{viewportId:8}})
   assert.throws(()=>adapter.write(document,{version:'2018'}),/Conflicting explicit VIEWPORT IDs/)
 })
+
+const nativeClipFixtures=String.raw`
+import io,json,ezdxf
+from ezdxf.path import make_path
+from ezdxf.tools.clipping_portal import find_best_clipping_shape
+out=[]
+for kind in ['POINT','LINE','ARC','OPEN_POLYLINE','OPEN_SPLINE','FALSE_CLOSED_SPLINE','ELLIPTIC_ARC','CIRCLE','CLOSED_POLYLINE','CLOSED_POLYLINE_2D','CLOSED_SPLINE','PERIODIC_SPLINE','ELLIPSE']:
+ d=ezdxf.new('R2018');p=d.layout();v=p.add_viewport((50,40),size=(80,60),view_center_point=(0,0),view_height=50)
+ if kind=='POINT':c=p.add_point((10,20))
+ elif kind=='LINE':c=p.add_line((10,20),(30,40))
+ elif kind=='ARC':c=p.add_arc((0,0),20,0,180)
+ elif kind=='CLOSED_POLYLINE_2D':c=p.add_polyline2d([(0,0),(20,0),(20,20)],close=True)
+ elif 'POLYLINE' in kind:c=p.add_lwpolyline([(0,0),(20,0),(20,20)],close=kind.startswith('CLOSED'))
+ elif 'SPLINE' in kind:
+  c=p.add_spline();points=[(0,0,0),(20,0,0),(20,20,0),(0,20,0)]
+  if kind=='PERIODIC_SPLINE':c.set_closed(points,degree=2)
+  else:
+   c.set_open_uniform(points+([(0,0,0)] if kind=='CLOSED_SPLINE' else []),degree=2)
+   c.closed=kind in ['CLOSED_SPLINE','FALSE_CLOSED_SPLINE']
+ elif kind=='CIRCLE':c=p.add_circle((0,0),20)
+ else:c=p.add_ellipse((0,0),major_axis=(20,0),ratio=.5,end_param=3.14 if kind=='ELLIPTIC_ARC' else 6.283185307179586)
+ v.dxf.flags=65536;v.dxf.clipping_boundary_handle=c.dxf.handle
+ s=io.StringIO();d.write(s);a=d.audit();r={'kind':kind,'dxf':s.getvalue(),'errors':len(a.errors),'fixes':len(a.fixes)}
+ try:
+  path=make_path(v);r['closed']=path.is_closed;r['shape']=type(find_best_clipping_shape(list(path.flattening(.1)))).__name__
+ except Exception as e:r['exception']=type(e).__name__
+ out.append(r)
+print(json.dumps(out))
+`
+const nativeClipPath=String.raw`
+import io,json,sys,ezdxf
+from ezdxf.path import make_path
+from ezdxf.tools.clipping_portal import find_best_clipping_shape
+D=ezdxf.read(io.StringIO(sys.stdin.read(),newline=None));a=D.audit()
+v=[v for v in D.layout().query('VIEWPORT') if v.dxf.id!=1][0];c=D.entitydb[v.dxf.clipping_boundary_handle]
+p=make_path(v);shape=find_best_clipping_shape(list(p.flattening(.1)))
+exact_closed=None
+if c.dxftype()=='SPLINE':
+ curve=c.construction_tool();k=curve.knots();exact_closed=curve.point(k[curve.degree]).isclose(curve.point(k[curve.count]),rel_tol=0,abs_tol=1e-9)
+print(json.dumps({'type':c.dxftype(),'closed':p.is_closed,'exactSplineClosed':exact_closed,'shape':type(shape).__name__,'errors':len(a.errors),'fixes':len(a.fixes)}))
+`
+
+test('native zero-error audit can still hide invalid viewport boundaries; export rejects them without modifying imported raw data',async t=>{
+  const fixtures=independent(t,nativeClipFixtures);if(!fixtures)return
+  const point=fixtures.find(f=>f.kind==='POINT'),line=fixtures.find(f=>f.kind==='LINE')
+  assert.deepEqual([point.errors,point.fixes,line.errors,line.fixes],[0,0,0,0])
+  assert.equal(point.exception,'TypeError');assert.equal(line.exception,'ValueError')
+  assert.equal(fixtures.find(f=>f.kind==='OPEN_POLYLINE').closed,false)
+  assert.equal(fixtures.find(f=>f.kind==='FALSE_CLOSED_SPLINE').closed,false)
+  const adapter=createDXFFileAdapter()
+  for(const fixture of fixtures.filter(f=>['POINT','LINE','ARC','OPEN_POLYLINE','OPEN_SPLINE','FALSE_CLOSED_SPLINE','ELLIPTIC_ARC'].includes(f.kind))){
+    const document=await adapter.read(fixture.dxf),viewport=document.listEntities({type:'VIEWPORT'}).find(v=>v.payload.viewportId!==1)
+    assert.ok(viewport.payload.rawTags.some(tag=>tag.code===340))
+    assert.ok(document.getObject(viewport.payload.clippingBoundaryId))
+    const before=document.serialize()
+    assert.throws(()=>adapter.write(document,{version:'2018'}),/VIEWPORT clipping/,fixture.kind)
+    assert.equal(document.serialize(),before)
+  }
+})
+
+test('native closed clipping curves round-trip, including exact periodic spline closure despite the independent path approximation limitation',async t=>{
+  const fixtures=independent(t,nativeClipFixtures);if(!fixtures)return
+  const adapter=createDXFFileAdapter()
+  for(const fixture of fixtures.filter(f=>['CIRCLE','CLOSED_POLYLINE','CLOSED_POLYLINE_2D','CLOSED_SPLINE','PERIODIC_SPLINE','ELLIPSE'].includes(f.kind))){
+    const document=await adapter.read(fixture.dxf),before=document.serialize(),output=adapter.write(document,{version:'2018'})
+    assert.equal(document.serialize(),before)
+    const actual=independent(t,nativeClipPath,output)
+    // ezdxf 1.4.4 make_path uses an incorrect sampling domain for this periodic
+    // spline even before SDK import. Test exact native endpoints instead of
+    // turning that external approximation defect into a false format rejection.
+    if(fixture.kind==='PERIODIC_SPLINE'){
+      assert.equal(actual.exactSplineClosed,true);assert.equal(actual.closed,fixture.closed)
+    }else assert.equal(actual.closed,true,fixture.kind)
+    assert.equal(actual.errors,0,fixture.kind);assert.equal(actual.fixes,0,fixture.kind)
+    assert.ok(['ClippingRect','ConvexClippingPolygon','ConcaveClippingPolygon'].includes(actual.shape))
+    const reopened=await adapter.read(output),viewport=reopened.listEntities({type:'VIEWPORT'}).find(v=>v.payload.viewportId!==1)
+    const boundary=reopened.getObject(viewport.payload.clippingBoundaryId)
+    assert.equal(boundary.type,actual.type)
+    if(boundary.type==='SPLINE'){
+      const original=document.listEntities({type:'SPLINE'})[0]
+      for(const field of ['degree','knots','controlPoints','weights','closed','periodic'])assert.deepEqual(boundary.payload[field],original.payload[field],`${fixture.kind} ${field}`)
+    }
+  }
+})

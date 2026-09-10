@@ -6,6 +6,7 @@ import type { KJTableName } from './constants.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 import type { KJTransaction } from './transaction.js'
 import { projectDimension } from './geometry/annotation.js'
+import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js'
 import { hatchPatternLines } from './geometry/hatch.js'
 import { normalizeStandardEntityPayload } from './standard-entities.js'
 import { normalizeName } from './utils.js'
@@ -1183,6 +1184,37 @@ function emitHatch(output: string[], entity: DxfEntity, layerName: string, owner
   }
 }
 
+/** Autodesk VPCLIP supports closed polylines, circles, ellipses, closed splines
+ * and regions. Opaque REGION data cannot be validated by this adapter. Native
+ * audit success alone does not ensure the reference produces a closed path. */
+function validateViewportBoundary(boundary: KJReadonlyObjectRecord): void {
+  const p = dxfPayload(boundary)
+  if (boundary.type === 'CIRCLE') return
+  if (boundary.type === 'LWPOLYLINE' || boundary.type === 'POLYLINE') {
+    if (p.closed !== true) throw new KJValidationError('VIEWPORT clipping polyline must be explicitly closed')
+    if (boundary.type === 'POLYLINE' && (Number(p.dxfFlags ?? 0) & (8 | 16 | 64))) throw new KJValidationError('VIEWPORT clipping boundary requires a 2D polyline')
+    return
+  }
+  if (boundary.type === 'ELLIPSE') {
+    const span = Number(p.endParameter ?? Math.PI * 2) - Number(p.startParameter ?? 0)
+    if (Math.abs(span - Math.PI * 2) > 1e-12) throw new KJValidationError('VIEWPORT clipping ellipse must be complete; elliptic arcs are not supported')
+    return
+  }
+  if (boundary.type === 'SPLINE') {
+    if (p.closed !== true) throw new KJValidationError('VIEWPORT clipping spline must be explicitly closed')
+    // Check the exact knots that will be written, not the kernel's implicit defaults.
+    if (!p.knots?.length) throw new KJValidationError('VIEWPORT clipping spline requires explicit native knots')
+    if ((p.controlPoints?.length ?? 0) > 16384 || (p.degree ?? 0) > 64) throw new KJValidationError('VIEWPORT clipping spline exceeds the closure validation budget')
+    const spline = normalizeSplineDefinition(p)
+    const start = spline.knots[spline.degree]!, end = spline.knots[spline.controlPoints.length]!
+    const xyStart = splinePoint2(spline, start), xyEnd = splinePoint2(spline, end)
+    const yz = { ...spline, controlPoints: p.controlPoints!.map(point => [point[1], point[2]] as [number, number]) }
+    const yzStart = splinePoint2(yz, start), yzEnd = splinePoint2(yz, end)
+    if (Math.hypot(xyEnd[0] - xyStart[0], xyEnd[1] - xyStart[1], yzEnd[1] - yzStart[1]) > 1e-9) throw new KJValidationError('VIEWPORT clipping spline endpoints are not closed')
+    return
+  }
+  throw new KJValidationError(`VIEWPORT clipping boundary type ${boundary.type} is unsupported; requires a verified closed native curve`)
+}
 function emitRawEntity(output: string[], entity: DxfEntity, layerName: string, ownerHandle: string | null, space: DxfSpace | null, context: DxfWriteContext): void {
   const { version } = context
   const properties = { ...entityDrawingProperties({ type: entity.type, tags: [...(entity.payload?.rawTags ?? [])] }, {}), ...entity.payload }
@@ -1399,6 +1431,7 @@ function emitEntity(
     if (p.clippingBoundaryId) {
       const boundary = resources.objects?.get(p.clippingBoundaryId)
       if (!boundary || boundary.kind !== 'entity' || boundary.erased || boundary.ownerId !== entity.ownerId) throw new KJValidationError('VIEWPORT clipping boundary must reference an existing entity in the same space')
+      validateViewportBoundary(boundary)
       emit(output, 340, boundary.handle)
     } else if (Number(p.flags ?? 0) & 65536) throw new KJValidationError('Nonrectangular VIEWPORT requires a clipping boundary')
     // Preserve unmodeled scalar tags, but do not replay stale canonical coordinates or
