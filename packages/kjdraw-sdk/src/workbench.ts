@@ -134,7 +134,7 @@ interface KJWorkbenchFenceSelection {
 
 const copy = {
   en: {
-    pageSetup: 'Page setup', pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.', pageSheet: 'Sheet', pageStale: 'The drawing changed. Close and reopen page setup before applying.', pageWidth: 'Paper width (mm)', pageHeight: 'Paper height (mm)', pageLeft: 'Left margin (mm)', pageRight: 'Right margin (mm)', pageTop: 'Top margin (mm)', pageBottom: 'Bottom margin (mm)', pageUnits: 'Plot units', pageRotation: 'Rotation (counterclockwise)', pageNumerator: 'Custom scale: paper units', pageDenominator: 'Custom scale: drawing units', pageScaleNote: 'Changing either scale value selects custom scale. Other imported settings stay unchanged.', pageUnchanged: 'Keep existing', pageInches: 'Inches', pageMm: 'Millimeters', pagePixels: 'Pixels',
+    pageSetup: 'Page setup', pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.', pageSheet: 'Sheet', pageStale: 'The drawing changed. Close and reopen page setup before applying.', pageWidth: 'Paper width (mm)', pageHeight: 'Paper height (mm)', pageLeft: 'Left margin (mm)', pageRight: 'Right margin (mm)', pageTop: 'Top margin (mm)', pageBottom: 'Bottom margin (mm)', pageUnits: 'Plot units', pageRotation: 'Rotation (counterclockwise)', pageNumerator: 'Custom scale: paper units', pageDenominator: 'Custom scale: drawing units', pageScaleNote: 'Choose Fit to paper or edit the custom ratio. Window coordinates use drawing units; physical offsets use millimeters.', pageUnchanged: 'Keep existing', pageInches: 'Inches', pageMm: 'Millimeters', pagePixels: 'Pixels', pageArea: 'Plot area', pageDisplay: 'Last display', pageExtents: 'Drawing extents', pageLimits: 'Drawing limits', pageView: 'Named view', pageWindow: 'Window', pageLayout: 'Layout', pageViewName: 'View name', pageMinX: 'Window minimum X', pageMinY: 'Window minimum Y', pageMaxX: 'Window maximum X', pageMaxY: 'Window maximum Y', pageOriginX: 'Origin X (mm)', pageOriginY: 'Origin Y (mm)', pageScaleMode: 'Scale mode', pageFit: 'Fit to paper', pageCustom: 'Custom ratio',
     open: 'Open', saveKjd: 'Save KJD', exportDxf: 'Export DXF', draw: 'Draw', modify: 'Modify', view: 'View',
     select: 'Select', pan: 'Pan', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', rectangle: 'Rectangle', text: 'Text', measure: 'Measure',
     undo: 'Undo', redo: 'Redo', erase: 'Delete', move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', fit: 'Fit', grid: 'Grid', layers: 'Layers', properties: 'Properties',
@@ -153,7 +153,7 @@ const copy = {
     confirmBoundaries: 'Confirm boundaries', boundarySelectionHint: 'Click or drag to add boundaries · Ctrl/⌘ removes · Enter confirms', boundaryTargetHint: 'Click target portions repeatedly · Enter or Esc finishes', boundaryEmpty: 'No editable target here — pick another portion', boundaryBusy: 'Applying the edit…',
   },
   'zh-CN': {
-    pageSetup: '页面设置', pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。', pageSheet: '图纸布局', pageStale: '图档已变更，请关闭并重新打开页面设置后再应用。', pageWidth: '纸张宽度（毫米）', pageHeight: '纸张高度（毫米）', pageLeft: '左边距（毫米）', pageRight: '右边距（毫米）', pageTop: '上边距（毫米）', pageBottom: '下边距（毫米）', pageUnits: '打印单位', pageRotation: '旋转（逆时针）', pageNumerator: '自定义比例：纸张单位', pageDenominator: '自定义比例：图形单位', pageScaleNote: '修改任一比例值会启用自定义比例，其余导入配置保持不变。', pageUnchanged: '保留已有值', pageInches: '英寸', pageMm: '毫米', pagePixels: '像素',
+    pageSetup: '页面设置', pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。', pageSheet: '图纸布局', pageStale: '图档已变更，请关闭并重新打开页面设置后再应用。', pageWidth: '纸张宽度（毫米）', pageHeight: '纸张高度（毫米）', pageLeft: '左边距（毫米）', pageRight: '右边距（毫米）', pageTop: '上边距（毫米）', pageBottom: '下边距（毫米）', pageUnits: '打印单位', pageRotation: '旋转（逆时针）', pageNumerator: '自定义比例：纸张单位', pageDenominator: '自定义比例：图形单位', pageScaleNote: '可选适合纸张或编辑自定义比例。窗口坐标使用绘图单位，物理偏移使用毫米。', pageUnchanged: '保留已有值', pageInches: '英寸', pageMm: '毫米', pagePixels: '像素', pageArea: '打印范围', pageDisplay: '上次显示范围', pageExtents: '图形范围', pageLimits: '图形界限', pageView: '命名视图', pageWindow: '窗口', pageLayout: '布局', pageViewName: '视图名称', pageMinX: '窗口最小 X', pageMinY: '窗口最小 Y', pageMaxX: '窗口最大 X', pageMaxY: '窗口最大 Y', pageOriginX: '原点 X（毫米）', pageOriginY: '原点 Y（毫米）', pageScaleMode: '比例模式', pageFit: '适合纸张', pageCustom: '自定义比例',
     open: '打开', saveKjd: '保存 KJD', exportDxf: '导出 DXF', draw: '绘图', modify: '修改', view: '视图',
     select: '选择', pan: '平移', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', rectangle: '矩形', text: '文字', measure: '测距',
     undo: '撤销', redo: '重做', erase: '删除', move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', fit: '全图', grid: '栅格', layers: '图层', properties: '特性',
@@ -1343,26 +1343,45 @@ export class KJDrawWorkbench {
       ['paperWidth', 'pageWidth', 0], ['paperHeight', 'pageHeight', 0],
       ['marginLeft', 'pageLeft', 0], ['marginRight', 'pageRight', 0], ['marginTop', 'pageTop', 0], ['marginBottom', 'pageBottom', 0],
       ['scaleNumerator', 'pageNumerator', .000000001], ['scaleDenominator', 'pageDenominator', .000000001],
+      ['windowMinX', 'pageMinX', null], ['windowMinY', 'pageMinY', null], ['windowMaxX', 'pageMaxX', null], ['windowMaxY', 'pageMaxY', null],
+      ['originX', 'pageOriginX', null], ['originY', 'pageOriginY', null],
     ] as const
-    const labelFor = (key: keyof KJDxfPlotSettings, text: keyof typeof copy.en): HTMLLabelElement => {
+    const labelFor = (key: keyof KJDxfPlotSettings | 'scaleMode', text: keyof typeof copy.en): HTMLLabelElement => {
       const label = document.createElement('label'); label.className = 'field'
       const span = document.createElement('span'); span.dataset.copy = text; span.textContent = this.#t(text); label.append(span)
       fields.append(label); return label
     }
     for (const [key, text, minimum] of numbers) {
-      const input = document.createElement('input'); input.type = 'number'; input.step = 'any'; input.min = String(minimum); input.dataset.pageField = key
+      const input = document.createElement('input'); input.type = 'number'; input.step = 'any'; if (minimum !== null) input.min = String(minimum); input.dataset.pageField = key
       input.value = binding.settings[key] === undefined ? '' : String(binding.settings[key]); input.placeholder = this.#t('pageUnchanged')
       labelFor(key, text).append(input)
     }
     for (const [key, text, values] of [
       ['paperUnits', 'pageUnits', [this.#t('pageInches'), this.#t('pageMm'), this.#t('pagePixels')]],
       ['rotation', 'pageRotation', ['0°', '90°', '180°', '270°']],
+      ['plotType', 'pageArea', [this.#t('pageDisplay'), this.#t('pageExtents'), this.#t('pageLimits'), this.#t('pageView'), this.#t('pageWindow'), this.#t('pageLayout')]],
     ] as const) {
       const select = document.createElement('select'); select.dataset.pageField = key
       select.add(new Option(this.#t('pageUnchanged'), ''))
       values.forEach((value, index) => select.add(new Option(value, String(index))))
       select.value = binding.settings[key] === undefined ? '' : String(binding.settings[key]); labelFor(key, text).append(select)
     }
+    const view = document.createElement('input'); view.type = 'text'; view.dataset.pageField = 'viewName'; view.value = binding.settings.viewName ?? ''
+    labelFor('viewName', 'pageViewName').append(view)
+    const scale = document.createElement('select'); scale.dataset.pageScaleMode = ''
+    for (const [value, text] of [['', 'pageUnchanged'], ['fit', 'pageFit'], ['custom', 'pageCustom']] as const) scale.add(new Option(this.#t(text), value))
+    scale.value = binding.settings.flags === undefined ? '' : !(binding.settings.flags & 16) ? 'custom' : binding.settings.standardScaleType === 0 ? 'fit' : ''
+    scale.dataset.initial = scale.value; labelFor('scaleMode', 'pageScaleMode').append(scale)
+    const update = () => {
+      const area = query<HTMLSelectElement>(fields, '[data-page-field="plotType"]').value
+      for (const input of fields.querySelectorAll<HTMLInputElement>('[data-page-field^="window"]')) { input.disabled = area !== '4'; input.required = area === '4' }
+      view.disabled = area !== '3'; view.required = area === '3'
+      for (const input of fields.querySelectorAll<HTMLInputElement>('[data-page-field^="scale"]')) input.disabled = scale.value === 'fit'
+    }
+    query<HTMLSelectElement>(fields, '[data-page-field="plotType"]').addEventListener('change', update)
+    scale.addEventListener('change', update)
+    for (const input of fields.querySelectorAll<HTMLInputElement>('[data-page-field^="scale"]')) input.addEventListener('input', () => { scale.value = 'custom'; update() })
+    update()
     query<HTMLElement>(this.root, '[data-page-error]').textContent = ''
   }
 
@@ -1374,13 +1393,15 @@ export class KJDrawWorkbench {
     try {
       if (this.#options.readonly) throw new Error(this.#t('readonly'))
       if (this.document !== binding.document || binding.document.revision !== binding.revision) throw new Error(this.#t('pageStale'))
-      const patch: Record<string, number> = {}
+      const patch: Record<string, number | string> = {}
       for (const input of dialog.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-page-field]')) {
-        if (!input.value.trim()) continue
-        const key = input.dataset.pageField as keyof KJDxfPlotSettings, value = Number(input.value)
+        if (input.disabled || !input.value.trim()) continue
+        const key = input.dataset.pageField as keyof KJDxfPlotSettings, value = key === 'viewName' ? input.value : Number(input.value)
         if (value !== binding.settings[key]) patch[key] = value
       }
-      if (patch.scaleNumerator !== undefined || patch.scaleDenominator !== undefined) patch.flags = (binding.settings.flags ?? 688) & ~16
+      const scale = query<HTMLSelectElement>(dialog, '[data-page-scale-mode]')
+      if (scale.value === 'fit' && scale.value !== scale.dataset.initial) { patch.flags = (binding.settings.flags ?? 688) | 16; patch.standardScaleType = 0 }
+      else if ((scale.value === 'custom' && scale.value !== scale.dataset.initial) || patch.scaleNumerator !== undefined || patch.scaleDenominator !== undefined) patch.flags = (binding.settings.flags ?? 688) & ~16
       if (Object.keys(patch).length) await this.execute('PAGESETUP', { layoutId: binding.layoutId, dxf: patch }, { expectedRevision: binding.revision })
       dialog.close()
     } catch (error) {

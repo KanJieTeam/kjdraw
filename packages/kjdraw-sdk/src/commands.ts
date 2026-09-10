@@ -626,7 +626,14 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       if (args.dxf !== undefined) {
         validatePlotSettings(args.dxf)
         if (args.settings !== undefined) throw new KJValidationError('PLOTSETUP cannot mix dxf and native settings')
-        return transaction.updateObject(layout.id, { payload: { dxfPlotSettings: { ...layout.payload.dxfPlotSettings, ...args.dxf } } })
+        const settings = { ...layout.payload.dxfPlotSettings, ...args.dxf }
+        const changed = Object.keys(args.dxf)
+        if (settings.plotType === 4 && changed.some(key => ['plotType', 'windowMinX', 'windowMinY', 'windowMaxX', 'windowMaxY'].includes(key))) {
+          const { windowMinX: x0, windowMinY: y0, windowMaxX: x1, windowMaxY: y1 } = settings
+          if (![x0, y0, x1, y1].every(value => typeof value === 'number' && Number.isFinite(value)) || !(x1! > x0! && y1! > y0!)) throw new KJValidationError('Plot window requires four finite coordinates and positive width and height')
+        }
+        if (settings.plotType === 3 && changed.some(key => key === 'plotType' || key === 'viewName') && !settings.viewName?.trim()) throw new KJValidationError('Named-view plotting requires a view name')
+        return transaction.updateObject(layout.id, { payload: { dxfPlotSettings: settings } })
       }
       const settings = normalizePlotSettings(args.settings ?? args)
       if (settings.plotStyleId && !document.snapshot().resources.plotStyles?.[settings.plotStyleId]) throw new KJValidationError(`Plot style does not exist: ${settings.plotStyleId}`)

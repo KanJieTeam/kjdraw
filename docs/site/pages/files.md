@@ -38,7 +38,7 @@ DXF 2000 and newer exports retain named and empty layout identities, tab order a
 
 Imported layout `payload.dxfPlotSettings` retains 30 scalar `AcDbPlotSettings` fields, including paper dimensions, margins, offsets, window, units, rotation, scale and resource names. `KJDxfPlotSettings` is exported from the package; `transaction.createLayout({ name, dxfPlotSettings })` also accepts it. The fields remain in KJD and DXF 2000+.
 
-In the embedded editor, open **Page setup** from the top bar, choose a sheet and edit physical paper dimensions, margins, plot units, rotation or custom scale. Blank fields keep existing values. Apply changes only that sheet; Cancel/Escape and applying an unchanged form leave the drawing/history untouched. Changing either custom-scale field clears the standard-scale flag while preserving other flags. If the drawing changes while the form is open, close and reopen it before applying. Readonly editors disable the entry. This form configures exports; it does not provide print preview or drive a printer.
+In the embedded editor, open **Page setup** from the top bar, choose a sheet and edit physical paper dimensions, margins, plot units, rotation or custom scale. Blank fields keep existing values. Apply changes only that sheet; Cancel/Escape and applying an unchanged form leave the drawing/history untouched. Changing either custom-scale field clears the standard-scale flag while preserving other flags. If the drawing changes while the form is open, close and reopen it before applying. Readonly editors disable the entry. This form configures exports; it does not provide print preview or drive a printer. Choose a plot area (display, extents, limits, named view, window or layout), enter a view name for named-view output, or four drawing-unit coordinates for a window. Window width and height must be positive. Origin offsets use millimeters. Fit to paper sets the standard-scale flag and scale type 0; custom ratio clears that flag. Existing unrelated flags and unused window/view settings are preserved. Named-view configuration stores the supplied reference; it does not verify or render that view.
 
 ```ts
 await sdk.executeCommand('PAGESETUP', {
@@ -95,7 +95,7 @@ DXF 2000 及更新版本导出保留命名布局、空布局、标签顺序和�
 
 导入布局的 `payload.dxfPlotSettings` 保留 30 个 `AcDbPlotSettings` 标量字段，包括纸张尺寸、边距、偏移、窗口、单位、旋转、比例及资源名称。包导出 `KJDxfPlotSettings` 类型，`transaction.createLayout({ name, dxfPlotSettings })` 也可设置。字段保存在 KJD 和 DXF 2000+ 中。
 
-在嵌入式编辑器顶部打开**页面设置**，选择图纸布局，编辑物理纸张尺寸、边距、打印单位、旋转或自定义比例。空字段保留已有值；应用只修改选定布局，取消/Escape及未修改表单不会改变图档或新增历史。修改任一比例值会清除标准比例标志，其余标志保持不变。打开表单后若图档变更，需要关闭重开才能应用；只读模式禁用入口。该表单配置导出，尚不提供打印预览或实际打印。
+在嵌入式编辑器顶部打开**页面设置**，选择图纸布局，编辑物理纸张尺寸、边距、打印单位、旋转或自定义比例。空字段保留已有值；应用只修改选定布局，取消/Escape及未修改表单不会改变图档或新增历史。修改任一比例值会清除标准比例标志，其余标志保持不变。打开表单后若图档变更，需要关闭重开才能应用；只读模式禁用入口。该表单配置导出，尚不提供打印预览或实际打印。 可选显示范围、图形范围、图形界限、命名视图、窗口或布局；命名视图需要填写名称，窗口需要填写四个绘图单位坐标且宽高为正。原点偏移以毫米计。“适合纸张”设置标准比例标志与比例类型 0，自定义比例清除该标志；其他标志和当前未使用的窗口/视图配置保留。命名视图仅保存给定引用，尚不校验或渲染该视图。
 
 ```ts
 await sdk.executeCommand('PAGESETUP', {

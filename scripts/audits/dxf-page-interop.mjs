@@ -27,5 +27,11 @@ try {
   assert.deepEqual(await save(), edited)
   await sdk.executeCommand('UNDO'); assert.deepEqual(await save(), expected)
   await sdk.executeCommand('REDO'); assert.deepEqual(await save(), edited)
-  console.log(JSON.stringify({ ok: true, independentReader: `ezdxf ${expected.version}`, layouts: Object.keys(expected.layouts).length, fieldsPerLayout: 30, checks: ['model and empty layouts', 'paper dimensions and margins', 'units and rotation', 'window and scale', 'names and flags', 'partial page edits', 'undo/redo', 'zero audit repairs'] }))
+  await sdk.executeCommand('PAGESETUP', { layoutName: 'Layout1', dxf: { plotType: 4, windowMinX: -40, windowMinY: -50, windowMaxX: 300, windowMaxY: 500, originX: -2.5, originY: 3.5, flags: 148, standardScaleType: 0 } })
+  const fitted = structuredClone(edited)
+  Object.assign(fitted.layouts.Layout1, { plot_type: 4, plot_window_x1: -40, plot_window_y1: -50, plot_window_x2: 300, plot_window_y2: 500, plot_origin_x_offset: -2.5, plot_origin_y_offset: 3.5, plot_layout_flags: 148, standard_scale_type: 0 })
+  assert.deepEqual(await save(), fitted)
+  await sdk.executeCommand('UNDO'); assert.deepEqual(await save(), edited)
+  await sdk.executeCommand('REDO'); assert.deepEqual(await save(), fitted)
+  console.log(JSON.stringify({ ok: true, independentReader: `ezdxf ${expected.version}`, layouts: Object.keys(expected.layouts).length, fieldsPerLayout: 30, checks: ['model and empty layouts', 'paper dimensions and margins', 'units and rotation', 'window and scale', 'fit-to-paper flags and offsets', 'names and flags', 'partial page edits', 'undo/redo', 'zero audit repairs'] }))
 } finally { await rm(directory, { recursive: true, force: true }) }

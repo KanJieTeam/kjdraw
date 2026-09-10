@@ -60,3 +60,23 @@ test('DXF subclass names and flags stay distinct and malformed scalar tags rejec
   assert.deepEqual(layouts(doc)[1].payload.dxfPlotSettings, { pageSetupName: 'Preset', flags: 132, paperWidth: 610 })
   for (const extra of ['44\n300\n', '143\nNaN\n', '73\n9\n']) await assert.rejects(createKJDrawSDK().readDocument(input(extra), { format: 'DXF' }))
 })
+
+
+test('window and named-view page edits reject incomplete or reversed configurations atomically', async () => {
+  const sdk = createKJDrawSDK(), doc = sdk.createDocument(), paper = layouts(doc)[1]
+  for (const dxf of [{ plotType: 4 }, { plotType: 4, windowMinX: 2, windowMinY: 0, windowMaxX: 1, windowMaxY: 1 }, { plotType: 4, windowMinX: 0, windowMinY: 1, windowMaxX: 1, windowMaxY: 1 }, { plotType: 3 }, { plotType: 3, viewName: '  ' }]) {
+    const before = doc.serialize()
+    await assert.rejects(sdk.executeCommand('PAGESETUP', { layoutId: paper.id, dxf }))
+    assert.equal(doc.serialize(), before)
+  }
+  const window = { plotType: 4, windowMinX: -20, windowMinY: -30, windowMaxX: 125, windowMaxY: 250, flags: 148, standardScaleType: 0 }
+  await sdk.executeCommand('PAGESETUP', { layoutId: paper.id, dxf: window })
+  const before = doc.serialize()
+  await assert.rejects(sdk.executeCommand('PAGESETUP', { layoutId: paper.id, dxf: { windowMaxX: -21 } }))
+  assert.equal(doc.serialize(), before)
+  await sdk.executeCommand('PAGESETUP', { layoutId: paper.id, dxf: { windowMaxX: 150 } })
+  assert.equal(doc.getObject(paper.id).payload.dxfPlotSettings.windowMaxX, 150)
+  await sdk.executeCommand('UNDO'); assert.deepEqual(doc.getObject(paper.id).payload.dxfPlotSettings, window)
+  await sdk.executeCommand('PAGESETUP', { layoutId: paper.id, dxf: { plotType: 3, viewName: 'Original View' } })
+  assert.equal(doc.getObject(paper.id).payload.dxfPlotSettings.viewName, 'Original View')
+})
