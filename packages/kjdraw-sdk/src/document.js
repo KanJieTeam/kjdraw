@@ -193,7 +193,28 @@ export class KJDocument {
         const key = `${kind ?? ''}|${normalizedType ?? ''}|${ownerId ?? ''}|${includeErased ? '1' : '0'}`;
         const cached = this.#queryCache.get(key);
         if (cached) return cached;
-        const result = Object.freeze(Object.values(this.#state.objects).filter((object)=>includeErased || !object.erased).filter((object)=>kind == null || object.kind === kind).filter((object)=>normalizedType == null || object.type === normalizedType).filter((object)=>ownerId == null || object.ownerId === ownerId).map((object)=>this.getObject(object.id, {
+        let objects = Object.values(this.#state.objects).filter((object)=>includeErased || !object.erased).filter((object)=>kind == null || object.kind === kind).filter((object)=>normalizedType == null || object.type === normalizedType).filter((object)=>ownerId == null || object.ownerId === ownerId);
+        if (kind === 'entity' && ownerId != null) {
+            const remaining = new Map(objects.map((object)=>[
+                    object.id,
+                    object
+                ]));
+            objects = [];
+            for (const id of this.#state.objects[ownerId]?.payload.entityIds ?? []){
+                const object = remaining.get(id);
+                if (object) {
+                    objects.push(object);
+                    remaining.delete(id);
+                }
+            }
+            objects.push(...[
+                ...remaining.values()
+            ].sort((a, b)=>{
+                const left = BigInt(`0x${a.handle}`), right = BigInt(`0x${b.handle}`);
+                return left < right ? -1 : left > right ? 1 : 0;
+            }));
+        }
+        const result = Object.freeze(objects.map((object)=>this.getObject(object.id, {
                 includeErased
             })));
         this.#queryCache.set(key, result);

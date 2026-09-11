@@ -254,12 +254,29 @@ export class KJDocument {
     const key = `${kind ?? ''}|${normalizedType ?? ''}|${ownerId ?? ''}|${includeErased ? '1' : '0'}`
     const cached = this.#queryCache.get(key)
     if (cached) return cached
-    const result = Object.freeze(Object.values(this.#state.objects)
+    let objects = Object.values(this.#state.objects)
       .filter(object => includeErased || !object.erased)
       .filter(object => kind == null || object.kind === kind)
       .filter(object => normalizedType == null || object.type === normalizedType)
       .filter(object => ownerId == null || object.ownerId === ownerId)
-      .map(object => this.getObject(object.id, { includeErased })!)) as ReadonlyArray<KJReadonlyObjectRecord>
+    if (kind === 'entity' && ownerId != null) {
+      // Object keys are canonically sorted in KJD and by authoritative backends.
+      // The owner's persisted membership array, not map insertion order, defines
+      // the drawing order used by rendering, selection and DXF export.
+      const remaining = new Map(objects.map(object => [object.id, object]))
+      objects = []
+      for (const id of this.#state.objects[ownerId]?.payload.entityIds ?? []) {
+        const object = remaining.get(id)
+        if (object) { objects.push(object); remaining.delete(id) }
+      }
+      // Older documents can omit membership entries. Retain these entities in
+      // stable native handle order without modifying their state or fingerprint.
+      objects.push(...[...remaining.values()].sort((a, b) => {
+        const left = BigInt(`0x${a.handle}`), right = BigInt(`0x${b.handle}`)
+        return left < right ? -1 : left > right ? 1 : 0
+      }))
+    }
+    const result = Object.freeze(objects.map(object => this.getObject(object.id, { includeErased })!)) as ReadonlyArray<KJReadonlyObjectRecord>
     this.#queryCache.set(key, result)
     return result
   }
