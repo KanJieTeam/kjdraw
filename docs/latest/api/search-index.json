@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:f23e748965a91361cadd06799bb0869dbdc9e3a07f10ca856b9c5b912dfd61ce",
+  "sourceDigest": "sha256:96805b72eaaaf88b1e71d8d4dddef8fe8e667341f3516cce4e5318f9b843ae42",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -610,7 +610,7 @@
       "module": "@kanjieteam/kjdraw/drafting",
       "href": "./api/reference/#drafting-type-kjdraftdimensiontype",
       "anchor": "drafting-type-kjdraftdimensiontype",
-      "summary": "export type KJDraftDimensionType = 'ALIGNED' | 'ROTATED' | 'RADIUS' | 'DIAMETER';"
+      "summary": "export type KJDraftDimensionType = 'ALIGNED' | 'ROTATED' | 'RADIUS' | 'DIAMETER' | 'ANGULAR_3_POINT';"
     },
     {
       "name": "KJDraftEntitySpec",
@@ -7402,7 +7402,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-type-kjdraftdimensiontype",
       "anchor": "root-type-kjdraftdimensiontype",
-      "summary": "export type KJDraftDimensionType = 'ALIGNED' | 'ROTATED' | 'RADIUS' | 'DIAMETER';"
+      "summary": "export type KJDraftDimensionType = 'ALIGNED' | 'ROTATED' | 'RADIUS' | 'DIAMETER' | 'ANGULAR_3_POINT';"
     },
     {
       "name": "KJDraftEntitySpec",

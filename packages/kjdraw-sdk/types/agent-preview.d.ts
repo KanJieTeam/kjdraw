@@ -1,6 +1,8 @@
 import type { KJDocument } from './document.js';
 import type { KJObjectPayload } from './schema.js';
 import { type ReadonlyDeep } from './utils.js';
+import { type KJAgentBlockPreviewDependency } from './agent-preview-blocks.js';
+export type { KJAgentBlockPreviewDependency } from './agent-preview-blocks.js';
 export interface KJAgentPreviewEntity {
     readonly id: string;
     readonly type: string;
@@ -16,6 +18,8 @@ export interface KJAgentGeometryPreview {
     readonly documentId: string;
     readonly revision: number;
     readonly resources?: readonly KJAgentPreviewResource[];
+    /** Existing block definitions, descendant geometry and styles, captured at revision. */
+    readonly blockDependencies?: readonly KJAgentBlockPreviewDependency[];
     readonly command: 'CREATEBATCH' | 'MOVE' | 'ROAD_DRAWING_UPDATE';
     readonly before: readonly KJAgentPreviewEntity[];
     readonly after: readonly KJAgentPreviewEntity[];
