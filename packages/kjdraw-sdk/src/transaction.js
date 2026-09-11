@@ -4,6 +4,7 @@ import { KJTransactionError, KJValidationError } from './errors.js';
 import { createId } from './ids.js';
 import { allocateHandle, createObjectRecord } from './schema.js';
 import { isStandardEntityType, normalizeStandardEntityPayload } from './standard-entities.js';
+import { transformEntityPayload } from './geometry/transform.js';
 import { clone, fromHexHandle, normalizeName, stableHash, toHexHandle } from './utils.js';
 function readonlyDraftView(value, cache) {
     if (!value || typeof value !== 'object') return value;
@@ -43,6 +44,7 @@ export class KJTransaction {
     #handles = null;
     #entityMembership = new WeakMap();
     #readonlyDraftCache = new WeakMap();
+    #compoundMutation = false;
     label;
     metadata;
     constructor(state, { label = 'Transaction', metadata = {} } = {}){
@@ -123,6 +125,44 @@ export class KJTransaction {
         const object = this.#state.objects[String(id)];
         return object ? clone(object) : null;
     }
+    #compoundChildren(object) {
+        if (object.kind !== 'entity' || object.type !== 'INSERT') return [];
+        return [
+            ...object.payload.attributeIds ?? [],
+            ...object.payload.sequenceEndId ? [
+                object.payload.sequenceEndId
+            ] : []
+        ];
+    }
+    #withCompoundMutation(operation) {
+        const previous = this.#compoundMutation;
+        this.#compoundMutation = true;
+        try {
+            return operation();
+        } finally{
+            this.#compoundMutation = previous;
+        }
+    }
+    transformEntity(id, matrix) {
+        this.#assertOpen();
+        const entity = this.getObject(id);
+        if (!entity || entity.kind !== 'entity' || entity.erased) throw new KJValidationError(`Live entity does not exist: ${id}`);
+        const ids = [
+            entity.id,
+            ...entity.type === 'INSERT' ? entity.payload.attributeIds ?? [] : []
+        ];
+        const updates = ids.map((objectId)=>{
+            const item = this.getObject(objectId);
+            if (!item || item.kind !== 'entity' || item.erased) throw new KJValidationError(`Attached entity does not exist: ${objectId}`);
+            return {
+                id: objectId,
+                payload: transformEntityPayload(item.type, item.payload, matrix)
+            };
+        });
+        return this.#withCompoundMutation(()=>updates.map((update)=>this.updateObject(update.id, {
+                    payload: update.payload
+                })));
+    }
     createObject(spec = {}) {
         this.#assertOpen();
         const id = String(spec.id ?? createId(spec.kind === 'entity' ? 'entity' : 'obj'));
@@ -179,6 +219,28 @@ export class KJTransaction {
         id = String(id);
         const current = this.#state.objects[id];
         if (!current) throw new KJValidationError(`Object does not exist: ${id}`);
+        if (!this.#compoundMutation) {
+            if (patch.erased != null && patch.erased !== current.erased && (current.payload.parentInsertId != null || current.type === 'SEQEND')) throw new KJValidationError('Erase or restore attached records through their INSERT');
+            if (current.type === 'INSERT' && this.#compoundChildren(current).length) {
+                if (patch.payload && [
+                    'position',
+                    'rotation',
+                    'scale',
+                    'mirrored',
+                    'blockRecordId'
+                ].some((key)=>key in patch.payload && stableHash([
+                        patch.payload[key]
+                    ]) !== stableHash([
+                        current.payload[key]
+                    ]))) throw new KJValidationError('Transform an attributed INSERT with transformEntity; direct geometry replacement is unsupported');
+                if (patch.erased != null && patch.erased !== current.erased) return this.#withCompoundMutation(()=>{
+                    for (const childId of this.#compoundChildren(current))this.updateObject(childId, {
+                        erased: patch.erased
+                    });
+                    return this.updateObject(id, patch);
+                });
+            }
+        }
         if ('id' in patch && String(patch.id) !== id) throw new KJValidationError('Object id is immutable');
         if ('handle' in patch && String(patch.handle).toUpperCase() !== current.handle) throw new KJValidationError('Object handle is immutable');
         if ('kind' in patch && String(patch.kind) !== current.kind) throw new KJValidationError('Object kind is immutable');
@@ -220,6 +282,13 @@ export class KJTransaction {
         ownerId = ownerId == null ? null : String(ownerId);
         const object = this.#mutableObject(id);
         if (ownerId && !this.#state.objects[ownerId]) throw new KJValidationError(`Owner does not exist: ${ownerId}`);
+        if (!this.#compoundMutation && ownerId !== object.ownerId) {
+            if (object.type === 'SEQEND' || object.payload.parentInsertId != null) throw new KJValidationError('Reparent attached records through their INSERT');
+            if (object.type === 'INSERT' && this.#compoundChildren(object).length) return this.#withCompoundMutation(()=>{
+                for (const childId of object.payload.attributeIds ?? [])this.reparentObject(childId, ownerId);
+                return this.reparentObject(id, ownerId);
+            });
+        }
         const previousOwnerId = object.ownerId;
         if (object.kind === 'entity') {
             if (this.#state.objects[ownerId ?? '']?.kind !== 'block-record') throw new KJValidationError('Entity owner must be a block record');
@@ -241,6 +310,17 @@ export class KJTransaction {
         id = String(id);
         const object = this.#state.objects[id];
         if (!object) return null;
+        if (!this.#compoundMutation && hard) {
+            if (object.payload.parentInsertId != null || object.type === 'SEQEND') throw new KJValidationError('Purge attached records through their INSERT');
+            if (object.type === 'INSERT' && this.#compoundChildren(object).length) return this.#withCompoundMutation(()=>{
+                for (const childId of this.#compoundChildren(object))this.eraseObject(childId, {
+                    hard: true
+                });
+                return this.eraseObject(id, {
+                    hard: true
+                });
+            });
+        }
         if (!hard) return this.updateObject(id, {
             erased: true
         });

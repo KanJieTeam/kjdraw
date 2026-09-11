@@ -143,6 +143,10 @@ export function captureAgentBlockDependencies(document: KJDocument, ids: readonl
     if (!Array.isArray(scale) || scale.length !== 3 || scale.some(n => typeof n !== 'number' || !Number.isFinite(n) || n <= 0) || scale[0] !== scale[1]) fail('only positive uniform XY INSERT scales are supported')
     if (typeof rendered.rotation !== 'number' || !Number.isFinite(rendered.rotation)) fail('invalid INSERT rotation')
     if (rendered.attributes && (typeof rendered.attributes !== 'object' || Array.isArray(rendered.attributes) || Object.keys(rendered.attributes).length)) fail('attribute-bearing INSERTs need a separate complete preview')
+    // Native attached attributes live in the containing space, outside the block
+    // definition graph captured here. Until their geometry and resources have a
+    // complete AI review path, reject the sequence before running a draft command.
+    if (rendered.attributeIds?.length || rendered.sequenceEndId != null) fail('attached attribute sequences need a separate complete preview')
     const block = document.getObject(String(rendered.blockRecordId ?? ''))
     if (!block || block.kind !== 'block-record' || block.payload.isSpace || block.payload.importedPlaceholder) fail('a complete local block definition is required')
     if (path.has(block.id)) fail('cyclic block references are not supported')

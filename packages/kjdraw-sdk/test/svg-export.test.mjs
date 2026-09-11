@@ -129,7 +129,7 @@ test('visible unsupported geometry rejects the whole default SVG; explicit parti
   assert.throws(()=>exportDrawingSvg(document,{layoutId,maxEntities:1}),/budget/)
 })
 
-test('SVG refuses unsupported page transformations and native 3D, complex text and attributed inserts without silently changing semantics',async()=>{
+test('SVG refuses unsupported page transformations and native 3D, fitted text and unpositioned attribute values without silently changing semantics',async()=>{
   for(const payload of [{flags:4},{rotation:1},{flags:16},{paperUnits:2},{styleSheet:'unknown.ctb'}]){
     const {sdk,document,layoutId}=await fixture()
     await sdk.executeCommand('PLOTSETUP',{layoutId,dxf:payload})
@@ -137,8 +137,7 @@ test('SVG refuses unsupported page transformations and native 3D, complex text a
   }
   for(const [type,payload] of [
     ['POLYLINE',{vertices:[[0,0],[1,1]],dxfFlags:8}],
-    ['TEXT',{position:[0,0],text:'skewed',height:3,obliqueAngle:.1}],
-    ['TEXT',{position:[0,0],text:'backwards',height:3,generationFlags:2}],
+    ['TEXT',{position:[0,0],alignmentPoint:[10,0],text:'fitted',height:3,horizontalAlignment:5}],
     ['LINE',{start:[0,0,1],end:[1,1,1]}],
     ['CIRCLE',{center:[0,0],radius:1,normal:[0,1,0]}],
     ['TEXT',{position:[0,0],text:'invalid\u0001XML',height:3}],

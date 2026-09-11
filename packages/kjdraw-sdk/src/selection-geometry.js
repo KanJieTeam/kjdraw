@@ -2,6 +2,8 @@
 import { arcSweep, multiply3, rotation3, scale3, transformEntityPayload, translation3 } from './geometry/index.js';
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js';
 import { projectDimension } from './geometry/annotation.js';
+import { attributeHidden, insertAttributes, isAttachedAttribute, visibleAttribute } from './attribute-display.js';
+import { layoutCadText } from './geometry/text-layout.js';
 import { hatchPatternLines } from './geometry/hatch.js';
 const TAU = Math.PI * 2;
 const point = (value)=>Array.isArray(value) && value.length >= 2 && value.slice(0, 2).every((v)=>Number.isFinite(Number(v))) ? [
@@ -159,7 +161,14 @@ function textBox(position, text, height, rotation, centered = false) {
     ].map((p)=>add(add(position, u, p[0]), v, p[1]));
 }
 function project(entity, document, depth = 0, inheritedMatrix) {
-    if (inheritedMatrix && entity.type !== 'INSERT' && entity.type !== 'DIMENSION') return project({
+    if (inheritedMatrix && ![
+        'INSERT',
+        'DIMENSION',
+        'TEXT',
+        'MTEXT',
+        'ATTRIB',
+        'ATTDEF'
+    ].includes(entity.type)) return project({
         ...entity,
         payload: transformEntityPayload(entity.type, structuredClone(entity.payload), inheritedMatrix)
     }, document, depth);
@@ -168,6 +177,7 @@ function project(entity, document, depth = 0, inheritedMatrix) {
         fills: [],
         complete: true
     };
+    if (attributeHidden(entity)) return result;
     const path = (values, closed = false, filled = false)=>{
         result.parts.push(...polyline(values, closed));
         if (filled) result.fills.push([
@@ -311,8 +321,7 @@ function project(entity, document, depth = 0, inheritedMatrix) {
         case 'ATTDEF':
         case 'ATTRIB':
             {
-                const p = point(payload.position);
-                if (p) path(textBox(p, String(payload.text ?? payload.value ?? ''), finite(payload.height, 2.5), finite(payload.rotation)), true, true);
+                path(layoutCadText(payload, document.getObject(String(payload.styleId ?? ''))?.payload).corners, true, true);
                 break;
             }
         case 'INSERT':
@@ -339,9 +348,20 @@ function project(entity, document, depth = 0, inheritedMatrix) {
                     ownerId: blockId
                 })){
                     const layer = document.getObject(String(child.payload.layerId ?? ''))?.payload;
-                    if (child.payload.visible === false || layer?.visible === false || layer?.frozen === true) continue;
+                    if (isAttachedAttribute(child) || attributeHidden(child) || child.type === 'ATTDEF' && (Number(child.payload.flags ?? 0) & 2) === 0 || child.payload.visible === false || layer?.visible === false || layer?.frozen === true) continue;
                     try {
                         const projection = project(child, document, depth + 1, matrix);
+                        result.parts.push(...projection.parts);
+                        result.fills.push(...projection.fills);
+                        result.complete = result.complete && projection.complete;
+                    } catch  {
+                        result.complete = false;
+                    }
+                }
+                for (const attribute of insertAttributes(document, entity)){
+                    if (!visibleAttribute(document, attribute)) continue;
+                    try {
+                        const projection = project(attribute, document, depth + 1, inheritedMatrix);
                         result.parts.push(...projection.parts);
                         result.fills.push(...projection.fills);
                         result.complete = result.complete && projection.complete;
@@ -354,7 +374,13 @@ function project(entity, document, depth = 0, inheritedMatrix) {
         default:
             result.complete = false;
     }
-    if (inheritedMatrix && entity.type === 'DIMENSION') {
+    if (inheritedMatrix && [
+        'DIMENSION',
+        'TEXT',
+        'MTEXT',
+        'ATTRIB',
+        'ATTDEF'
+    ].includes(entity.type)) {
         const matrix = inheritedMatrix;
         const sx = Math.hypot(matrix[0], matrix[1]), sy = Math.hypot(matrix[2], matrix[3]);
         if (!matrix.every(Number.isFinite) || sx === 0 || sy === 0 || Math.abs(matrix[0] * matrix[3] - matrix[1] * matrix[2]) <= 1e-12 * sx * sy) return {
@@ -571,7 +597,35 @@ export function classifyEntityInBox(document, entity, bounds) {
         return 'unclassified';
     }
 }
+export function hitTestDisplayedEntity(document, entity, at, tolerance) {
+    const corners = [
+        [
+            at[0] - tolerance,
+            at[1] - tolerance
+        ],
+        [
+            at[0] + tolerance,
+            at[1] - tolerance
+        ],
+        [
+            at[0] + tolerance,
+            at[1] + tolerance
+        ],
+        [
+            at[0] - tolerance,
+            at[1] + tolerance
+        ]
+    ];
+    const inside = (p)=>Math.abs(p[0] - at[0]) <= tolerance && Math.abs(p[1] - at[1]) <= tolerance;
+    try {
+        const projection = project(entity, document);
+        return projection.parts.some((part)=>criticalPoints(part).some(inside) || corners.some((corner, i)=>intersects(part, corner, corners[(i + 1) % 4], 1e-10))) || projection.fills.some((loops)=>insideFills(at, loops));
+    } catch  {
+        return false;
+    }
+}
 export function isEntitySelectable(document, entity, options = {}) {
+    if (isAttachedAttribute(entity) || attributeHidden(entity)) return false;
     if (entity.kind !== 'entity' || entity.erased || entity.ownerId !== (options.spaceId ?? document.snapshot().spaces.modelSpaceId) || entity.payload.visible === false) return false;
     const layer = document.getObject(String(entity.payload.layerId ?? ''))?.payload;
     return layer?.visible !== false && layer?.frozen !== true && (options.includeLocked === true || layer?.locked !== true);

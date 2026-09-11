@@ -11,7 +11,9 @@ import { projectDimension } from './geometry/annotation.js'
 import { hatchPatternLines, hatchStrokes, type KJHatchPatternLine } from './geometry/hatch.js'
 import { createHatchStrokeCoverage, type KJHatchCoverageReason } from './geometry/hatch-coverage.js'
 import { getEntityGrips, type KJEntityGrip } from './grips.js'
-import { isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence, type KJBoxSelectionMode } from './selection-geometry.js'
+import { attributeHidden, insertAttributes, isAttachedAttribute, visibleAttribute } from './attribute-display.js'
+import { layoutCadText } from './geometry/text-layout.js'
+import { hitTestDisplayedEntity, isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence, type KJBoxSelectionMode } from './selection-geometry.js'
 import type { KJDocument } from './document.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 
@@ -290,6 +292,8 @@ export class KJCanvasRenderer {
   #disposeDocument: (() => void) | null = null
   #observer: ResizeObserver | null = null
   #hatchDiagnostics: NonNullable<KJCanvasRenderReport['hatchDiagnostics']>[number][] = []
+  #textDrawCount = 0
+  #drawnTextTypes = new Set<string>()
   #hatchWorkRemaining = 100000
   #hatchSampleWorkRemaining = HATCH_RASTER_FRAME_WORK
   #hatchSamplePixelsRemaining = HATCH_RASTER_PIXEL_LIMIT
@@ -447,6 +451,10 @@ export class KJCanvasRenderer {
       const layer = layers.get(String(entity.payload.layerId ?? ''))
       if (layer?.visible === false || layer?.frozen === true) continue
       try {
+        if (entity.type === 'INSERT') {
+          if (hitTestDisplayedEntity(document, entity, point, radius)) best = { entity, distance: 0, point: [point[0],point[1],0] }
+          continue
+        }
         if (entity.type === 'SPLINE') {
           const vertices = splineSamples(entity.payload).map(point => ({ point }))
           const nearest = nearestPointOnEntity2({ ...entity, type: 'LWPOLYLINE', payload: { vertices, closed: entity.payload.closed === true } }, point)
@@ -538,6 +546,7 @@ export class KJCanvasRenderer {
 
   render(): Readonly<KJCanvasRenderReport> {
     this.#viewportDiagnostics = []
+    this.#textDrawCount = 0; this.#drawnTextTypes.clear()
     this.#viewportWorkRemaining = 100000
     this.#hatchDiagnostics = []
     this.#hatchWorkRemaining = 100000
@@ -564,13 +573,14 @@ export class KJCanvasRenderer {
     const unsupported = new Set<string>()
     for (const entity of entities) {
       const layer = layers.get(String(entity.payload.layerId ?? ''))
-      if (entity.payload.visible === false || layer?.visible === false || layer?.frozen === true) { hidden += 1; continue }
+      if (attributeHidden(entity) || entity.payload.visible === false || layer?.visible === false || layer?.frozen === true) { hidden += 1; continue }
       const color = this.#selection.has(entity.id)
         ? this.#selectionColor ?? (this.#theme === 'dark' ? '#b9ff72' : '#0b67e3')
         : this.#color(entity, layer) ?? palette[colorIndex(layer?.color)]!
+      const textBefore = this.#textDrawCount
       if (this.#drawEntity(entity, color, 0, this.#selection.has(entity.id))) {
         rendered += 1
-        if (APPROXIMATE_TYPES.has(entity.type) || entity.type === 'VIEWPORT' && this.#viewportDiagnostics.at(-1)?.approximated) { approximated += 1; approximateTypes.add(entity.type) }
+        if (APPROXIMATE_TYPES.has(entity.type) || this.#textDrawCount > textBefore || entity.type === 'VIEWPORT' && this.#viewportDiagnostics.at(-1)?.approximated) { approximated += 1; approximateTypes.add(entity.type) }
       }
       else unsupported.add(entity.type)
     }
@@ -580,7 +590,7 @@ export class KJCanvasRenderer {
       approximated,
       hidden,
       unsupported: entities.length - rendered - hidden,
-      approximateTypes: Object.freeze([...approximateTypes].sort()),
+      approximateTypes: Object.freeze([...new Set([...approximateTypes, ...this.#drawnTextTypes])].sort()),
       unsupportedTypes: Object.freeze([...unsupported].sort()),
       hatchDiagnostics: Object.freeze(this.#hatchDiagnostics.map(item => Object.freeze(item))),
       viewportDiagnostics: Object.freeze(this.#viewportDiagnostics.map(item => Object.freeze({ ...item }))),
@@ -643,6 +653,10 @@ export class KJCanvasRenderer {
       if (origin) unboundedOrigins.push(origin)
       return []
     }
+    if (attributeHidden(entity)) return []
+    if (['TEXT','ATTRIB','ATTDEF'].includes(entity.type)) {
+      try { return layoutCadText(entity.payload, this.#document?.getObject(String(entity.payload.styleId ?? ''))?.payload).corners } catch { return [] }
+    }
     if (entity.type !== 'INSERT' || depth > 12) return entityPoints(entity)
     const payload = entity.payload
     const blockId = String(payload.blockRecordId ?? '')
@@ -654,7 +668,7 @@ export class KJCanvasRenderer {
     const output: Point2[] = []
     for (const child of this.#document?.listEntities({ ownerId: blockId }) ?? []) {
       const layer = this.#document?.getObject(String(child.payload.layerId ?? ''))?.payload
-      if (child.payload.visible === false || layer?.visible === false || layer?.frozen === true) continue
+      if (isAttachedAttribute(child) || attributeHidden(child) || child.type === 'ATTDEF' && (Number(child.payload.flags ?? 0) & 2) === 0 || child.payload.visible === false || layer?.visible === false || layer?.frozen === true) continue
       try {
         const childOrigins: Point2[] = [], transform = (p: Point2): Point2 => [matrix[0]! * p[0] + matrix[2]! * p[1] + matrix[4]!, matrix[1]! * p[0] + matrix[3]! * p[1] + matrix[5]!]
         output.push(...this.#fitPoints(child, depth + 1, childOrigins).map(transform))
@@ -662,6 +676,7 @@ export class KJCanvasRenderer {
       }
       catch { output.push(position) }
     }
+    if (this.#document) for (const attribute of insertAttributes(this.#document, entity)) if (visibleAttribute(this.#document, attribute)) output.push(...this.#fitPoints(attribute, depth + 1, unboundedOrigins))
     return output
   }
 
@@ -669,7 +684,7 @@ export class KJCanvasRenderer {
     const document = this.#document
     if (!document) return []
     const query = { document, spaceId: this.#activeSpaceId() }
-    return this.#sceneProvider?.listEntities(query) ?? document.listEntities({ ownerId: query.spaceId })
+    return (this.#sceneProvider?.listEntities(query) ?? document.listEntities({ ownerId: query.spaceId })).filter(entity => !isAttachedAttribute(entity))
   }
 
   #drawGrid(): void {
@@ -764,6 +779,7 @@ export class KJCanvasRenderer {
 
   #drawEntity(entity: KJReadonlyObjectRecord, color: string, depth: number, overrideColor = false, projection?: HatchProjectionIdentity): boolean {
     if (depth > 12) return false
+    if (attributeHidden(entity)) return true
     const context = this.context, payload = entity.payload
     const view = this.#viewportState
     if (view) {
@@ -847,15 +863,23 @@ export class KJCanvasRenderer {
       catch { drawn = false }
     }
     else if (['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(entity.type)) {
-      const position = point2(payload.position)
-      if (!position) drawn = false
-      else {
-        const screen = this.worldToScreen(position)
-        context.translate(screen[0], screen[1]); context.rotate(-finite(payload.rotation))
-        const screenHeight = Math.max(0.01, Math.abs(finite(payload.height, 2.5) * this.camera.scale))
-        context.font = `${screenHeight}px ui-monospace, SFMono-Regular, Consolas, monospace`
-        context.textBaseline = 'alphabetic'; context.fillText(String(payload.text ?? payload.defaultValue ?? ''), 0, 0)
-      }
+      try {
+        const source = projection?.payload ?? payload, style = this.#document?.getObject(String(source.styleId ?? ''))?.payload
+        const font = (height: number, family: string) => {
+          const desired = Math.max(.01, height * this.camera.scale)
+          context.font = desired + 'px ' + family
+          const cap = context.measureText('H').actualBoundingBoxAscent
+          context.font = (cap > 0 ? desired * desired / cap : desired) + 'px ' + family
+        }
+        const layout = layoutCadText(source, style, (value, height, family) => { font(height, family); return context.measureText(value).width / this.camera.scale })
+        font(layout.height, layout.family)
+        const m = projection?.matrix ? multiply3(projection.matrix, layout.matrix) : layout.matrix
+        const origin = this.worldToScreen([m[4]!,m[5]!])
+        context.transform(m[0]!, -m[1]!, -m[2]!, m[3]!, origin[0], origin[1])
+        context.textBaseline = 'alphabetic'; context.textAlign = 'left'
+        context.fillText(layout.text, layout.left*this.camera.scale, -layout.bottom*this.camera.scale)
+        this.#textDrawCount++; this.#drawnTextTypes.add(entity.type)
+      } catch { drawn = false }
     } else if (entity.type === 'HATCH') {
       const loops = Array.isArray(payload.boundaryLoops) ? payload.boundaryLoops : []
       const unsupportedBoundary = loops.some(loop => Array.isArray(loop.edges) && loop.edges.some((edge: Record<string, unknown>) => !['LINE', 'ARC'].includes(String(edge.type).toUpperCase())))
@@ -995,14 +1019,14 @@ export class KJCanvasRenderer {
           multiply3(rotation3(finite(source.rotation)), multiply3(scale3(factorX, factorY), translation3(-base[0], -base[1]))),
         )
         const matrix = projection?.matrix ? multiply3(projection.matrix, localMatrix) : localMatrix
-        const children = this.#document?.listEntities({ ownerId: blockRecordId }) ?? []
+        const children = (this.#document?.listEntities({ ownerId: blockRecordId }) ?? []).filter(child => !isAttachedAttribute(child) && !(child.type === 'ATTDEF' && (Number(child.payload.flags ?? 0) & 2) === 0))
         drawn = children.length > 0
         for (const child of children) {
           if (view && this.#viewportWorkRemaining-- <= 0) { view.diagnostic.reason = 'budget'; drawn = false; break }
           const childLayer = this.#document?.getObject(String(child.payload.layerId ?? ''))
-          if (child.payload.visible === false || childLayer?.payload.visible === false || childLayer?.payload.frozen === true) continue
+          if (attributeHidden(child) || child.payload.visible === false || childLayer?.payload.visible === false || childLayer?.payload.frozen === true) continue
           try {
-            const transformed = child.type === 'INSERT' || child.type === 'DIMENSION' ? child : { ...child, payload: transformEntityPayload(child.type, structuredClone(child.payload) as KJObjectPayload, matrix) }
+            const transformed = ['INSERT','DIMENSION','TEXT','MTEXT','ATTRIB','ATTDEF'].includes(child.type) ? child : { ...child, payload: transformEntityPayload(child.type, structuredClone(child.payload) as KJObjectPayload, matrix) }
             const byBlock = child.payload.trueColor == null && (child.payload.color === 0 || /^byblock$/i.test(String(child.payload.color)))
             const effectiveLayer = childLayer?.name === '0' ? layer?.payload : childLayer?.payload
             const childColor = overrideColor || byBlock ? color : this.#color(child, effectiveLayer)
@@ -1013,6 +1037,20 @@ export class KJCanvasRenderer {
             if (!this.#drawEntity(transformed, childColor, depth + 1, overrideColor, identity)) drawn = false
           } catch { drawn = false }
         }
+        if (this.#document) try {
+          const attributes = insertAttributes(this.#document, entity)
+          if (!children.length && attributes.length) drawn = true
+          for (const attribute of attributes) {
+            if (!visibleAttribute(this.#document, attribute)) continue
+            const ownLayer = this.#document.getObject(String(attribute.payload.layerId ?? ''))
+            const effectiveLayer = ownLayer?.name === '0' ? layer?.payload : ownLayer?.payload
+            const byBlock = attribute.payload.trueColor == null && (attribute.payload.color === 0 || /^byblock$/i.test(String(attribute.payload.color)))
+            const attributeColor = overrideColor || byBlock ? color : this.#color(attribute, effectiveLayer)
+            // Already in this INSERT's owner space: apply only its ancestors.
+            const identity = projection?.matrix ? { payload: attribute.payload, matrix: projection.matrix, instanceKey: projection.instanceKey } : undefined
+            if (!this.#drawEntity(attribute, attributeColor, depth + 1, overrideColor, identity)) drawn = false
+          }
+        } catch { drawn = false }
       }
     } else if (entity.type === 'SOLID3D') {
       const values = points(payload.vertices)
@@ -1085,7 +1123,7 @@ export class KJCanvasRenderer {
       for (const model of this.#sceneProvider?.listEntities(query) ?? document.listEntities({ ownerId: query.spaceId })) {
         if (this.#viewportWorkRemaining <= 0) { diagnostic.reason = 'budget'; complete = false; break }
         this.#viewportWorkRemaining--
-        if (model.ownerId !== query.spaceId) continue
+        if (model.ownerId !== query.spaceId || isAttachedAttribute(model)) continue
         const layer = document.getObject(String(model.payload.layerId ?? ''))?.payload
         if (model.payload.visible === false || layer?.visible === false || layer?.frozen === true || this.#viewportState.frozen.has(String(model.payload.layerId ?? ''))) { diagnostic.hidden++; continue }
         try {

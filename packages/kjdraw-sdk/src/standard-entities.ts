@@ -165,6 +165,27 @@ function base(payload: Record<string, unknown>): KJObjectPayload {
   return { ...clone(payload), contractVersion: KJ_ENTITY_CONTRACT_VERSION }
 }
 
+function nativeTextFields(payload: EntityPayloadShape): KJObjectPayload {
+  const integer = (value: unknown, name: string, maximum: number): number => {
+    const result = finite(value ?? 0, name)
+    if (!Number.isInteger(result) || result < 0 || result > maximum) throw new KJValidationError(`${name} is outside its native text range`)
+    return result
+  }
+  return {
+    widthFactor: positive(payload.widthFactor ?? 1, 'widthFactor'),
+    generationFlags: integer(payload.generationFlags, 'generationFlags', 0xffff),
+    horizontalAlignment: integer(payload.horizontalAlignment, 'horizontalAlignment', 5),
+    verticalAlignment: integer(payload.verticalAlignment, 'verticalAlignment', 3),
+    obliqueAngle: finite(payload.obliqueAngle ?? 0, 'obliqueAngle'),
+  }
+}
+
+function optionalObjectId(value: unknown, label: string): string | null {
+  if (value == null) return null
+  if (typeof value !== 'string' || !value.trim()) throw new KJValidationError(`${label} must be a non-empty object id`)
+  return value
+}
+
 function normalizeVertex(vertex: unknown, index: number | string): KJNormalizedVertex {
   if (Array.isArray(vertex)) return { point: point3(vertex, `vertices[${index}]`), bulge: 0, startWidth: 0, endWidth: 0 }
   const value = vertex && typeof vertex === 'object' ? vertex as PolylineVertexInput : {}
@@ -230,15 +251,17 @@ export function normalizeStandardEntityPayload(type: unknown, input: Record<stri
       if (knots && !(knots[controlPoints.length]! > knots[degree]!)) throw new KJValidationError('Spline knot domain is empty')
       return { ...base(payload), degree, controlPoints, fitPoints: payload.fitPoints?.map((point, index) => point3(point, `fitPoints[${index}]`)), knots, weights, closed: Boolean(payload.closed), periodic: Boolean(payload.periodic) }
     }
-    case 'TEXT':
+    case 'TEXT': return { ...base(payload), ...nativeTextFields(payload), position: point3(payload.position, 'position'), alignmentPoint: payload.alignmentPoint && point3(payload.alignmentPoint, 'alignmentPoint'), text: String(payload.text ?? ''), height: positive(payload.height ?? 2.5, 'height'), rotation: finite(payload.rotation ?? 0, 'rotation'), styleId: payload.styleId == null ? null : String(payload.styleId) }
     case 'MTEXT': return { ...base(payload), position: point3(payload.position, 'position'), alignmentPoint: payload.alignmentPoint && point3(payload.alignmentPoint, 'alignmentPoint'), text: String(payload.text ?? ''), height: positive(payload.height ?? 2.5, 'height'), rotation: finite(payload.rotation ?? 0, 'rotation'), styleId: payload.styleId == null ? null : String(payload.styleId) }
     case 'ATTDEF':
-    case 'ATTRIB': return { ...base(payload), position: point3(payload.position, 'position'), alignmentPoint: payload.alignmentPoint && point3(payload.alignmentPoint, 'alignmentPoint'), text: String(payload.text ?? ''), tag: String(payload.tag ?? ''), prompt: String(payload.prompt ?? ''), flags: Math.trunc(finite(payload.flags ?? 0, 'flags')), height: positive(payload.height ?? 2.5, 'height'), rotation: finite(payload.rotation ?? 0, 'rotation'), styleId: payload.styleId == null ? null : String(payload.styleId), lockPosition: Boolean(payload.lockPosition) }
+    case 'ATTRIB': return { ...base(payload), ...nativeTextFields(payload), ...(normalizedType === 'ATTRIB' ? { parentInsertId: optionalObjectId(payload.parentInsertId, 'parentInsertId') } : {}), position: point3(payload.position, 'position'), alignmentPoint: payload.alignmentPoint && point3(payload.alignmentPoint, 'alignmentPoint'), text: String(payload.text ?? ''), tag: String(payload.tag ?? ''), prompt: String(payload.prompt ?? ''), flags: Math.trunc(finite(payload.flags ?? 0, 'flags')), height: positive(payload.height ?? 2.5, 'height'), rotation: finite(payload.rotation ?? 0, 'rotation'), styleId: payload.styleId == null ? null : String(payload.styleId), lockPosition: Boolean(payload.lockPosition) }
     case 'INSERT': {
       if (!payload.blockRecordId) throw new KJValidationError('Block insert requires blockRecordId')
       const scale = Array.isArray(payload.scale) ? payload.scale.map((value, index) => finite(value, `scale[${index}]`)) : [finite(payload.scale ?? 1, 'scale'), finite(payload.scale ?? 1, 'scale'), finite(payload.scale ?? 1, 'scale')]
       if (scale.length !== 3 || scale.some(value => Math.abs(value) <= 1e-15)) throw new KJValidationError('Block insert scale must contain three non-zero values')
-      return { ...base(payload), blockRecordId: String(payload.blockRecordId), position: point3(payload.position ?? [0, 0, 0], 'position'), scale, rotation: finite(payload.rotation ?? 0, 'rotation'), attributes: clone(payload.attributes ?? {}) }
+      const attributeIds = payload.attributeIds ?? []
+      if (!Array.isArray(attributeIds) || attributeIds.some(id => typeof id !== 'string' || !id.trim()) || new Set(attributeIds).size !== attributeIds.length) throw new KJValidationError('INSERT attributeIds must contain unique non-empty object ids')
+      return { ...base(payload), blockRecordId: String(payload.blockRecordId), position: point3(payload.position ?? [0, 0, 0], 'position'), scale, rotation: finite(payload.rotation ?? 0, 'rotation'), attributes: clone(payload.attributes ?? {}), attributeIds: [...attributeIds], sequenceEndId: optionalObjectId(payload.sequenceEndId, 'sequenceEndId') }
     }
     case 'IMAGE': return { ...base(payload), imageResourceId: String(payload.imageResourceId ?? ''), position: point3(payload.position, 'position'), uVector: vector3(payload.uVector, 'uVector'), vVector: vector3(payload.vVector, 'vVector'), clipBoundary: payload.clipBoundary?.map((point, index) => point3(point, `clipBoundary[${index}]`)) }
     case 'HATCH': return normalizeHatch(payload)

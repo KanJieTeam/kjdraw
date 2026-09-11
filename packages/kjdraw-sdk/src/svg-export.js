@@ -1,6 +1,8 @@
 // Generated from svg-export.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJRevisionConflictError, KJValidationError } from './errors.js';
 import { validatePlotSettings } from './plot-settings.js';
+import { insertAttributes, isAttachedAttribute } from './attribute-display.js';
+import { textFontFamily } from './geometry/text-layout.js';
 import { aciColor } from './canvas-renderer.js';
 import { projectDimension } from './geometry/annotation.js';
 import { multiply3, rotation3, scale3, translation3 } from './geometry/matrix3.js';
@@ -119,7 +121,7 @@ export function exportDrawingSvg(document, options) {
         list.push(entity);
         byOwner.set(id, list);
     }
-    const owned = (id)=>byOwner.get(id) ?? [];
+    const owned = (id)=>(byOwner.get(id) ?? []).filter((entity)=>!isAttachedAttribute(entity));
     const definitions = [
         windowClip
     ], fontIds = new Set();
@@ -163,7 +165,11 @@ export function exportDrawingSvg(document, options) {
         }
         return layerColor();
     };
-    const text = (entity, value, position, textHeight, angle, anchor = 'start', baseline = 'alphabetic')=>{
+    const text = (entity, value, position, textHeight, angle, anchor = 'start', baseline = 'alphabetic', stretch = [
+        1,
+        1,
+        0
+    ], family = 'Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif')=>{
         if (!(textHeight > 0)) fail('text height must be positive');
         if (!fontIds.has(entity.id)) {
             fontIds.add(entity.id);
@@ -173,7 +179,7 @@ export function exportDrawingSvg(document, options) {
                 reason: 'Editable text uses unembedded sans-serif font metrics'
             });
         }
-        return `<text transform="translate(${pos(position)}) rotate(${angle * 180 / Math.PI}) scale(1 -1)" font-family="Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif" font-size="${textHeight}" text-anchor="${anchor}" dominant-baseline="${baseline}" fill="currentColor" stroke="none" xml:space="preserve">${xml(value)}</text>`;
+        return `<text transform="translate(${pos(position)}) rotate(${angle * 180 / Math.PI}) matrix(${stretch[0]} 0 ${-stretch[2] * stretch[1]} ${-stretch[1]} 0 0)" font-family="${xml(family)}" font-size="${textHeight}" text-anchor="${anchor}" dominant-baseline="${baseline}" fill="currentColor" stroke="none" xml:space="preserve">${xml(value)}</text>`;
     };
     const primitive = (entity)=>{
         const p = entity.payload;
@@ -209,7 +215,13 @@ export function exportDrawingSvg(document, options) {
         ] : p.vertices, true)}" fill="currentColor"/>`;
         if (entity.type === 'TEXT' || entity.type === 'ATTRIB' || entity.type === 'ATTDEF') {
             const style = document.getObject(String(p.styleId ?? ''))?.payload ?? {};
-            if (numeric(style.widthFactor, 1) !== 1 || numeric(style.obliqueAngle, 0) || numeric(style.generationFlags, 0) || p.mirrored || numeric(p.widthFactor, 1) !== 1 || numeric(p.obliqueAngle, 0) || numeric(p.generationFlags, 0)) fail('stretched, oblique or mirrored text is unsupported');
+            const factor = numeric(p.widthFactor ?? style.widthFactor, 1), flags = numeric(p.generationFlags ?? style.generationFlags, 0), shear = Math.tan(numeric(p.obliqueAngle ?? style.obliqueAngle, 0));
+            if (!(factor > 0) || !Number.isFinite(shear)) fail('invalid text width or oblique angle');
+            const stretch = [
+                factor * ((flags & 2) !== 0 || p.mirrored === true ? -1 : 1),
+                (flags & 4) !== 0 ? -1 : 1,
+                shear
+            ];
             if (/[\r\n]/.test(String(p.text ?? ''))) fail('multiline TEXT requires a supported multiline text layout');
             const horizontal = numeric(p.horizontalAlignment, 0), vertical = numeric(p.verticalAlignment, 0);
             if (![
@@ -232,7 +244,7 @@ export function exportDrawingSvg(document, options) {
                 'text-after-edge',
                 'central',
                 'text-before-edge'
-            ][vertical]);
+            ][vertical], stretch, textFontFamily(style, 'Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif'));
         }
         if (entity.type === 'DIMENSION') {
             const projection = projectDimension(p, document.getObject(String(p.styleId ?? ''))?.payload);
@@ -278,7 +290,8 @@ export function exportDrawingSvg(document, options) {
             let inner;
             if (entity.type === 'INSERT') {
                 const id = String(p.blockRecordId), block = document.getObject(id);
-                if (Object.keys(data(p.attributes)).length || Array.isArray(p.attributeIds) && p.attributeIds.length || owned(entity.id).length) fail('attached block attributes are unsupported');
+                const attributes = insertAttributes(document, entity);
+                if (Object.keys(data(p.attributes)).length && !attributes.length || owned(entity.id).length) fail('block attributes require positioned native ATTRIB entities');
                 if (Array.isArray(p.scale) && numeric(p.scale[2], 1) !== 1) fail('non-unit block Z scale is unsupported');
                 if (depth >= 12 || ancestors.includes(id)) fail('block nesting or cycle budget exceeded');
                 if (!block || block.kind !== 'block-record' || block.payload.isSpace) fail('invalid block reference');
@@ -292,10 +305,10 @@ export function exportDrawingSvg(document, options) {
                 const sx = numeric(sc[0]), sy = numeric(sc[1], sx);
                 if (!sx || !sy || Math.abs(sx) !== Math.abs(sy)) fail('zero or nonuniform block scale is unsupported');
                 const m = multiply3(translation3(...a), multiply3(rotation3(numeric(p.rotation, 0)), multiply3(scale3(sx, sy), translation3(-b[0], -b[1]))));
-                inner = `<g transform="matrix(${matrix(m)})">${owned(id).map((child)=>render(child, frozen, depth + 1, [
+                inner = `<g transform="matrix(${matrix(m)})">${owned(id).filter((child)=>child.type !== 'ATTDEF' || (numeric(child.payload.flags, 0) & 2) !== 0).map((child)=>render(child, frozen, depth + 1, [
                         ...ancestors,
                         id
-                    ], layer, stroke, inViewport, geometryScale * Math.abs(sx))).join('')}</g>`;
+                    ], layer, stroke, inViewport, geometryScale * Math.abs(sx))).join('')}</g>` + attributes.map((attribute)=>render(attribute, frozen, depth + 1, ancestors, layer, stroke, inViewport, geometryScale)).join('');
             } else if (entity.type === 'VIEWPORT') {
                 if (isModel || inViewport) fail('nested/model viewport is unsupported');
                 const flags = numeric(p.flags, 0);

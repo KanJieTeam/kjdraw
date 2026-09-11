@@ -458,11 +458,11 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'ERASE', aliases: ['DELETE'], title: 'Erase objects',
-    execute: ({ transaction }, args) => (args.ids ?? [args.id]).filter(Boolean).map(id => transaction.eraseObject(id as string)),
+    execute: ({ document, transaction }, args) => compoundRootIds(document, (args.ids ?? [args.id]).filter(Boolean).map(String)).map(id => transaction.eraseObject(id)),
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'RESTORE', title: 'Restore objects',
-    execute: ({ transaction }, args) => (args.ids ?? [args.id]).filter(Boolean).map(id => transaction.restoreObject(id as string)),
+    execute: ({ document, transaction }, args) => compoundRootIds(document, (args.ids ?? [args.id]).filter(Boolean).map(String)).map(id => transaction.restoreObject(id)),
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'PROPERTIES', title: 'Update object properties',
@@ -727,6 +727,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   disposers.push(registry.register({
     id: 'MIRROR', aliases: ['MI'], title: 'Mirror objects',
     execute: (context, args) => {
+      rejectAttachedReorganization(context.document, args, 'MIRROR')
       const matrix = reflectionAcrossLine3((args.lineStart ?? args.start)!, (args.lineEnd ?? args.end)!)
       const copies = copyEntities(context, args, matrix)
       if (args.eraseSource) for (const id of entityIds(args)) context.transaction.eraseObject(id)
@@ -977,6 +978,15 @@ function validateCommandData(input: unknown, label = 'CREATEBATCH resources'): v
   visit(input, 0)
 }
 
+function compoundRootIds(document: KJDocument, ids: readonly string[]): string[] {
+  const selected = new Set(ids)
+  return [...selected].filter(id => {
+    const object = document.getObject(id, { includeErased: true })
+    const parent = object?.payload.parentInsertId ?? (object?.type === 'SEQEND' ? object.ownerId : null)
+    return !parent || !selected.has(parent)
+  })
+}
+
 function createBatchResources(document: KJDocument, transaction: KJTransaction, resources: KJEntityBatchResources): void {
   const fields = (value: unknown, expected: string[]): void => {
     if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== expected.length || expected.some(key => !Object.hasOwn(value, key))) throw new KJValidationError('CREATEBATCH resource fields do not match the declared format')
@@ -1077,6 +1087,7 @@ function resolveLayout(document: KJDocument, value: unknown): KJReadonlyObjectRe
 }
 
 function createBlockDefinition({ document, transaction }: KJCommandContext, args: KJCommandArguments): { block: KJObjectRecord; insert: KJObjectRecord | null } {
+  rejectAttachedReorganization(document, args, 'BLOCKCREATE')
   const name = String(args.name ?? '').trim()
   if (!name) throw new KJValidationError('Block name is required')
   if (document.getTable('blockRecords')?.records.some(record => String(record.name).toUpperCase() === name.toUpperCase())) throw new KJValidationError(`Block already exists: ${name}`)
@@ -1195,22 +1206,50 @@ function commandAngle(args: KJCommandArguments): number {
 }
 
 function transformExisting({ document, transaction }: KJCommandContext, args: KJCommandArguments, matrix: AffineMatrix3Input): KJObjectRecord[] {
-  return entityIds(args).map(id => {
+  const selected = new Set(entityIds(args))
+  return [...selected].filter(id => {
     const entity = requiredEntity(document, id)
-    return transaction.updateObject(id, { payload: transformEntityPayload(entity.type, entity.payload, matrix) })
-  })
+    return !entity.payload.parentInsertId || !selected.has(entity.payload.parentInsertId)
+  }).flatMap(id => transaction.transformEntity(id, matrix))
 }
 
 function copyEntities({ document, transaction }: KJCommandContext, args: KJCommandArguments, matrix: AffineMatrix3Input): KJObjectRecord[] {
-  return entityIds(args).map(id => {
+  const selected = new Set(entityIds(args))
+  return [...selected].filter(id => {
     const entity = requiredEntity(document, id)
-    return transaction.createEntity(entity.type, { ...transformEntityPayload(entity.type, entity.payload, matrix), ...clone(args.payloadPatch ?? {}) }, {
+    return !entity.payload.parentInsertId || !selected.has(entity.payload.parentInsertId)
+  }).map(id => {
+    const entity = requiredEntity(document, id)
+    if (entity.payload.parentInsertId) throw new KJValidationError('Copy attached attributes through their INSERT')
+    const attributed = entity.type === 'INSERT' && Boolean(entity.payload.attributeIds?.length || entity.payload.sequenceEndId)
+    if (attributed && args.payloadPatch && Object.keys(args.payloadPatch).length) throw new KJValidationError('Attributed INSERT copy does not support payloadPatch')
+    const children = attributed ? (entity.payload.attributeIds ?? []).map(childId => requiredEntity(document, childId)) : []
+    if (attributed) for (const source of [entity, ...children]) {
+      const layer = source.payload.layerId ? document.getObject(source.payload.layerId) : null
+      if (layer && (layer.payload.locked === true || layer.payload.frozen === true || layer.payload.visible === false)) throw new KJValidationError('Copy requires writable layers for the INSERT and every attached attribute')
+    }
+    const copied = transaction.createEntity(entity.type, { ...transformEntityPayload(entity.type, entity.payload, matrix), ...clone(args.payloadPatch ?? {}), ...(attributed ? { attributeIds: [], sequenceEndId: null } : {}) }, {
       ownerId: args.ownerId ?? entity.ownerId,
       name: entity.name,
       extension: entity.extension as unknown as NonNullable<KJObjectSpec['extension']>,
       source: { copiedFromId: entity.id, copiedFromHandle: entity.handle },
     })
+    if (!attributed) return copied
+    const attributeIds = children.map(child => transaction.createEntity('ATTRIB', { ...transformEntityPayload('ATTRIB', child.payload, matrix), parentInsertId: copied.id }, {
+      ownerId: copied.ownerId, name: child.name, extension: clone(child.extension) as NonNullable<KJObjectSpec['extension']>, source: { copiedFromId: child.id, copiedFromHandle: child.handle },
+    }).id)
+    const end = entity.payload.sequenceEndId ? document.getObject(entity.payload.sequenceEndId) : null
+    if (!end) throw new KJValidationError('Attributed INSERT sequence end is missing')
+    const sequence = transaction.createObject({ kind: 'custom', type: 'SEQEND', ownerId: copied.id, payload: clone(end.payload) as KJObjectPayload, extension: clone(end.extension) as NonNullable<KJObjectSpec['extension']>, source: { copiedFromId: end.id, copiedFromHandle: end.handle } })
+    return transaction.updateObject(copied.id, { payload: { attributeIds, sequenceEndId: sequence.id } })
   })
+}
+
+function rejectAttachedReorganization(document: KJDocument, args: KJCommandArguments, command: string): void {
+  for (const id of entityIds(args)) {
+    const entity = requiredEntity(document, id)
+    if (entity.payload.parentInsertId || (entity.type === 'INSERT' && (entity.payload.attributeIds?.length || entity.payload.sequenceEndId))) throw new KJValidationError(`${command} does not yet support attached attribute sequences`)
+  }
 }
 
 function createDerived(transaction: KJTransaction, source: KJReadonlyObjectRecord, type: string, payload: KJObjectPayload): KJObjectRecord {
@@ -1264,6 +1303,7 @@ function assertArrayCreationLimit(args: KJCommandArguments, copyPositionCount: n
 }
 
 function rectangularArray(context: KJCommandContext, args: KJCommandArguments): KJObjectRecord[] {
+  rejectAttachedReorganization(context.document, args, 'ARRAYRECT')
   const rows = Number(args.rows ?? 1), columns = Number(args.columns ?? 1)
   const rowSpacing = Number(args.rowSpacing ?? 0), columnSpacing = Number(args.columnSpacing ?? 0)
   if (![rows, columns].every(Number.isInteger) || rows < 1 || columns < 1) throw new KJValidationError('Array rows and columns must be positive integers')
@@ -1282,6 +1322,7 @@ function rectangularArray(context: KJCommandContext, args: KJCommandArguments): 
 }
 
 function polarArray(context: KJCommandContext, args: KJCommandArguments): KJObjectRecord[] {
+  rejectAttachedReorganization(context.document, args, 'ARRAYPOLAR')
   const count = Number(args.count ?? args.items)
   if (!Number.isInteger(count) || count < 2 || count > 100000) throw new KJValidationError('Polar array count must be an integer from 2 to 100000')
   const center = vec2(args.center!)

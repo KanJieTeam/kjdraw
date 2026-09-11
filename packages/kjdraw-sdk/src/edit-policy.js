@@ -4,6 +4,7 @@ const ENTITY_WRITES = new Set([
     'eraseObject',
     'restoreObject',
     'reparentObject',
+    'transformEntity',
     'setXData',
     'putOpaquePayload'
 ]);
@@ -29,7 +30,13 @@ export function createCommandEditScope(transaction, commandId) {
     };
     const assertEntityWritable = (id)=>{
         const entity = transaction.getObject(String(id));
-        if (entity?.kind === 'entity') assertLayerWritable(entity.payload.layerId, entity.id);
+        if (entity?.kind === 'entity') {
+            assertLayerWritable(entity.payload.layerId, entity.id);
+            if (entity.type === 'INSERT') for (const childId of entity.payload.attributeIds ?? []){
+                const child = transaction.getObject(childId);
+                if (child?.kind === 'entity') assertLayerWritable(child.payload.layerId, child.id);
+            }
+        }
         return entity;
     };
     const guarded = new Proxy(transaction, {

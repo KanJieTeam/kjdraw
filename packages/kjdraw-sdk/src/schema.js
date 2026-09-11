@@ -337,6 +337,63 @@ function validateObjectGraph(state, issues, previousState) {
             });
         }
     }
+    for (const object of Object.values(state.objects)){
+        const path = `objects.${object.id}.payload`;
+        if (object.kind === 'entity' && object.type === 'INSERT') {
+            const ids = object.payload.attributeIds ?? [];
+            if (!Array.isArray(ids) || ids.some((id)=>typeof id !== 'string') || new Set(ids).size !== ids.length) {
+                issues.push({
+                    path: `${path}.attributeIds`,
+                    message: 'INSERT attribute references must be unique ids'
+                });
+                continue;
+            }
+            for (const id of ids){
+                const child = state.objects[id];
+                if (!child || child.kind !== 'entity' || child.type !== 'ATTRIB' || child.payload.parentInsertId !== object.id || child.ownerId !== object.ownerId || child.erased !== object.erased) issues.push({
+                    path: `${path}.attributeIds`,
+                    message: `Invalid attached ATTRIB relationship: ${id}`
+                });
+            }
+            const sequenceId = object.payload.sequenceEndId;
+            if (ids.length && !sequenceId) issues.push({
+                path: `${path}.sequenceEndId`,
+                message: 'Attached ATTRIB sequence requires SEQEND'
+            });
+            if (sequenceId != null) {
+                const end = typeof sequenceId === 'string' ? state.objects[sequenceId] : undefined;
+                if (!end || end.kind !== 'custom' || end.type !== 'SEQEND' || end.ownerId !== object.id || end.erased !== object.erased) issues.push({
+                    path: `${path}.sequenceEndId`,
+                    message: 'INSERT sequence end is missing or belongs to another insert'
+                });
+            }
+        }
+        if (object.kind === 'entity' && object.type === 'ATTRIB' && object.payload.parentInsertId != null) {
+            const parent = state.objects[object.payload.parentInsertId];
+            if (!parent || parent.kind !== 'entity' || parent.type !== 'INSERT' || parent.ownerId !== object.ownerId || parent.erased !== object.erased || !Array.isArray(parent.payload.attributeIds) || parent.payload.attributeIds.filter((id)=>id === object.id).length !== 1) issues.push({
+                path: `${path}.parentInsertId`,
+                message: 'Attached ATTRIB requires a unique reciprocal INSERT reference in the same space'
+            });
+        }
+        if (object.type === 'SEQEND') {
+            const parent = object.ownerId ? state.objects[object.ownerId] : null;
+            if (object.kind !== 'custom' || !parent || parent.kind !== 'entity' || parent.type !== 'INSERT' || parent.payload.sequenceEndId !== object.id || parent.erased !== object.erased) issues.push({
+                path,
+                message: 'SEQEND requires a reciprocal INSERT owner'
+            });
+            if (![
+                'insert',
+                'space'
+            ].includes(String(object.payload.dxfOwnerMode))) issues.push({
+                path: `${path}.dxfOwnerMode`,
+                message: 'SEQEND native owner mode must be insert or space'
+            });
+            if (object.payload.layerId != null && !state.tables.layers.recordIds.includes(object.payload.layerId)) issues.push({
+                path: `${path}.layerId`,
+                message: 'SEQEND layer is not registered'
+            });
+        }
+    }
     for (const id of Object.keys(state.objects)){
         if (previousState?.objects[id] === state.objects[id]) continue;
         const visited = new Set([

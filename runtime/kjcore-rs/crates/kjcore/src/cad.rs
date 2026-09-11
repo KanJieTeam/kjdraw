@@ -715,8 +715,184 @@ impl CadDocument {
             }
         }
 
+        self.validate_compound_attributes(&mut issues);
         self.validate_spaces(&mut issues);
         issues
+    }
+
+    /// Mirror KJD's explicit attached-attribute graph without changing native
+    /// containing-space ownership or treating SEQEND as drawable geometry.
+    fn validate_compound_attributes(&self, issues: &mut Vec<ValidationIssue>) {
+        for object in self.objects.values() {
+            let path = format!("objects.{}.payload", object.id);
+            if object.kind == "entity" && object.object_type == "INSERT" {
+                let ids = match object.payload.get("attributeIds") {
+                    None | Some(CadValue::Null) => &[][..],
+                    Some(CadValue::Array(ids)) => ids.as_slice(),
+                    _ => {
+                        issues.push(ValidationIssue::new(
+                            format!("{path}.attributeIds"),
+                            "INSERT attribute references must be unique ids",
+                        ));
+                        continue;
+                    }
+                };
+                let mut seen = BTreeSet::new();
+                for value in ids {
+                    let Some(id) = value.as_str().filter(|id| !id.trim().is_empty()) else {
+                        issues.push(ValidationIssue::new(
+                            format!("{path}.attributeIds"),
+                            "INSERT attribute references must be unique ids",
+                        ));
+                        continue;
+                    };
+                    if !seen.insert(id) {
+                        issues.push(ValidationIssue::new(
+                            format!("{path}.attributeIds"),
+                            "INSERT attribute references must be unique ids",
+                        ));
+                    }
+                    let valid = self
+                        .objects
+                        .get(id)
+                        .map(|child| {
+                            child.kind == "entity"
+                                && child.object_type == "ATTRIB"
+                                && child
+                                    .payload
+                                    .get("parentInsertId")
+                                    .and_then(CadValue::as_str)
+                                    == Some(object.id.as_str())
+                                && child.owner_id == object.owner_id
+                                && child.erased == object.erased
+                        })
+                        .unwrap_or(false);
+                    if !valid {
+                        issues.push(ValidationIssue::new(
+                            format!("{path}.attributeIds"),
+                            format!("invalid attached ATTRIB relationship: {id}"),
+                        ));
+                    }
+                }
+                let sequence = object
+                    .payload
+                    .get("sequenceEndId")
+                    .filter(|value| **value != CadValue::Null);
+                if !ids.is_empty() && sequence.is_none() {
+                    issues.push(ValidationIssue::new(
+                        format!("{path}.sequenceEndId"),
+                        "attached ATTRIB sequence requires SEQEND",
+                    ));
+                }
+                if let Some(sequence) = sequence {
+                    let valid = sequence
+                        .as_str()
+                        .and_then(|id| self.objects.get(id))
+                        .map(|end| {
+                            end.kind == "custom"
+                                && end.object_type == "SEQEND"
+                                && end.owner_id.as_deref() == Some(object.id.as_str())
+                                && end.erased == object.erased
+                        })
+                        .unwrap_or(false);
+                    if !valid {
+                        issues.push(ValidationIssue::new(
+                            format!("{path}.sequenceEndId"),
+                            "INSERT sequence end is missing or belongs to another insert",
+                        ));
+                    }
+                }
+            }
+            if object.kind == "entity" && object.object_type == "ATTRIB" {
+                if let Some(parent_id) = object
+                    .payload
+                    .get("parentInsertId")
+                    .filter(|value| **value != CadValue::Null)
+                {
+                    let valid = parent_id
+                        .as_str()
+                        .and_then(|id| self.objects.get(id))
+                        .map(|parent| {
+                            parent.kind == "entity"
+                                && parent.object_type == "INSERT"
+                                && parent.owner_id == object.owner_id
+                                && parent.erased == object.erased
+                                && parent
+                                    .payload
+                                    .get("attributeIds")
+                                    .and_then(CadValue::as_array)
+                                    .map(|ids| {
+                                        ids.iter()
+                                            .filter(|id| id.as_str() == Some(object.id.as_str()))
+                                            .count()
+                                            == 1
+                                    })
+                                    .unwrap_or(false)
+                        })
+                        .unwrap_or(false);
+                    if !valid {
+                        issues.push(ValidationIssue::new(format!("{path}.parentInsertId"), "attached ATTRIB requires a unique reciprocal INSERT reference in the same space"));
+                    }
+                }
+            }
+            if object.object_type == "SEQEND" {
+                let valid = object.kind == "custom"
+                    && object
+                        .owner_id
+                        .as_ref()
+                        .and_then(|id| self.objects.get(id))
+                        .map(|parent| {
+                            parent.kind == "entity"
+                                && parent.object_type == "INSERT"
+                                && parent
+                                    .payload
+                                    .get("sequenceEndId")
+                                    .and_then(CadValue::as_str)
+                                    == Some(object.id.as_str())
+                                && parent.erased == object.erased
+                        })
+                        .unwrap_or(false);
+                if !valid {
+                    issues.push(ValidationIssue::new(
+                        &path,
+                        "SEQEND requires a reciprocal INSERT owner",
+                    ));
+                }
+                if !matches!(
+                    object
+                        .payload
+                        .get("dxfOwnerMode")
+                        .and_then(CadValue::as_str),
+                    Some("insert" | "space")
+                ) {
+                    issues.push(ValidationIssue::new(
+                        format!("{path}.dxfOwnerMode"),
+                        "SEQEND native owner mode must be insert or space",
+                    ));
+                }
+                if let Some(layer) = object
+                    .payload
+                    .get("layerId")
+                    .filter(|value| **value != CadValue::Null)
+                {
+                    let valid = layer
+                        .as_str()
+                        .map(|id| {
+                            self.tables
+                                .get("layers")
+                                .map(|table| table.record_ids.iter().any(|record| record == id))
+                                .unwrap_or(false)
+                        })
+                        .unwrap_or(false);
+                    if !valid {
+                        issues.push(ValidationIssue::new(
+                            format!("{path}.layerId"),
+                            "SEQEND layer is not registered",
+                        ));
+                    }
+                }
+            }
+        }
     }
 
     fn validate_spaces(&self, issues: &mut Vec<ValidationIssue>) {
@@ -1640,6 +1816,226 @@ mod tests {
         assert_eq!(reopened, document);
         assert!(written.contains("中文工程"));
         assert!(written.contains("AcDbFutureObject"));
+    }
+
+    fn attached_fixture(owner_mode: &str, with_attributes: bool) -> CadDocument {
+        let mut document = CadDocument::from_kjd_json(&fixture()).unwrap();
+        let mut insert = CadObject::new("insert", "entity", "INSERT");
+        insert.owner_id = Some("block:model".into());
+        insert.payload = CadValue::Object(BTreeMap::from([
+            ("blockRecordId".into(), "block:paper".into()),
+            (
+                "attributeIds".into(),
+                CadValue::Array(if with_attributes {
+                    vec!["attribute-b".into(), "attribute-a".into()]
+                } else {
+                    vec![]
+                }),
+            ),
+            ("sequenceEndId".into(), "end".into()),
+        ]));
+        let mut end = CadObject::new("end", "custom", "SEQEND");
+        end.owner_id = Some("insert".into());
+        end.payload = CadValue::Object(BTreeMap::from([
+            ("dxfOwnerMode".into(), owner_mode.into()),
+            ("layerId".into(), "layer:0".into()),
+            ("futureNativeData".into(), "retained opaque metadata".into()),
+        ]));
+        document
+            .transact(
+                0,
+                "Create native attribute sequence",
+                "2026-09-11T00:00:00Z",
+                "test",
+                |draft| {
+                    draft.create_object(insert)?;
+                    if with_attributes {
+                        for id in ["attribute-a", "attribute-b"] {
+                            let mut attribute = CadObject::new(id, "entity", "ATTRIB");
+                            attribute.owner_id = Some("block:model".into());
+                            attribute.payload = CadValue::Object(BTreeMap::from([
+                                ("parentInsertId".into(), "insert".into()),
+                                ("tag".into(), id.into()),
+                                ("text".into(), "Native owner-space text".into()),
+                                ("layerId".into(), "layer:0".into()),
+                            ]));
+                            draft.create_object(attribute)?;
+                        }
+                    }
+                    draft.create_object(end)
+                },
+            )
+            .unwrap();
+        document
+    }
+
+    fn attribute_field(document: &mut CadDocument, id: &str, key: &str, value: CadValue) {
+        document
+            .objects
+            .get_mut(id)
+            .unwrap()
+            .payload
+            .as_object_mut()
+            .unwrap()
+            .insert(key.into(), value);
+    }
+
+    #[test]
+    fn compound_attributes_reopen_preserves_order_owner_modes_and_custom_sequence_metadata() {
+        for mode in ["insert", "space"] {
+            for with_attributes in [false, true] {
+                let mut document = attached_fixture(mode, with_attributes);
+                let original = document.clone();
+                assert_eq!(
+                    CadDocument::from_kjd_json(&document.to_kjd_json().unwrap()).unwrap(),
+                    original
+                );
+                assert_eq!(document.objects["end"].kind, "custom");
+                assert_eq!(document.objects["end"].owner_id.as_deref(), Some("insert"));
+                if with_attributes {
+                    assert_eq!(
+                        value_string_array(document.objects["insert"].payload.get("attributeIds")),
+                        vec!["attribute-b", "attribute-a"]
+                    );
+                    assert_eq!(
+                        document.objects["attribute-a"].owner_id.as_deref(),
+                        Some("block:model")
+                    );
+                }
+                for id in ["insert", "end", "attribute-a", "attribute-b"] {
+                    if let Some(object) = document.objects.get_mut(id) {
+                        object.erased = true;
+                    }
+                }
+                assert!(
+                    document.validate().is_ok(),
+                    "coherently erased compound graph remains valid"
+                );
+                assert_eq!(
+                    CadDocument::from_kjd_json(&document.to_kjd_json().unwrap()).unwrap(),
+                    document
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn compound_attributes_reject_broken_links_types_spaces_lifecycle_and_sequence_resources() {
+        let mutations: Vec<(&str, fn(&mut CadDocument))> = vec![
+            ("duplicate attribute", |d| {
+                attribute_field(
+                    d,
+                    "insert",
+                    "attributeIds",
+                    CadValue::Array(vec!["attribute-a".into(), "attribute-a".into()]),
+                )
+            }),
+            ("non-string attribute", |d| {
+                attribute_field(
+                    d,
+                    "insert",
+                    "attributeIds",
+                    CadValue::Array(vec![1u64.into()]),
+                )
+            }),
+            ("non-array attributes", |d| {
+                attribute_field(d, "insert", "attributeIds", "attribute-a".into())
+            }),
+            ("missing attribute", |d| {
+                attribute_field(
+                    d,
+                    "insert",
+                    "attributeIds",
+                    CadValue::Array(vec!["missing".into()]),
+                )
+            }),
+            ("wrong attribute type", |d| {
+                d.objects.get_mut("attribute-a").unwrap().object_type = "TEXT".into()
+            }),
+            ("wrong parent", |d| {
+                attribute_field(d, "attribute-a", "parentInsertId", "end".into())
+            }),
+            ("non-string parent", |d| {
+                attribute_field(d, "attribute-a", "parentInsertId", 7u64.into())
+            }),
+            ("missing reciprocal attribute", |d| {
+                attribute_field(
+                    d,
+                    "insert",
+                    "attributeIds",
+                    CadValue::Array(vec!["attribute-b".into()]),
+                )
+            }),
+            ("cross-space attribute", |d| {
+                d.objects.get_mut("attribute-a").unwrap().owner_id = Some("block:paper".into())
+            }),
+            ("native parent used as KJD owner", |d| {
+                d.objects.get_mut("attribute-a").unwrap().owner_id = Some("insert".into())
+            }),
+            ("erased attribute mismatch", |d| {
+                d.objects.get_mut("attribute-a").unwrap().erased = true
+            }),
+            ("missing sequence", |d| {
+                attribute_field(d, "insert", "sequenceEndId", CadValue::Null)
+            }),
+            ("missing sequence object", |d| {
+                attribute_field(d, "insert", "sequenceEndId", "missing".into())
+            }),
+            ("wrong sequence reference type", |d| {
+                attribute_field(d, "insert", "sequenceEndId", 3u64.into())
+            }),
+            ("wrong sequence kind", |d| {
+                d.objects.get_mut("end").unwrap().kind = "entity".into()
+            }),
+            ("wrong sequence owner", |d| {
+                d.objects.get_mut("end").unwrap().owner_id = Some("block:model".into())
+            }),
+            ("wrong sequence type", |d| {
+                d.objects.get_mut("end").unwrap().object_type = "CUSTOM".into()
+            }),
+            ("erased sequence mismatch", |d| {
+                d.objects.get_mut("end").unwrap().erased = true
+            }),
+            ("invalid native owner mode", |d| {
+                attribute_field(d, "end", "dxfOwnerMode", "other".into())
+            }),
+            ("missing native owner mode", |d| {
+                attribute_field(d, "end", "dxfOwnerMode", CadValue::Null)
+            }),
+            ("unregistered sequence layer", |d| {
+                attribute_field(d, "end", "layerId", "not-a-layer".into())
+            }),
+            ("non-string sequence layer", |d| {
+                attribute_field(d, "end", "layerId", 3u64.into())
+            }),
+        ];
+        for (name, mutate) in mutations {
+            let mut document = attached_fixture("insert", true);
+            mutate(&mut document);
+            assert!(document.validate().is_err(), "{name}");
+            // Exercise the external JSON entry point, not just an in-memory helper.
+            let json = document.to_value().to_json().unwrap();
+            assert!(
+                CadDocument::from_kjd_json(&json).is_err(),
+                "parser accepted {name}"
+            );
+        }
+    }
+
+    #[test]
+    fn compound_invalid_transaction_preserves_history_handles_and_original_graph() {
+        let mut document = attached_fixture("space", true);
+        let before = document.clone();
+        assert!(document
+            .transact(
+                document.revision,
+                "Break compound relationship",
+                "2026-09-11T01:00:00Z",
+                "test",
+                |draft| { draft.set_erased("attribute-a", true) }
+            )
+            .is_err());
+        assert_eq!(document, before);
     }
 
     #[test]

@@ -74,6 +74,25 @@ function base(payload) {
         contractVersion: KJ_ENTITY_CONTRACT_VERSION
     };
 }
+function nativeTextFields(payload) {
+    const integer = (value, name, maximum)=>{
+        const result = finite(value ?? 0, name);
+        if (!Number.isInteger(result) || result < 0 || result > maximum) throw new KJValidationError(`${name} is outside its native text range`);
+        return result;
+    };
+    return {
+        widthFactor: positive(payload.widthFactor ?? 1, 'widthFactor'),
+        generationFlags: integer(payload.generationFlags, 'generationFlags', 0xffff),
+        horizontalAlignment: integer(payload.horizontalAlignment, 'horizontalAlignment', 5),
+        verticalAlignment: integer(payload.verticalAlignment, 'verticalAlignment', 3),
+        obliqueAngle: finite(payload.obliqueAngle ?? 0, 'obliqueAngle')
+    };
+}
+function optionalObjectId(value, label) {
+    if (value == null) return null;
+    if (typeof value !== 'string' || !value.trim()) throw new KJValidationError(`${label} must be a non-empty object id`);
+    return value;
+}
 function normalizeVertex(vertex, index) {
     if (Array.isArray(vertex)) return {
         point: point3(vertex, `vertices[${index}]`),
@@ -224,6 +243,16 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                 };
             }
         case 'TEXT':
+            return {
+                ...base(payload),
+                ...nativeTextFields(payload),
+                position: point3(payload.position, 'position'),
+                alignmentPoint: payload.alignmentPoint && point3(payload.alignmentPoint, 'alignmentPoint'),
+                text: String(payload.text ?? ''),
+                height: positive(payload.height ?? 2.5, 'height'),
+                rotation: finite(payload.rotation ?? 0, 'rotation'),
+                styleId: payload.styleId == null ? null : String(payload.styleId)
+            };
         case 'MTEXT':
             return {
                 ...base(payload),
@@ -238,6 +267,10 @@ export function normalizeStandardEntityPayload(type, input = {}) {
         case 'ATTRIB':
             return {
                 ...base(payload),
+                ...nativeTextFields(payload),
+                ...normalizedType === 'ATTRIB' ? {
+                    parentInsertId: optionalObjectId(payload.parentInsertId, 'parentInsertId')
+                } : {},
                 position: point3(payload.position, 'position'),
                 alignmentPoint: payload.alignmentPoint && point3(payload.alignmentPoint, 'alignmentPoint'),
                 text: String(payload.text ?? ''),
@@ -258,6 +291,8 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                     finite(payload.scale ?? 1, 'scale')
                 ];
                 if (scale.length !== 3 || scale.some((value)=>Math.abs(value) <= 1e-15)) throw new KJValidationError('Block insert scale must contain three non-zero values');
+                const attributeIds = payload.attributeIds ?? [];
+                if (!Array.isArray(attributeIds) || attributeIds.some((id)=>typeof id !== 'string' || !id.trim()) || new Set(attributeIds).size !== attributeIds.length) throw new KJValidationError('INSERT attributeIds must contain unique non-empty object ids');
                 return {
                     ...base(payload),
                     blockRecordId: String(payload.blockRecordId),
@@ -268,7 +303,11 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                     ], 'position'),
                     scale,
                     rotation: finite(payload.rotation ?? 0, 'rotation'),
-                    attributes: clone(payload.attributes ?? {})
+                    attributes: clone(payload.attributes ?? {}),
+                    attributeIds: [
+                        ...attributeIds
+                    ],
+                    sequenceEndId: optionalObjectId(payload.sequenceEndId, 'sequenceEndId')
                 };
             }
         case 'IMAGE':

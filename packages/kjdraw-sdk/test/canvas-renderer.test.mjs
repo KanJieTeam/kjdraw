@@ -13,6 +13,8 @@ class RecordingContext2D {
   globalAlpha = 1
   #record(name, ...args) { this.calls.push([name, ...args]) }
   setTransform(...args) { this.#record('setTransform', ...args) }
+  transform(...args) { this.#record('transform', ...args) }
+  measureText(value) { const height = parseFloat(this.font) || 12; return { width: String(value).length * height * .6, actualBoundingBoxAscent: height * .75 } }
   clearRect(...args) { this.#record('clearRect', ...args) }
   fillRect(...args) { this.#record('fillRect', ...args) }
   beginPath() { this.#record('beginPath') }
@@ -195,7 +197,7 @@ test('Canvas renderer preserves model text height below one screen pixel', async
   renderer.camera.scale = 0.1
   renderer.render()
 
-  assert.ok(Math.abs(Number.parseFloat(context.font) - 0.3) < 1e-12)
+  assert.ok(Math.abs(context.measureText('H').actualBoundingBoxAscent - 0.3) < 1e-12, 'CAD height measures the rendered capital height, not the font em square')
   assert.ok(Number.parseFloat(context.font) < 1, 'text is not inflated to a fixed screen-space minimum')
   renderer.dispose()
 })

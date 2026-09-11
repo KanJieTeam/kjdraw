@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 
 function canvasFixture() {
   const calls=[]
-  const context = new Proxy({calls}, {get(target,key){if(key in target)return target[key];return (...args)=>calls.push([key,...args])},set(target,key,value){target[key]=value;return true}})
+  const context = new Proxy({calls,measureText(value){const height=parseFloat(this.font)||12;return {width:String(value).length*height*.6,actualBoundingBoxAscent:height*.75}}}, {get(target,key){if(key in target)return target[key];return (...args)=>calls.push([key,...args])},set(target,key,value){target[key]=value;return true}})
   const canvas={width:400,height:300,clientWidth:400,clientHeight:300,getContext:()=>context,getBoundingClientRect:()=>({width:400,height:300})}
   return {canvas,calls}
 }

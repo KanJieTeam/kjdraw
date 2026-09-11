@@ -3,7 +3,7 @@ import type { KJObjectPayload, KJObjectSpec } from './schema.js'
 import type { KJObjectPatch, KJTransaction } from './transaction.js'
 
 const ENTITY_WRITES = new Set<PropertyKey>([
-  'eraseObject', 'restoreObject', 'reparentObject', 'setXData', 'putOpaquePayload',
+  'eraseObject', 'restoreObject', 'reparentObject', 'transformEntity', 'setXData', 'putOpaquePayload',
 ])
 
 /**
@@ -39,7 +39,13 @@ export function createCommandEditScope(transaction: KJTransaction, commandId: st
 
   const assertEntityWritable = (id: unknown): ReturnType<KJTransaction['getObject']> => {
     const entity = transaction.getObject(String(id))
-    if (entity?.kind === 'entity') assertLayerWritable(entity.payload.layerId, entity.id)
+    if (entity?.kind === 'entity') {
+      assertLayerWritable(entity.payload.layerId, entity.id)
+      if (entity.type === 'INSERT') for (const childId of entity.payload.attributeIds ?? []) {
+        const child = transaction.getObject(childId)
+        if (child?.kind === 'entity') assertLayerWritable(child.payload.layerId, child.id)
+      }
+    }
     return entity
   }
 

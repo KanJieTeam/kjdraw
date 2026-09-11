@@ -1,6 +1,8 @@
 import { arcSweep, multiply3, rotation3, scale3, transformEntityPayload, translation3 } from './geometry/index.js'
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js'
 import { projectDimension } from './geometry/annotation.js'
+import { attributeHidden, insertAttributes, isAttachedAttribute, visibleAttribute } from './attribute-display.js'
+import { layoutCadText } from './geometry/text-layout.js'
 import { hatchPatternLines } from './geometry/hatch.js'
 import type { KJDocument } from './document.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
@@ -100,8 +102,9 @@ function textBox(position: Point, text: string, height: number, rotation: number
 
 /** Shared selection projection. Curves use analytic extrema/intersections; NURBS and text use their 2D display projection. */
 function project(entity: KJReadonlyObjectRecord, document: KJDocument, depth = 0, inheritedMatrix?: readonly number[]): Projection {
-  if (inheritedMatrix && entity.type !== 'INSERT' && entity.type !== 'DIMENSION') return project({ ...entity, payload: transformEntityPayload(entity.type, structuredClone(entity.payload) as KJObjectPayload, inheritedMatrix) }, document, depth)
+  if (inheritedMatrix && !['INSERT','DIMENSION','TEXT','MTEXT','ATTRIB','ATTDEF'].includes(entity.type)) return project({ ...entity, payload: transformEntityPayload(entity.type, structuredClone(entity.payload) as KJObjectPayload, inheritedMatrix) }, document, depth)
   const payload = entity.payload, result: Projection = { parts: [], fills: [], complete: true }
+  if (attributeHidden(entity)) return result
   const path = (values: readonly unknown[], closed = false, filled = false) => {
     result.parts.push(...polyline(values, closed))
     if (filled) result.fills.push([values.map(vertex).filter((p): p is Point => p !== null)])
@@ -156,8 +159,7 @@ function project(entity: KJReadonlyObjectRecord, document: KJDocument, depth = 0
       break
     }
     case 'TEXT': case 'MTEXT': case 'ATTDEF': case 'ATTRIB': {
-      const p = point(payload.position)
-      if (p) path(textBox(p, String(payload.text ?? payload.value ?? ''), finite(payload.height, 2.5), finite(payload.rotation)), true, true)
+      path(layoutCadText(payload, document.getObject(String(payload.styleId ?? ''))?.payload).corners, true, true)
       break
     }
     case 'INSERT': {
@@ -169,9 +171,16 @@ function project(entity: KJReadonlyObjectRecord, document: KJDocument, depth = 0
       const matrix = inheritedMatrix ? multiply3(inheritedMatrix, localMatrix) : localMatrix
       for (const child of document.listEntities({ ownerId: blockId })) {
         const layer = document.getObject(String(child.payload.layerId ?? ''))?.payload
-        if (child.payload.visible === false || layer?.visible === false || layer?.frozen === true) continue
+        if (isAttachedAttribute(child) || attributeHidden(child) || child.type === 'ATTDEF' && (Number(child.payload.flags ?? 0) & 2) === 0 || child.payload.visible === false || layer?.visible === false || layer?.frozen === true) continue
         try {
           const projection = project(child, document, depth + 1, matrix)
+          result.parts.push(...projection.parts); result.fills.push(...projection.fills); result.complete = result.complete && projection.complete
+        } catch { result.complete = false }
+      }
+      for (const attribute of insertAttributes(document, entity)) {
+        if (!visibleAttribute(document, attribute)) continue
+        try {
+          const projection = project(attribute, document, depth + 1, inheritedMatrix)
           result.parts.push(...projection.parts); result.fills.push(...projection.fills); result.complete = result.complete && projection.complete
         } catch { result.complete = false }
       }
@@ -179,7 +188,7 @@ function project(entity: KJReadonlyObjectRecord, document: KJDocument, depth = 0
     }
     default: result.complete = false
   }
-  if (inheritedMatrix && entity.type === 'DIMENSION') {
+  if (inheritedMatrix && ['DIMENSION','TEXT','MTEXT','ATTRIB','ATTDEF'].includes(entity.type)) {
     const matrix = inheritedMatrix
     const sx = Math.hypot(matrix[0]!, matrix[1]!), sy = Math.hypot(matrix[2]!, matrix[3]!)
     if (!matrix.every(Number.isFinite) || sx === 0 || sy === 0 || Math.abs(matrix[0]! * matrix[3]! - matrix[1]! * matrix[2]!) <= 1e-12 * sx * sy) return { parts: [], fills: [], complete: false }
@@ -319,8 +328,20 @@ export function classifyEntityInBox(document: KJDocument, entity: KJReadonlyObje
   } catch { return 'unclassified' }
 }
 
+/** Picking follows displayed label/curve extents, including approximate font metrics.
+ * Unlike exact spatial query classification this does not claim CAD text outlines. */
+export function hitTestDisplayedEntity(document: KJDocument, entity: KJReadonlyObjectRecord, at: Point, tolerance: number): boolean {
+  const corners: Point[] = [[at[0]-tolerance,at[1]-tolerance],[at[0]+tolerance,at[1]-tolerance],[at[0]+tolerance,at[1]+tolerance],[at[0]-tolerance,at[1]+tolerance]]
+  const inside = (p: Point) => Math.abs(p[0]-at[0])<=tolerance && Math.abs(p[1]-at[1])<=tolerance
+  try {
+    const projection=project(entity,document)
+    return projection.parts.some(part=>criticalPoints(part).some(inside)||corners.some((corner,i)=>intersects(part,corner,corners[(i+1)%4]!,1e-10))) || projection.fills.some(loops=>insideFills(at,loops))
+  } catch { return false }
+}
+
 /** One shared visibility/locking rule for picking, region queries and editable grips. */
 export function isEntitySelectable(document: KJDocument, entity: KJReadonlyObjectRecord, options: KJSpatialSelectionOptions = {}): boolean {
+  if (isAttachedAttribute(entity) || attributeHidden(entity)) return false
   if (entity.kind !== 'entity' || entity.erased || entity.ownerId !== (options.spaceId ?? document.snapshot().spaces.modelSpaceId) || entity.payload.visible === false) return false
   const layer = document.getObject(String(entity.payload.layerId ?? ''))?.payload
   return layer?.visible !== false && layer?.frozen !== true && (options.includeLocked === true || layer?.locked !== true)

@@ -3,7 +3,7 @@ import { KJValidationError } from './errors.js'
 import { defineFileAdapter } from './file-adapters.js'
 import type { KJFileAdapter, KJFileAdapterContext, KJFileAdapterOptions } from './file-adapters.js'
 import type { KJTableName } from './constants.js'
-import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
+import type { KJObjectPayload, KJObjectRecord, KJReadonlyObjectRecord } from './schema.js'
 import type { KJTransaction } from './transaction.js'
 import { projectDimension, resolveDimensionAnnotationStyle } from './geometry/annotation.js'
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js'
@@ -18,7 +18,7 @@ type DxfProductVersion = Exclude<DxfVersion, 'R12'>
 type Point3 = [number, number, number]
 
 interface DxfTag { code: number; value: string }
-interface DxfRecord { type: string; tags: DxfTag[]; vertices?: DxfRecord[]; sequenceEnd?: DxfRecord | null }
+interface DxfRecord { type: string; tags: DxfTag[]; vertices?: DxfRecord[]; attributes?: DxfRecord[]; sequenceEnd?: DxfRecord | null }
 
 // DXF per-entity dimension style overrides use ACAD/DSTYLE xdata pairs.
 interface DxfDimensionOverrides { textHeight?: number; precision?: number; angularUnits?: number; linearPrecision?: number; overallScale?: number; arrowSize?: number; extensionOffset?: number; extensionBeyond?: number }
@@ -407,7 +407,33 @@ function collapseLegacyPolylines(source: readonly DxfRecord[]): DxfRecord[] {
   return output
 }
 
-function entityRecords(tags: readonly DxfTag[]): DxfRecord[] { return collapseLegacyPolylines(records(tags)) }
+// Attribute coordinates already belong to the INSERT's containing space. Keep
+// the native sequence together before resolving top-level space ownership.
+function collapseInsertAttributes(source: readonly DxfRecord[]): DxfRecord[] {
+  const output: DxfRecord[] = []
+  for (let index = 0; index < source.length; index++) {
+    const record = source[index]!
+    if (record.type !== 'INSERT' || number(record, 66) !== 1) { output.push(record); continue }
+    const attributes: DxfRecord[] = []
+    const insertHandle = String(first(record, 5, '')).toUpperCase(), spaceHandle = recordOwner(record)
+    let cursor = index + 1
+    while (source[cursor]?.type === 'ATTRIB') attributes.push(source[cursor++]!)
+    const sequenceEnd = source[cursor]
+    if (sequenceEnd?.type !== 'SEQEND') throw new KJValidationError('DXF INSERT attribute sequence is missing SEQEND')
+    for (const child of [...attributes, sequenceEnd]) {
+      const owner = recordOwner(child)
+      if (owner && owner !== insertHandle && owner !== spaceHandle) throw new KJValidationError('DXF INSERT attribute sequence references a different owner')
+      if (values(child, 67).length && number(child, 67) !== number(record, 67)) throw new KJValidationError('DXF INSERT attribute sequence has a conflicting space hint')
+      if (first(child, 410) && first(record, 410) && normalizeName(first(child, 410)) !== normalizeName(first(record, 410))) throw new KJValidationError('DXF INSERT attribute sequence has a conflicting layout hint')
+      if (child.type === 'ATTRIB' && child.tags.some(tag => tag.code === 100 && tag.value === 'AcDbMText')) throw new KJValidationError('Embedded multiline DXF ATTRIB is not supported; import stopped to preserve its content')
+    }
+    output.push({ ...record, attributes, sequenceEnd })
+    index = cursor
+  }
+  return output
+}
+
+function entityRecords(tags: readonly DxfTag[]): DxfRecord[] { return collapseInsertAttributes(collapseLegacyPolylines(records(tags))) }
 
 function blockDefinitions(tags: readonly DxfTag[]): DxfBlockDefinition[] {
   const source = records(tags)
@@ -419,7 +445,7 @@ function blockDefinitions(tags: readonly DxfTag[]): DxfBlockDefinition[] {
     index += 1
     while (index < source.length && source[index]!.type !== 'ENDBLK') inner.push(source[index++]!)
     const name = String(first(header, 2, first(header, 3, ''))).trim()
-    if (name) output.push({ name, header, basePoint: point(header), flags: number(header, 70, 0), records: collapseLegacyPolylines(inner) })
+    if (name) output.push({ name, header, basePoint: point(header), flags: number(header, 70, 0), records: collapseInsertAttributes(collapseLegacyPolylines(inner)) })
   }
   return output
 }
@@ -571,10 +597,15 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
       const weights = values(record, 41).map(Number)
       return { type: 'SPLINE', payload: { degree: number(record, 71), knots: values(record, 40).map(Number), weights: weights.length ? weights : undefined, controlPoints: repeatedPoints(record), fitPoints: repeatedPoints(record, 11, 21, 31), closed: (number(record, 70, 0) & 1) === 1, periodic: (number(record, 70, 0) & 2) === 2 } }
     }
-    case 'TEXT': return { type: 'TEXT', payload: { position: point(record), alignmentPoint: optionalPoint(record, 11, 21, 31) ?? undefined, horizontalAlignment: number(record, 72, 0), verticalAlignment: number(record, 73, 0), ...readDxfText(record), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null } }
+    case 'TEXT': return { type: 'TEXT', payload: { ...readSingleLineText(record, resources), verticalAlignment: number(record, 73, 0) } }
     case 'MTEXT': return { type: 'MTEXT', payload: { position: point(record), text: values(record, 3).join('') + first(record, 1, ''), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null } }
     case 'ATTDEF':
-    case 'ATTRIB': return { type: record.type, payload: { position: point(record), alignmentPoint: values(record, 11).length ? point(record, 11, 21, 31) : undefined, text: first(record, 1, ''), tag: first(record, 2, ''), prompt: first(record, 3, ''), flags: number(record, 70, 0), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null, lockPosition: number(record, 280, 0) === 1 } }
+    case 'ATTRIB': {
+      if (record.tags.some(tag => tag.code === 100 && tag.value === 'AcDbMText')) throw new KJValidationError('Embedded multiline DXF attributes require an MTEXT-aware adapter')
+      const attribute = recordSubclass(record, record.type === 'ATTDEF' ? 'AcDbAttributeDefinition' : 'AcDbAttribute')
+      const extra = attribute === record ? [] : attribute.tags.filter(tag => ![2,3,70,73,74,280].includes(tag.code))
+      return { type: record.type, payload: { ...readSingleLineText(record, resources), verticalAlignment: number(attribute, 74, 0), tag: first(attribute, 2, ''), prompt: first(attribute, 3, ''), flags: number(attribute, 70, 0), lockPosition: Number(values(attribute, 280).at(-1) ?? 0) === 1, ...(extra.length ? { dxfAttributeExtraTags: extra } : {}) } }
+    }
     case 'INSERT': return { type: 'INSERT', payload: { blockRecordId: blockIds.get(normalizeName(first(record, 2))), position: point(record), scale: [number(record, 41, 1), number(record, 42, 1), number(record, 43, 1)], rotation: number(record, 50, 0) * Math.PI / 180 } }
     case 'HATCH': return { type: 'HATCH', payload: { boundaryLoops: hatchBoundaryLoops(record), patternName: first(record, 2, 'SOLID'), solid: number(record, 70, 0) === 1, associative: number(record, 71, 0) === 1, patternAngle: number(record, 52, 0) * Math.PI / 180, patternScale: number(record, 41, 1), rawTags: record.tags } }
     case 'LEADER': return { type: 'LEADER', payload: { vertices: repeatedPoints(record), annotationHandle: first(record, 340), textPosition: point(record, 11, 21, 31) } }
@@ -711,7 +742,7 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
     }
     const definitions = blockDefinitions(section(tags, 'BLOCKS'))
     const sourceEntityRecords = entityRecords(section(tags, 'ENTITIES'))
-    const allSourceRecords = [...sourceEntityRecords, ...definitions.flatMap(definition => definition.records)]
+    const allSourceRecords = [...sourceEntityRecords, ...definitions.flatMap(definition => definition.records)].flatMap(record => [record, ...(record.attributes ?? []), ...(record.attributes && record.sequenceEnd ? [record.sequenceEnd] : [])])
     if (allSourceRecords.length > limits.maxEntities) throw new KJValidationError(`DXF entity count exceeds the ${limits.maxEntities} read limit`)
     if (options.signal?.aborted) throw new KJValidationError('DXF read aborted')
     const blockNames = new Set([
@@ -782,14 +813,15 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
     const occupiedHandles = new Set(Object.values(transaction._draft().objects).map(object => object.handle))
     const entityHandleIds = new Map<string, string>()
     const viewportReferences: { id: string; record: DxfRecord }[] = []
-    const importRecord = (record: DxfRecord, index: number, ownerId: string | undefined, scope: string): void => {
+    const importRecord = (record: DxfRecord, index: number, ownerId: string | undefined, scope: string, parentInsertId?: string): KJObjectRecord => {
       const layerName = normalizeName(first(record, 8, '0'))
       const layerId = layerIds.get(layerName) ?? defaultLayerId
       const converted = entityPayload(record, blockIds, resources)
       const sourceHandle = String(first(record, 5, '')).toUpperCase()
       const handleAvailable = /^[0-9A-F]+$/.test(sourceHandle) && !occupiedHandles.has(sourceHandle)
+      let created: KJObjectRecord
       try {
-        const created = transaction.createEntity(converted.type, { ...converted.payload, ...entityDrawingProperties(record, resources), layerId }, {
+        created = transaction.createEntity(converted.type, { ...converted.payload, ...entityDrawingProperties(record, resources), layerId, ...(parentInsertId ? { parentInsertId } : {}) }, {
           ...(ownerId === undefined ? {} : { ownerId }),
           ...(handleAvailable ? { handle: sourceHandle } : {}),
           source: { format: 'DXF', scope, entityIndex: index, originalHandle: sourceHandle || null },
@@ -798,13 +830,29 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
         if (sourceHandle) entityHandleIds.set(sourceHandle, entityHandleIds.has(sourceHandle) ? '' : created.id)
         if (created.type === 'VIEWPORT') viewportReferences.push({ id: created.id, record })
       } catch (error) {
-        const created = transaction.createEntity('PROXY_ENTITY', { originalType: record.type, rawTags: record.tags, importError: error instanceof Error ? error.message : String(error), layerId }, {
+        // A proxy cannot preserve the editable parent/attribute relationship.
+        if (record.attributes || parentInsertId) throw error
+        created = transaction.createEntity('PROXY_ENTITY', { originalType: record.type, rawTags: record.tags, importError: error instanceof Error ? error.message : String(error), layerId }, {
           ...(ownerId === undefined ? {} : { ownerId }),
           source: { format: 'DXF', scope, entityIndex: index, originalHandle: sourceHandle || null },
         })
         occupiedHandles.add(created.handle)
         if (sourceHandle) entityHandleIds.set(sourceHandle, entityHandleIds.has(sourceHandle) ? '' : created.id)
       }
+      if (record.attributes && record.sequenceEnd) {
+        const attributes = record.attributes.map((attribute, childIndex) => importRecord(attribute, childIndex, ownerId, `${scope}:attributes`, created.id))
+        const end = record.sequenceEnd, sourceEndHandle = String(first(end, 5, '')).toUpperCase()
+        const endHandleAvailable = /^[0-9A-F]+$/.test(sourceEndHandle) && !occupiedHandles.has(sourceEndHandle)
+        const sequenceEnd = transaction.createObject({
+          kind: 'custom', type: 'SEQEND', ownerId: created.id,
+          ...(endHandleAvailable ? { handle: sourceEndHandle } : {}),
+          payload: { layerId: layerIds.get(normalizeName(first(end, 8, '0'))) ?? defaultLayerId, dxfOwnerMode: recordOwner(end) && recordOwner(end) === recordOwner(record) ? 'space' : 'insert' },
+          source: { format: 'DXF', scope: `${scope}:attributes`, originalHandle: sourceEndHandle || null },
+        })
+        occupiedHandles.add(sequenceEnd.handle)
+        created = transaction.updateObject(created.id, { payload: { attributeIds: attributes.map(attribute => attribute.id), sequenceEndId: sequenceEnd.id } })
+      }
+      return created
     }
     const importedSpaceHandles = new Map<string, { ownerId: string; record: string; scope: string }>()
     const importSpaceRecord = (record: DxfRecord, index: number, ownerId: string, scope: string): void => {
@@ -863,6 +911,23 @@ function decodeDxfTextSymbols(text: string): string {
 function readDxfText(record: DxfRecord): { text: string; dxfText?: string } {
   const dxfText = String(first(record, 1, '')), text = decodeDxfTextSymbols(dxfText)
   return text === dxfText ? { text } : { text, dxfText }
+}
+function recordSubclass(record: DxfRecord, name: string): DxfRecord {
+  const start = record.tags.findIndex(tag => tag.code === 100 && tag.value === name)
+  if (start < 0) return record
+  const next = record.tags.findIndex((tag, index) => index > start && tag.code === 100)
+  return { type: record.type, tags: record.tags.slice(start + 1, next < 0 ? undefined : next) }
+}
+function readSingleLineText(source: DxfRecord, resources: DxfImportResources): DxfPayload {
+  const record = recordSubclass(source, 'AcDbText')
+  const alignmentPoint = optionalPoint(record, 11, 21, 31)
+  return {
+    position: point(record), ...(alignmentPoint ? { alignmentPoint } : {}),
+    ...readDxfText(record), height: number(record, 40, 2.5), rotation: number(record, 50) * Math.PI / 180,
+    horizontalAlignment: number(record, 72), widthFactor: number(record, 41, 1),
+    obliqueAngle: number(record, 51) * Math.PI / 180, generationFlags: number(record, 71),
+    styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null,
+  }
 }
 function writeDxfText(payload: DxfPayload): unknown {
   return typeof payload.dxfText === 'string' && decodeDxfTextSymbols(payload.dxfText) === payload.text ? payload.dxfText : payload.text
@@ -1466,17 +1531,27 @@ function emitEntity(
   } else if (entity.type === 'MTEXT') {
     emitSubclass(output, version, 'AcDbMText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, p.text); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI)
   } else if (entity.type === 'TEXT') {
-    emitSubclass(output, version, 'AcDbText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, writeDxfText(p)); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI); if (p.horizontalAlignment) emit(output, 72, p.horizontalAlignment); if (p.alignmentPoint) emitPoint(output, p.alignmentPoint, 11); emitSubclass(output, version, 'AcDbText'); if (p.verticalAlignment) emit(output, 73, p.verticalAlignment)
+    emitSingleLineText(output, p, version, resources); emitSubclass(output, version, 'AcDbText'); if (p.verticalAlignment) emit(output, 73, p.verticalAlignment)
   } else if (entity.type === 'ATTDEF' || entity.type === 'ATTRIB') {
-    emitSubclass(output, version, 'AcDbText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, p.text); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI); if (p.alignmentPoint) emitPoint(output, p.alignmentPoint, 11)
+    emitSingleLineText(output, p, version, resources)
     emitSubclass(output, version, entity.type === 'ATTDEF' ? 'AcDbAttributeDefinition' : 'AcDbAttribute')
     if (entity.type === 'ATTDEF') emit(output, 3, p.prompt)
-    emit(output, 2, p.tag); emit(output, 70, p.flags ?? 0); if (p.lockPosition) emit(output, 280, 1)
+    emit(output, 2, p.tag); emit(output, 70, p.flags ?? 0); if (p.verticalAlignment) emit(output, 74, p.verticalAlignment); if (p.lockPosition) emit(output, 280, 1)
+    if (p.dxfAttributeExtraTags != null) {
+      if (!Array.isArray(p.dxfAttributeExtraTags)) throw new KJValidationError('Invalid opaque attribute subclass tags')
+      for (const tag of p.dxfAttributeExtraTags as readonly DxfTag[]) {
+        // Preserve uninterpreted scalar fields in their original subclass. Never
+        // guess that its 71/72 codes are AcDbText mirror/alignment properties.
+        if (![71,72].includes(tag.code) || typeof tag.value !== 'string' || !/^\s*[+-]?\d+\s*$/.test(tag.value)) throw new KJValidationError('Unsupported attribute subclass metadata cannot be exported without loss')
+        emit(output, tag.code, tag.value)
+      }
+    }
   }
   else if (entity.type === 'INSERT') {
     const blockName = p.blockRecordId ? blockNames.get(p.blockRecordId) : undefined
     if (!blockName) throw new KJValidationError(`DXF INSERT references an unavailable block record: ${p.blockRecordId}`)
     emitSubclass(output, version, 'AcDbBlockReference')
+    if (p.sequenceEndId) emit(output, 66, 1)
     emit(output, 2, blockName); emitPoint(output, p.position!); emit(output, 41, p.scale?.[0] ?? 1); emit(output, 42, p.scale?.[1] ?? 1); emit(output, 43, p.scale?.[2] ?? 1); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI)
   }
   else if (entity.type === 'SOLID') { emitSubclass(output, version, 'AcDbTrace'); entityVertices.forEach((value, index) => emitPoint(output, vertexPoint(value), 10 + index)) }
@@ -1563,6 +1638,17 @@ function emitEntity(
   }
 }
 
+function emitSingleLineText(output: string[], p: DxfPayload, version: DxfVersion, resources: DxfExportResources): void {
+  emitSubclass(output, version, 'AcDbText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, writeDxfText(p))
+  if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD')
+  if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI)
+  if (p.widthFactor != null) emit(output, 41, p.widthFactor)
+  if (p.obliqueAngle) emit(output, 51, p.obliqueAngle * 180 / Math.PI)
+  if (p.generationFlags) emit(output, 71, p.generationFlags)
+  if (p.horizontalAlignment) emit(output, 72, p.horizontalAlignment)
+  if (p.alignmentPoint) emitPoint(output, p.alignmentPoint, 11)
+}
+
 function isDxfVersion(value: string): value is DxfVersion { return (VERSIONS as readonly string[]).includes(value) }
 
 function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string {
@@ -1621,6 +1707,25 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
     viewportIds,
   }
   const linetypeNames = new Map(linetypes.map(record => [record.id, record.name]))
+  const emitSpaceEntity = (sourceEntity: KJReadonlyObjectRecord, ownerHandle: string | null, space: DxfSpace | null): void => {
+    if (sourceEntity.type === 'ATTRIB' && sourceEntity.payload.parentInsertId) return
+    const entity = dxfEntity(sourceEntity), layerName = layerNames.get(entity.payload?.layerId ?? '') ?? '0'
+    emitEntity(output, entity, layerName, ownerHandle, context, blockNames, space, resources)
+    if (sourceEntity.type !== 'INSERT') return
+    const attributeIds = sourceEntity.payload.attributeIds
+    const endId = sourceEntity.payload.sequenceEndId
+    if (!endId && (!Array.isArray(attributeIds) || !attributeIds.length)) return
+    if (!Array.isArray(attributeIds) || typeof endId !== 'string') throw new KJValidationError('DXF INSERT has an incomplete attribute sequence')
+    for (const id of attributeIds) {
+      const attribute = state.objects[String(id)]
+      if (!attribute || attribute.type !== 'ATTRIB' || attribute.payload.parentInsertId !== sourceEntity.id || attribute.ownerId !== sourceEntity.ownerId) throw new KJValidationError('DXF INSERT has an invalid attached attribute')
+      if (attribute.erased) continue
+      emitEntity(output, dxfEntity(attribute), layerNames.get(attribute.payload.layerId ?? '') ?? '0', sourceEntity.handle, context, blockNames, space, resources)
+    }
+    const end = state.objects[endId]
+    if (!end || end.erased || end.type !== 'SEQEND' || end.ownerId !== sourceEntity.id || !['insert', 'space'].includes(String(end.payload.dxfOwnerMode))) throw new KJValidationError('DXF INSERT has an invalid SEQEND')
+    emitEntityHeader(output, 'SEQEND', end.handle, layerNames.get(end.payload.layerId ?? '') ?? layerName, end.payload.dxfOwnerMode === 'space' ? ownerHandle : sourceEntity.handle, space, version)
+  }
   for (const entity of allEntities) {
     const minimum = MIN_ENTITY_VERSION[entity.type]
     if (minimum && VERSION_RANK[version] < VERSION_RANK[minimum]) throw new KJValidationError(`DXF ${version} cannot represent ${entity.type} without data loss; minimum target is ${minimum}`)
@@ -1673,8 +1778,7 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
       const layout = layouts.find(layout => layout.payload.blockRecordId === block.id)
       const space = layout ? { paper: true, layoutName: String(layout.name) } : null
       for (const sourceEntity of document.listEntities({ ownerId: block.id })) {
-        const entity = dxfEntity(sourceEntity)
-        emitEntity(output, entity, layerNames.get(entity.payload?.layerId ?? '') ?? '0', block.handle, context, blockNames, space, resources)
+        emitSpaceEntity(sourceEntity, block.handle, space)
       }
     }
     emitEntityHeader(output, 'ENDBLK', context.allocateHandle(), '0', block.handle, null, version)
@@ -1683,9 +1787,8 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   emit(output, 0, 'ENDSEC')
   emit(output, 0, 'SECTION'); emit(output, 2, 'ENTITIES')
   for (const sourceEntity of document.listEntities({ ownerId: state.spaces.modelSpaceId })) {
-    const entity = dxfEntity(sourceEntity)
     const ownerHandle = state.objects[state.spaces.modelSpaceId]?.handle ?? null
-    emitEntity(output, entity, layerNames.get(entity.payload?.layerId ?? '') ?? '0', ownerHandle, context, blockNames, null, resources)
+    emitSpaceEntity(sourceEntity, ownerHandle, null)
   }
   const layoutsByBlock = new Map<string, string>(state.spaces.layoutIds.flatMap(id => {
     const layout = state.objects[id]
@@ -1698,9 +1801,8 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
     if (VERSION_RANK[version] >= VERSION_RANK['2000'] && paperSpaceId !== state.spaces.paperSpaceIds[0]) continue
     const space = { paper: true, layoutName: layoutsByBlock.get(paperSpaceId) ?? 'Layout1' }
     for (const sourceEntity of document.listEntities({ ownerId: paperSpaceId })) {
-      const entity = dxfEntity(sourceEntity)
       const ownerHandle = state.objects[paperSpaceId]?.handle ?? null
-      emitEntity(output, entity, layerNames.get(entity.payload?.layerId ?? '') ?? '0', ownerHandle, context, blockNames, space, resources)
+      emitSpaceEntity(sourceEntity, ownerHandle, space)
     }
   }
   emit(output, 0, 'ENDSEC')
