@@ -3,6 +3,7 @@ import { KJRevisionConflictError, KJValidationError } from './errors.js';
 import { deepFreeze } from './utils.js';
 import { classifyEntityInBox } from './selection-geometry.js';
 import { PLOT_SETTING_FIELDS } from './plot-settings.js';
+import { projectDimension, resolveDimensionAnnotationStyle } from './geometry/annotation.js';
 const MAX_GEOMETRY_BYTES = 8192;
 const REASONS = [
     'entity-limit',
@@ -205,7 +206,16 @@ const GEOMETRY = {
         blockName: scalar,
         measurement: scalar,
         dxfDimensionType: scalar,
-        rotation: scalar
+        rotation: scalar,
+        textHeight: scalar,
+        precision: scalar,
+        linearPrecision: scalar,
+        angularUnits: scalar,
+        overallScale: scalar,
+        arrowSize: scalar,
+        extensionOffset: scalar,
+        extensionBeyond: scalar,
+        incompleteAngularDefinition: scalar
     },
     VIEWPORT: {
         center: point,
@@ -328,7 +338,106 @@ function project(value, shape, budget) {
     }
     return result;
 }
-function nativeGeometry(entity) {
+const annotationShape = {
+    status: scalar,
+    reason: scalar,
+    coordinateSpace: scalar,
+    measurement: scalar,
+    measurementUnit: scalar,
+    measurementBasis: scalar,
+    associativity: scalar,
+    labelRotationUnit: scalar,
+    label: {
+        text: scalar,
+        position: point,
+        height: scalar,
+        rotation: scalar
+    },
+    effectiveStyle: {
+        binding: scalar,
+        styleId: scalar,
+        styleName: scalar,
+        lengthUnits: scalar,
+        lengthsAreUnscaled: scalar,
+        overallScale: scalar,
+        textHeight: scalar,
+        arrowSize: scalar,
+        extensionOffset: scalar,
+        extensionBeyond: scalar
+    },
+    formatInputs: {
+        entityPrecision: scalar,
+        entityLinearPrecision: scalar,
+        entityAngularUnits: scalar,
+        styleDecimalPlaces: scalar,
+        styleAngularDecimalPlaces: scalar,
+        styleAngularUnits: scalar
+    }
+};
+function dimensionAnnotation(entity, geometry, state) {
+    const coordinateSpace = entity.ownerId === state.spaces.modelSpaceId ? 'model-xy' : state.spaces.paperSpaceIds.includes(String(entity.ownerId)) ? 'paper-xy' : 'block-local';
+    const type = String(geometry.dimensionType), angular = type === 'ANGULAR' || type === 'ANGULAR_3_POINT';
+    const measurementUnit = angular ? 'degrees' : coordinateSpace === 'model-xy' ? state.header.units : 'unknown';
+    const styleId = typeof geometry.styleId === 'string' && geometry.styleId ? geometry.styleId : null;
+    const record = styleId && Object.hasOwn(state.objects, styleId) ? state.objects[styleId] : undefined;
+    const validStyle = record?.kind === 'table-record' && record.type === 'DIM_STYLE' && !record.erased && state.tables.dimensionStyles.recordIds.includes(record.id);
+    const style = validStyle ? record.payload : {};
+    const inputNumber = (value)=>typeof value === 'number' && Number.isFinite(value) ? value : null;
+    const base = {
+        coordinateSpace,
+        measurementUnit,
+        measurementBasis: 'native-definition-points',
+        associativity: 'not-evaluated',
+        labelRotationUnit: 'radians',
+        formatInputs: {
+            entityPrecision: inputNumber(geometry.precision),
+            entityLinearPrecision: inputNumber(geometry.linearPrecision),
+            entityAngularUnits: inputNumber(geometry.angularUnits),
+            styleDecimalPlaces: inputNumber(style.decimalPlaces),
+            styleAngularDecimalPlaces: inputNumber(style.angularDecimalPlaces),
+            styleAngularUnits: inputNumber(style.angularUnits)
+        }
+    };
+    const unsupported = (reason)=>({
+            ...base,
+            status: 'unsupported',
+            reason,
+            measurement: null,
+            label: null,
+            effectiveStyle: null
+        });
+    if (styleId && !validStyle) return unsupported('unresolved-style-reference');
+    const isXY = (p)=>Array.isArray(p) && p.length >= 2 && p.length <= 3 && p.every((n)=>typeof n === 'number' && Number.isFinite(n)) && (p.length === 2 || p[2] === 0);
+    const points = geometry.definitionPoints;
+    if (!Array.isArray(points) || !points.every(isXY)) return unsupported('non-xy-definition');
+    if (geometry.textPosition !== undefined && geometry.textPosition !== null && !isXY(geometry.textPosition)) return unsupported('non-xy-text-position');
+    for (const key of [
+        'normal',
+        'extrusionDirection'
+    ]){
+        const n = geometry[key];
+        if (n !== undefined && n !== null && (!Array.isArray(n) || n.length !== 3 || n[0] !== 0 || n[1] !== 0 || n[2] !== 1)) return unsupported('non-xy-orientation');
+    }
+    const projection = projectDimension(geometry, style);
+    if (!projection) return unsupported('unsupported-native-projection');
+    const effectiveStyle = {
+        ...resolveDimensionAnnotationStyle(geometry, style),
+        binding: validStyle ? 'style-id' : 'projection-defaults',
+        styleId,
+        styleName: validStyle ? record.name : null,
+        lengthUnits: 'owner-coordinate-units',
+        lengthsAreUnscaled: true
+    };
+    return {
+        ...base,
+        status: 'projected',
+        reason: null,
+        measurement: projection.measurement,
+        label: projection.label,
+        effectiveStyle
+    };
+}
+function nativeGeometry(entity, state) {
     const shape = Object.hasOwn(GEOMETRY, entity.type) ? GEOMETRY[entity.type] : undefined;
     if (!shape) return {
         geometry: null,
@@ -340,8 +449,17 @@ function nativeGeometry(entity) {
             normal: point,
             extrusionDirection: point
         };
+        const budget = new ProjectionBudget();
+        const geometry = project(entity.payload, orientedShape, budget);
+        if (entity.type === 'DIMENSION') {
+            const hadCache = Object.hasOwn(geometry, 'measurement');
+            geometry.cachedMeasurement = geometry.measurement ?? null;
+            delete geometry.measurement;
+            budget.charge((hadCache ? 'cachedMeasurement'.length - 'measurement'.length : '"cachedMeasurement":null'.length + (Object.keys(geometry).length > 1 ? 1 : 0)) + ',"annotation":'.length);
+            geometry.annotation = project(dimensionAnnotation(entity, geometry, state), annotationShape, budget);
+        }
         return {
-            geometry: project(entity.payload, orientedShape, new ProjectionBudget()),
+            geometry,
             geometryOmittedReason: null
         };
     } catch (error) {
@@ -566,7 +684,7 @@ export function createDrawingContext(document, options = {}) {
             layerId,
             visible,
             editable: visible && layer?.payload.locked !== true,
-            ...nativeGeometry(entity),
+            ...nativeGeometry(entity, state),
             ...spatialMatch ? {
                 spatialMatch
             } : {}
@@ -620,6 +738,7 @@ export function createDrawingContext(document, options = {}) {
     }
     result.truncationReasons = REASONS.filter((reason)=>reasons.has(reason));
     result.truncated = result.truncationReasons.length > 0;
+    if (document.revision !== state.revision) throw new KJRevisionConflictError(state.revision, document.revision);
     deepFreeze(result);
     return result;
 }

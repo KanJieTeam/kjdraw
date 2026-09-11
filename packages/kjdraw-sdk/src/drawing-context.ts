@@ -4,6 +4,7 @@ import type { KJReadonlyObjectRecord } from './schema.js'
 import { deepFreeze } from './utils.js'
 import { classifyEntityInBox } from './selection-geometry.js'
 import { PLOT_SETTING_FIELDS } from './plot-settings.js'
+import { projectDimension, resolveDimensionAnnotationStyle } from './geometry/annotation.js'
 
 export interface KJLayoutContextOptions {
   expectedRevision?: number
@@ -85,7 +86,8 @@ export interface KJDrawingContextEntity {
   readonly visible: boolean
   /** Visibility and locking eligibility only; command support is not implied. */
   readonly editable: boolean
-  /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */
+  /** Allowlisted native geometry. DIMENSION also exposes a bounded annotation
+   * projection; its stored measurement is explicitly named cachedMeasurement. */
   readonly geometry: { readonly [key: string]: KJDrawingContextValue } | null
   readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null
   readonly spatialMatch?: 'intersects' | 'unclassified'
@@ -159,7 +161,7 @@ const GEOMETRY: Readonly<Record<string, Shape>> = {
   HATCH: { boundaryLoops: [{ external: scalar, closed: scalar, vertices: [vertex], edges: ['hatch-edge'] }], patternName: scalar, patternScale: scalar, patternAngle: scalar, solid: scalar },
   LEADER: { vertices: [point], textPosition: point, annotationId: scalar },
   MLEADER: { vertices: [point], textPosition: point, annotationId: scalar },
-  DIMENSION: { dimensionType: scalar, definitionPoints: [point], textPosition: point, textOverride: scalar, styleId: scalar, styleName: scalar, blockName: scalar, measurement: scalar, dxfDimensionType: scalar, rotation: scalar },
+  DIMENSION: { dimensionType: scalar, definitionPoints: [point], textPosition: point, textOverride: scalar, styleId: scalar, styleName: scalar, blockName: scalar, measurement: scalar, dxfDimensionType: scalar, rotation: scalar, textHeight: scalar, precision: scalar, linearPrecision: scalar, angularUnits: scalar, overallScale: scalar, arrowSize: scalar, extensionOffset: scalar, extensionBeyond: scalar, incompleteAngularDefinition: scalar },
   VIEWPORT: { center: point, width: scalar, height: scalar, viewCenter: point, viewHeight: scalar, twistAngle: scalar, frozenLayerIds: [scalar] },
   SOLID: { vertices: [point] },
   TRACE: { vertices: [point] },
@@ -237,14 +239,64 @@ function project(value: unknown, shape: Shape, budget: ProjectionBudget): KJDraw
   return result
 }
 
-function nativeGeometry(entity: KJReadonlyObjectRecord): Pick<KJDrawingContextEntity, 'geometry' | 'geometryOmittedReason'> {
+const annotationShape: Shape = {
+  status: scalar, reason: scalar, coordinateSpace: scalar, measurement: scalar,
+  measurementUnit: scalar, measurementBasis: scalar, associativity: scalar, labelRotationUnit: scalar,
+  label: { text: scalar, position: point, height: scalar, rotation: scalar },
+  effectiveStyle: { binding: scalar, styleId: scalar, styleName: scalar, lengthUnits: scalar, lengthsAreUnscaled: scalar, overallScale: scalar, textHeight: scalar, arrowSize: scalar, extensionOffset: scalar, extensionBeyond: scalar },
+  formatInputs: { entityPrecision: scalar, entityLinearPrecision: scalar, entityAngularUnits: scalar, styleDecimalPlaces: scalar, styleAngularDecimalPlaces: scalar, styleAngularUnits: scalar },
+}
+
+function dimensionAnnotation(entity: KJReadonlyObjectRecord, geometry: Record<string, KJDrawingContextValue>, state: ReturnType<KJDocument['snapshot']>): Record<string, unknown> {
+  const coordinateSpace = entity.ownerId === state.spaces.modelSpaceId ? 'model-xy' : state.spaces.paperSpaceIds.includes(String(entity.ownerId)) ? 'paper-xy' : 'block-local'
+  const type = String(geometry.dimensionType), angular = type === 'ANGULAR' || type === 'ANGULAR_3_POINT'
+  // A paper/block coordinate need not represent a physical model length. In
+  // particular the document's meter header does not make paper-space units meters.
+  const measurementUnit = angular ? 'degrees' : coordinateSpace === 'model-xy' ? state.header.units : 'unknown'
+  const styleId = typeof geometry.styleId === 'string' && geometry.styleId ? geometry.styleId : null
+  const record = styleId && Object.hasOwn(state.objects, styleId) ? state.objects[styleId] : undefined
+  const validStyle = record?.kind === 'table-record' && record.type === 'DIM_STYLE' && !record.erased && state.tables.dimensionStyles.recordIds.includes(record.id)
+  const style = validStyle ? record.payload : {}
+  const inputNumber = (value: unknown): number | null => typeof value === 'number' && Number.isFinite(value) ? value : null
+  const base = {
+    coordinateSpace, measurementUnit, measurementBasis: 'native-definition-points', associativity: 'not-evaluated', labelRotationUnit: 'radians',
+    formatInputs: { entityPrecision: inputNumber(geometry.precision), entityLinearPrecision: inputNumber(geometry.linearPrecision), entityAngularUnits: inputNumber(geometry.angularUnits), styleDecimalPlaces: inputNumber(style.decimalPlaces), styleAngularDecimalPlaces: inputNumber(style.angularDecimalPlaces), styleAngularUnits: inputNumber(style.angularUnits) },
+  }
+  const unsupported = (reason: string) => ({ ...base, status: 'unsupported', reason, measurement: null, label: null, effectiveStyle: null })
+  if (styleId && !validStyle) return unsupported('unresolved-style-reference')
+  const isXY = (p: KJDrawingContextValue | undefined): boolean => Array.isArray(p) && p.length >= 2 && p.length <= 3 && p.every(n => typeof n === 'number' && Number.isFinite(n)) && (p.length === 2 || p[2] === 0)
+  const points = geometry.definitionPoints
+  if (!Array.isArray(points) || !points.every(isXY)) return unsupported('non-xy-definition')
+  if (geometry.textPosition !== undefined && geometry.textPosition !== null && !isXY(geometry.textPosition)) return unsupported('non-xy-text-position')
+  for (const key of ['normal', 'extrusionDirection']) {
+    const n = geometry[key]
+    if (n !== undefined && n !== null && (!Array.isArray(n) || n.length !== 3 || n[0] !== 0 || n[1] !== 0 || n[2] !== 1)) return unsupported('non-xy-orientation')
+  }
+  const projection = projectDimension(geometry, style)
+  if (!projection) return unsupported('unsupported-native-projection')
+  const effectiveStyle = { ...resolveDimensionAnnotationStyle(geometry, style), binding: validStyle ? 'style-id' : 'projection-defaults', styleId, styleName: validStyle ? record.name : null, lengthUnits: 'owner-coordinate-units', lengthsAreUnscaled: true }
+  return { ...base, status: 'projected', reason: null, measurement: projection.measurement, label: projection.label, effectiveStyle }
+}
+
+function nativeGeometry(entity: KJReadonlyObjectRecord, state: ReturnType<KJDocument['snapshot']>): Pick<KJDrawingContextEntity, 'geometry' | 'geometryOmittedReason'> {
   const shape = Object.hasOwn(GEOMETRY, entity.type) ? GEOMETRY[entity.type] : undefined
   if (!shape) return { geometry: null, geometryOmittedReason: 'unsupported-type' }
   try {
     // DXF carries an OCS normal for every entity type. Preserve the stored
     // orientation without converting coordinates or assuming a world XY plane.
     const orientedShape: Shape = { ...shape as Record<string, Shape>, normal: point, extrusionDirection: point }
-    return { geometry: project(entity.payload, orientedShape, new ProjectionBudget()) as Record<string, KJDrawingContextValue>, geometryOmittedReason: null }
+    const budget = new ProjectionBudget()
+    const geometry = project(entity.payload, orientedShape, budget) as Record<string, KJDrawingContextValue>
+    if (entity.type === 'DIMENSION') {
+      const hadCache = Object.hasOwn(geometry, 'measurement')
+      geometry.cachedMeasurement = geometry.measurement ?? null
+      delete geometry.measurement
+      // Renaming the cache and adding the annotation consume the SAME geometry
+      // budget. If either does not fit, omit the whole geometry atomically.
+      budget.charge((hadCache ? 'cachedMeasurement'.length - 'measurement'.length : '"cachedMeasurement":null'.length + (Object.keys(geometry).length > 1 ? 1 : 0)) + ',"annotation":'.length)
+      geometry.annotation = project(dimensionAnnotation(entity, geometry, state), annotationShape, budget)
+    }
+    return { geometry, geometryOmittedReason: null }
   } catch (error) {
     if (!(error instanceof ProjectionFailure)) throw error
     return { geometry: null, geometryOmittedReason: error.reason }
@@ -323,7 +375,9 @@ export function createLayoutContext(document: KJDocument, options: KJLayoutConte
  * budget does not bound the document's initial snapshot allocation or scan time.
  * spaceId identifies the owner; stored coordinates may be OCS or block-local.
  * normal/extrusionDirection are retained without world-coordinate conversion.
- * No block expansion, paper-viewport visibility, semantic interpretation,
+ * DIMENSION annotation is computed only for supported native local XY geometry;
+ * paper/block length units remain unknown, and stored caches are not conclusions.
+ * No block expansion, paper-viewport visibility, association evaluation,
  * permission enforcement, or custom payload serialization is performed.
  */
 export function createDrawingContext(document: KJDocument, options: KJDrawingContextOptions = {}): KJDrawingContext {
@@ -380,7 +434,7 @@ export function createDrawingContext(document: KJDocument, options: KJDrawingCon
     if (matched++ < offset) continue
     if (result.entities.length >= limit) { result.nextOffset = matched - 1; reasons.add('entity-limit'); break }
     for (const value of [entity.id, entity.type, entity.ownerId, layerId]) checkIdentity(value, maxBytes)
-    const item: DrawingContextEntityBuilder = { id: entity.id, type: entity.type, ownerId: entity.ownerId, layerId, visible, editable: visible && layer?.payload.locked !== true, ...nativeGeometry(entity), ...(spatialMatch ? { spatialMatch } : {}) }
+    const item: DrawingContextEntityBuilder = { id: entity.id, type: entity.type, ownerId: entity.ownerId, layerId, visible, editable: visible && layer?.payload.locked !== true, ...nativeGeometry(entity, state), ...(spatialMatch ? { spatialMatch } : {}) }
     let bytes = jsonBytes(item) + (result.entities.length ? 1 : 0)
     if (usedBytes + bytes > maxBytes && item.geometry !== null) {
       item.geometry = null
@@ -415,6 +469,7 @@ export function createDrawingContext(document: KJDocument, options: KJDrawingCon
   }
   result.truncationReasons = REASONS.filter(reason => reasons.has(reason))
   result.truncated = result.truncationReasons.length > 0
+  if (document.revision !== state.revision) throw new KJRevisionConflictError(state.revision, document.revision)
   // Freeze the detached graph at runtime; the public types already express
   // recursive readonly values without instantiating ReadonlyDeep<JsonValue>.
   deepFreeze<object>(result)
