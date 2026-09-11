@@ -20,15 +20,15 @@ export interface KJAgentGeometryPreview {
     readonly resources?: readonly KJAgentPreviewResource[];
     /** Existing block definitions, descendant geometry and styles, captured at revision. */
     readonly blockDependencies?: readonly KJAgentBlockPreviewDependency[];
-    readonly command: 'CREATEBATCH' | 'MOVE' | 'ROAD_DRAWING_UPDATE';
+    readonly command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'ROAD_DRAWING_UPDATE';
     readonly before: readonly KJAgentPreviewEntity[];
     readonly after: readonly KJAgentPreviewEntity[];
 }
 export declare const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[];
 export interface KJAgentGeometryPreviewOptions {
-    /** Trusted host creation budget; defaults to 64, hard maximum 512. MOVE remains limited to 64. */
+    /** Trusted host creation budget; defaults to 64, hard maximum 512. Transforms remain limited to 64. */
     maxCreatedEntities?: number;
 }
 /** Run bounded core geometry on a detached document. No host plugins, authority, network or source history is invoked. */
-export declare function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'MOVE', args: Record<string, unknown>, options?: KJAgentGeometryPreviewOptions): Promise<KJAgentGeometryPreview>;
+export declare function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE', args: Record<string, unknown>, options?: KJAgentGeometryPreviewOptions): Promise<KJAgentGeometryPreview>;
 export declare function agentPreviewMatchesDocument(document: KJDocument, preview: KJAgentGeometryPreview): boolean;

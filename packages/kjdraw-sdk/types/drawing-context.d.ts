@@ -83,7 +83,8 @@ export interface KJDrawingContextEntity {
     readonly visible: boolean;
     /** Visibility and locking eligibility only; command support is not implied. */
     readonly editable: boolean;
-    /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */
+    /** Allowlisted native geometry. DIMENSION also exposes a bounded annotation
+     * projection; its stored measurement is explicitly named cachedMeasurement. */
     readonly geometry: {
         readonly [key: string]: KJDrawingContextValue;
     } | null;
@@ -125,7 +126,9 @@ export declare function createLayoutContext(document: KJDocument, options?: KJLa
  * budget does not bound the document's initial snapshot allocation or scan time.
  * spaceId identifies the owner; stored coordinates may be OCS or block-local.
  * normal/extrusionDirection are retained without world-coordinate conversion.
- * No block expansion, paper-viewport visibility, semantic interpretation,
+ * DIMENSION annotation is computed only for supported native local XY geometry;
+ * paper/block length units remain unknown, and stored caches are not conclusions.
+ * No block expansion, paper-viewport visibility, association evaluation,
  * permission enforcement, or custom payload serialization is performed.
  */
 export declare function createDrawingContext(document: KJDocument, options?: KJDrawingContextOptions): KJDrawingContext;

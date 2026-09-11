@@ -63,7 +63,10 @@
 <a href="#module-road-drawing"><code>./road-drawing</code></a>
 <a href="#module-road-drawing-update"><code>./road-drawing-update</code></a>
 <a href="#module-agent-road-drawing"><code>./agent-road-drawing</code></a>
-<a href="#module-road-drawing-recipe"><code>./road-drawing-recipe</code></a></nav></aside>
+<a href="#module-road-drawing-recipe"><code>./road-drawing-recipe</code></a>
+<a href="#module-svg-export"><code>./svg-export</code></a>
+<a href="#module-print-export"><code>./print-export</code></a>
+<a href="#module-file-svg"><code>./file/svg</code></a></nav></aside>
     <main class="reference-main"><article>
       <section class="reference-intro" id="api-reference"><p class="eyebrow">TYPESCRIPT</p><h1><span class="lang-en">Complete API reference</span><span class="lang-zh">完整 API 参考</span></h1><p class="lead"><span class="lang-en">Browse the declarations for the root package and every public subpath. Start with the Editor API for application integration.</span><span class="lang-zh">浏览根包及每个公开子路径的类型声明；应用接入请先从 Editor API 开始。</span></p><a class="primary-link" href="../"><span class="lang-en">Open Editor API</span><span class="lang-zh">打开 Editor API</span> →</a></section>
       <div id="empty-state" hidden><h2><span class="lang-en">No matching API</span><span class="lang-zh">未找到匹配 API</span></h2></div>
@@ -1104,7 +1107,8 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     readonly visible: boolean;
     /** visibility and locking eligibility only; command support is not implied. */
     readonly editable: boolean;
-    /** allowlisted stored geometry; coordinates may be ocs or block-local, with native units/angles. */
+    /** allowlisted native geometry. dimension also exposes a bounded annotation
+     * projection; its stored measurement is explicitly named cachedmeasurement. */
     readonly geometry: {
         readonly [key: string]: kjdrawingcontextvalue;
     } | null;
@@ -1120,7 +1124,8 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     readonly visible: boolean;
     /** Visibility and locking eligibility only; command support is not implied. */
     readonly editable: boolean;
-    /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */
+    /** Allowlisted native geometry. DIMENSION also exposes a bounded annotation
+     * projection; its stored measurement is explicitly named cachedMeasurement. */
     readonly geometry: {
         readonly [key: string]: KJDrawingContextValue;
     } | null;
@@ -14495,7 +14500,8 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     readonly visible: boolean;
     /** visibility and locking eligibility only; command support is not implied. */
     readonly editable: boolean;
-    /** allowlisted stored geometry; coordinates may be ocs or block-local, with native units/angles. */
+    /** allowlisted native geometry. dimension also exposes a bounded annotation
+     * projection; its stored measurement is explicitly named cachedmeasurement. */
     readonly geometry: {
         readonly [key: string]: kjdrawingcontextvalue;
     } | null;
@@ -14511,7 +14517,8 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     readonly visible: boolean;
     /** Visibility and locking eligibility only; command support is not implied. */
     readonly editable: boolean;
-    /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */
+    /** Allowlisted native geometry. DIMENSION also exposes a bounded annotation
+     * projection; its stored measurement is explicitly named cachedMeasurement. */
     readonly geometry: {
         readonly [key: string]: KJDrawingContextValue;
     } | null;
@@ -23331,6 +23338,167 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <header><div><span class="kind">function</span><h3>restoreRoadDrawingRecipe</h3></div><a class="permalink" href="#road-drawing-recipe-function-restoreroaddrawingrecipe" aria-label="Link to restoreRoadDrawingRecipe">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function restoreRoadDrawingRecipe(document: KJDocument, input: unknown): Promise&lt;ReadonlyDeep&lt;KJRestoredRoadDrawingRecipe&gt;&gt;;</code></pre>
       <p class="source-path">road-drawing-recipe.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-svg-export" data-module="@kanjieteam/kjdraw/svg-export">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/svg-export</code></h2></div><a class="permalink" href="#module-svg-export" aria-label="Link to @kanjieteam/kjdraw/svg-export">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/svg-export.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="svg-export-function-exportdrawingsvg" data-search="exportdrawingsvg function @kanjieteam/kjdraw/svg-export export declare function exportdrawingsvg(document: kjdocument, options: kjsvgexportoptions): kjsvgdrawingexport;">
+      <header><div><span class="kind">function</span><h3>exportDrawingSvg</h3></div><a class="permalink" href="#svg-export-function-exportdrawingsvg" aria-label="Link to exportDrawingSvg">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptions): KJSvgDrawingExport;</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="svg-export-interface-kjsvgdiagnostic" data-search="kjsvgdiagnostic interface @kanjieteam/kjdraw/svg-export export interface kjsvgdiagnostic {
+    entityid: string;
+    type: string;
+    reason: string;
+}">
+      <header><div><span class="kind">interface</span><h3>KJSvgDiagnostic</h3></div><a class="permalink" href="#svg-export-interface-kjsvgdiagnostic" aria-label="Link to KJSvgDiagnostic">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJSvgDiagnostic {
+    entityId: string;
+    type: string;
+    reason: string;
+}</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="svg-export-interface-kjsvgdrawingexport" data-search="kjsvgdrawingexport interface @kanjieteam/kjdraw/svg-export export interface kjsvgdrawingexport {
+    svg: string;
+    mimetype: &#39;image/svg+xml&#39;;
+    documentid: string;
+    revision: number;
+    layoutid: string;
+    paper: {
+        widthmm: number;
+        heightmm: number;
+        millimetersperdrawingunit: number;
+    };
+    report: kjsvgexportreport;
+}">
+      <header><div><span class="kind">interface</span><h3>KJSvgDrawingExport</h3></div><a class="permalink" href="#svg-export-interface-kjsvgdrawingexport" aria-label="Link to KJSvgDrawingExport">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJSvgDrawingExport {
+    svg: string;
+    mimeType: &#39;image/svg+xml&#39;;
+    documentId: string;
+    revision: number;
+    layoutId: string;
+    paper: {
+        widthMm: number;
+        heightMm: number;
+        millimetersPerDrawingUnit: number;
+    };
+    report: KJSvgExportReport;
+}</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="svg-export-interface-kjsvgexportoptions" data-search="kjsvgexportoptions interface @kanjieteam/kjdraw/svg-export export interface kjsvgexportoptions {
+    layoutid: string;
+    allowpartial?: boolean;
+    maxentities?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJSvgExportOptions</h3></div><a class="permalink" href="#svg-export-interface-kjsvgexportoptions" aria-label="Link to KJSvgExportOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJSvgExportOptions {
+    layoutId: string;
+    allowPartial?: boolean;
+    maxEntities?: number;
+}</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="svg-export-interface-kjsvgexportreport" data-search="kjsvgexportreport interface @kanjieteam/kjdraw/svg-export export interface kjsvgexportreport {
+    status: &#39;complete&#39; | &#39;approximate&#39; | &#39;partial&#39;;
+    rendered: number;
+    hidden: number;
+    diagnostics: kjsvgdiagnostic[];
+    approximations: kjsvgdiagnostic[];
+    viewports: {
+        entityid: string;
+        millimeterspermodelunit: number;
+        matrix: affinematrix3;
+    }[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJSvgExportReport</h3></div><a class="permalink" href="#svg-export-interface-kjsvgexportreport" aria-label="Link to KJSvgExportReport">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJSvgExportReport {
+    status: &#39;complete&#39; | &#39;approximate&#39; | &#39;partial&#39;;
+    rendered: number;
+    hidden: number;
+    diagnostics: KJSvgDiagnostic[];
+    approximations: KJSvgDiagnostic[];
+    viewports: {
+        entityId: string;
+        millimetersPerModelUnit: number;
+        matrix: AffineMatrix3;
+    }[];
+}</code></pre>
+      <p class="source-path">svg-export.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-print-export" data-module="@kanjieteam/kjdraw/print-export">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/print-export</code></h2></div><a class="permalink" href="#module-print-export" aria-label="Link to @kanjieteam/kjdraw/print-export">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/print-export.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="print-export-function-createdrawingprinthtml" data-search="createdrawingprinthtml function @kanjieteam/kjdraw/print-export export declare function createdrawingprinthtml(document: kjdocument, options: kjdrawingprintoptions): kjdrawingprinthtml;">
+      <header><div><span class="kind">function</span><h3>createDrawingPrintHtml</h3></div><a class="permalink" href="#print-export-function-createdrawingprinthtml" aria-label="Link to createDrawingPrintHtml">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createDrawingPrintHtml(document: KJDocument, options: KJDrawingPrintOptions): KJDrawingPrintHtml;</code></pre>
+      <p class="source-path">print-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="print-export-interface-kjdrawingprinthtml" data-search="kjdrawingprinthtml interface @kanjieteam/kjdraw/print-export export interface kjdrawingprinthtml extends omit&lt;kjsvgdrawingexport, &#39;svg&#39; | &#39;mimetype&#39;&gt; {
+    html: string;
+    mimetype: &#39;text/html&#39;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingPrintHtml</h3></div><a class="permalink" href="#print-export-interface-kjdrawingprinthtml" aria-label="Link to KJDrawingPrintHtml">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingPrintHtml extends Omit&lt;KJSvgDrawingExport, &#39;svg&#39; | &#39;mimeType&#39;&gt; {
+    html: string;
+    mimeType: &#39;text/html&#39;;
+}</code></pre>
+      <p class="source-path">print-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="print-export-interface-kjdrawingprintoptions" data-search="kjdrawingprintoptions interface @kanjieteam/kjdraw/print-export export interface kjdrawingprintoptions {
+    layoutid: string;
+    maxentities?: number;
+    title?: string;
+    locale?: &#39;en&#39; | &#39;zh-cn&#39;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingPrintOptions</h3></div><a class="permalink" href="#print-export-interface-kjdrawingprintoptions" aria-label="Link to KJDrawingPrintOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingPrintOptions {
+    layoutId: string;
+    maxEntities?: number;
+    title?: string;
+    locale?: &#39;en&#39; | &#39;zh-CN&#39;;
+}</code></pre>
+      <p class="source-path">print-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="print-export-interface-kjdrawingprintwindowoptions" data-search="kjdrawingprintwindowoptions interface @kanjieteam/kjdraw/print-export export interface kjdrawingprintwindowoptions extends kjdrawingprintoptions {
+    /** window receiving the user gesture; defaults to the current browser window. */
+    ownerwindow?: window;
+    /** host identity guard, checked before opening and after fonts are ready. */
+    iscurrent?: () =&gt; boolean;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingPrintWindowOptions</h3></div><a class="permalink" href="#print-export-interface-kjdrawingprintwindowoptions" aria-label="Link to KJDrawingPrintWindowOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingPrintWindowOptions extends KJDrawingPrintOptions {
+    /** Window receiving the user gesture; defaults to the current browser window. */
+    ownerWindow?: Window;
+    /** Host identity guard, checked before opening and after fonts are ready. */
+    isCurrent?: () =&gt; boolean;
+}</code></pre>
+      <p class="source-path">print-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="print-export-function-opendrawingprintwindow" data-search="opendrawingprintwindow function @kanjieteam/kjdraw/print-export export declare function opendrawingprintwindow(document: kjdocument, options: kjdrawingprintwindowoptions): promise&lt;kjdrawingprinthtml&gt;;">
+      <header><div><span class="kind">function</span><h3>openDrawingPrintWindow</h3></div><a class="permalink" href="#print-export-function-opendrawingprintwindow" aria-label="Link to openDrawingPrintWindow">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function openDrawingPrintWindow(document: KJDocument, options: KJDrawingPrintWindowOptions): Promise&lt;KJDrawingPrintHtml&gt;;</code></pre>
+      <p class="source-path">print-export.d.ts</p>
+    </article>
+  </div>
+</section>
+<section class="api-module" id="module-file-svg" data-module="@kanjieteam/kjdraw/file/svg">
+  <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/file/svg</code></h2></div><a class="permalink" href="#module-file-svg" aria-label="Link to @kanjieteam/kjdraw/file/svg">#</a></header>
+  <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/svg-adapter.d.ts</code></p>
+  <div class="api-symbols">
+    <article class="api-symbol" id="file-svg-function-createsvgfileadapter" data-search="createsvgfileadapter function @kanjieteam/kjdraw/file/svg export declare function createsvgfileadapter(): readonly&lt;kjfileadapter&lt;never, string&gt;&gt;;">
+      <header><div><span class="kind">function</span><h3>createSVGFileAdapter</h3></div><a class="permalink" href="#file-svg-function-createsvgfileadapter" aria-label="Link to createSVGFileAdapter">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createSVGFileAdapter(): Readonly&lt;KJFileAdapter&lt;never, string&gt;&gt;;</code></pre>
+      <p class="source-path">svg-adapter.d.ts</p>
     </article>
   </div>
 </section>

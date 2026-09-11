@@ -19,6 +19,15 @@ export interface KJDimensionProjection {
     /** Angular dimensions use degrees; other dimensions use drawing length units. */
     measurement: number;
 }
+/** Internal shared resolution for native projection and DXF DSTYLE persistence.
+ * Returned lengths are unscaled; apply overallScale exactly once. */
+export declare function resolveDimensionAnnotationStyle(payload: Readonly<Record<string, unknown>>, style?: Readonly<Record<string, unknown>>): {
+    overallScale: number;
+    textHeight: number;
+    arrowSize: number;
+    extensionOffset: number;
+    extensionBeyond: number;
+};
 /** Project supported native DIMENSION semantics into model-space annotation geometry. */
 export declare function projectDimension(payload: Readonly<Record<string, unknown>>, style?: Readonly<Record<string, unknown>>): KJDimensionProjection | null;
 export {};

@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:373a5dfae27f40e4e2b1e286421216424eacc6fa148e522fb2bd5dd08192242f",
+  "sourceDigest": "sha256:3c462c29d18be57c41786e700115b8775aaabffcc4b909f3bf86c4ab676f6af6",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -13099,6 +13099,94 @@
       "href": "./api/reference/#road-drawing-recipe-function-restoreroaddrawingrecipe",
       "anchor": "road-drawing-recipe-function-restoreroaddrawingrecipe",
       "summary": "export declare function restoreRoadDrawingRecipe(document: KJDocument, input: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;"
+    },
+    {
+      "name": "exportDrawingSvg",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/svg-export",
+      "href": "./api/reference/#svg-export-function-exportdrawingsvg",
+      "anchor": "svg-export-function-exportdrawingsvg",
+      "summary": "export declare function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptions): KJSvgDrawingExport;"
+    },
+    {
+      "name": "KJSvgDiagnostic",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/svg-export",
+      "href": "./api/reference/#svg-export-interface-kjsvgdiagnostic",
+      "anchor": "svg-export-interface-kjsvgdiagnostic",
+      "summary": "export interface KJSvgDiagnostic { entityId: string; type: string; reason: string; }"
+    },
+    {
+      "name": "KJSvgDrawingExport",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/svg-export",
+      "href": "./api/reference/#svg-export-interface-kjsvgdrawingexport",
+      "anchor": "svg-export-interface-kjsvgdrawingexport",
+      "summary": "export interface KJSvgDrawingExport { svg: string; mimeType: 'image/svg+xml'; documentId: string; revision: number; layoutId: string; paper: { widthMm: number; heightMm: number; millimetersPerDrawingUnit: number; }; repo"
+    },
+    {
+      "name": "KJSvgExportOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/svg-export",
+      "href": "./api/reference/#svg-export-interface-kjsvgexportoptions",
+      "anchor": "svg-export-interface-kjsvgexportoptions",
+      "summary": "export interface KJSvgExportOptions { layoutId: string; allowPartial?: boolean; maxEntities?: number; }"
+    },
+    {
+      "name": "KJSvgExportReport",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/svg-export",
+      "href": "./api/reference/#svg-export-interface-kjsvgexportreport",
+      "anchor": "svg-export-interface-kjsvgexportreport",
+      "summary": "export interface KJSvgExportReport { status: 'complete' | 'approximate' | 'partial'; rendered: number; hidden: number; diagnostics: KJSvgDiagnostic[]; approximations: KJSvgDiagnostic[]; viewports: { entityId: string; mil"
+    },
+    {
+      "name": "createDrawingPrintHtml",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/print-export",
+      "href": "./api/reference/#print-export-function-createdrawingprinthtml",
+      "anchor": "print-export-function-createdrawingprinthtml",
+      "summary": "export declare function createDrawingPrintHtml(document: KJDocument, options: KJDrawingPrintOptions): KJDrawingPrintHtml;"
+    },
+    {
+      "name": "KJDrawingPrintHtml",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/print-export",
+      "href": "./api/reference/#print-export-interface-kjdrawingprinthtml",
+      "anchor": "print-export-interface-kjdrawingprinthtml",
+      "summary": "export interface KJDrawingPrintHtml extends Omit<KJSvgDrawingExport, 'svg' | 'mimeType'> { html: string; mimeType: 'text/html'; }"
+    },
+    {
+      "name": "KJDrawingPrintOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/print-export",
+      "href": "./api/reference/#print-export-interface-kjdrawingprintoptions",
+      "anchor": "print-export-interface-kjdrawingprintoptions",
+      "summary": "export interface KJDrawingPrintOptions { layoutId: string; maxEntities?: number; title?: string; locale?: 'en' | 'zh-CN'; }"
+    },
+    {
+      "name": "KJDrawingPrintWindowOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/print-export",
+      "href": "./api/reference/#print-export-interface-kjdrawingprintwindowoptions",
+      "anchor": "print-export-interface-kjdrawingprintwindowoptions",
+      "summary": "export interface KJDrawingPrintWindowOptions extends KJDrawingPrintOptions { /** Window receiving the user gesture; defaults to the current browser window. */ ownerWindow?: Window; /** Host identity guard, checked before"
+    },
+    {
+      "name": "openDrawingPrintWindow",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/print-export",
+      "href": "./api/reference/#print-export-function-opendrawingprintwindow",
+      "anchor": "print-export-function-opendrawingprintwindow",
+      "summary": "export declare function openDrawingPrintWindow(document: KJDocument, options: KJDrawingPrintWindowOptions): Promise<KJDrawingPrintHtml>;"
+    },
+    {
+      "name": "createSVGFileAdapter",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw/file/svg",
+      "href": "./api/reference/#file-svg-function-createsvgfileadapter",
+      "anchor": "file-svg-function-createsvgfileadapter",
+      "summary": "export declare function createSVGFileAdapter(): Readonly<KJFileAdapter<never, string>>;"
     }
   ]
 }

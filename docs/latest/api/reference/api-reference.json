@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:373a5dfae27f40e4e2b1e286421216424eacc6fa148e522fb2bd5dd08192242f",
+  "sourceDigest": "sha256:3c462c29d18be57c41786e700115b8775aaabffcc4b909f3bf86c4ab676f6af6",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -447,7 +447,7 @@
         {
           "name": "KJDrawingContextEntity",
           "kind": "interface",
-          "declaration": "export interface KJDrawingContextEntity {\n    readonly id: string;\n    readonly type: string;\n    readonly ownerId: string | null;\n    readonly layerId: string | null;\n    readonly visible: boolean;\n    /** Visibility and locking eligibility only; command support is not implied. */\n    readonly editable: boolean;\n    /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */\n    readonly geometry: {\n        readonly [key: string]: KJDrawingContextValue;\n    } | null;\n    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;\n    readonly spatialMatch?: 'intersects' | 'unclassified';\n}",
+          "declaration": "export interface KJDrawingContextEntity {\n    readonly id: string;\n    readonly type: string;\n    readonly ownerId: string | null;\n    readonly layerId: string | null;\n    readonly visible: boolean;\n    /** Visibility and locking eligibility only; command support is not implied. */\n    readonly editable: boolean;\n    /** Allowlisted native geometry. DIMENSION also exposes a bounded annotation\n     * projection; its stored measurement is explicitly named cachedMeasurement. */\n    readonly geometry: {\n        readonly [key: string]: KJDrawingContextValue;\n    } | null;\n    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;\n    readonly spatialMatch?: 'intersects' | 'unclassified';\n}",
           "source": "drawing-context.d.ts",
           "anchor": "drawing-context-interface-kjdrawingcontextentity"
         },
@@ -6836,7 +6836,7 @@
         {
           "name": "KJDrawingContextEntity",
           "kind": "interface",
-          "declaration": "export interface KJDrawingContextEntity {\n    readonly id: string;\n    readonly type: string;\n    readonly ownerId: string | null;\n    readonly layerId: string | null;\n    readonly visible: boolean;\n    /** Visibility and locking eligibility only; command support is not implied. */\n    readonly editable: boolean;\n    /** Allowlisted stored geometry; coordinates may be OCS or block-local, with native units/angles. */\n    readonly geometry: {\n        readonly [key: string]: KJDrawingContextValue;\n    } | null;\n    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;\n    readonly spatialMatch?: 'intersects' | 'unclassified';\n}",
+          "declaration": "export interface KJDrawingContextEntity {\n    readonly id: string;\n    readonly type: string;\n    readonly ownerId: string | null;\n    readonly layerId: string | null;\n    readonly visible: boolean;\n    /** Visibility and locking eligibility only; command support is not implied. */\n    readonly editable: boolean;\n    /** Allowlisted native geometry. DIMENSION also exposes a bounded annotation\n     * projection; its stored measurement is explicitly named cachedMeasurement. */\n    readonly geometry: {\n        readonly [key: string]: KJDrawingContextValue;\n    } | null;\n    readonly geometryOmittedReason: KJDrawingGeometryOmittedReason | null;\n    readonly spatialMatch?: 'intersects' | 'unclassified';\n}",
           "source": "drawing-context.d.ts",
           "anchor": "root-interface-kjdrawingcontextentity"
         },
@@ -11845,6 +11845,107 @@
           "declaration": "export declare function restoreRoadDrawingRecipe(document: KJDocument, input: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;",
           "source": "road-drawing-recipe.d.ts",
           "anchor": "road-drawing-recipe-function-restoreroaddrawingrecipe"
+        }
+      ]
+    },
+    {
+      "exportPath": "./svg-export",
+      "packageName": "@kanjieteam/kjdraw/svg-export",
+      "declaration": "types/svg-export.d.ts",
+      "anchor": "module-svg-export",
+      "symbols": [
+        {
+          "name": "exportDrawingSvg",
+          "kind": "function",
+          "declaration": "export declare function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptions): KJSvgDrawingExport;",
+          "source": "svg-export.d.ts",
+          "anchor": "svg-export-function-exportdrawingsvg"
+        },
+        {
+          "name": "KJSvgDiagnostic",
+          "kind": "interface",
+          "declaration": "export interface KJSvgDiagnostic {\n    entityId: string;\n    type: string;\n    reason: string;\n}",
+          "source": "svg-export.d.ts",
+          "anchor": "svg-export-interface-kjsvgdiagnostic"
+        },
+        {
+          "name": "KJSvgDrawingExport",
+          "kind": "interface",
+          "declaration": "export interface KJSvgDrawingExport {\n    svg: string;\n    mimeType: 'image/svg+xml';\n    documentId: string;\n    revision: number;\n    layoutId: string;\n    paper: {\n        widthMm: number;\n        heightMm: number;\n        millimetersPerDrawingUnit: number;\n    };\n    report: KJSvgExportReport;\n}",
+          "source": "svg-export.d.ts",
+          "anchor": "svg-export-interface-kjsvgdrawingexport"
+        },
+        {
+          "name": "KJSvgExportOptions",
+          "kind": "interface",
+          "declaration": "export interface KJSvgExportOptions {\n    layoutId: string;\n    allowPartial?: boolean;\n    maxEntities?: number;\n}",
+          "source": "svg-export.d.ts",
+          "anchor": "svg-export-interface-kjsvgexportoptions"
+        },
+        {
+          "name": "KJSvgExportReport",
+          "kind": "interface",
+          "declaration": "export interface KJSvgExportReport {\n    status: 'complete' | 'approximate' | 'partial';\n    rendered: number;\n    hidden: number;\n    diagnostics: KJSvgDiagnostic[];\n    approximations: KJSvgDiagnostic[];\n    viewports: {\n        entityId: string;\n        millimetersPerModelUnit: number;\n        matrix: AffineMatrix3;\n    }[];\n}",
+          "source": "svg-export.d.ts",
+          "anchor": "svg-export-interface-kjsvgexportreport"
+        }
+      ]
+    },
+    {
+      "exportPath": "./print-export",
+      "packageName": "@kanjieteam/kjdraw/print-export",
+      "declaration": "types/print-export.d.ts",
+      "anchor": "module-print-export",
+      "symbols": [
+        {
+          "name": "createDrawingPrintHtml",
+          "kind": "function",
+          "declaration": "export declare function createDrawingPrintHtml(document: KJDocument, options: KJDrawingPrintOptions): KJDrawingPrintHtml;",
+          "source": "print-export.d.ts",
+          "anchor": "print-export-function-createdrawingprinthtml"
+        },
+        {
+          "name": "KJDrawingPrintHtml",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingPrintHtml extends Omit<KJSvgDrawingExport, 'svg' | 'mimeType'> {\n    html: string;\n    mimeType: 'text/html';\n}",
+          "source": "print-export.d.ts",
+          "anchor": "print-export-interface-kjdrawingprinthtml"
+        },
+        {
+          "name": "KJDrawingPrintOptions",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingPrintOptions {\n    layoutId: string;\n    maxEntities?: number;\n    title?: string;\n    locale?: 'en' | 'zh-CN';\n}",
+          "source": "print-export.d.ts",
+          "anchor": "print-export-interface-kjdrawingprintoptions"
+        },
+        {
+          "name": "KJDrawingPrintWindowOptions",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingPrintWindowOptions extends KJDrawingPrintOptions {\n    /** Window receiving the user gesture; defaults to the current browser window. */\n    ownerWindow?: Window;\n    /** Host identity guard, checked before opening and after fonts are ready. */\n    isCurrent?: () => boolean;\n}",
+          "source": "print-export.d.ts",
+          "anchor": "print-export-interface-kjdrawingprintwindowoptions"
+        },
+        {
+          "name": "openDrawingPrintWindow",
+          "kind": "function",
+          "declaration": "export declare function openDrawingPrintWindow(document: KJDocument, options: KJDrawingPrintWindowOptions): Promise<KJDrawingPrintHtml>;",
+          "source": "print-export.d.ts",
+          "anchor": "print-export-function-opendrawingprintwindow"
+        }
+      ]
+    },
+    {
+      "exportPath": "./file/svg",
+      "packageName": "@kanjieteam/kjdraw/file/svg",
+      "declaration": "types/svg-adapter.d.ts",
+      "anchor": "module-file-svg",
+      "symbols": [
+        {
+          "name": "createSVGFileAdapter",
+          "kind": "function",
+          "declaration": "export declare function createSVGFileAdapter(): Readonly<KJFileAdapter<never, string>>;",
+          "source": "svg-adapter.d.ts",
+          "anchor": "file-svg-function-createsvgfileadapter"
         }
       ]
     }
