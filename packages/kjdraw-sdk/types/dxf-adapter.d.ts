@@ -7,7 +7,6 @@ interface DxfReadLimits {
 }
 interface DxfReadOptions extends KJFileAdapterOptions {
     limits?: Partial<DxfReadLimits>;
-    signal?: AbortSignal;
     maxBytes?: number;
     maxTags?: number;
     maxEntities?: number;

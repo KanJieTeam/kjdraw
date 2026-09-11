@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:3de0cfe22e0aaac0da1e14b19529e1d25c7724bb75969b30d1568d9c37704aba",
+  "sourceDigest": "sha256:3fb8a7365bfbde96713979c3422e8e190352d9b1ab9ae9823168c11539f574fa",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -2637,7 +2637,7 @@
         {
           "name": "KJFileAdapterOptions",
           "kind": "interface",
-          "declaration": "export interface KJFileAdapterOptions extends Record<string, unknown> {\n    format?: string;\n    version?: string | number | null;\n    adapterId?: string | null;\n}",
+          "declaration": "export interface KJFileAdapterOptions extends Record<string, unknown> {\n    format?: string;\n    version?: string | number | null;\n    adapterId?: string | null;\n    /** Cancels cooperative file readers before they commit a document. */\n    signal?: AbortSignal;\n    /** Bounded host progress without exposing file contents. */\n    onProgress?: (progress: Readonly<KJFileReadProgress>) => void;\n}",
           "source": "file-adapters.d.ts",
           "anchor": "core-interface-kjfileadapteroptions"
         },
@@ -2682,6 +2682,13 @@
           "declaration": "export type KJFileOperation = 'read' | 'write';",
           "source": "file-adapters.d.ts",
           "anchor": "core-type-kjfileoperation"
+        },
+        {
+          "name": "KJFileReadProgress",
+          "kind": "interface",
+          "declaration": "export interface KJFileReadProgress {\n    phase: 'source' | 'parse' | 'import';\n    completed: number;\n    total?: number;\n    unit: 'bytes' | 'tags' | 'entities';\n}",
+          "source": "file-adapters.d.ts",
+          "anchor": "core-interface-kjfilereadprogress"
         },
         {
           "name": "KJFormatCapability",
@@ -4255,7 +4262,7 @@
         {
           "name": "KJFileAdapterOptions",
           "kind": "interface",
-          "declaration": "export interface KJFileAdapterOptions extends Record<string, unknown> {\n    format?: string;\n    version?: string | number | null;\n    adapterId?: string | null;\n}",
+          "declaration": "export interface KJFileAdapterOptions extends Record<string, unknown> {\n    format?: string;\n    version?: string | number | null;\n    adapterId?: string | null;\n    /** Cancels cooperative file readers before they commit a document. */\n    signal?: AbortSignal;\n    /** Bounded host progress without exposing file contents. */\n    onProgress?: (progress: Readonly<KJFileReadProgress>) => void;\n}",
           "source": "file-adapters.d.ts",
           "anchor": "files-interface-kjfileadapteroptions"
         },
@@ -4300,6 +4307,13 @@
           "declaration": "export type KJFileOperation = 'read' | 'write';",
           "source": "file-adapters.d.ts",
           "anchor": "files-type-kjfileoperation"
+        },
+        {
+          "name": "KJFileReadProgress",
+          "kind": "interface",
+          "declaration": "export interface KJFileReadProgress {\n    phase: 'source' | 'parse' | 'import';\n    completed: number;\n    total?: number;\n    unit: 'bytes' | 'tags' | 'entities';\n}",
+          "source": "file-adapters.d.ts",
+          "anchor": "files-interface-kjfilereadprogress"
         },
         {
           "name": "KJP_DEFAULT_READ_LIMITS",
@@ -7172,7 +7186,7 @@
         {
           "name": "KJFileAdapterOptions",
           "kind": "interface",
-          "declaration": "export interface KJFileAdapterOptions extends Record<string, unknown> {\n    format?: string;\n    version?: string | number | null;\n    adapterId?: string | null;\n}",
+          "declaration": "export interface KJFileAdapterOptions extends Record<string, unknown> {\n    format?: string;\n    version?: string | number | null;\n    adapterId?: string | null;\n    /** Cancels cooperative file readers before they commit a document. */\n    signal?: AbortSignal;\n    /** Bounded host progress without exposing file contents. */\n    onProgress?: (progress: Readonly<KJFileReadProgress>) => void;\n}",
           "source": "file-adapters.d.ts",
           "anchor": "root-interface-kjfileadapteroptions"
         },
@@ -7217,6 +7231,13 @@
           "declaration": "export type KJFileOperation = 'read' | 'write';",
           "source": "file-adapters.d.ts",
           "anchor": "root-type-kjfileoperation"
+        },
+        {
+          "name": "KJFileReadProgress",
+          "kind": "interface",
+          "declaration": "export interface KJFileReadProgress {\n    phase: 'source' | 'parse' | 'import';\n    completed: number;\n    total?: number;\n    unit: 'bytes' | 'tags' | 'entities';\n}",
+          "source": "file-adapters.d.ts",
+          "anchor": "root-interface-kjfilereadprogress"
         },
         {
           "name": "KJFormatCapability",
@@ -9439,7 +9460,7 @@
         {
           "name": "KJFileAdapterOptions",
           "kind": "interface",
-          "declaration": "export interface KJFileAdapterOptions extends Record<string, unknown> {\n    format?: string;\n    version?: string | number | null;\n    adapterId?: string | null;\n}",
+          "declaration": "export interface KJFileAdapterOptions extends Record<string, unknown> {\n    format?: string;\n    version?: string | number | null;\n    adapterId?: string | null;\n    /** Cancels cooperative file readers before they commit a document. */\n    signal?: AbortSignal;\n    /** Bounded host progress without exposing file contents. */\n    onProgress?: (progress: Readonly<KJFileReadProgress>) => void;\n}",
           "source": "file-adapters.d.ts",
           "anchor": "file-interface-kjfileadapteroptions"
         },
@@ -9484,6 +9505,13 @@
           "declaration": "export type KJFileOperation = 'read' | 'write';",
           "source": "file-adapters.d.ts",
           "anchor": "file-type-kjfileoperation"
+        },
+        {
+          "name": "KJFileReadProgress",
+          "kind": "interface",
+          "declaration": "export interface KJFileReadProgress {\n    phase: 'source' | 'parse' | 'import';\n    completed: number;\n    total?: number;\n    unit: 'bytes' | 'tags' | 'entities';\n}",
+          "source": "file-adapters.d.ts",
+          "anchor": "file-interface-kjfilereadprogress"
         }
       ]
     },

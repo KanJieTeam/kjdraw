@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:3de0cfe22e0aaac0da1e14b19529e1d25c7724bb75969b30d1568d9c37704aba",
+  "sourceDigest": "sha256:3fb8a7365bfbde96713979c3422e8e190352d9b1ab9ae9823168c11539f574fa",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -2898,7 +2898,7 @@
       "module": "@kanjieteam/kjdraw/core",
       "href": "./api/reference/#core-interface-kjfileadapteroptions",
       "anchor": "core-interface-kjfileadapteroptions",
-      "summary": "export interface KJFileAdapterOptions extends Record<string, unknown> { format?: string; version?: string | number | null; adapterId?: string | null; }"
+      "summary": "export interface KJFileAdapterOptions extends Record<string, unknown> { format?: string; version?: string | number | null; adapterId?: string | null; /** Cancels cooperative file readers before they commit a document. */"
     },
     {
       "name": "KJFileAdapterRegistry",
@@ -2947,6 +2947,14 @@
       "href": "./api/reference/#core-type-kjfileoperation",
       "anchor": "core-type-kjfileoperation",
       "summary": "export type KJFileOperation = 'read' | 'write';"
+    },
+    {
+      "name": "KJFileReadProgress",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/core",
+      "href": "./api/reference/#core-interface-kjfilereadprogress",
+      "anchor": "core-interface-kjfilereadprogress",
+      "summary": "export interface KJFileReadProgress { phase: 'source' | 'parse' | 'import'; completed: number; total?: number; unit: 'bytes' | 'tags' | 'entities'; }"
     },
     {
       "name": "KJFormatCapability",
@@ -4738,7 +4746,7 @@
       "module": "@kanjieteam/kjdraw/files",
       "href": "./api/reference/#files-interface-kjfileadapteroptions",
       "anchor": "files-interface-kjfileadapteroptions",
-      "summary": "export interface KJFileAdapterOptions extends Record<string, unknown> { format?: string; version?: string | number | null; adapterId?: string | null; }"
+      "summary": "export interface KJFileAdapterOptions extends Record<string, unknown> { format?: string; version?: string | number | null; adapterId?: string | null; /** Cancels cooperative file readers before they commit a document. */"
     },
     {
       "name": "KJFileAdapterRegistry",
@@ -4787,6 +4795,14 @@
       "href": "./api/reference/#files-type-kjfileoperation",
       "anchor": "files-type-kjfileoperation",
       "summary": "export type KJFileOperation = 'read' | 'write';"
+    },
+    {
+      "name": "KJFileReadProgress",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/files",
+      "href": "./api/reference/#files-interface-kjfilereadprogress",
+      "anchor": "files-interface-kjfilereadprogress",
+      "summary": "export interface KJFileReadProgress { phase: 'source' | 'parse' | 'import'; completed: number; total?: number; unit: 'bytes' | 'tags' | 'entities'; }"
     },
     {
       "name": "KJP_DEFAULT_READ_LIMITS",
@@ -8026,7 +8042,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjfileadapteroptions",
       "anchor": "root-interface-kjfileadapteroptions",
-      "summary": "export interface KJFileAdapterOptions extends Record<string, unknown> { format?: string; version?: string | number | null; adapterId?: string | null; }"
+      "summary": "export interface KJFileAdapterOptions extends Record<string, unknown> { format?: string; version?: string | number | null; adapterId?: string | null; /** Cancels cooperative file readers before they commit a document. */"
     },
     {
       "name": "KJFileAdapterRegistry",
@@ -8075,6 +8091,14 @@
       "href": "./api/reference/#root-type-kjfileoperation",
       "anchor": "root-type-kjfileoperation",
       "summary": "export type KJFileOperation = 'read' | 'write';"
+    },
+    {
+      "name": "KJFileReadProgress",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjfilereadprogress",
+      "anchor": "root-interface-kjfilereadprogress",
+      "summary": "export interface KJFileReadProgress { phase: 'source' | 'parse' | 'import'; completed: number; total?: number; unit: 'bytes' | 'tags' | 'entities'; }"
     },
     {
       "name": "KJFormatCapability",
@@ -10562,7 +10586,7 @@
       "module": "@kanjieteam/kjdraw/file",
       "href": "./api/reference/#file-interface-kjfileadapteroptions",
       "anchor": "file-interface-kjfileadapteroptions",
-      "summary": "export interface KJFileAdapterOptions extends Record<string, unknown> { format?: string; version?: string | number | null; adapterId?: string | null; }"
+      "summary": "export interface KJFileAdapterOptions extends Record<string, unknown> { format?: string; version?: string | number | null; adapterId?: string | null; /** Cancels cooperative file readers before they commit a document. */"
     },
     {
       "name": "KJFileAdapterRegistry",
@@ -10611,6 +10635,14 @@
       "href": "./api/reference/#file-type-kjfileoperation",
       "anchor": "file-type-kjfileoperation",
       "summary": "export type KJFileOperation = 'read' | 'write';"
+    },
+    {
+      "name": "KJFileReadProgress",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw/file",
+      "href": "./api/reference/#file-interface-kjfilereadprogress",
+      "anchor": "file-interface-kjfilereadprogress",
+      "summary": "export interface KJFileReadProgress { phase: 'source' | 'parse' | 'import'; completed: number; total?: number; unit: 'bytes' | 'tags' | 'entities'; }"
     },
     {
       "name": "add2",

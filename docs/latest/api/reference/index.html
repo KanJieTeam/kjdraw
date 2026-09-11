@@ -6007,12 +6007,20 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     format?: string;
     version?: string | number | null;
     adapterid?: string | null;
+    /** cancels cooperative file readers before they commit a document. */
+    signal?: abortsignal;
+    /** bounded host progress without exposing file contents. */
+    onprogress?: (progress: readonly&lt;kjfilereadprogress&gt;) =&gt; void;
 }">
       <header><div><span class="kind">interface</span><h3>KJFileAdapterOptions</h3></div><a class="permalink" href="#core-interface-kjfileadapteroptions" aria-label="Link to KJFileAdapterOptions">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFileAdapterOptions extends Record&lt;string, unknown&gt; {
     format?: string;
     version?: string | number | null;
     adapterId?: string | null;
+    /** Cancels cooperative file readers before they commit a document. */
+    signal?: AbortSignal;
+    /** Bounded host progress without exposing file contents. */
+    onProgress?: (progress: Readonly&lt;KJFileReadProgress&gt;) =&gt; void;
 }</code></pre>
       <p class="source-path">file-adapters.d.ts</p>
     </article>
@@ -6086,6 +6094,21 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 <article class="api-symbol" id="core-type-kjfileoperation" data-search="kjfileoperation type @kanjieteam/kjdraw/core export type kjfileoperation = &#39;read&#39; | &#39;write&#39;;">
       <header><div><span class="kind">type</span><h3>KJFileOperation</h3></div><a class="permalink" href="#core-type-kjfileoperation" aria-label="Link to KJFileOperation">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJFileOperation = &#39;read&#39; | &#39;write&#39;;</code></pre>
+      <p class="source-path">file-adapters.d.ts</p>
+    </article>
+<article class="api-symbol" id="core-interface-kjfilereadprogress" data-search="kjfilereadprogress interface @kanjieteam/kjdraw/core export interface kjfilereadprogress {
+    phase: &#39;source&#39; | &#39;parse&#39; | &#39;import&#39;;
+    completed: number;
+    total?: number;
+    unit: &#39;bytes&#39; | &#39;tags&#39; | &#39;entities&#39;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJFileReadProgress</h3></div><a class="permalink" href="#core-interface-kjfilereadprogress" aria-label="Link to KJFileReadProgress">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFileReadProgress {
+    phase: &#39;source&#39; | &#39;parse&#39; | &#39;import&#39;;
+    completed: number;
+    total?: number;
+    unit: &#39;bytes&#39; | &#39;tags&#39; | &#39;entities&#39;;
+}</code></pre>
       <p class="source-path">file-adapters.d.ts</p>
     </article>
 <article class="api-symbol" id="core-type-kjformatcapability" data-search="kjformatcapability type @kanjieteam/kjdraw/core export type kjformatcapability = typeof kj_format_capability[keyof typeof kj_format_capability];">
@@ -8505,12 +8528,20 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     format?: string;
     version?: string | number | null;
     adapterid?: string | null;
+    /** cancels cooperative file readers before they commit a document. */
+    signal?: abortsignal;
+    /** bounded host progress without exposing file contents. */
+    onprogress?: (progress: readonly&lt;kjfilereadprogress&gt;) =&gt; void;
 }">
       <header><div><span class="kind">interface</span><h3>KJFileAdapterOptions</h3></div><a class="permalink" href="#files-interface-kjfileadapteroptions" aria-label="Link to KJFileAdapterOptions">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFileAdapterOptions extends Record&lt;string, unknown&gt; {
     format?: string;
     version?: string | number | null;
     adapterId?: string | null;
+    /** Cancels cooperative file readers before they commit a document. */
+    signal?: AbortSignal;
+    /** Bounded host progress without exposing file contents. */
+    onProgress?: (progress: Readonly&lt;KJFileReadProgress&gt;) =&gt; void;
 }</code></pre>
       <p class="source-path">file-adapters.d.ts</p>
     </article>
@@ -8584,6 +8615,21 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 <article class="api-symbol" id="files-type-kjfileoperation" data-search="kjfileoperation type @kanjieteam/kjdraw/files export type kjfileoperation = &#39;read&#39; | &#39;write&#39;;">
       <header><div><span class="kind">type</span><h3>KJFileOperation</h3></div><a class="permalink" href="#files-type-kjfileoperation" aria-label="Link to KJFileOperation">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJFileOperation = &#39;read&#39; | &#39;write&#39;;</code></pre>
+      <p class="source-path">file-adapters.d.ts</p>
+    </article>
+<article class="api-symbol" id="files-interface-kjfilereadprogress" data-search="kjfilereadprogress interface @kanjieteam/kjdraw/files export interface kjfilereadprogress {
+    phase: &#39;source&#39; | &#39;parse&#39; | &#39;import&#39;;
+    completed: number;
+    total?: number;
+    unit: &#39;bytes&#39; | &#39;tags&#39; | &#39;entities&#39;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJFileReadProgress</h3></div><a class="permalink" href="#files-interface-kjfilereadprogress" aria-label="Link to KJFileReadProgress">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFileReadProgress {
+    phase: &#39;source&#39; | &#39;parse&#39; | &#39;import&#39;;
+    completed: number;
+    total?: number;
+    unit: &#39;bytes&#39; | &#39;tags&#39; | &#39;entities&#39;;
+}</code></pre>
       <p class="source-path">file-adapters.d.ts</p>
     </article>
 <article class="api-symbol" id="files-const-kjp-default-read-limits" data-search="kjp_default_read_limits const @kanjieteam/kjdraw/files export declare const kjp_default_read_limits: readonly&lt;kjpreadlimits&gt;;">
@@ -15322,12 +15368,20 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     format?: string;
     version?: string | number | null;
     adapterid?: string | null;
+    /** cancels cooperative file readers before they commit a document. */
+    signal?: abortsignal;
+    /** bounded host progress without exposing file contents. */
+    onprogress?: (progress: readonly&lt;kjfilereadprogress&gt;) =&gt; void;
 }">
       <header><div><span class="kind">interface</span><h3>KJFileAdapterOptions</h3></div><a class="permalink" href="#root-interface-kjfileadapteroptions" aria-label="Link to KJFileAdapterOptions">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFileAdapterOptions extends Record&lt;string, unknown&gt; {
     format?: string;
     version?: string | number | null;
     adapterId?: string | null;
+    /** Cancels cooperative file readers before they commit a document. */
+    signal?: AbortSignal;
+    /** Bounded host progress without exposing file contents. */
+    onProgress?: (progress: Readonly&lt;KJFileReadProgress&gt;) =&gt; void;
 }</code></pre>
       <p class="source-path">file-adapters.d.ts</p>
     </article>
@@ -15401,6 +15455,21 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 <article class="api-symbol" id="root-type-kjfileoperation" data-search="kjfileoperation type @kanjieteam/kjdraw export type kjfileoperation = &#39;read&#39; | &#39;write&#39;;">
       <header><div><span class="kind">type</span><h3>KJFileOperation</h3></div><a class="permalink" href="#root-type-kjfileoperation" aria-label="Link to KJFileOperation">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJFileOperation = &#39;read&#39; | &#39;write&#39;;</code></pre>
+      <p class="source-path">file-adapters.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjfilereadprogress" data-search="kjfilereadprogress interface @kanjieteam/kjdraw export interface kjfilereadprogress {
+    phase: &#39;source&#39; | &#39;parse&#39; | &#39;import&#39;;
+    completed: number;
+    total?: number;
+    unit: &#39;bytes&#39; | &#39;tags&#39; | &#39;entities&#39;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJFileReadProgress</h3></div><a class="permalink" href="#root-interface-kjfilereadprogress" aria-label="Link to KJFileReadProgress">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFileReadProgress {
+    phase: &#39;source&#39; | &#39;parse&#39; | &#39;import&#39;;
+    completed: number;
+    total?: number;
+    unit: &#39;bytes&#39; | &#39;tags&#39; | &#39;entities&#39;;
+}</code></pre>
       <p class="source-path">file-adapters.d.ts</p>
     </article>
 <article class="api-symbol" id="root-type-kjformatcapability" data-search="kjformatcapability type @kanjieteam/kjdraw export type kjformatcapability = typeof kj_format_capability[keyof typeof kj_format_capability];">
@@ -19257,12 +19326,20 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     format?: string;
     version?: string | number | null;
     adapterid?: string | null;
+    /** cancels cooperative file readers before they commit a document. */
+    signal?: abortsignal;
+    /** bounded host progress without exposing file contents. */
+    onprogress?: (progress: readonly&lt;kjfilereadprogress&gt;) =&gt; void;
 }">
       <header><div><span class="kind">interface</span><h3>KJFileAdapterOptions</h3></div><a class="permalink" href="#file-interface-kjfileadapteroptions" aria-label="Link to KJFileAdapterOptions">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFileAdapterOptions extends Record&lt;string, unknown&gt; {
     format?: string;
     version?: string | number | null;
     adapterId?: string | null;
+    /** Cancels cooperative file readers before they commit a document. */
+    signal?: AbortSignal;
+    /** Bounded host progress without exposing file contents. */
+    onProgress?: (progress: Readonly&lt;KJFileReadProgress&gt;) =&gt; void;
 }</code></pre>
       <p class="source-path">file-adapters.d.ts</p>
     </article>
@@ -19336,6 +19413,21 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 <article class="api-symbol" id="file-type-kjfileoperation" data-search="kjfileoperation type @kanjieteam/kjdraw/file export type kjfileoperation = &#39;read&#39; | &#39;write&#39;;">
       <header><div><span class="kind">type</span><h3>KJFileOperation</h3></div><a class="permalink" href="#file-type-kjfileoperation" aria-label="Link to KJFileOperation">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJFileOperation = &#39;read&#39; | &#39;write&#39;;</code></pre>
+      <p class="source-path">file-adapters.d.ts</p>
+    </article>
+<article class="api-symbol" id="file-interface-kjfilereadprogress" data-search="kjfilereadprogress interface @kanjieteam/kjdraw/file export interface kjfilereadprogress {
+    phase: &#39;source&#39; | &#39;parse&#39; | &#39;import&#39;;
+    completed: number;
+    total?: number;
+    unit: &#39;bytes&#39; | &#39;tags&#39; | &#39;entities&#39;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJFileReadProgress</h3></div><a class="permalink" href="#file-interface-kjfilereadprogress" aria-label="Link to KJFileReadProgress">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFileReadProgress {
+    phase: &#39;source&#39; | &#39;parse&#39; | &#39;import&#39;;
+    completed: number;
+    total?: number;
+    unit: &#39;bytes&#39; | &#39;tags&#39; | &#39;entities&#39;;
+}</code></pre>
       <p class="source-path">file-adapters.d.ts</p>
     </article>
   </div>
