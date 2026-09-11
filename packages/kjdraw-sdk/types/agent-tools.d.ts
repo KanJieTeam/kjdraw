@@ -39,6 +39,10 @@ export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput
     diameterDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {
         type: 'RADIUS' | 'DIAMETER';
     }>, 'type'>[];
+    /** Optional for existing callers. Position selects the native angular arc sector. */
+    angularDimensions?: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {
+        type: 'ANGULAR_3_POINT';
+    }>, 'type'>[];
 }
 export interface KJAgentDrawingQuery {
     expectedRevision: number;

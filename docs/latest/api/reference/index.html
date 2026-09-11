@@ -789,6 +789,10 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     diameterdimensions: omit&lt;extract&lt;kjagentannotationinput[&#39;dimensions&#39;][number], {
         type: &#39;radius&#39; | &#39;diameter&#39;;
     }&gt;, &#39;type&#39;&gt;[];
+    /** optional for existing callers. position selects the native angular arc sector. */
+    angulardimensions?: omit&lt;extract&lt;kjagentannotationinput[&#39;dimensions&#39;][number], {
+        type: &#39;angular_3_point&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
 }">
       <header><div><span class="kind">interface</span><h3>KJAgentAnnotatedDrawingInput</h3></div><a class="permalink" href="#agent-tools-interface-kjagentannotateddrawinginput" aria-label="Link to KJAgentAnnotatedDrawingInput">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput {
@@ -811,6 +815,10 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     }&gt;, &#39;type&#39;&gt;[];
     diameterDimensions: Omit&lt;Extract&lt;KJAgentAnnotationInput[&#39;dimensions&#39;][number], {
         type: &#39;RADIUS&#39; | &#39;DIAMETER&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+    /** Optional for existing callers. Position selects the native angular arc sector. */
+    angularDimensions?: Omit&lt;Extract&lt;KJAgentAnnotationInput[&#39;dimensions&#39;][number], {
+        type: &#39;ANGULAR_3_POINT&#39;;
     }&gt;, &#39;type&#39;&gt;[];
 }</code></pre>
       <p class="source-path">agent-tools.d.ts</p>
@@ -11543,6 +11551,10 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     diameterdimensions: omit&lt;extract&lt;kjagentannotationinput[&#39;dimensions&#39;][number], {
         type: &#39;radius&#39; | &#39;diameter&#39;;
     }&gt;, &#39;type&#39;&gt;[];
+    /** optional for existing callers. position selects the native angular arc sector. */
+    angulardimensions?: omit&lt;extract&lt;kjagentannotationinput[&#39;dimensions&#39;][number], {
+        type: &#39;angular_3_point&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
 }">
       <header><div><span class="kind">interface</span><h3>KJAgentAnnotatedDrawingInput</h3></div><a class="permalink" href="#root-interface-kjagentannotateddrawinginput" aria-label="Link to KJAgentAnnotatedDrawingInput">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput {
@@ -11565,6 +11577,10 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     }&gt;, &#39;type&#39;&gt;[];
     diameterDimensions: Omit&lt;Extract&lt;KJAgentAnnotationInput[&#39;dimensions&#39;][number], {
         type: &#39;RADIUS&#39; | &#39;DIAMETER&#39;;
+    }&gt;, &#39;type&#39;&gt;[];
+    /** Optional for existing callers. Position selects the native angular arc sector. */
+    angularDimensions?: Omit&lt;Extract&lt;KJAgentAnnotationInput[&#39;dimensions&#39;][number], {
+        type: &#39;ANGULAR_3_POINT&#39;;
     }&gt;, &#39;type&#39;&gt;[];
 }</code></pre>
       <p class="source-path">agent-tools.d.ts</p>

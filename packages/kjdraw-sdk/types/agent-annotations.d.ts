@@ -45,6 +45,13 @@ export type KJAgentDimensionAnnotation = {
     directionDegrees: number;
     position: KJAnnotationPoint;
     height: number;
+} | {
+    type: 'ANGULAR_3_POINT';
+    center: KJAnnotationPointReference;
+    first: KJAnnotationPointReference;
+    second: KJAnnotationPointReference;
+    position: KJAnnotationPoint;
+    height: number;
 };
 export interface KJAgentAnnotationInput {
     expectedRevision: number;

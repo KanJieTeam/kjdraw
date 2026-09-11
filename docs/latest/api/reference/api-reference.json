@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:3c462c29d18be57c41786e700115b8775aaabffcc4b909f3bf86c4ab676f6af6",
+  "sourceDigest": "sha256:b2f1f4a19149ecb96fcd56b4b3b2d316e5e83750f3e74e408a6571a8e218c4a2",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -348,7 +348,7 @@
         {
           "name": "KJAgentAnnotatedDrawingInput",
           "kind": "interface",
-          "declaration": "export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput {\n    styles: {\n        name: string;\n        sources: string[];\n        pattern: number[];\n        color: number;\n        lineweight: number;\n    }[];\n    texts: KJAgentAnnotationInput['texts'];\n    alignedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'ALIGNED';\n    }>, 'type'>[];\n    rotatedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'ROTATED';\n    }>, 'type'>[];\n    radiusDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'RADIUS' | 'DIAMETER';\n    }>, 'type'>[];\n    diameterDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'RADIUS' | 'DIAMETER';\n    }>, 'type'>[];\n}",
+          "declaration": "export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput {\n    styles: {\n        name: string;\n        sources: string[];\n        pattern: number[];\n        color: number;\n        lineweight: number;\n    }[];\n    texts: KJAgentAnnotationInput['texts'];\n    alignedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'ALIGNED';\n    }>, 'type'>[];\n    rotatedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'ROTATED';\n    }>, 'type'>[];\n    radiusDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'RADIUS' | 'DIAMETER';\n    }>, 'type'>[];\n    diameterDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'RADIUS' | 'DIAMETER';\n    }>, 'type'>[];\n    /** Optional for existing callers. Position selects the native angular arc sector. */\n    angularDimensions?: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'ANGULAR_3_POINT';\n    }>, 'type'>[];\n}",
           "source": "agent-tools.d.ts",
           "anchor": "agent-tools-interface-kjagentannotateddrawinginput"
         },
@@ -5786,7 +5786,7 @@
         {
           "name": "KJAgentAnnotatedDrawingInput",
           "kind": "interface",
-          "declaration": "export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput {\n    styles: {\n        name: string;\n        sources: string[];\n        pattern: number[];\n        color: number;\n        lineweight: number;\n    }[];\n    texts: KJAgentAnnotationInput['texts'];\n    alignedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'ALIGNED';\n    }>, 'type'>[];\n    rotatedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'ROTATED';\n    }>, 'type'>[];\n    radiusDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'RADIUS' | 'DIAMETER';\n    }>, 'type'>[];\n    diameterDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'RADIUS' | 'DIAMETER';\n    }>, 'type'>[];\n}",
+          "declaration": "export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput {\n    styles: {\n        name: string;\n        sources: string[];\n        pattern: number[];\n        color: number;\n        lineweight: number;\n    }[];\n    texts: KJAgentAnnotationInput['texts'];\n    alignedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'ALIGNED';\n    }>, 'type'>[];\n    rotatedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'ROTATED';\n    }>, 'type'>[];\n    radiusDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'RADIUS' | 'DIAMETER';\n    }>, 'type'>[];\n    diameterDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'RADIUS' | 'DIAMETER';\n    }>, 'type'>[];\n    /** Optional for existing callers. Position selects the native angular arc sector. */\n    angularDimensions?: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {\n        type: 'ANGULAR_3_POINT';\n    }>, 'type'>[];\n}",
           "source": "agent-tools.d.ts",
           "anchor": "root-interface-kjagentannotateddrawinginput"
         },
