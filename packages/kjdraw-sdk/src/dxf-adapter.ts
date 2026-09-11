@@ -1610,6 +1610,8 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   if (VERSION_RANK[version] < VERSION_RANK['2000'] && state.spaces.paperSpaceIds.length > 1) throw new KJValidationError(`DXF ${version} cannot preserve multiple named paper spaces without layout metadata`)
   if (VERSION_RANK[version] < VERSION_RANK['2000'] && layouts.some(layout => layout.payload.dxfPlotSettings && Object.keys(layout.payload.dxfPlotSettings).length)) throw new KJValidationError(`DXF ${version} cannot preserve layout plot settings; minimum target is 2000`)
   emit(output, 0, 'SECTION'); emit(output, 2, 'HEADER'); emit(output, 9, '$ACADVER'); emit(output, 1, ACADVER[version])
+  emit(output, 9, '$HANDSEED'); emit(output, 5, '0')
+  const handleSeedValueIndex = output.length - 1
   if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
     emit(output, 9, '$INSUNITS'); emit(output, 70, dxfUnitCode(state.header.units))
     if (!['metric', 'imperial', 'english'].includes(state.header.measurement)) throw new KJValidationError('Cannot export unrecognized DXF measurement system')
@@ -1709,6 +1711,9 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
     emit(output, 0, 'ENDSEC')
   }
   emit(output, 0, 'EOF')
+  // Readers may allocate implicit INSERT/sequence records while loading, before
+  // later sections are bound. Reserve beyond every original and emitted handle.
+  output[handleSeedValueIndex] = context.allocateHandle()
   return `${output.join('\r\n')}\r\n`
 }
 

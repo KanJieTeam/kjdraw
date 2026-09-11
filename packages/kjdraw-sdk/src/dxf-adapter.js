@@ -2679,6 +2679,9 @@ function writeDXF(document, options = {}) {
     emit(output, 2, 'HEADER');
     emit(output, 9, '$ACADVER');
     emit(output, 1, ACADVER[version]);
+    emit(output, 9, '$HANDSEED');
+    emit(output, 5, '0');
+    const handleSeedValueIndex = output.length - 1;
     if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
         emit(output, 9, '$INSUNITS');
         emit(output, 70, dxfUnitCode(state.header.units));
@@ -2874,6 +2877,7 @@ function writeDXF(document, options = {}) {
         emit(output, 0, 'ENDSEC');
     }
     emit(output, 0, 'EOF');
+    output[handleSeedValueIndex] = context.allocateHandle();
     return `${output.join('\r\n')}\r\n`;
 }
 export function createDXFFileAdapter(options = {}) {
