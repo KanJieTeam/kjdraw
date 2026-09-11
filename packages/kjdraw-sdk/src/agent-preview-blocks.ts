@@ -89,9 +89,10 @@ export function captureAgentBlockDependencies(document: KJDocument, ids: readonl
     if (type === 'LINE') points = [payload.start, payload.end]
     else if (type === 'CIRCLE' || type === 'ARC') {
       points = [payload.center]
-      if (typeof payload.radius !== 'number' || !Number.isFinite(payload.radius) || payload.radius <= 0) fail('invalid circle or arc')
+      if (typeof payload.radius !== 'number' || !Number.isFinite(payload.radius) || payload.radius <= 0 || payload.radius > 1e12) fail('invalid or oversized circle or arc')
     } else if (type === 'TEXT') {
       if (typeof payload.text !== 'string' || !payload.text.trim()) fail('empty text does not provide visible block geometry')
+      if (typeof payload.height !== 'number' || !Number.isFinite(payload.height) || payload.height <= 0 || payload.height > 1e12) fail('invalid or oversized text height')
       points = [payload.position, ...(payload.alignmentPoint ? [payload.alignmentPoint] : [])]
     }
     else if (type === 'DIMENSION') {

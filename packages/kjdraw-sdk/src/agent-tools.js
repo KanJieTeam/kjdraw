@@ -467,6 +467,38 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         })
     },
     {
+        name: 'cad_propose_rotate',
+        effect: 'propose',
+        description: `Propose rotation of 1–64 exact visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs around explicit center={x,y} in drawing units. angleDegrees is counterclockwise from the current orientation, strictly between -360 and 360, excluding 0; negative is clockwise. Geometry must be default +Z, z=0, within ±1e12; wide polylines and unsupported annotation projections are rejected. Include geometry and annotations together to rotate a detail; native dimensions retain measurements. INSERT uses the same bounded local blockDependencies as cad_propose_move; scaled block dimensions, attributes, external/cyclic/protected block graphs are rejected. Returns exact before/after geometry and block dependencies without editing; host approval applies one undoable transaction.`,
+        inputSchema: object({
+            expectedRevision: revision,
+            units: text,
+            ids: collection(text),
+            center: point,
+            angleDegrees: {
+                type: 'number',
+                minimum: -360,
+                maximum: 360
+            }
+        })
+    },
+    {
+        name: 'cad_propose_scale',
+        effect: 'propose',
+        description: `Propose positive uniform scaling of 1–64 exact visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs around explicit center={x,y} in drawing units. factor is dimensionless, 0.000001–1000000 excluding 1; no reflection or nonuniform scaling. Geometry must be default +Z, z=0, within ±1e12; wide polylines and unsupported annotation projections are rejected. Include geometry and annotations together to scale a detail. TEXT height scales; native DIMENSION definition/text positions and measured lengths scale while dimension style/text height remain unchanged; angular measurements remain unchanged. INSERT keeps definitions unchanged and returns bounded blockDependencies as in cad_propose_move; scaled block dimensions, attributes, external/cyclic/protected graphs are rejected. Returns exact before/after geometry without editing; host approval applies one undoable transaction.`,
+        inputSchema: object({
+            expectedRevision: revision,
+            units: text,
+            ids: collection(text),
+            center: point,
+            factor: {
+                type: 'number',
+                minimum: 1e-6,
+                maximum: 1e6
+            }
+        })
+    },
+    {
         name: 'cad_propose_drawing',
         effect: 'propose',
         description: 'Compose 1–64 total LINE, CIRCLE, ARC and straight-segment LWPOLYLINE entities as one drawing proposal and one undoable edit. Supply all four groups; unused groups are empty arrays. Model XY, z=0, drawing units. Arc angles are degrees 0–360, counterclockwise from +X; a full circle belongs in circles. Closed polylines close automatically: do not repeat the first vertex. Returns before/after geometry without modifying the drawing. Host review and approval are required. No dimensions or design constraints are inferred.',
@@ -1044,13 +1076,27 @@ export class KJAgentToolSession {
                                 limit: 64,
                                 maxBytes: 262144
                             });
-                            if (context.entities.length !== ids.length || context.entities.some((entity)=>!entity.editable || !KJDRAW_AGENT_MOVABLE_TYPES.includes(entity.type))) throw new KJValidationError(`Move requires visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} objects`);
-                            command = 'MOVE';
-                            commandArgs = {
-                                ids,
-                                dx: args.dx,
-                                dy: args.dy
-                            };
+                            if (context.entities.length !== ids.length || context.entities.some((entity)=>!entity.editable || !KJDRAW_AGENT_MOVABLE_TYPES.includes(entity.type))) throw new KJValidationError(`Transform requires visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} objects`);
+                            if (name === 'cad_propose_rotate' || name === 'cad_propose_scale') {
+                                command = name === 'cad_propose_rotate' ? 'ROTATE' : 'SCALE';
+                                const center = xy(args.center).slice(0, 2);
+                                commandArgs = {
+                                    ids,
+                                    center,
+                                    ...command === 'ROTATE' ? {
+                                        angleDegrees: args.angleDegrees
+                                    } : {
+                                        factor: args.factor
+                                    }
+                                };
+                            } else {
+                                command = 'MOVE';
+                                commandArgs = {
+                                    ids,
+                                    dx: args.dx,
+                                    dy: args.dy
+                                };
+                            }
                         }
                         const definition = this.#sdk.commands.resolve(command);
                         if (!definition || definition.owner !== '@kanjieteam/kjdraw') throw new KJValidationError('Agent preview requires the built-in core command');

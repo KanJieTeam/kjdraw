@@ -1,6 +1,6 @@
 import { referenceAnnotatedInput } from '../../scripts/benchmarks/engineering-drawing-tasks.mjs'
 import { test, expect } from '@playwright/test'
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createKJDrawSDK, openKjpPackage } from '../../packages/kjdraw-sdk/src/index.js'
 import { mountingProfile } from '../../packages/kjdraw-sdk/examples/fixtures/mounting-profile.mjs'
 import { createRoadDesignFixture, roadDrawingFixtureOptions } from '../../packages/kjdraw-sdk/examples/fixtures/road-design.mjs'
@@ -23,6 +23,106 @@ const wire = (calls = [], text = '') => ({ choices: [{ finish_reason: calls.leng
   role: 'assistant', content: text || null,
   tool_calls: calls.map(([id, name, args = {}]) => ({ id, type: 'function', function: { name, arguments: JSON.stringify(args) } })),
 } }] })
+
+for (const kind of ['rotate', 'scale']) test(`main chat ${kind} protocol previews native equipment and annotations, approves, saves, undoes and reopens DXF`, async ({ page }, testInfo) => {
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: `chat-${kind}`, units: 'millimeter' })
+  await drawing.transact('Dimensioned pump fixture', tx => {
+    tx.createEntity('LINE', { start: [30, 30, 0], end: [60, 30, 0] }, { id: 'edge' })
+    tx.createEntity('CIRCLE', { center: [45, 40, 0], radius: 3 }, { id: 'hole' })
+    tx.createEntity('TEXT', { position: [33, 35, 0], text: 'P-12', height: 2.5 }, { id: 'note' })
+    tx.createEntity('DIMENSION', { dimensionType: 'ROTATED', definitionPoints: [[30, 22, 0], [30, 30, 0], [60, 30, 0]], textPosition: [45, 20, 0], textHeight: 2, rotation: 0 }, { id: 'dim' })
+    const motor = tx.upsertTableRecord('blockRecords', { id: 'motor', name: 'Motor', payload: { basePoint: [2, 1, 0], entityIds: [] } })
+    tx.createEntity('CIRCLE', { center: [2, 1, 0], radius: 2 }, { id: 'motor-circle', ownerId: motor.id })
+    const block = tx.upsertTableRecord('blockRecords', { id: 'body', name: 'Pump', payload: { basePoint: [5, 5, 0], entityIds: [] } })
+    tx.createEntity('LWPOLYLINE', { vertices: [[5, 5], [23, 5], [23, 15], [5, 15]], closed: true }, { id: 'body-outline', ownerId: block.id })
+    tx.createEntity('TEXT', { position: [6, 6], text: 'MOTOR', height: 1.5 }, { id: 'body-label', ownerId: block.id })
+    tx.createEntity('INSERT', { blockRecordId: motor.id, position: [16, 11, 0], rotation: .4 }, { id: 'nested', ownerId: block.id })
+    tx.createEntity('INSERT', { blockRecordId: block.id, position: [30, 45, 0] }, { id: 'pump' })
+  })
+  const ids = ['edge', 'hole', 'note', 'dim', 'pump'], errors = [], requests = []
+  page.on('pageerror', error => errors.push(error.message))
+  await openChat(page)
+  await page.locator('#file-input').setInputFiles({ name: `${kind}.kjd`, mimeType: 'application/json', buffer: Buffer.from(await sdk.writeDocument(drawing, { format: 'KJD' })) })
+  await expect(page.locator('#revision')).toHaveText(`REV ${drawing.revision}`)
+  await page.locator('#agent-tab').click()
+  await page.evaluate(async () => {
+    const { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js'), original = KJCanvasRenderer.prototype.drawPreview
+    window.transformPreviews = []
+    KJCanvasRenderer.prototype.drawPreview = function (entities, color, offset, resources) {
+      const labels = [], fill = this.context.fillText
+      this.context.fillText = function (text, ...rest) { labels.push(text); return fill.call(this, text, ...rest) }
+      const result = original.call(this, entities, color, offset, resources)
+      this.context.fillText = fill
+      if (color === '#77a7ff' && entities.some(entity => entity.id === 'pump')) {
+        const data = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height).data
+        let bluePixels = 0
+        for (let i = 0; i < data.length; i += 4) if (data[i + 2] > data[i] + 60 && data[i + 2] > data[i + 1] + 30) bluePixels++
+        window.transformRenderer = this
+        window.transformPreviews.push({ entities, source: this.document.serialize(), labels, bluePixels })
+        if (window.transformPreviews.length > 4) window.transformPreviews.shift()
+      }
+      return result
+    }
+  })
+  await page.route('**/api/model', route => {
+    const body = route.request().postDataJSON(); requests.push(body)
+    for (const name of ['cad_propose_rotate', 'cad_propose_scale']) expect(body.tools.some(item => item.function.name === name)).toBe(true)
+    if (requests.length === 1) return route.fulfill({ json: wire([['read-transform', 'cad_read_drawing']]) })
+    const read = JSON.parse(body.messages.at(-1).content)
+    expect(read.ok).toBe(true); expect(read.value.documentId).toBe(drawing.id)
+    return route.fulfill({ json: wire([['transform', `cad_propose_${kind}`, { expectedRevision: read.value.revision, units: 'millimeter', ids, center: { x: 10, y: 20 }, ...(kind === 'rotate' ? { angleDegrees: 90 } : { factor: 1.5 }) }]], 'UI protocol fixture: review the requested transform before applying.') })
+  })
+  await connect(page)
+  await send(page, `Protocol fixture: ${kind} the selected pump detail and its annotations around (10,20), ${kind === 'rotate' ? '90 degrees counterclockwise' : 'by a uniform factor of 1.5'}.`)
+  await expect(page.getByRole('button', { name: 'Apply changes', exact: true })).toBeEnabled()
+  await expect(page.locator('#revision')).toHaveText(`REV ${drawing.revision}`)
+  await page.getByRole('button', { name: 'Preview on drawing', exact: true }).click()
+  await expect.poll(() => page.evaluate(() => window.transformPreviews.length)).toBeGreaterThan(0)
+  const preview = await page.evaluate(() => window.transformPreviews.at(-1))
+  expect(preview.source).toBe(drawing.serialize()); expect(preview.bluePixels).toBeGreaterThan(150)
+  expect(preview.labels).toEqual(expect.arrayContaining(['P-12', 'MOTOR', kind === 'rotate' ? '30' : '45']))
+  expect(preview.entities.map(item => item.id).sort()).toEqual([...ids].sort())
+  const edge = preview.entities.find(item => item.id === 'edge')
+  expect(edge.payload.start[0]).toBeCloseTo(kind === 'rotate' ? 0 : 40, 10)
+  expect(edge.payload.start[1]).toBeCloseTo(kind === 'rotate' ? 40 : 35, 10)
+  await snapshot(page, 1440, `transform-${kind}-preview`)
+  await page.getByRole('button', { name: 'Apply changes', exact: true }).click()
+  await expect(page.locator('.chat-proposal-state')).toContainText('Changes applied')
+  const save = async () => { const event = page.waitForEvent('download'); await page.locator('#save').click(); return openKjpPackage(await readFile(await (await event).path())) }
+  const applied = (await save()).activeDocument
+  for (const expected of preview.entities) expect(JSON.parse(JSON.stringify(applied.getObject(expected.id).payload))).toEqual(expected.payload)
+  for (const original of drawing.listObjects()) if (!ids.includes(original.id)) expect(JSON.parse(JSON.stringify(applied.getObject(original.id)))).toEqual(JSON.parse(JSON.stringify(original)))
+  const pixels = await page.evaluate(async () => {
+    const { createKJDrawSDK } = await import('/packages/kjdraw-sdk/src/sdk.js'), { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js')
+    const source = window.transformRenderer.document, sdk = createKJDrawSDK(), bytes = await sdk.writeDocument(source, { format: 'DXF', version: '2018' }), reopened = await sdk.readDocument(bytes, { format: 'DXF' })
+    const canvas = document.createElement('canvas'); canvas.style.cssText = 'width:1000px;height:600px;position:fixed;inset:0 auto auto 0;z-index:9999'; document.body.append(canvas)
+    const renderer = new KJCanvasRenderer(canvas, { document: source, pixelRatio: 1, grid: false, theme: 'light' })
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    renderer.resize(1000, 600); Object.assign(renderer.camera, { centerX: 30, centerY: 40, scale: 7 }); renderer.render()
+    const approved = canvas.toDataURL(), originalPixels = renderer.context.getImageData(0, 0, canvas.width, canvas.height).data
+    renderer.setDocument(reopened); Object.assign(renderer.camera, { centerX: 30, centerY: 40, scale: 7 }); renderer.render()
+    const reopenedImage = canvas.toDataURL(), root = reopened.listEntities({ ownerId: reopened.snapshot().spaces.modelSpaceId }), newPixels = renderer.context.getImageData(0, 0, canvas.width, canvas.height).data
+    let changed = 0, maximum = 0
+    for (let i = 0; i < originalPixels.length; i += 4) { let differs = false; for (let c = 0; c < 4; c++) { const delta = Math.abs(originalPixels[i + c] - newPixels[i + c]); maximum = Math.max(maximum, delta); differs ||= delta > 0 } if (differs) changed++ }
+    renderer.dispose(); canvas.remove()
+    return { approved, reopenedImage, changed, maximum, dimensions: [source, reopened].map(document => document.listEntities({ type: 'DIMENSION' }).map(entity => ({ payload: entity.payload, style: document.getObject(entity.payload.styleId)?.payload }))), nativeTypes: root.map(item => item.type).sort(), blockCount: reopened.listEntities({ type: 'INSERT' }).length }
+  })
+  expect(pixels.nativeTypes).toEqual(['CIRCLE', 'DIMENSION', 'INSERT', 'LINE', 'TEXT']); expect(pixels.blockCount).toBe(2)
+  await testInfo.attach(`${kind}-approved-native`, { body: Buffer.from(pixels.approved.split(',')[1], 'base64'), contentType: 'image/png' })
+  await testInfo.attach(`${kind}-DXF-reopened`, { body: Buffer.from(pixels.reopenedImage.split(',')[1], 'base64'), contentType: 'image/png' })
+  await writeFile(`.cache/agent-chat/${kind}-approved.png`, Buffer.from(pixels.approved.split(',')[1], 'base64'))
+  await writeFile(`.cache/agent-chat/${kind}-reopened.png`, Buffer.from(pixels.reopenedImage.split(',')[1], 'base64'))
+  expect({ changed: pixels.changed, maximum: pixels.maximum }, JSON.stringify(pixels.dimensions)).toEqual({ changed: 0, maximum: 0 })
+  await page.getByRole('button', { name: 'Undo this change', exact: true }).click()
+  await expect(page.locator('.chat-proposal-state')).toContainText('Change undone')
+  const undone = (await save()).activeDocument
+  for (const original of drawing.listObjects()) expect(JSON.parse(JSON.stringify(undone.getObject(original.id)))).toEqual(JSON.parse(JSON.stringify(original)))
+  await page.locator('#redo').click()
+  const redone = (await save()).activeDocument
+  for (const expected of applied.listObjects()) expect(JSON.parse(JSON.stringify(redone.getObject(expected.id)))).toEqual(JSON.parse(JSON.stringify(expected)))
+  expect(requests).toHaveLength(2); expect(errors).toEqual([])
+})
+
 async function openChat(page) {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/')
@@ -62,7 +162,7 @@ test('chat queries the real drawing, previews native geometry, applies once, sav
   })
   await page.route('**/api/model', async route => {
     const body = route.request().postDataJSON(); requests.push(body)
-    expect(body.tools.map(tool => tool.function.name).sort()).toEqual(['cad_read_drawing', 'cad_read_page', 'cad_query_drawing', 'cad_read_layouts', 'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated'].sort())
+    expect(body.tools.map(tool => tool.function.name).sort()).toEqual(['cad_read_drawing', 'cad_read_page', 'cad_query_drawing', 'cad_read_layouts', 'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated'].sort())
     if (requests.length === 1) return route.fulfill({ json: wire([['read', 'cad_read_drawing']]) })
     const result = JSON.parse(body.messages.at(-1).content)
     expect(result.ok).toBe(true)
