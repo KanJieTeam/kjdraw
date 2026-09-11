@@ -111,8 +111,10 @@ export function createModelProxy(options) {
 }
 
 export function modelProxyFromEnvironment(env = process.env) {
-  const names = ['KJDRAW_MODEL_PROTOCOL', 'KJDRAW_MODEL_NAME', 'KJDRAW_MODEL_ENDPOINT', 'KJDRAW_MODEL_API_KEY']
+  const names = ['KJDRAW_MODEL_PROTOCOL', 'KJDRAW_MODEL_NAME', 'KJDRAW_MODEL_ENDPOINT', 'KJDRAW_MODEL_API_KEY', 'KJDRAW_MODEL_MAX_OUTPUT_TOKENS']
   if (!names.some(name => env[name] !== undefined)) return null
   if (!names.slice(0, 3).every(name => env[name])) throw new Error('Set KJDRAW_MODEL_PROTOCOL, KJDRAW_MODEL_NAME and KJDRAW_MODEL_ENDPOINT together')
-  return createModelProxy({ protocol: env.KJDRAW_MODEL_PROTOCOL, model: env.KJDRAW_MODEL_NAME, endpoint: env.KJDRAW_MODEL_ENDPOINT, apiKey: env.KJDRAW_MODEL_API_KEY })
+  const configuredLimit=env.KJDRAW_MODEL_MAX_OUTPUT_TOKENS
+  if(configuredLimit!==undefined&&(typeof configuredLimit!=='string'||!/^\d+$/.test(configuredLimit)))throw new Error('Set KJDRAW_MODEL_MAX_OUTPUT_TOKENS to an integer from 1 to 131072')
+  return createModelProxy({ protocol: env.KJDRAW_MODEL_PROTOCOL, model: env.KJDRAW_MODEL_NAME, endpoint: env.KJDRAW_MODEL_ENDPOINT, apiKey: env.KJDRAW_MODEL_API_KEY, ...(configuredLimit===undefined?{}:{maxOutputTokens:positiveLimit(Number(configuredLimit),16384,131072)}) })
 }

@@ -1,5 +1,6 @@
 import { KJAgentToolSession } from '../../packages/kjdraw-sdk/src/agent-tools.js'
-import { createKJModelAdapter } from '../../packages/kjdraw-sdk/src/model-adapters.js'
+import { KJModelError } from '../../packages/kjdraw-sdk/src/model-adapters.js'
+import { createChatModelAdapter, CHAT_OUTPUT_TOKEN_LIMITS } from './chat-model-settings.js'
 import { runKJAgentTask } from '../../packages/kjdraw-sdk/src/agent-runner.js'
 import { parseChatDataAttachment, chatDataAttachmentPrompt } from './chat-data-attachment.js'
 
@@ -36,6 +37,10 @@ const copy = {
   roadScope: ['Calculated from supplied data using average end areas. Projected profile/section diagrams; review is required before applying. Not construction certification.', '按提供的数据以平均断面法计算。纵横断面为投影图，应用前请检查，不代表施工认证。'],
   help: ['Enter to send · Shift+Enter for a new line', 'Enter 发送 · Shift+Enter 换行'], examples: ['Local examples', '本地示例'],
   endpoint: ['Your server endpoint', '你的服务端地址'], model: ['Model name', '模型名称'], protocol: ['API protocol', '接口协议'],
+  maxOutputTokens: ['Max output tokens', '最大输出 token'], outputTokenHelp: ['Total output, including reasoning. Server and model limits still apply; higher limits can increase usage.', '总输出额度，包含推理 token。仍受服务端和模型上限约束；提高额度可能增加用量。'],
+  outputLimit: ['The model exhausted its output-token budget, including reasoning. Increase “Max output tokens” in the connection settings or simplify the request, then send again. No automatic retry was made.', '模型耗尽了输出 token 额度（包含推理）。请在连接设置中提高“最大输出 token”或简化需求后重新发送。未自动重试。'],
+  serverTokenLimit: ['The server rejected the requested output-token limit. Lower “Max output tokens” or ask the host to raise its server limit. No automatic retry was made.', '服务端拒绝了请求的输出 token 上限。请降低“最大输出 token”，或由部署者提高服务端上限。未自动重试。'],
+  incompleteModel: ['The model response was incomplete or blocked. No proposed changes were applied. Review the request or provider settings before sending again.', '模型回复未完整结束或被服务方阻止，未应用提案修改。请检查需求或模型设置后重新发送。'],
   connectionHelp: ['Use your application’s same-origin model proxy. Credentials belong on the server. Sending a message sends the request and queried drawing data to this endpoint. The public demo does not provide a model server.', '填写应用同源的模型代理地址，密钥由服务端保管。发送消息时，需求和查询到的图纸数据会发送到该地址。公开演示站不提供模型服务。'],
   saveConnection: ['Use this connection', '使用此连接'], disconnect: ['Disconnect', '断开连接'],
   needConnection: ['Connect a model to send this request. You can also explore the local examples below.', '连接模型后即可发送这个需求，也可以先体验下方本地示例。'],
@@ -81,15 +86,18 @@ export function createAgentChat(container, options) {
   const endpoint = element('input'); endpoint.id = 'chat-endpoint'; endpoint.type = 'url'; endpoint.placeholder = '/api/model'; endpoint.autocomplete = 'off'
   const name = element('input'); name.id = 'chat-model'; name.maxLength = 256; name.autocomplete = 'off'
   const protocol = element('select'); protocol.id = 'chat-protocol'
+  const outputTokens=element('select');outputTokens.id='chat-max-output-tokens'
+  for(const value of CHAT_OUTPUT_TOKEN_LIMITS){const option=element('option','',String(value));option.value=String(value);outputTokens.append(option)}
+  outputTokens.value='4096'
   for (const [value,text] of [['chat-completions','OpenAI compatible'],['responses','OpenAI Responses'],['anthropic-messages','Anthropic Messages'],['gemini-generate-content','Gemini']]) {
     const option = element('option','',text); option.value = value; protocol.append(option)
   }
-  for (const [key, input] of [['endpoint',endpoint],['model',name],['protocol',protocol]]) {
+  for (const [key, input] of [['endpoint',endpoint],['model',name],['protocol',protocol],['maxOutputTokens',outputTokens]]) {
     const field = element('label'); field.append(label(element('span'),key),input); settings.append(field)
   }
   const configure = button('saveConnection'), disconnect = button('disconnect'), connectionError = element('p','chat-error')
   connectionError.setAttribute('role','alert')
-  settings.append(label(element('p'), 'connectionHelp'), configure, disconnect, connectionError)
+  settings.append(label(element('p'),'outputTokenHelp'),label(element('p'), 'connectionHelp'), configure, disconnect, connectionError)
   const log = element('div','chat-log'); log.id = 'chat-messages'; log.setAttribute('role','log'); log.setAttribute('aria-live','polite'); log.setAttribute('aria-relevant','additions text')
   const welcome = element('div','chat-welcome')
   welcome.append(element('div','chat-mark','K'), label(element('h3'),'welcome'), label(element('p'),'welcomeBody'))
@@ -158,19 +166,20 @@ export function createAgentChat(container, options) {
     connection.title=modelLabel||L('offline')
   }
   async function responseJson(response) {
-    if(!response.ok)throw new Error('Model endpoint failed')
     const reader=response.body.getReader(), chunks=[]; let length=0
     try { while(true){const {value,done}=await reader.read();if(done)break;length+=value.byteLength;if(length>2097152)throw new Error('Model response exceeds budget');chunks.push(value)} }
     finally { await reader.cancel().catch(()=>{}); reader.releaseLock() }
     const bytes=new Uint8Array(length); let offset=0
     for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
-    return JSON.parse(new TextDecoder().decode(bytes))
+    const json=JSON.parse(new TextDecoder().decode(bytes))
+    if(!response.ok){if(json?.error?.code==='MODEL_TOKEN_LIMIT')throw new KJModelError('KJMODEL_SERVER_TOKEN_LIMIT','Server output-token policy rejected the request');throw new Error('Model endpoint failed')}
+    return json
   }
   configure.onclick=()=>{
     try {
       const url=new URL(endpoint.value,location.href), modelName=name.value.trim()
       if(!endpoint.value.trim()||url.origin!==location.origin||!['http:','https:'].includes(url.protocol)||url.username||url.password||!modelName)throw new Error('Invalid connection')
-      const next=createKJModelAdapter({protocol:protocol.value,model:modelName,request:async({body,signal})=>responseJson(await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal,credentials:'same-origin',redirect:'error'}))})
+      const next=createChatModelAdapter({protocol:protocol.value,model:modelName,maxOutputTokens:Number(outputTokens.value),request:async({body,signal})=>responseJson(await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal,credentials:'same-origin',redirect:'error'}))})
       setConnection(next,modelName); settings.hidden=true; connection.setAttribute('aria-expanded','false'); connectionError.textContent=''; input.focus()
     } catch { connectionError.textContent=L('invalidConnection') }
   }
@@ -301,7 +310,7 @@ export function createAgentChat(container, options) {
       activity.remove()
       for(const output of result.outputs)if(output.name==='cad_check_geometry'&&output.result.ok)showValidation(output.result.value)
       if(result.status==='cancelled')append('assistant',L('cancelled'))
-      else if(result.status==='failed')append('assistant',L('failed'))
+      else if(result.status==='failed')append('assistant',L(result.error?.code==='KJMODEL_OUTPUT_LIMIT'?'outputLimit':result.error?.code==='KJMODEL_SERVER_TOKEN_LIMIT'?'serverTokenLimit':result.error?.code==='KJMODEL_INCOMPLETE'?'incompleteModel':'failed'))
       else if(result.status==='limit-reached')append('assistant',L('limit'))
       else {
         if(result.text)append('assistant',result.text.slice(0,16000))

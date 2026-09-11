@@ -178,3 +178,19 @@ test('actual development server keeps static defaults and enables the fixed mode
     for (const name of names) { if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name] }
   }
 })
+
+test('model proxy environment exposes an explicit bounded output-token ceiling without changing the default',async t=>{
+ const env={KJDRAW_MODEL_PROTOCOL:'chat-completions',KJDRAW_MODEL_NAME:'fixed-model',KJDRAW_MODEL_ENDPOINT:'http://127.0.0.1:1/model'}
+ for(const value of ['', '0','131073','1.5','NaN','Infinity','0x8000',' 32768','32768 '])assert.throws(()=>modelProxyFromEnvironment({...env,KJDRAW_MODEL_MAX_OUTPUT_TOKENS:value}))
+ let upstreamCalls=0
+ const upstream=createServer((req,res)=>{upstreamCalls++;req.resume();json(res,textResponse('chat-completions'))}),endpoint=await listen(upstream),servers=[]
+ t.after(async()=>{for(const server of servers)await close(server);await close(upstream)})
+ for(const limit of [undefined,'32768','131072']){
+  const server=createServer(modelProxyFromEnvironment({...env,KJDRAW_MODEL_ENDPOINT:endpoint+'/model',...(limit?{KJDRAW_MODEL_MAX_OUTPUT_TOKENS:limit}:{})}));servers.push(server);const origin=await listen(server)
+  const post=tokens=>fetch(origin+'/api/model',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({...body,max_tokens:tokens})})
+  const maximum=Number(limit??16384)
+  assert.equal((await post(maximum)).status,200)
+  const denied=await post(maximum+1);assert.equal(denied.status,400);assert.equal((await denied.json()).error.code,'MODEL_TOKEN_LIMIT')
+ }
+ assert.equal(upstreamCalls,3)
+})
