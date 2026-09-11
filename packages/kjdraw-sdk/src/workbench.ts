@@ -242,6 +242,8 @@ const WORKBENCH_STYLE = `
 @media(max-width:980px){.kjwb .workspace,.kjwb .workspace.no-layers{grid-template-columns:minmax(0,1fr) 230px}.kjwb .workspace.no-inspector,.kjwb .workspace.no-layers.no-inspector{grid-template-columns:minmax(0,1fr)}.kjwb .side.layers{display:none}.kjwb .panel-toggle[data-action="toggle-layers"]{display:none}.kjwb .tool{min-width:50px;padding-inline:5px}}
 @media(max-width:680px){.kjwb .workspace,.kjwb .workspace.no-layers,.kjwb .workspace.no-inspector,.kjwb .workspace.no-layers.no-inspector{grid-template-columns:minmax(0,1fr)}.kjwb .side.right{display:none}.kjwb .panel-toggle{display:none!important}.kjwb .hide-small{display:none!important}.kjwb .brand{font-size:13px}.kjwb .docname{display:none}.kjwb .group{padding-inline:4px}.kjwb .appbar{gap:3px;padding-inline:6px}.kjwb .layout-select{max-width:92px}}
 @media(max-width:680px){.kjwb .appbar .file-action{width:32px;padding:0}.kjwb .appbar .file-action>[data-copy]{display:none}}
+/* Preserve all file actions at phone widths; the mark still identifies the app. */
+@media(max-width:460px){.kjwb .appbar .brand{display:none}.kjwb .layout-select{max-width:82px}}
 .kjwb .drawing-space{position:absolute;top:10px;left:10px;z-index:4;display:flex;align-items:center;flex-wrap:wrap;gap:8px;max-width:calc(100% - 70px);font-size:12px}.kjwb .drawing-space select{max-width:210px;min-height:30px;padding:4px 8px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}.kjwb .drawing-space span{padding:5px 8px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--radius)}
 `
 

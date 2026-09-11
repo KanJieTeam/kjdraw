@@ -65,7 +65,9 @@ const escapeHtml = (text: string): string => text.replaceAll('&', '&amp;').repla
 // Only dimensions returned by the strict SVG exporter enter CSS. Never accept host/user CSS.
 function printCss(paper: KJSvgDrawingExport['paper']): string {
   const { widthMm: w, heightMm: h } = paper
-  return `@page{size:${w}mm ${h}mm;margin:0}html,body{margin:0;padding:0}body{background:#eee;color:#111;font-family:sans-serif;print-color-adjust:exact;-webkit-print-color-adjust:exact}.kj-print-note{box-sizing:border-box;max-width:${w}mm;padding:16px;line-height:1.5}.kj-print-note p{margin:0 0 8px}.kj-print-sheet{width:${w}mm;height:${h}mm;background:white;overflow:hidden}.kj-print-sheet text{font-family:"Noto Sans CJK SC","Microsoft YaHei","PingFang SC",sans-serif}.kj-print-sheet>svg{display:block;width:${w}mm;height:${h}mm;overflow:hidden}@media print{html,body{width:${w}mm;height:${h}mm;background:white}.kj-print-note{display:none}.kj-print-sheet{break-inside:avoid;break-after:avoid}}`
+  // Keep the SVG's font-family attributes; overriding them here would make a
+  // downloaded SVG and the same drawing's print/PDF resolve different fonts.
+  return `@page{size:${w}mm ${h}mm;margin:0}html,body{margin:0;padding:0}body{background:#eee;color:#111;font-family:sans-serif;print-color-adjust:exact;-webkit-print-color-adjust:exact}.kj-print-note{box-sizing:border-box;max-width:${w}mm;padding:16px;line-height:1.5}.kj-print-note p{margin:0 0 8px}.kj-print-sheet{width:${w}mm;height:${h}mm;background:white;overflow:hidden}.kj-print-sheet>svg{display:block;width:${w}mm;height:${h}mm;overflow:hidden}@media print{html,body{width:${w}mm;height:${h}mm;background:white}.kj-print-note{display:none}.kj-print-sheet{break-inside:avoid;break-after:avoid}}`
 }
 
 /** Strict, read-only vector print document. This returns HTML, never PDF bytes. */

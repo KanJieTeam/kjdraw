@@ -266,7 +266,11 @@ test('Chinese IME, newlines and long untrusted text remain usable at 390 pixels'
   await connect(page)
   await page.locator('#language').click()
   await page.setViewportSize({ width: 390, height: 844 })
-  if (!(await page.locator('.right-panel').isVisible())) await page.locator('#toggle-inspector').click()
+  // Wait for the real matchMedia change handler to close the desktop panel.
+  // A one-shot visibility read can precede this event on WebKit.
+  await expect(page.locator('.workbench')).not.toHaveClass(/inspector-open/)
+  await page.locator('#toggle-inspector').click()
+  await expect(page.locator('#agent-tab')).toBeVisible()
   await page.locator('#agent-tab').click()
   await page.locator('#chat-input').fill('设计一个安装支架')
   await page.locator('#chat-input').dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true, bubbles: true })

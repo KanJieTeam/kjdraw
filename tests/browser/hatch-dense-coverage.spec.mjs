@@ -77,9 +77,12 @@ test('nested HATCH instances keep their own phase after movement and reuse cache
       return { before, initialMasks, stationaryMasks, moved, diagnostics }
     } finally { globalThis.OffscreenCanvas = Native }
   })
-  expect(result.before).toEqual([127,127])
+  // Half-opacity black over white differs by one 8-bit step across raster backends.
+  for(const shade of [...result.before,...result.moved.slice(1)]){expect(shade).toBeGreaterThanOrEqual(126);expect(shade).toBeLessThanOrEqual(128)}
+  expect(result.before[0]).toBe(result.before[1])
   expect(result.initialMasks).toBe(2)
   expect(result.stationaryMasks).toBe(2)
-  expect(result.moved).toEqual([255,127,127])
+  expect(result.moved[0]).toBe(255)
+  expect(result.moved.slice(1)).toEqual(result.before)
   expect(result.diagnostics).toEqual([])
 })

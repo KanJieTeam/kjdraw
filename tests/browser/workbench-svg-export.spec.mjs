@@ -46,7 +46,9 @@ test('workbench downloads the selected A3 SVG with a real 1:100 viewport and unc
     const length = id => {
       const line = drawing.querySelector('g[data-entity-id="' + id + '"] line')
       if (!line) throw Error('Exported line missing: ' + id)
-      const transform = drawing.getCTM().inverse().multiply(line.getCTM())
+      // Both matrices must share the screen coordinate system; Firefox
+      // getCTM() handles the outer SVG viewport differently from child CTMs.
+      const transform = drawing.getScreenCTM().inverse().multiply(line.getScreenCTM())
       const a = new DOMPoint(line.x1.baseVal.value, line.y1.baseVal.value).matrixTransform(transform)
       const b = new DOMPoint(line.x2.baseVal.value, line.y2.baseVal.value).matrixTransform(transform)
       return Math.hypot(b.x - a.x, b.y - a.y)

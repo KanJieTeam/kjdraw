@@ -129,7 +129,9 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
   const text = (entity: KJReadonlyObjectRecord, value: string, position: Point, textHeight: number, angle: number, anchor = 'start', baseline = 'alphabetic'): string => {
     if (!(textHeight > 0)) fail('text height must be positive')
     if (!fontIds.has(entity.id)) { fontIds.add(entity.id); report.approximations.push({ entityId: entity.id, type: entity.type, reason: 'Editable text uses unembedded sans-serif font metrics' }) }
-    return `<text transform="translate(${pos(position)}) rotate(${angle * 180 / Math.PI}) scale(1 -1)" font-family="sans-serif" font-size="${textHeight}" text-anchor="${anchor}" dominant-baseline="${baseline}" fill="currentColor" stroke="none" xml:space="preserve">${xml(value)}</text>`
+    // Prefer static TrueType CJK fonts: Chromium may emit CFF/variable fonts as
+    // Type3 with ambiguous ToUnicode mappings (e.g. 工 becomes the radical ⼯).
+    return `<text transform="translate(${pos(position)}) rotate(${angle * 180 / Math.PI}) scale(1 -1)" font-family="Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif" font-size="${textHeight}" text-anchor="${anchor}" dominant-baseline="${baseline}" fill="currentColor" stroke="none" xml:space="preserve">${xml(value)}</text>`
   }
   const primitive = (entity: KJReadonlyObjectRecord): string => {
     const p = entity.payload

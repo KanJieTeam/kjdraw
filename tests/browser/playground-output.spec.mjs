@@ -57,11 +57,15 @@ test('main editor configures a real 1:100 model page, downloads SVG and keeps ge
 
 test('main editor Print / PDF opens the selected configured layout as a physical vector sheet under the actual CSP', async ({ page }, testInfo) => {
   await openFixture(page); await setup(page)
+  // Firefox's native print modal waits for a human dismissal. Keep real window,
+  // CSP and geometry assertions here; Chromium below verifies actual PDF bytes.
+  if(testInfo.project.name==='firefox')await page.evaluate(()=>{const open=window.open.bind(window);window.printDispatches=0;window.open=(...args)=>{const popup=open(...args);if(popup)popup.print=()=>{window.printDispatches++};return popup}})
   const popupEvent = page.waitForEvent('popup'); await page.locator('#print-drawing').click(); const popup = await popupEvent
   await expect(popup.locator('.kj-print-sheet svg')).toBeVisible()
   await expect(popup.locator('.kj-print-sheet svg')).toHaveAttribute('width', '420mm')
   await expect(popup.locator('.kj-print-note')).toContainText('100%')
   await expect(page.locator('#status')).toContainText('Print opened')
+  if(testInfo.project.name==='firefox')expect(await page.evaluate(()=>window.printDispatches)).toBe(1)
   expect(await popup.evaluate(()=>window.opener)).toBe(null)
   expect(await popup.locator('.kj-print-sheet').evaluate(e=>e.getBoundingClientRect().width)).toBeCloseTo(420*96/25.4, 1)
   if (testInfo.project.name === 'chromium') {

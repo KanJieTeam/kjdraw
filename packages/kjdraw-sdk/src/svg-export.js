@@ -173,7 +173,7 @@ export function exportDrawingSvg(document, options) {
                 reason: 'Editable text uses unembedded sans-serif font metrics'
             });
         }
-        return `<text transform="translate(${pos(position)}) rotate(${angle * 180 / Math.PI}) scale(1 -1)" font-family="sans-serif" font-size="${textHeight}" text-anchor="${anchor}" dominant-baseline="${baseline}" fill="currentColor" stroke="none" xml:space="preserve">${xml(value)}</text>`;
+        return `<text transform="translate(${pos(position)}) rotate(${angle * 180 / Math.PI}) scale(1 -1)" font-family="Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif" font-size="${textHeight}" text-anchor="${anchor}" dominant-baseline="${baseline}" fill="currentColor" stroke="none" xml:space="preserve">${xml(value)}</text>`;
     };
     const primitive = (entity)=>{
         const p = entity.payload;

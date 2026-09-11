@@ -56,7 +56,7 @@ import json,math,sys
 from pypdf import PdfReader
 import pdfplumber
 r=PdfReader(sys.argv[1]);assert len(r.pages)==1
-p=r.pages[0];text=p.extract_text();assert '道路工程图：平面、纵断面、横断面' in text;assert 'KJDraw - Vector engineering drawing' in text
+p=r.pages[0];text=p.extract_text();assert '道路工程图：平面、纵断面、横断面' in text, repr(text);assert 'KJDraw - Vector engineering drawing' in text, repr(text)
 assert 'Print at 100%' not in text
 fonts=[];images=[]
 def visit(res):
@@ -85,8 +85,11 @@ print(json.dumps({'pages':1,'paperMm':mm,'lineMm':length,'images':images,'fonts'
   await page.locator('[data-action="language"]').click();await expect(page.locator('[data-action="print"]')).toHaveAccessibleName('打印 / PDF')
 })
 
-test('strict host CSP retains physical print CSS and blocks executable content and external resources',async({page})=>{
+test('strict host CSP retains physical print CSS and blocks executable content and external resources',async({page},testInfo)=>{
   await fixture(page,true)
+  // Firefox's native print modal blocks until a person dismisses it. This case
+  // verifies dispatch/CSP only; the Chromium case above verifies real PDF bytes.
+  if(testInfo.project.name==='firefox')await page.evaluate(()=>{window.open=(...args)=>{const popup=printTest.realOpen(...args);printTest.popup=popup;if(popup)popup.print=()=>{printTest.prints++};return popup}})
   const received=page.waitForEvent('popup')
   await page.evaluate(()=>{printTest.pending=printTest.openDrawingPrintWindow(printTest.drawing,{layoutId:printTest.layoutId,ownerWindow:window,title:'</title><script>alert(1)</script>'})})
   const popup=await received

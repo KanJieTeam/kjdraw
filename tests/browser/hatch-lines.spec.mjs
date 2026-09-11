@@ -57,19 +57,25 @@ test('imported custom pattern paints dashes and dots, clips holes and survives e
   await page.locator('#pattern-pixels').screenshot({ path: `.cache/hatch-acceptance/${testInfo.project.name}-dash-dot-holes.png` })
 })
 
-test('dense patterns and unsupported curve boundaries report their limitations', async ({ page }) => {
+test('dense patterns use real coverage while oversized masks and unsupported boundaries retain diagnostics', async ({ page }) => {
   await page.goto('/')
   const result = await page.evaluate(async () => {
     const { createKJDrawSDK } = await import('/packages/kjdraw-sdk/src/index.js')
     const { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js')
     const sdk = createKJDrawSDK(), doc = sdk.createDocument()
-    await doc.transact('dense pattern', tx => tx.createEntity('HATCH', { patternName: 'DENSE', solid: false, patternLines: [{ angle: 0, base: [0, 0], offset: [0, .000001], dashes: [] }], boundaryLoops: [{ vertices: [[0, 0], [20, 0], [20, 20], [0, 20]] }] }))
+    await doc.transact('dense pattern', tx => tx.createEntity('HATCH', { trueColor: 0, patternName: 'DENSE', solid: false, patternLines: [{ angle: 0, base: [0, 0], offset: [0, .000001], dashes: [] }], boundaryLoops: [{ vertices: [[0, 0], [20, 0], [20, 20], [0, 20]] }] }))
     const canvas = document.createElement('canvas'); canvas.style.cssText = 'width:400px;height:300px'; document.body.replaceChildren(canvas)
-    const renderer = new KJCanvasRenderer(canvas, { document: doc, grid: false }).fit()
-    const dense = renderer.report.hatchDiagnostics
+    const renderer = new KJCanvasRenderer(canvas, { document: doc, grid: false, pixelRatio: 1, background: '#ffffff' }).fit()
+    const before=doc.serialize(), dense = renderer.report.hatchDiagnostics
+    const [x,y]=renderer.worldToScreen([10,10]),ink=Array.from(canvas.getContext('2d').getImageData(Math.floor(x),Math.floor(y),1,1).data)
+    // Force 1400² covered physical pixels, exceeding the real 1,048,576-pixel
+    // fallback budget regardless of host viewport or raster antialiasing.
+    renderer.resize(1600,1600);Object.assign(renderer.camera,{centerX:10,centerY:10,scale:70});renderer.render()
+    const limited=renderer.report.hatchDiagnostics.map(({reason,samplingReason})=>({reason,samplingReason}))
+    const unchanged=doc.serialize()===before
     const entity = doc.listEntities()[0]
     await doc.transact('unsupported boundary', tx => tx.updateObject(entity.id, { payload: { boundaryLoops: [{ edges: [{ type: 'ELLIPSE', rawTags: [] }] }] } }))
-    return { dense: dense.map(d => d.reason), unsupported: renderer.report.hatchDiagnostics.map(d => d.reason), count: renderer.report.unsupported }
+    return { dense: dense.map(d => d.reason), ink, limited, unchanged, unsupported: renderer.report.hatchDiagnostics.map(d => d.reason), count: renderer.report.unsupported }
   })
-  expect(result).toEqual({ dense: ['budget'], unsupported: ['unsupported-boundary'], count: 1 })
+  expect(result).toEqual({ dense: [], ink:[0,0,0,255], limited:[{reason:'budget',samplingReason:'pixel-budget'}], unchanged:true, unsupported: ['unsupported-boundary'], count: 1 })
 })

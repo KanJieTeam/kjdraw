@@ -89,5 +89,6 @@ jobs:
           cache: pip
           cache-dependency-path: scripts/audits/requirements-print.txt
       - run: python -m pip install -r scripts/audits/requirements-print.txt
-      - run: sudo apt-get install -y fonts-noto-cjk
+      # Static TrueType keeps Chinese PDF ToUnicode mappings exact in Chromium.
+      - run: sudo apt-get install -y fonts-wqy-zenhei fonts-noto-cjk
       - run: npm run test:browser
