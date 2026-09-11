@@ -15,7 +15,7 @@ def main():
   if isinstance(node,(ast.ClassDef,ast.Global,ast.Nonlocal,ast.AsyncFunctionDef,ast.Await)):raise ValueError('UNSUPPORTED_PYTHON_CONSTRUCT')
   if isinstance(node,ast.Import) and any(n.name not in allowed_modules for n in node.names):raise ValueError('IMPORT_NOT_ALLOWED')
   if isinstance(node,ast.ImportFrom) and (node.level or node.module not in allowed_modules or any(n.name.startswith('_') or n.name=='*' for n in node.names)):raise ValueError('IMPORT_NOT_ALLOWED')
-  if isinstance(node,ast.Name) and (node.id in forbidden_names or node.id.startswith('_') and node.id!='__name__'):raise ValueError('REFLECTION_OR_EXECUTION_NOT_ALLOWED')
+  if isinstance(node,ast.Name) and (node.id in forbidden_names or node.id.startswith('__') and node.id!='__name__'):raise ValueError('REFLECTION_OR_EXECUTION_NOT_ALLOWED')
   if isinstance(node,ast.Attribute) and node.attr.startswith('_'):raise ValueError('PRIVATE_ATTRIBUTE_NOT_ALLOWED')
  if data.get('ezdxfPath'):sys.path.append(str(pathlib.Path(data['ezdxfPath']).resolve(strict=True)))
  import ezdxf,math

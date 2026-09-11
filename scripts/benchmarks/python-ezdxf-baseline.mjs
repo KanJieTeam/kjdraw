@@ -11,16 +11,24 @@ export function buildPythonEzdxfBaselineRequest({model,userPrompt,settings}){
  if(['model','messages','tools','tool_choice'].some(key=>Object.hasOwn(settings,key)))throw new Error('Provider settings cannot replace the shared prompt or arm')
  return {model,messages:[{role:'system',content:pythonEzdxfBaselineSystemPrompt},{role:'user',content:userPrompt}],...structuredClone(settings)}
 }
-export function extractPythonEzdxfProgram(content){
+function extractResponse(content){
  if(typeof content!=='string'||Buffer.byteLength(content)>131072)throw new Error('PYTHON_SOURCE_BUDGET')
- let code=content.trim();if(code.startsWith('```')){const match=/^```(?:python|py)?\s*\n([\s\S]*?)\n```\s*$/.exec(code);if(!match)throw new Error('PYTHON_SOURCE_FORMAT');code=match[1]}
- if(!code||code.includes('```')||code.includes('\0'))throw new Error('PYTHON_SOURCE_FORMAT')
- return code+'\n'
+ const fences=[...content.matchAll(/^```[^\r\n]*\r?$/gm)];let code,prefix='',suffix='',format='plain-python'
+ if(fences.length){
+  if(fences.length!==2||!/^```(?:python|py)?\r?$/.test(fences[0][0])||!/^```\r?$/.test(fences[1][0]))throw new Error('PYTHON_SOURCE_FORMAT')
+  const start=fences[0].index+fences[0][0].length+1,end=fences[1].index
+  code=content.slice(start,end);prefix=content.slice(0,fences[0].index);suffix=content.slice(end+fences[1][0].length);format='unique-python-fence'
+ }else code=content.trim()+'\n'
+ if(!code.trim()||code.includes('```')||code.includes('\0'))throw new Error('PYTHON_SOURCE_FORMAT')
+ return {code,prefix,suffix,format,originalContent:content}
 }
+export function extractPythonEzdxfProgram(content){return extractResponse(content).code}
 export async function preparePythonEzdxfBaseline({code,outputDirectory}){
- code=extractPythonEzdxfProgram(code);if(typeof outputDirectory!=='string'||!outputDirectory)throw new Error('Choose a new output directory')
+ const extraction=extractResponse(code);code=extraction.code;if(typeof outputDirectory!=='string'||!outputDirectory)throw new Error('Choose a new output directory')
  const directory=resolve(outputDirectory);await mkdir(directory,{recursive:false});const canonical=await realpath(directory)
  const sourceSha256=createHash('sha256').update(code).digest('hex');await writeFile(join(canonical,'candidate.py'),code,{flag:'wx'})
+ await writeFile(join(canonical,'response-content.txt'),extraction.originalContent,{flag:'wx'})
+ await writeFile(join(canonical,'extraction.json'),JSON.stringify({format:extraction.format,sourceSha256,originalContentSha256:createHash('sha256').update(extraction.originalContent).digest('hex'),originalContentBytes:Buffer.byteLength(extraction.originalContent),codeBytes:Buffer.byteLength(code),prefix:extraction.prefix,suffix:extraction.suffix,codeBodyPreserved:extraction.format==='unique-python-fence',manualCodeEdits:0},null,2),{flag:'wx'})
  const review={schema:'kjdraw-python-ezdxf-review@1',sourceSha256,directory:canonical,sourceFile:join(canonical,'candidate.py'),status:'awaiting-human-review',boundary:'Restricted subprocess and audit checks are defense in depth, not an OS sandbox. Execute only after explicit review of these exact bytes. No credentials enter the worker.'}
  await writeFile(join(canonical,'review.json'),JSON.stringify(review,null,2),{flag:'wx'});return Object.freeze(review)
 }

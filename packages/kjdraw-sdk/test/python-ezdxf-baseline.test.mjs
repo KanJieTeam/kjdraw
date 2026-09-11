@@ -16,8 +16,9 @@ const valid=String.raw`import ezdxf, json, math
 doc=ezdxf.new('R2018')
 doc.units=6
 msp=doc.modelspace()
-for i in range(3):
-    msp.add_line((i,0),(i,math.sqrt(4)))
+for _ in range(3):
+    _vals=(_,math.sqrt(4))
+    msp.add_line((_,0),_vals)
 doc.saveas(OUTPUT_DXF)
 with open(OUTPUT_MANIFEST,'w',encoding='utf-8') as file:
     json.dump({'schema':'fixture','handles':[e.dxf.handle for e in msp]},file)
@@ -26,16 +27,16 @@ with open(OUTPUT_MANIFEST,'w',encoding='utf-8') as file:
 test('Python arm preserves exact shared user prompt and provider budget and never transports credentials',()=>{
  const prompt='Original common road data\n'+roadRoleManifestContract,settings={thinking:{type:'enabled'},max_tokens:32768,temperature:0}
  const request=buildPythonEzdxfBaselineRequest({model:'test-model',userPrompt:prompt,settings});assert.equal(request.messages[1].content,prompt);assert.deepEqual(request.thinking,settings.thinking);assert.equal(request.max_tokens,32768);assert.equal(request.tools,undefined)
- assert.equal(extractPythonEzdxfProgram('```python\nprint(1)\n```'),'print(1)\n');assert.throws(()=>extractPythonEzdxfProgram('```python\nx\n```\nextra'))
+ assert.equal(extractPythonEzdxfProgram('```python\nprint(1)\n```'),'print(1)\n');assert.equal(extractPythonEzdxfProgram('Explanation\n```python\nprint(1)\n```\nAfterword'),'print(1)\n');assert.throws(()=>extractPythonEzdxfProgram('```python\nx\n```\n```python\ny\n```'))
 })
 
 test('reviewed Python actually executes ezdxf while source tampering and host-side effects are rejected',async t=>{
  if(!needPython(t))return
  const base=await mkdtemp(join(process.env.KJDRAW_AUDIT_TMPDIR??tmpdir(),'kjdraw-python-baseline-'))
  try{
-  const prepared=await preparePythonEzdxfBaseline({code:valid,outputDirectory:join(base,'accepted')})
+  const prepared=await preparePythonEzdxfBaseline({code:'Explanation\n```python\n'+valid+'```\nAfterword',outputDirectory:join(base,'accepted')})
   await assert.rejects(executeReviewedPythonEzdxfBaseline({prepared,approvedCodeSha256:'0'.repeat(64),python,ezdxfPath}),/EXACT_CODE_REVIEW_REQUIRED/)
-  const result=await executeReviewedPythonEzdxfBaseline({prepared,approvedCodeSha256:prepared.sourceSha256,python,ezdxfPath});assert.equal(result.passed,true,JSON.stringify(result));assert.equal(result.manifest.handles.length,3);assert.match(result.dxf,/AC1032/);assert.equal(result.transportIncluded,false)
+  const result=await executeReviewedPythonEzdxfBaseline({prepared,approvedCodeSha256:prepared.sourceSha256,python,ezdxfPath});assert.equal(result.passed,true,JSON.stringify(result));assert.equal(result.manifest.handles.length,3);const extraction=JSON.parse(await readFile(join(prepared.directory,'extraction.json'),'utf8'));assert.equal(extraction.prefix,'Explanation\n');assert.equal(extraction.suffix,'\nAfterword');assert.equal(extraction.codeBodyPreserved,true);assert.equal(await readFile(prepared.sourceFile,'utf8'),valid);assert.match(result.dxf,/AC1032/);assert.equal(result.transportIncluded,false)
   const changed=await preparePythonEzdxfBaseline({code:valid,outputDirectory:join(base,'tampered')});await writeFile(changed.sourceFile,'print(1)')
   await assert.rejects(executeReviewedPythonEzdxfBaseline({prepared:changed,approvedCodeSha256:changed.sourceSha256,python,ezdxfPath}),/REVIEWED_SOURCE_CHANGED/)
   for(const [i,code]of ['import os\nos.system("echo bad")','import ezdxf\nx=ezdxf.__dict__',`with open(${JSON.stringify(join(base,'outside.txt'))},'w') as f:\n    f.write('bad')`,"with open(OUTPUT_DXF,'w') as f:\n    f.write('x'*4194305)"].entries()){
