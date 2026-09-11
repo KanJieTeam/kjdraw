@@ -886,10 +886,12 @@ export class KJCanvasRenderer {
             const layer = this.#document?.getObject(String(child.payload.layerId ?? ''))?.payload;
             if (child.payload.visible === false || layer?.visible === false || layer?.frozen === true) continue;
             try {
-                output.push(...this.#fitPoints({
-                    ...child,
-                    payload: transformEntityPayload(child.type, structuredClone(child.payload), matrix)
-                }, depth + 1, unboundedOrigins));
+                const childOrigins = [], transform = (p)=>[
+                        matrix[0] * p[0] + matrix[2] * p[1] + matrix[4],
+                        matrix[1] * p[0] + matrix[3] * p[1] + matrix[5]
+                    ];
+                output.push(...this.#fitPoints(child, depth + 1, childOrigins).map(transform));
+                unboundedOrigins.push(...childOrigins.map(transform));
             } catch  {
                 output.push(position);
             }
@@ -1330,9 +1332,17 @@ export class KJCanvasRenderer {
                 }
             }
         } else if (entity.type === 'DIMENSION') {
-            const projected = projection?.dimension ?? projectDimension(payload, this.#document?.getObject(String(payload.styleId ?? ''))?.payload);
+            const projected = projection && 'dimension' in projection ? projection.dimension : projectDimension(payload, this.#document?.getObject(String(payload.styleId ?? ''))?.payload);
             drawn = projected !== null;
             if (projected) {
+                if (projection?.dimensionMatrix) {
+                    const [a, b, c, d, e, f] = projection.dimensionMatrix;
+                    const [x, y] = this.worldToScreen([
+                        0,
+                        0
+                    ]), k = this.camera.scale;
+                    context.transform(a, -b, -c, d, k * e + x - a * x + c * y, -k * f + y + b * x - d * y);
+                }
                 for (const arc of projected.arcs){
                     const screen = this.worldToScreen(arc.center);
                     context.beginPath();
@@ -1440,20 +1450,22 @@ export class KJCanvasRenderer {
                 context.stroke();
             }
         } else if (entity.type === 'INSERT') {
-            const blockRecordId = String(payload.blockRecordId ?? '');
+            const source = projection?.payload ?? payload;
+            const blockRecordId = String(source.blockRecordId ?? '');
             const block = this.#document?.getObject(blockRecordId);
-            const position = point2(payload.position), base = point2(block?.payload.basePoint) ?? [
+            const position = point2(source.position), base = point2(block?.payload.basePoint) ?? [
                 0,
                 0
             ];
             if (!block || !position) drawn = false;
             else {
-                const inputScale = Array.isArray(payload.scale) ? payload.scale : [
-                    payload.scale ?? 1,
-                    payload.scale ?? 1
+                const inputScale = Array.isArray(source.scale) ? source.scale : [
+                    source.scale ?? 1,
+                    source.scale ?? 1
                 ];
                 const factorX = finite(inputScale[0], 1), factorY = finite(inputScale[1], factorX);
-                const matrix = multiply3(translation3(position[0], position[1]), multiply3(rotation3(finite(payload.rotation)), multiply3(scale3(factorX, factorY), translation3(-base[0], -base[1]))));
+                const localMatrix = multiply3(translation3(position[0], position[1]), multiply3(rotation3(finite(source.rotation)), multiply3(scale3(factorX, factorY), translation3(-base[0], -base[1]))));
+                const matrix = projection?.matrix ? multiply3(projection.matrix, localMatrix) : localMatrix;
                 const children = this.#document?.listEntities({
                     ownerId: blockRecordId
                 }) ?? [];
@@ -1467,7 +1479,7 @@ export class KJCanvasRenderer {
                     const childLayer = this.#document?.getObject(String(child.payload.layerId ?? ''));
                     if (child.payload.visible === false || childLayer?.payload.visible === false || childLayer?.payload.frozen === true) continue;
                     try {
-                        const transformed = {
+                        const transformed = child.type === 'INSERT' || child.type === 'DIMENSION' ? child : {
                             ...child,
                             payload: transformEntityPayload(child.type, structuredClone(child.payload), matrix)
                         };
@@ -1477,9 +1489,8 @@ export class KJCanvasRenderer {
                         const identity = {
                             payload: child.payload,
                             instanceKey: `${projection?.instanceKey ?? ''};${matrix.join(',')}`,
-                            ...child.type === 'DIMENSION' && view ? {
-                                dimension: this.#dimensionInView(child, matrix)
-                            } : {}
+                            matrix,
+                            ...child.type === 'DIMENSION' ? this.#dimensionInView(child, matrix) : {}
                         };
                         if (!this.#drawEntity(transformed, childColor, depth + 1, overrideColor, identity)) drawn = false;
                     } catch  {
@@ -1524,7 +1535,19 @@ export class KJCanvasRenderer {
     }
     #dimensionInView(entity, matrix) {
         const original = projectDimension(entity.payload, this.#document?.getObject(String(entity.payload.styleId ?? ''))?.payload);
-        if (!original) return null;
+        if (!original) return {
+            dimension: null
+        };
+        const determinant = matrix[0] * matrix[3] - matrix[1] * matrix[2];
+        const sx = Math.hypot(matrix[0], matrix[1]), sy = Math.hypot(matrix[2], matrix[3]);
+        if (!matrix.every(Number.isFinite) || sx === 0 || sy === 0 || Math.abs(determinant) <= 1e-12 * sx * sy) return {
+            dimension: null
+        };
+        const similarity = determinant > 0 && Math.abs(sx - sy) <= 1e-10 * Math.max(sx, sy) && Math.abs(matrix[0] * matrix[2] + matrix[1] * matrix[3]) <= 1e-10 * sx * sy;
+        if (!similarity) return {
+            dimension: original,
+            dimensionMatrix: matrix
+        };
         const point = (p)=>[
                 matrix[0] * p[0] + matrix[2] * p[1] + matrix[4],
                 matrix[1] * p[0] + matrix[3] * p[1] + matrix[5]
@@ -1539,18 +1562,20 @@ export class KJCanvasRenderer {
                 endAngle: reflected ? angle - arc.startAngle : arc.endAngle + angle
             }));
         return {
-            ...original,
-            arcs,
-            lines: original.lines.map(([a, b])=>[
-                    point(a),
-                    point(b)
-                ]),
-            arrows: original.arrows.map((arrow)=>arrow.map(point)),
-            label: {
-                ...original.label,
-                position: point(original.label.position),
-                height: original.label.height * Math.hypot(matrix[0], matrix[1]),
-                rotation: original.label.rotation + Math.atan2(matrix[1], matrix[0])
+            dimension: {
+                ...original,
+                arcs,
+                lines: original.lines.map(([a, b])=>[
+                        point(a),
+                        point(b)
+                    ]),
+                arrows: original.arrows.map((arrow)=>arrow.map(point)),
+                label: {
+                    ...original.label,
+                    position: point(original.label.position),
+                    height: original.label.height * Math.hypot(matrix[0], matrix[1]),
+                    rotation: original.label.rotation + Math.atan2(matrix[1], matrix[0])
+                }
             }
         };
     }
@@ -1656,9 +1681,8 @@ export class KJCanvasRenderer {
                     const identity = {
                         payload: model.payload,
                         instanceKey: `viewport:${entity.id};${matrix.join(',')}`,
-                        ...model.type === 'DIMENSION' ? {
-                            dimension: this.#dimensionInView(model, matrix)
-                        } : {}
+                        matrix,
+                        ...model.type === 'DIMENSION' ? this.#dimensionInView(model, matrix) : {}
                     };
                     const before = diagnostic.unsupported;
                     if (!this.#drawEntity(transformed, this.#color(model, layer), depth + 1, false, identity)) {

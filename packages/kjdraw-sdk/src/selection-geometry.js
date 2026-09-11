@@ -158,7 +158,11 @@ function textBox(position, text, height, rotation, centered = false) {
         ]
     ].map((p)=>add(add(position, u, p[0]), v, p[1]));
 }
-function project(entity, document, depth = 0) {
+function project(entity, document, depth = 0, inheritedMatrix) {
+    if (inheritedMatrix && entity.type !== 'INSERT' && entity.type !== 'DIMENSION') return project({
+        ...entity,
+        payload: transformEntityPayload(entity.type, structuredClone(entity.payload), inheritedMatrix)
+    }, document, depth);
     const payload = entity.payload, result = {
         parts: [],
         fills: [],
@@ -329,17 +333,15 @@ function project(entity, document, depth = 0) {
                     payload.scale ?? 1,
                     payload.scale ?? 1
                 ];
-                const matrix = multiply3(translation3(position[0], position[1]), multiply3(rotation3(finite(payload.rotation)), multiply3(scale3(finite(scales[0], 1), finite(scales[1], 1)), translation3(-base[0], -base[1]))));
+                const localMatrix = multiply3(translation3(position[0], position[1]), multiply3(rotation3(finite(payload.rotation)), multiply3(scale3(finite(scales[0], 1), finite(scales[1], 1)), translation3(-base[0], -base[1]))));
+                const matrix = inheritedMatrix ? multiply3(inheritedMatrix, localMatrix) : localMatrix;
                 for (const child of document.listEntities({
                     ownerId: blockId
                 })){
                     const layer = document.getObject(String(child.payload.layerId ?? ''))?.payload;
                     if (child.payload.visible === false || layer?.visible === false || layer?.frozen === true) continue;
                     try {
-                        const projection = project({
-                            ...child,
-                            payload: transformEntityPayload(child.type, structuredClone(child.payload), matrix)
-                        }, document, depth + 1);
+                        const projection = project(child, document, depth + 1, matrix);
                         result.parts.push(...projection.parts);
                         result.fills.push(...projection.fills);
                         result.complete = result.complete && projection.complete;
@@ -351,6 +353,37 @@ function project(entity, document, depth = 0) {
             }
         default:
             result.complete = false;
+    }
+    if (inheritedMatrix && entity.type === 'DIMENSION') {
+        const matrix = inheritedMatrix;
+        const sx = Math.hypot(matrix[0], matrix[1]), sy = Math.hypot(matrix[2], matrix[3]);
+        if (!matrix.every(Number.isFinite) || sx === 0 || sy === 0 || Math.abs(matrix[0] * matrix[3] - matrix[1] * matrix[2]) <= 1e-12 * sx * sy) return {
+            parts: [],
+            fills: [],
+            complete: false
+        };
+        const transform = (p)=>[
+                matrix[0] * p[0] + matrix[2] * p[1] + matrix[4],
+                matrix[1] * p[0] + matrix[3] * p[1] + matrix[5]
+            ];
+        const vector = (p)=>[
+                matrix[0] * p[0] + matrix[2] * p[1],
+                matrix[1] * p[0] + matrix[3] * p[1]
+            ];
+        result.parts = result.parts.map((part)=>part.kind === 'curve' ? {
+                ...part,
+                center: transform(part.center),
+                u: vector(part.u),
+                v: vector(part.v)
+            } : part.kind === 'point' ? {
+                ...part,
+                point: transform(part.point)
+            } : {
+                ...part,
+                a: transform(part.a),
+                b: transform(part.b)
+            });
+        result.fills = result.fills.map((loops)=>loops.map((loop)=>loop.map(transform)));
     }
     return result;
 }
