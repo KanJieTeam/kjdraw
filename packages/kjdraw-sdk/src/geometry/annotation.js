@@ -14,16 +14,27 @@ const delta = (a, b)=>[
     ];
 const dot = (a, b)=>a[0] * b[0] + a[1] * b[1];
 const length = (v)=>Math.hypot(v[0], v[1]);
+export function resolveDimensionAnnotationStyle(payload, style = {}) {
+    const overallScale = Math.max(1e-9, finite(payload.overallScale ?? style.overallScale, 1));
+    const height = Math.max(1e-9, finite(payload.textHeight ?? style.textHeight, 2.5) * overallScale);
+    return {
+        overallScale,
+        textHeight: height / overallScale,
+        arrowSize: Math.max(1e-9, finite(payload.arrowSize ?? style.arrowSize, height * .7 / overallScale) * overallScale) / overallScale,
+        extensionOffset: Math.max(0, finite(payload.extensionOffset ?? style.extensionOffset, height * .2 / overallScale) * overallScale) / overallScale,
+        extensionBeyond: Math.max(0, finite(payload.extensionBeyond ?? style.extensionBeyond, height * .35 / overallScale) * overallScale) / overallScale
+    };
+}
 export function projectDimension(payload, style = {}) {
     const points = Array.isArray(payload.definitionPoints) ? payload.definitionPoints.map(point) : [];
     const first = points[0], second = points[1];
     if (!first || !second) return null;
     const type = String(payload.dimensionType ?? 'ALIGNED').toUpperCase();
-    const overall = Math.max(1e-9, finite(style.overallScale, 1));
-    const height = Math.max(1e-9, finite(payload.textHeight ?? style.textHeight, 2.5) * overall);
-    const arrowSize = Math.max(1e-9, finite(style.arrowSize, height * .7 / overall) * overall);
-    const gap = Math.max(0, finite(style.extensionOffset, height * .2 / overall) * overall);
-    const beyond = Math.max(0, finite(style.extensionBeyond, height * .35 / overall) * overall);
+    const resolved = resolveDimensionAnnotationStyle(payload, style);
+    const height = resolved.textHeight * resolved.overallScale;
+    const arrowSize = resolved.arrowSize * resolved.overallScale;
+    const gap = resolved.extensionOffset * resolved.overallScale;
+    const beyond = resolved.extensionBeyond * resolved.overallScale;
     const lines = [];
     const arrows = [];
     const arcs = [];

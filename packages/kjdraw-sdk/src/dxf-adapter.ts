@@ -5,7 +5,7 @@ import type { KJFileAdapter, KJFileAdapterContext, KJFileAdapterOptions } from '
 import type { KJTableName } from './constants.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 import type { KJTransaction } from './transaction.js'
-import { projectDimension } from './geometry/annotation.js'
+import { projectDimension, resolveDimensionAnnotationStyle } from './geometry/annotation.js'
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js'
 import { hatchPatternLines } from './geometry/hatch.js'
 import { normalizeStandardEntityPayload } from './standard-entities.js'
@@ -21,8 +21,9 @@ interface DxfTag { code: number; value: string }
 interface DxfRecord { type: string; tags: DxfTag[]; vertices?: DxfRecord[]; sequenceEnd?: DxfRecord | null }
 
 // DXF per-entity dimension style overrides use ACAD/DSTYLE xdata pairs.
-function readDimensionOverrides(record: DxfRecord): { textHeight?: number; precision?: number; angularUnits?: number; linearPrecision?: number } {
-  const result: { textHeight?: number; precision?: number; angularUnits?: number; linearPrecision?: number } = {}
+interface DxfDimensionOverrides { textHeight?: number; precision?: number; angularUnits?: number; linearPrecision?: number; overallScale?: number; arrowSize?: number; extensionOffset?: number; extensionBeyond?: number }
+function readDimensionOverrides(record: DxfRecord): DxfDimensionOverrides {
+  const result: DxfDimensionOverrides = {}
   let acad = false
   for (let index = 0; index < record.tags.length; index++) {
     const tag = record.tags[index]!
@@ -34,6 +35,11 @@ function readDimensionOverrides(record: DxfRecord): { textHeight?: number; preci
       if (key.code === 1002 && key.value === '}') break
       if (key.code !== 1070 || !value) throw new KJValidationError('Malformed DIMENSION DSTYLE override')
       const code = Number(key.value), number = Number(value.value)
+      const lengthProperty = ({ 40: 'overallScale', 41: 'arrowSize', 42: 'extensionOffset', 44: 'extensionBeyond' } as const)[code as 40 | 41 | 42 | 44]
+      if (lengthProperty) {
+        if (value.code !== 1040 || !value.value.trim() || !Number.isFinite(number) || result[lengthProperty] !== undefined) throw new KJValidationError('Invalid or duplicate DIMENSION annotation style override')
+        result[lengthProperty] = number
+      }
       const precisionCode = [2, 5].includes(Number(first(record, 70, '0')) & 7) ? 179 : 271
       if (code === 140 || code === precisionCode) {
         if (!value.value.trim() || !Number.isFinite(number) || (code === 140 ? value.code !== 1040 || number <= 0 : value.code !== 1070 || !Number.isInteger(number) || number < (code === 179 ? -1 : 0) || number > 8)) throw new KJValidationError('Invalid DIMENSION text height or precision override')
@@ -81,7 +87,7 @@ interface DxfReadOptions extends KJFileAdapterOptions {
 }
 interface DxfAdapterOptions extends DxfReadOptions { id?: string; priority?: number }
 interface DxfImportResources { linetypeIds?: ReadonlyMap<string, string>; textStyleIds?: ReadonlyMap<string, string>; dimensionStyleIds?: ReadonlyMap<string, string> }
-interface DxfDimensionExport { blockName: string; preserveRaw: boolean; measurement?: number; textPosition?: Point3; textHeight?: number; precision?: number; definitionPoints?: readonly Point3[] }
+interface DxfDimensionExport extends DxfDimensionOverrides { blockName: string; preserveRaw: boolean; measurement?: number; textPosition?: Point3; textHeight?: number; precision?: number; definitionPoints?: readonly Point3[] }
 interface DxfExportResources {
   textStyleNames?: ReadonlyMap<string, string>
   dimensionStyleNames?: ReadonlyMap<string, string>
@@ -912,7 +918,7 @@ function dimensionRawTagsMatchPayload(payload: DxfPayload, dimensionStyles: read
   if (normalizeName(currentStyleName) !== normalizeName(raw.styleName ?? 'STANDARD')) return false
   if ((payload.textOverride ?? null) !== (raw.textOverride ?? null)) return false
   if ((payload.angularUnits ?? null) !== (raw.angularUnits ?? null) || (payload.linearPrecision ?? null) !== (raw.linearPrecision ?? null)) return false
-  if ((payload.textHeight ?? null) !== (raw.textHeight ?? null) || (payload.precision ?? null) !== (raw.precision ?? null)) return false
+  if (['textHeight', 'precision', 'overallScale', 'arrowSize', 'extensionOffset', 'extensionBeyond'].some(key => (payload[key] ?? null) !== (raw[key] ?? null))) return false
   if (normalizeName(payload.blockName) !== normalizeName(raw.blockName)) return false
   if (Number(payload.dxfDimensionType ?? DIMENSION_CODE_BY_TYPE[normalizeName(payload.dimensionType)] ?? 0) !== Number(raw.dxfDimensionType ?? 0)) return false
   return true
@@ -932,7 +938,8 @@ function assertAngularPictureSector(document: KJDocument, block: DxfNamedRecord,
   })
   if (!candidates.length) return fail()
   // Small arrow overshoots are legitimate; a supplementary/reflex sector is not.
-  const margin = Math.min(.25, Math.max(1e-8, Number(style.arrowSize ?? original!.label.height * .7) / expected.radius * 1.5))
+  const originalStyle = resolveDimensionAnnotationStyle(raw, style)
+  const margin = Math.min(.25, Math.max(1e-8, originalStyle.arrowSize * originalStyle.overallScale / expected.radius * 1.5))
   const span = expected.endAngle - expected.startAngle
   for (const entity of candidates) {
     const p = entity.payload, start = Number(p.startAngle), end = Number(p.endAngle)
@@ -996,9 +1003,9 @@ function buildDimensionExportBlocks(
     const subtype = dimensionCode & 7
     const dimensionType = DIMENSION_TYPE_BY_CODE[subtype]!
     assertNativeDimensionIsXY(payload, entity.handle)
-    const style = (payload.styleId
-      ? dimensionStyles.find(record => record.id === payload.styleId)
-      : dimensionStyles.find(record => normalizeName(record.name) === normalizeName(payload.styleName)))?.payload ?? {}
+    // Only an actual binding supplies shared styles to the native renderer.
+    // Normalized unbound entities still carry styleName=STANDARD as a DXF name.
+    const style = (payload.styleId ? dimensionStyles.find(record => record.id === payload.styleId) : undefined)?.payload ?? {}
     if (VERSION_RANK[context.version] < VERSION_RANK['2000'] && (payload.precision != null || style.decimalPlaces != null)) throw new KJValidationError('Explicit dimension precision requires DXF 2000 or newer')
     if ([2, 5].includes(subtype) && Number(payload.angularUnits ?? style.angularUnits ?? 0) !== 0) throw new KJValidationError('Angular DIMENSION regeneration currently supports decimal degrees only')
     const angularPrecision = Number(style.angularDecimalPlaces) >= 0 ? style.angularDecimalPlaces : style.decimalPlaces
@@ -1055,7 +1062,7 @@ function buildDimensionExportBlocks(
       preserveRaw: false,
       measurement: projection.measurement,
       ...([2, 5].includes(subtype) ? { definitionPoints: angularExportPoints(payload, projection, subtype)! } : {}),
-      textHeight: projection.label.height / Math.max(1e-9, Number.isFinite(Number(style.overallScale)) && style.overallScale != null ? Number(style.overallScale) : 1),
+      ...resolveDimensionAnnotationStyle(payload, style),
       precision: Math.max(0, Math.min(8, Math.trunc(Number.isFinite(Number(precision)) && precision != null ? Number(precision) : 2))),
       textPosition: [projection.label.position[0], projection.label.position[1], 0],
     })
@@ -1520,6 +1527,7 @@ function emitEntity(
   if (dimensionStyle && !dimensionStyle.preserveRaw) {
     emit(output, 1001, 'ACAD'); emit(output, 1000, 'DSTYLE'); emit(output, 1002, '{')
     emit(output, 1070, 140); emit(output, 1040, dimensionStyle.textHeight)
+    for (const [code, value] of [[40, dimensionStyle.overallScale], [41, dimensionStyle.arrowSize], [42, dimensionStyle.extensionOffset], [44, dimensionStyle.extensionBeyond]] as const) { emit(output, 1070, code); emit(output, 1040, value) }
     // Kernel labels use physical drawing units, decimal formatting and suppressed trailing zeros.
     emit(output, 1070, 144); emit(output, 1040, 1)
     emit(output, 1070, 78); emit(output, 1070, 8)

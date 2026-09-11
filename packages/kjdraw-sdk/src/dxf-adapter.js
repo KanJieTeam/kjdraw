@@ -2,7 +2,7 @@
 import { KJDocument } from './document.js';
 import { KJValidationError } from './errors.js';
 import { defineFileAdapter } from './file-adapters.js';
-import { projectDimension } from './geometry/annotation.js';
+import { projectDimension, resolveDimensionAnnotationStyle } from './geometry/annotation.js';
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js';
 import { hatchPatternLines } from './geometry/hatch.js';
 import { normalizeStandardEntityPayload } from './standard-entities.js';
@@ -24,6 +24,16 @@ function readDimensionOverrides(record) {
             if (key.code === 1002 && key.value === '}') break;
             if (key.code !== 1070 || !value) throw new KJValidationError('Malformed DIMENSION DSTYLE override');
             const code = Number(key.value), number = Number(value.value);
+            const lengthProperty = {
+                40: 'overallScale',
+                41: 'arrowSize',
+                42: 'extensionOffset',
+                44: 'extensionBeyond'
+            }[code];
+            if (lengthProperty) {
+                if (value.code !== 1040 || !value.value.trim() || !Number.isFinite(number) || result[lengthProperty] !== undefined) throw new KJValidationError('Invalid or duplicate DIMENSION annotation style override');
+                result[lengthProperty] = number;
+            }
             const precisionCode = [
                 2,
                 5
@@ -1495,7 +1505,14 @@ function dimensionRawTagsMatchPayload(payload, dimensionStyles) {
     if (normalizeName(currentStyleName) !== normalizeName(raw.styleName ?? 'STANDARD')) return false;
     if ((payload.textOverride ?? null) !== (raw.textOverride ?? null)) return false;
     if ((payload.angularUnits ?? null) !== (raw.angularUnits ?? null) || (payload.linearPrecision ?? null) !== (raw.linearPrecision ?? null)) return false;
-    if ((payload.textHeight ?? null) !== (raw.textHeight ?? null) || (payload.precision ?? null) !== (raw.precision ?? null)) return false;
+    if ([
+        'textHeight',
+        'precision',
+        'overallScale',
+        'arrowSize',
+        'extensionOffset',
+        'extensionBeyond'
+    ].some((key)=>(payload[key] ?? null) !== (raw[key] ?? null))) return false;
     if (normalizeName(payload.blockName) !== normalizeName(raw.blockName)) return false;
     if (Number(payload.dxfDimensionType ?? DIMENSION_CODE_BY_TYPE[normalizeName(payload.dimensionType)] ?? 0) !== Number(raw.dxfDimensionType ?? 0)) return false;
     return true;
@@ -1520,7 +1537,8 @@ function assertAngularPictureSector(document, block, payload, style) {
         return entity.type === 'ARC' && Array.isArray(p.center) && Math.hypot(Number(p.center[0]) - expected.center[0], Number(p.center[1]) - expected.center[1]) <= 1e-7 * Math.max(1, expected.radius) && Math.abs(Number(p.radius) - expected.radius) <= 1e-7 * Math.max(1, expected.radius);
     });
     if (!candidates.length) return fail();
-    const margin = Math.min(.25, Math.max(1e-8, Number(style.arrowSize ?? original.label.height * .7) / expected.radius * 1.5));
+    const originalStyle = resolveDimensionAnnotationStyle(raw, style);
+    const margin = Math.min(.25, Math.max(1e-8, originalStyle.arrowSize * originalStyle.overallScale / expected.radius * 1.5));
     const span = expected.endAngle - expected.startAngle;
     for (const entity of candidates){
         const p = entity.payload, start = Number(p.startAngle), end = Number(p.endAngle);
@@ -1620,7 +1638,7 @@ function buildDimensionExportBlocks(document, entities, sourceBlocks, dimensionS
         const subtype = dimensionCode & 7;
         const dimensionType = DIMENSION_TYPE_BY_CODE[subtype];
         assertNativeDimensionIsXY(payload, entity.handle);
-        const style = (payload.styleId ? dimensionStyles.find((record)=>record.id === payload.styleId) : dimensionStyles.find((record)=>normalizeName(record.name) === normalizeName(payload.styleName)))?.payload ?? {};
+        const style = (payload.styleId ? dimensionStyles.find((record)=>record.id === payload.styleId) : undefined)?.payload ?? {};
         if (VERSION_RANK[context.version] < VERSION_RANK['2000'] && (payload.precision != null || style.decimalPlaces != null)) throw new KJValidationError('Explicit dimension precision requires DXF 2000 or newer');
         if ([
             2,
@@ -1752,7 +1770,7 @@ function buildDimensionExportBlocks(document, entities, sourceBlocks, dimensionS
             ].includes(subtype) ? {
                 definitionPoints: angularExportPoints(payload, projection, subtype)
             } : {},
-            textHeight: projection.label.height / Math.max(1e-9, Number.isFinite(Number(style.overallScale)) && style.overallScale != null ? Number(style.overallScale) : 1),
+            ...resolveDimensionAnnotationStyle(payload, style),
             precision: Math.max(0, Math.min(8, Math.trunc(Number.isFinite(Number(precision)) && precision != null ? Number(precision) : 2))),
             textPosition: [
                 projection.label.position[0],
@@ -2500,6 +2518,27 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emit(output, 1002, '{');
         emit(output, 1070, 140);
         emit(output, 1040, dimensionStyle.textHeight);
+        for (const [code, value] of [
+            [
+                40,
+                dimensionStyle.overallScale
+            ],
+            [
+                41,
+                dimensionStyle.arrowSize
+            ],
+            [
+                42,
+                dimensionStyle.extensionOffset
+            ],
+            [
+                44,
+                dimensionStyle.extensionBeyond
+            ]
+        ]){
+            emit(output, 1070, code);
+            emit(output, 1040, value);
+        }
         emit(output, 1070, 144);
         emit(output, 1040, 1);
         emit(output, 1070, 78);
