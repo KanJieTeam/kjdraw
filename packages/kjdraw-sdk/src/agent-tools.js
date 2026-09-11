@@ -280,7 +280,18 @@ const annotatedDrawingSchemaBase = object({
     radiusDimensions: drawingGroup(object(radialAnnotation)),
     diameterDimensions: drawingGroup(object(radialAnnotation))
 });
-const annotatedDrawingSchema = annotatedDrawingSchemaBase;
+const annotatedDrawingSchema = {
+    ...annotatedDrawingSchemaBase,
+    properties: {
+        ...annotatedDrawingSchemaBase.properties,
+        angularDimensions: drawingGroup(object({
+            center: annotationPoint,
+            first: annotationPoint,
+            second: annotationPoint,
+            ...annotationPlacement
+        }))
+    }
+};
 const roadPointList = {
     type: 'array',
     minItems: 2,
@@ -370,7 +381,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_drawing_annotated',
         effect: 'propose',
-        description: 'Compose editable engineering geometry, TEXT notes and native measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. Geometry/arrays follow cad_propose_drawing_pattern: lines=[x1,y1,x2,y2], circles=[cx,cy,r], arcs=[cx,cy,r,startDegrees,endDegrees], polylines={points:[[x,y],...],closed}; all groups required, unused=[]. At most 64 base entities; arrays={sources:["circles:0"],rows,columns,dx,dy}, unique seed refs, counts include original. Texts={text,position:{x,y},height,rotationDegrees}. Linear dimensions use from/to={source:"proposal" or "document",id,feature:"start"/"end"/"center"/"vertex",vertexIndex only for vertex}, position and height; rotated also rotationDegrees. Radial dimensions use source={source,id}, directionDegrees, position and height. Proposal IDs reference base geometry groups such as polylines:0, not array copies. Document IDs must be visible model-XY entities. Circle/arc point features also support left/right/top/bottom; an arc point must lie on its sweep. styles (use [] if unused) =[{name,sources:["lines:0","texts:0","alignedDimensions:0"],pattern:[],color:7,lineweight:18}]; style sources use group-local indices, geometry seeds also style all their array copies. Empty pattern is continuous; dashed patterns alternate positive dash/negative gap, e.g. [3,-1]; lineweight is hundredths of mm. Existing named layers must match and be editable. All angles degrees 0–360; units and revision exact. Kernel measures dimensions from referenced geometry; no numeric text overrides. Notes are free text, not verified engineering facts. No edit before host approval; one undo. References resolve at creation, not persistent associative constraints.',
+        description: 'Compose editable engineering geometry, TEXT notes and native measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. Geometry/arrays follow cad_propose_drawing_pattern: lines=[x1,y1,x2,y2], circles=[cx,cy,r], arcs=[cx,cy,r,startDegrees,endDegrees], polylines={points:[[x,y],...],closed}; all existing groups required, unused=[]. At most 64 base entities; arrays={sources:["circles:0"],rows,columns,dx,dy}, unique seed refs, counts include original. Texts={text,position:{x,y},height,rotationDegrees}. Linear dimensions use from/to={source:"proposal" or "document",id,feature:"start"/"end"/"center"/"vertex",vertexIndex only for vertex}, position and height; rotated also rotationDegrees. Radial dimensions use source={source,id}, directionDegrees, position and height. Optional angularDimensions (omit or [] when unused) creates native three-point angles: {center,first,second,position,height}. All three anchors use the same point reference schema; first/second are points on rays from center. position is the angular arc location, selecting the sector containing it: center=(0,0), first=(10,0), second=(0,10), position=(4,4) measures 90 degrees, position=(-4,-4) measures 270 degrees. The arc location must differ from center and lie off both rays. Native kernel measurements are derived from actual geometry; do not supply angle numbers or text labels. Proposal IDs reference base geometry groups such as polylines:0, not array copies. Document IDs must be visible editable model-XY entities; hidden, frozen or locked entities/layers cannot be referenced. Circle/arc point features also support left/right/top/bottom; an arc point must lie on its sweep. styles (use [] if unused) =[{name,sources:["lines:0","texts:0","alignedDimensions:0"],pattern:[],color:7,lineweight:18}]; style sources use group-local indices, geometry seeds also style all their array copies. Empty pattern is continuous; dashed patterns alternate positive dash/negative gap, e.g. [3,-1]; lineweight is hundredths of mm. Existing named layers must match and be editable. All angles degrees 0–360; units and revision exact. Kernel measures dimensions from referenced geometry; no numeric text overrides. Notes are free text, not verified engineering facts. No edit before host approval; one undo. References resolve at creation, not persistent associative constraints.',
         inputSchema: annotatedDrawingSchema
     },
     {
@@ -713,8 +724,9 @@ function styleAnnotatedDrawing(document, input, source) {
         'alignedDimensions',
         'rotatedDimensions',
         'radiusDimensions',
-        'diameterDimensions'
-    ])for(let index = 0; index < input[group].length; index++)keys.push(`${group}:${index}`);
+        'diameterDimensions',
+        'angularDimensions'
+    ])for(let index = 0; index < (input[group]?.length ?? 0); index++)keys.push(`${group}:${index}`);
     if (keys.length !== entities.length) throw new KJValidationError('Annotated entity identity mismatch');
     const resources = {
         linetypes: [],
@@ -1011,6 +1023,10 @@ export class KJAgentToolSession {
                                 ...input.diameterDimensions.map((item)=>({
                                         ...item,
                                         type: 'DIAMETER'
+                                    })),
+                                ...(input.angularDimensions ?? []).map((item)=>({
+                                        ...item,
+                                        type: 'ANGULAR_3_POINT'
                                     }))
                             ];
                             if (entities.length + input.texts.length + dimensions.length > 512) throw new KJValidationError('Annotated drawing exceeds the 512 entity budget');

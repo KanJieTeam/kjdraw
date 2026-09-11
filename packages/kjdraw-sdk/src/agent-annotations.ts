@@ -19,6 +19,7 @@ export type KJAgentDimensionAnnotation =
   | { type: 'ROTATED'; from: KJAnnotationPointReference; to: KJAnnotationPointReference; position: KJAnnotationPoint; height: number; rotationDegrees: number }
   | { type: 'RADIUS'; source: KJAnnotationReference; directionDegrees: number; position: KJAnnotationPoint; height: number }
   | { type: 'DIAMETER'; source: KJAnnotationReference; directionDegrees: number; position: KJAnnotationPoint; height: number }
+  | { type: 'ANGULAR_3_POINT'; center: KJAnnotationPointReference; first: KJAnnotationPointReference; second: KJAnnotationPointReference; position: KJAnnotationPoint; height: number }
 export interface KJAgentAnnotationInput { expectedRevision: number; units: string; texts: readonly KJAgentTextAnnotation[]; dimensions: readonly KJAgentDimensionAnnotation[] }
 export interface KJAnnotationEntitySpec { type: string; payload: KJObjectPayload; options: { id: string; ownerId: string } }
 export interface KJAgentAnnotationOptions {
@@ -114,6 +115,9 @@ export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgen
     if (!object || 'kind' in object && object.kind !== 'entity' || object.ownerId !== ownerId) return fail('Annotation reference must resolve to an existing entity in the same model space')
     if (!['LINE', 'CIRCLE', 'ARC', 'LWPOLYLINE'].includes(object.type)) fail('Unsupported annotation reference entity type')
     const payload = object.payload
+    const layer = payload.layerId == null ? document.getTable('layers')?.records.find(item => item.name === '0') : document.getObject(String(payload.layerId))
+    if (payload.layerId != null && (!layer || layer.type !== 'LAYER')) fail('Annotation reference layer must exist')
+    if ([payload, layer?.payload].some(item => item && (item.visible === false || item.frozen === true || item.locked === true))) fail('Annotation references must be visible and editable; hidden, frozen or locked geometry is protected')
     for (const field of ['normal', 'extrusionDirection']) {
       const normal = payload[field]
       if (normal !== undefined && normal !== null && (!Array.isArray(normal) || normal.length !== 3 || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) fail('Annotation references require the default +Z plane')
@@ -174,15 +178,20 @@ export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgen
     append('TEXT', { text: item.text, position: xy(item.position), height: number(item.height, 'Text height', 1e-6, 1e6), rotation: number(item.rotationDegrees, 'Text angle', 0, 360) * Math.PI / 180 })
   }
   for (const value of source.dimensions as unknown[]) {
-    const item = record(value, ['type', 'from', 'to', 'source', 'position', 'height', 'rotationDegrees', 'directionDegrees'], ['type', 'position', 'height'])
+    const item = record(value, ['type', 'from', 'to', 'source', 'position', 'height', 'rotationDegrees', 'directionDegrees', 'center', 'first', 'second'], ['type', 'position', 'height'])
     const type = item.type
-    if (!['ALIGNED', 'ROTATED', 'RADIUS', 'DIAMETER'].includes(type as string)) fail('Unsupported native dimension type')
+    if (!['ALIGNED', 'ROTATED', 'RADIUS', 'DIAMETER', 'ANGULAR_3_POINT'].includes(type as string)) fail('Unsupported native dimension type')
     const position = xy(item.position), height = number(item.height, 'Dimension text height', 1e-6, 1e6)
     let definitionPoints: [number, number, number][], rotation = 0
     if (type === 'ALIGNED' || type === 'ROTATED') {
       record(item, type === 'ROTATED' ? ['type', 'from', 'to', 'position', 'height', 'rotationDegrees'] : ['type', 'from', 'to', 'position', 'height'])
       definitionPoints = [position, feature(item.from), feature(item.to)]
       if (type === 'ROTATED') rotation = number(item.rotationDegrees, 'Dimension rotation', 0, 360) * Math.PI / 180
+    } else if (type === 'ANGULAR_3_POINT') {
+      record(item, ['type', 'center', 'first', 'second', 'position', 'height'])
+      // The arc location selects the sector, including reflex angles. All three
+      // geometric anchors come from real entities; the kernel measures the angle.
+      definitionPoints = [position, feature(item.first), feature(item.second), feature(item.center)]
     } else {
       record(item, ['type', 'source', 'position', 'height', 'directionDegrees'])
       const { object } = reference(item.source)
@@ -194,7 +203,19 @@ export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgen
     }
     const payload: KJObjectPayload = { dimensionType: type, definitionPoints, ...((type === 'RADIUS' || type === 'DIAMETER') ? { textPosition: position } : {}), textHeight: height, rotation, precision: 8 }
     const projection = projectDimension(payload)
-    if (!projection || !Number.isFinite(projection.measurement) || projection.measurement < 1e-8 || projection.measurement > 1e12) fail('Dimension references produce degenerate or out-of-budget measurements')
+    if (!projection || !Number.isFinite(projection.measurement) || projection.measurement < 1e-8 || projection.measurement > 1e12) return fail('Dimension references produce degenerate or out-of-budget measurements')
+    if (type === 'ANGULAR_3_POINT') {
+      for (const point of [...projection.lines.flat(), ...projection.arrows.flat(), projection.label.position]) {
+        for (const coordinate of point) number(coordinate, 'Angular projection coordinate')
+      }
+      for (const arc of projection.arcs) {
+        number(arc.radius, 'Angular arc radius', 1e-12, 1e12)
+        for (const coordinate of arc.center) {
+          number(coordinate - arc.radius, 'Angular arc minimum')
+          number(coordinate + arc.radius, 'Angular arc maximum')
+        }
+      }
+    }
     for (const point of definitionPoints) nativePoint(point)
     append('DIMENSION', payload)
   }

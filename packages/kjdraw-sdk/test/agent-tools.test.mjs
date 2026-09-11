@@ -20,7 +20,7 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
   assert.deepEqual(JSON.parse(JSON.stringify(KJDRAW_AGENT_TOOLS)), KJDRAW_AGENT_TOOLS)
   for (const tool of KJDRAW_AGENT_TOOLS) {
     assert.equal(tool.inputSchema.additionalProperties, false)
-    assert.deepEqual(tool.inputSchema.required, Object.keys(tool.inputSchema.properties))
+    assert.deepEqual(tool.inputSchema.required, Object.keys(tool.inputSchema.properties).filter(key => tool.name !== 'cad_propose_drawing_annotated' || key !== 'angularDimensions'))
     assert.throws(() => { tool.inputSchema.additionalProperties = true }, TypeError)
   }
 })

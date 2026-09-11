@@ -156,6 +156,12 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
             'LWPOLYLINE'
         ].includes(object.type)) fail('Unsupported annotation reference entity type');
         const payload = object.payload;
+        const layer = payload.layerId == null ? document.getTable('layers')?.records.find((item)=>item.name === '0') : document.getObject(String(payload.layerId));
+        if (payload.layerId != null && (!layer || layer.type !== 'LAYER')) fail('Annotation reference layer must exist');
+        if ([
+            payload,
+            layer?.payload
+        ].some((item)=>item && (item.visible === false || item.frozen === true || item.locked === true))) fail('Annotation references must be visible and editable; hidden, frozen or locked geometry is protected');
         for (const field of [
             'normal',
             'extrusionDirection'
@@ -269,7 +275,10 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
             'position',
             'height',
             'rotationDegrees',
-            'directionDegrees'
+            'directionDegrees',
+            'center',
+            'first',
+            'second'
         ], [
             'type',
             'position',
@@ -280,7 +289,8 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
             'ALIGNED',
             'ROTATED',
             'RADIUS',
-            'DIAMETER'
+            'DIAMETER',
+            'ANGULAR_3_POINT'
         ].includes(type)) fail('Unsupported native dimension type');
         const position = xy(item.position), height = number(item.height, 'Dimension text height', 1e-6, 1e6);
         let definitionPoints, rotation = 0;
@@ -305,6 +315,21 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
                 feature(item.to)
             ];
             if (type === 'ROTATED') rotation = number(item.rotationDegrees, 'Dimension rotation', 0, 360) * Math.PI / 180;
+        } else if (type === 'ANGULAR_3_POINT') {
+            record(item, [
+                'type',
+                'center',
+                'first',
+                'second',
+                'position',
+                'height'
+            ]);
+            definitionPoints = [
+                position,
+                feature(item.first),
+                feature(item.second),
+                feature(item.center)
+            ];
         } else {
             record(item, [
                 'type',
@@ -341,7 +366,23 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
             precision: 8
         };
         const projection = projectDimension(payload);
-        if (!projection || !Number.isFinite(projection.measurement) || projection.measurement < 1e-8 || projection.measurement > 1e12) fail('Dimension references produce degenerate or out-of-budget measurements');
+        if (!projection || !Number.isFinite(projection.measurement) || projection.measurement < 1e-8 || projection.measurement > 1e12) return fail('Dimension references produce degenerate or out-of-budget measurements');
+        if (type === 'ANGULAR_3_POINT') {
+            for (const point of [
+                ...projection.lines.flat(),
+                ...projection.arrows.flat(),
+                projection.label.position
+            ]){
+                for (const coordinate of point)number(coordinate, 'Angular projection coordinate');
+            }
+            for (const arc of projection.arcs){
+                number(arc.radius, 'Angular arc radius', 1e-12, 1e12);
+                for (const coordinate of arc.center){
+                    number(coordinate - arc.radius, 'Angular arc minimum');
+                    number(coordinate + arc.radius, 'Angular arc maximum');
+                }
+            }
+        }
         for (const point of definitionPoints)nativePoint(point);
         append('DIMENSION', payload);
     }
