@@ -4,6 +4,8 @@ import { KJValidationError } from './errors.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 import { canonicalStringify, deepFreeze, type ReadonlyDeep } from './utils.js'
 import { projectDimension } from './geometry/annotation.js'
+import { captureAgentBlockDependencies, agentBlockDependenciesMatchDocument, type KJAgentBlockPreviewDependency } from './agent-preview-blocks.js'
+export type { KJAgentBlockPreviewDependency } from './agent-preview-blocks.js'
 
 export interface KJAgentPreviewEntity {
   readonly id: string
@@ -20,13 +22,15 @@ export interface KJAgentGeometryPreview {
   readonly documentId: string
   readonly revision: number
   readonly resources?: readonly KJAgentPreviewResource[]
+  /** Existing block definitions, descendant geometry and styles, captured at revision. */
+  readonly blockDependencies?: readonly KJAgentBlockPreviewDependency[]
   readonly command: 'CREATEBATCH' | 'MOVE' | 'ROAD_DRAWING_UPDATE'
   readonly before: readonly KJAgentPreviewEntity[]
   readonly after: readonly KJAgentPreviewEntity[]
 }
 const project = (entity: KJReadonlyObjectRecord): KJAgentPreviewEntity => ({ id: entity.id, type: entity.type, payload: entity.payload })
 const supported = ['LINE', 'CIRCLE', 'ARC', 'LWPOLYLINE']
-export const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[] = Object.freeze([...supported, 'XLINE', 'RAY', 'TEXT', 'DIMENSION'])
+export const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[] = Object.freeze([...supported, 'XLINE', 'RAY', 'TEXT', 'DIMENSION', 'INSERT'])
 const creatable = [...supported, 'TEXT', 'DIMENSION']
 
 function validateMovableAnnotation(document: KJDocument, entity: KJReadonlyObjectRecord): void {
@@ -58,12 +62,14 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   }
   const source = document.snapshot(), revision = document.revision
   if (Object.keys(source.objects).length > 250000) throw new KJValidationError('Agent preview exceeds the 250000 object document limit')
+  const blockDependencies = command === 'MOVE' ? captureAgentBlockDependencies(document, args.ids as string[]) : undefined
   const workingSet = command === 'MOVE' ? (args.ids as string[]).map(id => document.getObject(String(id))) : args.entities
   if (new TextEncoder().encode(JSON.stringify({ args, workingSet })).length > 4194304) throw new KJValidationError('Agent preview working set exceeds the 4 MiB limit')
   const draft = document.fork()
   const commands = new KJCommandRegistry()
   registerCoreCommands(commands)
   await commands.execute(command, { document: draft, expectedRevision: revision }, args)
+  if (blockDependencies && canonicalStringify(captureAgentBlockDependencies(draft, args.ids as string[])) !== canonicalStringify(blockDependencies)) throw new KJValidationError('Block definitions or styles changed during move preview')
   if (document.revision !== revision || document.snapshot() !== source) throw new KJValidationError('Drawing changed while preparing the preview; propose again')
   const before: KJAgentPreviewEntity[] = [], after: KJAgentPreviewEntity[] = []
   const old = new Map(document.listEntities().map(entity => [entity.id, entity]))
@@ -80,7 +86,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   if (before.length > 64 || after.length > (command === 'CREATEBATCH' ? maxCreatedEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit')
   const resources = draft.listObjects({ kind: 'table-record' }).filter(item => !document.getObject(item.id)).map(item => ({ id: item.id, type: item.type, name: item.name, payload: item.payload }))
   if (resources.length > 32) throw new KJValidationError('Preview exceeds the 32 new resource limit')
-  const preview = { documentId: document.id, revision, command, before, after, ...(resources.length ? { resources } : {}) }
+  const preview = { documentId: document.id, revision, command, before, after, ...(resources.length ? { resources } : {}), ...(blockDependencies ? { blockDependencies } : {}) }
   if (new TextEncoder().encode(JSON.stringify(preview)).length > 262144) throw new KJValidationError('Agent geometry preview exceeds the 256 KiB output limit')
   return deepFreeze(preview) as KJAgentGeometryPreview
 }
@@ -88,6 +94,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
 export function agentPreviewMatchesDocument(document: KJDocument, preview: KJAgentGeometryPreview): boolean {
   const retained = new Set(preview.after.map(entity => entity.id))
   return document.id === preview.documentId
+    && agentBlockDependenciesMatchDocument(document, preview.blockDependencies)
     && (preview.resources ?? []).every(expected => { const actual = document.getObject(expected.id); return actual?.kind === 'table-record' && actual.type === expected.type && actual.name === expected.name && canonicalStringify(actual.payload) === canonicalStringify(expected.payload) })
     && preview.after.every(expected => {
       const actual = document.getObject(expected.id)
