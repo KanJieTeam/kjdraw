@@ -230,9 +230,24 @@ const CODE_PAGE_LABELS = Object.freeze({
 });
 export const DXF_DEFAULT_READ_LIMITS = Object.freeze({
     maxBytes: 64 * 1024 ** 2,
-    maxTags: 2_000_000,
+    maxTags: 4_000_000,
     maxEntities: 250_000
 });
+function abortDXF(options) {
+    if (options.signal?.aborted) throw new KJValidationError('DXF read aborted');
+}
+function reportDXF(options, phase, completed, unit, total) {
+    options.onProgress?.(Object.freeze({
+        phase,
+        completed,
+        ...total === undefined ? {} : {
+            total
+        },
+        unit
+    }));
+    abortDXF(options);
+}
+const yieldDXF = ()=>new Promise((resolve)=>setTimeout(resolve, 0));
 function readLimits(options = {}) {
     const source = 'limits' in options && options.limits ? options.limits : options;
     const limits = {
@@ -269,47 +284,105 @@ function decodeBytes(bytes) {
 }
 async function sourceText(source, options = {}) {
     const limits = readLimits(options);
+    const readOptions = options;
+    abortDXF(readOptions);
     if (typeof source === 'string') {
-        assertSourceSize(new TextEncoder().encode(source).byteLength, limits);
+        const size = new TextEncoder().encode(source).byteLength;
+        assertSourceSize(size, limits);
+        reportDXF(readOptions, 'source', size, 'bytes', size);
         return source;
     }
     if (source instanceof Uint8Array) {
         assertSourceSize(source.byteLength, limits);
+        reportDXF(readOptions, 'source', source.byteLength, 'bytes', source.byteLength);
         return decodeBytes(source);
     }
     if (source instanceof ArrayBuffer) {
         assertSourceSize(source.byteLength, limits);
+        reportDXF(readOptions, 'source', source.byteLength, 'bytes', source.byteLength);
         return decodeBytes(new Uint8Array(source));
+    }
+    if (source !== null && typeof source === 'object' && 'stream' in source && typeof source.stream === 'function') {
+        const streamed = source;
+        assertSourceSize(streamed.size, limits);
+        const reader = streamed.stream().getReader(), chunks = [];
+        let completed = 0, reported = -1;
+        try {
+            while(true){
+                abortDXF(readOptions);
+                const next = await reader.read();
+                if (next.done) break;
+                const chunk = next.value;
+                completed += chunk.byteLength;
+                assertSourceSize(completed, limits);
+                chunks.push(chunk);
+                if (completed - reported >= 1024 * 1024 || completed === streamed.size) {
+                    reportDXF(readOptions, 'source', completed, 'bytes', streamed.size);
+                    reported = completed;
+                }
+            }
+        } catch (error) {
+            await reader.cancel().catch(()=>undefined);
+            throw error;
+        }
+        const bytes = new Uint8Array(completed);
+        let offset = 0;
+        for (const chunk of chunks){
+            bytes.set(chunk, offset);
+            offset += chunk.byteLength;
+        }
+        if (reported !== completed) reportDXF(readOptions, 'source', completed, 'bytes', streamed.size ?? completed);
+        return decodeBytes(bytes);
     }
     if (source !== null && typeof source === 'object' && 'arrayBuffer' in source && typeof source.arrayBuffer === 'function') {
         const sized = source;
         assertSourceSize(sized.size, limits);
         const bytes = new Uint8Array(await sized.arrayBuffer());
+        abortDXF(readOptions);
         assertSourceSize(bytes.byteLength, limits);
+        reportDXF(readOptions, 'source', bytes.byteLength, 'bytes', sized.size ?? bytes.byteLength);
         return decodeBytes(bytes);
     }
     if (source !== null && typeof source === 'object' && 'text' in source && typeof source.text === 'function') {
         const sized = source;
         assertSourceSize(sized.size, limits);
         const text = await sized.text();
+        abortDXF(readOptions);
         assertSourceSize(new TextEncoder().encode(text).byteLength, limits);
+        reportDXF(readOptions, 'source', sized.size ?? text.length, 'bytes', sized.size);
         return text;
     }
     throw new KJValidationError('DXF source must be text, bytes, or Blob/File');
 }
-function tagsFromText(text, options = {}) {
+async function tagsFromText(text, options = {}) {
     const limits = readLimits(options);
-    const lines = String(text).replace(/^\uFEFF/, '').replace(/\r/g, '').split('\n');
-    if (Math.ceil(lines.length / 2) > limits.maxTags) throw new KJValidationError(`DXF tag count exceeds the ${limits.maxTags} read limit`);
     const tags = [];
-    for(let index = 0; index + 1 < lines.length; index += 2){
-        const code = Number(lines[index].trim());
-        if (!Number.isInteger(code)) throw new KJValidationError(`Invalid DXF group code at line ${index + 1}`);
+    let cursor = text.charCodeAt(0) === 0xFEFF ? 1 : 0, lineNumber = 1, lastYield = cursor;
+    const line = ()=>{
+        if (cursor >= text.length) return null;
+        const end = text.indexOf('\n', cursor), value = text.slice(cursor, end < 0 ? text.length : end);
+        cursor = end < 0 ? text.length : end + 1;
+        return value.endsWith('\r') ? value.slice(0, -1) : value;
+    };
+    while(cursor < text.length){
+        const codeLine = line(), valueLine = line();
+        if (codeLine === null || valueLine === null) break;
+        const code = Number(codeLine.trim());
+        if (!Number.isInteger(code)) throw new KJValidationError(`Invalid DXF group code at line ${lineNumber}`);
+        if (tags.length >= limits.maxTags) throw new KJValidationError(`DXF tag count exceeds the ${limits.maxTags} read limit`);
         tags.push({
             code,
-            value: code === 1 || code === 3 ? lines[index + 1] : lines[index + 1].trimEnd()
+            value: code === 1 || code === 3 ? valueLine : valueLine.trimEnd()
         });
+        lineNumber += 2;
+        if (cursor - lastYield >= 256 * 1024) {
+            reportDXF(options, 'parse', tags.length, 'tags');
+            await yieldDXF();
+            abortDXF(options);
+            lastYield = cursor;
+        }
     }
+    reportDXF(options, 'parse', tags.length, 'tags', tags.length);
     return tags;
 }
 function section(tags, name) {
@@ -1176,8 +1249,8 @@ function importResourceTables(transaction, tableRecords, document) {
 }
 async function readDXF(source, options = {}) {
     const limits = readLimits(options);
-    if (options.signal?.aborted) throw new KJValidationError('DXF read aborted');
-    const tags = tagsFromText(await sourceText(source, limits), limits);
+    abortDXF(options);
+    const tags = await tagsFromText(await sourceText(source, options), options);
     if (!section(tags, 'ENTITIES').length && !tags.some((tag)=>tag.code === 0 && normalizeName(tag.value) === 'SECTION')) throw new KJValidationError('DXF has no valid SECTION structure');
     const version = dxfVersion(tags);
     const document = KJDocument.create({
@@ -1187,7 +1260,7 @@ async function readDXF(source, options = {}) {
         ...dxfDrawingUnits(tags),
         title: 'Imported DXF'
     });
-    await document.transact('Import ASCII DXF', (transaction)=>{
+    await document.transact('Import ASCII DXF', async (transaction)=>{
         const tableRecords = records(section(tags, 'TABLES'));
         const resources = importResourceTables(transaction, tableRecords, document);
         const defaultLayerId = document.snapshot().tables.layers.currentId;
@@ -1234,7 +1307,18 @@ async function readDXF(source, options = {}) {
                 ] : []
             ]);
         if (allSourceRecords.length > limits.maxEntities) throw new KJValidationError(`DXF entity count exceeds the ${limits.maxEntities} read limit`);
-        if (options.signal?.aborted) throw new KJValidationError('DXF read aborted');
+        abortDXF(options);
+        const importTotal = sourceEntityRecords.length + definitions.reduce((total, definition)=>total + definition.records.length, 0);
+        let importCompleted = 0;
+        const importCheckpoint = async ()=>{
+            importCompleted += 1;
+            if (importCompleted % 512 === 0) {
+                reportDXF(options, 'import', importCompleted, 'entities', importTotal);
+                await yieldDXF();
+                abortDXF(options);
+            }
+        };
+        reportDXF(options, 'import', 0, 'entities', importTotal);
         const blockNames = new Set([
             ...definitions.map((definition)=>normalizeName(definition.name)),
             ...allSourceRecords.filter((record)=>record.type === 'INSERT').map((record)=>normalizeName(first(record, 2))).filter(Boolean)
@@ -1451,9 +1535,15 @@ async function readDXF(source, options = {}) {
         };
         for (const definition of definitions){
             const ownerId = blockIds.get(normalizeName(definition.name));
-            definition.records.forEach((record, index)=>isSpaceBlock(definition.name) ? importSpaceRecord(record, index, ownerId, `block:${definition.name}`) : importRecord(record, index, ownerId, `block:${definition.name}`));
+            for(let index = 0; index < definition.records.length; index += 1){
+                const record = definition.records[index];
+                if (isSpaceBlock(definition.name)) importSpaceRecord(record, index, ownerId, `block:${definition.name}`);
+                else importRecord(record, index, ownerId, `block:${definition.name}`);
+                await importCheckpoint();
+            }
         }
-        sourceEntityRecords.forEach((record, index)=>{
+        for(let index = 0; index < sourceEntityRecords.length; index += 1){
+            const record = sourceEntityRecords[index];
             const layoutName = String(first(record, 410, 'Layout1')).trim() || 'Layout1';
             const paperSpace = number(record, 67, 0) === 1 || first(record, 410) && normalizeName(first(record, 410)) !== 'MODEL';
             const fallbackPaperSpaceId = typeof defaultPaperLayout?.payload.blockRecordId === 'string' ? defaultPaperLayout.payload.blockRecordId : modelSpaceId;
@@ -1461,7 +1551,8 @@ async function readDXF(source, options = {}) {
             if (sourceOwner && !ownerSpaces.has(sourceOwner) && !first(record, 410) && !values(record, 67).length) throw new KJValidationError('DXF entity references an unknown owner without a space hint');
             const ownerId = ownerSpaces.get(sourceOwner) ?? (paperSpace ? paperSpaceIds.get(normalizeName(layoutName)) ?? fallbackPaperSpaceId : modelSpaceId);
             importSpaceRecord(record, index, ownerId, paperSpace ? `paper-space:${layoutName}` : 'model-space');
-        });
+            await importCheckpoint();
+        }
         for (const { id, record } of viewportReferences){
             const unresolved = [], frozenLayerIds = [];
             for (const handle of values(record, 331).map((value)=>String(value).toUpperCase())){
@@ -1487,6 +1578,7 @@ async function readDXF(source, options = {}) {
                 }
             });
         }
+        reportDXF(options, 'import', importCompleted, 'entities', importTotal);
     }, {
         source: 'adapter:dxf-ascii'
     });

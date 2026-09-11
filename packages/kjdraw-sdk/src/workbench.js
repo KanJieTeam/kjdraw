@@ -52,6 +52,11 @@ const copy = {
         pageFit: 'Fit to paper',
         pageCustom: 'Custom ratio',
         open: 'Open',
+        openSource: 'Reading file',
+        openParse: 'Parsing DXF',
+        openImport: 'Building drawing',
+        openCancelHint: 'Esc cancels',
+        openCancelled: 'Open cancelled',
         saveKjd: 'Save KJD',
         exportDxf: 'Export DXF',
         exportSvg: 'Export SVG',
@@ -193,6 +198,11 @@ const copy = {
         pageFit: '适合纸张',
         pageCustom: '自定义比例',
         open: '打开',
+        openSource: '正在读取文件',
+        openParse: '正在解析 DXF',
+        openImport: '正在构建图纸',
+        openCancelHint: 'Esc 取消',
+        openCancelled: '已取消打开',
         saveKjd: '保存 KJD',
         exportDxf: '导出 DXF',
         exportSvg: '导出 SVG',
@@ -747,6 +757,7 @@ export class KJDrawWorkbench {
     #message = '';
     #fileName = 'drawing.kjd';
     #maxFileBytes;
+    #fileReadAbort = null;
     #leasedDocument = null;
     constructor(container, options = {}){
         assertBrowser();
@@ -759,7 +770,7 @@ export class KJDrawWorkbench {
             ...options,
             layout: this.#layout
         };
-        this.#maxFileBytes = Number(options.maxFileBytes ?? 20 * 1024 * 1024);
+        this.#maxFileBytes = Number(options.maxFileBytes ?? 64 * 1024 * 1024);
         if (!Number.isSafeInteger(this.#maxFileBytes) || this.#maxFileBytes <= 0) throw new RangeError('maxFileBytes must be a positive safe integer');
         this.sdk = options.sdk ?? createKJDrawSDK();
         this.root = document.createElement('section');
@@ -1215,6 +1226,8 @@ export class KJDrawWorkbench {
     }
     dispose() {
         if (this.#abort.signal.aborted) return;
+        this.#fileReadAbort?.abort();
+        this.#fileReadAbort = null;
         this.#cancelGesture();
         this.#abort.abort();
         this.#disposeDocument?.();
@@ -1366,12 +1379,29 @@ export class KJDrawWorkbench {
             const file = input.files?.[0];
             if (!file) return;
             void this.#run(async ()=>{
+                const controller = new AbortController();
+                this.#fileReadAbort?.abort();
+                this.#fileReadAbort = controller;
+                const dispose = ()=>controller.abort();
+                this.#abort.signal.addEventListener('abort', dispose, {
+                    once: true
+                });
                 try {
                     if (file.size > this.#maxFileBytes) throw new RangeError(`${this.#t('fileTooLarge')}: ${file.size.toLocaleString()} > ${this.#maxFileBytes.toLocaleString()} bytes`);
-                    await this.open(new Uint8Array(await file.arrayBuffer()), {
-                        fileName: file.name
+                    await this.open(file, {
+                        fileName: file.name,
+                        signal: controller.signal,
+                        onProgress: (progress)=>this.#showFileProgress(progress)
                     });
+                } catch (error) {
+                    if (controller.signal.aborted) {
+                        this.#setMessage(this.#t('openCancelled'));
+                        return;
+                    }
+                    throw error;
                 } finally{
+                    this.#abort.signal.removeEventListener('abort', dispose);
+                    if (this.#fileReadAbort === controller) this.#fileReadAbort = null;
                     input.value = '';
                 }
             });
@@ -1577,6 +1607,11 @@ export class KJDrawWorkbench {
             signal
         });
         this.root.addEventListener('keydown', (event)=>{
+            if (event.key === 'Escape' && this.#fileReadAbort) {
+                event.preventDefault();
+                this.#fileReadAbort.abort();
+                return;
+            }
             if (event.key === 'Escape') {
                 this.setTool('select');
                 return;
@@ -4314,6 +4349,11 @@ export class KJDrawWorkbench {
     }
     #t(key) {
         return String(copy[this.#locale][key]);
+    }
+    #showFileProgress(progress) {
+        const label = this.#t(progress.phase === 'source' ? 'openSource' : progress.phase === 'parse' ? 'openParse' : 'openImport');
+        const amount = progress.total && progress.total > 0 ? `${Math.min(100, Math.floor(progress.completed / progress.total * 100))}%` : progress.completed.toLocaleString();
+        this.#setMessage(`${label} · ${amount} · ${this.#t('openCancelHint')}`);
     }
     #setMessage(value) {
         this.#message = value;

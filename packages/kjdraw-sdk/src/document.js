@@ -290,7 +290,6 @@ export class KJDocument {
                 operationCount: transaction.operationCount,
                 operations: transaction._revisionOperations()
             };
-            record.fingerprint = stableHash(contentForFingerprint(draft));
             draft.revisions.push(record);
             const accepted = await this.#acceptAuthoritativeCommit(draft, before.revision);
             transaction._close();
@@ -306,7 +305,8 @@ export class KJDocument {
                 revision: deepFreeze(clone(record))
             });
             this.#events.emit(KJ_EVENT_NAMES.BEFORE_COMMIT, beforeCommit);
-            this.#adoptState(accepted, record.fingerprint ?? null);
+            const acceptedFingerprint = accepted.revisions.at(-1)?.fingerprint;
+            this.#adoptState(accepted, typeof acceptedFingerprint === 'string' ? acceptedFingerprint : null);
             this.#undo.push({
                 label: String(label),
                 before,
@@ -397,9 +397,10 @@ export class KJDocument {
             operationCount: 0,
             operations: []
         };
-        record.fingerprint = stableHash(contentForFingerprint(restored));
         restored.revisions.push(record);
-        validateDocumentState(restored);
+        validateDocumentState(restored, {
+            previousState: this.#state
+        });
         return restored;
     }
     async #acceptAuthoritativeCommit(candidate, expectedRevision) {

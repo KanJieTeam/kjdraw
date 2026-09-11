@@ -29,6 +29,17 @@ export interface KJFileAdapterOptions extends Record<string, unknown> {
   format?: string
   version?: string | number | null
   adapterId?: string | null
+  /** Cancels cooperative file readers before they commit a document. */
+  signal?: AbortSignal
+  /** Bounded host progress without exposing file contents. */
+  onProgress?: (progress: Readonly<KJFileReadProgress>) => void
+}
+
+export interface KJFileReadProgress {
+  phase: 'source' | 'parse' | 'import'
+  completed: number
+  total?: number
+  unit: 'bytes' | 'tags' | 'entities'
 }
 
 export interface KJFileAdapter<TRead = unknown, TWrite = unknown> {
