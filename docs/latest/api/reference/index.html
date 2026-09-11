@@ -10322,6 +10322,11 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createDrawingContext(document: KJDocument, options?: KJDrawingContextOptions): KJDrawingContext;</code></pre>
       <p class="source-path">drawing-context.d.ts</p>
     </article>
+<article class="api-symbol" id="root-function-createdrawingprinthtml" data-search="createdrawingprinthtml function @kanjieteam/kjdraw export declare function createdrawingprinthtml(document: kjdocument, options: kjdrawingprintoptions): kjdrawingprinthtml;">
+      <header><div><span class="kind">function</span><h3>createDrawingPrintHtml</h3></div><a class="permalink" href="#root-function-createdrawingprinthtml" aria-label="Link to createDrawingPrintHtml">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createDrawingPrintHtml(document: KJDocument, options: KJDrawingPrintOptions): KJDrawingPrintHtml;</code></pre>
+      <p class="source-path">print-export.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-function-createdxffileadapter" data-search="createdxffileadapter function @kanjieteam/kjdraw export declare function createdxffileadapter(options?: dxfadapteroptions): readonly&lt;kjfileadapter&lt;kjdocument, string&gt;&gt;;">
       <header><div><span class="kind">function</span><h3>createDXFFileAdapter</h3></div><a class="permalink" href="#root-function-createdxffileadapter" aria-label="Link to createDXFFileAdapter">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function createDXFFileAdapter(options?: DxfAdapterOptions): Readonly&lt;KJFileAdapter&lt;KJDocument, string&gt;&gt;;</code></pre>
@@ -14606,6 +14611,47 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJDrawingGeometryOmittedReason = &#39;unsupported-type&#39; | &#39;unsupported-data&#39; | &#39;geometry-budget&#39; | &#39;response-budget&#39;;</code></pre>
       <p class="source-path">drawing-context.d.ts</p>
     </article>
+<article class="api-symbol" id="root-interface-kjdrawingprinthtml" data-search="kjdrawingprinthtml interface @kanjieteam/kjdraw export interface kjdrawingprinthtml extends omit&lt;kjsvgdrawingexport, &#39;svg&#39; | &#39;mimetype&#39;&gt; {
+    html: string;
+    mimetype: &#39;text/html&#39;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingPrintHtml</h3></div><a class="permalink" href="#root-interface-kjdrawingprinthtml" aria-label="Link to KJDrawingPrintHtml">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingPrintHtml extends Omit&lt;KJSvgDrawingExport, &#39;svg&#39; | &#39;mimeType&#39;&gt; {
+    html: string;
+    mimeType: &#39;text/html&#39;;
+}</code></pre>
+      <p class="source-path">print-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjdrawingprintoptions" data-search="kjdrawingprintoptions interface @kanjieteam/kjdraw export interface kjdrawingprintoptions {
+    layoutid: string;
+    maxentities?: number;
+    title?: string;
+    locale?: &#39;en&#39; | &#39;zh-cn&#39;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingPrintOptions</h3></div><a class="permalink" href="#root-interface-kjdrawingprintoptions" aria-label="Link to KJDrawingPrintOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingPrintOptions {
+    layoutId: string;
+    maxEntities?: number;
+    title?: string;
+    locale?: &#39;en&#39; | &#39;zh-CN&#39;;
+}</code></pre>
+      <p class="source-path">print-export.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjdrawingprintwindowoptions" data-search="kjdrawingprintwindowoptions interface @kanjieteam/kjdraw export interface kjdrawingprintwindowoptions extends kjdrawingprintoptions {
+    /** window receiving the user gesture; defaults to the current browser window. */
+    ownerwindow?: window;
+    /** host identity guard, checked before opening and after fonts are ready. */
+    iscurrent?: () =&gt; boolean;
+}">
+      <header><div><span class="kind">interface</span><h3>KJDrawingPrintWindowOptions</h3></div><a class="permalink" href="#root-interface-kjdrawingprintwindowoptions" aria-label="Link to KJDrawingPrintWindowOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJDrawingPrintWindowOptions extends KJDrawingPrintOptions {
+    /** Window receiving the user gesture; defaults to the current browser window. */
+    ownerWindow?: Window;
+    /** Host identity guard, checked before opening and after fonts are ready. */
+    isCurrent?: () =&gt; boolean;
+}</code></pre>
+      <p class="source-path">print-export.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-type-kjdrawingvalidationcheck" data-search="kjdrawingvalidationcheck type @kanjieteam/kjdraw export type kjdrawingvalidationcheck = {
     id: string;
     kind: &#39;line-length&#39; | &#39;circle-radius&#39;;
@@ -17670,6 +17716,11 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <header><div><span class="kind">function</span><h3>offsetEntityPayload</h3></div><a class="permalink" href="#root-function-offsetentitypayload" aria-label="Link to offsetEntityPayload">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function offsetEntityPayload(entity: KJEditingEntity | null | undefined, distance: unknown, options?: KJOffsetOptions): KJObjectPayload;</code></pre>
       <p class="source-path">editing.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-function-opendrawingprintwindow" data-search="opendrawingprintwindow function @kanjieteam/kjdraw export declare function opendrawingprintwindow(document: kjdocument, options: kjdrawingprintwindowoptions): promise&lt;kjdrawingprinthtml&gt;;">
+      <header><div><span class="kind">function</span><h3>openDrawingPrintWindow</h3></div><a class="permalink" href="#root-function-opendrawingprintwindow" aria-label="Link to openDrawingPrintWindow">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function openDrawingPrintWindow(document: KJDocument, options: KJDrawingPrintWindowOptions): Promise&lt;KJDrawingPrintHtml&gt;;</code></pre>
+      <p class="source-path">print-export.d.ts</p>
     </article>
 <article class="api-symbol" id="root-function-openkjcoredocumentsession" data-search="openkjcoredocumentsession function @kanjieteam/kjdraw export declare function openkjcoredocumentsession(wasmmoduleorinstance: kjcoredocumentmodule | unknown, source: kjcoredocumentinput): kjcoredocumentsession;">
       <header><div><span class="kind">function</span><h3>openKJCoreDocumentSession</h3></div><a class="permalink" href="#root-function-openkjcoredocumentsession" aria-label="Link to openKJCoreDocumentSession">#</a></header>
@@ -22439,6 +22490,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         expectedrevision?: number;
     }): promise&lt;kjsdkcommandenvelopereceipt&lt;tresult&gt;&gt;;
     save(format?: &#39;kjd&#39; | &#39;dxf&#39; | &#39;svg&#39;, options?: kjworkbenchsaveoptions): promise&lt;unknown&gt;;
+    print(options?: kjworkbenchprintoptions): promise&lt;kjdrawingprinthtml&gt;;
     dispose(): void;
 }">
       <header><div><span class="kind">class</span><h3>KJDrawWorkbench</h3></div><a class="permalink" href="#workbench-class-kjdrawworkbench" aria-label="Link to KJDrawWorkbench">#</a></header>
@@ -22476,6 +22528,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         expectedRevision?: number;
     }): Promise&lt;KJSDKCommandEnvelopeReceipt&lt;TResult&gt;&gt;;
     save(format?: &#39;KJD&#39; | &#39;DXF&#39; | &#39;SVG&#39;, options?: KJWorkbenchSaveOptions): Promise&lt;unknown&gt;;
+    print(options?: KJWorkbenchPrintOptions): Promise&lt;KJDrawingPrintHtml&gt;;
     dispose(): void;
 }</code></pre>
       <p class="source-path">workbench.d.ts</p>
@@ -22542,6 +22595,15 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJWorkbenchOpenOptions extends KJFileAdapterOptions {
     fileName?: string;
 }</code></pre>
+      <p class="source-path">workbench.d.ts</p>
+    </article>
+<article class="api-symbol" id="workbench-type-kjworkbenchprintoptions" data-search="kjworkbenchprintoptions type @kanjieteam/kjdraw/workbench export type kjworkbenchprintoptions = omit&lt;kjdrawingprintoptions, &#39;layoutid&#39; | &#39;locale&#39;&gt; &amp; {
+    layoutid?: string;
+};">
+      <header><div><span class="kind">type</span><h3>KJWorkbenchPrintOptions</h3></div><a class="permalink" href="#workbench-type-kjworkbenchprintoptions" aria-label="Link to KJWorkbenchPrintOptions">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJWorkbenchPrintOptions = Omit&lt;KJDrawingPrintOptions, &#39;layoutId&#39; | &#39;locale&#39;&gt; &amp; {
+    layoutId?: string;
+};</code></pre>
       <p class="source-path">workbench.d.ts</p>
     </article>
 <article class="api-symbol" id="workbench-interface-kjworkbenchsaveoptions" data-search="kjworkbenchsaveoptions interface @kanjieteam/kjdraw/workbench export interface kjworkbenchsaveoptions extends kjfileadapteroptions {

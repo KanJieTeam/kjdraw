@@ -3,6 +3,7 @@ import type { KJDrawSDK, KJSDKCommandEnvelopeReceipt } from './sdk.js';
 import { KJDocument } from './document.js';
 import type { KJCommandArguments } from './commands.js';
 import type { KJFileAdapterOptions } from './file-adapters.js';
+import { type KJDrawingPrintHtml, type KJDrawingPrintOptions } from './print-export.js';
 import { type KJWorkbenchLayout } from './layout.js';
 import { type KJDraftTool } from './drafting.js';
 export type { KJWorkbenchLayout } from './layout.js';
@@ -38,6 +39,9 @@ export interface KJWorkbenchSaveOptions extends KJFileAdapterOptions {
     fileName?: string;
     download?: boolean;
 }
+export type KJWorkbenchPrintOptions = Omit<KJDrawingPrintOptions, 'layoutId' | 'locale'> & {
+    layoutId?: string;
+};
 export interface KJWorkbenchSnapshot {
     locale: KJWorkbenchLocale;
     theme: KJWorkbenchTheme;
@@ -87,6 +91,7 @@ export declare class KJDrawWorkbench {
         expectedRevision?: number;
     }): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;
     save(format?: 'KJD' | 'DXF' | 'SVG', options?: KJWorkbenchSaveOptions): Promise<unknown>;
+    print(options?: KJWorkbenchPrintOptions): Promise<KJDrawingPrintHtml>;
     dispose(): void;
 }
 export declare function mountKJDrawWorkbench(container: HTMLElement | ShadowRoot, options?: KJDrawWorkbenchOptions): KJDrawWorkbench;

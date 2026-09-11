@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:96805b72eaaaf88b1e71d8d4dddef8fe8e667341f3516cce4e5318f9b843ae42",
+  "sourceDigest": "sha256:373a5dfae27f40e4e2b1e286421216424eacc6fa148e522fb2bd5dd08192242f",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -5709,6 +5709,14 @@
       "summary": "export declare function createDrawingContext(document: KJDocument, options?: KJDrawingContextOptions): KJDrawingContext;"
     },
     {
+      "name": "createDrawingPrintHtml",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-createdrawingprinthtml",
+      "anchor": "root-function-createdrawingprinthtml",
+      "summary": "export declare function createDrawingPrintHtml(document: KJDocument, options: KJDrawingPrintOptions): KJDrawingPrintHtml;"
+    },
+    {
       "name": "createDXFFileAdapter",
       "kind": "function",
       "module": "@kanjieteam/kjdraw",
@@ -7677,6 +7685,30 @@
       "summary": "export type KJDrawingGeometryOmittedReason = 'unsupported-type' | 'unsupported-data' | 'geometry-budget' | 'response-budget';"
     },
     {
+      "name": "KJDrawingPrintHtml",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdrawingprinthtml",
+      "anchor": "root-interface-kjdrawingprinthtml",
+      "summary": "export interface KJDrawingPrintHtml extends Omit<KJSvgDrawingExport, 'svg' | 'mimeType'> { html: string; mimeType: 'text/html'; }"
+    },
+    {
+      "name": "KJDrawingPrintOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdrawingprintoptions",
+      "anchor": "root-interface-kjdrawingprintoptions",
+      "summary": "export interface KJDrawingPrintOptions { layoutId: string; maxEntities?: number; title?: string; locale?: 'en' | 'zh-CN'; }"
+    },
+    {
+      "name": "KJDrawingPrintWindowOptions",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjdrawingprintwindowoptions",
+      "anchor": "root-interface-kjdrawingprintwindowoptions",
+      "summary": "export interface KJDrawingPrintWindowOptions extends KJDrawingPrintOptions { /** Window receiving the user gesture; defaults to the current browser window. */ ownerWindow?: Window; /** Host identity guard, checked before"
+    },
+    {
       "name": "KJDrawingValidationCheck",
       "kind": "type",
       "module": "@kanjieteam/kjdraw",
@@ -9411,6 +9443,14 @@
       "href": "./api/reference/#root-function-offsetentitypayload",
       "anchor": "root-function-offsetentitypayload",
       "summary": "export declare function offsetEntityPayload(entity: KJEditingEntity | null | undefined, distance: unknown, options?: KJOffsetOptions): KJObjectPayload;"
+    },
+    {
+      "name": "openDrawingPrintWindow",
+      "kind": "function",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-function-opendrawingprintwindow",
+      "anchor": "root-function-opendrawingprintwindow",
+      "summary": "export declare function openDrawingPrintWindow(document: KJDocument, options: KJDrawingPrintWindowOptions): Promise<KJDrawingPrintHtml>;"
     },
     {
       "name": "openKJCoreDocumentSession",
@@ -12811,6 +12851,14 @@
       "href": "./api/reference/#workbench-interface-kjworkbenchopenoptions",
       "anchor": "workbench-interface-kjworkbenchopenoptions",
       "summary": "export interface KJWorkbenchOpenOptions extends KJFileAdapterOptions { fileName?: string; }"
+    },
+    {
+      "name": "KJWorkbenchPrintOptions",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/workbench",
+      "href": "./api/reference/#workbench-type-kjworkbenchprintoptions",
+      "anchor": "workbench-type-kjworkbenchprintoptions",
+      "summary": "export type KJWorkbenchPrintOptions = Omit<KJDrawingPrintOptions, 'layoutId' | 'locale'> & { layoutId?: string; };"
     },
     {
       "name": "KJWorkbenchSaveOptions",

@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:96805b72eaaaf88b1e71d8d4dddef8fe8e667341f3516cce4e5318f9b843ae42",
+  "sourceDigest": "sha256:373a5dfae27f40e4e2b1e286421216424eacc6fa148e522fb2bd5dd08192242f",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -5147,6 +5147,13 @@
           "anchor": "root-function-createdrawingcontext"
         },
         {
+          "name": "createDrawingPrintHtml",
+          "kind": "function",
+          "declaration": "export declare function createDrawingPrintHtml(document: KJDocument, options: KJDrawingPrintOptions): KJDrawingPrintHtml;",
+          "source": "print-export.d.ts",
+          "anchor": "root-function-createdrawingprinthtml"
+        },
+        {
           "name": "createDXFFileAdapter",
           "kind": "function",
           "declaration": "export declare function createDXFFileAdapter(options?: DxfAdapterOptions): Readonly<KJFileAdapter<KJDocument, string>>;",
@@ -6869,6 +6876,27 @@
           "anchor": "root-type-kjdrawinggeometryomittedreason"
         },
         {
+          "name": "KJDrawingPrintHtml",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingPrintHtml extends Omit<KJSvgDrawingExport, 'svg' | 'mimeType'> {\n    html: string;\n    mimeType: 'text/html';\n}",
+          "source": "print-export.d.ts",
+          "anchor": "root-interface-kjdrawingprinthtml"
+        },
+        {
+          "name": "KJDrawingPrintOptions",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingPrintOptions {\n    layoutId: string;\n    maxEntities?: number;\n    title?: string;\n    locale?: 'en' | 'zh-CN';\n}",
+          "source": "print-export.d.ts",
+          "anchor": "root-interface-kjdrawingprintoptions"
+        },
+        {
+          "name": "KJDrawingPrintWindowOptions",
+          "kind": "interface",
+          "declaration": "export interface KJDrawingPrintWindowOptions extends KJDrawingPrintOptions {\n    /** Window receiving the user gesture; defaults to the current browser window. */\n    ownerWindow?: Window;\n    /** Host identity guard, checked before opening and after fonts are ready. */\n    isCurrent?: () => boolean;\n}",
+          "source": "print-export.d.ts",
+          "anchor": "root-interface-kjdrawingprintwindowoptions"
+        },
+        {
           "name": "KJDrawingValidationCheck",
           "kind": "type",
           "declaration": "export type KJDrawingValidationCheck = {\n    id: string;\n    kind: 'line-length' | 'circle-radius';\n    objectId: string;\n    expected: number;\n    tolerance: number;\n} | {\n    id: string;\n    kind: 'point-distance';\n    from: KJDrawingValidationPointReference;\n    to: KJDrawingValidationPointReference;\n    expected: number;\n    tolerance: number;\n} | {\n    id: string;\n    kind: 'polyline-closed';\n    objectId: string;\n    expected: boolean;\n    tolerance: 0;\n};",
@@ -8386,6 +8414,13 @@
           "declaration": "export declare function offsetEntityPayload(entity: KJEditingEntity | null | undefined, distance: unknown, options?: KJOffsetOptions): KJObjectPayload;",
           "source": "editing.d.ts",
           "anchor": "root-function-offsetentitypayload"
+        },
+        {
+          "name": "openDrawingPrintWindow",
+          "kind": "function",
+          "declaration": "export declare function openDrawingPrintWindow(document: KJDocument, options: KJDrawingPrintWindowOptions): Promise<KJDrawingPrintHtml>;",
+          "source": "print-export.d.ts",
+          "anchor": "root-function-opendrawingprintwindow"
         },
         {
           "name": "openKJCoreDocumentSession",
@@ -11514,7 +11549,7 @@
         {
           "name": "KJDrawWorkbench",
           "kind": "class",
-          "declaration": "export declare class KJDrawWorkbench {\n    #private;\n    readonly container: HTMLElement | ShadowRoot;\n    readonly root: HTMLElement;\n    readonly sdk: KJDrawSDK;\n    readonly renderer: KJCanvasRenderer;\n    readonly ready: Promise<this>;\n    constructor(container: HTMLElement | ShadowRoot, options?: KJDrawWorkbenchOptions);\n    get document(): KJDocument | null;\n    get locale(): KJWorkbenchLocale;\n    get theme(): KJWorkbenchTheme;\n    get layout(): KJWorkbenchLayout;\n    /** Null means model space; independent of the classic/compact/focus interface layout. */\n    get drawingLayoutId(): string | null;\n    get spaceId(): string | null;\n    get paperPreview(): boolean;\n    get tool(): KJWorkbenchTool;\n    /** Switch the displayed model/paper space without changing document state or undo history.\n     * Existing paper layouts are read-only previews; return to null (Model) to edit.\n     */\n    setDrawingLayout(layoutId: string | null): this;\n    /** Change presentation without replacing the drawing or its undo history. */\n    setOptions(options: Pick<KJDrawWorkbenchOptions, 'readonly' | 'grid' | 'toolbar' | 'showLayers' | 'showInspector' | 'title' | 'maxFileBytes' | 'layout'>): this;\n    setLocale(locale: KJWorkbenchLocale): this;\n    snapshot(): Readonly<KJWorkbenchSnapshot>;\n    setTheme(theme: KJWorkbenchTheme): this;\n    setLayout(value: KJWorkbenchLayout): this;\n    setTool(tool: KJWorkbenchTool): this;\n    setDocument(document: KJDocument): Promise<this>;\n    open(source: unknown, options?: KJWorkbenchOpenOptions): Promise<KJDocument>;\n    execute<TResult = unknown>(command: string, args?: KJCommandArguments, options?: {\n        expectedRevision?: number;\n    }): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    save(format?: 'KJD' | 'DXF' | 'SVG', options?: KJWorkbenchSaveOptions): Promise<unknown>;\n    dispose(): void;\n}",
+          "declaration": "export declare class KJDrawWorkbench {\n    #private;\n    readonly container: HTMLElement | ShadowRoot;\n    readonly root: HTMLElement;\n    readonly sdk: KJDrawSDK;\n    readonly renderer: KJCanvasRenderer;\n    readonly ready: Promise<this>;\n    constructor(container: HTMLElement | ShadowRoot, options?: KJDrawWorkbenchOptions);\n    get document(): KJDocument | null;\n    get locale(): KJWorkbenchLocale;\n    get theme(): KJWorkbenchTheme;\n    get layout(): KJWorkbenchLayout;\n    /** Null means model space; independent of the classic/compact/focus interface layout. */\n    get drawingLayoutId(): string | null;\n    get spaceId(): string | null;\n    get paperPreview(): boolean;\n    get tool(): KJWorkbenchTool;\n    /** Switch the displayed model/paper space without changing document state or undo history.\n     * Existing paper layouts are read-only previews; return to null (Model) to edit.\n     */\n    setDrawingLayout(layoutId: string | null): this;\n    /** Change presentation without replacing the drawing or its undo history. */\n    setOptions(options: Pick<KJDrawWorkbenchOptions, 'readonly' | 'grid' | 'toolbar' | 'showLayers' | 'showInspector' | 'title' | 'maxFileBytes' | 'layout'>): this;\n    setLocale(locale: KJWorkbenchLocale): this;\n    snapshot(): Readonly<KJWorkbenchSnapshot>;\n    setTheme(theme: KJWorkbenchTheme): this;\n    setLayout(value: KJWorkbenchLayout): this;\n    setTool(tool: KJWorkbenchTool): this;\n    setDocument(document: KJDocument): Promise<this>;\n    open(source: unknown, options?: KJWorkbenchOpenOptions): Promise<KJDocument>;\n    execute<TResult = unknown>(command: string, args?: KJCommandArguments, options?: {\n        expectedRevision?: number;\n    }): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;\n    save(format?: 'KJD' | 'DXF' | 'SVG', options?: KJWorkbenchSaveOptions): Promise<unknown>;\n    print(options?: KJWorkbenchPrintOptions): Promise<KJDrawingPrintHtml>;\n    dispose(): void;\n}",
           "source": "workbench.d.ts",
           "anchor": "workbench-class-kjdrawworkbench"
         },
@@ -11545,6 +11580,13 @@
           "declaration": "export interface KJWorkbenchOpenOptions extends KJFileAdapterOptions {\n    fileName?: string;\n}",
           "source": "workbench.d.ts",
           "anchor": "workbench-interface-kjworkbenchopenoptions"
+        },
+        {
+          "name": "KJWorkbenchPrintOptions",
+          "kind": "type",
+          "declaration": "export type KJWorkbenchPrintOptions = Omit<KJDrawingPrintOptions, 'layoutId' | 'locale'> & {\n    layoutId?: string;\n};",
+          "source": "workbench.d.ts",
+          "anchor": "workbench-type-kjworkbenchprintoptions"
         },
         {
           "name": "KJWorkbenchSaveOptions",
