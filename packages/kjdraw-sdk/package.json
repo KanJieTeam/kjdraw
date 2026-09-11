@@ -296,6 +296,21 @@
       "types": "./types/road-drawing-recipe.d.ts",
       "import": "./src/road-drawing-recipe.js",
       "default": "./src/road-drawing-recipe.js"
+    },
+    "./svg-export": {
+      "types": "./types/svg-export.d.ts",
+      "import": "./src/svg-export.js",
+      "default": "./src/svg-export.js"
+    },
+    "./print-export": {
+      "types": "./types/print-export.d.ts",
+      "import": "./src/print-export.js",
+      "default": "./src/print-export.js"
+    },
+    "./file/svg": {
+      "types": "./types/svg-adapter.d.ts",
+      "import": "./src/svg-adapter.js",
+      "default": "./src/svg-adapter.js"
     }
   },
   "scripts": {
