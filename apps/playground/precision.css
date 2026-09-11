@@ -238,3 +238,7 @@ summary { cursor: pointer; color: var(--kj-muted); }
   .statusbar { padding: 0 8px; gap: 8px; }
   .statusbar > div { gap: 4px; }
 }
+
+/* Keep explicit paper setup usable on short screens and in the compact ribbon. */
+.output-ribbon select { max-width: 125px; font-size: 12px; padding: 3px 6px; }
+.app-dialog { max-height: calc(100dvh - 32px); overflow-y: auto; }

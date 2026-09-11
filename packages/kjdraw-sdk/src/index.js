@@ -19,6 +19,7 @@ export * from './deployment.js';
 export * from './dxf-adapter.js';
 export * from './svg-export.js';
 export * from './svg-adapter.js';
+export * from './print-export.js';
 export * from './editing.js';
 export * from './errors.js';
 export * from './events.js';

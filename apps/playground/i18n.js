@@ -1,5 +1,6 @@
 const messages = {
   en: {
+    output: 'OUTPUT', pageSetup: 'Page setup', printDrawing: 'Print / PDF',
     preview: '1.0 RELEASE CANDIDATE', docs: 'Documentation ↗', github: 'GitHub ↗', language: '中文',
     open: 'Open DXF / KJD / KJP', openShort: 'Open', snapshot: 'Snapshot', save: 'Download KJP', saveShort: 'Save KJP', export: 'Export DXF ↗', exportShort: 'DXF', memory: 'In memory', file: 'FILE', view: 'VIEW', construct: 'CONSTRUCT',
     home: 'HOME', draw: 'DRAW', modify: 'MODIFY', inspect: 'INSPECT', command: 'COMMAND', undo: 'Undo', redo: 'Redo',
@@ -31,6 +32,7 @@ const messages = {
     githubTitle: 'Open source repository', docsTitle: 'Developer documentation', languageTitle: 'Switch language'
   },
   zh: {
+    output: '出图', pageSetup: '页面设置', printDrawing: '打印 / PDF',
     preview: '1.0 候选版', docs: '开发文档 ↗', github: 'GitHub ↗', language: 'EN',
     open: '打开 DXF / KJD / KJP', openShort: '打开', snapshot: '快照', save: '下载 KJP', saveShort: '保存 KJP', export: '导出 DXF ↗', exportShort: '导出 DXF', memory: '仅在内存中', file: '文件', view: '视图', construct: '构造',
     home: '常用', draw: '绘图', modify: '修改', inspect: '测量', command: '命令行', undo: '撤销', redo: '重做',

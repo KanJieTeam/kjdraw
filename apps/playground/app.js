@@ -9,6 +9,7 @@ import { createBoundaryEditSession } from '../../packages/kjdraw-sdk/src/boundar
 import { KJ_MODIFICATION_DEFINITIONS, getKJModificationDefinition, buildKJModificationCommand, getKJModificationSelectionCenter, validateKJModificationSelection } from '../../packages/kjdraw-sdk/src/modification-controls.js'
 import { createSample } from '../../examples/sample.js'
 import { createI18n } from './i18n.js'
+import { createOutputControls } from './output-controls.js'
 import { AGENT_REVISION_COMMAND, createShowcaseRevision, getShowcaseIntent, isShowcaseIntent, registerShowcaseCommand, resolveShowcasePreset } from './agent-showcase.js'
 import { createIndustrySamples, INDUSTRY_SAMPLES } from './industry-samples.js'
 import { createAgentChat } from './agent-chat.js'
@@ -36,6 +37,7 @@ let translation = null, dragMove = null, drafting = null, modification = null
 let selectionBox = null, gripDrag = null, fence = null, hoveredGrip = null, disposeInteractionDocument = null
 let boundaryEdit = null
 let agentChat = null
+let outputControls = null
 const doc = () => sdk.activeDocument
 const documentTitle = drawing => {
   const metadata = drawing?.snapshot().metadata
@@ -306,6 +308,7 @@ function renderMeasurement(container,value) {
   const details=document.createElement('details'),summary=document.createElement('summary'),pre=document.createElement('pre');summary.textContent=i18n.locale==='zh'?'查看数据':'View data';pre.textContent=JSON.stringify(value.raw,null,2);details.append(summary,pre);output.append(details);container.append(output)
 }
 function refresh() {
+  outputControls?.sync()
   const allEntities=doc().listEntities(),modelSpaceId=doc().snapshot().spaces.modelSpaceId,currentModel=allEntities.filter(entity=>entity.ownerId===modelSpaceId),layerEntityCounts=new Map()
   for(const entity of allEntities)layerEntityCounts.set(entity.payload?.layerId,(layerEntityCounts.get(entity.payload?.layerId)??0)+1)
   const tabs=$('document-tabs');for(const old of tabs.querySelectorAll('[data-document]'))old.remove()
@@ -559,6 +562,10 @@ $('snapshot').onclick=()=>{const record=session.createSnapshot(`Snapshot ${sessi
 const formatBytes=value=>value<1024?`${value} B`:value<1024*1024?`${(value/1024).toFixed(1)} KiB`:`${(value/1024/1024).toFixed(1)} MiB`
 async function saveProject(){const bytes=await session.package();download(bytes,'kjdraw-project.kjp','application/zip');message(i18n.locale==='zh'?`KJP 已生成（${formatBytes(bytes.length)}）· 包含工程内全部图纸`:`KJP generated (${formatBytes(bytes.length)}) · includes every project drawing`);return bytes}
 $('save').onclick=()=>run(saveProject)
+outputControls=createOutputControls({getContext:()=>({sdk,document:doc()}),locale:()=>i18n.locale,select:$('output-layout'),request:requestLocalCommand,run,execute,download,message,currentBounds:()=>{const a=world([0,height]),b=world([width,0]);return [a[0],a[1],b[0],b[1]]},title:documentTitle})
+$('page-setup').onclick=outputControls.setup
+$('export-svg').onclick=outputControls.svg
+$('print-drawing').onclick=outputControls.print
 $('export').onclick=()=>run(async()=>{const text=await sdk.writeDocument(doc(),{format:'DXF',version:'2018'});download(text,'drawing.dxf','application/dxf');message('ASCII DXF 2018 downloaded · core adapter, see compatibility limits')})
 $('undo').onclick=()=>run(()=>execute('UNDO'));$('redo').onclick=()=>run(()=>execute('REDO'))
 $('fit-ribbon').onclick=fit
@@ -779,9 +786,8 @@ function initializeWorkbenchChrome(){
   $('move-selection').dataset.tool='move';$('copy-selection').dataset.tool='copy'
   document.querySelector('.ribbon-tabs > span').textContent='2D'
   const groups=[...document.querySelectorAll('.ribbon-group')]
-  groups[3].classList.add('compact');groups[4].classList.add('compact');groups[5].classList.add('compact')
-  const groupSections=['file','view','draw','draw','modify','inspect']
-  groups.forEach((group,index)=>group.dataset.section=groupSections[index])
+  const groupSections={file:'file',output:'file',view:'view',draw:'draw',construct:'draw',modify:'modify',inspect:'inspect'}
+  for(const group of groups){const key=group.querySelector(':scope > small')?.dataset.i18n;group.dataset.section=groupSections[key]??'file';if(['construct','modify','inspect'].includes(key))group.classList.add('compact')}
   initializeDraftingControls()
   const ribbonGroups=[...document.querySelectorAll('.ribbon-group')]
   const showSection=section=>{for(const group of ribbonGroups)group.hidden=section==='home'?group.matches('.drawing-library,.modification-library'):group.dataset.section!==section&&group.dataset.section!=='view';document.querySelector('.ribbon-groups').scrollLeft=0}

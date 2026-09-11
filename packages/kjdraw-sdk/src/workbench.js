@@ -3,6 +3,7 @@ import { KJCanvasRenderer } from './canvas-renderer.js';
 import { createKJDrawSDK } from './sdk.js';
 import { KJDocument } from './document.js';
 import { editEntityGrip } from './grips.js';
+import { openDrawingPrintWindow } from './print-export.js';
 import { createIndustrySample } from './samples.js';
 import { KJDRAW_THEME_CSS, kjdrawIcon } from './theme.js';
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from './layout.js';
@@ -54,6 +55,8 @@ const copy = {
         saveKjd: 'Save KJD',
         exportDxf: 'Export DXF',
         exportSvg: 'Export SVG',
+        print: 'Print / PDF',
+        printOpened: 'Print dialog opened · choose Save as PDF for vector output',
         draw: 'Draw',
         modify: 'Modify',
         view: 'View',
@@ -193,6 +196,8 @@ const copy = {
         saveKjd: '保存 KJD',
         exportDxf: '导出 DXF',
         exportSvg: '导出 SVG',
+        print: '打印 / PDF',
+        printOpened: '已打开打印对话框 · 选择另存为 PDF 可保留矢量',
         draw: '绘图',
         modify: '修改',
         view: '视图',
@@ -1188,6 +1193,24 @@ export class KJDrawWorkbench {
         this.#setMessage(`${format} · ${drawing.fingerprint()}`);
         return output;
     }
+    async print(options = {}) {
+        if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed');
+        const drawing = this.document;
+        if (!drawing) throw new Error('No active KJDraw document');
+        const layout = this.#drawingLayoutId;
+        const output = await openDrawingPrintWindow(drawing, {
+            ...options,
+            layoutId: options.layoutId ?? layout ?? drawing.snapshot().spaces.activeLayoutId,
+            locale: this.#locale,
+            title: options.title ?? this.#fileName,
+            ...this.root.ownerDocument.defaultView ? {
+                ownerWindow: this.root.ownerDocument.defaultView
+            } : {},
+            isCurrent: ()=>!this.#abort.signal.aborted && this.document === drawing && this.#drawingLayoutId === layout
+        });
+        if (!this.#abort.signal.aborted && this.document === drawing) this.#setMessage(this.#t('printOpened'));
+        return output;
+    }
     dispose() {
         if (this.#abort.signal.aborted) return;
         this.#cancelGesture();
@@ -1242,6 +1265,7 @@ export class KJDrawWorkbench {
         <button type="button" class="panel-toggle hide-small ${showInspector ? 'active' : ''}" data-action="toggle-inspector" aria-pressed="${showInspector}">${icon('panel')}<span data-copy="properties">${t('properties')}</span></button>
         <button type="button" class="file-action" data-action="open" data-copy-title="open" aria-label="${t('open')}" title="${t('open')}">${icon('open')}<span data-copy="open">${t('open')}</span></button><button type="button" class="file-action hide-small" data-action="save-kjd" data-copy-title="saveKjd" aria-label="${t('saveKjd')}" title="${t('saveKjd')}">${icon('save')}<span data-copy="saveKjd">${t('saveKjd')}</span></button><button type="button" class="file-action primary" data-action="save-dxf" data-copy-title="exportDxf" aria-label="${t('exportDxf')}" title="${t('exportDxf')}">${icon('export')}<span data-copy="exportDxf">${t('exportDxf')}</span></button><button type="button" data-action="theme" data-copy-title="theme" title="${t('theme')}">${icon(this.#theme === 'dark' ? 'sun' : 'moon', 'data-theme-icon')}</button><button type="button" data-action="language"><span data-copy="language">${t('language')}</span></button>
         <button type="button" class="file-action" data-action="save-svg" data-copy-title="exportSvg" title="${t('exportSvg')}" aria-label="${t('exportSvg')}">${icon('export')}<span data-copy="exportSvg">${t('exportSvg')}</span></button>
+        <button type="button" class="file-action" data-action="print" data-copy-title="print" title="${t('print')}" aria-label="${t('print')}">${icon('export')}<span data-copy="print">${t('print')}</span></button>
         <button type="button" class="file-action" data-action="page-setup" data-copy-title="pageSetup" title="${t('pageSetup')}" aria-label="${t('pageSetup')}" ${readonly ? 'disabled' : ''}>${icon('panel')}<span data-copy="pageSetup">${t('pageSetup')}</span></button>
       </header>
       <nav class="ribbon" aria-label="CAD tools">
@@ -1359,6 +1383,9 @@ export class KJDrawWorkbench {
             signal
         });
         query(this.root, '[data-action="save-svg"]').addEventListener('click', ()=>void this.#run(()=>this.save('SVG')), {
+            signal
+        });
+        query(this.root, '[data-action="print"]').addEventListener('click', ()=>void this.#run(()=>this.print()), {
             signal
         });
         query(this.root, '[data-action="undo"]').addEventListener('click', ()=>void this.#run(()=>this.execute('UNDO')), {
