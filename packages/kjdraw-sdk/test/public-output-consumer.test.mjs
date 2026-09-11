@@ -1,17 +1,28 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {spawnSync} from 'node:child_process'
-import {mkdtemp,mkdir,readdir,readFile,writeFile,rm,realpath} from 'node:fs/promises'
+import {mkdtemp,mkdir,readdir,readFile,writeFile,rm,realpath,symlink,unlink,rename} from 'node:fs/promises'
 import {existsSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join,resolve,relative,isAbsolute} from 'node:path'
 import {fileURLToPath} from 'node:url'
 const root=fileURLToPath(new URL('../../../',import.meta.url))
 const run=(command,args,options={})=>{const r=spawnSync(command,args,{cwd:root,encoding:'utf8',timeout:120000,maxBuffer:16*1024*1024,...options});assert.equal(r.status,0,`${r.error?.message??''}\n${r.stdout}\n${r.stderr}`);return r}
+// Canonicalize the parent before creating descendants: macOS tmpdir() may use
+// /var while realpath() returns /private/var. All containment checks must use
+// the same physical root; cleanup still rejects replacement with a redirect.
+async function createConsumerScratch(parent=process.env.KJDRAW_AUDIT_TMPDIR||tmpdir()){
+ await mkdir(resolve(parent),{recursive:true})
+ return realpath(await mkdtemp(join(await realpath(parent),'kjdraw-output-consumer-')))
+}
+async function removeConsumerScratch(scratch){
+ assert.equal(await realpath(scratch),scratch,'Refuse cleanup through a redirected scratch directory')
+ await rm(scratch,{recursive:true,force:true})
+}
 async function compiler(){const tsc=join(root,'node_modules/typescript/bin/tsc');if(existsSync(tsc))return[process.execPath,[tsc]];const name=`typescript-${process.platform}-${process.arch}`;const binary=join(root,'node_modules/@typescript',name,'lib',process.platform==='win32'?'tsc.exe':'tsc');assert.ok(existsSync(binary),'Install the locked TypeScript compiler first');return[binary,[]]}
 
 test('real installed tarball exposes vector output, headless print and angular/AI transform APIs to typed framework consumers',{timeout:180000},async()=>{
- const parent=resolve(process.env.KJDRAW_AUDIT_TMPDIR||tmpdir());await mkdir(parent,{recursive:true});const scratch=await mkdtemp(join(parent,'kjdraw-output-consumer-'))
+ const scratch=await createConsumerScratch()
  try{
   const audit=run(process.execPath,['scripts/audits/verify-packed-package.mjs'],{env:{...process.env,KJDRAW_KEEP_PACK_AUDIT:'1',KJDRAW_AUDIT_TMPDIR:scratch,npm_config_offline:'true'}})
   const baseline=JSON.parse(audit.stdout);assert.equal(baseline.ok,true);assert.deepEqual(baseline.typedConsumers,['Vanilla TypeScript','React TSX','Vue composable']);assert.equal(baseline.frameworkInstall.mode,'locked-offline-npm-ci')
@@ -79,6 +90,31 @@ const unsafePrint:KJDrawingPrintOptions={layoutId:'sheet',allowPartial:true}
   await writeFile(join(consumer,'src/public-output-vue.ts'),`import {defineComponent,h} from 'vue'\nimport {KJDraw} from '@kanjieteam/kjdraw/vue'\nimport {publicOutput} from './public-output.js'\nexport const outputVue=(drawing:Parameters<typeof publicOutput>[0],layoutId:string)=>defineComponent({setup(){return()=>h('section',[h(KJDraw,{document:drawing}),h('button',{onClick:()=>publicOutput(drawing,layoutId)},'Export vectors')])}})\n`)
   const [command,args]=await compiler();run(command,[...args,'--project',join(consumer,'tsconfig.json'),'--pretty','false'],{cwd:consumer})
  }finally{
-  const resolved=await realpath(scratch);assert.equal(resolved,resolve(scratch),'Refuse cleanup through a redirected scratch directory');await rm(scratch,{recursive:true,force:true})
+  await removeConsumerScratch(scratch)
+ }
+})
+
+
+test('consumer scratch accepts an aliased parent but rejects redirected cleanup',async()=>{
+ const base=await createConsumerScratch(),physical=join(base,'physical'),alias=join(base,'alias')
+ await mkdir(physical);await symlink(physical,alias,process.platform==='win32'?'junction':'dir')
+ let scratch,parked,redirected=false
+ try{
+  scratch=await createConsumerScratch(alias)
+  assert.equal(scratch,await realpath(scratch))
+  assert.equal(relative(physical,scratch).startsWith('kjdraw-output-consumer-'),true)
+  const marker=join(scratch,'proof.txt');await writeFile(marker,'owned scratch')
+  assert.equal(await readFile(marker,'utf8'),'owned scratch')
+  parked=join(physical,'parked');await rename(scratch,parked)
+  await symlink(parked,scratch,process.platform==='win32'?'junction':'dir');redirected=true
+  await assert.rejects(removeConsumerScratch(scratch),/Refuse cleanup through a redirected scratch directory/)
+  assert.equal(await readFile(join(parked,'proof.txt'),'utf8'),'owned scratch')
+  await unlink(scratch);redirected=false;await rename(parked,scratch);parked=null
+  await removeConsumerScratch(scratch);scratch=null
+ }finally{
+  if(redirected)await unlink(scratch)
+  if(parked)await rename(parked,scratch)
+  if(scratch)await removeConsumerScratch(scratch)
+  await unlink(alias);await removeConsumerScratch(base)
  }
 })
