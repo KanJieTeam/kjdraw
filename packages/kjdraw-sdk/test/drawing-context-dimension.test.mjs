@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {createKJDrawSDK} from '../src/sdk.js'
 import {KJAgentToolSession} from '../src/agent-tools.js'
 import {createDrawingContext} from '../src/drawing-context.js'
+import {KJDocument} from '../src/document.js'
 
 const value=result=>{assert.equal(result.ok,true,JSON.stringify(result));return result.value}
 const bytes=value=>Buffer.byteLength(JSON.stringify(value),'utf8')
@@ -109,4 +110,39 @@ test('annotation shares the original geometry and response budgets atomically an
   const revision=document.revision;await add({})
   const stale=await session.call('cad_query_drawing',{expectedRevision:revision,filters:{types:['DIMENSION']},offset:1,layerOffset:0,limit:2,maxLayers:0,maxBytes:1800})
   assert.equal(stale.ok,false);assert.equal(stale.error.code,'KJDOCUMENT_REVISION_CONFLICT')
+})
+
+test('legacy KJD dimensions without cached measurement charge the added null field at the exact 8192-byte geometry boundary',async()=>{
+  const {document,add}=await fixture()
+  const entity=await add({blockName:''})
+  const saved=JSON.parse(document.serialize())
+  for(const mode of ['absent','undefined']){
+    const input=structuredClone(saved)
+    if(mode==='absent')delete input.objects[entity.id].payload.measurement
+    else input.objects[entity.id].payload.measurement=undefined
+    // Legacy file opening does not normalize this stored DIMENSION cache. The
+    // undefined host-object path is also skipped by the allowlisted projection.
+    const open=state=>KJDocument.open(mode==='absent'?JSON.stringify(state):state)
+    const legacy=open(input)
+    assert.equal(legacy.getObject(entity.id).payload.measurement,undefined)
+    assert.equal(Object.hasOwn(legacy.getObject(entity.id).payload,'measurement'),mode==='undefined')
+    const baseline=createDrawingContext(legacy,{ids:[entity.id],maxLayers:0}).entities[0].geometry
+    assert.equal(baseline.cachedMeasurement,null);assert.equal(baseline.annotation.measurement,10.123456)
+    const room=8192-bytes(baseline)
+    assert.ok(room>0)
+    input.objects[entity.id].payload.blockName='x'.repeat(room)
+    const exact=open(input),source=exact.serialize(),history=exact.history
+    const accepted=createDrawingContext(exact,{ids:[entity.id],maxLayers:0})
+    assert.equal(bytes(accepted.entities[0].geometry),8192)
+    assert.equal(accepted.entities[0].geometry.cachedMeasurement,null)
+    assert.equal(accepted.entities[0].geometry.annotation.status,'projected')
+    assert.equal(accepted.truncated,false);assert.equal(exact.serialize(),source);assert.deepEqual(exact.history,history)
+    input.objects[entity.id].payload.blockName+='x'
+    const overflow=open(input),before=overflow.serialize()
+    const refused=createDrawingContext(overflow,{ids:[entity.id],maxLayers:0})
+    assert.equal(refused.entities[0].geometry,null)
+    assert.equal(refused.entities[0].geometryOmittedReason,'geometry-budget')
+    assert.equal(refused.truncated,true);assert.equal(refused.nextOffset,null)
+    assert.equal(overflow.serialize(),before)
+  }
 })
