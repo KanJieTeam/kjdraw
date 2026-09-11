@@ -8,6 +8,8 @@ import { buildAgentDrawingEntities } from './agent-drawing.js';
 import { buildAgentRoadDrawing } from './agent-road-drawing.js';
 import { buildAgentRoadRevision } from './agent-road-revision.js';
 import { restoreRoadDrawingRecipe } from './road-drawing-recipe.js';
+import { createAgentInputAsset } from './input-assets.js';
+export { KJDRAW_ROAD_INPUT_ASSET_SCHEMA } from './input-assets.js';
 import { buildAgentAnnotationEntities } from './agent-annotations.js';
 import { decodeAgentCompactDrawing } from './agent-drawing-compact.js';
 import { expandRectangularDrawingPattern } from './agent-drawing-patterns.js';
@@ -355,7 +357,38 @@ const roadDrawingSchema = object({
         maximum: 6
     }
 });
+const roadDrawingFromAssetSchema = object({
+    expectedRevision: revision,
+    units: text,
+    assetId: {
+        ...text,
+        maxLength: 128
+    },
+    sha256: {
+        type: 'string',
+        minLength: 64,
+        maxLength: 64
+    },
+    ...Object.fromEntries([
+        'drawingId',
+        'title',
+        'profileScale',
+        'sectionScale',
+        'textHeight',
+        'sectionColumns',
+        'precision'
+    ].map((key)=>[
+            key,
+            roadDrawingSchema.properties[key]
+        ]))
+});
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
+    {
+        name: 'cad_propose_road_drawing_from_asset',
+        effect: 'propose',
+        description: 'Create a road drawing from immutable road-design-input@1 data explicitly registered by the host in this document session. Copy exact assetId and SHA-256 from the host descriptor; do not repeat or replace alignment, profile, ground sections, pavement or slopes. Supply drawingId, title and explicit sheet options; units must be meter and revision current. Uses the same deterministic compiler, full preview, 512-entity budget and host approval as cad_propose_road_drawing. Unknown or mismatched assets, missing ground coverage and protected/conflicting geometry are rejected. Input assets never authorize execution or certify measurements. Returns sourceAsset provenance and exact editable geometry; only host approval commits one undoable transaction.',
+        inputSchema: roadDrawingFromAssetSchema
+    },
     {
         name: 'cad_propose_road_revision',
         effect: 'propose',
@@ -844,6 +877,8 @@ export class KJAgentToolSession {
     #sdk;
     #document;
     #pending = new Map();
+    #inputAssets = new Map();
+    #inputAssetBytes = 0;
     #roadRecipes = new Map();
     #roadPending = new Map();
     #busy = false;
@@ -864,6 +899,29 @@ export class KJAgentToolSession {
             if (restored.drawing.entities.length > 512 || restored.drawing.resources.layers.length + restored.drawing.resources.linetypes.length > 32) throw new KJValidationError('Registered road drawing exceeds the agent budget');
             this.#roadRecipes.set(drawingId, restored);
             return restored;
+        } finally{
+            this.#busy = false;
+        }
+    }
+    async registerInputAsset(input) {
+        if (this.#busy) throw new KJValidationError('Session is busy; wait before registering an input asset');
+        this.#busy = true;
+        try {
+            this.#assertAttached();
+            const source = this.#document.snapshot(), revision = this.#document.revision;
+            if (source.header.units !== 'meter') throw new KJValidationError('Road input assets require a meter document');
+            const asset = await createAgentInputAsset(input);
+            this.#assertAttached();
+            if (this.#document.snapshot() !== source || this.#document.revision !== revision) throw new KJRevisionConflictError(revision, this.#document.revision);
+            const existing = this.#inputAssets.get(asset.descriptor.assetId);
+            if (existing) {
+                if (existing.descriptor.sha256 !== asset.descriptor.sha256) throw new KJValidationError('An input asset ID cannot be replaced with different data; use a new ID');
+                return existing.descriptor;
+            }
+            if (this.#inputAssets.size >= 16 || this.#inputAssetBytes + asset.descriptor.byteLength > 4194304) throw new KJValidationError('Session input assets exceed 16 assets or 4 MiB');
+            this.#inputAssets.set(asset.descriptor.assetId, asset);
+            this.#inputAssetBytes += asset.descriptor.byteLength;
+            return asset.descriptor;
         } finally{
             this.#busy = false;
         }
@@ -985,8 +1043,21 @@ export class KJAgentToolSession {
                         let command = 'CREATEBATCH';
                         let commandArgs;
                         let engineeringEvidence;
-                        if (name === 'cad_propose_road_drawing') {
-                            const compiled = buildAgentRoadDrawing(document, args);
+                        let sourceAsset;
+                        if (name === 'cad_propose_road_drawing' || name === 'cad_propose_road_drawing_from_asset') {
+                            let roadInput = args;
+                            if (name === 'cad_propose_road_drawing_from_asset') {
+                                const { assetId, sha256, ...settings } = args;
+                                const asset = this.#inputAssets.get(String(assetId));
+                                if (!asset || typeof sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(sha256) || asset.descriptor.sha256 !== sha256) throw new KJValidationError('Input asset ID and SHA-256 must match data explicitly registered by this host session');
+                                sourceAsset = asset.descriptor;
+                                roadInput = {
+                                    ...asset.data,
+                                    ...settings
+                                };
+                                validate(roadDrawingSchema, roadInput);
+                            }
+                            const compiled = buildAgentRoadDrawing(document, roadInput);
                             commandArgs = structuredClone(compiled.commandArgs);
                             engineeringEvidence = compiled.evidence;
                         } else if (name === 'cad_propose_drawing_annotated') {
@@ -1119,7 +1190,8 @@ export class KJAgentToolSession {
                         const preview = await createAgentGeometryPreview(document, command, commandArgs, [
                             'cad_propose_drawing_pattern',
                             'cad_propose_drawing_annotated',
-                            'cad_propose_road_drawing'
+                            'cad_propose_road_drawing',
+                            'cad_propose_road_drawing_from_asset'
                         ].includes(name) ? {
                             maxCreatedEntities: 512
                         } : {});
@@ -1141,9 +1213,15 @@ export class KJAgentToolSession {
                             preview,
                             ...engineeringEvidence ? {
                                 engineeringEvidence
+                            } : {},
+                            ...sourceAsset ? {
+                                sourceAsset
                             } : {}
                         };
-                        if (name === 'cad_propose_road_drawing' && new TextEncoder().encode(JSON.stringify({
+                        if ([
+                            'cad_propose_road_drawing',
+                            'cad_propose_road_drawing_from_asset'
+                        ].includes(name) && new TextEncoder().encode(JSON.stringify({
                             ok: true,
                             value
                         })).length > 1048576) throw new KJValidationError('Road tool proposal exceeds the 1 MiB output limit');
@@ -1153,7 +1231,10 @@ export class KJAgentToolSession {
                         this.#pending.set(envelope.id, {
                             envelope,
                             preview,
-                            definition
+                            definition,
+                            ...sourceAsset ? {
+                                sourceAsset
+                            } : {}
                         });
                         this.#proposals++;
                     }
@@ -1218,6 +1299,7 @@ export class KJAgentToolSession {
             const pending = this.#pending.get(planId);
             if (!pending) throw new KJValidationError('Proposal is unavailable in this session');
             const plan = pending.envelope;
+            if (pending.sourceAsset && this.#inputAssets.get(pending.sourceAsset.assetId)?.descriptor !== pending.sourceAsset) throw new KJValidationError('Input asset binding changed since preview; propose again');
             if (this.#sdk.commands.resolve(plan.command) !== pending.definition) throw new KJValidationError('Command changed since preview; reject and propose again');
             const envelope = this.#sdk.createCommandEnvelope(plan.command, plan.arguments, {
                 document: this.#document,
@@ -1240,7 +1322,10 @@ export class KJAgentToolSession {
                     command: receipt.command,
                     beforeRevision: receipt.beforeRevision,
                     afterRevision: receipt.afterRevision,
-                    status: receipt.status
+                    status: receipt.status,
+                    ...pending.sourceAsset ? {
+                        sourceAsset: pending.sourceAsset
+                    } : {}
                 }
             });
         } catch (error) {

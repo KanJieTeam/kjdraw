@@ -11,6 +11,10 @@ import { buildAgentDrawingEntities, type KJAgentDrawingInput } from './agent-dra
 import { buildAgentRoadDrawing, type KJAgentRoadDrawingInput } from './agent-road-drawing.js'
 import { buildAgentRoadRevision, type KJAgentRoadRevisionInput, type KJAgentRoadRevisionProposal } from './agent-road-revision.js'
 import { restoreRoadDrawingRecipe, type KJRestoredRoadDrawingRecipe } from './road-drawing-recipe.js'
+import { createAgentInputAsset, type KJAgentInputAsset, type KJAgentInputAssetDescriptor, type KJAgentInputAssetReference } from './input-assets.js'
+export { KJDRAW_ROAD_INPUT_ASSET_SCHEMA } from './input-assets.js'
+export type { KJAgentInputAssetDescriptor, KJAgentInputAssetReference, KJAgentInputAssetRegistration } from './input-assets.js'
+export type KJAgentRoadDrawingFromAssetInput = Pick<KJAgentRoadDrawingInput, 'expectedRevision' | 'units' | 'drawingId' | 'title' | 'profileScale' | 'sectionScale' | 'textHeight' | 'sectionColumns' | 'precision'> & KJAgentInputAssetReference
 import type { KJRoadDrawingRevisionReceipt } from './road-drawing-update.js'
 import type { ReadonlyDeep } from './utils.js'
 export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-revision.js'
@@ -142,7 +146,12 @@ const roadDrawingSchema = object({ expectedRevision: revision, units: text, draw
   textHeight: radius, sectionColumns: { type: 'integer', minimum: 1, maximum: 8 }, precision: { type: 'integer', minimum: 0, maximum: 6 },
 })
 
+const roadDrawingFromAssetSchema = object({ expectedRevision: revision, units: text, assetId: { ...text, maxLength: 128 }, sha256: { type: 'string', minLength: 64, maxLength: 64 },
+  ...Object.fromEntries(['drawingId', 'title', 'profileScale', 'sectionScale', 'textHeight', 'sectionColumns', 'precision'].map(key => [key, roadDrawingSchema.properties![key]!])),
+})
+
 export const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[] = deepFreeze([
+  { name: 'cad_propose_road_drawing_from_asset', effect: 'propose', description: 'Create a road drawing from immutable road-design-input@1 data explicitly registered by the host in this document session. Copy exact assetId and SHA-256 from the host descriptor; do not repeat or replace alignment, profile, ground sections, pavement or slopes. Supply drawingId, title and explicit sheet options; units must be meter and revision current. Uses the same deterministic compiler, full preview, 512-entity budget and host approval as cad_propose_road_drawing. Unknown or mismatched assets, missing ground coverage and protected/conflicting geometry are rejected. Input assets never authorize execution or certify measurements. Returns sourceAsset provenance and exact editable geometry; only host approval commits one undoable transaction.', inputSchema: roadDrawingFromAssetSchema },
   { name: 'cad_propose_road_revision', effect: 'propose', description: 'Revise one existing road drawing identified by drawingId, only after the host registered its verified saved recipe at this revision. Supply leftWidthDelta/rightWidthDelta in meters (positive widens that side, negative narrows) and elevationDelta in meters (uniform offset to every design profile elevation). All three deltas required, 0 leaves that parameter unchanged; all-zero is rejected. Uses original alignment, measured ground, crossfalls, slopes and sheet options. Recompiles real plan/profile/sections/earthwork, keeps stable IDs, returns before/after geometry, changed counts and old/new computed volumes. Rejects stale recipes, manual edits and incomplete ground coverage. No edit until host approves; approval is one undo. Cannot revise arbitrary CAD or certify road compliance.', inputSchema: object({ expectedRevision: revision, units: text, drawingId: { ...text, maxLength: 64 }, leftWidthDelta: number, rightWidthDelta: number, elevationDelta: number }) },
   { name: 'cad_propose_road_drawing', effect: 'propose', description: 'Compile fully supplied road study inputs into one editable model-space plan/profile/cross-section/earthwork-table proposal, at most 512 entities. Requires a meter document and a new drawingId. Supply piecewise-linear alignment [[x,y],...], design profile [{station,elevation}], 2–64 measured/supplied sections [{station,ground:[[offset,elevation],...]}], and pavement widths, signed outward crossfalls (rise/run; negative falls outward), cut/fill horizontal-to-vertical side slopes. Positive ground offset is LEFT looking along increasing station. Profile endpoints must cover full alignment chainage. No terrain extrapolation or ambiguous daylight intersections. profileScale/sectionScale horizontal/vertical are diagram units per real meter; plan remains native world XY. Text height is in drawing units; precision controls table formatting only. All values must come from user/host data; clarify missing engineering inputs. Returns actual calculation evidence and projected-frame bounds with complete resource/geometry preview, no edit before host approval. Volume uses average-end-area over supplied sections; no horizontal/vertical curves, structure deductions, soil factors or construction certification. No automatic associative editing.', inputSchema: roadDrawingSchema },
   { name: 'cad_propose_drawing_annotated', effect: 'propose', description: 'Compose editable engineering geometry, TEXT notes and native measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. Geometry/arrays follow cad_propose_drawing_pattern: lines=[x1,y1,x2,y2], circles=[cx,cy,r], arcs=[cx,cy,r,startDegrees,endDegrees], polylines={points:[[x,y],...],closed}; all existing groups required, unused=[]. At most 64 base entities; arrays={sources:["circles:0"],rows,columns,dx,dy}, unique seed refs, counts include original. Texts={text,position:{x,y},height,rotationDegrees}. Linear dimensions use from/to={source:"proposal" or "document",id,feature:"start"/"end"/"center"/"vertex",vertexIndex only for vertex}, position and height; rotated also rotationDegrees. Radial dimensions use source={source,id}, directionDegrees, position and height. Optional angularDimensions (omit or [] when unused) creates native three-point angles: {center,first,second,position,height}. All three anchors use the same point reference schema; first/second are points on rays from center. position is the angular arc location, selecting the sector containing it: center=(0,0), first=(10,0), second=(0,10), position=(4,4) measures 90 degrees, position=(-4,-4) measures 270 degrees. The arc location must differ from center and lie off both rays. Native kernel measurements are derived from actual geometry; do not supply angle numbers or text labels. Proposal IDs reference base geometry groups such as polylines:0, not array copies. Document IDs must be visible editable model-XY entities; hidden, frozen or locked entities/layers cannot be referenced. Circle/arc point features also support left/right/top/bottom; an arc point must lie on its sweep. styles (use [] if unused) =[{name,sources:["lines:0","texts:0","alignedDimensions:0"],pattern:[],color:7,lineweight:18}]; style sources use group-local indices, geometry seeds also style all their array copies. Empty pattern is continuous; dashed patterns alternate positive dash/negative gap, e.g. [3,-1]; lineweight is hundredths of mm. Existing named layers must match and be editable. All angles degrees 0–360; units and revision exact. Kernel measures dimensions from referenced geometry; no numeric text overrides. Notes are free text, not verified engineering facts. No edit before host approval; one undo. References resolve at creation, not persistent associative constraints.', inputSchema: annotatedDrawingSchema },
@@ -306,7 +315,9 @@ export class KJAgentToolSession {
   }
   #sdk: KJDrawSDK
   #document: KJDocument
-  #pending = new Map<string, { envelope: Readonly<KJCommandEnvelope>; preview: KJAgentGeometryPreview; definition: KJRegisteredCommand }>()
+  #pending = new Map<string, { envelope: Readonly<KJCommandEnvelope>; preview: KJAgentGeometryPreview; definition: KJRegisteredCommand; sourceAsset?: ReadonlyDeep<KJAgentInputAssetDescriptor> }>()
+  #inputAssets = new Map<string, ReadonlyDeep<KJAgentInputAsset>>()
+  #inputAssetBytes = 0
   #roadRecipes = new Map<string, ReadonlyDeep<KJRestoredRoadDrawingRecipe>>()
   #roadPending = new Map<string, ReadonlyDeep<KJAgentRoadRevisionProposal> & { envelope: Readonly<KJCommandEnvelope>; definition: KJRegisteredCommand }>()
   #busy = false
@@ -331,6 +342,30 @@ export class KJAgentToolSession {
       if (restored.drawing.entities.length > 512 || restored.drawing.resources.layers.length + restored.drawing.resources.linetypes.length > 32) throw new KJValidationError('Registered road drawing exceeds the agent budget')
       this.#roadRecipes.set(drawingId, restored)
       return restored
+    } finally { this.#busy = false }
+  }
+
+  /** Host-only registration of explicitly selected data. Assets belong to this
+   * exact session/document instance; they are never loaded by model paths or URLs. */
+  async registerInputAsset(input: unknown): Promise<ReadonlyDeep<KJAgentInputAssetDescriptor>> {
+    if (this.#busy) throw new KJValidationError('Session is busy; wait before registering an input asset')
+    this.#busy = true
+    try {
+      this.#assertAttached()
+      const source = this.#document.snapshot(), revision = this.#document.revision
+      if (source.header.units !== 'meter') throw new KJValidationError('Road input assets require a meter document')
+      const asset = await createAgentInputAsset(input)
+      this.#assertAttached()
+      if (this.#document.snapshot() !== source || this.#document.revision !== revision) throw new KJRevisionConflictError(revision, this.#document.revision)
+      const existing = this.#inputAssets.get(asset.descriptor.assetId)
+      if (existing) {
+        if (existing.descriptor.sha256 !== asset.descriptor.sha256) throw new KJValidationError('An input asset ID cannot be replaced with different data; use a new ID')
+        return existing.descriptor
+      }
+      if (this.#inputAssets.size >= 16 || this.#inputAssetBytes + asset.descriptor.byteLength > 4194304) throw new KJValidationError('Session input assets exceed 16 assets or 4 MiB')
+      this.#inputAssets.set(asset.descriptor.assetId, asset)
+      this.#inputAssetBytes += asset.descriptor.byteLength
+      return asset.descriptor
     } finally { this.#busy = false }
   }
 
@@ -390,8 +425,18 @@ export class KJAgentToolSession {
             let command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' = 'CREATEBATCH'
             let commandArgs: Record<string, unknown>
             let engineeringEvidence: unknown
-            if (name === 'cad_propose_road_drawing') {
-              const compiled = buildAgentRoadDrawing(document, args as unknown as KJAgentRoadDrawingInput)
+            let sourceAsset: ReadonlyDeep<KJAgentInputAssetDescriptor> | undefined
+            if (name === 'cad_propose_road_drawing' || name === 'cad_propose_road_drawing_from_asset') {
+              let roadInput = args
+              if (name === 'cad_propose_road_drawing_from_asset') {
+                const { assetId, sha256, ...settings } = args
+                const asset = this.#inputAssets.get(String(assetId))
+                if (!asset || typeof sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(sha256) || asset.descriptor.sha256 !== sha256) throw new KJValidationError('Input asset ID and SHA-256 must match data explicitly registered by this host session')
+                sourceAsset = asset.descriptor
+                roadInput = { ...asset.data, ...settings }
+                validate(roadDrawingSchema, roadInput)
+              }
+              const compiled = buildAgentRoadDrawing(document, roadInput as unknown as KJAgentRoadDrawingInput)
               commandArgs = structuredClone(compiled.commandArgs)
               engineeringEvidence = compiled.evidence
             } else if (name === 'cad_propose_drawing_annotated') {
@@ -449,12 +494,12 @@ export class KJAgentToolSession {
             }
             const definition = this.#sdk.commands.resolve(command)
             if (!definition || definition.owner !== '@kanjieteam/kjdraw') throw new KJValidationError('Agent preview requires the built-in core command')
-            const preview = await createAgentGeometryPreview(document, command, commandArgs, ['cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_road_drawing'].includes(name) ? { maxCreatedEntities: 512 } : {})
+            const preview = await createAgentGeometryPreview(document, command, commandArgs, ['cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_road_drawing', 'cad_propose_road_drawing_from_asset'].includes(name) ? { maxCreatedEntities: 512 } : {})
             const envelope = this.#sdk.createCommandEnvelope(command, commandArgs, { document, mode: 'plan', origin: 'ai', expectedRevision: preview.revision })
-            value = { planId: envelope.id, documentId: document.id, expectedRevision: envelope.expectedRevision, units: args.units, command, arguments: structuredClone(commandArgs), status: 'awaiting-host-approval', previewKind: 'geometry', preview, ...(engineeringEvidence ? { engineeringEvidence } : {}) }
-            if (name === 'cad_propose_road_drawing' && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > 1048576) throw new KJValidationError('Road tool proposal exceeds the 1 MiB output limit')
+            value = { planId: envelope.id, documentId: document.id, expectedRevision: envelope.expectedRevision, units: args.units, command, arguments: structuredClone(commandArgs), status: 'awaiting-host-approval', previewKind: 'geometry', preview, ...(engineeringEvidence ? { engineeringEvidence } : {}), ...(sourceAsset ? { sourceAsset } : {}) }
+            if (['cad_propose_road_drawing', 'cad_propose_road_drawing_from_asset'].includes(name) && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > 1048576) throw new KJValidationError('Road tool proposal exceeds the 1 MiB output limit')
             await this.#sdk.executeCommandEnvelope(envelope, { document })
-            this.#pending.set(envelope.id, { envelope, preview, definition })
+            this.#pending.set(envelope.id, { envelope, preview, definition, ...(sourceAsset ? { sourceAsset } : {}) })
             this.#proposals++
           }
         }
@@ -486,6 +531,7 @@ export class KJAgentToolSession {
       const pending = this.#pending.get(planId)
       if (!pending) throw new KJValidationError('Proposal is unavailable in this session')
       const plan = pending.envelope
+      if (pending.sourceAsset && this.#inputAssets.get(pending.sourceAsset.assetId)?.descriptor !== pending.sourceAsset) throw new KJValidationError('Input asset binding changed since preview; propose again')
       if (this.#sdk.commands.resolve(plan.command) !== pending.definition) throw new KJValidationError('Command changed since preview; reject and propose again')
       const envelope = this.#sdk.createCommandEnvelope(plan.command, plan.arguments, {
         document: this.#document, expectedRevision: plan.expectedRevision, origin: 'ai',
@@ -495,7 +541,7 @@ export class KJAgentToolSession {
       this.#pending.delete(planId)
       const receipt = await this.#sdk.executeCommandEnvelope(envelope, { document: this.#document })
       if (!agentPreviewMatchesDocument(this.#document, pending.preview)) throw new KJValidationError('Committed geometry differs from the reviewed preview; inspect the drawing before any retry')
-      return deepFreeze({ ok: true, value: { command: receipt.command, beforeRevision: receipt.beforeRevision, afterRevision: receipt.afterRevision, status: receipt.status } }) as KJAgentToolResult
+      return deepFreeze({ ok: true, value: { command: receipt.command, beforeRevision: receipt.beforeRevision, afterRevision: receipt.afterRevision, status: receipt.status, ...(pending.sourceAsset ? { sourceAsset: pending.sourceAsset } : {}) } }) as KJAgentToolResult
     } catch (error) { return failure(error) } finally { this.#busy = false }
   }
 
