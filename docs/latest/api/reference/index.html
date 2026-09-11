@@ -6425,6 +6425,9 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     entries?: record&lt;string, string | string[]&gt;;
     memberids?: string[];
     dxfplotsettings?: kjdxfplotsettings;
+    attributeids?: string[];
+    parentinsertid?: string | null;
+    sequenceendid?: string | null;
 }">
       <header><div><span class="kind">interface</span><h3>KJObjectPayload</h3></div><a class="permalink" href="#core-interface-kjobjectpayload" aria-label="Link to KJObjectPayload">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJObjectPayload extends Record&lt;string, unknown&gt; {
@@ -6436,6 +6439,9 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     entries?: Record&lt;string, string | string[]&gt;;
     memberIds?: string[];
     dxfPlotSettings?: KJDxfPlotSettings;
+    attributeIds?: string[];
+    parentInsertId?: string | null;
+    sequenceEndId?: string | null;
 }</code></pre>
       <p class="source-path">schema.d.ts</p>
     </article>
@@ -7696,6 +7702,8 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     _close(): void;
     _revisionoperations(maxembeddedoperations?: number): kjtransactionoperation[];
     getobject(id: string): kjobjectrecord | null;
+    /** apply one containing-space matrix to an insert and its attached attributes. */
+    transformentity(id: string, matrix: affinematrix3input): kjobjectrecord[];
     createobject(spec?: kjobjectspec): kjobjectrecord;
     createentity(type: string, payload?: kjobjectpayload, options?: kjobjectspec): kjobjectrecord;
     updateobject(id: string, patch?: kjobjectpatch): kjobjectrecord;
@@ -7731,6 +7739,8 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     _close(): void;
     _revisionOperations(maxEmbeddedOperations?: number): KJTransactionOperation[];
     getObject(id: string): KJObjectRecord | null;
+    /** Apply one containing-space matrix to an INSERT and its attached attributes. */
+    transformEntity(id: string, matrix: AffineMatrix3Input): KJObjectRecord[];
     createObject(spec?: KJObjectSpec): KJObjectRecord;
     createEntity(type: string, payload?: KJObjectPayload, options?: KJObjectSpec): KJObjectRecord;
     updateObject(id: string, patch?: KJObjectPatch): KJObjectRecord;
@@ -16149,6 +16159,9 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     entries?: record&lt;string, string | string[]&gt;;
     memberids?: string[];
     dxfplotsettings?: kjdxfplotsettings;
+    attributeids?: string[];
+    parentinsertid?: string | null;
+    sequenceendid?: string | null;
 }">
       <header><div><span class="kind">interface</span><h3>KJObjectPayload</h3></div><a class="permalink" href="#root-interface-kjobjectpayload" aria-label="Link to KJObjectPayload">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJObjectPayload extends Record&lt;string, unknown&gt; {
@@ -16160,6 +16173,9 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     entries?: Record&lt;string, string | string[]&gt;;
     memberIds?: string[];
     dxfPlotSettings?: KJDxfPlotSettings;
+    attributeIds?: string[];
+    parentInsertId?: string | null;
+    sequenceEndId?: string | null;
 }</code></pre>
       <p class="source-path">schema.d.ts</p>
     </article>
@@ -17523,6 +17539,8 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     _close(): void;
     _revisionoperations(maxembeddedoperations?: number): kjtransactionoperation[];
     getobject(id: string): kjobjectrecord | null;
+    /** apply one containing-space matrix to an insert and its attached attributes. */
+    transformentity(id: string, matrix: affinematrix3input): kjobjectrecord[];
     createobject(spec?: kjobjectspec): kjobjectrecord;
     createentity(type: string, payload?: kjobjectpayload, options?: kjobjectspec): kjobjectrecord;
     updateobject(id: string, patch?: kjobjectpatch): kjobjectrecord;
@@ -17558,6 +17576,8 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     _close(): void;
     _revisionOperations(maxEmbeddedOperations?: number): KJTransactionOperation[];
     getObject(id: string): KJObjectRecord | null;
+    /** Apply one containing-space matrix to an INSERT and its attached attributes. */
+    transformEntity(id: string, matrix: AffineMatrix3Input): KJObjectRecord[];
     createObject(spec?: KJObjectSpec): KJObjectRecord;
     createEntity(type: string, payload?: KJObjectPayload, options?: KJObjectSpec): KJObjectRecord;
     updateObject(id: string, patch?: KJObjectPatch): KJObjectRecord;

@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:ead4e3bcd13be20bc47896700824f5362ce6f8744782fa6d755e06841bc5f87b",
+  "sourceDigest": "sha256:3de0cfe22e0aaac0da1e14b19529e1d25c7724bb75969b30d1568d9c37704aba",
   "entries": [
     {
       "name": "extractKJModelUsage",

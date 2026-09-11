@@ -17,6 +17,9 @@ export interface KJObjectPayload extends Record<string, unknown> {
     entries?: Record<string, string | string[]>;
     memberIds?: string[];
     dxfPlotSettings?: KJDxfPlotSettings;
+    attributeIds?: string[];
+    parentInsertId?: string | null;
+    sequenceEndId?: string | null;
 }
 export interface KJObjectRecord<TPayload extends KJObjectPayload = KJObjectPayload> {
     id: string;

@@ -1,4 +1,5 @@
 import type { KJTableName } from './constants.js';
+import type { AffineMatrix3Input } from './geometry/matrix3.js';
 import type { KJDocumentState, KJObjectExtension, KJObjectPayload, KJObjectRecord, KJObjectSpec, KJResourceCollectionName } from './schema.js';
 import type { ReadonlyDeep } from './utils.js';
 export interface KJTransactionOperation extends Record<string, unknown> {
@@ -40,6 +41,8 @@ export declare class KJTransaction {
     _close(): void;
     _revisionOperations(maxEmbeddedOperations?: number): KJTransactionOperation[];
     getObject(id: string): KJObjectRecord | null;
+    /** Apply one containing-space matrix to an INSERT and its attached attributes. */
+    transformEntity(id: string, matrix: AffineMatrix3Input): KJObjectRecord[];
     createObject(spec?: KJObjectSpec): KJObjectRecord;
     createEntity(type: string, payload?: KJObjectPayload, options?: KJObjectSpec): KJObjectRecord;
     updateObject(id: string, patch?: KJObjectPatch): KJObjectRecord;
