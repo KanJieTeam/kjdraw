@@ -571,7 +571,7 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
       const weights = values(record, 41).map(Number)
       return { type: 'SPLINE', payload: { degree: number(record, 71), knots: values(record, 40).map(Number), weights: weights.length ? weights : undefined, controlPoints: repeatedPoints(record), fitPoints: repeatedPoints(record, 11, 21, 31), closed: (number(record, 70, 0) & 1) === 1, periodic: (number(record, 70, 0) & 2) === 2 } }
     }
-    case 'TEXT': return { type: 'TEXT', payload: { position: point(record), alignmentPoint: optionalPoint(record, 11, 21, 31) ?? undefined, horizontalAlignment: number(record, 72, 0), verticalAlignment: number(record, 73, 0), text: first(record, 1, ''), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null } }
+    case 'TEXT': return { type: 'TEXT', payload: { position: point(record), alignmentPoint: optionalPoint(record, 11, 21, 31) ?? undefined, horizontalAlignment: number(record, 72, 0), verticalAlignment: number(record, 73, 0), ...readDxfText(record), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null } }
     case 'MTEXT': return { type: 'MTEXT', payload: { position: point(record), text: values(record, 3).join('') + first(record, 1, ''), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null } }
     case 'ATTDEF':
     case 'ATTRIB': return { type: record.type, payload: { position: point(record), alignmentPoint: values(record, 11).length ? point(record, 11, 21, 31) : undefined, text: first(record, 1, ''), tag: first(record, 2, ''), prompt: first(record, 3, ''), flags: number(record, 70, 0), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null, lockPosition: number(record, 280, 0) === 1 } }
@@ -855,6 +855,19 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
   return document
 }
 
+// Only these three standard one-line DXF symbol controls are interpreted.
+// Keep the original encoding for an unchanged TEXT; unknown formatting is opaque.
+function decodeDxfTextSymbols(text: string): string {
+  return text.replace(/%%([cdp])/gi, (_, code: string) => ({ c: 'Ø', d: '°', p: '±' })[code.toLowerCase()]!)
+}
+function readDxfText(record: DxfRecord): { text: string; dxfText?: string } {
+  const dxfText = String(first(record, 1, '')), text = decodeDxfTextSymbols(dxfText)
+  return text === dxfText ? { text } : { text, dxfText }
+}
+function writeDxfText(payload: DxfPayload): unknown {
+  return typeof payload.dxfText === 'string' && decodeDxfTextSymbols(payload.dxfText) === payload.text ? payload.dxfText : payload.text
+}
+
 function emit(output: string[], code: number, value: unknown): void { output.push(String(code), String(value)) }
 function emitPoint(output: string[], pointValue: readonly number[], base = 10): void { emit(output, base, pointValue[0]); emit(output, base + 10, pointValue[1]); emit(output, base + 20, pointValue[2] ?? 0) }
 
@@ -1013,6 +1026,14 @@ function buildDimensionExportBlocks(
     const projection = projectDimension({ ...payload, dimensionType }, style)
     if (!projection) throw new KJValidationError(`DXF ${dimensionType} dimension ${entity.handle} has incomplete, non-finite, or degenerate definition points`)
     if ([2, 5].includes(subtype) && payload.rawTags?.length && referencedBlock && populatedSourceBlocks.has(referencedBlock.id)) assertAngularPictureSector(document, referencedBlock, payload, style)
+    let pictureText = projection.label.text
+    if (subtype === 3) {
+      // Encode only the generated diameter prefix, including automatic <> values
+      // inside a user template. Never replace a user's literal Unicode text.
+      const measured = projectDimension({ ...payload, dimensionType, textOverride: null }, style)!.label.text
+      const encoded = `%%c${measured.slice(1)}`
+      pictureText = payload.textOverride == null || payload.textOverride === '' ? encoded : String(payload.textOverride).replaceAll('<>', encoded)
+    }
     const blockName = allocateName()
     const blockHandle = context.allocateHandle()
     const geometry: DxfEntity[] = [
@@ -1040,7 +1061,7 @@ function buildDimensionExportBlocks(
         handle: context.allocateHandle(),
         payload: {
           position: [projection.label.position[0], projection.label.position[1], 0],
-          text: projection.label.text,
+          text: pictureText,
           height: projection.label.height,
           rotation: projection.label.rotation,
           alignmentPoint: [projection.label.position[0], projection.label.position[1], 0],
@@ -1445,7 +1466,7 @@ function emitEntity(
   } else if (entity.type === 'MTEXT') {
     emitSubclass(output, version, 'AcDbMText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, p.text); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI)
   } else if (entity.type === 'TEXT') {
-    emitSubclass(output, version, 'AcDbText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, p.text); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI); if (p.horizontalAlignment) emit(output, 72, p.horizontalAlignment); if (p.alignmentPoint) emitPoint(output, p.alignmentPoint, 11); emitSubclass(output, version, 'AcDbText'); if (p.verticalAlignment) emit(output, 73, p.verticalAlignment)
+    emitSubclass(output, version, 'AcDbText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, writeDxfText(p)); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI); if (p.horizontalAlignment) emit(output, 72, p.horizontalAlignment); if (p.alignmentPoint) emitPoint(output, p.alignmentPoint, 11); emitSubclass(output, version, 'AcDbText'); if (p.verticalAlignment) emit(output, 73, p.verticalAlignment)
   } else if (entity.type === 'ATTDEF' || entity.type === 'ATTRIB') {
     emitSubclass(output, version, 'AcDbText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, p.text); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI); if (p.alignmentPoint) emitPoint(output, p.alignmentPoint, 11)
     emitSubclass(output, version, entity.type === 'ATTDEF' ? 'AcDbAttributeDefinition' : 'AcDbAttribute')

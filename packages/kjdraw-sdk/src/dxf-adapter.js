@@ -716,7 +716,7 @@ function entityPayload(record, blockIds, resources = {}) {
                     alignmentPoint: optionalPoint(record, 11, 21, 31) ?? undefined,
                     horizontalAlignment: number(record, 72, 0),
                     verticalAlignment: number(record, 73, 0),
-                    text: first(record, 1, ''),
+                    ...readDxfText(record),
                     height: number(record, 40, 2.5),
                     rotation: number(record, 50, 0) * Math.PI / 180,
                     styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null
@@ -1413,6 +1413,25 @@ async function readDXF(source, options = {}) {
     });
     return document;
 }
+function decodeDxfTextSymbols(text) {
+    return text.replace(/%%([cdp])/gi, (_, code)=>({
+            c: 'Ø',
+            d: '°',
+            p: '±'
+        })[code.toLowerCase()]);
+}
+function readDxfText(record) {
+    const dxfText = String(first(record, 1, '')), text = decodeDxfTextSymbols(dxfText);
+    return text === dxfText ? {
+        text
+    } : {
+        text,
+        dxfText
+    };
+}
+function writeDxfText(payload) {
+    return typeof payload.dxfText === 'string' && decodeDxfTextSymbols(payload.dxfText) === payload.text ? payload.dxfText : payload.text;
+}
 function emit(output, code, value) {
     output.push(String(code), String(value));
 }
@@ -1658,6 +1677,16 @@ function buildDimensionExportBlocks(document, entities, sourceBlocks, dimensionS
             2,
             5
         ].includes(subtype) && payload.rawTags?.length && referencedBlock && populatedSourceBlocks.has(referencedBlock.id)) assertAngularPictureSector(document, referencedBlock, payload, style);
+        let pictureText = projection.label.text;
+        if (subtype === 3) {
+            const measured = projectDimension({
+                ...payload,
+                dimensionType,
+                textOverride: null
+            }, style).label.text;
+            const encoded = `%%c${measured.slice(1)}`;
+            pictureText = payload.textOverride == null || payload.textOverride === '' ? encoded : String(payload.textOverride).replaceAll('<>', encoded);
+        }
         const blockName = allocateName();
         const blockHandle = context.allocateHandle();
         const geometry = [
@@ -1728,7 +1757,7 @@ function buildDimensionExportBlocks(document, entities, sourceBlocks, dimensionS
                         projection.label.position[1],
                         0
                     ],
-                    text: projection.label.text,
+                    text: pictureText,
                     height: projection.label.height,
                     rotation: projection.label.rotation,
                     alignmentPoint: [
@@ -2337,7 +2366,7 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emitSubclass(output, version, 'AcDbText');
         emitPoint(output, p.position);
         emit(output, 40, p.height);
-        emit(output, 1, p.text);
+        emit(output, 1, writeDxfText(p));
         if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD');
         if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI);
         if (p.horizontalAlignment) emit(output, 72, p.horizontalAlignment);
