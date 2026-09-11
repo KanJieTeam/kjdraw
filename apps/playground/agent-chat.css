@@ -55,3 +55,11 @@
 .chat-attach-view{display:flex;align-items:center;gap:6px;font-size:12px;margin:6px 0;color:var(--kj-text-muted,#66758a)}
 .chat-attach-view input{width:auto;margin:0}
 .chat-view-thumbnail{display:block;width:100%;max-height:180px;object-fit:contain;margin-top:8px;border:1px solid var(--kj-border,#dce2eb);border-radius:6px;background:#fff}
+.chat-data-attachment { min-width: 0; margin: 6px 0; font-size: 11px; }
+.chat-data-attachment > button { padding: 4px 7px; margin: 0 4px 4px 0; border-radius: 6px; font-size: 11px; }
+.chat-data-attachment > small { display: block; font-size: 10px; line-height: 1.4; color: var(--kj-muted); }
+.chat-data-status { margin: 3px 0; overflow-wrap: anywhere; }
+.chat-data-attachment p:empty { display: none; }
+.chat-data-attachment details, .chat-sent-data { min-width: 0; max-width: 100%; }
+.chat-data-attachment summary, .chat-sent-data summary { cursor: pointer; overflow-wrap: anywhere; font-size: 11px; }
+.chat-data-attachment pre, .chat-sent-data pre { max-height: 160px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.5 var(--kj-mono); }
