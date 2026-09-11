@@ -3,7 +3,7 @@ import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 import { KJValidationError } from './errors.js'
 import { canonicalStringify, deepFreeze, type ReadonlyDeep } from './utils.js'
 import { projectDimension } from './geometry/annotation.js'
-import { multiply3, rotation3, scale3, translation3 } from './geometry/matrix3.js'
+import { multiply3, rotation3, scale3, translation3, transformPoint3, type AffineMatrix3 } from './geometry/matrix3.js'
 import { transformEntityPayload } from './geometry/transform.js'
 
 /** Immutable native block graph and styles needed to interpret INSERT previews.
@@ -24,6 +24,7 @@ const project = (object: KJReadonlyObjectRecord): KJAgentBlockPreviewDependency 
 const xy = (point: unknown): boolean => Array.isArray(point) && point.length === 3 && point.every(n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 1e12) && point[2] === 0
 
 function plane(payload: ReadonlyDeep<KJObjectPayload>): void {
+  if (payload.mirrored === true) fail('mirrored block geometry is not supported')
   for (const key of ['normal', 'extrusionDirection']) {
     const normal = payload[key]
     if (normal != null && (!Array.isArray(normal) || normal.length !== 3 || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) fail('only default +Z block geometry is supported')
@@ -110,12 +111,32 @@ export function captureAgentBlockDependencies(document: KJDocument, ids: readonl
     if (!points.length || !points.every(xy)) fail('complete finite model-XY geometry at z=0 is required')
     if ((type === 'LINE' || type === 'LWPOLYLINE') && points.every(point => canonicalStringify(point) === canonicalStringify(points[0]))) fail('degenerate block geometry cannot be previewed')
   }
-  const visit = (entity: KJReadonlyObjectRecord, rendered: ReadonlyDeep<KJObjectPayload>, path: ReadonlySet<string>, depth: number): void => {
+  const dimensionInView = (entity: KJReadonlyObjectRecord, matrix: AffineMatrix3): void => {
+    // Match Canvas: measure the original owner-local definition, then transform
+    // its graphics. Reprojecting transformed definition points changes the value.
+    geometry('DIMENSION', entity.payload)
+    const projection = projectDimension(entity.payload, document.getObject(String(entity.payload.styleId ?? ''))?.payload)!
+    const bounded = (value: number): boolean => Number.isFinite(value) && Math.abs(value) <= 1e12
+    const scale = Math.hypot(matrix[0], matrix[1])
+    const points = [...projection.lines.flat(), ...projection.arrows.flat(), projection.label.position]
+    if (!bounded(projection.measurement) || !bounded(projection.label.height * scale) || projection.label.height * scale <= 0 || !bounded(projection.label.rotation)) fail('dimension display exceeds the finite geometry budget')
+    for (const point of points) if (!transformPoint3(matrix, point).every(value => typeof value === 'number' && bounded(value))) fail('dimension display exceeds the finite geometry budget')
+    for (const arc of projection.arcs) {
+      const center = transformPoint3(matrix, arc.center), radius = arc.radius * scale
+      if (!bounded(radius) || radius <= 0 || !bounded(arc.startAngle) || !bounded(arc.endAngle) || ![center[0] - radius, center[0] + radius, center[1] - radius, center[1] + radius].every(bounded)) fail('dimension arc display exceeds the finite geometry budget')
+    }
+  }
+  const visit = (entity: KJReadonlyObjectRecord, path: ReadonlySet<string>, depth: number, inheritedMatrix?: AffineMatrix3): void => {
     if (++instances > MAX_INSTANCES) fail('expanded block graph exceeds 512 instances')
     if (!supported.has(entity.type)) fail(`unsupported block entity ${entity.type}`)
     visible(entity)
-    if (entity.type !== 'INSERT') { geometry(entity.type, rendered); return }
+    if (entity.type !== 'INSERT') {
+      if (entity.type === 'DIMENSION' && inheritedMatrix) dimensionInView(entity, inheritedMatrix)
+      else geometry(entity.type, inheritedMatrix ? transformEntityPayload(entity.type, entity.payload, inheritedMatrix) : entity.payload)
+      return
+    }
     if (depth >= MAX_DEPTH) fail('block nesting exceeds 8 levels')
+    const rendered = entity.payload
     plane(rendered)
     if (!xy(rendered.position)) fail('INSERT position must be model XY at z=0')
     const scale = rendered.scale
@@ -135,15 +156,16 @@ export function captureAgentBlockDependencies(document: KJDocument, ids: readonl
     blockChildren.set(block.id, children)
     if (!children.length) fail('empty block cannot supply a complete visual preview')
     const basePoint = base as number[], position = rendered.position as number[]
-    const matrix = multiply3(translation3(position[0]!, position[1]!), multiply3(rotation3(rendered.rotation), multiply3(scale3(scale[0], scale[1]), translation3(-basePoint[0]!, -basePoint[1]!))))
+    const localMatrix = multiply3(translation3(position[0]!, position[1]!), multiply3(rotation3(rendered.rotation), multiply3(scale3(scale[0], scale[1]), translation3(-basePoint[0]!, -basePoint[1]!))))
+    const matrix = inheritedMatrix ? multiply3(inheritedMatrix, localMatrix) : localMatrix
+    if (!matrix.every(Number.isFinite) || inheritedMatrix && !xy(transformPoint3(inheritedMatrix, position))) fail('block transform exceeds the finite geometry budget')
     const nextPath = new Set(path); nextPath.add(block.id)
     for (const child of children) {
       add(child)
-      if (child.type === 'DIMENSION' && scale[0] !== 1) fail('scaled block dimensions need a separate annotation preview')
-      visit(child, transformEntityPayload(child.type, child.payload, matrix), nextPath, depth + 1)
+      visit(child, nextPath, depth + 1, matrix)
     }
   }
-  for (const root of roots) visit(root, root.payload, new Set(), 0)
+  for (const root of roots) visit(root, new Set(), 0)
   return deepFreeze([...dependencies.values()]) as readonly KJAgentBlockPreviewDependency[]
 }
 

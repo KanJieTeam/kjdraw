@@ -164,14 +164,19 @@ for (const type of ['ROTATE', 'SCALE']) test(`${type} rejects stale dependencies
   assert.equal(invoked, false); assert.equal(document.serialize(), changed)
 })
 
-test('scaling a block with native dimensions is explicitly rejected while rotating an unscaled block remains measurable', async () => {
+test('scaling and rotating a block preserves its local native dimension measurement and definition', async () => {
   const { document, session } = await fixture()
   await document.transact('Block dimension', tx => tx.createEntity('DIMENSION', { dimensionType: 'ALIGNED', definitionPoints: [[5, 0], [5, 5], [25, 5]] }, { id: 'block-dim', ownerId: 'body' }))
-  const before = document.serialize()
-  const scale = await session.call('cad_propose_scale', args(document, 'SCALE', { ids: ['pump'] }))
-  assert.equal(scale.ok, false); assert.match(scale.error.message, /scaled block dimensions/); assert.equal(document.serialize(), before)
+  const before = document.serialize(), original = document.getObject('block-dim')
+  const scale = value(await session.call('cad_propose_scale', args(document, 'SCALE', { ids: ['pump'] })))
+  assert.equal(document.serialize(), before)
+  assert.deepEqual(scale.preview.blockDependencies.find(item => item.id === 'block-dim').payload, JSON.parse(JSON.stringify(original.payload)))
+  value(await session.approve(scale.planId, 'reviewer'))
+  assert.deepEqual(document.getObject('block-dim'), original)
+  near(projectDimension(document.getObject('block-dim').payload).measurement, 20)
   const rotate = value(await session.call('cad_propose_rotate', args(document, 'ROTATE', { ids: ['pump'] })))
   value(await session.approve(rotate.planId, 'reviewer'))
+  assert.deepEqual(document.getObject('block-dim'), original)
   near(projectDimension(document.getObject('block-dim').payload).measurement, 20)
   for (const name of ['cad_propose_rotate', 'cad_propose_scale']) {
     const definition = KJDRAW_AGENT_TOOLS.find(item => item.name === name)
@@ -221,4 +226,68 @@ for (const type of ['ROTATE', 'SCALE']) test(`${type} remains subject to host ex
   sdk.commands.register(core, { owner: '@kanjieteam/kjdraw', replace: true }); events.length = 0
   const next = value(await session.call(tool(type), args(document, type))); value(await session.approve(next.planId, 'reviewer'))
   assert.deepEqual(events, [['planned', type], ['before-execute', type], ['committed', type]])
+})
+
+async function dimensionedBlockFixture() {
+  const result = await fixture()
+  await result.document.transact('Mixed native equipment dimensions', tx => {
+    tx.updateObject('nested', { payload: { scale: [1.5, 1.5, 1], rotation: Math.PI / 6 } })
+    for (const [id, ownerId, dimensionType, definitionPoints] of [
+      ['block-aligned', 'body', 'ALIGNED', [[5, 0], [5, 5], [25, 5]]],
+      ['block-rotated', 'body', 'ROTATED', [[5, -5], [5, 5], [25, 5]]],
+      ['motor-radius', 'motor', 'RADIUS', [[2, 1], [5, 1]]],
+      ['motor-diameter', 'motor', 'DIAMETER', [[-1, 1], [5, 1]]],
+      ['motor-angular', 'motor', 'ANGULAR_3_POINT', [[4, 3], [5, 1], [2, 4], [2, 1]]],
+    ]) tx.createEntity('DIMENSION', { dimensionType, definitionPoints, textHeight: 1.2, ...(ownerId === 'body' ? { styleId: 'style' } : {}), rotation: 0 }, { id, ownerId })
+  })
+  return result
+}
+
+for (const factor of [2, .25]) test(`dimensioned nested INSERT scales by ${factor} without changing local definitions or measurements`, async () => {
+  const { sdk, document, session } = await dimensionedBlockFixture()
+  const original = new Map(document.listObjects().map(item => [item.id, item])), source = document.serialize(), history = document.history
+  const measurements = { 'block-aligned': 20, 'block-rotated': 20, 'motor-radius': 3, 'motor-diameter': 6, 'motor-angular': 90 }
+  const proposal = value(await session.call('cad_propose_scale', args(document, 'SCALE', { ids: ['pump'], factor })))
+  assert.equal(document.serialize(), source); assert.deepEqual(document.history, history)
+  assert.deepEqual(proposal.preview.before.map(item => item.id), ['pump']); assert.deepEqual(proposal.preview.after.map(item => item.id), ['pump'])
+  nearPoint(proposal.preview.after[0].payload.scale, [factor, factor, factor])
+  nearPoint(proposal.preview.after[0].payload.position, [10 + 60 * factor, 20 + 20 * factor, 0])
+  for (const [id, expected] of Object.entries(measurements)) {
+    const dependency = proposal.preview.blockDependencies.find(item => item.id === id)
+    assert.deepEqual(dependency.payload, JSON.parse(JSON.stringify(original.get(id).payload)))
+    near(projectDimension(dependency.payload, document.getObject(dependency.payload.styleId)?.payload).measurement, expected)
+  }
+  value(await session.approve(proposal.planId, 'reviewer'))
+  assert.equal(document.revision, proposal.expectedRevision + 1); assert.equal(agentPreviewMatchesDocument(document, proposal.preview), true)
+  for (const [id, record] of original) if (id !== 'pump') assert.deepEqual(document.getObject(id), record)
+  const accepted = document.getObject('pump')
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) }), { format })
+    for (const [id, expected] of Object.entries(measurements)) {
+      const actual = reopened.listEntities({ type: 'DIMENSION' }).find(item => item.handle === original.get(id).handle)
+      assert.ok(actual, id); assert.deepEqual(actual.payload.definitionPoints, original.get(id).payload.definitionPoints)
+      near(projectDimension(actual.payload, reopened.getObject(actual.payload.styleId)?.payload).measurement, expected)
+      assert.equal(reopened.getObject(actual.ownerId).name, original.get(original.get(id).ownerId).name)
+    }
+    const blockInsert = reopened.listEntities({ ownerId: reopened.snapshot().spaces.modelSpaceId, type: 'INSERT' }).find(item => item.handle === accepted.handle)
+    nearPoint(blockInsert.payload.scale, accepted.payload.scale); nearPoint(blockInsert.payload.position, accepted.payload.position)
+  }
+  await document.undo(); for (const [id, record] of original) assert.deepEqual(document.getObject(id), record)
+  await document.redo(); assert.deepEqual(document.getObject('pump'), accepted)
+  for (const [id, record] of original) if (id !== 'pump') assert.deepEqual(document.getObject(id), record)
+})
+
+test('dimensioned block scaling keeps reflection, anisotropy, protected graphs and display bounds closed', async () => {
+  const cases = [
+    ['pump', { scale: [-1, 1, 1] }], ['nested', { scale: [1, 2, 1] }], ['nested', { mirrored: true }], ['pump', { mirrored: true }],
+    ['motor-angular', { normal: [0, 1, 0] }], ['motor-angular', { visible: false }], ['motor-radius', { locked: true }],
+    ['motor-radius', { dimensionType: 'ORDINATE' }], ['motor', { dxfFlags: 4 }], ['style', { arrowSize: 1e12 }],
+    ['motor-angular', { textHeight: 1e12 }],
+  ]
+  for (const [id, payload] of cases) {
+    const { document, session } = await dimensionedBlockFixture()
+    await document.transact('Unsupported dimensioned block', tx => tx.updateObject(id, { payload }))
+    const source = document.serialize(), result = await session.call('cad_propose_scale', args(document, 'SCALE', { ids: ['pump'], factor: 10 }))
+    assert.equal(result.ok, false, JSON.stringify([id, payload])); assert.equal(document.serialize(), source)
+  }
 })

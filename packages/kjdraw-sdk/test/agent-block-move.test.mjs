@@ -142,20 +142,16 @@ test('definition and style changes invalidate block approval and immutable depen
   assert.deepEqual(captureAgentBlockDependencies(document, ['body-label']), undefined)
 })
 
-test('empty, unsupported and scaled-dimension blocks fail instead of showing incomplete geometry', async () => {
-  for (const mode of ['empty', 'unsupported', 'scaled-dimension']) {
+test('empty, unsupported and unprojectable-dimension blocks fail instead of showing incomplete geometry', async () => {
+  for (const mode of ['empty', 'unsupported', 'unprojectable-dimension']) {
     const { document, session } = await fixture()
     await document.transact(mode, tx => {
       if (mode === 'empty') for (const id of ['motor-circle', 'motor-shaft']) tx.eraseObject(id)
       else if (mode === 'unsupported') tx.createEntity('UNSUPPORTED_BLOCK_CHILD', { position: [0, 0, 0] }, { ownerId: 'body' })
-      else tx.createEntity('DIMENSION', { dimensionType: 'ALIGNED', definitionPoints: [[0, 4, 0], [0, 0, 0], [10, 0, 0]] }, { ownerId: 'body' })
+      else tx.createEntity('DIMENSION', { dimensionType: 'ORDINATE', definitionPoints: [[0, 4, 0], [0, 0, 0], [10, 0, 0]] }, { ownerId: 'body' })
     })
     const source = document.serialize()
     assert.equal((await session.call('cad_propose_move', args(document))).ok, false, mode)
     assert.equal(document.serialize(), source)
-    if (mode === 'scaled-dimension') {
-      await document.transact('Unscaled assembly', tx => tx.updateObject('pump', { payload: { scale: [1, 1, 1] } }))
-      assert.equal((await session.call('cad_propose_move', args(document))).ok, true)
-    }
   }
 })
