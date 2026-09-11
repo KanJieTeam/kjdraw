@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:b2f1f4a19149ecb96fcd56b4b3b2d316e5e83750f3e74e408a6571a8e218c4a2",
+  "sourceDigest": "sha256:ead4e3bcd13be20bc47896700824f5362ce6f8744782fa6d755e06841bc5f87b",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -338,7 +338,7 @@
       "module": "@kanjieteam/kjdraw/agent-tools",
       "href": "./api/reference/#agent-tools-type-default",
       "anchor": "agent-tools-type-default",
-      "summary": "export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-revision.js'; export type { KJAgentRoadDrawingInput } from './agent-road-drawing.js'; export type { KJAgentDrawingInput, KJAgentPoi"
+      "summary": "export type { KJAgentInputAssetDescriptor, KJAgentInputAssetReference, KJAgentInputAssetRegistration } from './input-assets.js'; export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-re"
     },
     {
       "name": "KJAgentAnnotatedDrawingInput",
@@ -381,6 +381,14 @@
       "summary": "export interface KJAgentPatternDrawingInput extends KJAgentCompactDrawingInput { arrays: (KJRectangularDrawingPattern & { sources: string[]; })[]; }"
     },
     {
+      "name": "KJAgentRoadDrawingFromAssetInput",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-type-kjagentroaddrawingfromassetinput",
+      "anchor": "agent-tools-type-kjagentroaddrawingfromassetinput",
+      "summary": "export type KJAgentRoadDrawingFromAssetInput = Pick<KJAgentRoadDrawingInput, 'expectedRevision' | 'units' | 'drawingId' | 'title' | 'profileScale' | 'sectionScale' | 'textHeight' | 'sectionColumns' | 'precision'> & KJAge"
+    },
+    {
       "name": "KJAgentToolDefinition",
       "kind": "interface",
       "module": "@kanjieteam/kjdraw/agent-tools",
@@ -419,6 +427,14 @@
       "href": "./api/reference/#agent-tools-const-kjdraw-agent-tools",
       "anchor": "agent-tools-const-kjdraw-agent-tools",
       "summary": "export declare const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[];"
+    },
+    {
+      "name": "KJDRAW_ROAD_INPUT_ASSET_SCHEMA",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw/agent-tools",
+      "href": "./api/reference/#agent-tools-const-kjdraw-road-input-asset-schema",
+      "anchor": "agent-tools-const-kjdraw-road-input-asset-schema",
+      "summary": "export declare const KJDRAW_ROAD_INPUT_ASSET_SCHEMA: 'com.kanjie.kjdraw.road-design-input@1';"
     },
     {
       "name": "createDrawingContext",
@@ -5874,7 +5890,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-type-default",
       "anchor": "root-type-default",
-      "summary": "export type { KJWorkbenchLayout } from './workbench.js'; export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-revision.js'; export type { KJAgentRoadDrawingInput } from './agent-road-d"
+      "summary": "export type { KJWorkbenchLayout } from './workbench.js'; export type { KJAgentInputAssetDescriptor, KJAgentInputAssetReference, KJAgentInputAssetRegistration } from './input-assets.js'; export type { KJAgentRoadRevisionI"
     },
     {
       "name": "DEFAULT_TOLERANCE",
@@ -6571,6 +6587,14 @@
       "href": "./api/reference/#root-interface-kjagentplanregistryoptions",
       "anchor": "root-interface-kjagentplanregistryoptions",
       "summary": "export interface KJAgentPlanRegistryOptions { clock?: () => number; defaultTtlMs?: number; bindingProvider?: KJAgentPlanBindingProvider; }"
+    },
+    {
+      "name": "KJAgentRoadDrawingFromAssetInput",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjagentroaddrawingfromassetinput",
+      "anchor": "root-type-kjagentroaddrawingfromassetinput",
+      "summary": "export type KJAgentRoadDrawingFromAssetInput = Pick<KJAgentRoadDrawingInput, 'expectedRevision' | 'units' | 'drawingId' | 'title' | 'profileScale' | 'sectionScale' | 'textHeight' | 'sectionColumns' | 'precision'> & KJAge"
     },
     {
       "name": "KJAgentRunMeasurements",
@@ -7563,6 +7587,14 @@
       "href": "./api/reference/#root-const-kjdraw-plugin-schema-version",
       "anchor": "root-const-kjdraw-plugin-schema-version",
       "summary": "export declare const KJDRAW_PLUGIN_SCHEMA_VERSION = 1;"
+    },
+    {
+      "name": "KJDRAW_ROAD_INPUT_ASSET_SCHEMA",
+      "kind": "const",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-const-kjdraw-road-input-asset-schema",
+      "anchor": "root-const-kjdraw-road-input-asset-schema",
+      "summary": "export declare const KJDRAW_ROAD_INPUT_ASSET_SCHEMA: 'com.kanjie.kjdraw.road-design-input@1';"
     },
     {
       "name": "KJDRAW_VERSION",

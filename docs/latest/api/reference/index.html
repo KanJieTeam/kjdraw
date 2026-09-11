@@ -755,13 +755,15 @@
   <header class="module-header"><div><p class="eyebrow">PACKAGE EXPORT</p><h2><code>@kanjieteam/kjdraw/agent-tools</code></h2></div><a class="permalink" href="#module-agent-tools" aria-label="Link to @kanjieteam/kjdraw/agent-tools">#</a></header>
   <p class="module-source"><span class="lang-en">Declaration</span><span class="lang-zh">类型声明</span> <code>types/agent-tools.d.ts</code></p>
   <div class="api-symbols">
-    <article class="api-symbol" id="agent-tools-type-default" data-search="default type @kanjieteam/kjdraw/agent-tools export type { kjagentroadrevisioninput, kjagentroadrevisionproposal } from &#39;./agent-road-revision.js&#39;;
+    <article class="api-symbol" id="agent-tools-type-default" data-search="default type @kanjieteam/kjdraw/agent-tools export type { kjagentinputassetdescriptor, kjagentinputassetreference, kjagentinputassetregistration } from &#39;./input-assets.js&#39;;
+export type { kjagentroadrevisioninput, kjagentroadrevisionproposal } from &#39;./agent-road-revision.js&#39;;
 export type { kjagentroaddrawinginput } from &#39;./agent-road-drawing.js&#39;;
 export type { kjagentdrawinginput, kjagentpoint } from &#39;./agent-drawing.js&#39;;
 export type { kjagentcompactdrawinginput } from &#39;./agent-drawing-compact.js&#39;;
 export type { kjagentgeometrypreview, kjagentpreviewentity } from &#39;./agent-preview.js&#39;;">
       <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#agent-tools-type-default" aria-label="Link to default">#</a></header>
-      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from &#39;./agent-road-revision.js&#39;;
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJAgentInputAssetDescriptor, KJAgentInputAssetReference, KJAgentInputAssetRegistration } from &#39;./input-assets.js&#39;;
+export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from &#39;./agent-road-revision.js&#39;;
 export type { KJAgentRoadDrawingInput } from &#39;./agent-road-drawing.js&#39;;
 export type { KJAgentDrawingInput, KJAgentPoint } from &#39;./agent-drawing.js&#39;;
 export type { KJAgentCompactDrawingInput } from &#39;./agent-drawing-compact.js&#39;;
@@ -931,6 +933,11 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
 }</code></pre>
       <p class="source-path">agent-tools.d.ts</p>
     </article>
+<article class="api-symbol" id="agent-tools-type-kjagentroaddrawingfromassetinput" data-search="kjagentroaddrawingfromassetinput type @kanjieteam/kjdraw/agent-tools export type kjagentroaddrawingfromassetinput = pick&lt;kjagentroaddrawinginput, &#39;expectedrevision&#39; | &#39;units&#39; | &#39;drawingid&#39; | &#39;title&#39; | &#39;profilescale&#39; | &#39;sectionscale&#39; | &#39;textheight&#39; | &#39;sectioncolumns&#39; | &#39;precision&#39;&gt; &amp; kjagentinputassetreference;">
+      <header><div><span class="kind">type</span><h3>KJAgentRoadDrawingFromAssetInput</h3></div><a class="permalink" href="#agent-tools-type-kjagentroaddrawingfromassetinput" aria-label="Link to KJAgentRoadDrawingFromAssetInput">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJAgentRoadDrawingFromAssetInput = Pick&lt;KJAgentRoadDrawingInput, &#39;expectedRevision&#39; | &#39;units&#39; | &#39;drawingId&#39; | &#39;title&#39; | &#39;profileScale&#39; | &#39;sectionScale&#39; | &#39;textHeight&#39; | &#39;sectionColumns&#39; | &#39;precision&#39;&gt; &amp; KJAgentInputAssetReference;</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
 <article class="api-symbol" id="agent-tools-interface-kjagenttooldefinition" data-search="kjagenttooldefinition interface @kanjieteam/kjdraw/agent-tools export interface kjagenttooldefinition {
     readonly name: string;
     readonly description: string;
@@ -1012,6 +1019,9 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     /** trusted host operation: verify saved parameters against all current generated objects.
      * registration is bound to this exact document revision and is not model-callable. */
     registerroaddrawingrecipe(recipe: unknown): promise&lt;readonlydeep&lt;kjrestoredroaddrawingrecipe&gt;&gt;;
+    /** host-only registration of explicitly selected data. assets belong to this
+     * exact session/document instance; they are never loaded by model paths or urls. */
+    registerinputasset(input: unknown): promise&lt;readonlydeep&lt;kjagentinputassetdescriptor&gt;&gt;;
     call(name: string, input: unknown): promise&lt;kjagenttoolresult&gt;;
     /** invoke only after an authenticated host collected review of these exact arguments. */
     approve(planid: string, reviewerid: string): promise&lt;kjagenttoolresult&gt;;
@@ -1026,6 +1036,9 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     /** Trusted host operation: verify saved parameters against all current generated objects.
      * Registration is bound to this exact document revision and is not model-callable. */
     registerRoadDrawingRecipe(recipe: unknown): Promise&lt;ReadonlyDeep&lt;KJRestoredRoadDrawingRecipe&gt;&gt;;
+    /** Host-only registration of explicitly selected data. Assets belong to this
+     * exact session/document instance; they are never loaded by model paths or URLs. */
+    registerInputAsset(input: unknown): Promise&lt;ReadonlyDeep&lt;KJAgentInputAssetDescriptor&gt;&gt;;
     call(name: string, input: unknown): Promise&lt;KJAgentToolResult&gt;;
     /** Invoke only after an authenticated host collected review of these exact arguments. */
     approve(planId: string, reviewerId: string): Promise&lt;KJAgentToolResult&gt;;
@@ -1037,6 +1050,11 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
       <header><div><span class="kind">const</span><h3>KJDRAW_AGENT_TOOLS</h3></div><a class="permalink" href="#agent-tools-const-kjdraw-agent-tools" aria-label="Link to KJDRAW_AGENT_TOOLS">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[];</code></pre>
       <p class="source-path">agent-tools.d.ts</p>
+    </article>
+<article class="api-symbol" id="agent-tools-const-kjdraw-road-input-asset-schema" data-search="kjdraw_road_input_asset_schema const @kanjieteam/kjdraw/agent-tools export declare const kjdraw_road_input_asset_schema: &#39;com.kanjie.kjdraw.road-design-input@1&#39;;">
+      <header><div><span class="kind">const</span><h3>KJDRAW_ROAD_INPUT_ASSET_SCHEMA</h3></div><a class="permalink" href="#agent-tools-const-kjdraw-road-input-asset-schema" aria-label="Link to KJDRAW_ROAD_INPUT_ASSET_SCHEMA">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_ROAD_INPUT_ASSET_SCHEMA: &#39;com.kanjie.kjdraw.road-design-input@1&#39;;</code></pre>
+      <p class="source-path">input-assets.d.ts</p>
     </article>
   </div>
 </section>
@@ -10436,6 +10454,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
       <p class="source-path">utils.d.ts</p>
     </article>
 <article class="api-symbol" id="root-type-default" data-search="default type @kanjieteam/kjdraw export type { kjworkbenchlayout } from &#39;./workbench.js&#39;;
+export type { kjagentinputassetdescriptor, kjagentinputassetreference, kjagentinputassetregistration } from &#39;./input-assets.js&#39;;
 export type { kjagentroadrevisioninput, kjagentroadrevisionproposal } from &#39;./agent-road-revision.js&#39;;
 export type { kjagentroaddrawinginput } from &#39;./agent-road-drawing.js&#39;;
 export type { kjagentdrawinginput, kjagentpoint } from &#39;./agent-drawing.js&#39;;
@@ -10446,6 +10465,7 @@ export type { kjboxselectionmode, kjspatialselectionoptions } from &#39;./select
 export type { kjboxselectionmode, kjspatialselectionoptions } from &#39;./selection-geometry.js&#39;;">
       <header><div><span class="kind">type</span><h3>default</h3></div><a class="permalink" href="#root-type-default" aria-label="Link to default">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type { KJWorkbenchLayout } from &#39;./workbench.js&#39;;
+export type { KJAgentInputAssetDescriptor, KJAgentInputAssetReference, KJAgentInputAssetRegistration } from &#39;./input-assets.js&#39;;
 export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from &#39;./agent-road-revision.js&#39;;
 export type { KJAgentRoadDrawingInput } from &#39;./agent-road-drawing.js&#39;;
 export type { KJAgentDrawingInput, KJAgentPoint } from &#39;./agent-drawing.js&#39;;
@@ -11937,6 +11957,11 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }</code></pre>
       <p class="source-path">agent-plans.d.ts</p>
     </article>
+<article class="api-symbol" id="root-type-kjagentroaddrawingfromassetinput" data-search="kjagentroaddrawingfromassetinput type @kanjieteam/kjdraw export type kjagentroaddrawingfromassetinput = pick&lt;kjagentroaddrawinginput, &#39;expectedrevision&#39; | &#39;units&#39; | &#39;drawingid&#39; | &#39;title&#39; | &#39;profilescale&#39; | &#39;sectionscale&#39; | &#39;textheight&#39; | &#39;sectioncolumns&#39; | &#39;precision&#39;&gt; &amp; kjagentinputassetreference;">
+      <header><div><span class="kind">type</span><h3>KJAgentRoadDrawingFromAssetInput</h3></div><a class="permalink" href="#root-type-kjagentroaddrawingfromassetinput" aria-label="Link to KJAgentRoadDrawingFromAssetInput">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJAgentRoadDrawingFromAssetInput = Pick&lt;KJAgentRoadDrawingInput, &#39;expectedRevision&#39; | &#39;units&#39; | &#39;drawingId&#39; | &#39;title&#39; | &#39;profileScale&#39; | &#39;sectionScale&#39; | &#39;textHeight&#39; | &#39;sectionColumns&#39; | &#39;precision&#39;&gt; &amp; KJAgentInputAssetReference;</code></pre>
+      <p class="source-path">agent-tools.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-interface-kjagentrunmeasurements" data-search="kjagentrunmeasurements interface @kanjieteam/kjdraw export interface kjagentrunmeasurements {
     readonly turns: readonly kjagentturnusage[];
     readonly totals: readonly&lt;record&lt;&#39;inputtokens&#39; | &#39;outputtokens&#39; | &#39;totaltokens&#39; | &#39;cachereadinputtokens&#39; | &#39;cachemissinputtokens&#39; | &#39;cachewriteinputtokens&#39; | &#39;reasoningoutputtokens&#39;, number | null&gt;&gt;;
@@ -12132,6 +12157,9 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     /** trusted host operation: verify saved parameters against all current generated objects.
      * registration is bound to this exact document revision and is not model-callable. */
     registerroaddrawingrecipe(recipe: unknown): promise&lt;readonlydeep&lt;kjrestoredroaddrawingrecipe&gt;&gt;;
+    /** host-only registration of explicitly selected data. assets belong to this
+     * exact session/document instance; they are never loaded by model paths or urls. */
+    registerinputasset(input: unknown): promise&lt;readonlydeep&lt;kjagentinputassetdescriptor&gt;&gt;;
     call(name: string, input: unknown): promise&lt;kjagenttoolresult&gt;;
     /** invoke only after an authenticated host collected review of these exact arguments. */
     approve(planid: string, reviewerid: string): promise&lt;kjagenttoolresult&gt;;
@@ -12146,6 +12174,9 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     /** Trusted host operation: verify saved parameters against all current generated objects.
      * Registration is bound to this exact document revision and is not model-callable. */
     registerRoadDrawingRecipe(recipe: unknown): Promise&lt;ReadonlyDeep&lt;KJRestoredRoadDrawingRecipe&gt;&gt;;
+    /** Host-only registration of explicitly selected data. Assets belong to this
+     * exact session/document instance; they are never loaded by model paths or URLs. */
+    registerInputAsset(input: unknown): Promise&lt;ReadonlyDeep&lt;KJAgentInputAssetDescriptor&gt;&gt;;
     call(name: string, input: unknown): Promise&lt;KJAgentToolResult&gt;;
     /** Invoke only after an authenticated host collected review of these exact arguments. */
     approve(planId: string, reviewerId: string): Promise&lt;KJAgentToolResult&gt;;
@@ -14234,6 +14265,11 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <header><div><span class="kind">const</span><h3>KJDRAW_PLUGIN_SCHEMA_VERSION</h3></div><a class="permalink" href="#root-const-kjdraw-plugin-schema-version" aria-label="Link to KJDRAW_PLUGIN_SCHEMA_VERSION">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_PLUGIN_SCHEMA_VERSION = 1;</code></pre>
       <p class="source-path">plugin-contract.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-const-kjdraw-road-input-asset-schema" data-search="kjdraw_road_input_asset_schema const @kanjieteam/kjdraw export declare const kjdraw_road_input_asset_schema: &#39;com.kanjie.kjdraw.road-design-input@1&#39;;">
+      <header><div><span class="kind">const</span><h3>KJDRAW_ROAD_INPUT_ASSET_SCHEMA</h3></div><a class="permalink" href="#root-const-kjdraw-road-input-asset-schema" aria-label="Link to KJDRAW_ROAD_INPUT_ASSET_SCHEMA">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_ROAD_INPUT_ASSET_SCHEMA: &#39;com.kanjie.kjdraw.road-design-input@1&#39;;</code></pre>
+      <p class="source-path">input-assets.d.ts</p>
     </article>
 <article class="api-symbol" id="root-const-kjdraw-version" data-search="kjdraw_version const @kanjieteam/kjdraw export declare const kjdraw_version: &#39;1.0.0-rc.3&#39;;">
       <header><div><span class="kind">const</span><h3>KJDRAW_VERSION</h3></div><a class="permalink" href="#root-const-kjdraw-version" aria-label="Link to KJDRAW_VERSION">#</a></header>

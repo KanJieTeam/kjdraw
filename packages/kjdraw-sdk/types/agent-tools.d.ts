@@ -1,7 +1,12 @@
 import type { KJDrawSDK } from './sdk.js';
 import type { KJDocument } from './document.js';
 import { type KJDrawingContextOptions } from './drawing-context.js';
+import { type KJAgentRoadDrawingInput } from './agent-road-drawing.js';
 import { type KJRestoredRoadDrawingRecipe } from './road-drawing-recipe.js';
+import { type KJAgentInputAssetDescriptor, type KJAgentInputAssetReference } from './input-assets.js';
+export { KJDRAW_ROAD_INPUT_ASSET_SCHEMA } from './input-assets.js';
+export type { KJAgentInputAssetDescriptor, KJAgentInputAssetReference, KJAgentInputAssetRegistration } from './input-assets.js';
+export type KJAgentRoadDrawingFromAssetInput = Pick<KJAgentRoadDrawingInput, 'expectedRevision' | 'units' | 'drawingId' | 'title' | 'profileScale' | 'sectionScale' | 'textHeight' | 'sectionColumns' | 'precision'> & KJAgentInputAssetReference;
 import type { ReadonlyDeep } from './utils.js';
 export type { KJAgentRoadRevisionInput, KJAgentRoadRevisionProposal } from './agent-road-revision.js';
 export type { KJAgentRoadDrawingInput } from './agent-road-drawing.js';
@@ -132,6 +137,9 @@ export declare class KJAgentToolSession {
     /** Trusted host operation: verify saved parameters against all current generated objects.
      * Registration is bound to this exact document revision and is not model-callable. */
     registerRoadDrawingRecipe(recipe: unknown): Promise<ReadonlyDeep<KJRestoredRoadDrawingRecipe>>;
+    /** Host-only registration of explicitly selected data. Assets belong to this
+     * exact session/document instance; they are never loaded by model paths or URLs. */
+    registerInputAsset(input: unknown): Promise<ReadonlyDeep<KJAgentInputAssetDescriptor>>;
     call(name: string, input: unknown): Promise<KJAgentToolResult>;
     /** Invoke only after an authenticated host collected review of these exact arguments. */
     approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;
