@@ -621,19 +621,26 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'LAYERNEW', title: 'Create layer',
-    execute: ({ document, transaction }, args) => transaction.upsertTableRecord('layers', {
-      name: args.name as string,
-      type: 'LAYER',
-      payload: {
-        color: args.color ?? 7,
-        linetypeId: args.linetypeId ?? document.snapshot().tables.linetypes.currentId,
-        lineweight: args.lineweight ?? -1,
-        visible: args.visible !== false,
-        frozen: Boolean(args.frozen),
-        locked: Boolean(args.locked),
-        plottable: args.plottable !== false,
-      },
-    }),
+    execute: ({ document, transaction }, args) => {
+      const name = normalizeLayerName(args.name)
+      if (findTableRecord(document, 'layers', name)) throw new KJValidationError(`Layer already exists: ${name}`)
+      const layer = transaction.upsertTableRecord('layers', {
+        name,
+        type: 'LAYER',
+        payload: normalizeLayerPatch(document, {
+          color: args.color ?? 7,
+          trueColor: args.trueColor ?? null,
+          linetypeId: args.linetypeId ?? document.snapshot().tables.linetypes.currentId,
+          lineweight: args.lineweight ?? -1,
+          visible: args.visible !== false,
+          frozen: Boolean(args.frozen),
+          locked: Boolean(args.locked),
+          plottable: args.plottable !== false,
+        }),
+      })
+      if (args.current === true) transaction.setCurrentTableRecord('layers', layer.id)
+      return layer
+    },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'LAYERCURRENT', title: 'Set current layer',
@@ -643,7 +650,14 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'LAYERUPDATE', title: 'Update layer',
     execute: ({ document, transaction }, args) => {
       const record = resolveTableRecord(document, 'layers', args.id ?? args.name)
-      return transaction.updateObject(record.id, { name: args.newName ?? record.name, payload: { ...args.patch } })
+      const name = args.newName == null ? String(record.name ?? '') : normalizeLayerName(args.newName)
+      if (String(record.name).toUpperCase() === '0' && name.toUpperCase() !== '0') throw new KJValidationError('Layer 0 cannot be renamed')
+      const duplicate = findTableRecord(document, 'layers', name)
+      if (duplicate && duplicate.id !== record.id) throw new KJValidationError(`Layer already exists: ${name}`)
+      const patch = normalizeLayerPatch(document, args.patch?.payload ?? args.patch ?? {})
+      const updated = transaction.updateObject(record.id, { name, payload: patch })
+      if (args.current === true) transaction.setCurrentTableRecord('layers', record.id)
+      return updated
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
@@ -1641,6 +1655,58 @@ function resolveTableRecord(document: KJDocument, tableName: KJTableName, value:
   const record = table?.records.find(item => item.id === String(value) || String(item.name).toUpperCase() === key)
   if (!record) throw new KJValidationError(`${tableName} record does not exist: ${value}`)
   return record
+}
+
+function findTableRecord(document: KJDocument, tableName: KJTableName, value: unknown): KJReadonlyObjectRecord | null {
+  const key = String(value ?? '').toUpperCase()
+  return document.getTable(tableName)?.records.find(item => item.id === String(value) || String(item.name).toUpperCase() === key) ?? null
+}
+
+const KJ_LAYER_LINEWEIGHTS = new Set([-3, -2, -1, 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211])
+const KJ_LAYER_PATCH_KEYS = new Set(['color', 'trueColor', 'linetypeId', 'linetypeName', 'lineweight', 'visible', 'frozen', 'locked', 'plottable'])
+
+function normalizeLayerName(value: unknown): string {
+  const name = String(value ?? '').trim()
+  if (!name) throw new KJValidationError('Layer name is required')
+  if (name.length > 255 || /[\u0000-\u001f]/u.test(name) || [...'<>/\\":;?*|=,'].some(character => name.includes(character))) throw new KJValidationError(`Invalid layer name: ${name}`)
+  return name
+}
+
+function normalizeLayerPatch(document: KJDocument, value: unknown): KJObjectPayload {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new KJValidationError('Layer properties must be an object')
+  const source = value as Record<string, unknown>, patch: KJObjectPayload = {}
+  for (const key of Object.keys(source)) if (!KJ_LAYER_PATCH_KEYS.has(key)) throw new KJValidationError(`Unsupported layer property: ${key}`)
+  if (Object.hasOwn(source, 'color')) {
+    const color = Number(source.color)
+    if (!Number.isInteger(color) || color < 1 || color > 255) throw new KJValidationError('Layer color must be an integer from 1 to 255')
+    patch.color = color
+  }
+  if (Object.hasOwn(source, 'trueColor')) {
+    if (source.trueColor == null) patch.trueColor = null
+    else {
+      const trueColor = Number(source.trueColor)
+      if (!Number.isInteger(trueColor) || trueColor < 0 || trueColor > 0xffffff) throw new KJValidationError('Layer true color must be an integer from 0 to 16777215')
+      patch.trueColor = trueColor
+    }
+  }
+  if (Object.hasOwn(source, 'linetypeId') || Object.hasOwn(source, 'linetypeName')) {
+    const candidate = source.linetypeId ?? source.linetypeName
+    const linetype = resolveTableRecord(document, 'linetypes', candidate)
+    patch.linetypeId = linetype.id
+    patch.linetypeName = linetype.name
+  }
+  if (Object.hasOwn(source, 'lineweight')) {
+    const lineweight = Number(source.lineweight)
+    if (!Number.isInteger(lineweight) || !KJ_LAYER_LINEWEIGHTS.has(lineweight)) throw new KJValidationError(`Unsupported layer lineweight: ${source.lineweight}`)
+    patch.lineweight = lineweight
+  }
+  for (const key of ['visible', 'frozen', 'locked', 'plottable'] as const) {
+    if (Object.hasOwn(source, key)) {
+      if (typeof source[key] !== 'boolean') throw new KJValidationError(`Layer ${key} must be boolean`)
+      patch[key] = source[key]
+    }
+  }
+  return patch
 }
 
 function resolveLayout(document: KJDocument, value: unknown): KJReadonlyObjectRecord {

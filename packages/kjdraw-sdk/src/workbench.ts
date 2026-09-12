@@ -1,4 +1,4 @@
-import { KJCanvasRenderer } from './canvas-renderer.js'
+import { aciColor, KJCanvasRenderer } from './canvas-renderer.js'
 import { createKJDrawSDK } from './sdk.js'
 import type { KJDrawSDK, KJSDKCommandEnvelopeReceipt } from './sdk.js'
 import { KJDocument } from './document.js'
@@ -172,7 +172,7 @@ const copy = {
     selectionHint: 'Drag blank space: left → right encloses, right → left crosses · Shift adds · Ctrl/⌘ removes · Ctrl/⌘+A selects all',
     windowSelection: 'Window: fully enclosed objects', crossingSelection: 'Crossing: enclosed or intersecting objects', gripHint: 'Drag a square grip to edit geometry · Esc cancels', gripEditing: 'Specify the new grip position · Esc cancels', gestureCancelled: 'Drawing or view changed — gesture cancelled', snapEndpoint: 'Endpoint', snapMidpoint: 'Midpoint', snapCenter: 'Center', snapQuadrant: 'Quadrant', snapIntersection: 'Intersection', snapPerpendicular: 'Perpendicular', snapTangent: 'Tangent', snapInsertion: 'Insertion', snapNode: 'Node', snapNearest: 'Nearest',
     fenceHint: 'Fence: click an open polyline · Enter selects · Backspace removes a point · Esc cancels · Shift/Ctrl/⌘ on first point adds/removes', fenceNeedsPoints: 'Fence selection needs at least two distinct points',
-    showLayer: 'Show layer', hideLayer: 'Hide layer', lockLayer: 'Lock layer', unlockLayer: 'Unlock layer', freezeLayer: 'Freeze layer', thawLayer: 'Thaw layer',
+    showLayer: 'Show layer', hideLayer: 'Hide layer', lockLayer: 'Lock layer', unlockLayer: 'Unlock layer', freezeLayer: 'Freeze layer', thawLayer: 'Thaw layer', newLayer: 'New layer', editLayer: 'Layer settings', currentLayer: 'Current layer', setCurrentLayer: 'Set current', layerName: 'Layer name', layerColor: 'Color index (1–255)', layerLinetype: 'Linetype', layerLineweight: 'Lineweight', layerVisible: 'Visible', layerLocked: 'Locked', layerFrozen: 'Frozen', makeCurrent: 'Make current', byLayer: 'ByLayer', entityColor: 'Color', entityLinetype: 'Linetype', entityLineweight: 'Lineweight',
     editWorkflow: 'Workflow', boundaryWorkflow: 'Continuous · boundaries first', singleWorkflow: 'Single edit · target then boundaries',
     confirmBoundaries: 'Confirm boundaries', boundarySelectionHint: 'Click or drag to add boundaries · Ctrl/⌘ removes · Enter confirms', boundaryTargetHint: 'Click target portions repeatedly · Enter or Esc finishes', boundaryEmpty: 'No editable target here — pick another portion', boundaryBusy: 'Applying the edit…',
   },
@@ -192,13 +192,14 @@ const copy = {
     selectionHint: '空白处拖动：左→右框选，右→左交叉选 · Shift 增选 · Ctrl/⌘ 减选 · Ctrl/⌘+A 全选',
     windowSelection: '框选：完全位于框内的对象', crossingSelection: '交叉选择：框内或与边界相交的对象', gripHint: '拖动方形夹点修改几何 · Esc 取消', gripEditing: '指定夹点的新位置 · Esc 取消', gestureCancelled: '图纸或视图已变化，操作已取消', snapEndpoint: '端点', snapMidpoint: '中点', snapCenter: '圆心', snapQuadrant: '象限点', snapIntersection: '交点', snapPerpendicular: '垂足', snapTangent: '切点', snapInsertion: '插入点', snapNode: '节点', snapNearest: '最近点',
     fenceHint: '围栏：连续点击折线点 · Enter 选择 · Backspace 撤回点 · Esc 取消 · 首点按 Shift 增选、Ctrl/⌘ 减选', fenceNeedsPoints: '围栏至少需要两个不同的点',
-    showLayer: '显示图层', hideLayer: '隐藏图层', lockLayer: '锁定图层', unlockLayer: '解锁图层', freezeLayer: '冻结图层', thawLayer: '解冻图层',
+    showLayer: '显示图层', hideLayer: '隐藏图层', lockLayer: '锁定图层', unlockLayer: '解锁图层', freezeLayer: '冻结图层', thawLayer: '解冻图层', newLayer: '新建图层', editLayer: '图层设置', currentLayer: '当前图层', setCurrentLayer: '设为当前', layerName: '图层名称', layerColor: '颜色索引（1–255）', layerLinetype: '线型', layerLineweight: '线宽', layerVisible: '可见', layerLocked: '锁定', layerFrozen: '冻结', makeCurrent: '设为当前图层', byLayer: '随层', entityColor: '颜色', entityLinetype: '线型', entityLineweight: '线宽',
     editWorkflow: '工作模式', boundaryWorkflow: '连续编辑 · 先选边界', singleWorkflow: '单次编辑 · 先目标后边界',
     confirmBoundaries: '确认边界', boundarySelectionHint: '点击或框选添加边界 · Ctrl/⌘ 减选 · Enter 确认', boundaryTargetHint: '连续点选目标区段 · Enter 或 Esc 结束', boundaryEmpty: '这里没有可编辑目标，请重新点选区段', boundaryBusy: '正在应用修改…',
   },
 } as const
 
 const DRAFT_TOOLS = Object.freeze(['line', 'polyline', 'circle', 'arc', 'ellipse', 'rectangle', 'polygon', 'point', 'ray', 'xline', 'spline', 'hatch', 'dimension', 'leader'] as const satisfies readonly KJDraftTool[])
+const LAYER_LINEWEIGHTS = Object.freeze([-1, 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211])
 
 const DRAFT_COMMAND_TO_TOOL = new Map<string, KJDraftTool>([
   ['P', 'point'], ['POINT', 'point'], ['RAY', 'ray'], ['XL', 'xline'], ['XLINE', 'xline'],
@@ -248,7 +249,7 @@ const WORKBENCH_STYLE = `
 .kjwb .workspace{min-height:0;display:grid;grid-template-columns:232px minmax(0,1fr) 260px}.kjwb .workspace.no-layers{grid-template-columns:minmax(0,1fr) 260px}.kjwb .workspace.no-inspector{grid-template-columns:232px minmax(0,1fr)}.kjwb .workspace.no-layers.no-inspector{grid-template-columns:minmax(0,1fr)}
 .kjwb .side{min-width:0;background:var(--surface);border-right:1px solid var(--border);overflow:auto}.kjwb .side.right{border-right:0;border-left:1px solid var(--border)}.kjwb .side h2{height:40px;margin:0;padding:11px 12px;border-bottom:1px solid var(--border);font-size:12px;line-height:17px;font-weight:700;letter-spacing:.035em;color:var(--muted)}
 .kjwb .layer{width:100%;min-height:38px;display:grid;grid-template-columns:22px minmax(0,1fr) auto;align-items:center;gap:7px;padding:6px 12px;border-bottom:1px solid var(--surface-subtle);text-align:left}.kjwb .layer:hover{background:var(--surface-subtle)}.kjwb .layer input{width:16px;height:16px;accent-color:var(--action)}.kjwb .layer span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kjwb .layer small{min-width:24px;padding:1px 5px;border-radius:10px;background:var(--surface-subtle);color:var(--muted);font-size:12px;text-align:center}
-.kjwb .layer{grid-template-columns:minmax(0,1fr) 28px 28px auto;gap:4px;padding-inline:8px}.kjwb .layer-name{display:flex;align-items:center;gap:7px;min-width:0;cursor:pointer}.kjwb .layer-name input{flex:0 0 16px;margin:0}.kjwb .layer-name span{min-width:0}.kjwb .layer-state{display:grid;place-items:center;width:28px;height:28px;min-height:28px;padding:4px;color:var(--muted)}.kjwb .layer-state[aria-pressed="true"]{color:var(--action);background:var(--action-soft)}.kjwb .layer-state .kj-icon{width:17px;height:17px}
+.kjwb .layer-toolbar{display:flex;justify-content:flex-end;padding:6px 8px;border-bottom:1px solid var(--surface-subtle)}.kjwb .layer-toolbar button{width:auto;padding:0 9px}.kjwb .layer{grid-template-columns:26px minmax(0,1fr) 28px 28px 28px 28px auto;gap:3px;padding-inline:6px}.kjwb .layer-name{display:flex;align-items:center;gap:7px;min-width:0;cursor:pointer}.kjwb .layer-name input{flex:0 0 16px;margin:0}.kjwb .layer-name span{min-width:0}.kjwb .layer-swatch{width:12px;height:12px;border:1px solid var(--border);border-radius:2px;background:var(--layer-color)}.kjwb .layer-state{display:grid;place-items:center;width:28px;height:28px;min-height:28px;padding:4px;color:var(--muted)}.kjwb .layer-state[aria-pressed="true"]{color:var(--action);background:var(--action-soft)}.kjwb .layer-state .kj-icon{width:17px;height:17px}.kjwb .layer-current{font-size:15px}.kjwb .layer-current[aria-pressed="true"]{color:var(--action);font-weight:700}
 .kjwb .canvas-wrap{position:relative;min-width:0;min-height:0;background:#081016;overflow:hidden}.kjwb.light .canvas-wrap{background:#f8fafc}.kjwb .canvas-wrap canvas{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none}.kjwb .canvas-wrap .overlay{pointer-events:none}.kjwb .crosshair{cursor:crosshair!important}.kjwb .pan{cursor:grab!important}.kjwb .pan.dragging{cursor:grabbing!important}
 .kjwb .navigator{position:absolute;z-index:4;right:12px;top:50%;transform:translateY(-50%);display:grid;gap:2px;padding:3px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff2;box-shadow:0 7px 22px #17233a24}.kjwb .navigator button{width:32px;height:32px;min-height:32px;padding:6px;display:grid;place-items:center}.kjwb .navigator button.active{background:var(--action-soft);border-color:#c8d8fa}.kjwb .navigator button.active .icon{color:var(--action)}
 .kjwb .draft-actions{position:absolute;z-index:4;left:12px;top:12px;display:flex;gap:4px;padding:3px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff2;box-shadow:0 6px 18px #17233a1f}.kjwb .draft-actions button{height:32px;padding:0 10px}.kjwb .draft-actions button:disabled{display:none}
@@ -3100,19 +3101,27 @@ export class KJDrawWorkbench {
     const host = this.root.querySelector<HTMLElement>('[data-layers]'), drawing = this.document
     if (!host || !drawing) return
     host.replaceChildren()
+    const toolbar = document.createElement('div'); toolbar.className = 'layer-toolbar'
+    const create = document.createElement('button'); create.type = 'button'; create.dataset.action = 'new-layer'; create.textContent = `+ ${this.#t('newLayer')}`; create.disabled = this.#readOnly === true
+    create.addEventListener('click', () => this.#openLayerEditor(), { signal: this.#abort.signal }); toolbar.append(create); host.append(toolbar)
     const counts = new Map<string, number>()
     for (const entity of drawing.listEntities()) counts.set(String(entity.payload.layerId ?? ''), (counts.get(String(entity.payload.layerId ?? '')) ?? 0) + 1)
     for (const layer of drawing.getTable('layers')?.records ?? []) {
       const row = document.createElement('div'); row.className = 'layer'; row.dataset.layerId = layer.id
+      const current = document.createElement('button'); current.type = 'button'; current.className = 'layer-state layer-current'; current.dataset.layerCurrent = layer.id
+      const isCurrent = drawing.getTable('layers')?.currentId === layer.id; current.textContent = isCurrent ? '●' : '○'; current.disabled = this.#readOnly === true || isCurrent
+      current.title = `${this.#t(isCurrent ? 'currentLayer' : 'setCurrentLayer')}: ${layer.name ?? '0'}`; current.setAttribute('aria-label', current.title); current.setAttribute('aria-pressed', String(isCurrent))
+      current.addEventListener('click', () => void this.#run(() => this.execute('LAYERCURRENT', { id: layer.id })), { signal: this.#abort.signal })
       const label = document.createElement('label'); label.className = 'layer-name'
       const input = document.createElement('input'); input.type = 'checkbox'; input.checked = layer.payload.visible !== false; input.disabled = this.#readOnly === true
       input.title = `${this.#t(input.checked ? 'hideLayer' : 'showLayer')}: ${layer.name ?? '0'}`
       input.setAttribute('aria-label', input.title)
       input.addEventListener('change', () => void this.#run(() => this.execute('LAYERUPDATE', { id: layer.id, patch: { visible: input.checked } })), { signal: this.#abort.signal })
+      const swatch = document.createElement('i'); swatch.className = 'layer-swatch'; swatch.style.background = layer.payload.trueColor == null ? aciColor(layer.payload.color ?? 7, this.#options.theme) : `#${Number(layer.payload.trueColor).toString(16).padStart(6, '0')}`
       const name = document.createElement('span'); name.textContent = layer.name ?? '0'
       name.title = name.textContent
       const count = document.createElement('small'); count.textContent = String(counts.get(layer.id) ?? 0)
-      label.append(input, name)
+      label.append(input, swatch, name)
       const controls = (['locked', 'frozen'] as const).map(property => {
         const active = layer.payload[property] === true
         const button = document.createElement('button'); button.type = 'button'; button.className = 'layer-state'; button.dataset.layerProperty = property
@@ -3125,7 +3134,10 @@ export class KJDrawWorkbench {
         button.addEventListener('click', () => void this.#run(() => this.execute('LAYERUPDATE', { id: layer.id, patch: { [property]: !active } })), { signal: this.#abort.signal })
         return button
       })
-      row.append(label, ...controls, count); host.append(row)
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'layer-state'; edit.dataset.layerEdit = layer.id; edit.textContent = '⋯'; edit.disabled = this.#readOnly === true
+      edit.title = `${this.#t('editLayer')}: ${layer.name ?? '0'}`; edit.setAttribute('aria-label', edit.title)
+      edit.addEventListener('click', () => this.#openLayerEditor(layer), { signal: this.#abort.signal })
+      row.append(current, label, ...controls, edit, count); host.append(row)
     }
   }
 
@@ -3247,6 +3259,41 @@ export class KJDrawWorkbench {
     sync(); dialog.showModal()
   }
 
+#openLayerEditor(layer?: KJReadonlyObjectRecord): void {
+    const drawing = this.document
+    if (!drawing || this.#readOnly) return
+    const dialog = document.createElement('dialog'); dialog.className = 'modify-dialog'; dialog.dataset.layerDialog = layer?.id ?? 'new'
+    const form = document.createElement('form'); form.className = 'modify-form'; form.method = 'dialog'
+    const head = document.createElement('div'); head.className = 'modify-head'
+    const heading = document.createElement('h2'); heading.textContent = this.#t(layer ? 'editLayer' : 'newLayer'); head.append(heading)
+    const body = document.createElement('div'); body.className = 'modify-body modify-fields'
+    const addField = (key: keyof typeof copy.en, control: HTMLElement) => { const label = document.createElement('label'); label.className = control instanceof HTMLInputElement && control.type === 'checkbox' ? 'check' : 'field'; const span = document.createElement('span'); span.textContent = this.#t(key); label.append(span, control); body.append(label) }
+    const name = document.createElement('input'); name.name = 'name'; name.value = String(layer?.name ?? ''); name.required = true; name.maxLength = 255; name.dataset.layerName = ''; addField('layerName', name)
+    const color = document.createElement('input'); color.name = 'color'; color.type = 'number'; color.min = '1'; color.max = '255'; color.step = '1'; color.value = String(layer?.payload.color ?? 7); color.dataset.layerColor = ''; addField('layerColor', color)
+    const linetype = document.createElement('select'); linetype.name = 'linetypeId'; linetype.dataset.layerLinetype = ''
+    for (const item of drawing.getTable('linetypes')?.records ?? []) { const option = document.createElement('option'); option.value = item.id; option.textContent = String(item.name ?? 'CONTINUOUS'); option.selected = item.id === (layer?.payload.linetypeId ?? drawing.getTable('linetypes')?.currentId); linetype.append(option) }
+    addField('layerLinetype', linetype)
+    const lineweight = document.createElement('select'); lineweight.name = 'lineweight'; lineweight.dataset.layerLineweight = ''
+    for (const value of LAYER_LINEWEIGHTS) { const option = document.createElement('option'); option.value = String(value); option.textContent = value === -1 ? this.#t('byLayer') : value === 0 ? '0.00 mm' : `${(value / 100).toFixed(2)} mm`; option.selected = value === Number(layer?.payload.lineweight ?? -1); lineweight.append(option) }
+    addField('layerLineweight', lineweight)
+    const checks = ([['visible', 'layerVisible', layer?.payload.visible !== false], ['locked', 'layerLocked', layer?.payload.locked === true], ['frozen', 'layerFrozen', layer?.payload.frozen === true], ['current', 'makeCurrent', drawing.getTable('layers')?.currentId === layer?.id]] as const)
+    for (const [fieldName, key, checked] of checks) { const input = document.createElement('input'); input.type = 'checkbox'; input.name = fieldName; input.checked = checked; input.dataset.layerProperty = fieldName; addField(key, input) }
+    const actions = document.createElement('div'); actions.className = 'modify-actions'
+    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = this.#t('cancel'); cancel.addEventListener('click', () => dialog.close())
+    const apply = document.createElement('button'); apply.type = 'submit'; apply.className = 'confirm'; apply.textContent = this.#t('apply'); actions.append(cancel, apply)
+    form.append(head, body, actions); dialog.append(form); this.root.append(dialog)
+    dialog.addEventListener('close', () => dialog.remove(), { once: true })
+    form.addEventListener('submit', event => {
+      event.preventDefault()
+      const args = { name: name.value, color: Number(color.value), linetypeId: linetype.value, lineweight: Number(lineweight.value), visible: (form.elements.namedItem('visible') as HTMLInputElement).checked, locked: (form.elements.namedItem('locked') as HTMLInputElement).checked, frozen: (form.elements.namedItem('frozen') as HTMLInputElement).checked, current: (form.elements.namedItem('current') as HTMLInputElement).checked }
+      const operation = layer
+        ? this.execute('LAYERUPDATE', { id: layer.id, newName: args.name, patch: { color: args.color, trueColor: null, linetypeId: args.linetypeId, lineweight: args.lineweight, visible: args.visible, locked: args.locked, frozen: args.frozen }, current: args.current })
+        : this.execute('LAYERNEW', args)
+      void this.#run(async () => { await operation; dialog.close() })
+    })
+    dialog.showModal(); name.focus()
+  }
+
   #refreshInspector(): void {
     const host = this.root.querySelector<HTMLElement>('[data-inspector]'), drawing = this.document
     if (!host || !drawing) return
@@ -3268,7 +3315,8 @@ export class KJDrawWorkbench {
       const option = document.createElement('option'); option.value = ''; option.textContent = '—'; option.selected = true; option.disabled = true; layerSelect.append(option)
     }
     for (const layer of drawing.getTable('layers')?.records ?? []) {
-      const option = document.createElement('option'); option.value = layer.id; option.textContent = layer.name ?? '0'; option.selected = commonLayerId === layer.id; layerSelect.append(option)
+      const option = document.createElement('option'); option.value = layer.id; option.textContent = layer.name ?? '0'; option.selected = commonLayerId === layer.id
+      option.disabled = layer.id !== commonLayerId && (layer.payload.visible === false || layer.payload.locked === true || layer.payload.frozen === true); layerSelect.append(option)
     }
     let blockScopeSelect: HTMLSelectElement | null = null
     let blockMemberSelect: HTMLSelectElement | null = null
@@ -3300,6 +3348,17 @@ export class KJDrawWorkbench {
       }
     }
     layerField.append(layerSelect); host.append(layerField)
+    const styleSelect = (property: string, labelText: string, values: readonly (readonly [string, string])[], selectedValues: Set<string>) => {
+      const field = document.createElement('label'); field.className = 'field'; const span = document.createElement('span'); span.textContent = labelText
+      const select = document.createElement('select'); select.dataset.property = property; select.disabled = this.#readOnly === true
+      if (selectedValues.size !== 1) { const option = document.createElement('option'); option.value = ''; option.textContent = '—'; option.selected = true; option.disabled = true; select.append(option) }
+      const common = selectedValues.size === 1 ? [...selectedValues][0]! : ''
+      for (const [value, text] of values) { const option = document.createElement('option'); option.value = value; option.textContent = text; option.selected = value === common; select.append(option) }
+      field.append(span, select); host.append(field); return { select, common }
+    }
+    const colors = styleSelect('color', this.#t('entityColor'), [['256', this.#t('byLayer')], ...Array.from({ length: 255 }, (_, index) => [String(index + 1), String(index + 1)] as const)], new Set(selectedEntities.map(item => String(item.payload.color ?? 256))))
+    const linetypes = styleSelect('linetype', this.#t('entityLinetype'), [['', this.#t('byLayer')], ...(drawing.getTable('linetypes')?.records ?? []).map(item => [item.id, String(item.name ?? 'CONTINUOUS')] as const)], new Set(selectedEntities.map(item => String(item.payload.linetypeId ?? ''))))
+    const lineweights = styleSelect('lineweight', this.#t('entityLineweight'), LAYER_LINEWEIGHTS.map(value => [String(value), value === -1 ? this.#t('byLayer') : value === 0 ? '0.00 mm' : `${(value / 100).toFixed(2)} mm`] as const), new Set(selectedEntities.map(item => String(item.payload.lineweight ?? -1))))
     const textEntities = selectedEntities.filter(item => ['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(item.type))
     let textStyleSelect: HTMLSelectElement | null = null
     let commonTextStyleId = ''
@@ -3384,12 +3443,14 @@ export class KJDrawWorkbench {
     if (!this.#readOnly) {
       const apply = document.createElement('button'); apply.type = 'button'; apply.className = 'apply'; apply.textContent = this.#t('apply')
       apply.addEventListener('click', () => void this.#run(async () => {
+        const payload: Record<string, unknown> = {}
+        if (layerSelect.value && layerSelect.value !== commonLayerId) payload.layerId = layerSelect.value
+        if (colors.select.value && colors.select.value !== colors.common) { payload.color = Number(colors.select.value); payload.trueColor = null }
+        if (linetypes.select.value !== linetypes.common) { payload.linetypeId = linetypes.select.value || null; payload.linetypeName = linetypes.select.value ? drawing.getObject(linetypes.select.value)?.name : 'BYLAYER' }
+        if (lineweights.select.value && lineweights.select.value !== lineweights.common) payload.lineweight = Number(lineweights.select.value)
+        if (textStyleSelect?.value && textStyleSelect.value !== commonTextStyleId) payload.styleId = textStyleSelect.value
         if (multiple) {
-          const payload: Record<string, unknown> = {}
-          if (layerSelect.value && layerSelect.value !== commonLayerId) payload.layerId = layerSelect.value
-          if (textStyleSelect?.value && textStyleSelect.value !== commonTextStyleId) payload.styleId = textStyleSelect.value
-          if (!Object.keys(payload).length) return
-          await this.execute('PROPERTIES', { ids: selectedEntities.map(item => item.id), patch: { payload } })
+          if (Object.keys(payload).length) await this.execute('PROPERTIES', { ids: selectedEntities.map(item => item.id), patch: { payload } })
           return
         }
         if (leaderFields) {
@@ -3397,8 +3458,6 @@ export class KJDrawWorkbench {
           await this.execute('LEADEREDIT', { id: entity.id, vertices: entity.payload.vertices as readonly KJPointInput[], textPosition: entity.payload.textPosition as KJPointInput, text: leaderFields.text.value, styleId: leaderFields.style.value, textHeight: Number(leaderFields.height.value), arrowEnabled: leaderFields.arrow.checked, layerId: layerSelect.value })
           return
         }
-        const payload: Record<string, unknown> = { layerId: layerSelect.value }
-        if (textStyleSelect?.value) payload.styleId = textStyleSelect.value
         if (valueInput && (entity.type === 'CIRCLE' || entity.type === 'ARC')) payload.radius = Number(valueInput.value)
         if (valueInput && ['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(entity.type)) payload.text = valueInput.value
         if (textFields) {
@@ -3429,7 +3488,7 @@ export class KJDrawWorkbench {
           if (!memberId) throw new Error('Select a block definition member to edit')
           await this.execute('BLOCKDEFINITIONUPDATE', { blockRecordId: definitionId, id: memberId, patch: { payload } })
         } else if (entity.type === 'INSERT') await this.execute('BLOCKINSTANCEUPDATE', { id: entity.id, patch: { payload } })
-        else await this.execute('PROPERTIES', { id: entity.id, patch: { payload } })
+        else if (Object.keys(payload).length) await this.execute('PROPERTIES', { id: entity.id, patch: { payload } })
       }), { signal: this.#abort.signal })
       host.append(apply)
     }
