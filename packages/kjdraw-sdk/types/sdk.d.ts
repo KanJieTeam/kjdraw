@@ -2,7 +2,7 @@ import { KJAgentPlanRegistry } from './agent-plans.js';
 import type { KJAgentPlanRecord, KJAgentPlanRegistryOptions } from './agent-plans.js';
 import { buildSDKCapabilityManifest } from './capabilities.js';
 import { KJCommandRegistry } from './commands.js';
-import type { KJCommandArguments, KJCommandDefinition } from './commands.js';
+import type { KJCommandArguments, KJCommandDefinition, KJRegisteredCommand } from './commands.js';
 import { KJDocument } from './document.js';
 import type { KJDocumentAuthority, KJDocumentConstructorOptions } from './document.js';
 import { KJEventBus } from './events.js';
@@ -35,6 +35,8 @@ export interface KJExecuteCommandOptions {
     author?: unknown;
     expectedRevision?: number;
     commandEnvelope?: Readonly<KJCommandEnvelope> | null;
+    /** Pin execution to a previously reviewed registry definition across asynchronous approval checks. */
+    expectedCommandDefinition?: KJRegisteredCommand;
 }
 export interface KJCreateSDKCommandEnvelopeOptions extends KJCreateCommandOptions {
     document?: KJDocument | null;

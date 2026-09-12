@@ -43,6 +43,8 @@ export interface KJCommandContext {
     readonly commandEnvelope?: KJCommandEnvelopeContext | null;
     readonly events?: unknown;
     readonly extensions?: unknown;
+    /** Registry definition reviewed by a caller before an asynchronous execution boundary. */
+    readonly expectedDefinition?: KJRegisteredCommand;
 }
 export type KJCommandInputContext = Partial<KJCommandContext>;
 export interface KJEntityBatchSpec extends Record<string, unknown> {
