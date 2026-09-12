@@ -5,6 +5,7 @@ import { KJDocument } from './document.js';
 import { editEntityGrip } from './grips.js';
 import { getDocumentSnapSettings } from './snapping.js';
 import { openDrawingPrintWindow } from './print-export.js';
+import { exportDrawingPng } from './drawing-image.js';
 import { createIndustrySample } from './samples.js';
 import { KJDRAW_THEME_CSS, kjdrawIcon } from './theme.js';
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from './layout.js';
@@ -80,6 +81,7 @@ const copy = {
         saveKjd: 'Save KJD',
         exportDxf: 'Export DXF',
         exportSvg: 'Export SVG',
+        exportPng: 'Export PNG',
         print: 'Print / PDF',
         printOpened: 'Print dialog opened · choose Save as PDF for vector output',
         draw: 'Draw',
@@ -306,6 +308,7 @@ const copy = {
         saveKjd: '保存 KJD',
         exportDxf: '导出 DXF',
         exportSvg: '导出 SVG',
+        exportPng: '导出 PNG',
         print: '打印 / PDF',
         printOpened: '已打开打印对话框 · 选择另存为 PDF 可保留矢量',
         draw: '绘图',
@@ -1419,6 +1422,38 @@ export class KJDrawWorkbench {
         if (!this.#abort.signal.aborted && this.document === drawing) this.#setMessage(this.#t('printOpened'));
         return output;
     }
+    async exportPng(options = {}) {
+        if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed');
+        const drawing = this.document;
+        if (!drawing) throw new Error('No active KJDraw document');
+        const selectedLayout = this.#drawingLayoutId;
+        const layoutId = options.layoutId ?? selectedLayout ?? drawing.spaces.activeLayoutId;
+        const output = await exportDrawingPng(drawing, {
+            layoutId,
+            ...options.maxEdge === undefined ? {} : {
+                maxEdge: options.maxEdge
+            },
+            ...options.theme === undefined ? {} : {
+                theme: options.theme
+            },
+            ...options.allowPartial === undefined ? {} : {
+                allowPartial: options.allowPartial
+            }
+        });
+        if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed');
+        if (this.document !== drawing || options.layoutId === undefined && this.#drawingLayoutId !== selectedLayout) throw new Error('Drawing or selected layout changed during PNG export');
+        if (options.download !== false) {
+            const encoded = output.dataUrl.slice('data:image/png;base64,'.length);
+            const ownerWindow = this.root.ownerDocument.defaultView;
+            if (!ownerWindow) throw new Error('PNG download requires a browser window');
+            const binary = ownerWindow.atob(encoded), bytes = new Uint8Array(binary.length);
+            for(let index = 0; index < binary.length; index++)bytes[index] = binary.charCodeAt(index);
+            const base = (options.fileName ?? this.#fileName).replace(/\.[^.]+$/, '') || drawing.id;
+            downloadBytes(bytes, `${base}.png`, output.mimeType);
+        }
+        this.#setMessage(`${output.pixelWidth} × ${output.pixelHeight} px · PNG`);
+        return output;
+    }
     dispose() {
         if (this.#abort.signal.aborted) return;
         this.#fileReadAbort?.abort();
@@ -1475,6 +1510,7 @@ export class KJDrawWorkbench {
         <button type="button" class="panel-toggle hide-small ${showInspector ? 'active' : ''}" data-action="toggle-inspector" aria-pressed="${showInspector}">${icon('panel')}<span data-copy="properties">${t('properties')}</span></button>
         <button type="button" class="file-action" data-action="open" data-copy-title="open" aria-label="${t('open')}" title="${t('open')}">${icon('open')}<span data-copy="open">${t('open')}</span></button><button type="button" class="file-action hide-small" data-action="save-kjd" data-copy-title="saveKjd" aria-label="${t('saveKjd')}" title="${t('saveKjd')}">${icon('save')}<span data-copy="saveKjd">${t('saveKjd')}</span></button><button type="button" class="file-action primary" data-action="save-dxf" data-copy-title="exportDxf" aria-label="${t('exportDxf')}" title="${t('exportDxf')}">${icon('export')}<span data-copy="exportDxf">${t('exportDxf')}</span></button><button type="button" data-action="theme" data-copy-title="theme" title="${t('theme')}">${icon(this.#theme === 'dark' ? 'sun' : 'moon', 'data-theme-icon')}</button><button type="button" data-action="language"><span data-copy="language">${t('language')}</span></button>
         <button type="button" class="file-action" data-action="save-svg" data-copy-title="exportSvg" title="${t('exportSvg')}" aria-label="${t('exportSvg')}">${icon('export')}<span data-copy="exportSvg">${t('exportSvg')}</span></button>
+        <button type="button" class="file-action" data-action="save-png" data-copy-title="exportPng" title="${t('exportPng')}" aria-label="${t('exportPng')}">${icon('export')}<span data-copy="exportPng">${t('exportPng')}</span></button>
         <button type="button" class="file-action" data-action="print" data-copy-title="print" title="${t('print')}" aria-label="${t('print')}">${icon('export')}<span data-copy="print">${t('print')}</span></button>
         <button type="button" class="file-action" data-action="page-setup" data-copy-title="pageSetup" title="${t('pageSetup')}" aria-label="${t('pageSetup')}" ${readonly ? 'disabled' : ''}>${icon('panel')}<span data-copy="pageSetup">${t('pageSetup')}</span></button>
         <button type="button" class="file-action" data-action="dimension-styles" data-copy-title="dimensionStyles" title="${t('dimensionStyles')}" aria-label="${t('dimensionStyles')}" ${readonly ? 'disabled' : ''}>${icon('measure')}<span data-copy="dimensionStyles">${t('dimensionStyles')}</span></button>
@@ -1683,6 +1719,9 @@ export class KJDrawWorkbench {
             signal
         });
         query(this.root, '[data-action="save-svg"]').addEventListener('click', ()=>void this.#run(()=>this.save('SVG')), {
+            signal
+        });
+        query(this.root, '[data-action="save-png"]').addEventListener('click', ()=>void this.#run(()=>this.exportPng()), {
             signal
         });
         query(this.root, '[data-action="print"]').addEventListener('click', ()=>void this.#run(()=>this.print()), {

@@ -9,6 +9,7 @@ import { getDocumentSnapSettings, type KJSnapCandidate, type KJSnapMode } from '
 import type { KJDxfPlotSettings } from './plot-settings.js'
 import type { KJFileAdapterOptions, KJFileReadProgress } from './file-adapters.js'
 import { openDrawingPrintWindow, type KJDrawingPrintHtml, type KJDrawingPrintOptions } from './print-export.js'
+import { exportDrawingPng, type KJDrawingPngExport, type KJDrawingPngOptions } from './drawing-image.js'
 import { createIndustrySample } from './samples.js'
 import { KJDRAW_THEME_CSS, kjdrawIcon } from './theme.js'
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout, type KJWorkbenchLayout } from './layout.js'
@@ -83,6 +84,12 @@ export interface KJWorkbenchSaveOptions extends KJFileAdapterOptions {
 
 export type KJWorkbenchPrintOptions = Omit<KJDrawingPrintOptions, 'layoutId' | 'locale'> & { layoutId?: string }
 
+export type KJWorkbenchPngOptions = Omit<KJDrawingPngOptions, 'layoutId'> & {
+  layoutId?: string
+  fileName?: string
+  download?: boolean
+}
+
 export interface KJWorkbenchSnapshot {
   locale: KJWorkbenchLocale
   theme: KJWorkbenchTheme
@@ -152,7 +159,7 @@ const copy = {
   en: {
     drawingSpace: 'Drawing space', modelSpace: 'Model', paperPreview: 'Paper preview · return to Model to edit',
     pageSetup: 'Page setup', dimensionStyles: 'Dimension styles', dimensionStylesDescription: 'Create, edit, or activate native dimension styles.', newDimensionStyle: 'New style', setCurrentStyle: 'Set current', currentStyle: 'Current', styleName: 'Style name', dimensionArrowSize: 'Arrow size', dimensionExtensionOffset: 'Extension-line offset', dimensionExtensionBeyond: 'Extension beyond dimension line', textStyles: 'Text styles', textStylesDescription: 'Manage local font references and native CAD text metrics. Font files are referenced, not embedded.', newTextStyle: 'New style', fontFamily: 'Font family / fallback name', fontFile: 'Local font file reference', bigFontFile: 'Big-font file reference', fixedTextHeight: 'Fixed height (0 = per object)', textWidthFactor: 'Width factor', textObliqueAngle: 'Oblique angle (degrees)', pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.', pageSheet: 'Sheet', pageStale: 'The drawing changed. Close and reopen the dialog before applying.', pageWidth: 'Paper width (mm)', pageHeight: 'Paper height (mm)', pageLeft: 'Left margin (mm)', pageRight: 'Right margin (mm)', pageTop: 'Top margin (mm)', pageBottom: 'Bottom margin (mm)', pageUnits: 'Plot units', pageRotation: 'Rotation (counterclockwise)', pageNumerator: 'Custom scale: paper units', pageDenominator: 'Custom scale: drawing units', pageScaleNote: 'Choose Fit to paper or edit the custom ratio. Window coordinates use drawing units; physical offsets use millimeters.', pageUnchanged: 'Keep existing', pageInches: 'Inches', pageMm: 'Millimeters', pagePixels: 'Pixels', pageArea: 'Plot area', pageDisplay: 'Last display', pageExtents: 'Drawing extents', pageLimits: 'Drawing limits', pageView: 'Named view', pageWindow: 'Window', pageLayout: 'Layout', pageViewName: 'View name', pageMinX: 'Window minimum X', pageMinY: 'Window minimum Y', pageMaxX: 'Window maximum X', pageMaxY: 'Window maximum Y', pageOriginX: 'Origin X (mm)', pageOriginY: 'Origin Y (mm)', pageScaleMode: 'Scale mode', pageFit: 'Fit to paper', pageCustom: 'Custom ratio',
-    open: 'Open', openSource: 'Reading file', openParse: 'Parsing DXF', openImport: 'Building drawing', openCancelHint: 'Esc cancels', openCancelled: 'Open cancelled', saveKjd: 'Save KJD', exportDxf: 'Export DXF', exportSvg: 'Export SVG', print: 'Print / PDF', printOpened: 'Print dialog opened · choose Save as PDF for vector output', draw: 'Draw', modify: 'Modify', view: 'View',
+    open: 'Open', openSource: 'Reading file', openParse: 'Parsing DXF', openImport: 'Building drawing', openCancelHint: 'Esc cancels', openCancelled: 'Open cancelled', saveKjd: 'Save KJD', exportDxf: 'Export DXF', exportSvg: 'Export SVG', exportPng: 'Export PNG', print: 'Print / PDF', printOpened: 'Print dialog opened · choose Save as PDF for vector output', draw: 'Draw', modify: 'Modify', view: 'View',
     select: 'Select', pan: 'Pan', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', rectangle: 'Rectangle', text: 'Text', measure: 'Measure',
     undo: 'Undo', redo: 'Redo', erase: 'Delete', move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', fit: 'Fit', grid: 'Grid', ortho: 'Ortho', orthoOn: 'Orthogonal drafting on', orthoOff: 'Orthogonal drafting off', orthoBusy: 'Finish or cancel the current operation before changing Ortho', polar: 'Polar', polarOn: 'Polar tracking on', polarOff: 'Polar tracking off', polarBusy: 'Finish or cancel the current operation before changing Polar tracking', layers: 'Layers', properties: 'Properties',
     noSelection: 'Select an object to inspect its properties.', drawing: 'Drawing', entities: 'entities', selected: 'selected',
@@ -172,7 +179,7 @@ const copy = {
   'zh-CN': {
     drawingSpace: '图纸空间', modelSpace: '模型', paperPreview: '纸空间只读预览 · 返回模型后编辑',
     pageSetup: '页面设置', dimensionStyles: '标注样式', dimensionStylesDescription: '创建、编辑或启用原生标注样式。', newDimensionStyle: '新建样式', setCurrentStyle: '设为当前', currentStyle: '当前', styleName: '样式名称', dimensionArrowSize: '箭头大小', dimensionExtensionOffset: '尺寸界线偏移', dimensionExtensionBeyond: '尺寸界线超出量', textStyles: '文字样式', textStylesDescription: '管理本地字体引用和原生 CAD 文字参数。字体文件仅引用，不会嵌入。', newTextStyle: '新建样式', fontFamily: '字体族 / 回退名称', fontFile: '本地字体文件引用', bigFontFile: '大字体文件引用', fixedTextHeight: '固定高度（0 表示按对象）', textWidthFactor: '宽度系数', textObliqueAngle: '倾斜角（度）', pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。', pageSheet: '图纸布局', pageStale: '图档已变更，请关闭并重新打开对话框后再应用。', pageWidth: '纸张宽度（毫米）', pageHeight: '纸张高度（毫米）', pageLeft: '左边距（毫米）', pageRight: '右边距（毫米）', pageTop: '上边距（毫米）', pageBottom: '下边距（毫米）', pageUnits: '打印单位', pageRotation: '旋转（逆时针）', pageNumerator: '自定义比例：纸张单位', pageDenominator: '自定义比例：绘图单位', pageScaleNote: '可选适合纸张或编辑自定义比例。窗口坐标使用绘图单位，物理偏移使用毫米。', pageUnchanged: '保留已有值', pageInches: '英寸', pageMm: '毫米', pagePixels: '像素', pageArea: '打印范围', pageDisplay: '上次显示范围', pageExtents: '图形范围', pageLimits: '图形界限', pageView: '命名视图', pageWindow: '窗口', pageLayout: '布局', pageViewName: '视图名称', pageMinX: '窗口最小 X', pageMinY: '窗口最小 Y', pageMaxX: '窗口最大 X', pageMaxY: '窗口最大 Y', pageOriginX: '原点 X（毫米）', pageOriginY: '原点 Y（毫米）', pageScaleMode: '比例模式', pageFit: '适合纸张', pageCustom: '自定义比例',
-    open: '打开', openSource: '正在读取文件', openParse: '正在解析 DXF', openImport: '正在构建图纸', openCancelHint: 'Esc 取消', openCancelled: '已取消打开', saveKjd: '保存 KJD', exportDxf: '导出 DXF', exportSvg: '导出 SVG', print: '打印 / PDF', printOpened: '已打开打印对话框 · 选择另存为 PDF 可保留矢量', draw: '绘图', modify: '修改', view: '视图',
+    open: '打开', openSource: '正在读取文件', openParse: '正在解析 DXF', openImport: '正在构建图纸', openCancelHint: 'Esc 取消', openCancelled: '已取消打开', saveKjd: '保存 KJD', exportDxf: '导出 DXF', exportSvg: '导出 SVG', exportPng: '导出 PNG', print: '打印 / PDF', printOpened: '已打开打印对话框 · 选择另存为 PDF 可保留矢量', draw: '绘图', modify: '修改', view: '视图',
     select: '选择', pan: '平移', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', rectangle: '矩形', text: '文字', measure: '测距',
     undo: '撤销', redo: '重做', erase: '删除', move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', fit: '全图', grid: '栅格', ortho: '正交', orthoOn: '正交绘图已开启', orthoOff: '正交绘图已关闭', orthoBusy: '请先完成或取消当前操作，再切换正交模式', polar: '极轴', polarOn: '极轴跟踪已开启', polarOff: '极轴跟踪已关闭', polarBusy: '请先完成或取消当前操作，再切换极轴跟踪', layers: '图层', properties: '特性',
     noSelection: '选择图元后可查看和修改属性。', drawing: '图纸', entities: '图元', selected: '已选择',
@@ -785,6 +792,33 @@ export class KJDrawWorkbench {
     return output
   }
 
+  async exportPng(options: KJWorkbenchPngOptions = {}): Promise<KJDrawingPngExport> {
+    if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed')
+    const drawing = this.document
+    if (!drawing) throw new Error('No active KJDraw document')
+    const selectedLayout = this.#drawingLayoutId
+    const layoutId = options.layoutId ?? selectedLayout ?? drawing.spaces.activeLayoutId
+    const output = await exportDrawingPng(drawing, {
+      layoutId,
+      ...(options.maxEdge === undefined ? {} : { maxEdge: options.maxEdge }),
+      ...(options.theme === undefined ? {} : { theme: options.theme }),
+      ...(options.allowPartial === undefined ? {} : { allowPartial: options.allowPartial }),
+    })
+    if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed')
+    if (this.document !== drawing || (options.layoutId === undefined && this.#drawingLayoutId !== selectedLayout)) throw new Error('Drawing or selected layout changed during PNG export')
+    if (options.download !== false) {
+      const encoded = output.dataUrl.slice('data:image/png;base64,'.length)
+      const ownerWindow = this.root.ownerDocument.defaultView
+      if (!ownerWindow) throw new Error('PNG download requires a browser window')
+      const binary = ownerWindow.atob(encoded), bytes = new Uint8Array(binary.length)
+      for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index)
+      const base = (options.fileName ?? this.#fileName).replace(/\.[^.]+$/, '') || drawing.id
+      downloadBytes(bytes, `${base}.png`, output.mimeType)
+    }
+    this.#setMessage(`${output.pixelWidth} × ${output.pixelHeight} px · PNG`)
+    return output
+  }
+
   dispose(): void {
     if (this.#abort.signal.aborted) return
     this.#fileReadAbort?.abort(); this.#fileReadAbort = null
@@ -836,6 +870,7 @@ export class KJDrawWorkbench {
         <button type="button" class="panel-toggle hide-small ${showInspector ? 'active' : ''}" data-action="toggle-inspector" aria-pressed="${showInspector}">${icon('panel')}<span data-copy="properties">${t('properties')}</span></button>
         <button type="button" class="file-action" data-action="open" data-copy-title="open" aria-label="${t('open')}" title="${t('open')}">${icon('open')}<span data-copy="open">${t('open')}</span></button><button type="button" class="file-action hide-small" data-action="save-kjd" data-copy-title="saveKjd" aria-label="${t('saveKjd')}" title="${t('saveKjd')}">${icon('save')}<span data-copy="saveKjd">${t('saveKjd')}</span></button><button type="button" class="file-action primary" data-action="save-dxf" data-copy-title="exportDxf" aria-label="${t('exportDxf')}" title="${t('exportDxf')}">${icon('export')}<span data-copy="exportDxf">${t('exportDxf')}</span></button><button type="button" data-action="theme" data-copy-title="theme" title="${t('theme')}">${icon(this.#theme === 'dark' ? 'sun' : 'moon', 'data-theme-icon')}</button><button type="button" data-action="language"><span data-copy="language">${t('language')}</span></button>
         <button type="button" class="file-action" data-action="save-svg" data-copy-title="exportSvg" title="${t('exportSvg')}" aria-label="${t('exportSvg')}">${icon('export')}<span data-copy="exportSvg">${t('exportSvg')}</span></button>
+        <button type="button" class="file-action" data-action="save-png" data-copy-title="exportPng" title="${t('exportPng')}" aria-label="${t('exportPng')}">${icon('export')}<span data-copy="exportPng">${t('exportPng')}</span></button>
         <button type="button" class="file-action" data-action="print" data-copy-title="print" title="${t('print')}" aria-label="${t('print')}">${icon('export')}<span data-copy="print">${t('print')}</span></button>
         <button type="button" class="file-action" data-action="page-setup" data-copy-title="pageSetup" title="${t('pageSetup')}" aria-label="${t('pageSetup')}" ${readonly ? 'disabled' : ''}>${icon('panel')}<span data-copy="pageSetup">${t('pageSetup')}</span></button>
         <button type="button" class="file-action" data-action="dimension-styles" data-copy-title="dimensionStyles" title="${t('dimensionStyles')}" aria-label="${t('dimensionStyles')}" ${readonly ? 'disabled' : ''}>${icon('measure')}<span data-copy="dimensionStyles">${t('dimensionStyles')}</span></button>
@@ -961,6 +996,7 @@ export class KJDrawWorkbench {
     query<HTMLButtonElement>(this.root, '[data-action="save-kjd"]').addEventListener('click', () => void this.#run(() => this.save('KJD')), { signal })
     query<HTMLButtonElement>(this.root, '[data-action="save-dxf"]').addEventListener('click', () => void this.#run(() => this.save('DXF')), { signal })
     query<HTMLButtonElement>(this.root, '[data-action="save-svg"]').addEventListener('click', () => void this.#run(() => this.save('SVG')), { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="save-png"]').addEventListener('click', () => void this.#run(() => this.exportPng()), { signal })
     query<HTMLButtonElement>(this.root, '[data-action="print"]').addEventListener('click', () => void this.#run(() => this.print()), { signal })
     query<HTMLButtonElement>(this.root, '[data-action="undo"]').addEventListener('click', () => void this.#run(() => this.execute('UNDO')), { signal })
     query<HTMLButtonElement>(this.root, '[data-action="redo"]').addEventListener('click', () => void this.#run(() => this.execute('REDO')), { signal })

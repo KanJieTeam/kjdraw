@@ -4,6 +4,7 @@ import { KJDocument } from './document.js';
 import type { KJCommandArguments } from './commands.js';
 import type { KJFileAdapterOptions } from './file-adapters.js';
 import { type KJDrawingPrintHtml, type KJDrawingPrintOptions } from './print-export.js';
+import { type KJDrawingPngExport, type KJDrawingPngOptions } from './drawing-image.js';
 import { type KJWorkbenchLayout } from './layout.js';
 import { type KJDraftTool } from './drafting.js';
 export type { KJWorkbenchLayout } from './layout.js';
@@ -41,6 +42,11 @@ export interface KJWorkbenchSaveOptions extends KJFileAdapterOptions {
 }
 export type KJWorkbenchPrintOptions = Omit<KJDrawingPrintOptions, 'layoutId' | 'locale'> & {
     layoutId?: string;
+};
+export type KJWorkbenchPngOptions = Omit<KJDrawingPngOptions, 'layoutId'> & {
+    layoutId?: string;
+    fileName?: string;
+    download?: boolean;
 };
 export interface KJWorkbenchSnapshot {
     locale: KJWorkbenchLocale;
@@ -92,6 +98,7 @@ export declare class KJDrawWorkbench {
     }): Promise<KJSDKCommandEnvelopeReceipt<TResult>>;
     save(format?: 'KJD' | 'DXF' | 'SVG', options?: KJWorkbenchSaveOptions): Promise<unknown>;
     print(options?: KJWorkbenchPrintOptions): Promise<KJDrawingPrintHtml>;
+    exportPng(options?: KJWorkbenchPngOptions): Promise<KJDrawingPngExport>;
     dispose(): void;
 }
 export declare function mountKJDrawWorkbench(container: HTMLElement | ShadowRoot, options?: KJDrawWorkbenchOptions): KJDrawWorkbench;
