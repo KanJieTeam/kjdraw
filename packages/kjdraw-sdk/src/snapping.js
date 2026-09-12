@@ -11,6 +11,32 @@ export const KJ_SNAP_MODES = Object.freeze([
     'nearest',
     'intersection'
 ]);
+export const KJ_DEFAULT_SNAP_MODES = Object.freeze([
+    'endpoint',
+    'midpoint',
+    'center',
+    'quadrant',
+    'intersection',
+    'nearest'
+]);
+export const KJ_DEFAULT_SNAP_APERTURE = 10;
+export function getDocumentSnapSettings(document) {
+    if (!document?.snapshot) throw new KJValidationError('Snap settings require a KJDocument');
+    const variables = document.snapshot().header.systemVariables;
+    const configuredModes = variables.OSMODE;
+    if (configuredModes !== undefined && !Array.isArray(configuredModes)) throw new KJValidationError('OSMODE must be an array of snap modes');
+    const rawModes = configuredModes === undefined ? KJ_DEFAULT_SNAP_MODES : configuredModes;
+    const modes = [
+        ...new Set(rawModes.map((value)=>String(value).toLowerCase()))
+    ];
+    for (const mode of modes)if (!KJ_SNAP_MODES.includes(mode)) throw new KJValidationError(`Unsupported snap mode: ${mode}`);
+    const aperture = Number(variables.APERTURE ?? KJ_DEFAULT_SNAP_APERTURE);
+    if (!(aperture > 0) || !Number.isFinite(aperture)) throw new KJValidationError('APERTURE must be a positive finite number');
+    return Object.freeze({
+        modes: Object.freeze(modes),
+        aperture
+    });
+}
 const TURN = Math.PI * 2;
 const point3 = (point)=>{
     const record = point;
@@ -329,11 +355,18 @@ function primitiveIntersection(a, b) {
     };
 }
 function intersectionCandidates(entities, cursor, maxPairs) {
-    const primitives = entities.flatMap(primitiveSegments), result = [];
+    const primitives = entities.flatMap(primitiveSegments).map((primitive, order)=>({
+            primitive,
+            order,
+            distance: nearestOnPrimitive(cursor, primitive).distance
+        })).sort((a, b)=>a.distance - b.distance || a.order - b.order).map((value)=>value.primitive);
+    const result = [];
     let pairs = 0;
-    for(let left = 0; left < primitives.length; left += 1)for(let right = left + 1; right < primitives.length; right += 1){
+    pairSearch: for(let left = 0; left < primitives.length; left += 1)for(let right = left + 1; right < primitives.length; right += 1){
         const a = primitives[left], b = primitives[right];
-        if (a.entityId === b.entityId || ++pairs > maxPairs) continue;
+        if (a.entityId === b.entityId) continue;
+        if (pairs >= maxPairs) break pairSearch;
+        pairs += 1;
         for (const point of primitiveIntersection(a, b).points)result.push({
             mode: 'intersection',
             point: point3(point),
@@ -359,11 +392,16 @@ export function findSnapCandidates(document, cursorInput, options = {}) {
             ...candidate,
             distance: candidate.distance ?? distance2(cursor, candidate.point)
         }));
-    if (modes.has('intersection')) candidates.push(...intersectionCandidates(entities, cursor, Number(options.maxIntersectionPairs ?? 10000)).map((candidate)=>({
-            ...candidate,
-            distance: candidate.distance ?? distance2(cursor, candidate.point)
-        })));
+    if (modes.has('intersection')) {
+        const maxIntersectionPairs = Number(options.maxIntersectionPairs ?? 10000);
+        if (!Number.isSafeInteger(maxIntersectionPairs) || maxIntersectionPairs <= 0) throw new KJValidationError('maxIntersectionPairs must be a positive safe integer');
+        candidates.push(...intersectionCandidates(entities, cursor, maxIntersectionPairs).map((candidate)=>({
+                ...candidate,
+                distance: candidate.distance ?? distance2(cursor, candidate.point)
+            })));
+    }
     candidates = candidates.filter((candidate)=>candidate.distance <= radius);
+    if (candidates.some((candidate)=>candidate.mode !== 'nearest')) candidates = candidates.filter((candidate)=>candidate.mode !== 'nearest');
     candidates.sort((a, b)=>a.distance - b.distance || KJ_SNAP_MODES.indexOf(a.mode) - KJ_SNAP_MODES.indexOf(b.mode));
     const unique = [];
     for (const candidate of candidates){

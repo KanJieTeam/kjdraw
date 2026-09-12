@@ -1,6 +1,8 @@
 import type { KJDocument } from './document.js';
 import type { KJReadonlyObjectRecord } from './schema.js';
 export declare const KJ_SNAP_MODES: readonly ["endpoint", "midpoint", "center", "quadrant", "insertion", "node", "nearest", "intersection"];
+export declare const KJ_DEFAULT_SNAP_MODES: readonly ["endpoint", "midpoint", "center", "quadrant", "intersection", "nearest"];
+export declare const KJ_DEFAULT_SNAP_APERTURE = 10;
 export type KJSnapMode = typeof KJ_SNAP_MODES[number];
 export type KJSnapPointInput = readonly number[] | {
     x: number;
@@ -25,6 +27,12 @@ export interface KJSnapOptions {
     entityIds?: readonly string[];
     maxIntersectionPairs?: number;
 }
+export interface KJDocumentSnapSettings {
+    modes: readonly KJSnapMode[];
+    aperture: number;
+}
+/** Resolve persisted object-snap settings. APERTURE is expressed in screen pixels by interactive hosts. */
+export declare function getDocumentSnapSettings(document: KJDocument): Readonly<KJDocumentSnapSettings>;
 export declare function findSnapCandidates(document: KJDocument, cursorInput: KJSnapPointInput, options?: KJSnapOptions): readonly Readonly<KJSnapCandidate>[];
 export declare function findBestSnap(document: KJDocument, cursor: KJSnapPointInput, options?: KJSnapOptions): Readonly<KJSnapCandidate> | null;
 export interface KJNearestPointResult {

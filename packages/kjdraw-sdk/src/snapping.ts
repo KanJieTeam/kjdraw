@@ -24,6 +24,11 @@ export const KJ_SNAP_MODES = Object.freeze([
   'endpoint', 'midpoint', 'center', 'quadrant', 'insertion', 'node', 'nearest', 'intersection',
 ] as const)
 
+export const KJ_DEFAULT_SNAP_MODES = Object.freeze([
+  'endpoint', 'midpoint', 'center', 'quadrant', 'intersection', 'nearest',
+] as const)
+export const KJ_DEFAULT_SNAP_APERTURE = 10
+
 export type KJSnapMode = typeof KJ_SNAP_MODES[number]
 export type KJSnapPointInput = readonly number[] | { x: number; y: number; z?: number }
 export type KJSnapPoint = [number, number, number]
@@ -45,6 +50,25 @@ export interface KJSnapOptions {
   modes?: readonly string[]
   entityIds?: readonly string[]
   maxIntersectionPairs?: number
+}
+
+export interface KJDocumentSnapSettings {
+  modes: readonly KJSnapMode[]
+  aperture: number
+}
+
+/** Resolve persisted object-snap settings. APERTURE is expressed in screen pixels by interactive hosts. */
+export function getDocumentSnapSettings(document: KJDocument): Readonly<KJDocumentSnapSettings> {
+  if (!document?.snapshot) throw new KJValidationError('Snap settings require a KJDocument')
+  const variables = document.snapshot().header.systemVariables
+  const configuredModes = variables.OSMODE
+  if (configuredModes !== undefined && !Array.isArray(configuredModes)) throw new KJValidationError('OSMODE must be an array of snap modes')
+  const rawModes = configuredModes === undefined ? KJ_DEFAULT_SNAP_MODES : configuredModes
+  const modes = [...new Set(rawModes.map(value => String(value).toLowerCase() as KJSnapMode))]
+  for (const mode of modes) if (!KJ_SNAP_MODES.includes(mode)) throw new KJValidationError(`Unsupported snap mode: ${mode}`)
+  const aperture = Number(variables.APERTURE ?? KJ_DEFAULT_SNAP_APERTURE)
+  if (!(aperture > 0) || !Number.isFinite(aperture)) throw new KJValidationError('APERTURE must be a positive finite number')
+  return Object.freeze({ modes: Object.freeze(modes), aperture })
 }
 
 interface SnapVertex extends Record<string, unknown> {
@@ -280,11 +304,19 @@ function primitiveIntersection(a: SnapPrimitive, b: SnapPrimitive): PrimitiveInt
 }
 
 function intersectionCandidates(entities: ReadonlyArray<KJReadonlyObjectRecord>, cursor: KJSnapPointInput, maxPairs: number): MutableSnapCandidate[] {
-  const primitives = entities.flatMap(primitiveSegments), result: MutableSnapCandidate[] = []
+  // Search geometry closest to the aperture first, so a finite pair budget cannot be
+  // consumed by distant drawing content before reaching the local intersection.
+  const primitives = entities.flatMap(primitiveSegments)
+    .map((primitive, order) => ({ primitive, order, distance: nearestOnPrimitive(cursor, primitive).distance }))
+    .sort((a, b) => a.distance - b.distance || a.order - b.order)
+    .map(value => value.primitive)
+  const result: MutableSnapCandidate[] = []
   let pairs = 0
-  for (let left = 0; left < primitives.length; left += 1) for (let right = left + 1; right < primitives.length; right += 1) {
+  pairSearch: for (let left = 0; left < primitives.length; left += 1) for (let right = left + 1; right < primitives.length; right += 1) {
     const a = primitives[left]!, b = primitives[right]!
-    if (a.entityId === b.entityId || ++pairs > maxPairs) continue
+    if (a.entityId === b.entityId) continue
+    if (pairs >= maxPairs) break pairSearch
+    pairs += 1
     for (const point of primitiveIntersection(a, b).points) result.push({ mode: 'intersection', point: point3(point), entityIds: [a.entityId, b.entityId], distance: distance2(cursor, point) })
   }
   return result
@@ -301,8 +333,13 @@ export function findSnapCandidates(document: KJDocument, cursorInput: KJSnapPoin
   const entities = document.listEntities().filter(entity => !allowed || allowed.has(entity.id))
   let candidates = entities.flatMap(entity => baseCandidates(entity, modes, cursor))
     .map(candidate => ({ ...candidate, distance: candidate.distance ?? distance2(cursor, candidate.point) }))
-  if (modes.has('intersection')) candidates.push(...intersectionCandidates(entities, cursor, Number(options.maxIntersectionPairs ?? 10000)).map(candidate => ({ ...candidate, distance: candidate.distance ?? distance2(cursor, candidate.point) })))
+  if (modes.has('intersection')) {
+    const maxIntersectionPairs = Number(options.maxIntersectionPairs ?? 10000)
+    if (!Number.isSafeInteger(maxIntersectionPairs) || maxIntersectionPairs <= 0) throw new KJValidationError('maxIntersectionPairs must be a positive safe integer')
+    candidates.push(...intersectionCandidates(entities, cursor, maxIntersectionPairs).map(candidate => ({ ...candidate, distance: candidate.distance ?? distance2(cursor, candidate.point) })))
+  }
   candidates = candidates.filter(candidate => candidate.distance <= radius)
+  if (candidates.some(candidate => candidate.mode !== 'nearest')) candidates = candidates.filter(candidate => candidate.mode !== 'nearest')
   candidates.sort((a, b) => a.distance - b.distance || KJ_SNAP_MODES.indexOf(a.mode) - KJ_SNAP_MODES.indexOf(b.mode))
   const unique: Readonly<KJSnapCandidate>[] = []
   for (const candidate of candidates) {

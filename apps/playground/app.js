@@ -1,5 +1,5 @@
 import { captureDrawingView } from '../../packages/kjdraw-sdk/src/drawing-image.js'
-import { createKJDrawSDK, KJProjectSession, instantiateKJCoreWasm, createWasmGeometryBackend, registerGeometryBackend, createKJCoreDocumentAuthority, createKJCoreSolidBackend } from '../../packages/kjdraw-sdk/src/index.js'
+import { createKJDrawSDK, getDocumentSnapSettings, KJProjectSession, instantiateKJCoreWasm, createWasmGeometryBackend, registerGeometryBackend, createKJCoreDocumentAuthority, createKJCoreSolidBackend } from '../../packages/kjdraw-sdk/src/index.js'
 import { KJCanvasRenderer, aciColor } from '../../packages/kjdraw-sdk/src/canvas-renderer.js'
 import { kjdrawIcon } from '../../packages/kjdraw-sdk/src/theme.js'
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from '../../packages/kjdraw-sdk/src/layout.js'
@@ -36,6 +36,7 @@ let sdk, session, selection = new Set(), tool = 'select', start = null, draft = 
 let translation = null, dragMove = null, drafting = null, modification = null
 let selectionBox = null, gripDrag = null, fence = null, hoveredGrip = null, disposeInteractionDocument = null
 let boundaryEdit = null
+let snapHit = null
 let agentChat = null
 let outputControls = null
 const doc = () => sdk.activeDocument
@@ -90,7 +91,7 @@ function cancelInteraction(){
   const pointerIds=new Set([pan?.pointerId].filter(Number.isInteger))
   cancelSelectionGestures()
   cancelBoundaryEdit()
-  pan=null;dragMove=null;translation=null;start=null;draft=[];cursor=null;drafting?.session.cancel();drafting=null;modification=null
+  pan=null;dragMove=null;translation=null;start=null;draft=[];cursor=null;drafting?.session.cancel();drafting=null;modification=null;snapHit=null;delete workbench.dataset.snapMode
   for(const pointerId of pointerIds)if(canvas.hasPointerCapture(pointerId))canvas.releasePointerCapture(pointerId)
 }
 function setTool(value) {
@@ -254,6 +255,10 @@ function render() {
     ctx.fillRect(Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.abs(a[0]-b[0]),Math.abs(a[1]-b[1]));ctx.strokeRect(Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.abs(a[0]-b[0]),Math.abs(a[1]-b[1]));ctx.restore()
   }
   if(fence?.points.length){ctx.save();ctx.strokeStyle='#34d399';ctx.setLineDash([5,4]);ctx.beginPath();for(const [index,p] of [...fence.points,...(cursor?[point(cursor)]:[])].entries())index?ctx.lineTo(...p):ctx.moveTo(...p);ctx.stroke();ctx.restore()}
+  if(snapHit){
+    const [x,y]=point(snapHit.point),label=t(`snap_${snapHit.mode}`)
+    ctx.save();ctx.strokeStyle='#bdf878';ctx.fillStyle='#bdf878';ctx.lineWidth=2;ctx.strokeRect(x-5,y-5,10,10);ctx.font='12px system-ui, sans-serif';ctx.fillText(label,x+10,y-8);ctx.restore()
+  }
 }
 function resize() {
   const rect = canvas.getBoundingClientRect();width=rect.width;height=rect.height
@@ -580,7 +585,7 @@ $('command-input').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();run(runT
 $('new-layer').onclick=()=>run(async()=>{const values=await requestLocalCommand({title:i18n.locale==='zh'?'新建图层':'Create layer',fields:[{name:'name',label:i18n.locale==='zh'?'图层名称':'Layer name',value:'Design'}]});if(!values?.name.trim())return;await execute('LAYERNEW',{name:values.name.trim(),color:3})})
 $('new-drawing').onclick=()=>run(async()=>{const values=await requestLocalCommand({title:i18n.locale==='zh'?'新建图纸':'Create drawing',fields:[{name:'name',label:i18n.locale==='zh'?'图纸名称':'Drawing name',value:`Drawing ${session.documents.size+1}`},{name:'units',label:i18n.locale==='zh'?'绘图单位':'Drawing units',value:doc().snapshot().header.units??'millimeter',options:[['millimeter','mm'],['centimeter','cm'],['meter','m'],['inch','in'],['foot','ft'],['unitless',i18n.locale==='zh'?'无单位':'Unitless']]}]});if(!values?.name.trim())return;const name=values.name.trim(),id=`drawing-${Date.now().toString(36)}`,drawing=sdk.createDocument({documentId:id,title:name,units:values.units});session.attachDocument(drawing);activateDrawing(id,{announce:false,allowBusy:true});$('file-state').textContent=i18n.locale==='zh'?'内存中已修改':'Modified in memory';message(`Drawing created · ${name}`)})
 $('reset').onclick=()=>run(async()=>{const accepted=await requestLocalCommand({title:i18n.locale==='zh'?'重新加载原创示例？':'Reload the original sample?',description:i18n.locale==='zh'?'当前内存中的修改将被替换。需要保留时，请先保存 KJP。':'In-memory edits will be replaced. Save a KJP first if you need to keep them.',submitLabel:i18n.locale==='zh'?'重新加载':'Reload'});if(accepted)await freshSample()})
-$('snap').onclick=()=>{snapEnabled=!snapEnabled;$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');$('snap').setAttribute('aria-pressed',String(snapEnabled))}
+$('snap').onclick=()=>{snapEnabled=!snapEnabled;if(!snapEnabled){snapHit=null;delete workbench.dataset.snapMode}$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');$('snap').setAttribute('aria-pressed',String(snapEnabled));render()}
 $('grid').onclick=()=>{gridEnabled=!gridEnabled;$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('grid').setAttribute('aria-pressed',String(gridEnabled));render()}
 $('ortho').onclick=()=>{orthoEnabled=!orthoEnabled;$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('ortho').setAttribute('aria-pressed',String(orthoEnabled));render()}
 $('language').onclick=()=>{const canonical=knownIntent($('agent-intent').value);i18n.toggle();if(canonical)setCanonicalIntent();$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');if(sdk){populateSampleSelector();refresh();message(`${t('ready')} · ${documentTitle(doc())}`)}if(pendingPlan)displayAgentPlan(pendingPlan);if(boundaryEdit){boundaryEdit.session.setLocale(i18n.locale==='zh'?'zh':'en');updateBoundaryEditHint()}else if(translation)updateTranslationHint();else if(drafting)updateDraftHint();else if(modification)updateModificationHint();else if(tool==='select')$('hint').textContent=t('canvasHint');else if(tool==='pan')$('hint').textContent=t('panHint');else if(tool==='fence')$('hint').textContent=t('fenceHint')}
@@ -634,7 +639,16 @@ $('receipt-undo').onclick=()=>run(async()=>{await execute('UNDO',{}, {preserveRe
 $('receipt-save').onclick=()=>run(async()=>{const bytes=await saveProject();timeline(i18n.locale==='zh'?`KJP 下载已请求 · ${formatBytes(bytes.length)}`:`KJP download requested · ${formatBytes(bytes.length)}`)})
 $('receipt-reopen').onclick=()=>run(async()=>{const bytes=await session.package(),fingerprint=doc().fingerprint(),next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const reopened=await KJProjectSession.open(bytes,{sdk:next}),match=reopened.activeDocument.fingerprint()===fingerprint,count=reopened.activeDocument.listEntities().length;reopened.destroy();if(!match)throw new Error('KJP reopen fingerprint mismatch.');$('plan-state').dataset.state='verified';$('plan-state').textContent=i18n.locale==='zh'?`KJP 重开验证通过 · ${count.toLocaleString()} 个对象 · 指纹一致`:`KJP reopen verified · ${count.toLocaleString()} entities · fingerprint match`;timeline(i18n.locale==='zh'?`保存 / 重开验证通过 · ${formatBytes(bytes.length)} · 指纹一致`:`Save / reopen verified · ${formatBytes(bytes.length)} · fingerprint match`);workbench.dataset.demoState='verified';message(i18n.locale==='zh'?'KJP 往返验证通过 · 当前工作区未被替换':'KJP round-trip verified · current workspace was not replaced')})
 function pointer(e){const r=canvas.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]}
-function snap(p,excludeIds=[]){if(!snapEnabled||!sdk)return p;const hits=sdk.snap(p,{entityIds:modelEntities().filter(entity=>isVisible(entity)&&!excludeIds.includes(entity.id)).map(entity=>entity.id),radius:8/camera.scale,modes:['endpoint','midpoint','center','nearest']});return hits[0]?.point??p}
+function snap(p,excludeIds=[]){
+  snapHit=null;delete workbench.dataset.snapMode
+  if(!snapEnabled||!sdk)return p
+  let settings
+  try{settings=getDocumentSnapSettings(doc())}catch{return p}
+  if(!settings.modes.length)return p
+  const hit=sdk.snap(p,{entityIds:modelEntities().filter(entity=>isVisible(entity)&&!excludeIds.includes(entity.id)).map(entity=>entity.id),radius:settings.aperture/camera.scale,modes:settings.modes})[0]
+  if(hit){snapHit=hit;workbench.dataset.snapMode=hit.mode}
+  return hit?.point??p
+}
 function constrainedPoint(p){const value=snap(p);if(!orthoEnabled||!start)return value;const dx=Math.abs(value[0]-start[0]),dy=Math.abs(value[1]-start[1]);return dx>=dy?[value[0],start[1]]:[start[0],value[1]]}
 function translationPoint(p,base,excludeIds=[]){const value=snap(p,excludeIds);if(!orthoEnabled||!base)return value;return Math.abs(value[0]-base[0])>=Math.abs(value[1]-base[1])?[value[0],base[1]]:[base[0],value[1]]}
 function unrelatedPointer(event){
@@ -643,6 +657,7 @@ function unrelatedPointer(event){
 }
 canvas.onpointermove=e=>{
   if(unrelatedPointer(e))return
+  const hadSnap=Boolean(snapHit)
   const p=pointer(e)
   const binding=selectionBox??gripDrag??dragMove??fence
   if(binding&&!pointerBindingValid(binding)){cancelSelectionGestures();message(t('interactionChanged'));render();return}
@@ -662,7 +677,7 @@ canvas.onpointermove=e=>{
   cursor=translationPoint(constrainedPoint(world(p)),translation?.base??dragMove?.worldStart);$('coordinates').textContent=`X ${cursor[0].toFixed(2)} · Y ${cursor[1].toFixed(2)}`
   const grip=tool==='select'&&selectedIds().length===1&&!dragMove?canvasRenderer.hitGrip(p):null,nextHover=grip?`${grip.entityId}:${grip.id}`:null
   if(nextHover!==hoveredGrip){hoveredGrip=nextHover;canvas.style.cursor=grip?'crosshair':tool==='pan'?'grab':tool==='select'?'default':'crosshair';render()}
-  if(start||drafting||modification||translation?.base||dragMove?.started||fence)render()
+  if(start||drafting||modification||translation?.base||dragMove?.started||fence||snapHit||hadSnap)render()
 }
 canvas.onpointerdown=e=>{
   if(unrelatedPointer(e)||pan||selectionBox||gripDrag||dragMove)return

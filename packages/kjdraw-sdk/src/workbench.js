@@ -3,6 +3,7 @@ import { KJCanvasRenderer } from './canvas-renderer.js';
 import { createKJDrawSDK } from './sdk.js';
 import { KJDocument } from './document.js';
 import { editEntityGrip } from './grips.js';
+import { getDocumentSnapSettings } from './snapping.js';
 import { openDrawingPrintWindow } from './print-export.js';
 import { createIndustrySample } from './samples.js';
 import { KJDRAW_THEME_CSS, kjdrawIcon } from './theme.js';
@@ -140,6 +141,14 @@ const copy = {
         gripHint: 'Drag a square grip to edit geometry · Esc cancels',
         gripEditing: 'Specify the new grip position · Esc cancels',
         gestureCancelled: 'Drawing or view changed — gesture cancelled',
+        snapEndpoint: 'Endpoint',
+        snapMidpoint: 'Midpoint',
+        snapCenter: 'Center',
+        snapQuadrant: 'Quadrant',
+        snapIntersection: 'Intersection',
+        snapInsertion: 'Insertion',
+        snapNode: 'Node',
+        snapNearest: 'Nearest',
         fenceHint: 'Fence: click an open polyline · Enter selects · Backspace removes a point · Esc cancels · Shift/Ctrl/⌘ on first point adds/removes',
         fenceNeedsPoints: 'Fence selection needs at least two distinct points',
         showLayer: 'Show layer',
@@ -286,6 +295,14 @@ const copy = {
         gripHint: '拖动方形夹点修改几何 · Esc 取消',
         gripEditing: '指定夹点的新位置 · Esc 取消',
         gestureCancelled: '图纸或视图已变化，操作已取消',
+        snapEndpoint: '端点',
+        snapMidpoint: '中点',
+        snapCenter: '圆心',
+        snapQuadrant: '象限点',
+        snapIntersection: '交点',
+        snapInsertion: '插入点',
+        snapNode: '节点',
+        snapNearest: '最近点',
         fenceHint: '围栏：连续点击折线点 · Enter 选择 · Backspace 撤回点 · Esc 取消 · 首点按 Shift 增选、Ctrl/⌘ 减选',
         fenceNeedsPoints: '围栏至少需要两个不同的点',
         showLayer: '显示图层',
@@ -597,7 +614,7 @@ const WORKBENCH_STYLE = `
 .kjwb .navigator{position:absolute;z-index:4;right:12px;top:50%;transform:translateY(-50%);display:grid;gap:2px;padding:3px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff2;box-shadow:0 7px 22px #17233a24}.kjwb .navigator button{width:32px;height:32px;min-height:32px;padding:6px;display:grid;place-items:center}.kjwb .navigator button.active{background:var(--action-soft);border-color:#c8d8fa}.kjwb .navigator button.active .icon{color:var(--action)}
 .kjwb .draft-actions{position:absolute;z-index:4;left:12px;top:12px;display:flex;gap:4px;padding:3px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff2;box-shadow:0 6px 18px #17233a1f}.kjwb .draft-actions button{height:32px;padding:0 10px}.kjwb .draft-actions button:disabled{display:none}
 .kjwb .boundary-actions{flex-wrap:wrap;max-width:calc(100% - 24px);align-items:center}.kjwb .boundary-summary{min-width:0;padding:0 7px;font-size:12px;line-height:1.5;color:var(--muted);overflow-wrap:anywhere}
-.kjwb .hint{position:absolute;left:12px;bottom:12px;max-width:min(540px,calc(100% - 24px));padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff2;color:var(--muted);box-shadow:0 4px 16px #17233a14;pointer-events:none}.kjwb .snap{position:absolute;width:9px;height:9px;border:2px solid var(--brand);box-shadow:0 0 0 2px #20293680;transform:translate(-50%,-50%);pointer-events:none;display:none}
+.kjwb .hint{position:absolute;left:12px;bottom:12px;max-width:min(540px,calc(100% - 24px));padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff2;color:var(--muted);box-shadow:0 4px 16px #17233a14;pointer-events:none}.kjwb .snap{position:absolute;z-index:3;width:9px;height:9px;border:2px solid var(--brand);box-shadow:0 0 0 2px #20293680;transform:translate(-50%,-50%);pointer-events:none;display:none}.kjwb .snap::after{content:attr(data-label);position:absolute;left:12px;top:8px;padding:2px 5px;border-radius:3px;background:#202936e8;color:#fff;font:11px/15px var(--kj-sans,system-ui,sans-serif);white-space:nowrap}
 .kjwb .command{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:min(700px,calc(100% - 28px));min-height:40px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;padding:3px 4px 3px 11px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff5;box-shadow:0 8px 26px #17233a24}.kjwb .command span{font:12px/16px var(--kj-mono,ui-monospace,SFMono-Regular,Consolas,monospace);font-weight:700;color:var(--muted);letter-spacing:.025em}.kjwb .command input{min-width:0;height:32px;border:0;outline:0;background:transparent;color:var(--text)}.kjwb .command input::placeholder{color:#8b96a6}.kjwb .command button{height:32px;padding:0 14px;background:var(--action);border-color:var(--action);color:#fff}.kjwb .command+.hint{bottom:60px}
 .kjwb .inspector{padding:12px}.kjwb .empty{margin:2px 0;color:var(--muted);line-height:1.65}.kjwb .entity-title{padding-bottom:10px;border-bottom:1px solid var(--border);font-size:16px;font-weight:700;margin-bottom:8px}.kjwb .kv{display:grid;grid-template-columns:82px minmax(0,1fr);gap:9px;padding:8px 0;border-bottom:1px solid var(--surface-subtle)}.kjwb .kv span{color:var(--muted)}.kjwb .kv b{font-weight:600;overflow:hidden;text-overflow:ellipsis}.kjwb .field{display:grid;gap:6px;margin:12px 0}.kjwb .field span{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.025em}.kjwb .field input,.kjwb .field select{min-width:0;width:100%;height:32px;padding:0 9px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);outline:0}.kjwb .field input:focus,.kjwb .field select:focus{border-color:var(--action);box-shadow:0 0 0 2px var(--action-soft)}.kjwb .apply{width:100%;height:32px;background:var(--action);border-color:var(--action);color:#fff}.kjwb .warning{margin-top:12px;padding:9px;border:1px solid #e4b95f;border-radius:var(--radius);background:#fff8e8;color:#76530c;font-size:12px}
 .kjwb .modify-dialog{width:min(480px,calc(100vw - 28px));max-height:min(680px,calc(100vh - 28px));padding:0;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);box-shadow:0 22px 70px #17233a42;overflow:hidden}.kjwb .modify-dialog::backdrop{background:#17233a66;backdrop-filter:blur(2px)}.kjwb .modify-form{display:grid;grid-template-rows:auto minmax(0,1fr) auto;max-height:inherit}.kjwb .modify-head{padding:18px 20px 12px;border-bottom:1px solid var(--border)}.kjwb .modify-head h2{margin:0 0 5px;font-size:18px;line-height:1.25}.kjwb .modify-head p,.kjwb .modify-description,.kjwb .modify-order{margin:0;color:var(--muted);line-height:1.55}.kjwb .modify-body{padding:15px 20px;overflow:auto}.kjwb .modify-body>.field{margin-top:0}.kjwb .modify-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}.kjwb .modify-fields .field{margin:10px 0}.kjwb .modify-fields .check{display:flex;align-items:center;gap:9px;align-self:end;min-height:44px}.kjwb .modify-fields .check input{width:17px;height:17px;accent-color:var(--action)}.kjwb .modify-order{margin-top:10px;padding:9px 10px;border-radius:var(--radius);background:var(--surface-subtle);font-size:12px}.kjwb .modify-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--border);background:var(--chrome)}.kjwb .modify-actions button{padding:0 14px}.kjwb .modify-actions .confirm{background:var(--action);border-color:var(--action);color:#fff}@media(max-width:520px){.kjwb .modify-fields{grid-template-columns:1fr}}
@@ -741,6 +758,7 @@ export class KJDrawWorkbench {
     #draftPoints = [];
     #cursorWorld = null;
     #snapWorld = null;
+    #snapMode = null;
     #pendingText = 'KJDraw';
     #snappableEntityIds = [];
     #panStart = null;
@@ -3193,20 +3211,33 @@ export class KJDrawWorkbench {
         }).map((entity)=>entity.id);
     }
     #snapAt(world, excludeIds = []) {
-        if (this.paperPreview) return null;
+        if (this.paperPreview) {
+            this.#snapMode = null;
+            return null;
+        }
         const drawing = this.document;
-        if (!drawing || !this.#snappableEntityIds.length) return null;
+        if (!drawing || !this.#snappableEntityIds.length) {
+            this.#snapMode = null;
+            return null;
+        }
+        let settings;
+        try {
+            settings = getDocumentSnapSettings(drawing);
+        } catch  {
+            this.#snapMode = null;
+            return null;
+        }
+        if (!settings.modes.length) {
+            this.#snapMode = null;
+            return null;
+        }
         const candidate = this.sdk.snap(world, {
             document: drawing,
             entityIds: excludeIds.length ? this.#snappableEntityIds.filter((id)=>!excludeIds.includes(id)) : this.#snappableEntityIds,
-            radius: 10 / this.renderer.camera.scale,
-            modes: [
-                'endpoint',
-                'midpoint',
-                'center',
-                'nearest'
-            ]
+            radius: settings.aperture / this.renderer.camera.scale,
+            modes: settings.modes
         })[0];
+        this.#snapMode = candidate?.mode ?? null;
         return candidate ? [
             candidate.point[0],
             candidate.point[1]
@@ -3219,6 +3250,21 @@ export class KJDrawWorkbench {
             return;
         }
         this.#snapWorld = world;
+        const labels = {
+            endpoint: 'snapEndpoint',
+            midpoint: 'snapMidpoint',
+            center: 'snapCenter',
+            quadrant: 'snapQuadrant',
+            intersection: 'snapIntersection',
+            insertion: 'snapInsertion',
+            node: 'snapNode',
+            nearest: 'snapNearest'
+        };
+        const label = this.#snapMode && labels[this.#snapMode] ? this.#t(labels[this.#snapMode]) : '';
+        marker.dataset.mode = this.#snapMode ?? '';
+        marker.dataset.label = label;
+        if (label) marker.setAttribute('aria-label', label);
+        else marker.removeAttribute('aria-label');
         const screen = this.renderer.worldToScreen(world);
         marker.style.display = 'block';
         marker.style.left = `${screen[0]}px`;
@@ -3226,8 +3272,14 @@ export class KJDrawWorkbench {
     }
     #hideSnap() {
         this.#snapWorld = null;
+        this.#snapMode = null;
         const marker = this.root.querySelector('[data-snap]');
-        if (marker) marker.style.display = 'none';
+        if (marker) {
+            marker.style.display = 'none';
+            delete marker.dataset.mode;
+            delete marker.dataset.label;
+            marker.removeAttribute('aria-label');
+        }
     }
     #pointerDown(event) {
         const owner = this.#pointerOwnerId();
