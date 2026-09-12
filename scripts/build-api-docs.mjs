@@ -1,15 +1,20 @@
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { dirname, join, normalize, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url))
 const packageRoot = join(repositoryRoot, 'packages', 'kjdraw-sdk')
 const declarationsRoot = join(packageRoot, 'types')
-const docsRoot = join(repositoryRoot, 'docs', 'latest', 'api')
+const publishedDocsRoot = join(repositoryRoot, 'docs', 'latest', 'api')
 const guideSourcePath = join(repositoryRoot, 'docs', 'site', 'api', 'editor-api.json')
 const check = process.argv.includes('--check')
+const outputArgument = process.argv.find(value => value.startsWith('--output='))
+const outputRoot = outputArgument ? resolve(process.cwd(), outputArgument.slice('--output='.length)) : publishedDocsRoot
+
+if (outputArgument?.slice('--output='.length) === '') throw new Error('--output requires a directory')
 
 const packageJson = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
 const guideSource = await readFile(guideSourcePath, 'utf8')
@@ -542,25 +547,42 @@ async function listRelativeFiles(root, current = root) {
   return files
 }
 
-if (check) {
-  const stale = []
+async function writeOutputs(root) {
+  await rm(root, { recursive: true, force: true })
   for (const [name, content] of outputs) {
-    const committed = await readFile(join(docsRoot, name), 'utf8').catch(() => null)
-    if (committed !== content) stale.push(name)
-  }
-  for (const name of await listRelativeFiles(docsRoot)) if (!outputs.has(name)) stale.push(name)
-  if (stale.length) {
-    console.error(`Generated API documentation is stale:\n${[...new Set(stale)].sort().map(name => `- docs/latest/api/${name}`).join('\n')}\nRun: npm run build:docs`)
-    process.exitCode = 1
-  } else {
-    console.log(`Verified Editor API and complete reference for ${modules.length} package exports.`)
-  }
-} else {
-  await rm(docsRoot, { recursive: true, force: true })
-  for (const [name, content] of outputs) {
-    const destination = join(docsRoot, name)
+    const destination = join(root, name)
     await mkdir(dirname(destination), { recursive: true })
     await writeFile(destination, content)
   }
+}
+
+async function verifyOutputs(root) {
+  const stale = []
+  for (const [name, content] of outputs) {
+    const generated = await readFile(join(root, name), 'utf8').catch(() => null)
+    if (generated !== content) stale.push(name)
+  }
+  for (const name of await listRelativeFiles(root)) if (!outputs.has(name)) stale.push(name)
+  if (stale.length) {
+    throw new Error(`Generated API documentation is incomplete:\n${[...new Set(stale)].sort().map(name => `- ${name}`).join('\n')}`)
+  }
+}
+
+if (check) {
+  if (outputArgument) {
+    await verifyOutputs(outputRoot)
+    console.log(`Verified generated Editor API and complete reference for ${modules.length} package exports.`)
+  } else {
+    const temporaryRoot = await mkdtemp(join(tmpdir(), 'kjdraw-api-docs-'))
+    try {
+      await writeOutputs(temporaryRoot)
+      await verifyOutputs(temporaryRoot)
+      console.log(`Generated and verified Editor API and complete reference for ${modules.length} package exports in a temporary directory.`)
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true })
+    }
+  }
+} else {
+  await writeOutputs(outputRoot)
   console.log(`Built Editor API and complete reference for ${modules.length} package exports.`)
 }

@@ -42,7 +42,8 @@ jobs:
       - run: npm run typecheck
       - run: node scripts/build-declarations.mjs --check
       - run: node scripts/build-docs-site.mjs --check
-      - run: node scripts/build-api-docs.mjs --check
+      - name: Generate current API docs for deployment
+        run: node scripts/build-api-docs.mjs
       - run: node scripts/test.mjs
       - run: node scripts/check.mjs
       - run: node scripts/build.mjs

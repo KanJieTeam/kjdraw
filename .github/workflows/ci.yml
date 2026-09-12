@@ -23,7 +23,8 @@ jobs:
       - run: npm run typecheck
       - run: node scripts/build-declarations.mjs --check
       - run: node scripts/build-docs-site.mjs --check
-      - run: node scripts/build-api-docs.mjs --check
+      - name: Generate and validate API docs from source
+        run: node scripts/build-api-docs.mjs --check
       - run: node scripts/test.mjs
       - run: node --no-warnings scripts/build-typescript.mjs --check
       - run: node scripts/audits/verify-packed-package.mjs
@@ -44,7 +45,8 @@ jobs:
       - run: npm run typecheck
       - run: node scripts/build-declarations.mjs --check
       - run: node scripts/build-docs-site.mjs --check
-      - run: node scripts/build-api-docs.mjs --check
+      - name: Generate and validate API docs from source
+        run: node scripts/build-api-docs.mjs --check
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable @ 2026-07-16
         with:
           targets: wasm32-unknown-unknown

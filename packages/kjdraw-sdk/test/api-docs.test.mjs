@@ -1,20 +1,38 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
-import test from 'node:test'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import test, { after } from 'node:test'
 
 const repositoryRoot = new URL('../../../', import.meta.url)
+const generatedRoot = await mkdtemp(join(tmpdir(), 'kjdraw-api-docs-test-'))
+const generatedApiRoot = join(generatedRoot, 'api')
+const generation = spawnSync(process.execPath, ['scripts/build-api-docs.mjs', `--output=${generatedApiRoot}`], {
+  cwd: new URL('.', repositoryRoot),
+  encoding: 'utf8',
+})
+assert.equal(generation.status, 0, `${generation.stdout}\n${generation.stderr}`)
+after(() => rm(generatedRoot, { recursive: true, force: true }))
 
 async function json(path) {
   return JSON.parse(await readFile(new URL(path, repositoryRoot), 'utf8'))
 }
 
+async function generated(path) {
+  return readFile(join(generatedApiRoot, path), 'utf8')
+}
+
+async function generatedJson(path) {
+  return JSON.parse(await generated(path))
+}
+
 test('complete API reference covers every package export with stable deep links', async () => {
   const packageJson = await json('packages/kjdraw-sdk/package.json')
-  const reference = await json('docs/latest/api/reference/api-reference.json')
-  const compatibilityCopy = await json('docs/latest/api/api-reference.json')
-  const search = await json('docs/latest/api/search-index.json')
-  const html = await readFile(new URL('docs/latest/api/reference/index.html', repositoryRoot), 'utf8')
+  const reference = await generatedJson('reference/api-reference.json')
+  const compatibilityCopy = await generatedJson('api-reference.json')
+  const search = await generatedJson('search-index.json')
+  const html = await generated('reference/index.html')
 
   assert.equal(reference.schema, 'com.kanjie.kjdraw.api-reference@1')
   assert.equal(reference.package, packageJson.name)
@@ -49,9 +67,9 @@ test('complete API reference covers every package export with stable deep links'
 
 test('Editor API is task-oriented, bilingual and deep-linkable', async () => {
   const packageJson = await json('packages/kjdraw-sdk/package.json')
-  const guide = await json('docs/latest/api/editor-api.json')
-  const html = await readFile(new URL('docs/latest/api/index.html', repositoryRoot), 'utf8')
-  const app = await readFile(new URL('docs/latest/api/app.js', repositoryRoot), 'utf8')
+  const guide = await generatedJson('editor-api.json')
+  const html = await generated('index.html')
+  const app = await generated('app.js')
 
   assert.equal(guide.schema, 'com.kanjie.kjdraw.editor-api-guide@1')
   assert.equal(guide.package, packageJson.name)
@@ -98,10 +116,10 @@ test('guide search loads the generated reference index and exposes Editor API', 
   assert.match(app, /entry\.href/)
 })
 
-test('generated API documentation has no source drift', () => {
-  for (const script of ['docs/latest/api/app.js', 'docs/latest/api/reference/app.js']) {
+test('generated API documentation validates from source without committed artifacts', () => {
+  for (const script of ['app.js', 'reference/app.js']) {
     const syntax = spawnSync(process.execPath, ['--check', script], {
-      cwd: new URL('.', repositoryRoot),
+      cwd: generatedApiRoot,
       encoding: 'utf8',
     })
     assert.equal(syntax.status, 0, `${script}\n${syntax.stdout}\n${syntax.stderr}`)
@@ -111,4 +129,24 @@ test('generated API documentation has no source drift', () => {
     encoding: 'utf8',
   })
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
+})
+
+test('generated API verification rejects a damaged output path', async () => {
+  const damagedRoot = await mkdtemp(join(tmpdir(), 'kjdraw-api-docs-damaged-'))
+  try {
+    const generated = spawnSync(process.execPath, ['scripts/build-api-docs.mjs', `--output=${damagedRoot}`], {
+      cwd: new URL('.', repositoryRoot),
+      encoding: 'utf8',
+    })
+    assert.equal(generated.status, 0, `${generated.stdout}\n${generated.stderr}`)
+    await writeFile(join(damagedRoot, 'app.js'), 'damaged output\n')
+    const checked = spawnSync(process.execPath, ['scripts/build-api-docs.mjs', '--check', `--output=${damagedRoot}`], {
+      cwd: new URL('.', repositoryRoot),
+      encoding: 'utf8',
+    })
+    assert.notEqual(checked.status, 0)
+    assert.match(checked.stderr, /app\.js/)
+  } finally {
+    await rm(damagedRoot, { recursive: true, force: true })
+  }
 })
