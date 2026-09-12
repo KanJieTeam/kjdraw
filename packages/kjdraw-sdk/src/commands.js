@@ -1088,7 +1088,8 @@ export function registerCoreCommands(registry) {
                 rotation: args.rotation,
                 layerId: args.layerId,
                 ownerId: args.ownerId,
-                maxDefinitionEntities: args.maxDefinitionEntities
+                maxDefinitionEntities: args.maxDefinitionEntities,
+                identity: args.identity
             })
     }, {
         owner: '@kanjieteam/kjdraw'

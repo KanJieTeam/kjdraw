@@ -676,7 +676,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     execute: ({ document, transaction }, args) => insertCatalogComponent(document, transaction, {
       componentId: args.componentId, version: args.version, units: args.units, parameters: args.parameters,
       position: args.position, scale: args.scale, rotation: args.rotation, layerId: args.layerId,
-      ownerId: args.ownerId, maxDefinitionEntities: args.maxDefinitionEntities,
+      ownerId: args.ownerId, maxDefinitionEntities: args.maxDefinitionEntities, identity: args.identity,
     }),
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({

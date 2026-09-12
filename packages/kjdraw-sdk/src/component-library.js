@@ -1,6 +1,7 @@
 // Generated from component-library.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJValidationError } from './errors.js';
 import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
+import { createId } from './ids.js';
 export const KJDRAW_COMPONENT_CATALOG_VERSION = '1.0.0';
 export const KJDRAW_COMPONENT_SEARCH_MAX_LIMIT = 50;
 export const KJDRAW_COMPONENT_DEFINITION_MAX_ENTITIES = 64;
@@ -410,6 +411,46 @@ function componentMetadata(definition, units, values, entityCount) {
         entityCount
     };
 }
+function componentIdentity(value, entityCount) {
+    if (value == null) return null;
+    const source = exactKeys(value, [
+        'definitionId',
+        'memberIds',
+        'insertId'
+    ], 'identity');
+    const definitionId = String(source.definitionId ?? ''), insertId = String(source.insertId ?? ''), memberIds = source.memberIds;
+    if (!definitionId || !insertId || !Array.isArray(memberIds) || memberIds.length !== entityCount || memberIds.some((id)=>typeof id !== 'string' || !id)) fail('identity must contain a definition ID, insert ID and one member ID per definition entity');
+    if (new Set([
+        definitionId,
+        insertId,
+        ...memberIds
+    ]).size !== entityCount + 2) fail('identity IDs must be unique');
+    return deepFreeze({
+        definitionId,
+        memberIds: [
+            ...memberIds
+        ],
+        insertId
+    });
+}
+export function createCatalogComponentInsertIdentity(document, input) {
+    const definition = resolveComponent(input), state = document.snapshot(), units = String(input.units ?? '');
+    if (!units || units !== state.header.units) fail('units must exactly match drawing units');
+    const factor = DRAWING_UNITS_PER_MILLIMETER[normalizeName(units).toLowerCase()];
+    if (!(factor != null && factor > 0)) fail(`drawing unit is not supported for physical components: ${units}`);
+    const values = resolveParameters(definition, input.parameters), count = definition.build(values, factor).length;
+    if (!count || count > KJDRAW_COMPONENT_DEFINITION_MAX_ENTITIES) fail(`component definition requires ${count} entities`);
+    const name = definitionName(definition, units, values);
+    const existing = state.tables.blockRecords.recordIds.map((id)=>state.objects[id]).find((record)=>normalizeName(record?.name) === normalizeName(name));
+    const memberIds = existing?.kind === 'block-record' && !existing.erased && Array.isArray(existing.payload.entityIds) ? existing.payload.entityIds.map(String) : Array.from({
+        length: count
+    }, ()=>createId('entity'));
+    return deepFreeze({
+        definitionId: existing?.id ?? createId('block'),
+        memberIds,
+        insertId: createId('entity')
+    });
+}
 export function insertCatalogComponent(_document, transaction, input) {
     const definition = resolveComponent(input), state = transaction._draft(), units = String(input.units ?? '');
     if (!units || units !== state.header.units) fail('units must exactly match drawing units');
@@ -439,6 +480,7 @@ export function insertCatalogComponent(_document, transaction, input) {
             }
         }));
     if (!specs.length || specs.length > budget) fail(`component definition requires ${specs.length} entities but budget is ${budget}`);
+    const identity = componentIdentity(input.identity, specs.length);
     const name = definitionName(definition, units, values), expectedMetadata = componentMetadata(definition, units, values, specs.length);
     const existing = state.tables.blockRecords.recordIds.map((id)=>transaction.getObject(id)).find((record)=>normalizeName(record?.name) === normalizeName(name)) ?? null;
     let block, reused = false;
@@ -446,10 +488,14 @@ export function insertCatalogComponent(_document, transaction, input) {
         if (existing.kind !== 'block-record' || existing.erased || existing.payload.isSpace === true || stableHash(existing.payload.component) !== stableHash(expectedMetadata)) fail(`block definition name collision: ${name}`);
         const members = existing.payload.entityIds ?? [];
         if (members.length !== specs.length || members.some((id)=>!transaction.getObject(id) || transaction.getObject(id)?.erased)) fail(`component block definition is incomplete: ${name}`);
+        if (identity && (identity.definitionId !== existing.id || identity.memberIds.some((id, index)=>id !== members[index]))) fail('identity does not match the reusable component definition');
         block = existing;
         reused = true;
     } else {
         block = transaction.upsertTableRecord('blockRecords', {
+            ...identity ? {
+                id: identity.definitionId
+            } : {},
             name,
             type: 'BLOCK_RECORD',
             payload: {
@@ -463,8 +509,11 @@ export function insertCatalogComponent(_document, transaction, input) {
                 component: expectedMetadata
             }
         });
-        for (const spec of specs)transaction.createEntity(spec.type, spec.payload, {
-            ownerId: block.id
+        for (const [index, spec] of specs.entries())transaction.createEntity(spec.type, spec.payload, {
+            ownerId: block.id,
+            ...identity ? {
+                id: identity.memberIds[index]
+            } : {}
         });
     }
     const insert = transaction.createEntity('INSERT', {
@@ -479,7 +528,10 @@ export function insertCatalogComponent(_document, transaction, input) {
         attributes: {},
         layerId: targetLayerId
     }, {
-        ownerId
+        ownerId,
+        ...identity ? {
+            id: identity.insertId
+        } : {}
     });
     return deepFreeze({
         catalogVersion: KJDRAW_COMPONENT_CATALOG_VERSION,

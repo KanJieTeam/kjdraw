@@ -14,6 +14,8 @@ export interface KJAgentPreviewResource {
     readonly type: string;
     readonly name: string | null;
     readonly payload: ReadonlyDeep<KJObjectPayload>;
+    /** Omitted for table records for backwards-compatible preview payloads. */
+    readonly kind?: 'block-record';
 }
 export interface KJAgentGeometryPreview {
     readonly documentId: string;
@@ -32,7 +34,7 @@ export interface KJAgentGeometryPreview {
             readonly key: string;
         };
     };
-    readonly command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'ROAD_DRAWING_UPDATE';
+    readonly command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'ROAD_DRAWING_UPDATE';
     readonly before: readonly KJAgentPreviewEntity[];
     readonly after: readonly KJAgentPreviewEntity[];
 }
@@ -42,5 +44,5 @@ export interface KJAgentGeometryPreviewOptions {
     maxCreatedEntities?: number;
 }
 /** Run bounded core geometry on a detached document. No host plugins, authority, network or source history is invoked. */
-export declare function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE', args: Record<string, unknown>, options?: KJAgentGeometryPreviewOptions): Promise<KJAgentGeometryPreview>;
+export declare function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE', args: Record<string, unknown>, options?: KJAgentGeometryPreviewOptions): Promise<KJAgentGeometryPreview>;
 export declare function agentPreviewMatchesDocument(document: KJDocument, preview: KJAgentGeometryPreview): boolean;

@@ -19,6 +19,8 @@ export interface KJAgentPreviewResource {
   readonly type: string
   readonly name: string | null
   readonly payload: ReadonlyDeep<KJObjectPayload>
+  /** Omitted for table records for backwards-compatible preview payloads. */
+  readonly kind?: 'block-record'
 }
 export interface KJAgentGeometryPreview {
   readonly documentId: string
@@ -27,7 +29,7 @@ export interface KJAgentGeometryPreview {
   /** Existing block definitions, descendant geometry and styles, captured at revision. */
   readonly blockDependencies?: readonly KJAgentBlockPreviewDependency[]
   readonly designChange?: { readonly id: string; readonly before: ReadonlyDeep<KJDesignDefinition>; readonly after: ReadonlyDeep<KJDesignDefinition>; readonly record: KJReadonlyObjectRecord; readonly members: readonly KJReadonlyObjectRecord[]; readonly dictionary: { readonly id: string; readonly key: string } }
-  readonly command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'ROAD_DRAWING_UPDATE'
+  readonly command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'ROAD_DRAWING_UPDATE'
   readonly before: readonly KJAgentPreviewEntity[]
   readonly after: readonly KJAgentPreviewEntity[]
 }
@@ -168,8 +170,8 @@ export interface KJAgentGeometryPreviewOptions {
 }
 
 /** Run bounded core geometry on a detached document. No host plugins, authority, network or source history is invoked. */
-export async function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE', args: Record<string, unknown>, options: KJAgentGeometryPreviewOptions = {}): Promise<KJAgentGeometryPreview> {
-  if (!['CREATEBATCH', 'MOVE', 'ROTATE', 'SCALE', 'STRETCH', 'LENGTHEN', 'PEDIT', 'DESIGNCREATE', 'DESIGNUPDATE'].includes(command)) throw new KJValidationError('Unsupported core preview command')
+export async function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE', args: Record<string, unknown>, options: KJAgentGeometryPreviewOptions = {}): Promise<KJAgentGeometryPreview> {
+  if (!['CREATEBATCH', 'COMPONENTINSERT', 'MOVE', 'ROTATE', 'SCALE', 'STRETCH', 'LENGTHEN', 'PEDIT', 'DESIGNCREATE', 'DESIGNUPDATE'].includes(command)) throw new KJValidationError('Unsupported core preview command')
   let bindingIds: string[] | undefined
   if (command === 'DESIGNCREATE') {
     if (typeof args.id !== 'string' || !args.id.trim() || Object.keys(args).some(key => !['id', 'name', 'definition'].includes(key))) throw new KJValidationError('DESIGNCREATE preview requires a stable preallocated ID, name and definition')
@@ -188,7 +190,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   if (!Number.isSafeInteger(maxCreatedEntities) || maxCreatedEntities < 1 || maxCreatedEntities > 512) throw new KJValidationError('Preview creation budget must be an integer from 1 to 512')
   if (command === 'CREATEBATCH') {
     if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some(spec => !spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} LINE/CIRCLE/ARC/LWPOLYLINE/TEXT/DIMENSION entities`)
-  } else {
+  } else if (command !== 'COMPONENTINSERT') {
     const ids = bindingIds ?? (design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' ? [args.id] : args.ids)
     if (!Array.isArray(ids) || !ids.length || ids.length > 64) throw new KJValidationError('Preview requires 1–64 existing entity IDs')
     if (command === 'PEDIT') {
@@ -216,9 +218,9 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   }
   const source = document.snapshot(), revision = document.revision
   if (Object.keys(source.objects).length > 250000) throw new KJValidationError('Agent preview exceeds the 250000 object document limit')
-  const ids = bindingIds ?? (design ? design.entityIds : command === 'CREATEBATCH' ? [] : command === 'PEDIT' || command === 'LENGTHEN' ? [String(args.id)] : args.ids as string[])
+  const ids = bindingIds ?? (design ? design.entityIds : command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? [] : command === 'PEDIT' || command === 'LENGTHEN' ? [String(args.id)] : args.ids as string[])
   const blockDependencies = ['MOVE', 'ROTATE', 'SCALE'].includes(command) ? captureAgentBlockDependencies(document, ids) : undefined
-  const workingSet = command !== 'CREATEBATCH' ? ids.map(id => document.getObject(id)) : args.entities
+  const workingSet = command === 'CREATEBATCH' ? args.entities : command === 'COMPONENTINSERT' ? args : ids.map(id => document.getObject(id))
   if (new TextEncoder().encode(JSON.stringify({ args, workingSet, ...(design ? { design: document.getObject(design.id) } : {}) })).length > 4194304) throw new KJValidationError('Agent preview working set exceeds the 4 MiB limit')
   const draft = document.fork()
   const commands = new KJCommandRegistry()
@@ -248,8 +250,10 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   if (command === 'STRETCH' && !after.length) throw new KJValidationError('STRETCH would leave the selected geometry unchanged')
   if (command === 'LENGTHEN' && !after.length) throw new KJValidationError('LENGTHEN would leave the selected geometry unchanged')
   if (command === 'PEDIT' && !after.length) throw new KJValidationError('Polyline edit would leave the selected geometry unchanged')
-  if (before.length > 64 || after.length > (command === 'CREATEBATCH' ? maxCreatedEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit')
-  const resources = draft.listObjects({ kind: 'table-record' }).filter(item => !document.getObject(item.id)).map(item => ({ id: item.id, type: item.type, name: item.name, payload: item.payload }))
+  if (before.length > 64 || after.length > (command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? maxCreatedEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit')
+  const resources = draft.listObjects().filter(item => (item.kind === 'table-record' || item.kind === 'block-record') && !document.getObject(item.id)).map(item => ({
+    id: item.id, type: item.type, name: item.name, payload: item.payload, ...(item.kind === 'block-record' ? { kind: item.kind } : {}),
+  }))
   if (resources.length > 32) throw new KJValidationError('Preview exceeds the 32 new resource limit')
   const designId = design?.id ?? (command === 'DESIGNCREATE' ? String(args.id) : undefined)
   const dictionaryId = draft.snapshot().namedObjectsDictionaryId
@@ -268,7 +272,7 @@ export function agentPreviewMatchesDocument(document: KJDocument, preview: KJAge
     && (!preview.designChange || preview.designChange.members.every(expected => canonicalStringify(document.getObject(expected.id)) === canonicalStringify(expected)))
     && (!preview.designChange || (() => { const dictionary = document.getObject(preview.designChange.dictionary.id); return dictionary?.kind === 'dictionary' && dictionary.payload.entries?.[preview.designChange.dictionary.key] === preview.designChange.id })())
     && agentBlockDependenciesMatchDocument(document, preview.blockDependencies)
-    && (preview.resources ?? []).every(expected => { const actual = document.getObject(expected.id); return actual?.kind === 'table-record' && actual.type === expected.type && actual.name === expected.name && canonicalStringify(actual.payload) === canonicalStringify(expected.payload) })
+    && (preview.resources ?? []).every(expected => { const actual = document.getObject(expected.id); return actual?.kind === (expected.kind ?? 'table-record') && actual.type === expected.type && actual.name === expected.name && canonicalStringify(actual.payload) === canonicalStringify(expected.payload) })
     && preview.after.every(expected => {
       const actual = document.getObject(expected.id)
       return actual?.kind === 'entity' && canonicalStringify(project(actual)) === canonicalStringify(expected)

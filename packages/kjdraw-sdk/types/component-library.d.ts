@@ -67,6 +67,12 @@ export interface KJComponentInsertInput {
     layerId?: unknown;
     ownerId?: unknown;
     maxDefinitionEntities?: unknown;
+    identity?: unknown;
+}
+export interface KJComponentInsertIdentity {
+    readonly definitionId: string;
+    readonly memberIds: readonly string[];
+    readonly insertId: string;
 }
 export interface KJComponentInsertResult {
     readonly catalogVersion: string;
@@ -81,5 +87,7 @@ export interface KJComponentInsertResult {
 }
 export declare function listComponentCatalog(): readonly KJComponentCatalogEntry[];
 export declare function searchComponentCatalog(input?: KJComponentSearchInput): KJComponentSearchResult;
+/** Allocate one stable internal identity before an AI proposal is previewed and approved. */
+export declare function createCatalogComponentInsertIdentity(document: KJDocument, input: KJComponentInsertInput): KJComponentInsertIdentity;
 /** Insert one catalog item through native BLOCK_RECORD members and INSERT in the caller's transaction. */
 export declare function insertCatalogComponent(_document: KJDocument, transaction: KJTransaction, input: KJComponentInsertInput): KJComponentInsertResult;

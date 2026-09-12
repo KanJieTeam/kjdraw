@@ -17,6 +17,7 @@ import { expandRectangularDrawingPattern } from './agent-drawing-patterns.js';
 import { validateDrawingGeometry } from './drawing-validation.js';
 import { commitAgentTaskCreateBatchApproval, commitAgentTaskLengthenApproval, commitAgentTaskMoveApproval, commitAgentTaskPolylineEditApproval, commitAgentTaskRotateApproval, commitAgentTaskScaleApproval, commitAgentTaskStretchApproval, KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
 import { createAgentDesignContext } from './agent-design-relations.js';
+import { createCatalogComponentInsertIdentity, searchComponentCatalog } from './component-library.js';
 const number = {
     type: 'number',
     minimum: -1e12,
@@ -519,7 +520,103 @@ const roadDrawingFromAssetSchema = object({
             roadDrawingSchema.properties[key]
         ]))
 });
+const componentSearchSchemaBase = object({
+    expectedRevision: revision,
+    query: {
+        type: 'string',
+        minLength: 0,
+        maxLength: 128
+    },
+    category: {
+        type: 'string',
+        enum: [
+            'mechanical',
+            'architecture',
+            'electrical'
+        ]
+    },
+    locale: {
+        type: 'string',
+        enum: [
+            'en',
+            'zh-CN'
+        ]
+    },
+    limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 50
+    },
+    cursor: {
+        type: 'integer',
+        minimum: 0,
+        maximum: Number.MAX_SAFE_INTEGER
+    }
+});
+const componentSearchSchema = {
+    ...componentSearchSchemaBase,
+    required: [
+        'expectedRevision'
+    ]
+};
+const componentInsertSchemaBase = object({
+    expectedRevision: revision,
+    units: text,
+    componentId: {
+        ...text,
+        maxLength: 128
+    },
+    version: {
+        ...text,
+        maxLength: 32
+    },
+    parameters: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 16,
+        items: object({
+            name: {
+                ...text,
+                maxLength: 64
+            },
+            value: number
+        })
+    },
+    position: point,
+    scale: radius,
+    rotationDegrees: {
+        type: 'number',
+        minimum: -360,
+        maximum: 360
+    },
+    layerId: text
+});
+const componentInsertSchema = {
+    ...componentInsertSchemaBase,
+    required: [
+        'expectedRevision',
+        'units',
+        'componentId',
+        'version',
+        'parameters',
+        'position',
+        'scale',
+        'rotationDegrees'
+    ]
+};
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
+    {
+        name: 'cad_read_components',
+        effect: 'read',
+        description: 'Search the bounded versioned KJDraw component catalog. Returns exact IDs, versions, parameters and SPDX license metadata. Use the returned version with cad_propose_component_insert. This reads catalog data and does not modify the drawing.',
+        inputSchema: componentSearchSchema
+    },
+    {
+        name: 'cad_propose_component_insert',
+        effect: 'propose',
+        description: 'Propose one licensed native component as an editable INSERT with a reusable BLOCK_RECORD. Supply the exact catalog ID/version, every changed parameter as {name,value}, model-space position, positive uniform scale and rotation in degrees. The current or supplied editable layer is used. Returns the complete definition and instance preview; a trusted host must approve before one undoable commit.',
+        inputSchema: componentInsertSchema
+    },
     {
         name: 'cad_propose_design_bind',
         effect: 'propose',
@@ -1207,6 +1304,17 @@ export class KJAgentToolSession {
                 });
                 else if (name === 'cad_read_layouts') value = createLayoutContext(document, args);
                 else if (name === 'cad_read_designs') value = createAgentDesignContext(document, args.offset, args.limit, args.maxBytes);
+                else if (name === 'cad_read_components') value = {
+                    documentId: document.id,
+                    revision: document.revision,
+                    ...searchComponentCatalog({
+                        query: args.query,
+                        category: args.category,
+                        locale: args.locale,
+                        limit: args.limit,
+                        cursor: args.cursor
+                    })
+                };
                 else if (name === 'cad_query_drawing') {
                     const query = args;
                     value = createDrawingContext(document, {
@@ -1315,7 +1423,31 @@ export class KJAgentToolSession {
                         let commandArgs;
                         let engineeringEvidence;
                         let sourceAsset;
-                        if (name === 'cad_propose_road_drawing' || name === 'cad_propose_road_drawing_from_asset') {
+                        if (name === 'cad_propose_component_insert') {
+                            const parameters = args.parameters;
+                            if (new Set(parameters.map((parameter)=>parameter.name)).size !== parameters.length) throw new KJValidationError('Component parameter names must be unique');
+                            const componentArgs = {
+                                componentId: args.componentId,
+                                version: args.version,
+                                units: args.units,
+                                parameters: Object.fromEntries(parameters.map((parameter)=>[
+                                        parameter.name,
+                                        parameter.value
+                                    ])),
+                                position: xy(args.position),
+                                scale: args.scale,
+                                rotation: Number(args.rotationDegrees) * Math.PI / 180,
+                                ...args.layerId == null ? {} : {
+                                    layerId: args.layerId
+                                },
+                                maxDefinitionEntities: 64
+                            };
+                            command = 'COMPONENTINSERT';
+                            commandArgs = {
+                                ...componentArgs,
+                                identity: createCatalogComponentInsertIdentity(document, componentArgs)
+                            };
+                        } else if (name === 'cad_propose_road_drawing' || name === 'cad_propose_road_drawing_from_asset') {
                             let roadInput = args;
                             if (name === 'cad_propose_road_drawing_from_asset') {
                                 const { assetId, sha256, ...settings } = args;
@@ -1600,7 +1732,9 @@ export class KJAgentToolSession {
                         }
                         const definition = this.#sdk.commands.resolve(command);
                         if (!definition || definition.owner !== '@kanjieteam/kjdraw') throw new KJValidationError('Agent preview requires the built-in core command');
-                        const preview = await createAgentGeometryPreview(document, command, commandArgs, [
+                        const preview = await createAgentGeometryPreview(document, command, commandArgs, name === 'cad_propose_component_insert' ? {
+                            maxCreatedEntities: 65
+                        } : [
                             'cad_propose_drawing_pattern',
                             'cad_propose_drawing_annotated',
                             'cad_propose_road_drawing',

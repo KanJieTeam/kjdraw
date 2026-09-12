@@ -251,6 +251,7 @@ function validateLengthenPreview(document, args) {
 export async function createAgentGeometryPreview(document, command, args, options = {}) {
     if (![
         'CREATEBATCH',
+        'COMPONENTINSERT',
         'MOVE',
         'ROTATE',
         'SCALE',
@@ -289,7 +290,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     if (!Number.isSafeInteger(maxCreatedEntities) || maxCreatedEntities < 1 || maxCreatedEntities > 512) throw new KJValidationError('Preview creation budget must be an integer from 1 to 512');
     if (command === 'CREATEBATCH') {
         if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some((spec)=>!spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} LINE/CIRCLE/ARC/LWPOLYLINE/TEXT/DIMENSION entities`);
-    } else {
+    } else if (command !== 'COMPONENTINSERT') {
         const ids = bindingIds ?? (design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' ? [
             args.id
         ] : args.ids);
@@ -322,7 +323,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     }
     const source = document.snapshot(), revision = document.revision;
     if (Object.keys(source.objects).length > 250000) throw new KJValidationError('Agent preview exceeds the 250000 object document limit');
-    const ids = bindingIds ?? (design ? design.entityIds : command === 'CREATEBATCH' ? [] : command === 'PEDIT' || command === 'LENGTHEN' ? [
+    const ids = bindingIds ?? (design ? design.entityIds : command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? [] : command === 'PEDIT' || command === 'LENGTHEN' ? [
         String(args.id)
     ] : args.ids);
     const blockDependencies = [
@@ -330,7 +331,7 @@ export async function createAgentGeometryPreview(document, command, args, option
         'ROTATE',
         'SCALE'
     ].includes(command) ? captureAgentBlockDependencies(document, ids) : undefined;
-    const workingSet = command !== 'CREATEBATCH' ? ids.map((id)=>document.getObject(id)) : args.entities;
+    const workingSet = command === 'CREATEBATCH' ? args.entities : command === 'COMPONENTINSERT' ? args : ids.map((id)=>document.getObject(id));
     if (new TextEncoder().encode(JSON.stringify({
         args,
         workingSet,
@@ -372,14 +373,15 @@ export async function createAgentGeometryPreview(document, command, args, option
     if (command === 'STRETCH' && !after.length) throw new KJValidationError('STRETCH would leave the selected geometry unchanged');
     if (command === 'LENGTHEN' && !after.length) throw new KJValidationError('LENGTHEN would leave the selected geometry unchanged');
     if (command === 'PEDIT' && !after.length) throw new KJValidationError('Polyline edit would leave the selected geometry unchanged');
-    if (before.length > 64 || after.length > (command === 'CREATEBATCH' ? maxCreatedEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit');
-    const resources = draft.listObjects({
-        kind: 'table-record'
-    }).filter((item)=>!document.getObject(item.id)).map((item)=>({
+    if (before.length > 64 || after.length > (command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? maxCreatedEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit');
+    const resources = draft.listObjects().filter((item)=>(item.kind === 'table-record' || item.kind === 'block-record') && !document.getObject(item.id)).map((item)=>({
             id: item.id,
             type: item.type,
             name: item.name,
-            payload: item.payload
+            payload: item.payload,
+            ...item.kind === 'block-record' ? {
+                kind: item.kind
+            } : {}
         }));
     if (resources.length > 32) throw new KJValidationError('Preview exceeds the 32 new resource limit');
     const designId = design?.id ?? (command === 'DESIGNCREATE' ? String(args.id) : undefined);
@@ -433,7 +435,7 @@ export function agentPreviewMatchesDocument(document, preview) {
         return dictionary?.kind === 'dictionary' && dictionary.payload.entries?.[preview.designChange.dictionary.key] === preview.designChange.id;
     })()) && agentBlockDependenciesMatchDocument(document, preview.blockDependencies) && (preview.resources ?? []).every((expected)=>{
         const actual = document.getObject(expected.id);
-        return actual?.kind === 'table-record' && actual.type === expected.type && actual.name === expected.name && canonicalStringify(actual.payload) === canonicalStringify(expected.payload);
+        return actual?.kind === (expected.kind ?? 'table-record') && actual.type === expected.type && actual.name === expected.name && canonicalStringify(actual.payload) === canonicalStringify(expected.payload);
     }) && preview.after.every((expected)=>{
         const actual = document.getObject(expected.id);
         return actual?.kind === 'entity' && canonicalStringify(project(actual)) === canonicalStringify(expected);

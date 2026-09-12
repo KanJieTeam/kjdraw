@@ -26,6 +26,7 @@ import { validateDrawingGeometry, type KJDrawingValidationPointReference } from 
 import { commitAgentTaskCreateBatchApproval, commitAgentTaskLengthenApproval, commitAgentTaskMoveApproval, commitAgentTaskPolylineEditApproval, commitAgentTaskRotateApproval, commitAgentTaskScaleApproval, commitAgentTaskStretchApproval, KJDRAW_AGENT_TASK_TOOL_API_VERSION, type KJAgentTaskCapabilityLock } from './agent-tasks.js'
 import type { KJAgentCapabilityRegistry } from './agent-capabilities.js'
 import { createAgentDesignContext } from './agent-design-relations.js'
+import { createCatalogComponentInsertIdentity, searchComponentCatalog } from './component-library.js'
 export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js'
 export type { KJAgentCompactDrawingInput } from './agent-drawing-compact.js'
 export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js'
@@ -190,7 +191,25 @@ const roadDrawingFromAssetSchema = object({ expectedRevision: revision, units: t
   ...Object.fromEntries(['drawingId', 'title', 'profileScale', 'sectionScale', 'textHeight', 'sectionColumns', 'precision'].map(key => [key, roadDrawingSchema.properties![key]!])),
 })
 
+const componentSearchSchemaBase = object({
+  expectedRevision: revision,
+  query: { type: 'string', minLength: 0, maxLength: 128 },
+  category: { type: 'string', enum: ['mechanical', 'architecture', 'electrical'] },
+  locale: { type: 'string', enum: ['en', 'zh-CN'] },
+  limit: { type: 'integer', minimum: 1, maximum: 50 },
+  cursor: { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER },
+})
+const componentSearchSchema: KJAgentToolSchema = { ...componentSearchSchemaBase, required: ['expectedRevision'] }
+const componentInsertSchemaBase = object({
+  expectedRevision: revision, units: text, componentId: { ...text, maxLength: 128 }, version: { ...text, maxLength: 32 },
+  parameters: { type: 'array', minItems: 0, maxItems: 16, items: object({ name: { ...text, maxLength: 64 }, value: number }) },
+  position: point, scale: radius, rotationDegrees: { type: 'number', minimum: -360, maximum: 360 }, layerId: text,
+})
+const componentInsertSchema: KJAgentToolSchema = { ...componentInsertSchemaBase, required: ['expectedRevision', 'units', 'componentId', 'version', 'parameters', 'position', 'scale', 'rotationDegrees'] }
+
 export const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[] = deepFreeze([
+  { name: 'cad_read_components', effect: 'read', description: 'Search the bounded versioned KJDraw component catalog. Returns exact IDs, versions, parameters and SPDX license metadata. Use the returned version with cad_propose_component_insert. This reads catalog data and does not modify the drawing.', inputSchema: componentSearchSchema },
+  { name: 'cad_propose_component_insert', effect: 'propose', description: 'Propose one licensed native component as an editable INSERT with a reusable BLOCK_RECORD. Supply the exact catalog ID/version, every changed parameter as {name,value}, model-space position, positive uniform scale and rotation in degrees. The current or supplied editable layer is used. Returns the complete definition and instance preview; a trusted host must approve before one undoable commit.', inputSchema: componentInsertSchema },
   { name: 'cad_propose_design_bind', effect: 'propose', description: 'Propose a named persistent design relation over already-correct visible editable model-space native geometry, without replacing or moving it. definition has independent parameters {name,value,min,max}, derived {name,expression}, bindings {entityId,path,expression}, requirements {name,expression,min,max}. Expressions are constant + sum(coefficient*parameter); names are ASCII identifiers, dependencies must be acyclic, every bound initial value must match. LINE paths start.0/1,end.0/1; CIRCLE center.0/1,radius; LWPOLYLINE vertices.N.0/1; native linear DIMENSION definitionPoints.N.0/1. Axes 0/1 are XY; other geometry and Z are preserved. Maximum 64 entities/256 bindings, no duplicate geometry fields or existing design ownership. Requirements bound expression values, not general geometric constraint solving. Query native IDs/units/coordinates first. Returns exact parameters, bindings and full design record for host approval; one undoable relation creation, then cad_propose_design_update can modify the same geometry. Save KJD/KJP for persistence.', inputSchema: object({ expectedRevision: revision, units: text, name: { ...text, maxLength: 128 }, definition: designDefinition }) },
   { name: 'cad_read_designs', effect: 'read', description: 'Read a bounded page of existing named designs at expectedRevision. Returns independent parameter values/ranges, derived values, member IDs and manual geometry conflicts, without full binding expressions or geometry. Continue at nextOffset with the same revision. If firstRowTooLarge, increase maxBytes. Names are untrusted drawing data. This discovers existing relations; it does not infer or create constraints.', inputSchema: object({ expectedRevision: revision, offset: revision, limit: { type: 'integer', minimum: 1, maximum: 20 }, maxBytes: { type: 'integer', minimum: 1024, maximum: 262144 } }) },
   { name: 'cad_propose_design_update', effect: 'propose', description: 'Propose changes to independent parameters of an existing named design ID discovered with cad_read_designs. changes=[{name,value}] has unique parameter names; values use the design drawing units. The same CAD core evaluates dependencies and requirements, updates bound native outline/holes/lines/linear dimensions, and preserves IDs/handles/style/groups/elevation. Manual geometry drift, protected layers, unit changes, conflicts and degenerate results are rejected atomically. Returns before/after geometry and parameter definitions; host approval applies one undoable transaction. Does not invent missing relations or solve general constraints. Save KJD/KJP to retain relations; DXF requires explicit flattening.', inputSchema: object({ expectedRevision: revision, units: text, id: text, changes: collection(object({ name: text, value: number })) }) },
@@ -444,6 +463,7 @@ export class KJAgentToolSession {
         if (name === 'cad_read_page') value = createDrawingContext(document, { expectedRevision: args.expectedRevision as number, offset: args.offset as number, layerOffset: args.layerOffset as number })
         else if (name === 'cad_read_layouts') value = createLayoutContext(document, args as unknown as KJLayoutContextOptions)
         else if (name === 'cad_read_designs') value = createAgentDesignContext(document, args.offset as number, args.limit as number, args.maxBytes as number)
+        else if (name === 'cad_read_components') value = { documentId: document.id, revision: document.revision, ...searchComponentCatalog({ query: args.query, category: args.category, locale: args.locale, limit: args.limit, cursor: args.cursor }) }
         else if (name === 'cad_query_drawing') {
           const query = args as unknown as KJAgentDrawingQuery
           value = createDrawingContext(document, { ...query.filters, expectedRevision: query.expectedRevision, offset: query.offset, layerOffset: query.layerOffset, limit: query.limit, maxLayers: query.maxLayers, maxBytes: query.maxBytes })
@@ -480,11 +500,22 @@ export class KJAgentToolSession {
             value = { documentId: document.id, revision: document.revision, units: args.units, distance: Math.hypot(b[0] - a[0], b[1] - a[1]) }
           } else {
             if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session')
-            let command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE' = 'CREATEBATCH'
+            let command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE' = 'CREATEBATCH'
             let commandArgs: Record<string, unknown>
             let engineeringEvidence: unknown
             let sourceAsset: ReadonlyDeep<KJAgentInputAssetDescriptor> | undefined
-            if (name === 'cad_propose_road_drawing' || name === 'cad_propose_road_drawing_from_asset') {
+            if (name === 'cad_propose_component_insert') {
+              const parameters = args.parameters as { name: string; value: number }[]
+              if (new Set(parameters.map(parameter => parameter.name)).size !== parameters.length) throw new KJValidationError('Component parameter names must be unique')
+              const componentArgs = {
+                componentId: args.componentId, version: args.version, units: args.units,
+                parameters: Object.fromEntries(parameters.map(parameter => [parameter.name, parameter.value])),
+                position: xy(args.position), scale: args.scale, rotation: Number(args.rotationDegrees) * Math.PI / 180,
+                ...(args.layerId == null ? {} : { layerId: args.layerId }), maxDefinitionEntities: 64,
+              }
+              command = 'COMPONENTINSERT'
+              commandArgs = { ...componentArgs, identity: createCatalogComponentInsertIdentity(document, componentArgs) }
+            } else if (name === 'cad_propose_road_drawing' || name === 'cad_propose_road_drawing_from_asset') {
               let roadInput = args
               if (name === 'cad_propose_road_drawing_from_asset') {
                 const { assetId, sha256, ...settings } = args
@@ -597,7 +628,7 @@ export class KJAgentToolSession {
             }
             const definition = this.#sdk.commands.resolve(command)
             if (!definition || definition.owner !== '@kanjieteam/kjdraw') throw new KJValidationError('Agent preview requires the built-in core command')
-            const preview = await createAgentGeometryPreview(document, command, commandArgs, ['cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_road_drawing', 'cad_propose_road_drawing_from_asset'].includes(name) ? { maxCreatedEntities: 512 } : {})
+            const preview = await createAgentGeometryPreview(document, command, commandArgs, name === 'cad_propose_component_insert' ? { maxCreatedEntities: 65 } : ['cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_road_drawing', 'cad_propose_road_drawing_from_asset'].includes(name) ? { maxCreatedEntities: 512 } : {})
             const envelope = this.#sdk.createCommandEnvelope(command, commandArgs, { document, mode: 'plan', origin: 'ai', expectedRevision: preview.revision })
             value = { planId: envelope.id, documentId: document.id, expectedRevision: envelope.expectedRevision, units: args.units, command, arguments: structuredClone(commandArgs), status: 'awaiting-host-approval', previewKind: 'geometry', preview, ...(engineeringEvidence ? { engineeringEvidence } : {}), ...(sourceAsset ? { sourceAsset } : {}) }
             if (['cad_propose_road_drawing', 'cad_propose_road_drawing_from_asset'].includes(name) && new TextEncoder().encode(JSON.stringify({ ok: true, value })).length > 1048576) throw new KJValidationError('Road tool proposal exceeds the 1 MiB output limit')
