@@ -1740,6 +1740,9 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   const layers = documentTableRecords(document, 'layers').map(dxfNamedRecord)
   const layerNames = new Map(layers.map(layer => [layer.id, layer.name]))
   const state = document.toJSON({ includeRevisions: false })
+  if (Object.values(state.objects).some(record => !record.erased && record.kind === 'custom' && record.type === 'DESIGN_RELATIONS') && options.designRelations !== 'flatten') {
+    throw new KJValidationError('DXF cannot preserve KJDraw design relations; save KJD/KJP, or explicitly use designRelations: "flatten" to export editable geometry without parameter relations')
+  }
   const layouts = state.spaces.layoutIds.map(id => state.objects[id]!).filter(layout => !layout.erased)
   const layoutHandles = new Map(layouts.map(layout => [String(layout.payload.blockRecordId), layout.handle]))
   const context: DxfWriteContext = {

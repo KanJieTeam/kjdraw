@@ -3,6 +3,7 @@ import { KJRegistrationError, KJValidationError } from './errors.js';
 import { validatePlotSettings } from './plot-settings.js';
 import { createCommandEditScope } from './edit-policy.js';
 import { applyRoadDrawingRevision } from './road-drawing-update.js';
+import { createDesignRelations, updateDesignRelations } from './design-relations.js';
 import { entityArea2, entityLength2, distance2, dot2, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
 import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
@@ -383,6 +384,18 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
     GROUP: {
         domain: 'group',
         persistence: 'document-dictionary'
+    },
+    DESIGNCREATE: {
+        domain: 'design-relations',
+        persistence: 'document-dictionary',
+        atomic: true,
+        maximumEntities: 64
+    },
+    DESIGNUPDATE: {
+        domain: 'design-relations',
+        atomic: true,
+        stableIdentity: true,
+        requiresUnmodifiedGeometry: true
     },
     HATCH: {
         domain: 'entity',
@@ -939,6 +952,20 @@ export function registerCoreCommands(registry) {
         ],
         title: 'Detach external reference',
         execute: ({ transaction }, args)=>transaction.removeResource('externalReferences', String(args.id ?? ''))
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'DESIGNCREATE',
+        title: 'Bind design parameters to existing geometry',
+        execute: ({ document, transaction }, args)=>createDesignRelations(document, transaction, args.name, args.definition)
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'DESIGNUPDATE',
+        title: 'Update design parameters and dependent geometry',
+        execute: ({ document, transaction }, args)=>updateDesignRelations(document, transaction, args.id, args.parameters)
     }, {
         owner: '@kanjieteam/kjdraw'
     }));
