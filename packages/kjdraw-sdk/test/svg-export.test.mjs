@@ -115,6 +115,24 @@ test('SVG retains exact arc and bulge commands and expands nested blocks with co
   assert.equal(result.report.status,'complete');assert.equal(result.report.rendered,4)
 })
 
+test('SVG resolves ByLayer and block ByBlock lineweight and linetype inheritance',async()=>{
+  const {document,layoutId,ownerId}=await fixture();let top,byLayer,byBlock
+  await document.transact('Inherited SVG properties',tx=>{
+    const layerType=tx.upsertTableRecord('linetypes',{name:'LAYER_DASH',type:'LINETYPE',payload:{pattern:[4,-2]}})
+    const insertType=tx.upsertTableRecord('linetypes',{name:'INSERT_DASH',type:'LINETYPE',payload:{pattern:[1,-1]}})
+    const layer=tx.upsertTableRecord('layers',{name:'ASSEMBLY',type:'LAYER',payload:{color:2,lineweight:50,linetypeId:layerType.id,visible:true,plottable:true}})
+    top=tx.createEntity('LINE',{start:[0,0],end:[10,0],layerId:layer.id,lineweight:-1,linetypeName:'BYLAYER'},{ownerId})
+    const block=tx.upsertTableRecord('blockRecords',{name:'INHERITED_PART',type:'BLOCK_RECORD',payload:{basePoint:[0,0,0],isSpace:false}})
+    byLayer=tx.createEntity('LINE',{start:[0,5],end:[10,5],lineweight:-1,linetypeName:'BYLAYER'},{ownerId:block.id})
+    byBlock=tx.createEntity('LINE',{start:[0,10],end:[10,10],lineweight:-2,linetypeName:'BYBLOCK'},{ownerId:block.id})
+    tx.createEntity('INSERT',{blockRecordId:block.id,position:[20,0],layerId:layer.id,lineweight:70,linetypeId:insertType.id},{ownerId})
+  })
+  const result=exportDrawingSvg(document,{layoutId}),groups=new Map(parseSvg(result.svg).groups.map(group=>[group['data-entity-id'],group]))
+  for(const id of [top.id,byLayer.id]){assert.equal(groups.get(id)['data-layer-name'],'ASSEMBLY');near(Number(groups.get(id)['stroke-width']),.5);assert.equal(groups.get(id)['stroke-dasharray'],'4 2')}
+  near(Number(groups.get(byBlock.id)['stroke-width']),.7);assert.equal(groups.get(byBlock.id)['stroke-dasharray'],'1 1')
+  assert.equal(result.report.diagnostics.length,0)
+})
+
 test('visible unsupported geometry rejects the whole default SVG; explicit partial reports omissions and hidden geometry is excluded',async()=>{
   const {document,layoutId,create}=await fixture()
   await create('LINE',{start:[0,0],end:[10,0]})

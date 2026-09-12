@@ -100,6 +100,7 @@ type KJCanvasSpatialScene = { document: KJDocument; revision: number; spaceId: s
 type HatchRaster = { source: HTMLCanvasElement | OffscreenCanvas | null; x: number; y: number; width: number; height: number; reason?: KJHatchCoverageReason | 'pixel-budget' | 'canvas-unavailable' }
 type HatchRasterCacheEntry = { payload: Readonly<Record<string, unknown>>; key: string; raster: HatchRaster; bytes: number }
 type HatchProjectionIdentity = { payload: Readonly<Record<string, unknown>>; instanceKey: string; dimension?: ReturnType<typeof projectDimension>; dimensionMatrix?: readonly number[]; matrix?: readonly number[] }
+type DrawingPropertyInheritance = { layer?: Readonly<Record<string, unknown>> | undefined; lineweight?: unknown; linetypeId?: string }
 const HATCH_RASTER_PIXEL_LIMIT = 1048576
 const HATCH_RASTER_FRAME_WORK = 4000000
 const HATCH_RASTER_CACHE_BYTES = 32 * 1024 * 1024
@@ -933,7 +934,7 @@ export class KJCanvasRenderer {
     return result
   }
 
-  #drawEntity(entity: KJReadonlyObjectRecord, color: string, depth: number, overrideColor = false, projection?: HatchProjectionIdentity): boolean {
+  #drawEntity(entity: KJReadonlyObjectRecord, color: string, depth: number, overrideColor = false, projection?: HatchProjectionIdentity, inherited?: DrawingPropertyInheritance): boolean {
     if (depth > 12) return false
     if (attributeHidden(entity)) return true
     const context = this.context, payload = entity.payload
@@ -943,15 +944,22 @@ export class KJCanvasRenderer {
       if (view.frozen.has(String(payload.layerId ?? ''))) { view.diagnostic.hidden++; return true }
     }
     const layer = this.#previewResources.get(String(payload.layerId ?? '')) ?? this.#document?.getObject(String(payload.layerId ?? ''))
+    const layerPayload = (layer && 'name' in layer && layer.name === '0' && inherited?.layer) || layer?.payload
     context.save()
     context.strokeStyle = color
     context.fillStyle = color
-    const rawLineweight = finite(payload.lineweight ?? layer?.payload.lineweight, 0)
+    const lineweight = payload.lineweight
+    const lineweightName = String(lineweight ?? 'BYLAYER').toUpperCase()
+    const rawLineweight = finite(lineweightName === 'BYBLOCK' || Number(lineweight) === -2
+      ? inherited?.lineweight ?? layerPayload?.lineweight
+      : lineweightName === 'BYLAYER' || Number(lineweight) === -1 ? layerPayload?.lineweight : lineweight, 0)
     const millimeters = rawLineweight > 5 ? rawLineweight / 100 : rawLineweight
     context.lineWidth = this.#selection.has(entity.id) ? 2 : this.#showLineweights && millimeters > 0 ? Math.max(0.5, Math.min(8, millimeters * 96 / 25.4)) : 1
     const transparency = finite(payload.transparency ?? layer?.payload.transparency, 0)
     context.globalAlpha = transparency > 1 ? Math.max(0.05, 1 - transparency / 255) : transparency > 0 ? Math.max(0.05, 1 - transparency) : 1
-    const linetypeId = String(payload.linetypeId ?? layer?.payload.linetypeId ?? '')
+    const ownLinetype = this.#previewResources.get(String(payload.linetypeId ?? '')) ?? this.#document?.getObject(String(payload.linetypeId ?? ''))
+    const linetypeName = String(ownLinetype && 'name' in ownLinetype ? ownLinetype.name : payload.linetypeName ?? (payload.linetypeId == null ? 'BYLAYER' : '')).toUpperCase()
+    const linetypeId = String(linetypeName === 'BYBLOCK' ? inherited?.linetypeId ?? layerPayload?.linetypeId ?? '' : linetypeName === 'BYLAYER' ? layerPayload?.linetypeId ?? '' : payload.linetypeId ?? layerPayload?.linetypeId ?? '')
     const linetype = this.#previewResources.get(linetypeId) ?? this.#document?.getObject(linetypeId)
     const pattern = Array.isArray(linetype?.payload.patternSegments) ? linetype.payload.patternSegments : Array.isArray(linetype?.payload.pattern) ? linetype.payload.pattern : []
     const dash = pattern.map(value => Math.max(1, Math.abs(finite(value)) * this.camera.scale * (view?.scale ?? 1))).filter(value => value > 0)
@@ -1184,13 +1192,13 @@ export class KJCanvasRenderer {
           try {
             const transformed = ['INSERT','DIMENSION','TEXT','MTEXT','ATTRIB','ATTDEF'].includes(child.type) ? child : { ...child, payload: transformEntityPayload(child.type, structuredClone(child.payload) as KJObjectPayload, matrix) }
             const byBlock = child.payload.trueColor == null && (child.payload.color === 0 || /^byblock$/i.test(String(child.payload.color)))
-            const effectiveLayer = childLayer?.name === '0' ? layer?.payload : childLayer?.payload
+            const effectiveLayer = childLayer?.name === '0' ? layerPayload : childLayer?.payload
             const childColor = overrideColor || byBlock ? color : this.#color(child, effectiveLayer)
             // Transformed payloads are transient. Preserve the immutable source and
             // complete matrix chain (bounded by recursion depth, without input IDs)
             // so separate inserts cannot share a stale phase or recompute each frame.
             const identity = { payload: child.payload, instanceKey: `${projection?.instanceKey ?? ''};${matrix.join(',')}`, matrix, ...(child.type === 'DIMENSION' ? this.#dimensionInView(child, matrix) : {}) }
-            if (!this.#drawEntity(transformed, childColor, depth + 1, overrideColor, identity)) drawn = false
+            if (!this.#drawEntity(transformed, childColor, depth + 1, overrideColor, identity, { layer: effectiveLayer, lineweight: rawLineweight, linetypeId })) drawn = false
           } catch { drawn = false }
         }
         if (this.#document) try {
@@ -1199,12 +1207,12 @@ export class KJCanvasRenderer {
           for (const attribute of attributes) {
             if (!visibleAttribute(this.#document, attribute)) continue
             const ownLayer = this.#document.getObject(String(attribute.payload.layerId ?? ''))
-            const effectiveLayer = ownLayer?.name === '0' ? layer?.payload : ownLayer?.payload
+            const effectiveLayer = ownLayer?.name === '0' ? layerPayload : ownLayer?.payload
             const byBlock = attribute.payload.trueColor == null && (attribute.payload.color === 0 || /^byblock$/i.test(String(attribute.payload.color)))
             const attributeColor = overrideColor || byBlock ? color : this.#color(attribute, effectiveLayer)
             // Already in this INSERT's owner space: apply only its ancestors.
             const identity = projection?.matrix ? { payload: attribute.payload, matrix: projection.matrix, instanceKey: projection.instanceKey } : undefined
-            if (!this.#drawEntity(attribute, attributeColor, depth + 1, overrideColor, identity)) drawn = false
+            if (!this.#drawEntity(attribute, attributeColor, depth + 1, overrideColor, identity, { layer: effectiveLayer, lineweight: rawLineweight, linetypeId })) drawn = false
           }
         } catch { drawn = false }
       }

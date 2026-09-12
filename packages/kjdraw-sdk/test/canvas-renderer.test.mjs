@@ -10,6 +10,7 @@ class RecordingContext2D {
   font = ''
   textBaseline = ''
   lineWidth = 1
+  lineDash = []
   globalAlpha = 1
   #record(name, ...args) { this.calls.push([name, ...args]) }
   setTransform(...args) { this.#record('setTransform', ...args) }
@@ -21,7 +22,7 @@ class RecordingContext2D {
   moveTo(...args) { this.#record('moveTo', ...args) }
   lineTo(...args) { this.#record('lineTo', ...args) }
   closePath() { this.#record('closePath') }
-  stroke() { this.#record('stroke') }
+  stroke() { this.#record('stroke', this.lineWidth, this.strokeStyle, this.lineDash) }
   fill(...args) { this.#record('fill', ...args) }
   clip(...args) { this.#record('clip', ...args) }
   arc(...args) { this.#record('arc', ...args) }
@@ -32,7 +33,7 @@ class RecordingContext2D {
   rotate(...args) { this.#record('rotate', ...args) }
   fillText(...args) { this.#record('fillText', ...args) }
   strokeRect(...args) { this.#record('strokeRect', ...args) }
-  setLineDash(...args) { this.#record('setLineDash', ...args) }
+  setLineDash(value) { this.lineDash = [...value]; this.#record('setLineDash', value) }
 }
 
 function mockCanvas(width = 640, height = 360) {
@@ -360,5 +361,30 @@ test('preview uses proposed layer and linetype resources then restores the sourc
   renderer.drawPreview(entities)
   assert.deepEqual(context.calls.find(call => call[0] === 'setLineDash')[1], [])
   assert.equal(document.serialize(), before)
+  renderer.dispose()
+})
+
+test('ByLayer and block ByBlock drawing properties resolve through the effective insert layer', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument()
+  let target, block
+  await document.transact('Inherited drawing properties', tx => {
+    const layerType = tx.upsertTableRecord('linetypes', { name: 'LAYER_DASH', type: 'LINETYPE', payload: { pattern: [4, -2] } })
+    const insertType = tx.upsertTableRecord('linetypes', { name: 'INSERT_DASH', type: 'LINETYPE', payload: { pattern: [1, -1] } })
+    target = tx.upsertTableRecord('layers', { name: 'ASSEMBLY', type: 'LAYER', payload: { color: 2, lineweight: 50, linetypeId: layerType.id, visible: true } })
+    tx.createEntity('LINE', { start: [0, 0], end: [10, 0], layerId: target.id, lineweight: -1, linetypeName: 'BYLAYER' })
+    block = tx.upsertTableRecord('blockRecords', { name: 'INHERITED_PART', type: 'BLOCK_RECORD', payload: { basePoint: [0, 0, 0], isSpace: false } })
+    tx.createEntity('LINE', { start: [0, 5], end: [10, 5], lineweight: -1, linetypeName: 'BYLAYER' }, { ownerId: block.id })
+    tx.createEntity('LINE', { start: [0, 10], end: [10, 10], lineweight: -2, linetypeName: 'BYBLOCK' }, { ownerId: block.id })
+    tx.createEntity('INSERT', { blockRecordId: block.id, position: [20, 0], layerId: target.id, lineweight: 70, linetypeId: insertType.id })
+  })
+  const { canvas, context } = mockCanvas(), renderer = new KJCanvasRenderer(canvas, { document, grid: false, pixelRatio: 1, showLineweights: true })
+  renderer.camera.scale = 2
+  context.calls.length = 0; renderer.render()
+  const strokes = context.calls.filter(call => call[0] === 'stroke')
+  assert.deepEqual(strokes.map(call => call[3]), [[8, 4], [8, 4], [2, 2]])
+  const widths = strokes.map(call => call[1])
+  assert.ok(Math.abs(widths[0] - 50 / 100 * 96 / 25.4) < 1e-9)
+  assert.ok(Math.abs(widths[1] - widths[0]) < 1e-9)
+  assert.ok(Math.abs(widths[2] - 70 / 100 * 96 / 25.4) < 1e-9)
   renderer.dispose()
 })

@@ -1317,7 +1317,7 @@ export class KJCanvasRenderer {
         }
         return result;
     }
-    #drawEntity(entity, color, depth, overrideColor = false, projection) {
+    #drawEntity(entity, color, depth, overrideColor = false, projection, inherited) {
         if (depth > 12) return false;
         if (attributeHidden(entity)) return true;
         const context = this.context, payload = entity.payload;
@@ -1334,15 +1334,20 @@ export class KJCanvasRenderer {
             }
         }
         const layer = this.#previewResources.get(String(payload.layerId ?? '')) ?? this.#document?.getObject(String(payload.layerId ?? ''));
+        const layerPayload = layer && 'name' in layer && layer.name === '0' && inherited?.layer || layer?.payload;
         context.save();
         context.strokeStyle = color;
         context.fillStyle = color;
-        const rawLineweight = finite(payload.lineweight ?? layer?.payload.lineweight, 0);
+        const lineweight = payload.lineweight;
+        const lineweightName = String(lineweight ?? 'BYLAYER').toUpperCase();
+        const rawLineweight = finite(lineweightName === 'BYBLOCK' || Number(lineweight) === -2 ? inherited?.lineweight ?? layerPayload?.lineweight : lineweightName === 'BYLAYER' || Number(lineweight) === -1 ? layerPayload?.lineweight : lineweight, 0);
         const millimeters = rawLineweight > 5 ? rawLineweight / 100 : rawLineweight;
         context.lineWidth = this.#selection.has(entity.id) ? 2 : this.#showLineweights && millimeters > 0 ? Math.max(0.5, Math.min(8, millimeters * 96 / 25.4)) : 1;
         const transparency = finite(payload.transparency ?? layer?.payload.transparency, 0);
         context.globalAlpha = transparency > 1 ? Math.max(0.05, 1 - transparency / 255) : transparency > 0 ? Math.max(0.05, 1 - transparency) : 1;
-        const linetypeId = String(payload.linetypeId ?? layer?.payload.linetypeId ?? '');
+        const ownLinetype = this.#previewResources.get(String(payload.linetypeId ?? '')) ?? this.#document?.getObject(String(payload.linetypeId ?? ''));
+        const linetypeName = String(ownLinetype && 'name' in ownLinetype ? ownLinetype.name : payload.linetypeName ?? (payload.linetypeId == null ? 'BYLAYER' : '')).toUpperCase();
+        const linetypeId = String(linetypeName === 'BYBLOCK' ? inherited?.linetypeId ?? layerPayload?.linetypeId ?? '' : linetypeName === 'BYLAYER' ? layerPayload?.linetypeId ?? '' : payload.linetypeId ?? layerPayload?.linetypeId ?? '');
         const linetype = this.#previewResources.get(linetypeId) ?? this.#document?.getObject(linetypeId);
         const pattern = Array.isArray(linetype?.payload.patternSegments) ? linetype.payload.patternSegments : Array.isArray(linetype?.payload.pattern) ? linetype.payload.pattern : [];
         const dash = pattern.map((value)=>Math.max(1, Math.abs(finite(value)) * this.camera.scale * (view?.scale ?? 1))).filter((value)=>value > 0);
@@ -1766,7 +1771,7 @@ export class KJCanvasRenderer {
                             payload: transformEntityPayload(child.type, structuredClone(child.payload), matrix)
                         };
                         const byBlock = child.payload.trueColor == null && (child.payload.color === 0 || /^byblock$/i.test(String(child.payload.color)));
-                        const effectiveLayer = childLayer?.name === '0' ? layer?.payload : childLayer?.payload;
+                        const effectiveLayer = childLayer?.name === '0' ? layerPayload : childLayer?.payload;
                         const childColor = overrideColor || byBlock ? color : this.#color(child, effectiveLayer);
                         const identity = {
                             payload: child.payload,
@@ -1774,7 +1779,11 @@ export class KJCanvasRenderer {
                             matrix,
                             ...child.type === 'DIMENSION' ? this.#dimensionInView(child, matrix) : {}
                         };
-                        if (!this.#drawEntity(transformed, childColor, depth + 1, overrideColor, identity)) drawn = false;
+                        if (!this.#drawEntity(transformed, childColor, depth + 1, overrideColor, identity, {
+                            layer: effectiveLayer,
+                            lineweight: rawLineweight,
+                            linetypeId
+                        })) drawn = false;
                     } catch  {
                         drawn = false;
                     }
@@ -1785,7 +1794,7 @@ export class KJCanvasRenderer {
                     for (const attribute of attributes){
                         if (!visibleAttribute(this.#document, attribute)) continue;
                         const ownLayer = this.#document.getObject(String(attribute.payload.layerId ?? ''));
-                        const effectiveLayer = ownLayer?.name === '0' ? layer?.payload : ownLayer?.payload;
+                        const effectiveLayer = ownLayer?.name === '0' ? layerPayload : ownLayer?.payload;
                         const byBlock = attribute.payload.trueColor == null && (attribute.payload.color === 0 || /^byblock$/i.test(String(attribute.payload.color)));
                         const attributeColor = overrideColor || byBlock ? color : this.#color(attribute, effectiveLayer);
                         const identity = projection?.matrix ? {
@@ -1793,7 +1802,11 @@ export class KJCanvasRenderer {
                             matrix: projection.matrix,
                             instanceKey: projection.instanceKey
                         } : undefined;
-                        if (!this.#drawEntity(attribute, attributeColor, depth + 1, overrideColor, identity)) drawn = false;
+                        if (!this.#drawEntity(attribute, attributeColor, depth + 1, overrideColor, identity, {
+                            layer: effectiveLayer,
+                            lineweight: rawLineweight,
+                            linetypeId
+                        })) drawn = false;
                     }
                 } catch  {
                     drawn = false;

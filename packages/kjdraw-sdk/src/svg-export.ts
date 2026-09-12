@@ -167,7 +167,7 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
     }
     return fail(`unsupported entity ${entity.type}`)
   }
-  const render = (entity: KJReadonlyObjectRecord, frozen: ReadonlySet<string>, depth = 0, ancestors: readonly string[] = [], inheritedLayer?: KJReadonlyObjectRecord, inheritedColor?: string, inViewport = false, geometryScale = scale): string => {
+  const render = (entity: KJReadonlyObjectRecord, frozen: ReadonlySet<string>, depth = 0, ancestors: readonly string[] = [], inheritedLayer?: KJReadonlyObjectRecord, inheritedColor?: string, inViewport = false, geometryScale = scale, inheritedLineweight?: unknown, inheritedLinetypeId?: string): string => {
     if (++work > max) fail('entity traversal budget exceeded')
     try {
       const p = entity.payload, layer = layerOf(entity,inheritedLayer)!, lp = layer.payload
@@ -176,17 +176,18 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
       if(entity.type==='ATTDEF'&&(numeric(p.flags,0)&2)===0)fail('nonconstant attribute definition requires explicit attribute rendering')
       if(p.normal&&JSON.stringify(p.normal)!=='[0,0,1]'||p.extrusionDirection&&JSON.stringify(p.extrusionDirection)!=='[0,0,1]')fail('non-XY extrusion is unsupported')
       const stroke = color(p,lp,inheritedColor)
-      if(p.lineweight===-2)fail('ByBlock lineweight is unsupported')
-      let weight = numeric(p.lineweight,-1); if (weight < 0) weight = numeric(lp.lineweight,-1)
+      const lineweightName=String(p.lineweight??'BYLAYER').toUpperCase()
+      let weight=lineweightName==='BYBLOCK'||Number(p.lineweight)===-2?numeric(inheritedLineweight??lp.lineweight,-1):numeric(p.lineweight,-1)
+      if(lineweightName==='BYLAYER'||Number(p.lineweight)===-1)weight=numeric(lp.lineweight,-1)
       // SVG user units are transformed with geometry. Dividing by that exact scale
       // keeps the pen width in paper millimeters at every viewport/insert depth.
       const width = numeric((weight >= 0 ? Math.max(.01,weight / 100) : .25) / geometryScale)
       const transparency = numeric(p.transparency ?? lp.transparency,0), opacity = transparency > 1 ? 1 - transparency / 255 : 1 - transparency
       if (opacity < 0 || opacity > 1) fail('unsupported transparency')
       if(entity.type==='INSERT'&&opacity!==1)fail('transparent block inserts are unsupported')
-      const typeId = String(p.linetypeId ?? lp.linetypeId ?? ''), lineType = document.getObject(typeId)
+      const ownLineType=document.getObject(String(p.linetypeId??'')),lineTypeName=String(ownLineType?.name??p.linetypeName??(p.linetypeId==null?'BYLAYER':'')).toUpperCase()
+      const typeId=String(lineTypeName==='BYBLOCK'?inheritedLinetypeId??lp.linetypeId??'':lineTypeName==='BYLAYER'?lp.linetypeId??'':p.linetypeId??lp.linetypeId??''),lineType=document.getObject(typeId)
       if (!lineType || lineType.type !== 'LINETYPE') fail('linetype reference is unavailable')
-      if(lineType.name?.toUpperCase()==='BYBLOCK')fail('ByBlock linetype is unsupported')
       const pattern = lineType.payload.patternSegments ?? lineType.payload.pattern ?? []
       if (!Array.isArray(pattern) || pattern.length > 32 || pattern.length % 2 || pattern.some((v,i)=>typeof v!=='number'||!Number.isFinite(v)||(i%2?v>=0:v<=0))) fail('complex or invalid linetype is unsupported')
       const dashScale = numeric(p.linetypeScale,1); if (!(dashScale > 0)) fail('linetype scale must be positive')
@@ -201,7 +202,7 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
         const a=point(p.position),b=point(block.payload.basePoint??[0,0]),sc=Array.isArray(p.scale)?p.scale:[p.scale??1,p.scale??1]
         const sx=numeric(sc[0]),sy=numeric(sc[1],sx);if(!sx||!sy||Math.abs(sx)!==Math.abs(sy))fail('zero or nonuniform block scale is unsupported')
         const m=multiply3(translation3(...a),multiply3(rotation3(numeric(p.rotation,0)),multiply3(scale3(sx,sy),translation3(-b[0],-b[1]))))
-        inner=`<g transform="matrix(${matrix(m)})">${owned(id).filter(child=>child.type!=='ATTDEF'||(numeric(child.payload.flags,0)&2)!==0).map(child=>render(child,frozen,depth+1,[...ancestors,id],layer,stroke,inViewport,geometryScale*Math.abs(sx))).join('')}</g>` + attributes.map(attribute=>render(attribute,frozen,depth+1,ancestors,layer,stroke,inViewport,geometryScale)).join('')
+        inner=`<g transform="matrix(${matrix(m)})">${owned(id).filter(child=>child.type!=='ATTDEF'||(numeric(child.payload.flags,0)&2)!==0).map(child=>render(child,frozen,depth+1,[...ancestors,id],layer,stroke,inViewport,geometryScale*Math.abs(sx),weight,typeId)).join('')}</g>` + attributes.map(attribute=>render(attribute,frozen,depth+1,ancestors,layer,stroke,inViewport,geometryScale,weight,typeId)).join('')
       } else if (entity.type === 'VIEWPORT') {
         if (isModel || inViewport) fail('nested/model viewport is unsupported')
         const flags=numeric(p.flags,0)
