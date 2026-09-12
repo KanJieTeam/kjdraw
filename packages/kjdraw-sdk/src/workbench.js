@@ -10,7 +10,7 @@ import { KJDRAW_THEME_CSS, kjdrawIcon } from './theme.js';
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from './layout.js';
 import { createBoundaryEditSession } from './boundary-edit.js';
 import { KJ_MODIFICATION_DEFINITIONS, buildKJModificationCommand, getKJModificationDefinition, getKJModificationSelectionCenter, validateKJModificationSelection } from './modification-controls.js';
-import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, parseDraftCoordinate } from './drafting.js';
+import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate } from './drafting.js';
 const copy = {
     en: {
         drawingSpace: 'Drawing space',
@@ -143,7 +143,7 @@ const copy = {
         undoPoint: 'Undo point',
         finish: 'Finish',
         closeShape: 'Close',
-        coordinateHint: 'x,y · @dx,dy · @distance<angle',
+        coordinateHint: 'x,y · @dx,dy · @distance<angle · distance · distance<angle · <angle',
         selectionHint: 'Drag blank space: left → right encloses, right → left crosses · Shift adds · Ctrl/⌘ removes · Ctrl/⌘+A selects all',
         windowSelection: 'Window: fully enclosed objects',
         crossingSelection: 'Crossing: enclosed or intersecting objects',
@@ -308,7 +308,7 @@ const copy = {
         undoPoint: '撤回点',
         finish: '完成',
         closeShape: '闭合',
-        coordinateHint: 'x,y · @dx,dy · @距离<角度',
+        coordinateHint: 'x,y · @dx,dy · @距离<角度 · 距离 · 距离<角度 · <角度',
         selectionHint: '空白处拖动：左→右框选，右→左交叉选 · Shift 增选 · Ctrl/⌘ 减选 · Ctrl/⌘+A 全选',
         windowSelection: '框选：完全位于框内的对象',
         crossingSelection: '交叉选择：框内或与边界相交的对象',
@@ -795,6 +795,7 @@ export class KJDrawWorkbench {
     #draftStart = null;
     #draftPoints = [];
     #cursorWorld = null;
+    #draftInputDirection = null;
     #snapWorld = null;
     #snapMode = null;
     #snapCandidate = null;
@@ -1858,22 +1859,47 @@ export class KJDrawWorkbench {
             if (this.#draftGesture?.session.state.canFinish) await this.#finishDraft(false);
             return;
         }
-        if (this.#draftGesture?.session.state.canClose && [
-            'C',
-            'CLOSE'
-        ].includes(raw.toUpperCase())) {
-            await this.#finishDraft(true);
-            input.value = '';
-            return;
+        if (this.#draftGesture) {
+            const draftCommand = raw.toUpperCase();
+            if ([
+                'C',
+                'CLOSE'
+            ].includes(draftCommand)) {
+                if (await this.#finishDraft(true)) input.value = '';
+                return;
+            }
+            if ([
+                'F',
+                'FINISH',
+                'DONE'
+            ].includes(draftCommand)) {
+                if (await this.#finishDraft(false)) input.value = '';
+                return;
+            }
+            if ([
+                'U',
+                'BACK'
+            ].includes(draftCommand)) {
+                this.#undoDraftPoint();
+                input.value = '';
+                return;
+            }
+            if ([
+                'ESC',
+                'CANCEL'
+            ].includes(draftCommand)) {
+                this.setTool('select');
+                input.value = '';
+                return;
+            }
         }
         if (this.#modificationGesture && (/^@?[^,]+,[^,]+$/.test(raw) || /^@[^<]+<[^<]+$/.test(raw))) {
             const result = await this.#run(()=>this.#addModificationCoordinate(raw));
             if (result !== null) input.value = '';
             return;
         }
-        if (this.#draftGesture && (/^@?[^,]+,[^,]+$/.test(raw) || /^@[^<]+<[^<]+$/.test(raw))) {
-            const result = await this.#run(()=>this.#addDraftCoordinate(raw));
-            if (result !== null) input.value = '';
+        if (this.#draftGesture && isDraftPointInput(raw)) {
+            if (await this.#addDraftCoordinate(raw)) input.value = '';
             return;
         }
         const separator = raw.search(/\s/);
@@ -2219,6 +2245,7 @@ export class KJDrawWorkbench {
             revision: drawing.revision,
             session
         };
+        this.#draftInputDirection = null;
         this.#syncDraftActions();
     }
     #syncDraftActions() {
@@ -2299,6 +2326,7 @@ export class KJDrawWorkbench {
             }));
         if (!result) return;
         const { spec } = result;
+        this.#draftInputDirection = null;
         if (spec) {
             await this.#commitDraft(gesture, spec);
             return;
@@ -2313,33 +2341,38 @@ export class KJDrawWorkbench {
         const gesture = this.#draftGesture;
         if (!gesture || gesture.document !== this.document) {
             this.#cancelGesture();
-            return;
+            return false;
         }
         const result = await this.#run(()=>({
-                spec: gesture.session.addCoordinate(value)
+                spec: gesture.session.addInput(value, this.#draftInputDirection ?? undefined)
             }));
-        if (!result) return;
+        if (!result) return false;
         const { spec } = result;
+        this.#draftInputDirection = null;
         if (spec) {
             await this.#commitDraft(gesture, spec);
-            return;
+            return true;
         }
-        if (spec === null && gesture.session.state.status !== 'collecting') return;
+        if (spec === null && gesture.session.state.status !== 'collecting') return true;
         this.#setMessage(this.#draftPrompt(gesture.session.state.nextPoint));
         this.#syncDraftActions();
         this.#refreshDraftPreview();
         this.#drawOverlay();
+        return true;
     }
     async #finishDraft(close) {
         const gesture = this.#draftGesture;
-        if (!gesture || gesture.document !== this.document) return;
+        if (!gesture || gesture.document !== this.document) return false;
         const spec = await this.#run(()=>close ? gesture.session.close() : gesture.session.finish());
-        if (spec) await this.#commitDraft(gesture, spec);
+        if (!spec) return false;
+        await this.#commitDraft(gesture, spec);
+        return true;
     }
     #undoDraftPoint() {
         const gesture = this.#draftGesture;
         if (!gesture?.session.points.length) return;
         gesture.session.undoPoint();
+        this.#draftInputDirection = null;
         this.#setMessage(this.#draftPrompt(gesture.session.state.nextPoint));
         this.#syncDraftActions();
         this.#refreshDraftPreview();
@@ -3713,6 +3746,7 @@ export class KJDrawWorkbench {
         this.#canvas.style.cursor = this.#hoverGrip ? 'crosshair' : '';
         const snapped = drawingTool ? this.#snapAt(rawWorld) : null;
         this.#cursorWorld = this.#constrainPointer(rawWorld, snapped);
+        if (this.#draftGesture) this.#draftInputDirection = this.#cursorWorld;
         if (coordinate) coordinate.textContent = `X ${this.#cursorWorld[0].toFixed(3)} · Y ${this.#cursorWorld[1].toFixed(3)}`;
         this.#showSnap(snapped);
         this.#refreshDraftPreview();
@@ -4191,6 +4225,7 @@ export class KJDrawWorkbench {
         const hadDraft = this.#draftGesture !== null;
         this.#draftGesture?.session.cancel();
         this.#draftGesture = null;
+        this.#draftInputDirection = null;
         this.#draftStart = null;
         this.#draftPoints = [];
         this.#transformGesture = null;

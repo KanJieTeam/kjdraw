@@ -27,6 +27,7 @@ import {
   constrainOrthogonalDraftPoint,
   constrainPolarDraftPoint,
   createDraftingSession,
+  isDraftPointInput,
   parseDraftCoordinate,
   type KJDraftEntitySpec,
   type KJDraftingOptions,
@@ -155,7 +156,7 @@ const copy = {
     unsupported: 'projection limits', theme: 'Theme', language: '中文', sample: 'Starter drawing', openFailed: 'Could not open drawing', command: 'Command', run: 'Run', commandHint: 'MOVE 10 0 · COPY 10 0 · ROTATE 15 · OFFSET 2 · SCALE 1.2', fileTooLarge: 'File exceeds the workbench limit',
     layout: 'Layout', layoutClassic: 'Classic', layoutCompact: 'Compact', layoutFocus: 'Focus', selectObjects: 'Select an object', basePoint: 'Specify the base point', destinationPoint: 'Specify the destination point', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
     modifyTools: 'Edit tools', modifyTitle: 'Modify selection', modifyDescription: 'Choose an exact operation and enter its parameters.', cancel: 'Cancel', continueOnCanvas: 'Continue on canvas', selectionOrder: 'Selection order is significant for paired and boundary operations.',
-    moreDraw: 'More', drawTitle: 'Drawing tools', drawDescription: 'Choose a primitive and configure its construction method.', startDrawing: 'Start drawing', drawingTool: 'Primitive', undoPoint: 'Undo point', finish: 'Finish', closeShape: 'Close', coordinateHint: 'x,y · @dx,dy · @distance<angle',
+    moreDraw: 'More', drawTitle: 'Drawing tools', drawDescription: 'Choose a primitive and configure its construction method.', startDrawing: 'Start drawing', drawingTool: 'Primitive', undoPoint: 'Undo point', finish: 'Finish', closeShape: 'Close', coordinateHint: 'x,y · @dx,dy · @distance<angle · distance · distance<angle · <angle',
     selectionHint: 'Drag blank space: left → right encloses, right → left crosses · Shift adds · Ctrl/⌘ removes · Ctrl/⌘+A selects all',
     windowSelection: 'Window: fully enclosed objects', crossingSelection: 'Crossing: enclosed or intersecting objects', gripHint: 'Drag a square grip to edit geometry · Esc cancels', gripEditing: 'Specify the new grip position · Esc cancels', gestureCancelled: 'Drawing or view changed — gesture cancelled', snapEndpoint: 'Endpoint', snapMidpoint: 'Midpoint', snapCenter: 'Center', snapQuadrant: 'Quadrant', snapIntersection: 'Intersection', snapPerpendicular: 'Perpendicular', snapTangent: 'Tangent', snapInsertion: 'Insertion', snapNode: 'Node', snapNearest: 'Nearest',
     fenceHint: 'Fence: click an open polyline · Enter selects · Backspace removes a point · Esc cancels · Shift/Ctrl/⌘ on first point adds/removes', fenceNeedsPoints: 'Fence selection needs at least two distinct points',
@@ -175,7 +176,7 @@ const copy = {
     unsupported: '投影限制', theme: '主题', language: 'EN', sample: '入门图纸', openFailed: '无法打开图纸', command: '命令', run: '执行', commandHint: 'MOVE 10 0 · COPY 10 0 · ROTATE 15 · OFFSET 2 · SCALE 1.2', fileTooLarge: '文件超过工作台限制',
     layout: '布局', layoutClassic: '经典', layoutCompact: '紧凑', layoutFocus: '专注', selectObjects: '选择对象', basePoint: '指定基点', destinationPoint: '指定目标点', zoomIn: '放大', zoomOut: '缩小',
     modifyTools: '编辑工具', modifyTitle: '修改选中对象', modifyDescription: '选择精确操作并输入参数。', cancel: '取消', continueOnCanvas: '到画布继续', selectionOrder: '成对操作和边界操作会按选择顺序执行。',
-    moreDraw: '更多', drawTitle: '绘图工具', drawDescription: '选择基础图元并配置构造方式。', startDrawing: '开始绘图', drawingTool: '基础图元', undoPoint: '撤回点', finish: '完成', closeShape: '闭合', coordinateHint: 'x,y · @dx,dy · @距离<角度',
+    moreDraw: '更多', drawTitle: '绘图工具', drawDescription: '选择基础图元并配置构造方式。', startDrawing: '开始绘图', drawingTool: '基础图元', undoPoint: '撤回点', finish: '完成', closeShape: '闭合', coordinateHint: 'x,y · @dx,dy · @距离<角度 · 距离 · 距离<角度 · <角度',
     selectionHint: '空白处拖动：左→右框选，右→左交叉选 · Shift 增选 · Ctrl/⌘ 减选 · Ctrl/⌘+A 全选',
     windowSelection: '框选：完全位于框内的对象', crossingSelection: '交叉选择：框内或与边界相交的对象', gripHint: '拖动方形夹点修改几何 · Esc 取消', gripEditing: '指定夹点的新位置 · Esc 取消', gestureCancelled: '图纸或视图已变化，操作已取消', snapEndpoint: '端点', snapMidpoint: '中点', snapCenter: '圆心', snapQuadrant: '象限点', snapIntersection: '交点', snapPerpendicular: '垂足', snapTangent: '切点', snapInsertion: '插入点', snapNode: '节点', snapNearest: '最近点',
     fenceHint: '围栏：连续点击折线点 · Enter 选择 · Backspace 撤回点 · Esc 取消 · 首点按 Shift 增选、Ctrl/⌘ 减选', fenceNeedsPoints: '围栏至少需要两个不同的点',
@@ -390,6 +391,7 @@ export class KJDrawWorkbench {
   #draftStart: Point2 | null = null
   #draftPoints: Point2[] = []
   #cursorWorld: Point2 | null = null
+  #draftInputDirection: Point2 | null = null
   #snapWorld: Point2 | null = null
   #snapMode: KJSnapMode | null = null
   #snapCandidate: Readonly<KJSnapCandidate> | null = null
@@ -1076,19 +1078,20 @@ export class KJDrawWorkbench {
       if (this.#draftGesture?.session.state.canFinish) await this.#finishDraft(false)
       return
     }
-    if (this.#draftGesture?.session.state.canClose && ['C', 'CLOSE'].includes(raw.toUpperCase())) {
-      await this.#finishDraft(true)
-      input.value = ''
-      return
+    if (this.#draftGesture) {
+      const draftCommand = raw.toUpperCase()
+      if (['C', 'CLOSE'].includes(draftCommand)) { if (await this.#finishDraft(true)) input.value = ''; return }
+      if (['F', 'FINISH', 'DONE'].includes(draftCommand)) { if (await this.#finishDraft(false)) input.value = ''; return }
+      if (['U', 'BACK'].includes(draftCommand)) { this.#undoDraftPoint(); input.value = ''; return }
+      if (['ESC', 'CANCEL'].includes(draftCommand)) { this.setTool('select'); input.value = ''; return }
     }
     if (this.#modificationGesture && (/^@?[^,]+,[^,]+$/.test(raw) || /^@[^<]+<[^<]+$/.test(raw))) {
       const result = await this.#run(() => this.#addModificationCoordinate(raw))
       if (result !== null) input.value = ''
       return
     }
-    if (this.#draftGesture && (/^@?[^,]+,[^,]+$/.test(raw) || /^@[^<]+<[^<]+$/.test(raw))) {
-      const result = await this.#run(() => this.#addDraftCoordinate(raw))
-      if (result !== null) input.value = ''
+    if (this.#draftGesture && isDraftPointInput(raw)) {
+      if (await this.#addDraftCoordinate(raw)) input.value = ''
       return
     }
     const separator = raw.search(/\s/)
@@ -1261,6 +1264,7 @@ export class KJDrawWorkbench {
       payload: { ...this.#activeLayerPayload(), ...(configured.payload ?? {}) },
     })
     this.#draftGesture = { document: drawing, revision: drawing.revision, session }
+    this.#draftInputDirection = null
     this.#syncDraftActions()
   }
 
@@ -1322,6 +1326,7 @@ export class KJDrawWorkbench {
     const result = await this.#run(() => ({ spec: gesture.session.addPoint(world, reference) }))
     if (!result) return // Keep the validation error visible; no point was accepted.
     const { spec } = result
+    this.#draftInputDirection = null
     if (spec) { await this.#commitDraft(gesture, spec); return }
     if (spec === null && gesture.session.state.status !== 'collecting') return
     this.#setMessage(this.#draftPrompt(gesture.session.state.nextPoint))
@@ -1330,31 +1335,36 @@ export class KJDrawWorkbench {
     this.#drawOverlay()
   }
 
-  async #addDraftCoordinate(value: string): Promise<void> {
+  async #addDraftCoordinate(value: string): Promise<boolean> {
     const gesture = this.#draftGesture
-    if (!gesture || gesture.document !== this.document) { this.#cancelGesture(); return }
-    const result = await this.#run(() => ({ spec: gesture.session.addCoordinate(value) }))
-    if (!result) return // Keep the validation error visible; no point was accepted.
+    if (!gesture || gesture.document !== this.document) { this.#cancelGesture(); return false }
+    const result = await this.#run(() => ({ spec: gesture.session.addInput(value, this.#draftInputDirection ?? undefined) }))
+    if (!result) return false // Keep the validation error visible; no point was accepted.
     const { spec } = result
-    if (spec) { await this.#commitDraft(gesture, spec); return }
-    if (spec === null && gesture.session.state.status !== 'collecting') return
+    this.#draftInputDirection = null
+    if (spec) { await this.#commitDraft(gesture, spec); return true }
+    if (spec === null && gesture.session.state.status !== 'collecting') return true
     this.#setMessage(this.#draftPrompt(gesture.session.state.nextPoint))
     this.#syncDraftActions()
     this.#refreshDraftPreview()
     this.#drawOverlay()
+    return true
   }
 
-  async #finishDraft(close: boolean): Promise<void> {
+  async #finishDraft(close: boolean): Promise<boolean> {
     const gesture = this.#draftGesture
-    if (!gesture || gesture.document !== this.document) return
+    if (!gesture || gesture.document !== this.document) return false
     const spec = await this.#run(() => close ? gesture.session.close() : gesture.session.finish())
-    if (spec) await this.#commitDraft(gesture, spec)
+    if (!spec) return false
+    await this.#commitDraft(gesture, spec)
+    return true
   }
 
   #undoDraftPoint(): void {
     const gesture = this.#draftGesture
     if (!gesture?.session.points.length) return
     gesture.session.undoPoint()
+    this.#draftInputDirection = null
     this.#setMessage(this.#draftPrompt(gesture.session.state.nextPoint))
     this.#syncDraftActions()
     this.#refreshDraftPreview()
@@ -2215,6 +2225,7 @@ export class KJDrawWorkbench {
     this.#canvas.style.cursor = this.#hoverGrip ? 'crosshair' : ''
     const snapped = drawingTool ? this.#snapAt(rawWorld) : null
     this.#cursorWorld = this.#constrainPointer(rawWorld, snapped)
+    if (this.#draftGesture) this.#draftInputDirection = this.#cursorWorld
     if (coordinate) coordinate.textContent = `X ${this.#cursorWorld[0].toFixed(3)} · Y ${this.#cursorWorld[1].toFixed(3)}`
     this.#showSnap(snapped)
     this.#refreshDraftPreview()
@@ -2501,6 +2512,7 @@ export class KJDrawWorkbench {
     const hadDraft = this.#draftGesture !== null
     this.#draftGesture?.session.cancel()
     this.#draftGesture = null
+    this.#draftInputDirection = null
     this.#draftStart = null
     this.#draftPoints = []
     this.#transformGesture = null

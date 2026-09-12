@@ -384,6 +384,40 @@ export function parseDraftCoordinate(input, relativeBase) {
         base[1] + result[1]
     ] : result;
 }
+const DRAFT_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
+export function isDraftPointInput(input) {
+    const source = String(input).trim();
+    return DRAFT_NUMBER.test(source) || /^<[^<]+$/.test(source) || /^[^<]+<[^<]+$/.test(source) || /^@?[^,]+,[^,]+$/.test(source);
+}
+export function parseDraftPointInput(input, relativeBase, directionPoint) {
+    const source = String(input).trim();
+    if (!source) throw new KJValidationError('Draft input cannot be empty');
+    if (source.startsWith('@') || source.includes(',')) return parseDraftCoordinate(source, relativeBase);
+    const base = point2(relativeBase, 'relativeBase');
+    const direction = directionPoint === undefined ? undefined : point2(directionPoint, 'directionPoint');
+    if (source.includes('<')) {
+        const pieces = source.split('<');
+        if (pieces.length !== 2 || !pieces[1]?.trim()) throw new KJValidationError('Distance/angle input must use distance<angle or <angle');
+        const angle = finite(pieces[1], 'angle') * Math.PI / 180;
+        const length = pieces[0]?.trim() ? finite(pieces[0], 'distance') : direction ? distance(base, direction) : Number.NaN;
+        if (!Number.isFinite(length)) throw new KJValidationError('Angle-only input requires a current pointer distance');
+        if (length < 0) throw new KJValidationError('distance must be non-negative');
+        return [
+            base[0] + Math.cos(angle) * length,
+            base[1] + Math.sin(angle) * length
+        ];
+    }
+    if (!DRAFT_NUMBER.test(source)) throw new KJValidationError('Draft input must use x,y, @dx,dy, @distance<angle, distance, distance<angle or <angle');
+    const length = finite(source, 'distance');
+    if (length < 0) throw new KJValidationError('distance must be non-negative');
+    if (!direction) throw new KJValidationError('Direct distance input requires a current pointer direction');
+    const dx = direction[0] - base[0], dy = direction[1] - base[1], magnitude = Math.hypot(dx, dy);
+    if (!(magnitude > 0)) throw new KJValidationError('Move the pointer away from the last point before entering a distance');
+    return [
+        base[0] + dx / magnitude * length,
+        base[1] + dy / magnitude * length
+    ];
+}
 export class KJDraftingSession {
     tool;
     #options;
@@ -463,6 +497,14 @@ export class KJDraftingSession {
     }
     addCoordinate(input, relativeBase = this.#points.at(-1)) {
         return this.addPoint(parseDraftCoordinate(input, relativeBase));
+    }
+    addInput(input, directionPoint, relativeBase = this.#points.at(-1)) {
+        const circleRadius = this.tool === 'circle' && this.#options.circleMode === 'center-radius' && this.#points.length === 1 && DRAFT_NUMBER.test(String(input).trim());
+        const direction = circleRadius && relativeBase && (!directionPoint || near(relativeBase, directionPoint, this.#options.tolerance)) ? [
+            relativeBase[0] + 1,
+            relativeBase[1]
+        ] : directionPoint;
+        return this.addPoint(parseDraftPointInput(input, relativeBase, direction));
     }
     preview(cursor) {
         if (this.#status === 'cancelled') return null;

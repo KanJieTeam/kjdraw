@@ -53,6 +53,14 @@ export declare function constrainOrthogonalDraftPoint(value: KJDraftPoint, base:
 export declare function constrainPolarDraftPoint(value: KJDraftPoint, base: KJDraftPoint, angleIncrement?: number): KJDraftPoint;
 /** Parse CAD coordinates. Polar angles use degrees and increase counter-clockwise. */
 export declare function parseDraftCoordinate(input: string, relativeBase?: KJDraftPoint): KJDraftPoint;
+/** Return whether text is an exact coordinate or direct distance/angle draft input. */
+export declare function isDraftPointInput(input: string): boolean;
+/**
+ * Resolve command-line drafting input. Coordinates stay exact. A scalar uses
+ * the current pointer direction, `<angle` keeps its distance, and
+ * `distance<angle` supplies both values relative to the last accepted point.
+ */
+export declare function parseDraftPointInput(input: string, relativeBase?: KJDraftPoint, directionPoint?: KJDraftPoint): KJDraftPoint;
 export declare class KJDraftingSession {
     #private;
     readonly tool: KJDraftTool;
@@ -62,6 +70,7 @@ export declare class KJDraftingSession {
     get state(): KJDraftState;
     addPoint(value: KJDraftPoint, reference?: KJDraftPointReference | null): KJDraftEntitySpec | null;
     addCoordinate(input: string, relativeBase?: KJDraftPoint | undefined): KJDraftEntitySpec | null;
+    addInput(input: string, directionPoint?: KJDraftPoint, relativeBase?: KJDraftPoint | undefined): KJDraftEntitySpec | null;
     preview(cursor?: KJDraftPoint): KJDraftEntitySpec | null;
     finish(): KJDraftEntitySpec;
     close(): KJDraftEntitySpec;

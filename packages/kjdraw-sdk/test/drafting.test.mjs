@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, parseDraftCoordinate } from '../src/drafting.js'
+import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate, parseDraftPointInput } from '../src/drafting.js'
 import { createKJDrawSDK } from '../src/index.js'
 import { projectDimension } from '../src/geometry/annotation.js'
 
@@ -13,6 +13,25 @@ test('CAD coordinate parser accepts absolute, relative Cartesian and relative po
   assert.throws(()=>parseDraftCoordinate('@1,2'),/relativeBase/)
   assert.throws(()=>parseDraftCoordinate('Infinity,0'),/finite/)
   assert.throws(()=>parseDraftCoordinate('@-2<45',[0,0]),/non-negative/)
+})
+
+test('direct distance and angle input shares exact drafting state and keeps invalid input retryable',()=>{
+  assert.equal(isDraftPointInput('25'),true);assert.equal(isDraftPointInput('25<30'),true);assert.equal(isDraftPointInput('<90'),true);assert.equal(isDraftPointInput('FINISH'),false)
+  assert.deepEqual(parseDraftPointInput('5',[0,0],[3,4]),[3,4])
+  let point=parseDraftPointInput('10<30',[2,3]);closeTo(point[0],2+5*Math.sqrt(3));closeTo(point[1],8)
+  point=parseDraftPointInput('<90',[1,2],[4,6]);closeTo(point[0],1);closeTo(point[1],7)
+  assert.deepEqual(parseDraftPointInput('12,8',[99,99],[100,100]),[12,8])
+  assert.deepEqual(parseDraftPointInput('@2,-3',[10,20],[100,100]),[12,17])
+  assert.throws(()=>parseDraftPointInput('5',[0,0],[0,0]),/Move the pointer/)
+  assert.throws(()=>parseDraftPointInput('<45',[0,0]),/pointer distance/)
+  assert.throws(()=>parseDraftPointInput('-2<45',[0,0]),/non-negative/)
+
+  const draft=createDraftingSession('polyline');draft.addInput('0,0')
+  assert.throws(()=>draft.addInput('5',[0,0]),/Move the pointer/)
+  assert.deepEqual(draft.state.points,[[0,0]])
+  draft.addInput('10<0');draft.addInput('<90',[10,10]);assert.deepEqual(draft.state.points,[[0,0],[10,0],[10,10]])
+  assert.deepEqual(draft.undoPoint(),[10,10]);assert.equal(draft.state.canFinish,true)
+  draft.addInput('10<90');const result=draft.close();assert.equal(result.payload.closed,true);assert.deepEqual(result.payload.vertices.map(vertex=>vertex.point),[[0,0,0],[10,0,0],[10,10,0]])
 })
 
 test('orthogonal pointer constraint uses the dominant axis without changing explicit coordinate parsing', async () => {

@@ -3,7 +3,7 @@ import { createKJDrawSDK, getDocumentSnapSettings, KJProjectSession, instantiate
 import { KJCanvasRenderer, aciColor } from '../../packages/kjdraw-sdk/src/canvas-renderer.js'
 import { kjdrawIcon } from '../../packages/kjdraw-sdk/src/theme.js'
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from '../../packages/kjdraw-sdk/src/layout.js'
-import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, parseDraftCoordinate } from '../../packages/kjdraw-sdk/src/drafting.js'
+import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate } from '../../packages/kjdraw-sdk/src/drafting.js'
 import { editEntityGrip } from '../../packages/kjdraw-sdk/src/grips.js'
 import { createBoundaryEditSession } from '../../packages/kjdraw-sdk/src/boundary-edit.js'
 import { KJ_MODIFICATION_DEFINITIONS, getKJModificationDefinition, buildKJModificationCommand, getKJModificationSelectionCenter, validateKJModificationSelection } from '../../packages/kjdraw-sdk/src/modification-controls.js'
@@ -143,7 +143,7 @@ function updateDraftHint(){
   if(!drafting)return
   const roles={start:['Start point','起点'],end:['Endpoint','终点'],vertex:['Next vertex','下一顶点'],position:['Position','位置'],origin:['Origin','原点'],directionPoint:['Direction point','方向点'],center:['Center','圆心 / 中心'],radiusPoint:['Radius point (or enter radius)','半径点（也可输入半径）'],diameterPoint1:['First diameter endpoint','直径起点'],diameterPoint2:['Opposite diameter endpoint','直径终点'],throughPoint:['Point on curve','曲线上一点'],majorAxisPoint:['Major-axis endpoint','长轴端点'],minorAxisPoint:['Minor-axis distance','短轴距离'],ellipseArcStart:['Elliptical-arc start direction','椭圆弧起点方向'],ellipseArcEnd:['Elliptical-arc end direction (counter-clockwise)','椭圆弧终点方向（逆时针）'],polygonVertex:['Vertex on circumcircle','外接圆上的顶点'],polygonSideMidpoint:['Side midpoint on incircle','内切圆上的边中点'],edgeStart:['First edge endpoint','边的第一端点'],edgeEnd:['Second edge endpoint','边的第二端点'],firstCorner:['First corner','第一角点'],oppositeCorner:['Opposite corner','对角点'],controlPoint:['Next control point','下一控制点'],boundaryPoint:['Boundary vertex','填充边界顶点'],extensionOrigin1:['First measured point','第一测量点'],extensionOrigin2:['Second measured point','第二测量点'],placement:['Dimension line position','尺寸线位置'],oppositePoint:['Opposite diameter point','直径对侧点'],pointOnCircle:['Point on circle','圆上一点'],angleVertex:['Three-point angle 1/4: vertex → first ray → second ray → arc position','三点角度 1/4：顶点 → 第一射线点 → 第二射线点 → 弧位置'],firstRayPoint:['2/4: point on first ray','2/4：第一条射线上的点'],secondRayPoint:['3/4: point on second ray','3/4：第二条射线上的点'],angularPlacement:['4/4: place angle arc; opposite sector gives reflex angle','4/4：指定角度弧位置；另一角域可标注反角']}
   const state=drafting.session.state,role=roles[state.nextPoint]??[state.nextPoint??'',state.nextPoint??'']
-  $('hint').textContent=`${tool.toUpperCase()} · ${role[i18n.locale==='zh'?1:0]} · ${state.points.length} ${i18n.locale==='zh'?'点':'points'} · x,y / @dx,dy / @distance<angle${state.canFinish?' · Enter':''}${state.canClose?' · C':''} · Esc`
+  $('hint').textContent=`${tool.toUpperCase()} · ${role[i18n.locale==='zh'?1:0]} · ${state.points.length} ${i18n.locale==='zh'?'点':'points'} · x,y / @dx,dy / @distance<angle / ${i18n.locale==='zh'?'距离 / 距离<角度 / <角度':'distance / distance<angle / <angle'}${state.canFinish?' · Enter / FINISH':''}${state.canClose?' · C / CLOSE':''} · U / BACK · Esc / CANCEL`
   message($('hint').textContent);updateDraftControls()
 }
 async function applyDraftInput(value,{coordinate=false,finish=false,close=false}={}){
@@ -153,11 +153,8 @@ async function applyDraftInput(value,{coordinate=false,finish=false,close=false}
   const previousPoints=task.session.points
   if(close)spec=task.session.close()
   else if(finish)spec=task.session.finish()
-  else if(coordinate){
-    if(tool==='circle'&&$('circle-mode').value==='center-radius'&&task.session.points.length===1&&/^[+]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(value)){
-      const radius=Number(value),center=task.session.points[0];if(!(radius>0))throw new Error(i18n.locale==='zh'?'半径必须大于零':'Radius must be positive');spec=task.session.addPoint([center[0]+radius,center[1]])
-    }else spec=task.session.addCoordinate(value)
-  }else spec=task.session.addPoint(value)
+  else if(coordinate)spec=task.session.addInput(value,cursor??undefined)
+  else spec=task.session.addPoint(value)
   start=task.session.points.at(-1)??null
   cursor=start
   if(spec){
@@ -517,9 +514,11 @@ async function runTypedCommand(){
   if(/^FENCE$/i.test(raw)){$('command-input').value='';setTool('fence');canvas.focus();return}
   if(/^(?:SELECTALL|ALL)$/i.test(raw)){$('command-input').value='';setTool('select');applySelection(canvasRenderer.selectAll(),'replace');return}
   if(modification&&/^@?[+\-.\d]/.test(raw)){$('command-input').value='';await addModificationPoint(parseDraftCoordinate(raw,modification.points.at(-1)));return}
-  if(drafting&&/^@?[+\-.\d]/.test(raw)){$('command-input').value='';await applyDraftInput(raw,{coordinate:true});return}
-  if(drafting&&/^(?:C|CLOSE)$/i.test(raw)){$('command-input').value='';await applyDraftInput(null,{close:true});return}
-  if(drafting&&/^(?:U|BACK)$/i.test(raw)){$('command-input').value='';undoDraftPoint();return}
+  if(drafting&&/^(?:C|CLOSE)$/i.test(raw)){await applyDraftInput(null,{close:true});$('command-input').value='';return}
+  if(drafting&&/^(?:F|FINISH|DONE)$/i.test(raw)){await applyDraftInput(null,{finish:true});$('command-input').value='';return}
+  if(drafting&&/^(?:U|BACK)$/i.test(raw)){undoDraftPoint();$('command-input').value='';return}
+  if(drafting&&/^(?:ESC|CANCEL)$/i.test(raw)){setTool('select');$('command-input').value='';return}
+  if(drafting&&isDraftPointInput(raw)){await applyDraftInput(raw,{coordinate:true});$('command-input').value='';return}
   const polygonCommand=/^(?:POL|POLYGON)\s+(\S+)(?:\s+(\S+))?$/i.exec(raw)
   if(polygonCommand){
     const sides=Number(polygonCommand[1]),modeToken=String(polygonCommand[2]??'INSCRIBED').toUpperCase(),polygonMode=({I:'inscribed',INSCRIBED:'inscribed',C:'circumscribed',CIRCUMSCRIBED:'circumscribed',E:'edge',EDGE:'edge'})[modeToken]

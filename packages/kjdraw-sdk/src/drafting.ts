@@ -368,6 +368,48 @@ export function parseDraftCoordinate(input: string, relativeBase?: KJDraftPoint)
   return relative ? [base[0] + result[0], base[1] + result[1]] : result
 }
 
+const DRAFT_NUMBER = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i
+
+/** Return whether text is an exact coordinate or direct distance/angle draft input. */
+export function isDraftPointInput(input: string): boolean {
+  const source = String(input).trim()
+  return DRAFT_NUMBER.test(source)
+    || /^<[^<]+$/.test(source)
+    || /^[^<]+<[^<]+$/.test(source)
+    || /^@?[^,]+,[^,]+$/.test(source)
+}
+
+/**
+ * Resolve command-line drafting input. Coordinates stay exact. A scalar uses
+ * the current pointer direction, `<angle` keeps its distance, and
+ * `distance<angle` supplies both values relative to the last accepted point.
+ */
+export function parseDraftPointInput(input: string, relativeBase?: KJDraftPoint, directionPoint?: KJDraftPoint): KJDraftPoint {
+  const source = String(input).trim()
+  if (!source) throw new KJValidationError('Draft input cannot be empty')
+  if (source.startsWith('@') || source.includes(',')) return parseDraftCoordinate(source, relativeBase)
+  const base = point2(relativeBase, 'relativeBase')
+  const direction = directionPoint === undefined ? undefined : point2(directionPoint, 'directionPoint')
+  if (source.includes('<')) {
+    const pieces = source.split('<')
+    if (pieces.length !== 2 || !pieces[1]?.trim()) throw new KJValidationError('Distance/angle input must use distance<angle or <angle')
+    const angle = finite(pieces[1], 'angle') * Math.PI / 180
+    const length = pieces[0]?.trim()
+      ? finite(pieces[0], 'distance')
+      : direction ? distance(base, direction) : Number.NaN
+    if (!Number.isFinite(length)) throw new KJValidationError('Angle-only input requires a current pointer distance')
+    if (length < 0) throw new KJValidationError('distance must be non-negative')
+    return [base[0] + Math.cos(angle) * length, base[1] + Math.sin(angle) * length]
+  }
+  if (!DRAFT_NUMBER.test(source)) throw new KJValidationError('Draft input must use x,y, @dx,dy, @distance<angle, distance, distance<angle or <angle')
+  const length = finite(source, 'distance')
+  if (length < 0) throw new KJValidationError('distance must be non-negative')
+  if (!direction) throw new KJValidationError('Direct distance input requires a current pointer direction')
+  const dx = direction[0] - base[0], dy = direction[1] - base[1], magnitude = Math.hypot(dx, dy)
+  if (!(magnitude > 0)) throw new KJValidationError('Move the pointer away from the last point before entering a distance')
+  return [base[0] + dx / magnitude * length, base[1] + dy / magnitude * length]
+}
+
 export class KJDraftingSession {
   readonly tool: KJDraftTool
   #options: NormalizedOptions
@@ -429,6 +471,14 @@ export class KJDraftingSession {
 
   addCoordinate(input: string, relativeBase: KJDraftPoint | undefined = this.#points.at(-1)): KJDraftEntitySpec | null {
     return this.addPoint(parseDraftCoordinate(input, relativeBase))
+  }
+
+  addInput(input: string, directionPoint?: KJDraftPoint, relativeBase: KJDraftPoint | undefined = this.#points.at(-1)): KJDraftEntitySpec | null {
+    const circleRadius = this.tool === 'circle' && this.#options.circleMode === 'center-radius' && this.#points.length === 1 && DRAFT_NUMBER.test(String(input).trim())
+    const direction = circleRadius && relativeBase && (!directionPoint || near(relativeBase, directionPoint, this.#options.tolerance))
+      ? [relativeBase[0] + 1, relativeBase[1]] as KJDraftPoint
+      : directionPoint
+    return this.addPoint(parseDraftPointInput(input, relativeBase, direction))
   }
 
   preview(cursor?: KJDraftPoint): KJDraftEntitySpec | null {
