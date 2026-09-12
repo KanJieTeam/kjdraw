@@ -20,6 +20,11 @@ export declare class KJRevisionConflictError extends KJDrawError {
     readonly actual: unknown;
     constructor(expected: unknown, actual: unknown, details?: Readonly<Record<string, unknown>> | null);
 }
+export declare class KJFileConflictError extends KJDrawError {
+    readonly expected: unknown;
+    readonly actual: unknown;
+    constructor(expected: unknown, actual: unknown, details?: Readonly<Record<string, unknown>> | null);
+}
 export declare class KJRegistrationError extends KJDrawError {
     constructor(message: string, details?: KJErrorDetails);
 }

@@ -32,6 +32,7 @@ export interface BrowserKjpReadResult {
 }
 /** Browser binding backed by the File System Access API and OPFS recovery. */
 export declare class BrowserKjpFileBinding {
+    #private;
     handle: KjpBrowserFileHandle | null;
     constructor(handle?: KjpBrowserFileHandle | null);
     static supported(): boolean;

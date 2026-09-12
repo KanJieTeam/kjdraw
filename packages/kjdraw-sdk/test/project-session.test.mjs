@@ -52,3 +52,55 @@ test('browser file binding validates before write and reopens the committed loca
   assert.equal((await binding.read()).project.activeDocument.id, 'model')
   session.destroy()
 })
+
+test('browser file binding rejects external changes before overwrite and only rebases after an explicit read', async () => {
+  const make = async (id, x) => {
+    const sdk = createKJDrawSDK()
+    const document = sdk.createDocument({ documentId: 'model' })
+    await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0, 0], end: [x, 0] } }, { document })
+    const session = KJProjectSession.create({ sdk, id, documents: [document] })
+    const bytes = await session.package({ modifiedAt: '2026-09-13T03:00:00.000Z' })
+    session.destroy()
+    return bytes
+  }
+  const original = await make('original', 10)
+  const external = await make('external', 20)
+  const desired = await make('desired', 30)
+  let stored = original.slice()
+  const handle = {
+    kind: 'file', name: 'conflict.kjp',
+    queryPermission: async () => 'granted',
+    getFile: async () => ({ arrayBuffer: async () => stored.slice().buffer }),
+    createWritable: async () => ({ write: async value => { stored = new Uint8Array(value).slice() }, close: async () => {} }),
+  }
+  const binding = new BrowserKjpFileBinding(handle)
+  assert.equal((await binding.read()).project.manifest.projectId, 'original')
+  stored = external.slice()
+  await assert.rejects(binding.write(desired), error => error.code === 'KJFILE_CONFLICT' && error.details.phase === 'before-write')
+  assert.equal((await binding.read()).project.manifest.projectId, 'external')
+  assert.equal((await binding.write(desired)).manifest.projectId, 'desired')
+})
+
+test('browser file binding verifies the exact bytes committed after close', async () => {
+  const sdk = createKJDrawSDK()
+  const session = KJProjectSession.create({ sdk, id: 'intended', documents: [sdk.createDocument({ documentId: 'model' })] })
+  const intended = await session.package({ modifiedAt: '2026-09-13T03:10:00.000Z' })
+  const otherSdk = createKJDrawSDK()
+  const other = KJProjectSession.create({ sdk: otherSdk, id: 'concurrent', documents: [otherSdk.createDocument({ documentId: 'model' })] })
+  const concurrent = await other.package({ modifiedAt: '2026-09-13T03:11:00.000Z' })
+  let stored = new Uint8Array()
+  const handle = {
+    kind: 'file', name: 'race.kjp',
+    queryPermission: async () => 'granted',
+    getFile: async () => ({ arrayBuffer: async () => stored.slice().buffer }),
+    createWritable: async () => ({
+      write: async value => { stored = new Uint8Array(value).slice() },
+      close: async () => { stored = concurrent.slice() },
+    }),
+  }
+  const binding = new BrowserKjpFileBinding(handle)
+  await assert.rejects(binding.write(intended), error => error.code === 'KJFILE_CONFLICT' && error.details.phase === 'after-write')
+  assert.equal((await binding.read()).project.manifest.projectId, 'concurrent')
+  session.destroy()
+  other.destroy()
+})

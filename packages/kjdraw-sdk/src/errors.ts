@@ -44,6 +44,20 @@ export class KJRevisionConflictError extends KJDrawError {
   }
 }
 
+export class KJFileConflictError extends KJDrawError {
+  readonly expected: unknown
+  readonly actual: unknown
+
+  constructor(expected: unknown, actual: unknown, details: Readonly<Record<string, unknown>> | null = null) {
+    super('Local project file changed outside KJDraw; reopen it or save to another file', {
+      code: 'KJFILE_CONFLICT',
+      details: { expected, actual, ...(details ?? {}) },
+    })
+    this.expected = expected
+    this.actual = actual
+  }
+}
+
 export class KJRegistrationError extends KJDrawError {
   constructor(message: string, details: KJErrorDetails = null) {
     super(message, { code: 'KJREGISTRATION_FAILED', details })

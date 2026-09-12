@@ -44,6 +44,22 @@ export class KJRevisionConflictError extends KJDrawError {
         this.actual = actual;
     }
 }
+export class KJFileConflictError extends KJDrawError {
+    expected;
+    actual;
+    constructor(expected, actual, details = null){
+        super('Local project file changed outside KJDraw; reopen it or save to another file', {
+            code: 'KJFILE_CONFLICT',
+            details: {
+                expected,
+                actual,
+                ...details ?? {}
+            }
+        });
+        this.expected = expected;
+        this.actual = actual;
+    }
+}
 export class KJRegistrationError extends KJDrawError {
     constructor(message, details = null){
         super(message, {
