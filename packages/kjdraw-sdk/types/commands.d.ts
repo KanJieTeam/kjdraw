@@ -342,6 +342,7 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly domain: string;
         readonly precision: string;
         readonly supportedEntityTypes: readonly string[];
+        readonly deterministicPieces: boolean;
     };
     readonly JOIN: {
         readonly domain: string;

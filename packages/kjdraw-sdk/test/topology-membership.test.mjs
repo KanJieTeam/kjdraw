@@ -19,11 +19,12 @@ for (const [command, sourceSpec, args] of [
 
   const derived = await sdk.executeCommand(command, { id: source.id, ...args })
   const derivedIds = derived.map(entity => entity.id)
-  assert.equal(drawing.getObject(source.id), null)
+  assert.equal(drawing.getObject(source.id)?.id ?? null, command === 'BREAK' ? derived[0].id : null)
   assert.deepEqual(drawing.getObject(group.id).payload.memberIds, [beforeMarker.id, ...derivedIds, afterMarker.id])
   assert.deepEqual(drawing.getObject(saved.id).payload.memberIds, [afterMarker.id, ...derivedIds, beforeMarker.id])
   assert.equal(drawing.revision, revision + 1)
-  assert.ok(derived.every(entity => entity.source.derivedFromId === source.id))
+  if (command === 'BREAK') assert.equal(derived[0].source, null)
+  for (const entity of derived.slice(command === 'BREAK' ? 1 : 0)) assert.equal(entity.source.derivedFromId, source.id)
   assert.equal(drawing.validate().valid, true)
 
   const current = records(drawing), serialized = drawing.serialize()

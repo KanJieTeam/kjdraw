@@ -10,7 +10,7 @@ import { createIndustrySample } from './samples.js';
 import { KJDRAW_THEME_CSS, kjdrawIcon } from './theme.js';
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from './layout.js';
 import { createBoundaryEditSession } from './boundary-edit.js';
-import { editPolylinePayload } from './editing.js';
+import { breakEntityPayloads, editPolylinePayload } from './editing.js';
 import { KJ_MODIFICATION_DEFINITIONS, buildKJModificationCommand, getKJInteractiveModificationDefinition, getKJModificationDefinition, getKJModificationSelectionCenter, parseKJModificationCommandValues, previewKJModification, validateKJModificationSelection } from './modification-controls.js';
 import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate } from './drafting.js';
 const copy = {
@@ -2434,6 +2434,18 @@ export class KJDrawWorkbench {
                 });
                 return;
             }
+            if (command === 'BR' || command === 'BREAK') {
+                if (tokens.length) throw new Error('BREAK uses the selected entity and canvas points');
+                const ids = selectedIds();
+                if (ids.length !== 1) throw new Error('BREAK requires exactly one selected entity');
+                const target = this.document?.getObject(ids[0]);
+                const twoPoint = target?.type === 'CIRCLE' || [
+                    'LWPOLYLINE',
+                    'POLYLINE'
+                ].includes(target?.type ?? '') && target?.payload.closed === true;
+                this.#openModificationDialog(twoPoint ? 'break-two-point' : 'break');
+                return;
+            }
             const interactiveModification = getKJInteractiveModificationDefinition(command);
             if (interactiveModification) {
                 const preset = parseKJModificationCommandValues(interactiveModification.id, tokens, this.#locale === 'zh-CN' ? 'zh' : 'en');
@@ -4381,8 +4393,11 @@ export class KJDrawWorkbench {
         ].includes(this.#tool);
         this.#hoverGrip = this.#tool === 'select' && !this.#readOnly && this.#selection?.size === 1 ? this.renderer.hitGrip(location, 7) : null;
         this.#canvas.style.cursor = this.#hoverGrip ? 'crosshair' : '';
-        const polylinePick = this.#modificationGesture?.definition.command === 'PEDIT';
-        const snapped = drawingTool && !polylinePick ? this.#snapAt(rawWorld) : null;
+        const directPick = [
+            'PEDIT',
+            'BREAK'
+        ].includes(this.#modificationGesture?.definition.command ?? '');
+        const snapped = drawingTool && !directPick ? this.#snapAt(rawWorld) : null;
         this.#cursorWorld = this.#constrainPointer(rawWorld, snapped);
         if (this.#draftGesture) this.#draftInputDirection = this.#cursorWorld;
         if (coordinate) coordinate.textContent = `X ${this.#cursorWorld[0].toFixed(3)} · Y ${this.#cursorWorld[1].toFixed(3)}`;
@@ -4487,13 +4502,16 @@ export class KJDrawWorkbench {
         if (event.button !== 0 || !this.document) return;
         const location = point(event, this.#canvas);
         const rawWorld = this.renderer.screenToWorld(location);
-        const polylinePick = this.#modificationGesture?.definition.command === 'PEDIT';
+        const directPick = [
+            'PEDIT',
+            'BREAK'
+        ].includes(this.#modificationGesture?.definition.command ?? '');
         const snapped = (this.#draftGesture !== null || this.#modificationGesture !== null || [
             'text',
             'measure',
             'move',
             'copy'
-        ].includes(this.#tool)) && !polylinePick ? this.#snapAt(rawWorld) : null;
+        ].includes(this.#tool)) && !directPick ? this.#snapAt(rawWorld) : null;
         const world = this.#constrainPointer(rawWorld, snapped);
         this.#cursorWorld = world;
         if (this.#fenceSelection) {
@@ -4928,7 +4946,10 @@ export class KJDrawWorkbench {
             ];
             if (cursor && points.length < modification.definition.pointKeys.length) points.push(cursor);
             try {
-                if (modification.definition.command === 'PEDIT' && cursor) {
+                if ([
+                    'PEDIT',
+                    'BREAK'
+                ].includes(modification.definition.command) && cursor) {
                     const request = buildKJModificationCommand(modification.definition.id, {
                         ids: modification.ids,
                         values: modification.values,
@@ -4936,14 +4957,15 @@ export class KJDrawWorkbench {
                         selectionCenter: modification.selectionCenter
                     });
                     const target = modification.document.getObject(modification.ids[0]);
-                    if (!target || target.kind !== 'entity') throw new Error('Polyline is unavailable');
-                    this.renderer.drawPreview([
+                    if (!target || target.kind !== 'entity') throw new Error('Modification target is unavailable');
+                    const directPreview = modification.definition.command === 'PEDIT' ? [
                         {
                             type: target.type,
                             payload: editPolylinePayload(target, request.arguments)
                         }
-                    ], this.#theme === 'dark' ? '#8fc0ff' : '#175fc8');
-                    this.#overlay.dataset.modificationPreviewCount = '1';
+                    ] : breakEntityPayloads(target, request.arguments);
+                    this.renderer.drawPreview(directPreview, this.#theme === 'dark' ? '#8fc0ff' : '#175fc8');
+                    this.#overlay.dataset.modificationPreviewCount = String(directPreview.length);
                     this.#overlay.dataset.modificationPreviewOmitted = '0';
                 } else {
                     const preview = points.length === modification.definition.pointKeys.length ? previewKJModification(modification.definition.id, {

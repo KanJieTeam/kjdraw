@@ -11,6 +11,7 @@ export type KJModificationId =
   | 'array-polar'
   | 'offset'
   | 'break'
+  | 'break-two-point'
   | 'join'
   | 'explode'
   | 'trim'
@@ -122,7 +123,7 @@ const pick = (key: string, en: string, zh: string): KJModificationPointDefinitio
 
 export const KJ_MODIFICATION_IDS = Object.freeze([
   'rotate', 'scale', 'mirror', 'array-rect', 'array-polar', 'offset',
-  'break', 'join', 'explode', 'trim', 'extend', 'lengthen', 'stretch',
+  'break', 'break-two-point', 'join', 'explode', 'trim', 'extend', 'lengthen', 'stretch',
   'polyline-insert', 'polyline-delete', 'polyline-arc', 'chamfer', 'fillet',
 ] as const)
 
@@ -181,11 +182,19 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
   },
   {
     id: 'break', command: 'BREAK', label: text('Break', '打断'),
-    description: text('Split one line or arc at a point.', '在指定点打断一条直线或圆弧。'),
+    description: text('Split one line, arc or open polyline at an exact point.', '在精确点打断直线、圆弧或开放多段线。'),
     minSelection: 1, maxSelection: 1,
-    supportedEntityTypes: ['LINE', 'ARC'],
-    fields: [],
+    supportedEntityTypes: ['LINE', 'ARC', 'LWPOLYLINE', 'POLYLINE'],
+    fields: [number('tolerance', 'Pick tolerance', '点选容差', 0.1, { min: 0, step: 0.01 })],
     pointKeys: [pick('point', 'Pick the break point', '在画布上指定打断点')],
+  },
+  {
+    id: 'break-two-point', command: 'BREAK', label: text('Two-point break', '两点打断'),
+    description: text('Split one circle or closed polyline at two exact points.', '在两个精确点拆分圆或闭合多段线。'),
+    minSelection: 1, maxSelection: 1,
+    supportedEntityTypes: ['CIRCLE', 'LWPOLYLINE', 'POLYLINE'],
+    fields: [number('tolerance', 'Pick tolerance', '点选容差', 0.1, { min: 0, step: 0.01 })],
+    pointKeys: [pick('firstPoint', 'Pick the first break point', '指定第一个打断点'), pick('secondPoint', 'Pick the second break point', '指定第二个打断点')],
   },
   {
     id: 'join', command: 'JOIN', label: text('Join', '合并'),
@@ -420,7 +429,8 @@ export function buildKJModificationCommand(id: KJModificationId, context: KJModi
       arguments: { ...all, center: points[0]!, ...(values.rotateItems === false ? { basePoint: context.selectionCenter ?? points[0]! } : {}) },
     }
     case 'offset': return { command: definition.command, arguments: { id: ids[0]!, ...values, sidePoint: points[0]! } }
-    case 'break': return { command: definition.command, arguments: { id: ids[0]!, point: points[0]! } }
+    case 'break': return { command: definition.command, arguments: { id: ids[0]!, ...values, point: points[0]! } }
+    case 'break-two-point': return { command: definition.command, arguments: { id: ids[0]!, ...values, firstPoint: points[0]!, secondPoint: points[1]! } }
     case 'join': return { command: definition.command, arguments: { id: ids[0]!, ids, ...values } }
     case 'explode': return { command: definition.command, arguments: { id: ids[0]! } }
     case 'trim': return { command: definition.command, arguments: { id: ids[0]!, boundaryIds: ids.slice(1), pickPoint: points[0]! } }

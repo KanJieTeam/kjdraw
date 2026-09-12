@@ -14,6 +14,7 @@ export interface KJBreakOptions {
     readonly firstPoint?: unknown;
     readonly secondPoint?: unknown;
     readonly points?: readonly unknown[];
+    readonly tolerance?: unknown;
 }
 export interface KJLinePairOptions {
     readonly pickPoint1?: unknown;

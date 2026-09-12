@@ -5,7 +5,7 @@ import { kjdrawIcon } from '../../packages/kjdraw-sdk/src/theme.js'
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from '../../packages/kjdraw-sdk/src/layout.js'
 import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate } from '../../packages/kjdraw-sdk/src/drafting.js'
 import { editEntityGrip } from '../../packages/kjdraw-sdk/src/grips.js'
-import { editPolylinePayload } from '../../packages/kjdraw-sdk/src/editing.js'
+import { breakEntityPayloads, editPolylinePayload } from '../../packages/kjdraw-sdk/src/editing.js'
 import { createBoundaryEditSession } from '../../packages/kjdraw-sdk/src/boundary-edit.js'
 import { KJ_MODIFICATION_DEFINITIONS, getKJInteractiveModificationDefinition, getKJModificationDefinition, buildKJModificationCommand, getKJModificationSelectionCenter, parseKJModificationCommandValues, previewKJModification, validateKJModificationSelection } from '../../packages/kjdraw-sdk/src/modification-controls.js'
 import { createSample } from '../../examples/sample.js'
@@ -252,9 +252,9 @@ function render() {
   if(modification){
     const points=[...modification.points];if(cursor&&points.length<modification.definition.pointKeys.length)points.push(cursor)
     try{
-      if(modification.definition.command==='PEDIT'&&cursor&&translationValid(modification)){
+      if(['PEDIT','BREAK'].includes(modification.definition.command)&&cursor&&translationValid(modification)){
         const request=buildKJModificationCommand(modification.definition.id,{ids:modification.ids,values:modification.values,points,selectionCenter:modification.selectionCenter}),target=doc().getObject(modification.ids[0])
-        if(target){drawOverlayEntity({type:target.type,payload:editPolylinePayload(target,request.arguments)},'#77a7ff');workbench.dataset.modificationPreviewCount='1'}
+        if(target){const directPreview=modification.definition.command==='PEDIT'?[{type:target.type,payload:editPolylinePayload(target,request.arguments)}]:breakEntityPayloads(target,request.arguments);for(const entity of directPreview)drawOverlayEntity(entity,'#77a7ff');workbench.dataset.modificationPreviewCount=String(directPreview.length)}
         else workbench.dataset.modificationPreviewCount='0'
         workbench.dataset.modificationPreviewOmitted='0'
       }else{
@@ -661,6 +661,7 @@ async function applyBoundaryTarget(location){
 }
 async function beginModification(id,{boundaryMode='choose',presetValues={}}={}){
   const definition=getKJModificationDefinition(id),ids=selectedIds(),drawing=doc(),locale=i18n.locale==='zh'?'zh':'en'
+  $('modification-tool').value=id
   if(id==='trim'||id==='extend'){
     let mode=boundaryMode
     if(mode==='choose'){
@@ -720,6 +721,11 @@ async function runTypedCommand(){
     if(drawCommand.startsWith('ELLIPSE'))$('ellipse-mode').value=drawCommand==='ELLIPSEARC'?'arc':'full'
     if(drawCommand.startsWith('DIM'))$('dimension-type').value=({DIMALIGNED:'ALIGNED',DIMLINEAR:'ROTATED',DIMRADIUS:'RADIUS',DIMDIAMETER:'DIAMETER',DIMANGULAR:'ANGULAR_3_POINT',DIMANGULAR3P:'ANGULAR_3_POINT'})[drawCommand]
     $('command-input').value='';setTool(drawCommands[drawCommand]);return
+  }
+  if(drawCommand==='BREAK'){
+    const selected=selectedIds().length===1?doc().getObject(selectedIds()[0]):null
+    const definition=getKJModificationDefinition(selected?.type==='CIRCLE'||(['LWPOLYLINE','POLYLINE'].includes(selected?.type)&&selected?.payload.closed===true)?'break-two-point':'break')
+    $('command-input').value='';await beginModification(definition.id);return
   }
   const [name,...values]=raw.split(/[\s,]+/),command=({M:'MOVE',CO:'COPY',CP:'COPY'})[name.toUpperCase()]??name.toUpperCase();$('command-input').value=''
   const interactiveModification=getKJInteractiveModificationDefinition(command)
@@ -902,7 +908,7 @@ canvas.onpointermove=e=>{
   }
   if(dragMove&&Math.hypot(p[0]-dragMove.screenStart[0],p[1]-dragMove.screenStart[1])>4)dragMove.started=true
   const transformBase=translation?.base??dragMove?.worldStart
-  cursor=modification?.definition.command==='PEDIT'?world(p):transformBase?translationPoint(world(p),transformBase):constrainedPoint(world(p));$('coordinates').textContent=`X ${cursor[0].toFixed(2)} · Y ${cursor[1].toFixed(2)}`
+  cursor=['PEDIT','BREAK'].includes(modification?.definition.command)?world(p):transformBase?translationPoint(world(p),transformBase):constrainedPoint(world(p));$('coordinates').textContent=`X ${cursor[0].toFixed(2)} · Y ${cursor[1].toFixed(2)}`
   const grip=tool==='select'&&selectedIds().length===1&&!dragMove?canvasRenderer.hitGrip(p):null,nextHover=grip?`${grip.entityId}:${grip.id}`:null
   if(nextHover!==hoveredGrip){hoveredGrip=nextHover;canvas.style.cursor=grip?'crosshair':tool==='pan'?'grab':tool==='select'?'default':'crosshair';render()}
   if(start||drafting||modification||translation?.base||dragMove?.started||fence||snapHit||hadSnap)render()
@@ -913,7 +919,7 @@ canvas.onpointerdown=e=>{
   if(e.button!==0)return
   if(busy){busyNotice();return}
   canvas.focus({preventScroll:true})
-  const raw=world(pointer(e)),p=modification?.definition.command==='PEDIT'?raw:translation?.base?translationPoint(raw,translation.base):constrainedPoint(raw)
+  const raw=world(pointer(e)),p=['PEDIT','BREAK'].includes(modification?.definition.command)?raw:translation?.base?translationPoint(raw,translation.base):constrainedPoint(raw)
   if(boundaryEdit){
     const location=pointer(e),state=boundaryEdit.session.state
     if(state.phase==='boundaries'){

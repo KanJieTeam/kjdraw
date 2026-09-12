@@ -25,7 +25,8 @@ test('BREAK, EXPLODE and ARRAYPOLAR produce independent canonical entities', asy
   const pieces = await sdk.executeCommand('BREAK', { id: line.id, point: [4, 0] })
   assert.equal(pieces.length, 2)
   closePoint(pieces[0].payload.end, [4, 0]); closePoint(pieces[1].payload.start, [4, 0])
-  assert.equal(document.getObject(line.id), null)
+  assert.equal(pieces[0].id, line.id)
+  assert.equal(document.getObject(line.id).payload.end[0], 4)
   assert.ok(pieces.every(piece => piece.payload.contractVersion === 1))
 
   const polyline = await sdk.executeCommand('CREATE', { type: 'LWPOLYLINE', payload: { vertices: [{ point: [-1, 0], bulge: 1 }, { point: [1, 0] }, { point: [2, 0] }] } })

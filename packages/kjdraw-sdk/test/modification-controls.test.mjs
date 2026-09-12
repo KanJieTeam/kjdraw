@@ -27,13 +27,13 @@ async function drawingFixture(name) {
   return { sdk, drawing, create }
 }
 
-test('all 18 modification controls build exact arguments accepted by the real SDK', async t => {
+test('all 19 modification controls build exact arguments accepted by the real SDK', async t => {
   assert.deepEqual(KJ_MODIFICATION_IDS, [
     'rotate', 'scale', 'mirror', 'array-rect', 'array-polar', 'offset',
-    'break', 'join', 'explode', 'trim', 'extend', 'lengthen', 'stretch',
+    'break', 'break-two-point', 'join', 'explode', 'trim', 'extend', 'lengthen', 'stretch',
     'polyline-insert', 'polyline-delete', 'polyline-arc', 'chamfer', 'fillet',
   ])
-  assert.equal(KJ_MODIFICATION_DEFINITIONS.length, 18)
+  assert.equal(KJ_MODIFICATION_DEFINITIONS.length, 19)
 
   const cases = [
     {
@@ -110,7 +110,17 @@ test('all 18 modification controls build exact arguments accepted by the real SD
         const entity = await create('LINE', { start: [0, 0], end: [10, 0] })
         return {
           context: { ids: [entity.id], values: {}, points: [[4, 0]] },
-          expected: { id: entity.id, point: [4, 0] },
+          expected: { id: entity.id, tolerance: 0.1, point: [4, 0] },
+        }
+      },
+    },
+    {
+      id: 'break-two-point',
+      arrange: async ({ create }) => {
+        const entity = await create('CIRCLE', { center: [0, 0], radius: 10 })
+        return {
+          context: { ids: [entity.id], values: { tolerance: 0.2 }, points: [[10, 0], [0, 10]] },
+          expected: { id: entity.id, tolerance: 0.2, firstPoint: [10, 0], secondPoint: [0, 10] },
         }
       },
     },
@@ -242,6 +252,8 @@ test('all 18 modification controls build exact arguments accepted by the real SD
           ? 'ARRAYPOLAR'
           : definition.id.startsWith('polyline-')
             ? 'PEDIT'
+            : definition.id.startsWith('break')
+              ? 'BREAK'
             : definition.id.toUpperCase()
       assert.equal(built.command, expectedCommand)
       assert.deepEqual(built.arguments, expected)

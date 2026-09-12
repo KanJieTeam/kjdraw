@@ -24,7 +24,7 @@ import { clone, deepFreeze, normalizeName, stableHash } from './utils.js'
 import type { ReadonlyDeep } from './utils.js'
 import { editEntityGrip } from './grips.js'
 import type { KJPointInput } from './grips.js'
-import { migrateBreakDimensionAssociations, migratePolylineDimensionAssociations, normalizeDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js'
+import { migrateBreakDimensionAssociations, migrateCircleBreakDimensionAssociations, migratePolylineDimensionAssociations, normalizeDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js'
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js'
 import { KJ_SNAP_MODES } from './snapping.js'
 import type { KJDocument, KJDocumentHistoryOptions, KJDocumentTransactionOptions } from './document.js'
@@ -316,7 +316,7 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   ARRAYRECT: { domain: 'geometry', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },
   ARRAYPOLAR: { domain: 'geometry', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },
   OFFSET: { domain: 'geometry', precision: 'exact', supportedEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
-  BREAK: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC'] },
+  BREAK: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC', 'CIRCLE', 'LWPOLYLINE', 'POLYLINE'], deterministicPieces: true },
   JOIN: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC', 'LWPOLYLINE', 'POLYLINE'], maximumEntities: 4096 },
   EXPLODE: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE', 'REVISION_CLOUD', 'WIPEOUT'] },
   TRIM: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE', 'ARC', 'CIRCLE'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
@@ -1013,13 +1013,45 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'BREAK', aliases: ['BR'], title: 'Break entity',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id), pieces = breakEntityPayloads(entity, args)
-      if (pieces.length !== 2 || pieces[0]!.type !== entity.type || pieces[1]!.type !== entity.type) throw new KJValidationError('BREAK requires two deterministic native pieces')
-      const leading = transaction.updateObject(entity.id, { payload: pieces[0]!.payload })
-      const trailing = createDerived(transaction, entity, pieces[1]!.type, pieces[1]!.payload)
-      migrateBreakDimensionAssociations(transaction, entity.id, trailing.id)
-      refreshAssociativeDimensions(transaction, [leading.id, trailing.id])
-      replaceEntityMemberships(transaction, [entity.id], [leading.id, trailing.id])
-      return [leading, trailing]
+      if (pieces.length !== 2) throw new KJValidationError('BREAK requires two deterministic native pieces')
+      if (pieces.every(piece => piece.type === entity.type)) {
+        const leading = transaction.updateObject(entity.id, { payload: pieces[0]!.payload })
+        const trailing = createDerived(transaction, entity, pieces[1]!.type, pieces[1]!.payload)
+        let polylineVertexMap: Map<number, { entityId: string; vertexIndex: number }> | undefined
+        if (['LWPOLYLINE', 'POLYLINE'].includes(entity.type)) {
+          const rawPoints = (args.points ?? [args.firstPoint ?? args.point, args.secondPoint].filter(value => value != null)) as readonly unknown[]
+          const firstSegment = resolvePolylineEditLocation(entity, { operation: 'INSERT', point: rawPoints[0] }).segmentIndex!
+          const vertices = entity.payload.vertices as readonly unknown[]
+          polylineVertexMap = new Map()
+          if (entity.payload.closed === true) {
+            const secondSegment = resolvePolylineEditLocation(entity, { operation: 'INSERT', point: rawPoints[1] }).segmentIndex!
+            let sourceIndex = (firstSegment + 1) % vertices.length, targetIndex = 1
+            while (true) {
+              polylineVertexMap.set(sourceIndex, { entityId: leading.id, vertexIndex: targetIndex++ })
+              if (sourceIndex === secondSegment) break
+              sourceIndex = (sourceIndex + 1) % vertices.length
+            }
+            sourceIndex = (secondSegment + 1) % vertices.length; targetIndex = 1
+            while (!polylineVertexMap.has(sourceIndex)) {
+              polylineVertexMap.set(sourceIndex, { entityId: trailing.id, vertexIndex: targetIndex++ })
+              sourceIndex = (sourceIndex + 1) % vertices.length
+            }
+          } else {
+            for (let index = 0; index < vertices.length; index += 1) polylineVertexMap.set(index,
+              index <= firstSegment ? { entityId: leading.id, vertexIndex: index } : { entityId: trailing.id, vertexIndex: index - firstSegment })
+          }
+        }
+        migrateBreakDimensionAssociations(transaction, entity.id, trailing.id, polylineVertexMap)
+        refreshAssociativeDimensions(transaction, [leading.id, trailing.id])
+        replaceEntityMemberships(transaction, [entity.id], [leading.id, trailing.id])
+        return [leading, trailing]
+      }
+      transaction.eraseObject(entity.id)
+      const derived = pieces.map(piece => createDerived(transaction, entity, piece.type, piece.payload))
+      migrateCircleBreakDimensionAssociations(transaction, entity.id, derived)
+      refreshAssociativeDimensions(transaction, derived.map(piece => piece.id))
+      replaceEntityMemberships(transaction, [entity.id], derived.map(piece => piece.id))
+      return derived
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({

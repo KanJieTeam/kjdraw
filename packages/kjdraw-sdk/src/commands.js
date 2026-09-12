@@ -9,7 +9,7 @@ import { insertCatalogComponent, searchComponentCatalog } from './component-libr
 import { entityArea2, entityLength2, distance2, dot2, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
 import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
-import { migrateBreakDimensionAssociations, migratePolylineDimensionAssociations, normalizeDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js';
+import { migrateBreakDimensionAssociations, migrateCircleBreakDimensionAssociations, migratePolylineDimensionAssociations, normalizeDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js';
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js';
 import { KJ_SNAP_MODES } from './snapping.js';
 import { selectEntitiesByProperty } from './selection.js';
@@ -161,8 +161,12 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         precision: 'exact',
         supportedEntityTypes: [
             'LINE',
-            'ARC'
-        ]
+            'ARC',
+            'CIRCLE',
+            'LWPOLYLINE',
+            'POLYLINE'
+        ],
+        deterministicPieces: true
     },
     JOIN: {
         domain: 'topology',
@@ -1821,26 +1825,84 @@ export function registerCoreCommands(registry) {
         title: 'Break entity',
         execute: ({ document, transaction }, args)=>{
             const entity = requiredEntity(document, args.id), pieces = breakEntityPayloads(entity, args);
-            if (pieces.length !== 2 || pieces[0].type !== entity.type || pieces[1].type !== entity.type) throw new KJValidationError('BREAK requires two deterministic native pieces');
-            const leading = transaction.updateObject(entity.id, {
-                payload: pieces[0].payload
-            });
-            const trailing = createDerived(transaction, entity, pieces[1].type, pieces[1].payload);
-            migrateBreakDimensionAssociations(transaction, entity.id, trailing.id);
-            refreshAssociativeDimensions(transaction, [
-                leading.id,
-                trailing.id
-            ]);
+            if (pieces.length !== 2) throw new KJValidationError('BREAK requires two deterministic native pieces');
+            if (pieces.every((piece)=>piece.type === entity.type)) {
+                const leading = transaction.updateObject(entity.id, {
+                    payload: pieces[0].payload
+                });
+                const trailing = createDerived(transaction, entity, pieces[1].type, pieces[1].payload);
+                let polylineVertexMap;
+                if ([
+                    'LWPOLYLINE',
+                    'POLYLINE'
+                ].includes(entity.type)) {
+                    const rawPoints = args.points ?? [
+                        args.firstPoint ?? args.point,
+                        args.secondPoint
+                    ].filter((value)=>value != null);
+                    const firstSegment = resolvePolylineEditLocation(entity, {
+                        operation: 'INSERT',
+                        point: rawPoints[0]
+                    }).segmentIndex;
+                    const vertices = entity.payload.vertices;
+                    polylineVertexMap = new Map();
+                    if (entity.payload.closed === true) {
+                        const secondSegment = resolvePolylineEditLocation(entity, {
+                            operation: 'INSERT',
+                            point: rawPoints[1]
+                        }).segmentIndex;
+                        let sourceIndex = (firstSegment + 1) % vertices.length, targetIndex = 1;
+                        while(true){
+                            polylineVertexMap.set(sourceIndex, {
+                                entityId: leading.id,
+                                vertexIndex: targetIndex++
+                            });
+                            if (sourceIndex === secondSegment) break;
+                            sourceIndex = (sourceIndex + 1) % vertices.length;
+                        }
+                        sourceIndex = (secondSegment + 1) % vertices.length;
+                        targetIndex = 1;
+                        while(!polylineVertexMap.has(sourceIndex)){
+                            polylineVertexMap.set(sourceIndex, {
+                                entityId: trailing.id,
+                                vertexIndex: targetIndex++
+                            });
+                            sourceIndex = (sourceIndex + 1) % vertices.length;
+                        }
+                    } else {
+                        for(let index = 0; index < vertices.length; index += 1)polylineVertexMap.set(index, index <= firstSegment ? {
+                            entityId: leading.id,
+                            vertexIndex: index
+                        } : {
+                            entityId: trailing.id,
+                            vertexIndex: index - firstSegment
+                        });
+                    }
+                }
+                migrateBreakDimensionAssociations(transaction, entity.id, trailing.id, polylineVertexMap);
+                refreshAssociativeDimensions(transaction, [
+                    leading.id,
+                    trailing.id
+                ]);
+                replaceEntityMemberships(transaction, [
+                    entity.id
+                ], [
+                    leading.id,
+                    trailing.id
+                ]);
+                return [
+                    leading,
+                    trailing
+                ];
+            }
+            transaction.eraseObject(entity.id);
+            const derived = pieces.map((piece)=>createDerived(transaction, entity, piece.type, piece.payload));
+            migrateCircleBreakDimensionAssociations(transaction, entity.id, derived);
+            refreshAssociativeDimensions(transaction, derived.map((piece)=>piece.id));
             replaceEntityMemberships(transaction, [
                 entity.id
-            ], [
-                leading.id,
-                trailing.id
-            ]);
-            return [
-                leading,
-                trailing
-            ];
+            ], derived.map((piece)=>piece.id));
+            return derived;
         }
     }, {
         owner: '@kanjieteam/kjdraw'

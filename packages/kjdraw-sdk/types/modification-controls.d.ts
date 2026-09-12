@@ -1,6 +1,6 @@
 import type { KJCommandArguments } from './commands.js';
 import type { KJReadonlyObjectRecord } from './schema.js';
-export type KJModificationId = 'rotate' | 'scale' | 'mirror' | 'array-rect' | 'array-polar' | 'offset' | 'break' | 'join' | 'explode' | 'trim' | 'extend' | 'lengthen' | 'stretch' | 'polyline-insert' | 'polyline-delete' | 'polyline-arc' | 'chamfer' | 'fillet';
+export type KJModificationId = 'rotate' | 'scale' | 'mirror' | 'array-rect' | 'array-polar' | 'offset' | 'break' | 'break-two-point' | 'join' | 'explode' | 'trim' | 'extend' | 'lengthen' | 'stretch' | 'polyline-insert' | 'polyline-delete' | 'polyline-arc' | 'chamfer' | 'fillet';
 export type KJModificationFieldType = 'number' | 'integer' | 'boolean';
 export type KJModificationPoint = readonly [number, number];
 export interface KJLocalizedControlText {
@@ -56,7 +56,7 @@ export interface KJModificationPreview {
     readonly after: readonly KJModificationPreviewEntity[];
     readonly omittedCount: number;
 }
-export declare const KJ_MODIFICATION_IDS: readonly ["rotate", "scale", "mirror", "array-rect", "array-polar", "offset", "break", "join", "explode", "trim", "extend", "lengthen", "stretch", "polyline-insert", "polyline-delete", "polyline-arc", "chamfer", "fillet"];
+export declare const KJ_MODIFICATION_IDS: readonly ["rotate", "scale", "mirror", "array-rect", "array-polar", "offset", "break", "break-two-point", "join", "explode", "trim", "extend", "lengthen", "stretch", "polyline-insert", "polyline-delete", "polyline-arc", "chamfer", "fillet"];
 export declare const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[];
 /** Center of the selected entities' defining points, used as the non-rotating array anchor. */
 export declare function getKJModificationSelectionCenter(entities: readonly {

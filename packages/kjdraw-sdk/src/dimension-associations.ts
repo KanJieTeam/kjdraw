@@ -100,7 +100,9 @@ export function migratePolylineDimensionAssociations(transaction: KJTransaction,
 }
 
 /** Preserve unique endpoint references when BREAK keeps the leading piece identity. */
-export function migrateBreakDimensionAssociations(transaction: KJTransaction, sourceId: string, trailingId: string): KJObjectRecord[] {
+export interface KJBreakVertexAssociationTarget { entityId: string; vertexIndex: number }
+
+export function migrateBreakDimensionAssociations(transaction: KJTransaction, sourceId: string, trailingId: string, polylineVertexMap?: ReadonlyMap<number, KJBreakVertexAssociationTarget>): KJObjectRecord[] {
   const updated: KJObjectRecord[] = []
   for (const readonlyDimension of Object.values(transaction._draft().objects)) {
     if (readonlyDimension.kind !== 'entity' || readonlyDimension.type !== 'DIMENSION' || readonlyDimension.erased || !Array.isArray(readonlyDimension.payload.dimensionAssociations)) continue
@@ -109,7 +111,51 @@ export function migrateBreakDimensionAssociations(transaction: KJTransaction, so
     const migrated = associations.map(association => {
       if (association.entityId !== sourceId || association.feature === 'start') return association
       if (association.feature === 'end') return { ...association, entityId: trailingId }
+      if (association.feature === 'vertex' && polylineVertexMap) {
+        const target = polylineVertexMap.get(association.vertexIndex!)
+        if (!target) return fail(`BREAK cannot map vertex ${association.vertexIndex} from ${sourceId}`)
+        return { ...association, ...target }
+      }
       return fail(`BREAK cannot uniquely migrate ${association.feature} reference from ${sourceId}`)
+    })
+    if (stableHash(migrated) !== stableHash(associations)) updated.push(transaction.updateObject(readonlyDimension.id, { payload: { dimensionAssociations: migrated } }))
+  }
+  return updated
+}
+
+const normalizedAngle = (value: number): number => ((value % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
+const breakFeatureAngle = (association: KJDimensionPointAssociation): number | null => {
+  if (association.feature === 'curve') return association.angle!
+  if (association.feature === 'left') return Math.PI
+  if (association.feature === 'right') return 0
+  if (association.feature === 'top') return Math.PI / 2
+  if (association.feature === 'bottom') return 3 * Math.PI / 2
+  return null
+}
+const strictlyInsideArc = (entity: KJObjectRecord, angle: number): boolean => {
+  const start = finite(entity.payload.startAngle, `BREAK arc ${entity.id} start angle`)
+  const end = finite(entity.payload.endAngle, `BREAK arc ${entity.id} end angle`)
+  const clockwise = entity.payload.clockwise === true
+  const span = normalizedAngle((end - start) * (clockwise ? -1 : 1))
+  const offset = normalizedAngle((angle - start) * (clockwise ? -1 : 1))
+  return offset > 1e-10 && offset < span - 1e-10
+}
+
+/** Retarget each circle curve reference to the only resulting arc that still owns its physical point. */
+export function migrateCircleBreakDimensionAssociations(transaction: KJTransaction, sourceId: string, pieces: readonly KJObjectRecord[]): KJObjectRecord[] {
+  if (pieces.length !== 2 || pieces.some(piece => piece.type !== 'ARC')) return fail('BREAK CIRCLE requires two ARC pieces')
+  const updated: KJObjectRecord[] = []
+  for (const readonlyDimension of Object.values(transaction._draft().objects)) {
+    if (readonlyDimension.kind !== 'entity' || readonlyDimension.type !== 'DIMENSION' || readonlyDimension.erased || !Array.isArray(readonlyDimension.payload.dimensionAssociations)) continue
+    const associations = normalizeDimensionAssociations(readonlyDimension.payload.dimensionAssociations)
+    if (!associations.some(item => item.entityId === sourceId)) continue
+    const migrated = associations.map(association => {
+      if (association.entityId !== sourceId) return association
+      const angle = breakFeatureAngle(association)
+      if (angle === null) return fail(`BREAK CIRCLE cannot uniquely migrate ${association.feature} reference from ${sourceId}`)
+      const owners = pieces.filter(piece => strictlyInsideArc(piece, angle))
+      if (owners.length !== 1) return fail(`BREAK CIRCLE reference at a break seam cannot be uniquely migrated from ${sourceId}`)
+      return { ...association, entityId: owners[0]!.id }
     })
     if (stableHash(migrated) !== stableHash(associations)) updated.push(transaction.updateObject(readonlyDimension.id, { payload: { dimensionAssociations: migrated } }))
   }
@@ -120,8 +166,6 @@ const point3 = (value: unknown, name: string): [number, number, number] => {
   if (!Array.isArray(value) || value.length !== 3 || value.some(item => typeof item !== 'number' || !Number.isFinite(item)) || value[2] !== 0) return fail(`${name} must be a finite model-XY point`)
   return [value[0], value[1], value[2]]
 }
-
-const normalizedAngle = (value: number): number => ((value % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
 
 function curvePoint(entity: KJObjectRecord, angle: number): [number, number, number] {
   if (!['CIRCLE', 'ARC'].includes(entity.type)) return fail(`Dimension curve association requires CIRCLE or ARC: ${entity.id}`)

@@ -39,6 +39,7 @@ export interface KJBreakOptions {
   readonly firstPoint?: unknown
   readonly secondPoint?: unknown
   readonly points?: readonly unknown[]
+  readonly tolerance?: unknown
 }
 
 export interface KJLinePairOptions {
@@ -423,6 +424,15 @@ function splitParameters(values: readonly unknown[]): number[] {
 function lineBreakParameters(payload: KJObjectPayload, options: KJBreakOptions): number[] {
   const direction = subtract2(pointInput(payload.end), pointInput(payload.start))
   const points = options.points ?? [options.firstPoint ?? options.point, options.secondPoint].filter(Boolean)
+  const tolerance = polylineEditTolerance(options.tolerance)
+  const start = point3(payload.start)
+  const squared = dot2(direction, direction)
+  if (!(squared > 1e-24)) throw new KJValidationError('BREAK requires a non-degenerate line')
+  for (const point of points) {
+    const value = finiteEditPoint(point), parameter = projectParameter2(value, start, direction)
+    const projected = add2(start, multiply2(direction, parameter))
+    if (distance2(value, projected) > tolerance) throw new KJValidationError('BREAK point must lie on the line within tolerance')
+  }
   return splitParameters(points.map(point => projectParameter2(pointInput(point), pointInput(payload.start), direction)))
 }
 
@@ -454,6 +464,12 @@ export function breakEntityPayloads(entity: KJEditingEntity | null | undefined, 
     return [{ type, payload: { ...payload, start: payload.start, end: pointAt(parameters[0]!) } }, { type, payload: { ...payload, start: pointAt(parameters.at(-1)!), end: payload.end } }]
   }
   if (type === 'ARC') {
+    positiveXYNormal(payload, 'BREAK arc')
+    const center = finiteEditPoint(payload.center), radius = Number(payload.radius), tolerance = polylineEditTolerance(options.tolerance)
+    if (!(radius > 1e-12) || !Number.isFinite(radius)) throw new KJValidationError('BREAK ARC requires a positive finite radius')
+    for (const point of points) if (typeof point !== 'number' && Math.abs(distance2(finiteEditPoint(point), center) - radius) > tolerance) {
+      throw new KJValidationError('BREAK point must lie on the arc within tolerance')
+    }
     const parameters = splitParameters(points.map(point => arcParameter(payload, point)))
     const sweep = arcSweep(payload as ArcDefinition), angleAt = (parameter: number): number => Number(payload.startAngle) + sweep * parameter
     if (parameters.length === 1) {
@@ -461,6 +477,76 @@ export function breakEntityPayloads(entity: KJEditingEntity | null | undefined, 
       return [{ type, payload: { ...payload, endAngle: angle } }, { type, payload: { ...payload, startAngle: angle } }]
     }
     return [{ type, payload: { ...payload, endAngle: angleAt(parameters[0]!) } }, { type, payload: { ...payload, startAngle: angleAt(parameters.at(-1)!) } }]
+  }
+  if (type === 'CIRCLE') {
+    if (points.length !== 2) throw new KJValidationError('BREAK CIRCLE requires two distinct points on the circumference')
+    positiveXYNormal(payload, 'BREAK circle')
+    const center = finiteEditPoint(payload.center), radius = Number(payload.radius), tolerance = polylineEditTolerance(options.tolerance)
+    if (!(radius > 1e-12) || !Number.isFinite(radius)) throw new KJValidationError('BREAK CIRCLE requires a positive finite radius')
+    const angles = points.map(point => {
+      const value = finiteEditPoint(point)
+      if (Math.abs(distance2(value, center) - radius) > tolerance) throw new KJValidationError('BREAK point must lie on the circle circumference within tolerance')
+      return Math.atan2(value[1] - center[1], value[0] - center[0])
+    })
+    if (Math.abs(Math.sin((angles[1]! - angles[0]!) / 2)) <= 1e-12) throw new KJValidationError('BREAK CIRCLE points must be distinct')
+    const common = { ...payload, center, radius, clockwise: false, normal: [0, 0, 1] as Point3 }
+    return [
+      { type: 'ARC', payload: { ...common, startAngle: angles[0], endAngle: angles[1] } },
+      { type: 'ARC', payload: { ...common, startAngle: angles[1], endAngle: angles[0]! + TURN } },
+    ]
+  }
+  if (type === 'LWPOLYLINE' || type === 'POLYLINE') {
+    const vertices = editablePolylineVertices(payload)
+    assertEditablePolylineTopology(type, payload, vertices); positiveXYNormal(payload, 'BREAK polyline')
+    const closed = payload.closed === true
+    const elevation = Number(payload.elevation ?? 0), baseZ = vertices[0]!.point[2]
+    if (!Number.isFinite(elevation) || Math.abs(elevation) > POLYLINE_BOUND || vertices.length > POLYLINE_SEGMENT_LIMIT + 1
+      || vertices.some(vertex => vertex.point.some(value => Math.abs(value) > POLYLINE_BOUND)
+        || Math.abs(vertex.point[2] - baseZ) > EDIT_PLANE_EPSILON || Math.abs(vertex.bulge) > POLYLINE_BOUND
+        || vertex.startWidth < 0 || vertex.endWidth < 0 || vertex.startWidth > POLYLINE_BOUND || vertex.endWidth > POLYLINE_BOUND)) {
+      throw new KJValidationError('BREAK requires a bounded ordinary polyline in one XY plane')
+    }
+    const segmentCount = closed ? vertices.length : vertices.length - 1
+    for (let index = 0; index < segmentCount; index += 1) if (distance3(vertices[index]!.point, vertices[(index + 1) % vertices.length]!.point) <= 1e-12) {
+      throw new KJValidationError('BREAK cannot split a polyline with a zero-length segment')
+    }
+    if (points.length !== (closed ? 2 : 1)) throw new KJValidationError(`BREAK ${closed ? 'closed' : 'open'} polyline requires ${closed ? 'two' : 'one'} point${closed ? 's' : ''} inside distinct segments`)
+    const tolerance = polylineEditTolerance(options.tolerance)
+    const locate = (point: unknown) => {
+      const segmentIndex = pickedPolylineSegment(vertices, point, closed), source = vertices[segmentIndex]!, next = vertices[(segmentIndex + 1) % vertices.length]!
+      return { segmentIndex, source, location: pointOnBulgedPolylineSegment(source.point, next.point, source.bulge, finiteEditPoint(point), tolerance) }
+    }
+    if (closed) {
+      const first = locate(points[0]), second = locate(points[1])
+      if (first.segmentIndex === second.segmentIndex) throw new KJValidationError('BREAK closed polyline points must lie inside two distinct segments')
+      const piece = (from: typeof first, to: typeof first): EditablePolylineVertex[] => {
+        const fromSweep = 4 * Math.atan(from.source.bulge), fromWidth = interpolatePolylineWidth(from.source, from.location.parameter)
+        const result: EditablePolylineVertex[] = [{ ...clone(from.source), point: from.location.point,
+          bulge: Math.tan(fromSweep * (1 - from.location.parameter) / 4), startWidth: fromWidth }]
+        let index = (from.segmentIndex + 1) % vertices.length
+        while (true) {
+          result.push(clone(vertices[index]!))
+          if (index === to.segmentIndex) break
+          index = (index + 1) % vertices.length
+        }
+        const toSweep = 4 * Math.atan(to.source.bulge), toWidth = interpolatePolylineWidth(to.source, to.location.parameter)
+        result.at(-1)!.bulge = Math.tan(toSweep * to.location.parameter / 4)
+        result.at(-1)!.endWidth = toWidth
+        result.push({ point: to.location.point, bulge: 0, startWidth: toWidth, endWidth: toWidth })
+        return result
+      }
+      return [
+        { type, payload: changedPolylinePayload(payload, piece(first, second)) },
+        { type, payload: changedPolylinePayload(payload, piece(second, first)) },
+      ]
+    }
+    const { segmentIndex, source, location } = locate(points[0]), next = vertices[segmentIndex + 1]!
+    const sweep = 4 * Math.atan(source.bulge), middleWidth = interpolatePolylineWidth(source, location.parameter)
+    const firstEnd: EditablePolylineVertex = { point: location.point, bulge: 0, startWidth: middleWidth, endWidth: middleWidth }
+    const secondStart: EditablePolylineVertex = { point: location.point, bulge: Math.tan(sweep * (1 - location.parameter) / 4), startWidth: middleWidth, endWidth: source.endWidth }
+    const leading = vertices.slice(0, segmentIndex + 1).map(vertex => clone(vertex)); leading.at(-1)!.bulge = Math.tan(sweep * location.parameter / 4); leading.at(-1)!.endWidth = middleWidth; leading.push(firstEnd)
+    const trailing = [secondStart, ...vertices.slice(segmentIndex + 1).map(vertex => clone(vertex))]
+    return [{ type, payload: changedPolylinePayload(payload, leading) }, { type, payload: changedPolylinePayload(payload, trailing) }]
   }
   throw new KJValidationError(`Break is not implemented for ${type || 'unknown entity'}`)
 }
