@@ -42,6 +42,10 @@ interface KJGripPayload extends KJObjectPayload {
   ratio: number
   startParameter?: number
   endParameter?: number
+  degree: number
+  knots?: number[]
+  weights?: number[]
+  periodic?: boolean
   controlPoints?: KJPointInput[]
   fitPoints?: KJPointInput[]
   alignmentPoint?: KJPointInput
@@ -93,6 +97,80 @@ function ccwSweep(start: number, end: number): number {
 function isPartialEllipse(payload: KJGripPayload): boolean {
   const span = Number(payload.endParameter ?? TAU) - Number(payload.startParameter ?? 0)
   return Number.isFinite(span) && Math.abs(span) > 1e-10 && Math.abs(span) < TAU - 1e-10
+}
+
+function fitSplineProblem(payload: KJGripPayload): string | null {
+  const fitPoints = payload.fitPoints ?? [], degree = Number(payload.degree)
+  if (!fitPoints.length) return 'SPLINE has no fit points'
+  if (payload.closed || payload.periodic) return 'Closed or periodic SPLINE fit-point editing is not supported'
+  if (payload.weights?.length) return 'Rational SPLINE fit-point editing is not supported'
+  if (!Number.isInteger(degree) || degree < 1 || degree > 32) return 'SPLINE fit-point editing requires degree 1 through 32'
+  if (fitPoints.length < degree + 1) return 'SPLINE fit-point editing requires at least degree + 1 fit points'
+  if (fitPoints.length > 128) return 'SPLINE fit-point editing exceeds the 128-point interactive budget'
+  return null
+}
+
+function splineBasisRow(parameter: number, degree: number, knots: readonly number[], count: number): number[] {
+  const last = count - 1
+  let span = last
+  if (parameter < knots[last + 1]!) {
+    let low = degree, high = last + 1
+    while (high - low > 1) { const middle = Math.floor((low + high) / 2); if (parameter < knots[middle]!) high = middle; else low = middle }
+    span = low
+  }
+  const basis = Array(degree + 1).fill(0), left = Array(degree + 1).fill(0), right = Array(degree + 1).fill(0)
+  basis[0] = 1
+  for (let column = 1; column <= degree; column += 1) {
+    left[column] = parameter - knots[span + 1 - column]!
+    right[column] = knots[span + column]! - parameter
+    let carried = 0
+    for (let row = 0; row < column; row += 1) {
+      const denominator = right[row + 1]! + left[column - row]!
+      const term = Math.abs(denominator) <= Number.EPSILON ? 0 : basis[row]! / denominator
+      basis[row] = carried + right[row + 1]! * term
+      carried = left[column - row]! * term
+    }
+    basis[column] = carried
+  }
+  const result = Array(count).fill(0)
+  for (let index = 0; index <= degree; index += 1) result[span - degree + index] = basis[index]!
+  return result
+}
+
+function solveSplineControls(matrix: number[][], values: KJGripPoint[]): KJGripPoint[] {
+  const size = matrix.length, rows = matrix.map((row, index) => [...row, ...values[index]!])
+  for (let column = 0; column < size; column += 1) {
+    let pivot = column
+    for (let row = column + 1; row < size; row += 1) if (Math.abs(rows[row]![column]!) > Math.abs(rows[pivot]![column]!)) pivot = row
+    if (Math.abs(rows[pivot]![column]!) <= 1e-12) throw new KJValidationError('SPLINE fit points produce a singular interpolation system')
+    ;[rows[column], rows[pivot]] = [rows[pivot]!, rows[column]!]
+    const divisor = rows[column]![column]!
+    for (let index = column; index < size + 3; index += 1) rows[column]![index] = rows[column]![index]! / divisor
+    for (let row = 0; row < size; row += 1) {
+      if (row === column) continue
+      const factor = rows[row]![column]!
+      for (let index = column; index < size + 3; index += 1) rows[row]![index] = rows[row]![index]! - factor * rows[column]![index]!
+    }
+  }
+  return rows.map(row => [row[size]!, row[size + 1]!, row[size + 2]!])
+}
+
+function interpolateSplineFitPoints(payload: KJGripPayload, values: KJGripPoint[]): { controlPoints: KJGripPoint[]; knots: number[] } {
+  const problem = fitSplineProblem({ ...payload, fitPoints: values })
+  if (problem) throw new KJValidationError(problem)
+  const degree = Number(payload.degree), distances = values.slice(1).map((point, index) => distance2(values[index]!, point))
+  if (distances.some(distance => distance <= 1e-12)) throw new KJValidationError('SPLINE fit points must not contain adjacent duplicates')
+  const total = distances.reduce((sum, distance) => sum + distance, 0), parameters = [0]
+  for (const distance of distances) parameters.push(parameters.at(-1)! + distance / total)
+  parameters[parameters.length - 1] = 1
+  const count = values.length, knots = Array(count + degree + 1).fill(0)
+  for (let index = count; index < knots.length; index += 1) knots[index] = 1
+  for (let index = 1; index <= count - degree - 1; index += 1) {
+    let sum = 0
+    for (let offset = 0; offset < degree; offset += 1) sum += parameters[index + offset]!
+    knots[index + degree] = sum / degree
+  }
+  return { controlPoints: solveSplineControls(parameters.map(parameter => splineBasisRow(parameter, degree, knots, count)), values), knots }
 }
 
 function vertexPoint(vertex: KJPointInput | KJGripVertex): KJPointInput {
@@ -154,8 +232,11 @@ export function getEntityGrips(entity: KJReadonlyObjectRecord): readonly KJEntit
       break
     }
     case 'SPLINE':
-      for (const [index, point] of (payload.controlPoints ?? []).entries()) add(`control:${index}`, 'control-point', point, { controlPointIndex: index })
-      for (const [index, point] of (payload.fitPoints ?? []).entries()) add(`fit:${index}`, 'fit-point', point, { fitPointIndex: index })
+      if (payload.fitPoints?.length) {
+        for (const [index, point] of payload.fitPoints.entries()) add(`fit:${index}`, 'fit-point', point, { fitPointIndex: index })
+      } else {
+        for (const [index, point] of (payload.controlPoints ?? []).entries()) add(`control:${index}`, 'control-point', point, { controlPointIndex: index })
+      }
       break
     case 'TEXT':
     case 'MTEXT':
@@ -256,6 +337,17 @@ export function editEntityGrip(entity: KJReadonlyObjectRecord, gripId: string, t
     }
     case 'SPLINE': {
       const [kind, rawIndex] = gripId.split(':'), key = kind === 'fit' ? 'fitPoints' : 'controlPoints'
+      if (payload.fitPoints?.length && kind !== 'fit') throw new KJValidationError('Fit-point-defined SPLINE must be edited through fit-point grips')
+      if (kind === 'fit') {
+        const problem = fitSplineProblem(payload)
+        if (problem) throw new KJValidationError(problem)
+        const fitPoints = [...payload.fitPoints!].map(point => point3(point)), index = Number(rawIndex)
+        if (!Number.isInteger(index) || index < 0 || index >= fitPoints.length) throw new KJValidationError(`SPLINE fit-point grip does not exist: ${gripId}`)
+        fitPoints[index] = target
+        const interpolation = interpolateSplineFitPoints(payload, fitPoints)
+        payload.fitPoints = fitPoints; payload.controlPoints = interpolation.controlPoints; payload.knots = interpolation.knots
+        return payload
+      }
       payload[key] = [...(payload[key] ?? [])]; payload[key]![Number(rawIndex)] = target; return payload
     }
     case 'TEXT':
