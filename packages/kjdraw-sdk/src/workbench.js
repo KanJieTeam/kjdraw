@@ -10,7 +10,7 @@ import { KJDRAW_THEME_CSS, kjdrawIcon } from './theme.js';
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from './layout.js';
 import { createBoundaryEditSession } from './boundary-edit.js';
 import { KJ_MODIFICATION_DEFINITIONS, buildKJModificationCommand, getKJModificationDefinition, getKJModificationSelectionCenter, validateKJModificationSelection } from './modification-controls.js';
-import { createDraftingSession, parseDraftCoordinate } from './drafting.js';
+import { constrainOrthogonalDraftPoint, createDraftingSession, parseDraftCoordinate } from './drafting.js';
 const copy = {
     en: {
         drawingSpace: 'Drawing space',
@@ -84,6 +84,10 @@ const copy = {
         offset: 'Offset',
         fit: 'Fit',
         grid: 'Grid',
+        ortho: 'Ortho',
+        orthoOn: 'Orthogonal drafting on',
+        orthoOff: 'Orthogonal drafting off',
+        orthoBusy: 'Finish or cancel the current operation before changing Ortho',
         layers: 'Layers',
         properties: 'Properties',
         noSelection: 'Select an object to inspect its properties.',
@@ -238,6 +242,10 @@ const copy = {
         offset: '偏移',
         fit: '全图',
         grid: '栅格',
+        ortho: '正交',
+        orthoOn: '正交绘图已开启',
+        orthoOff: '正交绘图已关闭',
+        orthoBusy: '请先完成或取消当前操作，再切换正交模式',
         layers: '图层',
         properties: '特性',
         noSelection: '选择图元后可查看和修改属性。',
@@ -619,7 +627,7 @@ const WORKBENCH_STYLE = `
 .kjwb .inspector{padding:12px}.kjwb .empty{margin:2px 0;color:var(--muted);line-height:1.65}.kjwb .entity-title{padding-bottom:10px;border-bottom:1px solid var(--border);font-size:16px;font-weight:700;margin-bottom:8px}.kjwb .kv{display:grid;grid-template-columns:82px minmax(0,1fr);gap:9px;padding:8px 0;border-bottom:1px solid var(--surface-subtle)}.kjwb .kv span{color:var(--muted)}.kjwb .kv b{font-weight:600;overflow:hidden;text-overflow:ellipsis}.kjwb .field{display:grid;gap:6px;margin:12px 0}.kjwb .field span{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.025em}.kjwb .field input,.kjwb .field select{min-width:0;width:100%;height:32px;padding:0 9px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);outline:0}.kjwb .field input:focus,.kjwb .field select:focus{border-color:var(--action);box-shadow:0 0 0 2px var(--action-soft)}.kjwb .apply{width:100%;height:32px;background:var(--action);border-color:var(--action);color:#fff}.kjwb .warning{margin-top:12px;padding:9px;border:1px solid #e4b95f;border-radius:var(--radius);background:#fff8e8;color:#76530c;font-size:12px}
 .kjwb .modify-dialog{width:min(480px,calc(100vw - 28px));max-height:min(680px,calc(100vh - 28px));padding:0;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);box-shadow:0 22px 70px #17233a42;overflow:hidden}.kjwb .modify-dialog::backdrop{background:#17233a66;backdrop-filter:blur(2px)}.kjwb .modify-form{display:grid;grid-template-rows:auto minmax(0,1fr) auto;max-height:inherit}.kjwb .modify-head{padding:18px 20px 12px;border-bottom:1px solid var(--border)}.kjwb .modify-head h2{margin:0 0 5px;font-size:18px;line-height:1.25}.kjwb .modify-head p,.kjwb .modify-description,.kjwb .modify-order{margin:0;color:var(--muted);line-height:1.55}.kjwb .modify-body{padding:15px 20px;overflow:auto}.kjwb .modify-body>.field{margin-top:0}.kjwb .modify-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}.kjwb .modify-fields .field{margin:10px 0}.kjwb .modify-fields .check{display:flex;align-items:center;gap:9px;align-self:end;min-height:44px}.kjwb .modify-fields .check input{width:17px;height:17px;accent-color:var(--action)}.kjwb .modify-order{margin-top:10px;padding:9px 10px;border-radius:var(--radius);background:var(--surface-subtle);font-size:12px}.kjwb .modify-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--border);background:var(--chrome)}.kjwb .modify-actions button{padding:0 14px}.kjwb .modify-actions .confirm{background:var(--action);border-color:var(--action);color:#fff}@media(max-width:520px){.kjwb .modify-fields{grid-template-columns:1fr}}
 .kjwb .draft-options:empty::after{content:'—';display:block;padding:8px 0;color:var(--muted)}
-.kjwb .statusbar{display:flex;align-items:center;gap:14px;padding:0 10px;background:var(--chrome);border-top:1px solid var(--border);color:var(--muted);font:12px/1.3 var(--kj-mono,ui-monospace,SFMono-Regular,Consolas,monospace)}.kjwb .statusbar .message{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kjwb .statusbar b{color:var(--text);font-weight:600}.kjwb .file-input{display:none}
+.kjwb .statusbar{display:flex;align-items:center;gap:14px;padding:0 10px;background:var(--chrome);border-top:1px solid var(--border);color:var(--muted);font:12px/1.3 var(--kj-mono,ui-monospace,SFMono-Regular,Consolas,monospace)}.kjwb .statusbar .message{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kjwb .statusbar b{color:var(--text);font-weight:600}.kjwb .statusbar .draft-toggle{height:24px;min-height:24px;padding:0 7px;border-color:var(--border);font:inherit}.kjwb .statusbar .draft-toggle[aria-pressed="true"]{color:var(--action);background:var(--action-soft);border-color:#c8d8fa}.kjwb .file-input{display:none}
 .kjwb.layout-compact{grid-template-rows:44px 44px minmax(300px,1fr) 32px}.kjwb.layout-compact .group{align-items:center;padding:5px 6px}.kjwb.layout-compact .group>span{display:none}.kjwb.layout-compact .tool{min-width:auto;height:32px;display:inline-flex;grid-template-rows:none;gap:5px;padding:4px 8px}.kjwb.layout-compact .tool .icon{width:18px;height:18px}.kjwb.layout-focus{grid-template-rows:44px 0 minmax(300px,1fr) 32px}.kjwb.layout-focus .ribbon{visibility:hidden;overflow:hidden;pointer-events:none}.kjwb.layout-focus .workspace{grid-template-columns:minmax(0,1fr)!important}.kjwb.layout-focus .side,.kjwb.layout-focus .panel-toggle{display:none!important}
 @media(max-width:980px){.kjwb .workspace,.kjwb .workspace.no-layers{grid-template-columns:minmax(0,1fr) 230px}.kjwb .workspace.no-inspector,.kjwb .workspace.no-layers.no-inspector{grid-template-columns:minmax(0,1fr)}.kjwb .side.layers{display:none}.kjwb .panel-toggle[data-action="toggle-layers"]{display:none}.kjwb .tool{min-width:50px;padding-inline:5px}}
 @media(max-width:680px){.kjwb .workspace,.kjwb .workspace.no-layers,.kjwb .workspace.no-inspector,.kjwb .workspace.no-layers.no-inspector{grid-template-columns:minmax(0,1fr)}.kjwb .side.right{display:none}.kjwb .panel-toggle{display:none!important}.kjwb .hide-small{display:none!important}.kjwb .brand{font-size:13px}.kjwb .docname{display:none}.kjwb .group{padding-inline:4px}.kjwb .appbar{gap:3px;padding-inline:6px}.kjwb .layout-select{max-width:92px}}
@@ -1322,7 +1330,7 @@ export class KJDrawWorkbench {
         <main class="canvas-wrap"><div class="drawing-space"><select data-drawing-layout></select><span data-paper-preview role="status" hidden></span></div><canvas class="cad-canvas" data-canvas aria-label="KJDraw CAD canvas"></canvas><canvas class="overlay" data-overlay aria-hidden="true"></canvas><span class="snap" data-snap></span><nav class="navigator" aria-label="${t('view')}"><button type="button" class="active" data-tool="select" data-copy-title="select" title="${t('select')}">${icon('select')}</button><button type="button" data-tool="pan" data-copy-title="pan" title="${t('pan')}">${icon('pan')}</button><button type="button" data-action="nav-fit" data-copy-title="fit" title="${t('fit')}">${icon('fit')}</button><button type="button" data-action="zoom-in" data-copy-title="zoomIn" title="${t('zoomIn')}">${icon('zoom-in')}</button><button type="button" data-action="zoom-out" data-copy-title="zoomOut" title="${t('zoomOut')}">${icon('zoom-out')}</button></nav><div class="draft-actions" data-draft-actions hidden><button type="button" data-action="draft-undo" data-copy="undoPoint">${t('undoPoint')}</button><button type="button" data-action="draft-finish" data-copy="finish">${t('finish')}</button><button type="button" data-action="draft-close" data-copy="closeShape">${t('closeShape')}</button></div><div class="command"><span data-copy="command">${t('command')}</span><input data-command aria-label="${t('command')}" placeholder="${t('commandHint')}" autocomplete="off"><button type="button" data-action="run-command" data-copy="run">${t('run')}</button></div><div class="hint" data-hint>${t('ready')}</div></main>
         <aside class="side right" ${this.#options.showInspector === false ? 'hidden' : ''}><h2 data-copy="properties">${t('properties')}</h2><div class="inspector" data-inspector><p class="empty">${t('noSelection')}</p></div></aside>
       </div>
-      <footer class="statusbar"><span class="message" data-message>${readonly ? t('readonly') : t('ready')}</span><span data-coordinate>X 0.000 · Y 0.000</span><span data-selection>0 ${t('selected')}</span><b data-count>0 ${t('entities')}</b><span data-revision>REV 0</span><span data-zoom>100%</span></footer>
+      <footer class="statusbar"><span class="message" data-message>${readonly ? t('readonly') : t('ready')}</span><span data-coordinate>X 0.000 · Y 0.000</span><span data-selection>0 ${t('selected')}</span><b data-count>0 ${t('entities')}</b><span data-revision>REV 0</span><button type="button" class="draft-toggle" data-action="ortho" aria-pressed="false"><span data-copy="ortho">${t('ortho')}</span></button><span data-zoom>100%</span></footer>
       <dialog class="modify-dialog" data-modification-dialog aria-label="${t('modifyTitle')}">
         <div class="modify-form" data-modification-form>
           <header class="modify-head"><h2 data-copy="modifyTitle">${t('modifyTitle')}</h2><p data-copy="modifyDescription">${t('modifyDescription')}</p></header>
@@ -1553,6 +1561,9 @@ export class KJDrawWorkbench {
         }, {
             signal
         });
+        query(this.root, '[data-action="ortho"]').addEventListener('click', ()=>void this.#toggleOrtho(), {
+            signal
+        });
         query(this.root, '[data-action="theme"]').addEventListener('click', ()=>this.setTheme(this.#theme === 'dark' ? 'light' : 'dark'), {
             signal
         });
@@ -1635,6 +1646,11 @@ export class KJDrawWorkbench {
             signal
         });
         this.root.addEventListener('keydown', (event)=>{
+            if (event.key === 'F8') {
+                event.preventDefault();
+                void this.#toggleOrtho();
+                return;
+            }
             if (event.key === 'Escape' && this.#fileReadAbort) {
                 event.preventDefault();
                 this.#fileReadAbort.abort();
@@ -3218,6 +3234,49 @@ export class KJDrawWorkbench {
             return layer?.visible !== false && layer?.frozen !== true;
         }).map((entity)=>entity.id);
     }
+    #orthoEnabled() {
+        return Number(this.document?.snapshot().header.systemVariables.ORTHOMODE ?? 0) !== 0;
+    }
+    #orthoBase() {
+        if (this.#gripGesture) return [
+            this.#gripGesture.grip.point[0],
+            this.#gripGesture.grip.point[1]
+        ];
+        if (this.#selectionDrag) return this.#selectionDrag.baseWorld;
+        if (this.#transformGesture?.base) return this.#transformGesture.base;
+        const modificationPoint = this.#modificationGesture?.points.at(-1);
+        if (modificationPoint) return modificationPoint;
+        const draftPoint = this.#draftGesture?.session.points.at(-1);
+        if (draftPoint) return [
+            draftPoint[0],
+            draftPoint[1]
+        ];
+        return this.#draftPoints.at(-1) ?? this.#draftStart;
+    }
+    #constrainPointer(world, snapped) {
+        if (snapped || !this.#orthoEnabled()) return snapped ?? world;
+        const base = this.#orthoBase();
+        return base ? constrainOrthogonalDraftPoint(world, base) : world;
+    }
+    #syncOrtho() {
+        const button = this.root.querySelector('[data-action="ortho"]');
+        if (!button) return;
+        const enabled = this.#orthoEnabled();
+        button.disabled = this.#readOnly;
+        button.setAttribute('aria-pressed', String(enabled));
+        button.title = this.#t(enabled ? 'orthoOn' : 'orthoOff');
+        button.setAttribute('aria-label', button.title);
+    }
+    async #toggleOrtho() {
+        if (this.#readOnly || !this.document) return;
+        if (this.#draftGesture || this.#transformGesture || this.#modificationGesture || this.#gripGesture || this.#selectionDrag || this.#boundarySession || this.#fenceSelection) {
+            this.#setMessage(this.#t('orthoBusy'));
+            return;
+        }
+        await this.#run(()=>this.execute('ORTHO', {
+                enabled: !this.#orthoEnabled()
+            }));
+    }
     #snapAt(world, excludeIds = []) {
         if (this.paperPreview) {
             this.#snapMode = null;
@@ -3425,7 +3484,7 @@ export class KJDrawWorkbench {
             const snapped = this.#snapAt(rawWorld, [
                 this.#gripGesture.grip.entityId
             ]);
-            this.#gripGesture.currentWorld = snapped ?? rawWorld;
+            this.#gripGesture.currentWorld = this.#constrainPointer(rawWorld, snapped);
             this.#cursorWorld = this.#gripGesture.currentWorld;
             this.#showSnap(snapped);
             this.#refreshGripPreview();
@@ -3433,8 +3492,8 @@ export class KJDrawWorkbench {
             return;
         }
         if (this.#selectionDrag?.pointerId === event.pointerId) {
-            this.#selectionDrag.currentWorld = rawWorld;
-            this.#cursorWorld = rawWorld;
+            this.#selectionDrag.currentWorld = this.#constrainPointer(rawWorld, null);
+            this.#cursorWorld = this.#selectionDrag.currentWorld;
             this.#hideSnap();
             this.#drawOverlay();
             return;
@@ -3456,7 +3515,8 @@ export class KJDrawWorkbench {
         this.#hoverGrip = this.#tool === 'select' && !this.#readOnly && this.#selection?.size === 1 ? this.renderer.hitGrip(location, 7) : null;
         this.#canvas.style.cursor = this.#hoverGrip ? 'crosshair' : '';
         const snapped = drawingTool ? this.#snapAt(rawWorld) : null;
-        this.#cursorWorld = snapped ?? rawWorld;
+        this.#cursorWorld = this.#constrainPointer(rawWorld, snapped);
+        if (coordinate) coordinate.textContent = `X ${this.#cursorWorld[0].toFixed(3)} · Y ${this.#cursorWorld[1].toFixed(3)}`;
         this.#showSnap(snapped);
         this.#refreshDraftPreview();
         this.#drawOverlay();
@@ -3500,9 +3560,9 @@ export class KJDrawWorkbench {
         if (this.#gripGesture?.pointerId === event.pointerId) {
             const gesture = this.#gripGesture, location = point(event, this.#canvas);
             const rawWorld = this.renderer.screenToWorld(location);
-            const destination = this.#snapAt(rawWorld, [
+            const destination = this.#constrainPointer(rawWorld, this.#snapAt(rawWorld, [
                 gesture.grip.entityId
-            ]) ?? rawWorld;
+            ]));
             this.#gripGesture = null;
             if (this.#canvas.hasPointerCapture(event.pointerId)) this.#canvas.releasePointerCapture(event.pointerId);
             this.#canvas.classList.remove('dragging');
@@ -3530,7 +3590,7 @@ export class KJDrawWorkbench {
         if (this.#selectionDrag?.pointerId === event.pointerId) {
             const drag = this.#selectionDrag;
             const location = point(event, this.#canvas);
-            const destination = this.renderer.screenToWorld(location);
+            const destination = this.#constrainPointer(this.renderer.screenToWorld(location), null);
             this.#selectionDrag = null;
             if (this.#canvas.hasPointerCapture(event.pointerId)) this.#canvas.releasePointerCapture(event.pointerId);
             this.#canvas.classList.remove('dragging');
@@ -3564,7 +3624,7 @@ export class KJDrawWorkbench {
             'move',
             'copy'
         ].includes(this.#tool) ? this.#snapAt(rawWorld) : null;
-        const world = snapped ?? rawWorld;
+        const world = this.#constrainPointer(rawWorld, snapped);
         this.#cursorWorld = world;
         if (this.#fenceSelection) {
             const fence = this.#fenceSelection;
@@ -4225,6 +4285,7 @@ export class KJDrawWorkbench {
         const undo = this.root.querySelector('[data-action="undo"]'), redo = this.root.querySelector('[data-action="redo"]');
         if (undo) undo.disabled = this.#readOnly === true || !drawing.history.canUndo;
         if (redo) redo.disabled = this.#readOnly === true || !drawing.history.canRedo;
+        this.#syncOrtho();
         this.#refreshLayers();
         this.#refreshSelectionPanels();
         this.#refreshViewport();

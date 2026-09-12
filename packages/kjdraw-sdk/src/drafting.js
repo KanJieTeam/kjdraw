@@ -54,6 +54,17 @@ function point2(value, label = 'point') {
         finite(value[1], `${label}.y`)
     ];
 }
+export function constrainOrthogonalDraftPoint(value, base) {
+    const point = point2(value), origin = point2(base, 'base');
+    const dx = Math.abs(point[0] - origin[0]), dy = Math.abs(point[1] - origin[1]);
+    return dx >= dy ? [
+        point[0],
+        origin[1]
+    ] : [
+        origin[0],
+        point[1]
+    ];
+}
 function point3(value) {
     return [
         value[0],

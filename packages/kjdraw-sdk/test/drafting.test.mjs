@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createDraftingSession, parseDraftCoordinate } from '../src/drafting.js'
+import { constrainOrthogonalDraftPoint, createDraftingSession, parseDraftCoordinate } from '../src/drafting.js'
 import { createKJDrawSDK } from '../src/index.js'
 
 const closeTo=(actual,expected,tolerance=1e-9)=>assert.ok(Math.abs(actual-expected)<=tolerance,`${actual} != ${expected}`)
@@ -12,6 +12,24 @@ test('CAD coordinate parser accepts absolute, relative Cartesian and relative po
   assert.throws(()=>parseDraftCoordinate('@1,2'),/relativeBase/)
   assert.throws(()=>parseDraftCoordinate('Infinity,0'),/finite/)
   assert.throws(()=>parseDraftCoordinate('@-2<45',[0,0]),/non-negative/)
+})
+
+test('orthogonal pointer constraint uses the dominant axis without changing explicit coordinate parsing', async () => {
+  assert.deepEqual(constrainOrthogonalDraftPoint([14, 8], [2, 3]), [14, 3])
+  assert.deepEqual(constrainOrthogonalDraftPoint([-1, 20], [2, 3]), [2, 20])
+  assert.deepEqual(constrainOrthogonalDraftPoint([8, 9], [2, 3]), [8, 3])
+  assert.throws(() => constrainOrthogonalDraftPoint([Infinity, 0], [0, 0]), /finite/)
+  assert.deepEqual(parseDraftCoordinate('@6,4', [2, 3]), [8, 7])
+
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'ortho-roundtrip', units: 'millimeter' })
+  await sdk.executeCommand('ORTHO', { enabled: true }, { document: drawing })
+  const bytes = await sdk.writeDocument(drawing, { format: 'KJD' })
+  const reopened = await createKJDrawSDK().readDocument(bytes, { format: 'KJD' })
+  assert.equal(reopened.snapshot().header.systemVariables.ORTHOMODE, 1)
+  await drawing.undo()
+  assert.equal(Number(drawing.snapshot().header.systemVariables.ORTHOMODE ?? 0), 0)
+  await drawing.redo()
+  assert.equal(drawing.snapshot().header.systemVariables.ORTHOMODE, 1)
 })
 
 test('unbounded tools preview a finite direction guide until the second point is confirmed',()=>{

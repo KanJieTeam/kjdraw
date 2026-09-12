@@ -43,6 +43,8 @@ export interface KJDraftState {
     canFinish: boolean;
     canClose: boolean;
 }
+/** Constrain a pointer-derived point to the dominant axis through an exact base point. */
+export declare function constrainOrthogonalDraftPoint(value: KJDraftPoint, base: KJDraftPoint): KJDraftPoint;
 /** Parse CAD coordinates. Polar angles use degrees and increase counter-clockwise. */
 export declare function parseDraftCoordinate(input: string, relativeBase?: KJDraftPoint): KJDraftPoint;
 export declare class KJDraftingSession {

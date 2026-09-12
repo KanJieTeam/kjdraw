@@ -138,6 +138,13 @@ function point2(value: unknown, label = 'point'): KJDraftPoint {
   return [finite(value[0], `${label}.x`), finite(value[1], `${label}.y`)]
 }
 
+/** Constrain a pointer-derived point to the dominant axis through an exact base point. */
+export function constrainOrthogonalDraftPoint(value: KJDraftPoint, base: KJDraftPoint): KJDraftPoint {
+  const point = point2(value), origin = point2(base, 'base')
+  const dx = Math.abs(point[0] - origin[0]), dy = Math.abs(point[1] - origin[1])
+  return dx >= dy ? [point[0], origin[1]] : [origin[0], point[1]]
+}
+
 function point3(value: KJDraftPoint): [number, number, number] { return [value[0], value[1], 0] }
 function distance(a: KJDraftPoint, b: KJDraftPoint): number { return Math.hypot(b[0] - a[0], b[1] - a[1]) }
 function near(a: KJDraftPoint, b: KJDraftPoint, tolerance: number): boolean { return distance(a, b) <= tolerance }
