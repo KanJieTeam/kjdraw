@@ -51,7 +51,7 @@ function fields(value: unknown, names: string[]): void {
   if (!value || typeof value !== 'object' || Array.isArray(value) || !equal(Object.keys(value).sort(), [...names].sort())) fail('compiled result fields do not match the road drawing format')
 }
 
-function prepare(result: KJRoadDrawingResult, modelSpaceId: string): { drawingId: string; entities: Map<string, KJObjectRecord>; resources: Map<string, KJObjectRecord> } {
+function prepare(result: KJRoadDrawingResult, modelSpaceId: string, currentTextStyleId: string): { drawingId: string; entities: Map<string, KJObjectRecord>; resources: Map<string, KJObjectRecord> } {
   fields(result, ['units', 'calculation', 'entities', 'resources', 'frames', 'bounds', 'projections', 'limitations'])
   if (result.units !== 'meter') fail('compiled drawing units must be meter')
   fields(result.resources, ['linetypes', 'layers'])
@@ -84,7 +84,10 @@ function prepare(result: KJRoadDrawingResult, modelSpaceId: string): { drawingId
     if (!payloadFields) fail('only road compiler native entity types are supported')
     fields(spec.payload, payloadFields)
     if (resources.get(String(spec.payload.layerId))?.type !== 'LAYER') fail('entity layer must belong to this road drawing')
-    const payload = normalizeStandardEntityPayload(spec.type, spec.payload)
+    // CREATEBATCH resolves an omitted TEXT style against the document's current
+    // text style. Compile the revision baseline with the same deterministic
+    // value so exact ownership checks distinguish real edits from inheritance.
+    const payload = normalizeStandardEntityPayload(spec.type, spec.type === 'TEXT' ? { ...spec.payload, styleId: currentTextStyleId } : spec.payload)
     entities.set(spec.options.id, createObjectRecord({ id: spec.options.id, kind: 'entity', type: spec.type, ownerId: modelSpaceId, payload }))
   }
   for (const key of ['plan/frame', 'plan/alignment', 'profile/frame', 'profile/design', 'sections/frame']) if (!entities.has(`${prefix}:${key}`)) fail('compiled drawing is missing required frames or geometry')
@@ -108,7 +111,9 @@ export async function applyRoadDrawingRevision(document: KJDocument, previous: R
   dataOnly({ previous, next, options }); fields(options, ['expectedRevision'])
   if (!Number.isSafeInteger(options.expectedRevision) || options.expectedRevision < 0) fail('expectedRevision must be a nonnegative safe integer')
   const expectedRevision = options.expectedRevision, modelSpaceId = document.spaces.modelSpaceId
-  const before = prepare(structuredClone(previous) as KJRoadDrawingResult, modelSpaceId), after = prepare(structuredClone(next) as KJRoadDrawingResult, modelSpaceId)
+  const currentTextStyleId = document.getTable('textStyles')?.currentId
+  if (!currentTextStyleId) fail('document current text style is missing')
+  const before = prepare(structuredClone(previous) as KJRoadDrawingResult, modelSpaceId, currentTextStyleId), after = prepare(structuredClone(next) as KJRoadDrawingResult, modelSpaceId, currentTextStyleId)
   if (before.drawingId !== after.drawingId) fail('previous and next drawingId must match')
   const updatedIds: string[] = [], createdIds: string[] = [], removedIds: string[] = [], unchangedIds: string[] = []
   await document.transact('Update road drawing', native => {

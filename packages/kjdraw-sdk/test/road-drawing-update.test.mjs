@@ -32,7 +32,8 @@ test('600 m road rebuild changes widths, elevations and quantities while preserv
   for(const entity of next.entities) {
     const actual=document.getObject(entity.options.id)
     assert.equal(actual.handle,before[actual.id].handle); assert.equal(actual.ownerId,before[actual.id].ownerId)
-    assert.deepEqual(actual.payload,normalizeStandardEntityPayload(entity.type,entity.payload))
+    const expectedPayload=entity.type==='TEXT'?{...entity.payload,styleId:document.getTable('textStyles').currentId}:entity.payload
+    assert.deepEqual(actual.payload,normalizeStandardEntityPayload(entity.type,expectedPayload))
   }
   const edge=find(next,'plan/span/0/left-pavement-edge')
   assert.deepEqual(document.getObject(edge.options.id).payload.start,[300,505,0])

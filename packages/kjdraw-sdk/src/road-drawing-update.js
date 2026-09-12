@@ -51,7 +51,7 @@ function fields(value, names) {
         ...names
     ].sort())) fail('compiled result fields do not match the road drawing format');
 }
-function prepare(result, modelSpaceId) {
+function prepare(result, modelSpaceId, currentTextStyleId) {
     fields(result, [
         'units',
         'calculation',
@@ -174,7 +174,10 @@ function prepare(result, modelSpaceId) {
         if (!payloadFields) fail('only road compiler native entity types are supported');
         fields(spec.payload, payloadFields);
         if (resources.get(String(spec.payload.layerId))?.type !== 'LAYER') fail('entity layer must belong to this road drawing');
-        const payload = normalizeStandardEntityPayload(spec.type, spec.payload);
+        const payload = normalizeStandardEntityPayload(spec.type, spec.type === 'TEXT' ? {
+            ...spec.payload,
+            styleId: currentTextStyleId
+        } : spec.payload);
         entities.set(spec.options.id, createObjectRecord({
             id: spec.options.id,
             kind: 'entity',
@@ -215,7 +218,9 @@ export async function applyRoadDrawingRevision(document, previous, next, options
     ]);
     if (!Number.isSafeInteger(options.expectedRevision) || options.expectedRevision < 0) fail('expectedRevision must be a nonnegative safe integer');
     const expectedRevision = options.expectedRevision, modelSpaceId = document.spaces.modelSpaceId;
-    const before = prepare(structuredClone(previous), modelSpaceId), after = prepare(structuredClone(next), modelSpaceId);
+    const currentTextStyleId = document.getTable('textStyles')?.currentId;
+    if (!currentTextStyleId) fail('document current text style is missing');
+    const before = prepare(structuredClone(previous), modelSpaceId, currentTextStyleId), after = prepare(structuredClone(next), modelSpaceId, currentTextStyleId);
     if (before.drawingId !== after.drawingId) fail('previous and next drawingId must match');
     const updatedIds = [], createdIds = [], removedIds = [], unchangedIds = [];
     await document.transact('Update road drawing', (native)=>{
