@@ -743,6 +743,15 @@ function dxfHeaderNumber(tags: readonly DxfTag[], name: string, fallback: number
   return result
 }
 
+function dxfHeaderText(tags: readonly DxfTag[], name: string): string | undefined {
+  const header = section(tags, 'HEADER')
+  const index = header.findIndex(tag => tag.code === 9 && normalizeName(tag.value) === name)
+  if (index < 0) return undefined
+  const value = header[index + 1]
+  if (!value || value.code !== 7 || !String(value.value).trim()) throw new KJValidationError(`Invalid DXF ${name} header value`)
+  return String(value.value).trim()
+}
+
 function dxfDrawingUnits(tags: readonly DxfTag[]): { units: string; measurement: string } {
   const code = dxfHeaderInteger(tags, '$INSUNITS') ?? 0
   const units = DXF_UNIT_NAMES[code]
@@ -795,10 +804,16 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
   const tags = await tagsFromText(await sourceText(source, options), options)
   if (!section(tags, 'ENTITIES').length && !tags.some(tag => tag.code === 0 && normalizeName(tag.value) === 'SECTION')) throw new KJValidationError('DXF has no valid SECTION structure')
   const version = dxfVersion(tags)
+  const currentTextStyleName = dxfHeaderText(tags, '$TEXTSTYLE')
   const document = KJDocument.create({ sourceFormat: 'DXF', sourceVersion: version, codePage: dxfCodePage(tags), ...dxfDrawingUnits(tags), systemVariables: { LTSCALE: dxfHeaderNumber(tags, '$LTSCALE', 1) }, title: 'Imported DXF' })
   await document.transact('Import ASCII DXF', async transaction => {
     const tableRecords = records(section(tags, 'TABLES'))
     const resources = importResourceTables(transaction, tableRecords, document)
+    if (currentTextStyleName) {
+      const currentTextStyleId = resources.textStyleIds.get(normalizeName(currentTextStyleName))
+      if (!currentTextStyleId) throw new KJValidationError(`DXF current text style does not exist: ${currentTextStyleName}`)
+      transaction.setCurrentTableRecord('textStyles', currentTextStyleId)
+    }
     const defaultLayerId = document.snapshot().tables.layers.currentId
     if (!defaultLayerId) throw new KJValidationError('DXF import requires the default layer')
     const layerIds = new Map<string, string>([['0', defaultLayerId]])
@@ -1015,8 +1030,10 @@ function readSingleLineText(source: DxfRecord, resources: DxfImportResources): D
   return {
     position: point(record), ...(alignmentPoint ? { alignmentPoint } : {}),
     ...readDxfText(record), height: number(record, 40, 2.5), rotation: number(record, 50) * Math.PI / 180,
-    horizontalAlignment: number(record, 72), widthFactor: number(record, 41, 1),
-    obliqueAngle: number(record, 51) * Math.PI / 180, generationFlags: number(record, 71),
+    horizontalAlignment: number(record, 72),
+    ...(values(record, 41).length ? { widthFactor: number(record, 41) } : {}),
+    ...(values(record, 51).length ? { obliqueAngle: number(record, 51) * Math.PI / 180 } : {}),
+    ...(values(record, 71).length ? { generationFlags: number(record, 71) } : {}),
     styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null,
   }
 }
@@ -1833,11 +1850,16 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   if (VERSION_RANK[version] < VERSION_RANK['2000'] && state.spaces.paperSpaceIds.length > 1) throw new KJValidationError(`DXF ${version} cannot preserve multiple named paper spaces without layout metadata`)
   if (VERSION_RANK[version] < VERSION_RANK['2000'] && layouts.some(layout => layout.payload.dxfPlotSettings && Object.keys(layout.payload.dxfPlotSettings).length)) throw new KJValidationError(`DXF ${version} cannot preserve layout plot settings; minimum target is 2000`)
   emit(output, 0, 'SECTION'); emit(output, 2, 'HEADER'); emit(output, 9, '$ACADVER'); emit(output, 1, ACADVER[version])
+  emit(output, 9, '$DWGCODEPAGE'); emit(output, 3, 'UTF-8')
   emit(output, 9, '$HANDSEED'); emit(output, 5, '0')
   const handleSeedValueIndex = output.length - 1
   const linetypeScale = Number(state.header.systemVariables.LTSCALE ?? 1)
   if (!Number.isFinite(linetypeScale) || linetypeScale <= 0) throw new KJValidationError('Cannot export invalid LTSCALE')
   emit(output, 9, '$LTSCALE'); emit(output, 40, linetypeScale)
+  const currentTextStyleId = state.tables.textStyles.currentId
+  const currentTextStyle = currentTextStyleId ? state.objects[currentTextStyleId] : undefined
+  if (!currentTextStyle || !state.tables.textStyles.recordIds.includes(currentTextStyle.id)) throw new KJValidationError('Cannot export an unresolved current text style')
+  emit(output, 9, '$TEXTSTYLE'); emit(output, 7, currentTextStyle.name ?? 'STANDARD')
   if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
     emit(output, 9, '$INSUNITS'); emit(output, 70, dxfUnitCode(state.header.units))
     if (!['metric', 'imperial', 'english'].includes(state.header.measurement)) throw new KJValidationError('Cannot export unrecognized DXF measurement system')

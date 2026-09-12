@@ -341,6 +341,7 @@ function validateObjectGraph(state: KJDocumentState, issues: KJValidationIssue[]
     if (object?.ownerId === id) issues.push({ path: `objects.${id}.ownerId`, message: 'Object cannot own itself' })
     if (object?.kind === 'entity' && state.objects[object.ownerId ?? '']?.kind !== 'block-record') issues.push({ path: `objects.${id}.ownerId`, message: 'Entity owner must be a block record' })
     if (object?.kind === 'entity' && object.payload?.layerId != null && !state.tables.layers.recordIds.includes(object.payload.layerId)) issues.push({ path: `objects.${id}.payload.layerId`, message: `Entity layer is not registered: ${object.payload.layerId}` })
+    if (object?.kind === 'entity' && ['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(object.type) && object.payload?.styleId != null && !state.tables.textStyles.recordIds.includes(String(object.payload.styleId))) issues.push({ path: `objects.${id}.payload.styleId`, message: `Text style is not registered: ${object.payload.styleId}` })
     if (object?.kind === 'entity' && isStandardEntityType(object.type)) {
       if (object.payload?.contractVersion !== 1) issues.push({ path: `objects.${id}.payload.contractVersion`, message: 'Standard entity payload is not canonical' })
       try { normalizeStandardEntityPayload(object.type, object.payload) }

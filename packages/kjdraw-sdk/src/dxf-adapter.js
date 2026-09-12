@@ -1131,6 +1131,14 @@ function dxfHeaderNumber(tags, name, fallback) {
     if (!Number.isFinite(result) || result <= 0) throw new KJValidationError(`Invalid DXF ${name} header value`);
     return result;
 }
+function dxfHeaderText(tags, name) {
+    const header = section(tags, 'HEADER');
+    const index = header.findIndex((tag)=>tag.code === 9 && normalizeName(tag.value) === name);
+    if (index < 0) return undefined;
+    const value = header[index + 1];
+    if (!value || value.code !== 7 || !String(value.value).trim()) throw new KJValidationError(`Invalid DXF ${name} header value`);
+    return String(value.value).trim();
+}
 function dxfDrawingUnits(tags) {
     const code = dxfHeaderInteger(tags, '$INSUNITS') ?? 0;
     const units = DXF_UNIT_NAMES[code];
@@ -1263,6 +1271,7 @@ async function readDXF(source, options = {}) {
     const tags = await tagsFromText(await sourceText(source, options), options);
     if (!section(tags, 'ENTITIES').length && !tags.some((tag)=>tag.code === 0 && normalizeName(tag.value) === 'SECTION')) throw new KJValidationError('DXF has no valid SECTION structure');
     const version = dxfVersion(tags);
+    const currentTextStyleName = dxfHeaderText(tags, '$TEXTSTYLE');
     const document = KJDocument.create({
         sourceFormat: 'DXF',
         sourceVersion: version,
@@ -1276,6 +1285,11 @@ async function readDXF(source, options = {}) {
     await document.transact('Import ASCII DXF', async (transaction)=>{
         const tableRecords = records(section(tags, 'TABLES'));
         const resources = importResourceTables(transaction, tableRecords, document);
+        if (currentTextStyleName) {
+            const currentTextStyleId = resources.textStyleIds.get(normalizeName(currentTextStyleName));
+            if (!currentTextStyleId) throw new KJValidationError(`DXF current text style does not exist: ${currentTextStyleName}`);
+            transaction.setCurrentTableRecord('textStyles', currentTextStyleId);
+        }
         const defaultLayerId = document.snapshot().tables.layers.currentId;
         if (!defaultLayerId) throw new KJValidationError('DXF import requires the default layer');
         const layerIds = new Map([
@@ -1634,9 +1648,15 @@ function readSingleLineText(source, resources) {
         height: number(record, 40, 2.5),
         rotation: number(record, 50) * Math.PI / 180,
         horizontalAlignment: number(record, 72),
-        widthFactor: number(record, 41, 1),
-        obliqueAngle: number(record, 51) * Math.PI / 180,
-        generationFlags: number(record, 71),
+        ...values(record, 41).length ? {
+            widthFactor: number(record, 41)
+        } : {},
+        ...values(record, 51).length ? {
+            obliqueAngle: number(record, 51) * Math.PI / 180
+        } : {},
+        ...values(record, 71).length ? {
+            generationFlags: number(record, 71)
+        } : {},
         styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null
     };
 }
@@ -2959,6 +2979,8 @@ function writeDXF(document, options = {}) {
     emit(output, 2, 'HEADER');
     emit(output, 9, '$ACADVER');
     emit(output, 1, ACADVER[version]);
+    emit(output, 9, '$DWGCODEPAGE');
+    emit(output, 3, 'UTF-8');
     emit(output, 9, '$HANDSEED');
     emit(output, 5, '0');
     const handleSeedValueIndex = output.length - 1;
@@ -2966,6 +2988,11 @@ function writeDXF(document, options = {}) {
     if (!Number.isFinite(linetypeScale) || linetypeScale <= 0) throw new KJValidationError('Cannot export invalid LTSCALE');
     emit(output, 9, '$LTSCALE');
     emit(output, 40, linetypeScale);
+    const currentTextStyleId = state.tables.textStyles.currentId;
+    const currentTextStyle = currentTextStyleId ? state.objects[currentTextStyleId] : undefined;
+    if (!currentTextStyle || !state.tables.textStyles.recordIds.includes(currentTextStyle.id)) throw new KJValidationError('Cannot export an unresolved current text style');
+    emit(output, 9, '$TEXTSTYLE');
+    emit(output, 7, currentTextStyle.name ?? 'STANDARD');
     if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
         emit(output, 9, '$INSUNITS');
         emit(output, 70, dxfUnitCode(state.header.units));

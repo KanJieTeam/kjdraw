@@ -148,7 +148,7 @@ const copy = {
     select: 'Select', pan: 'Pan', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', rectangle: 'Rectangle', text: 'Text', measure: 'Measure',
     undo: 'Undo', redo: 'Redo', erase: 'Delete', move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', fit: 'Fit', grid: 'Grid', ortho: 'Ortho', orthoOn: 'Orthogonal drafting on', orthoOff: 'Orthogonal drafting off', orthoBusy: 'Finish or cancel the current operation before changing Ortho', layers: 'Layers', properties: 'Properties',
     noSelection: 'Select an object to inspect its properties.', drawing: 'Drawing', entities: 'entities', selected: 'selected',
-    layer: 'Layer', radius: 'Radius', apply: 'Apply', ready: 'Ready', readonly: 'Read only',
+    layer: 'Layer', textStyle: 'Text style', radius: 'Radius', apply: 'Apply', ready: 'Ready', readonly: 'Read only',
     firstPoint: 'Specify the first point', nextPoint: 'Specify the next point', finishPolyline: 'Click vertices · Enter or double-click to finish', arcStart: 'Specify arc start', arcEnd: 'Specify arc endpoint', textPrompt: 'Type TEXT followed by content, then click an insertion point', measured: 'Measured distance',
     unsupported: 'projection limits', theme: 'Theme', language: '中文', sample: 'Starter drawing', openFailed: 'Could not open drawing', command: 'Command', run: 'Run', commandHint: 'MOVE 10 0 · COPY 10 0 · ROTATE 15 · OFFSET 2 · SCALE 1.2', fileTooLarge: 'File exceeds the workbench limit',
     layout: 'Layout', layoutClassic: 'Classic', layoutCompact: 'Compact', layoutFocus: 'Focus', selectObjects: 'Select an object', basePoint: 'Specify the base point', destinationPoint: 'Specify the destination point', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
@@ -168,7 +168,7 @@ const copy = {
     select: '选择', pan: '平移', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', rectangle: '矩形', text: '文字', measure: '测距',
     undo: '撤销', redo: '重做', erase: '删除', move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', fit: '全图', grid: '栅格', ortho: '正交', orthoOn: '正交绘图已开启', orthoOff: '正交绘图已关闭', orthoBusy: '请先完成或取消当前操作，再切换正交模式', layers: '图层', properties: '特性',
     noSelection: '选择图元后可查看和修改属性。', drawing: '图纸', entities: '图元', selected: '已选择',
-    layer: '图层', radius: '半径', apply: '应用', ready: '就绪', readonly: '只读',
+    layer: '图层', textStyle: '文字样式', radius: '半径', apply: '应用', ready: '就绪', readonly: '只读',
     firstPoint: '指定第一个点', nextPoint: '指定下一个点', finishPolyline: '连续指定顶点 · Enter 或双击完成', arcStart: '指定圆弧起点', arcEnd: '指定圆弧端点', textPrompt: '输入 TEXT 和文字内容，再指定插入点', measured: '测量距离',
     unsupported: '投影限制', theme: '主题', language: 'EN', sample: '入门图纸', openFailed: '无法打开图纸', command: '命令', run: '执行', commandHint: 'MOVE 10 0 · COPY 10 0 · ROTATE 15 · OFFSET 2 · SCALE 1.2', fileTooLarge: '文件超过工作台限制',
     layout: '布局', layoutClassic: '经典', layoutCompact: '紧凑', layoutFocus: '专注', selectObjects: '选择对象', basePoint: '指定基点', destinationPoint: '指定目标点', zoomIn: '放大', zoomOut: '缩小',
@@ -1186,7 +1186,7 @@ export class KJDrawWorkbench {
         const x = Number(tokens[0]), y = Number(tokens[1])
         if (tokens.length >= 3 && Number.isFinite(x) && Number.isFinite(y)) {
           const text = tokens.slice(2).join(' ')
-          await this.execute('CREATE', { type: 'TEXT', payload: { position: [x, y, 0], text, height: Math.max(1, 16 / this.renderer.camera.scale), rotation: 0, ...this.#activeLayerPayload() } })
+          await this.execute('CREATE', { type: 'TEXT', payload: { position: [x, y, 0], text, height: Math.max(1, 16 / this.renderer.camera.scale), rotation: 0, ...this.#activeTextPayload() } })
         } else {
           this.#pendingText = remainder || 'KJDraw'
           this.setTool('text')
@@ -1867,6 +1867,11 @@ export class KJDrawWorkbench {
     return layerId ? { layerId } : {}
   }
 
+  #activeTextPayload(): Record<string, unknown> {
+    const styleId = this.document?.getTable('textStyles')?.currentId
+    return { ...this.#activeLayerPayload(), ...(styleId ? { styleId } : {}) }
+  }
+
   #selectionCenter(ids: readonly string[]): Point2 {
     const drawing = this.document
     if (!drawing) return [0, 0]
@@ -2273,7 +2278,7 @@ export class KJDrawWorkbench {
     }
     if (this.#tool === 'text') {
       if (this.#readOnly) return
-      await this.#run(() => this.execute('CREATE', { type: 'TEXT', payload: { position: [...world, 0], text: this.#pendingText, height: Math.max(1, 16 / this.renderer.camera.scale), rotation: 0, ...this.#activeLayerPayload() } }))
+      await this.#run(() => this.execute('CREATE', { type: 'TEXT', payload: { position: [...world, 0], text: this.#pendingText, height: Math.max(1, 16 / this.renderer.camera.scale), rotation: 0, ...this.#activeTextPayload() } }))
       this.#setMessage(this.#t('textPrompt'))
       this.#drawOverlay()
       return
@@ -2654,7 +2659,7 @@ export class KJDrawWorkbench {
     const title = document.createElement('div'); title.className = 'entity-title'; title.textContent = multiple ? `${selectedEntities.length} ${this.#t('selected')}` : entity.type
     host.append(title, this.#kv('Handle', entity.handle), this.#kv(this.#t('layer'), drawing.getObject(String(entity.payload.layerId ?? ''))?.name ?? '0'))
     const layerField = document.createElement('label'); layerField.className = 'field'; layerField.innerHTML = `<span>${this.#t('layer')}</span>`
-    const layerSelect = document.createElement('select'); layerSelect.disabled = this.#readOnly === true
+    const layerSelect = document.createElement('select'); layerSelect.disabled = this.#readOnly === true; layerSelect.dataset.property = 'layer'
     const layerIds = new Set(selectedEntities.map(item => String(item.payload.layerId ?? '')))
     const commonLayerId = layerIds.size === 1 ? [...layerIds][0]! : ''
     if (!commonLayerId) {
@@ -2664,6 +2669,23 @@ export class KJDrawWorkbench {
       const option = document.createElement('option'); option.value = layer.id; option.textContent = layer.name ?? '0'; option.selected = commonLayerId === layer.id; layerSelect.append(option)
     }
     layerField.append(layerSelect); host.append(layerField)
+    const textEntities = selectedEntities.filter(item => ['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(item.type))
+    let textStyleSelect: HTMLSelectElement | null = null
+    let commonTextStyleId = ''
+    if (textEntities.length === selectedEntities.length) {
+      const styleTable = drawing.getTable('textStyles')
+      const styleIds = new Set(textEntities.map(item => String(item.payload.styleId ?? styleTable?.currentId ?? '')))
+      commonTextStyleId = styleIds.size === 1 ? [...styleIds][0]! : ''
+      const field = document.createElement('label'); field.className = 'field'; field.innerHTML = `<span>${this.#t('textStyle')}</span>`
+      textStyleSelect = document.createElement('select'); textStyleSelect.disabled = this.#readOnly === true; textStyleSelect.dataset.property = 'text-style'
+      if (!commonTextStyleId) {
+        const option = document.createElement('option'); option.value = ''; option.textContent = '—'; option.selected = true; option.disabled = true; textStyleSelect.append(option)
+      }
+      for (const style of styleTable?.records ?? []) {
+        const option = document.createElement('option'); option.value = style.id; option.textContent = style.name ?? 'STANDARD'; option.selected = commonTextStyleId === style.id; textStyleSelect.append(option)
+      }
+      field.append(textStyleSelect); host.append(field)
+    }
     let valueInput: HTMLInputElement | null = null
     if (!multiple && (entity.type === 'CIRCLE' || entity.type === 'ARC')) {
       const field = document.createElement('label'); field.className = 'field'; field.innerHTML = `<span>${this.#t('radius')}</span>`
@@ -2676,11 +2698,15 @@ export class KJDrawWorkbench {
       const apply = document.createElement('button'); apply.type = 'button'; apply.className = 'apply'; apply.textContent = this.#t('apply')
       apply.addEventListener('click', () => void this.#run(async () => {
         if (multiple) {
-          if (!layerSelect.value || layerSelect.value === commonLayerId) return
-          await this.execute('PROPERTIES', { ids: selectedEntities.map(item => item.id), patch: { payload: { layerId: layerSelect.value } } })
+          const payload: Record<string, unknown> = {}
+          if (layerSelect.value && layerSelect.value !== commonLayerId) payload.layerId = layerSelect.value
+          if (textStyleSelect?.value && textStyleSelect.value !== commonTextStyleId) payload.styleId = textStyleSelect.value
+          if (!Object.keys(payload).length) return
+          await this.execute('PROPERTIES', { ids: selectedEntities.map(item => item.id), patch: { payload } })
           return
         }
         const payload: Record<string, unknown> = { ...structuredClone(entity.payload), layerId: layerSelect.value }
+        if (textStyleSelect?.value) payload.styleId = textStyleSelect.value
         if (valueInput && (entity.type === 'CIRCLE' || entity.type === 'ARC')) payload.radius = Number(valueInput.value)
         if (valueInput && ['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(entity.type)) payload.text = valueInput.value
         await this.execute('PROPERTIES', { id: entity.id, patch: { payload } })

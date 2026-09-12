@@ -186,6 +186,7 @@ export interface KJCommandArguments extends Record<string, unknown> {
     fixedHeight?: unknown;
     widthFactor?: unknown;
     obliqueAngle?: unknown;
+    current?: unknown;
     description?: unknown;
     patternName?: unknown;
     enabled?: unknown;

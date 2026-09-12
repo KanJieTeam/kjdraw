@@ -95,6 +95,7 @@ const copy = {
         entities: 'entities',
         selected: 'selected',
         layer: 'Layer',
+        textStyle: 'Text style',
         radius: 'Radius',
         apply: 'Apply',
         ready: 'Ready',
@@ -255,6 +256,7 @@ const copy = {
         entities: '图元',
         selected: '已选择',
         layer: '图层',
+        textStyle: '文字样式',
         radius: '半径',
         apply: '应用',
         ready: '就绪',
@@ -2076,7 +2078,7 @@ export class KJDrawWorkbench {
                             text,
                             height: Math.max(1, 16 / this.renderer.camera.scale),
                             rotation: 0,
-                            ...this.#activeLayerPayload()
+                            ...this.#activeTextPayload()
                         }
                     });
                 } else {
@@ -3154,6 +3156,15 @@ export class KJDrawWorkbench {
             layerId
         } : {};
     }
+    #activeTextPayload() {
+        const styleId = this.document?.getTable('textStyles')?.currentId;
+        return {
+            ...this.#activeLayerPayload(),
+            ...styleId ? {
+                styleId
+            } : {}
+        };
+    }
     #selectionCenter(ids) {
         const drawing = this.document;
         if (!drawing) return [
@@ -3748,7 +3759,7 @@ export class KJDrawWorkbench {
                         text: this.#pendingText,
                         height: Math.max(1, 16 / this.renderer.camera.scale),
                         rotation: 0,
-                        ...this.#activeLayerPayload()
+                        ...this.#activeTextPayload()
                     }
                 }));
             this.#setMessage(this.#t('textPrompt'));
@@ -4384,6 +4395,7 @@ export class KJDrawWorkbench {
         layerField.innerHTML = `<span>${this.#t('layer')}</span>`;
         const layerSelect = document.createElement('select');
         layerSelect.disabled = this.#readOnly === true;
+        layerSelect.dataset.property = 'layer';
         const layerIds = new Set(selectedEntities.map((item)=>String(item.payload.layerId ?? '')));
         const commonLayerId = layerIds.size === 1 ? [
             ...layerIds
@@ -4405,6 +4417,44 @@ export class KJDrawWorkbench {
         }
         layerField.append(layerSelect);
         host.append(layerField);
+        const textEntities = selectedEntities.filter((item)=>[
+                'TEXT',
+                'MTEXT',
+                'ATTDEF',
+                'ATTRIB'
+            ].includes(item.type));
+        let textStyleSelect = null;
+        let commonTextStyleId = '';
+        if (textEntities.length === selectedEntities.length) {
+            const styleTable = drawing.getTable('textStyles');
+            const styleIds = new Set(textEntities.map((item)=>String(item.payload.styleId ?? styleTable?.currentId ?? '')));
+            commonTextStyleId = styleIds.size === 1 ? [
+                ...styleIds
+            ][0] : '';
+            const field = document.createElement('label');
+            field.className = 'field';
+            field.innerHTML = `<span>${this.#t('textStyle')}</span>`;
+            textStyleSelect = document.createElement('select');
+            textStyleSelect.disabled = this.#readOnly === true;
+            textStyleSelect.dataset.property = 'text-style';
+            if (!commonTextStyleId) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = '—';
+                option.selected = true;
+                option.disabled = true;
+                textStyleSelect.append(option);
+            }
+            for (const style of styleTable?.records ?? []){
+                const option = document.createElement('option');
+                option.value = style.id;
+                option.textContent = style.name ?? 'STANDARD';
+                option.selected = commonTextStyleId === style.id;
+                textStyleSelect.append(option);
+            }
+            field.append(textStyleSelect);
+            host.append(field);
+        }
         let valueInput = null;
         if (!multiple && (entity.type === 'CIRCLE' || entity.type === 'ARC')) {
             const field = document.createElement('label');
@@ -4440,13 +4490,14 @@ export class KJDrawWorkbench {
             apply.textContent = this.#t('apply');
             apply.addEventListener('click', ()=>void this.#run(async ()=>{
                     if (multiple) {
-                        if (!layerSelect.value || layerSelect.value === commonLayerId) return;
+                        const payload = {};
+                        if (layerSelect.value && layerSelect.value !== commonLayerId) payload.layerId = layerSelect.value;
+                        if (textStyleSelect?.value && textStyleSelect.value !== commonTextStyleId) payload.styleId = textStyleSelect.value;
+                        if (!Object.keys(payload).length) return;
                         await this.execute('PROPERTIES', {
                             ids: selectedEntities.map((item)=>item.id),
                             patch: {
-                                payload: {
-                                    layerId: layerSelect.value
-                                }
+                                payload
                             }
                         });
                         return;
@@ -4455,6 +4506,7 @@ export class KJDrawWorkbench {
                         ...structuredClone(entity.payload),
                         layerId: layerSelect.value
                     };
+                    if (textStyleSelect?.value) payload.styleId = textStyleSelect.value;
                     if (valueInput && (entity.type === 'CIRCLE' || entity.type === 'ARC')) payload.radius = Number(valueInput.value);
                     if (valueInput && [
                         'TEXT',

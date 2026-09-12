@@ -83,11 +83,15 @@ function nativeTextFields(payload) {
         return result;
     };
     return {
-        widthFactor: positive(payload.widthFactor ?? 1, 'widthFactor'),
+        ...payload.widthFactor == null ? {} : {
+            widthFactor: positive(payload.widthFactor, 'widthFactor')
+        },
         generationFlags: integer(payload.generationFlags, 'generationFlags', 0xffff),
         horizontalAlignment: integer(payload.horizontalAlignment, 'horizontalAlignment', 5),
         verticalAlignment: integer(payload.verticalAlignment, 'verticalAlignment', 3),
-        obliqueAngle: finite(payload.obliqueAngle ?? 0, 'obliqueAngle')
+        ...payload.obliqueAngle == null ? {} : {
+            obliqueAngle: finite(payload.obliqueAngle, 'obliqueAngle')
+        }
     };
 }
 function optionalObjectId(value, label) {

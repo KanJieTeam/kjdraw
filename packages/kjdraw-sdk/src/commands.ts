@@ -228,6 +228,7 @@ export interface KJCommandArguments extends Record<string, unknown> {
   fixedHeight?: unknown
   widthFactor?: unknown
   obliqueAngle?: unknown
+  current?: unknown
   description?: unknown
   patternName?: unknown
   enabled?: unknown
@@ -329,7 +330,7 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   DESIGNUPDATE: { domain: 'design-relations', atomic: true, stableIdentity: true, requiresUnmodifiedGeometry: true },
   HATCH: { domain: 'entity', entityType: 'HATCH', boundaryModes: ['polyline', 'line-arc-edges'] },
   LINETYPE: { domain: 'table', table: 'linetypes', operations: ['create', 'update'] },
-  TEXTSTYLE: { domain: 'table', table: 'textStyles', operations: ['create', 'update'] },
+  TEXTSTYLE: { domain: 'table', table: 'textStyles', operations: ['create', 'update', 'set-current'] },
   DIMSTYLE: { domain: 'table', table: 'dimensionStyles', operations: ['create', 'update'] },
   UCS: { domain: 'table', table: 'ucs', operations: ['create', 'update', 'set-current'] },
   LAYOUT: { domain: 'layout', operations: ['create', 'set-current', 'update'] },
@@ -509,7 +510,13 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'CREATE', title: 'Create entity',
-    execute: ({ transaction }, args) => transaction.createEntity(args.type!, args.payload, args.options),
+    execute: ({ document, transaction }, args) => {
+      const type = normalizeName(args.type)
+      const payload = { ...(args.payload ?? {}) }
+      const currentTextStyleId = document.getTable('textStyles')?.currentId
+      if (['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(type) && payload.styleId === undefined && currentTextStyleId) payload.styleId = currentTextStyleId
+      return transaction.createEntity(type, payload, args.options)
+    },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'CREATEBATCH', title: 'Create entity batch',
@@ -668,7 +675,17 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'TEXTSTYLE', aliases: ['STYLE'], title: 'Create or update text style',
-    execute: ({ transaction }, args) => transaction.upsertTableRecord('textStyles', { name: args.name, type: 'TEXT_STYLE', payload: { fontFamily: String(args.fontFamily ?? 'sans-serif'), fontFile: args.fontFile ?? null, bigFontFile: args.bigFontFile ?? null, fixedHeight: Number(args.fixedHeight ?? 0), widthFactor: Number(args.widthFactor ?? 1), obliqueAngle: Number(args.obliqueAngle ?? 0) } } as KJTableRecordInput),
+    execute: ({ document, transaction }, args) => {
+      const operation = String(args.operation ?? 'upsert').toLowerCase()
+      if (operation === 'set-current') return transaction.setCurrentTableRecord('textStyles', resolveTableRecord(document, 'textStyles', args.id ?? args.name).id)
+      if (!['upsert', 'create', 'update'].includes(operation)) throw new KJValidationError(`Unsupported text style operation: ${operation}`)
+      const fixedHeight = Number(args.fixedHeight ?? 0), widthFactor = Number(args.widthFactor ?? 1), obliqueAngle = Number(args.obliqueAngle ?? 0)
+      if (!Number.isFinite(fixedHeight) || fixedHeight < 0) throw new KJValidationError('Text style fixed height must be a non-negative finite number')
+      if (!Number.isFinite(widthFactor) || widthFactor <= 0) throw new KJValidationError('Text style width factor must be a positive finite number')
+      if (!Number.isFinite(obliqueAngle) || Math.abs(obliqueAngle) >= Math.PI / 2) throw new KJValidationError('Text style oblique angle must be finite and less than 90 degrees')
+      const record = transaction.upsertTableRecord('textStyles', { name: args.name, type: 'TEXT_STYLE', payload: { fontFamily: String(args.fontFamily ?? 'sans-serif'), fontFile: args.fontFile ?? null, bigFontFile: args.bigFontFile ?? null, fixedHeight, widthFactor, obliqueAngle } } as KJTableRecordInput)
+      return args.current === true ? transaction.setCurrentTableRecord('textStyles', record.id) : record
+    },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'DIMSTYLE', aliases: ['D'], title: 'Create or update dimension style',

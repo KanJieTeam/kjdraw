@@ -306,6 +306,15 @@ function validateObjectGraph(state, issues, previousState) {
             path: `objects.${id}.payload.layerId`,
             message: `Entity layer is not registered: ${object.payload.layerId}`
         });
+        if (object?.kind === 'entity' && [
+            'TEXT',
+            'MTEXT',
+            'ATTDEF',
+            'ATTRIB'
+        ].includes(object.type) && object.payload?.styleId != null && !state.tables.textStyles.recordIds.includes(String(object.payload.styleId))) issues.push({
+            path: `objects.${id}.payload.styleId`,
+            message: `Text style is not registered: ${object.payload.styleId}`
+        });
         if (object?.kind === 'entity' && isStandardEntityType(object.type)) {
             if (object.payload?.contractVersion !== 1) issues.push({
                 path: `objects.${id}.payload.contractVersion`,
