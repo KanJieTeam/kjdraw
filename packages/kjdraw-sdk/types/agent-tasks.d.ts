@@ -83,7 +83,7 @@ export interface KJAgentTaskGeometryReceipt {
     planId: string;
     executionEnvelopeId: string;
     reviewerId: string;
-    command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE';
+    command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN';
     sourceToolName: string;
     beforeRevision: number;
     afterRevision: number;
@@ -243,6 +243,27 @@ export interface KJAgentTaskScaleApprovalResult {
     task: KJObjectRecord;
     receipt: KJAgentTaskGeometryReceipt;
 }
+export interface KJAgentTaskLengthenApprovalInput {
+    id: string;
+    expectedRevision: number;
+    expectedTaskVersion: number;
+    expectedStatus: 'running';
+    expectedScopeSha256: string;
+    sourceToolName: string;
+    toolApiVersion: string;
+    toolContractHash: string;
+    argumentsDigest: string;
+    capabilityLocks: KJAgentTaskCapabilityLock[];
+    planId: string;
+    executionEnvelopeId: string;
+    reviewerId: string;
+    lengthenedEntityIds: string[];
+    at: string;
+}
+export interface KJAgentTaskLengthenApprovalResult {
+    task: KJObjectRecord;
+    receipt: KJAgentTaskGeometryReceipt;
+}
 export interface KJAgentTaskView extends KJAgentTaskPayload {
     id: string;
     handle: string;
@@ -270,5 +291,7 @@ export declare function commitAgentTaskMoveApproval(document: KJDocument, tx: KJ
 export declare function commitAgentTaskRotateApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskRotateApprovalResult>;
 /** Complete one reviewed SCALE and its deterministic checks in the caller's transaction draft. */
 export declare function commitAgentTaskScaleApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskScaleApprovalResult>;
+/** Complete one reviewed LENGTHEN and its deterministic checks in the caller's transaction draft. */
+export declare function commitAgentTaskLengthenApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskLengthenApprovalResult>;
 /** Explicitly accept the current dependency snapshot after stale or ambiguous approval recovery. */
 export declare function rebaseAgentTask(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJObjectRecord>;

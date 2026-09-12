@@ -15,7 +15,7 @@ import { buildAgentAnnotationEntities } from './agent-annotations.js';
 import { decodeAgentCompactDrawing } from './agent-drawing-compact.js';
 import { expandRectangularDrawingPattern } from './agent-drawing-patterns.js';
 import { validateDrawingGeometry } from './drawing-validation.js';
-import { commitAgentTaskCreateBatchApproval, commitAgentTaskMoveApproval, commitAgentTaskRotateApproval, commitAgentTaskScaleApproval, KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
+import { commitAgentTaskCreateBatchApproval, commitAgentTaskLengthenApproval, commitAgentTaskMoveApproval, commitAgentTaskRotateApproval, commitAgentTaskScaleApproval, KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
 import { createAgentDesignContext } from './agent-design-relations.js';
 const number = {
     type: 'number',
@@ -1611,8 +1611,9 @@ export class KJAgentToolSession {
             'CREATEBATCH',
             'MOVE',
             'ROTATE',
-            'SCALE'
-        ].includes(pending.envelope.command)) throw new KJValidationError('Persistent task approval supports an available CREATEBATCH, MOVE, ROTATE or SCALE proposal only');
+            'SCALE',
+            'LENGTHEN'
+        ].includes(pending.envelope.command)) throw new KJValidationError('Persistent task approval supports an available CREATEBATCH, MOVE, ROTATE, SCALE or LENGTHEN proposal only');
         if (pending.task) throw new KJValidationError('Proposal is already bound to a persisted task');
         if (!input || typeof input !== 'object' || input.taskStatus !== 'running' || !Number.isSafeInteger(input.taskVersion) || input.taskVersion < 1 || !Number.isSafeInteger(input.documentRevision) || input.documentRevision < 0) throw new KJValidationError('Invalid persisted task proposal binding');
         if (input.documentRevision !== this.#document.revision || pending.envelope.expectedRevision !== input.documentRevision || input.units !== this.units) throw new KJValidationError('Persistent task proposal binding revision or units changed');
@@ -1643,7 +1644,8 @@ export class KJAgentToolSession {
                 'CREATEBATCH',
                 'MOVE',
                 'ROTATE',
-                'SCALE'
+                'SCALE',
+                'LENGTHEN'
             ].includes(command) || pending.definition.id !== command || pending.definition.owner !== '@kanjieteam/kjdraw' || pending.definition.transactional === false) throw new KJValidationError('Persistent task approval is limited to a supported built-in transactional command');
             if (this.#sdk.commands.resolve(command) !== pending.definition) throw new KJValidationError('Command changed since preview; reject and propose again');
             if (binding.toolApiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION) throw new KJValidationError('Unsupported persistent task tool API version');
@@ -1727,9 +1729,14 @@ export class KJAgentToolSession {
                     }) : command === 'ROTATE' ? await commitAgentTaskRotateApproval(this.#document, transaction, {
                         ...approval,
                         rotatedEntityIds: execution.arguments.ids
-                    }) : await commitAgentTaskScaleApproval(this.#document, transaction, {
+                    }) : command === 'SCALE' ? await commitAgentTaskScaleApproval(this.#document, transaction, {
                         ...approval,
                         scaledEntityIds: execution.arguments.ids
+                    }) : await commitAgentTaskLengthenApproval(this.#document, transaction, {
+                        ...approval,
+                        lengthenedEntityIds: [
+                            execution.arguments.id
+                        ]
                     });
                     taskReceipt = completed.receipt;
                     agentPlan = await this.#sdk.agentPlans.consume(execution, this.#document);
