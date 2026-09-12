@@ -50,6 +50,46 @@ const drawingGroup = (items)=>({
         ...collection(items),
         minItems: 0
     });
+const designName = {
+    ...text,
+    maxLength: 64
+};
+const designExpression = object({
+    constant: number,
+    terms: drawingGroup(object({
+        parameter: designName,
+        coefficient: number
+    }))
+});
+const designDefinition = object({
+    parameters: collection(object({
+        name: designName,
+        value: number,
+        min: number,
+        max: number
+    })),
+    derived: drawingGroup(object({
+        name: designName,
+        expression: designExpression
+    })),
+    bindings: {
+        ...collection(object({
+            entityId: text,
+            path: {
+                ...text,
+                maxLength: 80
+            },
+            expression: designExpression
+        })),
+        maxItems: 256
+    },
+    requirements: drawingGroup(object({
+        name: designName,
+        expression: designExpression,
+        min: number,
+        max: number
+    }))
+});
 const radius = {
     ...number,
     exclusiveMinimum: 0
@@ -465,6 +505,20 @@ const roadDrawingFromAssetSchema = object({
         ]))
 });
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
+    {
+        name: 'cad_propose_design_bind',
+        effect: 'propose',
+        description: 'Propose a named persistent design relation over already-correct visible editable model-space native geometry, without replacing or moving it. definition has independent parameters {name,value,min,max}, derived {name,expression}, bindings {entityId,path,expression}, requirements {name,expression,min,max}. Expressions are constant + sum(coefficient*parameter); names are ASCII identifiers, dependencies must be acyclic, every bound initial value must match. LINE paths start.0/1,end.0/1; CIRCLE center.0/1,radius; LWPOLYLINE vertices.N.0/1; native linear DIMENSION definitionPoints.N.0/1. Axes 0/1 are XY; other geometry and Z are preserved. Maximum 64 entities/256 bindings, no duplicate geometry fields or existing design ownership. Requirements bound expression values, not general geometric constraint solving. Query native IDs/units/coordinates first. Returns exact parameters, bindings and full design record for host approval; one undoable relation creation, then cad_propose_design_update can modify the same geometry. Save KJD/KJP for persistence.',
+        inputSchema: object({
+            expectedRevision: revision,
+            units: text,
+            name: {
+                ...text,
+                maxLength: 128
+            },
+            definition: designDefinition
+        })
+    },
     {
         name: 'cad_read_designs',
         effect: 'read',
@@ -1296,6 +1350,13 @@ export class KJAgentToolSession {
                                         }
                                     };
                                 })
+                            };
+                        } else if (name === 'cad_propose_design_bind') {
+                            command = 'DESIGNCREATE';
+                            commandArgs = {
+                                id: createId('design'),
+                                name: args.name,
+                                definition: args.definition
                             };
                         } else if (name === 'cad_propose_design_update') {
                             const changes = args.changes;

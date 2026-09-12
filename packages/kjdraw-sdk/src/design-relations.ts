@@ -202,9 +202,10 @@ function plan(document: KJDocument, tx: KJTransaction, model: KJDesignDefinition
 }
 function records(document: KJDocument): KJReadonlyObjectRecord[] { return Object.values(document.snapshot().objects).filter(item => !item.erased && item.kind === 'custom' && item.type === TYPE) }
 /** Persist a relation over already-correct native geometry. It never creates replacement entities. */
-export function createDesignRelations(document: KJDocument, tx: KJTransaction, name: string, input: unknown): KJObjectRecord {
+export function createDesignRelations(document: KJDocument, tx: KJTransaction, name: string, input: unknown, id?: string): KJObjectRecord {
   if (typeof name !== 'string' || !name.trim() || name.length > 128) fail('a design name of 1–128 characters is required')
   name = name.trim()
+  if (id != null && (typeof id !== 'string' || !id.trim() || id.length > 256)) fail('invalid design object ID')
   const dictionaryId = tx._draft().namedObjectsDictionaryId
   if (Object.hasOwn(tx._draft().objects[dictionaryId]!.payload.entries ?? {}, normalizeName(`KJDRAW_DESIGN:${name}`))) fail('design name already exists in the drawing dictionary')
   const model = definition(input), values = resolve(model), entities = plan(document, tx, model, values, true)
@@ -213,7 +214,7 @@ export function createDesignRelations(document: KJDocument, tx: KJTransaction, n
     const other = definition(record.payload.definition)
     if (other.bindings.some(binding => entities.some(entity => entity.id === binding.entityId))) fail('an entity already belongs to another design')
   }
-  const record = tx.createObject({ kind: 'custom', type: TYPE, ownerId: document.snapshot().namedObjectsDictionaryId, name,
+  const record = tx.createObject({ ...(id == null ? {} : { id }), kind: 'custom', type: TYPE, ownerId: document.snapshot().namedObjectsDictionaryId, name,
     payload: { contractVersion: 1, units: tx._draft().header.units, definition: model, geometry: Object.fromEntries(entities.map(entity => [entity.id, geometry(target(tx, entity.id))])) } })
   tx.addDictionaryEntry(document.snapshot().namedObjectsDictionaryId, `KJDRAW_DESIGN:${name}`, record.id)
   return record

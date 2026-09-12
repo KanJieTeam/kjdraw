@@ -336,9 +336,10 @@ function plan(document, tx, model, values, match) {
 function records(document) {
     return Object.values(document.snapshot().objects).filter((item)=>!item.erased && item.kind === 'custom' && item.type === TYPE);
 }
-export function createDesignRelations(document, tx, name, input) {
+export function createDesignRelations(document, tx, name, input, id) {
     if (typeof name !== 'string' || !name.trim() || name.length > 128) fail('a design name of 1–128 characters is required');
     name = name.trim();
+    if (id != null && (typeof id !== 'string' || !id.trim() || id.length > 256)) fail('invalid design object ID');
     const dictionaryId = tx._draft().namedObjectsDictionaryId;
     if (Object.hasOwn(tx._draft().objects[dictionaryId].payload.entries ?? {}, normalizeName(`KJDRAW_DESIGN:${name}`))) fail('design name already exists in the drawing dictionary');
     const model = definition(input), values = resolve(model), entities = plan(document, tx, model, values, true);
@@ -348,6 +349,9 @@ export function createDesignRelations(document, tx, name, input) {
         if (other.bindings.some((binding)=>entities.some((entity)=>entity.id === binding.entityId))) fail('an entity already belongs to another design');
     }
     const record = tx.createObject({
+        ...id == null ? {} : {
+            id
+        },
         kind: 'custom',
         type: TYPE,
         ownerId: document.snapshot().namedObjectsDictionaryId,

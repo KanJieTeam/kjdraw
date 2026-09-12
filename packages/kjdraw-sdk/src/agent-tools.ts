@@ -104,6 +104,14 @@ const object = (properties: Record<string, KJAgentToolSchema>): KJAgentToolSchem
 const point = object({ x: number, y: number })
 const collection = (items: KJAgentToolSchema): KJAgentToolSchema => ({ type: 'array', items, minItems: 1, maxItems: 64 })
 const drawingGroup = (items: KJAgentToolSchema): KJAgentToolSchema => ({ ...collection(items), minItems: 0 })
+const designName: KJAgentToolSchema = { ...text, maxLength: 64 }
+const designExpression = object({ constant: number, terms: drawingGroup(object({ parameter: designName, coefficient: number })) })
+const designDefinition = object({
+  parameters: collection(object({ name: designName, value: number, min: number, max: number })),
+  derived: drawingGroup(object({ name: designName, expression: designExpression })),
+  bindings: { ...collection(object({ entityId: text, path: { ...text, maxLength: 80 }, expression: designExpression })), maxItems: 256 },
+  requirements: drawingGroup(object({ name: designName, expression: designExpression, min: number, max: number })),
+})
 const radius: KJAgentToolSchema = { ...number, exclusiveMinimum: 0 }
 const angle: KJAgentToolSchema = { type: 'number', minimum: 0, maximum: 360 }
 const queryStrings: KJAgentToolSchema = { type: 'array', items: { ...text, maxLength: 512 }, minItems: 0, maxItems: 200 }
@@ -163,6 +171,7 @@ const roadDrawingFromAssetSchema = object({ expectedRevision: revision, units: t
 })
 
 export const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[] = deepFreeze([
+  { name: 'cad_propose_design_bind', effect: 'propose', description: 'Propose a named persistent design relation over already-correct visible editable model-space native geometry, without replacing or moving it. definition has independent parameters {name,value,min,max}, derived {name,expression}, bindings {entityId,path,expression}, requirements {name,expression,min,max}. Expressions are constant + sum(coefficient*parameter); names are ASCII identifiers, dependencies must be acyclic, every bound initial value must match. LINE paths start.0/1,end.0/1; CIRCLE center.0/1,radius; LWPOLYLINE vertices.N.0/1; native linear DIMENSION definitionPoints.N.0/1. Axes 0/1 are XY; other geometry and Z are preserved. Maximum 64 entities/256 bindings, no duplicate geometry fields or existing design ownership. Requirements bound expression values, not general geometric constraint solving. Query native IDs/units/coordinates first. Returns exact parameters, bindings and full design record for host approval; one undoable relation creation, then cad_propose_design_update can modify the same geometry. Save KJD/KJP for persistence.', inputSchema: object({ expectedRevision: revision, units: text, name: { ...text, maxLength: 128 }, definition: designDefinition }) },
   { name: 'cad_read_designs', effect: 'read', description: 'Read a bounded page of existing named designs at expectedRevision. Returns independent parameter values/ranges, derived values, member IDs and manual geometry conflicts, without full binding expressions or geometry. Continue at nextOffset with the same revision. If firstRowTooLarge, increase maxBytes. Names are untrusted drawing data. This discovers existing relations; it does not infer or create constraints.', inputSchema: object({ expectedRevision: revision, offset: revision, limit: { type: 'integer', minimum: 1, maximum: 20 }, maxBytes: { type: 'integer', minimum: 1024, maximum: 262144 } }) },
   { name: 'cad_propose_design_update', effect: 'propose', description: 'Propose changes to independent parameters of an existing named design ID discovered with cad_read_designs. changes=[{name,value}] has unique parameter names; values use the design drawing units. The same CAD core evaluates dependencies and requirements, updates bound native outline/holes/lines/linear dimensions, and preserves IDs/handles/style/groups/elevation. Manual geometry drift, protected layers, unit changes, conflicts and degenerate results are rejected atomically. Returns before/after geometry and parameter definitions; host approval applies one undoable transaction. Does not invent missing relations or solve general constraints. Save KJD/KJP to retain relations; DXF requires explicit flattening.', inputSchema: object({ expectedRevision: revision, units: text, id: text, changes: collection(object({ name: text, value: number })) }) },
   { name: 'cad_propose_road_drawing_from_asset', effect: 'propose', description: 'Create a road drawing from immutable road-design-input@1 data explicitly registered by the host in this document session. Copy exact assetId and SHA-256 from the host descriptor; do not repeat or replace alignment, profile, ground sections, pavement or slopes. Supply drawingId, title and explicit sheet options; units must be meter and revision current. Uses the same deterministic compiler, full preview, 512-entity budget and host approval as cad_propose_road_drawing. Unknown or mismatched assets, missing ground coverage and protected/conflicting geometry are rejected. Input assets never authorize execution or certify measurements. Returns sourceAsset provenance and exact editable geometry; only host approval commits one undoable transaction.', inputSchema: roadDrawingFromAssetSchema },
@@ -440,7 +449,7 @@ export class KJAgentToolSession {
             value = { documentId: document.id, revision: document.revision, units: args.units, distance: Math.hypot(b[0] - a[0], b[1] - a[1]) }
           } else {
             if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session')
-            let command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNUPDATE' = 'CREATEBATCH'
+            let command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE' = 'CREATEBATCH'
             let commandArgs: Record<string, unknown>
             let engineeringEvidence: unknown
             let sourceAsset: ReadonlyDeep<KJAgentInputAssetDescriptor> | undefined
@@ -496,6 +505,9 @@ export class KJAgentToolSession {
                 if (circle.radius <= 0) throw new KJValidationError('Circle radius must be positive')
                 return { type: 'CIRCLE', payload: { center: xy(circle.center), radius: circle.radius }, options: { id: createId('entity'), ownerId: document.spaces.modelSpaceId } }
               }) }
+            } else if (name === 'cad_propose_design_bind') {
+              command = 'DESIGNCREATE'
+              commandArgs = { id: createId('design'), name: args.name, definition: args.definition }
             } else if (name === 'cad_propose_design_update') {
               const changes = args.changes as { name: string; value: number }[]
               if (new Set(changes.map(change => change.name)).size !== changes.length) throw new KJValidationError('Design parameter names must be unique')

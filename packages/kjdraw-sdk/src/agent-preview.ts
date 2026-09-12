@@ -26,8 +26,8 @@ export interface KJAgentGeometryPreview {
   readonly resources?: readonly KJAgentPreviewResource[]
   /** Existing block definitions, descendant geometry and styles, captured at revision. */
   readonly blockDependencies?: readonly KJAgentBlockPreviewDependency[]
-  readonly designChange?: { readonly id: string; readonly before: ReadonlyDeep<KJDesignDefinition>; readonly after: ReadonlyDeep<KJDesignDefinition>; readonly record: KJReadonlyObjectRecord }
-  readonly command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNUPDATE' | 'ROAD_DRAWING_UPDATE'
+  readonly designChange?: { readonly id: string; readonly before: ReadonlyDeep<KJDesignDefinition>; readonly after: ReadonlyDeep<KJDesignDefinition>; readonly record: KJReadonlyObjectRecord; readonly members: readonly KJReadonlyObjectRecord[]; readonly dictionary: { readonly id: string; readonly key: string } }
+  readonly command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'ROAD_DRAWING_UPDATE'
   readonly before: readonly KJAgentPreviewEntity[]
   readonly after: readonly KJAgentPreviewEntity[]
 }
@@ -168,8 +168,15 @@ export interface KJAgentGeometryPreviewOptions {
 }
 
 /** Run bounded core geometry on a detached document. No host plugins, authority, network or source history is invoked. */
-export async function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNUPDATE', args: Record<string, unknown>, options: KJAgentGeometryPreviewOptions = {}): Promise<KJAgentGeometryPreview> {
-  if (!['CREATEBATCH', 'MOVE', 'ROTATE', 'SCALE', 'STRETCH', 'LENGTHEN', 'PEDIT', 'DESIGNUPDATE'].includes(command)) throw new KJValidationError('Unsupported core preview command')
+export async function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNCREATE' | 'DESIGNUPDATE', args: Record<string, unknown>, options: KJAgentGeometryPreviewOptions = {}): Promise<KJAgentGeometryPreview> {
+  if (!['CREATEBATCH', 'MOVE', 'ROTATE', 'SCALE', 'STRETCH', 'LENGTHEN', 'PEDIT', 'DESIGNCREATE', 'DESIGNUPDATE'].includes(command)) throw new KJValidationError('Unsupported core preview command')
+  let bindingIds: string[] | undefined
+  if (command === 'DESIGNCREATE') {
+    if (typeof args.id !== 'string' || !args.id.trim() || Object.keys(args).some(key => !['id', 'name', 'definition'].includes(key))) throw new KJValidationError('DESIGNCREATE preview requires a stable preallocated ID, name and definition')
+    const bindings = (args.definition as { bindings?: unknown } | null)?.bindings
+    if (!Array.isArray(bindings) || !bindings.length || bindings.length > 256 || bindings.some(binding => !binding || typeof binding.entityId !== 'string')) throw new KJValidationError('DESIGNCREATE requires 1–256 existing geometry bindings')
+    bindingIds = [...new Set(bindings.map(binding => String(binding.entityId)))]
+  }
   if (command === 'DESIGNUPDATE' && (typeof args.id !== 'string' || Object.keys(args).some(key => !['id', 'parameters'].includes(key)))) throw new KJValidationError('DESIGNUPDATE requires a design ID and independent parameter changes')
   const design = command === 'DESIGNUPDATE' ? readDesignRelations(document, [String(args.id)])[0] : undefined
   if (command === 'DESIGNUPDATE' && !design) throw new KJValidationError('DESIGNUPDATE requires an existing design')
@@ -182,7 +189,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   if (command === 'CREATEBATCH') {
     if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some(spec => !spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} LINE/CIRCLE/ARC/LWPOLYLINE/TEXT/DIMENSION entities`)
   } else {
-    const ids = design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' ? [args.id] : args.ids
+    const ids = bindingIds ?? (design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' ? [args.id] : args.ids)
     if (!Array.isArray(ids) || !ids.length || ids.length > 64) throw new KJValidationError('Preview requires 1–64 existing entity IDs')
     if (command === 'PEDIT') {
       if (typeof args.id !== 'string' || ids.length !== 1 || !['LWPOLYLINE', 'POLYLINE'].includes(document.getObject(args.id)?.type ?? '')) throw new KJValidationError('PEDIT preview requires one LWPOLYLINE or POLYLINE ID')
@@ -193,7 +200,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
       if (ids.some(id => typeof id !== 'string') || new Set(ids).size !== ids.length) throw new KJValidationError('STRETCH object IDs must be unique strings')
       if (ids.some(id => !stretchable.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`STRETCH preview requires 1–64 ${stretchable.join('/')} entities`)
       for (const id of ids) validateStretchGeometry(document, document.getObject(String(id))!)
-    } else if (command !== 'LENGTHEN' && command !== 'DESIGNUPDATE') {
+    } else if (command !== 'LENGTHEN' && command !== 'DESIGNUPDATE' && command !== 'DESIGNCREATE') {
       if (ids.some(id => !KJDRAW_AGENT_MOVABLE_TYPES.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`Preview movement requires 1–64 ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} entities`)
       for (const id of ids) validateMovableAnnotation(document, document.getObject(String(id))!)
     }
@@ -209,7 +216,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   }
   const source = document.snapshot(), revision = document.revision
   if (Object.keys(source.objects).length > 250000) throw new KJValidationError('Agent preview exceeds the 250000 object document limit')
-  const ids = design ? design.entityIds : command === 'CREATEBATCH' ? [] : command === 'PEDIT' || command === 'LENGTHEN' ? [String(args.id)] : args.ids as string[]
+  const ids = bindingIds ?? (design ? design.entityIds : command === 'CREATEBATCH' ? [] : command === 'PEDIT' || command === 'LENGTHEN' ? [String(args.id)] : args.ids as string[])
   const blockDependencies = ['MOVE', 'ROTATE', 'SCALE'].includes(command) ? captureAgentBlockDependencies(document, ids) : undefined
   const workingSet = command !== 'CREATEBATCH' ? ids.map(id => document.getObject(id)) : args.entities
   if (new TextEncoder().encode(JSON.stringify({ args, workingSet, ...(design ? { design: document.getObject(design.id) } : {}) })).length > 4194304) throw new KJValidationError('Agent preview working set exceeds the 4 MiB limit')
@@ -244,7 +251,11 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   if (before.length > 64 || after.length > (command === 'CREATEBATCH' ? maxCreatedEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit')
   const resources = draft.listObjects({ kind: 'table-record' }).filter(item => !document.getObject(item.id)).map(item => ({ id: item.id, type: item.type, name: item.name, payload: item.payload }))
   if (resources.length > 32) throw new KJValidationError('Preview exceeds the 32 new resource limit')
-  const designChange = design ? { id: design.id, before: design.definition, after: readDesignRelations(draft, [design.id])[0]!.definition, record: draft.getObject(design.id)! } : undefined
+  const designId = design?.id ?? (command === 'DESIGNCREATE' ? String(args.id) : undefined)
+  const dictionaryId = draft.snapshot().namedObjectsDictionaryId
+  const dictionaryKey = designId ? Object.entries(draft.getObject(dictionaryId)!.payload.entries ?? {}).find(([key, target]) => key.startsWith('KJDRAW_DESIGN:') && target === designId)?.[0] : undefined
+  if (designId && !dictionaryKey) throw new KJValidationError('Design relation dictionary binding is missing')
+  const designChange = designId ? { id: designId, before: design?.definition ?? { parameters: [], derived: [], bindings: [], requirements: [] }, after: readDesignRelations(draft, [designId])[0]!.definition, record: draft.getObject(designId)!, members: ids.map(id => draft.getObject(id)!), dictionary: { id: dictionaryId, key: dictionaryKey! } } : undefined
   const preview = { documentId: document.id, revision, command, before, after, ...(resources.length ? { resources } : {}), ...(blockDependencies ? { blockDependencies } : {}), ...(designChange ? { designChange } : {}) }
   if (new TextEncoder().encode(JSON.stringify(preview)).length > 262144) throw new KJValidationError('Agent geometry preview exceeds the 256 KiB output limit')
   return deepFreeze(preview) as KJAgentGeometryPreview
@@ -254,6 +265,8 @@ export function agentPreviewMatchesDocument(document: KJDocument, preview: KJAge
   const retained = new Set(preview.after.map(entity => entity.id))
   return document.id === preview.documentId
     && (!preview.designChange || (() => { const actual = document.getObject(preview.designChange.id); return actual?.kind === 'custom' && !actual.erased && actual.type === 'DESIGN_RELATIONS' && canonicalStringify(actual) === canonicalStringify(preview.designChange.record) })())
+    && (!preview.designChange || preview.designChange.members.every(expected => canonicalStringify(document.getObject(expected.id)) === canonicalStringify(expected)))
+    && (!preview.designChange || (() => { const dictionary = document.getObject(preview.designChange.dictionary.id); return dictionary?.kind === 'dictionary' && dictionary.payload.entries?.[preview.designChange.dictionary.key] === preview.designChange.id })())
     && agentBlockDependenciesMatchDocument(document, preview.blockDependencies)
     && (preview.resources ?? []).every(expected => { const actual = document.getObject(expected.id); return actual?.kind === 'table-record' && actual.type === expected.type && actual.name === expected.name && canonicalStringify(actual.payload) === canonicalStringify(expected.payload) })
     && preview.after.every(expected => {

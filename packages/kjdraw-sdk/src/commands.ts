@@ -589,7 +589,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'DESIGNCREATE', title: 'Bind design parameters to existing geometry',
-    execute: ({ document, transaction }, args) => createDesignRelations(document, transaction, args.name!, args.definition),
+    execute: ({ document, transaction }, args) => createDesignRelations(document, transaction, args.name!, args.definition, args.id),
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'DESIGNUPDATE', title: 'Update design parameters and dependent geometry',
