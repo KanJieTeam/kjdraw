@@ -83,7 +83,7 @@ export interface KJAgentTaskGeometryReceipt {
     planId: string;
     executionEnvelopeId: string;
     reviewerId: string;
-    command: 'CREATEBATCH' | 'MOVE' | 'ROTATE';
+    command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE';
     sourceToolName: string;
     beforeRevision: number;
     afterRevision: number;
@@ -222,6 +222,27 @@ export interface KJAgentTaskRotateApprovalResult {
     task: KJObjectRecord;
     receipt: KJAgentTaskGeometryReceipt;
 }
+export interface KJAgentTaskScaleApprovalInput {
+    id: string;
+    expectedRevision: number;
+    expectedTaskVersion: number;
+    expectedStatus: 'running';
+    expectedScopeSha256: string;
+    sourceToolName: string;
+    toolApiVersion: string;
+    toolContractHash: string;
+    argumentsDigest: string;
+    capabilityLocks: KJAgentTaskCapabilityLock[];
+    planId: string;
+    executionEnvelopeId: string;
+    reviewerId: string;
+    scaledEntityIds: string[];
+    at: string;
+}
+export interface KJAgentTaskScaleApprovalResult {
+    task: KJObjectRecord;
+    receipt: KJAgentTaskGeometryReceipt;
+}
 export interface KJAgentTaskView extends KJAgentTaskPayload {
     id: string;
     handle: string;
@@ -247,5 +268,7 @@ export declare function commitAgentTaskCreateBatchApproval(document: KJDocument,
 export declare function commitAgentTaskMoveApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskMoveApprovalResult>;
 /** Complete one reviewed ROTATE and its deterministic checks in the caller's transaction draft. */
 export declare function commitAgentTaskRotateApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskRotateApprovalResult>;
+/** Complete one reviewed SCALE and its deterministic checks in the caller's transaction draft. */
+export declare function commitAgentTaskScaleApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskScaleApprovalResult>;
 /** Explicitly accept the current dependency snapshot after stale or ambiguous approval recovery. */
 export declare function rebaseAgentTask(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJObjectRecord>;
