@@ -74,6 +74,16 @@ export interface KJEntityBatchResources {
         lineweight: number;
     }[];
 }
+export interface KJBlockAttributeDefinitionInput {
+    readonly tag: string;
+    readonly prompt?: string;
+    readonly defaultValue?: string | number | boolean;
+    readonly position?: KJPointInput;
+    readonly height?: number;
+    readonly rotation?: number;
+    readonly flags?: number;
+    readonly layerId?: string;
+}
 /**
  * Extensible command argument bag. Known core fields are typed for editor and
  * framework consumers; third-party commands may add names through the index
@@ -130,6 +140,7 @@ export interface KJCommandArguments extends Record<string, unknown> {
     loopIndex?: unknown;
     attributes?: unknown;
     attributeValues?: Readonly<Record<string, unknown>>;
+    attributeDefinitions?: readonly KJBlockAttributeDefinitionInput[];
     mappings?: unknown;
     pattern?: unknown;
     settings?: Record<string, unknown>;
@@ -216,6 +227,8 @@ export interface KJCommandArguments extends Record<string, unknown> {
     side?: unknown;
     limit?: unknown;
     maxDefinitionEntities?: unknown;
+    maxBlockDepth?: unknown;
+    maxExpandedEntities?: unknown;
 }
 export interface KJCommandDefinition {
     readonly id: string;

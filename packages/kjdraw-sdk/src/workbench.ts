@@ -163,7 +163,7 @@ const copy = {
     select: 'Select', pan: 'Pan', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', rectangle: 'Rectangle', text: 'Text', measure: 'Measure',
     undo: 'Undo', redo: 'Redo', erase: 'Delete', move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', fit: 'Fit', grid: 'Grid', ortho: 'Ortho', orthoOn: 'Orthogonal drafting on', orthoOff: 'Orthogonal drafting off', orthoBusy: 'Finish or cancel the current operation before changing Ortho', polar: 'Polar', polarOn: 'Polar tracking on', polarOff: 'Polar tracking off', polarBusy: 'Finish or cancel the current operation before changing Polar tracking', layers: 'Layers', properties: 'Properties',
     noSelection: 'Select an object to inspect its properties.', drawing: 'Drawing', entities: 'entities', selected: 'selected',
-    layer: 'Layer', textStyle: 'Text style', dimensionStyle: 'Dimension style', dimensionPrecision: 'Precision', dimensionScale: 'Overall scale', dimensionTextHeight: 'Dimension text height', dimensionTextOverride: 'Dimension text override', radius: 'Radius', apply: 'Apply', ready: 'Ready', readonly: 'Read only', blockEditScope: 'Edit scope', blockInstanceScope: 'This instance', blockDefinitionScope: 'Shared definition', blockMember: 'Definition member', blockScopeHint: 'Instance changes affect this occurrence. Definition changes affect every instance.', hatchEdit: 'Edit hatch', hatchEditDescription: 'Edit this hatch in one undoable transaction. Polygon islands close automatically; do not repeat the first vertex.', hatchOperation: 'Operation', hatchUpdatePattern: 'Pattern only', hatchAddIsland: 'Add polygon island', hatchReplaceIsland: 'Replace with polygon', hatchAddSelected: 'Add exact selected boundary', hatchReplaceSelected: 'Replace with exact selected boundary', hatchSourceReview: 'Exact boundary sources', hatchRemoveIsland: 'Remove island', hatchIsland: 'Inner island', hatchVertices: 'Island vertices (x,y; x,y; …)', hatchPatternScale: 'Pattern scale', hatchPatternAngle: 'Pattern angle (degrees)', hatchNoIslands: 'No inner islands', hatchApply: 'Apply hatch edit', componentLibrary: 'Components', componentLibraryDescription: 'Search the versioned original catalog, review license and parameters, then insert a native editable block.', componentSearch: 'Search components', componentCategory: 'Category', componentAll: 'All categories', componentMechanical: 'Mechanical', componentArchitecture: 'Architecture', componentElectrical: 'Electrical', componentResults: 'Search results', componentLicense: 'License and source', componentPosition: 'Insertion X, Y', componentScale: 'Scale', componentRotation: 'Rotation (degrees)', componentParameters: 'Parameters', componentInsert: 'Insert component', previous: 'Previous', next: 'Next',
+    layer: 'Layer', textStyle: 'Text style', dimensionStyle: 'Dimension style', dimensionPrecision: 'Precision', dimensionScale: 'Overall scale', dimensionTextHeight: 'Dimension text height', dimensionTextOverride: 'Dimension text override', radius: 'Radius', apply: 'Apply', ready: 'Ready', readonly: 'Read only', blockCreate: 'Create block', blockCreateDescription: 'Turn the current selection into one native block. Selected INSERTs remain nested, and attributes remain editable.', blockName: 'Block name', blockBasePoint: 'Base point X, Y', blockAttributes: 'Attributes (one TAG=default per line)', blockInstanceAttributes: 'Instance attribute values', blockEditScope: 'Edit scope', blockInstanceScope: 'This instance', blockDefinitionScope: 'Shared definition', blockMember: 'Definition member', blockScopeHint: 'Instance changes affect this occurrence. Definition changes affect every instance.', hatchEdit: 'Edit hatch', hatchEditDescription: 'Edit this hatch in one undoable transaction. Polygon islands close automatically; do not repeat the first vertex.', hatchOperation: 'Operation', hatchUpdatePattern: 'Pattern only', hatchAddIsland: 'Add polygon island', hatchReplaceIsland: 'Replace with polygon', hatchAddSelected: 'Add exact selected boundary', hatchReplaceSelected: 'Replace with exact selected boundary', hatchSourceReview: 'Exact boundary sources', hatchRemoveIsland: 'Remove island', hatchIsland: 'Inner island', hatchVertices: 'Island vertices (x,y; x,y; …)', hatchPatternScale: 'Pattern scale', hatchPatternAngle: 'Pattern angle (degrees)', hatchNoIslands: 'No inner islands', hatchApply: 'Apply hatch edit', componentLibrary: 'Components', componentLibraryDescription: 'Search the versioned original catalog, review license and parameters, then insert a native editable block.', componentSearch: 'Search components', componentCategory: 'Category', componentAll: 'All categories', componentMechanical: 'Mechanical', componentArchitecture: 'Architecture', componentElectrical: 'Electrical', componentResults: 'Search results', componentLicense: 'License and source', componentPosition: 'Insertion X, Y', componentScale: 'Scale', componentRotation: 'Rotation (degrees)', componentParameters: 'Parameters', componentInsert: 'Insert component', previous: 'Previous', next: 'Next',
     firstPoint: 'Specify the first point', nextPoint: 'Specify the next point', finishPolyline: 'Click vertices · Enter or double-click to finish', arcStart: 'Specify arc start', arcEnd: 'Specify arc endpoint', textPrompt: 'Type TEXT followed by content, then click an insertion point', measured: 'Measured distance',
     unsupported: 'projection limits', theme: 'Theme', language: '中文', sample: 'Starter drawing', openFailed: 'Could not open drawing', command: 'Command', run: 'Run', commandHint: 'MOVE 10 0 · COPY 10 0 · ROTATE 15 · OFFSET 2 · SCALE 1.2', fileTooLarge: 'File exceeds the workbench limit',
     layout: 'Layout', layoutClassic: 'Classic', layoutCompact: 'Compact', layoutFocus: 'Focus', selectObjects: 'Select an object', basePoint: 'Specify the base point', destinationPoint: 'Specify the destination point', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
@@ -183,7 +183,7 @@ const copy = {
     select: '选择', pan: '平移', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', rectangle: '矩形', text: '文字', measure: '测距',
     undo: '撤销', redo: '重做', erase: '删除', move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', fit: '全图', grid: '栅格', ortho: '正交', orthoOn: '正交绘图已开启', orthoOff: '正交绘图已关闭', orthoBusy: '请先完成或取消当前操作，再切换正交模式', polar: '极轴', polarOn: '极轴跟踪已开启', polarOff: '极轴跟踪已关闭', polarBusy: '请先完成或取消当前操作，再切换极轴跟踪', layers: '图层', properties: '特性',
     noSelection: '选择图元后可查看和修改属性。', drawing: '图纸', entities: '图元', selected: '已选择',
-    layer: '图层', textStyle: '文字样式', dimensionStyle: '标注样式', dimensionPrecision: '标注精度', dimensionScale: '标注整体比例', dimensionTextHeight: '标注字高', dimensionTextOverride: '标注文字替代', radius: '半径', apply: '应用', ready: '就绪', readonly: '只读', blockEditScope: '修改范围', blockInstanceScope: '仅此实例', blockDefinitionScope: '共享块定义', blockMember: '定义成员', blockScopeHint: '实例修改仅影响当前对象；定义修改会影响全部实例。', hatchEdit: '编辑填充', hatchEditDescription: '在一个可撤销事务中修改当前填充。多边形内岛会自动闭合，请勿重复首点。', hatchOperation: '操作', hatchUpdatePattern: '仅修改图案', hatchAddIsland: '新增多边形内岛', hatchReplaceIsland: '替换为多边形', hatchAddSelected: '新增精确选中边界', hatchReplaceSelected: '替换为精确选中边界', hatchSourceReview: '精确边界来源', hatchRemoveIsland: '删除内岛', hatchIsland: '内岛边界', hatchVertices: '内岛顶点（x,y; x,y; …）', hatchPatternScale: '图案比例', hatchPatternAngle: '图案角度（度）', hatchNoIslands: '没有内岛', hatchApply: '应用填充修改', componentLibrary: '部件库', componentLibraryDescription: '搜索版本化原创目录，审查许可和参数后插入原生可编辑块。', componentSearch: '搜索部件', componentCategory: '类别', componentAll: '全部类别', componentMechanical: '机械', componentArchitecture: '建筑', componentElectrical: '电气', componentResults: '搜索结果', componentLicense: '许可与来源', componentPosition: '插入 X, Y', componentScale: '比例', componentRotation: '旋转角度（度）', componentParameters: '参数', componentInsert: '插入部件', previous: '上一页', next: '下一页',
+    layer: '图层', textStyle: '文字样式', dimensionStyle: '标注样式', dimensionPrecision: '标注精度', dimensionScale: '标注整体比例', dimensionTextHeight: '标注字高', dimensionTextOverride: '标注文字替代', radius: '半径', apply: '应用', ready: '就绪', readonly: '只读', blockCreate: '创建图块', blockCreateDescription: '把当前选择转换为一个原生图块。选中的 INSERT 保持嵌套，属性仍可编辑。', blockName: '图块名称', blockBasePoint: '基点 X, Y', blockAttributes: '属性（每行一个 TAG=默认值）', blockInstanceAttributes: '实例属性值', blockEditScope: '修改范围', blockInstanceScope: '仅此实例', blockDefinitionScope: '共享块定义', blockMember: '定义成员', blockScopeHint: '实例修改仅影响当前对象；定义修改会影响全部实例。', hatchEdit: '编辑填充', hatchEditDescription: '在一个可撤销事务中修改当前填充。多边形内岛会自动闭合，请勿重复首点。', hatchOperation: '操作', hatchUpdatePattern: '仅修改图案', hatchAddIsland: '新增多边形内岛', hatchReplaceIsland: '替换为多边形', hatchAddSelected: '新增精确选中边界', hatchReplaceSelected: '替换为精确选中边界', hatchSourceReview: '精确边界来源', hatchRemoveIsland: '删除内岛', hatchIsland: '内岛边界', hatchVertices: '内岛顶点（x,y; x,y; …）', hatchPatternScale: '图案比例', hatchPatternAngle: '图案角度（度）', hatchNoIslands: '没有内岛', hatchApply: '应用填充修改', componentLibrary: '部件库', componentLibraryDescription: '搜索版本化原创目录，审查许可和参数后插入原生可编辑块。', componentSearch: '搜索部件', componentCategory: '类别', componentAll: '全部类别', componentMechanical: '机械', componentArchitecture: '建筑', componentElectrical: '电气', componentResults: '搜索结果', componentLicense: '许可与来源', componentPosition: '插入 X, Y', componentScale: '比例', componentRotation: '旋转角度（度）', componentParameters: '参数', componentInsert: '插入部件', previous: '上一页', next: '下一页',
     firstPoint: '指定第一个点', nextPoint: '指定下一个点', finishPolyline: '连续指定顶点 · Enter 或双击完成', arcStart: '指定圆弧起点', arcEnd: '指定圆弧端点', textPrompt: '输入 TEXT 和文字内容，再指定插入点', measured: '测量距离',
     unsupported: '投影限制', theme: '主题', language: 'EN', sample: '入门图纸', openFailed: '无法打开图纸', command: '命令', run: '执行', commandHint: 'MOVE 10 0 · COPY 10 0 · ROTATE 15 · OFFSET 2 · SCALE 1.2', fileTooLarge: '文件超过工作台限制',
     layout: '布局', layoutClassic: '经典', layoutCompact: '紧凑', layoutFocus: '专注', selectObjects: '选择对象', basePoint: '指定基点', destinationPoint: '指定目标点', zoomIn: '放大', zoomOut: '缩小',
@@ -542,7 +542,7 @@ export class KJDrawWorkbench {
 
   #syncEditability(): void {
     const allowed = this.paperPreview ? ['select', 'fence', 'pan'] : ['select', 'fence', 'pan', 'measure']
-    for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-action="component-library"],[data-action="page-setup"],[data-action="dimension-styles"],[data-action="text-styles"],[data-tool]')) button.disabled = this.#readOnly && !allowed.includes(button.dataset.tool ?? '')
+    for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-action="block-create"],[data-action="component-library"],[data-action="page-setup"],[data-action="dimension-styles"],[data-action="text-styles"],[data-tool]')) button.disabled = this.#readOnly && !allowed.includes(button.dataset.tool ?? '')
     const command = this.root.querySelector<HTMLInputElement>('[data-command]'), run = this.root.querySelector<HTMLButtonElement>('[data-action="run-command"]')
     if (command) command.disabled = this.paperPreview
     if (run) run.disabled = this.paperPreview
@@ -880,7 +880,7 @@ export class KJDrawWorkbench {
       </header>
       <nav class="ribbon" aria-label="CAD tools">
         <div class="group"><button type="button" class="tool active" data-tool="select">${icon('select')}<small data-copy="select">${t('select')}</small></button><button type="button" class="tool" data-tool="pan">${icon('pan')}<small data-copy="pan">${t('pan')}</small></button><span data-copy="view">${t('view')}</span></div>
-        <div class="group"><button type="button" class="tool" data-tool="point" ${readonly ? 'disabled' : ''}>${icon('point')}<small data-draft-label="point">${this.#localizedControlText(draftToolText.point)}</small></button><button type="button" class="tool" data-tool="line" ${readonly ? 'disabled' : ''}>${icon('line')}<small data-copy="line">${t('line')}</small></button><button type="button" class="tool" data-tool="polyline" ${readonly ? 'disabled' : ''}>${icon('polyline')}<small data-copy="polyline">${t('polyline')}</small></button><button type="button" class="tool" data-tool="circle" ${readonly ? 'disabled' : ''}>${icon('circle')}<small data-copy="circle">${t('circle')}</small></button><button type="button" class="tool" data-tool="arc" ${readonly ? 'disabled' : ''}>${icon('arc')}<small data-copy="arc">${t('arc')}</small></button><button type="button" class="tool" data-tool="ellipse" ${readonly ? 'disabled' : ''}>${icon('ellipse')}<small data-draft-label="ellipse">${this.#localizedControlText(draftToolText.ellipse)}</small></button><button type="button" class="tool" data-tool="rectangle" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-copy="rectangle">${t('rectangle')}</small></button><button type="button" class="tool" data-tool="polygon" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-draft-label="polygon">${this.#localizedControlText(draftToolText.polygon)}</small></button><button type="button" class="tool" data-tool="dimension" ${readonly ? 'disabled' : ''}>${icon('measure')}<small data-draft-label="dimension">${this.#localizedControlText(draftToolText.dimension)}</small></button><button type="button" class="tool" data-tool="leader" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-draft-label="leader">${this.#localizedControlText(draftToolText.leader)}</small></button><button type="button" class="tool" data-tool="text" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-copy="text">${t('text')}</small></button><button type="button" class="tool" data-action="component-library" ${readonly ? 'disabled' : ''}>${icon('layers')}<small data-copy="componentLibrary">${t('componentLibrary')}</small></button><button type="button" class="tool" data-action="draft" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="moreDraw">${t('moreDraw')}</small></button><span data-copy="draw">${t('draw')}</span></div>
+        <div class="group"><button type="button" class="tool" data-tool="point" ${readonly ? 'disabled' : ''}>${icon('point')}<small data-draft-label="point">${this.#localizedControlText(draftToolText.point)}</small></button><button type="button" class="tool" data-tool="line" ${readonly ? 'disabled' : ''}>${icon('line')}<small data-copy="line">${t('line')}</small></button><button type="button" class="tool" data-tool="polyline" ${readonly ? 'disabled' : ''}>${icon('polyline')}<small data-copy="polyline">${t('polyline')}</small></button><button type="button" class="tool" data-tool="circle" ${readonly ? 'disabled' : ''}>${icon('circle')}<small data-copy="circle">${t('circle')}</small></button><button type="button" class="tool" data-tool="arc" ${readonly ? 'disabled' : ''}>${icon('arc')}<small data-copy="arc">${t('arc')}</small></button><button type="button" class="tool" data-tool="ellipse" ${readonly ? 'disabled' : ''}>${icon('ellipse')}<small data-draft-label="ellipse">${this.#localizedControlText(draftToolText.ellipse)}</small></button><button type="button" class="tool" data-tool="rectangle" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-copy="rectangle">${t('rectangle')}</small></button><button type="button" class="tool" data-tool="polygon" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-draft-label="polygon">${this.#localizedControlText(draftToolText.polygon)}</small></button><button type="button" class="tool" data-tool="dimension" ${readonly ? 'disabled' : ''}>${icon('measure')}<small data-draft-label="dimension">${this.#localizedControlText(draftToolText.dimension)}</small></button><button type="button" class="tool" data-tool="leader" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-draft-label="leader">${this.#localizedControlText(draftToolText.leader)}</small></button><button type="button" class="tool" data-tool="text" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-copy="text">${t('text')}</small></button><button type="button" class="tool" data-action="block-create" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="blockCreate">${t('blockCreate')}</small></button><button type="button" class="tool" data-action="component-library" ${readonly ? 'disabled' : ''}>${icon('layers')}<small data-copy="componentLibrary">${t('componentLibrary')}</small></button><button type="button" class="tool" data-action="draft" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="moreDraw">${t('moreDraw')}</small></button><span data-copy="draw">${t('draw')}</span></div>
         <div class="group"><button type="button" class="tool" data-tool="move" ${readonly ? 'disabled' : ''}>${icon('move')}<small data-copy="move">${t('move')}</small></button><button type="button" class="tool" data-tool="copy" ${readonly ? 'disabled' : ''}>${icon('copy')}<small data-copy="copy">${t('copy')}</small></button><button type="button" class="tool" data-action="modify" ${readonly ? 'disabled' : ''}>${icon('rotate')}<small data-copy="modifyTools">${t('modifyTools')}</small></button><button type="button" class="tool" data-action="undo" ${readonly ? 'disabled' : ''}>${icon('undo')}<small data-copy="undo">${t('undo')}</small></button><button type="button" class="tool" data-action="redo" ${readonly ? 'disabled' : ''}>${icon('redo')}<small data-copy="redo">${t('redo')}</small></button><button type="button" class="tool" data-action="erase" ${readonly ? 'disabled' : ''}>${icon('delete')}<small data-copy="erase">${t('erase')}</small></button><span data-copy="modify">${t('modify')}</span></div>
         <div class="group"><button type="button" class="tool" data-action="fit">${icon('fit')}<small data-copy="fit">${t('fit')}</small></button><button type="button" class="tool" data-action="grid">${icon('grid')}<small data-copy="grid">${t('grid')}</small></button><button type="button" class="tool" data-tool="measure">${icon('measure')}<small data-copy="measure">${t('measure')}</small></button><span data-copy="view">${t('view')}</span></div>
       </nav>
@@ -1013,6 +1013,7 @@ export class KJDrawWorkbench {
     query<HTMLButtonElement>(this.root, '[data-action="start-modification"]').addEventListener('click', () => void this.#run(() => this.#startModification()), { signal })
     modificationDialog.addEventListener('cancel', () => { this.#modificationGesture = null; this.#drawOverlay() }, { signal })
     query<HTMLButtonElement>(this.root, '[data-action="draft"]').addEventListener('click', () => this.#openDraftDialog(), { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="block-create"]').addEventListener('click', () => this.#openBlockCreator(), { signal })
     query<HTMLButtonElement>(this.root, '[data-action="component-library"]').addEventListener('click', () => void this.#openComponentLibrary(), { signal })
     const draftDialog = query<HTMLDialogElement>(this.root, '[data-draft-dialog]')
     query<HTMLSelectElement>(this.root, '[data-draft-tool]').addEventListener('change', () => this.#renderDraftForm(), { signal })
@@ -3193,6 +3194,32 @@ export class KJDrawWorkbench {
     dialog.showModal(); await this.#run(() => load(null))
   }
 
+  #openBlockCreator(): void {
+    const drawing = this.document, ids = [...(this.#selection?.ids ?? [])]
+    if (!drawing || this.#readOnly) return
+    if (!ids.length) { this.#setMessage(this.#t('selectObjects')); return }
+    const revision = drawing.revision
+    const dialog = document.createElement('dialog'); dialog.className = 'modify-dialog block-create-dialog'; dialog.dataset.blockCreateDialog = ''
+    dialog.innerHTML = '<form method="dialog" class="modify-form"><header class="modify-head"><h2>' + this.#t('blockCreate') + '</h2><p>' + this.#t('blockCreateDescription') + '</p></header><div class="modify-body"><label class="field"><span>' + this.#t('blockName') + '</span><input data-block-name required maxlength="128"></label><label class="field"><span>' + this.#t('blockBasePoint') + '</span><input data-block-base value="0, 0" required></label><label class="field"><span>' + this.#t('blockAttributes') + '</span><textarea data-block-attributes></textarea></label><p role="alert" data-block-error></p></div><footer class="modify-actions"><button type="button" data-block-cancel>' + this.#t('cancel') + '</button><button type="button" class="confirm" data-block-apply>' + this.#t('blockCreate') + '</button></footer></form>'
+    this.root.append(dialog)
+    const close = (): void => { if (dialog.open) dialog.close(); else dialog.remove() }
+    dialog.addEventListener('close', () => dialog.remove(), { once: true })
+    query<HTMLButtonElement>(dialog, '[data-block-cancel]').addEventListener('click', close)
+    query<HTMLButtonElement>(dialog, '[data-block-apply]').addEventListener('click', () => void this.#run(async () => {
+      const coordinates = query<HTMLInputElement>(dialog, '[data-block-base]').value.split(/[ ,]+/).filter(Boolean).map(Number)
+      if (coordinates.length !== 2 || coordinates.some(value => !Number.isFinite(value))) throw new Error(this.#t('blockBasePoint'))
+      const attributeDefinitions = query<HTMLTextAreaElement>(dialog, '[data-block-attributes]').value.split(/\r?\n/).map(value => value.trim()).filter(Boolean).map((value, index) => {
+        const separator = value.indexOf('='), tag = (separator < 0 ? value : value.slice(0, separator)).trim(), defaultValue = separator < 0 ? '' : value.slice(separator + 1)
+        return { tag, defaultValue, position: [0, -(index + 1) * 4, 0] as const }
+      })
+      const receipt = await this.execute('BLOCKCREATE', { name: query<HTMLInputElement>(dialog, '[data-block-name]').value, ids, basePoint: coordinates, attributeDefinitions }, { expectedRevision: revision })
+      const result = receipt.result as unknown as { insert: KJReadonlyObjectRecord | null }
+      if (result.insert) this.#selection?.replace([result.insert.id])
+      close()
+    }))
+    dialog.showModal(); query<HTMLInputElement>(dialog, '[data-block-name]').focus()
+  }
+
   #openHatchEditor(entity: KJReadonlyObjectRecord, sourceIds: readonly string[] = []): void {
     const drawing = this.document
     if (!drawing || entity.type !== 'HATCH' || this.#readOnly) return
@@ -3321,6 +3348,14 @@ export class KJDrawWorkbench {
     let blockScopeSelect: HTMLSelectElement | null = null
     let blockMemberSelect: HTMLSelectElement | null = null
     let blockMembers: KJReadonlyObjectRecord[] = []
+    let blockMemberValueInput: HTMLInputElement | null = null
+    let blockMemberValueField: HTMLLabelElement | null = null
+    let blockMemberTransformField: HTMLFieldSetElement | null = null
+    let blockMemberPositionInput: HTMLInputElement | null = null
+    let blockMemberScaleInput: HTMLInputElement | null = null
+    let blockMemberRotationInput: HTMLInputElement | null = null
+    let instanceAttributeField: HTMLFieldSetElement | null = null
+    const instanceAttributeInputs: HTMLInputElement[] = []
     if (!multiple && entity.type === 'INSERT') {
       const definition = drawing.getObject(String(entity.payload.blockRecordId ?? ''))
       if (definition?.kind === 'block-record' && definition.payload.isSpace !== true) {
@@ -3328,19 +3363,59 @@ export class KJDrawWorkbench {
         host.append(this.#kv(this.#t('blockDefinitionScope'), definition.name ?? definition.id))
         const scopeField = document.createElement('label'); scopeField.className = 'field'; scopeField.innerHTML = `<span>${this.#t('blockEditScope')}</span>`
         blockScopeSelect = document.createElement('select')
+        blockScopeSelect.dataset.blockScope = ''
         for (const [value, label] of Object.entries({ instance: this.#t('blockInstanceScope'), definition: this.#t('blockDefinitionScope') })) {
           const option = document.createElement('option'); option.value = value; option.textContent = label; if (value === 'definition') option.disabled = blockMembers.length === 0; blockScopeSelect.append(option)
         }
         scopeField.append(blockScopeSelect); host.append(scopeField)
         const memberField = document.createElement('label'); memberField.className = 'field'; memberField.hidden = true; memberField.innerHTML = `<span>${this.#t('blockMember')}</span>`
         blockMemberSelect = document.createElement('select')
+        blockMemberSelect.dataset.blockMember = ''
         for (const member of blockMembers) { const option = document.createElement('option'); option.value = member.id; option.textContent = `${member.type} · ${member.handle}`; blockMemberSelect.append(option) }
         memberField.append(blockMemberSelect); host.append(memberField)
+        blockMemberValueField = document.createElement('label'); blockMemberValueField.className = 'field'; blockMemberValueField.hidden = true
+        const memberValueLabel = document.createElement('span'); blockMemberValueField.append(memberValueLabel)
+        blockMemberValueInput = document.createElement('input'); blockMemberValueInput.disabled = this.#readOnly === true; blockMemberValueField.append(blockMemberValueInput); host.append(blockMemberValueField)
+        blockMemberTransformField = document.createElement('fieldset'); blockMemberTransformField.hidden = true
+        const transformLegend = document.createElement('legend'); transformLegend.textContent = this.#t('blockMember'); blockMemberTransformField.append(transformLegend)
+        for (const [label, kind] of [[this.#t('componentPosition'), 'position'], [this.#t('componentScale'), 'scale'], [this.#t('componentRotation'), 'rotation']] as const) {
+          const field = document.createElement('label'); field.className = 'field'; const title = document.createElement('span'); title.textContent = label
+          const input = document.createElement('input'); input.dataset.blockMemberTransform = kind; input.disabled = this.#readOnly === true; if (kind !== 'position') input.type = 'number'; field.append(title, input); blockMemberTransformField.append(field)
+          if (kind === 'position') blockMemberPositionInput = input; else if (kind === 'scale') blockMemberScaleInput = input; else blockMemberRotationInput = input
+        }
+        host.append(blockMemberTransformField)
+        const attached = (entity.payload.attributeIds ?? []).map(id => drawing.getObject(id)).filter((item): item is KJReadonlyObjectRecord => item?.type === 'ATTRIB' && item.payload.parentInsertId === entity.id)
+        if (attached.length) {
+          instanceAttributeField = document.createElement('fieldset'); const legend = document.createElement('legend'); legend.textContent = this.#t('blockInstanceAttributes'); instanceAttributeField.append(legend)
+          for (const attribute of attached) {
+            const field = document.createElement('label'); field.className = 'field'; const label = document.createElement('span'); label.textContent = String(attribute.payload.tag ?? '')
+            const input = document.createElement('input'); input.value = String(attribute.payload.text ?? ''); input.dataset.blockAttribute = String(attribute.payload.tag ?? ''); input.disabled = this.#readOnly === true
+            instanceAttributeInputs.push(input); field.append(label, input); instanceAttributeField.append(field)
+          }
+          host.append(instanceAttributeField)
+        }
         const syncScope = () => {
           const definitionMode = blockScopeSelect?.value === 'definition'
           memberField.hidden = !definitionMode
           const target = definitionMode ? blockMembers.find(item => item.id === blockMemberSelect?.value) : entity
           if (target?.payload.layerId) layerSelect.value = String(target.payload.layerId)
+          if (instanceAttributeField) instanceAttributeField.hidden = definitionMode
+          if (blockMemberValueField && blockMemberValueInput) {
+            const text = target && ['TEXT', 'MTEXT', 'ATTDEF'].includes(target.type), radius = target && ['CIRCLE', 'ARC'].includes(target.type)
+            blockMemberValueField.hidden = !definitionMode || !(text || radius)
+            memberValueLabel.textContent = this.#t(text ? 'text' : 'radius')
+            blockMemberValueInput.type = radius ? 'number' : 'text'; blockMemberValueInput.value = String(text ? target?.payload.text ?? '' : target?.payload.radius ?? '')
+          }
+          if (blockMemberTransformField && blockMemberPositionInput && blockMemberScaleInput && blockMemberRotationInput) {
+            const nested = definitionMode && target?.type === 'INSERT'; blockMemberTransformField.hidden = !nested
+            if (nested) {
+              const position = Array.isArray(target.payload.position) ? target.payload.position : [0, 0]
+              const scale = Array.isArray(target.payload.scale) ? target.payload.scale : [1, 1, 1]
+              blockMemberPositionInput.value = `${Number(position[0] ?? 0)}, ${Number(position[1] ?? 0)}`
+              blockMemberScaleInput.value = String(Number(scale[0] ?? 1))
+              blockMemberRotationInput.value = String(Number(target.payload.rotation ?? 0) * 180 / Math.PI)
+            }
+          }
         }
         blockScopeSelect.addEventListener('change', syncScope, { signal: this.#abort.signal })
         blockMemberSelect.addEventListener('change', syncScope, { signal: this.#abort.signal })
@@ -3486,8 +3561,19 @@ export class KJDrawWorkbench {
         if (entity.type === 'INSERT' && blockScopeSelect?.value === 'definition') {
           const definitionId = String(entity.payload.blockRecordId ?? ''), memberId = blockMemberSelect?.value
           if (!memberId) throw new Error('Select a block definition member to edit')
+          const member = blockMembers.find(item => item.id === memberId)
+          if (member && blockMemberValueInput && ['TEXT', 'MTEXT', 'ATTDEF'].includes(member.type)) payload.text = blockMemberValueInput.value
+          if (member && blockMemberValueInput && ['CIRCLE', 'ARC'].includes(member.type)) payload.radius = Number(blockMemberValueInput.value)
+          if (member?.type === 'INSERT' && blockMemberPositionInput && blockMemberScaleInput && blockMemberRotationInput) {
+            const position = blockMemberPositionInput.value.split(/[ ,]+/).filter(Boolean).map(Number)
+            if (position.length !== 2 || position.some(value => !Number.isFinite(value))) throw new Error(this.#t('componentPosition'))
+            payload.position = position; payload.scale = Number(blockMemberScaleInput.value); payload.rotation = Number(blockMemberRotationInput.value) * Math.PI / 180
+          }
           await this.execute('BLOCKDEFINITIONUPDATE', { blockRecordId: definitionId, id: memberId, patch: { payload } })
-        } else if (entity.type === 'INSERT') await this.execute('BLOCKINSTANCEUPDATE', { id: entity.id, patch: { payload } })
+        } else if (entity.type === 'INSERT') {
+          const attributeValues = Object.fromEntries(instanceAttributeInputs.map(input => [input.dataset.blockAttribute!, input.value]))
+          await this.execute('BLOCKINSTANCEUPDATE', { id: entity.id, ...(Object.keys(payload).length ? { patch: { payload } } : {}), ...(instanceAttributeInputs.length ? { attributeValues } : {}) })
+        }
         else if (Object.keys(payload).length) await this.execute('PROPERTIES', { id: entity.id, patch: { payload } })
       }), { signal: this.#abort.signal })
       host.append(apply)

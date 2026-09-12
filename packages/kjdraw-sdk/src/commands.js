@@ -6,7 +6,7 @@ import { applyRoadDrawingRevision } from './road-drawing-update.js';
 import { createDesignRelations, updateDesignRelations } from './design-relations.js';
 import { editHatch } from './hatch-edit.js';
 import { insertCatalogComponent, searchComponentCatalog } from './component-library.js';
-import { entityArea2, entityLength2, distance2, dot2, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
+import { entityArea2, entityLength2, distance2, dot2, invert3, multiply3, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
 import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
 import { migrateBreakDimensionAssociations, migrateCircleBreakDimensionAssociations, migratePolylineDimensionAssociations, normalizeDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js';
@@ -1070,20 +1070,10 @@ export function registerCoreCommands(registry) {
         execute: ({ document, transaction }, args)=>{
             const record = resolveTableRecord(document, 'blockRecords', args.blockRecordId ?? args.id ?? args.name);
             if (record.payload?.isSpace) throw new KJValidationError('Model and paper spaces cannot be inserted as blocks');
-            return transaction.createEntity('INSERT', {
-                blockRecordId: record.id,
-                position: args.position ?? [
-                    0,
-                    0,
-                    0
-                ],
-                scale: args.scale ?? 1,
-                rotation: args.rotation ?? 0,
-                attributes: args.attributes ?? {},
-                layerId: args.layerId
-            }, {
-                ownerId: args.ownerId
-            });
+            if (args.attributes != null) throw new KJValidationError('BLOCKINSERT uses attributeValues for native instance attributes');
+            const result = createNativeBlockInsert(transaction, record.id, args);
+            assertBlockGraph(transaction, record.id, args);
+            return result.instance;
         }
     }, {
         owner: '@kanjieteam/kjdraw'
@@ -2902,6 +2892,50 @@ function updateBlockDefinition({ document, transaction }, args) {
     if (entity.type === 'INSERT' && Object.hasOwn(patch, 'attributes') && (entity.payload.attributeIds?.length || entity.payload.sequenceEndId)) {
         throw new KJValidationError('BLOCKDEFINITIONUPDATE cannot replace native attached attributes');
     }
+    if (entity.type === 'INSERT' && (entity.payload.attributeIds?.length || entity.payload.sequenceEndId) && [
+        'position',
+        'rotation',
+        'scale'
+    ].some((field)=>Object.hasOwn(patch, field))) {
+        const position = vec3(patch.position ?? entity.payload.position, 'INSERT position');
+        const rotation = Number(patch.rotation ?? entity.payload.rotation ?? 0);
+        if (!Number.isFinite(rotation)) throw new KJValidationError('INSERT rotation must be finite');
+        const scale = (value, label)=>{
+            const result = Array.isArray(value) ? vec3(value, label) : [
+                Number(value ?? 1),
+                Number(value ?? 1),
+                Number(value ?? 1)
+            ];
+            if (!result.every((component)=>Number.isFinite(component) && Math.abs(component) > 1e-15)) throw new KJValidationError(`${label} must contain three finite non-zero values`);
+            return result;
+        };
+        const previousPosition = vec3(entity.payload.position, 'current INSERT position'), previousScale = scale(entity.payload.scale, 'current INSERT scale'), nextScale = scale(patch.scale ?? entity.payload.scale, 'INSERT scale');
+        const ratios = nextScale.map((component, index)=>component / previousScale[index]);
+        if (ratios.some((ratio)=>ratio <= 0) || ratios.some((ratio)=>Math.abs(ratio - ratios[0]) > 1e-9 * Math.max(1, Math.abs(ratio), Math.abs(ratios[0])))) {
+            throw new KJValidationError('Attributed nested INSERT scale changes must use one positive uniform factor');
+        }
+        const matrix = (point, factors, angle)=>{
+            const cosine = Math.cos(angle), sine = Math.sin(angle);
+            return [
+                factors[0] * cosine,
+                factors[0] * sine,
+                -factors[1] * sine,
+                factors[1] * cosine,
+                point[0],
+                point[1]
+            ];
+        };
+        transaction.transformEntity(entity.id, multiply3(matrix(position, nextScale, rotation), invert3(matrix(previousPosition, previousScale, Number(entity.payload.rotation ?? 0)))));
+        delete patch.position;
+        delete patch.rotation;
+        delete patch.scale;
+        return {
+            block,
+            entity: Object.keys(patch).length ? transaction.updateObject(entity.id, {
+                payload: patch
+            }) : transaction.getObject(entity.id)
+        };
+    }
     return {
         block,
         entity: transaction.updateObject(entity.id, {
@@ -3015,8 +3049,169 @@ function resolveLayout(document, value) {
     if (!layout) throw new KJValidationError(`Layout does not exist: ${value}`);
     return layout;
 }
+function boundedInteger(value, fallback, minimum, maximum, label) {
+    const result = value == null ? fallback : Number(value);
+    if (!Number.isInteger(result) || result < minimum || result > maximum) throw new KJValidationError(`${label} must be an integer from ${minimum} to ${maximum}`);
+    return result;
+}
+function assertBlockGraph(transaction, rootBlockId, args) {
+    const state = transaction._draft();
+    const maximumDepth = boundedInteger(args.maxBlockDepth, 16, 1, 64, 'maxBlockDepth');
+    const maximumEntities = boundedInteger(args.maxExpandedEntities, 8192, 1, 100000, 'maxExpandedEntities');
+    let expandedEntities = 0;
+    const visit = (blockId, path, depth)=>{
+        if (depth > maximumDepth) throw new KJValidationError(`Block nesting exceeds maxBlockDepth ${maximumDepth}`);
+        if (path.includes(blockId)) throw new KJValidationError(`Block nesting cycle detected: ${[
+            ...path,
+            blockId
+        ].join(' -> ')}`);
+        const block = state.objects[blockId];
+        if (!block || block.kind !== 'block-record' || block.payload.isSpace === true) throw new KJValidationError(`Nested block definition does not exist: ${blockId}`);
+        const nextPath = [
+            ...path,
+            blockId
+        ];
+        for (const id of block.payload.entityIds ?? []){
+            const entity = state.objects[id];
+            if (!entity || entity.kind !== 'entity' || entity.ownerId !== blockId || entity.erased) continue;
+            if (++expandedEntities > maximumEntities) throw new KJValidationError(`Expanded block content exceeds maxExpandedEntities ${maximumEntities}`);
+            if (entity.type === 'INSERT') visit(String(entity.payload.blockRecordId ?? ''), nextPath, depth + 1);
+        }
+    };
+    visit(rootBlockId, [], 1);
+}
+function blockAttributeDefinitions(args) {
+    const values = args.attributeDefinitions ?? [];
+    if (!Array.isArray(values)) throw new KJValidationError('attributeDefinitions must be an array');
+    if (values.length > 64) throw new KJValidationError('A block supports at most 64 attribute definitions');
+    const tags = new Set();
+    return values.map((source, index)=>{
+        if (!source || typeof source !== 'object' || Array.isArray(source)) throw new KJValidationError(`attributeDefinitions[${index}] must be an object`);
+        const tag = String(source.tag ?? '').trim();
+        if (!/^[A-Za-z_][A-Za-z0-9_.-]{0,63}$/.test(tag)) throw new KJValidationError(`Invalid block attribute tag: ${tag || '<empty>'}`);
+        const key = tag.toUpperCase();
+        if (tags.has(key)) throw new KJValidationError(`Duplicate block attribute tag: ${tag}`);
+        tags.add(key);
+        const prompt = String(source.prompt ?? tag);
+        if (prompt.length > 256) throw new KJValidationError(`Block attribute prompt is too long: ${tag}`);
+        const defaultValue = source.defaultValue;
+        if (defaultValue != null && ![
+            'string',
+            'number',
+            'boolean'
+        ].includes(typeof defaultValue)) throw new KJValidationError(`Block attribute default must be scalar: ${tag}`);
+        return {
+            ...source,
+            tag,
+            prompt,
+            defaultValue: defaultValue == null ? '' : defaultValue
+        };
+    });
+}
+function scalarAttributeValues(value) {
+    if (value == null) return new Map();
+    if (typeof value !== 'object' || Array.isArray(value)) throw new KJValidationError('attributeValues must be an object keyed by attribute tag');
+    const result = new Map();
+    for (const [inputTag, inputValue] of Object.entries(value)){
+        const tag = inputTag.trim().toUpperCase();
+        if (!tag || result.has(tag)) throw new KJValidationError('attributeValues tags must be unique and non-empty');
+        if (inputValue != null && ![
+            'string',
+            'number',
+            'boolean'
+        ].includes(typeof inputValue)) throw new KJValidationError(`Block attribute value must be scalar: ${inputTag}`);
+        result.set(tag, String(inputValue ?? ''));
+    }
+    if (result.size > 64) throw new KJValidationError('A block insertion supports at most 64 attribute values');
+    return result;
+}
+function createNativeBlockInsert(transaction, blockRecordId, args) {
+    const state = transaction._draft(), block = state.objects[blockRecordId];
+    if (!block || block.kind !== 'block-record' || block.payload.isSpace === true) throw new KJValidationError(`Block definition does not exist: ${blockRecordId}`);
+    const position = vec3(args.position ?? [
+        0,
+        0,
+        0
+    ], 'position');
+    const scale = Array.isArray(args.scale) ? vec3(args.scale, 'scale') : [
+        Number(args.scale ?? 1),
+        Number(args.scale ?? 1),
+        Number(args.scale ?? 1)
+    ];
+    if (!scale.every((value)=>Number.isFinite(value) && Math.abs(value) > 1e-15)) throw new KJValidationError('Block insert scale must contain three finite non-zero values');
+    const rotation = Number(args.rotation ?? 0);
+    if (!Number.isFinite(rotation)) throw new KJValidationError('Block insert rotation must be finite');
+    const instance = transaction.createEntity('INSERT', {
+        blockRecordId,
+        position,
+        scale,
+        rotation,
+        attributes: {},
+        attributeIds: [],
+        sequenceEndId: null,
+        ...args.layerId == null ? {} : {
+            layerId: args.layerId
+        }
+    }, {
+        ownerId: args.ownerId
+    });
+    const definitions = (block.payload.entityIds ?? []).flatMap((id)=>{
+        const entity = transaction.getObject(id);
+        return entity?.kind === 'entity' && entity.type === 'ATTDEF' && !entity.erased ? [
+            entity
+        ] : [];
+    });
+    const byTag = new Map();
+    for (const definition of definitions){
+        const tag = String(definition.payload.tag ?? '').trim().toUpperCase();
+        if (!tag || byTag.has(tag)) throw new KJValidationError('Block definition requires unique non-empty ATTDEF tags');
+        byTag.set(tag, definition);
+    }
+    const values = scalarAttributeValues(args.attributeValues);
+    for (const tag of values.keys())if (!byTag.has(tag)) throw new KJValidationError(`Block attribute tag does not exist: ${tag}`);
+    if (!definitions.length) return {
+        instance,
+        attributes: []
+    };
+    const cosine = Math.cos(rotation), sine = Math.sin(rotation);
+    const matrix = [
+        scale[0] * cosine,
+        scale[0] * sine,
+        -scale[1] * sine,
+        scale[1] * cosine,
+        position[0],
+        position[1]
+    ];
+    const attributes = definitions.map((definition)=>transaction.createEntity('ATTRIB', {
+            ...transformEntityPayload('ATTDEF', definition.payload, matrix),
+            text: values.get(String(definition.payload.tag).trim().toUpperCase()) ?? String(definition.payload.text ?? ''),
+            parentInsertId: instance.id
+        }, {
+            ownerId: instance.ownerId
+        }));
+    const sequence = transaction.createObject({
+        kind: 'custom',
+        type: 'SEQEND',
+        ownerId: instance.id,
+        payload: {
+            dxfOwnerMode: 'insert',
+            ...instance.payload.layerId == null ? {} : {
+                layerId: instance.payload.layerId
+            }
+        }
+    });
+    const updated = transaction.updateObject(instance.id, {
+        payload: {
+            attributeIds: attributes.map((attribute)=>attribute.id),
+            sequenceEndId: sequence.id
+        }
+    });
+    return {
+        instance: updated,
+        attributes
+    };
+}
 function createBlockDefinition({ document, transaction }, args) {
-    rejectAttachedReorganization(document, args, 'BLOCKCREATE');
     const name = String(args.name ?? '').trim();
     if (!name) throw new KJValidationError('Block name is required');
     if (document.getTable('blockRecords')?.records.some((record)=>String(record.name).toUpperCase() === name.toUpperCase())) throw new KJValidationError(`Block already exists: ${name}`);
@@ -3042,7 +3237,26 @@ function createBlockDefinition({ document, transaction }, args) {
         }
     });
     const localMatrix = translation3(-basePoint[0], -basePoint[1]);
+    const attributeDefinitions = blockAttributeDefinitions(args).map((definition)=>transaction.createEntity('ATTDEF', {
+            position: definition.position ?? [
+                0,
+                0,
+                0
+            ],
+            text: String(definition.defaultValue ?? ''),
+            tag: definition.tag,
+            prompt: String(definition.prompt ?? definition.tag),
+            height: definition.height ?? 2.5,
+            rotation: definition.rotation ?? 0,
+            flags: definition.flags ?? 0,
+            ...definition.layerId == null ? {} : {
+                layerId: definition.layerId
+            }
+        }, {
+            ownerId: block.id
+        }));
     if (args.keepSource) {
+        if (entities.some((entity)=>entity.type === 'INSERT' && (entity.payload.attributeIds?.length || entity.payload.sequenceEndId))) throw new KJValidationError('BLOCKCREATE keepSource does not support attributed INSERT sources');
         for (const entity of entities)transaction.createEntity(entity.type, transformEntityPayload(entity.type, entity.payload, localMatrix), {
             ownerId: block.id,
             name: entity.name,
@@ -3052,37 +3266,44 @@ function createBlockDefinition({ document, transaction }, args) {
                 blockSourceHandle: entity.handle
             }
         });
+        assertBlockGraph(transaction, block.id, args);
         return {
-            block,
-            insert: null
+            block: transaction.getObject(block.id),
+            insert: null,
+            attributeDefinitions,
+            attributes: []
         };
     }
     for (const entity of entities){
-        transaction.updateObject(entity.id, {
+        if (entity.payload.parentInsertId) throw new KJValidationError('BLOCKCREATE requires selecting the parent INSERT instead of an attached ATTRIB');
+        if (entity.type === 'INSERT' && (entity.payload.attributeIds?.length || entity.payload.sequenceEndId)) transaction.transformEntity(entity.id, localMatrix);
+        else transaction.updateObject(entity.id, {
             payload: transformEntityPayload(entity.type, entity.payload, localMatrix)
         });
         transaction.reparentObject(entity.id, block.id);
     }
-    const insert = transaction.createEntity('INSERT', {
-        blockRecordId: block.id,
+    const created = createNativeBlockInsert(transaction, block.id, {
+        ...args,
+        ownerId,
         position: [
             basePoint[0],
             basePoint[1],
             Number(args.basePoint?.[2] ?? 0)
         ],
-        scale: [
-            1,
-            1,
-            1
-        ],
-        rotation: 0,
-        attributes: {}
-    }, {
-        ownerId
+        scale: 1,
+        rotation: 0
     });
+    replaceEntityMemberships(transaction, entities.map((entity)=>entity.id), [
+        created.instance.id
+    ]);
+    assertBlockGraph(transaction, block.id, args);
+    const owner = transaction.getObject(ownerId);
+    if (owner?.kind === 'block-record' && owner.payload.isSpace !== true) assertBlockGraph(transaction, owner.id, args);
     return {
-        block,
-        insert
+        block: transaction.getObject(block.id),
+        insert: created.instance,
+        attributeDefinitions,
+        attributes: created.attributes
     };
 }
 function createObjectGroup(document, transaction, args) {

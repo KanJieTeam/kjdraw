@@ -462,19 +462,34 @@ function refresh() {
     const layerLabel=document.createElement('label');layerLabel.textContent=t('layer');const layerSelect=document.createElement('select'),layerIds=new Set(selectedEntities.map(item=>item.payload.layerId)),commonLayerId=layerIds.size===1?[...layerIds][0]:''
     if(!commonLayerId){const option=document.createElement('option');option.value='';option.textContent='—';option.selected=true;option.disabled=true;layerSelect.append(option)}
     for(const layer of doc().getTable('layers').records){const option=document.createElement('option');option.value=layer.id;option.textContent=layer.name;option.selected=layer.id===commonLayerId;option.disabled=layer.id!==commonLayerId&&(layer.payload.visible===false||layer.payload.locked===true||layer.payload.frozen===true);layerSelect.append(option)}
-    let blockScope=null,blockMember=null,blockMembers=[]
+    let blockScope=null,blockMember=null,blockMembers=[],blockMemberValue=null,blockMemberValueTitle=null,blockMemberTransform=null,blockMemberPosition=null,blockMemberScale=null,blockMemberRotation=null,attributeInputs=[],attributeField=null
     if(selectedEntities.length===1&&entity.type==='INSERT'){
       const definition=doc().getObject(String(entity.payload.blockRecordId??''))
       if(definition?.kind==='block-record'&&definition.payload.isSpace!==true){
         blockMembers=(definition.payload.entityIds??[]).map(id=>doc().getObject(id)).filter(item=>item?.kind==='entity'&&!item.erased)
         field($('inspector'),t('blockDefinitionScope'),definition.name??definition.id)
-        const scopeLabel=document.createElement('label');scopeLabel.textContent=t('blockEditScope');blockScope=document.createElement('select')
+        const scopeLabel=document.createElement('label');scopeLabel.textContent=t('blockEditScope');blockScope=document.createElement('select');blockScope.dataset.blockScope=''
         for(const [value,label] of [['instance',t('blockInstanceScope')],['definition',t('blockDefinitionScope')]]){const option=document.createElement('option');option.value=value;option.textContent=label;option.disabled=value==='definition'&&!blockMembers.length;blockScope.append(option)}
         scopeLabel.append(blockScope);editor.append(scopeLabel)
-        const memberLabel=document.createElement('label');memberLabel.textContent=t('blockMember');memberLabel.hidden=true;blockMember=document.createElement('select')
+        const memberLabel=document.createElement('label');memberLabel.textContent=t('blockMember');memberLabel.hidden=true;blockMember=document.createElement('select');blockMember.dataset.blockMember=''
         for(const member of blockMembers){const option=document.createElement('option');option.value=member.id;option.textContent=`${member.type} · ${member.handle}`;blockMember.append(option)}
         memberLabel.append(blockMember);editor.append(memberLabel)
-        const syncScope=()=>{const definitionMode=blockScope.value==='definition';memberLabel.hidden=!definitionMode;const target=definitionMode?blockMembers.find(item=>item.id===blockMember.value):entity;if(target?.payload.layerId)layerSelect.value=String(target.payload.layerId)}
+        const memberValueLabel=document.createElement('label');blockMemberValueTitle=document.createElement('span');blockMemberValue=document.createElement('input');memberValueLabel.hidden=true;memberValueLabel.append(blockMemberValueTitle,blockMemberValue);editor.append(memberValueLabel)
+        blockMemberTransform=document.createElement('fieldset');blockMemberTransform.hidden=true
+        for(const [labelText,kind]of[[t('componentPosition'),'position'],[t('componentScale'),'scale'],[t('componentRotation'),'rotation']]){const label=document.createElement('label');label.textContent=labelText;const input=document.createElement('input');input.dataset.blockMemberTransform=kind;if(kind!=='position')input.type='number';label.append(input);blockMemberTransform.append(label);if(kind==='position')blockMemberPosition=input;else if(kind==='scale')blockMemberScale=input;else blockMemberRotation=input}editor.append(blockMemberTransform)
+        const attached=(entity.payload.attributeIds??[]).map(id=>doc().getObject(id)).filter(item=>item?.type==='ATTRIB'&&item.payload.parentInsertId===entity.id)
+        if(attached.length){
+          attributeField=document.createElement('fieldset');const legend=document.createElement('legend');legend.textContent=t('blockInstanceAttributes');attributeField.append(legend)
+          for(const attribute of attached){const label=document.createElement('label');label.textContent=String(attribute.payload.tag??'');const input=document.createElement('input');input.value=String(attribute.payload.text??'');input.dataset.blockAttribute=String(attribute.payload.tag??'');attributeInputs.push(input);label.append(input);attributeField.append(label)}
+          editor.append(attributeField)
+        }
+        const syncScope=()=>{
+          const definitionMode=blockScope.value==='definition',target=definitionMode?blockMembers.find(item=>item.id===blockMember.value):entity
+          memberLabel.hidden=!definitionMode;if(target?.payload.layerId)layerSelect.value=String(target.payload.layerId);if(attributeField)attributeField.hidden=definitionMode
+          const text=target&&['TEXT','MTEXT','ATTDEF'].includes(target.type),radius=target&&['CIRCLE','ARC'].includes(target.type)
+          memberValueLabel.hidden=!definitionMode||!(text||radius);blockMemberValueTitle.textContent=t(text?'textField':'radius');blockMemberValue.type=radius?'number':'text';blockMemberValue.value=String(text?target?.payload.text??'':target?.payload.radius??'')
+          const nested=definitionMode&&target?.type==='INSERT';blockMemberTransform.hidden=!nested;if(nested){blockMemberPosition.value=`${Number(target.payload.position?.[0]??0)}, ${Number(target.payload.position?.[1]??0)}`;blockMemberScale.value=String(Number(target.payload.scale?.[0]??1));blockMemberRotation.value=String(Number(target.payload.rotation??0)*180/Math.PI)}
+        }
         blockScope.onchange=syncScope;blockMember.onchange=syncScope
         const note=document.createElement('div');note.className='selection-summary';note.dataset.blockScope='';note.textContent=t('blockScopeHint');$('inspector').append(note)
       }
@@ -489,6 +504,21 @@ function refresh() {
     let valueInput=null
     let textFields=null,leaderFields=null
     if(selectedEntities.length===1&&(entity.type==='CIRCLE'||entity.type==='ARC')){const label=document.createElement('label');label.textContent=t('radius');valueInput=document.createElement('input');valueInput.type='number';valueInput.min='0.000001';valueInput.step='0.1';valueInput.value=entity.payload.radius;label.append(valueInput);editor.append(label)}
+    if(selectedEntities.length===1&&['TEXT','MTEXT','ATTDEF','ATTRIB'].includes(entity.type)){const labeled=(labelText,input)=>{const label=document.createElement('label');label.textContent=labelText;label.append(input);editor.append(label);return input};valueInput=document.createElement(entity.type==='MTEXT'?'textarea':'input');valueInput.value=entity.payload.text??'';labeled(t('textField'),valueInput);const height=document.createElement('input');height.type='number';height.required=true;height.min=String(Number.EPSILON);height.step='any';height.value=String(entity.payload.height??2.5);height.dataset.property='text-height';labeled(i18n.locale==='zh'?'高度':'Height',height);const rotation=document.createElement('input');rotation.type='number';rotation.required=true;rotation.step='any';rotation.value=String(Number(entity.payload.rotation??0)*180/Math.PI);rotation.dataset.property='text-rotation';labeled(i18n.locale==='zh'?'旋转（度）':'Rotation (degrees)',rotation);const alignment=document.createElement('select'),options=[['1',i18n.locale==='zh'?'左上':'Top left'],['2',i18n.locale==='zh'?'中上':'Top center'],['3',i18n.locale==='zh'?'右上':'Top right'],['4',i18n.locale==='zh'?'左中':'Middle left'],['5',i18n.locale==='zh'?'居中':'Middle center'],['6',i18n.locale==='zh'?'右中':'Middle right'],['7',i18n.locale==='zh'?'左下':'Bottom left'],['8',i18n.locale==='zh'?'中下':'Bottom center'],['9',i18n.locale==='zh'?'右下':'Bottom right']];alignment.dataset.property='text-alignment';const currentAlignment=entity.type==='MTEXT'?Number(entity.payload.attachmentPoint??1):(Number(entity.payload.verticalAlignment??0)===3?1:Number(entity.payload.verticalAlignment??0)===2?4:7)+Number(entity.payload.horizontalAlignment??0);for(const [value,labelText] of options)alignment.add(new Option(labelText,value,false,Number(value)===currentAlignment));labeled(i18n.locale==='zh'?'对齐':'Alignment',alignment);textFields={height,rotation,alignment}}
+    if(selectedEntities.length===1&&entity.type==='LEADER'){const annotation=entity.payload.annotationId?doc().getObject(entity.payload.annotationId):null,labeled=(labelText,input)=>{const label=document.createElement('label');label.textContent=labelText;label.append(input);editor.append(label);return input},text=labeled(i18n.locale==='zh'?'引线文字':'Annotation text',document.createElement('textarea')),style=labeled(i18n.locale==='zh'?'文字样式':'Text style',document.createElement('select')),height=labeled(i18n.locale==='zh'?'文字高度':'Text height',document.createElement('input')),arrow=labeled(i18n.locale==='zh'?'显示箭头':'Arrowhead',document.createElement('input'));text.value=annotation?.payload.text??entity.payload.text??'';text.dataset.property='leader-text';for(const record of doc().getTable('textStyles').records)style.add(new Option(record.name,record.id,false,record.id===(annotation?.payload.styleId??doc().getTable('textStyles').currentId)));style.dataset.property='leader-style';height.type='number';height.required=true;height.min=String(Number.EPSILON);height.step='any';height.value=String(annotation?.payload.height??entity.payload.textHeight??2.5);height.dataset.property='leader-height';arrow.type='checkbox';arrow.checked=entity.payload.arrowEnabled!==false;arrow.dataset.property='leader-arrow';leaderFields={text,style,height,arrow}}
+    let dimensionFields=null
+    if(selectedEntities.length===1&&entity.type==='DIMENSION'){
+      const table=doc().getTable('dimensionStyles'),styleId=entity.payload.styleId??table.currentId,styleRecord=doc().getObject(styleId)
+      const labeled=(name,labelText,input)=>{const label=document.createElement('label');label.textContent=labelText;input.dataset.property=name;label.append(input);editor.append(label);return input}
+      const style=labeled('dimension-style',i18n.locale==='zh'?'标注样式':'Dimension style',document.createElement('select'))
+      for(const record of table.records){const option=document.createElement('option');option.value=record.id;option.textContent=record.name;option.selected=record.id===styleId;style.append(option)}
+      const number=(name,labelText,value,min,max,step)=>{const input=document.createElement('input');input.type='number';input.required=true;input.min=String(min);if(max!=null)input.max=String(max);input.step=String(step);input.value=String(value);return labeled(name,labelText,input)}
+      const precision=number('dimension-precision',i18n.locale==='zh'?'标注精度':'Precision',entity.payload.precision??styleRecord?.payload.decimalPlaces??2,-1,8,1)
+      const scale=number('dimension-scale',i18n.locale==='zh'?'标注整体比例':'Overall scale',entity.payload.overallScale??styleRecord?.payload.overallScale??1,.000001,null,'any')
+      const textHeight=number('dimension-text-height',i18n.locale==='zh'?'标注字高':'Dimension text height',entity.payload.textHeight??styleRecord?.payload.textHeight??2.5,.000001,null,'any')
+      const textOverride=document.createElement('input');textOverride.type='text';textOverride.value=entity.payload.textOverride??'';labeled('dimension-text-override',i18n.locale==='zh'?'标注文字替代':'Dimension text override',textOverride)
+      dimensionFields={style,precision,scale,textHeight,textOverride}
+    }
     const save=document.createElement('button')
     save.textContent=t('applyProperties')
     save.onclick=()=>run(async()=>{
@@ -504,8 +534,15 @@ function refresh() {
       if(valueInput&&['TEXT','MTEXT','ATTDEF','ATTRIB'].includes(entity.type))payload.text=valueInput.value
       if(textFields){const invalid=[textFields.height,textFields.rotation].find(input=>!input.checkValidity());if(invalid){invalid.reportValidity();return}payload.height=Number(textFields.height.value);payload.rotation=Number(textFields.rotation.value)*Math.PI/180;const attachment=Number(textFields.alignment.value);if(entity.type==='MTEXT')payload.attachmentPoint=attachment;else{payload.horizontalAlignment=(attachment-1)%3;payload.verticalAlignment=attachment<=3?3:attachment<=6?2:0;if(payload.horizontalAlignment||payload.verticalAlignment)payload.alignmentPoint=payload.alignmentPoint??payload.position}}
       if(dimensionFields){const invalid=[dimensionFields.precision,dimensionFields.scale,dimensionFields.textHeight].find(input=>!input.checkValidity());if(invalid){invalid.reportValidity();return}const style=doc().getObject(dimensionFields.style.value);Object.assign(payload,{styleId:dimensionFields.style.value,styleName:style?.name??'STANDARD',precision:Number(dimensionFields.precision.value),overallScale:Number(dimensionFields.scale.value),textHeight:Number(dimensionFields.textHeight.value),textOverride:dimensionFields.textOverride.value||null})}
-      if(entity.type==='INSERT'&&blockScope?.value==='definition'){if(!blockMember?.value)throw new Error(t('blockMember'));await execute('BLOCKDEFINITIONUPDATE',{blockRecordId:entity.payload.blockRecordId,id:blockMember.value,patch:{payload}})}
-      else if(entity.type==='INSERT')await execute('BLOCKINSTANCEUPDATE',{id:entity.id,patch:{payload}})
+      if(entity.type==='INSERT'&&blockScope?.value==='definition'){
+        if(!blockMember?.value)throw new Error(t('blockMember'))
+        if(blockMemberValue)payload[blockMemberValue.dataset.blockMemberValue]=blockMemberValue.value
+        if(blockMemberTransform){const position=blockMemberPosition.value.split(/[ ,]+/).filter(Boolean).map(Number);if(position.length!==2||position.some(value=>!Number.isFinite(value)))throw new Error(t('componentPosition'));payload.position=position;payload.scale=Number(blockMemberScale.value);payload.rotation=Number(blockMemberRotation.value)*Math.PI/180}
+        await execute('BLOCKDEFINITIONUPDATE',{blockRecordId:entity.payload.blockRecordId,id:blockMember.value,patch:{payload}})
+      }else if(entity.type==='INSERT'){
+        const attributeValues=Object.fromEntries(attributeInputs.map(input=>[input.dataset.blockAttribute,input.value]))
+        await execute('BLOCKINSTANCEUPDATE',{id:entity.id,...(Object.keys(payload).length?{patch:{payload}}:{}),...(attributeInputs.length?{attributeValues}:{})})
+      }
       else if(Object.keys(payload).length)await execute('PROPERTIES',{id:entity.id,patch:{payload}})
     })
     editor.append(save);$('inspector').append(editor)
@@ -568,6 +605,20 @@ async function editSelectedHatch(entity,sourceIds=[]){
   if(operation==='add-island'||operation==='replace-island')command.vertices=parseHatchVertices(values.vertices)
   if(exactSource)command.sourceIds=sourceIds
   await execute('HATCHEDIT',command,{expectedRevision:revision})
+}
+async function openBlockCreator(){
+  const drawing=doc(),ids=selectedIds(),revision=drawing.revision
+  if(!ids.length)throw new Error(t('selectFirst'))
+  const values=await requestLocalCommand({title:t('blockCreate'),description:t('blockCreateHelp'),submitLabel:t('blockCreate'),fields:[
+    {name:'name',label:t('blockName'),value:''},{name:'basePoint',label:t('blockBasePoint'),value:'0, 0'},{name:'attributes',label:t('blockAttributes'),value:'',required:false},
+  ]})
+  if(!values)return
+  const basePoint=String(values.basePoint).split(/[ ,]+/).filter(Boolean).map(Number)
+  if(basePoint.length!==2||basePoint.some(value=>!Number.isFinite(value)))throw new Error(t('blockBasePoint'))
+  const attributeDefinitions=String(values.attributes).split(/[;\n]+/).map(value=>value.trim()).filter(Boolean).map((value,index)=>{const separator=value.indexOf('='),tag=(separator<0?value:value.slice(0,separator)).trim(),defaultValue=separator<0?'':value.slice(separator+1).trim();return{tag,prompt:tag,defaultValue,position:[0,-index*4,0]}})
+  if(doc()!==drawing)throw new Error(t('drawingChanged'))
+  const receipt=await execute('BLOCKCREATE',{name:String(values.name).trim(),ids,basePoint,attributeDefinitions},{expectedRevision:revision})
+  if(receipt.result.insert)replaceSelection([receipt.result.insert.id]);setTool('select');refresh();fit()
 }
 async function openComponentLibrary(){
   const drawing=doc(),revision=drawing.revision,locale=i18n.locale==='zh'?'zh-CN':'en'
@@ -1118,6 +1169,7 @@ function initializeDraftingControls(){
   }
   picker.setAttribute('aria-label',i18n.locale==='zh'?'绘图工具':'Drawing tool');picker.onchange=()=>{if(!busy){setTool(picker.value);canvas.focus()}}
   library.append(picker)
+  const blocks=bilingual(document.createElement('button'),'Create block','创建块');blocks.id='block-create';blocks.type='button';blocks.onclick=()=>run(openBlockCreator);library.append(blocks)
   const components=bilingual(document.createElement('button'),'Components','部件库');components.id='component-library';components.type='button';components.onclick=()=>run(openComponentLibrary);library.append(components)
   document.querySelector('.ribbon-groups').insertBefore(library,document.querySelector('.ribbon-group[data-section="modify"]'))
   const options=document.createElement('div');options.id='draft-options';options.className='draft-options';options.hidden=true;options.setAttribute('role','toolbar');options.setAttribute('aria-label','Drawing options')

@@ -142,12 +142,11 @@ test('protected attribute layers prevent parent edits and copies before partial 
   }
 })
 
-test('unimplemented compound regrouping explicitly rejects while standalone ATTRIB remains editable', async () => {
+test('unsupported compound duplication explicitly rejects while standalone ATTRIB remains editable', async () => {
   const { sdk, document } = await fixture()
   for (const [command, args] of [
     ['ARRAYRECT', { ids: ['insert'], rows: 2, columns: 2, rowSpacing: 10, columnSpacing: 10 }],
     ['ARRAYPOLAR', { ids: ['insert'], count: 3, center: [0, 0] }],
-    ['BLOCKCREATE', { ids: ['insert'], name: 'NO-REGROUP' }],
     ['MIRROR', { ids: ['insert'], lineStart: [0, 0], lineEnd: [1, 0] }],
     ['COPY', { ids: ['attr-a'], dx: 1 }],
     ['COPY', { ids: ['insert'], dx: 1, payloadPatch: { position: [0, 0, 0] } }],
