@@ -22,7 +22,7 @@ import { clone, deepFreeze, normalizeName, stableHash } from './utils.js'
 import type { ReadonlyDeep } from './utils.js'
 import { editEntityGrip } from './grips.js'
 import type { KJPointInput } from './grips.js'
-import { migratePolylineDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js'
+import { migratePolylineDimensionAssociations, normalizeDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js'
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js'
 import { KJ_SNAP_MODES } from './snapping.js'
 import type { KJDocument, KJDocumentHistoryOptions, KJDocumentTransactionOptions } from './document.js'
@@ -843,15 +843,24 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'COPY', aliases: ['CO', 'CP'], title: 'Copy objects',
-    execute: (context, args) => copyEntities(context, args, moveMatrix(args)),
+    execute: (context, args) => copyEntities(context, args, moveMatrix(args), 'COPY'),
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'MIRROR', aliases: ['MI'], title: 'Mirror objects',
     execute: (context, args) => {
       rejectAttachedReorganization(context.document, args, 'MIRROR')
       const matrix = reflectionAcrossLine3((args.lineStart ?? args.start)!, (args.lineEnd ?? args.end)!)
-      const copies = copyEntities(context, args, matrix)
-      if (args.eraseSource) for (const id of entityIds(args)) context.transaction.eraseObject(id)
+      const ids = entityIds(args)
+      if (args.eraseSource) requireSelectedAssociativeDimensions(context.document, ids, 'MIRROR')
+      const copies = copyEntities(context, args, matrix, 'MIRROR')
+      if (args.eraseSource) {
+        const replacements = new Map(copies.flatMap(copy => {
+          const copiedFromId = (copy.source as { copiedFromId?: unknown } | null)?.copiedFromId
+          return copiedFromId == null ? [] : [[String(copiedFromId), copy.id] as const]
+        }))
+        for (const id of ids) context.transaction.eraseObject(id)
+        replaceCopiedMemberships(context.transaction, replacements)
+      }
       return copies
     },
   }, { owner: '@kanjieteam/kjdraw' }))
@@ -1412,12 +1421,31 @@ function transformExisting({ document, transaction }: KJCommandContext, args: KJ
   return transformed
 }
 
-function copyEntities({ document, transaction }: KJCommandContext, args: KJCommandArguments, matrix: AffineMatrix3Input): KJObjectRecord[] {
+function requireSelectedAssociativeDimensions(document: KJDocument, selectedIds: readonly string[], command: string): void {
+  const selected = new Set(selectedIds)
+  for (const dimension of document.listEntities({ type: 'DIMENSION' })) {
+    if (!Array.isArray(dimension.payload.dimensionAssociations) || selected.has(dimension.id)) continue
+    const associations = normalizeDimensionAssociations(dimension.payload.dimensionAssociations)
+    if (associations.some(association => selected.has(association.entityId))) {
+      throw new KJValidationError(`${command} must include dimension ${dimension.id} when erasing one of its referenced sources`)
+    }
+  }
+}
+
+function copyEntities({ document, transaction }: KJCommandContext, args: KJCommandArguments, matrix: AffineMatrix3Input, command: string): KJObjectRecord[] {
   const selected = new Set(entityIds(args))
-  return [...selected].filter(id => {
+  const sourceIds = [...selected].filter(id => {
     const entity = requiredEntity(document, id)
     return !entity.payload.parentInsertId || !selected.has(entity.payload.parentInsertId)
-  }).map(id => {
+  })
+  const copiedSourceIds = new Set(sourceIds)
+  for (const id of sourceIds) {
+    const dimension = requiredEntity(document, id)
+    if (dimension.type !== 'DIMENSION' || !Array.isArray(dimension.payload.dimensionAssociations)) continue
+    const missing = normalizeDimensionAssociations(dimension.payload.dimensionAssociations).find(association => !copiedSourceIds.has(association.entityId))
+    if (missing) throw new KJValidationError(`${command} cannot copy associated dimension ${dimension.id} without source ${missing.entityId}`)
+  }
+  const copies = sourceIds.map(id => {
     const entity = requiredEntity(document, id)
     if (entity.payload.parentInsertId) throw new KJValidationError('Copy attached attributes through their INSERT')
     const attributed = entity.type === 'INSERT' && Boolean(entity.payload.attributeIds?.length || entity.payload.sequenceEndId)
@@ -1442,6 +1470,17 @@ function copyEntities({ document, transaction }: KJCommandContext, args: KJComma
     const sequence = transaction.createObject({ kind: 'custom', type: 'SEQEND', ownerId: copied.id, payload: clone(end.payload) as KJObjectPayload, extension: clone(end.extension) as NonNullable<KJObjectSpec['extension']>, source: { copiedFromId: end.id, copiedFromHandle: end.handle } })
     return transaction.updateObject(copied.id, { payload: { attributeIds, sequenceEndId: sequence.id } })
   })
+  const replacements = new Map(sourceIds.map((id, index) => [id, copies[index]!.id]))
+  const retargeted = copies.map((copy, index) => {
+    const source = requiredEntity(document, sourceIds[index]!)
+    if (source.type !== 'DIMENSION' || !Array.isArray(source.payload.dimensionAssociations)) return copy
+    const dimensionAssociations = normalizeDimensionAssociations(source.payload.dimensionAssociations).map(association => ({
+      ...association, entityId: replacements.get(association.entityId)!,
+    }))
+    return transaction.updateObject(copy.id, { payload: { dimensionAssociations } })
+  })
+  refreshAssociativeDimensions(transaction, retargeted.filter(object => object.type !== 'DIMENSION').map(object => object.id))
+  return retargeted.map(object => transaction.getObject(object.id)!)
 }
 
 function rejectAttachedReorganization(document: KJDocument, args: KJCommandArguments, command: string): void {
@@ -1466,6 +1505,16 @@ function replaceEntityMemberships(transaction: KJTransaction, sourceIds: readonl
     if (!Array.isArray(members) || !members.some(id => sources.has(id))) continue
     const memberIds = [...new Set(members.flatMap(id => sources.has(id) ? [...retainedIds] : [id]))]
     if (memberIds.length === members.length && memberIds.every((id, index) => id === members[index])) continue
+    transaction.updateObject(group.id, { payload: { memberIds } })
+  }
+}
+
+function replaceCopiedMemberships(transaction: KJTransaction, replacements: ReadonlyMap<string, string>): void {
+  for (const group of Object.values(transaction._draft().objects)) {
+    if (group.erased || group.kind !== 'group' || !['GROUP', 'SELECTION_SET'].includes(group.type)) continue
+    const members = group.payload.memberIds
+    if (!Array.isArray(members) || !members.some(id => replacements.has(id))) continue
+    const memberIds = [...new Set(members.map(id => replacements.get(id) ?? id))]
     transaction.updateObject(group.id, { payload: { memberIds } })
   }
 }
@@ -1515,7 +1564,7 @@ function rectangularArray(context: KJCommandContext, args: KJCommandArguments): 
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < columns; column += 1) {
       if (row === 0 && column === 0 && args.includeSource !== false) continue
-      created.push(...copyEntities(context, args, translation3(column * columnSpacing, row * rowSpacing)))
+      created.push(...copyEntities(context, args, translation3(column * columnSpacing, row * rowSpacing), 'ARRAYRECT'))
     }
   }
   return created
@@ -1539,7 +1588,7 @@ function polarArray(context: KJCommandContext, args: KJCommandArguments): KJObje
       const rotated = transformPoint3(rotation, basePoint)
       matrix = translation3(rotated[0] - basePoint[0], rotated[1] - basePoint[1])
     }
-    created.push(...copyEntities(context, args, matrix))
+    created.push(...copyEntities(context, args, matrix, 'ARRAYPOLAR'))
   }
   return created
 }

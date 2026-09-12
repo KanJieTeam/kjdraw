@@ -141,3 +141,36 @@ test('workbench PEDIT keeps a pointer-associated polyline vertex after index ins
   })
   expect(changed).toEqual({ vertexCount: 4, indices: [0, 3], id: before.id, handle: before.handle })
 })
+
+test('workbench COPY creates a self-contained source and pointer-associated dimension pair', async ({ page }) => {
+  await mount(page)
+  await drawDimension(page, 'DIMALIGNED', [[-30, -20], [-10, -20], [-20, -14]], 1)
+  const beforeRevision = await page.evaluate(async () => {
+    const { sdk, drawing } = window.associativeDimension
+    const dimension = drawing.listEntities({ type: 'DIMENSION' })[0]
+    await sdk.executeCommand('SELECT', { ids: ['linear-source', dimension.id], operation: 'replace' }, { document: drawing })
+    return drawing.revision
+  })
+  await command(page, 'COPY 30 0')
+  await expect.poll(() => page.evaluate(() => window.associativeDimension.drawing.revision)).toBe(beforeRevision + 1)
+  const result = await page.evaluate(() => {
+    const { drawing } = window.associativeDimension
+    const copiedDimension = drawing.listEntities({ type: 'DIMENSION' }).find(entity => entity.source?.copiedFromId)
+    const references = copiedDimension.payload.dimensionAssociations
+    const sourceId = references[0].entityId
+    const copiedSource = drawing.getObject(sourceId)
+    return {
+      dimensionCount: drawing.listEntities({ type: 'DIMENSION' }).length,
+      sourceId,
+      sourceCopiedFrom: copiedSource.source?.copiedFromId,
+      referenceIds: [...new Set(references.map(reference => reference.entityId))],
+      dimensionPoints: copiedDimension.payload.definitionPoints.slice(1),
+      sourcePoints: [copiedSource.payload.start, copiedSource.payload.end],
+    }
+  })
+  expect(result.dimensionCount).toBe(2)
+  expect(result.sourceId).not.toBe('linear-source')
+  expect(result.sourceCopiedFrom).toBe('linear-source')
+  expect(result.referenceIds).toEqual([result.sourceId])
+  expect(result.dimensionPoints).toEqual(result.sourcePoints)
+})
