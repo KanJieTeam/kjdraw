@@ -7,7 +7,7 @@ import { createDesignRelations, updateDesignRelations } from './design-relations
 import { entityArea2, entityLength2, distance2, dot2, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
 import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
-import { refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js';
+import { migratePolylineDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js';
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js';
 import { KJ_SNAP_MODES } from './snapping.js';
 import { selectEntitiesByProperty } from './selection.js';
@@ -1585,6 +1585,7 @@ export function registerCoreCommands(registry) {
         title: 'Break entity',
         execute: ({ document, transaction }, args)=>{
             const entity = requiredEntity(document, args.id), pieces = breakEntityPayloads(entity, args);
+            requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'BREAK');
             transaction.eraseObject(entity.id);
             const derived = pieces.map((piece)=>createDerived(transaction, entity, piece.type, piece.payload));
             replaceEntityMemberships(transaction, [
@@ -1619,6 +1620,7 @@ export function registerCoreCommands(registry) {
                 tolerance: args.tolerance,
                 primaryId
             });
+            for (const entity of entities)requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'JOIN');
             const primary = entities.find((entity)=>entity.id === primaryId);
             let joined;
             if (result.type === primary.type) joined = transaction.updateObject(primary.id, {
@@ -1642,6 +1644,7 @@ export function registerCoreCommands(registry) {
         title: 'Explode entity',
         execute: ({ document, transaction }, args)=>{
             const entity = requiredEntity(document, args.id), pieces = explodeEntity(entity);
+            requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'EXPLODE');
             transaction.eraseObject(entity.id);
             const derived = pieces.map((piece)=>createDerived(transaction, entity, piece.type, piece.payload));
             replaceEntityMemberships(transaction, [
@@ -1760,9 +1763,26 @@ export function registerCoreCommands(registry) {
         title: 'Edit polyline topology',
         execute: ({ document, transaction }, args)=>{
             const entity = requiredEntity(document, args.id);
-            return transaction.updateObject(entity.id, {
-                payload: editPolylinePayload(entity, args)
+            const payload = editPolylinePayload(entity, args);
+            const operation = normalizeName(args.operation);
+            if ((operation === 'SET_BULGE' || operation === 'ARC') && Array.isArray(payload.vertices) && payload.vertices.some((vertex)=>Number(vertex && typeof vertex === 'object' && 'bulge' in vertex ? vertex.bulge : 0) !== 0)) {
+                requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'PEDIT SET_BULGE');
+            }
+            const updated = transaction.updateObject(entity.id, {
+                payload
             });
+            if (operation === 'INSERT') migratePolylineDimensionAssociations(transaction, entity.id, {
+                operation,
+                vertexIndex: Number(args.segmentIndex) + 1
+            });
+            if (operation === 'DELETE') migratePolylineDimensionAssociations(transaction, entity.id, {
+                operation,
+                vertexIndex: Number(args.vertexIndex)
+            });
+            refreshAssociativeDimensions(transaction, [
+                entity.id
+            ]);
+            return updated;
         }
     }, {
         owner: '@kanjieteam/kjdraw'

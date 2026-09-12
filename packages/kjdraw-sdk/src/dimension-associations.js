@@ -68,6 +68,36 @@ export function requireAssociativeDimensionSourceIdentity(transaction, sourceId,
         }
     }
 }
+export function migratePolylineDimensionAssociations(transaction, sourceId, edit) {
+    if (!Number.isSafeInteger(edit.vertexIndex) || edit.vertexIndex < 0) return fail('PEDIT association vertex index is invalid');
+    const updated = [];
+    for (const readonlyDimension of Object.values(transaction._draft().objects)){
+        if (readonlyDimension.kind !== 'entity' || readonlyDimension.type !== 'DIMENSION' || readonlyDimension.erased || !Array.isArray(readonlyDimension.payload.dimensionAssociations)) continue;
+        const associations = normalizeDimensionAssociations(readonlyDimension.payload.dimensionAssociations);
+        if (!associations.some((association)=>association.entityId === sourceId)) continue;
+        const migrated = associations.map((association)=>{
+            if (association.entityId !== sourceId) return association;
+            if (association.feature !== 'vertex' || !Number.isSafeInteger(association.vertexIndex)) return fail(`PEDIT cannot preserve non-vertex dimension reference on ${sourceId}`);
+            if (edit.operation === 'DELETE' && association.vertexIndex === edit.vertexIndex) {
+                return fail(`PEDIT cannot delete vertex ${edit.vertexIndex} while dimension ${readonlyDimension.id} references it`);
+            }
+            const currentIndex = Number(association.vertexIndex);
+            const vertexIndex = edit.operation === 'INSERT' ? currentIndex + Number(currentIndex >= edit.vertexIndex) : currentIndex - Number(currentIndex > edit.vertexIndex);
+            return {
+                ...association,
+                vertexIndex
+            };
+        });
+        if (stableHash(migrated) !== stableHash(associations)) {
+            updated.push(transaction.updateObject(readonlyDimension.id, {
+                payload: {
+                    dimensionAssociations: migrated
+                }
+            }));
+        }
+    }
+    return updated;
+}
 const point3 = (value, name)=>{
     if (!Array.isArray(value) || value.length !== 3 || value.some((item)=>typeof item !== 'number' || !Number.isFinite(item)) || value[2] !== 0) return fail(`${name} must be a finite model-XY point`);
     return [

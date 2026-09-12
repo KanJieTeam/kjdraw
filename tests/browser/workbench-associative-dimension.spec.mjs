@@ -20,6 +20,7 @@ async function mount(page) {
       transaction.createEntity('CIRCLE', { center: [20, -15, 0], radius: 6 }, { id: 'circle-source' })
       transaction.createEntity('LINE', { start: [-5, 15, 0], end: [5, 15, 0] }, { id: 'ray-a' })
       transaction.createEntity('LINE', { start: [-5, 15, 0], end: [-5, 25, 0] }, { id: 'ray-b' })
+      transaction.createEntity('LWPOLYLINE', { vertices: [{ point: [0, 8, 0] }, { point: [10, 8, 0] }, { point: [20, 8, 0] }], closed: false }, { id: 'polyline-source' })
     })
     const workbench = mountKJDrawWorkbench(host, { sdk, document: drawing })
     await workbench.ready
@@ -116,4 +117,27 @@ test('workbench boundary TRIM refreshes a pointer-associated dimension in the sa
   expect(changed).toEqual({ lineEnd: [-15, -20, 0], dimensionId: before.dimensionId, dimensionHandle: before.dimensionHandle, measurement: 15 })
   await page.keyboard.press('Escape')
   await expect(page.locator(root + ' [data-boundary-actions]')).toBeHidden()
+})
+
+test('workbench PEDIT keeps a pointer-associated polyline vertex after index insertion', async ({ page }) => {
+  await mount(page)
+  await drawDimension(page, 'DIMALIGNED', [[0, 8], [20, 8], [10, 4]], 1)
+  const before = await page.evaluate(async () => {
+    const { sdk, drawing } = window.associativeDimension
+    await sdk.executeCommand('SELECT', { ids: ['polyline-source'], operation: 'replace' }, { document: drawing })
+    const dimension = drawing.listEntities({ type: 'DIMENSION' })[0]
+    return { revision: drawing.revision, id: dimension.id, handle: dimension.handle }
+  })
+  const root = '#associative-workbench'
+  await page.locator(root + ' [data-action="modify"]').click()
+  await page.locator(root + ' [data-modification]').selectOption('polyline-insert')
+  await page.locator(root + ' [data-action="start-modification"]').click()
+  await clickWorld(page, [5, 8])
+  await expect.poll(() => page.evaluate(() => window.associativeDimension.drawing.revision)).toBe(before.revision + 1)
+  const changed = await page.evaluate(() => {
+    const { drawing } = window.associativeDimension
+    const source = drawing.getObject('polyline-source'), dimension = drawing.listEntities({ type: 'DIMENSION' })[0]
+    return { vertexCount: source.payload.vertices.length, indices: dimension.payload.dimensionAssociations.map(item => item.vertexIndex), id: dimension.id, handle: dimension.handle }
+  })
+  expect(changed).toEqual({ vertexCount: 4, indices: [0, 3], id: before.id, handle: before.handle })
 })

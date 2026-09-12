@@ -22,7 +22,7 @@ import { clone, deepFreeze, normalizeName, stableHash } from './utils.js'
 import type { ReadonlyDeep } from './utils.js'
 import { editEntityGrip } from './grips.js'
 import type { KJPointInput } from './grips.js'
-import { refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js'
+import { migratePolylineDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js'
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js'
 import { KJ_SNAP_MODES } from './snapping.js'
 import type { KJDocument, KJDocumentHistoryOptions, KJDocumentTransactionOptions } from './document.js'
@@ -874,6 +874,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'BREAK', aliases: ['BR'], title: 'Break entity',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id), pieces = breakEntityPayloads(entity, args)
+      requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'BREAK')
       transaction.eraseObject(entity.id)
       const derived = pieces.map(piece => createDerived(transaction, entity, piece.type, piece.payload))
       replaceEntityMemberships(transaction, [entity.id], derived.map(piece => piece.id))
@@ -893,6 +894,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       if (entities.some(entity => entity.ownerId !== entities[0]!.ownerId)) throw new KJValidationError('JOIN entities must share one drawing space')
       rejectAttachedReorganization(document, { ids }, 'JOIN')
       const result = joinEntityPayloads(entities, { tolerance: args.tolerance, primaryId })
+      for (const entity of entities) requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'JOIN')
       const primary = entities.find(entity => entity.id === primaryId)!
       let joined: KJObjectRecord
       if (result.type === primary.type) joined = transaction.updateObject(primary.id, { payload: result.payload })
@@ -906,6 +908,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'EXPLODE', aliases: ['X'], title: 'Explode entity',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id), pieces = explodeEntity(entity)
+      requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'EXPLODE')
       transaction.eraseObject(entity.id)
       const derived = pieces.map(piece => createDerived(transaction, entity, piece.type, piece.payload))
       replaceEntityMemberships(transaction, [entity.id], derived.map(piece => piece.id))
@@ -972,7 +975,17 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'PEDIT', aliases: ['PE', 'POLYLINEEDIT'], title: 'Edit polyline topology',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id)
-      return transaction.updateObject(entity.id, { payload: editPolylinePayload(entity, args) })
+      const payload = editPolylinePayload(entity, args)
+      const operation = normalizeName(args.operation)
+      if ((operation === 'SET_BULGE' || operation === 'ARC') && Array.isArray(payload.vertices)
+        && payload.vertices.some(vertex => Number(vertex && typeof vertex === 'object' && 'bulge' in vertex ? vertex.bulge : 0) !== 0)) {
+        requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'PEDIT SET_BULGE')
+      }
+      const updated = transaction.updateObject(entity.id, { payload })
+      if (operation === 'INSERT') migratePolylineDimensionAssociations(transaction, entity.id, { operation, vertexIndex: Number(args.segmentIndex) + 1 })
+      if (operation === 'DELETE') migratePolylineDimensionAssociations(transaction, entity.id, { operation, vertexIndex: Number(args.vertexIndex) })
+      refreshAssociativeDimensions(transaction, [entity.id])
+      return updated
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
