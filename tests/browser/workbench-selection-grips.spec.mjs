@@ -86,6 +86,24 @@ async function entityState(page, index) {
   }, index)
 }
 
+test('QSELECT applies bounded CAD property filters from the command line in editable and readonly workbenches', async ({ page }) => {
+  await mount(page)
+  const command = page.locator('[data-command]')
+  const revision = await page.evaluate(() => window.__selectionGrips.drawing.revision)
+  await command.fill('QSELECT {"property":"type","value":"line"}')
+  await command.press('Enter')
+  await expect.poll(() => selected(page)).toEqual([0, 1])
+  await command.fill('QSELECT {"property":"type","value":"circle","operation":"add"}')
+  await command.press('Enter')
+  await expect.poll(() => selected(page)).toEqual([0, 1, 2])
+  await page.evaluate(() => window.__selectionGrips.workbench.setOptions({ readonly: true }))
+  await command.fill('QSELECT {"property":"type","value":"line","operation":"remove"}')
+  await command.press('Enter')
+  await expect.poll(() => selected(page)).toEqual([2])
+  expect(await page.evaluate(() => window.__selectionGrips.drawing.revision)).toBe(revision)
+  expect(await page.evaluate(() => window.__selectionGrips.errors)).toEqual([])
+})
+
 test('embedded CAD window/crossing selection has directional visuals and additive/subtractive shortcuts', async ({ page }) => {
   await mount(page)
   const revision = (await entityState(page, 0)).revision

@@ -3,6 +3,8 @@ import { KJValidationError } from './errors.js'
 import { normalizeName } from './utils.js'
 import type { KJDocument } from './document.js'
 import type { KJObjectRecord, KJReadonlyObjectRecord } from './schema.js'
+import { isEntitySelectable } from './selection-geometry.js'
+import type { KJSpatialSelectionOptions } from './selection-geometry.js'
 export { isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence } from './selection-geometry.js'
 export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js'
 
@@ -34,6 +36,16 @@ export interface KJSaveSelectionOptions {
   description?: unknown
 }
 
+export const KJ_SELECTION_PROPERTIES = Object.freeze(['id', 'type', 'name', 'layer', 'color', 'linetype', 'lineweight'] as const)
+export type KJSelectionProperty = typeof KJ_SELECTION_PROPERTIES[number]
+export type KJSelectionPropertyOperator = 'equals' | 'not-equals'
+
+export interface KJPropertySelectionQuery {
+  property: KJSelectionProperty
+  value: string | number
+  operator?: KJSelectionPropertyOperator
+}
+
 interface KJSelectionEvents {
   change: KJSelectionChange
 }
@@ -47,6 +59,53 @@ function entityId(document: KJDocument, value: KJEntityReference): string {
   const object = document.getObject(id)
   if (!object || object.kind !== 'entity') throw new KJValidationError(`Selectable entity does not exist: ${id}`)
   return id
+}
+
+function byLayer(value: unknown): boolean {
+  return value == null || String(value).toLowerCase() === 'bylayer'
+}
+
+function propertyValue(document: KJDocument, entity: KJReadonlyObjectRecord, property: KJSelectionProperty): string | number | null {
+  const layer = document.getObject(String(entity.payload.layerId ?? ''))
+  if (property === 'id') return entity.id
+  if (property === 'type') return entity.type
+  if (property === 'name') return entity.name ?? ''
+  if (property === 'layer') return layer?.name ?? String(entity.payload.layerId ?? '')
+  if (property === 'color') {
+    const value = entity.payload.color
+    return byLayer(value) || Number(value) === 256 ? Number(layer?.payload.color ?? 7) : Number(value)
+  }
+  if (property === 'linetype') {
+    const value = byLayer(entity.payload.linetypeId) ? layer?.payload.linetypeId : entity.payload.linetypeId
+    const record = document.getObject(String(value ?? ''))
+    return record?.name ?? String(value ?? '')
+  }
+  const value = entity.payload.lineweight
+  return byLayer(value) || Number(value) < 0 ? Number(layer?.payload.lineweight ?? -1) : Number(value)
+}
+
+/** Select visible, editable entities by a bounded set of canonical CAD properties. Does not mutate document history. */
+export function selectEntitiesByProperty(
+  document: KJDocument,
+  query: KJPropertySelectionQuery,
+  options: KJSpatialSelectionOptions = {},
+): readonly string[] {
+  const property = String(query?.property ?? '').toLowerCase()
+  if (!(KJ_SELECTION_PROPERTIES as readonly string[]).includes(property)) throw new KJValidationError(`Unsupported selection property: ${property || '<empty>'}`)
+  const operator = String(query?.operator ?? 'equals').toLowerCase()
+  if (operator !== 'equals' && operator !== 'not-equals') throw new KJValidationError(`Unsupported selection property operator: ${operator}`)
+  const numeric = property === 'color' || property === 'lineweight'
+  if (numeric && (typeof query.value !== 'number' || !Number.isFinite(query.value))) throw new KJValidationError(`${property} selection value must be a finite number`)
+  if (!numeric && typeof query.value !== 'string') throw new KJValidationError(`${property} selection value must be a string`)
+  const expected = numeric ? query.value : property === 'id' ? query.value : normalizeName(query.value)
+  const spaceId = options.spaceId ?? document.spaces.modelSpaceId
+  return Object.freeze(document.listEntities({ ownerId: spaceId }).filter(entity => {
+    if (!isEntitySelectable(document, entity, { ...options, spaceId })) return false
+    const actual = propertyValue(document, entity, property as KJSelectionProperty)
+    const comparable = numeric || property === 'id' ? actual : normalizeName(String(actual ?? ''))
+    const matches = comparable === expected
+    return operator === 'equals' ? matches : !matches
+  }).map(entity => entity.id))
 }
 
 export class KJSelectionSet {

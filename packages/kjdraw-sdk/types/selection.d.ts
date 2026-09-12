@@ -1,5 +1,6 @@
 import type { KJDocument } from './document.js';
 import type { KJObjectRecord, KJReadonlyObjectRecord } from './schema.js';
+import type { KJSpatialSelectionOptions } from './selection-geometry.js';
 export { isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence } from './selection-geometry.js';
 export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from './selection-geometry.js';
 export type KJEntityReference = string | {
@@ -25,6 +26,16 @@ export interface KJSaveSelectionOptions {
     ids?: readonly KJEntityReference[];
     description?: unknown;
 }
+export declare const KJ_SELECTION_PROPERTIES: readonly ["id", "type", "name", "layer", "color", "linetype", "lineweight"];
+export type KJSelectionProperty = typeof KJ_SELECTION_PROPERTIES[number];
+export type KJSelectionPropertyOperator = 'equals' | 'not-equals';
+export interface KJPropertySelectionQuery {
+    property: KJSelectionProperty;
+    value: string | number;
+    operator?: KJSelectionPropertyOperator;
+}
+/** Select visible, editable entities by a bounded set of canonical CAD properties. Does not mutate document history. */
+export declare function selectEntitiesByProperty(document: KJDocument, query: KJPropertySelectionQuery, options?: KJSpatialSelectionOptions): readonly string[];
 export declare class KJSelectionSet {
     #private;
     constructor(document: KJDocument, ids?: readonly KJEntityReference[]);

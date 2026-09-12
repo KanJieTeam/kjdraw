@@ -95,8 +95,10 @@ export interface KJCommandArguments extends Record<string, unknown> {
     newName?: string | null;
     type?: string;
     operation?: string;
+    operator?: string;
     mode?: string;
     query?: string;
+    property?: string;
     status?: string;
     referenceType?: string;
     gripId?: string;

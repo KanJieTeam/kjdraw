@@ -9,6 +9,7 @@ import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js';
 import { KJ_SNAP_MODES } from './snapping.js';
+import { selectEntitiesByProperty } from './selection.js';
 import { breakEntityPayloads, chamferLinePair, editPolylinePayload, explodeEntity, extendEntityPayload, filletLinePair, joinEntityPayloads, lengthenEntityPayload, offsetEntityPayload, stretchEntityPayload, trimEntityPayloads } from './editing.js';
 const AFFINE_ENTITY_TYPES = Object.freeze([
     'LINE',
@@ -716,6 +717,33 @@ export function registerCoreCommands(registry) {
             else if (operation === 'add') selection.add(ids);
             else if (operation === 'remove') selection.remove(ids);
             else if (operation === 'clear') selection.clear();
+            else throw new KJValidationError(`Unknown selection operation: ${operation}`);
+            return selection.ids;
+        }
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'SELECTBYPROPERTY',
+        aliases: [
+            'QSELECT'
+        ],
+        title: 'Select entities by property',
+        transactional: false,
+        execute: ({ sdk, document }, args)=>{
+            const selection = sdk.getSelectionManager(document.id)?.active;
+            if (!selection) throw new KJValidationError('Selection manager is unavailable');
+            const ids = selectEntitiesByProperty(document, {
+                property: args.property,
+                value: args.value,
+                ...args.operator == null ? {} : {
+                    operator: args.operator
+                }
+            });
+            const operation = String(args.operation ?? 'replace').toLowerCase();
+            if (operation === 'replace') selection.replace(ids);
+            else if (operation === 'add') selection.add(ids);
+            else if (operation === 'remove') selection.remove(ids);
             else throw new KJValidationError(`Unknown selection operation: ${operation}`);
             return selection.ids;
         }

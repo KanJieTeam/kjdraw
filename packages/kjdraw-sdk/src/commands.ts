@@ -26,6 +26,8 @@ import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js'
 import { KJ_SNAP_MODES } from './snapping.js'
 import type { KJDocument, KJDocumentHistoryOptions, KJDocumentTransactionOptions } from './document.js'
 import type { KJSelectionManager } from './selection.js'
+import { selectEntitiesByProperty } from './selection.js'
+import type { KJSelectionProperty, KJSelectionPropertyOperator } from './selection.js'
 import type { KJObjectPatch, KJTableRecordInput, KJTransaction } from './transaction.js'
 import type {
   KJObjectPayload,
@@ -135,8 +137,10 @@ export interface KJCommandArguments extends Record<string, unknown> {
   newName?: string | null
   type?: string
   operation?: string
+  operator?: string
   mode?: string
   query?: string
+  property?: string
   status?: string
   referenceType?: string
   gripId?: string
@@ -465,6 +469,24 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       else if (operation === 'add') selection.add(ids)
       else if (operation === 'remove') selection.remove(ids)
       else if (operation === 'clear') selection.clear()
+      else throw new KJValidationError(`Unknown selection operation: ${operation}`)
+      return selection.ids
+    },
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'SELECTBYPROPERTY', aliases: ['QSELECT'], title: 'Select entities by property', transactional: false,
+    execute: ({ sdk, document }, args) => {
+      const selection = sdk.getSelectionManager(document.id)?.active
+      if (!selection) throw new KJValidationError('Selection manager is unavailable')
+      const ids = selectEntitiesByProperty(document, {
+        property: args.property as KJSelectionProperty,
+        value: args.value as string | number,
+        ...(args.operator == null ? {} : { operator: args.operator as KJSelectionPropertyOperator }),
+      })
+      const operation = String(args.operation ?? 'replace').toLowerCase()
+      if (operation === 'replace') selection.replace(ids)
+      else if (operation === 'add') selection.add(ids)
+      else if (operation === 'remove') selection.remove(ids)
       else throw new KJValidationError(`Unknown selection operation: ${operation}`)
       return selection.ids
     },

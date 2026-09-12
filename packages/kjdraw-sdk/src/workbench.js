@@ -1187,6 +1187,8 @@ export class KJDrawWorkbench {
         if (this.paperPreview && (!Array.isArray(args.ids) || args.ids.some((id)=>this.document?.getObject(String(id))?.ownerId !== this.spaceId))) throw new Error('Selection must belong to the displayed paper space');
         if (this.#readOnly && ![
             'SELECT',
+            'SELECTBYPROPERTY',
+            'QSELECT',
             'SEARCH',
             'FIND',
             'LENGTH',
@@ -1833,7 +1835,11 @@ export class KJDrawWorkbench {
                 return;
             }
             if (remainder.startsWith('{')) {
-                if (this.#readOnly) throw new Error(this.#t('readonly'));
+                if (this.#readOnly && ![
+                    'SELECT',
+                    'SELECTBYPROPERTY',
+                    'QSELECT'
+                ].includes(command)) throw new Error(this.#t('readonly'));
                 const parsed = JSON.parse(remainder);
                 if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Command JSON arguments must be an object');
                 await this.execute(command, parsed);
@@ -1842,6 +1848,8 @@ export class KJDrawWorkbench {
             if (this.#readOnly && ![
                 'PAN',
                 'SELECT',
+                'SELECTBYPROPERTY',
+                'QSELECT',
                 'FENCE',
                 'MEASURE'
             ].includes(command)) throw new Error(this.#t('readonly'));

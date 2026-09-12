@@ -721,7 +721,7 @@ export class KJDrawWorkbench {
     if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed')
     if (this.paperPreview && command.toUpperCase() !== 'SELECT') throw new Error(this.#t('paperPreview'))
     if (this.paperPreview && (!Array.isArray(args.ids) || args.ids.some(id => this.document?.getObject(String(id))?.ownerId !== this.spaceId))) throw new Error('Selection must belong to the displayed paper space')
-    if (this.#readOnly && !['SELECT', 'SEARCH', 'FIND', 'LENGTH', 'AREA', 'DISTANCE', 'NEAREST', 'INTERSECT', 'ANGLE'].includes(command.toUpperCase())) throw new Error('This editor is read only')
+    if (this.#readOnly && !['SELECT', 'SELECTBYPROPERTY', 'QSELECT', 'SEARCH', 'FIND', 'LENGTH', 'AREA', 'DISTANCE', 'NEAREST', 'INTERSECT', 'ANGLE'].includes(command.toUpperCase())) throw new Error('This editor is read only')
     const drawing = this.document
     if (!drawing) throw new Error('No active KJDraw document')
     if (this.sdk.documents.get(drawing.id) !== drawing) throw new Error('This drawing was closed or replaced by the host; setDocument before editing')
@@ -1094,13 +1094,13 @@ export class KJDrawWorkbench {
         this.renderer.fit(); this.#refreshViewport(); return
       }
       if (remainder.startsWith('{')) {
-        if (this.#readOnly) throw new Error(this.#t('readonly'))
+        if (this.#readOnly && !['SELECT', 'SELECTBYPROPERTY', 'QSELECT'].includes(command)) throw new Error(this.#t('readonly'))
         const parsed = JSON.parse(remainder) as unknown
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Command JSON arguments must be an object')
         await this.execute(command, parsed as KJCommandArguments)
         return
       }
-      if (this.#readOnly && !['PAN', 'SELECT', 'FENCE', 'MEASURE'].includes(command)) throw new Error(this.#t('readonly'))
+      if (this.#readOnly && !['PAN', 'SELECT', 'SELECTBYPROPERTY', 'QSELECT', 'FENCE', 'MEASURE'].includes(command)) throw new Error(this.#t('readonly'))
       if ((command === 'TRIM' || command === 'EXTEND') && !tokens.length) {
         this.#beginBoundaryEdit(command === 'TRIM' ? 'trim' : 'extend')
         return
