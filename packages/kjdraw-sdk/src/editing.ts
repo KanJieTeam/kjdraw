@@ -78,6 +78,20 @@ export interface KJLinePairEditResult {
   connector: KJLineConnector | KJArcConnector
 }
 
+export interface KJJoinEntity extends KJEditingEntity {
+  readonly id?: unknown
+}
+
+export interface KJJoinOptions {
+  readonly tolerance?: unknown
+  readonly primaryId?: unknown
+}
+
+export interface KJJoinResult extends KJDerivedEntityPayload {
+  sourceIds: string[]
+  closed: boolean
+}
+
 function pointInput(value: unknown): Point2Input {
   return value as Point2Input
 }
@@ -101,6 +115,217 @@ function point3(value: unknown): Point3 {
 function positiveTurn(value: number): number {
   const normalized = value % TURN
   return normalized < 0 ? normalized + TURN : normalized
+}
+
+interface JoinVertex {
+  point: Point3
+  bulge: number
+  startWidth: number
+  endWidth: number
+}
+
+interface JoinSegment extends JoinVertex {
+  end: Point3
+}
+
+interface JoinPath {
+  id: string
+  type: string
+  segments: JoinSegment[]
+  start: Point3
+  end: Point3
+  nodeStart: number
+  nodeEnd: number
+}
+
+function distance3(first: Point3, second: Point3): number {
+  return Math.hypot(first[0] - second[0], first[1] - second[1], first[2] - second[2])
+}
+
+function joinTolerance(value: unknown): number {
+  const tolerance = Number(value ?? 1e-9)
+  if (!Number.isFinite(tolerance) || tolerance < 0) throw new KJValidationError('Join tolerance must be a non-negative finite number')
+  return tolerance
+}
+
+function positiveXYNormal(payload: ReadonlyDeep<KJObjectPayload>, label: string): void {
+  if (payload.normal == null) return
+  const normal = point3(payload.normal)
+  if (Math.abs(normal[0]) > 1e-12 || Math.abs(normal[1]) > 1e-12 || normal[2] <= 0) throw new KJValidationError(`${label} must use a positive XY extrusion normal`)
+}
+
+function actualPolylinePoints(payload: ReadonlyDeep<KJObjectPayload>): Point3[] {
+  const vertices = payload.vertices
+  if (!Array.isArray(vertices) || vertices.length < 2) throw new KJValidationError('JOIN requires polylines with at least two vertices')
+  const points = vertices.map(vertex => point3((vertex as { readonly point?: unknown }).point ?? vertex))
+  const elevation = Number(payload.elevation ?? 0)
+  if (!Number.isFinite(elevation)) throw new KJValidationError('Polyline elevation must be finite')
+  if (!(Number(payload.dxfFlags ?? 0) & 8) && elevation !== 0 && points.every(point => point[2] === 0)) {
+    for (const point of points) point[2] = elevation
+  }
+  return points
+}
+
+function joinPath(entity: KJJoinEntity, index: number): JoinPath {
+  const id = String(entity.id ?? `join-source-${index}`), type = normalizeName(entity.type), payload = entity.payload ?? {}
+  const segments: JoinSegment[] = []
+  if (type === 'LINE') {
+    const start = point3(payload.start), end = point3(payload.end)
+    if (distance3(start, end) <= 1e-15) throw new KJValidationError(`JOIN cannot use degenerate entity ${id}`)
+    segments.push({ point: start, end, bulge: 0, startWidth: 0, endWidth: 0 })
+  } else if (type === 'ARC') {
+    positiveXYNormal(payload, `JOIN ARC ${id}`)
+    const center = point3(payload.center), radius = Number(payload.radius), sweep = arcSweep(payload as ArcDefinition)
+    if (!(radius > 0) || !Number.isFinite(radius) || !Number.isFinite(sweep) || Math.abs(sweep) <= 1e-15 || Math.abs(sweep) >= TURN - 1e-12) throw new KJValidationError(`JOIN requires a non-degenerate open ARC: ${id}`)
+    const start = polar(center, radius, Number(payload.startAngle)), end = polar(center, radius, Number(payload.startAngle) + sweep)
+    segments.push({ point: start, end, bulge: Math.tan(sweep / 4), startWidth: 0, endWidth: 0 })
+  } else if (type === 'LWPOLYLINE' || type === 'POLYLINE') {
+    if (payload.closed) throw new KJValidationError(`JOIN requires open polylines: ${id}`)
+    if (Number(payload.dxfFlags ?? 0) & 8) throw new KJValidationError(`JOIN does not flatten 3D polyline ${id}`)
+    positiveXYNormal(payload, `JOIN polyline ${id}`)
+    const vertices = payload.vertices as readonly unknown[], points = actualPolylinePoints(payload)
+    for (let vertexIndex = 0; vertexIndex < points.length - 1; vertexIndex += 1) {
+      const vertex = vertices[vertexIndex] as { readonly bulge?: unknown; readonly startWidth?: unknown; readonly endWidth?: unknown }
+      const start = points[vertexIndex]!, end = points[vertexIndex + 1]!
+      if (distance3(start, end) <= 1e-15) throw new KJValidationError(`JOIN cannot use a zero-length polyline segment: ${id}`)
+      segments.push({ point: start, end, bulge: Number(vertex?.bulge ?? 0), startWidth: Number(vertex?.startWidth ?? 0), endWidth: Number(vertex?.endWidth ?? 0) })
+    }
+  } else throw new KJValidationError(`JOIN is not implemented for ${type || 'unknown entity'}`)
+  for (const segment of segments) if (![segment.bulge, segment.startWidth, segment.endWidth].every(Number.isFinite)) throw new KJValidationError(`JOIN found invalid segment data in ${id}`)
+  return { id, type, segments, start: segments[0]!.point, end: segments.at(-1)!.end, nodeStart: -1, nodeEnd: -1 }
+}
+
+function clusterJoinEndpoints(paths: JoinPath[], tolerance: number): Point3[] {
+  const points = paths.flatMap(path => [path.start, path.end])
+  const parent = points.map((_, index) => index)
+  const find = (index: number): number => {
+    while (parent[index] !== index) { parent[index] = parent[parent[index]!]!; index = parent[index]! }
+    return index
+  }
+  const unite = (first: number, second: number): void => {
+    first = find(first); second = find(second)
+    if (first !== second) parent[second] = first
+  }
+  const scale = tolerance > 0 ? tolerance : 1
+  const buckets = new Map<string, number[]>()
+  const key = (point: Point3, dx = 0, dy = 0, dz = 0): string => `${Math.floor(point[0] / scale) + dx}:${Math.floor(point[1] / scale) + dy}:${Math.floor(point[2] / scale) + dz}`
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index]!
+    if (tolerance === 0) {
+      const exact = `${point[0]}:${point[1]}:${point[2]}`, matches = buckets.get(exact)
+      if (matches?.length) unite(index, matches[0]!)
+      else buckets.set(exact, [index])
+      continue
+    }
+    for (let dx = -1; dx <= 1; dx += 1) for (let dy = -1; dy <= 1; dy += 1) for (let dz = -1; dz <= 1; dz += 1) {
+      for (const candidate of buckets.get(key(point, dx, dy, dz)) ?? []) if (distance3(point, points[candidate]!) <= tolerance) unite(index, candidate)
+    }
+    const own = key(point), values = buckets.get(own)
+    if (values) values.push(index); else buckets.set(own, [index])
+  }
+  const roots = new Map<number, number>(), nodes: Point3[] = []
+  for (let index = 0; index < points.length; index += 1) {
+    const root = find(index)
+    if (!roots.has(root)) { roots.set(root, nodes.length); nodes.push(points[root]!) }
+    const path = paths[Math.floor(index / 2)]!
+    if (index % 2 === 0) path.nodeStart = roots.get(root)!
+    else path.nodeEnd = roots.get(root)!
+  }
+  return nodes
+}
+
+function reverseJoinSegments(segments: readonly JoinSegment[]): JoinSegment[] {
+  return [...segments].reverse().map(segment => ({
+    point: [...segment.end] as Point3,
+    end: [...segment.point] as Point3,
+    bulge: -segment.bulge,
+    startWidth: segment.endWidth,
+    endWidth: segment.startWidth,
+  }))
+}
+
+function joinDrawingProperties(payload: ReadonlyDeep<KJObjectPayload>): KJObjectPayload {
+  const result: KJObjectPayload = {}
+  for (const key of ['layerId', 'color', 'trueColor', 'linetypeId', 'linetypeName', 'linetypeScale', 'lineweight', 'transparency', 'visible', 'thickness', 'materialId', 'plotStyleId']) {
+    if (Object.hasOwn(payload, key)) result[key] = clone(payload[key])
+  }
+  return result
+}
+
+/** Join connected open linear/arc paths into one editable planar polyline. */
+export function joinEntityPayloads(entities: readonly KJJoinEntity[], options: KJJoinOptions = {}): KJJoinResult {
+  if (!Array.isArray(entities) || entities.length < 2) throw new KJValidationError('JOIN requires at least two entities')
+  if (entities.length > 4096) throw new KJValidationError('JOIN supports at most 4096 entities per operation')
+  const paths = entities.map(joinPath), ids = paths.map(path => path.id)
+  if (new Set(ids).size !== ids.length) throw new KJValidationError('JOIN entity ids must be unique')
+  const primaryId = String(options.primaryId ?? ids[0]), primaryIndex = ids.indexOf(primaryId)
+  if (primaryIndex < 0) throw new KJValidationError('JOIN primary entity must be included in the input')
+  const tolerance = joinTolerance(options.tolerance), nodes = clusterJoinEndpoints(paths, tolerance)
+  const incident = nodes.map(() => [] as number[])
+  for (let index = 0; index < paths.length; index += 1) {
+    const path = paths[index]!
+    incident[path.nodeStart]!.push(index); incident[path.nodeEnd]!.push(index)
+  }
+  const activeNodes = incident.map((edges, node) => ({ edges, node })).filter(value => value.edges.length)
+  const endpoints = activeNodes.filter(value => value.edges.length === 1)
+  if (activeNodes.some(value => value.edges.length > 2)) throw new KJValidationError('JOIN cannot resolve branched geometry')
+  if (endpoints.length !== 0 && endpoints.length !== 2) throw new KJValidationError('JOIN entities do not form one chain or loop')
+  const visited = new Set<number>(), pending = [paths[0]!.nodeStart]
+  while (pending.length) {
+    const node = pending.pop()!
+    if (visited.has(node)) continue
+    visited.add(node)
+    for (const edge of incident[node]!) {
+      const path = paths[edge]!, next = path.nodeStart === node ? path.nodeEnd : path.nodeStart
+      if (!visited.has(next)) pending.push(next)
+    }
+  }
+  if (activeNodes.some(value => !visited.has(value.node))) throw new KJValidationError('JOIN entities are disconnected')
+  const closed = endpoints.length === 0
+  let currentNode: number, firstEdge: number | null = null
+  if (closed) { firstEdge = primaryIndex; currentNode = paths[primaryIndex]!.nodeStart }
+  else {
+    // An open chain has two equivalent traversal directions. Start on the
+    // primary path's start side so its original direction and bulges survive.
+    const startSide = new Set<number>(), sidePending = [paths[primaryIndex]!.nodeStart]
+    while (sidePending.length) {
+      const node = sidePending.pop()!
+      if (startSide.has(node)) continue
+      startSide.add(node)
+      for (const edge of incident[node]!) {
+        if (edge === primaryIndex) continue
+        const path = paths[edge]!, next = path.nodeStart === node ? path.nodeEnd : path.nodeStart
+        if (!startSide.has(next)) sidePending.push(next)
+      }
+    }
+    currentNode = endpoints.find(value => startSide.has(value.node))!.node
+  }
+  const used = new Set<number>(), ordered: Array<{ path: JoinPath; segments: JoinSegment[] }> = []
+  while (used.size < paths.length) {
+    const candidates = incident[currentNode]!.filter(edge => !used.has(edge))
+    const edge = firstEdge ?? candidates[0]
+    firstEdge = null
+    if (edge == null || !candidates.includes(edge)) throw new KJValidationError('JOIN entities do not form a continuous path')
+    const path = paths[edge]!, forward = path.nodeStart === currentNode
+    ordered.push({ path, segments: forward ? path.segments.map(segment => clone(segment) as JoinSegment) : reverseJoinSegments(path.segments) })
+    used.add(edge)
+    currentNode = forward ? path.nodeEnd : path.nodeStart
+  }
+  if (closed ? currentNode !== (ordered[0]!.path.nodeStart) : incident[currentNode]!.length !== 1) throw new KJValidationError('JOIN path termination is inconsistent')
+  const segments = ordered.flatMap(value => value.segments)
+  for (let index = 1; index < segments.length; index += 1) segments[index]!.point = [...segments[index - 1]!.end] as Point3
+  if (closed) segments[0]!.point = [...segments.at(-1)!.end] as Point3
+  const plane = segments[0]!.point[2]
+  if (segments.some(segment => Math.abs(segment.point[2] - plane) > tolerance || Math.abs(segment.end[2] - plane) > tolerance)) throw new KJValidationError('JOIN requires coplanar geometry in one XY plane')
+  const vertices: JoinVertex[] = segments.map(segment => ({ point: [segment.point[0], segment.point[1], 0], bulge: segment.bulge, startWidth: segment.startWidth, endWidth: segment.endWidth }))
+  if (!closed) vertices.push({ point: [segments.at(-1)!.end[0], segments.at(-1)!.end[1], 0], bulge: 0, startWidth: 0, endWidth: 0 })
+  const primaryPayload = entities[primaryIndex]!.payload ?? {}
+  return {
+    type: ['LWPOLYLINE', 'POLYLINE'].includes(normalizeName(entities[primaryIndex]!.type)) ? normalizeName(entities[primaryIndex]!.type) : 'LWPOLYLINE',
+    payload: { ...joinDrawingProperties(primaryPayload), vertices, closed, elevation: plane, normal: [0, 0, 1] },
+    sourceIds: ordered.map(value => value.path.id),
+    closed,
+  }
 }
 
 function polar(center: Point3, radius: number, angle: number): Point3 {

@@ -8,6 +8,7 @@ export type KJModificationId =
   | 'array-polar'
   | 'offset'
   | 'break'
+  | 'join'
   | 'explode'
   | 'trim'
   | 'extend'
@@ -91,7 +92,7 @@ const pick = (key: string, en: string, zh: string): KJModificationPointDefinitio
 
 export const KJ_MODIFICATION_IDS = Object.freeze([
   'rotate', 'scale', 'mirror', 'array-rect', 'array-polar', 'offset',
-  'break', 'explode', 'trim', 'extend', 'chamfer', 'fillet',
+  'break', 'join', 'explode', 'trim', 'extend', 'chamfer', 'fillet',
 ] as const)
 
 export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = Object.freeze([
@@ -154,6 +155,14 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
     supportedEntityTypes: ['LINE', 'ARC'],
     fields: [],
     pointKeys: [pick('point', 'Pick the break point', '在画布上指定打断点')],
+  },
+  {
+    id: 'join', command: 'JOIN', label: text('Join', '合并'),
+    description: text('Join connected lines, arcs and open polylines into one editable path.', '将相连的直线、圆弧和开放多段线合并为一条可编辑路径。'),
+    minSelection: 2, maxSelection: 4096,
+    supportedEntityTypes: ['LINE', 'ARC', 'LWPOLYLINE', 'POLYLINE'],
+    fields: [number('tolerance', 'Endpoint tolerance', '端点容差', 1e-9, { min: 0, step: 0.001 })],
+    pointKeys: [],
   },
   {
     id: 'explode', command: 'EXPLODE', label: text('Explode', '分解'),
@@ -298,6 +307,7 @@ export function buildKJModificationCommand(id: KJModificationId, context: KJModi
     }
     case 'offset': return { command: definition.command, arguments: { id: ids[0]!, ...values, sidePoint: points[0]! } }
     case 'break': return { command: definition.command, arguments: { id: ids[0]!, point: points[0]! } }
+    case 'join': return { command: definition.command, arguments: { id: ids[0]!, ids, ...values } }
     case 'explode': return { command: definition.command, arguments: { id: ids[0]! } }
     case 'trim': return { command: definition.command, arguments: { id: ids[0]!, boundaryIds: ids.slice(1), pickPoint: points[0]! } }
     case 'extend': return { command: definition.command, arguments: { id: ids[0]!, boundaryIds: ids.slice(1), pickPoint: points[0]! } }

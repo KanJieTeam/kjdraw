@@ -36,6 +36,7 @@ export const KJ_MODIFICATION_IDS = Object.freeze([
     'array-polar',
     'offset',
     'break',
+    'join',
     'explode',
     'trim',
     'extend',
@@ -176,6 +177,27 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         pointKeys: [
             pick('point', 'Pick the break point', '在画布上指定打断点')
         ]
+    },
+    {
+        id: 'join',
+        command: 'JOIN',
+        label: text('Join', '合并'),
+        description: text('Join connected lines, arcs and open polylines into one editable path.', '将相连的直线、圆弧和开放多段线合并为一条可编辑路径。'),
+        minSelection: 2,
+        maxSelection: 4096,
+        supportedEntityTypes: [
+            'LINE',
+            'ARC',
+            'LWPOLYLINE',
+            'POLYLINE'
+        ],
+        fields: [
+            number('tolerance', 'Endpoint tolerance', '端点容差', 1e-9, {
+                min: 0,
+                step: 0.001
+            })
+        ],
+        pointKeys: []
     },
     {
         id: 'explode',
@@ -460,6 +482,15 @@ export function buildKJModificationCommand(id, context) {
                 arguments: {
                     id: ids[0],
                     point: points[0]
+                }
+            };
+        case 'join':
+            return {
+                command: definition.command,
+                arguments: {
+                    id: ids[0],
+                    ids,
+                    ...values
                 }
             };
         case 'explode':

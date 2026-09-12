@@ -8,7 +8,7 @@ import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js';
 import { KJ_SNAP_MODES } from './snapping.js';
-import { breakEntityPayloads, chamferLinePair, explodeEntity, extendEntityPayload, filletLinePair, offsetEntityPayload, trimEntityPayloads } from './editing.js';
+import { breakEntityPayloads, chamferLinePair, explodeEntity, extendEntityPayload, filletLinePair, joinEntityPayloads, offsetEntityPayload, trimEntityPayloads } from './editing.js';
 const AFFINE_ENTITY_TYPES = Object.freeze([
     'LINE',
     'RAY',
@@ -158,6 +158,17 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'LINE',
             'ARC'
         ]
+    },
+    JOIN: {
+        domain: 'topology',
+        precision: 'exact',
+        supportedEntityTypes: [
+            'LINE',
+            'ARC',
+            'LWPOLYLINE',
+            'POLYLINE'
+        ],
+        maximumEntities: 4096
     },
     EXPLODE: {
         domain: 'topology',
@@ -1387,6 +1398,45 @@ export function registerCoreCommands(registry) {
         owner: '@kanjieteam/kjdraw'
     }));
     disposers.push(registry.register({
+        id: 'JOIN',
+        aliases: [
+            'J'
+        ],
+        title: 'Join entities',
+        execute: ({ document, transaction }, args)=>{
+            const rawIds = args.ids ?? (args.id == null ? [] : [
+                args.id
+            ]);
+            if (!Array.isArray(rawIds) || rawIds.length < 2) throw new KJValidationError('JOIN requires at least two entity ids');
+            const ids = rawIds.map(String);
+            if (new Set(ids).size !== ids.length) throw new KJValidationError('JOIN entity ids must be unique');
+            const primaryId = String(args.id ?? ids[0]);
+            if (!ids.includes(primaryId)) throw new KJValidationError('JOIN primary entity must be included in ids');
+            const entities = ids.map((id)=>requiredEntity(document, id));
+            if (entities.some((entity)=>entity.ownerId !== entities[0].ownerId)) throw new KJValidationError('JOIN entities must share one drawing space');
+            rejectAttachedReorganization(document, {
+                ids
+            }, 'JOIN');
+            const result = joinEntityPayloads(entities, {
+                tolerance: args.tolerance,
+                primaryId
+            });
+            const primary = entities.find((entity)=>entity.id === primaryId);
+            let joined;
+            if (result.type === primary.type) joined = transaction.updateObject(primary.id, {
+                payload: result.payload
+            });
+            else joined = createDerived(transaction, primary, result.type, result.payload);
+            for (const entity of entities)if (entity.id !== joined.id) transaction.eraseObject(entity.id);
+            replaceEntityMemberships(transaction, ids, [
+                joined.id
+            ]);
+            return joined;
+        }
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
         id: 'EXPLODE',
         aliases: [
             'X'
@@ -1423,7 +1473,9 @@ export function registerCoreCommands(registry) {
                 primary.id
             ];
             for (const piece of pieces.slice(1))retainedIds.push(createDerived(transaction, entity, piece.type, piece.payload).id);
-            replaceTrimMemberships(transaction, entity.id, retainedIds);
+            replaceEntityMemberships(transaction, [
+                entity.id
+            ], retainedIds);
             return primary;
         }
     }, {
@@ -2260,16 +2312,17 @@ function createDerived(transaction, source, type, payload) {
         }
     });
 }
-function replaceTrimMemberships(transaction, sourceId, retainedIds) {
+function replaceEntityMemberships(transaction, sourceIds, retainedIds) {
+    const sources = new Set(sourceIds);
     for (const group of Object.values(transaction._draft().objects)){
         if (group.erased || group.kind !== 'group' || ![
             'GROUP',
             'SELECTION_SET'
         ].includes(group.type)) continue;
         const members = group.payload.memberIds;
-        if (!Array.isArray(members) || !members.includes(sourceId)) continue;
+        if (!Array.isArray(members) || !members.some((id)=>sources.has(id))) continue;
         const memberIds = [
-            ...new Set(members.flatMap((id)=>id === sourceId ? [
+            ...new Set(members.flatMap((id)=>sources.has(id) ? [
                     ...retainedIds
                 ] : [
                     id

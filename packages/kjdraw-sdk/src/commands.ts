@@ -40,6 +40,7 @@ import {
   explodeEntity,
   extendEntityPayload,
   filletLinePair,
+  joinEntityPayloads,
   offsetEntityPayload,
   trimEntityPayloads,
 } from './editing.js'
@@ -187,6 +188,7 @@ export interface KJCommandArguments extends Record<string, unknown> {
   rotation?: unknown
   radius?: unknown
   distance?: unknown
+  tolerance?: unknown
   distance1?: unknown
   distance2?: unknown
   dx?: unknown
@@ -285,6 +287,7 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   ARRAYPOLAR: { domain: 'geometry', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },
   OFFSET: { domain: 'geometry', precision: 'exact', supportedEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
   BREAK: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC'] },
+  JOIN: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC', 'LWPOLYLINE', 'POLYLINE'], maximumEntities: 4096 },
   EXPLODE: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE', 'REVISION_CLOUD', 'WIPEOUT'] },
   TRIM: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE', 'ARC', 'CIRCLE'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
   EXTEND: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE', 'ARC'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
@@ -758,6 +761,28 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
+    id: 'JOIN', aliases: ['J'], title: 'Join entities',
+    execute: ({ document, transaction }, args) => {
+      const rawIds = args.ids ?? (args.id == null ? [] : [args.id])
+      if (!Array.isArray(rawIds) || rawIds.length < 2) throw new KJValidationError('JOIN requires at least two entity ids')
+      const ids = rawIds.map(String)
+      if (new Set(ids).size !== ids.length) throw new KJValidationError('JOIN entity ids must be unique')
+      const primaryId = String(args.id ?? ids[0])
+      if (!ids.includes(primaryId)) throw new KJValidationError('JOIN primary entity must be included in ids')
+      const entities = ids.map(id => requiredEntity(document, id))
+      if (entities.some(entity => entity.ownerId !== entities[0]!.ownerId)) throw new KJValidationError('JOIN entities must share one drawing space')
+      rejectAttachedReorganization(document, { ids }, 'JOIN')
+      const result = joinEntityPayloads(entities, { tolerance: args.tolerance, primaryId })
+      const primary = entities.find(entity => entity.id === primaryId)!
+      let joined: KJObjectRecord
+      if (result.type === primary.type) joined = transaction.updateObject(primary.id, { payload: result.payload })
+      else joined = createDerived(transaction, primary, result.type, result.payload)
+      for (const entity of entities) if (entity.id !== joined.id) transaction.eraseObject(entity.id)
+      replaceEntityMemberships(transaction, ids, [joined.id])
+      return joined
+    },
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
     id: 'EXPLODE', aliases: ['X'], title: 'Explode entity',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id), pieces = explodeEntity(entity)
@@ -782,7 +807,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       }
       const retainedIds = [primary.id]
       for (const piece of pieces.slice(1)) retainedIds.push(createDerived(transaction, entity, piece.type, piece.payload).id)
-      replaceTrimMemberships(transaction, entity.id, retainedIds)
+      replaceEntityMemberships(transaction, [entity.id], retainedIds)
       return primary
     },
   }, { owner: '@kanjieteam/kjdraw' }))
@@ -1259,12 +1284,13 @@ function createDerived(transaction: KJTransaction, source: KJReadonlyObjectRecor
   })
 }
 
-function replaceTrimMemberships(transaction: KJTransaction, sourceId: string, retainedIds: readonly string[]): void {
+function replaceEntityMemberships(transaction: KJTransaction, sourceIds: readonly string[], retainedIds: readonly string[]): void {
+  const sources = new Set(sourceIds)
   for (const group of Object.values(transaction._draft().objects)) {
     if (group.erased || group.kind !== 'group' || !['GROUP', 'SELECTION_SET'].includes(group.type)) continue
     const members = group.payload.memberIds
-    if (!Array.isArray(members) || !members.includes(sourceId)) continue
-    const memberIds = [...new Set(members.flatMap(id => id === sourceId ? [...retainedIds] : [id]))]
+    if (!Array.isArray(members) || !members.some(id => sources.has(id))) continue
+    const memberIds = [...new Set(members.flatMap(id => sources.has(id) ? [...retainedIds] : [id]))]
     if (memberIds.length === members.length && memberIds.every((id, index) => id === members[index])) continue
     transaction.updateObject(group.id, { payload: { memberIds } })
   }
