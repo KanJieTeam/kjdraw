@@ -28,7 +28,10 @@ export interface KJDraftingOptions {
     textPosition?: KJDraftPoint;
     textOverride?: string | null;
     textHeight?: number;
+    styleId?: string | null;
     styleName?: string;
+    precision?: number | null;
+    overallScale?: number | null;
     patternName?: string;
     patternScale?: number;
     patternAngle?: number;

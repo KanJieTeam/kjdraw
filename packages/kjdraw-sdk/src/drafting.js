@@ -215,6 +215,11 @@ function normalizeOptions(options) {
     const tolerance = positive(options.tolerance ?? 1e-9, 'tolerance');
     const rotation = finite(options.rotation ?? 0, 'rotation');
     const textHeight = options.textHeight == null ? null : positive(options.textHeight, 'textHeight');
+    const styleId = options.styleId == null ? null : String(options.styleId).trim();
+    if (options.styleId != null && !styleId) throw new KJValidationError('styleId cannot be empty');
+    const precision = options.precision == null ? null : finite(options.precision, 'precision');
+    if (precision !== null && (!Number.isInteger(precision) || precision < -1 || precision > 8)) throw new KJValidationError('precision must be an integer from -1 to 8');
+    const overallScale = options.overallScale == null ? null : positive(options.overallScale, 'overallScale');
     const patternScale = positive(options.patternScale ?? 1, 'patternScale');
     const patternAngle = finite(options.patternAngle ?? 0, 'patternAngle');
     const patternName = String(options.patternName ?? 'SOLID').trim().toUpperCase();
@@ -233,7 +238,10 @@ function normalizeOptions(options) {
         textPosition: options.textPosition == null ? null : point2(options.textPosition, 'textPosition'),
         textOverride: options.textOverride == null ? null : String(options.textOverride),
         textHeight,
+        styleId,
         styleName,
+        precision,
+        overallScale,
         patternName,
         patternScale,
         patternAngle,
@@ -691,6 +699,9 @@ export class KJDraftingSession {
         if (this.#options.textPosition) payload.textPosition = point3(this.#options.textPosition);
         if (this.#options.textOverride !== null) payload.textOverride = this.#options.textOverride;
         if (this.#options.textHeight !== null) payload.textHeight = this.#options.textHeight;
+        if (this.#options.styleId !== null) payload.styleId = this.#options.styleId;
+        if (this.#options.precision !== null) payload.precision = this.#options.precision;
+        if (this.#options.overallScale !== null) payload.overallScale = this.#options.overallScale;
         const indexMap = type === 'ANGULAR_3_POINT' ? [
             3,
             1,

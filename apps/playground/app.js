@@ -126,7 +126,10 @@ function drawingOptions(value){
   if(value==='ellipse')return {ellipseMode:$('ellipse-mode').value}
   if(value==='polygon')return {sides:Number($('polygon-sides').value),polygonMode:$('polygon-mode').value}
   if(value==='spline')return {splineDegree:Number($('spline-degree').value)}
-  if(value==='dimension')return {dimensionType:$('dimension-type').value,rotation:$('dimension-direction').value==='vertical'?Math.PI/2:0,textHeight:Number($('dimension-height').value)}
+  if(value==='dimension'){
+    const style=doc().getObject($('dimension-style').value)
+    return {dimensionType:$('dimension-type').value,rotation:$('dimension-direction').value==='vertical'?Math.PI/2:0,styleId:style?.id??null,styleName:style?.name??'STANDARD',precision:Number($('dimension-precision').value),overallScale:Number($('dimension-scale').value),textHeight:Number($('dimension-height').value),textOverride:$('dimension-text-override').value||null}
+  }
   if(value==='hatch')return {patternName:$('hatch-pattern').value,patternScale:Number($('hatch-scale').value),solid:$('hatch-pattern').value==='SOLID'}
   return {}
 }
@@ -324,8 +327,15 @@ function renderMeasurement(container,value) {
   for(const row of value.rows){const item=document.createElement('div'),label=document.createElement('span'),result=document.createElement('strong');label.textContent=row.label;result.textContent=row.value;item.append(label,result);output.append(item)}
   const details=document.createElement('details'),summary=document.createElement('summary'),pre=document.createElement('pre');summary.textContent=i18n.locale==='zh'?'查看数据':'View data';pre.textContent=JSON.stringify(value.raw,null,2);details.append(summary,pre);output.append(details);container.append(output)
 }
+function syncDimensionStyleControl(){
+  const select=$('dimension-style');if(!select||!sdk?.activeDocument)return
+  const table=doc().getTable('dimensionStyles'),previous=select.value
+  select.replaceChildren(...table.records.map(record=>new Option(record.name??'STANDARD',record.id)))
+  select.value=table.records.some(record=>record.id===previous)?previous:table.currentId??table.records[0]?.id??''
+}
 function refresh() {
   outputControls?.sync()
+  syncDimensionStyleControl()
   const snapshot=doc().snapshot(),variables=snapshot.header.systemVariables
   orthoEnabled=Number(variables.ORTHOMODE??0)!==0;polarEnabled=Number(variables.POLARMODE??0)!==0
   const configuredAngle=Number(variables.POLARANG??45);polarAngle=configuredAngle>0&&configuredAngle<=180&&Number.isFinite(configuredAngle)?configuredAngle:45;syncTrackingButtons()
@@ -387,7 +397,20 @@ function refresh() {
     let valueInput=null
     if(selectedEntities.length===1&&(entity.type==='CIRCLE'||entity.type==='ARC')){const label=document.createElement('label');label.textContent=t('radius');valueInput=document.createElement('input');valueInput.type='number';valueInput.min='0.000001';valueInput.step='0.1';valueInput.value=entity.payload.radius;label.append(valueInput);editor.append(label)}
     if(selectedEntities.length===1&&(entity.type==='TEXT'||entity.type==='MTEXT')){const label=document.createElement('label');label.textContent=t('textField');valueInput=document.createElement('input');valueInput.value=entity.payload.text??'';label.append(valueInput);editor.append(label)}
-    const save=document.createElement('button');save.textContent=t('applyProperties');save.onclick=()=>run(async()=>{if(selectedEntities.length>1){if(!layerSelect.value||layerSelect.value===commonLayerId)return;await execute('PROPERTIES',{ids:selectedEntities.map(item=>item.id),patch:{payload:{layerId:layerSelect.value}}});return}const payload={layerId:layerSelect.value};if(valueInput&&(entity.type==='CIRCLE'||entity.type==='ARC'))payload.radius=Number(valueInput.value);if(valueInput&&(entity.type==='TEXT'||entity.type==='MTEXT'))payload.text=valueInput.value;if(entity.type==='INSERT'&&blockScope?.value==='definition'){if(!blockMember?.value)throw new Error(t('blockMember'));await execute('BLOCKDEFINITIONUPDATE',{blockRecordId:entity.payload.blockRecordId,id:blockMember.value,patch:{payload}})}else if(entity.type==='INSERT')await execute('BLOCKINSTANCEUPDATE',{id:entity.id,patch:{payload}});else await execute('PROPERTIES',{id:entity.id,patch:{payload}})});editor.append(save);$('inspector').append(editor)
+    let dimensionFields=null
+    if(selectedEntities.length===1&&entity.type==='DIMENSION'){
+      const table=doc().getTable('dimensionStyles'),styleId=entity.payload.styleId??table.currentId,styleRecord=doc().getObject(styleId)
+      const labeled=(name,labelText,input)=>{const label=document.createElement('label');label.textContent=labelText;input.dataset.property=name;label.append(input);editor.append(label);return input}
+      const style=labeled('dimension-style',i18n.locale==='zh'?'标注样式':'Dimension style',document.createElement('select'))
+      for(const record of table.records){const option=document.createElement('option');option.value=record.id;option.textContent=record.name;option.selected=record.id===styleId;style.append(option)}
+      const number=(name,labelText,value,min,max,step)=>{const input=document.createElement('input');input.type='number';input.required=true;input.min=String(min);if(max!=null)input.max=String(max);input.step=String(step);input.value=String(value);return labeled(name,labelText,input)}
+      const precision=number('dimension-precision',i18n.locale==='zh'?'标注精度':'Precision',entity.payload.precision??styleRecord?.payload.decimalPlaces??2,-1,8,1)
+      const scale=number('dimension-scale',i18n.locale==='zh'?'标注整体比例':'Overall scale',entity.payload.overallScale??styleRecord?.payload.overallScale??1,.000001,null,'any')
+      const textHeight=number('dimension-text-height',i18n.locale==='zh'?'标注字高':'Dimension text height',entity.payload.textHeight??styleRecord?.payload.textHeight??2.5,.000001,null,'any')
+      const textOverride=document.createElement('input');textOverride.type='text';textOverride.value=entity.payload.textOverride??'';labeled('dimension-text-override',i18n.locale==='zh'?'标注文字替代':'Dimension text override',textOverride)
+      dimensionFields={style,precision,scale,textHeight,textOverride}
+    }
+    const save=document.createElement('button');save.textContent=t('applyProperties');save.onclick=()=>run(async()=>{if(selectedEntities.length>1){if(!layerSelect.value||layerSelect.value===commonLayerId)return;await execute('PROPERTIES',{ids:selectedEntities.map(item=>item.id),patch:{payload:{layerId:layerSelect.value}}});return}const payload={layerId:layerSelect.value};if(valueInput&&(entity.type==='CIRCLE'||entity.type==='ARC'))payload.radius=Number(valueInput.value);if(valueInput&&(entity.type==='TEXT'||entity.type==='MTEXT'))payload.text=valueInput.value;if(dimensionFields){const invalid=[dimensionFields.precision,dimensionFields.scale,dimensionFields.textHeight].find(input=>!input.checkValidity());if(invalid){invalid.reportValidity();return}const style=doc().getObject(dimensionFields.style.value);Object.assign(payload,{styleId:dimensionFields.style.value,styleName:style?.name??'STANDARD',precision:Number(dimensionFields.precision.value),overallScale:Number(dimensionFields.scale.value),textHeight:Number(dimensionFields.textHeight.value),textOverride:dimensionFields.textOverride.value||null})}if(entity.type==='INSERT'&&blockScope?.value==='definition'){if(!blockMember?.value)throw new Error(t('blockMember'));await execute('BLOCKDEFINITIONUPDATE',{blockRecordId:entity.payload.blockRecordId,id:blockMember.value,patch:{payload}})}else if(entity.type==='INSERT')await execute('BLOCKINSTANCEUPDATE',{id:entity.id,patch:{payload}});else await execute('PROPERTIES',{id:entity.id,patch:{payload}})});editor.append(save);$('inspector').append(editor)
     if(selectedEntities.length===1&&entity.type==='HATCH'){const editHatch=document.createElement('button');editHatch.dataset.action='edit-hatch';editHatch.textContent=t('hatchEdit');editHatch.onclick=()=>run(()=>editSelectedHatch(entity));$('inspector').append(editHatch)}
     const erase=document.createElement('button');erase.textContent=t('deleteSelected');erase.onclick=()=>run(()=>execute('ERASE',{ids:selectedIds()}));$('inspector').append(erase)
   }
@@ -949,7 +972,7 @@ function initializeDraftingControls(){
   const add=(id,en,zh,tools,values,defaultValue,limits={})=>{
     const label=document.createElement('label');label.dataset.draftTools=tools;label.append(bilingual(document.createElement('span'),en,zh));let input
     if(values){input=document.createElement('select');for(const [value,labelEn,labelZh] of values){const option=bilingual(document.createElement('option'),labelEn,labelZh);option.value=value;input.append(option)}}
-    else {input=document.createElement('input');input.type='number';for(const [key,value]of Object.entries(limits))input[key]=String(value)}
+    else {input=document.createElement('input');input.type=limits.type??'number';for(const [key,value]of Object.entries(limits))if(key!=='type')input[key]=String(value)}
     input.id=id;input.value=String(defaultValue);input.dataset.previousValue=input.value;input.setAttribute('aria-label',i18n.locale==='zh'?zh:en)
     input.onchange=()=>{
       if(busy||drafting?.session.points.length){input.value=input.dataset.previousValue;if(busy)busyNotice();else message(i18n.locale==='zh'?'请先完成或按 Esc 取消当前图形，再更改构造参数。':'Finish the current shape or press Esc before changing construction options.');return}
@@ -965,7 +988,11 @@ function initializeDraftingControls(){
   add('spline-degree','Degree','次数','spline',[['2','Quadratic','二次'],['3','Cubic','三次']],'3')
   add('dimension-type','Dimension','标注类型','dimension',[['ALIGNED','Aligned','对齐'],['ROTATED','Linear','线性'],['RADIUS','Radius','半径'],['DIAMETER','Diameter','直径'],['ANGULAR_3_POINT','Three-point angle (including reflex)','三点角度（含反角）']],'ALIGNED')
   add('dimension-direction','Direction','方向','dimension',[['horizontal','Horizontal','水平'],['vertical','Vertical','垂直']],'horizontal')
-  add('dimension-height','Text height','字高','dimension',null,2.5,{min:.001,step:.1})
+  add('dimension-style','Style','标注样式','dimension',[['','STANDARD','STANDARD']],'')
+  add('dimension-precision','Precision','标注精度','dimension',null,2,{min:0,max:8,step:1})
+  add('dimension-scale','Overall scale','标注整体比例','dimension',null,1,{min:.000001,step:'any'})
+  add('dimension-height','Text height','字高','dimension',null,2.5,{min:.001,step:'any'})
+  add('dimension-text-override','Text override','文字替代','dimension',null,'',{type:'text'})
   add('hatch-pattern','Pattern','图案','hatch',[['ANSI31','Diagonal','斜线'],['ANSI37','Cross','交叉'],['SOLID','Solid fill','实心']],'ANSI31')
   add('hatch-scale','Scale','比例','hatch',null,1,{min:.001,step:.1})
   for(const [id,en,zh,tools,action] of [['finish-draft','Finish ↵','完成 ↵','polyline spline hatch',()=>run(()=>applyDraftInput(null,{finish:true}))],['close-draft','Close (C)','闭合 (C)','polyline spline hatch',()=>run(()=>applyDraftInput(null,{close:true}))],['undo-draft-point','Undo point','退回一点','polyline spline hatch ellipse polygon',undoDraftPoint]]){

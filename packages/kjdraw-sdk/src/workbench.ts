@@ -154,7 +154,7 @@ const copy = {
     select: 'Select', pan: 'Pan', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', rectangle: 'Rectangle', text: 'Text', measure: 'Measure',
     undo: 'Undo', redo: 'Redo', erase: 'Delete', move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', fit: 'Fit', grid: 'Grid', ortho: 'Ortho', orthoOn: 'Orthogonal drafting on', orthoOff: 'Orthogonal drafting off', orthoBusy: 'Finish or cancel the current operation before changing Ortho', polar: 'Polar', polarOn: 'Polar tracking on', polarOff: 'Polar tracking off', polarBusy: 'Finish or cancel the current operation before changing Polar tracking', layers: 'Layers', properties: 'Properties',
     noSelection: 'Select an object to inspect its properties.', drawing: 'Drawing', entities: 'entities', selected: 'selected',
-    layer: 'Layer', textStyle: 'Text style', radius: 'Radius', apply: 'Apply', ready: 'Ready', readonly: 'Read only', blockEditScope: 'Edit scope', blockInstanceScope: 'This instance', blockDefinitionScope: 'Shared definition', blockMember: 'Definition member', blockScopeHint: 'Instance changes affect this occurrence. Definition changes affect every instance.', hatchEdit: 'Edit hatch', hatchEditDescription: 'Edit this hatch in one undoable transaction. Polygon islands close automatically; do not repeat the first vertex.', hatchOperation: 'Operation', hatchUpdatePattern: 'Pattern only', hatchAddIsland: 'Add island', hatchReplaceIsland: 'Replace island', hatchRemoveIsland: 'Remove island', hatchIsland: 'Inner island', hatchVertices: 'Island vertices (x,y; x,y; …)', hatchPatternScale: 'Pattern scale', hatchPatternAngle: 'Pattern angle (degrees)', hatchNoIslands: 'No inner islands', hatchApply: 'Apply hatch edit',
+    layer: 'Layer', textStyle: 'Text style', dimensionStyle: 'Dimension style', dimensionPrecision: 'Precision', dimensionScale: 'Overall scale', dimensionTextHeight: 'Dimension text height', dimensionTextOverride: 'Dimension text override', radius: 'Radius', apply: 'Apply', ready: 'Ready', readonly: 'Read only', blockEditScope: 'Edit scope', blockInstanceScope: 'This instance', blockDefinitionScope: 'Shared definition', blockMember: 'Definition member', blockScopeHint: 'Instance changes affect this occurrence. Definition changes affect every instance.', hatchEdit: 'Edit hatch', hatchEditDescription: 'Edit this hatch in one undoable transaction. Polygon islands close automatically; do not repeat the first vertex.', hatchOperation: 'Operation', hatchUpdatePattern: 'Pattern only', hatchAddIsland: 'Add island', hatchReplaceIsland: 'Replace island', hatchRemoveIsland: 'Remove island', hatchIsland: 'Inner island', hatchVertices: 'Island vertices (x,y; x,y; …)', hatchPatternScale: 'Pattern scale', hatchPatternAngle: 'Pattern angle (degrees)', hatchNoIslands: 'No inner islands', hatchApply: 'Apply hatch edit',
     firstPoint: 'Specify the first point', nextPoint: 'Specify the next point', finishPolyline: 'Click vertices · Enter or double-click to finish', arcStart: 'Specify arc start', arcEnd: 'Specify arc endpoint', textPrompt: 'Type TEXT followed by content, then click an insertion point', measured: 'Measured distance',
     unsupported: 'projection limits', theme: 'Theme', language: '中文', sample: 'Starter drawing', openFailed: 'Could not open drawing', command: 'Command', run: 'Run', commandHint: 'MOVE 10 0 · COPY 10 0 · ROTATE 15 · OFFSET 2 · SCALE 1.2', fileTooLarge: 'File exceeds the workbench limit',
     layout: 'Layout', layoutClassic: 'Classic', layoutCompact: 'Compact', layoutFocus: 'Focus', selectObjects: 'Select an object', basePoint: 'Specify the base point', destinationPoint: 'Specify the destination point', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
@@ -174,7 +174,7 @@ const copy = {
     select: '选择', pan: '平移', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', rectangle: '矩形', text: '文字', measure: '测距',
     undo: '撤销', redo: '重做', erase: '删除', move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', fit: '全图', grid: '栅格', ortho: '正交', orthoOn: '正交绘图已开启', orthoOff: '正交绘图已关闭', orthoBusy: '请先完成或取消当前操作，再切换正交模式', polar: '极轴', polarOn: '极轴跟踪已开启', polarOff: '极轴跟踪已关闭', polarBusy: '请先完成或取消当前操作，再切换极轴跟踪', layers: '图层', properties: '特性',
     noSelection: '选择图元后可查看和修改属性。', drawing: '图纸', entities: '图元', selected: '已选择',
-    layer: '图层', textStyle: '文字样式', radius: '半径', apply: '应用', ready: '就绪', readonly: '只读', blockEditScope: '修改范围', blockInstanceScope: '仅此实例', blockDefinitionScope: '共享块定义', blockMember: '定义成员', blockScopeHint: '实例修改仅影响当前对象；定义修改会影响全部实例。', hatchEdit: '编辑填充', hatchEditDescription: '在一个可撤销事务中修改当前填充。多边形内岛会自动闭合，请勿重复首点。', hatchOperation: '操作', hatchUpdatePattern: '仅修改图案', hatchAddIsland: '新增内岛', hatchReplaceIsland: '替换内岛', hatchRemoveIsland: '删除内岛', hatchIsland: '内岛边界', hatchVertices: '内岛顶点（x,y; x,y; …）', hatchPatternScale: '图案比例', hatchPatternAngle: '图案角度（度）', hatchNoIslands: '没有内岛', hatchApply: '应用填充修改',
+    layer: '图层', textStyle: '文字样式', dimensionStyle: '标注样式', dimensionPrecision: '标注精度', dimensionScale: '标注整体比例', dimensionTextHeight: '标注字高', dimensionTextOverride: '标注文字替代', radius: '半径', apply: '应用', ready: '就绪', readonly: '只读', blockEditScope: '修改范围', blockInstanceScope: '仅此实例', blockDefinitionScope: '共享块定义', blockMember: '定义成员', blockScopeHint: '实例修改仅影响当前对象；定义修改会影响全部实例。', hatchEdit: '编辑填充', hatchEditDescription: '在一个可撤销事务中修改当前填充。多边形内岛会自动闭合，请勿重复首点。', hatchOperation: '操作', hatchUpdatePattern: '仅修改图案', hatchAddIsland: '新增内岛', hatchReplaceIsland: '替换内岛', hatchRemoveIsland: '删除内岛', hatchIsland: '内岛边界', hatchVertices: '内岛顶点（x,y; x,y; …）', hatchPatternScale: '图案比例', hatchPatternAngle: '图案角度（度）', hatchNoIslands: '没有内岛', hatchApply: '应用填充修改',
     firstPoint: '指定第一个点', nextPoint: '指定下一个点', finishPolyline: '连续指定顶点 · Enter 或双击完成', arcStart: '指定圆弧起点', arcEnd: '指定圆弧端点', textPrompt: '输入 TEXT 和文字内容，再指定插入点', measured: '测量距离',
     unsupported: '投影限制', theme: '主题', language: 'EN', sample: '入门图纸', openFailed: '无法打开图纸', command: '命令', run: '执行', commandHint: 'MOVE 10 0 · COPY 10 0 · ROTATE 15 · OFFSET 2 · SCALE 1.2', fileTooLarge: '文件超过工作台限制',
     layout: '布局', layoutClassic: '经典', layoutCompact: '紧凑', layoutFocus: '专注', selectObjects: '选择对象', basePoint: '指定基点', destinationPoint: '指定目标点', zoomIn: '放大', zoomOut: '缩小',
@@ -1181,7 +1181,7 @@ export class KJDrawWorkbench {
       const dimensionPreset = DIMENSION_COMMAND_TO_TYPE.get(command)
       if (dimensionPreset) {
         if (tokens.length) throw new Error(`${command} accepts canvas or command-line coordinates after activation`)
-        this.#draftOptions.set('dimension', { dimensionType: dimensionPreset })
+        this.#draftOptions.set('dimension', { ...this.#draftOptions.get('dimension'), dimensionType: dimensionPreset })
         this.setTool('dimension')
         return
       }
@@ -1374,7 +1374,7 @@ export class KJDrawWorkbench {
     this.#drawOverlay()
   }
 
-  #draftField(host: HTMLElement, key: string, labelText: KJLocalizedControlText, options: { type?: 'number' | 'text'; value: string; min?: number; max?: number; step?: number }): void {
+  #draftField(host: HTMLElement, key: string, labelText: KJLocalizedControlText, options: { type?: 'number' | 'text'; value: string; min?: number; max?: number; step?: number | 'any'; required?: boolean }): void {
     const label = document.createElement('label')
     label.className = 'field'
     const text = document.createElement('span')
@@ -1382,7 +1382,7 @@ export class KJDrawWorkbench {
     const input = document.createElement('input')
     input.type = options.type ?? 'number'
     input.value = options.value
-    input.required = true
+    input.required = options.required ?? true
     input.dataset.draftOption = key
     if (options.min !== undefined) input.min = String(options.min)
     if (options.max !== undefined) input.max = String(options.max)
@@ -1458,12 +1458,20 @@ export class KJDrawWorkbench {
       this.#draftCheck(host, 'solid', { en: 'Solid fill', zh: '实体填充' }, configured.solid ?? true)
     }
     if (tool === 'dimension') {
+      const styleTable = this.document?.getTable('dimensionStyles')
+      const styleId = configured.styleId ?? styleTable?.currentId ?? styleTable?.records[0]?.id ?? ''
+      const style = styleTable?.records.find(record => record.id === styleId)
       this.#draftSelect(host, 'dimensionType', { en: 'Dimension type', zh: '标注类型' }, [
         { value: 'ALIGNED', label: { en: 'Aligned', zh: '对齐' } }, { value: 'ROTATED', label: { en: 'Rotated', zh: '线性' } },
         { value: 'RADIUS', label: { en: 'Radius', zh: '半径' } }, { value: 'DIAMETER', label: { en: 'Diameter', zh: '直径' } },
         { value: 'ANGULAR_3_POINT', label: { en: 'Three-point angle (including reflex)', zh: '三点角度（含反角）' } },
       ], configured.dimensionType ?? 'ALIGNED')
       this.#draftField(host, 'rotationDegrees', { en: 'Rotation (°)', zh: '旋转角度（°）' }, { value: String(Number(configured.rotation ?? 0) * 180 / Math.PI), step: 1 })
+      this.#draftSelect(host, 'styleId', { en: 'Dimension style', zh: '标注样式' }, (styleTable?.records ?? []).map(record => ({ value: record.id, label: { en: record.name ?? 'STANDARD', zh: record.name ?? 'STANDARD' } })), styleId)
+      this.#draftField(host, 'precision', { en: 'Precision', zh: '标注精度' }, { value: String(configured.precision ?? style?.payload.decimalPlaces ?? 2), min: 0, max: 8, step: 1 })
+      this.#draftField(host, 'overallScale', { en: 'Overall scale', zh: '标注整体比例' }, { value: String(configured.overallScale ?? style?.payload.overallScale ?? 1), min: Number.EPSILON, step: 'any' })
+      this.#draftField(host, 'textHeight', { en: 'Text height', zh: '标注字高' }, { value: String(configured.textHeight ?? style?.payload.textHeight ?? 2.5), min: Number.EPSILON, step: 'any' })
+      this.#draftField(host, 'textOverride', { en: 'Text override (<> = measured value)', zh: '文字替代（<> 为测量值）' }, { type: 'text', value: String(configured.textOverride ?? ''), required: false })
     }
   }
 
@@ -1495,7 +1503,19 @@ export class KJDrawWorkbench {
     if (tool === 'polygon') options = { sides: Number(value('sides')), polygonMode: value('polygonMode') as NonNullable<KJDraftingOptions['polygonMode']> }
     if (tool === 'spline') options = { splineDegree: Number(value('splineDegree')) }
     if (tool === 'hatch') options = { patternName: value('patternName'), patternScale: Number(value('patternScale')), patternAngle: Number(value('patternAngleDegrees')) * Math.PI / 180, solid: checked('solid') }
-    if (tool === 'dimension') options = { dimensionType: value('dimensionType') as NonNullable<KJDraftingOptions['dimensionType']>, rotation: Number(value('rotationDegrees')) * Math.PI / 180 }
+    if (tool === 'dimension') {
+      const styleId = value('styleId'), style = this.document?.getObject(styleId)
+      options = {
+        dimensionType: value('dimensionType') as NonNullable<KJDraftingOptions['dimensionType']>,
+        rotation: Number(value('rotationDegrees')) * Math.PI / 180,
+        styleId,
+        styleName: style?.name ?? 'STANDARD',
+        precision: Number(value('precision')),
+        overallScale: Number(value('overallScale')),
+        textHeight: Number(value('textHeight')),
+        textOverride: value('textOverride') || null,
+      }
+    }
     this.#draftOptions.set(tool, options)
     query<HTMLDialogElement>(this.root, '[data-draft-dialog]').close()
     this.setTool(tool)
@@ -2920,6 +2940,33 @@ export class KJDrawWorkbench {
       }
       field.append(textStyleSelect); host.append(field)
     }
+    let dimensionFields: { style: HTMLSelectElement; precision: HTMLInputElement; scale: HTMLInputElement; textHeight: HTMLInputElement; textOverride: HTMLInputElement } | null = null
+    if (!multiple && entity.type === 'DIMENSION') {
+      const styleTable = drawing.getTable('dimensionStyles')
+      const currentStyleId = String(entity.payload.styleId ?? styleTable?.currentId ?? '')
+      const currentStyle = drawing.getObject(currentStyleId)
+      const field = (labelText: string, input: HTMLInputElement | HTMLSelectElement): void => {
+        const label = document.createElement('label'); label.className = 'field'
+        const text = document.createElement('span'); text.textContent = labelText
+        label.append(text, input); host.append(label)
+      }
+      const style = document.createElement('select'); style.disabled = this.#readOnly === true; style.dataset.property = 'dimension-style'
+      for (const record of styleTable?.records ?? []) {
+        const option = document.createElement('option'); option.value = record.id; option.textContent = record.name ?? 'STANDARD'; option.selected = record.id === currentStyleId; style.append(option)
+      }
+      field(this.#t('dimensionStyle'), style)
+      const number = (property: string, value: unknown, min: number, max?: number, step = '0.1'): HTMLInputElement => {
+        const input = document.createElement('input'); input.type = 'number'; input.required = true; input.min = String(min); input.step = step; input.value = String(value); input.disabled = this.#readOnly === true; input.dataset.property = property
+        if (max !== undefined) input.max = String(max)
+        return input
+      }
+      const precision = number('dimension-precision', entity.payload.precision ?? currentStyle?.payload.decimalPlaces ?? 2, -1, 8, '1')
+      const scale = number('dimension-scale', entity.payload.overallScale ?? currentStyle?.payload.overallScale ?? 1, Number.EPSILON, undefined, 'any')
+      const textHeight = number('dimension-text-height', entity.payload.textHeight ?? currentStyle?.payload.textHeight ?? 2.5, Number.EPSILON, undefined, 'any')
+      const textOverride = document.createElement('input'); textOverride.type = 'text'; textOverride.value = String(entity.payload.textOverride ?? ''); textOverride.disabled = this.#readOnly === true; textOverride.dataset.property = 'dimension-text-override'
+      field(this.#t('dimensionPrecision'), precision); field(this.#t('dimensionScale'), scale); field(this.#t('dimensionTextHeight'), textHeight); field(this.#t('dimensionTextOverride'), textOverride)
+      dimensionFields = { style, precision, scale, textHeight, textOverride }
+    }
     let valueInput: HTMLInputElement | null = null
     if (!multiple && (entity.type === 'CIRCLE' || entity.type === 'ARC')) {
       const field = document.createElement('label'); field.className = 'field'; field.innerHTML = `<span>${this.#t('radius')}</span>`
@@ -2948,6 +2995,18 @@ export class KJDrawWorkbench {
         if (textStyleSelect?.value) payload.styleId = textStyleSelect.value
         if (valueInput && (entity.type === 'CIRCLE' || entity.type === 'ARC')) payload.radius = Number(valueInput.value)
         if (valueInput && ['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(entity.type)) payload.text = valueInput.value
+        if (dimensionFields) {
+          const inputs = [dimensionFields.precision, dimensionFields.scale, dimensionFields.textHeight]
+          const invalid = inputs.find(input => !input.checkValidity())
+          if (invalid) { invalid.reportValidity(); return }
+          const style = drawing.getObject(dimensionFields.style.value)
+          payload.styleId = dimensionFields.style.value
+          payload.styleName = style?.name ?? 'STANDARD'
+          payload.precision = Number(dimensionFields.precision.value)
+          payload.overallScale = Number(dimensionFields.scale.value)
+          payload.textHeight = Number(dimensionFields.textHeight.value)
+          payload.textOverride = dimensionFields.textOverride.value || null
+        }
         if (entity.type === 'INSERT' && blockScopeSelect?.value === 'definition') {
           const definitionId = String(entity.payload.blockRecordId ?? ''), memberId = blockMemberSelect?.value
           if (!memberId) throw new Error('Select a block definition member to edit')

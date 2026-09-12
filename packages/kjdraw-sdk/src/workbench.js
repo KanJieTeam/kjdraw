@@ -100,6 +100,11 @@ const copy = {
         selected: 'selected',
         layer: 'Layer',
         textStyle: 'Text style',
+        dimensionStyle: 'Dimension style',
+        dimensionPrecision: 'Precision',
+        dimensionScale: 'Overall scale',
+        dimensionTextHeight: 'Dimension text height',
+        dimensionTextOverride: 'Dimension text override',
         radius: 'Radius',
         apply: 'Apply',
         ready: 'Ready',
@@ -283,6 +288,11 @@ const copy = {
         selected: '已选择',
         layer: '图层',
         textStyle: '文字样式',
+        dimensionStyle: '标注样式',
+        dimensionPrecision: '标注精度',
+        dimensionScale: '标注整体比例',
+        dimensionTextHeight: '标注字高',
+        dimensionTextOverride: '标注文字替代',
         radius: '半径',
         apply: '应用',
         ready: '就绪',
@@ -2090,6 +2100,7 @@ export class KJDrawWorkbench {
             if (dimensionPreset) {
                 if (tokens.length) throw new Error(`${command} accepts canvas or command-line coordinates after activation`);
                 this.#draftOptions.set('dimension', {
+                    ...this.#draftOptions.get('dimension'),
                     dimensionType: dimensionPreset
                 });
                 this.setTool('dimension');
@@ -2419,7 +2430,7 @@ export class KJDrawWorkbench {
         const input = document.createElement('input');
         input.type = options.type ?? 'number';
         input.value = options.value;
-        input.required = true;
+        input.required = options.required ?? true;
         input.dataset.draftOption = key;
         if (options.min !== undefined) input.min = String(options.min);
         if (options.max !== undefined) input.max = String(options.max);
@@ -2602,6 +2613,9 @@ export class KJDrawWorkbench {
             }, configured.solid ?? true);
         }
         if (tool === 'dimension') {
+            const styleTable = this.document?.getTable('dimensionStyles');
+            const styleId = configured.styleId ?? styleTable?.currentId ?? styleTable?.records[0]?.id ?? '';
+            const style = styleTable?.records.find((record)=>record.id === styleId);
             this.#draftSelect(host, 'dimensionType', {
                 en: 'Dimension type',
                 zh: '标注类型'
@@ -2648,6 +2662,49 @@ export class KJDrawWorkbench {
             }, {
                 value: String(Number(configured.rotation ?? 0) * 180 / Math.PI),
                 step: 1
+            });
+            this.#draftSelect(host, 'styleId', {
+                en: 'Dimension style',
+                zh: '标注样式'
+            }, (styleTable?.records ?? []).map((record)=>({
+                    value: record.id,
+                    label: {
+                        en: record.name ?? 'STANDARD',
+                        zh: record.name ?? 'STANDARD'
+                    }
+                })), styleId);
+            this.#draftField(host, 'precision', {
+                en: 'Precision',
+                zh: '标注精度'
+            }, {
+                value: String(configured.precision ?? style?.payload.decimalPlaces ?? 2),
+                min: 0,
+                max: 8,
+                step: 1
+            });
+            this.#draftField(host, 'overallScale', {
+                en: 'Overall scale',
+                zh: '标注整体比例'
+            }, {
+                value: String(configured.overallScale ?? style?.payload.overallScale ?? 1),
+                min: Number.EPSILON,
+                step: 'any'
+            });
+            this.#draftField(host, 'textHeight', {
+                en: 'Text height',
+                zh: '标注字高'
+            }, {
+                value: String(configured.textHeight ?? style?.payload.textHeight ?? 2.5),
+                min: Number.EPSILON,
+                step: 'any'
+            });
+            this.#draftField(host, 'textOverride', {
+                en: 'Text override (<> = measured value)',
+                zh: '文字替代（<> 为测量值）'
+            }, {
+                type: 'text',
+                value: String(configured.textOverride ?? ''),
+                required: false
             });
         }
     }
@@ -2700,10 +2757,19 @@ export class KJDrawWorkbench {
             patternAngle: Number(value('patternAngleDegrees')) * Math.PI / 180,
             solid: checked('solid')
         };
-        if (tool === 'dimension') options = {
-            dimensionType: value('dimensionType'),
-            rotation: Number(value('rotationDegrees')) * Math.PI / 180
-        };
+        if (tool === 'dimension') {
+            const styleId = value('styleId'), style = this.document?.getObject(styleId);
+            options = {
+                dimensionType: value('dimensionType'),
+                rotation: Number(value('rotationDegrees')) * Math.PI / 180,
+                styleId,
+                styleName: style?.name ?? 'STANDARD',
+                precision: Number(value('precision')),
+                overallScale: Number(value('overallScale')),
+                textHeight: Number(value('textHeight')),
+                textOverride: value('textOverride') || null
+            };
+        }
         this.#draftOptions.set(tool, options);
         query(this.root, '[data-draft-dialog]').close();
         this.setTool(tool);
@@ -4910,6 +4976,62 @@ export class KJDrawWorkbench {
             field.append(textStyleSelect);
             host.append(field);
         }
+        let dimensionFields = null;
+        if (!multiple && entity.type === 'DIMENSION') {
+            const styleTable = drawing.getTable('dimensionStyles');
+            const currentStyleId = String(entity.payload.styleId ?? styleTable?.currentId ?? '');
+            const currentStyle = drawing.getObject(currentStyleId);
+            const field = (labelText, input)=>{
+                const label = document.createElement('label');
+                label.className = 'field';
+                const text = document.createElement('span');
+                text.textContent = labelText;
+                label.append(text, input);
+                host.append(label);
+            };
+            const style = document.createElement('select');
+            style.disabled = this.#readOnly === true;
+            style.dataset.property = 'dimension-style';
+            for (const record of styleTable?.records ?? []){
+                const option = document.createElement('option');
+                option.value = record.id;
+                option.textContent = record.name ?? 'STANDARD';
+                option.selected = record.id === currentStyleId;
+                style.append(option);
+            }
+            field(this.#t('dimensionStyle'), style);
+            const number = (property, value, min, max, step = '0.1')=>{
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.required = true;
+                input.min = String(min);
+                input.step = step;
+                input.value = String(value);
+                input.disabled = this.#readOnly === true;
+                input.dataset.property = property;
+                if (max !== undefined) input.max = String(max);
+                return input;
+            };
+            const precision = number('dimension-precision', entity.payload.precision ?? currentStyle?.payload.decimalPlaces ?? 2, -1, 8, '1');
+            const scale = number('dimension-scale', entity.payload.overallScale ?? currentStyle?.payload.overallScale ?? 1, Number.EPSILON, undefined, 'any');
+            const textHeight = number('dimension-text-height', entity.payload.textHeight ?? currentStyle?.payload.textHeight ?? 2.5, Number.EPSILON, undefined, 'any');
+            const textOverride = document.createElement('input');
+            textOverride.type = 'text';
+            textOverride.value = String(entity.payload.textOverride ?? '');
+            textOverride.disabled = this.#readOnly === true;
+            textOverride.dataset.property = 'dimension-text-override';
+            field(this.#t('dimensionPrecision'), precision);
+            field(this.#t('dimensionScale'), scale);
+            field(this.#t('dimensionTextHeight'), textHeight);
+            field(this.#t('dimensionTextOverride'), textOverride);
+            dimensionFields = {
+                style,
+                precision,
+                scale,
+                textHeight,
+                textOverride
+            };
+        }
         let valueInput = null;
         if (!multiple && (entity.type === 'CIRCLE' || entity.type === 'ARC')) {
             const field = document.createElement('label');
@@ -4979,6 +5101,25 @@ export class KJDrawWorkbench {
                         'ATTDEF',
                         'ATTRIB'
                     ].includes(entity.type)) payload.text = valueInput.value;
+                    if (dimensionFields) {
+                        const inputs = [
+                            dimensionFields.precision,
+                            dimensionFields.scale,
+                            dimensionFields.textHeight
+                        ];
+                        const invalid = inputs.find((input)=>!input.checkValidity());
+                        if (invalid) {
+                            invalid.reportValidity();
+                            return;
+                        }
+                        const style = drawing.getObject(dimensionFields.style.value);
+                        payload.styleId = dimensionFields.style.value;
+                        payload.styleName = style?.name ?? 'STANDARD';
+                        payload.precision = Number(dimensionFields.precision.value);
+                        payload.overallScale = Number(dimensionFields.scale.value);
+                        payload.textHeight = Number(dimensionFields.textHeight.value);
+                        payload.textOverride = dimensionFields.textOverride.value || null;
+                    }
                     if (entity.type === 'INSERT' && blockScopeSelect?.value === 'definition') {
                         const definitionId = String(entity.payload.blockRecordId ?? ''), memberId = blockMemberSelect?.value;
                         if (!memberId) throw new Error('Select a block definition member to edit');
