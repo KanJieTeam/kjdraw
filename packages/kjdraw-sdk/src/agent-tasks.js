@@ -513,7 +513,8 @@ function geometryReceipt(value) {
         'MOVE',
         'ROTATE',
         'SCALE',
-        'LENGTHEN'
+        'LENGTHEN',
+        'STRETCH'
     ].includes(String(row.command))) fail('geometry receipt contract is invalid');
     if (typeof row.toolContractHash !== 'string' || !CONTENT_HASH.test(row.toolContractHash) || typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest) || typeof row.scopeSha256 !== 'string' || !SHA256.test(row.scopeSha256) || typeof row.receiptDigest !== 'string' || !CONTENT_HASH.test(row.receiptDigest)) fail('geometry receipt hashes are invalid');
     const checks = array(row.checks, 'receipt checks', 1, 64).map(receiptCheck);
@@ -543,6 +544,7 @@ function geometryReceipt(value) {
     if (result.command === 'ROTATE' && result.sourceToolName !== 'cad_propose_rotate') fail('ROTATE receipt source tool is invalid');
     if (result.command === 'SCALE' && result.sourceToolName !== 'cad_propose_scale') fail('SCALE receipt source tool is invalid');
     if (result.command === 'LENGTHEN' && result.sourceToolName !== 'cad_propose_lengthen') fail('LENGTHEN receipt source tool is invalid');
+    if (result.command === 'STRETCH' && result.sourceToolName !== 'cad_propose_stretch') fail('STRETCH receipt source tool is invalid');
     if (result.afterRevision !== result.beforeRevision + 1) fail('geometry receipt must bind one atomic document revision');
     const { receiptId: _receiptId, receiptDigest: _receiptDigest, ...digestInput } = result;
     if (result.receiptId !== `receipt:${result.receiptDigest}` || stableHash(digestInput) !== result.receiptDigest) fail('geometry receipt digest is invalid');
@@ -1167,8 +1169,8 @@ export async function commitAgentTaskCreateBatchApproval(document, tx, input) {
     };
 }
 async function commitAgentTaskTransformApproval(document, tx, input, command) {
-    const entityIdsField = command === 'MOVE' ? 'movedEntityIds' : command === 'ROTATE' ? 'rotatedEntityIds' : command === 'SCALE' ? 'scaledEntityIds' : 'lengthenedEntityIds';
-    const expectedSourceTool = command === 'MOVE' ? 'cad_propose_move' : command === 'ROTATE' ? 'cad_propose_rotate' : command === 'SCALE' ? 'cad_propose_scale' : 'cad_propose_lengthen';
+    const entityIdsField = command === 'MOVE' ? 'movedEntityIds' : command === 'ROTATE' ? 'rotatedEntityIds' : command === 'SCALE' ? 'scaledEntityIds' : command === 'LENGTHEN' ? 'lengthenedEntityIds' : 'stretchedEntityIds';
+    const expectedSourceTool = command === 'MOVE' ? 'cad_propose_move' : command === 'ROTATE' ? 'cad_propose_rotate' : command === 'SCALE' ? 'cad_propose_scale' : command === 'LENGTHEN' ? 'cad_propose_lengthen' : 'cad_propose_stretch';
     const row = plain(input, [
         'id',
         'expectedRevision',
@@ -1344,6 +1346,9 @@ export async function commitAgentTaskScaleApproval(document, tx, input) {
 }
 export async function commitAgentTaskLengthenApproval(document, tx, input) {
     return commitAgentTaskTransformApproval(document, tx, input, 'LENGTHEN');
+}
+export async function commitAgentTaskStretchApproval(document, tx, input) {
+    return commitAgentTaskTransformApproval(document, tx, input, 'STRETCH');
 }
 export async function rebaseAgentTask(document, tx, input) {
     const row = plain(input, [

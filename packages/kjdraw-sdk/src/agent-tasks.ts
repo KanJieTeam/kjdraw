@@ -38,7 +38,7 @@ export interface KJAgentTaskGeometryReceipt {
   planId: string
   executionEnvelopeId: string
   reviewerId: string
-  command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN'
+  command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH'
   sourceToolName: string
   beforeRevision: number
   afterRevision: number
@@ -202,6 +202,24 @@ export interface KJAgentTaskLengthenApprovalInput {
   at: string
 }
 export interface KJAgentTaskLengthenApprovalResult { task: KJObjectRecord; receipt: KJAgentTaskGeometryReceipt }
+export interface KJAgentTaskStretchApprovalInput {
+  id: string
+  expectedRevision: number
+  expectedTaskVersion: number
+  expectedStatus: 'running'
+  expectedScopeSha256: string
+  sourceToolName: string
+  toolApiVersion: string
+  toolContractHash: string
+  argumentsDigest: string
+  capabilityLocks: KJAgentTaskCapabilityLock[]
+  planId: string
+  executionEnvelopeId: string
+  reviewerId: string
+  stretchedEntityIds: string[]
+  at: string
+}
+export interface KJAgentTaskStretchApprovalResult { task: KJObjectRecord; receipt: KJAgentTaskGeometryReceipt }
 export interface KJAgentTaskView extends KJAgentTaskPayload { id: string; handle: string }
 export interface KJAgentTaskInspection {
   task: KJAgentTaskView
@@ -409,19 +427,20 @@ function receiptCheck(value: unknown): KJDrawingValidationCheckResult {
 }
 function geometryReceipt(value: unknown): KJAgentTaskGeometryReceipt {
   const row = plain(value, ['schema', 'schemaVersion', 'receiptId', 'taskId', 'taskVersion', 'planId', 'executionEnvelopeId', 'reviewerId', 'command', 'sourceToolName', 'beforeRevision', 'afterRevision', 'at', 'units', 'toolContractHash', 'argumentsDigest', 'scopeSha256', 'checks', 'receiptDigest'], 'geometry receipt')
-  if (row.schema !== 'com.kanjie.kjdraw.agent-task-geometry-receipt' || row.schemaVersion !== 1 || !['CREATEBATCH', 'MOVE', 'ROTATE', 'SCALE', 'LENGTHEN'].includes(String(row.command))) fail('geometry receipt contract is invalid')
+  if (row.schema !== 'com.kanjie.kjdraw.agent-task-geometry-receipt' || row.schemaVersion !== 1 || !['CREATEBATCH', 'MOVE', 'ROTATE', 'SCALE', 'LENGTHEN', 'STRETCH'].includes(String(row.command))) fail('geometry receipt contract is invalid')
   if (typeof row.toolContractHash !== 'string' || !CONTENT_HASH.test(row.toolContractHash) || typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest) || typeof row.scopeSha256 !== 'string' || !SHA256.test(row.scopeSha256) || typeof row.receiptDigest !== 'string' || !CONTENT_HASH.test(row.receiptDigest)) fail('geometry receipt hashes are invalid')
   const checks = array(row.checks, 'receipt checks', 1, 64).map(receiptCheck)
   if (new Set(checks.map(check => check.id)).size !== checks.length || checks.some(check => !check.passed)) fail('geometry receipt requires unique passing checks')
   const result: KJAgentTaskGeometryReceipt = {
     schema: row.schema, schemaVersion: 1, receiptId: identifier(row.receiptId, 'receipt id'), taskId: text(row.taskId, 'receipt task id', 128), taskVersion: integer(row.taskVersion, 'receipt task version', 1),
-    planId: text(row.planId, 'receipt plan id', 256), executionEnvelopeId: text(row.executionEnvelopeId, 'receipt execution envelope id', 256), reviewerId: text(row.reviewerId, 'receipt reviewer id', 256), command: row.command as 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN', sourceToolName: identifier(row.sourceToolName, 'receipt source tool'),
+    planId: text(row.planId, 'receipt plan id', 256), executionEnvelopeId: text(row.executionEnvelopeId, 'receipt execution envelope id', 256), reviewerId: text(row.reviewerId, 'receipt reviewer id', 256), command: row.command as 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH', sourceToolName: identifier(row.sourceToolName, 'receipt source tool'),
     beforeRevision: integer(row.beforeRevision, 'receipt before revision'), afterRevision: integer(row.afterRevision, 'receipt after revision', 1), at: timestamp(row.at, 'receipt timestamp'), units: text(row.units, 'receipt units', 64), toolContractHash: row.toolContractHash, argumentsDigest: row.argumentsDigest, scopeSha256: row.scopeSha256, checks, receiptDigest: row.receiptDigest,
   }
   if (result.command === 'MOVE' && result.sourceToolName !== 'cad_propose_move') fail('MOVE receipt source tool is invalid')
   if (result.command === 'ROTATE' && result.sourceToolName !== 'cad_propose_rotate') fail('ROTATE receipt source tool is invalid')
   if (result.command === 'SCALE' && result.sourceToolName !== 'cad_propose_scale') fail('SCALE receipt source tool is invalid')
   if (result.command === 'LENGTHEN' && result.sourceToolName !== 'cad_propose_lengthen') fail('LENGTHEN receipt source tool is invalid')
+  if (result.command === 'STRETCH' && result.sourceToolName !== 'cad_propose_stretch') fail('STRETCH receipt source tool is invalid')
   if (result.afterRevision !== result.beforeRevision + 1) fail('geometry receipt must bind one atomic document revision')
   const { receiptId: _receiptId, receiptDigest: _receiptDigest, ...digestInput } = result
   if (result.receiptId !== `receipt:${result.receiptDigest}` || stableHash(digestInput) !== result.receiptDigest) fail('geometry receipt digest is invalid')
@@ -737,9 +756,9 @@ export async function commitAgentTaskCreateBatchApproval(document: KJDocument, t
   return { task: tx.updateObject(record.id, { payload: next }), receipt }
 }
 
-async function commitAgentTaskTransformApproval(document: KJDocument, tx: KJTransaction, input: unknown, command: 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN'): Promise<KJAgentTaskMoveApprovalResult> {
-  const entityIdsField = command === 'MOVE' ? 'movedEntityIds' : command === 'ROTATE' ? 'rotatedEntityIds' : command === 'SCALE' ? 'scaledEntityIds' : 'lengthenedEntityIds'
-  const expectedSourceTool = command === 'MOVE' ? 'cad_propose_move' : command === 'ROTATE' ? 'cad_propose_rotate' : command === 'SCALE' ? 'cad_propose_scale' : 'cad_propose_lengthen'
+async function commitAgentTaskTransformApproval(document: KJDocument, tx: KJTransaction, input: unknown, command: 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH'): Promise<KJAgentTaskMoveApprovalResult> {
+  const entityIdsField = command === 'MOVE' ? 'movedEntityIds' : command === 'ROTATE' ? 'rotatedEntityIds' : command === 'SCALE' ? 'scaledEntityIds' : command === 'LENGTHEN' ? 'lengthenedEntityIds' : 'stretchedEntityIds'
+  const expectedSourceTool = command === 'MOVE' ? 'cad_propose_move' : command === 'ROTATE' ? 'cad_propose_rotate' : command === 'SCALE' ? 'cad_propose_scale' : command === 'LENGTHEN' ? 'cad_propose_lengthen' : 'cad_propose_stretch'
   const row = plain(input, ['id', 'expectedRevision', 'expectedTaskVersion', 'expectedStatus', 'expectedScopeSha256', 'sourceToolName', 'toolApiVersion', 'toolContractHash', 'argumentsDigest', 'capabilityLocks', 'planId', 'executionEnvelopeId', 'reviewerId', entityIdsField, 'at'], `${command} approval input`)
   const expectedRevision = inputRevision(document, tx, row.expectedRevision), id = text(row.id, 'task id', 128)
   const { record, task } = taskRecord(document, tx, id)
@@ -831,6 +850,11 @@ export async function commitAgentTaskScaleApproval(document: KJDocument, tx: KJT
 /** Complete one reviewed LENGTHEN and its deterministic checks in the caller's transaction draft. */
 export async function commitAgentTaskLengthenApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskLengthenApprovalResult> {
   return commitAgentTaskTransformApproval(document, tx, input, 'LENGTHEN')
+}
+
+/** Complete one reviewed STRETCH and its deterministic checks in the caller's transaction draft. */
+export async function commitAgentTaskStretchApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskStretchApprovalResult> {
+  return commitAgentTaskTransformApproval(document, tx, input, 'STRETCH')
 }
 
 /** Explicitly accept the current dependency snapshot after stale or ambiguous approval recovery. */
