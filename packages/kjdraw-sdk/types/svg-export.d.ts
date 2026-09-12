@@ -33,6 +33,25 @@ export interface KJSvgDrawingExport {
         heightMm: number;
         millimetersPerDrawingUnit: number;
     };
+    plot: {
+        /** Physical printable rectangle in a lower-left paper coordinate system. */
+        printableAreaMm: {
+            minimum: readonly [number, number];
+            maximum: readonly [number, number];
+            width: number;
+            height: number;
+        };
+        /** Drawing origin measured from the lower-left paper edge. */
+        plotOriginMm: readonly [number, number];
+        /** Exact source coordinates admitted by the physical page and selected plot range. */
+        sourceRange: {
+            kind: 'layout' | 'window';
+            minimum: readonly [number, number];
+            maximum: readonly [number, number];
+        };
+        /** Drawing XY to SVG paper millimeters, whose origin is the page's upper-left corner. */
+        drawingToPaperMatrix: AffineMatrix3;
+    };
     report: KJSvgExportReport;
 }
 /** Editable vector output with explicit physical paper units. No raster fallback, network resources or implicit fit-to-paper. */

@@ -20,6 +20,7 @@ test('print HTML is immutable vector output with explicit A3 CSS, escaped title 
   const output=createDrawingPrintHtml(document,{layoutId,title:'</title><img src=x onerror=alert(1)>',locale:'zh-CN'})
   assert.equal(output.mimeType,'text/html');assert.equal(output.documentId,document.id);assert.equal(output.revision,document.revision)
   assert.deepEqual(output.paper,{widthMm:420,heightMm:297,millimetersPerDrawingUnit:1})
+  assert.deepEqual(output.plot,{printableAreaMm:{minimum:[0,0],maximum:[420,297],width:420,height:297},plotOriginMm:[0,0],sourceRange:{kind:'layout',minimum:[0,0],maximum:[420,297]},drawingToPaperMatrix:[1,0,0,-1,0,297]})
   assert.match(output.html,/@page\{size:420mm 297mm;margin:0\}/)
   assert.match(output.html,/script-src 'none'/);assert.match(output.html,/connect-src 'none'/)
   assert.match(output.html,/&lt;\/title&gt;&lt;img/);assert.match(output.html,/&lt;\/text&gt;&lt;\/svg&gt;&lt;script&gt;/)

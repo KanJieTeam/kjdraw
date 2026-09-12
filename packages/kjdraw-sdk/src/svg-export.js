@@ -94,17 +94,24 @@ export function exportDrawingSvg(document, options) {
     if (!(scale > 0) || !Number.isFinite(scale)) fail('invalid custom plot ratio');
     const left = numeric(settings.marginLeft, 0), right = numeric(settings.marginRight, 0), top = numeric(settings.marginTop, 0), bottom = numeric(settings.marginBottom, 0);
     if (left + right >= width || top + bottom >= height) fail('margins leave no printable area');
+    const printableWidth = width - left - right, printableHeight = height - top - bottom;
     const plotType = numeric(settings.plotType, isModel ? -1 : 5);
     if (plotType !== 4 && !(plotType === 5 && !isModel)) fail('select a paper layout or an explicit model plot window');
-    let x = 0, y = 0, windowClip = '';
+    const originX = numeric(settings.originX, 0), originY = numeric(settings.originY, 0);
+    let x = 0, y = 0, sourceMinimumX = originX === 0 ? 0 : -originX / scale, sourceMinimumY = originY === 0 ? 0 : -originY / scale, maximumX = printableWidth / scale - originX / scale, maximumY = printableHeight / scale - originY / scale, windowClip = '';
     if (plotType === 4) {
         x = numeric(settings.windowMinX);
         y = numeric(settings.windowMinY);
-        const w = numeric(settings.windowMaxX) - x, h = numeric(settings.windowMaxY) - y;
+        maximumX = numeric(settings.windowMaxX);
+        maximumY = numeric(settings.windowMaxY);
+        sourceMinimumX = x;
+        sourceMinimumY = y;
+        const w = maximumX - x, h = maximumY - y;
         if (w <= 0 || h <= 0) fail('plot window must have positive dimensions');
+        if (originX < 0 || originY < 0 || originX + w * scale > printableWidth + 1e-9 || originY + h * scale > printableHeight + 1e-9) fail('plot window does not fit the printable area at the explicit scale and origin');
         windowClip = `<clipPath id="kj-window" clipPathUnits="userSpaceOnUse"><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath>`;
     }
-    const pageMatrix = multiply3(translation3(left + numeric(settings.originX, 0), height - bottom - numeric(settings.originY, 0)), multiply3(scale3(scale, -scale), translation3(-x, -y)));
+    const pageMatrix = multiply3(translation3(left + originX, height - bottom - originY), multiply3(scale3(scale, -scale), translation3(-x, -y)));
     matrix(pageMatrix);
     const report = {
         status: 'complete',
@@ -360,6 +367,36 @@ export function exportDrawingSvg(document, options) {
             widthMm: width,
             heightMm: height,
             millimetersPerDrawingUnit: scale
+        },
+        plot: {
+            printableAreaMm: {
+                minimum: [
+                    left,
+                    bottom
+                ],
+                maximum: [
+                    width - right,
+                    height - top
+                ],
+                width: printableWidth,
+                height: printableHeight
+            },
+            plotOriginMm: [
+                left + originX,
+                bottom + originY
+            ],
+            sourceRange: {
+                kind: plotType === 4 ? 'window' : 'layout',
+                minimum: [
+                    sourceMinimumX,
+                    sourceMinimumY
+                ],
+                maximum: [
+                    maximumX,
+                    maximumY
+                ]
+            },
+            drawingToPaperMatrix: pageMatrix
         },
         report
     });
