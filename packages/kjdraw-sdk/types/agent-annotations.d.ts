@@ -71,5 +71,5 @@ export interface KJAgentAnnotationOptions {
     /** Trusted host mapping of semantic proposal references to the actual base entities being proposed. */
     baseEntities?: Readonly<Record<string, ReadonlyDeep<KJAnnotationEntitySpec>>>;
 }
-/** Compile revision-bound native annotations. This reads references at proposal time; it does not create associative constraints or modify the document. */
+/** Compile revision-bound native annotations with persistent native point associations. */
 export declare function buildAgentAnnotationEntities(document: KJDocument, input: KJAgentAnnotationInput, options?: KJAgentAnnotationOptions): readonly ReadonlyDeep<KJAnnotationEntitySpec>[];

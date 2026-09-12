@@ -22,6 +22,7 @@ import { clone, deepFreeze, normalizeName, stableHash } from './utils.js'
 import type { ReadonlyDeep } from './utils.js'
 import { editEntityGrip } from './grips.js'
 import type { KJPointInput } from './grips.js'
+import { refreshAssociativeDimensions } from './dimension-associations.js'
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js'
 import { KJ_SNAP_MODES } from './snapping.js'
 import type { KJDocument, KJDocumentHistoryOptions, KJDocumentTransactionOptions } from './document.js'
@@ -533,7 +534,11 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   disposers.push(registry.register({
     id: 'PROPERTIES', title: 'Update object properties',
     execute: ({ document, transaction }, args) => {
-      if (args.ids == null) return transaction.updateObject(args.id!, args.patch)
+      if (args.ids == null) {
+        const updated = transaction.updateObject(args.id!, args.patch)
+        refreshAssociativeDimensions(transaction, [updated.id])
+        return updated
+      }
       if (args.id != null) throw new KJValidationError('PROPERTIES accepts either id or ids, not both')
       if (!Array.isArray(args.ids) || !args.ids.length) throw new KJValidationError('Batch PROPERTIES requires at least one entity id')
       if (args.ids.length > 4096) throw new KJValidationError('Batch PROPERTIES supports at most 4096 entities')
@@ -543,7 +548,9 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
         const object = document.getObject(id)
         if (!object || object.kind !== 'entity') throw new KJValidationError(`Batch PROPERTIES entity does not exist: ${id}`)
       }
-      return ids.map(id => transaction.updateObject(id, args.patch))
+      const updated = ids.map(id => transaction.updateObject(id, args.patch))
+      refreshAssociativeDimensions(transaction, ids)
+      return updated
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
@@ -919,7 +926,9 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'LENGTHEN', aliases: ['LEN'], title: 'Lengthen entity',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id)
-      return transaction.updateObject(entity.id, { payload: lengthenEntityPayload(entity, args) })
+      const updated = transaction.updateObject(entity.id, { payload: lengthenEntityPayload(entity, args) })
+      refreshAssociativeDimensions(transaction, [entity.id])
+      return updated
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
@@ -932,7 +941,9 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
         return { entity, payload: stretchEntityPayload(entity, args) }
       }).filter(value => value.payload != null)
       if (!updates.length) throw new KJValidationError('STRETCH crossing window contains no editable vertices')
-      return updates.map(value => transaction.updateObject(value.entity.id, { payload: value.payload! }))
+      const changed = updates.map(value => transaction.updateObject(value.entity.id, { payload: value.payload! }))
+      refreshAssociativeDimensions(transaction, changed.map(entity => entity.id))
+      return changed
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
@@ -1356,10 +1367,12 @@ function commandAngle(args: KJCommandArguments): number {
 
 function transformExisting({ document, transaction }: KJCommandContext, args: KJCommandArguments, matrix: AffineMatrix3Input): KJObjectRecord[] {
   const selected = new Set(entityIds(args))
-  return [...selected].filter(id => {
+  const transformed = [...selected].filter(id => {
     const entity = requiredEntity(document, id)
     return !entity.payload.parentInsertId || !selected.has(entity.payload.parentInsertId)
   }).flatMap(id => transaction.transformEntity(id, matrix))
+  refreshAssociativeDimensions(transaction, transformed.map(entity => entity.id))
+  return transformed
 }
 
 function copyEntities({ document, transaction }: KJCommandContext, args: KJCommandArguments, matrix: AffineMatrix3Input): KJObjectRecord[] {

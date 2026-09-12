@@ -2,6 +2,7 @@
 import { KJValidationError } from './errors.js';
 import { clone, normalizeName } from './utils.js';
 import { length2, vec2 } from './geometry/vector2.js';
+import { normalizeDimensionAssociations } from './dimension-associations.js';
 export const KJ_ENTITY_CONTRACT_VERSION = 1;
 const STANDARD = new Set([
     'LINE',
@@ -347,7 +348,10 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                 blockName: payload.blockName == null ? null : String(payload.blockName),
                 measurement: payload.measurement == null ? null : finite(payload.measurement, 'measurement'),
                 dxfDimensionType: payload.dxfDimensionType == null ? null : Math.trunc(finite(payload.dxfDimensionType, 'dxfDimensionType')),
-                rotation: finite(payload.rotation ?? 0, 'rotation')
+                rotation: finite(payload.rotation ?? 0, 'rotation'),
+                ...payload.dimensionAssociations == null ? {} : {
+                    dimensionAssociations: normalizeDimensionAssociations(payload.dimensionAssociations)
+                }
             };
         case 'VIEWPORT':
             {

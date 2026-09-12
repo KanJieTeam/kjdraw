@@ -5,6 +5,7 @@ import { createId } from './ids.js'
 import { deepFreeze, type ReadonlyDeep } from './utils.js'
 import { normalizeStandardEntityPayload } from './standard-entities.js'
 import { projectDimension } from './geometry/annotation.js'
+import type { KJDimensionPointAssociation } from './dimension-associations.js'
 
 export interface KJAnnotationPoint { x: number; y: number }
 export interface KJAnnotationReference { source: 'document' | 'proposal'; id: string }
@@ -84,7 +85,7 @@ function nativePoint(value: unknown): [number, number, number] {
   return point
 }
 
-/** Compile revision-bound native annotations. This reads references at proposal time; it does not create associative constraints or modify the document. */
+/** Compile revision-bound native annotations with persistent native point associations. */
 export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgentAnnotationInput, options: KJAgentAnnotationOptions = {}): readonly ReadonlyDeep<KJAnnotationEntitySpec>[] {
   const source = record(jsonSnapshot(input, 65536), ['expectedRevision', 'units', 'texts', 'dimensions'])
   if (!Number.isSafeInteger(source.expectedRevision) || (source.expectedRevision as number) < 0) fail('expectedRevision must be a nonnegative safe integer')
@@ -96,7 +97,7 @@ export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgen
   if (opts.baseEntities !== undefined && (!opts.baseEntities || typeof opts.baseEntities !== 'object' || Array.isArray(opts.baseEntities))) fail('baseEntities must be a plain object map')
   const bases = opts.baseEntities === undefined ? {} : record(opts.baseEntities, Object.keys(opts.baseEntities as object), [])
   if (Object.keys(bases).length > 512) fail('Annotation base context exceeds 512 entities')
-  const staged = new Map<string, { type: string; payload: KJObjectPayload; ownerId: string }>(), allocated = new Set<string>()
+  const staged = new Map<string, { id: string; type: string; payload: KJObjectPayload; ownerId: string }>(), allocated = new Set<string>()
   for (const [name, value] of Object.entries(bases)) {
     id(name)
     const spec = record(value, ['type', 'payload', 'options']), settings = record(spec.options, ['id', 'ownerId'])
@@ -106,7 +107,7 @@ export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgen
     if (!['LINE', 'CIRCLE', 'ARC', 'LWPOLYLINE'].includes(spec.type as string)) fail('Unsupported proposal base entity type')
     if (id(settings.ownerId) !== ownerId) fail('Annotation base entities must belong to model space')
     if (!spec.payload || typeof spec.payload !== 'object' || Array.isArray(spec.payload)) fail('Proposal base payload must be an object')
-    staged.set(name, { type: spec.type as string, payload: normalizeStandardEntityPayload(spec.type, spec.payload as Record<string, unknown>), ownerId })
+    staged.set(name, { id: entityId, type: spec.type as string, payload: normalizeStandardEntityPayload(spec.type, spec.payload as Record<string, unknown>), ownerId })
   }
   const reference = (value: unknown, withFeature = false) => {
     const ref = record(value, withFeature ? ['source', 'id', 'feature', 'vertexIndex'] : ['source', 'id'], withFeature ? ['source', 'id', 'feature'] : ['source', 'id'])
@@ -123,7 +124,7 @@ export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgen
       if (normal !== undefined && normal !== null && (!Array.isArray(normal) || normal.length !== 3 || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) fail('Annotation references require the default +Z plane')
     }
     if (payload.elevation != null && payload.elevation !== 0) fail('Annotation references require zero elevation')
-    return { ref, object }
+    return { ref, object, entityId: object.id }
   }
   const curvePoint = (object: { type: string; payload: ReadonlyDeep<KJObjectPayload> }, angle: number): [number, number, number] => {
     const center = nativePoint(object.payload.center), radius = number(object.payload.radius, 'Referenced radius', 1e-12, 1e12)
@@ -136,28 +137,29 @@ export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgen
     }
     return nativePoint([center[0] + radius * Math.cos(angle), center[1] + radius * Math.sin(angle), 0])
   }
-  const feature = (value: unknown): [number, number, number] => {
-    const { ref, object } = reference(value, true), payload = object.payload
+  const feature = (value: unknown): { point: [number, number, number]; association: Omit<KJDimensionPointAssociation, 'definitionPointIndex'> } => {
+    const { ref, object, entityId } = reference(value, true), payload = object.payload
+    const association = { entityId, feature: ref.feature as KJDimensionPointAssociation['feature'], ...(ref.feature === 'vertex' ? { vertexIndex: Number(ref.vertexIndex) } : {}) }
     if (ref.feature !== 'vertex' && 'vertexIndex' in ref) fail('vertexIndex is only valid for vertex references')
     if (ref.feature === 'start' || ref.feature === 'end') {
-      if (object.type === 'ARC') return curvePoint(object, number(payload[ref.feature === 'start' ? 'startAngle' : 'endAngle'], 'Arc endpoint'))
+      if (object.type === 'ARC') return { point: curvePoint(object, number(payload[ref.feature === 'start' ? 'startAngle' : 'endAngle'], 'Arc endpoint')), association }
       if (object.type !== 'LINE') fail('Start/end annotation references require LINE/ARC entities')
-      return nativePoint(payload[ref.feature])
+      return { point: nativePoint(payload[ref.feature]), association }
     }
     if (['left', 'right', 'top', 'bottom'].includes(ref.feature as string)) {
       if (!['CIRCLE', 'ARC'].includes(object.type)) fail('Quadrant references require CIRCLE/ARC entities')
       const angles = { right: 0, top: Math.PI / 2, left: Math.PI, bottom: 3 * Math.PI / 2 }
-      return curvePoint(object, angles[ref.feature as keyof typeof angles])
+      return { point: curvePoint(object, angles[ref.feature as keyof typeof angles]), association }
     }
     if (ref.feature === 'center') {
       if (!['CIRCLE', 'ARC'].includes(object.type)) fail('Center annotation references require CIRCLE/ARC entities')
-      return nativePoint(payload.center)
+      return { point: nativePoint(payload.center), association }
     }
     if (ref.feature === 'vertex') {
       if (object.type !== 'LWPOLYLINE' || !Number.isSafeInteger(ref.vertexIndex) || (ref.vertexIndex as number) < 0 || (ref.vertexIndex as number) > 4095 || !Array.isArray(payload.vertices) || payload.vertices.length > 4096) fail('Vertex references require a bounded native polyline vertex index')
       const vertices = payload.vertices as Array<Record<string, unknown>>
       if (vertices.some(vertex => vertex.bulge !== 0)) fail('Annotation vertex references currently require straight polylines')
-      return nativePoint(vertices[ref.vertexIndex as number]?.point)
+      return { point: nativePoint(vertices[ref.vertexIndex as number]?.point), association }
     }
     return fail('Unsupported annotation point feature')
   }
@@ -182,26 +184,33 @@ export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgen
     const type = item.type
     if (!['ALIGNED', 'ROTATED', 'RADIUS', 'DIAMETER', 'ANGULAR_3_POINT'].includes(type as string)) fail('Unsupported native dimension type')
     const position = xy(item.position), height = number(item.height, 'Dimension text height', 1e-6, 1e6)
-    let definitionPoints: [number, number, number][], rotation = 0
+    let definitionPoints: [number, number, number][], dimensionAssociations: KJDimensionPointAssociation[], rotation = 0
     if (type === 'ALIGNED' || type === 'ROTATED') {
       record(item, type === 'ROTATED' ? ['type', 'from', 'to', 'position', 'height', 'rotationDegrees'] : ['type', 'from', 'to', 'position', 'height'])
-      definitionPoints = [position, feature(item.from), feature(item.to)]
+      const from = feature(item.from), to = feature(item.to)
+      definitionPoints = [position, from.point, to.point]
+      dimensionAssociations = [{ definitionPointIndex: 1, ...from.association }, { definitionPointIndex: 2, ...to.association }]
       if (type === 'ROTATED') rotation = number(item.rotationDegrees, 'Dimension rotation', 0, 360) * Math.PI / 180
     } else if (type === 'ANGULAR_3_POINT') {
       record(item, ['type', 'center', 'first', 'second', 'position', 'height'])
       // The arc location selects the sector, including reflex angles. All three
       // geometric anchors come from real entities; the kernel measures the angle.
-      definitionPoints = [position, feature(item.first), feature(item.second), feature(item.center)]
+      const first = feature(item.first), second = feature(item.second), center = feature(item.center)
+      definitionPoints = [position, first.point, second.point, center.point]
+      dimensionAssociations = [{ definitionPointIndex: 1, ...first.association }, { definitionPointIndex: 2, ...second.association }, { definitionPointIndex: 3, ...center.association }]
     } else {
       record(item, ['type', 'source', 'position', 'height', 'directionDegrees'])
-      const { object } = reference(item.source)
+      const { object, entityId } = reference(item.source)
       if (type === 'DIAMETER' ? object.type !== 'CIRCLE' : !['CIRCLE', 'ARC'].includes(object.type)) fail('Radius requires a CIRCLE/ARC; diameter requires a CIRCLE')
       const center = nativePoint(object.payload.center), radius = number(object.payload.radius, 'Referenced radius', 1e-12, 1e12)
       const angle = number(item.directionDegrees, 'Radial direction', 0, 360) * Math.PI / 180
       const end = curvePoint(object, angle)
       definitionPoints = [type === 'RADIUS' ? center : [center[0] - radius * Math.cos(angle), center[1] - radius * Math.sin(angle), 0], end]
+      dimensionAssociations = type === 'RADIUS'
+        ? [{ definitionPointIndex: 0, entityId, feature: 'center' }, { definitionPointIndex: 1, entityId, feature: 'curve', angle }]
+        : [{ definitionPointIndex: 0, entityId, feature: 'curve', angle: angle + Math.PI }, { definitionPointIndex: 1, entityId, feature: 'curve', angle }]
     }
-    const payload: KJObjectPayload = { dimensionType: type, definitionPoints, ...((type === 'RADIUS' || type === 'DIAMETER') ? { textPosition: position } : {}), textHeight: height, rotation, precision: 8 }
+    const payload: KJObjectPayload = { dimensionType: type, definitionPoints, dimensionAssociations, ...((type === 'RADIUS' || type === 'DIAMETER') ? { textPosition: position } : {}), textHeight: height, rotation, precision: 8 }
     const projection = projectDimension(payload)
     if (!projection || !Number.isFinite(projection.measurement) || projection.measurement < 1e-8 || projection.measurement > 1e12) return fail('Dimension references produce degenerate or out-of-budget measurements')
     if (type === 'ANGULAR_3_POINT') {

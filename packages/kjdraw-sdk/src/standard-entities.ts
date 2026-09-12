@@ -4,6 +4,7 @@ import { length2, vec2 } from './geometry/vector2.js'
 import type { KJObjectPayload } from './schema.js'
 import type { Point2Input } from './geometry/vector2.js'
 import type { KJStandardEntityType as KJDeclaredStandardEntityType } from './constants.js'
+import { normalizeDimensionAssociations } from './dimension-associations.js'
 
 export type KJPoint3 = [number, number, number]
 
@@ -75,6 +76,7 @@ interface EntityPayloadShape extends Record<string, unknown> {
   blockName?: unknown
   measurement?: unknown
   dxfDimensionType?: unknown
+  dimensionAssociations?: unknown
   width?: unknown
   viewCenter?: unknown
   viewHeight?: unknown
@@ -269,7 +271,7 @@ export function normalizeStandardEntityPayload(type: unknown, input: Record<stri
     case 'HATCH': return normalizeHatch(payload)
     case 'LEADER':
     case 'MLEADER': return { ...base(payload), vertices: (payload.vertices ?? []).map((point, index) => point3(point, `vertices[${index}]`)), textPosition: payload.textPosition && point3(payload.textPosition, 'textPosition'), annotationId: payload.annotationId == null ? null : String(payload.annotationId) }
-    case 'DIMENSION': return { ...base(payload), dimensionType: normalizeName(payload.dimensionType ?? 'ALIGNED'), definitionPoints: (payload.definitionPoints ?? []).map((point, index) => point3(point, `definitionPoints[${index}]`)), textPosition: payload.textPosition && point3(payload.textPosition, 'textPosition'), textOverride: payload.textOverride == null ? null : String(payload.textOverride), styleId: payload.styleId == null ? null : String(payload.styleId), styleName: String(payload.styleName ?? 'STANDARD'), blockName: payload.blockName == null ? null : String(payload.blockName), measurement: payload.measurement == null ? null : finite(payload.measurement, 'measurement'), dxfDimensionType: payload.dxfDimensionType == null ? null : Math.trunc(finite(payload.dxfDimensionType, 'dxfDimensionType')), rotation: finite(payload.rotation ?? 0, 'rotation') }
+    case 'DIMENSION': return { ...base(payload), dimensionType: normalizeName(payload.dimensionType ?? 'ALIGNED'), definitionPoints: (payload.definitionPoints ?? []).map((point, index) => point3(point, `definitionPoints[${index}]`)), textPosition: payload.textPosition && point3(payload.textPosition, 'textPosition'), textOverride: payload.textOverride == null ? null : String(payload.textOverride), styleId: payload.styleId == null ? null : String(payload.styleId), styleName: String(payload.styleName ?? 'STANDARD'), blockName: payload.blockName == null ? null : String(payload.blockName), measurement: payload.measurement == null ? null : finite(payload.measurement, 'measurement'), dxfDimensionType: payload.dxfDimensionType == null ? null : Math.trunc(finite(payload.dxfDimensionType, 'dxfDimensionType')), rotation: finite(payload.rotation ?? 0, 'rotation'), ...(payload.dimensionAssociations == null ? {} : { dimensionAssociations: normalizeDimensionAssociations(payload.dimensionAssociations) }) }
     case 'VIEWPORT': {
       const integer = (value: unknown, label: string, min: number, max: number): number => {
         const result = finite(value, label)

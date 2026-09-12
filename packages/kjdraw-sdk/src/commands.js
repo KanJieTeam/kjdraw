@@ -7,6 +7,7 @@ import { createDesignRelations, updateDesignRelations } from './design-relations
 import { entityArea2, entityLength2, distance2, dot2, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
 import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
+import { refreshAssociativeDimensions } from './dimension-associations.js';
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js';
 import { KJ_SNAP_MODES } from './snapping.js';
 import { selectEntitiesByProperty } from './selection.js';
@@ -832,7 +833,13 @@ export function registerCoreCommands(registry) {
         id: 'PROPERTIES',
         title: 'Update object properties',
         execute: ({ document, transaction }, args)=>{
-            if (args.ids == null) return transaction.updateObject(args.id, args.patch);
+            if (args.ids == null) {
+                const updated = transaction.updateObject(args.id, args.patch);
+                refreshAssociativeDimensions(transaction, [
+                    updated.id
+                ]);
+                return updated;
+            }
             if (args.id != null) throw new KJValidationError('PROPERTIES accepts either id or ids, not both');
             if (!Array.isArray(args.ids) || !args.ids.length) throw new KJValidationError('Batch PROPERTIES requires at least one entity id');
             if (args.ids.length > 4096) throw new KJValidationError('Batch PROPERTIES supports at most 4096 entities');
@@ -844,7 +851,9 @@ export function registerCoreCommands(registry) {
                 const object = document.getObject(id);
                 if (!object || object.kind !== 'entity') throw new KJValidationError(`Batch PROPERTIES entity does not exist: ${id}`);
             }
-            return ids.map((id)=>transaction.updateObject(id, args.patch));
+            const updated = ids.map((id)=>transaction.updateObject(id, args.patch));
+            refreshAssociativeDimensions(transaction, ids);
+            return updated;
         }
     }, {
         owner: '@kanjieteam/kjdraw'
@@ -1665,9 +1674,13 @@ export function registerCoreCommands(registry) {
         title: 'Lengthen entity',
         execute: ({ document, transaction }, args)=>{
             const entity = requiredEntity(document, args.id);
-            return transaction.updateObject(entity.id, {
+            const updated = transaction.updateObject(entity.id, {
                 payload: lengthenEntityPayload(entity, args)
             });
+            refreshAssociativeDimensions(transaction, [
+                entity.id
+            ]);
+            return updated;
         }
     }, {
         owner: '@kanjieteam/kjdraw'
@@ -1689,9 +1702,11 @@ export function registerCoreCommands(registry) {
                 };
             }).filter((value)=>value.payload != null);
             if (!updates.length) throw new KJValidationError('STRETCH crossing window contains no editable vertices');
-            return updates.map((value)=>transaction.updateObject(value.entity.id, {
+            const changed = updates.map((value)=>transaction.updateObject(value.entity.id, {
                     payload: value.payload
                 }));
+            refreshAssociativeDimensions(transaction, changed.map((entity)=>entity.id));
+            return changed;
         }
     }, {
         owner: '@kanjieteam/kjdraw'
@@ -2434,12 +2449,14 @@ function commandAngle(args) {
 }
 function transformExisting({ document, transaction }, args, matrix) {
     const selected = new Set(entityIds(args));
-    return [
+    const transformed = [
         ...selected
     ].filter((id)=>{
         const entity = requiredEntity(document, id);
         return !entity.payload.parentInsertId || !selected.has(entity.payload.parentInsertId);
     }).flatMap((id)=>transaction.transformEntity(id, matrix));
+    refreshAssociativeDimensions(transaction, transformed.map((entity)=>entity.id));
+    return transformed;
 }
 function copyEntities({ document, transaction }, args, matrix) {
     const selected = new Set(entityIds(args));

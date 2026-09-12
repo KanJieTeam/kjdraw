@@ -315,6 +315,40 @@ function validateObjectGraph(state, issues, previousState) {
             path: `objects.${id}.payload.styleId`,
             message: `Text style is not registered: ${object.payload.styleId}`
         });
+        if (object?.kind === 'entity' && object.type === 'DIMENSION' && Array.isArray(object.payload?.dimensionAssociations)) {
+            for (const [index, candidate] of object.payload.dimensionAssociations.entries()){
+                if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue;
+                const association = candidate, source = typeof association.entityId === 'string' ? state.objects[association.entityId] : null;
+                const associationPath = `objects.${id}.payload.dimensionAssociations.${index}`;
+                if (!source || source.kind !== 'entity' || source.id === id) issues.push({
+                    path: `${associationPath}.entityId`,
+                    message: `Dimension association source is missing or invalid: ${association.entityId}`
+                });
+                else {
+                    if (source.ownerId !== object.ownerId) issues.push({
+                        path: `${associationPath}.entityId`,
+                        message: 'Dimension association source must share its drawing space'
+                    });
+                    const feature = String(association.feature);
+                    const expected = feature === 'vertex' ? [
+                        'LWPOLYLINE'
+                    ] : [
+                        'start',
+                        'end'
+                    ].includes(feature) ? [
+                        'LINE',
+                        'ARC'
+                    ] : [
+                        'CIRCLE',
+                        'ARC'
+                    ];
+                    if (!expected.includes(source.type)) issues.push({
+                        path: `${associationPath}.feature`,
+                        message: `Dimension association ${feature} is incompatible with ${source.type}`
+                    });
+                }
+            }
+        }
         if (object?.kind === 'entity' && isStandardEntityType(object.type)) {
             if (object.payload?.contractVersion !== 1) issues.push({
                 path: `objects.${id}.payload.contractVersion`,

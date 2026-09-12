@@ -9,6 +9,8 @@ import { projectDimension, resolveDimensionAnnotationStyle } from './geometry/an
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js'
 import { hatchPatternLines } from './geometry/hatch.js'
 import { normalizeStandardEntityPayload } from './standard-entities.js'
+import { normalizeDimensionAssociations } from './dimension-associations.js'
+import type { KJDimensionPointAssociation } from './dimension-associations.js'
 import { normalizeName } from './utils.js'
 import { PLOT_SETTING_FIELDS, validatePlotSettings } from './plot-settings.js'
 import type { KJDxfPlotSettings } from './plot-settings.js'
@@ -22,6 +24,36 @@ interface DxfRecord { type: string; tags: DxfTag[]; vertices?: DxfRecord[]; attr
 
 // DXF per-entity dimension style overrides use ACAD/DSTYLE xdata pairs.
 interface DxfDimensionOverrides { textHeight?: number; precision?: number; angularUnits?: number; linearPrecision?: number; overallScale?: number; arrowSize?: number; extensionOffset?: number; extensionBeyond?: number }
+interface DxfDimensionAssociationHandle extends Omit<KJDimensionPointAssociation, 'entityId'> { entityHandle: string }
+
+function readDimensionAssociationHandles(record: DxfRecord): DxfDimensionAssociationHandle[] | null {
+  const starts = record.tags.map((tag, index) => tag.code === 1001 && tag.value === 'KJDRAW' ? index : -1).filter(index => index >= 0)
+  if (!starts.length) return null
+  if (starts.length !== 1) throw new KJValidationError('Duplicate KJDRAW DIMENSION association XDATA')
+  let index = starts[0]! + 1
+  if (record.tags[index]?.code !== 1000 || record.tags[index]?.value !== 'DIMASSOC1') throw new KJValidationError('Unsupported KJDRAW DIMENSION association XDATA')
+  const chunks: string[] = []
+  while (record.tags[++index]?.code === 1000) {
+    chunks.push(record.tags[index]!.value)
+    if (chunks.length > 20) throw new KJValidationError('KJDRAW DIMENSION association XDATA exceeds its chunk budget')
+  }
+  if (!chunks.length) throw new KJValidationError('KJDRAW DIMENSION association XDATA is empty')
+  let parsed: unknown
+  try { parsed = JSON.parse(chunks.join('')) } catch { throw new KJValidationError('Malformed KJDRAW DIMENSION association XDATA') }
+  if (!Array.isArray(parsed) || !parsed.length || parsed.length > 4) throw new KJValidationError('KJDRAW DIMENSION association XDATA requires 1-4 references')
+  return parsed.map((candidate, offset) => {
+    if (!Array.isArray(candidate) || candidate.length < 3 || candidate.length > 5) throw new KJValidationError(`Malformed KJDRAW DIMENSION association ${offset}`)
+    const [definitionPointIndex, entityHandle, feature, parameter] = candidate
+    if (typeof entityHandle !== 'string' || !/^[0-9A-F]+$/.test(entityHandle)) throw new KJValidationError(`Invalid KJDRAW DIMENSION association handle ${offset}`)
+    const normalized = normalizeDimensionAssociations([{
+      definitionPointIndex, entityId: 'pending', feature,
+      ...(feature === 'vertex' ? { vertexIndex: parameter } : {}),
+      ...(feature === 'curve' ? { angle: parameter } : {}),
+    }])[0]!
+    const { entityId: _pending, ...association } = normalized
+    return { ...association, entityHandle }
+  })
+}
 function readDimensionOverrides(record: DxfRecord): DxfDimensionOverrides {
   const result: DxfDimensionOverrides = {}
   let acad = false
@@ -911,10 +943,12 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
     const occupiedHandles = new Set(Object.values(transaction._draft().objects).map(object => object.handle))
     const entityHandleIds = new Map<string, string>()
     const viewportReferences: { id: string; record: DxfRecord }[] = []
+    const dimensionReferences: { id: string; associations: DxfDimensionAssociationHandle[] }[] = []
     const importRecord = (record: DxfRecord, index: number, ownerId: string | undefined, scope: string, parentInsertId?: string): KJObjectRecord => {
       const layerName = normalizeName(first(record, 8, '0'))
       const layerId = layerIds.get(layerName) ?? defaultLayerId
       const converted = entityPayload(record, blockIds, resources)
+      const dimensionAssociations = record.type === 'DIMENSION' ? readDimensionAssociationHandles(record) : null
       const sourceHandle = String(first(record, 5, '')).toUpperCase()
       const handleAvailable = /^[0-9A-F]+$/.test(sourceHandle) && !occupiedHandles.has(sourceHandle)
       let created: KJObjectRecord
@@ -927,6 +961,7 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
         occupiedHandles.add(created.handle)
         if (sourceHandle) entityHandleIds.set(sourceHandle, entityHandleIds.has(sourceHandle) ? '' : created.id)
         if (created.type === 'VIEWPORT') viewportReferences.push({ id: created.id, record })
+        if (created.type === 'DIMENSION' && dimensionAssociations) dimensionReferences.push({ id: created.id, associations: dimensionAssociations })
       } catch (error) {
         // A proxy cannot preserve the editable parent/attribute relationship.
         if (record.attributes || parentInsertId) throw error
@@ -984,6 +1019,14 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
       const ownerId = ownerSpaces.get(sourceOwner) ?? (paperSpace ? (paperSpaceIds.get(normalizeName(layoutName)) ?? fallbackPaperSpaceId) : modelSpaceId)
       importSpaceRecord(record, index, ownerId, paperSpace ? `paper-space:${layoutName}` : 'model-space')
       await importCheckpoint()
+    }
+    for (const { id, associations } of dimensionReferences) {
+      const resolved = associations.map(({ entityHandle, ...association }) => {
+        const entityId = entityHandleIds.get(entityHandle)
+        if (!entityId) throw new KJValidationError(`DXF DIMENSION association references an unavailable or duplicate handle: ${entityHandle}`)
+        return { ...association, entityId }
+      })
+      transaction.updateObject(id, { payload: { dimensionAssociations: resolved } })
     }
     // Clipping boundaries may follow the viewport in ENTITIES. Resolve after all entities
     // and table records exist; never mistake an unresolved source handle for an SDK ID.
@@ -1744,6 +1787,16 @@ function emitEntity(
     }
     emit(output, 1002, '}')
   }
+  if (entity.type === 'DIMENSION' && p.dimensionAssociations != null) {
+    const associations = normalizeDimensionAssociations(p.dimensionAssociations)
+    const encoded = JSON.stringify(associations.map(association => {
+      const source = resources.objects?.get(association.entityId)
+      if (!source || source.kind !== 'entity' || source.erased || source.ownerId !== entity.ownerId) throw new KJValidationError(`DXF DIMENSION ${entity.handle} has an unavailable association source: ${association.entityId}`)
+      return [association.definitionPointIndex, source.handle, association.feature, ...(association.feature === 'vertex' ? [association.vertexIndex] : association.feature === 'curve' ? [association.angle] : [])]
+    }))
+    emit(output, 1001, 'KJDRAW'); emit(output, 1000, 'DIMASSOC1')
+    for (let offset = 0; offset < encoded.length; offset += 250) emit(output, 1000, encoded.slice(offset, offset + 250))
+  }
 }
 
 function emitSingleLineText(output: string[], p: DxfPayload, version: DxfVersion, resources: DxfExportResources): void {
@@ -1789,6 +1842,7 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   const ucsRecords = documentTableRecords(document, 'ucs').map(dxfNamedRecord)
   const views = documentTableRecords(document, 'views').map(dxfNamedRecord)
   const allEntities = document.listEntities().map(dxfEntity)
+  const hasDimensionAssociations = allEntities.some(entity => entity.type === 'DIMENSION' && entity.payload?.dimensionAssociations != null)
   // Native viewport IDs are local to an owner space. Keep explicit IDs, reject
   // collisions, and assign omitted IDs without ever taking main-paper viewport 1.
   const viewportIds = new Map<string, number>(), usedViewportIds = new Map<string, Set<number>>()
@@ -1870,7 +1924,11 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   emitLinetypeTable(output, linetypes, context, tableHandles.get('LTYPE')!)
   emitTextStyleTable(output, textStyles, context, tableHandles.get('STYLE')!)
   emitDimensionStyleTable(output, dimensionStyles, context, tableHandles.get('DIMSTYLE')!)
-  if (dimensionExports.dimensions.size) emitTable(output, 'APPID', [{ id: 'dxf-acad-appid', type: 'APPID', name: 'ACAD', handle: context.allocateHandle(), payload: {} }], context, tableHandles.get('APPID')!, (record, ownerHandle, version) => {
+  const applicationRecords = [
+    ...(dimensionExports.dimensions.size ? [{ id: 'dxf-acad-appid', type: 'APPID', name: 'ACAD', handle: context.allocateHandle(), payload: {} }] : []),
+    ...(hasDimensionAssociations ? [{ id: 'dxf-kjdraw-appid', type: 'APPID', name: 'KJDRAW', handle: context.allocateHandle(), payload: {} }] : []),
+  ]
+  if (applicationRecords.length) emitTable(output, 'APPID', applicationRecords, context, tableHandles.get('APPID')!, (record, ownerHandle, version) => {
     emitSymbolTableRecordHeader(output, 'APPID', record, ownerHandle, version, 'AcDbRegAppTableRecord')
     emit(output, 2, 'ACAD'); emit(output, 70, 0)
   })

@@ -121,6 +121,7 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
         if (id(settings.ownerId) !== ownerId) fail('Annotation base entities must belong to model space');
         if (!spec.payload || typeof spec.payload !== 'object' || Array.isArray(spec.payload)) fail('Proposal base payload must be an object');
         staged.set(name, {
+            id: entityId,
             type: spec.type,
             payload: normalizeStandardEntityPayload(spec.type, spec.payload),
             ownerId
@@ -172,7 +173,8 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
         if (payload.elevation != null && payload.elevation !== 0) fail('Annotation references require zero elevation');
         return {
             ref,
-            object
+            object,
+            entityId: object.id
         };
     };
     const curvePoint = (object, angle)=>{
@@ -191,12 +193,25 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
         ]);
     };
     const feature = (value)=>{
-        const { ref, object } = reference(value, true), payload = object.payload;
+        const { ref, object, entityId } = reference(value, true), payload = object.payload;
+        const association = {
+            entityId,
+            feature: ref.feature,
+            ...ref.feature === 'vertex' ? {
+                vertexIndex: Number(ref.vertexIndex)
+            } : {}
+        };
         if (ref.feature !== 'vertex' && 'vertexIndex' in ref) fail('vertexIndex is only valid for vertex references');
         if (ref.feature === 'start' || ref.feature === 'end') {
-            if (object.type === 'ARC') return curvePoint(object, number(payload[ref.feature === 'start' ? 'startAngle' : 'endAngle'], 'Arc endpoint'));
+            if (object.type === 'ARC') return {
+                point: curvePoint(object, number(payload[ref.feature === 'start' ? 'startAngle' : 'endAngle'], 'Arc endpoint')),
+                association
+            };
             if (object.type !== 'LINE') fail('Start/end annotation references require LINE/ARC entities');
-            return nativePoint(payload[ref.feature]);
+            return {
+                point: nativePoint(payload[ref.feature]),
+                association
+            };
         }
         if ([
             'left',
@@ -214,20 +229,29 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
                 left: Math.PI,
                 bottom: 3 * Math.PI / 2
             };
-            return curvePoint(object, angles[ref.feature]);
+            return {
+                point: curvePoint(object, angles[ref.feature]),
+                association
+            };
         }
         if (ref.feature === 'center') {
             if (![
                 'CIRCLE',
                 'ARC'
             ].includes(object.type)) fail('Center annotation references require CIRCLE/ARC entities');
-            return nativePoint(payload.center);
+            return {
+                point: nativePoint(payload.center),
+                association
+            };
         }
         if (ref.feature === 'vertex') {
             if (object.type !== 'LWPOLYLINE' || !Number.isSafeInteger(ref.vertexIndex) || ref.vertexIndex < 0 || ref.vertexIndex > 4095 || !Array.isArray(payload.vertices) || payload.vertices.length > 4096) fail('Vertex references require a bounded native polyline vertex index');
             const vertices = payload.vertices;
             if (vertices.some((vertex)=>vertex.bulge !== 0)) fail('Annotation vertex references currently require straight polylines');
-            return nativePoint(vertices[ref.vertexIndex]?.point);
+            return {
+                point: nativePoint(vertices[ref.vertexIndex]?.point),
+                association
+            };
         }
         return fail('Unsupported annotation point feature');
     };
@@ -293,7 +317,7 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
             'ANGULAR_3_POINT'
         ].includes(type)) fail('Unsupported native dimension type');
         const position = xy(item.position), height = number(item.height, 'Dimension text height', 1e-6, 1e6);
-        let definitionPoints, rotation = 0;
+        let definitionPoints, dimensionAssociations, rotation = 0;
         if (type === 'ALIGNED' || type === 'ROTATED') {
             record(item, type === 'ROTATED' ? [
                 'type',
@@ -309,10 +333,21 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
                 'position',
                 'height'
             ]);
+            const from = feature(item.from), to = feature(item.to);
             definitionPoints = [
                 position,
-                feature(item.from),
-                feature(item.to)
+                from.point,
+                to.point
+            ];
+            dimensionAssociations = [
+                {
+                    definitionPointIndex: 1,
+                    ...from.association
+                },
+                {
+                    definitionPointIndex: 2,
+                    ...to.association
+                }
             ];
             if (type === 'ROTATED') rotation = number(item.rotationDegrees, 'Dimension rotation', 0, 360) * Math.PI / 180;
         } else if (type === 'ANGULAR_3_POINT') {
@@ -324,11 +359,26 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
                 'position',
                 'height'
             ]);
+            const first = feature(item.first), second = feature(item.second), center = feature(item.center);
             definitionPoints = [
                 position,
-                feature(item.first),
-                feature(item.second),
-                feature(item.center)
+                first.point,
+                second.point,
+                center.point
+            ];
+            dimensionAssociations = [
+                {
+                    definitionPointIndex: 1,
+                    ...first.association
+                },
+                {
+                    definitionPointIndex: 2,
+                    ...second.association
+                },
+                {
+                    definitionPointIndex: 3,
+                    ...center.association
+                }
             ];
         } else {
             record(item, [
@@ -338,7 +388,7 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
                 'height',
                 'directionDegrees'
             ]);
-            const { object } = reference(item.source);
+            const { object, entityId } = reference(item.source);
             if (type === 'DIAMETER' ? object.type !== 'CIRCLE' : ![
                 'CIRCLE',
                 'ARC'
@@ -354,10 +404,37 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
                 ],
                 end
             ];
+            dimensionAssociations = type === 'RADIUS' ? [
+                {
+                    definitionPointIndex: 0,
+                    entityId,
+                    feature: 'center'
+                },
+                {
+                    definitionPointIndex: 1,
+                    entityId,
+                    feature: 'curve',
+                    angle
+                }
+            ] : [
+                {
+                    definitionPointIndex: 0,
+                    entityId,
+                    feature: 'curve',
+                    angle: angle + Math.PI
+                },
+                {
+                    definitionPointIndex: 1,
+                    entityId,
+                    feature: 'curve',
+                    angle
+                }
+            ];
         }
         const payload = {
             dimensionType: type,
             definitionPoints,
+            dimensionAssociations,
             ...type === 'RADIUS' || type === 'DIAMETER' ? {
                 textPosition: position
             } : {},
