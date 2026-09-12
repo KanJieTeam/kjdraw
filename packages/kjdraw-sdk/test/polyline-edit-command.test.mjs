@@ -93,6 +93,21 @@ test('PEDIT sets signed sweep or bulge on valid outgoing segments', async () => 
   assert.equal(result.payload.vertices[1].bulge, 0)
 })
 
+test('PEDIT sets exact tapered segment widths with stable identity and DXF persistence', async () => {
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'pedit-width', units: 'millimeter' })
+  const polyline = await sdk.executeCommand('CREATE', { type: 'POLYLINE', payload: { vertices: [[0, 0], [10, 0], [20, 0]], closed: false } })
+  const identity = { id: polyline.id, handle: polyline.handle }, revision = drawing.revision
+  const result = await sdk.executeCommand('PEDIT', { id: polyline.id, operation: 'SET_WIDTH', segmentIndex: 1, startWidth: 2.5, endWidth: 7.5 })
+  assert.deepEqual({ id: result.id, handle: result.handle }, identity)
+  assert.deepEqual(result.payload.vertices.map(vertex => [vertex.startWidth, vertex.endWidth]), [[0, 0], [2.5, 7.5], [0, 0]])
+  assert.equal(drawing.revision, revision + 1)
+  const dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
+  const reopened = await sdk.fileAdapters.read(dxf, { format: 'DXF' }), restored = reopened.listEntities({ type: 'POLYLINE' })[0]
+  assert.deepEqual(restored.payload.vertices.map(vertex => [vertex.startWidth, vertex.endWidth]), [[0, 0], [2.5, 7.5], [0, 0]])
+  await sdk.executeCommand('UNDO'); assert.deepEqual(drawing.getObject(polyline.id), polyline)
+  await sdk.executeCommand('REDO'); assert.equal(drawing.getObject(polyline.id).payload.vertices[1].endWidth, 7.5)
+})
+
 test('pointer PEDIT resolves unique straight, arc and closed-seam topology without numeric indices', async () => {
   const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'pedit-pointer', units: 'millimeter' })
   const path = await sdk.executeCommand('CREATE', { type: 'LWPOLYLINE', payload: {
@@ -124,12 +139,13 @@ test('independent ezdxf validates pointer-edited native polyline output without 
   const path = await sdk.executeCommand('CREATE', { type: 'LWPOLYLINE', payload: { vertices: [[0, 0], [10, 0], [10, 10]], closed: false } })
   await sdk.executeCommand('PEDIT', { id: path.id, operation: 'INSERT', point: [5, 0], tolerance: 1e-8 })
   await sdk.executeCommand('PEDIT', { id: path.id, operation: 'SET_BULGE', point: [7.5, 0], tolerance: 1e-8, sweepDegrees: 90 })
+  await sdk.executeCommand('PEDIT', { id: path.id, operation: 'SET_WIDTH', segmentIndex: 2, startWidth: 3, endWidth: 5 })
   const dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
   const code = 'import sys,io,json,ezdxf;d=ezdxf.read(io.StringIO(sys.stdin.read()));a=d.audit();p=list(d.modelspace().query("LWPOLYLINE"));print(json.dumps({"version":ezdxf.__version__,"count":len(p),"points":[list(v) for v in p[0].get_points("xyseb")],"errors":len(a.errors),"fixes":len(a.fixes)}))'
   const run = spawnSync(process.env.KJDRAW_PYTHON, ['-c', code], { input: dxf, encoding: 'utf8', timeout: 30000 })
   assert.equal(run.status, 0, run.stderr); const result = JSON.parse(run.stdout)
   assert.equal(result.version, '1.4.4'); assert.equal(result.count, 1); assert.equal(result.points.length, 4)
-  close(result.points[1][4], Math.tan(Math.PI / 8), 1e-8); assert.equal(result.errors, 0); assert.equal(result.fixes, 0)
+  close(result.points[1][4], Math.tan(Math.PI / 8), 1e-8); assert.deepEqual(result.points[2].slice(2, 4), [3, 5]); assert.equal(result.errors, 0); assert.equal(result.fixes, 0)
 })
 
 test('PEDIT rejects unsafe curve deletion, invalid geometry, special legacy topology and protected edits atomically', async () => {
@@ -148,6 +164,8 @@ test('PEDIT rejects unsafe curve deletion, invalid geometry, special legacy topo
   await rejectUnchanged(() => sdk.executeCommand('PEDIT', { id: curved.id, operation: 'SET_BULGE', segmentIndex: 2, bulge: 1 }), error => /segmentIndex/.test(error.message))
   await rejectUnchanged(() => sdk.executeCommand('PEDIT', { id: curved.id, operation: 'SET_BULGE', segmentIndex: 0, bulge: 1, sweepDegrees: 90 }), error => /not both/.test(error.message))
   await rejectUnchanged(() => sdk.executeCommand('PEDIT', { id: curved.id, operation: 'SET_BULGE', segmentIndex: 0, bulge: 1e308 }), error => /unbounded/.test(error.message))
+  await rejectUnchanged(() => sdk.executeCommand('PEDIT', { id: curved.id, operation: 'SET_WIDTH', segmentIndex: 0, startWidth: -1, endWidth: 2 }), error => /widths/.test(error.message))
+  await rejectUnchanged(() => sdk.executeCommand('PEDIT', { id: curved.id, operation: 'SET_WIDTH', point: [99, 99], tolerance: .01, startWidth: 1, endWidth: 2 }), error => /outside/.test(error.message))
   await rejectUnchanged(() => sdk.executeCommand('PEDIT', { id: special.id, operation: 'DELETE', vertexIndex: 1 }), error => /ordinary 2D/.test(error.message))
   await sdk.executeCommand('LAYERUPDATE', { id: layer.id, patch: { locked: true } })
   await rejectUnchanged(() => sdk.executeCommand('PEDIT', { id: locked.id, operation: 'DELETE', vertexIndex: 1 }), error => error.details?.policy === 'layer-editability')
@@ -157,6 +175,6 @@ test('PEDIT advertises exact stable topology operations', () => {
   const capability = createKJDrawSDK().capabilities().commands.find(command => command.id === 'PEDIT')
   assert.deepEqual(capability.aliases, ['PE', 'POLYLINEEDIT'])
   assert.deepEqual(capability.capabilities, {
-    domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'], operations: ['INSERT', 'DELETE', 'SET_BULGE'], stableIdentity: true,
+    domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'], operations: ['INSERT', 'DELETE', 'SET_BULGE', 'SET_WIDTH'], stableIdentity: true,
   })
 })

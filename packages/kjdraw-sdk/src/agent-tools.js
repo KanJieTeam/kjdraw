@@ -230,7 +230,8 @@ const polylineEditSchemaBase = object({
         enum: [
             'INSERT',
             'DELETE',
-            'SET_BULGE'
+            'SET_BULGE',
+            'SET_WIDTH'
         ]
     },
     segmentIndex: {
@@ -258,6 +259,16 @@ const polylineEditSchemaBase = object({
         type: 'number',
         minimum: -350,
         maximum: 350
+    },
+    startWidth: {
+        type: 'number',
+        minimum: 0,
+        maximum: 1e12
+    },
+    endWidth: {
+        type: 'number',
+        minimum: 0,
+        maximum: 1e12
     }
 });
 const polylineEditSchema = {
@@ -881,7 +892,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_polyline_edit',
         effect: 'propose',
-        description: 'Propose one exact topology edit to a visible editable model-space LWPOLYLINE or ordinary 2D POLYLINE by ID. INSERT requires segmentIndex and point={x,y}; optional tolerance permits snapping to that straight or bulge-arc segment and splits the original curve and widths exactly. DELETE requires vertexIndex and refuses curve-adjacent deletion that would silently change shape. SET_BULGE requires segmentIndex and exactly one of signed bulge or sweepDegrees (-360,360), where 0 makes the segment straight. Special 3D, mesh, polyface and fitted POLYLINE data are rejected. Returns the complete before/after entity without editing; host approval commits one undoable PEDIT transaction with stable entity identity.',
+        description: 'Propose one exact edit to a visible editable model-space LWPOLYLINE or ordinary 2D POLYLINE by ID. INSERT requires segmentIndex and point={x,y}; optional tolerance permits snapping to that straight or bulge-arc segment and splits the original curve and widths exactly. DELETE requires vertexIndex and refuses curve-adjacent deletion that would silently change shape. SET_BULGE requires segmentIndex and exactly one of signed bulge or sweepDegrees (-360,360), where 0 makes the segment straight. SET_WIDTH requires segmentIndex plus nonnegative startWidth and endWidth. Special 3D, mesh, polyface and fitted POLYLINE data are rejected. Returns the complete before/after entity without editing; host approval commits one undoable PEDIT transaction with stable entity identity.',
         inputSchema: polylineEditSchema
     },
     {
@@ -1626,6 +1637,14 @@ export class KJAgentToolSession {
                                 'id',
                                 'operation',
                                 'vertexIndex'
+                            ] : operation === 'SET_WIDTH' ? [
+                                'expectedRevision',
+                                'units',
+                                'id',
+                                'operation',
+                                'segmentIndex',
+                                'startWidth',
+                                'endWidth'
                             ] : [
                                 'expectedRevision',
                                 'units',
@@ -1665,6 +1684,15 @@ export class KJAgentToolSession {
                                     id,
                                     operation,
                                     vertexIndex: args.vertexIndex
+                                };
+                            } else if (operation === 'SET_WIDTH') {
+                                if (args.segmentIndex == null || args.startWidth == null || args.endWidth == null) throw new KJValidationError('PEDIT SET_WIDTH requires segmentIndex, startWidth and endWidth');
+                                commandArgs = {
+                                    id,
+                                    operation,
+                                    segmentIndex: args.segmentIndex,
+                                    startWidth: args.startWidth,
+                                    endWidth: args.endWidth
                                 };
                             } else {
                                 if (args.segmentIndex == null || args.bulge == null === (args.sweepDegrees == null)) throw new KJValidationError('PEDIT SET_BULGE requires segmentIndex and exactly one of bulge or sweepDegrees');

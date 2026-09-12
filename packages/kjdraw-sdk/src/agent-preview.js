@@ -160,6 +160,10 @@ function validatePolylineEditArguments(document, args) {
         if (args.bulge != null && (typeof args.bulge !== 'number' || !Number.isFinite(args.bulge) || Math.abs(args.bulge) > 32)) throw new KJValidationError('PEDIT preview bulge must be finite within ±32');
         if (args.sweepDegrees != null && (typeof args.sweepDegrees !== 'number' || !Number.isFinite(args.sweepDegrees) || Math.abs(args.sweepDegrees) > 350)) throw new KJValidationError('PEDIT preview sweep must be finite within ±350 degrees');
     }
+    if (args.operation === 'SET_WIDTH' && [
+        args.startWidth,
+        args.endWidth
+    ].some((value)=>typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1e12)) throw new KJValidationError('PEDIT preview widths must be finite from 0 to 1000000000000');
     if (args.operation !== 'INSERT' || args.tolerance == null) return;
     if (typeof args.tolerance !== 'number' || !Number.isFinite(args.tolerance) || args.tolerance < 0 || args.tolerance > 1000000) throw new KJValidationError('PEDIT preview tolerance must be finite from 0 to 1000000 drawing units');
     const vertices = Array.isArray(entity.payload.vertices) ? entity.payload.vertices : [];

@@ -323,7 +323,7 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   EXTEND: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE', 'ARC'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
   LENGTHEN: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC'], modes: ['TOTAL', 'DELTA', 'PERCENT', 'DYNAMIC'], stableIdentity: true },
   STRETCH: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'LWPOLYLINE', 'POLYLINE'], selection: 'crossing-window', maximumEntities: 4096, stableIdentity: true },
-  PEDIT: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'], operations: ['INSERT', 'DELETE', 'SET_BULGE'], stableIdentity: true },
+  PEDIT: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'], operations: ['INSERT', 'DELETE', 'SET_BULGE', 'SET_WIDTH'], stableIdentity: true },
   CHAMFER: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE'] },
   FILLET: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE'] },
   GRIPEDIT: { domain: 'geometry', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },

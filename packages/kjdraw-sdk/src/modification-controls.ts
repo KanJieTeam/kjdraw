@@ -21,6 +21,7 @@ export type KJModificationId =
   | 'polyline-insert'
   | 'polyline-delete'
   | 'polyline-arc'
+  | 'polyline-width'
   | 'chamfer'
   | 'fillet'
 
@@ -124,7 +125,7 @@ const pick = (key: string, en: string, zh: string): KJModificationPointDefinitio
 export const KJ_MODIFICATION_IDS = Object.freeze([
   'rotate', 'scale', 'mirror', 'array-rect', 'array-polar', 'offset',
   'break', 'break-two-point', 'join', 'explode', 'trim', 'extend', 'lengthen', 'stretch',
-  'polyline-insert', 'polyline-delete', 'polyline-arc', 'chamfer', 'fillet',
+  'polyline-insert', 'polyline-delete', 'polyline-arc', 'polyline-width', 'chamfer', 'fillet',
 ] as const)
 
 export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = Object.freeze([
@@ -271,6 +272,18 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
       number('tolerance', 'Pick tolerance', '点选容差', 0.1, { min: 0, step: 0.01 }),
     ],
     pointKeys: [pick('point', 'Pick the segment to change', '点选要切换的线段')],
+  },
+  {
+    id: 'polyline-width', command: 'PEDIT', label: text('Edit polyline width', '编辑多段线宽度'),
+    description: text('Pick one segment and set its exact start and end widths.', '点选一个线段并设置精确的起点和终点宽度。'),
+    minSelection: 1, maxSelection: 1,
+    supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'],
+    fields: [
+      number('startWidth', 'Start width', '起点宽度', 0, { min: 0, max: 1e12, step: 0.1 }),
+      number('endWidth', 'End width', '终点宽度', 0, { min: 0, max: 1e12, step: 0.1 }),
+      number('tolerance', 'Pick tolerance', '点选容差', 0.1, { min: 0, step: 0.01 }),
+    ],
+    pointKeys: [pick('point', 'Pick the segment whose width will change', '点选要修改宽度的线段')],
   },
   {
     id: 'chamfer', command: 'CHAMFER', label: text('Chamfer lines', '直线倒角'),
@@ -440,6 +453,7 @@ export function buildKJModificationCommand(id: KJModificationId, context: KJModi
     case 'polyline-insert': return { command: definition.command, arguments: { id: ids[0]!, operation: 'INSERT', ...values, point: points[0]! } }
     case 'polyline-delete': return { command: definition.command, arguments: { id: ids[0]!, operation: 'DELETE', ...values, point: points[0]! } }
     case 'polyline-arc': return { command: definition.command, arguments: { id: ids[0]!, operation: 'SET_BULGE', ...values, point: points[0]! } }
+    case 'polyline-width': return { command: definition.command, arguments: { id: ids[0]!, operation: 'SET_WIDTH', ...values, point: points[0]! } }
     case 'chamfer': return { command: definition.command, arguments: { firstId: ids[0]!, secondId: ids[1]!, ...values, pickPoint1: points[0]!, pickPoint2: points[1]! } }
     case 'fillet': return { command: definition.command, arguments: { firstId: ids[0]!, secondId: ids[1]!, ...values, pickPoint1: points[0]!, pickPoint2: points[1]! } }
   }

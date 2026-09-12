@@ -61,6 +61,11 @@ test('AI PEDIT supports delete and signed sweep proposals while rejecting ambigu
   }))
   close(proposal.preview.after[0].payload.vertices[0].bulge, -Math.tan(Math.PI / 8))
   value(await session.approve(proposal.planId, 'host-reviewer'))
+  proposal = value(await session.call('cad_propose_polyline_edit', {
+    expectedRevision: document.revision, units: 'millimeter', id: 'path', operation: 'SET_WIDTH', segmentIndex: 0, startWidth: 2, endWidth: 6,
+  }))
+  assert.deepEqual(proposal.preview.after[0].payload.vertices.slice(0, 2).map(vertex => [vertex.startWidth, vertex.endWidth]), [[2, 6], [0, 0]])
+  value(await session.approve(proposal.planId, 'host-reviewer'))
 
   const before = document.serialize(), revision = document.revision
   const invalid = [
@@ -72,6 +77,8 @@ test('AI PEDIT supports delete and signed sweep proposals while rejecting ambigu
     { id: 'curve', operation: 'SET_BULGE', segmentIndex: 1, bulge: 1 },
     { id: 'path', operation: 'SET_BULGE', segmentIndex: 0, bulge: 33 },
     { id: 'path', operation: 'SET_BULGE', segmentIndex: 0, sweepDegrees: 351 },
+    { id: 'path', operation: 'SET_WIDTH', segmentIndex: 0, startWidth: -1, endWidth: 2 },
+    { id: 'path', operation: 'SET_WIDTH', segmentIndex: 0, startWidth: 1 },
     { id: 'curve', operation: 'SET_BULGE', segmentIndex: 0, bulge: 1 },
     { id: 'path', operation: 'INSERT', segmentIndex: 0, point: { x: 2.5, y: 1 }, tolerance: 1 },
     { id: 'hidden-path', operation: 'SET_BULGE', segmentIndex: 0, bulge: 1 },
@@ -149,7 +156,7 @@ test('AI PEDIT definition stays compact, optional by operation and available to 
   const definition = KJDRAW_AGENT_TOOLS.find(tool => tool.name === 'cad_propose_polyline_edit')
   assert.equal(definition.effect, 'propose')
   assert.deepEqual(definition.inputSchema.required, ['expectedRevision', 'units', 'id', 'operation'])
-  assert.deepEqual(definition.inputSchema.properties.operation.enum, ['INSERT', 'DELETE', 'SET_BULGE'])
+  assert.deepEqual(definition.inputSchema.properties.operation.enum, ['INSERT', 'DELETE', 'SET_BULGE', 'SET_WIDTH'])
   assert.match(definition.description, /host approval/i)
   assert.ok(Buffer.byteLength(JSON.stringify(definition), 'utf8') < 3000)
 })

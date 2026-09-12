@@ -1602,6 +1602,29 @@ function setPolylineSegmentBulge(payload, vertices, options) {
         vertices
     };
 }
+function setPolylineSegmentWidth(payload, vertices, options) {
+    const closed = Boolean(payload.closed), segmentCount = polylineSegmentCount(vertices, closed);
+    const segmentIndex = options.segmentIndex == null ? pickedPolylineSegment(vertices, options.point, closed) : polylineEditIndex(options.segmentIndex, 'PEDIT segmentIndex', segmentCount);
+    if (options.segmentIndex == null) {
+        const pick = finiteEditPoint(options.point), source = vertices[segmentIndex], next = vertices[(segmentIndex + 1) % vertices.length];
+        if (distanceToPolylineSegment(source.point, next.point, source.bulge, pick) > Math.max(polylineEditTolerance(options.tolerance), 1e-10)) {
+            throw new KJValidationError('PEDIT width point is outside the selected segment tolerance');
+        }
+    }
+    const startWidth = Number(options.startWidth), endWidth = Number(options.endWidth);
+    if (![
+        startWidth,
+        endWidth
+    ].every((value)=>Number.isFinite(value) && value >= 0 && value <= POLYLINE_BOUND)) {
+        throw new KJValidationError(`PEDIT segment widths must be finite from 0 to ${POLYLINE_BOUND}`);
+    }
+    vertices[segmentIndex].startWidth = startWidth;
+    vertices[segmentIndex].endWidth = endWidth;
+    return {
+        ...payload,
+        vertices
+    };
+}
 export function editPolylinePayload(target, options = {}) {
     const type = normalizeName(target?.type);
     if (type !== 'LWPOLYLINE' && type !== 'POLYLINE') throw new KJValidationError(`PEDIT requires a LWPOLYLINE or POLYLINE target, not ${type || 'unknown entity'}`);
@@ -1611,7 +1634,8 @@ export function editPolylinePayload(target, options = {}) {
     if (operation === 'INSERT') return insertPolylineVertex(payload, vertices, options);
     if (operation === 'DELETE') return deletePolylineVertex(payload, vertices, options);
     if (operation === 'SET_BULGE' || operation === 'ARC') return setPolylineSegmentBulge(payload, vertices, options);
-    throw new KJValidationError('PEDIT operation must be INSERT, DELETE or SET_BULGE');
+    if (operation === 'SET_WIDTH' || operation === 'WIDTH') return setPolylineSegmentWidth(payload, vertices, options);
+    throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE or SET_WIDTH');
 }
 export function resolvePolylineEditLocation(target, options = {}) {
     const type = normalizeName(target?.type);
@@ -1619,7 +1643,7 @@ export function resolvePolylineEditLocation(target, options = {}) {
     const payload = payloadOf(target), vertices = editablePolylineVertices(payload);
     assertEditablePolylineTopology(type, payload, vertices);
     const operation = normalizeName(options.operation);
-    if (operation === 'INSERT' || operation === 'SET_BULGE' || operation === 'ARC') {
+    if (operation === 'INSERT' || operation === 'SET_BULGE' || operation === 'ARC' || operation === 'SET_WIDTH' || operation === 'WIDTH') {
         const segmentCount = polylineSegmentCount(vertices, Boolean(payload.closed));
         return {
             segmentIndex: options.segmentIndex == null ? pickedPolylineSegment(vertices, options.point, Boolean(payload.closed)) : polylineEditIndex(options.segmentIndex, 'PEDIT segmentIndex', segmentCount)
@@ -1628,7 +1652,7 @@ export function resolvePolylineEditLocation(target, options = {}) {
     if (operation === 'DELETE') return {
         vertexIndex: options.vertexIndex == null ? pickedPolylineVertex(vertices, options.point, polylineEditTolerance(options.tolerance)) : polylineEditIndex(options.vertexIndex, 'PEDIT vertexIndex', vertices.length)
     };
-    throw new KJValidationError('PEDIT operation must be INSERT, DELETE or SET_BULGE');
+    throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE or SET_WIDTH');
 }
 function selectedRay(line, intersection, pickPoint) {
     const payload = line.payload ?? {};

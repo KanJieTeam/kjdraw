@@ -91,6 +91,8 @@ export interface KJPolylineEditOptions {
     readonly tolerance?: unknown;
     readonly bulge?: unknown;
     readonly sweepDegrees?: unknown;
+    readonly startWidth?: unknown;
+    readonly endWidth?: unknown;
 }
 export interface KJPolylineEditLocation {
     readonly segmentIndex?: number;

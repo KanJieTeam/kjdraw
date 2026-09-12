@@ -257,7 +257,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         operations: [
             'INSERT',
             'DELETE',
-            'SET_BULGE'
+            'SET_BULGE',
+            'SET_WIDTH'
         ],
         stableIdentity: true
     },

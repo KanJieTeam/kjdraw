@@ -124,6 +124,8 @@ export interface KJPolylineEditOptions {
   readonly tolerance?: unknown
   readonly bulge?: unknown
   readonly sweepDegrees?: unknown
+  readonly startWidth?: unknown
+  readonly endWidth?: unknown
 }
 
 export interface KJPolylineEditLocation {
@@ -1323,6 +1325,26 @@ function setPolylineSegmentBulge(payload: KJObjectPayload, vertices: EditablePol
   return { ...payload, vertices }
 }
 
+function setPolylineSegmentWidth(payload: KJObjectPayload, vertices: EditablePolylineVertex[], options: KJPolylineEditOptions): KJObjectPayload {
+  const closed = Boolean(payload.closed), segmentCount = polylineSegmentCount(vertices, closed)
+  const segmentIndex = options.segmentIndex == null
+    ? pickedPolylineSegment(vertices, options.point, closed)
+    : polylineEditIndex(options.segmentIndex, 'PEDIT segmentIndex', segmentCount)
+  if (options.segmentIndex == null) {
+    const pick = finiteEditPoint(options.point), source = vertices[segmentIndex]!, next = vertices[(segmentIndex + 1) % vertices.length]!
+    if (distanceToPolylineSegment(source.point, next.point, source.bulge, pick) > Math.max(polylineEditTolerance(options.tolerance), 1e-10)) {
+      throw new KJValidationError('PEDIT width point is outside the selected segment tolerance')
+    }
+  }
+  const startWidth = Number(options.startWidth), endWidth = Number(options.endWidth)
+  if (![startWidth, endWidth].every(value => Number.isFinite(value) && value >= 0 && value <= POLYLINE_BOUND)) {
+    throw new KJValidationError(`PEDIT segment widths must be finite from 0 to ${POLYLINE_BOUND}`)
+  }
+  vertices[segmentIndex]!.startWidth = startWidth
+  vertices[segmentIndex]!.endWidth = endWidth
+  return { ...payload, vertices }
+}
+
 /** Edit one polyline topology element without replacing the entity identity. */
 export function editPolylinePayload(target: KJEditingEntity | null | undefined, options: KJPolylineEditOptions = {}): KJObjectPayload {
   const type = normalizeName(target?.type)
@@ -1333,7 +1355,8 @@ export function editPolylinePayload(target: KJEditingEntity | null | undefined, 
   if (operation === 'INSERT') return insertPolylineVertex(payload, vertices, options)
   if (operation === 'DELETE') return deletePolylineVertex(payload, vertices, options)
   if (operation === 'SET_BULGE' || operation === 'ARC') return setPolylineSegmentBulge(payload, vertices, options)
-  throw new KJValidationError('PEDIT operation must be INSERT, DELETE or SET_BULGE')
+  if (operation === 'SET_WIDTH' || operation === 'WIDTH') return setPolylineSegmentWidth(payload, vertices, options)
+  throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE or SET_WIDTH')
 }
 
 /** Resolve a pointer-based PEDIT pick to the stable topology index used for association migration. */
@@ -1343,7 +1366,7 @@ export function resolvePolylineEditLocation(target: KJEditingEntity | null | und
   const payload = payloadOf(target), vertices = editablePolylineVertices(payload)
   assertEditablePolylineTopology(type, payload, vertices)
   const operation = normalizeName(options.operation)
-  if (operation === 'INSERT' || operation === 'SET_BULGE' || operation === 'ARC') {
+  if (operation === 'INSERT' || operation === 'SET_BULGE' || operation === 'ARC' || operation === 'SET_WIDTH' || operation === 'WIDTH') {
     const segmentCount = polylineSegmentCount(vertices, Boolean(payload.closed))
     return { segmentIndex: options.segmentIndex == null
       ? pickedPolylineSegment(vertices, options.point, Boolean(payload.closed))
@@ -1352,7 +1375,7 @@ export function resolvePolylineEditLocation(target: KJEditingEntity | null | und
   if (operation === 'DELETE') return { vertexIndex: options.vertexIndex == null
     ? pickedPolylineVertex(vertices, options.point, polylineEditTolerance(options.tolerance))
     : polylineEditIndex(options.vertexIndex, 'PEDIT vertexIndex', vertices.length) }
-  throw new KJValidationError('PEDIT operation must be INSERT, DELETE or SET_BULGE')
+  throw new KJValidationError('PEDIT operation must be INSERT, DELETE, SET_BULGE or SET_WIDTH')
 }
 
 interface SelectedRay {
