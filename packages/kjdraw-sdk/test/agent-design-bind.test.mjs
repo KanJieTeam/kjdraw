@@ -88,8 +88,11 @@ test('AI new relation approval verifies unchanged bound members and its dictiona
       commits++; state = JSON.parse(serialized); corrupt(state); return structuredClone(state)
     } })
     const proposal = value(await session.call('cad_propose_design_bind', args(document)))
+    const before = document.serialize()
     const result = await session.approve(proposal.planId, 'host')
-    assert.equal(result.ok, false); assert.match(result.error.message, /differs from the reviewed preview/)
+    assert.equal(result.ok, false); assert.match(result.error.message, /mismatched document commit/)
+    assert.equal(document.hasAuthoritativeBackend, false)
+    assert.equal(document.serialize(), before)
     assert.equal(commits, 1); assert.equal((await session.approve(proposal.planId, 'host')).ok, false); assert.equal(commits, 1)
     document.unbindAuthority()
   }

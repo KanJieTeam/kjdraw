@@ -147,6 +147,28 @@ test('published KJCore WASM artifact authoritatively accepts SDK commits and und
   assert.equal(document.unbindAuthority(), true)
 })
 
+test('real Rust authority preserves complete content and supports optional parser defaults with undo and redo', async () => {
+  const { instance } = await WebAssembly.instantiate(await readFile(artifactUrl), {})
+  const document = KJDocument.create()
+  document.bindAuthority(createKJCoreDocumentAuthority(instance).open(document.serialize()))
+  const line = await document.transact('Create', tx => tx.createEntity('LINE', { start: [0.1, 2.3, 0], end: [12.7, 8.9, 0] }, {
+    name: 'Original', source: { unknown: [1, 'preserved'] }, extension: { xdata: { TEST: [{ code: 1000, value: 'preserved' }] } },
+  }))
+  await document.transact('Clear optional fields', tx => tx.updateObject(line.id, { name: undefined, source: undefined, erased: undefined }))
+  assert.equal(document.hasAuthoritativeBackend, true)
+  assert.equal(document.getObject(line.id).name, null)
+  assert.equal(document.getObject(line.id).source, null)
+  assert.equal(document.getObject(line.id).erased, false)
+  assert.deepEqual(document.getObject(line.id).payload.end, [12.7, 8.9, 0])
+  assert.deepEqual(document.getObject(line.id).extension, line.extension)
+  await document.undo()
+  assert.deepEqual(document.getObject(line.id).source, { unknown: [1, 'preserved'] })
+  await document.redo()
+  assert.equal(document.getObject(line.id).source, null)
+  assert.equal(document.hasAuthoritativeBackend, true)
+  document.unbindAuthority()
+})
+
 test('published KJCore WASM artifact rejects identity, revision and history tampering atomically', async () => {
   const bytes = await readFile(artifactUrl)
   const { instance } = await WebAssembly.instantiate(bytes, {})

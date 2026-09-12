@@ -448,14 +448,48 @@ export class KJDocument {
 
   async #acceptAuthoritativeCommit(candidate: KJDocumentState, expectedRevision: number): Promise<KJDocumentState> {
     if (!this.#authority) return candidate
+    const authority = this.#authority
+    const sourceState = this.#state
     const serialized = canonicalStringify(candidate) ?? ''
-    const acceptedSource = await this.#authority.commit(serialized, expectedRevision)
-    const accepted = typeof acceptedSource === 'string' ? JSON.parse(acceptedSource) as KJDocumentState : clone(acceptedSource)
-    validateDocumentState(accepted)
-    if (accepted.documentId !== this.id || Number(accepted.revision) !== Number(expectedRevision) + 1) {
-      throw new KJValidationError('Authoritative backend returned a mismatched document commit')
+    try {
+      const acceptedSource = await authority.commit(serialized, expectedRevision)
+      if (this.#authority !== authority || this.#state !== sourceState) {
+        throw new KJValidationError('Authoritative backend response belongs to an obsolete document session')
+      }
+      const accepted = typeof acceptedSource === 'string' ? JSON.parse(acceptedSource) as KJDocumentState : clone(acceptedSource)
+      validateDocumentState(accepted)
+      const acceptedJson = canonicalStringify(accepted)
+      if (accepted.documentId !== this.id || Number(accepted.revision) !== Number(expectedRevision) + 1 ||
+        (acceptedJson !== serialized && acceptedJson !== canonicalStringify(this.#canonicalAuthorityCandidate(serialized)))) {
+        throw new KJValidationError('Authoritative backend returned a mismatched document commit')
+      }
+      return accepted
+    } catch (error) {
+      // The backend may already have advanced. Preserve the original error and
+      // local state, but never reuse an uncertain or divergent session.
+      if (this.#authority === authority) {
+        this.#authority = null
+        try { authority.close() } catch { /* Preserve the commit failure. */ }
+      }
+      throw error
     }
-    return accepted
+  }
+
+  #canonicalAuthorityCandidate(serialized: string): KJDocumentState {
+    // Only the documented Rust KJD parser defaults are equivalent to the
+    // submitted candidate. Unknown fields, payloads and history stay exact.
+    const normalized = JSON.parse(serialized) as KJDocumentState
+    for (const object of Object.values(normalized.objects)) {
+      object.handle = object.handle.replace(/[a-z]/g, value => value.toUpperCase())
+      object.type = object.type.replace(/[a-z]/g, value => value.toUpperCase())
+      for (const [key, value] of Object.entries({ ownerId: null, name: null, payload: {}, extension: {}, erased: false, source: null })) {
+        if (!Object.hasOwn(object, key)) (object as unknown as Record<string, unknown>)[key] = value
+      }
+    }
+    for (const table of Object.values(normalized.tables)) if (!Object.hasOwn(table, 'currentId')) table.currentId = null
+    if (!Object.hasOwn(normalized, 'opaquePayloads')) normalized.opaquePayloads = {}
+    if (!Object.hasOwn(normalized, 'revisions')) normalized.revisions = []
+    return normalized
   }
 
   #emitChange(eventName: 'document:after-commit' | 'document:undo' | 'document:redo', revision: KJRevisionRecord | undefined): void {
