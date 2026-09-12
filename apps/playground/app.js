@@ -261,6 +261,7 @@ function render() {
     drawOverlayEntity({type:'LINE',payload:{start,end:cursor}},'#bdf878')
   }
   if(gripDrag?.preview)drawOverlayEntity(gripDrag.preview,'#77a7ff')
+  workbench.dataset.boundaryPreviewCount=String(boundaryEdit?.preview?.pieces.length??0)
   if(boundaryEdit?.preview){const target=doc().getObject(boundaryEdit.preview.targetId);if(target)drawOverlayEntity(target,'#ff7077');for(const piece of boundaryEdit.preview.pieces)drawOverlayEntity(piece,'#77a7ff')}
   if(!boundaryEdit&&tool==='select'&&selectedIds().length===1&&!selectionBox&&!dragMove?.started)canvasRenderer.drawGrips(hoveredGrip??undefined)
   if(selectionBox){

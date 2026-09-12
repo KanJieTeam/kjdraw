@@ -839,7 +839,8 @@ export function trimEntityPayloads(target, boundaries, pickPoint) {
                 payload
             }));
     }
-    if (target?.type !== 'ARC' && target?.type !== 'CIRCLE') throw new KJValidationError('Trim requires a LINE, ARC or CIRCLE target');
+    if (target?.type === 'LWPOLYLINE' || target?.type === 'POLYLINE') return trimPolylinePayloads(target, boundaries, pickPoint);
+    if (target?.type !== 'ARC' && target?.type !== 'CIRCLE') throw new KJValidationError('Trim requires a LINE, ARC, CIRCLE, LWPOLYLINE or POLYLINE target');
     const geometry = circularEditGeometry(target), pick = circularPickOffset(geometry, pickPoint);
     const cuts = circularCutOffsets(geometry, boundaries);
     rejectExactCircularCut(pick, cuts);
@@ -874,7 +875,8 @@ export function extendEntityPayload(target, boundaries, pickPoint) {
         rejectAmbiguousLineBoundaries(target, boundaries, 'line');
         return extendLinePayload(target, boundaries, pickPoint);
     }
-    if (target?.type !== 'ARC') throw new KJValidationError('Extend requires a LINE or ARC target');
+    if (target?.type === 'LWPOLYLINE' || target?.type === 'POLYLINE') return extendPolylinePayload(target, boundaries, pickPoint);
+    if (target?.type !== 'ARC') throw new KJValidationError('Extend requires a LINE or ARC target, or an open LWPOLYLINE/POLYLINE target');
     const geometry = circularEditGeometry(target), pick = circularPickOffset(geometry, pickPoint);
     if (Math.abs(pick - geometry.span / 2) <= EDIT_ANGLE_EPSILON) throw new KJValidationError('Pick closer to the arc end to extend, not its midpoint');
     const cuts = circularCutOffsets(geometry, boundaries);
@@ -1067,6 +1069,151 @@ function assertEditablePolylineTopology(type, payload, vertices) {
     if (type === 'POLYLINE' && vertices.some((vertex)=>Number(vertex.dxfFlags ?? 0) & (16 | 32 | 64 | 128))) {
         throw new KJValidationError('PEDIT supports ordinary 2D POLYLINE vertices, not spline, 3D, mesh or polyface vertices');
     }
+}
+const POLYLINE_BOUND = 1e12;
+const POLYLINE_SEGMENT_LIMIT = 20000;
+function editableBoundaryPolyline(target, operation) {
+    const type = normalizeName(target.type);
+    const payload = payloadOf(target), vertices = editablePolylineVertices(payload);
+    assertEditablePolylineTopology(type, payload, vertices);
+    positiveXYNormal(payload, `${operation} polyline`);
+    const elevation = Number(payload.elevation ?? 0);
+    if (!Number.isFinite(elevation) || Math.abs(elevation) > POLYLINE_BOUND) throw new KJValidationError(`${operation} polyline elevation is outside the supported finite range`);
+    if (payload.closed === true) throw new KJValidationError(`${operation} currently supports open polylines; closed polylines require an explicit seam`);
+    if (vertices.length > POLYLINE_SEGMENT_LIMIT + 1) throw new KJValidationError(`${operation} supports at most ${POLYLINE_SEGMENT_LIMIT} polyline segments`);
+    if (vertices.some((vertex)=>vertex.point.some((value)=>Math.abs(value) > POLYLINE_BOUND) || Math.abs(vertex.bulge) > POLYLINE_BOUND || vertex.startWidth < 0 || vertex.endWidth < 0 || vertex.startWidth > POLYLINE_BOUND || vertex.endWidth > POLYLINE_BOUND)) {
+        throw new KJValidationError(`${operation} polyline geometry is outside the supported finite range`);
+    }
+    for(let index = 0; index < vertices.length - 1; index += 1){
+        if (distance3(vertices[index].point, vertices[index + 1].point) <= 1e-12) {
+            throw new KJValidationError(`${operation} cannot edit a polyline with a zero-length segment`);
+        }
+    }
+    return {
+        type: type,
+        payload,
+        vertices
+    };
+}
+function distanceToPolylineSegment(start, end, bulge, pick) {
+    const arc = bulgeArc(start, end, bulge);
+    if (!arc) {
+        const direction = subtract2(end, start), squared = dot2(direction, direction);
+        const parameter = Math.max(0, Math.min(1, dot2(subtract2(pick, start), direction) / squared));
+        return distance2(pick, add2(start, multiply2(direction, parameter)));
+    }
+    const radial = distance2(pick, arc.center);
+    if (!(radial > 1e-15)) return arc.radius;
+    const angle = Math.atan2(pick[1] - arc.center[1], pick[0] - arc.center[0]);
+    const sweep = 4 * Math.atan(bulge), offset = sweep > 0 ? positiveTurn(angle - arc.startAngle) : positiveTurn(arc.startAngle - angle);
+    if (offset <= Math.abs(sweep) + EDIT_ANGLE_EPSILON) return Math.abs(radial - arc.radius);
+    return Math.min(distance2(pick, start), distance2(pick, end));
+}
+function pickedPolylineSegment(vertices, pickPoint) {
+    const pick = finiteEditPoint(pickPoint);
+    const candidates = vertices.slice(0, -1).map((vertex, index)=>({
+            index,
+            distance: distanceToPolylineSegment(vertex.point, vertices[index + 1].point, vertex.bulge, pick)
+        })).sort((left, right)=>left.distance - right.distance || left.index - right.index);
+    const first = candidates[0], second = candidates[1];
+    if (second && Math.abs(second.distance - first.distance) <= Math.max(1e-10, first.distance * 1e-10)) {
+        throw new KJValidationError('Pick inside one polyline segment, not on a shared vertex');
+    }
+    return first.index;
+}
+function interpolatePolylineWidth(vertex, parameter) {
+    return vertex.startWidth + (vertex.endWidth - vertex.startWidth) * parameter;
+}
+function polylinePointAt(start, end, parameter) {
+    return [
+        start[0] + (end[0] - start[0]) * parameter,
+        start[1] + (end[1] - start[1]) * parameter,
+        start[2] + (end[2] - start[2]) * parameter
+    ];
+}
+function changedPolylinePayload(payload, vertices) {
+    const result = {
+        ...clone(payload),
+        vertices: clone(vertices),
+        closed: false
+    };
+    for (const key of [
+        'rawTags',
+        'rawData',
+        'originalType'
+    ])delete result[key];
+    return result;
+}
+function trimPolylinePayloads(target, boundaries, pickPoint) {
+    const { type, payload, vertices } = editableBoundaryPolyline(target, 'TRIM');
+    const segmentIndex = pickedPolylineSegment(vertices, pickPoint), source = vertices[segmentIndex], next = vertices[segmentIndex + 1];
+    if (Math.abs(source.bulge) > 1e-15) throw new KJValidationError('TRIM does not approximate bulge arcs; pick a straight polyline segment');
+    const segment = {
+        type: 'LINE',
+        payload: {
+            start: source.point,
+            end: next.point
+        }
+    };
+    rejectAmbiguousLineBoundaries(segment, boundaries, 'segment');
+    const retained = trimLinePayloads(segment, boundaries, pickPoint);
+    const direction = subtract2(next.point, source.point);
+    const parameter = (point)=>projectParameter2(pointInput(point), source.point, direction);
+    const first = retained[0], last = retained.at(-1);
+    const startsAtBeginning = Math.abs(parameter(first.start)) <= EDIT_ANGLE_EPSILON;
+    const endsAtEnd = Math.abs(parameter(last.end) - 1) <= EDIT_ANGLE_EPSILON;
+    const lower = startsAtBeginning ? parameter(first.end) : 0;
+    const upper = endsAtEnd ? parameter(last.start) : 1;
+    const pieces = [];
+    const upstream = vertices.slice(0, segmentIndex + 1).map((vertex)=>clone(vertex));
+    if (lower > EDIT_ANGLE_EPSILON) {
+        upstream.at(-1).endWidth = interpolatePolylineWidth(source, lower);
+        upstream.push({
+            ...clone(next),
+            point: polylinePointAt(source.point, next.point, lower),
+            bulge: 0,
+            startWidth: interpolatePolylineWidth(source, lower),
+            endWidth: interpolatePolylineWidth(source, lower)
+        });
+    } else upstream.at(-1).bulge = 0;
+    if (upstream.length >= 2) pieces.push(upstream);
+    const downstream = vertices.slice(segmentIndex + 1).map((vertex)=>clone(vertex));
+    if (upper < 1 - EDIT_ANGLE_EPSILON) downstream.unshift({
+        ...clone(source),
+        point: polylinePointAt(source.point, next.point, upper),
+        bulge: 0,
+        startWidth: interpolatePolylineWidth(source, upper),
+        endWidth: source.endWidth
+    });
+    if (downstream.length >= 2) pieces.push(downstream);
+    if (!pieces.length) throw new KJValidationError('TRIM must retain at least one polyline segment');
+    return pieces.map((piece)=>({
+            type,
+            payload: changedPolylinePayload(payload, piece)
+        }));
+}
+function extendPolylinePayload(target, boundaries, pickPoint) {
+    const { payload, vertices } = editableBoundaryPolyline(target, 'EXTEND'), pick = finiteEditPoint(pickPoint);
+    const startDistance = distance2(pick, vertices[0].point), endDistance = distance2(pick, vertices.at(-1).point);
+    if (Math.abs(startDistance - endDistance) <= Math.max(1e-10, Math.max(startDistance, endDistance) * 1e-10)) {
+        throw new KJValidationError('Pick closer to one open polyline endpoint to extend');
+    }
+    const extendStart = startDistance < endDistance, segmentIndex = extendStart ? 0 : vertices.length - 2;
+    const source = vertices[segmentIndex], next = vertices[segmentIndex + 1];
+    if (Math.abs(source.bulge) > 1e-15) throw new KJValidationError('EXTEND does not approximate bulge arcs; choose a straight polyline endpoint segment');
+    const segment = {
+        type: 'LINE',
+        payload: {
+            start: source.point,
+            end: next.point
+        }
+    };
+    rejectAmbiguousLineBoundaries(segment, boundaries, 'line');
+    const extended = extendLinePayload(segment, boundaries, extendStart ? source.point : next.point);
+    const output = vertices.map((vertex)=>clone(vertex));
+    if (extendStart) output[0].point = finiteEditPoint(extended.start);
+    else output.at(-1).point = finiteEditPoint(extended.end);
+    return changedPolylinePayload(payload, output);
 }
 function polylineSegmentCount(vertices, closed) {
     return closed ? vertices.length : vertices.length - 1;

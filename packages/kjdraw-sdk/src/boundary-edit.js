@@ -80,10 +80,14 @@ export class KJBoundaryEditSession {
         const supported = this.#operation === 'trim' ? [
             'LINE',
             'ARC',
-            'CIRCLE'
+            'CIRCLE',
+            'LWPOLYLINE',
+            'POLYLINE'
         ] : [
             'LINE',
-            'ARC'
+            'ARC',
+            'LWPOLYLINE',
+            'POLYLINE'
         ];
         if (!supported.includes(target.type)) this.#fail('target-type', `${this.#operation.toUpperCase()} supports ${supported.join(', ')}`, `${this.#operation === 'trim' ? '修剪' : '延伸'}支持 ${supported.join('、')}`);
         const layer = target.payload.layerId ? this.#document.getObject(String(target.payload.layerId)) : null;
@@ -105,9 +109,11 @@ export class KJBoundaryEditSession {
                 }
             ];
         } catch (cause) {
-            throw new KJValidationError(this.#text(`Cannot ${this.#operation} here. Pick another portion or end; check the boundary intersections.`, `此处无法${this.#operation === 'trim' ? '修剪' : '延伸'}。请换一个区段或端点，并检查边界是否相交。`), {
+            const reason = cause instanceof Error ? cause.message : String(cause);
+            const polylineReason = reason.includes('does not approximate bulge arcs') ? this.#text('Curved polyline segments are not approximated; pick a straight segment or endpoint.', '不会近似处理多段线圆弧段；请选择直线段或直线端点。') : reason.includes('supports open polylines') ? this.#text('Closed polylines need an explicit seam; use an open polyline for this edit.', '闭合多段线需要明确接缝；请对开放多段线执行此修改。') : reason.includes('ordinary 2D POLYLINE') || reason.includes('positive XY extrusion normal') ? this.#text('Only ordinary two-dimensional XY polylines are supported.', '仅支持 XY 平面中的普通二维多段线。') : '';
+            throw new KJValidationError(this.#text(`Cannot ${this.#operation} here.${polylineReason ? ` ${polylineReason}` : ' Pick another portion or end; check the boundary intersections.'}`, `此处无法${this.#operation === 'trim' ? '修剪' : '延伸'}。${polylineReason || '请换一个区段或端点，并检查边界是否相交。'}`), {
                 code: 'boundary-edit.geometry',
-                reason: cause instanceof Error ? cause.message : String(cause)
+                reason
             });
         }
         if (!pieces.length) this.#fail('empty-result', 'The edit must retain a non-empty entity', '修改必须保留有效图元');

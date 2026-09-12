@@ -134,7 +134,7 @@ export class KJBoundaryEditSession {
     this.#requirePhase('targets')
     const target = this.#entity(targetId)
     if (this.#boundaryIds.includes(targetId)) this.#fail('boundary-as-target', 'A cutting boundary cannot also be the target', '不能把已选边界同时作为修改目标')
-    const supported = this.#operation === 'trim' ? ['LINE', 'ARC', 'CIRCLE'] : ['LINE', 'ARC']
+    const supported = this.#operation === 'trim' ? ['LINE', 'ARC', 'CIRCLE', 'LWPOLYLINE', 'POLYLINE'] : ['LINE', 'ARC', 'LWPOLYLINE', 'POLYLINE']
     if (!supported.includes(target.type)) this.#fail('target-type', `${this.#operation.toUpperCase()} supports ${supported.join(', ')}`, `${this.#operation === 'trim' ? '修剪' : '延伸'}支持 ${supported.join('、')}`)
     const layer = target.payload.layerId ? this.#document.getObject(String(target.payload.layerId)) : null
     if (target.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true || layer?.payload.visible === false) {
@@ -148,10 +148,17 @@ export class KJBoundaryEditSession {
       pieces = this.#operation === 'trim' ? trimEntityPayloads(target, boundaries, point)
         : [{ type: target.type, payload: extendEntityPayload(target, boundaries, point) }]
     } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : String(cause)
+      const polylineReason = reason.includes('does not approximate bulge arcs')
+        ? this.#text('Curved polyline segments are not approximated; pick a straight segment or endpoint.', '不会近似处理多段线圆弧段；请选择直线段或直线端点。')
+        : reason.includes('supports open polylines')
+          ? this.#text('Closed polylines need an explicit seam; use an open polyline for this edit.', '闭合多段线需要明确接缝；请对开放多段线执行此修改。')
+          : reason.includes('ordinary 2D POLYLINE') || reason.includes('positive XY extrusion normal')
+            ? this.#text('Only ordinary two-dimensional XY polylines are supported.', '仅支持 XY 平面中的普通二维多段线。') : ''
       throw new KJValidationError(this.#text(
-        `Cannot ${this.#operation} here. Pick another portion or end; check the boundary intersections.`,
-        `此处无法${this.#operation === 'trim' ? '修剪' : '延伸'}。请换一个区段或端点，并检查边界是否相交。`),
-      { code: 'boundary-edit.geometry', reason: cause instanceof Error ? cause.message : String(cause) })
+        `Cannot ${this.#operation} here.${polylineReason ? ` ${polylineReason}` : ' Pick another portion or end; check the boundary intersections.'}`,
+        `此处无法${this.#operation === 'trim' ? '修剪' : '延伸'}。${polylineReason || '请换一个区段或端点，并检查边界是否相交。'}`),
+      { code: 'boundary-edit.geometry', reason })
     }
     if (!pieces.length) this.#fail('empty-result', 'The edit must retain a non-empty entity', '修改必须保留有效图元')
     const preview = deepFreeze({ documentId: this.#document.id, revision: this.#revision,

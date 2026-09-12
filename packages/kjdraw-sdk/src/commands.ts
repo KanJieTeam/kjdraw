@@ -958,7 +958,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       const pieces = trimEntityPayloads(entity, boundaries, args.pickPoint)
       const first = pieces[0]
       if (!first) throw new KJValidationError('Trim must retain a non-empty entity')
-      if (pieces.length !== 1 || first.type !== entity.type) requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'TRIM')
+      if (pieces.length !== 1 || first.type !== entity.type || entity.type === 'LWPOLYLINE' || entity.type === 'POLYLINE') requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'TRIM')
       let primary: KJObjectRecord
       if (first.type === entity.type) primary = transaction.updateObject(entity.id, { payload: first.payload })
       else {
