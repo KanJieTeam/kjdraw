@@ -26,6 +26,15 @@ async function enterWorkbench(page, value) {
   await input.press('Enter')
 }
 
+async function workbenchPoint(page, value) {
+  return page.evaluate(value => {
+    const { workbench } = window.__modifyEntry
+    const canvas = workbench.root.querySelector('[data-canvas]')
+    const rect = canvas.getBoundingClientRect(), point = workbench.renderer.worldToScreen(value)
+    return { x: rect.left + point[0], y: rect.top + point[1] }
+  }, value)
+}
+
 async function mountWorkbench(page) {
   await page.goto('/')
   await page.evaluate(async () => {
@@ -63,6 +72,46 @@ test('workbench aliases prefill six modification workflows and OFFSET requires a
     await expect(dialog).not.toBeVisible()
   }
 
+  const previewRevision = await page.evaluate(() => window.__modifyEntry.drawing.revision)
+  for (const operation of [
+    { command: 'MI KEEP', first: '0,0', cursor: [0, 5], count: '1' },
+    { command: 'ARRAYPOLAR 4 360 ROTATE', cursor: [0, 0], count: '3' },
+    { command: 'OFFSET 2.5', cursor: [0, 5], count: '1' },
+  ]) {
+    await enterWorkbench(page, operation.command)
+    await root.locator('[data-action="start-modification"]').click()
+    if (operation.first) await enterWorkbench(page, operation.first)
+    const location = await workbenchPoint(page, operation.cursor)
+    await page.mouse.move(location.x, location.y)
+    await expect(root.locator('[data-overlay]')).toHaveAttribute('data-modification-preview-count', operation.count)
+    expect(await page.evaluate(() => window.__modifyEntry.drawing.revision)).toBe(previewRevision)
+    await page.keyboard.press('Escape')
+  }
+
+  await page.evaluate(async () => {
+    const { sdk, drawing, line } = window.__modifyEntry
+    const vertical = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0, 0, 0], end: [0, 10, 0] } }, { document: drawing })
+    await sdk.executeCommand('SELECT', { ids: [line.id, vertical.id], operation: 'replace' }, { document: drawing })
+    window.__modifyEntry.workbench.renderer.fit()
+    window.__modifyEntry.vertical = vertical
+  })
+  const pairRevision = await page.evaluate(() => window.__modifyEntry.drawing.revision)
+  for (const command of ['CHAMFER 2 3', 'FILLET 2']) {
+    await enterWorkbench(page, command)
+    await root.locator('[data-action="start-modification"]').click()
+    await enterWorkbench(page, '8,0')
+    const location = await workbenchPoint(page, [0, 8])
+    await page.mouse.move(location.x, location.y)
+    await expect(root.locator('[data-overlay]')).toHaveAttribute('data-modification-preview-count', '3')
+    expect(await page.evaluate(() => window.__modifyEntry.drawing.revision)).toBe(pairRevision)
+    await page.keyboard.press('Escape')
+  }
+  await page.evaluate(async () => {
+    const { sdk, drawing, line, vertical } = window.__modifyEntry
+    await sdk.executeCommand('ERASE', { id: vertical.id }, { document: drawing })
+    await sdk.executeCommand('SELECT', { ids: [line.id], operation: 'replace' }, { document: drawing })
+  })
+
   const before = await page.evaluate(() => window.__modifyEntry.drawing.revision)
   await enterWorkbench(page, 'OFFSET 2.5')
   await root.locator('[data-action="start-modification"]').click()
@@ -82,6 +131,41 @@ test('workbench aliases prefill six modification workflows and OFFSET requires a
   await enterWorkbench(page, 'OFFSET nope')
   await expect(root.locator('[data-message]')).toContainText('偏移距离必须是有限数值')
   expect(await page.evaluate(() => window.__modifyEntry.drawing.revision)).toBe(stable)
+})
+
+test('workbench rejects all six modification workflows on locked, frozen and hidden layers without history changes', async ({ page }) => {
+  await mountWorkbench(page)
+  const root = page.locator('#modify-entry-workbench')
+  await page.evaluate(async () => {
+    const { sdk, drawing } = window.__modifyEntry
+    const layer = await sdk.executeCommand('LAYERNEW', { name: 'Protected modifications' }, { document: drawing })
+    const horizontal = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0, 0], end: [10, 0], layerId: layer.id } }, { document: drawing })
+    const vertical = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0, 0], end: [0, 10], layerId: layer.id } }, { document: drawing })
+    Object.assign(window.__modifyEntry, { protectedLayer: layer, protectedHorizontal: horizontal, protectedVertical: vertical })
+  })
+  const cases = [
+    { protection: { locked: true }, command: 'MIRROR KEEP', ids: ['protectedHorizontal'], points: ['0,0', '1,0'], reason: 'locked' },
+    { protection: { locked: true }, command: 'OFFSET 2', ids: ['protectedHorizontal'], points: ['0,5'], reason: 'locked' },
+    { protection: { frozen: true }, command: 'ARRAYRECT 2 2 5 5', ids: ['protectedHorizontal'], points: [], reason: 'frozen' },
+    { protection: { frozen: true }, command: 'ARRAYPOLAR 4 360 ROTATE', ids: ['protectedHorizontal'], points: ['0,0'], reason: 'frozen' },
+    { protection: { visible: false }, command: 'CHAMFER 2 2', ids: ['protectedHorizontal', 'protectedVertical'], points: ['8,0', '0,8'], reason: 'hidden' },
+    { protection: { visible: false }, command: 'FILLET 2', ids: ['protectedHorizontal', 'protectedVertical'], points: ['8,0', '0,8'], reason: 'hidden' },
+  ]
+  for (const item of cases) {
+    await page.evaluate(async item => {
+      const state = window.__modifyEntry, layer = state.protectedLayer
+      await state.sdk.executeCommand('LAYERUPDATE', { id: layer.id, patch: { locked: false, frozen: false, visible: true, ...item.protection } }, { document: state.drawing })
+      await state.sdk.executeCommand('SELECT', { ids: item.ids.map(key => state[key].id), operation: 'replace' }, { document: state.drawing })
+    }, item)
+    const before = await page.evaluate(() => ({ revision: window.__modifyEntry.drawing.revision, fingerprint: window.__modifyEntry.drawing.fingerprint(), history: window.__modifyEntry.drawing.history }))
+    await enterWorkbench(page, item.command)
+    await root.locator('[data-action="start-modification"]').click()
+    for (const point of item.points) await enterWorkbench(page, point)
+    await expect(root.locator('[data-message]')).toContainText(item.reason)
+    await page.keyboard.press('Escape')
+    const after = await page.evaluate(() => ({ revision: window.__modifyEntry.drawing.revision, fingerprint: window.__modifyEntry.drawing.fingerprint(), history: window.__modifyEntry.drawing.history }))
+    expect(after).toEqual(before)
+  }
 })
 
 async function enterPlayground(page, value) {
@@ -116,6 +200,10 @@ test('playground uses the same six command parameters and keeps OFFSET transacti
   await expect(dialog).toBeVisible()
   await dialog.locator('#dialog-submit').click()
   await expect(dialog).not.toBeVisible()
+  await expect(page.locator('#entity-count')).toHaveText('1 entities')
+  const canvasBox = await page.locator('#canvas').boundingBox()
+  await page.mouse.move(canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 3)
+  await expect(page.locator('.workbench')).toHaveAttribute('data-modification-preview-count', '1')
   await expect(page.locator('#entity-count')).toHaveText('1 entities')
   await enterPlayground(page, '0,5')
   await expect(page.locator('#entity-count')).toHaveText('2 entities')

@@ -1,4 +1,7 @@
 import type { KJCommandArguments } from './commands.js'
+import { chamferLinePair, filletLinePair, offsetEntityPayload } from './editing.js'
+import { reflectionAcrossLine3, rotationAround3, transformEntityPayload, transformPoint3, translation3 } from './geometry/index.js'
+import type { KJReadonlyObjectRecord } from './schema.js'
 
 export type KJModificationId =
   | 'rotate'
@@ -69,6 +72,19 @@ export interface KJModificationBuildContext {
 export interface KJModificationCommand {
   readonly command: string
   readonly arguments: KJCommandArguments
+}
+
+export interface KJModificationPreviewEntity {
+  readonly type: string
+  readonly payload: Readonly<Record<string, unknown>>
+}
+
+export interface KJModificationPreview {
+  /** Existing geometry replaced or erased by the operation. */
+  readonly before: readonly KJModificationPreviewEntity[]
+  /** Exact resulting geometry, capped by maxEntities. */
+  readonly after: readonly KJModificationPreviewEntity[]
+  readonly omittedCount: number
 }
 
 const commandModificationIds = Object.freeze({
@@ -420,4 +436,76 @@ export function buildKJModificationCommand(id: KJModificationId, context: KJModi
     case 'chamfer': return { command: definition.command, arguments: { firstId: ids[0]!, secondId: ids[1]!, ...values, pickPoint1: points[0]!, pickPoint2: points[1]! } }
     case 'fillet': return { command: definition.command, arguments: { firstId: ids[0]!, secondId: ids[1]!, ...values, pickPoint1: points[0]!, pickPoint2: points[1]! } }
   }
+}
+
+/**
+ * Build a bounded, exact geometry-only preview for point-driven modification controls.
+ * This function never owns a document or transaction and cannot change drawing history.
+ */
+export function previewKJModification(
+  id: KJModificationId,
+  context: KJModificationBuildContext,
+  entities: readonly KJReadonlyObjectRecord[],
+  options: { readonly maxEntities?: number } = {},
+): KJModificationPreview | null {
+  if (!['mirror', 'array-polar', 'offset', 'chamfer', 'fillet'].includes(id)) return null
+  const maxEntities = options.maxEntities ?? 256
+  if (!Number.isSafeInteger(maxEntities) || maxEntities < 1 || maxEntities > 512) throw new RangeError('Modification preview maxEntities must be an integer from 1 to 512')
+  if (context.ids.length > 64) throw new RangeError('Modification preview supports at most 64 selected entities')
+  const byId = new Map(entities.map(entity => [entity.id, entity] as const))
+  const selected = context.ids.map(entityId => {
+    const entity = byId.get(entityId)
+    if (!entity || entity.kind !== 'entity' || entity.erased) throw new RangeError(`Modification preview entity is unavailable: ${entityId}`)
+    return entity
+  })
+  for (const entity of selected) {
+    const layer = byId.get(String(entity.payload.layerId ?? ''))
+    const reason = entity.payload.locked === true || layer?.payload.locked === true ? 'locked'
+      : entity.payload.frozen === true || layer?.payload.frozen === true ? 'frozen'
+        : entity.payload.visible === false || layer?.payload.visible === false ? 'hidden' : null
+    if (reason) throw new RangeError(`Modification preview requires visible editable geometry; ${entity.id} is ${reason}`)
+  }
+  const request = buildKJModificationCommand(id, context)
+  const args = request.arguments
+  const before: KJModificationPreviewEntity[] = []
+  const after: KJModificationPreviewEntity[] = []
+  let total = 0
+  const spec = (entity: KJReadonlyObjectRecord, payload: Readonly<Record<string, unknown>> = entity.payload): KJModificationPreviewEntity => ({ type: entity.type, payload })
+  const add = (value: KJModificationPreviewEntity): void => { total += 1; if (after.length < maxEntities) after.push(value) }
+
+  if (id === 'mirror') {
+    const matrix = reflectionAcrossLine3(args.lineStart as KJModificationPoint, args.lineEnd as KJModificationPoint)
+    for (const entity of selected) add(spec(entity, transformEntityPayload(entity.type, entity.payload, matrix)))
+    if (args.eraseSource === true) before.push(...selected.map(entity => spec(entity)))
+  } else if (id === 'array-polar') {
+    const center = args.center as KJModificationPoint
+    const count = Number(args.count), fillAngle = Number(args.angleDegrees) * Math.PI / 180
+    const fullCircle = Math.abs(Math.abs(fillAngle) - Math.PI * 2) <= 1e-10
+    const step = fillAngle / (fullCircle ? count : count - 1)
+    outer: for (let index = 1; index < count; index += 1) {
+      const rotation = rotationAround3(step * index, center)
+      let matrix = rotation
+      if (args.rotateItems === false) {
+        const basePoint = args.basePoint as KJModificationPoint
+        const rotated = transformPoint3(rotation, basePoint)
+        matrix = translation3(rotated[0] - basePoint[0], rotated[1] - basePoint[1])
+      }
+      for (const entity of selected) {
+        add(spec(entity, transformEntityPayload(entity.type, entity.payload, matrix)))
+        if (after.length >= maxEntities) break outer
+      }
+    }
+    total = (count - 1) * selected.length
+  } else if (id === 'offset') {
+    const entity = selected[0]!
+    add(spec(entity, offsetEntityPayload(entity, args.distance, args)))
+  } else {
+    const first = selected[0]!, second = selected[1]!
+    const result = id === 'chamfer' ? chamferLinePair(first, second, args) : filletLinePair(first, second, args)
+    before.push(spec(first), spec(second))
+    add(spec(first, result.first)); add(spec(second, result.second))
+    const connector = result.connector
+    if (connector.type !== 'LINE' || Math.hypot(Number(connector.payload.end[0]) - Number(connector.payload.start[0]), Number(connector.payload.end[1]) - Number(connector.payload.start[1])) > 1e-12) add(connector)
+  }
+  return Object.freeze({ before: Object.freeze(before), after: Object.freeze(after), omittedCount: Math.max(0, total - after.length) })
 }

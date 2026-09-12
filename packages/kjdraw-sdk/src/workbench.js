@@ -9,7 +9,7 @@ import { createIndustrySample } from './samples.js';
 import { KJDRAW_THEME_CSS, kjdrawIcon } from './theme.js';
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from './layout.js';
 import { createBoundaryEditSession } from './boundary-edit.js';
-import { KJ_MODIFICATION_DEFINITIONS, buildKJModificationCommand, getKJInteractiveModificationDefinition, getKJModificationDefinition, getKJModificationSelectionCenter, parseKJModificationCommandValues, validateKJModificationSelection } from './modification-controls.js';
+import { KJ_MODIFICATION_DEFINITIONS, buildKJModificationCommand, getKJInteractiveModificationDefinition, getKJModificationDefinition, getKJModificationSelectionCenter, parseKJModificationCommandValues, previewKJModification, validateKJModificationSelection } from './modification-controls.js';
 import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate } from './drafting.js';
 const copy = {
     en: {
@@ -4284,6 +4284,47 @@ export class KJDrawWorkbench {
         context.setTransform(width / cssWidth, 0, 0, height / cssHeight, 0, 0);
         context.clearRect(0, 0, cssWidth, cssHeight);
         const cursor = this.#cursorWorld;
+        const modification = this.#modificationGesture;
+        if (modification) {
+            this.renderer.render();
+            const points = [
+                ...modification.points
+            ];
+            if (cursor && points.length < modification.definition.pointKeys.length) points.push(cursor);
+            try {
+                const preview = points.length === modification.definition.pointKeys.length ? previewKJModification(modification.definition.id, {
+                    ids: modification.ids,
+                    values: modification.values,
+                    points,
+                    selectionCenter: modification.selectionCenter
+                }, modification.ids.flatMap((id)=>{
+                    const entity = modification.document.getObject(id);
+                    if (!entity) return [];
+                    const layer = modification.document.getObject(String(entity.payload.layerId ?? ''));
+                    return layer ? [
+                        entity,
+                        layer
+                    ] : [
+                        entity
+                    ];
+                })) : null;
+                if (preview) {
+                    if (preview.before.length) this.renderer.drawPreview(preview.before, '#ff7077');
+                    if (preview.after.length) this.renderer.drawPreview(preview.after, this.#theme === 'dark' ? '#8fc4ff' : '#2863df');
+                    this.#overlay.dataset.modificationPreviewCount = String(preview.after.length);
+                    this.#overlay.dataset.modificationPreviewOmitted = String(preview.omittedCount);
+                } else {
+                    this.#overlay.dataset.modificationPreviewCount = '0';
+                    this.#overlay.dataset.modificationPreviewOmitted = '0';
+                }
+            } catch  {
+                this.#overlay.dataset.modificationPreviewCount = '0';
+                this.#overlay.dataset.modificationPreviewOmitted = '0';
+            }
+        } else {
+            delete this.#overlay.dataset.modificationPreviewCount;
+            delete this.#overlay.dataset.modificationPreviewOmitted;
+        }
         const screen = (value)=>this.renderer.worldToScreen(value);
         context.save();
         context.strokeStyle = this.#theme === 'dark' ? '#a4ef55' : '#1769e0';

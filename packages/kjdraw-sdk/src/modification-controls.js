@@ -1,4 +1,6 @@
 // Generated from modification-controls.ts by scripts/build-typescript.mjs. Do not edit directly.
+import { chamferLinePair, filletLinePair, offsetEntityPayload } from './editing.js';
+import { reflectionAcrossLine3, rotationAround3, transformEntityPayload, transformPoint3, translation3 } from './geometry/index.js';
 const commandModificationIds = Object.freeze({
     MIRROR: 'mirror',
     MI: 'mirror',
@@ -773,4 +775,83 @@ export function buildKJModificationCommand(id, context) {
                 }
             };
     }
+}
+export function previewKJModification(id, context, entities, options = {}) {
+    if (![
+        'mirror',
+        'array-polar',
+        'offset',
+        'chamfer',
+        'fillet'
+    ].includes(id)) return null;
+    const maxEntities = options.maxEntities ?? 256;
+    if (!Number.isSafeInteger(maxEntities) || maxEntities < 1 || maxEntities > 512) throw new RangeError('Modification preview maxEntities must be an integer from 1 to 512');
+    if (context.ids.length > 64) throw new RangeError('Modification preview supports at most 64 selected entities');
+    const byId = new Map(entities.map((entity)=>[
+            entity.id,
+            entity
+        ]));
+    const selected = context.ids.map((entityId)=>{
+        const entity = byId.get(entityId);
+        if (!entity || entity.kind !== 'entity' || entity.erased) throw new RangeError(`Modification preview entity is unavailable: ${entityId}`);
+        return entity;
+    });
+    for (const entity of selected){
+        const layer = byId.get(String(entity.payload.layerId ?? ''));
+        const reason = entity.payload.locked === true || layer?.payload.locked === true ? 'locked' : entity.payload.frozen === true || layer?.payload.frozen === true ? 'frozen' : entity.payload.visible === false || layer?.payload.visible === false ? 'hidden' : null;
+        if (reason) throw new RangeError(`Modification preview requires visible editable geometry; ${entity.id} is ${reason}`);
+    }
+    const request = buildKJModificationCommand(id, context);
+    const args = request.arguments;
+    const before = [];
+    const after = [];
+    let total = 0;
+    const spec = (entity, payload = entity.payload)=>({
+            type: entity.type,
+            payload
+        });
+    const add = (value)=>{
+        total += 1;
+        if (after.length < maxEntities) after.push(value);
+    };
+    if (id === 'mirror') {
+        const matrix = reflectionAcrossLine3(args.lineStart, args.lineEnd);
+        for (const entity of selected)add(spec(entity, transformEntityPayload(entity.type, entity.payload, matrix)));
+        if (args.eraseSource === true) before.push(...selected.map((entity)=>spec(entity)));
+    } else if (id === 'array-polar') {
+        const center = args.center;
+        const count = Number(args.count), fillAngle = Number(args.angleDegrees) * Math.PI / 180;
+        const fullCircle = Math.abs(Math.abs(fillAngle) - Math.PI * 2) <= 1e-10;
+        const step = fillAngle / (fullCircle ? count : count - 1);
+        outer: for(let index = 1; index < count; index += 1){
+            const rotation = rotationAround3(step * index, center);
+            let matrix = rotation;
+            if (args.rotateItems === false) {
+                const basePoint = args.basePoint;
+                const rotated = transformPoint3(rotation, basePoint);
+                matrix = translation3(rotated[0] - basePoint[0], rotated[1] - basePoint[1]);
+            }
+            for (const entity of selected){
+                add(spec(entity, transformEntityPayload(entity.type, entity.payload, matrix)));
+                if (after.length >= maxEntities) break outer;
+            }
+        }
+        total = (count - 1) * selected.length;
+    } else if (id === 'offset') {
+        const entity = selected[0];
+        add(spec(entity, offsetEntityPayload(entity, args.distance, args)));
+    } else {
+        const first = selected[0], second = selected[1];
+        const result = id === 'chamfer' ? chamferLinePair(first, second, args) : filletLinePair(first, second, args);
+        before.push(spec(first), spec(second));
+        add(spec(first, result.first));
+        add(spec(second, result.second));
+        const connector = result.connector;
+        if (connector.type !== 'LINE' || Math.hypot(Number(connector.payload.end[0]) - Number(connector.payload.start[0]), Number(connector.payload.end[1]) - Number(connector.payload.start[1])) > 1e-12) add(connector);
+    }
+    return Object.freeze({
+        before: Object.freeze(before),
+        after: Object.freeze(after),
+        omittedCount: Math.max(0, total - after.length)
+    });
 }

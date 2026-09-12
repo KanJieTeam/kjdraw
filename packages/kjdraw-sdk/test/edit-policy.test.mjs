@@ -31,7 +31,12 @@ for (const [reason, protection] of [['locked', { locked: true }], ['frozen', { f
       ['PROPERTIES', { id: protectedEntity.id, patch: { payload: { layerId: layer0 } } }],
       ['BREAK', { id: protectedEntity.id, point: [5, 0] }],
       ['COPY', { ids, dx: 20, dy: 0 }],
+      ['MIRROR', { id: protectedEntity.id, lineStart: [0, 0], lineEnd: [1, 0] }],
       ['ARRAYRECT', { ids, rows: 2, columns: 2, rowSpacing: 10, columnSpacing: 10 }],
+      ['ARRAYPOLAR', { id: protectedEntity.id, center: [0, 0], count: 4 }],
+      ['OFFSET', { id: protectedEntity.id, distance: 2, sidePoint: [10, 0] }],
+      ['CHAMFER', { firstId: protectedEntity.id, secondId: editable.id, distance1: 2, distance2: 2, pickPoint1: [5, 4], pickPoint2: [9, 0] }],
+      ['FILLET', { firstId: protectedEntity.id, secondId: editable.id, radius: 2, pickPoint1: [5, 4], pickPoint2: [9, 0] }],
       ['BLOCKCREATE', { ids, name: 'Mixed selection' }],
     ]) await unchangedOnReject(document, () => sdk.executeCommand(command, args), reason)
     await sdk.executeCommand('LAYERUPDATE', { id: layer.id, patch: { locked: false, frozen: false, visible: true } })

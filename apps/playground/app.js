@@ -6,7 +6,7 @@ import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from '../../packages/kjdraw-
 import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate } from '../../packages/kjdraw-sdk/src/drafting.js'
 import { editEntityGrip } from '../../packages/kjdraw-sdk/src/grips.js'
 import { createBoundaryEditSession } from '../../packages/kjdraw-sdk/src/boundary-edit.js'
-import { KJ_MODIFICATION_DEFINITIONS, getKJInteractiveModificationDefinition, getKJModificationDefinition, buildKJModificationCommand, getKJModificationSelectionCenter, parseKJModificationCommandValues, validateKJModificationSelection } from '../../packages/kjdraw-sdk/src/modification-controls.js'
+import { KJ_MODIFICATION_DEFINITIONS, getKJInteractiveModificationDefinition, getKJModificationDefinition, buildKJModificationCommand, getKJModificationSelectionCenter, parseKJModificationCommandValues, previewKJModification, validateKJModificationSelection } from '../../packages/kjdraw-sdk/src/modification-controls.js'
 import { createSample } from '../../examples/sample.js'
 import { createI18n } from './i18n.js'
 import { createOutputControls } from './output-controls.js'
@@ -200,6 +200,11 @@ function finishFence(){
 function drawOverlayEntity(entity, color, offset = [0,0]) {
   canvasRenderer.drawPreview([entity],color,offset)
 }
+function modificationPreviewObjects(task){
+  const objects=[]
+  for(const id of task.ids){const entity=doc().getObject(id);if(!entity)continue;objects.push(entity);const layer=doc().getObject(entity.payload?.layerId);if(layer)objects.push(layer)}
+  return objects
+}
 function render() {
   if(!sdk?.activeDocument)return
   if(boundaryEdit&&boundaryEdit.session.state.phase!=='applying'&&!boundaryEdit.session.isCurrent())cancelBoundaryEdit({announce:true})
@@ -239,6 +244,15 @@ function render() {
     ctx.save();ctx.strokeStyle='#77a7ff';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(ex,ey);ctx.stroke();ctx.restore()
   }
   if(drafting){const preview=drafting.session.preview(cursor??undefined);if(preview)drawOverlayEntity(preview,'#77a7ff')}
+  if(modification){
+    const points=[...modification.points];if(cursor&&points.length<modification.definition.pointKeys.length)points.push(cursor)
+    try{
+      const preview=points.length===modification.definition.pointKeys.length?previewKJModification(modification.definition.id,{ids:modification.ids,values:modification.values,points,selectionCenter:modification.selectionCenter},modificationPreviewObjects(modification)):null
+      workbench.dataset.modificationPreviewCount=String(preview?.after.length??0);workbench.dataset.modificationPreviewOmitted=String(preview?.omittedCount??0)
+      if(preview?.before.length)canvasRenderer.drawPreview(preview.before,'#ff7077')
+      if(preview?.after.length)canvasRenderer.drawPreview(preview.after,'#77a7ff')
+    }catch{workbench.dataset.modificationPreviewCount='0';workbench.dataset.modificationPreviewOmitted='0'}
+  }else{delete workbench.dataset.modificationPreviewCount;delete workbench.dataset.modificationPreviewOmitted}
   if(agentChat?.preview){canvasRenderer.drawPreview(agentChat.preview.before,'#e6a04b');canvasRenderer.drawPreview(agentChat.preview.after,'#77a7ff',[0,0],agentChat.preview.resources)}
   if(!drafting&&start&&cursor){
     drawOverlayEntity({type:'LINE',payload:{start,end:cursor}},'#bdf878')

@@ -1,4 +1,5 @@
 import type { KJCommandArguments } from './commands.js';
+import type { KJReadonlyObjectRecord } from './schema.js';
 export type KJModificationId = 'rotate' | 'scale' | 'mirror' | 'array-rect' | 'array-polar' | 'offset' | 'break' | 'join' | 'explode' | 'trim' | 'extend' | 'lengthen' | 'stretch' | 'polyline-insert' | 'polyline-delete' | 'polyline-arc' | 'chamfer' | 'fillet';
 export type KJModificationFieldType = 'number' | 'integer' | 'boolean';
 export type KJModificationPoint = readonly [number, number];
@@ -44,6 +45,17 @@ export interface KJModificationCommand {
     readonly command: string;
     readonly arguments: KJCommandArguments;
 }
+export interface KJModificationPreviewEntity {
+    readonly type: string;
+    readonly payload: Readonly<Record<string, unknown>>;
+}
+export interface KJModificationPreview {
+    /** Existing geometry replaced or erased by the operation. */
+    readonly before: readonly KJModificationPreviewEntity[];
+    /** Exact resulting geometry, capped by maxEntities. */
+    readonly after: readonly KJModificationPreviewEntity[];
+    readonly omittedCount: number;
+}
 export declare const KJ_MODIFICATION_IDS: readonly ["rotate", "scale", "mirror", "array-rect", "array-polar", "offset", "break", "join", "explode", "trim", "extend", "lengthen", "stretch", "polyline-insert", "polyline-delete", "polyline-arc", "chamfer", "fillet"];
 export declare const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[];
 /** Center of the selected entities' defining points, used as the non-rotating array anchor. */
@@ -63,3 +75,10 @@ export declare function validateKJModificationSelection(definition: KJModificati
 } | null)[], locale?: 'en' | 'zh'): void;
 /** Build a core command from UI-neutral form values and ordered canvas picks. */
 export declare function buildKJModificationCommand(id: KJModificationId, context: KJModificationBuildContext): KJModificationCommand;
+/**
+ * Build a bounded, exact geometry-only preview for point-driven modification controls.
+ * This function never owns a document or transaction and cannot change drawing history.
+ */
+export declare function previewKJModification(id: KJModificationId, context: KJModificationBuildContext, entities: readonly KJReadonlyObjectRecord[], options?: {
+    readonly maxEntities?: number;
+}): KJModificationPreview | null;

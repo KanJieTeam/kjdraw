@@ -8,6 +8,7 @@ import {
   getKJInteractiveModificationDefinition,
   getKJModificationDefinition,
   parseKJModificationCommandValues,
+  previewKJModification,
   validateKJModificationSelection,
 } from '../src/modification-controls.js'
 
@@ -271,6 +272,34 @@ test('interactive command aliases use the same validated dialog values in both e
   assert.throws(() => parseKJModificationCommandValues('fillet', ['0']), /at least/)
   assert.throws(() => parseKJModificationCommandValues('offset', ['2', 'extra']), /at most 1/)
   assert.throws(() => parseKJModificationCommandValues('mirror', ['maybe'], 'zh'), /必须为 true 或 false/)
+})
+
+test('point-driven modification previews are exact, bounded and history-free', async () => {
+  const { drawing, create } = await drawingFixture('preview')
+  const horizontal = await create('LINE', { start: [0, 0], end: [10, 0] })
+  const vertical = await create('LINE', { start: [0, 0], end: [0, 10] })
+  const point = await create('POINT', { position: [3, 4] })
+  const objects = drawing.listObjects()
+  const fingerprint = drawing.fingerprint(), revision = drawing.revision, history = drawing.history
+
+  const mirror = previewKJModification('mirror', { ids: [point.id], values: { eraseSource: false }, points: [[0, 0], [1, 0]] }, objects)
+  closePoint(mirror.after[0].payload.position, [3, -4]); assert.equal(mirror.before.length, 0)
+  const polar = previewKJModification('array-polar', { ids: [point.id], values: { count: 4, angleDegrees: 360, rotateItems: true }, points: [[0, 0]] }, objects)
+  assert.equal(polar.after.length, 3); closePoint(polar.after[0].payload.position, [-4, 3])
+  const bounded = previewKJModification('array-polar', { ids: [point.id], values: { count: 100000, angleDegrees: 360, rotateItems: true }, points: [[0, 0]] }, objects, { maxEntities: 3 })
+  assert.equal(bounded.after.length, 3); assert.equal(bounded.omittedCount, 99996)
+
+  const offset = previewKJModification('offset', { ids: [horizontal.id], values: { distance: 2 }, points: [[0, 5]] }, objects)
+  closePoint(offset.after[0].payload.start, [0, 2])
+  const chamfer = previewKJModification('chamfer', { ids: [horizontal.id, vertical.id], values: { distance1: 2, distance2: 3 }, points: [[8, 0], [0, 8]] }, objects)
+  assert.equal(chamfer.before.length, 2); assert.equal(chamfer.after.length, 3)
+  closePoint(chamfer.after[2].payload.start, [2, 0]); closePoint(chamfer.after[2].payload.end, [0, 3])
+  const fillet = previewKJModification('fillet', { ids: [horizontal.id, vertical.id], values: { radius: 2 }, points: [[8, 0], [0, 8]] }, objects)
+  assert.equal(fillet.before.length, 2); assert.equal(fillet.after[2].type, 'ARC'); close(fillet.after[2].payload.radius, 2)
+
+  assert.equal(drawing.fingerprint(), fingerprint)
+  assert.equal(drawing.revision, revision)
+  assert.deepEqual(drawing.history, history)
 })
 
 test('mirror, arrays, trim and fillet produce real geometry and undo atomically', async t => {
