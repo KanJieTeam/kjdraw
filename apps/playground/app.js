@@ -105,8 +105,8 @@ function setTool(value) {
   canvas.style.cursor=value==='pan'?'grab':value==='select'?'default':'crosshair'
   for (const b of document.querySelectorAll('[data-tool]')) { b.classList.toggle('active', b.dataset.tool === tool); b.setAttribute('aria-pressed', String(b.dataset.tool === tool)) }
   const hints = i18n.locale === 'zh'
-    ? { select:'滚轮缩放 · 中键拖动画布 · 单击检查对象', line:'直线：指定起点和终点', polyline:'多段线：依次指定三个顶点', circle:'圆：指定圆心和半径', arc:'圆弧：指定圆心、起点和终点', rectangle:'矩形：指定两个对角点', ellipse:'椭圆：指定中心和长轴端点', point:'点：指定位置', xline:'构造线：指定原点和方向', text:'文字：指定插入点', measure:'距离：指定两个测量点' }
-    : { select:'Scroll to zoom · middle-drag to pan · click to inspect', line:'LINE: first point, then endpoint', polyline:'POLYLINE: choose three vertices', circle:'CIRCLE: center, then radius', arc:'ARC: center, start, then endpoint', rectangle:'RECTANGLE: choose opposite corners', ellipse:'ELLIPSE: choose center and major-axis endpoint', point:'POINT: choose a position', xline:'XLINE: choose origin and direction', text:'TEXT: choose insertion point', measure:'DISTANCE: choose two points' }
+    ? { select:'滚轮缩放 · 中键拖动画布 · 单击检查对象', line:'直线：指定起点和终点', polyline:'多段线：依次指定三个顶点', circle:'圆：指定圆心和半径', arc:'圆弧：指定圆心、起点和终点', rectangle:'矩形：指定两个对角点', ellipse:'椭圆：指定中心和长轴端点', polygon:'正多边形：选择构造方式和边数', point:'点：指定位置', xline:'构造线：指定原点和方向', text:'文字：指定插入点', measure:'距离：指定两个测量点' }
+    : { select:'Scroll to zoom · middle-drag to pan · click to inspect', line:'LINE: first point, then endpoint', polyline:'POLYLINE: choose three vertices', circle:'CIRCLE: center, then radius', arc:'ARC: center, start, then endpoint', rectangle:'RECTANGLE: choose opposite corners', ellipse:'ELLIPSE: choose center and major-axis endpoint', polygon:'POLYGON: choose construction and side count', point:'POINT: choose a position', xline:'XLINE: choose origin and direction', text:'TEXT: choose insertion point', measure:'DISTANCE: choose two points' }
   $('hint').textContent = `${hints[tool] ?? tool.toUpperCase()}${tool === 'select' ? '' : ' · Esc to cancel'}`
   if(value==='pan')$('hint').textContent=t('panHint')
   if(value==='select')$('hint').textContent=t('canvasHint')
@@ -124,7 +124,7 @@ function drawingOptions(value){
   if(value==='circle')return {circleMode:$('circle-mode').value}
   if(value==='arc')return {arcMode:$('arc-mode').value}
   if(value==='ellipse')return {ellipseMode:$('ellipse-mode').value}
-  if(value==='polygon')return {sides:Number($('polygon-sides').value)}
+  if(value==='polygon')return {sides:Number($('polygon-sides').value),polygonMode:$('polygon-mode').value}
   if(value==='spline')return {splineDegree:Number($('spline-degree').value)}
   if(value==='dimension')return {dimensionType:$('dimension-type').value,rotation:$('dimension-direction').value==='vertical'?Math.PI/2:0,textHeight:Number($('dimension-height').value)}
   if(value==='hatch')return {patternName:$('hatch-pattern').value,patternScale:Number($('hatch-scale').value),solid:$('hatch-pattern').value==='SOLID'}
@@ -141,7 +141,7 @@ function updateDraftControls(){
 }
 function updateDraftHint(){
   if(!drafting)return
-  const roles={start:['Start point','起点'],end:['Endpoint','终点'],vertex:['Next vertex','下一顶点'],position:['Position','位置'],origin:['Origin','原点'],directionPoint:['Direction point','方向点'],center:['Center','圆心 / 中心'],radiusPoint:['Radius point (or enter radius)','半径点（也可输入半径）'],diameterPoint1:['First diameter endpoint','直径起点'],diameterPoint2:['Opposite diameter endpoint','直径终点'],throughPoint:['Point on curve','曲线上一点'],majorAxisPoint:['Major-axis endpoint','长轴端点'],minorAxisPoint:['Minor-axis distance','短轴距离'],ellipseArcStart:['Elliptical-arc start direction','椭圆弧起点方向'],ellipseArcEnd:['Elliptical-arc end direction (counter-clockwise)','椭圆弧终点方向（逆时针）'],firstCorner:['First corner','第一角点'],oppositeCorner:['Opposite corner','对角点'],controlPoint:['Next control point','下一控制点'],boundaryPoint:['Boundary vertex','填充边界顶点'],extensionOrigin1:['First measured point','第一测量点'],extensionOrigin2:['Second measured point','第二测量点'],placement:['Dimension line position','尺寸线位置'],oppositePoint:['Opposite diameter point','直径对侧点'],pointOnCircle:['Point on circle','圆上一点'],angleVertex:['Three-point angle 1/4: vertex → first ray → second ray → arc position','三点角度 1/4：顶点 → 第一射线点 → 第二射线点 → 弧位置'],firstRayPoint:['2/4: point on first ray','2/4：第一条射线上的点'],secondRayPoint:['3/4: point on second ray','3/4：第二条射线上的点'],angularPlacement:['4/4: place angle arc; opposite sector gives reflex angle','4/4：指定角度弧位置；另一角域可标注反角']}
+  const roles={start:['Start point','起点'],end:['Endpoint','终点'],vertex:['Next vertex','下一顶点'],position:['Position','位置'],origin:['Origin','原点'],directionPoint:['Direction point','方向点'],center:['Center','圆心 / 中心'],radiusPoint:['Radius point (or enter radius)','半径点（也可输入半径）'],diameterPoint1:['First diameter endpoint','直径起点'],diameterPoint2:['Opposite diameter endpoint','直径终点'],throughPoint:['Point on curve','曲线上一点'],majorAxisPoint:['Major-axis endpoint','长轴端点'],minorAxisPoint:['Minor-axis distance','短轴距离'],ellipseArcStart:['Elliptical-arc start direction','椭圆弧起点方向'],ellipseArcEnd:['Elliptical-arc end direction (counter-clockwise)','椭圆弧终点方向（逆时针）'],polygonVertex:['Vertex on circumcircle','外接圆上的顶点'],polygonSideMidpoint:['Side midpoint on incircle','内切圆上的边中点'],edgeStart:['First edge endpoint','边的第一端点'],edgeEnd:['Second edge endpoint','边的第二端点'],firstCorner:['First corner','第一角点'],oppositeCorner:['Opposite corner','对角点'],controlPoint:['Next control point','下一控制点'],boundaryPoint:['Boundary vertex','填充边界顶点'],extensionOrigin1:['First measured point','第一测量点'],extensionOrigin2:['Second measured point','第二测量点'],placement:['Dimension line position','尺寸线位置'],oppositePoint:['Opposite diameter point','直径对侧点'],pointOnCircle:['Point on circle','圆上一点'],angleVertex:['Three-point angle 1/4: vertex → first ray → second ray → arc position','三点角度 1/4：顶点 → 第一射线点 → 第二射线点 → 弧位置'],firstRayPoint:['2/4: point on first ray','2/4：第一条射线上的点'],secondRayPoint:['3/4: point on second ray','3/4：第二条射线上的点'],angularPlacement:['4/4: place angle arc; opposite sector gives reflex angle','4/4：指定角度弧位置；另一角域可标注反角']}
   const state=drafting.session.state,role=roles[state.nextPoint]??[state.nextPoint??'',state.nextPoint??'']
   $('hint').textContent=`${tool.toUpperCase()} · ${role[i18n.locale==='zh'?1:0]} · ${state.points.length} ${i18n.locale==='zh'?'点':'points'} · x,y / @dx,dy / @distance<angle${state.canFinish?' · Enter':''}${state.canClose?' · C':''} · Esc`
   message($('hint').textContent);updateDraftControls()
@@ -520,6 +520,13 @@ async function runTypedCommand(){
   if(drafting&&/^@?[+\-.\d]/.test(raw)){$('command-input').value='';await applyDraftInput(raw,{coordinate:true});return}
   if(drafting&&/^(?:C|CLOSE)$/i.test(raw)){$('command-input').value='';await applyDraftInput(null,{close:true});return}
   if(drafting&&/^(?:U|BACK)$/i.test(raw)){$('command-input').value='';undoDraftPoint();return}
+  const polygonCommand=/^(?:POL|POLYGON)\s+(\S+)(?:\s+(\S+))?$/i.exec(raw)
+  if(polygonCommand){
+    const sides=Number(polygonCommand[1]),modeToken=String(polygonCommand[2]??'INSCRIBED').toUpperCase(),polygonMode=({I:'inscribed',INSCRIBED:'inscribed',C:'circumscribed',CIRCUMSCRIBED:'circumscribed',E:'edge',EDGE:'edge'})[modeToken]
+    if(!Number.isInteger(sides)||sides<3||sides>360)throw new Error(i18n.locale==='zh'?'正多边形边数必须是 3 到 360 的整数':'POLYGON sides must be an integer from 3 to 360')
+    if(!polygonMode)throw new Error(i18n.locale==='zh'?'正多边形模式必须是 INSCRIBED、CIRCUMSCRIBED 或 EDGE':'POLYGON mode must be INSCRIBED, CIRCUMSCRIBED, or EDGE')
+    $('polygon-sides').value=String(sides);$('polygon-mode').value=polygonMode;$('command-input').value='';setTool('polygon');return
+  }
   const drawCommands={LINE:'line',L:'line',PLINE:'polyline',POLYLINE:'polyline',PL:'polyline',CIRCLE:'circle',CIRCLE2P:'circle',CIRCLE3P:'circle',ARC:'arc',ARC3P:'arc',ELLIPSE:'ellipse',ELLIPSEARC:'ellipse',POLYGON:'polygon',SPLINE:'spline',HATCH:'hatch',DIMALIGNED:'dimension',DIMLINEAR:'dimension',DIMRADIUS:'dimension',DIMDIAMETER:'dimension',DIMANGULAR:'dimension',DIMANGULAR3P:'dimension',RAY:'ray',XLINE:'xline',POINT:'point',RECTANGLE:'rectangle'}
   const drawCommand=raw.toUpperCase()
   if(drawCommands[drawCommand]){
@@ -897,6 +904,7 @@ function initializeDraftingControls(){
   add('circle-mode','Circle','画圆方式','circle',[['center-radius','Center / radius','圆心 / 半径'],['2-point','Two diameter points','直径两点'],['3-point','Three points','圆上三点']],'center-radius')
   add('arc-mode','Arc','圆弧方式','arc',[['center-start-end','Center / start / end','圆心 / 起点 / 终点'],['3-point','Start / through / end','起点 / 中间点 / 终点']],'center-start-end')
   add('ellipse-mode','Ellipse','椭圆方式','ellipse',[['full','Full ellipse','完整椭圆'],['arc','Elliptical arc (5 points)','椭圆弧（五点）']],'full')
+  add('polygon-mode','Construction','构造方式','polygon',[['inscribed','Center / vertex (inscribed)','中心 / 顶点（内接）'],['circumscribed','Center / side midpoint (circumscribed)','中心 / 边中点（外切）'],['edge','Two edge endpoints','边的两个端点']],'inscribed')
   add('polygon-sides','Sides','边数','polygon',null,6,{min:3,max:360,step:1})
   add('spline-degree','Degree','次数','spline',[['2','Quadratic','二次'],['3','Cubic','三次']],'3')
   add('dimension-type','Dimension','标注类型','dimension',[['ALIGNED','Aligned','对齐'],['ROTATED','Linear','线性'],['RADIUS','Radius','半径'],['DIAMETER','Diameter','直径'],['ANGULAR_3_POINT','Three-point angle (including reflex)','三点角度（含反角）']],'ALIGNED')
@@ -904,7 +912,7 @@ function initializeDraftingControls(){
   add('dimension-height','Text height','字高','dimension',null,2.5,{min:.001,step:.1})
   add('hatch-pattern','Pattern','图案','hatch',[['ANSI31','Diagonal','斜线'],['ANSI37','Cross','交叉'],['SOLID','Solid fill','实心']],'ANSI31')
   add('hatch-scale','Scale','比例','hatch',null,1,{min:.001,step:.1})
-  for(const [id,en,zh,tools,action] of [['finish-draft','Finish ↵','完成 ↵','polyline spline hatch',()=>run(()=>applyDraftInput(null,{finish:true}))],['close-draft','Close (C)','闭合 (C)','polyline spline hatch',()=>run(()=>applyDraftInput(null,{close:true}))],['undo-draft-point','Undo point','退回一点','polyline spline hatch ellipse',undoDraftPoint]]){
+  for(const [id,en,zh,tools,action] of [['finish-draft','Finish ↵','完成 ↵','polyline spline hatch',()=>run(()=>applyDraftInput(null,{finish:true}))],['close-draft','Close (C)','闭合 (C)','polyline spline hatch',()=>run(()=>applyDraftInput(null,{close:true}))],['undo-draft-point','Undo point','退回一点','polyline spline hatch ellipse polygon',undoDraftPoint]]){
     const button=bilingual(document.createElement('button'),en,zh);button.id=id;button.dataset.draftTools=tools;button.onclick=action;options.append(button)
   }
   $('drop-zone').append(options)

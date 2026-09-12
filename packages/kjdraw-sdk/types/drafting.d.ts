@@ -7,9 +7,10 @@ export type KJDraftTool = 'line' | 'polyline' | 'circle' | 'arc' | 'ellipse' | '
 export type KJDraftCircleMode = 'center-radius' | '2-point' | '3-point';
 export type KJDraftArcMode = 'center-start-end' | '3-point';
 export type KJDraftEllipseMode = 'full' | 'arc';
+export type KJDraftPolygonMode = 'inscribed' | 'circumscribed' | 'edge';
 export type KJDraftDimensionType = 'ALIGNED' | 'ROTATED' | 'RADIUS' | 'DIAMETER' | 'ANGULAR_3_POINT';
 export type KJDraftStatus = 'collecting' | 'complete' | 'cancelled';
-export type KJDraftPointRole = 'start' | 'end' | 'vertex' | 'position' | 'origin' | 'directionPoint' | 'center' | 'radiusPoint' | 'diameterPoint1' | 'diameterPoint2' | 'throughPoint' | 'majorAxisPoint' | 'minorAxisPoint' | 'ellipseArcStart' | 'ellipseArcEnd' | 'firstCorner' | 'oppositeCorner' | 'controlPoint' | 'boundaryPoint' | 'extensionOrigin1' | 'extensionOrigin2' | 'placement' | 'oppositePoint' | 'pointOnCircle' | 'angleVertex' | 'firstRayPoint' | 'secondRayPoint' | 'angularPlacement';
+export type KJDraftPointRole = 'start' | 'end' | 'vertex' | 'position' | 'origin' | 'directionPoint' | 'center' | 'radiusPoint' | 'diameterPoint1' | 'diameterPoint2' | 'throughPoint' | 'majorAxisPoint' | 'minorAxisPoint' | 'ellipseArcStart' | 'ellipseArcEnd' | 'polygonVertex' | 'polygonSideMidpoint' | 'edgeStart' | 'edgeEnd' | 'firstCorner' | 'oppositeCorner' | 'controlPoint' | 'boundaryPoint' | 'extensionOrigin1' | 'extensionOrigin2' | 'placement' | 'oppositePoint' | 'pointOnCircle' | 'angleVertex' | 'firstRayPoint' | 'secondRayPoint' | 'angularPlacement';
 export interface KJDraftEntitySpec {
     type: KJStandardEntityType;
     payload: KJObjectPayload;
@@ -19,6 +20,7 @@ export interface KJDraftingOptions {
     circleMode?: KJDraftCircleMode;
     arcMode?: KJDraftArcMode;
     ellipseMode?: KJDraftEllipseMode;
+    polygonMode?: KJDraftPolygonMode;
     sides?: number;
     splineDegree?: number;
     dimensionType?: KJDraftDimensionType;

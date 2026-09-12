@@ -573,6 +573,22 @@ const draftPointText = Object.freeze({
         en: 'Specify the elliptical-arc end direction (counter-clockwise)',
         zh: '指定椭圆弧终点方向（逆时针）'
     },
+    polygonVertex: {
+        en: 'Specify a vertex on the circumscribed circle',
+        zh: '指定外接圆上的顶点'
+    },
+    polygonSideMidpoint: {
+        en: 'Specify a side midpoint on the inscribed circle',
+        zh: '指定内切圆上的边中点'
+    },
+    edgeStart: {
+        en: 'Specify the first edge endpoint',
+        zh: '指定边的第一个端点'
+    },
+    edgeEnd: {
+        en: 'Specify the second edge endpoint',
+        zh: '指定边的第二个端点'
+    },
     boundaryPoint: {
         en: 'Specify the next boundary point',
         zh: '指定下一边界点'
@@ -1937,10 +1953,23 @@ export class KJDrawWorkbench {
             const draftCommand = DRAFT_COMMAND_TO_TOOL.get(command);
             if (draftCommand) {
                 if (draftCommand === 'polygon' && tokens.length) {
-                    const [sides] = finiteValues(1);
+                    if (tokens.length > 2) throw new Error('POLYGON expects sides and optional INSCRIBED, CIRCUMSCRIBED, or EDGE mode');
+                    const sides = Number(tokens[0]);
                     if (!Number.isInteger(sides) || sides < 3 || sides > 1024) throw new RangeError('POLYGON sides must be an integer from 3 to 1024');
+                    const modeToken = String(tokens[1] ?? 'INSCRIBED').toUpperCase();
+                    const polygonModes = {
+                        I: 'inscribed',
+                        INSCRIBED: 'inscribed',
+                        C: 'circumscribed',
+                        CIRCUMSCRIBED: 'circumscribed',
+                        E: 'edge',
+                        EDGE: 'edge'
+                    };
+                    const polygonMode = polygonModes[modeToken];
+                    if (!polygonMode) throw new Error('POLYGON mode must be INSCRIBED, CIRCUMSCRIBED, or EDGE');
                     this.#draftOptions.set('polygon', {
-                        sides: sides
+                        sides,
+                        polygonMode
                     });
                 } else if (tokens.length) throw new Error(`${command} uses the drawing options panel or canvas coordinates`);
                 this.setTool(draftCommand);
@@ -2432,15 +2461,43 @@ export class KJDrawWorkbench {
                 }
             }
         ], configured.ellipseMode ?? 'full');
-        if (tool === 'polygon') this.#draftField(host, 'sides', {
-            en: 'Sides',
-            zh: '边数'
-        }, {
-            value: String(configured.sides ?? 6),
-            min: 3,
-            max: 1024,
-            step: 1
-        });
+        if (tool === 'polygon') {
+            this.#draftSelect(host, 'polygonMode', {
+                en: 'Construction',
+                zh: '构造方式'
+            }, [
+                {
+                    value: 'inscribed',
+                    label: {
+                        en: 'Center + vertex (inscribed)',
+                        zh: '中心 + 顶点（内接）'
+                    }
+                },
+                {
+                    value: 'circumscribed',
+                    label: {
+                        en: 'Center + side midpoint (circumscribed)',
+                        zh: '中心 + 边中点（外切）'
+                    }
+                },
+                {
+                    value: 'edge',
+                    label: {
+                        en: 'First + second edge endpoint',
+                        zh: '边的两个端点'
+                    }
+                }
+            ], configured.polygonMode ?? 'inscribed');
+            this.#draftField(host, 'sides', {
+                en: 'Sides',
+                zh: '边数'
+            }, {
+                value: String(configured.sides ?? 6),
+                min: 3,
+                max: 1024,
+                step: 1
+            });
+        }
         if (tool === 'spline') this.#draftField(host, 'splineDegree', {
             en: 'Degree',
             zh: '次数'
@@ -2565,7 +2622,8 @@ export class KJDrawWorkbench {
             ellipseMode: value('ellipseMode')
         };
         if (tool === 'polygon') options = {
-            sides: Number(value('sides'))
+            sides: Number(value('sides')),
+            polygonMode: value('polygonMode')
         };
         if (tool === 'spline') options = {
             splineDegree: Number(value('splineDegree'))

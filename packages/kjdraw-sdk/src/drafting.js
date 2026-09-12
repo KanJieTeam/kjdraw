@@ -30,6 +30,11 @@ const ELLIPSE_MODES = new Set([
     'full',
     'arc'
 ]);
+const POLYGON_MODES = new Set([
+    'inscribed',
+    'circumscribed',
+    'edge'
+]);
 const DIMENSION_TYPES = new Set([
     'ALIGNED',
     'ROTATED',
@@ -199,6 +204,8 @@ function normalizeOptions(options) {
     if (!ARC_MODES.has(arcMode)) throw new KJValidationError(`Unsupported arc mode: ${String(arcMode)}`);
     const ellipseMode = options.ellipseMode ?? 'full';
     if (!ELLIPSE_MODES.has(ellipseMode)) throw new KJValidationError(`Unsupported ellipse mode: ${String(ellipseMode)}`);
+    const polygonMode = options.polygonMode ?? 'inscribed';
+    if (!POLYGON_MODES.has(polygonMode)) throw new KJValidationError(`Unsupported polygon mode: ${String(polygonMode)}`);
     const dimensionType = String(options.dimensionType ?? 'ALIGNED').toUpperCase();
     if (!DIMENSION_TYPES.has(dimensionType)) throw new KJValidationError(`Unsupported dimension type: ${String(options.dimensionType)}`);
     const sides = Number(options.sides ?? 6);
@@ -218,6 +225,7 @@ function normalizeOptions(options) {
         circleMode,
         arcMode,
         ellipseMode,
+        polygonMode,
         sides,
         splineDegree,
         dimensionType,
@@ -295,7 +303,10 @@ function nextPointRole(tool, count, options) {
     if (tool === 'point') return 'position';
     if (tool === 'ray' || tool === 'xline') return count === 0 ? 'origin' : 'directionPoint';
     if (tool === 'rectangle') return count === 0 ? 'firstCorner' : 'oppositeCorner';
-    if (tool === 'polygon') return count === 0 ? 'center' : 'vertex';
+    if (tool === 'polygon') {
+        if (options.polygonMode === 'edge') return count === 0 ? 'edgeStart' : 'edgeEnd';
+        return count === 0 ? 'center' : options.polygonMode === 'circumscribed' ? 'polygonSideMidpoint' : 'polygonVertex';
+    }
     if (tool === 'spline') return 'controlPoint';
     if (tool === 'hatch') return 'boundaryPoint';
     if (tool === 'ellipse') return options.ellipseMode === 'arc' ? [
@@ -715,9 +726,30 @@ export class KJDraftingSession {
         }
         if (this.tool === 'polygon') {
             requirePoints(points, 2, 'Polygon');
-            const [center, vertex] = points;
-            requireDistinct(center, vertex, tolerance, 'Polygon radius');
-            const radius = distance(center, vertex), startAngle = Math.atan2(vertex[1] - center[1], vertex[0] - center[0]);
+            const [first, second] = points;
+            requireDistinct(first, second, tolerance, this.#options.polygonMode === 'edge' ? 'Polygon edge' : 'Polygon radius');
+            const halfAngle = Math.PI / this.#options.sides;
+            let center, radius, startAngle;
+            if (this.#options.polygonMode === 'edge') {
+                const side = distance(first, second), dx = second[0] - first[0], dy = second[1] - first[1];
+                const apothem = side / (2 * Math.tan(halfAngle));
+                center = [
+                    (first[0] + second[0]) / 2 - dy * apothem / side,
+                    (first[1] + second[1]) / 2 + dx * apothem / side
+                ];
+                radius = side / (2 * Math.sin(halfAngle));
+                startAngle = Math.atan2(first[1] - center[1], first[0] - center[0]);
+            } else {
+                center = first;
+                const direction = Math.atan2(second[1] - center[1], second[0] - center[0]);
+                if (this.#options.polygonMode === 'circumscribed') {
+                    radius = distance(center, second) / Math.cos(halfAngle);
+                    startAngle = direction - halfAngle;
+                } else {
+                    radius = distance(center, second);
+                    startAngle = direction;
+                }
+            }
             const vertices = Array.from({
                 length: this.#options.sides
             }, (_, index)=>[

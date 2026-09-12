@@ -210,6 +210,8 @@ const draftPointText: Readonly<Record<KJDraftPointRole, KJLocalizedControlText>>
   diameterPoint1: { en: 'Specify the first diameter point', zh: '指定直径第一点' }, diameterPoint2: { en: 'Specify the second diameter point', zh: '指定直径第二点' }, throughPoint: { en: 'Specify a point on the arc', zh: '指定圆弧经过点' }, majorAxisPoint: { en: 'Specify the major-axis endpoint', zh: '指定长轴端点' },
   minorAxisPoint: { en: 'Specify the minor-axis endpoint', zh: '指定短轴端点' }, firstCorner: { en: 'Specify the first corner', zh: '指定第一个角点' }, oppositeCorner: { en: 'Specify the opposite corner', zh: '指定对角点' }, controlPoint: { en: 'Specify the next control point', zh: '指定下一控制点' },
   ellipseArcStart: { en: 'Specify the elliptical-arc start direction', zh: '指定椭圆弧起点方向' }, ellipseArcEnd: { en: 'Specify the elliptical-arc end direction (counter-clockwise)', zh: '指定椭圆弧终点方向（逆时针）' },
+  polygonVertex: { en: 'Specify a vertex on the circumscribed circle', zh: '指定外接圆上的顶点' }, polygonSideMidpoint: { en: 'Specify a side midpoint on the inscribed circle', zh: '指定内切圆上的边中点' },
+  edgeStart: { en: 'Specify the first edge endpoint', zh: '指定边的第一个端点' }, edgeEnd: { en: 'Specify the second edge endpoint', zh: '指定边的第二个端点' },
   boundaryPoint: { en: 'Specify the next boundary point', zh: '指定下一边界点' }, extensionOrigin1: { en: 'Specify the first extension origin', zh: '指定第一尺寸界线原点' }, extensionOrigin2: { en: 'Specify the second extension origin', zh: '指定第二尺寸界线原点' }, placement: { en: 'Specify the dimension-line position', zh: '指定尺寸线位置' },
   angleVertex: { en: 'Three-point angle 1/4: vertex → first ray → second ray → arc position', zh: '三点角度 1/4：顶点 → 第一射线点 → 第二射线点 → 弧位置' }, firstRayPoint: { en: '2/4: specify a point on the first ray', zh: '2/4：指定第一条射线上的点' }, secondRayPoint: { en: '3/4: specify a point on the second ray', zh: '3/4：指定第二条射线上的点' }, angularPlacement: { en: '4/4: place the angle arc; choose the opposite sector for a reflex angle', zh: '4/4：指定角度弧位置；在另一角域放置可标注反角' },
   oppositePoint: { en: 'Specify the opposite point', zh: '指定对侧点' }, pointOnCircle: { en: 'Specify a point on the circle', zh: '指定圆上一点' },
@@ -1133,9 +1135,14 @@ export class KJDrawWorkbench {
       const draftCommand = DRAFT_COMMAND_TO_TOOL.get(command)
       if (draftCommand) {
         if (draftCommand === 'polygon' && tokens.length) {
-          const [sides] = finiteValues(1)
-          if (!Number.isInteger(sides) || sides! < 3 || sides! > 1024) throw new RangeError('POLYGON sides must be an integer from 3 to 1024')
-          this.#draftOptions.set('polygon', { sides: sides! })
+          if (tokens.length > 2) throw new Error('POLYGON expects sides and optional INSCRIBED, CIRCUMSCRIBED, or EDGE mode')
+          const sides = Number(tokens[0])
+          if (!Number.isInteger(sides) || sides < 3 || sides > 1024) throw new RangeError('POLYGON sides must be an integer from 3 to 1024')
+          const modeToken = String(tokens[1] ?? 'INSCRIBED').toUpperCase()
+          const polygonModes: Readonly<Record<string, NonNullable<KJDraftingOptions['polygonMode']>>> = { I: 'inscribed', INSCRIBED: 'inscribed', C: 'circumscribed', CIRCUMSCRIBED: 'circumscribed', E: 'edge', EDGE: 'edge' }
+          const polygonMode = polygonModes[modeToken]
+          if (!polygonMode) throw new Error('POLYGON mode must be INSCRIBED, CIRCUMSCRIBED, or EDGE')
+          this.#draftOptions.set('polygon', { sides, polygonMode })
         } else if (tokens.length) throw new Error(`${command} uses the drawing options panel or canvas coordinates`)
         this.setTool(draftCommand)
         return
@@ -1422,7 +1429,14 @@ export class KJDrawWorkbench {
       { value: 'full', label: { en: 'Full ellipse', zh: '完整椭圆' } },
       { value: 'arc', label: { en: 'Elliptical arc (5 points)', zh: '椭圆弧（五点）' } },
     ], configured.ellipseMode ?? 'full')
-    if (tool === 'polygon') this.#draftField(host, 'sides', { en: 'Sides', zh: '边数' }, { value: String(configured.sides ?? 6), min: 3, max: 1024, step: 1 })
+    if (tool === 'polygon') {
+      this.#draftSelect(host, 'polygonMode', { en: 'Construction', zh: '构造方式' }, [
+        { value: 'inscribed', label: { en: 'Center + vertex (inscribed)', zh: '中心 + 顶点（内接）' } },
+        { value: 'circumscribed', label: { en: 'Center + side midpoint (circumscribed)', zh: '中心 + 边中点（外切）' } },
+        { value: 'edge', label: { en: 'First + second edge endpoint', zh: '边的两个端点' } },
+      ], configured.polygonMode ?? 'inscribed')
+      this.#draftField(host, 'sides', { en: 'Sides', zh: '边数' }, { value: String(configured.sides ?? 6), min: 3, max: 1024, step: 1 })
+    }
     if (tool === 'spline') this.#draftField(host, 'splineDegree', { en: 'Degree', zh: '次数' }, { value: String(configured.splineDegree ?? 3), min: 1, max: 10, step: 1 })
     if (tool === 'hatch') {
       this.#draftField(host, 'patternName', { en: 'Pattern', zh: '图案' }, { type: 'text', value: String(configured.patternName ?? 'SOLID') })
@@ -1465,7 +1479,7 @@ export class KJDrawWorkbench {
     if (tool === 'circle') options = { circleMode: value('circleMode') as NonNullable<KJDraftingOptions['circleMode']> }
     if (tool === 'arc') options = { arcMode: value('arcMode') as NonNullable<KJDraftingOptions['arcMode']> }
     if (tool === 'ellipse') options = { ellipseMode: value('ellipseMode') as NonNullable<KJDraftingOptions['ellipseMode']> }
-    if (tool === 'polygon') options = { sides: Number(value('sides')) }
+    if (tool === 'polygon') options = { sides: Number(value('sides')), polygonMode: value('polygonMode') as NonNullable<KJDraftingOptions['polygonMode']> }
     if (tool === 'spline') options = { splineDegree: Number(value('splineDegree')) }
     if (tool === 'hatch') options = { patternName: value('patternName'), patternScale: Number(value('patternScale')), patternAngle: Number(value('patternAngleDegrees')) * Math.PI / 180, solid: checked('solid') }
     if (tool === 'dimension') options = { dimensionType: value('dimensionType') as NonNullable<KJDraftingOptions['dimensionType']>, rotation: Number(value('rotationDegrees')) * Math.PI / 180 }
