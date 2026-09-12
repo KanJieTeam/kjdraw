@@ -14,6 +14,9 @@ export type KJModificationId =
   | 'extend'
   | 'lengthen'
   | 'stretch'
+  | 'polyline-insert'
+  | 'polyline-delete'
+  | 'polyline-arc'
   | 'chamfer'
   | 'fillet'
 
@@ -94,7 +97,8 @@ const pick = (key: string, en: string, zh: string): KJModificationPointDefinitio
 
 export const KJ_MODIFICATION_IDS = Object.freeze([
   'rotate', 'scale', 'mirror', 'array-rect', 'array-polar', 'offset',
-  'break', 'join', 'explode', 'trim', 'extend', 'lengthen', 'stretch', 'chamfer', 'fillet',
+  'break', 'join', 'explode', 'trim', 'extend', 'lengthen', 'stretch',
+  'polyline-insert', 'polyline-delete', 'polyline-arc', 'chamfer', 'fillet',
 ] as const)
 
 export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = Object.freeze([
@@ -206,6 +210,36 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
     supportedEntityTypes: ['LINE', 'LWPOLYLINE', 'POLYLINE'],
     fields: [number('dx', 'Horizontal displacement', '水平位移', 10, { step: 0.1 }), number('dy', 'Vertical displacement', '垂直位移', 0, { step: 0.1 })],
     pointKeys: [pick('crossingStart', 'Pick the first crossing-window corner', '指定交叉窗口第一个角点'), pick('crossingEnd', 'Pick the opposite crossing-window corner', '指定交叉窗口对角点')],
+  },
+  {
+    id: 'polyline-insert', command: 'PEDIT', label: text('Insert polyline vertex', '插入多段线顶点'),
+    description: text('Insert a vertex on an exact polyline segment.', '在多段线的指定线段上精确插入顶点。'),
+    minSelection: 1, maxSelection: 1,
+    supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'],
+    fields: [
+      number('segmentIndex', 'Segment index', '线段索引', 0, { type: 'integer', min: 0, step: 1 }),
+      number('tolerance', 'Snap tolerance', '捕捉容差', 0.1, { min: 0, step: 0.01 }),
+    ],
+    pointKeys: [pick('point', 'Pick a point on the segment', '在线段上指定插入点')],
+  },
+  {
+    id: 'polyline-delete', command: 'PEDIT', label: text('Delete polyline vertex', '删除多段线顶点'),
+    description: text('Delete one vertex while preserving valid polyline topology.', '删除一个顶点并保持多段线拓扑有效。'),
+    minSelection: 1, maxSelection: 1,
+    supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'],
+    fields: [number('vertexIndex', 'Vertex index', '顶点索引', 0, { type: 'integer', min: 0, step: 1 })],
+    pointKeys: [],
+  },
+  {
+    id: 'polyline-arc', command: 'PEDIT', label: text('Edit polyline arc', '编辑多段线圆弧段'),
+    description: text('Set the signed sweep angle of one polyline segment.', '设置多段线指定线段的有向圆弧扫角。'),
+    minSelection: 1, maxSelection: 1,
+    supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'],
+    fields: [
+      number('segmentIndex', 'Segment index', '线段索引', 0, { type: 'integer', min: 0, step: 1 }),
+      number('sweepDegrees', 'Sweep angle (°)', '扫角（°）', 90, { min: -359.999999, max: 359.999999, step: 1 }),
+    ],
+    pointKeys: [],
   },
   {
     id: 'chamfer', command: 'CHAMFER', label: text('Chamfer lines', '直线倒角'),
@@ -331,6 +365,9 @@ export function buildKJModificationCommand(id: KJModificationId, context: KJModi
     case 'extend': return { command: definition.command, arguments: { id: ids[0]!, boundaryIds: ids.slice(1), pickPoint: points[0]! } }
     case 'lengthen': return { command: definition.command, arguments: { id: ids[0]!, mode: 'TOTAL', ...values, pickPoint: points[0]! } }
     case 'stretch': return { command: definition.command, arguments: { ids, ...values, crossingStart: points[0]!, crossingEnd: points[1]! } }
+    case 'polyline-insert': return { command: definition.command, arguments: { id: ids[0]!, operation: 'INSERT', ...values, point: points[0]! } }
+    case 'polyline-delete': return { command: definition.command, arguments: { id: ids[0]!, operation: 'DELETE', ...values } }
+    case 'polyline-arc': return { command: definition.command, arguments: { id: ids[0]!, operation: 'SET_BULGE', ...values } }
     case 'chamfer': return { command: definition.command, arguments: { firstId: ids[0]!, secondId: ids[1]!, ...values, pickPoint1: points[0]!, pickPoint2: points[1]! } }
     case 'fillet': return { command: definition.command, arguments: { firstId: ids[0]!, secondId: ids[1]!, ...values, pickPoint1: points[0]!, pickPoint2: points[1]! } }
   }

@@ -37,6 +37,7 @@ import type { AffineMatrix3, AffineMatrix3Input, Point3 } from './geometry/index
 import {
   breakEntityPayloads,
   chamferLinePair,
+  editPolylinePayload,
   explodeEntity,
   extendEntityPayload,
   filletLinePair,
@@ -191,6 +192,10 @@ export interface KJCommandArguments extends Record<string, unknown> {
   radius?: unknown
   distance?: unknown
   tolerance?: unknown
+  segmentIndex?: unknown
+  vertexIndex?: unknown
+  bulge?: unknown
+  sweepDegrees?: unknown
   distance1?: unknown
   distance2?: unknown
   dx?: unknown
@@ -295,6 +300,7 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   EXTEND: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE', 'ARC'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
   LENGTHEN: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC'], modes: ['TOTAL', 'DELTA', 'PERCENT', 'DYNAMIC'], stableIdentity: true },
   STRETCH: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'LWPOLYLINE', 'POLYLINE'], selection: 'crossing-window', maximumEntities: 4096, stableIdentity: true },
+  PEDIT: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'], operations: ['INSERT', 'DELETE', 'SET_BULGE'], stableIdentity: true },
   CHAMFER: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE'] },
   FILLET: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE'] },
   GRIPEDIT: { domain: 'geometry', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },
@@ -844,6 +850,13 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       }).filter(value => value.payload != null)
       if (!updates.length) throw new KJValidationError('STRETCH crossing window contains no editable vertices')
       return updates.map(value => transaction.updateObject(value.entity.id, { payload: value.payload! }))
+    },
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'PEDIT', aliases: ['PE', 'POLYLINEEDIT'], title: 'Edit polyline topology',
+    execute: ({ document, transaction }, args) => {
+      const entity = requiredEntity(document, args.id)
+      return transaction.updateObject(entity.id, { payload: editPolylinePayload(entity, args) })
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({

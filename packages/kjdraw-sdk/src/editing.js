@@ -506,7 +506,8 @@ function bulgeArc(startInput, endInput, bulgeInput) {
     if (Math.abs(bulge) <= 1e-15) return null;
     if (Math.abs(start[2] - end[2]) > 1e-10) throw new KJValidationError('Explode requires bulge arc endpoints in one XY plane');
     const chordVector = subtract2(end, start), chord = length2(chordVector), unit = normalize2(chordVector);
-    const centerOffset = chord * (1 - bulge * bulge) / (4 * bulge);
+    const centerOffset = chord * (1 / bulge - bulge) / 4;
+    if (!Number.isFinite(centerOffset)) throw new KJValidationError('Bulge arc has unbounded geometry');
     const center2 = add2(midpoint2(start, end), multiply2(perpendicular2(unit), centerOffset));
     const center = [
         center2[0],
@@ -1023,6 +1024,199 @@ export function stretchEntityPayload(target, options = {}) {
         } : null;
     }
     throw new KJValidationError(`Stretch is not implemented for ${type || 'unknown entity'}`);
+}
+function polylineEditIndex(value, label, maximumExclusive) {
+    const index = Number(value);
+    if (!Number.isInteger(index) || index < 0 || index >= maximumExclusive) {
+        throw new KJValidationError(`${label} must be an integer from 0 to ${Math.max(0, maximumExclusive - 1)}`);
+    }
+    return index;
+}
+function polylineEditTolerance(value) {
+    const tolerance = Number(value ?? 1e-8);
+    if (!Number.isFinite(tolerance) || tolerance < 0) throw new KJValidationError('Polyline edit tolerance must be a non-negative finite number');
+    return tolerance;
+}
+function editablePolylineVertices(payload) {
+    const source = payload.vertices;
+    if (!Array.isArray(source) || source.length < 2) throw new KJValidationError('PEDIT requires a polyline with at least two vertices');
+    return source.map((value, index)=>{
+        const record = Array.isArray(value) ? {} : clone(value);
+        const point = finiteEditPoint(value?.point ?? value);
+        const bulge = Number(record.bulge ?? 0), startWidth = Number(record.startWidth ?? 0), endWidth = Number(record.endWidth ?? 0);
+        if (![
+            bulge,
+            startWidth,
+            endWidth
+        ].every(Number.isFinite)) throw new KJValidationError(`PEDIT found invalid segment data at vertex ${index}`);
+        return {
+            ...record,
+            point,
+            bulge,
+            startWidth,
+            endWidth
+        };
+    });
+}
+function assertEditablePolylineTopology(type, payload, vertices) {
+    const flags = Number(payload.dxfFlags ?? 0);
+    if (!Number.isFinite(flags)) throw new KJValidationError('PEDIT requires finite polyline flags');
+    if (type === 'POLYLINE' && flags & (2 | 4 | 8 | 16 | 64)) {
+        throw new KJValidationError('PEDIT supports ordinary 2D POLYLINE entities, not fitted, 3D, mesh or polyface topology');
+    }
+    if (type === 'POLYLINE' && vertices.some((vertex)=>Number(vertex.dxfFlags ?? 0) & (16 | 32 | 64 | 128))) {
+        throw new KJValidationError('PEDIT supports ordinary 2D POLYLINE vertices, not spline, 3D, mesh or polyface vertices');
+    }
+}
+function polylineSegmentCount(vertices, closed) {
+    return closed ? vertices.length : vertices.length - 1;
+}
+function pointOnStraightPolylineSegment(start, end, requested, tolerance) {
+    const dx = end[0] - start[0], dy = end[1] - start[1], squared = dx * dx + dy * dy;
+    if (!(squared > 1e-24)) throw new KJValidationError('PEDIT cannot insert a vertex on a zero-length segment');
+    const parameter = ((requested[0] - start[0]) * dx + (requested[1] - start[1]) * dy) / squared;
+    if (!(parameter > 1e-12 && parameter < 1 - 1e-12)) throw new KJValidationError('PEDIT insert point must lie inside the selected segment');
+    const point = [
+        start[0] + dx * parameter,
+        start[1] + dy * parameter,
+        start[2] + (end[2] - start[2]) * parameter
+    ];
+    if (distance2(requested, point) > Math.max(tolerance, Math.sqrt(squared) * 1e-12)) {
+        throw new KJValidationError('PEDIT insert point is outside the selected straight segment tolerance');
+    }
+    return {
+        point,
+        parameter
+    };
+}
+function pointOnBulgedPolylineSegment(start, end, bulge, requested, tolerance) {
+    const arc = bulgeArc(start, end, bulge);
+    if (!arc) return pointOnStraightPolylineSegment(start, end, requested, tolerance);
+    if (![
+        ...arc.center,
+        arc.radius,
+        arc.startAngle,
+        arc.endAngle
+    ].every(Number.isFinite)) throw new KJValidationError('PEDIT cannot edit an arc segment with unbounded geometry');
+    const radiusTolerance = Math.max(tolerance, arc.radius * 1e-12);
+    const radialDistance = distance2(requested, arc.center);
+    if (Math.abs(radialDistance - arc.radius) > radiusTolerance) throw new KJValidationError('PEDIT insert point is outside the selected arc segment tolerance');
+    const angle = Math.atan2(requested[1] - arc.center[1], requested[0] - arc.center[0]);
+    const signedSweep = 4 * Math.atan(bulge), span = Math.abs(signedSweep);
+    const offset = signedSweep > 0 ? positiveTurn(angle - arc.startAngle) : positiveTurn(arc.startAngle - angle);
+    if (!(offset > 1e-12 && offset < span - 1e-12)) throw new KJValidationError('PEDIT insert point must lie inside the selected arc segment');
+    const parameter = offset / span, directedAngle = arc.startAngle + signedSweep * parameter;
+    return {
+        point: [
+            arc.center[0] + arc.radius * Math.cos(directedAngle),
+            arc.center[1] + arc.radius * Math.sin(directedAngle),
+            start[2]
+        ],
+        parameter
+    };
+}
+function insertPolylineVertex(payload, vertices, options) {
+    const closed = Boolean(payload.closed), segmentCount = polylineSegmentCount(vertices, closed);
+    const segmentIndex = polylineEditIndex(options.segmentIndex, 'PEDIT segmentIndex', segmentCount);
+    const nextIndex = (segmentIndex + 1) % vertices.length;
+    const source = vertices[segmentIndex], next = vertices[nextIndex], tolerance = polylineEditTolerance(options.tolerance);
+    if (Math.abs(source.bulge) > 1e-15) {
+        if (Number(payload.dxfFlags ?? 0) & 8) throw new KJValidationError('PEDIT cannot split a bulge arc in a 3D POLYLINE');
+        positiveXYNormal(payload, 'PEDIT polyline');
+    }
+    const requested = finiteEditPoint(options.point);
+    const location = pointOnBulgedPolylineSegment(source.point, next.point, source.bulge, requested, tolerance);
+    const originalBulge = source.bulge, originalEndWidth = source.endWidth;
+    const middleWidth = source.startWidth + (originalEndWidth - source.startWidth) * location.parameter;
+    const signedSweep = 4 * Math.atan(originalBulge);
+    source.bulge = Math.tan(signedSweep * location.parameter / 4);
+    source.endWidth = middleWidth;
+    const inserted = {
+        point: location.point,
+        bulge: Math.tan(signedSweep * (1 - location.parameter) / 4),
+        startWidth: middleWidth,
+        endWidth: originalEndWidth
+    };
+    vertices.splice(segmentIndex + 1, 0, inserted);
+    return {
+        ...payload,
+        vertices
+    };
+}
+function deletePolylineVertex(payload, vertices, options) {
+    const closed = Boolean(payload.closed), minimum = 2;
+    if (vertices.length <= minimum) throw new KJValidationError(`PEDIT cannot delete a vertex from a ${closed ? 'closed' : 'open'} polyline with ${vertices.length} vertices`);
+    const index = polylineEditIndex(options.vertexIndex, 'PEDIT vertexIndex', vertices.length);
+    if (!closed && index === 0) {
+        vertices.shift();
+        return {
+            ...payload,
+            vertices
+        };
+    }
+    if (!closed && index === vertices.length - 1) {
+        vertices.pop();
+        vertices.at(-1).bulge = 0;
+        return {
+            ...payload,
+            vertices
+        };
+    }
+    const previousIndex = (index - 1 + vertices.length) % vertices.length;
+    const previous = vertices[previousIndex], current = vertices[index];
+    if (Math.abs(previous.bulge) > 1e-15 || Math.abs(current.bulge) > 1e-15) {
+        throw new KJValidationError('PEDIT cannot delete a vertex adjacent to an arc segment without an explicit replacement curve');
+    }
+    previous.bulge = 0;
+    previous.endWidth = current.endWidth;
+    vertices.splice(index, 1);
+    return {
+        ...payload,
+        vertices
+    };
+}
+function setPolylineSegmentBulge(payload, vertices, options) {
+    const segmentCount = polylineSegmentCount(vertices, Boolean(payload.closed));
+    const segmentIndex = polylineEditIndex(options.segmentIndex, 'PEDIT segmentIndex', segmentCount);
+    if (options.bulge != null && options.sweepDegrees != null) throw new KJValidationError('PEDIT SET_BULGE accepts bulge or sweepDegrees, not both');
+    if (options.bulge == null && options.sweepDegrees == null) throw new KJValidationError('PEDIT SET_BULGE requires bulge or sweepDegrees');
+    let bulge;
+    if (options.sweepDegrees != null) {
+        const sweep = Number(options.sweepDegrees);
+        if (!Number.isFinite(sweep) || Math.abs(sweep) >= 360) throw new KJValidationError('PEDIT sweepDegrees must be finite and greater than -360 and less than 360');
+        bulge = Math.tan(sweep * Math.PI / 720);
+    } else bulge = Number(options.bulge);
+    if (!Number.isFinite(bulge)) throw new KJValidationError('PEDIT bulge must be finite');
+    if (Math.abs(bulge) > 1e-15) {
+        if (Number(payload.dxfFlags ?? 0) & 8) throw new KJValidationError('PEDIT cannot add bulge arcs to a 3D POLYLINE');
+        positiveXYNormal(payload, 'PEDIT polyline');
+        const start = vertices[segmentIndex].point, end = vertices[(segmentIndex + 1) % vertices.length].point;
+        if (distance3(start, end) <= 1e-12) throw new KJValidationError('PEDIT cannot add an arc to a zero-length segment');
+        if (Math.abs(start[2] - end[2]) > 1e-10) throw new KJValidationError('PEDIT bulge arc endpoints must lie in one XY plane');
+        const arc = bulgeArc(start, end, bulge);
+        if (!arc || ![
+            ...arc.center,
+            arc.radius,
+            arc.startAngle,
+            arc.endAngle
+        ].every(Number.isFinite)) throw new KJValidationError('PEDIT bulge creates unbounded arc geometry');
+    }
+    vertices[segmentIndex].bulge = Math.abs(bulge) <= 1e-15 ? 0 : bulge;
+    return {
+        ...payload,
+        vertices
+    };
+}
+export function editPolylinePayload(target, options = {}) {
+    const type = normalizeName(target?.type);
+    if (type !== 'LWPOLYLINE' && type !== 'POLYLINE') throw new KJValidationError(`PEDIT requires a LWPOLYLINE or POLYLINE target, not ${type || 'unknown entity'}`);
+    const payload = payloadOf(target), vertices = editablePolylineVertices(payload);
+    assertEditablePolylineTopology(type, payload, vertices);
+    const operation = normalizeName(options.operation);
+    if (operation === 'INSERT') return insertPolylineVertex(payload, vertices, options);
+    if (operation === 'DELETE') return deletePolylineVertex(payload, vertices, options);
+    if (operation === 'SET_BULGE' || operation === 'ARC') return setPolylineSegmentBulge(payload, vertices, options);
+    throw new KJValidationError('PEDIT operation must be INSERT, DELETE or SET_BULGE');
 }
 function selectedRay(line, intersection, pickPoint) {
     const payload = line.payload ?? {};

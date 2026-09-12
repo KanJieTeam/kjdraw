@@ -2,8 +2,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { KJValidationError, createKJDrawSDK } from '../src/index.js'
 import {
+  KJ_MODIFICATION_DEFINITIONS,
   KJ_MODIFICATION_IDS,
   buildKJModificationCommand,
+  getKJModificationDefinition,
+  validateKJModificationSelection,
 } from '../src/modification-controls.js'
 
 const close = (actual, expected, epsilon = 1e-9) => {
@@ -21,11 +24,13 @@ async function drawingFixture(name) {
   return { sdk, drawing, create }
 }
 
-test('all 15 modification controls build exact arguments accepted by the real SDK', async t => {
+test('all 18 modification controls build exact arguments accepted by the real SDK', async t => {
   assert.deepEqual(KJ_MODIFICATION_IDS, [
     'rotate', 'scale', 'mirror', 'array-rect', 'array-polar', 'offset',
-    'break', 'join', 'explode', 'trim', 'extend', 'lengthen', 'stretch', 'chamfer', 'fillet',
+    'break', 'join', 'explode', 'trim', 'extend', 'lengthen', 'stretch',
+    'polyline-insert', 'polyline-delete', 'polyline-arc', 'chamfer', 'fillet',
   ])
+  assert.equal(KJ_MODIFICATION_DEFINITIONS.length, 18)
 
   const cases = [
     {
@@ -170,6 +175,36 @@ test('all 15 modification controls build exact arguments accepted by the real SD
       },
     },
     {
+      id: 'polyline-insert',
+      arrange: async ({ create }) => {
+        const entity = await create('LWPOLYLINE', { vertices: [{ point: [0, 0] }, { point: [10, 0] }, { point: [10, 5] }], closed: false })
+        return {
+          context: { ids: [entity.id], values: { segmentIndex: 0, tolerance: 0.1 }, points: [[5, 0]] },
+          expected: { id: entity.id, operation: 'INSERT', segmentIndex: 0, tolerance: 0.1, point: [5, 0] },
+        }
+      },
+    },
+    {
+      id: 'polyline-delete',
+      arrange: async ({ create }) => {
+        const entity = await create('POLYLINE', { vertices: [{ point: [0, 0, 2] }, { point: [5, 0, 2] }, { point: [10, 0, 2] }], closed: false })
+        return {
+          context: { ids: [entity.id], values: { vertexIndex: 1 }, points: [] },
+          expected: { id: entity.id, operation: 'DELETE', vertexIndex: 1 },
+        }
+      },
+    },
+    {
+      id: 'polyline-arc',
+      arrange: async ({ create }) => {
+        const entity = await create('LWPOLYLINE', { vertices: [{ point: [0, 0] }, { point: [10, 0] }, { point: [10, 5] }], closed: false })
+        return {
+          context: { ids: [entity.id], values: { segmentIndex: 0, sweepDegrees: 90 }, points: [] },
+          expected: { id: entity.id, operation: 'SET_BULGE', segmentIndex: 0, sweepDegrees: 90 },
+        }
+      },
+    },
+    {
       id: 'chamfer',
       arrange: async ({ create }) => {
         const first = await create('LINE', { start: [0, 0], end: [10, 0] })
@@ -198,7 +233,14 @@ test('all 15 modification controls build exact arguments accepted by the real SD
       const fixture = await drawingFixture(definition.id)
       const { context, expected } = await definition.arrange(fixture)
       const built = buildKJModificationCommand(definition.id, context)
-      assert.equal(built.command, definition.id === 'array-rect' ? 'ARRAYRECT' : definition.id === 'array-polar' ? 'ARRAYPOLAR' : definition.id.toUpperCase())
+      const expectedCommand = definition.id === 'array-rect'
+        ? 'ARRAYRECT'
+        : definition.id === 'array-polar'
+          ? 'ARRAYPOLAR'
+          : definition.id.startsWith('polyline-')
+            ? 'PEDIT'
+            : definition.id.toUpperCase()
+      assert.equal(built.command, expectedCommand)
       assert.deepEqual(built.arguments, expected)
       const revision = fixture.drawing.revision
       await fixture.sdk.executeCommand(built.command, built.arguments)
@@ -306,6 +348,15 @@ test('invalid form values and impossible geometry do not mutate the drawing', as
   assert.throws(() => buildKJModificationCommand('mirror', {
     ids: [first.id], values: {}, points: [[0, 0]],
   }), /requires 2 canvas points/)
+  assert.throws(() => buildKJModificationCommand('polyline-insert', {
+    ids: [first.id], values: { segmentIndex: -1, tolerance: 0.1 }, points: [[5, 0]],
+  }), /at least 0/)
+  assert.throws(() => buildKJModificationCommand('polyline-delete', {
+    ids: [first.id], values: { vertexIndex: 0.5 }, points: [],
+  }), /must be an integer/)
+  assert.throws(() => buildKJModificationCommand('polyline-arc', {
+    ids: [first.id], values: { segmentIndex: 0, sweepDegrees: 360 }, points: [],
+  }), /at most 359\.999999/)
 
   const impossible = buildKJModificationCommand('fillet', {
     ids: [first.id, parallel.id], values: { radius: 2 }, points: [[8, 0], [8, 5]],
@@ -313,6 +364,21 @@ test('invalid form values and impossible geometry do not mutate the drawing', as
   await assert.rejects(sdk.executeCommand(impossible.command, impossible.arguments), KJValidationError)
   assert.equal(drawing.revision, revision)
   assert.equal(drawing.serialize(), before)
+})
+
+test('polyline edit controls accept only one LWPOLYLINE or POLYLINE', () => {
+  for (const id of ['polyline-insert', 'polyline-delete', 'polyline-arc']) {
+    const definition = getKJModificationDefinition(id)
+    assert.equal(definition.command, 'PEDIT')
+    assert.deepEqual(definition.supportedEntityTypes, ['LWPOLYLINE', 'POLYLINE'])
+    assert.doesNotThrow(() => validateKJModificationSelection(definition, [{ id: 'lw', type: 'LWPOLYLINE' }]))
+    assert.doesNotThrow(() => validateKJModificationSelection(definition, [{ id: 'p3', type: 'POLYLINE' }]))
+    assert.throws(() => validateKJModificationSelection(definition, [{ id: 'line', type: 'LINE' }]), /supports LWPOLYLINE, POLYLINE/)
+    assert.throws(() => validateKJModificationSelection(definition, [
+      { id: 'lw', type: 'LWPOLYLINE' },
+      { id: 'p3', type: 'POLYLINE' },
+    ]), /accepts at most 1/)
+  }
 })
 
 test('array controls reject aggregate entity counts before creating any copies', async () => {

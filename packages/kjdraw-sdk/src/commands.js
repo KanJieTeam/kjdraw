@@ -8,7 +8,7 @@ import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js';
 import { KJ_SNAP_MODES } from './snapping.js';
-import { breakEntityPayloads, chamferLinePair, explodeEntity, extendEntityPayload, filletLinePair, joinEntityPayloads, lengthenEntityPayload, offsetEntityPayload, stretchEntityPayload, trimEntityPayloads } from './editing.js';
+import { breakEntityPayloads, chamferLinePair, editPolylinePayload, explodeEntity, extendEntityPayload, filletLinePair, joinEntityPayloads, lengthenEntityPayload, offsetEntityPayload, stretchEntityPayload, trimEntityPayloads } from './editing.js';
 const AFFINE_ENTITY_TYPES = Object.freeze([
     'LINE',
     'RAY',
@@ -236,6 +236,20 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         ],
         selection: 'crossing-window',
         maximumEntities: 4096,
+        stableIdentity: true
+    },
+    PEDIT: {
+        domain: 'topology',
+        precision: 'exact',
+        supportedEntityTypes: [
+            'LWPOLYLINE',
+            'POLYLINE'
+        ],
+        operations: [
+            'INSERT',
+            'DELETE',
+            'SET_BULGE'
+        ],
         stableIdentity: true
     },
     CHAMFER: {
@@ -1566,6 +1580,22 @@ export function registerCoreCommands(registry) {
             return updates.map((value)=>transaction.updateObject(value.entity.id, {
                     payload: value.payload
                 }));
+        }
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'PEDIT',
+        aliases: [
+            'PE',
+            'POLYLINEEDIT'
+        ],
+        title: 'Edit polyline topology',
+        execute: ({ document, transaction }, args)=>{
+            const entity = requiredEntity(document, args.id);
+            return transaction.updateObject(entity.id, {
+                payload: editPolylinePayload(entity, args)
+            });
         }
     }, {
         owner: '@kanjieteam/kjdraw'
