@@ -50,4 +50,4 @@ export declare function createDesignRelations(document: KJDocument, tx: KJTransa
 /** Atomically update parameters and all bound geometry. Manual geometry drift is a conflict. */
 export declare function updateDesignRelations(document: KJDocument, tx: KJTransaction, id: string, changes: unknown): KJObjectRecord;
 /** Read persisted design parameters, evaluated dependencies and explicit geometry conflict IDs. */
-export declare function readDesignRelations(document: KJDocument): KJDesignRelationView[];
+export declare function readDesignRelations(document: KJDocument, ids?: readonly string[]): KJDesignRelationView[];

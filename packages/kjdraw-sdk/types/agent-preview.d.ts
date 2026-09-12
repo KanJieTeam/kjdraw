@@ -1,6 +1,7 @@
 import type { KJDocument } from './document.js';
-import type { KJObjectPayload } from './schema.js';
+import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js';
 import { type ReadonlyDeep } from './utils.js';
+import { type KJDesignDefinition } from './design-relations.js';
 import { type KJAgentBlockPreviewDependency } from './agent-preview-blocks.js';
 export type { KJAgentBlockPreviewDependency } from './agent-preview-blocks.js';
 export interface KJAgentPreviewEntity {
@@ -20,7 +21,13 @@ export interface KJAgentGeometryPreview {
     readonly resources?: readonly KJAgentPreviewResource[];
     /** Existing block definitions, descendant geometry and styles, captured at revision. */
     readonly blockDependencies?: readonly KJAgentBlockPreviewDependency[];
-    readonly command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'ROAD_DRAWING_UPDATE';
+    readonly designChange?: {
+        readonly id: string;
+        readonly before: ReadonlyDeep<KJDesignDefinition>;
+        readonly after: ReadonlyDeep<KJDesignDefinition>;
+        readonly record: KJReadonlyObjectRecord;
+    };
+    readonly command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNUPDATE' | 'ROAD_DRAWING_UPDATE';
     readonly before: readonly KJAgentPreviewEntity[];
     readonly after: readonly KJAgentPreviewEntity[];
 }
@@ -30,5 +37,5 @@ export interface KJAgentGeometryPreviewOptions {
     maxCreatedEntities?: number;
 }
 /** Run bounded core geometry on a detached document. No host plugins, authority, network or source history is invoked. */
-export declare function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT', args: Record<string, unknown>, options?: KJAgentGeometryPreviewOptions): Promise<KJAgentGeometryPreview>;
+export declare function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNUPDATE', args: Record<string, unknown>, options?: KJAgentGeometryPreviewOptions): Promise<KJAgentGeometryPreview>;
 export declare function agentPreviewMatchesDocument(document: KJDocument, preview: KJAgentGeometryPreview): boolean;
