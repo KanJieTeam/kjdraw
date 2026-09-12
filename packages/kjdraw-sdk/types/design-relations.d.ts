@@ -46,7 +46,7 @@ export interface KJDesignRelationView {
     driftedEntityIds: string[];
 }
 /** Persist a relation over already-correct native geometry. It never creates replacement entities. */
-export declare function createDesignRelations(document: KJDocument, tx: KJTransaction, name: string, input: unknown): KJObjectRecord;
+export declare function createDesignRelations(document: KJDocument, tx: KJTransaction, name: string, input: unknown, id?: string): KJObjectRecord;
 /** Atomically update parameters and all bound geometry. Manual geometry drift is a conflict. */
 export declare function updateDesignRelations(document: KJDocument, tx: KJTransaction, id: string, changes: unknown): KJObjectRecord;
 /** Read persisted design parameters, evaluated dependencies and explicit geometry conflict IDs. */
