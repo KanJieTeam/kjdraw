@@ -8,7 +8,7 @@ import { prepareChatRoadAsset } from './chat-road-asset.js'
 // This workbench exposes general geometry and annotated creation tools; SDK callers and locked capability packs keep their own policies.
 export const KJDRAW_CHAT_TOOL_NAMES = Object.freeze([
   'cad_read_drawing', 'cad_read_page', 'cad_query_drawing', 'cad_read_layouts',
-  'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated',
+  'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_stretch', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated',
 ])
 const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES, 'cad_propose_road_drawing'])
 const roadRevisionToolNames = Object.freeze([...meterToolNames, 'cad_propose_road_revision'])

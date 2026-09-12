@@ -591,6 +591,20 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         })
     },
     {
+        name: 'cad_propose_stretch',
+        effect: 'propose',
+        description: 'Propose an exact crossing-window STRETCH of selected LINE/LWPOLYLINE/ordinary 2D POLYLINE geometry. Supply 1–64 exact IDs, two opposite crossing-window corners and a nonzero dx/dy displacement in drawing units. Only defining vertices inside or on the window move; Z, bulges, widths, styles, stable IDs and memberships are preserved. Moving one endpoint changes adjacent arc shapes; dimensions and design relationships are not automatically updated. Geometry requires the default +Z plane without thickness. Hidden, locked, paper-space, fitted, 3D, mesh, polyface, empty-hit and out-of-budget results are rejected. Returns complete before/after native geometry without editing; host approval commits one undoable STRETCH transaction.',
+        inputSchema: object({
+            expectedRevision: revision,
+            units: text,
+            ids: collection(text),
+            crossingStart: point,
+            crossingEnd: point,
+            dx: number,
+            dy: number
+        })
+    },
+    {
         name: 'cad_propose_polyline_edit',
         effect: 'propose',
         description: 'Propose one exact topology edit to a visible editable model-space LWPOLYLINE or ordinary 2D POLYLINE by ID. INSERT requires segmentIndex and point={x,y}; optional tolerance permits snapping to that straight or bulge-arc segment and splits the original curve and widths exactly. DELETE requires vertexIndex and refuses curve-adjacent deletion that would silently change shape. SET_BULGE requires segmentIndex and exactly one of signed bulge or sweepDegrees (-360,360), where 0 makes the segment straight. Special 3D, mesh, polyface and fitted POLYLINE data are rejected. Returns the complete before/after entity without editing; host approval commits one undoable PEDIT transaction with stable entity identity.',
@@ -1278,6 +1292,27 @@ export class KJAgentToolSession {
                                     }
                                 };
                             }
+                        } else if (name === 'cad_propose_stretch') {
+                            const ids = args.ids;
+                            if (new Set(ids).size !== ids.length) throw new KJValidationError('Object IDs must be unique');
+                            const context = createDrawingContext(document, {
+                                ids,
+                                limit: 64,
+                                maxBytes: 262144
+                            });
+                            if (context.entities.length !== ids.length || context.entities.some((entity)=>!entity.editable || ![
+                                    'LINE',
+                                    'LWPOLYLINE',
+                                    'POLYLINE'
+                                ].includes(entity.type))) throw new KJValidationError('STRETCH requires visible editable model-space LINE/LWPOLYLINE/POLYLINE objects');
+                            command = 'STRETCH';
+                            commandArgs = {
+                                ids,
+                                crossingStart: xy(args.crossingStart).slice(0, 2),
+                                crossingEnd: xy(args.crossingEnd).slice(0, 2),
+                                dx: args.dx,
+                                dy: args.dy
+                            };
                         } else {
                             const ids = args.ids;
                             if (new Set(ids).size !== ids.length) throw new KJValidationError('Object IDs must be unique');

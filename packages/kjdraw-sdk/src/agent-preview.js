@@ -29,6 +29,11 @@ const creatable = [
     'TEXT',
     'DIMENSION'
 ];
+const stretchable = [
+    'LINE',
+    'LWPOLYLINE',
+    'POLYLINE'
+];
 function validateMovableAnnotation(document, entity) {
     if (entity.type !== 'TEXT' && entity.type !== 'DIMENSION') return;
     const payload = entity.payload;
@@ -165,16 +170,49 @@ function validatePolylineEditArguments(document, args) {
     const chord = Math.hypot(Number(b[0]) - Number(a[0]), Number(b[1]) - Number(a[1]));
     if (Number.isFinite(chord) && args.tolerance > Math.max(1e-9, chord * 1e-6)) throw new KJValidationError('PEDIT preview tolerance exceeds one millionth of the selected segment length');
 }
+function validateStretchArguments(args) {
+    if (Object.keys(args).some((key)=>![
+            'ids',
+            'crossingStart',
+            'crossingEnd',
+            'dx',
+            'dy'
+        ].includes(key))) throw new KJValidationError('Unexpected STRETCH preview argument');
+    const point = (value)=>Array.isArray(value) && value.length === 2 && value.every((item)=>typeof item === 'number' && Number.isFinite(item) && Math.abs(item) <= 1e12);
+    if (!point(args.crossingStart) || !point(args.crossingEnd)) throw new KJValidationError('STRETCH preview requires two bounded XY crossing-window corners');
+    if (args.crossingStart[0] === args.crossingEnd[0] || args.crossingStart[1] === args.crossingEnd[1]) throw new KJValidationError('STRETCH crossing window must have positive width and height');
+    if (typeof args.dx !== 'number' || typeof args.dy !== 'number' || !Number.isFinite(args.dx) || !Number.isFinite(args.dy) || Math.abs(args.dx) > 1e12 || Math.abs(args.dy) > 1e12 || args.dx === 0 && args.dy === 0) throw new KJValidationError('STRETCH preview requires a bounded nonzero XY displacement');
+}
+function validateStretchGeometry(document, entity) {
+    const layer = document.getObject(String(entity.payload.layerId ?? ''));
+    if (entity.ownerId !== document.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new KJValidationError('STRETCH preview requires visible editable model-space geometry');
+    for (const key of [
+        'normal',
+        'extrusionDirection'
+    ]){
+        const normal = entity.payload[key];
+        if (normal != null && (!Array.isArray(normal) || normal.length !== 3 || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) throw new KJValidationError('STRETCH preview requires default +Z geometry');
+    }
+    if (entity.payload.thickness != null && entity.payload.thickness !== 0) throw new KJValidationError('STRETCH preview does not support thickness');
+    if (entity.type === 'POLYLINE' && (Number(entity.payload.flags ?? 0) & 126) !== 0) throw new KJValidationError('STRETCH preview rejects fitted, 3D, mesh and polyface POLYLINE data');
+    const points = entity.type === 'LINE' ? [
+        entity.payload.start,
+        entity.payload.end
+    ] : Array.isArray(entity.payload.vertices) ? entity.payload.vertices.map((vertex)=>vertex.point ?? vertex) : [];
+    if (points.length < 2 || points.length > 4096 || points.some((value)=>!Array.isArray(value) || value.length !== 3 || value.some((coordinate)=>typeof coordinate !== 'number' || !Number.isFinite(coordinate) || Math.abs(coordinate) > 1e12))) throw new KJValidationError('STRETCH preview requires 2–4096 finite vertices within ±1e12');
+}
 export async function createAgentGeometryPreview(document, command, args, options = {}) {
     if (![
         'CREATEBATCH',
         'MOVE',
         'ROTATE',
         'SCALE',
+        'STRETCH',
         'PEDIT'
-    ].includes(command)) throw new KJValidationError('This preview supports only CREATEBATCH, MOVE, ROTATE, SCALE and PEDIT');
+    ].includes(command)) throw new KJValidationError('This preview supports only CREATEBATCH, MOVE, ROTATE, SCALE, STRETCH and PEDIT');
     const affine = command === 'ROTATE' || command === 'SCALE';
     if (affine) validateTransformArguments(command, args);
+    if (command === 'STRETCH') validateStretchArguments(args);
     const maxCreatedEntities = options.maxCreatedEntities ?? 64;
     if (!Number.isSafeInteger(maxCreatedEntities) || maxCreatedEntities < 1 || maxCreatedEntities > 512) throw new KJValidationError('Preview creation budget must be an integer from 1 to 512');
     if (command === 'CREATEBATCH') {
@@ -192,6 +230,10 @@ export async function createAgentGeometryPreview(document, command, args, option
             const entity = document.getObject(args.id), layer = document.getObject(String(entity.payload.layerId ?? ''));
             if (entity.ownerId !== document.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new KJValidationError('PEDIT preview requires one visible editable model-space polyline');
             validatePolylineEditArguments(document, args);
+        } else if (command === 'STRETCH') {
+            if (ids.some((id)=>typeof id !== 'string') || new Set(ids).size !== ids.length) throw new KJValidationError('STRETCH object IDs must be unique strings');
+            if (ids.some((id)=>!stretchable.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`STRETCH preview requires 1–64 ${stretchable.join('/')} entities`);
+            for (const id of ids)validateStretchGeometry(document, document.getObject(String(id)));
         } else {
             if (ids.some((id)=>!KJDRAW_AGENT_MOVABLE_TYPES.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`Preview movement requires 1–64 ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} entities`);
             for (const id of ids)validateMovableAnnotation(document, document.getObject(String(id)));
@@ -241,9 +283,9 @@ export async function createAgentGeometryPreview(document, command, args, option
             if (previous) before.push(project(previous));
             if (command === 'MOVE') validateMovableAnnotation(draft, entity);
             if (affine) validateTransformGeometry(draft, entity);
-            if (command === 'PEDIT') {
+            if (command === 'PEDIT' || command === 'STRETCH') {
                 const bounds = displayedEntityBounds(draft, entity);
-                if (!bounds || bounds.some((value)=>!Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError('PEDIT preview result exceeds the finite ±1e12 display budget');
+                if (!bounds || bounds.some((value)=>!Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError(`${command} preview result exceeds the finite ±1e12 display budget`);
             }
             after.push(project(entity));
         }
@@ -251,6 +293,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     }
     for (const entity of old.values())before.push(project(entity));
     if (affine && !after.length) throw new KJValidationError('Transform would leave the selected geometry unchanged');
+    if (command === 'STRETCH' && !after.length) throw new KJValidationError('STRETCH would leave the selected geometry unchanged');
     if (command === 'PEDIT' && !after.length) throw new KJValidationError('Polyline edit would leave the selected geometry unchanged');
     if (before.length > 64 || after.length > (command === 'CREATEBATCH' ? maxCreatedEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit');
     const resources = draft.listObjects({
