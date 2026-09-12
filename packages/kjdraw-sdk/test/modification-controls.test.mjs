@@ -5,7 +5,9 @@ import {
   KJ_MODIFICATION_DEFINITIONS,
   KJ_MODIFICATION_IDS,
   buildKJModificationCommand,
+  getKJInteractiveModificationDefinition,
   getKJModificationDefinition,
+  parseKJModificationCommandValues,
   validateKJModificationSelection,
 } from '../src/modification-controls.js'
 
@@ -248,6 +250,27 @@ test('all 18 modification controls build exact arguments accepted by the real SD
       assert.equal(fixture.drawing.validate().valid, true)
     })
   }
+})
+
+test('interactive command aliases use the same validated dialog values in both editors', () => {
+  const cases = [
+    ['MI', 'mirror', ['ERASE'], { eraseSource: true }],
+    ['ARRAYRECTANGULAR', 'array-rect', ['2', '3', '7.5', '11'], { rows: 2, columns: 3, rowSpacing: 7.5, columnSpacing: 11 }],
+    ['POLARARRAY', 'array-polar', ['8', '180', 'STATIC'], { count: 8, angleDegrees: 180, rotateItems: false }],
+    ['O', 'offset', ['2.5'], { distance: 2.5 }],
+    ['CHA', 'chamfer', ['2', '3'], { distance1: 2, distance2: 3 }],
+    ['F', 'fillet', ['4'], { radius: 4 }],
+  ]
+  for (const [command, id, tokens, expected] of cases) {
+    const definition = getKJInteractiveModificationDefinition(command)
+    assert.equal(definition?.id, id)
+    assert.deepEqual(parseKJModificationCommandValues(id, tokens), expected)
+  }
+  assert.equal(getKJInteractiveModificationDefinition('rotate'), null)
+  assert.throws(() => parseKJModificationCommandValues('array-rect', ['2.5']), /must be an integer/)
+  assert.throws(() => parseKJModificationCommandValues('fillet', ['0']), /at least/)
+  assert.throws(() => parseKJModificationCommandValues('offset', ['2', 'extra']), /at most 1/)
+  assert.throws(() => parseKJModificationCommandValues('mirror', ['maybe'], 'zh'), /必须为 true 或 false/)
 })
 
 test('mirror, arrays, trim and fillet produce real geometry and undo atomically', async t => {

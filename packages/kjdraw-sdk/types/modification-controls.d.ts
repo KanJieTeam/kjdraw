@@ -51,6 +51,10 @@ export declare function getKJModificationSelectionCenter(entities: readonly {
     readonly payload: Readonly<Record<string, unknown>>;
 }[]): KJModificationPoint;
 export declare function getKJModificationDefinition(id: KJModificationId): KJModificationDefinition;
+/** Resolve modification commands that require the parameter dialog and/or ordered canvas picks. */
+export declare function getKJInteractiveModificationDefinition(command: string): KJModificationDefinition | null;
+/** Parse optional positional command parameters into the same values used by the modification dialog. */
+export declare function parseKJModificationCommandValues(id: KJModificationId, tokens: readonly string[], locale?: 'en' | 'zh'): Readonly<Record<string, number | boolean>>;
 /** Shared preflight used by hosted and embedded workbenches before collecting points. */
 export declare function validateKJModificationSelection(definition: KJModificationDefinition, entities: readonly ({
     readonly id: string;

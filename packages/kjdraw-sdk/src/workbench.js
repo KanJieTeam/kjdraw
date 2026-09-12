@@ -9,7 +9,7 @@ import { createIndustrySample } from './samples.js';
 import { KJDRAW_THEME_CSS, kjdrawIcon } from './theme.js';
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from './layout.js';
 import { createBoundaryEditSession } from './boundary-edit.js';
-import { KJ_MODIFICATION_DEFINITIONS, buildKJModificationCommand, getKJModificationDefinition, getKJModificationSelectionCenter, validateKJModificationSelection } from './modification-controls.js';
+import { KJ_MODIFICATION_DEFINITIONS, buildKJModificationCommand, getKJInteractiveModificationDefinition, getKJModificationDefinition, getKJModificationSelectionCenter, parseKJModificationCommandValues, validateKJModificationSelection } from './modification-controls.js';
 import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate } from './drafting.js';
 const copy = {
     en: {
@@ -2185,6 +2185,12 @@ export class KJDrawWorkbench {
                 });
                 return;
             }
+            const interactiveModification = getKJInteractiveModificationDefinition(command);
+            if (interactiveModification) {
+                const preset = parseKJModificationCommandValues(interactiveModification.id, tokens, this.#locale === 'zh-CN' ? 'zh' : 'en');
+                this.#openModificationDialog(interactiveModification.id, preset);
+                return;
+            }
             if (command === 'RO' || command === 'ROTATE') {
                 const [angleDegrees] = finiteValues(1);
                 const ids = selectedIds();
@@ -2202,16 +2208,6 @@ export class KJDrawWorkbench {
                     ids,
                     factor,
                     center: this.#selectionCenter(ids)
-                });
-                return;
-            }
-            if (command === 'O' || command === 'OFFSET') {
-                const [distance] = finiteValues(1);
-                const ids = selectedIds();
-                if (ids.length !== 1) throw new Error('OFFSET requires exactly one selected entity');
-                await this.execute('OFFSET', {
-                    id: ids[0],
-                    distance
                 });
                 return;
             }
@@ -2999,7 +2995,7 @@ export class KJDrawWorkbench {
         submit.dataset.copy = copyKey;
         submit.textContent = this.#t(copyKey);
     }
-    #openModificationDialog(id) {
+    #openModificationDialog(id, preset = {}) {
         if (this.#readOnly) {
             this.#setMessage(this.#t('readonly'));
             return;
@@ -3009,6 +3005,12 @@ export class KJDrawWorkbench {
         if (id) select.value = id;
         query(this.root, '[data-modification-fields]').replaceChildren();
         this.#renderModificationForm();
+        for (const [key, value] of Object.entries(preset)){
+            const input = this.root.querySelector(`[data-modification-field="${key}"]`);
+            if (!input) continue;
+            if (input.type === 'checkbox') input.checked = Boolean(value);
+            else input.value = String(value);
+        }
         const dialog = query(this.root, '[data-modification-dialog]');
         if (!dialog.open) dialog.showModal();
     }

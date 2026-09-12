@@ -1,4 +1,18 @@
 // Generated from modification-controls.ts by scripts/build-typescript.mjs. Do not edit directly.
+const commandModificationIds = Object.freeze({
+    MIRROR: 'mirror',
+    MI: 'mirror',
+    ARRAYRECT: 'array-rect',
+    ARRAYRECTANGULAR: 'array-rect',
+    ARRAYPOLAR: 'array-polar',
+    POLARARRAY: 'array-polar',
+    OFFSET: 'offset',
+    O: 'offset',
+    CHAMFER: 'chamfer',
+    CHA: 'chamfer',
+    FILLET: 'fillet',
+    F: 'fillet'
+});
 const text = (en, zh)=>Object.freeze({
         en,
         zh
@@ -483,6 +497,54 @@ export function getKJModificationDefinition(id) {
     const definition = definitionById.get(id);
     if (!definition) throw new RangeError(`Unsupported KJDraw modification: ${String(id)}`);
     return definition;
+}
+export function getKJInteractiveModificationDefinition(command) {
+    const id = commandModificationIds[String(command).trim().toUpperCase()];
+    return id ? getKJModificationDefinition(id) : null;
+}
+export function parseKJModificationCommandValues(id, tokens, locale = 'en') {
+    const definition = getKJModificationDefinition(id);
+    const fail = (en, zh)=>{
+        throw new RangeError(locale === 'zh' ? zh : en);
+    };
+    if (tokens.length > definition.fields.length) {
+        fail(`${definition.command} accepts at most ${definition.fields.length} parameter values`, `${definition.label.zh}最多接受 ${definition.fields.length} 个参数值`);
+    }
+    const source = {};
+    for (const [index, token] of tokens.entries()){
+        const field = definition.fields[index];
+        if (field.type === 'boolean') {
+            const normalized = token.trim().toUpperCase();
+            const truthy = [
+                '1',
+                'TRUE',
+                'YES',
+                'ON',
+                'ERASE',
+                'ROTATE'
+            ];
+            const falsy = [
+                '0',
+                'FALSE',
+                'NO',
+                'OFF',
+                'KEEP',
+                'STATIC'
+            ];
+            if (!truthy.includes(normalized) && !falsy.includes(normalized)) {
+                fail(`${field.label.en} must be true or false`, `${field.label.zh}必须为 true 或 false`);
+            }
+            source[field.key] = truthy.includes(normalized);
+        } else {
+            const value = Number(token);
+            if (!Number.isFinite(value)) fail(`${field.label.en} must be a finite number`, `${field.label.zh}必须是有限数值`);
+            if (field.type === 'integer' && !Number.isInteger(value)) fail(`${field.label.en} must be an integer`, `${field.label.zh}必须是整数`);
+            if (field.min !== undefined && value < field.min) fail(`${field.label.en} must be at least ${field.min}`, `${field.label.zh}必须至少为 ${field.min}`);
+            if (field.max !== undefined && value > field.max) fail(`${field.label.en} must be at most ${field.max}`, `${field.label.zh}不能超过 ${field.max}`);
+            source[field.key] = value;
+        }
+    }
+    return Object.freeze(normalizedValues(definition, source));
 }
 export function validateKJModificationSelection(definition, entities, locale = 'en') {
     const fail = (en, zh)=>{

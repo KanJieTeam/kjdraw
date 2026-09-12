@@ -6,7 +6,7 @@ import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from '../../packages/kjdraw-
 import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate } from '../../packages/kjdraw-sdk/src/drafting.js'
 import { editEntityGrip } from '../../packages/kjdraw-sdk/src/grips.js'
 import { createBoundaryEditSession } from '../../packages/kjdraw-sdk/src/boundary-edit.js'
-import { KJ_MODIFICATION_DEFINITIONS, getKJModificationDefinition, buildKJModificationCommand, getKJModificationSelectionCenter, validateKJModificationSelection } from '../../packages/kjdraw-sdk/src/modification-controls.js'
+import { KJ_MODIFICATION_DEFINITIONS, getKJInteractiveModificationDefinition, getKJModificationDefinition, buildKJModificationCommand, getKJModificationSelectionCenter, parseKJModificationCommandValues, validateKJModificationSelection } from '../../packages/kjdraw-sdk/src/modification-controls.js'
 import { createSample } from '../../examples/sample.js'
 import { createI18n } from './i18n.js'
 import { createOutputControls } from './output-controls.js'
@@ -473,7 +473,7 @@ async function applyBoundaryTarget(location){
   if(boundaryEdit!==task)return
   delete workbench.dataset.lastError;replaceSelection(task.session.state.boundaryIds);refresh();updateBoundaryEditHint()
 }
-async function beginModification(id,{boundaryMode='choose'}={}){
+async function beginModification(id,{boundaryMode='choose',presetValues={}}={}){
   const definition=getKJModificationDefinition(id),ids=selectedIds(),drawing=doc(),locale=i18n.locale==='zh'?'zh':'en'
   if(id==='trim'||id==='extend'){
     let mode=boundaryMode
@@ -487,7 +487,7 @@ async function beginModification(id,{boundaryMode='choose'}={}){
   validateKJModificationSelection(definition,ids.map(id=>drawing.getObject(id)),locale)
   const bound={documentId:drawing.id,revision:drawing.revision,ids,selectionCenter:getKJModificationSelectionCenter(ids.map(id=>drawing.getObject(id)))}
   let values={}
-  if(definition.fields.length){values=await requestLocalCommand({title:definition.label[locale],description:definition.description[locale],fields:definition.fields.map(field=>({name:field.key,label:field.label[locale],type:field.type==='boolean'?'checkbox':'number',value:field.default,min:field.min,max:field.max,step:field.type==='integer'?1:field.step??'any',required:field.type!=='boolean'}))});if(!values)return}
+  if(definition.fields.length){values=await requestLocalCommand({title:definition.label[locale],description:definition.description[locale],fields:definition.fields.map(field=>({name:field.key,label:field.label[locale],type:field.type==='boolean'?'checkbox':'number',value:presetValues[field.key]??field.default,min:field.min,max:field.max,step:field.type==='integer'?1:field.step??'any',required:field.type!=='boolean'}))});if(!values)return}
   if(!translationValid(bound))throw new Error(t('drawingChanged'))
   setTool('select');modification={...bound,definition,values,points:[]};canvas.style.cursor='crosshair'
   if(!definition.pointKeys.length)await commitModification()
@@ -535,14 +535,15 @@ async function runTypedCommand(){
     if(drawCommand.startsWith('DIM'))$('dimension-type').value=({DIMALIGNED:'ALIGNED',DIMLINEAR:'ROTATED',DIMRADIUS:'RADIUS',DIMDIAMETER:'DIAMETER',DIMANGULAR:'ANGULAR_3_POINT',DIMANGULAR3P:'ANGULAR_3_POINT'})[drawCommand]
     $('command-input').value='';setTool(drawCommands[drawCommand]);return
   }
-  const modificationDefinition=KJ_MODIFICATION_DEFINITIONS.find(definition=>definition.command===drawCommand)
-  if(modificationDefinition){$('command-input').value='';await beginModification(modificationDefinition.id);return}
   const [name,...values]=raw.split(/[\s,]+/),command=({M:'MOVE',CO:'COPY',CP:'COPY'})[name.toUpperCase()]??name.toUpperCase();$('command-input').value=''
+  const interactiveModification=getKJInteractiveModificationDefinition(command)
+  if(interactiveModification){const presetValues=parseKJModificationCommandValues(interactiveModification.id,values,i18n.locale==='zh'?'zh':'en');await beginModification(interactiveModification.id,{presetValues});return}
+  const modificationDefinition=KJ_MODIFICATION_DEFINITIONS.find(definition=>definition.command===command)
+  if(modificationDefinition){await beginModification(modificationDefinition.id);return}
   if((command==='MOVE'||command==='COPY')&&!values.length){setTool(command.toLowerCase());canvas.focus();return}
   if(command==='FIT'){fit();message('View fitted');return}if(command==='UNDO'||command==='REDO'){await execute(command);return}
   if(command==='MOVE'||command==='COPY'){requireSelection();if(values.length!==2||values.some(value=>!Number.isFinite(Number(value))))throw new Error(t('translationNumbers'));const [dx,dy]=values.map(Number);const result=(await execute(command,{ids:selectedIds(),dx,dy})).result;if(command==='COPY'&&Array.isArray(result))replaceSelection(result.map(row=>row.id).filter(Boolean));setTool('select');refresh();return}
   if(command==='ROTATE'){requireSelection();await execute(command,{ids:selectedIds(),angle:Number(values[0]??0)*Math.PI/180,center:[0,0]});return}
-  if(command==='OFFSET'){const result=(await execute(command,{id:requireSelection().id,distance:Number(values[0]??1)})).result;if(result?.id)replaceSelection([result.id]);setTool('select');refresh();return}
   if(command==='ERASE'||command==='DELETE'){requireSelection();await execute('ERASE',{ids:selectedIds()});return}
   if(command==='LENGTH'||command==='AREA'){await query(command,{ids:[requireSelection().id]});return}
   throw new Error(`${i18n.locale==='zh'?'未知命令。绘图和修改菜单列出可用工具；也可输入':'Unknown command. Use the Drawing / Modification menus, or type'} LINE, PLINE, CIRCLE, ARC, ELLIPSE, POLYGON, SPLINE, HATCH, DIMALIGNED, MOVE, COPY, ARRAYPOLAR, TRIM, FILLET, UNDO, FIT.`)

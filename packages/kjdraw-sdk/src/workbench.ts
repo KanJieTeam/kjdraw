@@ -16,8 +16,10 @@ import { createBoundaryEditSession, type KJBoundaryEditSession } from './boundar
 import {
   KJ_MODIFICATION_DEFINITIONS,
   buildKJModificationCommand,
+  getKJInteractiveModificationDefinition,
   getKJModificationDefinition,
   getKJModificationSelectionCenter,
+  parseKJModificationCommandValues,
   validateKJModificationSelection,
   type KJLocalizedControlText,
   type KJModificationDefinition,
@@ -1226,6 +1228,12 @@ export class KJDrawWorkbench {
         await this.execute(command === 'M' || command === 'MOVE' ? 'MOVE' : 'COPY', { ids: selectedIds(), dx, dy })
         return
       }
+      const interactiveModification = getKJInteractiveModificationDefinition(command)
+      if (interactiveModification) {
+        const preset = parseKJModificationCommandValues(interactiveModification.id, tokens, this.#locale === 'zh-CN' ? 'zh' : 'en')
+        this.#openModificationDialog(interactiveModification.id, preset)
+        return
+      }
       if (command === 'RO' || command === 'ROTATE') {
         const [angleDegrees] = finiteValues(1)
         const ids = selectedIds()
@@ -1236,13 +1244,6 @@ export class KJDrawWorkbench {
         const [factor] = finiteValues(1)
         const ids = selectedIds()
         await this.execute('SCALE', { ids, factor, center: this.#selectionCenter(ids) })
-        return
-      }
-      if (command === 'O' || command === 'OFFSET') {
-        const [distance] = finiteValues(1)
-        const ids = selectedIds()
-        if (ids.length !== 1) throw new Error('OFFSET requires exactly one selected entity')
-        await this.execute('OFFSET', { id: ids[0]!, distance })
         return
       }
       if (!remainder) { await this.execute(command); return }
@@ -1662,13 +1663,19 @@ export class KJDrawWorkbench {
     submit.textContent = this.#t(copyKey)
   }
 
-  #openModificationDialog(id?: KJModificationId): void {
+  #openModificationDialog(id?: KJModificationId, preset: Readonly<Record<string, number | boolean>> = {}): void {
     if (this.#readOnly) { this.#setMessage(this.#t('readonly')); return }
     this.setTool('select')
     const select = query<HTMLSelectElement>(this.root, '[data-modification]')
     if (id) select.value = id
     query<HTMLElement>(this.root, '[data-modification-fields]').replaceChildren()
     this.#renderModificationForm()
+    for (const [key, value] of Object.entries(preset)) {
+      const input = this.root.querySelector<HTMLInputElement>(`[data-modification-field="${key}"]`)
+      if (!input) continue
+      if (input.type === 'checkbox') input.checked = Boolean(value)
+      else input.value = String(value)
+    }
     const dialog = query<HTMLDialogElement>(this.root, '[data-modification-dialog]')
     if (!dialog.open) dialog.showModal()
   }
