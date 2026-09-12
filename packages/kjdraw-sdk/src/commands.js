@@ -8,7 +8,7 @@ import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js';
 import { KJ_SNAP_MODES } from './snapping.js';
-import { breakEntityPayloads, chamferLinePair, explodeEntity, extendEntityPayload, filletLinePair, joinEntityPayloads, lengthenEntityPayload, offsetEntityPayload, trimEntityPayloads } from './editing.js';
+import { breakEntityPayloads, chamferLinePair, explodeEntity, extendEntityPayload, filletLinePair, joinEntityPayloads, lengthenEntityPayload, offsetEntityPayload, stretchEntityPayload, trimEntityPayloads } from './editing.js';
 const AFFINE_ENTITY_TYPES = Object.freeze([
     'LINE',
     'RAY',
@@ -224,6 +224,18 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'PERCENT',
             'DYNAMIC'
         ],
+        stableIdentity: true
+    },
+    STRETCH: {
+        domain: 'topology',
+        precision: 'exact',
+        supportedEntityTypes: [
+            'LINE',
+            'LWPOLYLINE',
+            'POLYLINE'
+        ],
+        selection: 'crossing-window',
+        maximumEntities: 4096,
         stableIdentity: true
     },
     CHAMFER: {
@@ -1522,6 +1534,30 @@ export function registerCoreCommands(registry) {
             return transaction.updateObject(entity.id, {
                 payload: lengthenEntityPayload(entity, args)
             });
+        }
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'STRETCH',
+        aliases: [
+            'S'
+        ],
+        title: 'Stretch vertices',
+        execute: ({ document, transaction }, args)=>{
+            const ids = entityIds(args);
+            if (ids.length > 4096) throw new KJValidationError('STRETCH supports at most 4096 entities per operation');
+            const updates = ids.map((id)=>{
+                const entity = requiredEntity(document, id);
+                return {
+                    entity,
+                    payload: stretchEntityPayload(entity, args)
+                };
+            }).filter((value)=>value.payload != null);
+            if (!updates.length) throw new KJValidationError('STRETCH crossing window contains no editable vertices');
+            return updates.map((value)=>transaction.updateObject(value.entity.id, {
+                    payload: value.payload
+                }));
         }
     }, {
         owner: '@kanjieteam/kjdraw'

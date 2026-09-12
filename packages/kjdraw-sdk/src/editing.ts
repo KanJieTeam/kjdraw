@@ -104,6 +104,17 @@ export interface KJLengthenOptions {
   readonly point?: unknown
 }
 
+export interface KJStretchOptions {
+  readonly crossingStart?: unknown
+  readonly crossingEnd?: unknown
+  readonly firstPoint?: unknown
+  readonly secondPoint?: unknown
+  readonly from?: unknown
+  readonly to?: unknown
+  readonly dx?: unknown
+  readonly dy?: unknown
+}
+
 function pointInput(value: unknown): Point2Input {
   return value as Point2Input
 }
@@ -820,6 +831,49 @@ export function lengthenEntityPayload(target: KJEditingEntity | null | undefined
   return endpoint === 'end'
     ? circularResultPayload(geometry, 0, targetSpan)
     : circularResultPayload(geometry, geometry.span - targetSpan, geometry.span)
+}
+
+function stretchDefinition(options: KJStretchOptions): { min: Point2; max: Point2; dx: number; dy: number } {
+  const first = vec2(pointInput(options.crossingStart ?? options.firstPoint), 'crossingStart')
+  const second = vec2(pointInput(options.crossingEnd ?? options.secondPoint), 'crossingEnd')
+  if (first[0] === second[0] || first[1] === second[1]) throw new KJValidationError('Stretch crossing window must have positive width and height')
+  let dx: number, dy: number
+  if (options.from != null || options.to != null) {
+    if (options.from == null || options.to == null) throw new KJValidationError('Stretch displacement requires both from and to points')
+    const from = vec2(pointInput(options.from), 'from'), to = vec2(pointInput(options.to), 'to')
+    dx = to[0] - from[0]; dy = to[1] - from[1]
+  } else { dx = Number(options.dx ?? 0); dy = Number(options.dy ?? 0) }
+  if (!Number.isFinite(dx) || !Number.isFinite(dy)) throw new KJValidationError('Stretch displacement must be finite')
+  if (dx === 0 && dy === 0) throw new KJValidationError('Stretch displacement must be non-zero')
+  return { min: [Math.min(first[0], second[0]), Math.min(first[1], second[1])], max: [Math.max(first[0], second[0]), Math.max(first[1], second[1])], dx, dy }
+}
+
+function stretchPoint(value: unknown, definition: ReturnType<typeof stretchDefinition>): { point: Point3; affected: boolean } {
+  const point = finiteEditPoint(value), epsilon = 1e-12
+  const affected = point[0] >= definition.min[0] - epsilon && point[0] <= definition.max[0] + epsilon
+    && point[1] >= definition.min[1] - epsilon && point[1] <= definition.max[1] + epsilon
+  return { point: affected ? [point[0] + definition.dx, point[1] + definition.dy, point[2]] : point, affected }
+}
+
+/** Move only defining vertices inside a crossing window; return null when none are selected. */
+export function stretchEntityPayload(target: KJEditingEntity | null | undefined, options: KJStretchOptions = {}): KJObjectPayload | null {
+  const payload = payloadOf(target), type = normalizeName(target?.type), definition = stretchDefinition(options)
+  if (type === 'LINE') {
+    const start = stretchPoint(payload.start, definition), end = stretchPoint(payload.end, definition)
+    return start.affected || end.affected ? { ...payload, start: start.point, end: end.point } : null
+  }
+  if (type === 'LWPOLYLINE' || type === 'POLYLINE') {
+    const vertices = payload.vertices
+    if (!Array.isArray(vertices) || vertices.length < 2) throw new KJValidationError('Stretch requires a polyline with at least two vertices')
+    let affected = false
+    const next = vertices.map(vertex => {
+      const result = stretchPoint((vertex as { readonly point?: unknown }).point ?? vertex, definition)
+      affected ||= result.affected
+      return Array.isArray(vertex) ? result.point : { ...clone(vertex), point: result.point }
+    })
+    return affected ? { ...payload, vertices: next } : null
+  }
+  throw new KJValidationError(`Stretch is not implemented for ${type || 'unknown entity'}`)
 }
 
 interface SelectedRay {

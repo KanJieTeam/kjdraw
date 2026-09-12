@@ -13,6 +13,7 @@ export type KJModificationId =
   | 'trim'
   | 'extend'
   | 'lengthen'
+  | 'stretch'
   | 'chamfer'
   | 'fillet'
 
@@ -93,7 +94,7 @@ const pick = (key: string, en: string, zh: string): KJModificationPointDefinitio
 
 export const KJ_MODIFICATION_IDS = Object.freeze([
   'rotate', 'scale', 'mirror', 'array-rect', 'array-polar', 'offset',
-  'break', 'join', 'explode', 'trim', 'extend', 'lengthen', 'chamfer', 'fillet',
+  'break', 'join', 'explode', 'trim', 'extend', 'lengthen', 'stretch', 'chamfer', 'fillet',
 ] as const)
 
 export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = Object.freeze([
@@ -197,6 +198,14 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
     supportedEntityTypes: ['LINE', 'ARC'],
     fields: [number('value', 'Target length', '目标长度', 10, { min: Number.EPSILON, step: 0.1 })],
     pointKeys: [pick('pickPoint', 'Pick the endpoint to change', '选择要修改的端点')],
+  },
+  {
+    id: 'stretch', command: 'STRETCH', label: text('Stretch', '拉伸'),
+    description: text('Move selected vertices inside a crossing window.', '移动交叉窗口内的选中顶点。'),
+    minSelection: 1, maxSelection: 4096,
+    supportedEntityTypes: ['LINE', 'LWPOLYLINE', 'POLYLINE'],
+    fields: [number('dx', 'Horizontal displacement', '水平位移', 10, { step: 0.1 }), number('dy', 'Vertical displacement', '垂直位移', 0, { step: 0.1 })],
+    pointKeys: [pick('crossingStart', 'Pick the first crossing-window corner', '指定交叉窗口第一个角点'), pick('crossingEnd', 'Pick the opposite crossing-window corner', '指定交叉窗口对角点')],
   },
   {
     id: 'chamfer', command: 'CHAMFER', label: text('Chamfer lines', '直线倒角'),
@@ -321,6 +330,7 @@ export function buildKJModificationCommand(id: KJModificationId, context: KJModi
     case 'trim': return { command: definition.command, arguments: { id: ids[0]!, boundaryIds: ids.slice(1), pickPoint: points[0]! } }
     case 'extend': return { command: definition.command, arguments: { id: ids[0]!, boundaryIds: ids.slice(1), pickPoint: points[0]! } }
     case 'lengthen': return { command: definition.command, arguments: { id: ids[0]!, mode: 'TOTAL', ...values, pickPoint: points[0]! } }
+    case 'stretch': return { command: definition.command, arguments: { ids, ...values, crossingStart: points[0]!, crossingEnd: points[1]! } }
     case 'chamfer': return { command: definition.command, arguments: { firstId: ids[0]!, secondId: ids[1]!, ...values, pickPoint1: points[0]!, pickPoint2: points[1]! } }
     case 'fillet': return { command: definition.command, arguments: { firstId: ids[0]!, secondId: ids[1]!, ...values, pickPoint1: points[0]!, pickPoint2: points[1]! } }
   }
