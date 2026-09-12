@@ -525,7 +525,19 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'PROPERTIES', title: 'Update object properties',
-    execute: ({ transaction }, args) => transaction.updateObject(args.id!, args.patch),
+    execute: ({ document, transaction }, args) => {
+      if (args.ids == null) return transaction.updateObject(args.id!, args.patch)
+      if (args.id != null) throw new KJValidationError('PROPERTIES accepts either id or ids, not both')
+      if (!Array.isArray(args.ids) || !args.ids.length) throw new KJValidationError('Batch PROPERTIES requires at least one entity id')
+      if (args.ids.length > 4096) throw new KJValidationError('Batch PROPERTIES supports at most 4096 entities')
+      if (!args.patch || !Object.keys(args.patch).length) throw new KJValidationError('Batch PROPERTIES requires a non-empty patch')
+      const ids = [...new Set(args.ids.map(String))]
+      for (const id of ids) {
+        const object = document.getObject(id)
+        if (!object || object.kind !== 'entity') throw new KJValidationError(`Batch PROPERTIES entity does not exist: ${id}`)
+      }
+      return ids.map(id => transaction.updateObject(id, args.patch))
+    },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'SETVAR', title: 'Set system variable',

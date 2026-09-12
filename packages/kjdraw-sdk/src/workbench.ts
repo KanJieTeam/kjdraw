@@ -2599,27 +2599,39 @@ export class KJDrawWorkbench {
     const host = this.root.querySelector<HTMLElement>('[data-inspector]'), drawing = this.document
     if (!host || !drawing) return
     host.replaceChildren()
-    const id = this.#selection?.ids.at(-1), entity = id ? drawing.getObject(id) : null
+    const selectedEntities = (this.#selection?.ids ?? []).map(id => drawing.getObject(id)).filter((item): item is KJReadonlyObjectRecord => item?.kind === 'entity')
+    const entity = selectedEntities.at(-1) ?? null
     if (!entity || entity.kind !== 'entity') { const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = this.#t('noSelection'); host.append(empty); return }
-    const title = document.createElement('div'); title.className = 'entity-title'; title.textContent = entity.type
+    const multiple = selectedEntities.length > 1
+    const title = document.createElement('div'); title.className = 'entity-title'; title.textContent = multiple ? `${selectedEntities.length} ${this.#t('selected')}` : entity.type
     host.append(title, this.#kv('Handle', entity.handle), this.#kv(this.#t('layer'), drawing.getObject(String(entity.payload.layerId ?? ''))?.name ?? '0'))
     const layerField = document.createElement('label'); layerField.className = 'field'; layerField.innerHTML = `<span>${this.#t('layer')}</span>`
     const layerSelect = document.createElement('select'); layerSelect.disabled = this.#readOnly === true
+    const layerIds = new Set(selectedEntities.map(item => String(item.payload.layerId ?? '')))
+    const commonLayerId = layerIds.size === 1 ? [...layerIds][0]! : ''
+    if (!commonLayerId) {
+      const option = document.createElement('option'); option.value = ''; option.textContent = '—'; option.selected = true; option.disabled = true; layerSelect.append(option)
+    }
     for (const layer of drawing.getTable('layers')?.records ?? []) {
-      const option = document.createElement('option'); option.value = layer.id; option.textContent = layer.name ?? '0'; option.selected = entity.payload.layerId === layer.id; layerSelect.append(option)
+      const option = document.createElement('option'); option.value = layer.id; option.textContent = layer.name ?? '0'; option.selected = commonLayerId === layer.id; layerSelect.append(option)
     }
     layerField.append(layerSelect); host.append(layerField)
     let valueInput: HTMLInputElement | null = null
-    if (entity.type === 'CIRCLE' || entity.type === 'ARC') {
+    if (!multiple && (entity.type === 'CIRCLE' || entity.type === 'ARC')) {
       const field = document.createElement('label'); field.className = 'field'; field.innerHTML = `<span>${this.#t('radius')}</span>`
       valueInput = document.createElement('input'); valueInput.type = 'number'; valueInput.min = '0.000001'; valueInput.step = '0.1'; valueInput.value = String(entity.payload.radius ?? ''); valueInput.disabled = this.#readOnly === true; field.append(valueInput); host.append(field)
-    } else if (['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(entity.type)) {
+    } else if (!multiple && ['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(entity.type)) {
       const field = document.createElement('label'); field.className = 'field'; field.innerHTML = `<span>${this.#t('text')}</span>`
       valueInput = document.createElement('input'); valueInput.value = String(entity.payload.text ?? ''); valueInput.disabled = this.#readOnly === true; field.append(valueInput); host.append(field)
     }
     if (!this.#readOnly) {
       const apply = document.createElement('button'); apply.type = 'button'; apply.className = 'apply'; apply.textContent = this.#t('apply')
       apply.addEventListener('click', () => void this.#run(async () => {
+        if (multiple) {
+          if (!layerSelect.value || layerSelect.value === commonLayerId) return
+          await this.execute('PROPERTIES', { ids: selectedEntities.map(item => item.id), patch: { payload: { layerId: layerSelect.value } } })
+          return
+        }
         const payload: Record<string, unknown> = { ...structuredClone(entity.payload), layerId: layerSelect.value }
         if (valueInput && (entity.type === 'CIRCLE' || entity.type === 'ARC')) payload.radius = Number(valueInput.value)
         if (valueInput && ['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(entity.type)) payload.text = valueInput.value

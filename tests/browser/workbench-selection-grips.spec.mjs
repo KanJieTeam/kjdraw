@@ -104,6 +104,28 @@ test('QSELECT applies bounded CAD property filters from the command line in edit
   expect(await page.evaluate(() => window.__selectionGrips.errors)).toEqual([])
 })
 
+test('embedded multi-selection applies one atomic layer property change with undo and redo', async ({ page }) => {
+  await mount(page)
+  const state = await page.evaluate(async () => {
+    const { sdk, drawing, entities, workbench } = window.__selectionGrips
+    const layer = await sdk.executeCommand('LAYERNEW', { name: 'Batch target', color: 3 }, { document: drawing })
+    await sdk.executeCommand('SELECT', { ids: [entities[0].id, entities[1].id], operation: 'replace' }, { document: drawing })
+    workbench.setOptions({ showInspector: true })
+    return { layerId: layer.id, beforeRevision: drawing.revision, originalLayer: entities[0].payload.layerId }
+  })
+  const inspector = page.locator('[data-inspector]')
+  await expect(inspector.locator('.entity-title')).toContainText('2 selected')
+  await inspector.locator('select').selectOption(state.layerId)
+  await inspector.locator('button.apply').click()
+  await expect.poll(() => page.evaluate(() => window.__selectionGrips.drawing.revision)).toBe(state.beforeRevision + 1)
+  expect(await page.evaluate(() => window.__selectionGrips.entities.slice(0, 2).map(item => window.__selectionGrips.drawing.getObject(item.id).payload.layerId))).toEqual([state.layerId, state.layerId])
+  await page.locator('[data-action="undo"]').click()
+  await expect.poll(() => page.evaluate(() => window.__selectionGrips.entities.slice(0, 2).map(item => window.__selectionGrips.drawing.getObject(item.id).payload.layerId))).toEqual([state.originalLayer, state.originalLayer])
+  await page.locator('[data-action="redo"]').click()
+  await expect.poll(() => page.evaluate(() => window.__selectionGrips.entities.slice(0, 2).map(item => window.__selectionGrips.drawing.getObject(item.id).payload.layerId))).toEqual([state.layerId, state.layerId])
+  expect(await page.evaluate(() => window.__selectionGrips.errors)).toEqual([])
+})
+
 test('embedded CAD window/crossing selection has directional visuals and additive/subtractive shortcuts', async ({ page }) => {
   await mount(page)
   const revision = (await entityState(page, 0)).revision

@@ -4293,7 +4293,8 @@ export class KJDrawWorkbench {
         const host = this.root.querySelector('[data-inspector]'), drawing = this.document;
         if (!host || !drawing) return;
         host.replaceChildren();
-        const id = this.#selection?.ids.at(-1), entity = id ? drawing.getObject(id) : null;
+        const selectedEntities = (this.#selection?.ids ?? []).map((id)=>drawing.getObject(id)).filter((item)=>item?.kind === 'entity');
+        const entity = selectedEntities.at(-1) ?? null;
         if (!entity || entity.kind !== 'entity') {
             const empty = document.createElement('p');
             empty.className = 'empty';
@@ -4301,26 +4302,39 @@ export class KJDrawWorkbench {
             host.append(empty);
             return;
         }
+        const multiple = selectedEntities.length > 1;
         const title = document.createElement('div');
         title.className = 'entity-title';
-        title.textContent = entity.type;
+        title.textContent = multiple ? `${selectedEntities.length} ${this.#t('selected')}` : entity.type;
         host.append(title, this.#kv('Handle', entity.handle), this.#kv(this.#t('layer'), drawing.getObject(String(entity.payload.layerId ?? ''))?.name ?? '0'));
         const layerField = document.createElement('label');
         layerField.className = 'field';
         layerField.innerHTML = `<span>${this.#t('layer')}</span>`;
         const layerSelect = document.createElement('select');
         layerSelect.disabled = this.#readOnly === true;
+        const layerIds = new Set(selectedEntities.map((item)=>String(item.payload.layerId ?? '')));
+        const commonLayerId = layerIds.size === 1 ? [
+            ...layerIds
+        ][0] : '';
+        if (!commonLayerId) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = '—';
+            option.selected = true;
+            option.disabled = true;
+            layerSelect.append(option);
+        }
         for (const layer of drawing.getTable('layers')?.records ?? []){
             const option = document.createElement('option');
             option.value = layer.id;
             option.textContent = layer.name ?? '0';
-            option.selected = entity.payload.layerId === layer.id;
+            option.selected = commonLayerId === layer.id;
             layerSelect.append(option);
         }
         layerField.append(layerSelect);
         host.append(layerField);
         let valueInput = null;
-        if (entity.type === 'CIRCLE' || entity.type === 'ARC') {
+        if (!multiple && (entity.type === 'CIRCLE' || entity.type === 'ARC')) {
             const field = document.createElement('label');
             field.className = 'field';
             field.innerHTML = `<span>${this.#t('radius')}</span>`;
@@ -4332,7 +4346,7 @@ export class KJDrawWorkbench {
             valueInput.disabled = this.#readOnly === true;
             field.append(valueInput);
             host.append(field);
-        } else if ([
+        } else if (!multiple && [
             'TEXT',
             'MTEXT',
             'ATTDEF',
@@ -4353,6 +4367,18 @@ export class KJDrawWorkbench {
             apply.className = 'apply';
             apply.textContent = this.#t('apply');
             apply.addEventListener('click', ()=>void this.#run(async ()=>{
+                    if (multiple) {
+                        if (!layerSelect.value || layerSelect.value === commonLayerId) return;
+                        await this.execute('PROPERTIES', {
+                            ids: selectedEntities.map((item)=>item.id),
+                            patch: {
+                                payload: {
+                                    layerId: layerSelect.value
+                                }
+                            }
+                        });
+                        return;
+                    }
                     const payload = {
                         ...structuredClone(entity.payload),
                         layerId: layerSelect.value
