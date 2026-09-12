@@ -42,7 +42,7 @@ export async function captureDrawingView(drawing, options) {
     const space = snapshot.objects[spaceId];
     if (!space || space.erased || space.kind !== 'block-record' || space.payload.isSpace !== true) invalid('selected space is unavailable');
     const layout = !model ? Object.values(snapshot.objects).find((object)=>object.kind === 'layout' && !object.erased && object.payload.blockRecordId === spaceId) : null;
-    const paperUnits = layout?.payload.plotSettings?.paperUnits;
+    const paperUnits = layout?.payload.dxfPlotSettings?.paperUnits ?? layout?.payload.plotSettings?.paperUnits;
     const legacyUnit = layout?.payload.paper?.unit;
     const units = model ? snapshot.header.units : paperUnits === 0 ? 'inch' : paperUnits === 1 ? 'millimeter' : paperUnits === 2 ? 'pixel' : legacyUnit === 'mm' ? 'millimeter' : legacyUnit === 'inch' ? 'inch' : 'unknown';
     const assertUnchanged = ()=>{
@@ -103,5 +103,54 @@ export async function captureDrawingView(drawing, options) {
         pixelWidth,
         pixelHeight,
         renderReport
+    });
+}
+export async function exportDrawingPng(drawing, options) {
+    if (!options || typeof options.layoutId !== 'string') invalid('layoutId is required for PNG export');
+    if (options.allowPartial !== undefined && typeof options.allowPartial !== 'boolean') invalid('allowPartial must be boolean');
+    const maxEdge = options.maxEdge ?? 1400;
+    if (!Number.isInteger(maxEdge) || maxEdge < 1 || maxEdge > 1600) invalid('maxEdge must be an integer from 1 to 1600');
+    const source = drawing.snapshot(), layout = drawing.getObject(options.layoutId);
+    if (!layout || layout.kind !== 'layout' || !source.spaces.layoutIds.includes(layout.id)) invalid('layoutId must identify a layout in this document');
+    const spaceId = String(layout.payload.blockRecordId), model = spaceId === source.spaces.modelSpaceId;
+    if (!model && !source.spaces.paperSpaceIds.includes(spaceId)) invalid('layout has no valid drawing space');
+    const settings = layout.payload.dxfPlotSettings;
+    if (!settings) invalid('configure PAGESETUP before PNG export');
+    let bounds;
+    if (model) {
+        if (settings.plotType !== 4) invalid('model PNG export requires an explicit plot window');
+        bounds = [
+            Number(settings.windowMinX),
+            Number(settings.windowMinY),
+            Number(settings.windowMaxX),
+            Number(settings.windowMaxY)
+        ];
+    } else {
+        bounds = [
+            0,
+            0,
+            Number(settings.paperWidth),
+            Number(settings.paperHeight)
+        ];
+    }
+    if (!bounds.every(Number.isFinite) || !(bounds[2] > bounds[0] && bounds[3] > bounds[1])) invalid('configured output bounds must have finite positive extents');
+    const aspect = (bounds[2] - bounds[0]) / (bounds[3] - bounds[1]);
+    const width = Math.max(1, Math.round(aspect >= 1 ? maxEdge : maxEdge * aspect));
+    const height = Math.max(1, Math.round(aspect >= 1 ? maxEdge / aspect : maxEdge));
+    const result = await captureDrawingView(drawing, {
+        spaceId,
+        bounds,
+        width,
+        height,
+        pixelRatio: 1,
+        theme: options.theme ?? 'light'
+    });
+    const report = result.renderReport;
+    const viewportPartial = report.viewportDiagnostics?.some((item)=>item.unsupported > 0 || item.reason === 'budget') ?? false;
+    const partial = report.unsupported > 0 || report.detailCulled > 0 || Boolean(report.hatchDiagnostics?.length) || viewportPartial;
+    if (partial && options.allowPartial !== true) invalid(`PNG render is incomplete (${report.unsupported} unsupported, ${report.detailCulled} detail-budget omissions)`);
+    return Object.freeze({
+        ...result,
+        layoutId: layout.id
     });
 }

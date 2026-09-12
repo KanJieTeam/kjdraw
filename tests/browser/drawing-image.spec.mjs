@@ -65,6 +65,25 @@ test('capture exposes real approximation and unsupported diagnostics', async ({ 
   expect(result.approximateTypes).toContain('TEXT'); expect(result.unsupportedTypes).toContain('UNSUPPORTED_IMAGE_TEST')
 })
 
+test('layout PNG export uses configured plot bounds and refuses incomplete rendering by default', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const { createKJDrawSDK } = await import('/packages/kjdraw-sdk/src/sdk.js')
+    const { exportDrawingPng } = await import('/packages/kjdraw-sdk/src/drawing-image.js')
+    const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ units:'millimeter' })
+    await sdk.executeCommand('CREATE', { type:'LINE', payload:{ start:[0,0], end:[10,10] } })
+    const layoutId = drawing.snapshot().spaces.activeLayoutId
+    await sdk.executeCommand('PAGESETUP', { layoutId, dxf:{ paperWidth:420, paperHeight:297, paperUnits:1, rotation:0, flags:0, plotType:4, scaleNumerator:1, scaleDenominator:1, marginLeft:10, marginRight:10, marginTop:10, marginBottom:10, originX:0, originY:0, printerName:'', styleSheet:'', shadeMode:0, windowMinX:0, windowMinY:0, windowMaxX:10, windowMaxY:10 } })
+    const revision = drawing.revision, image = await exportDrawingPng(drawing, { layoutId })
+    await drawing.transact('unsupported', transaction => transaction.createEntity('UNSUPPORTED_IMAGE_TEST', { position:[3,3,0] }))
+    let strictError = ''
+    try { await exportDrawingPng(drawing, { layoutId }) } catch (error) { strictError = error.message }
+    const partial = await exportDrawingPng(drawing, { layoutId, allowPartial:true, maxEdge:400 })
+    return { layoutId:image.layoutId, spaceId:image.spaceId, bounds:image.bounds, width:image.pixelWidth, height:image.pixelHeight, revisionUnchanged:image.revision===revision, strictError, partialUnsupported:partial.renderReport.unsupported }
+  })
+  expect(result).toMatchObject({ bounds:[0,0,10,10], width:1400, height:1400, revisionUnchanged:true, partialUnsupported:1 })
+  expect(result.layoutId).toBeTruthy(); expect(result.spaceId).toBeTruthy(); expect(result.strictError).toContain('incomplete')
+})
+
 test('capture rejects changed revisions during real asynchronous PNG encoding', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const { createKJDrawSDK } = await import('/packages/kjdraw-sdk/src/sdk.js')
