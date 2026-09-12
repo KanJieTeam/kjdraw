@@ -84,7 +84,7 @@ test('designs persist in KJD and reopen for further updates; DXF requires explic
   assert.equal(projectDimension(cad.listEntities({ type: 'DIMENSION' })[0].payload).measurement, 300)
   assert.deepEqual(readDesignRelations(cad), [])
   const python = process.env.KJDRAW_PYTHON || 'python'
-  const result = spawnSyncWithFileStdin(python, ['-c', 'import sys,io,json,ezdxf; d=ezdxf.read(io.StringIO(sys.stdin.read())); a=d.audit(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(d.modelspace().query("CIRCLE")),"width":list(d.modelspace().query("DIMENSION"))[0].get_measurement()}))'], dxf, { encoding: 'utf8', windowsHide: true })
+  const result = spawnSyncWithFileStdin(python, ['-c', 'import sys,io,json,ezdxf,os; p=os.environ.get("KJDRAW_FILE_STDIN_PATH"); source=open(p,encoding="utf-8").read() if p else sys.stdin.read(); d=ezdxf.read(io.StringIO(source)); a=d.audit(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(d.modelspace().query("CIRCLE")),"width":list(d.modelspace().query("DIMENSION"))[0].get_measurement()}))'], dxf, { encoding: 'utf8', windowsHide: true })
   assert.equal(result.status, 0, result.stderr)
   assert.deepEqual(JSON.parse(result.stdout), { errors: 0, fixes: 0, circles: 4, width: 300 })
 })

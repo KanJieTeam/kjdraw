@@ -97,7 +97,8 @@ test('independent ezdxf reads the exported attribute sequence without repairs an
 import io,json,sys,os
 if os.environ.get('KJDRAW_EZDXF_PATH'):sys.path.append(os.environ['KJDRAW_EZDXF_PATH'])
 import ezdxf
-d=ezdxf.read(io.StringIO(sys.stdin.read()));insert=d.entitydb['A100'];attrs=insert.attribs
+p=os.environ.get('KJDRAW_FILE_STDIN_PATH');source=open(p,encoding='utf-8').read() if p else sys.stdin.read()
+d=ezdxf.read(io.StringIO(source));insert=d.entitydb['A100'];attrs=insert.attribs
 assert len(attrs)==2 and [a.dxf.handle for a in attrs]==['A101','A102']
 assert all(a.dxf.owner=='A100' for a in attrs)
 assert insert.seqend.dxf.handle=='A103' and d.entitydb['A103'] is insert.seqend

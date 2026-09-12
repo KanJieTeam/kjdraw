@@ -71,7 +71,7 @@ test('independent engineering validator rejects actual DXF mutations, including 
     "doc.modelspace().add_line((1000,1000),(1001,1001))",
   ]
   for (const mutation of mutations) {
-    const program = `import ezdxf,io,sys\ndoc=ezdxf.read(io.StringIO(sys.stdin.read()))\n${mutation}\nout=io.StringIO();doc.write(out);sys.stdout.write(out.getvalue())`
+    const program = `import ezdxf,io,sys,os\np=os.environ.get('KJDRAW_FILE_STDIN_PATH');source=open(p,encoding='utf-8').read() if p else sys.stdin.read()\ndoc=ezdxf.read(io.StringIO(source))\n${mutation}\nout=io.StringIO();doc.write(out);sys.stdout.write(out.getvalue())`
     const wrong = runPython(['-c', program], dxf)
     assert.equal(validate(wrong, expected).passed, false, mutation)
   }

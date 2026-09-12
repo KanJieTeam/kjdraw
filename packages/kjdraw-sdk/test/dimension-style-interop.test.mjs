@@ -15,8 +15,9 @@ const close = (a, b) => {
 const write = (sdk, document) => sdk.writeDocument(document, { format: 'DXF', version: '2018' })
 const native = (t, dxf) => {
   const result = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON ?? 'python', ['-c', String.raw`
-import sys,io,json,ezdxf
-D=ezdxf.read(io.StringIO(sys.stdin.read())); result=[]
+import sys,io,json,ezdxf,os
+p=os.environ.get('KJDRAW_FILE_STDIN_PATH');source=open(p,encoding='utf-8').read() if p else sys.stdin.read()
+D=ezdxf.read(io.StringIO(source)); result=[]
 for e in D.modelspace().query('DIMENSION'):
  o=e.override(); values={k:o.get(k) for k in ['dimscale','dimtxt','dimasz','dimexo','dimexe']}
  before=[x.dxf.height for x in e.virtual_entities() if x.dxftype()=='TEXT']

@@ -52,7 +52,7 @@ from ezdxf.tools.text import plain_text
 warnings=[]
 class Capture(logging.Handler):
  def emit(self,r):warnings.append(r.getMessage())
-logging.getLogger('ezdxf').addHandler(Capture());d=ezdxf.read(io.StringIO(sys.stdin.read()));e=list(d.modelspace().query('DIMENSION'))[0];labels=[x for x in e.virtual_entities() if x.dxftype()=='TEXT']
+logging.getLogger('ezdxf').addHandler(Capture());p=os.environ.get('KJDRAW_FILE_STDIN_PATH');source=open(p,encoding='utf-8').read() if p else sys.stdin.read();d=ezdxf.read(io.StringIO(source));e=list(d.modelspace().query('DIMENSION'))[0];labels=[x for x in e.virtual_entities() if x.dxftype()=='TEXT']
 assert e.dimtype==3 and e.get_measurement()==6 and len(labels)==1 and labels[0].dxf.text=='%%c6'
 assert plain_text(labels[0].dxf.text)=='Ø6'
 result={'measurement':e.get_measurement(),'raw':labels[0].dxf.text,'plain':plain_text(labels[0].dxf.text)}

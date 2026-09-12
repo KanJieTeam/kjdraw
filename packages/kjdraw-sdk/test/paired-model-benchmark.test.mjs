@@ -157,8 +157,8 @@ test('strict paired validator rejects non-XY, OCS, width, thickness, old-version
   if (!requireValidator(t)) return
   const task = pilotTasks[0], original = await fixtureDxf(task)
   assert.equal(independentValidation({ python, dxf: original, expected: task.expected }).passed, true)
-  const script = `import io,json,sys,ezdxf
-source=sys.stdin.read()
+  const script = `import io,json,sys,ezdxf,os
+p=os.environ.get('KJDRAW_FILE_STDIN_PATH');source=open(p,encoding='utf-8').read() if p else sys.stdin.read()
 outputs={}
 for variant in ['line-z','circle-normal','arc-z','poly-elevation','poly-width','vertex-width','thickness','old-version','extra-entity','paper-entity']:
  doc=ezdxf.read(io.StringIO(source)); m=doc.modelspace()

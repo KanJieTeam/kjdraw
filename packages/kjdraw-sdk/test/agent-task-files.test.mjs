@@ -53,7 +53,7 @@ test('DXF refuses silent AI task loss and explicit omission preserves independen
   assert.equal(reopened.listEntities({ type: 'LINE' }).length, 1)
   assert.deepEqual(readAgentTasks(reopened), [])
   const python = process.env.KJDRAW_PYTHON || 'python'
-  const result = spawnSyncWithFileStdin(python, ['-c', 'import io,json,ezdxf,sys; d=ezdxf.read(io.StringIO(sys.stdin.read())); a=d.audit(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"lines":len(d.modelspace().query("LINE"))}))'], dxf, { encoding: 'utf8', windowsHide: true })
+  const result = spawnSyncWithFileStdin(python, ['-c', 'import io,json,ezdxf,sys,os; p=os.environ.get("KJDRAW_FILE_STDIN_PATH"); source=open(p,encoding="utf-8").read() if p else sys.stdin.read(); d=ezdxf.read(io.StringIO(source)); a=d.audit(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"lines":len(d.modelspace().query("LINE"))}))'], dxf, { encoding: 'utf8', windowsHide: true })
   if (result.error?.code === 'ENOENT' || result.status !== 0 && /No module named ['\"]ezdxf/.test(result.stderr)) return t.skip('Independent ezdxf runtime is unavailable')
   assert.equal(result.status, 0, result.stderr)
   assert.deepEqual(JSON.parse(result.stdout), { errors: 0, fixes: 0, lines: 1 })

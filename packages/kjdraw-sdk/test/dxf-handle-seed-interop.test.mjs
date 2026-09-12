@@ -36,8 +36,8 @@ test('DXF HANDSEED reserves all emitted handles, including generated dimensions 
 test('independent DXF load never overwrites an implicit INSERT SEQEND with a later LAYOUT',async t=>{
  const {sdk,document}=await fixture(),output=String(await sdk.writeDocument(document,{format:'DXF',version:'2018'}))
  const result=spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON??'python',['-c',String.raw`
-import io,json,sys,logging,re,ezdxf
-source=sys.stdin.read();events=[]
+import io,json,sys,logging,re,ezdxf,os
+p=os.environ.get('KJDRAW_FILE_STDIN_PATH');source=open(p,encoding='utf-8').read() if p else sys.stdin.read();events=[]
 class Capture(logging.Handler):
  def emit(self,record):
   if 'non-unique entity handle' in record.getMessage():events.append(record.getMessage())

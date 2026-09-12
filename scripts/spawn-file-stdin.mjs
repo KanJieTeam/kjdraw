@@ -17,7 +17,11 @@ export function spawnSyncWithFileStdin(command, args, input, options = {}) {
   try {
     writeFileSync(path, input)
     descriptor = openSync(path, 'r')
-    return spawnSync(command, args, { ...options, stdio: [descriptor, 'pipe', 'pipe'] })
+    return spawnSync(command, args, {
+      ...options,
+      env: { ...process.env, ...(options.env ?? {}), KJDRAW_FILE_STDIN_PATH: path },
+      stdio: [descriptor, 'pipe', 'pipe'],
+    })
   } finally {
     if (descriptor !== undefined) closeSync(descriptor)
     try { unlinkSync(path) } catch {}

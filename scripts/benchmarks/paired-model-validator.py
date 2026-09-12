@@ -3,6 +3,7 @@ import importlib.util
 import io
 import json
 import math
+import os
 from pathlib import Path
 import sys
 
@@ -54,7 +55,9 @@ def main():
     if '--probe' in sys.argv:
         print(json.dumps(metadata))
         return
-    raw = sys.stdin.buffer.read(4194305)
+    input_path = os.environ.get('KJDRAW_FILE_STDIN_PATH')
+    with open(input_path, 'rb') if input_path else sys.stdin.buffer as stream:
+        raw = stream.read(4194305)
     if len(raw) > 4194304:
         raise ValueError('size')
     data = json.loads(raw)
