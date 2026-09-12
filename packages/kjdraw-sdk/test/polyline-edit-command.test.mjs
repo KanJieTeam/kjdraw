@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 import { KJDocument, KJValidationError, createKJDrawSDK, entityLength2 } from '../src/index.js'
 
@@ -90,6 +91,45 @@ test('PEDIT sets signed sweep or bulge on valid outgoing segments', async () => 
   close(result.payload.vertices[1].bulge, -Math.tan(Math.PI / 8))
   result = await sdk.executeCommand('PEDIT', { id: polyline.id, operation: 'SET_BULGE', segmentIndex: 1, bulge: 0 })
   assert.equal(result.payload.vertices[1].bulge, 0)
+})
+
+test('pointer PEDIT resolves unique straight, arc and closed-seam topology without numeric indices', async () => {
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'pedit-pointer', units: 'millimeter' })
+  const path = await sdk.executeCommand('CREATE', { type: 'LWPOLYLINE', payload: {
+    vertices: [{ point: [0, 0], startWidth: 2, endWidth: 4 }, { point: [10, 0], startWidth: 4, endWidth: 6 }, { point: [10, 10], startWidth: 6, endWidth: 8 }, { point: [0, 10], startWidth: 8, endWidth: 10 }],
+    closed: true, elevation: 7, color: 3,
+  } })
+  const identity = { id: path.id, handle: path.handle }
+  let edited = await sdk.executeCommand('PEDIT', { id: path.id, operation: 'INSERT', point: [0.04, 5], tolerance: 0.1 })
+  assert.deepEqual({ id: edited.id, handle: edited.handle }, identity)
+  assert.deepEqual(edited.payload.vertices[4].point, [0, 5, 0]); assert.equal(edited.payload.vertices[3].endWidth, 9); assert.equal(edited.payload.vertices[4].startWidth, 9)
+  edited = await sdk.executeCommand('PEDIT', { id: path.id, operation: 'DELETE', point: [0.03, 5.02], tolerance: 0.1 })
+  assert.equal(edited.payload.vertices.length, 4)
+  edited = await sdk.executeCommand('PEDIT', { id: path.id, operation: 'SET_BULGE', point: [5, 0.04], tolerance: 0.1, sweepDegrees: -90 })
+  close(edited.payload.vertices[0].bulge, -Math.tan(Math.PI / 8))
+  edited = await sdk.executeCommand('PEDIT', { id: path.id, operation: 'SET_BULGE', point: [5, 2.0710678118654755], tolerance: 1e-8, sweepDegrees: 0 })
+  assert.equal(edited.payload.vertices[0].bulge, 0)
+  assert.deepEqual({ id: edited.id, handle: edited.handle }, identity)
+  const kjd = await sdk.writeDocument(drawing, { format: 'KJD' }), dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
+  assert.equal(KJDocument.open(kjd).getObject(path.id).payload.vertices.length, 4)
+  const reopened = await sdk.fileAdapters.read(dxf, { format: 'DXF' })
+  assert.equal(reopened.listEntities({ type: 'LWPOLYLINE' })[0].payload.vertices.length, 4)
+  await sdk.executeCommand('UNDO'); close(drawing.getObject(path.id).payload.vertices[0].bulge, -Math.tan(Math.PI / 8))
+  await sdk.executeCommand('REDO'); assert.equal(drawing.getObject(path.id).payload.vertices[0].bulge, 0)
+})
+
+test('independent ezdxf validates pointer-edited native polyline output without repair', async t => {
+  if (!process.env.KJDRAW_PYTHON) return t.skip('KJDRAW_PYTHON is not configured')
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'pedit-pointer-ezdxf' })
+  const path = await sdk.executeCommand('CREATE', { type: 'LWPOLYLINE', payload: { vertices: [[0, 0], [10, 0], [10, 10]], closed: false } })
+  await sdk.executeCommand('PEDIT', { id: path.id, operation: 'INSERT', point: [5, 0], tolerance: 1e-8 })
+  await sdk.executeCommand('PEDIT', { id: path.id, operation: 'SET_BULGE', point: [7.5, 0], tolerance: 1e-8, sweepDegrees: 90 })
+  const dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
+  const code = 'import sys,io,json,ezdxf;d=ezdxf.read(io.StringIO(sys.stdin.read()));a=d.audit();p=list(d.modelspace().query("LWPOLYLINE"));print(json.dumps({"version":ezdxf.__version__,"count":len(p),"points":[list(v) for v in p[0].get_points("xyseb")],"errors":len(a.errors),"fixes":len(a.fixes)}))'
+  const run = spawnSync(process.env.KJDRAW_PYTHON, ['-c', code], { input: dxf, encoding: 'utf8', timeout: 30000 })
+  assert.equal(run.status, 0, run.stderr); const result = JSON.parse(run.stdout)
+  assert.equal(result.version, '1.4.4'); assert.equal(result.count, 1); assert.equal(result.points.length, 4)
+  close(result.points[1][4], Math.tan(Math.PI / 8), 1e-8); assert.equal(result.errors, 0); assert.equal(result.fixes, 0)
 })
 
 test('PEDIT rejects unsafe curve deletion, invalid geometry, special legacy topology and protected edits atomically', async () => {

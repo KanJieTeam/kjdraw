@@ -238,33 +238,30 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
   },
   {
     id: 'polyline-insert', command: 'PEDIT', label: text('Insert polyline vertex', '插入多段线顶点'),
-    description: text('Insert a vertex on an exact polyline segment.', '在多段线的指定线段上精确插入顶点。'),
+    description: text('Pick a straight or arc segment to insert an exact vertex.', '点选直线段或圆弧段，精确插入顶点。'),
     minSelection: 1, maxSelection: 1,
     supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'],
-    fields: [
-      number('segmentIndex', 'Segment index', '线段索引', 0, { type: 'integer', min: 0, step: 1 }),
-      number('tolerance', 'Snap tolerance', '捕捉容差', 0.1, { min: 0, step: 0.01 }),
-    ],
+    fields: [number('tolerance', 'Pick tolerance', '点选容差', 0.1, { min: 0, step: 0.01 })],
     pointKeys: [pick('point', 'Pick a point on the segment', '在线段上指定插入点')],
   },
   {
     id: 'polyline-delete', command: 'PEDIT', label: text('Delete polyline vertex', '删除多段线顶点'),
-    description: text('Delete one vertex while preserving valid polyline topology.', '删除一个顶点并保持多段线拓扑有效。'),
+    description: text('Pick one vertex to delete while preserving valid topology.', '点选一个顶点删除，并保持多段线拓扑有效。'),
     minSelection: 1, maxSelection: 1,
     supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'],
-    fields: [number('vertexIndex', 'Vertex index', '顶点索引', 0, { type: 'integer', min: 0, step: 1 })],
-    pointKeys: [],
+    fields: [number('tolerance', 'Pick tolerance', '点选容差', 0.1, { min: 0, step: 0.01 })],
+    pointKeys: [pick('point', 'Pick the vertex to delete', '点选要删除的顶点')],
   },
   {
     id: 'polyline-arc', command: 'PEDIT', label: text('Edit polyline arc', '编辑多段线圆弧段'),
-    description: text('Set the signed sweep angle of one polyline segment.', '设置多段线指定线段的有向圆弧扫角。'),
+    description: text('Pick a segment and set its signed sweep; use 0° for straight.', '点选线段并设置有向扫角；输入 0° 切换为直线段。'),
     minSelection: 1, maxSelection: 1,
     supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE'],
     fields: [
-      number('segmentIndex', 'Segment index', '线段索引', 0, { type: 'integer', min: 0, step: 1 }),
       number('sweepDegrees', 'Sweep angle (°)', '扫角（°）', 90, { min: -359.999999, max: 359.999999, step: 1 }),
+      number('tolerance', 'Pick tolerance', '点选容差', 0.1, { min: 0, step: 0.01 }),
     ],
-    pointKeys: [],
+    pointKeys: [pick('point', 'Pick the segment to change', '点选要切换的线段')],
   },
   {
     id: 'chamfer', command: 'CHAMFER', label: text('Chamfer lines', '直线倒角'),
@@ -431,8 +428,8 @@ export function buildKJModificationCommand(id: KJModificationId, context: KJModi
     case 'lengthen': return { command: definition.command, arguments: { id: ids[0]!, mode: 'TOTAL', ...values, pickPoint: points[0]! } }
     case 'stretch': return { command: definition.command, arguments: { ids, ...values, crossingStart: points[0]!, crossingEnd: points[1]! } }
     case 'polyline-insert': return { command: definition.command, arguments: { id: ids[0]!, operation: 'INSERT', ...values, point: points[0]! } }
-    case 'polyline-delete': return { command: definition.command, arguments: { id: ids[0]!, operation: 'DELETE', ...values } }
-    case 'polyline-arc': return { command: definition.command, arguments: { id: ids[0]!, operation: 'SET_BULGE', ...values } }
+    case 'polyline-delete': return { command: definition.command, arguments: { id: ids[0]!, operation: 'DELETE', ...values, point: points[0]! } }
+    case 'polyline-arc': return { command: definition.command, arguments: { id: ids[0]!, operation: 'SET_BULGE', ...values, point: points[0]! } }
     case 'chamfer': return { command: definition.command, arguments: { firstId: ids[0]!, secondId: ids[1]!, ...values, pickPoint1: points[0]!, pickPoint2: points[1]! } }
     case 'fillet': return { command: definition.command, arguments: { firstId: ids[0]!, secondId: ids[1]!, ...values, pickPoint1: points[0]!, pickPoint2: points[1]! } }
   }

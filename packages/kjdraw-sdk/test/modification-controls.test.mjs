@@ -182,8 +182,8 @@ test('all 18 modification controls build exact arguments accepted by the real SD
       arrange: async ({ create }) => {
         const entity = await create('LWPOLYLINE', { vertices: [{ point: [0, 0] }, { point: [10, 0] }, { point: [10, 5] }], closed: false })
         return {
-          context: { ids: [entity.id], values: { segmentIndex: 0, tolerance: 0.1 }, points: [[5, 0]] },
-          expected: { id: entity.id, operation: 'INSERT', segmentIndex: 0, tolerance: 0.1, point: [5, 0] },
+          context: { ids: [entity.id], values: { tolerance: 0.1 }, points: [[5, 0]] },
+          expected: { id: entity.id, operation: 'INSERT', tolerance: 0.1, point: [5, 0] },
         }
       },
     },
@@ -192,8 +192,8 @@ test('all 18 modification controls build exact arguments accepted by the real SD
       arrange: async ({ create }) => {
         const entity = await create('POLYLINE', { vertices: [{ point: [0, 0, 2] }, { point: [5, 0, 2] }, { point: [10, 0, 2] }], closed: false })
         return {
-          context: { ids: [entity.id], values: { vertexIndex: 1 }, points: [] },
-          expected: { id: entity.id, operation: 'DELETE', vertexIndex: 1 },
+          context: { ids: [entity.id], values: { tolerance: 0.1 }, points: [[5, 0]] },
+          expected: { id: entity.id, operation: 'DELETE', tolerance: 0.1, point: [5, 0] },
         }
       },
     },
@@ -202,8 +202,8 @@ test('all 18 modification controls build exact arguments accepted by the real SD
       arrange: async ({ create }) => {
         const entity = await create('LWPOLYLINE', { vertices: [{ point: [0, 0] }, { point: [10, 0] }, { point: [10, 5] }], closed: false })
         return {
-          context: { ids: [entity.id], values: { segmentIndex: 0, sweepDegrees: 90 }, points: [] },
-          expected: { id: entity.id, operation: 'SET_BULGE', segmentIndex: 0, sweepDegrees: 90 },
+          context: { ids: [entity.id], values: { sweepDegrees: 90, tolerance: 0.1 }, points: [[5, 0]] },
+          expected: { id: entity.id, operation: 'SET_BULGE', sweepDegrees: 90, tolerance: 0.1, point: [5, 0] },
         }
       },
     },
@@ -401,13 +401,13 @@ test('invalid form values and impossible geometry do not mutate the drawing', as
     ids: [first.id], values: {}, points: [[0, 0]],
   }), /requires 2 canvas points/)
   assert.throws(() => buildKJModificationCommand('polyline-insert', {
-    ids: [first.id], values: { segmentIndex: -1, tolerance: 0.1 }, points: [[5, 0]],
+    ids: [first.id], values: { tolerance: -1 }, points: [[5, 0]],
   }), /at least 0/)
   assert.throws(() => buildKJModificationCommand('polyline-delete', {
-    ids: [first.id], values: { vertexIndex: 0.5 }, points: [],
-  }), /must be an integer/)
+    ids: [first.id], values: { tolerance: 0.1 }, points: [],
+  }), /requires 1 canvas point/)
   assert.throws(() => buildKJModificationCommand('polyline-arc', {
-    ids: [first.id], values: { segmentIndex: 0, sweepDegrees: 360 }, points: [],
+    ids: [first.id], values: { sweepDegrees: 360, tolerance: 0.1 }, points: [[5, 0]],
   }), /at most 359\.999999/)
 
   const impossible = buildKJModificationCommand('fillet', {

@@ -160,7 +160,6 @@ function resolvePoint(transaction, dimension, association) {
             {
                 if (source.type !== 'LWPOLYLINE' || !Array.isArray(payload.vertices) || payload.vertices.length > 4096) return fail('Dimension vertex association requires a bounded LWPOLYLINE');
                 const vertices = payload.vertices;
-                if (vertices.some((vertex)=>Number(vertex.bulge ?? 0) !== 0)) return fail('Dimension vertex associations require straight polyline segments');
                 const vertex = vertices[association.vertexIndex];
                 if (!vertex) return fail(`Dimension vertex association is outside source ${source.id}`);
                 return point3(vertex.point, `Dimension source ${source.id} vertex`);

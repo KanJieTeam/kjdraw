@@ -46,17 +46,14 @@ test('PEDIT migrates vertex indices without changing the referenced physical ver
   }
 })
 
-test('PEDIT rejects deletion and curved topology that would invalidate a dimension reference', async () => {
-  for (const [name, args, pattern] of [
-    ['referenced vertex', { operation: 'DELETE', vertexIndex: 2 }, /cannot delete vertex/],
-    ['curved segment', { operation: 'SET_BULGE', segmentIndex: 0, sweepDegrees: 45 }, /cannot split or replace/],
-  ]) {
-    const { sdk, drawing, polyline } = await polylineFixture('dimension-pedit-reject-' + name)
-    const before = drawing.serialize(), revision = drawing.revision
-    await assert.rejects(sdk.executeCommand('PEDIT', { id: polyline.id, ...args }, { document: drawing }), error => error instanceof KJValidationError && pattern.test(error.message))
-    assert.equal(drawing.serialize(), before)
-    assert.equal(drawing.revision, revision)
-  }
+test('PEDIT rejects deletion of a referenced vertex but preserves stable vertex anchors through arc switching', async () => {
+  const { sdk, drawing, polyline, dimension } = await polylineFixture('dimension-pedit-arc')
+  const before = drawing.serialize(), revision = drawing.revision
+  await assert.rejects(sdk.executeCommand('PEDIT', { id: polyline.id, operation: 'DELETE', vertexIndex: 2 }, { document: drawing }), error => error instanceof KJValidationError && /cannot delete vertex/.test(error.message))
+  assert.equal(drawing.serialize(), before); assert.equal(drawing.revision, revision)
+  await sdk.executeCommand('PEDIT', { id: polyline.id, operation: 'SET_BULGE', segmentIndex: 0, sweepDegrees: 45 }, { document: drawing })
+  assert.deepEqual(associations(drawing, dimension.id).map(item => item.vertexIndex), [0, 2])
+  assert.equal(measurement(drawing, dimension.id), 10)
 })
 
 test('BREAK, JOIN and EXPLODE reject referenced source replacement atomically', async () => {

@@ -119,7 +119,7 @@ test('workbench boundary TRIM refreshes a pointer-associated dimension in the sa
   await expect(page.locator(root + ' [data-boundary-actions]')).toBeHidden()
 })
 
-test('workbench PEDIT keeps a pointer-associated polyline vertex after index insertion', async ({ page }) => {
+test('workbench PEDIT previews pointer insertion and remaps associated vertex indices', async ({ page }) => {
   await mount(page)
   await drawDimension(page, 'DIMALIGNED', [[0, 8], [20, 8], [10, 4]], 1)
   const before = await page.evaluate(async () => {
@@ -132,6 +132,13 @@ test('workbench PEDIT keeps a pointer-associated polyline vertex after index ins
   await page.locator(root + ' [data-action="modify"]').click()
   await page.locator(root + ' [data-modification]').selectOption('polyline-insert')
   await page.locator(root + ' [data-action="start-modification"]').click()
+  const hover = await page.evaluate(() => {
+    const { workbench } = window.associativeDimension, bounds = workbench.root.querySelector('[data-canvas]').getBoundingClientRect(), point = workbench.renderer.worldToScreen([5, 8])
+    return { x: bounds.left + point[0], y: bounds.top + point[1] }
+  })
+  await page.mouse.move(hover.x, hover.y)
+  await expect(page.locator(root + ' [data-overlay]')).toHaveAttribute('data-modification-preview-count', '1')
+  expect(await page.evaluate(() => window.associativeDimension.drawing.revision)).toBe(before.revision)
   await clickWorld(page, [5, 8])
   await expect.poll(() => page.evaluate(() => window.associativeDimension.drawing.revision)).toBe(before.revision + 1)
   const changed = await page.evaluate(() => {
@@ -140,6 +147,7 @@ test('workbench PEDIT keeps a pointer-associated polyline vertex after index ins
     return { vertexCount: source.payload.vertices.length, indices: dimension.payload.dimensionAssociations.map(item => item.vertexIndex), id: dimension.id, handle: dimension.handle }
   })
   expect(changed).toEqual({ vertexCount: 4, indices: [0, 3], id: before.id, handle: before.handle })
+
 })
 
 test('workbench COPY creates a self-contained source and pointer-associated dimension pair', async ({ page }) => {

@@ -9,6 +9,7 @@ import { createIndustrySample } from './samples.js';
 import { KJDRAW_THEME_CSS, kjdrawIcon } from './theme.js';
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from './layout.js';
 import { createBoundaryEditSession } from './boundary-edit.js';
+import { editPolylinePayload } from './editing.js';
 import { KJ_MODIFICATION_DEFINITIONS, buildKJModificationCommand, getKJInteractiveModificationDefinition, getKJModificationDefinition, getKJModificationSelectionCenter, parseKJModificationCommandValues, previewKJModification, validateKJModificationSelection } from './modification-controls.js';
 import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate } from './drafting.js';
 const copy = {
@@ -4085,7 +4086,8 @@ export class KJDrawWorkbench {
         ].includes(this.#tool);
         this.#hoverGrip = this.#tool === 'select' && !this.#readOnly && this.#selection?.size === 1 ? this.renderer.hitGrip(location, 7) : null;
         this.#canvas.style.cursor = this.#hoverGrip ? 'crosshair' : '';
-        const snapped = drawingTool ? this.#snapAt(rawWorld) : null;
+        const polylinePick = this.#modificationGesture?.definition.command === 'PEDIT';
+        const snapped = drawingTool && !polylinePick ? this.#snapAt(rawWorld) : null;
         this.#cursorWorld = this.#constrainPointer(rawWorld, snapped);
         if (this.#draftGesture) this.#draftInputDirection = this.#cursorWorld;
         if (coordinate) coordinate.textContent = `X ${this.#cursorWorld[0].toFixed(3)} · Y ${this.#cursorWorld[1].toFixed(3)}`;
@@ -4190,12 +4192,13 @@ export class KJDrawWorkbench {
         if (event.button !== 0 || !this.document) return;
         const location = point(event, this.#canvas);
         const rawWorld = this.renderer.screenToWorld(location);
-        const snapped = this.#draftGesture !== null || this.#modificationGesture !== null || [
+        const polylinePick = this.#modificationGesture?.definition.command === 'PEDIT';
+        const snapped = (this.#draftGesture !== null || this.#modificationGesture !== null || [
             'text',
             'measure',
             'move',
             'copy'
-        ].includes(this.#tool) ? this.#snapAt(rawWorld) : null;
+        ].includes(this.#tool)) && !polylinePick ? this.#snapAt(rawWorld) : null;
         const world = this.#constrainPointer(rawWorld, snapped);
         this.#cursorWorld = world;
         if (this.#fenceSelection) {
@@ -4624,30 +4627,49 @@ export class KJDrawWorkbench {
             ];
             if (cursor && points.length < modification.definition.pointKeys.length) points.push(cursor);
             try {
-                const preview = points.length === modification.definition.pointKeys.length ? previewKJModification(modification.definition.id, {
-                    ids: modification.ids,
-                    values: modification.values,
-                    points,
-                    selectionCenter: modification.selectionCenter
-                }, modification.ids.flatMap((id)=>{
-                    const entity = modification.document.getObject(id);
-                    if (!entity) return [];
-                    const layer = modification.document.getObject(String(entity.payload.layerId ?? ''));
-                    return layer ? [
-                        entity,
-                        layer
-                    ] : [
-                        entity
-                    ];
-                })) : null;
-                if (preview) {
-                    if (preview.before.length) this.renderer.drawPreview(preview.before, '#ff7077');
-                    if (preview.after.length) this.renderer.drawPreview(preview.after, this.#theme === 'dark' ? '#8fc4ff' : '#2863df');
-                    this.#overlay.dataset.modificationPreviewCount = String(preview.after.length);
-                    this.#overlay.dataset.modificationPreviewOmitted = String(preview.omittedCount);
-                } else {
-                    this.#overlay.dataset.modificationPreviewCount = '0';
+                if (modification.definition.command === 'PEDIT' && cursor) {
+                    const request = buildKJModificationCommand(modification.definition.id, {
+                        ids: modification.ids,
+                        values: modification.values,
+                        points,
+                        selectionCenter: modification.selectionCenter
+                    });
+                    const target = modification.document.getObject(modification.ids[0]);
+                    if (!target || target.kind !== 'entity') throw new Error('Polyline is unavailable');
+                    this.renderer.drawPreview([
+                        {
+                            type: target.type,
+                            payload: editPolylinePayload(target, request.arguments)
+                        }
+                    ], this.#theme === 'dark' ? '#8fc0ff' : '#175fc8');
+                    this.#overlay.dataset.modificationPreviewCount = '1';
                     this.#overlay.dataset.modificationPreviewOmitted = '0';
+                } else {
+                    const preview = points.length === modification.definition.pointKeys.length ? previewKJModification(modification.definition.id, {
+                        ids: modification.ids,
+                        values: modification.values,
+                        points,
+                        selectionCenter: modification.selectionCenter
+                    }, modification.ids.flatMap((id)=>{
+                        const entity = modification.document.getObject(id);
+                        if (!entity) return [];
+                        const layer = modification.document.getObject(String(entity.payload.layerId ?? ''));
+                        return layer ? [
+                            entity,
+                            layer
+                        ] : [
+                            entity
+                        ];
+                    })) : null;
+                    if (preview) {
+                        if (preview.before.length) this.renderer.drawPreview(preview.before, '#ff7077');
+                        if (preview.after.length) this.renderer.drawPreview(preview.after, this.#theme === 'dark' ? '#8fc4ff' : '#2863df');
+                        this.#overlay.dataset.modificationPreviewCount = String(preview.after.length);
+                        this.#overlay.dataset.modificationPreviewOmitted = String(preview.omittedCount);
+                    } else {
+                        this.#overlay.dataset.modificationPreviewCount = '0';
+                        this.#overlay.dataset.modificationPreviewOmitted = '0';
+                    }
                 }
             } catch  {
                 this.#overlay.dataset.modificationPreviewCount = '0';

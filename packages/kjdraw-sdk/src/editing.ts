@@ -125,6 +125,11 @@ export interface KJPolylineEditOptions {
   readonly sweepDegrees?: unknown
 }
 
+export interface KJPolylineEditLocation {
+  readonly segmentIndex?: number
+  readonly vertexIndex?: number
+}
+
 function pointInput(value: unknown): Point2Input {
   return value as Point2Input
 }
@@ -976,15 +981,28 @@ function distanceToPolylineSegment(start: Point3, end: Point3, bulge: number, pi
   return Math.min(distance2(pick, start), distance2(pick, end))
 }
 
-function pickedPolylineSegment(vertices: readonly EditablePolylineVertex[], pickPoint: unknown): number {
+function pickedPolylineSegment(vertices: readonly EditablePolylineVertex[], pickPoint: unknown, closed = false): number {
   const pick = finiteEditPoint(pickPoint)
-  const candidates = vertices.slice(0, -1).map((vertex, index) => ({
+  const segmentCount = polylineSegmentCount(vertices, closed)
+  const candidates = vertices.slice(0, segmentCount).map((vertex, index) => ({
     index,
-    distance: distanceToPolylineSegment(vertex.point, vertices[index + 1]!.point, vertex.bulge, pick),
+    distance: distanceToPolylineSegment(vertex.point, vertices[(index + 1) % vertices.length]!.point, vertex.bulge, pick),
   })).sort((left, right) => left.distance - right.distance || left.index - right.index)
   const first = candidates[0]!, second = candidates[1]
   if (second && Math.abs(second.distance - first.distance) <= Math.max(1e-10, first.distance * 1e-10)) {
     throw new KJValidationError('Pick inside one polyline segment, not on a shared vertex')
+  }
+  return first.index
+}
+
+function pickedPolylineVertex(vertices: readonly EditablePolylineVertex[], pickPoint: unknown, tolerance: number): number {
+  const pick = finiteEditPoint(pickPoint)
+  const candidates = vertices.map((vertex, index) => ({ index, distance: distance2(vertex.point, pick) }))
+    .sort((left, right) => left.distance - right.distance || left.index - right.index)
+  const first = candidates[0]!, second = candidates[1]
+  if (first.distance > Math.max(tolerance, 1e-10)) throw new KJValidationError('PEDIT delete point is outside the selected vertex tolerance')
+  if (second && Math.abs(second.distance - first.distance) <= Math.max(1e-10, first.distance * 1e-10)) {
+    throw new KJValidationError('PEDIT delete point must identify one unique vertex')
   }
   return first.index
 }
@@ -1134,7 +1152,9 @@ function pointOnBulgedPolylineSegment(start: Point3, end: Point3, bulge: number,
 
 function insertPolylineVertex(payload: KJObjectPayload, vertices: EditablePolylineVertex[], options: KJPolylineEditOptions): KJObjectPayload {
   const closed = Boolean(payload.closed), segmentCount = polylineSegmentCount(vertices, closed)
-  const segmentIndex = polylineEditIndex(options.segmentIndex, 'PEDIT segmentIndex', segmentCount)
+  const segmentIndex = options.segmentIndex == null
+    ? pickedPolylineSegment(vertices, options.point, closed)
+    : polylineEditIndex(options.segmentIndex, 'PEDIT segmentIndex', segmentCount)
   const nextIndex = (segmentIndex + 1) % vertices.length
   const source = vertices[segmentIndex]!, next = vertices[nextIndex]!, tolerance = polylineEditTolerance(options.tolerance)
   if (Math.abs(source.bulge) > 1e-15) {
@@ -1161,7 +1181,9 @@ function insertPolylineVertex(payload: KJObjectPayload, vertices: EditablePolyli
 function deletePolylineVertex(payload: KJObjectPayload, vertices: EditablePolylineVertex[], options: KJPolylineEditOptions): KJObjectPayload {
   const closed = Boolean(payload.closed), minimum = 2
   if (vertices.length <= minimum) throw new KJValidationError(`PEDIT cannot delete a vertex from a ${closed ? 'closed' : 'open'} polyline with ${vertices.length} vertices`)
-  const index = polylineEditIndex(options.vertexIndex, 'PEDIT vertexIndex', vertices.length)
+  const index = options.vertexIndex == null
+    ? pickedPolylineVertex(vertices, options.point, polylineEditTolerance(options.tolerance))
+    : polylineEditIndex(options.vertexIndex, 'PEDIT vertexIndex', vertices.length)
   if (!closed && index === 0) {
     vertices.shift()
     return { ...payload, vertices }
@@ -1183,8 +1205,16 @@ function deletePolylineVertex(payload: KJObjectPayload, vertices: EditablePolyli
 }
 
 function setPolylineSegmentBulge(payload: KJObjectPayload, vertices: EditablePolylineVertex[], options: KJPolylineEditOptions): KJObjectPayload {
-  const segmentCount = polylineSegmentCount(vertices, Boolean(payload.closed))
-  const segmentIndex = polylineEditIndex(options.segmentIndex, 'PEDIT segmentIndex', segmentCount)
+  const closed = Boolean(payload.closed), segmentCount = polylineSegmentCount(vertices, closed)
+  const segmentIndex = options.segmentIndex == null
+    ? pickedPolylineSegment(vertices, options.point, closed)
+    : polylineEditIndex(options.segmentIndex, 'PEDIT segmentIndex', segmentCount)
+  if (options.segmentIndex == null) {
+    const pick = finiteEditPoint(options.point), source = vertices[segmentIndex]!, next = vertices[(segmentIndex + 1) % vertices.length]!
+    if (distanceToPolylineSegment(source.point, next.point, source.bulge, pick) > Math.max(polylineEditTolerance(options.tolerance), 1e-10)) {
+      throw new KJValidationError('PEDIT arc point is outside the selected segment tolerance')
+    }
+  }
   if (options.bulge != null && options.sweepDegrees != null) throw new KJValidationError('PEDIT SET_BULGE accepts bulge or sweepDegrees, not both')
   if (options.bulge == null && options.sweepDegrees == null) throw new KJValidationError('PEDIT SET_BULGE requires bulge or sweepDegrees')
   let bulge: number
@@ -1217,6 +1247,25 @@ export function editPolylinePayload(target: KJEditingEntity | null | undefined, 
   if (operation === 'INSERT') return insertPolylineVertex(payload, vertices, options)
   if (operation === 'DELETE') return deletePolylineVertex(payload, vertices, options)
   if (operation === 'SET_BULGE' || operation === 'ARC') return setPolylineSegmentBulge(payload, vertices, options)
+  throw new KJValidationError('PEDIT operation must be INSERT, DELETE or SET_BULGE')
+}
+
+/** Resolve a pointer-based PEDIT pick to the stable topology index used for association migration. */
+export function resolvePolylineEditLocation(target: KJEditingEntity | null | undefined, options: KJPolylineEditOptions = {}): KJPolylineEditLocation {
+  const type = normalizeName(target?.type)
+  if (type !== 'LWPOLYLINE' && type !== 'POLYLINE') throw new KJValidationError(`PEDIT requires a LWPOLYLINE or POLYLINE target, not ${type || 'unknown entity'}`)
+  const payload = payloadOf(target), vertices = editablePolylineVertices(payload)
+  assertEditablePolylineTopology(type, payload, vertices)
+  const operation = normalizeName(options.operation)
+  if (operation === 'INSERT' || operation === 'SET_BULGE' || operation === 'ARC') {
+    const segmentCount = polylineSegmentCount(vertices, Boolean(payload.closed))
+    return { segmentIndex: options.segmentIndex == null
+      ? pickedPolylineSegment(vertices, options.point, Boolean(payload.closed))
+      : polylineEditIndex(options.segmentIndex, 'PEDIT segmentIndex', segmentCount) }
+  }
+  if (operation === 'DELETE') return { vertexIndex: options.vertexIndex == null
+    ? pickedPolylineVertex(vertices, options.point, polylineEditTolerance(options.tolerance))
+    : polylineEditIndex(options.vertexIndex, 'PEDIT vertexIndex', vertices.length) }
   throw new KJValidationError('PEDIT operation must be INSERT, DELETE or SET_BULGE')
 }
 

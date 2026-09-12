@@ -91,6 +91,10 @@ export interface KJPolylineEditOptions {
     readonly bulge?: unknown;
     readonly sweepDegrees?: unknown;
 }
+export interface KJPolylineEditLocation {
+    readonly segmentIndex?: number;
+    readonly vertexIndex?: number;
+}
 /** Join connected open linear/arc paths into one editable planar polyline. */
 export declare function joinEntityPayloads(entities: readonly KJJoinEntity[], options?: KJJoinOptions): KJJoinResult;
 export declare function offsetEntityPayload(entity: KJEditingEntity | null | undefined, distance: unknown, options?: KJOffsetOptions): KJObjectPayload;
@@ -111,5 +115,7 @@ export declare function lengthenEntityPayload(target: KJEditingEntity | null | u
 export declare function stretchEntityPayload(target: KJEditingEntity | null | undefined, options?: KJStretchOptions): KJObjectPayload | null;
 /** Edit one polyline topology element without replacing the entity identity. */
 export declare function editPolylinePayload(target: KJEditingEntity | null | undefined, options?: KJPolylineEditOptions): KJObjectPayload;
+/** Resolve a pointer-based PEDIT pick to the stable topology index used for association migration. */
+export declare function resolvePolylineEditLocation(target: KJEditingEntity | null | undefined, options?: KJPolylineEditOptions): KJPolylineEditLocation;
 export declare function chamferLinePair(first: KJEditingEntity, second: KJEditingEntity, options?: KJLinePairOptions): KJLinePairEditResult;
 export declare function filletLinePair(first: KJEditingEntity, second: KJEditingEntity, options?: KJLinePairOptions): KJLinePairEditResult;

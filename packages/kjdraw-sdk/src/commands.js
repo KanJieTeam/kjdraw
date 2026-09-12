@@ -12,7 +12,7 @@ import { migratePolylineDimensionAssociations, normalizeDimensionAssociations, r
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js';
 import { KJ_SNAP_MODES } from './snapping.js';
 import { selectEntitiesByProperty } from './selection.js';
-import { breakEntityPayloads, chamferLinePair, editPolylinePayload, explodeEntity, extendEntityPayload, filletLinePair, joinEntityPayloads, lengthenEntityPayload, offsetEntityPayload, stretchEntityPayload, trimEntityPayloads } from './editing.js';
+import { breakEntityPayloads, chamferLinePair, editPolylinePayload, explodeEntity, extendEntityPayload, filletLinePair, joinEntityPayloads, lengthenEntityPayload, offsetEntityPayload, resolvePolylineEditLocation, stretchEntityPayload, trimEntityPayloads } from './editing.js';
 const AFFINE_ENTITY_TYPES = Object.freeze([
     'LINE',
     'RAY',
@@ -1893,21 +1893,19 @@ export function registerCoreCommands(registry) {
         title: 'Edit polyline topology',
         execute: ({ document, transaction }, args)=>{
             const entity = requiredEntity(document, args.id);
+            const location = resolvePolylineEditLocation(entity, args);
             const payload = editPolylinePayload(entity, args);
             const operation = normalizeName(args.operation);
-            if ((operation === 'SET_BULGE' || operation === 'ARC') && Array.isArray(payload.vertices) && payload.vertices.some((vertex)=>Number(vertex && typeof vertex === 'object' && 'bulge' in vertex ? vertex.bulge : 0) !== 0)) {
-                requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'PEDIT SET_BULGE');
-            }
             const updated = transaction.updateObject(entity.id, {
                 payload
             });
             if (operation === 'INSERT') migratePolylineDimensionAssociations(transaction, entity.id, {
                 operation,
-                vertexIndex: Number(args.segmentIndex) + 1
+                vertexIndex: location.segmentIndex + 1
             });
             if (operation === 'DELETE') migratePolylineDimensionAssociations(transaction, entity.id, {
                 operation,
-                vertexIndex: Number(args.vertexIndex)
+                vertexIndex: location.vertexIndex
             });
             refreshAssociativeDimensions(transaction, [
                 entity.id

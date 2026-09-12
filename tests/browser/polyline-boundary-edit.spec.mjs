@@ -152,3 +152,18 @@ test('Playground EXTEND previews and commits a terminal bulge continuation', asy
   await page.mouse.click(target.x, target.y); await expect(page.locator('#revision')).toHaveText(`REV ${revision + 1}`)
   await page.keyboard.press('Escape')
 })
+
+test('Playground PEDIT inserts by segment pick with a non-mutating exact ghost preview', async ({ page }) => {
+  await loadPlayground(page)
+  await playgroundClick(page, 10, 0); await expect(page.locator('#selection-count')).toHaveText('1 selected')
+  const revision = Number((await page.locator('#revision').textContent()).replace('REV ', ''))
+  await page.locator('.ribbon-tabs [data-i18n="modify"]').click()
+  await page.locator('#modification-tool').selectOption('polyline-insert')
+  await expect(page.locator('#app-dialog')).toBeVisible(); await page.locator('#dialog-fields input[name="tolerance"]').fill('0.2'); await page.locator('#dialog-submit').click()
+  const target = await playgroundPoint(page, 10, 0); await page.mouse.move(target.x, target.y)
+  await expect(page.locator('.workbench')).toHaveAttribute('data-modification-preview-count', '1')
+  await expect(page.locator('#revision')).toHaveText(`REV ${revision}`)
+  await page.mouse.click(target.x, target.y); await expect(page.locator('#revision')).toHaveText(`REV ${revision + 1}`)
+  await page.locator('#undo').click(); await expect(page.locator('#revision')).toHaveText(`REV ${revision + 2}`)
+  await page.locator('#redo').click(); await expect(page.locator('#revision')).toHaveText(`REV ${revision + 3}`)
+})

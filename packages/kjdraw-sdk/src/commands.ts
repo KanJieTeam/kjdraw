@@ -49,6 +49,7 @@ import {
   joinEntityPayloads,
   lengthenEntityPayload,
   offsetEntityPayload,
+  resolvePolylineEditLocation,
   stretchEntityPayload,
   trimEntityPayloads,
 } from './editing.js'
@@ -1059,15 +1060,12 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'PEDIT', aliases: ['PE', 'POLYLINEEDIT'], title: 'Edit polyline topology',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id)
+      const location = resolvePolylineEditLocation(entity, args)
       const payload = editPolylinePayload(entity, args)
       const operation = normalizeName(args.operation)
-      if ((operation === 'SET_BULGE' || operation === 'ARC') && Array.isArray(payload.vertices)
-        && payload.vertices.some(vertex => Number(vertex && typeof vertex === 'object' && 'bulge' in vertex ? vertex.bulge : 0) !== 0)) {
-        requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'PEDIT SET_BULGE')
-      }
       const updated = transaction.updateObject(entity.id, { payload })
-      if (operation === 'INSERT') migratePolylineDimensionAssociations(transaction, entity.id, { operation, vertexIndex: Number(args.segmentIndex) + 1 })
-      if (operation === 'DELETE') migratePolylineDimensionAssociations(transaction, entity.id, { operation, vertexIndex: Number(args.vertexIndex) })
+      if (operation === 'INSERT') migratePolylineDimensionAssociations(transaction, entity.id, { operation, vertexIndex: location.segmentIndex! + 1 })
+      if (operation === 'DELETE') migratePolylineDimensionAssociations(transaction, entity.id, { operation, vertexIndex: location.vertexIndex! })
       refreshAssociativeDimensions(transaction, [entity.id])
       return updated
     },
