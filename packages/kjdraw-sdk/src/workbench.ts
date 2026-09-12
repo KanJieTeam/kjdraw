@@ -1116,7 +1116,11 @@ export class KJDrawWorkbench {
       return
     }
     if (this.#draftGesture && isDraftPointInput(raw)) {
-      if (await this.#addDraftCoordinate(raw)) input.value = ''
+      const accepted = await this.#addDraftCoordinate(raw)
+      // Keep only pointer-dependent distance/angle shorthand for retry. An
+      // absolute/relative coordinate was fully consumed even when geometry
+      // validation rejected it, so leave the draft active and clear the box.
+      if (accepted || !/^\s*(?:\d+(?:\.\d+)?|\.\d+|<[-+]?\d+(?:\.\d+)?)\s*$/.test(raw)) input.value = ''
       return
     }
     const separator = raw.search(/\s/)

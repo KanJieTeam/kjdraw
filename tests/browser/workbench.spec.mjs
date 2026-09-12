@@ -203,6 +203,10 @@ test('drawing tools, rubber-band preview and command bar execute real SDK edits'
   await command.press('Enter')
   await command.fill('OFFSET 2')
   await command.press('Enter')
+  await expect(page.locator('#workbench-host [data-modification-dialog]')).toBeVisible()
+  await page.locator('#workbench-host [data-action="start-modification"]').click()
+  const offsetSide = await canvasPoint(page, [13, 5])
+  await page.mouse.click(offsetSide.x, offsetSide.y)
   expect(await page.evaluate(() => window.__workbenchTest.drawing.listEntities({ type: 'LINE' }).length)).toBe(3)
 
   await page.locator('#workbench-host [data-tool="polyline"]').click()

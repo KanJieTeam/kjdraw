@@ -113,7 +113,7 @@ export function createAgentChat(container, options) {
   const footer = element('div','chat-composer-actions'), send = button('send','chat-send'), stop = button('stop','chat-stop')
   send.id='chat-send'; stop.id='chat-stop'; stop.hidden=true
   const attachLabel=element('label','chat-attach-view'), attach=element('input'); attach.type='checkbox'; attach.id='chat-attach-view'; attachLabel.append(attach,label(element('span'),'attachView')); attachLabel.hidden=typeof options.captureView!=='function'
-  const dataBox=element('div','chat-data-attachment'), dataPick=button('attachData'), dataFile=element('input'), dataRemove=button('removeData'), dataStatus=element('p','chat-data-status'), dataError=element('p','chat-error'), dataDetails=element('details'), dataText=element('pre')
+  const dataBox=element('div','chat-data-attachment'), dataPick=button('attachData'), dataFile=element('input'), dataRemove=button('removeData'), dataStatus=element('p','chat-data-status'), dataError=element('p','chat-data-error'), dataDetails=element('details'), dataText=element('pre')
   dataFile.id='chat-data-file';dataFile.type='file';dataFile.accept='.csv,.json,text/csv,application/json';dataFile.hidden=true
   dataPick.id='chat-attach-data';dataRemove.id='chat-remove-data';dataRemove.hidden=true;dataDetails.hidden=true;dataError.setAttribute('role','alert')
   dataDetails.append(label(element('summary'),'dataContents'),dataText)
