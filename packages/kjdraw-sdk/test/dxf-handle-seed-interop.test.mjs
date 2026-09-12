@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {spawnSync} from 'node:child_process'
 import {createKJDrawSDK} from '../src/sdk.js'
+import {spawnSyncWithFileStdin} from '../../../scripts/spawn-file-stdin.mjs'
 
 function records(text){
  const lines=String(text).trimEnd().split(/\r?\n/),result=[];let record
@@ -35,7 +35,7 @@ test('DXF HANDSEED reserves all emitted handles, including generated dimensions 
 
 test('independent DXF load never overwrites an implicit INSERT SEQEND with a later LAYOUT',async t=>{
  const {sdk,document}=await fixture(),output=String(await sdk.writeDocument(document,{format:'DXF',version:'2018'}))
- const result=spawnSync(process.env.KJDRAW_PYTHON??'python',['-c',String.raw`
+ const result=spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON??'python',['-c',String.raw`
 import io,json,sys,logging,re,ezdxf
 source=sys.stdin.read();events=[]
 class Capture(logging.Handler):
@@ -54,7 +54,7 @@ d,fixed=load(source)
 original={h:id(e) for h,e in d.entitydb.items()};created=d.modelspace().add_line((0,0),(1,1));assert created.dxf.handle not in original
 assert all(id(d.entitydb[h])==identity for h,identity in original.items())
 print(json.dumps({'old':broken,'fixed':fixed,'newHandle':created.dxf.handle}))
-`],{input:output,encoding:'utf8',timeout:30000,env:{...process.env,PYTHONIOENCODING:'utf-8'}})
+`],output,{encoding:'utf8',timeout:30000,env:{...process.env,PYTHONIOENCODING:'utf-8'}})
  if(result.error?.code==='ENOENT'||/No module named 'ezdxf'/.test(result.stderr)){if(process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED==='1')assert.fail(result.stderr||result.error.message);t.skip('ezdxf required');return}
  assert.equal(result.status,0,result.stderr);const observed=JSON.parse(result.stdout)
  assert.ok(observed.old.warnings.length>0,JSON.stringify(observed));assert.ok(observed.old.seqendIdentities.includes(false),JSON.stringify(observed))

@@ -1,6 +1,5 @@
 // Explicit paired live experiment. Default CLI execution only prints a dry-run plan.
 import { createHash } from 'node:crypto'
-import { spawnSync } from 'node:child_process'
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -11,6 +10,7 @@ import { extractKJModelUsage } from '../../packages/kjdraw-sdk/src/model-usage.j
 import { pilotTasks } from './model-drawing-pilot.mjs'
 import { engineeringDrawingTasks, engineeringDrawingScope } from './engineering-drawing-tasks.mjs'
 import { parametricDrawingTasks } from './parametric-drawing-tasks.mjs'
+import { spawnSyncWithFileStdin } from '../spawn-file-stdin.mjs'
 
 const protocol = 'chat-completions'
 const arms = ['kjdraw-tool', 'direct-dxf']
@@ -65,7 +65,7 @@ export function liveModelConfiguration(env = process.env) {
 
 export function independentValidation({ python = process.env.KJDRAW_PYTHON ?? 'python', dxf, expected, timeoutMs = 30000, taskSuite = 'pilot' } = {}) {
   const script = taskSuite === 'engineering' ? fileURLToPath(new URL('./engineering-model-validator.py', import.meta.url)) : validatorScript
-  const result = spawnSync(python, ['-B', script, ...(dxf === undefined ? ['--probe'] : [])], { input: dxf === undefined ? undefined : JSON.stringify({ dxf, expected }), encoding: 'utf8', timeout: timeoutMs, maxBuffer: 65536, windowsHide: true })
+  const result = spawnSyncWithFileStdin(python, ['-B', script, ...(dxf === undefined ? ['--probe'] : [])], dxf === undefined ? undefined : JSON.stringify({ dxf, expected }), { encoding: 'utf8', timeout: timeoutMs, maxBuffer: 65536, windowsHide: true })
   if (result.status !== 0 || result.error) throw new BenchmarkFailure('INDEPENDENT_VALIDATOR_UNAVAILABLE', true)
   let value
   try { value = JSON.parse(result.stdout) } catch { throw new BenchmarkFailure('INDEPENDENT_VALIDATOR_INVALID', true) }

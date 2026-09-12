@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { spawnSync } from 'node:child_process'
 import { KJDocument, createKJDrawSDK, readDesignRelations, createDesignRelations } from '../src/index.js'
 import { projectDimension } from '../src/geometry/annotation.js'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 
 const expr = (parameter, coefficient = 1, constant = 0) => ({ constant, terms: parameter ? [{ parameter, coefficient }] : [] })
 const bind = (entityId, path, parameter, coefficient = 1) => ({ entityId, path, expression: expr(parameter, coefficient) })
@@ -84,7 +84,7 @@ test('designs persist in KJD and reopen for further updates; DXF requires explic
   assert.equal(projectDimension(cad.listEntities({ type: 'DIMENSION' })[0].payload).measurement, 300)
   assert.deepEqual(readDesignRelations(cad), [])
   const python = process.env.KJDRAW_PYTHON || 'python'
-  const result = spawnSync(python, ['-c', 'import sys,io,json,ezdxf; d=ezdxf.read(io.StringIO(sys.stdin.read())); a=d.audit(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(d.modelspace().query("CIRCLE")),"width":list(d.modelspace().query("DIMENSION"))[0].get_measurement()}))'], { input: dxf, encoding: 'utf8', windowsHide: true })
+  const result = spawnSyncWithFileStdin(python, ['-c', 'import sys,io,json,ezdxf; d=ezdxf.read(io.StringIO(sys.stdin.read())); a=d.audit(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(d.modelspace().query("CIRCLE")),"width":list(d.modelspace().query("DIMENSION"))[0].get_measurement()}))'], dxf, { encoding: 'utf8', windowsHide: true })
   assert.equal(result.status, 0, result.stderr)
   assert.deepEqual(JSON.parse(result.stdout), { errors: 0, fixes: 0, circles: 4, width: 300 })
 })

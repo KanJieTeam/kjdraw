@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { projectDimension, resolveDimensionAnnotationStyle } from '../src/geometry/annotation.js'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 
 const definition = { dimensionType: 'ROTATED', definitionPoints: [[30, 22, 0], [30, 30, 0], [60, 30, 0]], textPosition: [45, 20, 0], rotation: 0 }
 const projection = (document, entity) => projectDimension(entity.payload, document.getObject(entity.payload.styleId)?.payload ?? {})
@@ -13,7 +14,7 @@ const close = (a, b) => {
 }
 const write = (sdk, document) => sdk.writeDocument(document, { format: 'DXF', version: '2018' })
 const native = (t, dxf) => {
-  const result = spawnSync(process.env.KJDRAW_PYTHON ?? 'python', ['-c', String.raw`
+  const result = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON ?? 'python', ['-c', String.raw`
 import sys,io,json,ezdxf
 D=ezdxf.read(io.StringIO(sys.stdin.read())); result=[]
 for e in D.modelspace().query('DIMENSION'):
@@ -22,7 +23,7 @@ for e in D.modelspace().query('DIMENSION'):
  o.render(); after=[x.dxf.char_height for x in e.virtual_entities() if x.dxftype()=='MTEXT']
  result.append({'values':values,'before':before,'after':after,'measurement':e.get_measurement()})
 a=D.audit();print(json.dumps({'dimensions':result,'errors':len(a.errors),'fixes':len(a.fixes)}))
-`], { input: String(dxf), encoding: 'utf8', timeout: 30000, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } })
+`], String(dxf), { encoding: 'utf8', timeout: 30000, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } })
   if (result.error?.code === 'ENOENT' || /No module named 'ezdxf'/.test(result.stderr)) {
     if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(result.stderr || result.error.message)
     t.skip('ezdxf is required for independent native regeneration'); return null

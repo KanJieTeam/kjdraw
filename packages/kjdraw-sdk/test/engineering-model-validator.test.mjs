@@ -1,15 +1,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
 import { engineeringDrawingRequirements, referenceAnnotatedInput } from '../../../scripts/benchmarks/engineering-drawing-tasks.mjs'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 
 const python = process.env.KJDRAW_PYTHON ?? 'python'
 const validator = fileURLToPath(new URL('../../../scripts/benchmarks/engineering-model-validator.py', import.meta.url))
 function runPython(args, input) {
-  const result = spawnSync(python, args, { input, encoding: 'utf8', timeout: 30000, maxBuffer: 4 * 1024 * 1024 })
+  const result = spawnSyncWithFileStdin(python, args, input, { encoding: 'utf8', timeout: 30000, maxBuffer: 4 * 1024 * 1024 })
   assert.equal(result.status, 0, result.stderr || result.error?.message || result.stdout)
   return result.stdout
 }

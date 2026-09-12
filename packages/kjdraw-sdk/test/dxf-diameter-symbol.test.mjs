@@ -1,8 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {spawnSync} from 'node:child_process'
 import {createKJDrawSDK} from '../src/sdk.js'
 import {projectDimension} from '../src/geometry/annotation.js'
+import {spawnSyncWithFileStdin} from '../../../scripts/spawn-file-stdin.mjs'
 const definition={dimensionType:'DIAMETER',definitionPoints:[[0,0,0],[6,0,0]],textHeight:1.2}
 const write=(sdk,document)=>sdk.writeDocument(document,{format:'DXF',version:'2018'})
 function texts(dxf){const lines=String(dxf).trimEnd().split(/\r?\n/),result=[];let type;for(let i=0;i<lines.length;i+=2){if(Number(lines[i])===0)type=lines[i+1];else if(type==='TEXT'&&Number(lines[i])===1)result.push(lines[i+1])}return result}
@@ -72,7 +72,7 @@ except ImportError as error:
 a=d.audit();assert not a.errors and not a.fixes;result['warnings']=warnings
 print(json.dumps(result))
 `
- const r=spawnSync(process.env.KJDRAW_FONT_PYTHON??process.env.KJDRAW_PYTHON??'python',['-c',script],{input:String(output),encoding:'utf8',timeout:30000,env:{...process.env,PYTHONIOENCODING:'utf-8',...(process.env.KJDRAW_FONT_PYTHON?{PYTHONPATH:''}:{})}})
+ const r=spawnSyncWithFileStdin(process.env.KJDRAW_FONT_PYTHON??process.env.KJDRAW_PYTHON??'python',['-c',script],String(output),{encoding:'utf8',timeout:30000,env:{...process.env,PYTHONIOENCODING:'utf-8',...(process.env.KJDRAW_FONT_PYTHON?{PYTHONPATH:''}:{})}})
  if(r.error?.code==='ENOENT'||/No module named 'ezdxf'/.test(r.stderr)){if(process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED==='1')assert.fail(r.stderr||r.error.message);t.skip('ezdxf required');return}
  assert.equal(r.status,0,r.stderr);const observed=JSON.parse(r.stdout);assert.equal(observed.measurement,6);assert.equal(observed.raw,'%%c6');assert.equal(observed.plain,'Ø6');assert.deepEqual(observed.warnings,[])
  if(process.env.KJDRAW_FONT_INTEROP_REQUIRED==='1')assert.equal(observed.vectorRendered,true,JSON.stringify(observed))

@@ -1,8 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import { createDXFFileAdapter } from '../src/dxf-adapter.js'
 import { createKJDrawSDK } from '../src/sdk.js'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 
 // Synthetic standard DXF, not copied from customer drawings. The attribute is
 // already in the containing space despite the INSERT's nontrivial transform.
@@ -107,7 +107,7 @@ assert attrs[1].dxf.flags==9 and attrs[1].is_invisible
 audit=d.audit();assert not audit.errors and not audit.fixes,([str(e) for e in audit.errors],[str(e) for e in audit.fixes])
 out=io.StringIO();d.write(out);print(json.dumps({'dxf':out.getvalue(),'handles':[a.dxf.handle for a in attrs]}))
 `
-  const result=spawnSync(process.env.KJDRAW_PYTHON??'python',['-c',script],{input:source,encoding:'utf8',timeout:30000,env:{...process.env,PYTHONIOENCODING:'utf-8'}})
+  const result=spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON??'python',['-c',script],source,{encoding:'utf8',timeout:30000,env:{...process.env,PYTHONIOENCODING:'utf-8'}})
   if(result.error?.code==='ENOENT'||/No module named 'ezdxf'/.test(result.stderr)){if(process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED==='1')assert.fail(result.stderr||result.error.message);t.skip('ezdxf required');return}
   assert.equal(result.status,0,result.stderr);const native=JSON.parse(result.stdout), reopened=await adapter.read(native.dxf)
   assert.deepEqual(attributes(reopened).values.map(a=>a.handle),native.handles)

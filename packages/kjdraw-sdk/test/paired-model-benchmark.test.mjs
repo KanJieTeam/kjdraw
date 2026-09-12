@@ -12,6 +12,7 @@ import { parametricDrawingTasks, deterministicFixturePatternInputs } from '../..
 import { expandRectangularDrawingPattern } from '../src/agent-drawing-patterns.js'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 
 const fixtureKey = 'fixture-credential-never-artifact'
 const python = process.env.KJDRAW_PYTHON ?? 'python'
@@ -176,7 +177,7 @@ for variant in ['line-z','circle-normal','arc-z','poly-elevation','poly-width','
  elif variant=='paper-entity': doc.layout().add_line((0,0),(1,1))
  output=io.StringIO(); doc.write(output); outputs[variant]=output.getvalue()
 print(json.dumps(outputs))`
-  const generated = spawnSync(python, ['-B', '-c', script], { input: original, encoding: 'utf8', timeout: 30000, maxBuffer: 4194304, windowsHide: true })
+  const generated = spawnSyncWithFileStdin(python, ['-B', '-c', script], original, { encoding: 'utf8', timeout: 30000, maxBuffer: 4194304, windowsHide: true })
   assert.equal(generated.status, 0, 'Independent negative-fixture generation must succeed')
   const variants = JSON.parse(generated.stdout)
   for (const [name, dxf] of Object.entries(variants)) {
