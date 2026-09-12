@@ -24,9 +24,11 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
       ? ['angularDimensions']
       : tool.name === 'cad_propose_lengthen'
         ? ['value', 'targetPoint']
-      : tool.name === 'cad_propose_polyline_edit'
-        ? ['segmentIndex', 'vertexIndex', 'point', 'tolerance', 'bulge', 'sweepDegrees']
-        : []
+        : tool.name === 'cad_propose_polyline_edit'
+          ? ['segmentIndex', 'vertexIndex', 'point', 'tolerance', 'bulge', 'sweepDegrees']
+          : tool.name === 'cad_check_geometry'
+            ? ['dimensionMeasurements']
+            : []
     assert.deepEqual(tool.inputSchema.required, Object.keys(tool.inputSchema.properties).filter(key => !optional.includes(key)))
     assert.throws(() => { tool.inputSchema.additionalProperties = true }, TypeError)
   }
