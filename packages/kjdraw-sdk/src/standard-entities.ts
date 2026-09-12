@@ -47,6 +47,7 @@ interface EntityPayloadShape extends Record<string, unknown> {
   knots?: unknown[]
   periodic?: unknown
   alignmentPoint?: unknown
+  attachmentPoint?: unknown
   text?: unknown
   height?: unknown
   rotation?: unknown
@@ -256,7 +257,11 @@ export function normalizeStandardEntityPayload(type: unknown, input: Record<stri
       return { ...base(payload), degree, controlPoints, fitPoints: payload.fitPoints?.map((point, index) => point3(point, `fitPoints[${index}]`)), knots, weights, closed: Boolean(payload.closed), periodic: Boolean(payload.periodic) }
     }
     case 'TEXT': return { ...base(payload), ...nativeTextFields(payload), position: point3(payload.position, 'position'), alignmentPoint: payload.alignmentPoint && point3(payload.alignmentPoint, 'alignmentPoint'), text: String(payload.text ?? ''), height: positive(payload.height ?? 2.5, 'height'), rotation: finite(payload.rotation ?? 0, 'rotation'), styleId: payload.styleId == null ? null : String(payload.styleId) }
-    case 'MTEXT': return { ...base(payload), position: point3(payload.position, 'position'), alignmentPoint: payload.alignmentPoint && point3(payload.alignmentPoint, 'alignmentPoint'), text: String(payload.text ?? ''), height: positive(payload.height ?? 2.5, 'height'), rotation: finite(payload.rotation ?? 0, 'rotation'), styleId: payload.styleId == null ? null : String(payload.styleId) }
+    case 'MTEXT': {
+      const attachmentPoint = finite(payload.attachmentPoint ?? 1, 'attachmentPoint')
+      if (!Number.isInteger(attachmentPoint) || attachmentPoint < 1 || attachmentPoint > 9) throw new KJValidationError('attachmentPoint is outside its native MTEXT range')
+      return { ...base(payload), position: point3(payload.position, 'position'), alignmentPoint: payload.alignmentPoint && point3(payload.alignmentPoint, 'alignmentPoint'), text: String(payload.text ?? ''), height: positive(payload.height ?? 2.5, 'height'), rotation: finite(payload.rotation ?? 0, 'rotation'), attachmentPoint, ...(payload.width == null ? {} : { width: positive(payload.width, 'width') }), styleId: payload.styleId == null ? null : String(payload.styleId) }
+    }
     case 'ATTDEF':
     case 'ATTRIB': return { ...base(payload), ...nativeTextFields(payload), ...(normalizedType === 'ATTRIB' ? { parentInsertId: optionalObjectId(payload.parentInsertId, 'parentInsertId') } : {}), position: point3(payload.position, 'position'), alignmentPoint: payload.alignmentPoint && point3(payload.alignmentPoint, 'alignmentPoint'), text: String(payload.text ?? ''), tag: String(payload.tag ?? ''), prompt: String(payload.prompt ?? ''), flags: Math.trunc(finite(payload.flags ?? 0, 'flags')), height: positive(payload.height ?? 2.5, 'height'), rotation: finite(payload.rotation ?? 0, 'rotation'), styleId: payload.styleId == null ? null : String(payload.styleId), lockPosition: Boolean(payload.lockPosition) }
     case 'INSERT': {

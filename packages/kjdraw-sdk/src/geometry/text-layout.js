@@ -6,7 +6,7 @@ const point = (value)=>Array.isArray(value) && value.length >= 2 && value.slice(
         value[1]
     ] : null;
 export function textFontFamily(style = {}, fallback = 'ui-monospace, SFMono-Regular, Consolas, monospace') {
-    const file = String(style.fontFile ?? style.fontFamily ?? '').split(/[\\/]/).at(-1).replace(/\.(?:ttf|otf|shx)$/i, '');
+    const file = String(style.fontFile ?? style.fontFamily ?? '').split(/[\\/]/).at(-1).replace(/\.(?:ttf|ttc|otf|shx)$/i, '');
     const known = {
         times: 'Times New Roman',
         arial: 'Arial',
@@ -21,8 +21,8 @@ export function textFontFamily(style = {}, fallback = 'ui-monospace, SFMono-Regu
 }
 export function layoutCadText(payload, style = {}, measure) {
     const value = String(payload.text ?? payload.defaultValue ?? payload.value ?? ''), family = textFontFamily(style);
-    const height = number(payload.height, number(style.fixedHeight, 2.5)), widthFactor = number(payload.widthFactor, number(style.widthFactor, 1));
-    const horizontal = number(payload.horizontalAlignment), vertical = number(payload.verticalAlignment), flags = number(payload.generationFlags);
+    const fixedHeight = number(style.fixedHeight), height = fixedHeight > 0 ? fixedHeight : number(payload.height, 2.5), widthFactor = number(payload.widthFactor, number(style.widthFactor, 1));
+    const attachment = number(payload.attachmentPoint), horizontal = attachment ? (attachment - 1) % 3 : number(payload.horizontalAlignment), vertical = attachment ? attachment <= 3 ? 3 : attachment <= 6 ? 2 : 0 : number(payload.verticalAlignment), flags = number(payload.generationFlags);
     let position = point(payload.position), rotation = number(payload.rotation), xScale = widthFactor, yScale = 1;
     const oblique = number(payload.obliqueAngle, number(style.obliqueAngle)), alignment = point(payload.alignmentPoint);
     if (!position || ![

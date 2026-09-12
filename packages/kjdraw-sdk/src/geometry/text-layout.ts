@@ -8,7 +8,7 @@ const point = (value: unknown): Point | null => Array.isArray(value) && value.le
 
 /** Safe local font-family mapping; no URL/file loading or embedded font claims. */
 export function textFontFamily(style: Data = {}, fallback = 'ui-monospace, SFMono-Regular, Consolas, monospace'): string {
-  const file = String(style.fontFile ?? style.fontFamily ?? '').split(/[\\/]/).at(-1)!.replace(/\.(?:ttf|otf|shx)$/i, '')
+  const file = String(style.fontFile ?? style.fontFamily ?? '').split(/[\\/]/).at(-1)!.replace(/\.(?:ttf|ttc|otf|shx)$/i, '')
   const known: Record<string, string> = { times: 'Times New Roman', arial: 'Arial', simsun: 'SimSun', simhei: 'SimHei', simplex_: 'Simplex', txt_____: 'Txt', italic__: 'Italic' }
   const family = known[file.toLowerCase()] ?? (/^[\p{L}\p{N} _-]{1,80}$/u.test(file) ? file : '')
   return family ? `${JSON.stringify(family)}, ${fallback}` : fallback
@@ -18,8 +18,8 @@ export function textFontFamily(style: Data = {}, fallback = 'ui-monospace, SFMon
  * geometry queries use explicitly approximate font-independent label extents. */
 export function layoutCadText(payload: Readonly<KJObjectPayload> | Data, style: Data = {}, measure?: (text: string, height: number, family: string) => number) {
   const value = String(payload.text ?? payload.defaultValue ?? payload.value ?? ''), family = textFontFamily(style)
-  const height = number(payload.height, number(style.fixedHeight, 2.5)), widthFactor = number(payload.widthFactor, number(style.widthFactor, 1))
-  const horizontal = number(payload.horizontalAlignment), vertical = number(payload.verticalAlignment), flags = number(payload.generationFlags)
+  const fixedHeight = number(style.fixedHeight), height = fixedHeight > 0 ? fixedHeight : number(payload.height, 2.5), widthFactor = number(payload.widthFactor, number(style.widthFactor, 1))
+  const attachment = number(payload.attachmentPoint), horizontal = attachment ? (attachment - 1) % 3 : number(payload.horizontalAlignment), vertical = attachment ? (attachment <= 3 ? 3 : attachment <= 6 ? 2 : 0) : number(payload.verticalAlignment), flags = number(payload.generationFlags)
   let position = point(payload.position), rotation = number(payload.rotation), xScale = widthFactor, yScale = 1
   const oblique = number(payload.obliqueAngle, number(style.obliqueAngle)), alignment = point(payload.alignmentPoint)
   if (!position || ![height, widthFactor, horizontal, vertical, flags, rotation, oblique].every(Number.isFinite) || height <= 0 || widthFactor <= 0 || ![0,1,2,3,4,5].includes(horizontal) || ![0,1,2,3].includes(vertical)) throw new KJValidationError('Unsupported CAD text placement')

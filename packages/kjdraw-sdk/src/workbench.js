@@ -27,6 +27,15 @@ const copy = {
         dimensionArrowSize: 'Arrow size',
         dimensionExtensionOffset: 'Extension-line offset',
         dimensionExtensionBeyond: 'Extension beyond dimension line',
+        textStyles: 'Text styles',
+        textStylesDescription: 'Manage local font references and native CAD text metrics. Font files are referenced, not embedded.',
+        newTextStyle: 'New style',
+        fontFamily: 'Font family / fallback name',
+        fontFile: 'Local font file reference',
+        bigFontFile: 'Big-font file reference',
+        fixedTextHeight: 'Fixed height (0 = per object)',
+        textWidthFactor: 'Width factor',
+        textObliqueAngle: 'Oblique angle (degrees)',
         pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.',
         pageSheet: 'Sheet',
         pageStale: 'The drawing changed. Close and reopen the dialog before applying.',
@@ -227,6 +236,15 @@ const copy = {
         dimensionArrowSize: '箭头大小',
         dimensionExtensionOffset: '尺寸界线偏移',
         dimensionExtensionBeyond: '尺寸界线超出量',
+        textStyles: '文字样式',
+        textStylesDescription: '管理本地字体引用和原生 CAD 文字参数。字体文件仅引用，不会嵌入。',
+        newTextStyle: '新建样式',
+        fontFamily: '字体族 / 回退名称',
+        fontFile: '本地字体文件引用',
+        bigFontFile: '大字体文件引用',
+        fixedTextHeight: '固定高度（0 表示按对象）',
+        textWidthFactor: '宽度系数',
+        textObliqueAngle: '倾斜角（度）',
         pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。',
         pageSheet: '图纸布局',
         pageStale: '图档已变更，请关闭并重新打开对话框后再应用。',
@@ -872,6 +890,7 @@ export class KJDrawWorkbench {
     #snapMode = null;
     #snapCandidate = null;
     #pendingText = 'KJDraw';
+    #pendingTextType = 'TEXT';
     #snappableEntityIds = [];
     #panStart = null;
     #activePointer = null;
@@ -887,6 +906,7 @@ export class KJDrawWorkbench {
     #modificationGesture = null;
     #pageBinding = null;
     #dimensionStyleBinding = null;
+    #textStyleBinding = null;
     #boundarySession = null;
     #boundaryPointer = null;
     #boundaryPreview = null;
@@ -1061,7 +1081,7 @@ export class KJDrawWorkbench {
             'pan',
             'measure'
         ];
-        for (const button of this.root.querySelectorAll('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-action="page-setup"],[data-action="dimension-styles"],[data-tool]'))button.disabled = this.#readOnly && !allowed.includes(button.dataset.tool ?? '');
+        for (const button of this.root.querySelectorAll('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-action="page-setup"],[data-action="dimension-styles"],[data-action="text-styles"],[data-tool]'))button.disabled = this.#readOnly && !allowed.includes(button.dataset.tool ?? '');
         const command = this.root.querySelector('[data-command]'), run = this.root.querySelector('[data-action="run-command"]');
         if (command) command.disabled = this.paperPreview;
         if (run) run.disabled = this.paperPreview;
@@ -1424,6 +1444,7 @@ export class KJDrawWorkbench {
         <button type="button" class="file-action" data-action="print" data-copy-title="print" title="${t('print')}" aria-label="${t('print')}">${icon('export')}<span data-copy="print">${t('print')}</span></button>
         <button type="button" class="file-action" data-action="page-setup" data-copy-title="pageSetup" title="${t('pageSetup')}" aria-label="${t('pageSetup')}" ${readonly ? 'disabled' : ''}>${icon('panel')}<span data-copy="pageSetup">${t('pageSetup')}</span></button>
         <button type="button" class="file-action" data-action="dimension-styles" data-copy-title="dimensionStyles" title="${t('dimensionStyles')}" aria-label="${t('dimensionStyles')}" ${readonly ? 'disabled' : ''}>${icon('measure')}<span data-copy="dimensionStyles">${t('dimensionStyles')}</span></button>
+        <button type="button" class="file-action" data-action="text-styles" data-copy-title="textStyles" title="${t('textStyles')}" aria-label="${t('textStyles')}" ${readonly ? 'disabled' : ''}>${icon('text')}<span data-copy="textStyles">${t('textStyles')}</span></button>
       </header>
       <nav class="ribbon" aria-label="CAD tools">
         <div class="group"><button type="button" class="tool active" data-tool="select">${icon('select')}<small data-copy="select">${t('select')}</small></button><button type="button" class="tool" data-tool="pan">${icon('pan')}<small data-copy="pan">${t('pan')}</small></button><span data-copy="view">${t('view')}</span></div>
@@ -1463,6 +1484,13 @@ export class KJDrawWorkbench {
           <header class="modify-head"><h2 data-copy="dimensionStyles">${t('dimensionStyles')}</h2><p data-copy="dimensionStylesDescription">${t('dimensionStylesDescription')}</p></header>
           <div class="modify-body"><label class="field"><span data-copy="dimensionStyles">${t('dimensionStyles')}</span><select data-dimension-style-record></select></label><div class="modify-fields" data-dimension-style-fields></div><p role="alert" data-dimension-style-error></p></div>
           <footer class="modify-actions"><button type="button" data-action="cancel-dimension-style" data-copy="cancel">${t('cancel')}</button><button type="button" data-action="new-dimension-style" data-copy="newDimensionStyle">${t('newDimensionStyle')}</button><button type="button" data-action="set-current-dimension-style" data-copy="setCurrentStyle">${t('setCurrentStyle')}</button><button type="button" class="confirm" data-action="save-dimension-style" data-copy="apply">${t('apply')}</button></footer>
+        </div>
+      </dialog>
+      <dialog class="modify-dialog" data-text-style-dialog aria-label="${t('textStyles')}">
+        <div class="modify-form" data-text-style-form>
+          <header class="modify-head"><h2 data-copy="textStyles">${t('textStyles')}</h2><p data-copy="textStylesDescription">${t('textStylesDescription')}</p></header>
+          <div class="modify-body"><label class="field"><span data-copy="textStyles">${t('textStyles')}</span><select data-text-style-record></select></label><div class="modify-fields" data-text-style-fields></div><p role="alert" data-text-style-error></p></div>
+          <footer class="modify-actions"><button type="button" data-action="cancel-text-style" data-copy="cancel">${t('cancel')}</button><button type="button" data-action="new-text-style" data-copy="newTextStyle">${t('newTextStyle')}</button><button type="button" data-action="set-current-text-style" data-copy="setCurrentStyle">${t('setCurrentStyle')}</button><button type="button" class="confirm" data-action="save-text-style" data-copy="apply">${t('apply')}</button></footer>
         </div>
       </dialog>`;
     }
@@ -1527,13 +1555,43 @@ export class KJDrawWorkbench {
         }, {
             signal
         });
+        const textStyleDialog = query(this.root, '[data-text-style-dialog]');
+        query(this.root, '[data-action="text-styles"]').addEventListener('click', ()=>this.#openTextStyles(), {
+            signal
+        });
+        query(this.root, '[data-action="cancel-text-style"]').addEventListener('click', ()=>textStyleDialog.close(), {
+            signal
+        });
+        query(this.root, '[data-action="new-text-style"]').addEventListener('click', ()=>this.#newTextStyle(), {
+            signal
+        });
+        query(this.root, '[data-action="set-current-text-style"]').addEventListener('click', ()=>void this.#setCurrentTextStyle(), {
+            signal
+        });
+        query(this.root, '[data-action="save-text-style"]').addEventListener('click', ()=>void this.#saveTextStyle(), {
+            signal
+        });
+        query(this.root, '[data-text-style-record]').addEventListener('change', (event)=>{
+            if (this.#textStyleBinding) this.#textStyleBinding.recordId = event.currentTarget.value || null;
+            this.#renderTextStyleForm();
+        }, {
+            signal
+        });
+        textStyleDialog.addEventListener('close', ()=>{
+            this.#textStyleBinding = null;
+        }, {
+            signal
+        });
         this.root.addEventListener('focusin', ()=>this.#activateDocument(), {
             signal
         });
         this.root.addEventListener('pointerdown', ()=>this.#activateDocument(), {
             signal
         });
-        for (const button of this.root.querySelectorAll('[data-tool]'))button.addEventListener('click', ()=>this.setTool(button.dataset.tool), {
+        for (const button of this.root.querySelectorAll('[data-tool]'))button.addEventListener('click', ()=>{
+            if (button.dataset.tool === 'text') this.#pendingTextType = 'TEXT';
+            this.setTool(button.dataset.tool);
+        }, {
             signal
         });
         query(this.root, '[data-layout]').addEventListener('change', (event)=>this.setLayout(event.currentTarget.value), {
@@ -2254,12 +2312,13 @@ export class KJDrawWorkbench {
                 });
                 return;
             }
-            if (command === 'T' || command === 'TEXT') {
+            if (command === 'T' || command === 'TEXT' || command === 'MT' || command === 'MTEXT') {
+                const textType = command === 'MT' || command === 'MTEXT' ? 'MTEXT' : 'TEXT';
                 const x = Number(tokens[0]), y = Number(tokens[1]);
                 if (tokens.length >= 3 && Number.isFinite(x) && Number.isFinite(y)) {
                     const text = tokens.slice(2).join(' ');
                     await this.execute('CREATE', {
-                        type: 'TEXT',
+                        type: textType,
                         payload: {
                             position: [
                                 x,
@@ -2269,11 +2328,15 @@ export class KJDrawWorkbench {
                             text,
                             height: Math.max(1, 16 / this.renderer.camera.scale),
                             rotation: 0,
+                            ...textType === 'MTEXT' ? {
+                                attachmentPoint: 1
+                            } : {},
                             ...this.#activeTextPayload()
                         }
                     });
                 } else {
                     this.#pendingText = remainder || 'KJDraw';
+                    this.#pendingTextType = textType;
                     this.setTool('text');
                 }
                 return;
@@ -2838,6 +2901,161 @@ export class KJDrawWorkbench {
     }
     #localizedControlText(value) {
         return this.#locale === 'zh-CN' ? value.zh : value.en;
+    }
+    #openTextStyles() {
+        const drawing = this.document;
+        if (!drawing || this.#readOnly || this.#abort.signal.aborted) return;
+        this.#cancelGesture();
+        const table = drawing.getTable('textStyles');
+        if (!table) return;
+        this.#textStyleBinding = {
+            document: drawing,
+            revision: drawing.revision,
+            recordId: table.currentId ?? table.records[0]?.id ?? null
+        };
+        const select = query(this.root, '[data-text-style-record]');
+        select.replaceChildren(...table.records.map((record)=>new Option(`${record.name ?? record.id}${record.id === table.currentId ? ` · ${this.#t('currentStyle')}` : ''}`, record.id)));
+        select.value = this.#textStyleBinding.recordId ?? '';
+        this.#renderTextStyleForm();
+        query(this.root, '[data-text-style-dialog]').showModal();
+    }
+    #newTextStyle() {
+        if (!this.#textStyleBinding) return;
+        this.#textStyleBinding.recordId = null;
+        query(this.root, '[data-text-style-record]').value = '';
+        this.#renderTextStyleForm();
+        query(this.root, '[data-text-style-field="name"]').focus();
+    }
+    #renderTextStyleForm() {
+        const binding = this.#textStyleBinding;
+        if (!binding) return;
+        const table = binding.document.getTable('textStyles');
+        if (!table) return;
+        const record = binding.recordId ? table.records.find((candidate)=>candidate.id === binding.recordId) : null;
+        const values = {
+            fontFamily: 'sans-serif',
+            fontFile: null,
+            bigFontFile: null,
+            fixedHeight: 0,
+            widthFactor: 1,
+            obliqueAngle: 0,
+            ...record?.payload ?? {}
+        };
+        const host = query(this.root, '[data-text-style-fields]');
+        host.replaceChildren();
+        const add = (key, copyKey, value, options = {})=>{
+            const label = document.createElement('label');
+            label.className = 'field';
+            const span = document.createElement('span');
+            span.dataset.copy = copyKey;
+            span.textContent = this.#t(copyKey);
+            const input = document.createElement('input');
+            input.type = options.type ?? 'text';
+            input.value = value;
+            input.required = options.required ?? true;
+            input.dataset.textStyleField = key;
+            if (options.min !== undefined) input.min = String(options.min);
+            if (options.max !== undefined) input.max = String(options.max);
+            if (options.step !== undefined) input.step = options.step;
+            label.append(span, input);
+            host.append(label);
+        };
+        add('name', 'styleName', record?.name ?? `TEXTSTYLE-${table.records.length + 1}`);
+        add('fontFamily', 'fontFamily', String(values.fontFamily ?? 'sans-serif'));
+        add('fontFile', 'fontFile', String(values.fontFile ?? ''), {
+            required: false
+        });
+        add('bigFontFile', 'bigFontFile', String(values.bigFontFile ?? ''), {
+            required: false
+        });
+        add('fixedHeight', 'fixedTextHeight', String(values.fixedHeight), {
+            type: 'number',
+            min: 0,
+            max: 1e12,
+            step: 'any'
+        });
+        add('widthFactor', 'textWidthFactor', String(values.widthFactor), {
+            type: 'number',
+            min: Number.EPSILON,
+            max: 1e12,
+            step: 'any'
+        });
+        add('obliqueDegrees', 'textObliqueAngle', String(Number(values.obliqueAngle) * 180 / Math.PI), {
+            type: 'number',
+            min: -89.999999,
+            max: 89.999999,
+            step: 'any'
+        });
+        query(this.root, '[data-text-style-error]').textContent = '';
+        query(this.root, '[data-action="set-current-text-style"]').disabled = !record || table.currentId === record.id || this.#readOnly;
+    }
+    #textStyleProperties() {
+        const form = query(this.root, '[data-text-style-form]'), invalid = form.querySelector('input:invalid');
+        if (invalid) {
+            invalid.reportValidity();
+            return null;
+        }
+        const read = (key)=>query(form, `[data-text-style-field="${key}"]`).value;
+        return {
+            name: read('name').trim(),
+            fontFamily: read('fontFamily').trim(),
+            fontFile: read('fontFile').trim() || null,
+            bigFontFile: read('bigFontFile').trim() || null,
+            fixedHeight: Number(read('fixedHeight')),
+            widthFactor: Number(read('widthFactor')),
+            obliqueAngle: Number(read('obliqueDegrees')) * Math.PI / 180
+        };
+    }
+    async #saveTextStyle() {
+        const binding = this.#textStyleBinding, dialog = query(this.root, '[data-text-style-dialog]');
+        if (!binding || !dialog.open) return;
+        const values = this.#textStyleProperties();
+        if (!values) return;
+        const button = query(dialog, '[data-action="save-text-style"]');
+        button.disabled = true;
+        try {
+            if (this.#readOnly) throw new Error(this.#t('readonly'));
+            if (this.document !== binding.document || binding.document.revision !== binding.revision) throw new Error(this.#t('pageStale'));
+            const { name, ...properties } = values;
+            await this.execute('TEXTSTYLE', binding.recordId ? {
+                operation: 'update',
+                id: binding.recordId,
+                newName: name,
+                properties
+            } : {
+                operation: 'create',
+                name,
+                properties
+            }, {
+                expectedRevision: binding.revision
+            });
+            dialog.close();
+        } catch (error) {
+            query(dialog, '[data-text-style-error]').textContent = error instanceof Error ? error.message : String(error);
+        } finally{
+            button.disabled = false;
+        }
+    }
+    async #setCurrentTextStyle() {
+        const binding = this.#textStyleBinding, dialog = query(this.root, '[data-text-style-dialog]');
+        if (!binding?.recordId || !dialog.open) return;
+        const button = query(dialog, '[data-action="set-current-text-style"]');
+        button.disabled = true;
+        try {
+            if (this.#readOnly) throw new Error(this.#t('readonly'));
+            if (this.document !== binding.document || binding.document.revision !== binding.revision) throw new Error(this.#t('pageStale'));
+            await this.execute('TEXTSTYLE', {
+                operation: 'set-current',
+                id: binding.recordId
+            }, {
+                expectedRevision: binding.revision
+            });
+            dialog.close();
+        } catch (error) {
+            query(dialog, '[data-text-style-error]').textContent = error instanceof Error ? error.message : String(error);
+        } finally{
+            button.disabled = false;
+        }
     }
     #openDimensionStyles() {
         const drawing = this.document;
@@ -4305,7 +4523,7 @@ export class KJDrawWorkbench {
         if (this.#tool === 'text') {
             if (this.#readOnly) return;
             await this.#run(()=>this.execute('CREATE', {
-                    type: 'TEXT',
+                    type: this.#pendingTextType,
                     payload: {
                         position: [
                             ...world,
@@ -4314,6 +4532,9 @@ export class KJDrawWorkbench {
                         text: this.#pendingText,
                         height: Math.max(1, 16 / this.renderer.camera.scale),
                         rotation: 0,
+                        ...this.#pendingTextType === 'MTEXT' ? {
+                            attachmentPoint: 1
+                        } : {},
                         ...this.#activeTextPayload()
                     }
                 }));
@@ -4586,6 +4807,9 @@ export class KJDrawWorkbench {
         const dimensionStyleDialog = this.root.querySelector('[data-dimension-style-dialog]');
         if (dimensionStyleDialog?.open) dimensionStyleDialog.close();
         this.#dimensionStyleBinding = null;
+        const textStyleDialog = this.root.querySelector('[data-text-style-dialog]');
+        if (textStyleDialog?.open) textStyleDialog.close();
+        this.#textStyleBinding = null;
         this.#cancelPointer();
         this.#hideSnap();
         if (hadDraft) this.renderer.render();
@@ -5313,6 +5537,7 @@ export class KJDrawWorkbench {
             };
         }
         let valueInput = null;
+        let textFields = null;
         if (!multiple && (entity.type === 'CIRCLE' || entity.type === 'ARC')) {
             const field = document.createElement('label');
             field.className = 'field';
@@ -5334,11 +5559,143 @@ export class KJDrawWorkbench {
             const field = document.createElement('label');
             field.className = 'field';
             field.innerHTML = `<span>${this.#t('text')}</span>`;
-            valueInput = document.createElement('input');
+            valueInput = document.createElement(entity.type === 'MTEXT' ? 'textarea' : 'input');
             valueInput.value = String(entity.payload.text ?? '');
             valueInput.disabled = this.#readOnly === true;
             field.append(valueInput);
             host.append(field);
+            const textField = (labelText, control)=>{
+                const label = document.createElement('label');
+                label.className = 'field';
+                const span = document.createElement('span');
+                span.textContent = labelText;
+                label.append(span, control);
+                host.append(label);
+            };
+            const height = document.createElement('input');
+            height.type = 'number';
+            height.required = true;
+            height.min = String(Number.EPSILON);
+            height.step = 'any';
+            height.value = String(entity.payload.height ?? 2.5);
+            height.disabled = this.#readOnly === true;
+            height.dataset.property = 'text-height';
+            const rotation = document.createElement('input');
+            rotation.type = 'number';
+            rotation.required = true;
+            rotation.step = 'any';
+            rotation.value = String(Number(entity.payload.rotation ?? 0) * 180 / Math.PI);
+            rotation.disabled = this.#readOnly === true;
+            rotation.dataset.property = 'text-rotation';
+            const alignment = document.createElement('select');
+            alignment.disabled = this.#readOnly === true;
+            alignment.dataset.property = 'text-alignment';
+            if (entity.type === 'MTEXT') {
+                for (const [value, en, zh] of [
+                    [
+                        1,
+                        'Top left',
+                        '左上'
+                    ],
+                    [
+                        2,
+                        'Top center',
+                        '中上'
+                    ],
+                    [
+                        3,
+                        'Top right',
+                        '右上'
+                    ],
+                    [
+                        4,
+                        'Middle left',
+                        '左中'
+                    ],
+                    [
+                        5,
+                        'Middle center',
+                        '居中'
+                    ],
+                    [
+                        6,
+                        'Middle right',
+                        '右中'
+                    ],
+                    [
+                        7,
+                        'Bottom left',
+                        '左下'
+                    ],
+                    [
+                        8,
+                        'Bottom center',
+                        '中下'
+                    ],
+                    [
+                        9,
+                        'Bottom right',
+                        '右下'
+                    ]
+                ])alignment.add(new Option(this.#locale === 'zh-CN' ? zh : en, String(value), false, Number(entity.payload.attachmentPoint ?? 1) === value));
+            } else {
+                const selected = `${entity.payload.horizontalAlignment ?? 0}:${entity.payload.verticalAlignment ?? 0}`;
+                for (const [value, en, zh] of [
+                    [
+                        '0:0',
+                        'Left baseline',
+                        '左基线'
+                    ],
+                    [
+                        '0:2',
+                        'Left middle',
+                        '左中'
+                    ],
+                    [
+                        '0:3',
+                        'Left top',
+                        '左上'
+                    ],
+                    [
+                        '1:0',
+                        'Center baseline',
+                        '中基线'
+                    ],
+                    [
+                        '1:2',
+                        'Center middle',
+                        '居中'
+                    ],
+                    [
+                        '1:3',
+                        'Center top',
+                        '中上'
+                    ],
+                    [
+                        '2:0',
+                        'Right baseline',
+                        '右基线'
+                    ],
+                    [
+                        '2:2',
+                        'Right middle',
+                        '右中'
+                    ],
+                    [
+                        '2:3',
+                        'Right top',
+                        '右上'
+                    ]
+                ])alignment.add(new Option(this.#locale === 'zh-CN' ? zh : en, value, false, selected === value));
+            }
+            textField(this.#locale === 'zh-CN' ? '文字高度' : 'Text height', height);
+            textField(this.#locale === 'zh-CN' ? '旋转角（度）' : 'Rotation (degrees)', rotation);
+            textField(this.#locale === 'zh-CN' ? '对齐' : 'Alignment', alignment);
+            textFields = {
+                height,
+                rotation,
+                alignment
+            };
         }
         if (!this.#readOnly && editableHatch) {
             const editHatch = document.createElement('button');
@@ -5381,6 +5738,25 @@ export class KJDrawWorkbench {
                         'ATTDEF',
                         'ATTRIB'
                     ].includes(entity.type)) payload.text = valueInput.value;
+                    if (textFields) {
+                        const invalid = [
+                            textFields.height,
+                            textFields.rotation
+                        ].find((input)=>!input.checkValidity());
+                        if (invalid) {
+                            invalid.reportValidity();
+                            return;
+                        }
+                        payload.height = Number(textFields.height.value);
+                        payload.rotation = Number(textFields.rotation.value) * Math.PI / 180;
+                        if (entity.type === 'MTEXT') payload.attachmentPoint = Number(textFields.alignment.value);
+                        else {
+                            const [horizontal, vertical] = textFields.alignment.value.split(':').map(Number);
+                            payload.horizontalAlignment = horizontal;
+                            payload.verticalAlignment = vertical;
+                            if (horizontal || vertical) payload.alignmentPoint = payload.alignmentPoint ?? payload.position;
+                        }
+                    }
                     if (dimensionFields) {
                         const inputs = [
                             dimensionFields.precision,

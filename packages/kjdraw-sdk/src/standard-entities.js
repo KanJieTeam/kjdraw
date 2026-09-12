@@ -261,15 +261,23 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                 styleId: payload.styleId == null ? null : String(payload.styleId)
             };
         case 'MTEXT':
-            return {
-                ...base(payload),
-                position: point3(payload.position, 'position'),
-                alignmentPoint: payload.alignmentPoint && point3(payload.alignmentPoint, 'alignmentPoint'),
-                text: String(payload.text ?? ''),
-                height: positive(payload.height ?? 2.5, 'height'),
-                rotation: finite(payload.rotation ?? 0, 'rotation'),
-                styleId: payload.styleId == null ? null : String(payload.styleId)
-            };
+            {
+                const attachmentPoint = finite(payload.attachmentPoint ?? 1, 'attachmentPoint');
+                if (!Number.isInteger(attachmentPoint) || attachmentPoint < 1 || attachmentPoint > 9) throw new KJValidationError('attachmentPoint is outside its native MTEXT range');
+                return {
+                    ...base(payload),
+                    position: point3(payload.position, 'position'),
+                    alignmentPoint: payload.alignmentPoint && point3(payload.alignmentPoint, 'alignmentPoint'),
+                    text: String(payload.text ?? ''),
+                    height: positive(payload.height ?? 2.5, 'height'),
+                    rotation: finite(payload.rotation ?? 0, 'rotation'),
+                    attachmentPoint,
+                    ...payload.width == null ? {} : {
+                        width: positive(payload.width, 'width')
+                    },
+                    styleId: payload.styleId == null ? null : String(payload.styleId)
+                };
+            }
         case 'ATTDEF':
         case 'ATTRIB':
             return {

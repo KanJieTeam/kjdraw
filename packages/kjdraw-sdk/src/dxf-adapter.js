@@ -874,6 +874,10 @@ function entityPayload(record, blockIds, resources = {}) {
                     text: values(record, 3).join('') + first(record, 1, ''),
                     height: number(record, 40, 2.5),
                     rotation: number(record, 50, 0) * Math.PI / 180,
+                    attachmentPoint: number(record, 71, 1),
+                    ...values(record, 41).length ? {
+                        width: number(record, 41)
+                    } : {},
                     styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null
                 }
             };
@@ -2656,6 +2660,8 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emitPoint(output, p.position);
         emit(output, 40, p.height);
         emit(output, 1, p.text);
+        emit(output, 71, p.attachmentPoint ?? 1);
+        if (p.width != null) emit(output, 41, p.width);
         if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD');
         if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI);
     } else if (entity.type === 'TEXT') {

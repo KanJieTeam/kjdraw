@@ -739,11 +739,43 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       const operation = String(args.operation ?? 'upsert').toLowerCase()
       if (operation === 'set-current') return transaction.setCurrentTableRecord('textStyles', resolveTableRecord(document, 'textStyles', args.id ?? args.name).id)
       if (!['upsert', 'create', 'update'].includes(operation)) throw new KJValidationError(`Unsupported text style operation: ${operation}`)
-      const fixedHeight = Number(args.fixedHeight ?? 0), widthFactor = Number(args.widthFactor ?? 1), obliqueAngle = Number(args.obliqueAngle ?? 0)
-      if (!Number.isFinite(fixedHeight) || fixedHeight < 0) throw new KJValidationError('Text style fixed height must be a non-negative finite number')
-      if (!Number.isFinite(widthFactor) || widthFactor <= 0) throw new KJValidationError('Text style width factor must be a positive finite number')
-      if (!Number.isFinite(obliqueAngle) || Math.abs(obliqueAngle) >= Math.PI / 2) throw new KJValidationError('Text style oblique angle must be finite and less than 90 degrees')
-      const record = transaction.upsertTableRecord('textStyles', { name: args.name, type: 'TEXT_STYLE', payload: { fontFamily: String(args.fontFamily ?? 'sans-serif'), fontFile: args.fontFile ?? null, bigFontFile: args.bigFontFile ?? null, fixedHeight, widthFactor, obliqueAngle } } as KJTableRecordInput)
+      const source = clone(args.properties ?? args.payload ?? {}) as KJObjectPayload
+      if (!source || typeof source !== 'object' || Array.isArray(source)) throw new KJValidationError('Text style properties must be an object')
+      for (const key of ['fontFamily', 'fontFile', 'bigFontFile', 'fixedHeight', 'widthFactor', 'obliqueAngle'] as const) if (Object.hasOwn(args, key)) source[key] = args[key]
+      const boundedText = (key: 'fontFamily' | 'fontFile' | 'bigFontFile', maximum: number): void => {
+        if (!Object.hasOwn(source, key)) return
+        const value = source[key] == null ? '' : String(source[key]).trim()
+        if (key !== 'fontFamily' && !value) { source[key] = null; return }
+        if (!value || value.length > maximum || /[\u0000-\u001f\u007f]/.test(value)) throw new KJValidationError(`Text style ${key} must be bounded printable text`)
+        if (key !== 'fontFamily' && /^(?:data|https?):/i.test(value)) throw new KJValidationError(`Text style ${key} must be a local font reference, not embedded or remote data`)
+        source[key] = value
+      }
+      boundedText('fontFamily', 256); boundedText('fontFile', 512); boundedText('bigFontFile', 512)
+      for (const key of ['fixedHeight', 'widthFactor', 'obliqueAngle'] as const) {
+        if (!Object.hasOwn(source, key)) continue
+        const value = Number(source[key])
+        if (!Number.isFinite(value) || Math.abs(value) > 1e12) throw new KJValidationError(`Text style ${key} is outside its supported range`)
+        source[key] = value
+      }
+      if (source.fixedHeight !== undefined && Number(source.fixedHeight) < 0) throw new KJValidationError('Text style fixed height must be non-negative')
+      if (source.widthFactor !== undefined && Number(source.widthFactor) <= 0) throw new KJValidationError('Text style width factor must be positive')
+      if (source.obliqueAngle !== undefined && Math.abs(Number(source.obliqueAngle)) >= Math.PI / 2) throw new KJValidationError('Text style oblique angle must be less than 90 degrees')
+      const table = document.getTable('textStyles')
+      if (!table) throw new KJValidationError('Text style table is unavailable')
+      const requestedName = String(args.newName ?? args.name ?? '').trim()
+      let record: KJObjectRecord
+      if (operation === 'update') {
+        const target = resolveTableRecord(document, 'textStyles', args.id ?? args.name)
+        const name = requestedName || target.name || ''
+        if (table.records.some(item => item.id !== target.id && normalizeName(item.name) === normalizeName(name))) throw new KJValidationError(`Text style name already exists: ${name}`)
+        record = transaction.updateObject(target.id, { name, payload: { ...(clone(target.payload) as KJObjectPayload), ...source } })
+      } else {
+        if (!requestedName) throw new KJValidationError('Text style name is required')
+        const existing = table.records.find(item => normalizeName(item.name) === normalizeName(requestedName))
+        if (operation === 'create' && existing) throw new KJValidationError(`Text style name already exists: ${requestedName}`)
+        const defaults: KJObjectPayload = { fontFamily: 'sans-serif', fontFile: null, bigFontFile: null, fixedHeight: 0, widthFactor: 1, obliqueAngle: 0 }
+        record = transaction.upsertTableRecord('textStyles', { name: requestedName, type: 'TEXT_STYLE', payload: { ...defaults, ...(existing ? clone(existing.payload) as KJObjectPayload : {}), ...source } } as KJTableRecordInput)
+      }
       return args.current === true ? transaction.setCurrentTableRecord('textStyles', record.id) : record
     },
   }, { owner: '@kanjieteam/kjdraw' }))
@@ -1320,6 +1352,7 @@ function createEntityBatch({ document, transaction }: KJCommandContext, args: KJ
   const layerIds = new Map(document.getTable('layers')!.records.map(record => [String(record.name).toUpperCase(), record.id]))
   const currentDimensionStyleId = document.getTable('dimensionStyles')?.currentId
   const currentDimensionStyleName = currentDimensionStyleId ? document.getObject(currentDimensionStyleId)?.name ?? 'STANDARD' : 'STANDARD'
+  const currentTextStyleId = document.getTable('textStyles')?.currentId
   for (const layer of args.resources?.layers ?? []) layerIds.set(layer.name.toUpperCase(), layer.id)
   const created: KJObjectRecord[] = []
   for (const spec of specs) {
@@ -1348,6 +1381,7 @@ function createEntityBatch({ document, transaction }: KJCommandContext, args: KJ
       payload.styleId = currentDimensionStyleId
       payload.styleName = currentDimensionStyleName
     }
+    if (['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(normalizeName(spec.type)) && payload.styleId === undefined && currentTextStyleId) payload.styleId = currentTextStyleId
     created.push(transaction.createEntity(spec.type!, payload, spec.options ?? {}))
   }
   return created

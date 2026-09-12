@@ -380,6 +380,34 @@ async function manageDimensionStyles(){
   const saved=choice.operation==='create'?doc().getTable('dimensionStyles').records.find(candidate=>candidate.name===name):doc().getObject(record.id)
   if(current)useDimensionStyle(saved)
 }
+async function manageTextStyles(){
+  const zh=i18n.locale==='zh',table=doc().getTable('textStyles'),records=table.records
+  const choice=await requestLocalCommand({title:zh?'文字样式':'Text styles',description:zh?'字体文件仅作为本地引用写入 CAD，不会伪装成嵌入字体。':'Font files remain local CAD references and are never presented as embedded fonts.',fields:[
+    {name:'operation',label:zh?'操作':'Operation',value:'create',options:[['create',zh?'新建样式':'Create style'],['update',zh?'编辑样式':'Edit style'],['set-current',zh?'设为当前':'Set current']]},
+    {name:'id',label:zh?'已有样式':'Existing style',value:table.currentId??records[0]?.id??'',options:records.map(record=>[record.id,`${record.name}${record.id===table.currentId?(zh?' · 当前':' · Current'):''}`])},
+  ]})
+  if(!choice)return
+  const record=records.find(candidate=>candidate.id===choice.id)
+  if(choice.operation==='set-current'){
+    if(!record)throw new Error(zh?'请选择已有文字样式':'Select an existing text style')
+    await execute('TEXTSTYLE',{operation:'set-current',id:record.id});return
+  }
+  if(choice.operation==='update'&&!record)throw new Error(zh?'请选择已有文字样式':'Select an existing text style')
+  const payload=record?.payload??{}
+  const values=await requestLocalCommand({title:choice.operation==='create'?(zh?'新建文字样式':'Create text style'):(zh?'编辑文字样式':'Edit text style'),fields:[
+    {name:'name',label:zh?'样式名称':'Style name',value:record?.name??`TEXTSTYLE-${records.length+1}`},
+    {name:'fontFamily',label:zh?'字体族 / 回退名称':'Font family / fallback name',value:payload.fontFamily??'sans-serif'},
+    {name:'fontFile',label:zh?'本地字体文件引用':'Local font file reference',value:payload.fontFile??'',required:false},
+    {name:'bigFontFile',label:zh?'大字体文件引用':'Big-font file reference',value:payload.bigFontFile??'',required:false},
+    {name:'fixedHeight',label:zh?'固定高度（0 表示按对象）':'Fixed height (0 = per object)',type:'number',value:payload.fixedHeight??0,min:0,max:1e12,step:'any'},
+    {name:'widthFactor',label:zh?'宽度系数':'Width factor',type:'number',value:payload.widthFactor??1,min:Number.EPSILON,max:1e12,step:'any'},
+    {name:'obliqueDegrees',label:zh?'倾斜角（度）':'Oblique angle (degrees)',type:'number',value:Number(payload.obliqueAngle??0)*180/Math.PI,min:-89.999999,max:89.999999,step:'any'},
+    {name:'current',label:zh?'保存后设为当前':'Set current after saving',type:'checkbox',value:record?.id===table.currentId,required:false},
+  ]})
+  if(!values)return
+  const {name,current,obliqueDegrees,...properties}=values;properties.fontFile=properties.fontFile.trim()||null;properties.bigFontFile=properties.bigFontFile.trim()||null;properties.obliqueAngle=Number(obliqueDegrees)*Math.PI/180
+  await execute('TEXTSTYLE',choice.operation==='create'?{operation:'create',name,properties,current}:{operation:'update',id:record.id,newName:name,properties,current})
+}
 function refresh() {
   outputControls?.sync()
   syncDimensionStyleControl()
@@ -441,9 +469,12 @@ function refresh() {
       }
     }
     layerLabel.append(layerSelect);editor.append(layerLabel)
+    const textEntities=selectedEntities.filter(item=>['TEXT','MTEXT','ATTDEF','ATTRIB'].includes(item.type));let textStyleSelect=null,commonTextStyleId=''
+    if(textEntities.length===selectedEntities.length){const table=doc().getTable('textStyles'),styleIds=new Set(textEntities.map(item=>item.payload.styleId??table.currentId));commonTextStyleId=styleIds.size===1?[...styleIds][0]:'';const label=document.createElement('label');label.textContent=i18n.locale==='zh'?'文字样式':'Text style';textStyleSelect=document.createElement('select');textStyleSelect.dataset.property='text-style';if(!commonTextStyleId){const option=document.createElement('option');option.value='';option.textContent='—';option.disabled=true;option.selected=true;textStyleSelect.append(option)}for(const style of table.records){const option=document.createElement('option');option.value=style.id;option.textContent=style.name;option.selected=style.id===commonTextStyleId;textStyleSelect.append(option)}label.append(textStyleSelect);editor.append(label)}
     let valueInput=null
+    let textFields=null
     if(selectedEntities.length===1&&(entity.type==='CIRCLE'||entity.type==='ARC')){const label=document.createElement('label');label.textContent=t('radius');valueInput=document.createElement('input');valueInput.type='number';valueInput.min='0.000001';valueInput.step='0.1';valueInput.value=entity.payload.radius;label.append(valueInput);editor.append(label)}
-    if(selectedEntities.length===1&&(entity.type==='TEXT'||entity.type==='MTEXT')){const label=document.createElement('label');label.textContent=t('textField');valueInput=document.createElement('input');valueInput.value=entity.payload.text??'';label.append(valueInput);editor.append(label)}
+    if(selectedEntities.length===1&&['TEXT','MTEXT','ATTDEF','ATTRIB'].includes(entity.type)){const labeled=(labelText,input)=>{const label=document.createElement('label');label.textContent=labelText;label.append(input);editor.append(label);return input};valueInput=document.createElement(entity.type==='MTEXT'?'textarea':'input');valueInput.value=entity.payload.text??'';labeled(t('textField'),valueInput);const height=document.createElement('input');height.type='number';height.required=true;height.min=String(Number.EPSILON);height.step='any';height.value=String(entity.payload.height??2.5);height.dataset.property='text-height';labeled(i18n.locale==='zh'?'高度':'Height',height);const rotation=document.createElement('input');rotation.type='number';rotation.required=true;rotation.step='any';rotation.value=String(Number(entity.payload.rotation??0)*180/Math.PI);rotation.dataset.property='text-rotation';labeled(i18n.locale==='zh'?'旋转（度）':'Rotation (degrees)',rotation);const alignment=document.createElement('select'),options=[['1',i18n.locale==='zh'?'左上':'Top left'],['2',i18n.locale==='zh'?'中上':'Top center'],['3',i18n.locale==='zh'?'右上':'Top right'],['4',i18n.locale==='zh'?'左中':'Middle left'],['5',i18n.locale==='zh'?'居中':'Middle center'],['6',i18n.locale==='zh'?'右中':'Middle right'],['7',i18n.locale==='zh'?'左下':'Bottom left'],['8',i18n.locale==='zh'?'中下':'Bottom center'],['9',i18n.locale==='zh'?'右下':'Bottom right']];alignment.dataset.property='text-alignment';const currentAlignment=entity.type==='MTEXT'?Number(entity.payload.attachmentPoint??1):(Number(entity.payload.verticalAlignment??0)===3?1:Number(entity.payload.verticalAlignment??0)===2?4:7)+Number(entity.payload.horizontalAlignment??0);for(const [value,labelText] of options)alignment.add(new Option(labelText,value,false,Number(value)===currentAlignment));labeled(i18n.locale==='zh'?'对齐':'Alignment',alignment);textFields={height,rotation,alignment}}
     let dimensionFields=null
     if(selectedEntities.length===1&&entity.type==='DIMENSION'){
       const table=doc().getTable('dimensionStyles'),styleId=entity.payload.styleId??table.currentId,styleRecord=doc().getObject(styleId)
@@ -457,7 +488,7 @@ function refresh() {
       const textOverride=document.createElement('input');textOverride.type='text';textOverride.value=entity.payload.textOverride??'';labeled('dimension-text-override',i18n.locale==='zh'?'标注文字替代':'Dimension text override',textOverride)
       dimensionFields={style,precision,scale,textHeight,textOverride}
     }
-    const save=document.createElement('button');save.textContent=t('applyProperties');save.onclick=()=>run(async()=>{if(selectedEntities.length>1){if(!layerSelect.value||layerSelect.value===commonLayerId)return;await execute('PROPERTIES',{ids:selectedEntities.map(item=>item.id),patch:{payload:{layerId:layerSelect.value}}});return}const payload={layerId:layerSelect.value};if(valueInput&&(entity.type==='CIRCLE'||entity.type==='ARC'))payload.radius=Number(valueInput.value);if(valueInput&&(entity.type==='TEXT'||entity.type==='MTEXT'))payload.text=valueInput.value;if(dimensionFields){const invalid=[dimensionFields.precision,dimensionFields.scale,dimensionFields.textHeight].find(input=>!input.checkValidity());if(invalid){invalid.reportValidity();return}const style=doc().getObject(dimensionFields.style.value);Object.assign(payload,{styleId:dimensionFields.style.value,styleName:style?.name??'STANDARD',precision:Number(dimensionFields.precision.value),overallScale:Number(dimensionFields.scale.value),textHeight:Number(dimensionFields.textHeight.value),textOverride:dimensionFields.textOverride.value||null})}if(entity.type==='INSERT'&&blockScope?.value==='definition'){if(!blockMember?.value)throw new Error(t('blockMember'));await execute('BLOCKDEFINITIONUPDATE',{blockRecordId:entity.payload.blockRecordId,id:blockMember.value,patch:{payload}})}else if(entity.type==='INSERT')await execute('BLOCKINSTANCEUPDATE',{id:entity.id,patch:{payload}});else await execute('PROPERTIES',{id:entity.id,patch:{payload}})});editor.append(save);$('inspector').append(editor)
+    const save=document.createElement('button');save.textContent=t('applyProperties');save.onclick=()=>run(async()=>{if(selectedEntities.length>1){const payload={};if(layerSelect.value&&layerSelect.value!==commonLayerId)payload.layerId=layerSelect.value;if(textStyleSelect?.value&&textStyleSelect.value!==commonTextStyleId)payload.styleId=textStyleSelect.value;if(!Object.keys(payload).length)return;await execute('PROPERTIES',{ids:selectedEntities.map(item=>item.id),patch:{payload}});return}const payload={layerId:layerSelect.value};if(textStyleSelect?.value)payload.styleId=textStyleSelect.value;if(valueInput&&(entity.type==='CIRCLE'||entity.type==='ARC'))payload.radius=Number(valueInput.value);if(valueInput&&['TEXT','MTEXT','ATTDEF','ATTRIB'].includes(entity.type))payload.text=valueInput.value;if(textFields){const invalid=[textFields.height,textFields.rotation].find(input=>!input.checkValidity());if(invalid){invalid.reportValidity();return}payload.height=Number(textFields.height.value);payload.rotation=Number(textFields.rotation.value)*Math.PI/180;const attachment=Number(textFields.alignment.value);if(entity.type==='MTEXT')payload.attachmentPoint=attachment;else{payload.horizontalAlignment=(attachment-1)%3;payload.verticalAlignment=attachment<=3?3:attachment<=6?2:0;if(payload.horizontalAlignment||payload.verticalAlignment)payload.alignmentPoint=payload.alignmentPoint??payload.position}}if(dimensionFields){const invalid=[dimensionFields.precision,dimensionFields.scale,dimensionFields.textHeight].find(input=>!input.checkValidity());if(invalid){invalid.reportValidity();return}const style=doc().getObject(dimensionFields.style.value);Object.assign(payload,{styleId:dimensionFields.style.value,styleName:style?.name??'STANDARD',precision:Number(dimensionFields.precision.value),overallScale:Number(dimensionFields.scale.value),textHeight:Number(dimensionFields.textHeight.value),textOverride:dimensionFields.textOverride.value||null})}if(entity.type==='INSERT'&&blockScope?.value==='definition'){if(!blockMember?.value)throw new Error(t('blockMember'));await execute('BLOCKDEFINITIONUPDATE',{blockRecordId:entity.payload.blockRecordId,id:blockMember.value,patch:{payload}})}else if(entity.type==='INSERT')await execute('BLOCKINSTANCEUPDATE',{id:entity.id,patch:{payload}});else await execute('PROPERTIES',{id:entity.id,patch:{payload}})});editor.append(save);$('inspector').append(editor)
     const selectedHatches=selectedEntities.filter(item=>item.type==='HATCH')
     if(selectedHatches.length===1){const hatch=selectedHatches[0],sources=selectedEntities.filter(item=>item.id!==hatch.id).map(item=>item.id),editHatch=document.createElement('button');editHatch.dataset.action='edit-hatch';editHatch.textContent=t('hatchEdit');editHatch.onclick=()=>run(()=>editSelectedHatch(hatch,sources));$('inspector').append(editHatch)}
     const erase=document.createElement('button');erase.textContent=t('deleteSelected');erase.onclick=()=>run(()=>execute('ERASE',{ids:selectedIds()}));$('inspector').append(erase)
@@ -525,8 +556,8 @@ function requestLocalCommand({title,description='',submitLabel,fields=[]}) {
   $('dialog-submit').textContent=submitLabel??t('continue');fieldRoot.replaceChildren()
   const controls=[]
   for(const field of fields){
-    const label=document.createElement('label');label.textContent=field.label;const input=document.createElement(field.options?'select':'input');input.name=field.name
-    if(field.options){for(const [value,text] of field.options){const option=document.createElement('option');option.value=value;option.textContent=text;input.append(option)}}else input.type=field.type??'text'
+    const label=document.createElement('label');label.textContent=field.label;const input=document.createElement(field.options?'select':field.type==='textarea'?'textarea':'input');input.name=field.name
+    if(field.options){for(const [value,text] of field.options){const option=document.createElement('option');option.value=value;option.textContent=text;input.append(option)}}else if(input.tagName==='INPUT')input.type=field.type??'text'
     input.value=field.value??'';if(input.type==='checkbox')input.checked=Boolean(field.value);if(field.min!=null)input.min=String(field.min);if(field.max!=null)input.max=String(field.max);if(field.step!=null)input.step=String(field.step);input.required=field.required!==false;input.autocomplete='off';label.append(input);fieldRoot.append(label);controls.push(input)
   }
   return new Promise(resolve=>{
@@ -727,6 +758,7 @@ const localSave=$('save-local');localSave.hidden=!BrowserKjpFileBinding.supporte
 outputControls=createOutputControls({getContext:()=>({sdk,document:doc()}),locale:()=>i18n.locale,select:$('output-layout'),request:requestLocalCommand,run,execute,download,message,currentBounds:()=>{const a=world([0,height]),b=world([width,0]);return [a[0],a[1],b[0],b[1]]},title:documentTitle})
 $('page-setup').onclick=outputControls.setup
 $('dimension-styles').onclick=()=>run(manageDimensionStyles)
+$('text-styles').onclick=()=>run(manageTextStyles)
 $('export-svg').onclick=outputControls.svg
 $('export-png').onclick=outputControls.png
 $('print-drawing').onclick=outputControls.print
@@ -886,7 +918,7 @@ canvas.onpointerdown=e=>{
     if(operation==='replace'){dragMove={...pointerBinding(),screenStart:location,worldStart:world(location),ids:selectedIds(),pointerId:e.pointerId,started:false};canvas.setPointerCapture(e.pointerId)}
     selectSidePanel('properties');refresh();return
   }
-  if(tool==='text'){run(async()=>{const values=await requestLocalCommand({title:i18n.locale==='zh'?'放置文字':'Place text',fields:[{name:'text',label:i18n.locale==='zh'?'文字内容':'Text content',value:'KJDraw'}]});if(values?.text)await execute('CREATE',{type:'TEXT',payload:{position:p,height:2.5,rotation:0,text:values.text}})});return}
+  if(tool==='text'){run(async()=>{const zh=i18n.locale==='zh',styles=doc().getTable('textStyles'),values=await requestLocalCommand({title:zh?'放置文字':'Place text',fields:[{name:'type',label:zh?'文字类型':'Text type',value:'TEXT',options:[['TEXT',zh?'单行文字':'Single-line text'],['MTEXT',zh?'多行文字':'Multiline text']]},{name:'text',label:zh?'文字内容':'Text content',type:'textarea',value:'KJDraw 文字'},{name:'styleId',label:zh?'文字样式':'Text style',value:styles.currentId??styles.records[0]?.id??'',options:styles.records.map(record=>[record.id,record.name])},{name:'height',label:zh?'高度':'Height',type:'number',value:2.5,min:Number.EPSILON,max:1e12,step:'any'},{name:'rotationDegrees',label:zh?'旋转（度）':'Rotation (degrees)',type:'number',value:0,step:'any'},{name:'attachment',label:zh?'对齐':'Alignment',value:'7',options:[['1',zh?'左上':'Top left'],['2',zh?'中上':'Top center'],['3',zh?'右上':'Top right'],['4',zh?'左中':'Middle left'],['5',zh?'居中':'Middle center'],['6',zh?'右中':'Middle right'],['7',zh?'左下':'Bottom left'],['8',zh?'中下':'Bottom center'],['9',zh?'右下':'Bottom right']]}]});if(!values?.text)return;const attachment=Number(values.attachment),payload={position:p,text:values.text,height:Number(values.height),rotation:Number(values.rotationDegrees)*Math.PI/180,styleId:values.styleId};if(values.type==='MTEXT')payload.attachmentPoint=attachment;else{payload.horizontalAlignment=(attachment-1)%3;payload.verticalAlignment=attachment<=3?3:attachment<=6?2:0;if(payload.horizontalAlignment||payload.verticalAlignment)payload.alignmentPoint=p}await execute('CREATE',{type:values.type,payload})});return}
   if(tool==='measure'){
     if(!start){start=p;cursor=p;message('Choose the second distance point');return}
     const first=start;start=null;run(()=>query('DISTANCE',{firstPoint:first,secondPoint:p}));return

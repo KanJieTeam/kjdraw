@@ -691,7 +691,7 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
       return { type: 'SPLINE', payload: { degree: number(record, 71), knots: values(record, 40).map(Number), weights: weights.length ? weights : undefined, controlPoints: repeatedPoints(record), fitPoints: repeatedPoints(record, 11, 21, 31), closed: (number(record, 70, 0) & 1) === 1, periodic: (number(record, 70, 0) & 2) === 2 } }
     }
     case 'TEXT': return { type: 'TEXT', payload: { ...readSingleLineText(record, resources), verticalAlignment: number(record, 73, 0) } }
-    case 'MTEXT': return { type: 'MTEXT', payload: { position: point(record), text: values(record, 3).join('') + first(record, 1, ''), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null } }
+    case 'MTEXT': return { type: 'MTEXT', payload: { position: point(record), text: values(record, 3).join('') + first(record, 1, ''), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, attachmentPoint: number(record, 71, 1), ...(values(record, 41).length ? { width: number(record, 41) } : {}), styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null } }
     case 'ATTDEF':
     case 'ATTRIB': {
       if (record.tags.some(tag => tag.code === 100 && tag.value === 'AcDbMText')) throw new KJValidationError('Embedded multiline DXF attributes require an MTEXT-aware adapter')
@@ -1680,7 +1680,7 @@ function emitEntity(
     emit(output, 90, entityVertices.length); emit(output, 70, p.closed ? 1 : 0); emit(output, 38, p.elevation ?? 0)
     for (const vertex of entityVertices) { const pointValue = vertexPoint(vertex); const details = Array.isArray(vertex) ? null : vertex as DxfVertex; emit(output, 10, pointValue[0]); emit(output, 20, pointValue[1]); if (details?.bulge) emit(output, 42, details.bulge); if (details?.startWidth) emit(output, 40, details.startWidth); if (details?.endWidth) emit(output, 41, details.endWidth) }
   } else if (entity.type === 'MTEXT') {
-    emitSubclass(output, version, 'AcDbMText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, p.text); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI)
+    emitSubclass(output, version, 'AcDbMText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, p.text); emit(output, 71, p.attachmentPoint ?? 1); if (p.width != null) emit(output, 41, p.width); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI)
   } else if (entity.type === 'TEXT') {
     emitSingleLineText(output, p, version, resources); emitSubclass(output, version, 'AcDbText'); if (p.verticalAlignment) emit(output, 73, p.verticalAlignment)
   } else if (entity.type === 'ATTDEF' || entity.type === 'ATTRIB') {
