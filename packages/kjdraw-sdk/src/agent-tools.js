@@ -212,6 +212,39 @@ const polylineEditSchema = {
         'operation'
     ]
 };
+const lengthenSchemaBase = object({
+    expectedRevision: revision,
+    units: text,
+    id: text,
+    endpoint: {
+        type: 'string',
+        enum: [
+            'start',
+            'end'
+        ]
+    },
+    mode: {
+        type: 'string',
+        enum: [
+            'TOTAL',
+            'DELTA',
+            'PERCENT',
+            'DYNAMIC'
+        ]
+    },
+    value: number,
+    targetPoint: point
+});
+const lengthenSchema = {
+    ...lengthenSchemaBase,
+    required: [
+        'expectedRevision',
+        'units',
+        'id',
+        'endpoint',
+        'mode'
+    ]
+};
 const arraySchema = {
     type: 'array',
     minItems: 0,
@@ -516,6 +549,12 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
             start: point,
             end: point
         })
+    },
+    {
+        name: 'cad_propose_lengthen',
+        effect: 'propose',
+        description: 'Propose exact LENGTHEN on one visible editable model-space LINE or ARC by ID, choosing start/end endpoint. TOTAL uses value as the requested XY length; DELTA adds signed value in drawing units; PERCENT uses value as percent of the current XY length (100 retains it). DYNAMIC instead requires targetPoint={x,y}: a LINE projects the point along its existing direction, an ARC uses its polar angle. Supply value only for numeric modes and targetPoint only for DYNAMIC. The other endpoint stays fixed; LINE preserves its XYZ slope, ARC preserves center, radius, elevation and direction. Default +Z geometry without thickness, within ±1e12. Empty, full-circle, no-change and out-of-budget results are rejected. Dimensions and design relationships are not automatically updated. Returns complete before/after geometry without editing; host approval commits one undoable transaction with stable entity identity.',
+        inputSchema: lengthenSchema
     },
     {
         name: 'cad_propose_lines',
@@ -1222,6 +1261,40 @@ export class KJAgentToolSession {
                                         }
                                     };
                                 })
+                            };
+                        } else if (name === 'cad_propose_lengthen') {
+                            const dynamic = args.mode === 'DYNAMIC';
+                            const allowed = [
+                                'expectedRevision',
+                                'units',
+                                'id',
+                                'endpoint',
+                                'mode',
+                                dynamic ? 'targetPoint' : 'value'
+                            ];
+                            if (Object.keys(args).some((key)=>!allowed.includes(key))) throw new KJValidationError('Unexpected argument for LENGTHEN mode');
+                            if (dynamic ? args.targetPoint == null : args.value == null) throw new KJValidationError('LENGTHEN requires value for numeric modes or targetPoint for DYNAMIC');
+                            const id = String(args.id), context = createDrawingContext(document, {
+                                ids: [
+                                    id
+                                ],
+                                limit: 1,
+                                maxBytes: 262144
+                            });
+                            if (context.entities.length !== 1 || !context.entities[0].editable || ![
+                                'LINE',
+                                'ARC'
+                            ].includes(context.entities[0].type)) throw new KJValidationError('LENGTHEN requires one visible editable model-space LINE or ARC');
+                            command = 'LENGTHEN';
+                            commandArgs = {
+                                id,
+                                endpoint: args.endpoint,
+                                mode: args.mode,
+                                ...dynamic ? {
+                                    targetPoint: xy(args.targetPoint).slice(0, 2)
+                                } : {
+                                    value: args.value
+                                }
                             };
                         } else if (name === 'cad_propose_polyline_edit') {
                             const operation = String(args.operation);

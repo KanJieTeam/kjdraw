@@ -18,11 +18,11 @@ const modelCall = (name, args, inspect = () => {}) => ({ createConversation({ to
   return { next: async () => ({ text: '', calls: [{ id: 'call-1', name, arguments: args }] }) }
 } })
 
-test('workbench exposes thirteen useful tools and creates ordinary geometry through pattern arrays=[]', async () => {
+test('workbench exposes fourteen useful tools and creates ordinary geometry through pattern arrays=[]', async () => {
   const { session, document } = fixture()
   assert.ok(Object.isFrozen(KJDRAW_CHAT_TOOL_NAMES))
-  assert.equal(KJDRAW_CHAT_TOOL_NAMES.length, 13)
-  assert.deepEqual(KJDRAW_CHAT_TOOL_NAMES.filter(name => name.startsWith('cad_propose_')), ['cad_propose_move', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_stretch', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated'])
+  assert.equal(KJDRAW_CHAT_TOOL_NAMES.length, 14)
+  assert.deepEqual(KJDRAW_CHAT_TOOL_NAMES.filter(name => name.startsWith('cad_propose_')), ['cad_propose_move', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated'])
   const args = { expectedRevision: 0, units: 'millimeter', lines: [[0, 0, 20, 0]], circles: [[3, 4, 2]], arcs: [], polylines: [], arrays: [] }
   const result = await runKJAgentTask({ session, prompt: 'Draw a line and circle.', toolNames: KJDRAW_CHAT_TOOL_NAMES,
     model: modelCall('cad_propose_drawing_pattern', args, tools => assert.deepEqual(tools.map(item => item.name).sort(), [...KJDRAW_CHAT_TOOL_NAMES].sort())) })

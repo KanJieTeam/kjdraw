@@ -201,6 +201,52 @@ function validateStretchGeometry(document, entity) {
     ] : Array.isArray(entity.payload.vertices) ? entity.payload.vertices.map((vertex)=>vertex.point ?? vertex) : [];
     if (points.length < 2 || points.length > 4096 || points.some((value)=>!Array.isArray(value) || value.length !== 3 || value.some((coordinate)=>typeof coordinate !== 'number' || !Number.isFinite(coordinate) || Math.abs(coordinate) > 1e12))) throw new KJValidationError('STRETCH preview requires 2–4096 finite vertices within ±1e12');
 }
+function validateLengthenPreview(document, args) {
+    const dynamic = args.mode === 'DYNAMIC';
+    const allowed = [
+        'id',
+        'endpoint',
+        'mode',
+        dynamic ? 'targetPoint' : 'value'
+    ];
+    if (Object.keys(args).some((key)=>!allowed.includes(key))) throw new KJValidationError('Unexpected LENGTHEN preview argument');
+    if (![
+        'TOTAL',
+        'DELTA',
+        'PERCENT',
+        'DYNAMIC'
+    ].includes(String(args.mode)) || ![
+        'start',
+        'end'
+    ].includes(String(args.endpoint))) throw new KJValidationError('LENGTHEN preview requires an explicit mode and start/end endpoint');
+    if (dynamic) {
+        if (!Array.isArray(args.targetPoint) || args.targetPoint.length !== 2 || args.targetPoint.some((value)=>typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError('LENGTHEN dynamic preview requires a bounded XY target point');
+    } else if (typeof args.value !== 'number' || !Number.isFinite(args.value) || Math.abs(args.value) > 1e12) throw new KJValidationError('LENGTHEN preview requires a bounded numeric value');
+    const entity = typeof args.id === 'string' ? document.getObject(args.id) : null;
+    if (!entity || ![
+        'LINE',
+        'ARC'
+    ].includes(entity.type)) throw new KJValidationError('LENGTHEN preview requires one LINE or ARC ID');
+    if (entity.type === 'LINE') {
+        validateStretchGeometry(document, entity);
+        return;
+    }
+    const layer = document.getObject(String(entity.payload.layerId ?? ''));
+    if (entity.ownerId !== document.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new KJValidationError('LENGTHEN preview requires visible editable model-space geometry');
+    for (const key of [
+        'normal',
+        'extrusionDirection'
+    ]){
+        const normal = entity.payload[key];
+        if (normal != null && (!Array.isArray(normal) || normal.length !== 3 || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) throw new KJValidationError('LENGTHEN preview requires default +Z geometry');
+    }
+    const payload = entity.payload;
+    if (payload.thickness != null && payload.thickness !== 0) throw new KJValidationError('LENGTHEN preview does not support thickness');
+    if (!Array.isArray(payload.center) || payload.center.length !== 3 || payload.center.some((value)=>typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 1e12) || typeof payload.radius !== 'number' || payload.radius <= 1e-12 || !Number.isFinite(payload.radius) || payload.radius > 1e12 || [
+        payload.startAngle,
+        payload.endAngle
+    ].some((value)=>typeof value !== 'number' || !Number.isFinite(value))) throw new KJValidationError('LENGTHEN preview requires bounded nondegenerate native arc geometry');
+}
 export async function createAgentGeometryPreview(document, command, args, options = {}) {
     if (![
         'CREATEBATCH',
@@ -208,17 +254,19 @@ export async function createAgentGeometryPreview(document, command, args, option
         'ROTATE',
         'SCALE',
         'STRETCH',
+        'LENGTHEN',
         'PEDIT'
-    ].includes(command)) throw new KJValidationError('This preview supports only CREATEBATCH, MOVE, ROTATE, SCALE, STRETCH and PEDIT');
+    ].includes(command)) throw new KJValidationError('This preview supports only CREATEBATCH, MOVE, ROTATE, SCALE, STRETCH, LENGTHEN and PEDIT');
     const affine = command === 'ROTATE' || command === 'SCALE';
     if (affine) validateTransformArguments(command, args);
     if (command === 'STRETCH') validateStretchArguments(args);
+    if (command === 'LENGTHEN') validateLengthenPreview(document, args);
     const maxCreatedEntities = options.maxCreatedEntities ?? 64;
     if (!Number.isSafeInteger(maxCreatedEntities) || maxCreatedEntities < 1 || maxCreatedEntities > 512) throw new KJValidationError('Preview creation budget must be an integer from 1 to 512');
     if (command === 'CREATEBATCH') {
         if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some((spec)=>!spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} LINE/CIRCLE/ARC/LWPOLYLINE/TEXT/DIMENSION entities`);
     } else {
-        const ids = command === 'PEDIT' ? [
+        const ids = command === 'PEDIT' || command === 'LENGTHEN' ? [
             args.id
         ] : args.ids;
         if (!Array.isArray(ids) || !ids.length || ids.length > 64) throw new KJValidationError('Preview requires 1–64 existing entity IDs');
@@ -234,7 +282,7 @@ export async function createAgentGeometryPreview(document, command, args, option
             if (ids.some((id)=>typeof id !== 'string') || new Set(ids).size !== ids.length) throw new KJValidationError('STRETCH object IDs must be unique strings');
             if (ids.some((id)=>!stretchable.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`STRETCH preview requires 1–64 ${stretchable.join('/')} entities`);
             for (const id of ids)validateStretchGeometry(document, document.getObject(String(id)));
-        } else {
+        } else if (command !== 'LENGTHEN') {
             if (ids.some((id)=>!KJDRAW_AGENT_MOVABLE_TYPES.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`Preview movement requires 1–64 ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} entities`);
             for (const id of ids)validateMovableAnnotation(document, document.getObject(String(id)));
         }
@@ -250,7 +298,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     }
     const source = document.snapshot(), revision = document.revision;
     if (Object.keys(source.objects).length > 250000) throw new KJValidationError('Agent preview exceeds the 250000 object document limit');
-    const ids = command === 'CREATEBATCH' ? [] : command === 'PEDIT' ? [
+    const ids = command === 'CREATEBATCH' ? [] : command === 'PEDIT' || command === 'LENGTHEN' ? [
         String(args.id)
     ] : args.ids;
     const blockDependencies = [
@@ -283,7 +331,8 @@ export async function createAgentGeometryPreview(document, command, args, option
             if (previous) before.push(project(previous));
             if (command === 'MOVE') validateMovableAnnotation(draft, entity);
             if (affine) validateTransformGeometry(draft, entity);
-            if (command === 'PEDIT' || command === 'STRETCH') {
+            if (command === 'LENGTHEN') validateLengthenPreview(draft, args);
+            if (command === 'PEDIT' || command === 'STRETCH' || command === 'LENGTHEN') {
                 const bounds = displayedEntityBounds(draft, entity);
                 if (!bounds || bounds.some((value)=>!Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError(`${command} preview result exceeds the finite ±1e12 display budget`);
             }
@@ -294,6 +343,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     for (const entity of old.values())before.push(project(entity));
     if (affine && !after.length) throw new KJValidationError('Transform would leave the selected geometry unchanged');
     if (command === 'STRETCH' && !after.length) throw new KJValidationError('STRETCH would leave the selected geometry unchanged');
+    if (command === 'LENGTHEN' && !after.length) throw new KJValidationError('LENGTHEN would leave the selected geometry unchanged');
     if (command === 'PEDIT' && !after.length) throw new KJValidationError('Polyline edit would leave the selected geometry unchanged');
     if (before.length > 64 || after.length > (command === 'CREATEBATCH' ? maxCreatedEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit');
     const resources = draft.listObjects({
