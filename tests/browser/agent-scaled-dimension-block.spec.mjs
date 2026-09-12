@@ -35,7 +35,11 @@ test('AI uniformly scales a mixed dimensioned nested block with native values, e
     renderer.resize(1200, 600); Object.assign(renderer.camera, { centerX: 50, centerY: 20, scale: 6 })
     let labels = []
     const nativeText = renderer.context.fillText
-    renderer.context.fillText = function (text, ...args) { labels.push({ text: String(text), pixels: Number(this.font.match(/([\d.]+)px/)?.[1]) }); return nativeText.call(this, text, ...args) }
+    renderer.context.fillText = function (text, ...args) {
+      const transform = this.getTransform(), fontPixels = Number(this.font.match(/([\d.]+)px/)?.[1])
+      labels.push({ text: String(text), pixels: fontPixels * Math.hypot(transform.a, transform.b) })
+      return nativeText.call(this, text, ...args)
+    }
     const render = () => { labels = []; renderer.render(); return { png: canvas.toDataURL(), labels: structuredClone(labels) } }
     const before = render(), original = drawing.serialize(), originals = new Map(drawing.listObjects().map(item => [item.id, JSON.stringify(item)]))
     const originalRoot = JSON.stringify(drawing.getObject('pump')), session = new KJAgentToolSession(sdk, drawing)
