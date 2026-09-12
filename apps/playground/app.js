@@ -388,6 +388,7 @@ function refresh() {
     if(selectedEntities.length===1&&(entity.type==='CIRCLE'||entity.type==='ARC')){const label=document.createElement('label');label.textContent=t('radius');valueInput=document.createElement('input');valueInput.type='number';valueInput.min='0.000001';valueInput.step='0.1';valueInput.value=entity.payload.radius;label.append(valueInput);editor.append(label)}
     if(selectedEntities.length===1&&(entity.type==='TEXT'||entity.type==='MTEXT')){const label=document.createElement('label');label.textContent=t('textField');valueInput=document.createElement('input');valueInput.value=entity.payload.text??'';label.append(valueInput);editor.append(label)}
     const save=document.createElement('button');save.textContent=t('applyProperties');save.onclick=()=>run(async()=>{if(selectedEntities.length>1){if(!layerSelect.value||layerSelect.value===commonLayerId)return;await execute('PROPERTIES',{ids:selectedEntities.map(item=>item.id),patch:{payload:{layerId:layerSelect.value}}});return}const payload={layerId:layerSelect.value};if(valueInput&&(entity.type==='CIRCLE'||entity.type==='ARC'))payload.radius=Number(valueInput.value);if(valueInput&&(entity.type==='TEXT'||entity.type==='MTEXT'))payload.text=valueInput.value;if(entity.type==='INSERT'&&blockScope?.value==='definition'){if(!blockMember?.value)throw new Error(t('blockMember'));await execute('BLOCKDEFINITIONUPDATE',{blockRecordId:entity.payload.blockRecordId,id:blockMember.value,patch:{payload}})}else if(entity.type==='INSERT')await execute('BLOCKINSTANCEUPDATE',{id:entity.id,patch:{payload}});else await execute('PROPERTIES',{id:entity.id,patch:{payload}})});editor.append(save);$('inspector').append(editor)
+    if(selectedEntities.length===1&&entity.type==='HATCH'){const editHatch=document.createElement('button');editHatch.dataset.action='edit-hatch';editHatch.textContent=t('hatchEdit');editHatch.onclick=()=>run(()=>editSelectedHatch(entity));$('inspector').append(editHatch)}
     const erase=document.createElement('button');erase.textContent=t('deleteSelected');erase.onclick=()=>run(()=>execute('ERASE',{ids:selectedIds()}));$('inspector').append(erase)
   }
   else {field($('inspector'),t('revision'),doc().revision);field($('inspector'),t('modelEntities'),currentModel.length);field($('inspector'),t('kernel'),authority?'Rust / WASM':t('jsReference'));field($('inspector'),t('units'),doc().snapshot().header.units??'unspecified');const help=document.createElement('div');help.className='inspector-empty';help.innerHTML=kjdrawIcon('select');help.append(document.createTextNode(t('inspectHint')));$('inspector').append(help)}
@@ -419,6 +420,30 @@ async function query(command,args={}) {
   if(!workbench.classList.contains('inspector-open'))$('toggle-inspector').click();selectSidePanel('properties');refresh();message(`${command} completed · drawing unchanged`);return result
 }
 function requireSelection(){const entity=primarySelection()?doc().getObject(primarySelection()):null;if(!entity)throw new Error(t('selectFirst'));return entity}
+function hatchLoopText(loop){
+  if(!Array.isArray(loop?.vertices))return ''
+  return loop.vertices.map(value=>{const point=Array.isArray(value)?value:value?.point;return Array.isArray(point)?String(Number(point[0]))+','+String(Number(point[1])):''}).filter(Boolean).join('; ')
+}
+function parseHatchVertices(text){
+  return String(text).split(/[;\n]+/).map(value=>value.trim()).filter(Boolean).map((value,index)=>{const point=value.split(/[ ,]+/).filter(Boolean).map(Number);if(point.length!==2||point.some(item=>!Number.isFinite(item)))throw new Error('HATCHEDIT: island vertex '+index+' must contain finite x,y coordinates');return point})
+}
+async function editSelectedHatch(entity){
+  const drawing=doc(),revision=drawing.revision,loops=Array.isArray(entity.payload.boundaryLoops)?entity.payload.boundaryLoops:[],innerIndexes=loops.map((loop,index)=>loop?.external===false?index:-1).filter(index=>index>=0)
+  const operations=[['update-pattern',t('hatchPatternOnly')],['add-island',t('hatchAddIsland')]]
+  if(innerIndexes.length)operations.push(['replace-island',t('hatchReplaceIsland')],['remove-island',t('hatchRemoveIsland')])
+  const choice=await requestLocalCommand({title:t('hatchEdit'),description:t('hatchEditHelp'),fields:[{name:'operation',label:t('hatchOperation'),value:'update-pattern',options:operations}]})
+  if(!choice)return
+  const operation=choice.operation,fields=[]
+  if(operation==='replace-island'||operation==='remove-island')fields.push({name:'loopIndex',label:t('hatchIsland'),value:innerIndexes[0],options:innerIndexes.map(index=>[String(index),String(index)])})
+  if(operation==='add-island'||operation==='replace-island')fields.push({name:'vertices',label:t('hatchVertices'),value:operation==='replace-island'?hatchLoopText(loops[innerIndexes[0]]):''})
+  fields.push({name:'patternScale',label:t('hatchScale'),type:'number',min:0.000000001,step:'any',value:Number(entity.payload.patternScale??1)},{name:'patternAngle',label:t('hatchAngle'),type:'number',step:'any',value:Number(entity.payload.patternAngle??0)*180/Math.PI})
+  const values=await requestLocalCommand({title:t('hatchEdit'),description:t('hatchEditHelp'),submitLabel:t('hatchApply'),fields})
+  if(!values)return
+  const command={id:entity.id,operation,patternScale:Number(values.patternScale),patternAngle:Number(values.patternAngle)*Math.PI/180}
+  if(operation==='replace-island'||operation==='remove-island')command.loopIndex=Number(values.loopIndex)
+  if(operation==='add-island'||operation==='replace-island')command.vertices=parseHatchVertices(values.vertices)
+  await execute('HATCHEDIT',command,{expectedRevision:revision})
+}
 function requestLocalCommand({title,description='',submitLabel,fields=[]}) {
   const dialog=$('app-dialog'),form=$('dialog-form'),fieldRoot=$('dialog-fields')
   form.onkeydown=event=>{if(event.key==='Enter'&&event.target.tagName==='INPUT'){event.preventDefault();form.requestSubmit($('dialog-submit'))}}

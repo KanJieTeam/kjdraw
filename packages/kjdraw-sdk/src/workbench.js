@@ -109,6 +109,19 @@ const copy = {
         blockDefinitionScope: 'Shared definition',
         blockMember: 'Definition member',
         blockScopeHint: 'Instance changes affect this occurrence. Definition changes affect every instance.',
+        hatchEdit: 'Edit hatch',
+        hatchEditDescription: 'Edit this hatch in one undoable transaction. Polygon islands close automatically; do not repeat the first vertex.',
+        hatchOperation: 'Operation',
+        hatchUpdatePattern: 'Pattern only',
+        hatchAddIsland: 'Add island',
+        hatchReplaceIsland: 'Replace island',
+        hatchRemoveIsland: 'Remove island',
+        hatchIsland: 'Inner island',
+        hatchVertices: 'Island vertices (x,y; x,y; …)',
+        hatchPatternScale: 'Pattern scale',
+        hatchPatternAngle: 'Pattern angle (degrees)',
+        hatchNoIslands: 'No inner islands',
+        hatchApply: 'Apply hatch edit',
         firstPoint: 'Specify the first point',
         nextPoint: 'Specify the next point',
         finishPolyline: 'Click vertices · Enter or double-click to finish',
@@ -279,6 +292,19 @@ const copy = {
         blockDefinitionScope: '共享块定义',
         blockMember: '定义成员',
         blockScopeHint: '实例修改仅影响当前对象；定义修改会影响全部实例。',
+        hatchEdit: '编辑填充',
+        hatchEditDescription: '在一个可撤销事务中修改当前填充。多边形内岛会自动闭合，请勿重复首点。',
+        hatchOperation: '操作',
+        hatchUpdatePattern: '仅修改图案',
+        hatchAddIsland: '新增内岛',
+        hatchReplaceIsland: '替换内岛',
+        hatchRemoveIsland: '删除内岛',
+        hatchIsland: '内岛边界',
+        hatchVertices: '内岛顶点（x,y; x,y; …）',
+        hatchPatternScale: '图案比例',
+        hatchPatternAngle: '图案角度（度）',
+        hatchNoIslands: '没有内岛',
+        hatchApply: '应用填充修改',
         firstPoint: '指定第一个点',
         nextPoint: '指定下一个点',
         finishPolyline: '连续指定顶点 · Enter 或双击完成',
@@ -666,6 +692,7 @@ const WORKBENCH_STYLE = `
 .kjwb .command{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:min(700px,calc(100% - 28px));min-height:40px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;padding:3px 4px 3px 11px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff5;box-shadow:0 8px 26px #17233a24}.kjwb .command span{font:12px/16px var(--kj-mono,ui-monospace,SFMono-Regular,Consolas,monospace);font-weight:700;color:var(--muted);letter-spacing:.025em}.kjwb .command input{min-width:0;height:32px;border:0;outline:0;background:transparent;color:var(--text)}.kjwb .command input::placeholder{color:#8b96a6}.kjwb .command button{height:32px;padding:0 14px;background:var(--action);border-color:var(--action);color:#fff}.kjwb .command+.hint{bottom:60px}
 .kjwb .inspector{padding:12px}.kjwb .empty{margin:2px 0;color:var(--muted);line-height:1.65}.kjwb .entity-title{padding-bottom:10px;border-bottom:1px solid var(--border);font-size:16px;font-weight:700;margin-bottom:8px}.kjwb .kv{display:grid;grid-template-columns:82px minmax(0,1fr);gap:9px;padding:8px 0;border-bottom:1px solid var(--surface-subtle)}.kjwb .kv span{color:var(--muted)}.kjwb .kv b{font-weight:600;overflow:hidden;text-overflow:ellipsis}.kjwb .field{display:grid;gap:6px;margin:12px 0}.kjwb .field span{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.025em}.kjwb .field input,.kjwb .field select{min-width:0;width:100%;height:32px;padding:0 9px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);outline:0}.kjwb .field input:focus,.kjwb .field select:focus{border-color:var(--action);box-shadow:0 0 0 2px var(--action-soft)}.kjwb .apply{width:100%;height:32px;background:var(--action);border-color:var(--action);color:#fff}.kjwb .warning{margin-top:12px;padding:9px;border:1px solid #e4b95f;border-radius:var(--radius);background:#fff8e8;color:#76530c;font-size:12px}
 .kjwb .modify-dialog{width:min(480px,calc(100vw - 28px));max-height:min(680px,calc(100vh - 28px));padding:0;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);box-shadow:0 22px 70px #17233a42;overflow:hidden}.kjwb .modify-dialog::backdrop{background:#17233a66;backdrop-filter:blur(2px)}.kjwb .modify-form{display:grid;grid-template-rows:auto minmax(0,1fr) auto;max-height:inherit}.kjwb .modify-head{padding:18px 20px 12px;border-bottom:1px solid var(--border)}.kjwb .modify-head h2{margin:0 0 5px;font-size:18px;line-height:1.25}.kjwb .modify-head p,.kjwb .modify-description,.kjwb .modify-order{margin:0;color:var(--muted);line-height:1.55}.kjwb .modify-body{padding:15px 20px;overflow:auto}.kjwb .modify-body>.field{margin-top:0}.kjwb .modify-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}.kjwb .modify-fields .field{margin:10px 0}.kjwb .modify-fields .check{display:flex;align-items:center;gap:9px;align-self:end;min-height:44px}.kjwb .modify-fields .check input{width:17px;height:17px;accent-color:var(--action)}.kjwb .modify-order{margin-top:10px;padding:9px 10px;border-radius:var(--radius);background:var(--surface-subtle);font-size:12px}.kjwb .modify-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--border);background:var(--chrome)}.kjwb .modify-actions button{padding:0 14px}.kjwb .modify-actions .confirm{background:var(--action);border-color:var(--action);color:#fff}@media(max-width:520px){.kjwb .modify-fields{grid-template-columns:1fr}}
+.kjwb .hatch-dialog textarea{min-height:82px;padding:7px 9px;resize:vertical;font:inherit}.kjwb .hatch-dialog [data-hatch-error]:empty{display:none}.kjwb .hatch-dialog [data-hatch-error]{margin:8px 0 0;color:#b42318;font-size:12px}
 .kjwb .draft-options:empty::after{content:'—';display:block;padding:8px 0;color:var(--muted)}
 .kjwb .statusbar{display:flex;align-items:center;gap:14px;padding:0 10px;background:var(--chrome);border-top:1px solid var(--border);color:var(--muted);font:12px/1.3 var(--kj-mono,ui-monospace,SFMono-Regular,Consolas,monospace)}.kjwb .statusbar .message{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kjwb .statusbar b{color:var(--text);font-weight:600}.kjwb .statusbar .draft-toggle{height:24px;min-height:24px;padding:0 7px;border-color:var(--border);font:inherit}.kjwb .statusbar .draft-toggle[aria-pressed="true"]{color:var(--action);background:var(--action-soft);border-color:#c8d8fa}.kjwb .file-input{display:none}
 .kjwb.layout-compact{grid-template-rows:44px 44px minmax(300px,1fr) 32px}.kjwb.layout-compact .group{align-items:center;padding:5px 6px}.kjwb.layout-compact .group>span{display:none}.kjwb.layout-compact .tool{min-width:auto;height:32px;display:inline-flex;grid-template-rows:none;gap:5px;padding:4px 8px}.kjwb.layout-compact .tool .icon{width:18px;height:18px}.kjwb.layout-focus{grid-template-rows:44px 0 minmax(300px,1fr) 32px}.kjwb.layout-focus .ribbon{visibility:hidden;overflow:hidden;pointer-events:none}.kjwb.layout-focus .workspace{grid-template-columns:minmax(0,1fr)!important}.kjwb.layout-focus .side,.kjwb.layout-focus .panel-toggle{display:none!important}
@@ -4637,6 +4664,113 @@ export class KJDrawWorkbench {
             host.append(row);
         }
     }
+    #openHatchEditor(entity) {
+        const drawing = this.document;
+        if (!drawing || entity.type !== 'HATCH' || this.#readOnly) return;
+        const revision = drawing.revision;
+        const loops = entity.payload.boundaryLoops ?? [];
+        const innerIndexes = loops.map((loop, index)=>loop.external === false ? index : -1).filter((index)=>index >= 0);
+        const dialog = document.createElement('dialog');
+        dialog.className = 'modify-dialog hatch-dialog';
+        dialog.dataset.hatchEditDialog = '';
+        dialog.innerHTML = '<form method="dialog" class="modify-form"><header class="modify-head"><h2>' + this.#t('hatchEdit') + '</h2><p>' + this.#t('hatchEditDescription') + '</p></header><div class="modify-body"><label class="field"><span>' + this.#t('hatchOperation') + '</span><select data-hatch-operation></select></label><label class="field" data-hatch-island-field><span>' + this.#t('hatchIsland') + '</span><select data-hatch-island></select></label><label class="field" data-hatch-vertices-field><span>' + this.#t('hatchVertices') + '</span><textarea data-hatch-vertices></textarea></label><div class="modify-fields"><label class="field"><span>' + this.#t('hatchPatternScale') + '</span><input data-hatch-scale type="number" min="0.000000001" step="any" required></label><label class="field"><span>' + this.#t('hatchPatternAngle') + '</span><input data-hatch-angle type="number" step="any" required></label></div><p role="alert" data-hatch-error></p></div><footer class="modify-actions"><button type="button" data-hatch-cancel>' + this.#t('cancel') + '</button><button type="button" class="confirm" data-hatch-apply>' + this.#t('hatchApply') + '</button></footer></form>';
+        this.root.append(dialog);
+        const operation = query(dialog, '[data-hatch-operation]');
+        for (const [value, label, disabled] of [
+            [
+                'update-pattern',
+                this.#t('hatchUpdatePattern'),
+                false
+            ],
+            [
+                'add-island',
+                this.#t('hatchAddIsland'),
+                false
+            ],
+            [
+                'replace-island',
+                this.#t('hatchReplaceIsland'),
+                innerIndexes.length === 0
+            ],
+            [
+                'remove-island',
+                this.#t('hatchRemoveIsland'),
+                innerIndexes.length === 0
+            ]
+        ]){
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            option.disabled = disabled;
+            operation.append(option);
+        }
+        const island = query(dialog, '[data-hatch-island]');
+        if (innerIndexes.length) for (const index of innerIndexes){
+            const option = document.createElement('option');
+            option.value = String(index);
+            option.textContent = String(index);
+            island.append(option);
+        }
+        else {
+            const option = document.createElement('option');
+            option.textContent = this.#t('hatchNoIslands');
+            option.disabled = true;
+            island.append(option);
+        }
+        const vertices = query(dialog, '[data-hatch-vertices]');
+        const vertexText = (index)=>{
+            const source = loops[index]?.vertices;
+            if (!Array.isArray(source)) return '';
+            return source.map((value)=>{
+                const candidate = value;
+                const point = Array.isArray(value) ? value : candidate?.point;
+                return Array.isArray(point) ? String(Number(point[0])) + ',' + String(Number(point[1])) : '';
+            }).filter(Boolean).join('; ');
+        };
+        const sync = ()=>{
+            const needsIsland = operation.value === 'replace-island' || operation.value === 'remove-island';
+            const needsVertices = operation.value === 'add-island' || operation.value === 'replace-island';
+            query(dialog, '[data-hatch-island-field]').hidden = !needsIsland;
+            query(dialog, '[data-hatch-vertices-field]').hidden = !needsVertices;
+            if (operation.value === 'replace-island') vertices.value = vertexText(Number(island.value));
+            else if (operation.value === 'add-island') vertices.value = '';
+        };
+        query(dialog, '[data-hatch-scale]').value = String(Number(entity.payload.patternScale ?? 1));
+        query(dialog, '[data-hatch-angle]').value = String(Number(entity.payload.patternAngle ?? 0) * 180 / Math.PI);
+        const close = ()=>{
+            if (dialog.open) dialog.close();
+            else dialog.remove();
+        };
+        operation.addEventListener('change', sync);
+        island.addEventListener('change', ()=>{
+            if (operation.value === 'replace-island') vertices.value = vertexText(Number(island.value));
+        });
+        query(dialog, '[data-hatch-cancel]').addEventListener('click', close);
+        dialog.addEventListener('close', ()=>dialog.remove(), {
+            once: true
+        });
+        query(dialog, '[data-hatch-apply]').addEventListener('click', ()=>void this.#run(async ()=>{
+                const parseVertices = ()=>vertices.value.split(/[;\n]+/).map((value)=>value.trim()).filter(Boolean).map((value, index)=>{
+                        const values = value.split(/[ ,]+/).filter(Boolean).map(Number);
+                        if (values.length !== 2 || values.some((item)=>!Number.isFinite(item))) throw new Error('HATCHEDIT: island vertex ' + index + ' must contain finite x,y coordinates');
+                        return values;
+                    });
+                const command = {
+                    id: entity.id,
+                    operation: operation.value,
+                    patternScale: Number(query(dialog, '[data-hatch-scale]').value),
+                    patternAngle: Number(query(dialog, '[data-hatch-angle]').value) * Math.PI / 180
+                };
+                if (operation.value === 'replace-island' || operation.value === 'remove-island') command.loopIndex = Number(island.value);
+                if (operation.value === 'add-island' || operation.value === 'replace-island') command.vertices = parseVertices();
+                await this.execute('HATCHEDIT', command, {
+                    expectedRevision: revision
+                });
+                close();
+            }));
+        sync();
+        dialog.showModal();
+    }
     #refreshInspector() {
         const host = this.root.querySelector('[data-inspector]'), drawing = this.document;
         if (!host || !drawing) return;
@@ -4803,6 +4937,17 @@ export class KJDrawWorkbench {
             valueInput.disabled = this.#readOnly === true;
             field.append(valueInput);
             host.append(field);
+        }
+        if (!this.#readOnly && !multiple && entity.type === 'HATCH') {
+            const editHatch = document.createElement('button');
+            editHatch.type = 'button';
+            editHatch.className = 'apply';
+            editHatch.dataset.action = 'edit-hatch';
+            editHatch.textContent = this.#t('hatchEdit');
+            editHatch.addEventListener('click', ()=>this.#openHatchEditor(entity), {
+                signal: this.#abort.signal
+            });
+            host.append(editHatch);
         }
         if (!this.#readOnly) {
             const apply = document.createElement('button');

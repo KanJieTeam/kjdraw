@@ -120,6 +120,8 @@ export interface KJCommandArguments extends Record<string, unknown> {
     kinds?: readonly string[];
     types?: readonly string[];
     boundaryLoops?: unknown;
+    vertices?: readonly KJPointInput[];
+    loopIndex?: unknown;
     attributes?: unknown;
     attributeValues?: Readonly<Record<string, unknown>>;
     mappings?: unknown;
@@ -487,6 +489,12 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly domain: string;
         readonly entityType: string;
         readonly boundaryModes: readonly string[];
+    };
+    readonly HATCHEDIT: {
+        readonly domain: string;
+        readonly entityType: string;
+        readonly operations: readonly string[];
+        readonly stableIdentity: boolean;
     };
     readonly LINETYPE: {
         readonly domain: string;

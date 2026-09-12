@@ -154,7 +154,7 @@ const copy = {
     select: 'Select', pan: 'Pan', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', rectangle: 'Rectangle', text: 'Text', measure: 'Measure',
     undo: 'Undo', redo: 'Redo', erase: 'Delete', move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', fit: 'Fit', grid: 'Grid', ortho: 'Ortho', orthoOn: 'Orthogonal drafting on', orthoOff: 'Orthogonal drafting off', orthoBusy: 'Finish or cancel the current operation before changing Ortho', polar: 'Polar', polarOn: 'Polar tracking on', polarOff: 'Polar tracking off', polarBusy: 'Finish or cancel the current operation before changing Polar tracking', layers: 'Layers', properties: 'Properties',
     noSelection: 'Select an object to inspect its properties.', drawing: 'Drawing', entities: 'entities', selected: 'selected',
-    layer: 'Layer', textStyle: 'Text style', radius: 'Radius', apply: 'Apply', ready: 'Ready', readonly: 'Read only', blockEditScope: 'Edit scope', blockInstanceScope: 'This instance', blockDefinitionScope: 'Shared definition', blockMember: 'Definition member', blockScopeHint: 'Instance changes affect this occurrence. Definition changes affect every instance.',
+    layer: 'Layer', textStyle: 'Text style', radius: 'Radius', apply: 'Apply', ready: 'Ready', readonly: 'Read only', blockEditScope: 'Edit scope', blockInstanceScope: 'This instance', blockDefinitionScope: 'Shared definition', blockMember: 'Definition member', blockScopeHint: 'Instance changes affect this occurrence. Definition changes affect every instance.', hatchEdit: 'Edit hatch', hatchEditDescription: 'Edit this hatch in one undoable transaction. Polygon islands close automatically; do not repeat the first vertex.', hatchOperation: 'Operation', hatchUpdatePattern: 'Pattern only', hatchAddIsland: 'Add island', hatchReplaceIsland: 'Replace island', hatchRemoveIsland: 'Remove island', hatchIsland: 'Inner island', hatchVertices: 'Island vertices (x,y; x,y; …)', hatchPatternScale: 'Pattern scale', hatchPatternAngle: 'Pattern angle (degrees)', hatchNoIslands: 'No inner islands', hatchApply: 'Apply hatch edit',
     firstPoint: 'Specify the first point', nextPoint: 'Specify the next point', finishPolyline: 'Click vertices · Enter or double-click to finish', arcStart: 'Specify arc start', arcEnd: 'Specify arc endpoint', textPrompt: 'Type TEXT followed by content, then click an insertion point', measured: 'Measured distance',
     unsupported: 'projection limits', theme: 'Theme', language: '中文', sample: 'Starter drawing', openFailed: 'Could not open drawing', command: 'Command', run: 'Run', commandHint: 'MOVE 10 0 · COPY 10 0 · ROTATE 15 · OFFSET 2 · SCALE 1.2', fileTooLarge: 'File exceeds the workbench limit',
     layout: 'Layout', layoutClassic: 'Classic', layoutCompact: 'Compact', layoutFocus: 'Focus', selectObjects: 'Select an object', basePoint: 'Specify the base point', destinationPoint: 'Specify the destination point', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
@@ -174,7 +174,7 @@ const copy = {
     select: '选择', pan: '平移', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', rectangle: '矩形', text: '文字', measure: '测距',
     undo: '撤销', redo: '重做', erase: '删除', move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', fit: '全图', grid: '栅格', ortho: '正交', orthoOn: '正交绘图已开启', orthoOff: '正交绘图已关闭', orthoBusy: '请先完成或取消当前操作，再切换正交模式', polar: '极轴', polarOn: '极轴跟踪已开启', polarOff: '极轴跟踪已关闭', polarBusy: '请先完成或取消当前操作，再切换极轴跟踪', layers: '图层', properties: '特性',
     noSelection: '选择图元后可查看和修改属性。', drawing: '图纸', entities: '图元', selected: '已选择',
-    layer: '图层', textStyle: '文字样式', radius: '半径', apply: '应用', ready: '就绪', readonly: '只读', blockEditScope: '修改范围', blockInstanceScope: '仅此实例', blockDefinitionScope: '共享块定义', blockMember: '定义成员', blockScopeHint: '实例修改仅影响当前对象；定义修改会影响全部实例。',
+    layer: '图层', textStyle: '文字样式', radius: '半径', apply: '应用', ready: '就绪', readonly: '只读', blockEditScope: '修改范围', blockInstanceScope: '仅此实例', blockDefinitionScope: '共享块定义', blockMember: '定义成员', blockScopeHint: '实例修改仅影响当前对象；定义修改会影响全部实例。', hatchEdit: '编辑填充', hatchEditDescription: '在一个可撤销事务中修改当前填充。多边形内岛会自动闭合，请勿重复首点。', hatchOperation: '操作', hatchUpdatePattern: '仅修改图案', hatchAddIsland: '新增内岛', hatchReplaceIsland: '替换内岛', hatchRemoveIsland: '删除内岛', hatchIsland: '内岛边界', hatchVertices: '内岛顶点（x,y; x,y; …）', hatchPatternScale: '图案比例', hatchPatternAngle: '图案角度（度）', hatchNoIslands: '没有内岛', hatchApply: '应用填充修改',
     firstPoint: '指定第一个点', nextPoint: '指定下一个点', finishPolyline: '连续指定顶点 · Enter 或双击完成', arcStart: '指定圆弧起点', arcEnd: '指定圆弧端点', textPrompt: '输入 TEXT 和文字内容，再指定插入点', measured: '测量距离',
     unsupported: '投影限制', theme: '主题', language: 'EN', sample: '入门图纸', openFailed: '无法打开图纸', command: '命令', run: '执行', commandHint: 'MOVE 10 0 · COPY 10 0 · ROTATE 15 · OFFSET 2 · SCALE 1.2', fileTooLarge: '文件超过工作台限制',
     layout: '布局', layoutClassic: '经典', layoutCompact: '紧凑', layoutFocus: '专注', selectObjects: '选择对象', basePoint: '指定基点', destinationPoint: '指定目标点', zoomIn: '放大', zoomOut: '缩小',
@@ -247,6 +247,7 @@ const WORKBENCH_STYLE = `
 .kjwb .command{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:min(700px,calc(100% - 28px));min-height:40px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;padding:3px 4px 3px 11px;border:1px solid var(--border);border-radius:var(--radius);background:#fffffff5;box-shadow:0 8px 26px #17233a24}.kjwb .command span{font:12px/16px var(--kj-mono,ui-monospace,SFMono-Regular,Consolas,monospace);font-weight:700;color:var(--muted);letter-spacing:.025em}.kjwb .command input{min-width:0;height:32px;border:0;outline:0;background:transparent;color:var(--text)}.kjwb .command input::placeholder{color:#8b96a6}.kjwb .command button{height:32px;padding:0 14px;background:var(--action);border-color:var(--action);color:#fff}.kjwb .command+.hint{bottom:60px}
 .kjwb .inspector{padding:12px}.kjwb .empty{margin:2px 0;color:var(--muted);line-height:1.65}.kjwb .entity-title{padding-bottom:10px;border-bottom:1px solid var(--border);font-size:16px;font-weight:700;margin-bottom:8px}.kjwb .kv{display:grid;grid-template-columns:82px minmax(0,1fr);gap:9px;padding:8px 0;border-bottom:1px solid var(--surface-subtle)}.kjwb .kv span{color:var(--muted)}.kjwb .kv b{font-weight:600;overflow:hidden;text-overflow:ellipsis}.kjwb .field{display:grid;gap:6px;margin:12px 0}.kjwb .field span{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.025em}.kjwb .field input,.kjwb .field select{min-width:0;width:100%;height:32px;padding:0 9px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);color:var(--text);outline:0}.kjwb .field input:focus,.kjwb .field select:focus{border-color:var(--action);box-shadow:0 0 0 2px var(--action-soft)}.kjwb .apply{width:100%;height:32px;background:var(--action);border-color:var(--action);color:#fff}.kjwb .warning{margin-top:12px;padding:9px;border:1px solid #e4b95f;border-radius:var(--radius);background:#fff8e8;color:#76530c;font-size:12px}
 .kjwb .modify-dialog{width:min(480px,calc(100vw - 28px));max-height:min(680px,calc(100vh - 28px));padding:0;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);box-shadow:0 22px 70px #17233a42;overflow:hidden}.kjwb .modify-dialog::backdrop{background:#17233a66;backdrop-filter:blur(2px)}.kjwb .modify-form{display:grid;grid-template-rows:auto minmax(0,1fr) auto;max-height:inherit}.kjwb .modify-head{padding:18px 20px 12px;border-bottom:1px solid var(--border)}.kjwb .modify-head h2{margin:0 0 5px;font-size:18px;line-height:1.25}.kjwb .modify-head p,.kjwb .modify-description,.kjwb .modify-order{margin:0;color:var(--muted);line-height:1.55}.kjwb .modify-body{padding:15px 20px;overflow:auto}.kjwb .modify-body>.field{margin-top:0}.kjwb .modify-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}.kjwb .modify-fields .field{margin:10px 0}.kjwb .modify-fields .check{display:flex;align-items:center;gap:9px;align-self:end;min-height:44px}.kjwb .modify-fields .check input{width:17px;height:17px;accent-color:var(--action)}.kjwb .modify-order{margin-top:10px;padding:9px 10px;border-radius:var(--radius);background:var(--surface-subtle);font-size:12px}.kjwb .modify-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--border);background:var(--chrome)}.kjwb .modify-actions button{padding:0 14px}.kjwb .modify-actions .confirm{background:var(--action);border-color:var(--action);color:#fff}@media(max-width:520px){.kjwb .modify-fields{grid-template-columns:1fr}}
+.kjwb .hatch-dialog textarea{min-height:82px;padding:7px 9px;resize:vertical;font:inherit}.kjwb .hatch-dialog [data-hatch-error]:empty{display:none}.kjwb .hatch-dialog [data-hatch-error]{margin:8px 0 0;color:#b42318;font-size:12px}
 .kjwb .draft-options:empty::after{content:'—';display:block;padding:8px 0;color:var(--muted)}
 .kjwb .statusbar{display:flex;align-items:center;gap:14px;padding:0 10px;background:var(--chrome);border-top:1px solid var(--border);color:var(--muted);font:12px/1.3 var(--kj-mono,ui-monospace,SFMono-Regular,Consolas,monospace)}.kjwb .statusbar .message{min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kjwb .statusbar b{color:var(--text);font-weight:600}.kjwb .statusbar .draft-toggle{height:24px;min-height:24px;padding:0 7px;border-color:var(--border);font:inherit}.kjwb .statusbar .draft-toggle[aria-pressed="true"]{color:var(--action);background:var(--action-soft);border-color:#c8d8fa}.kjwb .file-input{display:none}
 .kjwb.layout-compact{grid-template-rows:44px 44px minmax(300px,1fr) 32px}.kjwb.layout-compact .group{align-items:center;padding:5px 6px}.kjwb.layout-compact .group>span{display:none}.kjwb.layout-compact .tool{min-width:auto;height:32px;display:inline-flex;grid-template-rows:none;gap:5px;padding:4px 8px}.kjwb.layout-compact .tool .icon{width:18px;height:18px}.kjwb.layout-focus{grid-template-rows:44px 0 minmax(300px,1fr) 32px}.kjwb.layout-focus .ribbon{visibility:hidden;overflow:hidden;pointer-events:none}.kjwb.layout-focus .workspace{grid-template-columns:minmax(0,1fr)!important}.kjwb.layout-focus .side,.kjwb.layout-focus .panel-toggle{display:none!important}
@@ -2793,6 +2794,65 @@ export class KJDrawWorkbench {
     }
   }
 
+  #openHatchEditor(entity: KJReadonlyObjectRecord): void {
+    const drawing = this.document
+    if (!drawing || entity.type !== 'HATCH' || this.#readOnly) return
+    const revision = drawing.revision
+    const loops = (entity.payload.boundaryLoops ?? []) as readonly Readonly<Record<string, unknown>>[]
+    const innerIndexes = loops.map((loop, index) => loop.external === false ? index : -1).filter(index => index >= 0)
+    const dialog = document.createElement('dialog'); dialog.className = 'modify-dialog hatch-dialog'; dialog.dataset.hatchEditDialog = ''
+    dialog.innerHTML = '<form method="dialog" class="modify-form"><header class="modify-head"><h2>' + this.#t('hatchEdit') + '</h2><p>' + this.#t('hatchEditDescription') + '</p></header><div class="modify-body"><label class="field"><span>' + this.#t('hatchOperation') + '</span><select data-hatch-operation></select></label><label class="field" data-hatch-island-field><span>' + this.#t('hatchIsland') + '</span><select data-hatch-island></select></label><label class="field" data-hatch-vertices-field><span>' + this.#t('hatchVertices') + '</span><textarea data-hatch-vertices></textarea></label><div class="modify-fields"><label class="field"><span>' + this.#t('hatchPatternScale') + '</span><input data-hatch-scale type="number" min="0.000000001" step="any" required></label><label class="field"><span>' + this.#t('hatchPatternAngle') + '</span><input data-hatch-angle type="number" step="any" required></label></div><p role="alert" data-hatch-error></p></div><footer class="modify-actions"><button type="button" data-hatch-cancel>' + this.#t('cancel') + '</button><button type="button" class="confirm" data-hatch-apply>' + this.#t('hatchApply') + '</button></footer></form>'
+    this.root.append(dialog)
+    const operation = query<HTMLSelectElement>(dialog, '[data-hatch-operation]')
+    for (const [value, label, disabled] of [
+      ['update-pattern', this.#t('hatchUpdatePattern'), false],
+      ['add-island', this.#t('hatchAddIsland'), false],
+      ['replace-island', this.#t('hatchReplaceIsland'), innerIndexes.length === 0],
+      ['remove-island', this.#t('hatchRemoveIsland'), innerIndexes.length === 0]
+    ] as const) { const option = document.createElement('option'); option.value = value; option.textContent = label; option.disabled = disabled; operation.append(option) }
+    const island = query<HTMLSelectElement>(dialog, '[data-hatch-island]')
+    if (innerIndexes.length) for (const index of innerIndexes) { const option = document.createElement('option'); option.value = String(index); option.textContent = String(index); island.append(option) }
+    else { const option = document.createElement('option'); option.textContent = this.#t('hatchNoIslands'); option.disabled = true; island.append(option) }
+    const vertices = query<HTMLTextAreaElement>(dialog, '[data-hatch-vertices]')
+    const vertexText = (index: number): string => {
+      const source = loops[index]?.vertices
+      if (!Array.isArray(source)) return ''
+      return source.map(value => {
+        const candidate = value as { point?: unknown }
+        const point = Array.isArray(value) ? value : candidate?.point
+        return Array.isArray(point) ? String(Number(point[0])) + ',' + String(Number(point[1])) : ''
+      }).filter(Boolean).join('; ')
+    }
+    const sync = (): void => {
+      const needsIsland = operation.value === 'replace-island' || operation.value === 'remove-island'
+      const needsVertices = operation.value === 'add-island' || operation.value === 'replace-island'
+      query<HTMLElement>(dialog, '[data-hatch-island-field]').hidden = !needsIsland
+      query<HTMLElement>(dialog, '[data-hatch-vertices-field]').hidden = !needsVertices
+      if (operation.value === 'replace-island') vertices.value = vertexText(Number(island.value))
+      else if (operation.value === 'add-island') vertices.value = ''
+    }
+    query<HTMLInputElement>(dialog, '[data-hatch-scale]').value = String(Number(entity.payload.patternScale ?? 1))
+    query<HTMLInputElement>(dialog, '[data-hatch-angle]').value = String(Number(entity.payload.patternAngle ?? 0) * 180 / Math.PI)
+    const close = (): void => { if (dialog.open) dialog.close(); else dialog.remove() }
+    operation.addEventListener('change', sync)
+    island.addEventListener('change', () => { if (operation.value === 'replace-island') vertices.value = vertexText(Number(island.value)) })
+    query<HTMLButtonElement>(dialog, '[data-hatch-cancel]').addEventListener('click', close)
+    dialog.addEventListener('close', () => dialog.remove(), { once: true })
+    query<HTMLButtonElement>(dialog, '[data-hatch-apply]').addEventListener('click', () => void this.#run(async () => {
+      const parseVertices = (): number[][] => vertices.value.split(/[;\n]+/).map(value => value.trim()).filter(Boolean).map((value, index) => {
+        const values = value.split(/[ ,]+/).filter(Boolean).map(Number)
+        if (values.length !== 2 || values.some(item => !Number.isFinite(item))) throw new Error('HATCHEDIT: island vertex ' + index + ' must contain finite x,y coordinates')
+        return values
+      })
+      const command: Record<string, unknown> = { id: entity.id, operation: operation.value, patternScale: Number(query<HTMLInputElement>(dialog, '[data-hatch-scale]').value), patternAngle: Number(query<HTMLInputElement>(dialog, '[data-hatch-angle]').value) * Math.PI / 180 }
+      if (operation.value === 'replace-island' || operation.value === 'remove-island') command.loopIndex = Number(island.value)
+      if (operation.value === 'add-island' || operation.value === 'replace-island') command.vertices = parseVertices()
+      await this.execute('HATCHEDIT', command, { expectedRevision: revision })
+      close()
+    }))
+    sync(); dialog.showModal()
+  }
+
   #refreshInspector(): void {
     const host = this.root.querySelector<HTMLElement>('[data-inspector]'), drawing = this.document
     if (!host || !drawing) return
@@ -2867,6 +2927,11 @@ export class KJDrawWorkbench {
     } else if (!multiple && ['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(entity.type)) {
       const field = document.createElement('label'); field.className = 'field'; field.innerHTML = `<span>${this.#t('text')}</span>`
       valueInput = document.createElement('input'); valueInput.value = String(entity.payload.text ?? ''); valueInput.disabled = this.#readOnly === true; field.append(valueInput); host.append(field)
+    }
+    if (!this.#readOnly && !multiple && entity.type === 'HATCH') {
+      const editHatch = document.createElement('button'); editHatch.type = 'button'; editHatch.className = 'apply'; editHatch.dataset.action = 'edit-hatch'; editHatch.textContent = this.#t('hatchEdit')
+      editHatch.addEventListener('click', () => this.#openHatchEditor(entity), { signal: this.#abort.signal })
+      host.append(editHatch)
     }
     if (!this.#readOnly) {
       const apply = document.createElement('button'); apply.type = 'button'; apply.className = 'apply'; apply.textContent = this.#t('apply')

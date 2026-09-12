@@ -3,6 +3,7 @@ import { validatePlotSettings } from './plot-settings.js'
 import { createCommandEditScope } from './edit-policy.js'
 import { applyRoadDrawingRevision } from './road-drawing-update.js'
 import { createDesignRelations, updateDesignRelations } from './design-relations.js'
+import { editHatch } from './hatch-edit.js'
 import type { KJRoadDrawingResult } from './road-drawing.js'
 import {
   entityArea2,
@@ -163,6 +164,8 @@ export interface KJCommandArguments extends Record<string, unknown> {
   kinds?: readonly string[]
   types?: readonly string[]
   boundaryLoops?: unknown
+  vertices?: readonly KJPointInput[]
+  loopIndex?: unknown
   attributes?: unknown
   attributeValues?: Readonly<Record<string, unknown>>
   mappings?: unknown
@@ -334,6 +337,7 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   DESIGNCREATE: { domain: 'design-relations', persistence: 'document-dictionary', atomic: true, maximumEntities: 64 },
   DESIGNUPDATE: { domain: 'design-relations', atomic: true, stableIdentity: true, requiresUnmodifiedGeometry: true },
   HATCH: { domain: 'entity', entityType: 'HATCH', boundaryModes: ['polyline', 'line-arc-edges'] },
+  HATCHEDIT: { domain: 'entity', entityType: 'HATCH', operations: ['update-pattern', 'add-island', 'replace-island', 'remove-island'], stableIdentity: true },
   LINETYPE: { domain: 'table', table: 'linetypes', operations: ['create', 'update'] },
   TEXTSTYLE: { domain: 'table', table: 'textStyles', operations: ['create', 'update', 'set-current'] },
   DIMSTYLE: { domain: 'table', table: 'dimensionStyles', operations: ['create', 'update'] },
@@ -706,6 +710,16 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       solid: args.solid,
       layerId: args.layerId,
     } as KJObjectPayload, { ownerId: args.ownerId } as KJObjectSpec),
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'HATCHEDIT', title: 'Edit hatch boundary islands and pattern',
+    execute: ({ document, transaction }, args) => editHatch(document, transaction, args.id, {
+      operation: String(args.operation ?? '').toLowerCase() as 'update-pattern' | 'add-island' | 'replace-island' | 'remove-island',
+      loopIndex: args.loopIndex,
+      vertices: args.vertices,
+      patternScale: args.patternScale,
+      patternAngle: args.patternAngle,
+    }),
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'LINETYPE', aliases: ['LT'], title: 'Create or update linetype',

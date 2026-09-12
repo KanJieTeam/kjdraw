@@ -63,6 +63,7 @@ export const KJDRAW_1_0_READINESS_PROFILE = Object.freeze({
         'XREFRELOAD',
         'XREFDETACH',
         'HATCH',
+        'HATCHEDIT',
         'DIMSTYLE',
         'TEXTSTYLE',
         'LINETYPE',

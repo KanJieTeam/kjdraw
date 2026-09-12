@@ -4,6 +4,7 @@ import { validatePlotSettings } from './plot-settings.js';
 import { createCommandEditScope } from './edit-policy.js';
 import { applyRoadDrawingRevision } from './road-drawing-update.js';
 import { createDesignRelations, updateDesignRelations } from './design-relations.js';
+import { editHatch } from './hatch-edit.js';
 import { entityArea2, entityLength2, distance2, dot2, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
 import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
@@ -424,6 +425,17 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'polyline',
             'line-arc-edges'
         ]
+    },
+    HATCHEDIT: {
+        domain: 'entity',
+        entityType: 'HATCH',
+        operations: [
+            'update-pattern',
+            'add-island',
+            'replace-island',
+            'remove-island'
+        ],
+        stableIdentity: true
     },
     LINETYPE: {
         domain: 'table',
@@ -1132,6 +1144,19 @@ export function registerCoreCommands(registry) {
                 layerId: args.layerId
             }, {
                 ownerId: args.ownerId
+            })
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'HATCHEDIT',
+        title: 'Edit hatch boundary islands and pattern',
+        execute: ({ document, transaction }, args)=>editHatch(document, transaction, args.id, {
+                operation: String(args.operation ?? '').toLowerCase(),
+                loopIndex: args.loopIndex,
+                vertices: args.vertices,
+                patternScale: args.patternScale,
+                patternAngle: args.patternAngle
             })
     }, {
         owner: '@kanjieteam/kjdraw'
