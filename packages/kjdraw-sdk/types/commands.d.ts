@@ -153,6 +153,10 @@ export interface KJCommandArguments extends Record<string, unknown> {
     radius?: unknown;
     distance?: unknown;
     tolerance?: unknown;
+    segmentIndex?: unknown;
+    vertexIndex?: unknown;
+    bulge?: unknown;
+    sweepDegrees?: unknown;
     distance1?: unknown;
     distance2?: unknown;
     dx?: unknown;
@@ -359,6 +363,13 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly supportedEntityTypes: readonly string[];
         readonly selection: string;
         readonly maximumEntities: number;
+        readonly stableIdentity: boolean;
+    };
+    readonly PEDIT: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly supportedEntityTypes: readonly string[];
+        readonly operations: readonly string[];
         readonly stableIdentity: boolean;
     };
     readonly CHAMFER: {

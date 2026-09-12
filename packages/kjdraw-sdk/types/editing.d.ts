@@ -82,6 +82,15 @@ export interface KJStretchOptions {
     readonly dx?: unknown;
     readonly dy?: unknown;
 }
+export interface KJPolylineEditOptions {
+    readonly operation?: unknown;
+    readonly segmentIndex?: unknown;
+    readonly vertexIndex?: unknown;
+    readonly point?: unknown;
+    readonly tolerance?: unknown;
+    readonly bulge?: unknown;
+    readonly sweepDegrees?: unknown;
+}
 /** Join connected open linear/arc paths into one editable planar polyline. */
 export declare function joinEntityPayloads(entities: readonly KJJoinEntity[], options?: KJJoinOptions): KJJoinResult;
 export declare function offsetEntityPayload(entity: KJEditingEntity | null | undefined, distance: unknown, options?: KJOffsetOptions): KJObjectPayload;
@@ -100,5 +109,7 @@ export declare function extendEntityPayload(target: KJEditingEntity | null | und
 export declare function lengthenEntityPayload(target: KJEditingEntity | null | undefined, options?: KJLengthenOptions): KJObjectPayload;
 /** Move only defining vertices inside a crossing window; return null when none are selected. */
 export declare function stretchEntityPayload(target: KJEditingEntity | null | undefined, options?: KJStretchOptions): KJObjectPayload | null;
+/** Edit one polyline topology element without replacing the entity identity. */
+export declare function editPolylinePayload(target: KJEditingEntity | null | undefined, options?: KJPolylineEditOptions): KJObjectPayload;
 export declare function chamferLinePair(first: KJEditingEntity, second: KJEditingEntity, options?: KJLinePairOptions): KJLinePairEditResult;
 export declare function filletLinePair(first: KJEditingEntity, second: KJEditingEntity, options?: KJLinePairOptions): KJLinePairEditResult;
