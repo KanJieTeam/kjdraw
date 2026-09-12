@@ -153,7 +153,8 @@ try {
   assert.equal(diameter.rawType & 32, 32)
   assert.deepEqual(diameter.geometryEntityCounts, { LINE: 1, SOLID: 2, TEXT: 1 })
   assert.ok(hasLine(diameter.geometryLines, [130, 265, 0], [150, 265, 0]))
-  assert.equal(diameter.geometryTexts[0].text, '⌀20')
+  assert.equal(diameter.geometryTexts[0].text, '%%c20')
+  assert.equal(diameter.geometryTexts[0].plainText, 'Ø20')
   assert.equal(new Set(externalRead.dimensions.map(dimension => dimension.geometryBlock)).size, 4)
   assert.equal(externalRead.dimensions.every(dimension => /^\*D\d+$/i.test(dimension.geometryBlock)), true)
   for (const dimension of [aligned, rotated, radius, diameter]) {

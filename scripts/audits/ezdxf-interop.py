@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import ezdxf
+from ezdxf.tools.text import plain_text
 
 
 DIMENSION_TYPES = {
@@ -89,6 +90,7 @@ def inspect_dimension(entity: object, document: object) -> dict[str, object]:
                 "horizontalAlignment": int(item.dxf.get("halign", 0)),
                 "verticalAlignment": int(item.dxf.get("valign", 0)),
                 "text": str(item.dxf.text),
+                "plainText": plain_text(str(item.dxf.text)),
                 "height": float(item.dxf.height),
                 "rotationDegrees": float(item.dxf.get("rotation", 0.0)),
             }
