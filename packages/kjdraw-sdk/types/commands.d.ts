@@ -452,6 +452,18 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         domain: string;
         persistence: string;
     };
+    readonly DESIGNCREATE: {
+        domain: string;
+        persistence: string;
+        atomic: boolean;
+        maximumEntities: number;
+    };
+    readonly DESIGNUPDATE: {
+        domain: string;
+        atomic: boolean;
+        stableIdentity: boolean;
+        requiresUnmodifiedGeometry: boolean;
+    };
     readonly HATCH: {
         readonly domain: string;
         readonly entityType: string;
