@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:3fb8a7365bfbde96713979c3422e8e190352d9b1ab9ae9823168c11539f574fa",
+  "sourceDigest": "sha256:37423d04a945d8fd6a6fa544f7a6b83637af83b395c278b2b653b5e19f398f46",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -12834,7 +12834,7 @@
       "module": "@kanjieteam/kjdraw/renderer/canvas",
       "href": "./api/reference/#renderer-canvas-interface-kjcanvasscenequery",
       "anchor": "renderer-canvas-interface-kjcanvasscenequery",
-      "summary": "export interface KJCanvasSceneQuery { document: KJDocument; spaceId: string; }"
+      "summary": "export interface KJCanvasSceneQuery { document: KJDocument; spaceId: string; bounds?: readonly [number, number, number, number]; }"
     },
     {
       "name": "KJCanvasSelectionOptions",

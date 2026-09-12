@@ -9,7 +9,13 @@ export interface KJSpatialSelectionOptions {
     includeLocked?: boolean;
     /** Model-space tolerance. The Canvas adapter supplies a sub-pixel tolerance. */
     tolerance?: number;
+    /** Optional conservative candidate page supplied by a spatial index. */
+    candidates?: ReadonlyArray<KJReadonlyObjectRecord>;
 }
+type DisplayBounds = readonly [number, number, number, number];
+/** Conservative displayed XY bounds for viewport indexes. Null keeps an
+ * unbounded or incompletely projected entity in every candidate page. */
+export declare function displayedEntityBounds(document: KJDocument, entity: KJReadonlyObjectRecord, cache?: WeakMap<object, DisplayBounds | null>, depth?: number): DisplayBounds | null;
 /** Conservative owner-XY query classification. Unknown geometry must remain visible to inspection callers. */
 export declare function classifyEntityInBox(document: KJDocument, entity: KJReadonlyObjectRecord, bounds: readonly [number, number, number, number]): 'intersects' | 'outside' | 'unclassified';
 /** Picking follows displayed label/curve extents, including approximate font metrics.

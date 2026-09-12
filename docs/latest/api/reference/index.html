@@ -4902,6 +4902,10 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         signal?: abortsignal;
     }): () =&gt; boolean;
     snapshot(): readonlydeep&lt;kjdocumentstate&gt;;
+    /** lightweight immutable document metadata without cloning the object graph. */
+    get metadata(): readonlydeep&lt;kjdocumentmetadata&gt;;
+    /** lightweight immutable layout/space registry without cloning the object graph. */
+    get spaces(): readonlydeep&lt;kjdocumentspaces&gt;;
     tojson({ includerevisions }?: {
         includerevisions?: boolean;
     }): kjdocumentstate;
@@ -4946,6 +4950,10 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         signal?: AbortSignal;
     }): () =&gt; boolean;
     snapshot(): ReadonlyDeep&lt;KJDocumentState&gt;;
+    /** Lightweight immutable document metadata without cloning the object graph. */
+    get metadata(): ReadonlyDeep&lt;KJDocumentMetadata&gt;;
+    /** Lightweight immutable layout/space registry without cloning the object graph. */
+    get spaces(): ReadonlyDeep&lt;KJDocumentSpaces&gt;;
     toJSON({ includeRevisions }?: {
         includeRevisions?: boolean;
     }): KJDocumentState;
@@ -13556,6 +13564,10 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         signal?: abortsignal;
     }): () =&gt; boolean;
     snapshot(): readonlydeep&lt;kjdocumentstate&gt;;
+    /** lightweight immutable document metadata without cloning the object graph. */
+    get metadata(): readonlydeep&lt;kjdocumentmetadata&gt;;
+    /** lightweight immutable layout/space registry without cloning the object graph. */
+    get spaces(): readonlydeep&lt;kjdocumentspaces&gt;;
     tojson({ includerevisions }?: {
         includerevisions?: boolean;
     }): kjdocumentstate;
@@ -13600,6 +13612,10 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         signal?: AbortSignal;
     }): () =&gt; boolean;
     snapshot(): ReadonlyDeep&lt;KJDocumentState&gt;;
+    /** Lightweight immutable document metadata without cloning the object graph. */
+    get metadata(): ReadonlyDeep&lt;KJDocumentMetadata&gt;;
+    /** Lightweight immutable layout/space registry without cloning the object graph. */
+    get spaces(): ReadonlyDeep&lt;KJDocumentSpaces&gt;;
     toJSON({ includeRevisions }?: {
         includeRevisions?: boolean;
     }): KJDocumentState;
@@ -18722,6 +18738,10 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         signal?: abortsignal;
     }): () =&gt; boolean;
     snapshot(): readonlydeep&lt;kjdocumentstate&gt;;
+    /** lightweight immutable document metadata without cloning the object graph. */
+    get metadata(): readonlydeep&lt;kjdocumentmetadata&gt;;
+    /** lightweight immutable layout/space registry without cloning the object graph. */
+    get spaces(): readonlydeep&lt;kjdocumentspaces&gt;;
     tojson({ includerevisions }?: {
         includerevisions?: boolean;
     }): kjdocumentstate;
@@ -18766,6 +18786,10 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         signal?: AbortSignal;
     }): () =&gt; boolean;
     snapshot(): ReadonlyDeep&lt;KJDocumentState&gt;;
+    /** Lightweight immutable document metadata without cloning the object graph. */
+    get metadata(): ReadonlyDeep&lt;KJDocumentMetadata&gt;;
+    /** Lightweight immutable layout/space registry without cloning the object graph. */
+    get spaces(): ReadonlyDeep&lt;KJDocumentSpaces&gt;;
     toJSON({ includeRevisions }?: {
         includeRevisions?: boolean;
     }): KJDocumentState;
@@ -22519,6 +22543,10 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         samplingreason?: kjhatchcoveragereason | &#39;pixel-budget&#39; | &#39;canvas-unavailable&#39;;
     }[];
     total: number;
+    culled: number;
+    detailculled: number;
+    overviewentities: number;
+    overviewpixels: number;
     rendered: number;
     approximated: number;
     hidden: number;
@@ -22538,6 +22566,10 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         samplingReason?: KJHatchCoverageReason | &#39;pixel-budget&#39; | &#39;canvas-unavailable&#39;;
     }[];
     total: number;
+    culled: number;
+    detailCulled: number;
+    overviewEntities: number;
+    overviewPixels: number;
     rendered: number;
     approximated: number;
     hidden: number;
@@ -22570,11 +22602,13 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 <article class="api-symbol" id="renderer-canvas-interface-kjcanvasscenequery" data-search="kjcanvasscenequery interface @kanjieteam/kjdraw/renderer/canvas export interface kjcanvasscenequery {
     document: kjdocument;
     spaceid: string;
+    bounds?: readonly [number, number, number, number];
 }">
       <header><div><span class="kind">interface</span><h3>KJCanvasSceneQuery</h3></div><a class="permalink" href="#renderer-canvas-interface-kjcanvasscenequery" aria-label="Link to KJCanvasSceneQuery">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJCanvasSceneQuery {
     document: KJDocument;
     spaceId: string;
+    bounds?: readonly [number, number, number, number];
 }</code></pre>
       <p class="source-path">canvas-renderer.d.ts</p>
     </article>

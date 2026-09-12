@@ -19,6 +19,7 @@ export interface KJCanvasRendererOptions {
 export interface KJCanvasSceneQuery {
     document: KJDocument;
     spaceId: string;
+    bounds?: readonly [number, number, number, number];
 }
 /** Replaceable scene-query seam for spatial indexes, workers or streamed tiles. */
 export interface KJCanvasSceneProvider {
@@ -41,6 +42,10 @@ export interface KJCanvasRenderReport {
         samplingReason?: KJHatchCoverageReason | 'pixel-budget' | 'canvas-unavailable';
     }[];
     total: number;
+    culled: number;
+    detailCulled: number;
+    overviewEntities: number;
+    overviewPixels: number;
     rendered: number;
     approximated: number;
     hidden: number;

@@ -1,6 +1,6 @@
 import type { KJObjectKind, KJTableName } from './constants.js';
 import { KJTransaction } from './transaction.js';
-import type { KJDocumentOptions, KJDocumentState, KJLegacyScene, KJReadonlyObjectRecord, KJRevisionRecord, KJValidationResult } from './schema.js';
+import type { KJDocumentOptions, KJDocumentMetadata, KJDocumentSpaces, KJDocumentState, KJLegacyScene, KJReadonlyObjectRecord, KJRevisionRecord, KJValidationResult } from './schema.js';
 import type { ReadonlyDeep } from './utils.js';
 export interface KJDocumentHistory {
     canUndo: boolean;
@@ -79,6 +79,10 @@ export declare class KJDocument {
         signal?: AbortSignal;
     }): () => boolean;
     snapshot(): ReadonlyDeep<KJDocumentState>;
+    /** Lightweight immutable document metadata without cloning the object graph. */
+    get metadata(): ReadonlyDeep<KJDocumentMetadata>;
+    /** Lightweight immutable layout/space registry without cloning the object graph. */
+    get spaces(): ReadonlyDeep<KJDocumentSpaces>;
     toJSON({ includeRevisions }?: {
         includeRevisions?: boolean;
     }): KJDocumentState;
