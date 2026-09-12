@@ -1,9 +1,10 @@
 // Generated from agent-tasks.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJValidationError } from './errors.js';
-import { canonicalStringify, clone, deepFreeze, normalizeName } from './utils.js';
+import { canonicalStringify, clone, deepFreeze, normalizeName, stableHash } from './utils.js';
+import { validateDrawingGeometryTransaction } from './drawing-validation.js';
 export const KJ_AGENT_TASK_TYPE = 'AI_TASK';
 export const KJ_AGENT_TASK_CONTRACT_VERSION = 1;
-const MAX_SCOPE_ENTITIES = 64;
+const MAX_SCOPE_ENTITIES = 512;
 const MAX_SCOPE_BYTES = 4 * 1024 * 1024;
 const MAX_RECORD_BYTES = 256 * 1024;
 const MAX_EVENTS = 128;
@@ -86,6 +87,10 @@ const PAYLOAD_FIELDS = [
     'resolution',
     'eventOffset',
     'events'
+];
+const PAYLOAD_FIELDS_WITH_RECEIPTS = [
+    ...PAYLOAD_FIELDS,
+    'receipts'
 ];
 const UNSAFE_KEYS = new Set([
     '__proto__',
@@ -205,6 +210,75 @@ function assertion(value) {
         expected
     };
 }
+function geometryReference(value) {
+    const row = plain(value, [
+        'objectId',
+        'feature'
+    ], 'geometry point reference');
+    const objectId = text(row.objectId, 'geometry object ID', 256);
+    if (![
+        'start',
+        'end',
+        'center',
+        'origin'
+    ].includes(String(row.feature))) fail('geometry point feature is invalid');
+    return {
+        objectId,
+        feature: row.feature
+    };
+}
+function geometryNumber(value, label) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1e12) fail(`${label} must be between 0 and 1e12`);
+    return value;
+}
+function geometryCheck(value, requirementId) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) fail('geometry check must be a plain object');
+    const kind = String(value.kind);
+    const fields = kind === 'point-distance' ? [
+        'id',
+        'kind',
+        'from',
+        'to',
+        'expected',
+        'tolerance'
+    ] : [
+        'id',
+        'kind',
+        'objectId',
+        'expected',
+        'tolerance'
+    ];
+    const row = plain(value, fields, 'geometry check');
+    if (identifier(row.id, 'geometry check id') !== requirementId) fail('geometry check ID must equal its requirement ID');
+    const tolerance = geometryNumber(row.tolerance, 'geometry tolerance');
+    if (kind === 'point-distance') return {
+        id: requirementId,
+        kind,
+        from: geometryReference(row.from),
+        to: geometryReference(row.to),
+        expected: geometryNumber(row.expected, 'geometry expected value'),
+        tolerance
+    };
+    const objectId = text(row.objectId, 'geometry object ID', 256);
+    if (kind === 'line-length' || kind === 'circle-radius') return {
+        id: requirementId,
+        kind,
+        objectId,
+        expected: geometryNumber(row.expected, 'geometry expected value'),
+        tolerance
+    };
+    if (kind === 'polyline-closed') {
+        if (typeof row.expected !== 'boolean' || tolerance !== 0) fail('polyline closure requires a boolean expected value and zero tolerance');
+        return {
+            id: requirementId,
+            kind,
+            objectId,
+            expected: row.expected,
+            tolerance: 0
+        };
+    }
+    return fail('geometry check kind is invalid');
+}
 function taskDefinition(value) {
     const row = plain(value, [
         'requirements',
@@ -221,17 +295,25 @@ function taskDefinition(value) {
         ], 'requirement'), id = identifier(requirement.id, 'requirement id');
         if (requirementIds.has(id)) fail('requirement IDs must be unique');
         requirementIds.add(id);
-        const check = plain(requirement.check, [
+        const check = optionalPlain(requirement.check, [
+            'toolName',
+            'assertion',
+            'geometryCheck'
+        ], [
             'toolName',
             'assertion'
         ], 'requirement check');
+        const parsed = {
+            toolName: identifier(check.toolName, 'check tool name'),
+            assertion: assertion(check.assertion),
+            ...check.geometryCheck === undefined ? {} : {
+                geometryCheck: geometryCheck(check.geometryCheck, id)
+            }
+        };
         return {
             id,
             description: text(requirement.description, 'requirement description', 1024),
-            check: {
-                toolName: identifier(check.toolName, 'check tool name'),
-                assertion: assertion(check.assertion)
-            }
+            check: parsed
         };
     });
     const stepIds = new Set();
@@ -303,7 +385,12 @@ function stepProgress(value, definition) {
         'skipped'
     ].includes(String(row.status))) fail('step progress ID or status is invalid');
     const checks = array(row.checks, 'check summaries', 0, step.requirementIds.length).map((item)=>{
-        const check = plain(item, [
+        const check = optionalPlain(item, [
+            'requirementId',
+            'passed',
+            'summary',
+            'receiptId'
+        ], [
             'requirementId',
             'passed',
             'summary'
@@ -312,7 +399,10 @@ function stepProgress(value, definition) {
         return {
             requirementId,
             passed: check.passed,
-            summary: text(check.summary, 'check summary', 512, false)
+            summary: text(check.summary, 'check summary', 512, false),
+            ...check.receiptId === undefined ? {} : {
+                receiptId: identifier(check.receiptId, 'check receipt id')
+            }
         };
     });
     if (new Set(checks.map((check)=>check.requirementId)).size !== checks.length) fail('check summaries must have unique requirement IDs');
@@ -332,6 +422,119 @@ function progress(value, definition) {
     return {
         steps
     };
+}
+function receiptCheck(value) {
+    const row = plain(value, [
+        'id',
+        'kind',
+        'actual',
+        'expected',
+        'error',
+        'tolerance',
+        'passed',
+        'references'
+    ], 'receipt geometry check');
+    const id = identifier(row.id, 'receipt check id'), kind = String(row.kind);
+    if (![
+        'line-length',
+        'circle-radius',
+        'point-distance',
+        'polyline-closed'
+    ].includes(kind)) fail('receipt geometry check kind is invalid');
+    if (typeof row.passed !== 'boolean') fail('receipt geometry check result is invalid');
+    const actual = row.actual, expected = row.expected;
+    if (!(typeof actual === 'boolean' || typeof actual === 'number' && Number.isFinite(actual)) || !(typeof expected === 'boolean' || typeof expected === 'number' && Number.isFinite(expected))) fail('receipt geometry values are invalid');
+    const error = geometryNumber(row.error, 'receipt geometry error'), tolerance = geometryNumber(row.tolerance, 'receipt geometry tolerance');
+    const references = array(row.references, 'receipt geometry references', 1, 2).map((item)=>{
+        const ref = optionalPlain(item, [
+            'objectId',
+            'ownerId',
+            'feature'
+        ], [
+            'objectId',
+            'ownerId'
+        ], 'receipt geometry reference');
+        const feature = ref.feature;
+        if (feature !== undefined && ![
+            'start',
+            'end',
+            'center',
+            'origin'
+        ].includes(String(feature))) fail('receipt geometry feature is invalid');
+        return {
+            objectId: text(ref.objectId, 'receipt object ID', 256),
+            ownerId: text(ref.ownerId, 'receipt owner ID', 256),
+            ...feature === undefined ? {} : {
+                feature: feature
+            }
+        };
+    });
+    const computedError = typeof actual === 'boolean' && typeof expected === 'boolean' ? actual === expected ? 0 : 1 : typeof actual === 'number' && typeof expected === 'number' ? Math.abs(actual - expected) : NaN;
+    if (!Number.isFinite(computedError) || error !== computedError || row.passed !== error <= tolerance) fail('receipt geometry evidence is internally inconsistent');
+    if (kind === 'point-distance' ? references.length !== 2 || references.some((reference)=>!reference.feature) : references.length !== 1 || references.some((reference)=>reference.feature)) fail('receipt geometry references do not match the check kind');
+    if (kind === 'polyline-closed' && (typeof actual !== 'boolean' || typeof expected !== 'boolean' || tolerance !== 0) || kind !== 'polyline-closed' && (typeof actual !== 'number' || typeof expected !== 'number')) fail('receipt geometry value types do not match the check kind');
+    return {
+        id,
+        kind: kind,
+        actual,
+        expected,
+        error,
+        tolerance,
+        passed: row.passed,
+        references
+    };
+}
+function geometryReceipt(value) {
+    const row = plain(value, [
+        'schema',
+        'schemaVersion',
+        'receiptId',
+        'taskId',
+        'taskVersion',
+        'planId',
+        'executionEnvelopeId',
+        'reviewerId',
+        'command',
+        'sourceToolName',
+        'beforeRevision',
+        'afterRevision',
+        'at',
+        'units',
+        'toolContractHash',
+        'argumentsDigest',
+        'scopeSha256',
+        'checks',
+        'receiptDigest'
+    ], 'geometry receipt');
+    if (row.schema !== 'com.kanjie.kjdraw.agent-task-geometry-receipt' || row.schemaVersion !== 1 || row.command !== 'CREATEBATCH') fail('geometry receipt contract is invalid');
+    if (typeof row.toolContractHash !== 'string' || !CONTENT_HASH.test(row.toolContractHash) || typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest) || typeof row.scopeSha256 !== 'string' || !SHA256.test(row.scopeSha256) || typeof row.receiptDigest !== 'string' || !CONTENT_HASH.test(row.receiptDigest)) fail('geometry receipt hashes are invalid');
+    const checks = array(row.checks, 'receipt checks', 1, 64).map(receiptCheck);
+    if (new Set(checks.map((check)=>check.id)).size !== checks.length || checks.some((check)=>!check.passed)) fail('geometry receipt requires unique passing checks');
+    const result = {
+        schema: row.schema,
+        schemaVersion: 1,
+        receiptId: identifier(row.receiptId, 'receipt id'),
+        taskId: text(row.taskId, 'receipt task id', 128),
+        taskVersion: integer(row.taskVersion, 'receipt task version', 1),
+        planId: text(row.planId, 'receipt plan id', 256),
+        executionEnvelopeId: text(row.executionEnvelopeId, 'receipt execution envelope id', 256),
+        reviewerId: text(row.reviewerId, 'receipt reviewer id', 256),
+        command: 'CREATEBATCH',
+        sourceToolName: identifier(row.sourceToolName, 'receipt source tool'),
+        beforeRevision: integer(row.beforeRevision, 'receipt before revision'),
+        afterRevision: integer(row.afterRevision, 'receipt after revision', 1),
+        at: timestamp(row.at, 'receipt timestamp'),
+        units: text(row.units, 'receipt units', 64),
+        toolContractHash: row.toolContractHash,
+        argumentsDigest: row.argumentsDigest,
+        scopeSha256: row.scopeSha256,
+        checks,
+        receiptDigest: row.receiptDigest
+    };
+    if (result.afterRevision !== result.beforeRevision + 1) fail('geometry receipt must bind one atomic document revision');
+    const { receiptId: _receiptId, receiptDigest: _receiptDigest, ...digestInput } = result;
+    if (result.receiptId !== `receipt:${result.receiptDigest}` || stableHash(digestInput) !== result.receiptDigest) fail('geometry receipt digest is invalid');
+    return result;
 }
 function key(id) {
     return normalizeName(`KJDRAW_AI_TASK:${id}`);
@@ -444,13 +647,13 @@ function event(value) {
     };
 }
 function payload(value, currentRevision) {
-    const row = plain(value, PAYLOAD_FIELDS, 'task payload');
+    const row = optionalPlain(value, PAYLOAD_FIELDS_WITH_RECEIPTS, PAYLOAD_FIELDS, 'task payload');
     if (row.contractVersion !== KJ_AGENT_TASK_CONTRACT_VERSION) fail('unsupported contract version');
     const taskId = text(row.taskId, 'task id', 128);
     if (!validTaskId(taskId)) fail('task id is invalid');
     const status = taskStatus(row.status), taskVersion = integer(row.taskVersion, 'task version', 1);
     const createdRevision = integer(row.createdRevision, 'created revision', 1), observedRevision = integer(row.observedRevision, 'observed revision'), updatedRevision = integer(row.updatedRevision, 'updated revision', 1);
-    if (createdRevision > updatedRevision || observedRevision >= updatedRevision || updatedRevision > currentRevision) fail('task revision binding is invalid');
+    if (createdRevision > updatedRevision || observedRevision > updatedRevision || updatedRevision > currentRevision) fail('task revision binding is invalid');
     const createdAt = timestamp(row.createdAt, 'created timestamp'), updatedAt = timestamp(row.updatedAt, 'updated timestamp');
     if (Date.parse(updatedAt) < Date.parse(createdAt)) fail('task timestamps are out of order');
     const events = array(row.events, 'task events', 1, MAX_EVENTS).map(event), eventOffset = integer(row.eventOffset, 'event offset');
@@ -467,14 +670,19 @@ function payload(value, currentRevision) {
         'needs_attention'
     ].includes(status) !== Boolean(resolved)) fail('task resolution does not match its status');
     const definition = taskDefinition(row.definition), taskProgress = progress(row.progress, definition);
-    if (status === 'completed' && (taskProgress.steps.some((step)=>step.status !== 'passed') || definition.requirements.some((requirement)=>!taskProgress.steps.some((step)=>step.checks.some((check)=>check.requirementId === requirement.id && check.passed))))) fail('completed task requires all steps and requirements to pass');
+    const receipts = row.receipts === undefined ? [] : array(row.receipts, 'geometry receipts', 0, 16).map(geometryReceipt);
+    if (new Set(receipts.map((receipt)=>receipt.receiptId)).size !== receipts.length || receipts.some((receipt)=>receipt.taskId !== taskId || receipt.taskVersion > taskVersion || receipt.afterRevision > currentRevision)) fail('geometry receipt binding is invalid');
+    const parsedScope = scope(row.scope), units = text(row.units, 'units', 64);
+    const completionReceipt = receipts.find((receipt)=>receipt.taskVersion === taskVersion && receipt.afterRevision === updatedRevision && receipt.at === updatedAt && receipt.units === units && receipt.scopeSha256 === parsedScope.sha256 && receipt.toolContractHash === definition.tools.contractHash);
+    if (observedRevision === updatedRevision && !(status === 'completed' && completionReceipt)) fail('same-revision observation requires the current atomic completion receipt');
+    if (status === 'completed' && (!completionReceipt || taskProgress.steps.some((step)=>step.status !== 'passed') || definition.requirements.some((requirement)=>!taskProgress.steps.some((step)=>step.checks.some((check)=>check.requirementId === requirement.id && check.passed && check.receiptId === completionReceipt.receiptId && completionReceipt.checks.some((result)=>result.id === requirement.id && result.passed)))))) fail('completed task requires all steps and requirements to have the current trusted passing receipt');
     const result = {
         contractVersion: 1,
         taskId,
         documentId: text(row.documentId, 'document id', 256),
         title: text(row.title, 'title', 256),
         goal: text(row.goal, 'goal', 8192),
-        units: text(row.units, 'units', 64),
+        units,
         status,
         taskVersion,
         createdAt,
@@ -482,9 +690,10 @@ function payload(value, currentRevision) {
         createdRevision,
         observedRevision,
         updatedRevision,
-        scope: scope(row.scope),
+        scope: parsedScope,
         definition,
         progress: taskProgress,
+        receipts,
         resolution: resolved,
         eventOffset,
         events
@@ -596,6 +805,7 @@ export async function createAgentTask(document, tx, input) {
                     checks: []
                 }))
         },
+        receipts: [],
         resolution: null,
         eventOffset: 0,
         events: [
@@ -757,6 +967,182 @@ export async function transitionAgentTask(document, tx, input) {
     return tx.updateObject(record.id, {
         payload: next
     });
+}
+function resolveCreatedReference(value, createdEntityIds) {
+    const match = /^created:(0|[1-9]\d{0,2})$/.exec(value);
+    if (!match) return value;
+    const resolved = createdEntityIds[Number(match[1])];
+    if (!resolved) fail(`geometry check created reference is outside this reviewed batch: ${value}`);
+    return resolved;
+}
+function resolveGeometryCheck(check, createdEntityIds) {
+    if (check.kind === 'point-distance') return {
+        ...check,
+        from: {
+            ...check.from,
+            objectId: resolveCreatedReference(check.from.objectId, createdEntityIds)
+        },
+        to: {
+            ...check.to,
+            objectId: resolveCreatedReference(check.to.objectId, createdEntityIds)
+        }
+    };
+    return {
+        ...check,
+        objectId: resolveCreatedReference(check.objectId, createdEntityIds)
+    };
+}
+export async function commitAgentTaskCreateBatchApproval(document, tx, input) {
+    const row = plain(input, [
+        'id',
+        'expectedRevision',
+        'expectedTaskVersion',
+        'expectedStatus',
+        'expectedScopeSha256',
+        'sourceToolName',
+        'toolContractHash',
+        'argumentsDigest',
+        'capabilityLocks',
+        'planId',
+        'executionEnvelopeId',
+        'reviewerId',
+        'createdEntityIds',
+        'at'
+    ], 'CREATEBATCH approval input');
+    const expectedRevision = inputRevision(document, tx, row.expectedRevision), id = text(row.id, 'task id', 128);
+    const { record, task } = taskRecord(document, tx, id);
+    const expectedTaskVersion = integer(row.expectedTaskVersion, 'expected task version', 1);
+    if (row.expectedStatus !== 'running' || task.status !== 'running' || task.taskVersion !== expectedTaskVersion) fail('task version or status conflict');
+    if (typeof row.expectedScopeSha256 !== 'string' || !SHA256.test(row.expectedScopeSha256) || task.scope.sha256 !== row.expectedScopeSha256) fail('task scope lock conflict');
+    const sourceToolName = identifier(row.sourceToolName, 'source tool name');
+    if (!task.definition.tools.names.includes(sourceToolName)) fail('source tool is outside the task tool lock');
+    if (typeof row.toolContractHash !== 'string' || row.toolContractHash !== task.definition.tools.contractHash) fail('task tool contract conflict');
+    if (typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest)) fail('reviewed arguments digest is invalid');
+    const capabilityLocks = array(row.capabilityLocks, 'approval capability locks', 0, 32).map((item)=>{
+        const lock = plain(item, [
+            'id',
+            'version',
+            'contentHash'
+        ], 'approval capability lock');
+        if (typeof lock.contentHash !== 'string' || !CONTENT_HASH.test(lock.contentHash)) fail('approval capability lock hash is invalid');
+        return {
+            id: identifier(lock.id, 'approval capability id'),
+            version: text(lock.version, 'approval capability version', 64),
+            contentHash: lock.contentHash
+        };
+    });
+    if (canonicalStringify(capabilityLocks) !== canonicalStringify(task.definition.capabilities)) fail('task capability lock conflict');
+    const createdEntityIds = array(row.createdEntityIds, 'created entity IDs', 1, MAX_SCOPE_ENTITIES).map((value)=>text(value, 'created entity ID', 256));
+    if (new Set(createdEntityIds).size !== createdEntityIds.length) fail('created entity IDs must be unique');
+    for (const entityId of createdEntityIds){
+        if (document.getObject(entityId)) fail(`CREATEBATCH result was not newly created: ${entityId}`);
+        const entity = tx.getObject(entityId);
+        if (!entity || entity.erased || entity.kind !== 'entity') fail(`CREATEBATCH result is missing from the transaction draft: ${entityId}`);
+    }
+    if (tx._draft().header.units !== task.units) fail('drawing units changed during task approval');
+    const currentDrift = await drift(document, task, tx);
+    if (!currentDrift.unitsMatch || currentDrift.driftedEntityIds.length) fail(`task scope drifted${currentDrift.unitsMatch ? `: ${currentDrift.driftedEntityIds.join(', ')}` : ': drawing units changed'}`);
+    const requirements = task.definition.requirements.map((requirement)=>{
+        if (requirement.check.toolName !== 'cad_check_geometry' || !requirement.check.geometryCheck || requirement.check.assertion.path !== 'passed' || requirement.check.assertion.operator !== 'is_true' || requirement.check.assertion.expected !== true) fail('trusted completion requires deterministic cad_check_geometry requirements with passed is_true assertions');
+        return resolveGeometryCheck(requirement.check.geometryCheck, createdEntityIds);
+    });
+    const afterRevision = expectedRevision + 1;
+    const validation = validateDrawingGeometryTransaction(document, tx, {
+        expectedRevision: afterRevision,
+        units: task.units,
+        checks: requirements
+    });
+    if (!validation.passed) fail('reviewed CREATEBATCH does not satisfy every deterministic geometry requirement');
+    const nextScope = await scopeFrom((value)=>tx.getObject(value), Object.values(tx._draft().objects), [
+        ...task.scope.members.map((member)=>member.id),
+        ...createdEntityIds
+    ]);
+    const at = timestamp(row.at, 'approval timestamp');
+    if (Date.parse(at) < Date.parse(task.updatedAt)) fail('approval timestamp precedes the task');
+    const taskVersion = task.taskVersion + 1;
+    const receiptBase = {
+        schema: 'com.kanjie.kjdraw.agent-task-geometry-receipt',
+        schemaVersion: 1,
+        taskId: task.taskId,
+        taskVersion,
+        planId: text(row.planId, 'plan id', 256),
+        executionEnvelopeId: text(row.executionEnvelopeId, 'execution envelope id', 256),
+        reviewerId: text(row.reviewerId, 'reviewer id', 256),
+        command: 'CREATEBATCH',
+        sourceToolName,
+        beforeRevision: expectedRevision,
+        afterRevision,
+        at,
+        units: task.units,
+        toolContractHash: row.toolContractHash,
+        argumentsDigest: row.argumentsDigest,
+        scopeSha256: nextScope.sha256,
+        checks: validation.checks.map((check)=>clone(check))
+    };
+    const receiptDigest = stableHash(receiptBase);
+    const receipt = {
+        ...receiptBase,
+        receiptId: `receipt:${receiptDigest}`,
+        receiptDigest
+    };
+    const checks = new Map(receipt.checks.map((check)=>[
+            check.id,
+            check
+        ]));
+    const nextProgress = {
+        steps: task.definition.steps.map((step)=>({
+                id: step.id,
+                status: 'passed',
+                checks: step.requirementIds.map((requirementId)=>{
+                    const check = checks.get(requirementId);
+                    return {
+                        requirementId,
+                        passed: true,
+                        summary: `${check.kind}: ${String(check.actual)} (expected ${String(check.expected)}, tolerance ${check.tolerance})`,
+                        receiptId: receipt.receiptId
+                    };
+                })
+            }))
+    };
+    const eventItem = {
+        version: taskVersion,
+        from: task.status,
+        to: 'completed',
+        at,
+        documentRevision: afterRevision,
+        actor: {
+            kind: 'host',
+            id: receipt.reviewerId
+        },
+        reason: 'reviewed CREATEBATCH committed with deterministic geometry checks'
+    };
+    const next = {
+        ...task,
+        status: 'completed',
+        taskVersion,
+        updatedAt: at,
+        observedRevision: afterRevision,
+        updatedRevision: afterRevision,
+        scope: nextScope,
+        progress: nextProgress,
+        receipts: [
+            ...task.receipts,
+            receipt
+        ].slice(-16),
+        resolution: {
+            code: 'geometry.verified',
+            message: 'Reviewed geometry passed every deterministic task requirement.',
+            retryable: false
+        },
+        ...append(task, eventItem)
+    };
+    payload(next, afterRevision);
+    return {
+        task: tx.updateObject(record.id, {
+            payload: next
+        }),
+        receipt
+    };
 }
 export async function rebaseAgentTask(document, tx, input) {
     const row = plain(input, [

@@ -1,7 +1,8 @@
 // Generated from agent-tools.ts by scripts/build-typescript.mjs. Do not edit directly.
+import { createCommandReceipt } from './product-contract.js';
 import { createDrawingContext, createLayoutContext } from './drawing-context.js';
 import { KJDrawError, KJRevisionConflictError, KJValidationError } from './errors.js';
-import { deepFreeze } from './utils.js';
+import { deepFreeze, stableHash } from './utils.js';
 import { createId } from './ids.js';
 import { createAgentGeometryPreview, agentPreviewMatchesDocument, KJDRAW_AGENT_MOVABLE_TYPES } from './agent-preview.js';
 import { buildAgentDrawingEntities } from './agent-drawing.js';
@@ -14,6 +15,7 @@ import { buildAgentAnnotationEntities } from './agent-annotations.js';
 import { decodeAgentCompactDrawing } from './agent-drawing-compact.js';
 import { expandRectangularDrawingPattern } from './agent-drawing-patterns.js';
 import { validateDrawingGeometry } from './drawing-validation.js';
+import { commitAgentTaskCreateBatchApproval } from './agent-tasks.js';
 import { createAgentDesignContext } from './agent-design-relations.js';
 const number = {
     type: 'number',
@@ -1582,6 +1584,7 @@ export class KJAgentToolSession {
                             envelope,
                             preview,
                             definition,
+                            sourceToolName: name,
                             ...sourceAsset ? {
                                 sourceAsset
                             } : {}
@@ -1595,6 +1598,170 @@ export class KJAgentToolSession {
                 value
             });
         } catch (error) {
+            return failure(error);
+        } finally{
+            this.#busy = false;
+        }
+    }
+    bindTaskProposal(planId, input) {
+        if (this.#busy) throw new KJValidationError('Session is busy; wait before binding a task proposal');
+        this.#assertAttached();
+        const pending = this.#pending.get(String(planId));
+        if (!pending || pending.envelope.command !== 'CREATEBATCH') throw new KJValidationError('Persistent task approval supports an available CREATEBATCH proposal only');
+        if (pending.task) throw new KJValidationError('Proposal is already bound to a persisted task');
+        if (!input || typeof input !== 'object' || input.taskStatus !== 'running' || !Number.isSafeInteger(input.taskVersion) || input.taskVersion < 1 || !Number.isSafeInteger(input.documentRevision) || input.documentRevision < 0) throw new KJValidationError('Invalid persisted task proposal binding');
+        if (input.documentRevision !== this.#document.revision || pending.envelope.expectedRevision !== input.documentRevision || input.units !== this.units) throw new KJValidationError('Persistent task proposal binding revision or units changed');
+        if (typeof input.taskId !== 'string' || !input.taskId || typeof input.scopeSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(input.scopeSha256) || typeof input.toolApiVersion !== 'string' || typeof input.toolContractHash !== 'string') throw new KJValidationError('Invalid persisted task proposal identity or hashes');
+        if (!Array.isArray(input.toolNames) || !input.toolNames.includes(pending.sourceToolName) || new Set(input.toolNames).size !== input.toolNames.length || !Array.isArray(input.capabilityLocks)) throw new KJValidationError('Proposal source tool or capability lock is not bound by the task');
+        const plan = this.#sdk.agentPlans.get(planId);
+        if (!plan || plan.status !== 'active' || plan.command !== 'CREATEBATCH' || plan.documentId !== this.#document.id || plan.expectedRevision !== this.#document.revision) throw new KJValidationError('Agent plan is unavailable or no longer exact');
+        const { capabilityRegistry, ...data } = input;
+        pending.task = {
+            ...structuredClone(data),
+            ...capabilityRegistry ? {
+                capabilityRegistry
+            } : {}
+        };
+    }
+    async approveTask(planId, reviewerId, at) {
+        if (this.#busy) return failure(new KJValidationError('Session is busy; wait for the current operation'));
+        this.#busy = true;
+        let consumed = false;
+        try {
+            this.#assertAttached();
+            if (typeof reviewerId !== 'string' || !reviewerId.trim() || reviewerId.length > 256) throw new KJValidationError('Host reviewer identity is required');
+            const pending = this.#pending.get(planId), binding = pending?.task;
+            if (!pending || !binding) throw new KJValidationError('Proposal is not bound to a persisted task in this session');
+            if (pending.envelope.command !== 'CREATEBATCH' || pending.definition.id !== 'CREATEBATCH' || pending.definition.owner !== '@kanjieteam/kjdraw' || pending.definition.transactional === false) throw new KJValidationError('Persistent task approval is limited to the built-in transactional CREATEBATCH command');
+            if (this.#sdk.commands.resolve('CREATEBATCH') !== pending.definition) throw new KJValidationError('Command changed since preview; reject and propose again');
+            if (binding.documentRevision !== this.#document.revision || binding.units !== this.units) throw new KJValidationError('Task-bound drawing revision or units changed');
+            const definitions = new Map(this.definitions.map((definition)=>[
+                    definition.name,
+                    definition
+                ]));
+            const tools = [
+                ...binding.toolNames
+            ].sort().map((name)=>{
+                const definition = definitions.get(name);
+                if (!definition) throw new KJValidationError('Task tool definition is no longer available');
+                return {
+                    name: definition.name,
+                    effect: definition.effect,
+                    description: definition.description,
+                    inputSchema: definition.inputSchema
+                };
+            });
+            if (stableHash({
+                apiVersion: binding.toolApiVersion,
+                tools
+            }) !== binding.toolContractHash) throw new KJValidationError('Task tool contract changed since proposal');
+            if (binding.capabilityLocks.length) {
+                if (!binding.capabilityRegistry) throw new KJValidationError('Task capability registry is unavailable at approval');
+                const resolved = binding.capabilityRegistry.resolve({
+                    lock: binding.capabilityLocks,
+                    allowedToolNames: binding.toolNames
+                });
+                if (!resolved.toolNames.includes(pending.sourceToolName)) throw new KJValidationError('Task capability lock no longer exposes the proposal tool');
+            }
+            const execution = this.#sdk.createCommandEnvelope('CREATEBATCH', pending.envelope.arguments, {
+                document: this.#document,
+                expectedRevision: pending.envelope.expectedRevision,
+                origin: 'ai',
+                confirmation: {
+                    status: 'confirmed',
+                    planId,
+                    confirmedBy: reviewerId
+                }
+            });
+            const beforeRevision = this.#document.revision;
+            let commandResult, taskReceipt, agentPlan;
+            const argumentsDigest = stableHash(pending.envelope.arguments);
+            try {
+                await this.#document.transact('Complete reviewed agent task', async (transaction)=>{
+                    if (this.#sdk.commands.resolve('CREATEBATCH') !== pending.definition || this.#document.revision !== binding.documentRevision) throw new KJValidationError('Reviewed task plan became stale before execution');
+                    commandResult = await this.#sdk.commands.executeRegisteredInTransaction(pending.definition, {
+                        sdk: this.#sdk,
+                        events: this.#sdk.events,
+                        extensions: this.#sdk.extensions,
+                        document: this.#document,
+                        transaction,
+                        expectedRevision: binding.documentRevision,
+                        commandEnvelope: execution,
+                        expectedDefinition: pending.definition
+                    }, execution.arguments);
+                    const created = Array.isArray(commandResult) ? commandResult : [];
+                    const completed = await commitAgentTaskCreateBatchApproval(this.#document, transaction, {
+                        id: binding.taskId,
+                        expectedRevision: binding.documentRevision,
+                        expectedTaskVersion: binding.taskVersion,
+                        expectedStatus: binding.taskStatus,
+                        expectedScopeSha256: binding.scopeSha256,
+                        sourceToolName: pending.sourceToolName,
+                        toolContractHash: binding.toolContractHash,
+                        argumentsDigest,
+                        capabilityLocks: binding.capabilityLocks,
+                        planId,
+                        executionEnvelopeId: execution.id,
+                        reviewerId,
+                        createdEntityIds: created.map((value)=>String(value.id ?? '')),
+                        at
+                    });
+                    taskReceipt = completed.receipt;
+                    agentPlan = await this.#sdk.agentPlans.consume(execution, this.#document);
+                    consumed = true;
+                    this.#sdk.events.emit('command:before-execute', {
+                        envelope: execution,
+                        document: this.#document,
+                        beforeRevision,
+                        agentPlan: agentPlan
+                    });
+                }, {
+                    source: 'command:CREATEBATCH',
+                    expectedRevision: binding.documentRevision,
+                    metadata: {
+                        commandId: 'CREATEBATCH',
+                        commandEnvelopeId: execution.id,
+                        commandProtocol: `${execution.schema}@${execution.schemaVersion}`,
+                        commandOrigin: execution.origin,
+                        agentTaskId: binding.taskId,
+                        agentTaskVersion: binding.taskVersion
+                    }
+                });
+            } catch (error) {
+                this.#sdk.events.emit('command:failed', {
+                    envelope: execution,
+                    document: this.#document,
+                    beforeRevision,
+                    afterRevision: this.#document.revision,
+                    error
+                });
+                throw error;
+            }
+            this.#pending.delete(planId);
+            const receipt = createCommandReceipt(execution, {
+                status: 'committed',
+                beforeRevision,
+                afterRevision: this.#document.revision,
+                result: commandResult
+            });
+            this.#sdk.events.emit('command:committed', {
+                envelope: execution,
+                receipt,
+                document: this.#document
+            });
+            if (!agentPreviewMatchesDocument(this.#document, pending.preview)) throw new KJValidationError('Committed geometry differs from the reviewed preview; inspect the drawing before any retry');
+            return deepFreeze({
+                ok: true,
+                value: {
+                    command: 'CREATEBATCH',
+                    beforeRevision,
+                    afterRevision: this.#document.revision,
+                    status: 'committed',
+                    taskReceipt
+                }
+            });
+        } catch (error) {
+            if (consumed) this.#pending.delete(planId);
             return failure(error);
         } finally{
             this.#busy = false;
@@ -1649,6 +1816,7 @@ export class KJAgentToolSession {
             }
             const pending = this.#pending.get(planId);
             if (!pending) throw new KJValidationError('Proposal is unavailable in this session');
+            if (pending.task) throw new KJValidationError('Task-bound proposals require approveTask so geometry and task evidence commit atomically');
             const plan = pending.envelope;
             if (pending.sourceAsset && this.#inputAssets.get(pending.sourceAsset.assetId)?.descriptor !== pending.sourceAsset) throw new KJValidationError('Input asset binding changed since preview; propose again');
             if (this.#sdk.commands.resolve(plan.command) !== pending.definition) throw new KJValidationError('Command changed since preview; reject and propose again');

@@ -580,5 +580,12 @@ export declare class KJCommandRegistry {
     list(): KJRegisteredCommand[];
     removeOwner(owner: unknown): number;
     execute(id: unknown, context?: KJCommandInputContext, args?: KJCommandArguments): Promise<unknown>;
+    /**
+     * Trusted orchestration hook for composing one already-resolved transactional
+     * command with other document-owned records in the caller's transaction.
+     * It deliberately accepts an exact registered definition rather than a model
+     * supplied command name, and preserves the normal edit-scope enforcement.
+     */
+    executeRegisteredInTransaction(command: KJRegisteredCommand, context: KJCommandContext, args?: KJCommandArguments): Promise<unknown>;
 }
 export declare function registerCoreCommands(registry: KJCommandRegistry): () => void;

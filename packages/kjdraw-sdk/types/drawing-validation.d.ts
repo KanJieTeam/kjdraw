@@ -1,4 +1,5 @@
 import type { KJDocument } from './document.js';
+import type { KJTransaction } from './transaction.js';
 export type KJDrawingValidationFeature = 'start' | 'end' | 'center' | 'origin';
 export interface KJDrawingValidationPointReference {
     objectId: string;
@@ -53,3 +54,5 @@ export interface KJDrawingValidationResult {
 }
 /** Check explicit requirements against actual native geometry. No edits, inferred constraints or INSERT expansion. */
 export declare function validateDrawingGeometry(document: KJDocument, input: KJDrawingValidationInput): KJDrawingValidationResult;
+/** Trusted transaction-only validation of the candidate revision before it is committed. */
+export declare function validateDrawingGeometryTransaction(document: KJDocument, tx: KJTransaction, input: KJDrawingValidationInput): KJDrawingValidationResult;

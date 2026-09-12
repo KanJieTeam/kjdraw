@@ -1,4 +1,5 @@
 import type { KJDocument } from './document.js'
+import type { KJTransaction } from './transaction.js'
 import type { KJReadonlyObjectRecord } from './schema.js'
 import { KJRevisionConflictError, KJValidationError } from './errors.js'
 import { deepFreeze } from './utils.js'
@@ -78,20 +79,26 @@ function point(value: unknown): readonly [number, number, number] {
 }
 const distance = (a: readonly number[], b: readonly number[]): number => Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!)
 
-/** Check explicit requirements against actual native geometry. No edits, inferred constraints or INSERT expansion. */
-export function validateDrawingGeometry(document: KJDocument, input: KJDrawingValidationInput): KJDrawingValidationResult {
+interface KJDrawingValidationView {
+  readonly documentId: string
+  readonly revision: number
+  readonly units: string
+  getObject(id: string): KJReadonlyObjectRecord | null
+}
+
+function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDrawingValidationInput): KJDrawingValidationResult {
   const source = record(snapshot(input), ['expectedRevision', 'units', 'checks'], 'Drawing validation')
   if (new TextEncoder().encode(JSON.stringify(source)).byteLength > 65536) fail('Validation input exceeds the byte budget')
   if (!Number.isSafeInteger(source.expectedRevision) || (source.expectedRevision as number) < 0) fail('expectedRevision must be a nonnegative safe integer')
-  if (source.expectedRevision !== document.revision) throw new KJRevisionConflictError(source.expectedRevision, document.revision)
+  if (source.expectedRevision !== view.revision) throw new KJRevisionConflictError(source.expectedRevision, view.revision)
   const units = text(source.units, 'units')
-  if (units !== document.snapshot().header.units) fail('Validation units must exactly match the drawing units')
+  if (units !== view.units) fail('Validation units must exactly match the drawing units')
   if (!Array.isArray(source.checks) || !source.checks.length || source.checks.length > 64) return fail('Supply 1 to 64 explicit geometry checks')
   const ids = new Set<string>()
   let verticesInspected = 0
   const entity = (id: unknown, references: KJDrawingValidationReference[], feature?: KJDrawingValidationFeature): KJReadonlyObjectRecord => {
-    const objectId = text(id, 'objectId'), object = document.getObject(objectId)
-    if (!object || object.kind !== 'entity' || !object.ownerId || document.getObject(object.ownerId)?.type !== 'BLOCK_RECORD') return fail('Geometry checks require an existing entity with a live owner space')
+    const objectId = text(id, 'objectId'), object = view.getObject(objectId)
+    if (!object || object.kind !== 'entity' || !object.ownerId || view.getObject(object.ownerId)?.type !== 'BLOCK_RECORD') return fail('Geometry checks require an existing entity with a live owner space')
     references.push({ objectId, ownerId: object.ownerId, ...(feature ? { feature } : {}) })
     return object
   }
@@ -158,5 +165,27 @@ export function validateDrawingGeometry(document: KJDocument, input: KJDrawingVa
     if (!Number.isFinite(error)) fail('Geometry check produced a nonfinite result')
     return { id, kind, actual, expected, error, tolerance, passed: error <= tolerance, references: refs }
   })
-  return deepFreeze({ documentId: document.id, revision: document.revision, units, passed: checks.every(check => check.passed), checks })
+  return deepFreeze({ documentId: view.documentId, revision: view.revision, units, passed: checks.every(check => check.passed), checks })
+}
+
+/** Check explicit requirements against actual native geometry. No edits, inferred constraints or INSERT expansion. */
+export function validateDrawingGeometry(document: KJDocument, input: KJDrawingValidationInput): KJDrawingValidationResult {
+  return validateDrawingGeometryView({
+    documentId: document.id,
+    revision: document.revision,
+    units: document.snapshot().header.units,
+    getObject: id => document.getObject(id),
+  }, input)
+}
+
+/** Trusted transaction-only validation of the candidate revision before it is committed. */
+export function validateDrawingGeometryTransaction(document: KJDocument, tx: KJTransaction, input: KJDrawingValidationInput): KJDrawingValidationResult {
+  const state = tx._draft()
+  if (state.documentId !== document.id || state.revision !== document.revision) fail('Validation transaction is not bound to the current drawing revision')
+  return validateDrawingGeometryView({
+    documentId: state.documentId,
+    revision: state.revision + 1,
+    units: state.header.units,
+    getObject: id => tx.getObject(id),
+  }, input)
 }

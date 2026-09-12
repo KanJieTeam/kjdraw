@@ -611,20 +611,19 @@ export class KJCommandRegistry {
         if (context.expectedDefinition && command !== context.expectedDefinition) throw new KJValidationError(`Command changed before execution: ${command.id}`);
         if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'resources')) validateCommandData(args);
         if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE');
-        if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);
-        if (command.transactional === false) return command.execute({
-            ...context,
-            transaction: null
-        }, clone(args));
+        if (command.transactional === false) {
+            if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);
+            return command.execute({
+                ...context,
+                transaction: null
+            }, clone(args));
+        }
         if (!context.document) throw new KJValidationError(`Command ${command.id} requires a document`);
         return context.document.transact(command.title ?? command.id, async (transaction)=>{
-            const scope = createCommandEditScope(transaction, command.id);
-            const result = await command.execute({
+            return this.executeRegisteredInTransaction(command, {
                 ...context,
-                transaction: scope.transaction
-            }, clone(args));
-            scope.validate();
-            return result;
+                transaction
+            }, args);
         }, {
             author: context.author,
             source: `command:${command.id}`,
@@ -642,6 +641,21 @@ export class KJCommandRegistry {
                 commandOrigin: context.commandEnvelope?.origin ?? null
             }
         });
+    }
+    async executeRegisteredInTransaction(command, context, args = {}) {
+        if (!command || this.resolve(command.id) !== command) throw new KJValidationError('Command changed before transactional composition');
+        if (command.transactional === false) throw new KJValidationError(`Command cannot be composed transactionally: ${command.id}`);
+        if (!context.document || !context.transaction) throw new KJValidationError(`Command ${command.id} requires a document transaction`);
+        if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'resources')) validateCommandData(args);
+        if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE');
+        if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);
+        const scope = createCommandEditScope(context.transaction, command.id);
+        const result = await command.execute({
+            ...context,
+            transaction: scope.transaction
+        }, clone(args));
+        scope.validate();
+        return result;
     }
 }
 export function registerCoreCommands(registry) {

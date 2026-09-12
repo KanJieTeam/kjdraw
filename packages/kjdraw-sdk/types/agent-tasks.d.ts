@@ -2,6 +2,7 @@ import type { KJDocument } from './document.js';
 import type { KJTransaction } from './transaction.js';
 import type { KJObjectRecord } from './schema.js';
 import type { ReadonlyDeep } from './utils.js';
+import { type KJDrawingValidationCheck, type KJDrawingValidationCheckResult } from './drawing-validation.js';
 export declare const KJ_AGENT_TASK_TYPE: 'AI_TASK';
 export declare const KJ_AGENT_TASK_CONTRACT_VERSION: 1;
 export type KJAgentTaskStatus = 'draft' | 'ready' | 'running' | 'awaiting_approval' | 'needs_attention' | 'stale' | 'completed' | 'failed' | 'cancelled';
@@ -25,6 +26,7 @@ export interface KJAgentTaskRequirement {
     check: {
         toolName: string;
         assertion: KJAgentTaskAssertion;
+        geometryCheck?: KJDrawingValidationCheck;
     };
 }
 export interface KJAgentTaskStep {
@@ -53,6 +55,7 @@ export interface KJAgentTaskCheckSummary {
     requirementId: string;
     passed: boolean;
     summary: string;
+    receiptId?: string;
 }
 export interface KJAgentTaskStepProgress {
     id: string;
@@ -68,6 +71,27 @@ export interface KJAgentTaskScope {
     members: KJAgentTaskScopeMember[];
     relations: KJAgentTaskScopeMember[];
     sha256: string;
+}
+export interface KJAgentTaskGeometryReceipt {
+    schema: 'com.kanjie.kjdraw.agent-task-geometry-receipt';
+    schemaVersion: 1;
+    receiptId: string;
+    taskId: string;
+    taskVersion: number;
+    planId: string;
+    executionEnvelopeId: string;
+    reviewerId: string;
+    command: 'CREATEBATCH';
+    sourceToolName: string;
+    beforeRevision: number;
+    afterRevision: number;
+    at: string;
+    units: string;
+    toolContractHash: string;
+    argumentsDigest: string;
+    scopeSha256: string;
+    checks: KJDrawingValidationCheckResult[];
+    receiptDigest: string;
 }
 export interface KJAgentTaskEvent {
     version: number;
@@ -97,6 +121,7 @@ export interface KJAgentTaskPayload extends Record<string, unknown> {
     progress: {
         steps: KJAgentTaskStepProgress[];
     };
+    receipts: KJAgentTaskGeometryReceipt[];
     resolution: KJAgentTaskResolution | null;
     eventOffset: number;
     events: KJAgentTaskEvent[];
@@ -132,6 +157,26 @@ export interface KJAgentTaskRebaseInput {
     actor: KJAgentTaskActor;
     reason: string;
 }
+export interface KJAgentTaskCreateBatchApprovalInput {
+    id: string;
+    expectedRevision: number;
+    expectedTaskVersion: number;
+    expectedStatus: 'running';
+    expectedScopeSha256: string;
+    sourceToolName: string;
+    toolContractHash: string;
+    argumentsDigest: string;
+    capabilityLocks: KJAgentTaskCapabilityLock[];
+    planId: string;
+    executionEnvelopeId: string;
+    reviewerId: string;
+    createdEntityIds: string[];
+    at: string;
+}
+export interface KJAgentTaskCreateBatchApprovalResult {
+    task: KJObjectRecord;
+    receipt: KJAgentTaskGeometryReceipt;
+}
 export interface KJAgentTaskView extends KJAgentTaskPayload {
     id: string;
     handle: string;
@@ -151,5 +196,7 @@ export declare function readAgentTasks(document: KJDocument, ids?: readonly stri
 export declare function inspectAgentTask(document: KJDocument, id: string): Promise<ReadonlyDeep<KJAgentTaskInspection>>;
 /** Apply one legal lifecycle transition after revision, task-version and dependency checks. */
 export declare function transitionAgentTask(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJObjectRecord>;
+/** Complete one reviewed CREATEBATCH and its deterministic checks in the caller's transaction draft. */
+export declare function commitAgentTaskCreateBatchApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskCreateBatchApprovalResult>;
 /** Explicitly accept the current dependency snapshot after stale or ambiguous approval recovery. */
 export declare function rebaseAgentTask(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJObjectRecord>;

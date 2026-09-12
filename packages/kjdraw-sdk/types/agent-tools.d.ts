@@ -14,6 +14,8 @@ import { type KJAgentAnnotationInput } from './agent-annotations.js';
 import { type KJAgentCompactDrawingInput } from './agent-drawing-compact.js';
 import { type KJRectangularDrawingPattern } from './agent-drawing-patterns.js';
 import { type KJDrawingValidationPointReference } from './drawing-validation.js';
+import { type KJAgentTaskCapabilityLock } from './agent-tasks.js';
+import type { KJAgentCapabilityRegistry } from './agent-capabilities.js';
 export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';
 export type { KJAgentCompactDrawingInput } from './agent-drawing-compact.js';
 export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';
@@ -114,6 +116,19 @@ export interface KJAgentToolDefinition {
     readonly inputSchema: KJAgentToolSchema;
     readonly effect: 'read' | 'propose';
 }
+export interface KJAgentTaskProposalBinding {
+    taskId: string;
+    taskVersion: number;
+    taskStatus: 'running';
+    documentRevision: number;
+    units: string;
+    scopeSha256: string;
+    toolApiVersion: string;
+    toolNames: string[];
+    toolContractHash: string;
+    capabilityLocks: KJAgentTaskCapabilityLock[];
+    capabilityRegistry?: KJAgentCapabilityRegistry;
+}
 export type KJAgentToolResult = {
     readonly ok: true;
     readonly value: unknown;
@@ -147,6 +162,10 @@ export declare class KJAgentToolSession {
      * exact session/document instance; they are never loaded by model paths or URLs. */
     registerInputAsset(input: unknown): Promise<ReadonlyDeep<KJAgentInputAssetDescriptor>>;
     call(name: string, input: unknown): Promise<KJAgentToolResult>;
+    /** Bind one in-memory reviewed proposal to the exact persisted running task. Host-only. */
+    bindTaskProposal(planId: string, input: KJAgentTaskProposalBinding): void;
+    /** Approve an exact task-bound CREATEBATCH; geometry, checks and task receipt commit atomically. */
+    approveTask(planId: string, reviewerId: string, at: string): Promise<KJAgentToolResult>;
     /** Invoke only after an authenticated host collected review of these exact arguments. */
     approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;
     reject(planId: string, reviewerId: string): KJAgentToolResult;

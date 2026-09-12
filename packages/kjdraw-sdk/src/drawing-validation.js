@@ -54,7 +54,7 @@ function point(value) {
     return value;
 }
 const distance = (a, b)=>Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-export function validateDrawingGeometry(document, input) {
+function validateDrawingGeometryView(view, input) {
     const source = record(snapshot(input), [
         'expectedRevision',
         'units',
@@ -62,15 +62,15 @@ export function validateDrawingGeometry(document, input) {
     ], 'Drawing validation');
     if (new TextEncoder().encode(JSON.stringify(source)).byteLength > 65536) fail('Validation input exceeds the byte budget');
     if (!Number.isSafeInteger(source.expectedRevision) || source.expectedRevision < 0) fail('expectedRevision must be a nonnegative safe integer');
-    if (source.expectedRevision !== document.revision) throw new KJRevisionConflictError(source.expectedRevision, document.revision);
+    if (source.expectedRevision !== view.revision) throw new KJRevisionConflictError(source.expectedRevision, view.revision);
     const units = text(source.units, 'units');
-    if (units !== document.snapshot().header.units) fail('Validation units must exactly match the drawing units');
+    if (units !== view.units) fail('Validation units must exactly match the drawing units');
     if (!Array.isArray(source.checks) || !source.checks.length || source.checks.length > 64) return fail('Supply 1 to 64 explicit geometry checks');
     const ids = new Set();
     let verticesInspected = 0;
     const entity = (id, references, feature)=>{
-        const objectId = text(id, 'objectId'), object = document.getObject(objectId);
-        if (!object || object.kind !== 'entity' || !object.ownerId || document.getObject(object.ownerId)?.type !== 'BLOCK_RECORD') return fail('Geometry checks require an existing entity with a live owner space');
+        const objectId = text(id, 'objectId'), object = view.getObject(objectId);
+        if (!object || object.kind !== 'entity' || !object.ownerId || view.getObject(object.ownerId)?.type !== 'BLOCK_RECORD') return fail('Geometry checks require an existing entity with a live owner space');
         references.push({
             objectId,
             ownerId: object.ownerId,
@@ -185,10 +185,28 @@ export function validateDrawingGeometry(document, input) {
         };
     });
     return deepFreeze({
-        documentId: document.id,
-        revision: document.revision,
+        documentId: view.documentId,
+        revision: view.revision,
         units,
         passed: checks.every((check)=>check.passed),
         checks
     });
+}
+export function validateDrawingGeometry(document, input) {
+    return validateDrawingGeometryView({
+        documentId: document.id,
+        revision: document.revision,
+        units: document.snapshot().header.units,
+        getObject: (id)=>document.getObject(id)
+    }, input);
+}
+export function validateDrawingGeometryTransaction(document, tx, input) {
+    const state = tx._draft();
+    if (state.documentId !== document.id || state.revision !== document.revision) fail('Validation transaction is not bound to the current drawing revision');
+    return validateDrawingGeometryView({
+        documentId: state.documentId,
+        revision: state.revision + 1,
+        units: state.header.units,
+        getObject: (id)=>tx.getObject(id)
+    }, input);
 }
