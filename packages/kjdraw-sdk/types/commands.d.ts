@@ -427,7 +427,7 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
     };
     readonly SNAPSETTINGS: {
         domain: string;
-        snapModes: readonly ["endpoint", "midpoint", "center", "quadrant", "insertion", "node", "nearest", "intersection"];
+        snapModes: readonly ["endpoint", "midpoint", "center", "quadrant", "insertion", "node", "nearest", "intersection", "perpendicular", "tangent"];
     };
     readonly BLOCKCREATE: {
         domain: string;

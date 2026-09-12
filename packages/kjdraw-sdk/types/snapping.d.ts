@@ -1,7 +1,7 @@
 import type { KJDocument } from './document.js';
 import type { KJReadonlyObjectRecord } from './schema.js';
-export declare const KJ_SNAP_MODES: readonly ["endpoint", "midpoint", "center", "quadrant", "insertion", "node", "nearest", "intersection"];
-export declare const KJ_DEFAULT_SNAP_MODES: readonly ["endpoint", "midpoint", "center", "quadrant", "intersection", "nearest"];
+export declare const KJ_SNAP_MODES: readonly ["endpoint", "midpoint", "center", "quadrant", "insertion", "node", "nearest", "intersection", "perpendicular", "tangent"];
+export declare const KJ_DEFAULT_SNAP_MODES: readonly ["endpoint", "midpoint", "center", "quadrant", "intersection", "perpendicular", "tangent", "nearest"];
 export declare const KJ_DEFAULT_SNAP_APERTURE = 10;
 export type KJSnapMode = typeof KJ_SNAP_MODES[number];
 export type KJSnapPointInput = readonly number[] | {
@@ -25,6 +25,10 @@ export interface KJSnapOptions {
     radius?: number;
     modes?: readonly string[];
     entityIds?: readonly string[];
+    /** Space whose visible geometry can be used as snap references. Defaults to model space. */
+    spaceId?: string;
+    /** Last accepted construction point used by perpendicular and tangent snaps. */
+    referencePoint?: KJSnapPointInput;
     maxIntersectionPairs?: number;
 }
 export interface KJDocumentSnapSettings {

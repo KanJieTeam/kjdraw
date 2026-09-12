@@ -155,7 +155,7 @@ const copy = {
     modifyTools: 'Edit tools', modifyTitle: 'Modify selection', modifyDescription: 'Choose an exact operation and enter its parameters.', cancel: 'Cancel', continueOnCanvas: 'Continue on canvas', selectionOrder: 'Selection order is significant for paired and boundary operations.',
     moreDraw: 'More', drawTitle: 'Drawing tools', drawDescription: 'Choose a primitive and configure its construction method.', startDrawing: 'Start drawing', drawingTool: 'Primitive', undoPoint: 'Undo point', finish: 'Finish', closeShape: 'Close', coordinateHint: 'x,y · @dx,dy · @distance<angle',
     selectionHint: 'Drag blank space: left → right encloses, right → left crosses · Shift adds · Ctrl/⌘ removes · Ctrl/⌘+A selects all',
-    windowSelection: 'Window: fully enclosed objects', crossingSelection: 'Crossing: enclosed or intersecting objects', gripHint: 'Drag a square grip to edit geometry · Esc cancels', gripEditing: 'Specify the new grip position · Esc cancels', gestureCancelled: 'Drawing or view changed — gesture cancelled', snapEndpoint: 'Endpoint', snapMidpoint: 'Midpoint', snapCenter: 'Center', snapQuadrant: 'Quadrant', snapIntersection: 'Intersection', snapInsertion: 'Insertion', snapNode: 'Node', snapNearest: 'Nearest',
+    windowSelection: 'Window: fully enclosed objects', crossingSelection: 'Crossing: enclosed or intersecting objects', gripHint: 'Drag a square grip to edit geometry · Esc cancels', gripEditing: 'Specify the new grip position · Esc cancels', gestureCancelled: 'Drawing or view changed — gesture cancelled', snapEndpoint: 'Endpoint', snapMidpoint: 'Midpoint', snapCenter: 'Center', snapQuadrant: 'Quadrant', snapIntersection: 'Intersection', snapPerpendicular: 'Perpendicular', snapTangent: 'Tangent', snapInsertion: 'Insertion', snapNode: 'Node', snapNearest: 'Nearest',
     fenceHint: 'Fence: click an open polyline · Enter selects · Backspace removes a point · Esc cancels · Shift/Ctrl/⌘ on first point adds/removes', fenceNeedsPoints: 'Fence selection needs at least two distinct points',
     showLayer: 'Show layer', hideLayer: 'Hide layer', lockLayer: 'Lock layer', unlockLayer: 'Unlock layer', freezeLayer: 'Freeze layer', thawLayer: 'Thaw layer',
     editWorkflow: 'Workflow', boundaryWorkflow: 'Continuous · boundaries first', singleWorkflow: 'Single edit · target then boundaries',
@@ -175,7 +175,7 @@ const copy = {
     modifyTools: '编辑工具', modifyTitle: '修改选中对象', modifyDescription: '选择精确操作并输入参数。', cancel: '取消', continueOnCanvas: '到画布继续', selectionOrder: '成对操作和边界操作会按选择顺序执行。',
     moreDraw: '更多', drawTitle: '绘图工具', drawDescription: '选择基础图元并配置构造方式。', startDrawing: '开始绘图', drawingTool: '基础图元', undoPoint: '撤回点', finish: '完成', closeShape: '闭合', coordinateHint: 'x,y · @dx,dy · @距离<角度',
     selectionHint: '空白处拖动：左→右框选，右→左交叉选 · Shift 增选 · Ctrl/⌘ 减选 · Ctrl/⌘+A 全选',
-    windowSelection: '框选：完全位于框内的对象', crossingSelection: '交叉选择：框内或与边界相交的对象', gripHint: '拖动方形夹点修改几何 · Esc 取消', gripEditing: '指定夹点的新位置 · Esc 取消', gestureCancelled: '图纸或视图已变化，操作已取消', snapEndpoint: '端点', snapMidpoint: '中点', snapCenter: '圆心', snapQuadrant: '象限点', snapIntersection: '交点', snapInsertion: '插入点', snapNode: '节点', snapNearest: '最近点',
+    windowSelection: '框选：完全位于框内的对象', crossingSelection: '交叉选择：框内或与边界相交的对象', gripHint: '拖动方形夹点修改几何 · Esc 取消', gripEditing: '指定夹点的新位置 · Esc 取消', gestureCancelled: '图纸或视图已变化，操作已取消', snapEndpoint: '端点', snapMidpoint: '中点', snapCenter: '圆心', snapQuadrant: '象限点', snapIntersection: '交点', snapPerpendicular: '垂足', snapTangent: '切点', snapInsertion: '插入点', snapNode: '节点', snapNearest: '最近点',
     fenceHint: '围栏：连续点击折线点 · Enter 选择 · Backspace 撤回点 · Esc 取消 · 首点按 Shift 增选、Ctrl/⌘ 减选', fenceNeedsPoints: '围栏至少需要两个不同的点',
     showLayer: '显示图层', hideLayer: '隐藏图层', lockLayer: '锁定图层', unlockLayer: '解锁图层', freezeLayer: '冻结图层', thawLayer: '解冻图层',
     editWorkflow: '工作模式', boundaryWorkflow: '连续编辑 · 先选边界', singleWorkflow: '单次编辑 · 先目标后边界',
@@ -1913,7 +1913,7 @@ export class KJDrawWorkbench {
     const layers = new Map(drawing.getTable('layers')?.records.map(layer => [layer.id, layer.payload]) ?? [])
     return drawing.listEntities({ ownerId: modelSpaceId }).filter(entity => {
       const layer = layers.get(String(entity.payload.layerId ?? ''))
-      return layer?.visible !== false && layer?.frozen !== true
+      return entity.payload.visible !== false && layer?.visible !== false && layer?.frozen !== true
     }).map(entity => entity.id)
   }
 
@@ -1964,11 +1964,14 @@ export class KJDrawWorkbench {
     let settings
     try { settings = getDocumentSnapSettings(drawing) } catch { this.#snapMode = null; return null }
     if (!settings.modes.length) { this.#snapMode = null; return null }
+    const referencePoint = this.#orthoBase()
     const candidate = this.sdk.snap(world, {
       document: drawing,
       entityIds: excludeIds.length ? this.#snappableEntityIds.filter(id => !excludeIds.includes(id)) : this.#snappableEntityIds,
       radius: settings.aperture / this.renderer.camera.scale,
       modes: settings.modes,
+      spaceId: this.spaceId ?? drawing.spaces.modelSpaceId,
+      ...(referencePoint ? { referencePoint } : {}),
     })[0]
     this.#snapMode = candidate?.mode ?? null
     return candidate ? [candidate.point[0], candidate.point[1]] : null
@@ -1978,7 +1981,7 @@ export class KJDrawWorkbench {
     const marker = this.root.querySelector<HTMLElement>('[data-snap]')
     if (!marker || !world) { this.#hideSnap(); return }
     this.#snapWorld = world
-    const labels: Partial<Record<KJSnapMode, keyof typeof copy.en>> = { endpoint: 'snapEndpoint', midpoint: 'snapMidpoint', center: 'snapCenter', quadrant: 'snapQuadrant', intersection: 'snapIntersection', insertion: 'snapInsertion', node: 'snapNode', nearest: 'snapNearest' }
+    const labels: Partial<Record<KJSnapMode, keyof typeof copy.en>> = { endpoint: 'snapEndpoint', midpoint: 'snapMidpoint', center: 'snapCenter', quadrant: 'snapQuadrant', intersection: 'snapIntersection', perpendicular: 'snapPerpendicular', tangent: 'snapTangent', insertion: 'snapInsertion', node: 'snapNode', nearest: 'snapNearest' }
     const label = this.#snapMode && labels[this.#snapMode] ? this.#t(labels[this.#snapMode]!) : ''
     marker.dataset.mode = this.#snapMode ?? ''
     marker.dataset.label = label

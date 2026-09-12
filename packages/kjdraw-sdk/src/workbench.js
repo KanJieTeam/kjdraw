@@ -150,6 +150,8 @@ const copy = {
         snapCenter: 'Center',
         snapQuadrant: 'Quadrant',
         snapIntersection: 'Intersection',
+        snapPerpendicular: 'Perpendicular',
+        snapTangent: 'Tangent',
         snapInsertion: 'Insertion',
         snapNode: 'Node',
         snapNearest: 'Nearest',
@@ -308,6 +310,8 @@ const copy = {
         snapCenter: '圆心',
         snapQuadrant: '象限点',
         snapIntersection: '交点',
+        snapPerpendicular: '垂足',
+        snapTangent: '切点',
         snapInsertion: '插入点',
         snapNode: '节点',
         snapNearest: '最近点',
@@ -3231,7 +3235,7 @@ export class KJDrawWorkbench {
             ownerId: modelSpaceId
         }).filter((entity)=>{
             const layer = layers.get(String(entity.payload.layerId ?? ''));
-            return layer?.visible !== false && layer?.frozen !== true;
+            return entity.payload.visible !== false && layer?.visible !== false && layer?.frozen !== true;
         }).map((entity)=>entity.id);
     }
     #orthoEnabled() {
@@ -3298,11 +3302,16 @@ export class KJDrawWorkbench {
             this.#snapMode = null;
             return null;
         }
+        const referencePoint = this.#orthoBase();
         const candidate = this.sdk.snap(world, {
             document: drawing,
             entityIds: excludeIds.length ? this.#snappableEntityIds.filter((id)=>!excludeIds.includes(id)) : this.#snappableEntityIds,
             radius: settings.aperture / this.renderer.camera.scale,
-            modes: settings.modes
+            modes: settings.modes,
+            spaceId: this.spaceId ?? drawing.spaces.modelSpaceId,
+            ...referencePoint ? {
+                referencePoint
+            } : {}
         })[0];
         this.#snapMode = candidate?.mode ?? null;
         return candidate ? [
@@ -3323,6 +3332,8 @@ export class KJDrawWorkbench {
             center: 'snapCenter',
             quadrant: 'snapQuadrant',
             intersection: 'snapIntersection',
+            perpendicular: 'snapPerpendicular',
+            tangent: 'snapTangent',
             insertion: 'snapInsertion',
             node: 'snapNode',
             nearest: 'snapNearest'

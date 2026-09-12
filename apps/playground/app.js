@@ -181,7 +181,7 @@ async function commitTranslation(value,target){
   if(value.command==='COPY')replaceSelection(receipt.result.map(row=>row.id))
   setTool('select');refresh()
 }
-function isVisible(entity) { if (!entity) return false; const p = doc().getObject(entity.payload?.layerId)?.payload; return p?.visible !== false && p?.frozen !== true }
+function isVisible(entity) { if (!entity || entity.payload?.visible === false) return false; const p = doc().getObject(entity.payload?.layerId)?.payload; return p?.visible !== false && p?.frozen !== true }
 function isEditable(entity){return Boolean(entity&&entity.ownerId===doc().snapshot().spaces.modelSpaceId&&isVisible(entity)&&doc().getObject(entity.payload?.layerId)?.payload.locked!==true)}
 function pointerView(){const rect=canvas.getBoundingClientRect();return [camera.x,camera.y,camera.scale,rect.left,rect.top,rect.width,rect.height]}
 function pointerBinding(){return {document:doc(),documentId:doc().id,revision:doc().revision,view:pointerView()}}
@@ -640,18 +640,18 @@ $('receipt-undo').onclick=()=>run(async()=>{await execute('UNDO',{}, {preserveRe
 $('receipt-save').onclick=()=>run(async()=>{const bytes=await saveProject();timeline(i18n.locale==='zh'?`KJP 下载已请求 · ${formatBytes(bytes.length)}`:`KJP download requested · ${formatBytes(bytes.length)}`)})
 $('receipt-reopen').onclick=()=>run(async()=>{const bytes=await session.package(),fingerprint=doc().fingerprint(),next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const reopened=await KJProjectSession.open(bytes,{sdk:next}),match=reopened.activeDocument.fingerprint()===fingerprint,count=reopened.activeDocument.listEntities().length;reopened.destroy();if(!match)throw new Error('KJP reopen fingerprint mismatch.');$('plan-state').dataset.state='verified';$('plan-state').textContent=i18n.locale==='zh'?`KJP 重开验证通过 · ${count.toLocaleString()} 个对象 · 指纹一致`:`KJP reopen verified · ${count.toLocaleString()} entities · fingerprint match`;timeline(i18n.locale==='zh'?`保存 / 重开验证通过 · ${formatBytes(bytes.length)} · 指纹一致`:`Save / reopen verified · ${formatBytes(bytes.length)} · fingerprint match`);workbench.dataset.demoState='verified';message(i18n.locale==='zh'?'KJP 往返验证通过 · 当前工作区未被替换':'KJP round-trip verified · current workspace was not replaced')})
 function pointer(e){const r=canvas.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]}
-function snap(p,excludeIds=[]){
+function snap(p,excludeIds=[],referencePoint=null){
   snapHit=null;delete workbench.dataset.snapMode
   if(!snapEnabled||!sdk)return p
   let settings
   try{settings=getDocumentSnapSettings(doc())}catch{return p}
   if(!settings.modes.length)return p
-  const hit=sdk.snap(p,{entityIds:modelEntities().filter(entity=>isVisible(entity)&&!excludeIds.includes(entity.id)).map(entity=>entity.id),radius:settings.aperture/camera.scale,modes:settings.modes})[0]
+  const hit=sdk.snap(p,{entityIds:modelEntities().filter(entity=>isVisible(entity)&&!excludeIds.includes(entity.id)).map(entity=>entity.id),radius:settings.aperture/camera.scale,modes:settings.modes,spaceId:doc().snapshot().spaces.modelSpaceId,...(referencePoint?{referencePoint}:{})})[0]
   if(hit){snapHit=hit;workbench.dataset.snapMode=hit.mode}
   return hit?.point??p
 }
-function constrainedPoint(p){const value=snap(p);if(!orthoEnabled||!start)return value;const dx=Math.abs(value[0]-start[0]),dy=Math.abs(value[1]-start[1]);return dx>=dy?[value[0],start[1]]:[start[0],value[1]]}
-function translationPoint(p,base,excludeIds=[]){const value=snap(p,excludeIds);if(!orthoEnabled||!base)return value;return Math.abs(value[0]-base[0])>=Math.abs(value[1]-base[1])?[value[0],base[1]]:[base[0],value[1]]}
+function constrainedPoint(p){const value=snap(p,[],start);if(!orthoEnabled||!start||snapHit)return value;const dx=Math.abs(value[0]-start[0]),dy=Math.abs(value[1]-start[1]);return dx>=dy?[value[0],start[1]]:[start[0],value[1]]}
+function translationPoint(p,base,excludeIds=[]){const value=snap(p,excludeIds,base);if(!orthoEnabled||!base||snapHit)return value;return Math.abs(value[0]-base[0])>=Math.abs(value[1]-base[1])?[value[0],base[1]]:[base[0],value[1]]}
 function unrelatedPointer(event){
   const owner=pan??selectionBox??gripDrag??dragMove
   return (event.pointerType==='touch'&&!event.isPrimary)||(owner&&owner.pointerId!==event.pointerId)
@@ -675,7 +675,8 @@ canvas.onpointermove=e=>{
     render();return
   }
   if(dragMove&&Math.hypot(p[0]-dragMove.screenStart[0],p[1]-dragMove.screenStart[1])>4)dragMove.started=true
-  cursor=translationPoint(constrainedPoint(world(p)),translation?.base??dragMove?.worldStart);$('coordinates').textContent=`X ${cursor[0].toFixed(2)} · Y ${cursor[1].toFixed(2)}`
+  const transformBase=translation?.base??dragMove?.worldStart
+  cursor=transformBase?translationPoint(world(p),transformBase):constrainedPoint(world(p));$('coordinates').textContent=`X ${cursor[0].toFixed(2)} · Y ${cursor[1].toFixed(2)}`
   const grip=tool==='select'&&selectedIds().length===1&&!dragMove?canvasRenderer.hitGrip(p):null,nextHover=grip?`${grip.entityId}:${grip.id}`:null
   if(nextHover!==hoveredGrip){hoveredGrip=nextHover;canvas.style.cursor=grip?'crosshair':tool==='pan'?'grab':tool==='select'?'default':'crosshair';render()}
   if(start||drafting||modification||translation?.base||dragMove?.started||fence||snapHit||hadSnap)render()
@@ -686,7 +687,7 @@ canvas.onpointerdown=e=>{
   if(e.button!==0)return
   if(busy){busyNotice();return}
   canvas.focus({preventScroll:true})
-  const p=constrainedPoint(world(pointer(e)))
+  const raw=world(pointer(e)),p=translation?.base?translationPoint(raw,translation.base):constrainedPoint(raw)
   if(boundaryEdit){
     const location=pointer(e),state=boundaryEdit.session.state
     if(state.phase==='boundaries'){
@@ -702,7 +703,7 @@ canvas.onpointerdown=e=>{
     if(!translationValid(translation)){setTool('select');message(t('drawingChanged'));return}
     if(!translation.ids.length){const hit=canvasRenderer.hitTest(pointer(e),9);if(!hit){message(t('moveChoose'));return}replaceSelection([hit.entity.id]);translation.ids=selectedIds();refresh();updateTranslationHint();return}
     if(!translation.base){translation.base=p;cursor=p;updateTranslationHint();render();return}
-    const task=translation;translation=null;run(()=>commitTranslation(task,translationPoint(p,task.base)));return
+    const task=translation;translation=null;run(()=>commitTranslation(task,p));return
   }
   if(modification){run(()=>addModificationPoint(p));return}
   if(drafting){run(()=>applyDraftInput(p));return}

@@ -21,11 +21,11 @@ import type { KJDocument } from './document.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 
 export const KJ_SNAP_MODES = Object.freeze([
-  'endpoint', 'midpoint', 'center', 'quadrant', 'insertion', 'node', 'nearest', 'intersection',
+  'endpoint', 'midpoint', 'center', 'quadrant', 'insertion', 'node', 'nearest', 'intersection', 'perpendicular', 'tangent',
 ] as const)
 
 export const KJ_DEFAULT_SNAP_MODES = Object.freeze([
-  'endpoint', 'midpoint', 'center', 'quadrant', 'intersection', 'nearest',
+  'endpoint', 'midpoint', 'center', 'quadrant', 'intersection', 'perpendicular', 'tangent', 'nearest',
 ] as const)
 export const KJ_DEFAULT_SNAP_APERTURE = 10
 
@@ -49,6 +49,10 @@ export interface KJSnapOptions {
   radius?: number
   modes?: readonly string[]
   entityIds?: readonly string[]
+  /** Space whose visible geometry can be used as snap references. Defaults to model space. */
+  spaceId?: string
+  /** Last accepted construction point used by perpendicular and tangent snaps. */
+  referencePoint?: KJSnapPointInput
   maxIntersectionPairs?: number
 }
 
@@ -244,7 +248,55 @@ function nearestOnPrimitive(cursor: KJSnapPointInput, primitive: SnapPrimitive):
   return nearest
 }
 
-function baseCandidates(entity: KJReadonlyObjectRecord, modes: ReadonlySet<KJSnapMode>, cursor: KJSnapPointInput): MutableSnapCandidate[] {
+function acceptsLineParameter(primitive: LinePrimitive, parameter: number, epsilon = 1e-12): boolean {
+  return primitive.mode === 'line' || primitive.mode === 'ray' && parameter >= -epsilon || primitive.mode === 'segment' && parameter >= -epsilon && parameter <= 1 + epsilon
+}
+
+function perpendicularCandidates(entity: KJReadonlyObjectRecord, cursor: KJSnapPointInput, reference: KJSnapPointInput): MutableSnapCandidate[] {
+  const result: MutableSnapCandidate[] = []
+  for (const primitive of primitiveSegments(entity)) {
+    if (primitive.kind === 'line') {
+      const direction = subtract2(primitive.end, primitive.start)
+      if (lengthSquared2(direction) <= 1e-24) continue
+      const parameter = projectParameter2(reference, primitive.start, direction)
+      if (!acceptsLineParameter(primitive, parameter)) continue
+      const point = point3(add2(primitive.start, multiply2(direction, parameter)))
+      result.push({ mode: 'perpendicular', point, entityIds: [entity.id], distance: distance2(cursor, point), ...(primitive.segmentIndex === undefined ? {} : { segmentIndex: primitive.segmentIndex }), parameter })
+      continue
+    }
+    const center = point3(primitive.center), fromCenter = subtract2(reference, center), squaredDistance = lengthSquared2(fromCenter)
+    if (squaredDistance <= 1e-24) continue
+    const scale = primitive.radius / Math.sqrt(squaredDistance)
+    for (const sign of [1, -1]) {
+      const point = point3(add2(center, multiply2(fromCenter, scale * sign)))
+      if (!accepts(primitive, point)) continue
+      result.push({ mode: 'perpendicular', point, entityIds: [entity.id], distance: distance2(cursor, point), ...(primitive.segmentIndex === undefined ? {} : { segmentIndex: primitive.segmentIndex }), angle: Math.atan2(point[1] - center[1], point[0] - center[0]) })
+    }
+  }
+  return result
+}
+
+function tangentCandidates(entity: KJReadonlyObjectRecord, cursor: KJSnapPointInput, reference: KJSnapPointInput): MutableSnapCandidate[] {
+  const result: MutableSnapCandidate[] = []
+  for (const primitive of primitiveSegments(entity)) {
+    if (primitive.kind === 'line') continue
+    const center = point3(primitive.center), fromCenter = subtract2(reference, center), squaredDistance = lengthSquared2(fromCenter)
+    const radiusSquared = primitive.radius * primitive.radius
+    const tolerance = 1e-12 * Math.max(1, squaredDistance, radiusSquared)
+    if (squaredDistance <= radiusSquared + tolerance) continue
+    const along = radiusSquared / squaredDistance
+    const across = primitive.radius * Math.sqrt(squaredDistance - radiusSquared) / squaredDistance
+    const normal = perpendicular2(fromCenter)
+    for (const sign of [1, -1]) {
+      const point = point3(add2(center, add2(multiply2(fromCenter, along), multiply2(normal, across * sign))))
+      if (!accepts(primitive, point)) continue
+      result.push({ mode: 'tangent', point, entityIds: [entity.id], distance: distance2(cursor, point), ...(primitive.segmentIndex === undefined ? {} : { segmentIndex: primitive.segmentIndex }), angle: Math.atan2(point[1] - center[1], point[0] - center[0]) })
+    }
+  }
+  return result
+}
+
+function baseCandidates(entity: KJReadonlyObjectRecord, modes: ReadonlySet<KJSnapMode>, cursor: KJSnapPointInput, reference: KJSnapPointInput | null): MutableSnapCandidate[] {
   const payload = entity.payload as unknown as SnapPayload, result: MutableSnapCandidate[] = []
   const add = (mode: KJSnapMode, point: KJSnapPointInput, detail: Record<string, unknown> = {}): void => {
     result.push({ mode, point: point3(point), entityIds: [entity.id], ...detail })
@@ -275,6 +327,8 @@ function baseCandidates(entity: KJReadonlyObjectRecord, modes: ReadonlySet<KJSna
   }
   if (modes.has('insertion') && ['INSERT', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'IMAGE', 'TABLE'].includes(entity.type)) add('insertion', payload.position)
   if (modes.has('node') && entity.type === 'POINT') add('node', payload.position)
+  if (reference && modes.has('perpendicular')) result.push(...perpendicularCandidates(entity, cursor, reference))
+  if (reference && modes.has('tangent')) result.push(...tangentCandidates(entity, cursor, reference))
   if (modes.has('nearest')) {
     const nearest = primitives.map(primitive => ({ ...nearestOnPrimitive(cursor, primitive), primitive })).sort((a, b) => a.distance - b.distance)[0]
     if (nearest) add('nearest', nearest.point, { segmentIndex: nearest.primitive.segmentIndex, parameter: nearest.parameter })
@@ -329,9 +383,17 @@ export function findSnapCandidates(document: KJDocument, cursorInput: KJSnapPoin
   if (!(radius > 0)) throw new KJValidationError('Snap radius must be positive')
   const modes = new Set((options.modes ?? KJ_SNAP_MODES).map(value => String(value).toLowerCase() as KJSnapMode))
   for (const mode of modes) if (!KJ_SNAP_MODES.includes(mode)) throw new KJValidationError(`Unsupported snap mode: ${mode}`)
+  const reference = options.referencePoint === undefined ? null : vec2(options.referencePoint, 'referencePoint')
+  const state = document.snapshot(), spaceId = options.spaceId === undefined ? state.spaces.modelSpaceId : String(options.spaceId)
+  if (!spaceId) throw new KJValidationError('Snap spaceId must be a non-empty string')
   const allowed = options.entityIds ? new Set(options.entityIds.map(String)) : null
-  const entities = document.listEntities().filter(entity => !allowed || allowed.has(entity.id))
-  let candidates = entities.flatMap(entity => baseCandidates(entity, modes, cursor))
+  const layers = new Map(document.getTable('layers')?.records.map(layer => [layer.id, layer.payload]) ?? [])
+  const entities = document.listEntities({ ownerId: spaceId }).filter(entity => {
+    if (allowed && !allowed.has(entity.id) || entity.payload.visible === false) return false
+    const layer = layers.get(String(entity.payload.layerId ?? ''))
+    return layer?.visible !== false && layer?.frozen !== true
+  })
+  let candidates = entities.flatMap(entity => baseCandidates(entity, modes, cursor, reference))
     .map(candidate => ({ ...candidate, distance: candidate.distance ?? distance2(cursor, candidate.point) }))
   if (modes.has('intersection')) {
     const maxIntersectionPairs = Number(options.maxIntersectionPairs ?? 10000)

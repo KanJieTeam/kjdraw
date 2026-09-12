@@ -61,6 +61,57 @@ test('exact snaps outrank nearest while nearest remains an explicit fallback', a
   assert.doesNotThrow(() => sdk.snap([10, 0.2], { radius: 1, modes: ['quadrant'], maxIntersectionPairs: 0 }))
 })
 
+test('perpendicular and tangent snaps use the construction reference and exact curve domains', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'relationship-snaps' })
+  const line = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0, 0], end: [10, 0] } })
+  const circle = await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: [30, 0], radius: 10 } })
+  const arc = await sdk.executeCommand('CREATE', { type: 'ARC', payload: { center: [0, 30], radius: 10, startAngle: 0, endAngle: Math.PI } })
+
+  const foot = sdk.snap([4.2, 0.2], { radius: 1, modes: ['perpendicular', 'nearest'], entityIds: [line.id], referencePoint: [4, 8] })
+  assert.deepEqual(foot.map(candidate => candidate.mode), ['perpendicular'])
+  closePoint(foot[0].point, [4, 0])
+  assert.equal(sdk.snap([20, 0], { radius: 30, modes: ['perpendicular'], entityIds: [line.id], referencePoint: [20, 8] }).length, 0)
+
+  const circleFeet = sdk.snap([40, 0], { radius: 25, modes: ['perpendicular'], entityIds: [circle.id], referencePoint: [50, 0] })
+  assert.equal(circleFeet.length, 2)
+  closePoint(circleFeet[0].point, [40, 0])
+  closePoint(circleFeet[1].point, [20, 0])
+
+  const tangent = sdk.snap([35, 8.7], { radius: 1, modes: ['tangent', 'nearest'], entityIds: [circle.id], referencePoint: [50, 0] })
+  assert.deepEqual(tangent.map(candidate => candidate.mode), ['tangent'])
+  closePoint(tangent[0].point, [35, Math.sqrt(75)])
+  const radius = [tangent[0].point[0] - 30, tangent[0].point[1]], construction = [50 - tangent[0].point[0], -tangent[0].point[1]]
+  close(radius[0] * construction[0] + radius[1] * construction[1], 0)
+
+  const arcTangents = sdk.snap([5, 38.7], { radius: 2, modes: ['tangent'], entityIds: [arc.id], referencePoint: [20, 30] })
+  assert.equal(arcTangents.length, 1)
+  closePoint(arcTangents[0].point, [5, 30 + Math.sqrt(75)])
+  assert.equal(sdk.snap([40, 0], { radius: 30, modes: ['tangent'], entityIds: [circle.id], referencePoint: [30, 0] }).length, 0)
+  assert.equal(sdk.snap([4, 0], { radius: 2, modes: ['perpendicular'], entityIds: [line.id] }).length, 0)
+  assert.throws(() => sdk.snap([4, 0], { modes: ['perpendicular'], referencePoint: [Number.NaN, 0] }), /referencePoint/)
+})
+
+test('snap references exclude hidden, frozen and other-space geometry while locked layers remain usable', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'snap-visibility' })
+  const locked = await sdk.executeCommand('LAYERNEW', { name: 'Locked', locked: true })
+  const hidden = await sdk.executeCommand('LAYERNEW', { name: 'Hidden', visible: false })
+  const frozen = await sdk.executeCommand('LAYERNEW', { name: 'Frozen', frozen: true })
+  let ids
+  await document.transact('References', tx => {
+    ids = {
+      locked: tx.createEntity('LINE', { start: [-5, 0], end: [5, 0], layerId: locked.id }).id,
+      hidden: tx.createEntity('LINE', { start: [-5, 10], end: [5, 10], layerId: hidden.id }).id,
+      frozen: tx.createEntity('LINE', { start: [-5, 20], end: [5, 20], layerId: frozen.id }).id,
+      invisible: tx.createEntity('LINE', { start: [-5, 30], end: [5, 30], visible: false }).id,
+      paper: tx.createEntity('LINE', { start: [-5, 40], end: [5, 40] }, { ownerId: document.snapshot().spaces.paperSpaceIds[0] }).id,
+    }
+  })
+  assert.equal(sdk.snap([0, 0.2], { radius: 1, modes: ['nearest'] })[0].entityIds[0], ids.locked)
+  for (const y of [10, 20, 30, 40]) assert.equal(sdk.snap([0, y], { radius: 1, modes: ['nearest'] }).length, 0)
+  const paper = sdk.snap([0, 40], { radius: 1, modes: ['nearest'], spaceId: document.snapshot().spaces.paperSpaceIds[0] })[0]
+  assert.equal(paper.entityIds[0], ids.paper)
+})
+
 test('intersection pair budget searches nearby primitives before distant drawing content', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'snap-budget' })
   for (let index = 0; index < 20; index += 1) await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [1000 + index * 10, 1000], end: [1000 + index * 10, 1010] } })
@@ -75,11 +126,11 @@ test('intersection pair budget searches nearby primitives before distant drawing
 
 test('document snap settings default, persist through KJD and participate in undo-redo', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'snap-settings' })
-  assert.deepEqual(getDocumentSnapSettings(document), { modes: ['endpoint', 'midpoint', 'center', 'quadrant', 'intersection', 'nearest'], aperture: 10 })
+  assert.deepEqual(getDocumentSnapSettings(document), { modes: ['endpoint', 'midpoint', 'center', 'quadrant', 'intersection', 'perpendicular', 'tangent', 'nearest'], aperture: 10 })
   await sdk.executeCommand('SNAPSETTINGS', { modes: ['quadrant', 'nearest'], radius: 17 })
   assert.deepEqual(getDocumentSnapSettings(document), { modes: ['quadrant', 'nearest'], aperture: 17 })
   await sdk.executeCommand('UNDO')
-  assert.deepEqual(getDocumentSnapSettings(document), { modes: ['endpoint', 'midpoint', 'center', 'quadrant', 'intersection', 'nearest'], aperture: 10 })
+  assert.deepEqual(getDocumentSnapSettings(document), { modes: ['endpoint', 'midpoint', 'center', 'quadrant', 'intersection', 'perpendicular', 'tangent', 'nearest'], aperture: 10 })
   await sdk.executeCommand('REDO')
   assert.deepEqual(getDocumentSnapSettings(document), { modes: ['quadrant', 'nearest'], aperture: 17 })
   const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
