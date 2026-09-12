@@ -158,10 +158,10 @@ export async function runPersistedKJAgentTask(options) {
     });
     assertSessionBinding(options.document, options.session, expectedRevision);
     const atomicallyCheckable = task.definition.requirements.every((requirement)=>requirement.check.toolName === 'cad_check_geometry' && requirement.check.geometryCheck && requirement.check.assertion.path === 'passed' && requirement.check.assertion.operator === 'is_true' && requirement.check.assertion.expected === true);
-    if (result.proposalIds.length && task.status === 'running' && atomicallyCheckable) {
-        if (result.proposalIds.length !== 1) {
+    if (result.proposalIds.length) {
+        if (task.status !== 'running' || !atomicallyCheckable || result.proposalIds.length !== 1) {
             for (const planId of result.proposalIds)options.session.reject(planId, 'kjdraw:persistent-task-binding-rejected');
-            fail('a running persistent task mutation requires one exact proposal');
+            fail('a persistent task mutation requires one proposal from a running task with deterministic geometry checks');
         }
         options.session.bindTaskProposal(result.proposalIds[0], {
             taskId: task.taskId,

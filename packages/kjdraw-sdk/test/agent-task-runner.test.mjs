@@ -170,18 +170,19 @@ test('revision, version, status, document identity, units and scope are checked 
   assert.equal(contacts, 0)
 })
 
-test('a proposal leaves task and drawing revisions unchanged and remains approvable by the host', async () => {
+test('a ready legacy task proposal is rejected instead of escaping through ordinary approval', async () => {
   const value = await fixture(), before = value.document.serialize(), revision = value.document.revision
   const model = { createConversation: () => ({ next: async () => ({ text: '', calls: [{
     id: 'proposal', name: 'cad_propose_lines', arguments: { expectedRevision: revision, units: 'millimeter', lines: [{ start: { x: 0, y: 10 }, end: { x: 50, y: 10 } }] },
   }] }) }) }
-  const result = await runPersistedKJAgentTask(runOptions(value, model))
-  assert.equal(result.status, 'awaiting-approval'); assert.equal(result.proposalIds.length, 1)
+  await assert.rejects(runPersistedKJAgentTask(runOptions(value, model)), /persistent task mutation.*deterministic geometry checks/)
   assert.equal(value.document.revision, revision); assert.equal(value.document.serialize(), before)
   assert.equal(readAgentTasks(value.document)[0].taskVersion, value.task.taskVersion)
-  const approval = await value.session.approve(result.proposalIds[0], 'trusted-reviewer')
-  assert.equal(approval.ok, true); assert.equal(value.document.revision, revision + 1)
-  assert.equal(value.document.listEntities({ type: 'LINE' }).length, 2)
+  const [plan] = value.sdk.agentPlans.list()
+  assert.equal(plan.status, 'rejected')
+  assert.equal((await value.session.approve(plan.planId, 'trusted-reviewer')).ok, false)
+  assert.equal((await value.session.approveTask(plan.planId, 'trusted-reviewer', at(3))).ok, false)
+  assert.equal(value.document.listEntities({ type: 'LINE' }).length, 1)
 })
 
 test('same document ID and revision cannot substitute another attached document instance', async () => {

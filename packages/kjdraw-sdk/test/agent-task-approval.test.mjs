@@ -13,7 +13,7 @@ const actor = { kind: 'host', id: 'atomic-task-test' }
 const at = second => `2026-09-12T06:00:${String(second).padStart(2, '0')}.000Z`
 const toolNames = ['cad_check_geometry', 'cad_propose_lines']
 
-async function fixture(expectedLength = 10, withSeed = false) {
+async function fixture(expectedLength = 10, withSeed = false, stopAtReady = false, deterministic = true) {
   const sdk = createKJDrawSDK()
   const document = sdk.createDocument({ documentId: `atomic-task-${Math.random()}`, units: 'millimeter' })
   const session = new KJAgentToolSession(sdk, document)
@@ -25,7 +25,7 @@ async function fixture(expectedLength = 10, withSeed = false) {
       check: {
         toolName: 'cad_check_geometry',
         assertion: { path: 'passed', operator: 'is_true', expected: true },
-        geometryCheck: { id: 'created_line_length', kind: 'line-length', objectId: 'created:0', expected: expectedLength, tolerance: 0 },
+        ...(deterministic ? { geometryCheck: { id: 'created_line_length', kind: 'line-length', objectId: 'created:0', expected: expectedLength, tolerance: 0 } } : {}),
       },
     }],
     steps: [{ id: 'draw', title: 'Draw and verify the line', requirementIds: ['created_line_length'] }],
@@ -35,7 +35,7 @@ async function fixture(expectedLength = 10, withSeed = false) {
   await document.transact('Create task', tx => createAgentTask(document, tx, {
     id: 'task-1', expectedRevision: document.revision, title: 'Atomic line task', goal: 'Create one exact line.', entityIds: withSeed ? ['seed'] : [], definition, at: at(1), actor,
   }))
-  for (const [status, second] of [['ready', 2], ['running', 3]]) {
+  for (const [status, second] of (stopAtReady ? [['ready', 2]] : [['ready', 2], ['running', 3]])) {
     const task = readAgentTasks(document)[0]
     await document.transact(`Task ${status}`, tx => transitionAgentTask(document, tx, {
       id: task.id, expectedRevision: document.revision, expectedTaskVersion: task.taskVersion, expectedStatus: task.status,
@@ -54,7 +54,7 @@ async function propose(value, length = 10) {
   }] }) }) }
   return runPersistedKJAgentTask({
     document: value.document, session: value.session, model, taskId: value.task.id,
-    expectedRevision: revision, expectedTaskVersion: value.task.taskVersion, expectedStatus: 'running',
+    expectedRevision: revision, expectedTaskVersion: value.task.taskVersion, expectedStatus: value.task.status,
     toolNames, maxTurns: 2, maxToolCalls: 2,
   })
 }
@@ -192,4 +192,39 @@ test('forged task bindings and a replaced CREATEBATCH fail before any commit', a
   assert.equal((await replaced.session.approveTask(replacedPlan, 'reviewer', at(4))).ok, false)
   assert.equal(replaced.document.serialize(), before)
   assert.equal(replaced.sdk.agentPlans.get(replacedPlan).status, 'active')
+})
+
+async function assertRejectedPersistentProposals(value, run, count) {
+  const before = value.document.serialize(), revision = value.document.revision, history = value.document.snapshot().revisions.length
+  await assert.rejects(run, /persistent task mutation.*deterministic geometry checks/)
+  const plans = value.sdk.agentPlans.list()
+  assert.equal(plans.length, count)
+  assert.ok(plans.every(plan => plan.status === 'rejected'))
+  for (const plan of plans) {
+    assert.equal((await value.session.approve(plan.planId, 'reviewer')).ok, false)
+    assert.equal((await value.session.approveTask(plan.planId, 'reviewer', at(5))).ok, false)
+  }
+  assert.equal(value.document.serialize(), before)
+  assert.equal(value.document.revision, revision)
+  assert.equal(value.document.snapshot().revisions.length, history)
+  assert.equal(value.document.listEntities({ type: 'LINE' }).length, 0)
+  assert.equal(readAgentTasks(value.document)[0].status, value.task.status)
+}
+
+test('ready persisted tasks reject every proposal instead of exposing ordinary approval', async () => {
+  const value = await fixture(10, false, true, true)
+  await assertRejectedPersistentProposals(value, propose(value), 1)
+})
+
+test('running legacy tasks without deterministic geometry checks reject every proposal', async () => {
+  const value = await fixture(10, false, false, false)
+  await assertRejectedPersistentProposals(value, propose(value), 1)
+})
+
+test('a running deterministic task rejects a model batch containing multiple proposals', async () => {
+  const value = await fixture(), revision = value.document.revision
+  const call = (id, y) => ({ id, name: 'cad_propose_lines', arguments: { expectedRevision: revision, units: 'millimeter', lines: [{ start: { x: 0, y }, end: { x: 10, y } }] } })
+  const model = { createConversation: () => ({ next: async () => ({ text: '', calls: [call('one', 0), call('two', 5)] }) }) }
+  const run = runPersistedKJAgentTask({ document: value.document, session: value.session, model, taskId: value.task.id, expectedRevision: revision, expectedTaskVersion: value.task.taskVersion, expectedStatus: 'running', toolNames, maxTurns: 2, maxToolCalls: 2 })
+  await assertRejectedPersistentProposals(value, run, 2)
 })
