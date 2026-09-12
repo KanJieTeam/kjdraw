@@ -399,8 +399,8 @@ export function updateDesignRelations(document, tx, id, changes) {
         }
     });
 }
-export function readDesignRelations(document) {
-    return records(document).map((record)=>{
+export function readDesignRelations(document, ids) {
+    return records(document).filter((record)=>ids == null || ids.includes(record.id)).map((record)=>{
         if (record.payload.contractVersion !== 1) fail('unsupported design contract version');
         const model = definition(record.payload.definition), values = resolve(model), saved = record.payload.geometry;
         const entityIds = [

@@ -7,7 +7,7 @@ import { prepareChatRoadAsset } from './chat-road-asset.js'
 
 // This workbench exposes general geometry and annotated creation tools; SDK callers and locked capability packs keep their own policies.
 export const KJDRAW_CHAT_TOOL_NAMES = Object.freeze([
-  'cad_read_drawing', 'cad_read_page', 'cad_query_drawing', 'cad_read_layouts',
+  'cad_read_drawing', 'cad_read_page', 'cad_query_drawing', 'cad_read_layouts', 'cad_read_designs', 'cad_propose_design_update',
   'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated',
 ])
 const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES, 'cad_propose_road_drawing'])
@@ -51,6 +51,7 @@ const copy = {
   limit: ['This run reached its limit. No changes were applied; narrow the request and continue.', '本次运行达到预算上限，未应用修改。请缩小需求范围后继续。'],
   review: ['Review proposed changes', '检查绘图方案'], preview: ['Preview on drawing', '在图中预览'], approve: ['Apply changes', '应用修改'], reject: ['Discard', '放弃方案'],
   pending: ['Your drawing is unchanged. Review before applying.', '当前图纸尚未修改，请检查后再应用。'],
+  parameters: ['Parameter changes', '参数修改'],
   applied: ['Changes applied', '修改已应用'], rejected: ['Proposal discarded. Drawing unchanged.', '已放弃方案，图纸未改变。'],
   parametersNotSaved: ['Design parameters were not saved.', '设计参数未保存。'],
   stale: ['The drawing changed. Send a new request for an updated proposal.', '图纸已改变，请重新提出需求以生成最新方案。'],
@@ -194,6 +195,16 @@ export function createAgentChat(container, options) {
     const state=element('p','chat-proposal-state',L('pending')), actions=element('div','chat-card-actions')
     const preview=button('preview'), approve=button('approve','chat-primary'), reject=button('reject')
     actions.append(preview,approve,reject); card.append(summary,state,actions)
+    const designChange=proposal.preview.designChange
+    if(designChange){
+      const details=element('div','chat-design-parameters'), previous=new Map(designChange.before.parameters.map(parameter=>[parameter.name,parameter.value]))
+      details.append(element('p','',`${L('parameters')} · ${designChange.record.name??designChange.id}`))
+      for(const parameter of designChange.after.parameters)if(previous.get(parameter.name)!==parameter.value){
+        const row=element('p','',`${parameter.name}: ${previous.get(parameter.name)} → ${parameter.value}`)
+        row.dataset.parameter=parameter.name;details.append(row)
+      }
+      card.insertBefore(details,state)
+    }
     const evidence=proposal.engineeringEvidence
     if(evidence?.units==='meter'&&evidence.calculation){
       const details=element('div','chat-road-evidence'), calculation=evidence.calculation

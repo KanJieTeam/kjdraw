@@ -241,8 +241,8 @@ export function updateDesignRelations(document: KJDocument, tx: KJTransaction, i
   return tx.updateObject(record!.id, { payload: { definition: model, geometry: Object.fromEntries(entities.map(entity => [entity.id, geometry(entity)])) } })
 }
 /** Read persisted design parameters, evaluated dependencies and explicit geometry conflict IDs. */
-export function readDesignRelations(document: KJDocument): KJDesignRelationView[] {
-  return records(document).map(record => {
+export function readDesignRelations(document: KJDocument, ids?: readonly string[]): KJDesignRelationView[] {
+  return records(document).filter(record => ids == null || ids.includes(record.id)).map(record => {
     if (record.payload.contractVersion !== 1) fail('unsupported design contract version')
     const model = definition(record.payload.definition), values = resolve(model), saved = record.payload.geometry as Record<string, unknown>
     const entityIds = [...new Set(model.bindings.map(binding => binding.entityId))]

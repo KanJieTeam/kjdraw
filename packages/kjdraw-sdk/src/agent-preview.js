@@ -4,6 +4,7 @@ import { KJValidationError } from './errors.js';
 import { canonicalStringify, deepFreeze } from './utils.js';
 import { projectDimension } from './geometry/annotation.js';
 import { displayedEntityBounds } from './selection-geometry.js';
+import { readDesignRelations } from './design-relations.js';
 import { captureAgentBlockDependencies, agentBlockDependenciesMatchDocument } from './agent-preview-blocks.js';
 const project = (entity)=>({
         id: entity.id,
@@ -255,8 +256,17 @@ export async function createAgentGeometryPreview(document, command, args, option
         'SCALE',
         'STRETCH',
         'LENGTHEN',
-        'PEDIT'
-    ].includes(command)) throw new KJValidationError('This preview supports only CREATEBATCH, MOVE, ROTATE, SCALE, STRETCH, LENGTHEN and PEDIT');
+        'PEDIT',
+        'DESIGNUPDATE'
+    ].includes(command)) throw new KJValidationError('Unsupported core preview command');
+    if (command === 'DESIGNUPDATE' && (typeof args.id !== 'string' || Object.keys(args).some((key)=>![
+            'id',
+            'parameters'
+        ].includes(key)))) throw new KJValidationError('DESIGNUPDATE requires a design ID and independent parameter changes');
+    const design = command === 'DESIGNUPDATE' ? readDesignRelations(document, [
+        String(args.id)
+    ])[0] : undefined;
+    if (command === 'DESIGNUPDATE' && !design) throw new KJValidationError('DESIGNUPDATE requires an existing design');
     const affine = command === 'ROTATE' || command === 'SCALE';
     if (affine) validateTransformArguments(command, args);
     if (command === 'STRETCH') validateStretchArguments(args);
@@ -266,7 +276,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     if (command === 'CREATEBATCH') {
         if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some((spec)=>!spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} LINE/CIRCLE/ARC/LWPOLYLINE/TEXT/DIMENSION entities`);
     } else {
-        const ids = command === 'PEDIT' || command === 'LENGTHEN' ? [
+        const ids = design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' ? [
             args.id
         ] : args.ids;
         if (!Array.isArray(ids) || !ids.length || ids.length > 64) throw new KJValidationError('Preview requires 1–64 existing entity IDs');
@@ -282,7 +292,7 @@ export async function createAgentGeometryPreview(document, command, args, option
             if (ids.some((id)=>typeof id !== 'string') || new Set(ids).size !== ids.length) throw new KJValidationError('STRETCH object IDs must be unique strings');
             if (ids.some((id)=>!stretchable.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`STRETCH preview requires 1–64 ${stretchable.join('/')} entities`);
             for (const id of ids)validateStretchGeometry(document, document.getObject(String(id)));
-        } else if (command !== 'LENGTHEN') {
+        } else if (command !== 'LENGTHEN' && command !== 'DESIGNUPDATE') {
             if (ids.some((id)=>!KJDRAW_AGENT_MOVABLE_TYPES.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`Preview movement requires 1–64 ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} entities`);
             for (const id of ids)validateMovableAnnotation(document, document.getObject(String(id)));
         }
@@ -298,7 +308,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     }
     const source = document.snapshot(), revision = document.revision;
     if (Object.keys(source.objects).length > 250000) throw new KJValidationError('Agent preview exceeds the 250000 object document limit');
-    const ids = command === 'CREATEBATCH' ? [] : command === 'PEDIT' || command === 'LENGTHEN' ? [
+    const ids = design ? design.entityIds : command === 'CREATEBATCH' ? [] : command === 'PEDIT' || command === 'LENGTHEN' ? [
         String(args.id)
     ] : args.ids;
     const blockDependencies = [
@@ -309,7 +319,10 @@ export async function createAgentGeometryPreview(document, command, args, option
     const workingSet = command !== 'CREATEBATCH' ? ids.map((id)=>document.getObject(id)) : args.entities;
     if (new TextEncoder().encode(JSON.stringify({
         args,
-        workingSet
+        workingSet,
+        ...design ? {
+            design: document.getObject(design.id)
+        } : {}
     })).length > 4194304) throw new KJValidationError('Agent preview working set exceeds the 4 MiB limit');
     const draft = document.fork();
     const commands = new KJCommandRegistry();
@@ -355,6 +368,14 @@ export async function createAgentGeometryPreview(document, command, args, option
             payload: item.payload
         }));
     if (resources.length > 32) throw new KJValidationError('Preview exceeds the 32 new resource limit');
+    const designChange = design ? {
+        id: design.id,
+        before: design.definition,
+        after: readDesignRelations(draft, [
+            design.id
+        ])[0].definition,
+        record: draft.getObject(design.id)
+    } : undefined;
     const preview = {
         documentId: document.id,
         revision,
@@ -366,6 +387,9 @@ export async function createAgentGeometryPreview(document, command, args, option
         } : {},
         ...blockDependencies ? {
             blockDependencies
+        } : {},
+        ...designChange ? {
+            designChange
         } : {}
     };
     if (new TextEncoder().encode(JSON.stringify(preview)).length > 262144) throw new KJValidationError('Agent geometry preview exceeds the 256 KiB output limit');
@@ -373,7 +397,10 @@ export async function createAgentGeometryPreview(document, command, args, option
 }
 export function agentPreviewMatchesDocument(document, preview) {
     const retained = new Set(preview.after.map((entity)=>entity.id));
-    return document.id === preview.documentId && agentBlockDependenciesMatchDocument(document, preview.blockDependencies) && (preview.resources ?? []).every((expected)=>{
+    return document.id === preview.documentId && (!preview.designChange || (()=>{
+        const actual = document.getObject(preview.designChange.id);
+        return actual?.kind === 'custom' && !actual.erased && actual.type === 'DESIGN_RELATIONS' && canonicalStringify(actual) === canonicalStringify(preview.designChange.record);
+    })()) && agentBlockDependenciesMatchDocument(document, preview.blockDependencies) && (preview.resources ?? []).every((expected)=>{
         const actual = document.getObject(expected.id);
         return actual?.kind === 'table-record' && actual.type === expected.type && actual.name === expected.name && canonicalStringify(actual.payload) === canonicalStringify(expected.payload);
     }) && preview.after.every((expected)=>{

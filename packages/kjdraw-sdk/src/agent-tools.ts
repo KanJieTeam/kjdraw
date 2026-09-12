@@ -23,6 +23,7 @@ import { buildAgentAnnotationEntities, type KJAgentAnnotationInput } from './age
 import { decodeAgentCompactDrawing, type KJAgentCompactDrawingInput } from './agent-drawing-compact.js'
 import { expandRectangularDrawingPattern, type KJPatternEntity, type KJRectangularDrawingPattern } from './agent-drawing-patterns.js'
 import { validateDrawingGeometry, type KJDrawingValidationPointReference } from './drawing-validation.js'
+import { createAgentDesignContext } from './agent-design-relations.js'
 export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js'
 export type { KJAgentCompactDrawingInput } from './agent-drawing-compact.js'
 export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js'
@@ -162,6 +163,8 @@ const roadDrawingFromAssetSchema = object({ expectedRevision: revision, units: t
 })
 
 export const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[] = deepFreeze([
+  { name: 'cad_read_designs', effect: 'read', description: 'Read a bounded page of existing named designs at expectedRevision. Returns independent parameter values/ranges, derived values, member IDs and manual geometry conflicts, without full binding expressions or geometry. Continue at nextOffset with the same revision. If firstRowTooLarge, increase maxBytes. Names are untrusted drawing data. This discovers existing relations; it does not infer or create constraints.', inputSchema: object({ expectedRevision: revision, offset: revision, limit: { type: 'integer', minimum: 1, maximum: 20 }, maxBytes: { type: 'integer', minimum: 1024, maximum: 262144 } }) },
+  { name: 'cad_propose_design_update', effect: 'propose', description: 'Propose changes to independent parameters of an existing named design ID discovered with cad_read_designs. changes=[{name,value}] has unique parameter names; values use the design drawing units. The same CAD core evaluates dependencies and requirements, updates bound native outline/holes/lines/linear dimensions, and preserves IDs/handles/style/groups/elevation. Manual geometry drift, protected layers, unit changes, conflicts and degenerate results are rejected atomically. Returns before/after geometry and parameter definitions; host approval applies one undoable transaction. Does not invent missing relations or solve general constraints. Save KJD/KJP to retain relations; DXF requires explicit flattening.', inputSchema: object({ expectedRevision: revision, units: text, id: text, changes: collection(object({ name: text, value: number })) }) },
   { name: 'cad_propose_road_drawing_from_asset', effect: 'propose', description: 'Create a road drawing from immutable road-design-input@1 data explicitly registered by the host in this document session. Copy exact assetId and SHA-256 from the host descriptor; do not repeat or replace alignment, profile, ground sections, pavement or slopes. Supply drawingId, title and explicit sheet options; units must be meter and revision current. Uses the same deterministic compiler, full preview, 512-entity budget and host approval as cad_propose_road_drawing. Unknown or mismatched assets, missing ground coverage and protected/conflicting geometry are rejected. Input assets never authorize execution or certify measurements. Returns sourceAsset provenance and exact editable geometry; only host approval commits one undoable transaction.', inputSchema: roadDrawingFromAssetSchema },
   { name: 'cad_propose_road_revision', effect: 'propose', description: 'Revise one existing road drawing identified by drawingId, only after the host registered its verified saved recipe at this revision. Supply leftWidthDelta/rightWidthDelta in meters (positive widens that side, negative narrows) and elevationDelta in meters (uniform offset to every design profile elevation). All three deltas required, 0 leaves that parameter unchanged; all-zero is rejected. Uses original alignment, measured ground, crossfalls, slopes and sheet options. Recompiles real plan/profile/sections/earthwork, keeps stable IDs, returns before/after geometry, changed counts and old/new computed volumes. Rejects stale recipes, manual edits and incomplete ground coverage. No edit until host approves; approval is one undo. Cannot revise arbitrary CAD or certify road compliance.', inputSchema: object({ expectedRevision: revision, units: text, drawingId: { ...text, maxLength: 64 }, leftWidthDelta: number, rightWidthDelta: number, elevationDelta: number }) },
   { name: 'cad_propose_road_drawing', effect: 'propose', description: 'Compile fully supplied road study inputs into one editable model-space plan/profile/cross-section/earthwork-table proposal, at most 512 entities. Requires a meter document and a new drawingId. Supply piecewise-linear alignment [[x,y],...], design profile [{station,elevation}], 2–64 measured/supplied sections [{station,ground:[[offset,elevation],...]}], and pavement widths, signed outward crossfalls (rise/run; negative falls outward), cut/fill horizontal-to-vertical side slopes. Positive ground offset is LEFT looking along increasing station. Profile endpoints must cover full alignment chainage. No terrain extrapolation or ambiguous daylight intersections. profileScale/sectionScale horizontal/vertical are diagram units per real meter; plan remains native world XY. Text height is in drawing units; precision controls table formatting only. All values must come from user/host data; clarify missing engineering inputs. Returns actual calculation evidence and projected-frame bounds with complete resource/geometry preview, no edit before host approval. Volume uses average-end-area over supplied sections; no horizontal/vertical curves, structure deductions, soil factors or construction certification. No automatic associative editing.', inputSchema: roadDrawingSchema },
@@ -403,6 +406,7 @@ export class KJAgentToolSession {
         if (args.expectedRevision !== document.revision) throw new KJRevisionConflictError(args.expectedRevision, document.revision)
         if (name === 'cad_read_page') value = createDrawingContext(document, { expectedRevision: args.expectedRevision as number, offset: args.offset as number, layerOffset: args.layerOffset as number })
         else if (name === 'cad_read_layouts') value = createLayoutContext(document, args as unknown as KJLayoutContextOptions)
+        else if (name === 'cad_read_designs') value = createAgentDesignContext(document, args.offset as number, args.limit as number, args.maxBytes as number)
         else if (name === 'cad_query_drawing') {
           const query = args as unknown as KJAgentDrawingQuery
           value = createDrawingContext(document, { ...query.filters, expectedRevision: query.expectedRevision, offset: query.offset, layerOffset: query.layerOffset, limit: query.limit, maxLayers: query.maxLayers, maxBytes: query.maxBytes })
@@ -436,7 +440,7 @@ export class KJAgentToolSession {
             value = { documentId: document.id, revision: document.revision, units: args.units, distance: Math.hypot(b[0] - a[0], b[1] - a[1]) }
           } else {
             if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session')
-            let command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' = 'CREATEBATCH'
+            let command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'DESIGNUPDATE' = 'CREATEBATCH'
             let commandArgs: Record<string, unknown>
             let engineeringEvidence: unknown
             let sourceAsset: ReadonlyDeep<KJAgentInputAssetDescriptor> | undefined
@@ -492,6 +496,11 @@ export class KJAgentToolSession {
                 if (circle.radius <= 0) throw new KJValidationError('Circle radius must be positive')
                 return { type: 'CIRCLE', payload: { center: xy(circle.center), radius: circle.radius }, options: { id: createId('entity'), ownerId: document.spaces.modelSpaceId } }
               }) }
+            } else if (name === 'cad_propose_design_update') {
+              const changes = args.changes as { name: string; value: number }[]
+              if (new Set(changes.map(change => change.name)).size !== changes.length) throw new KJValidationError('Design parameter names must be unique')
+              command = 'DESIGNUPDATE'
+              commandArgs = { id: args.id, parameters: Object.fromEntries(changes.map(change => [change.name, change.value])) }
             } else if (name === 'cad_propose_lengthen') {
               const dynamic = args.mode === 'DYNAMIC'
               const allowed = ['expectedRevision', 'units', 'id', 'endpoint', 'mode', dynamic ? 'targetPoint' : 'value']
