@@ -2,7 +2,7 @@ import { KJAgentPlanRegistry } from './agent-plans.js'
 import type { KJAgentPlanRecord, KJAgentPlanRegistryOptions } from './agent-plans.js'
 import { buildSDKCapabilityManifest } from './capabilities.js'
 import { KJCommandRegistry, registerCoreCommands } from './commands.js'
-import type { KJCommandArguments, KJCommandDefinition, KJCommandInputContext } from './commands.js'
+import type { KJCommandArguments, KJCommandDefinition, KJCommandInputContext, KJRegisteredCommand } from './commands.js'
 import { KJDocument } from './document.js'
 import type { KJDocumentAuthority, KJDocumentConstructorOptions } from './document.js'
 import { createDXFFileAdapter } from './dxf-adapter.js'
@@ -63,6 +63,8 @@ export interface KJExecuteCommandOptions {
   author?: unknown
   expectedRevision?: number
   commandEnvelope?: Readonly<KJCommandEnvelope> | null
+  /** Pin execution to a previously reviewed registry definition across asynchronous approval checks. */
+  expectedCommandDefinition?: KJRegisteredCommand
 }
 
 export interface KJCreateSDKCommandEnvelopeOptions extends KJCreateCommandOptions {
@@ -318,6 +320,7 @@ export class KJDrawSDK {
       ...optionalProperty('author', options.author),
       ...optionalProperty('expectedRevision', options.expectedRevision),
       ...optionalProperty('commandEnvelope', options.commandEnvelope),
+      ...optionalProperty('expectedDefinition', options.expectedCommandDefinition),
     }
     return this.commands.execute(idOrEnvelope, context, args) as Promise<TResult>
   }
@@ -366,6 +369,7 @@ export class KJDrawSDK {
         document,
         ...optionalProperty('expectedRevision', envelope.expectedRevision ?? undefined),
         commandEnvelope: envelope,
+        ...optionalProperty('expectedCommandDefinition', options.expectedCommandDefinition),
       })
       const receipt = createCommandReceipt(envelope, {
         status: 'committed',

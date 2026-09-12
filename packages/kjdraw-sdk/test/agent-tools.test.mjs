@@ -15,12 +15,17 @@ const circleArgs = (revision = 0) => ({ expectedRevision: revision, units: 'mill
 function value(result) { assert.equal(result.ok, true, JSON.stringify(result)); return result.value }
 
 test('tool definitions are frozen serializable schemas with no approval or arbitrary execution tool', () => {
-  assert.equal(KJDRAW_AGENT_TOOLS.length, 18)
+  assert.equal(KJDRAW_AGENT_TOOLS.length, 19)
   assert.ok(KJDRAW_AGENT_TOOLS.every(tool => ['read', 'propose'].includes(tool.effect)))
   assert.deepEqual(JSON.parse(JSON.stringify(KJDRAW_AGENT_TOOLS)), KJDRAW_AGENT_TOOLS)
   for (const tool of KJDRAW_AGENT_TOOLS) {
     assert.equal(tool.inputSchema.additionalProperties, false)
-    assert.deepEqual(tool.inputSchema.required, Object.keys(tool.inputSchema.properties).filter(key => tool.name !== 'cad_propose_drawing_annotated' || key !== 'angularDimensions'))
+    const optional = tool.name === 'cad_propose_drawing_annotated'
+      ? ['angularDimensions']
+      : tool.name === 'cad_propose_polyline_edit'
+        ? ['segmentIndex', 'vertexIndex', 'point', 'tolerance', 'bulge', 'sweepDegrees']
+        : []
+    assert.deepEqual(tool.inputSchema.required, Object.keys(tool.inputSchema.properties).filter(key => !optional.includes(key)))
     assert.throws(() => { tool.inputSchema.additionalProperties = true }, TypeError)
   }
 })

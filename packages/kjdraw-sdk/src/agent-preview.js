@@ -3,6 +3,7 @@ import { KJCommandRegistry, registerCoreCommands } from './commands.js';
 import { KJValidationError } from './errors.js';
 import { canonicalStringify, deepFreeze } from './utils.js';
 import { projectDimension } from './geometry/annotation.js';
+import { displayedEntityBounds } from './selection-geometry.js';
 import { captureAgentBlockDependencies, agentBlockDependenciesMatchDocument } from './agent-preview-blocks.js';
 const project = (entity)=>({
         id: entity.id,
@@ -143,13 +144,35 @@ function validateTransformArguments(command, args) {
         if (typeof args.angleDegrees !== 'number' || !Number.isFinite(args.angleDegrees) || args.angleDegrees === 0 || Math.abs(args.angleDegrees) >= 360) throw new KJValidationError('Rotation must be nonzero degrees strictly between -360 and 360');
     } else if (typeof args.factor !== 'number' || !Number.isFinite(args.factor) || args.factor < 1e-6 || args.factor > 1e6 || args.factor === 1) throw new KJValidationError('Scale must be positive and between 0.000001 and 1000000, excluding 1');
 }
+function validatePolylineEditArguments(document, args) {
+    const entity = typeof args.id === 'string' ? document.getObject(args.id) : null;
+    if (!entity || ![
+        'LWPOLYLINE',
+        'POLYLINE'
+    ].includes(entity.type)) return;
+    if (args.operation === 'SET_BULGE') {
+        if (args.bulge != null && (typeof args.bulge !== 'number' || !Number.isFinite(args.bulge) || Math.abs(args.bulge) > 32)) throw new KJValidationError('PEDIT preview bulge must be finite within ±32');
+        if (args.sweepDegrees != null && (typeof args.sweepDegrees !== 'number' || !Number.isFinite(args.sweepDegrees) || Math.abs(args.sweepDegrees) > 350)) throw new KJValidationError('PEDIT preview sweep must be finite within ±350 degrees');
+    }
+    if (args.operation !== 'INSERT' || args.tolerance == null) return;
+    if (typeof args.tolerance !== 'number' || !Number.isFinite(args.tolerance) || args.tolerance < 0 || args.tolerance > 1000000) throw new KJValidationError('PEDIT preview tolerance must be finite from 0 to 1000000 drawing units');
+    const vertices = Array.isArray(entity.payload.vertices) ? entity.payload.vertices : [];
+    const segmentIndex = Number(args.segmentIndex);
+    const closed = entity.payload.closed === true || (Number(entity.payload.flags ?? 0) & 1) === 1;
+    const nextIndex = Number.isSafeInteger(segmentIndex) && segmentIndex >= 0 && segmentIndex + 1 < vertices.length ? segmentIndex + 1 : closed && segmentIndex === vertices.length - 1 ? 0 : -1;
+    const a = vertices[segmentIndex]?.point, b = vertices[nextIndex]?.point;
+    if (!Array.isArray(a) || !Array.isArray(b)) return;
+    const chord = Math.hypot(Number(b[0]) - Number(a[0]), Number(b[1]) - Number(a[1]));
+    if (Number.isFinite(chord) && args.tolerance > Math.max(1e-9, chord * 1e-6)) throw new KJValidationError('PEDIT preview tolerance exceeds one millionth of the selected segment length');
+}
 export async function createAgentGeometryPreview(document, command, args, options = {}) {
     if (![
         'CREATEBATCH',
         'MOVE',
         'ROTATE',
-        'SCALE'
-    ].includes(command)) throw new KJValidationError('This preview supports only CREATEBATCH, MOVE, ROTATE and SCALE');
+        'SCALE',
+        'PEDIT'
+    ].includes(command)) throw new KJValidationError('This preview supports only CREATEBATCH, MOVE, ROTATE, SCALE and PEDIT');
     const affine = command === 'ROTATE' || command === 'SCALE';
     if (affine) validateTransformArguments(command, args);
     const maxCreatedEntities = options.maxCreatedEntities ?? 64;
@@ -157,11 +180,25 @@ export async function createAgentGeometryPreview(document, command, args, option
     if (command === 'CREATEBATCH') {
         if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some((spec)=>!spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} LINE/CIRCLE/ARC/LWPOLYLINE/TEXT/DIMENSION entities`);
     } else {
-        if (!Array.isArray(args.ids) || !args.ids.length || args.ids.length > 64 || args.ids.some((id)=>!KJDRAW_AGENT_MOVABLE_TYPES.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`Preview movement requires 1–64 ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} entities`);
-        for (const id of args.ids)validateMovableAnnotation(document, document.getObject(String(id)));
+        const ids = command === 'PEDIT' ? [
+            args.id
+        ] : args.ids;
+        if (!Array.isArray(ids) || !ids.length || ids.length > 64) throw new KJValidationError('Preview requires 1–64 existing entity IDs');
+        if (command === 'PEDIT') {
+            if (typeof args.id !== 'string' || ids.length !== 1 || ![
+                'LWPOLYLINE',
+                'POLYLINE'
+            ].includes(document.getObject(args.id)?.type ?? '')) throw new KJValidationError('PEDIT preview requires one LWPOLYLINE or POLYLINE ID');
+            const entity = document.getObject(args.id), layer = document.getObject(String(entity.payload.layerId ?? ''));
+            if (entity.ownerId !== document.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new KJValidationError('PEDIT preview requires one visible editable model-space polyline');
+            validatePolylineEditArguments(document, args);
+        } else {
+            if (ids.some((id)=>!KJDRAW_AGENT_MOVABLE_TYPES.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`Preview movement requires 1–64 ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} entities`);
+            for (const id of ids)validateMovableAnnotation(document, document.getObject(String(id)));
+        }
         if (affine) {
-            if (args.ids.some((id)=>typeof id !== 'string') || new Set(args.ids).size !== args.ids.length) throw new KJValidationError('Object IDs must be unique strings');
-            for (const id of args.ids){
+            if (ids.some((id)=>typeof id !== 'string') || new Set(ids).size !== ids.length) throw new KJValidationError('Object IDs must be unique strings');
+            for (const id of ids){
                 const entity = document.getObject(String(id));
                 const layer = document.getObject(String(entity.payload.layerId ?? ''));
                 if (entity.ownerId !== document.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new KJValidationError('Transform preview requires visible editable model-space entities');
@@ -171,8 +208,15 @@ export async function createAgentGeometryPreview(document, command, args, option
     }
     const source = document.snapshot(), revision = document.revision;
     if (Object.keys(source.objects).length > 250000) throw new KJValidationError('Agent preview exceeds the 250000 object document limit');
-    const blockDependencies = command !== 'CREATEBATCH' ? captureAgentBlockDependencies(document, args.ids) : undefined;
-    const workingSet = command !== 'CREATEBATCH' ? args.ids.map((id)=>document.getObject(String(id))) : args.entities;
+    const ids = command === 'CREATEBATCH' ? [] : command === 'PEDIT' ? [
+        String(args.id)
+    ] : args.ids;
+    const blockDependencies = [
+        'MOVE',
+        'ROTATE',
+        'SCALE'
+    ].includes(command) ? captureAgentBlockDependencies(document, ids) : undefined;
+    const workingSet = command !== 'CREATEBATCH' ? ids.map((id)=>document.getObject(id)) : args.entities;
     if (new TextEncoder().encode(JSON.stringify({
         args,
         workingSet
@@ -184,7 +228,7 @@ export async function createAgentGeometryPreview(document, command, args, option
         document: draft,
         expectedRevision: revision
     }, args);
-    if (blockDependencies && canonicalStringify(captureAgentBlockDependencies(draft, args.ids)) !== canonicalStringify(blockDependencies)) throw new KJValidationError('Block definitions or styles changed during transform preview');
+    if (blockDependencies && canonicalStringify(captureAgentBlockDependencies(draft, ids)) !== canonicalStringify(blockDependencies)) throw new KJValidationError('Block definitions or styles changed during transform preview');
     if (document.revision !== revision || document.snapshot() !== source) throw new KJValidationError('Drawing changed while preparing the preview; propose again');
     const before = [], after = [];
     const old = new Map(document.listEntities().map((entity)=>[
@@ -197,12 +241,17 @@ export async function createAgentGeometryPreview(document, command, args, option
             if (previous) before.push(project(previous));
             if (command === 'MOVE') validateMovableAnnotation(draft, entity);
             if (affine) validateTransformGeometry(draft, entity);
+            if (command === 'PEDIT') {
+                const bounds = displayedEntityBounds(draft, entity);
+                if (!bounds || bounds.some((value)=>!Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError('PEDIT preview result exceeds the finite ±1e12 display budget');
+            }
             after.push(project(entity));
         }
         old.delete(entity.id);
     }
     for (const entity of old.values())before.push(project(entity));
     if (affine && !after.length) throw new KJValidationError('Transform would leave the selected geometry unchanged');
+    if (command === 'PEDIT' && !after.length) throw new KJValidationError('Polyline edit would leave the selected geometry unchanged');
     if (before.length > 64 || after.length > (command === 'CREATEBATCH' ? maxCreatedEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit');
     const resources = draft.listObjects({
         kind: 'table-record'

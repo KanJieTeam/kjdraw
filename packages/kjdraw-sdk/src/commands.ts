@@ -88,6 +88,8 @@ export interface KJCommandContext {
   readonly commandEnvelope?: KJCommandEnvelopeContext | null
   readonly events?: unknown
   readonly extensions?: unknown
+  /** Registry definition reviewed by a caller before an asynchronous execution boundary. */
+  readonly expectedDefinition?: KJRegisteredCommand
 }
 
 export type KJCommandInputContext = Partial<KJCommandContext>
@@ -385,6 +387,7 @@ export class KJCommandRegistry {
   async execute(id: unknown, context: KJCommandInputContext = {}, args: KJCommandArguments = {}): Promise<unknown> {
     const command = this.resolve(id)
     if (!command) throw new KJValidationError(`Unknown command: ${id}`)
+    if (context.expectedDefinition && command !== context.expectedDefinition) throw new KJValidationError(`Command changed before execution: ${command.id}`)
     // Explicit resource batches are a strict data boundary. Check before clone can
     // invoke accessors or normalize unusual object/array properties away.
     if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'resources')) validateCommandData(args)

@@ -153,7 +153,8 @@ export class KJDrawSDK {
             ...optionalProperty('document', document ?? undefined),
             ...optionalProperty('author', options.author),
             ...optionalProperty('expectedRevision', options.expectedRevision),
-            ...optionalProperty('commandEnvelope', options.commandEnvelope)
+            ...optionalProperty('commandEnvelope', options.commandEnvelope),
+            ...optionalProperty('expectedDefinition', options.expectedCommandDefinition)
         };
         return this.commands.execute(idOrEnvelope, context, args);
     }
@@ -200,7 +201,8 @@ export class KJDrawSDK {
                 ...options,
                 document,
                 ...optionalProperty('expectedRevision', envelope.expectedRevision ?? undefined),
-                commandEnvelope: envelope
+                commandEnvelope: envelope,
+                ...optionalProperty('expectedCommandDefinition', options.expectedCommandDefinition)
             });
             const receipt = createCommandReceipt(envelope, {
                 status: 'committed',

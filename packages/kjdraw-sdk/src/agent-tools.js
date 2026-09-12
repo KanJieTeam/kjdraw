@@ -164,6 +164,54 @@ const patternCount = {
     minimum: 1,
     maximum: 512
 };
+const polylineEditSchemaBase = object({
+    expectedRevision: revision,
+    units: text,
+    id: text,
+    operation: {
+        type: 'string',
+        enum: [
+            'INSERT',
+            'DELETE',
+            'SET_BULGE'
+        ]
+    },
+    segmentIndex: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 1000000
+    },
+    vertexIndex: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 1000000
+    },
+    point,
+    tolerance: {
+        type: 'number',
+        minimum: 0,
+        maximum: 1000000
+    },
+    bulge: {
+        type: 'number',
+        minimum: -32,
+        maximum: 32
+    },
+    sweepDegrees: {
+        type: 'number',
+        minimum: -350,
+        maximum: 350
+    }
+});
+const polylineEditSchema = {
+    ...polylineEditSchemaBase,
+    required: [
+        'expectedRevision',
+        'units',
+        'id',
+        'operation'
+    ]
+};
 const arraySchema = {
     type: 'array',
     minItems: 0,
@@ -541,6 +589,12 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
                 maximum: 1e6
             }
         })
+    },
+    {
+        name: 'cad_propose_polyline_edit',
+        effect: 'propose',
+        description: 'Propose one exact topology edit to a visible editable model-space LWPOLYLINE or ordinary 2D POLYLINE by ID. INSERT requires segmentIndex and point={x,y}; optional tolerance permits snapping to that straight or bulge-arc segment and splits the original curve and widths exactly. DELETE requires vertexIndex and refuses curve-adjacent deletion that would silently change shape. SET_BULGE requires segmentIndex and exactly one of signed bulge or sweepDegrees (-360,360), where 0 makes the segment straight. Special 3D, mesh, polyface and fitted POLYLINE data are rejected. Returns the complete before/after entity without editing; host approval commits one undoable PEDIT transaction with stable entity identity.',
+        inputSchema: polylineEditSchema
     },
     {
         name: 'cad_propose_drawing',
@@ -1155,6 +1209,75 @@ export class KJAgentToolSession {
                                     };
                                 })
                             };
+                        } else if (name === 'cad_propose_polyline_edit') {
+                            const operation = String(args.operation);
+                            const allowed = operation === 'INSERT' ? [
+                                'expectedRevision',
+                                'units',
+                                'id',
+                                'operation',
+                                'segmentIndex',
+                                'point',
+                                'tolerance'
+                            ] : operation === 'DELETE' ? [
+                                'expectedRevision',
+                                'units',
+                                'id',
+                                'operation',
+                                'vertexIndex'
+                            ] : [
+                                'expectedRevision',
+                                'units',
+                                'id',
+                                'operation',
+                                'segmentIndex',
+                                'bulge',
+                                'sweepDegrees'
+                            ];
+                            if (Object.keys(args).some((key)=>!allowed.includes(key))) throw new KJValidationError(`Unexpected argument for PEDIT ${operation}`);
+                            const id = String(args.id), context = createDrawingContext(document, {
+                                ids: [
+                                    id
+                                ],
+                                limit: 1,
+                                maxBytes: 262144
+                            });
+                            if (context.entities.length !== 1 || !context.entities[0].editable || ![
+                                'LWPOLYLINE',
+                                'POLYLINE'
+                            ].includes(context.entities[0].type)) throw new KJValidationError('Polyline edit requires one visible editable model-space LWPOLYLINE or POLYLINE');
+                            command = 'PEDIT';
+                            if (operation === 'INSERT') {
+                                if (args.segmentIndex == null || args.point == null) throw new KJValidationError('PEDIT INSERT requires segmentIndex and point');
+                                commandArgs = {
+                                    id,
+                                    operation,
+                                    segmentIndex: args.segmentIndex,
+                                    point: xy(args.point),
+                                    ...args.tolerance == null ? {} : {
+                                        tolerance: args.tolerance
+                                    }
+                                };
+                            } else if (operation === 'DELETE') {
+                                if (args.vertexIndex == null) throw new KJValidationError('PEDIT DELETE requires vertexIndex');
+                                commandArgs = {
+                                    id,
+                                    operation,
+                                    vertexIndex: args.vertexIndex
+                                };
+                            } else {
+                                if (args.segmentIndex == null || args.bulge == null === (args.sweepDegrees == null)) throw new KJValidationError('PEDIT SET_BULGE requires segmentIndex and exactly one of bulge or sweepDegrees');
+                                commandArgs = {
+                                    id,
+                                    operation,
+                                    segmentIndex: args.segmentIndex,
+                                    ...args.bulge == null ? {
+                                        sweepDegrees: args.sweepDegrees
+                                    } : {
+                                        bulge: args.bulge
+                                    }
+                                };
+                            }
                         } else {
                             const ids = args.ids;
                             if (new Set(ids).size !== ids.length) throw new KJValidationError('Object IDs must be unique');
@@ -1271,7 +1394,8 @@ export class KJAgentToolSession {
                     }
                 });
                 const executionReceipt = await this.#sdk.executeCommandEnvelope(execution, {
-                    document: this.#document
+                    document: this.#document,
+                    expectedCommandDefinition: roadPending.definition
                 });
                 if (executionReceipt.status !== 'committed') throw new KJValidationError('Road revision command did not commit');
                 const receipt = executionReceipt.result;
@@ -1313,7 +1437,8 @@ export class KJAgentToolSession {
             });
             this.#pending.delete(planId);
             const receipt = await this.#sdk.executeCommandEnvelope(envelope, {
-                document: this.#document
+                document: this.#document,
+                expectedCommandDefinition: pending.definition
             });
             if (!agentPreviewMatchesDocument(this.#document, pending.preview)) throw new KJValidationError('Committed geometry differs from the reviewed preview; inspect the drawing before any retry');
             return deepFreeze({

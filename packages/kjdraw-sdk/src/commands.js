@@ -595,6 +595,7 @@ export class KJCommandRegistry {
     async execute(id, context = {}, args = {}) {
         const command = this.resolve(id);
         if (!command) throw new KJValidationError(`Unknown command: ${id}`);
+        if (context.expectedDefinition && command !== context.expectedDefinition) throw new KJValidationError(`Command changed before execution: ${command.id}`);
         if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'resources')) validateCommandData(args);
         if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE');
         if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);

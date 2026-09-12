@@ -114,6 +114,15 @@ const drawingInputSchema = object({ expectedRevision: revision, units: text, lin
 const numericTuple = (length: number): KJAgentToolSchema => ({ type: 'array', items: number, minItems: length, maxItems: length })
 const compactDrawingProperties = { expectedRevision: revision, units: text, lines: drawingGroup(numericTuple(4)), circles: drawingGroup(numericTuple(3)), arcs: drawingGroup(numericTuple(5)), polylines: drawingGroup(object({ points: { ...collection(numericTuple(2)), minItems: 2 }, closed: { type: 'boolean' } })) }
 const patternCount: KJAgentToolSchema = { type: 'integer', minimum: 1, maximum: 512 }
+const polylineEditSchemaBase = object({
+  expectedRevision: revision, units: text, id: text,
+  operation: { type: 'string', enum: ['INSERT', 'DELETE', 'SET_BULGE'] },
+  segmentIndex: { type: 'integer', minimum: 0, maximum: 1000000 },
+  vertexIndex: { type: 'integer', minimum: 0, maximum: 1000000 },
+  point, tolerance: { type: 'number', minimum: 0, maximum: 1000000 }, bulge: { type: 'number', minimum: -32, maximum: 32 },
+  sweepDegrees: { type: 'number', minimum: -350, maximum: 350 },
+})
+const polylineEditSchema: KJAgentToolSchema = { ...polylineEditSchemaBase, required: ['expectedRevision', 'units', 'id', 'operation'] }
 
 const arraySchema: KJAgentToolSchema = { type: 'array', minItems: 0, maxItems: 16, items: object({ sources: collection({ type: 'string', minLength: 6, maxLength: 12 }), rows: patternCount, columns: patternCount, dx: number, dy: number }) }
 const annotationSource = object({ source: { type: 'string', enum: ['document', 'proposal'] }, id: text })
@@ -164,6 +173,7 @@ export const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[] = deepFreeze([
   { name: 'cad_propose_move', effect: 'propose', description: `Propose an XY displacement of 1–64 visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} objects identified by exact IDs. TEXT and supported native DIMENSION must have drawable geometry on model XY at z=0 with default +Z orientation. All annotation points translate together; dimension measurements, text and guide directions are preserved. Include both geometry and its annotations to move a complete detail; this does not establish associative constraints or move only a dimension label. INSERT requires a local, visible, unlocked block graph with positive uniform XY scale, no attributes or external references, up to 8 levels and 512 expanded instances; complete block geometry and styles are included in blockDependencies within 128 KiB. Native block DIMENSION is measured in its original local definition; instance transforms change its display, not the annotated value. Unsupported, cyclic or incomplete graphs are rejected. Returns complete before/after native geometry; the host must approve before edits apply.`, inputSchema: object({ expectedRevision: revision, units: text, ids: collection(text), dx: number, dy: number }) },
   { name: 'cad_propose_rotate', effect: 'propose', description: `Propose rotation of 1–64 exact visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs around explicit center={x,y} in drawing units. angleDegrees is counterclockwise from the current orientation, strictly between -360 and 360, excluding 0; negative is clockwise. Geometry must be default +Z, z=0, within ±1e12; wide polylines and unsupported annotation projections are rejected. Include geometry and annotations together to rotate a detail; native dimensions retain measurements. INSERT uses the same bounded local blockDependencies as cad_propose_move. Native block DIMENSION keeps its original local measurement while its graphics follow the instance transform; attributes, reflection, nonuniform scales and external/cyclic/protected block graphs are rejected. Returns exact before/after geometry and block dependencies without editing; host approval applies one undoable transaction.`, inputSchema: object({ expectedRevision: revision, units: text, ids: collection(text), center: point, angleDegrees: { type: 'number', minimum: -360, maximum: 360 } }) },
   { name: 'cad_propose_scale', effect: 'propose', description: `Propose positive uniform scaling of 1–64 exact visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs around explicit center={x,y} in drawing units. factor is dimensionless, 0.000001–1000000 excluding 1; no reflection or nonuniform scaling. Geometry must be default +Z, z=0, within ±1e12; wide polylines and unsupported annotation projections are rejected. Include geometry and annotations together to scale a detail. TEXT height scales; native DIMENSION definition/text positions and measured lengths scale while dimension style/text height remain unchanged; angular measurements remain unchanged. INSERT keeps definitions unchanged and returns bounded blockDependencies as in cad_propose_move. Dimensions inside blocks preserve their original local measured values while their lines, arrows, arcs and text display scale with the instance. Attributes, reflection, nonuniform scales and external/cyclic/protected graphs are rejected. Returns exact before/after geometry without editing; host approval applies one undoable transaction.`, inputSchema: object({ expectedRevision: revision, units: text, ids: collection(text), center: point, factor: { type: 'number', minimum: 1e-6, maximum: 1e6 } }) },
+  { name: 'cad_propose_polyline_edit', effect: 'propose', description: 'Propose one exact topology edit to a visible editable model-space LWPOLYLINE or ordinary 2D POLYLINE by ID. INSERT requires segmentIndex and point={x,y}; optional tolerance permits snapping to that straight or bulge-arc segment and splits the original curve and widths exactly. DELETE requires vertexIndex and refuses curve-adjacent deletion that would silently change shape. SET_BULGE requires segmentIndex and exactly one of signed bulge or sweepDegrees (-360,360), where 0 makes the segment straight. Special 3D, mesh, polyface and fitted POLYLINE data are rejected. Returns the complete before/after entity without editing; host approval commits one undoable PEDIT transaction with stable entity identity.', inputSchema: polylineEditSchema },
   { name: 'cad_propose_drawing', effect: 'propose', description: 'Compose 1–64 total LINE, CIRCLE, ARC and straight-segment LWPOLYLINE entities as one drawing proposal and one undoable edit. Supply all four groups; unused groups are empty arrays. Model XY, z=0, drawing units. Arc angles are degrees 0–360, counterclockwise from +X; a full circle belongs in circles. Closed polylines close automatically: do not repeat the first vertex. Returns before/after geometry without modifying the drawing. Host review and approval are required. No dimensions or design constraints are inferred.', inputSchema: drawingInputSchema },
   { name: 'cad_propose_drawing_compact', effect: 'propose', description: 'Propose 1–64 total entities in model XY, z=0, drawing units. Supply all four groups; unused groups are []. lines=[x1,y1,x2,y2], circles=[cx,cy,r], arcs=[cx,cy,r,startDegrees,endDegrees], polyline points=[x,y]. Radii >0; arc angles 0–360, counterclockwise from +X, no full circles. Straight polylines close automatically; do not repeat the first point. Returns geometry without editing; host approval applies one undoable edit. No design constraints are inferred.', inputSchema: object(compactDrawingProperties) },
   { name: 'cad_propose_drawing_pattern', effect: 'propose', description: 'Propose 1–64 base entities and up to 16 rectangular arrays, at most 512 total entities. Model XY, z=0, drawing units. Required groups: lines=[x1,y1,x2,y2], circles=[cx,cy,r], arcs=[cx,cy,r,startDegrees,endDegrees], polylines={points:[[x,y],...],closed}; unused groups/arrays=[]. Radius >0; arcs CCW from +X, angles 0–360, no full circles. Straight polylines close automatically, no repeated first point. Define seeds in their groups first. sources are group-local zero-based references, e.g. ["circles:0"]; groups are lines,circles,arcs,polylines. References must exist and be unique within/across arrays. Each base occurs once; rows/columns include its original position. Copies add column*dx,row*dy; repeated axes need nonzero spacing. Full geometry preview, no edit before host approval, one undoable edit. No design constraints inferred.', inputSchema: object({ ...compactDrawingProperties, arrays: { type: 'array', minItems: 0, maxItems: 16, items: object({ sources: collection({ type: 'string', minLength: 6, maxLength: 12 }), rows: patternCount, columns: patternCount, dx: number, dy: number }) } }) },
@@ -422,7 +432,7 @@ export class KJAgentToolSession {
             value = { documentId: document.id, revision: document.revision, units: args.units, distance: Math.hypot(b[0] - a[0], b[1] - a[1]) }
           } else {
             if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session')
-            let command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' = 'CREATEBATCH'
+            let command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'PEDIT' = 'CREATEBATCH'
             let commandArgs: Record<string, unknown>
             let engineeringEvidence: unknown
             let sourceAsset: ReadonlyDeep<KJAgentInputAssetDescriptor> | undefined
@@ -478,6 +488,27 @@ export class KJAgentToolSession {
                 if (circle.radius <= 0) throw new KJValidationError('Circle radius must be positive')
                 return { type: 'CIRCLE', payload: { center: xy(circle.center), radius: circle.radius }, options: { id: createId('entity'), ownerId: document.spaces.modelSpaceId } }
               }) }
+            } else if (name === 'cad_propose_polyline_edit') {
+              const operation = String(args.operation)
+              const allowed = operation === 'INSERT'
+                ? ['expectedRevision', 'units', 'id', 'operation', 'segmentIndex', 'point', 'tolerance']
+                : operation === 'DELETE'
+                  ? ['expectedRevision', 'units', 'id', 'operation', 'vertexIndex']
+                  : ['expectedRevision', 'units', 'id', 'operation', 'segmentIndex', 'bulge', 'sweepDegrees']
+              if (Object.keys(args).some(key => !allowed.includes(key))) throw new KJValidationError(`Unexpected argument for PEDIT ${operation}`)
+              const id = String(args.id), context = createDrawingContext(document, { ids: [id], limit: 1, maxBytes: 262144 })
+              if (context.entities.length !== 1 || !context.entities[0]!.editable || !['LWPOLYLINE', 'POLYLINE'].includes(context.entities[0]!.type)) throw new KJValidationError('Polyline edit requires one visible editable model-space LWPOLYLINE or POLYLINE')
+              command = 'PEDIT'
+              if (operation === 'INSERT') {
+                if (args.segmentIndex == null || args.point == null) throw new KJValidationError('PEDIT INSERT requires segmentIndex and point')
+                commandArgs = { id, operation, segmentIndex: args.segmentIndex, point: xy(args.point), ...(args.tolerance == null ? {} : { tolerance: args.tolerance }) }
+              } else if (operation === 'DELETE') {
+                if (args.vertexIndex == null) throw new KJValidationError('PEDIT DELETE requires vertexIndex')
+                commandArgs = { id, operation, vertexIndex: args.vertexIndex }
+              } else {
+                if (args.segmentIndex == null || (args.bulge == null) === (args.sweepDegrees == null)) throw new KJValidationError('PEDIT SET_BULGE requires segmentIndex and exactly one of bulge or sweepDegrees')
+                commandArgs = { id, operation, segmentIndex: args.segmentIndex, ...(args.bulge == null ? { sweepDegrees: args.sweepDegrees } : { bulge: args.bulge }) }
+              }
             } else {
               const ids = args.ids as string[]
               if (new Set(ids).size !== ids.length) throw new KJValidationError('Object IDs must be unique')
@@ -521,7 +552,7 @@ export class KJAgentToolSession {
         // Consume before attempting the mutation, just like command-envelope proposals.
         this.#roadPending.delete(planId)
         const execution = this.#sdk.createCommandEnvelope('ROAD_DRAWING_UPDATE', roadPending.envelope.arguments, { document: this.#document, expectedRevision: roadPending.preview.revision, origin: 'ai', confirmation: { status: 'confirmed', planId, confirmedBy: reviewerId } })
-        const executionReceipt = await this.#sdk.executeCommandEnvelope<ReadonlyDeep<KJRoadDrawingRevisionReceipt>>(execution, { document: this.#document })
+        const executionReceipt = await this.#sdk.executeCommandEnvelope<ReadonlyDeep<KJRoadDrawingRevisionReceipt>>(execution, { document: this.#document, expectedCommandDefinition: roadPending.definition })
         if (executionReceipt.status !== 'committed') throw new KJValidationError('Road revision command did not commit')
         const receipt = executionReceipt.result as ReadonlyDeep<KJRoadDrawingRevisionReceipt>
         if (!agentPreviewMatchesDocument(this.#document, roadPending.preview)) throw new KJValidationError('Committed road geometry differs from the reviewed preview; inspect before retrying')
@@ -539,7 +570,7 @@ export class KJAgentToolSession {
       })
       // Never automatically replay an attempted mutation after an uncertain outcome.
       this.#pending.delete(planId)
-      const receipt = await this.#sdk.executeCommandEnvelope(envelope, { document: this.#document })
+      const receipt = await this.#sdk.executeCommandEnvelope(envelope, { document: this.#document, expectedCommandDefinition: pending.definition })
       if (!agentPreviewMatchesDocument(this.#document, pending.preview)) throw new KJValidationError('Committed geometry differs from the reviewed preview; inspect the drawing before any retry')
       return deepFreeze({ ok: true, value: { command: receipt.command, beforeRevision: receipt.beforeRevision, afterRevision: receipt.afterRevision, status: receipt.status, ...(pending.sourceAsset ? { sourceAsset: pending.sourceAsset } : {}) } }) as KJAgentToolResult
     } catch (error) { return failure(error) } finally { this.#busy = false }
