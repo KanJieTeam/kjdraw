@@ -8,7 +8,7 @@ import { editHatch } from './hatch-edit.js';
 import { entityArea2, entityLength2, distance2, dot2, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
 import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
-import { migratePolylineDimensionAssociations, normalizeDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js';
+import { migrateBreakDimensionAssociations, migratePolylineDimensionAssociations, normalizeDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js';
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js';
 import { KJ_SNAP_MODES } from './snapping.js';
 import { selectEntitiesByProperty } from './selection.js';
@@ -1715,13 +1715,26 @@ export function registerCoreCommands(registry) {
         title: 'Break entity',
         execute: ({ document, transaction }, args)=>{
             const entity = requiredEntity(document, args.id), pieces = breakEntityPayloads(entity, args);
-            requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'BREAK');
-            transaction.eraseObject(entity.id);
-            const derived = pieces.map((piece)=>createDerived(transaction, entity, piece.type, piece.payload));
+            if (pieces.length !== 2 || pieces[0].type !== entity.type || pieces[1].type !== entity.type) throw new KJValidationError('BREAK requires two deterministic native pieces');
+            const leading = transaction.updateObject(entity.id, {
+                payload: pieces[0].payload
+            });
+            const trailing = createDerived(transaction, entity, pieces[1].type, pieces[1].payload);
+            migrateBreakDimensionAssociations(transaction, entity.id, trailing.id);
+            refreshAssociativeDimensions(transaction, [
+                leading.id,
+                trailing.id
+            ]);
             replaceEntityMemberships(transaction, [
                 entity.id
-            ], derived.map((piece)=>piece.id));
-            return derived;
+            ], [
+                leading.id,
+                trailing.id
+            ]);
+            return [
+                leading,
+                trailing
+            ];
         }
     }, {
         owner: '@kanjieteam/kjdraw'

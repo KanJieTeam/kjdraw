@@ -20,5 +20,7 @@ export type KJPolylineDimensionAssociationEdit = {
 };
 /** Keep LWPOLYLINE vertex references on the same physical vertices after PEDIT index changes. */
 export declare function migratePolylineDimensionAssociations(transaction: KJTransaction, sourceId: string, edit: KJPolylineDimensionAssociationEdit): KJObjectRecord[];
+/** Preserve unique endpoint references when BREAK keeps the leading piece identity. */
+export declare function migrateBreakDimensionAssociations(transaction: KJTransaction, sourceId: string, trailingId: string): KJObjectRecord[];
 /** Recompute native DIMENSION definition points after referenced geometry changed. */
 export declare function refreshAssociativeDimensions(transaction: KJTransaction, changedEntityIds: Iterable<string>): KJObjectRecord[];

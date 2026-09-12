@@ -23,7 +23,7 @@ import { clone, deepFreeze, normalizeName, stableHash } from './utils.js'
 import type { ReadonlyDeep } from './utils.js'
 import { editEntityGrip } from './grips.js'
 import type { KJPointInput } from './grips.js'
-import { migratePolylineDimensionAssociations, normalizeDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js'
+import { migrateBreakDimensionAssociations, migratePolylineDimensionAssociations, normalizeDimensionAssociations, refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js'
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js'
 import { KJ_SNAP_MODES } from './snapping.js'
 import type { KJDocument, KJDocumentHistoryOptions, KJDocumentTransactionOptions } from './document.js'
@@ -959,11 +959,13 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'BREAK', aliases: ['BR'], title: 'Break entity',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id), pieces = breakEntityPayloads(entity, args)
-      requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'BREAK')
-      transaction.eraseObject(entity.id)
-      const derived = pieces.map(piece => createDerived(transaction, entity, piece.type, piece.payload))
-      replaceEntityMemberships(transaction, [entity.id], derived.map(piece => piece.id))
-      return derived
+      if (pieces.length !== 2 || pieces[0]!.type !== entity.type || pieces[1]!.type !== entity.type) throw new KJValidationError('BREAK requires two deterministic native pieces')
+      const leading = transaction.updateObject(entity.id, { payload: pieces[0]!.payload })
+      const trailing = createDerived(transaction, entity, pieces[1]!.type, pieces[1]!.payload)
+      migrateBreakDimensionAssociations(transaction, entity.id, trailing.id)
+      refreshAssociativeDimensions(transaction, [leading.id, trailing.id])
+      replaceEntityMemberships(transaction, [entity.id], [leading.id, trailing.id])
+      return [leading, trailing]
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({

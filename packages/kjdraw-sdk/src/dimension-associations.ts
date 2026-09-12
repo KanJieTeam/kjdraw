@@ -99,6 +99,23 @@ export function migratePolylineDimensionAssociations(transaction: KJTransaction,
   return updated
 }
 
+/** Preserve unique endpoint references when BREAK keeps the leading piece identity. */
+export function migrateBreakDimensionAssociations(transaction: KJTransaction, sourceId: string, trailingId: string): KJObjectRecord[] {
+  const updated: KJObjectRecord[] = []
+  for (const readonlyDimension of Object.values(transaction._draft().objects)) {
+    if (readonlyDimension.kind !== 'entity' || readonlyDimension.type !== 'DIMENSION' || readonlyDimension.erased || !Array.isArray(readonlyDimension.payload.dimensionAssociations)) continue
+    const associations = normalizeDimensionAssociations(readonlyDimension.payload.dimensionAssociations)
+    if (!associations.some(item => item.entityId === sourceId)) continue
+    const migrated = associations.map(association => {
+      if (association.entityId !== sourceId || association.feature === 'start') return association
+      if (association.feature === 'end') return { ...association, entityId: trailingId }
+      return fail(`BREAK cannot uniquely migrate ${association.feature} reference from ${sourceId}`)
+    })
+    if (stableHash(migrated) !== stableHash(associations)) updated.push(transaction.updateObject(readonlyDimension.id, { payload: { dimensionAssociations: migrated } }))
+  }
+  return updated
+}
+
 const point3 = (value: unknown, name: string): [number, number, number] => {
   if (!Array.isArray(value) || value.length !== 3 || value.some(item => typeof item !== 'number' || !Number.isFinite(item)) || value[2] !== 0) return fail(`${name} must be a finite model-XY point`)
   return [value[0], value[1], value[2]]

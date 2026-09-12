@@ -48,15 +48,15 @@ test('PEDIT migrates vertex indices without changing the referenced physical ver
 
 test('PEDIT rejects deletion of a referenced vertex but preserves stable vertex anchors through arc switching', async () => {
   const { sdk, drawing, polyline, dimension } = await polylineFixture('dimension-pedit-arc')
-  const before = drawing.serialize(), revision = drawing.revision
+  const polylineBefore = drawing.serialize(), polylineRevision = drawing.revision
   await assert.rejects(sdk.executeCommand('PEDIT', { id: polyline.id, operation: 'DELETE', vertexIndex: 2 }, { document: drawing }), error => error instanceof KJValidationError && /cannot delete vertex/.test(error.message))
-  assert.equal(drawing.serialize(), before); assert.equal(drawing.revision, revision)
+  assert.equal(drawing.serialize(), polylineBefore); assert.equal(drawing.revision, polylineRevision)
   await sdk.executeCommand('PEDIT', { id: polyline.id, operation: 'SET_BULGE', segmentIndex: 0, sweepDegrees: 45 }, { document: drawing })
   assert.deepEqual(associations(drawing, dimension.id).map(item => item.vertexIndex), [0, 2])
   assert.equal(measurement(drawing, dimension.id), 10)
 })
 
-test('BREAK, JOIN and EXPLODE reject referenced source replacement atomically', async () => {
+test('BREAK migrates unique endpoint references while JOIN and EXPLODE reject ambiguous replacement', async () => {
   const lineSdk = createKJDrawSDK(), lineDrawing = lineSdk.createDocument({ documentId: 'dimension-topology-lines' })
   const first = await lineSdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0, 0, 0], end: [10, 0, 0] } }, { document: lineDrawing })
   const second = await lineSdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [10, 0, 0], end: [20, 0, 0] } }, { document: lineDrawing })
@@ -64,19 +64,18 @@ test('BREAK, JOIN and EXPLODE reject referenced source replacement atomically', 
   draft.addPoint([0, 0], { entityId: first.id, feature: 'start' })
   draft.addPoint([10, 0], { entityId: first.id, feature: 'end' })
   await lineSdk.executeCommand('CREATE', draft.addPoint([5, 4]), { document: lineDrawing })
-  for (const [command, args] of [
-    ['BREAK', { id: first.id, point: [5, 0, 0] }],
-    ['JOIN', { id: first.id, ids: [first.id, second.id] }],
-  ]) {
-    const before = lineDrawing.serialize(), revision = lineDrawing.revision
-    await assert.rejects(lineSdk.executeCommand(command, args, { document: lineDrawing }), /cannot split or replace/)
-    assert.equal(lineDrawing.serialize(), before); assert.equal(lineDrawing.revision, revision)
-  }
+  const dimension = lineDrawing.listEntities({ type: 'DIMENSION' })[0], pieces = await lineSdk.executeCommand('BREAK', { id: first.id, point: [5, 0, 0] }, { document: lineDrawing })
+  assert.equal(pieces[0].id, first.id); assert.notEqual(pieces[1].id, first.id)
+  assert.deepEqual(lineDrawing.getObject(dimension.id).payload.dimensionAssociations.map(item => [item.feature, item.entityId]), [['start', first.id], ['end', pieces[1].id]])
+  assert.equal(measurement(lineDrawing, dimension.id), 10)
+  const before = lineDrawing.serialize(), revision = lineDrawing.revision
+  await assert.rejects(lineSdk.executeCommand('JOIN', { id: pieces[1].id, ids: [pieces[1].id, second.id] }, { document: lineDrawing }), /cannot split or replace/)
+  assert.equal(lineDrawing.serialize(), before); assert.equal(lineDrawing.revision, revision)
 
   const { sdk, drawing, polyline } = await polylineFixture('dimension-topology-explode')
-  const before = drawing.serialize(), revision = drawing.revision
+  const polylineBefore = drawing.serialize(), polylineRevision = drawing.revision
   await assert.rejects(sdk.executeCommand('EXPLODE', { id: polyline.id }, { document: drawing }), /cannot split or replace/)
-  assert.equal(drawing.serialize(), before); assert.equal(drawing.revision, revision)
+  assert.equal(drawing.serialize(), polylineBefore); assert.equal(drawing.revision, polylineRevision)
 })
 
 test('protected associated dimensions roll back PEDIT index migration', async t => {
