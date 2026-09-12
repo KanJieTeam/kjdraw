@@ -1221,7 +1221,8 @@ async function commitAgentTaskTransformApproval(document, tx, input, command) {
     const currentDrift = await drift(document, task);
     if (!currentDrift.unitsMatch || currentDrift.driftedEntityIds.length) fail(`task scope drifted${currentDrift.unitsMatch ? `: ${currentDrift.driftedEntityIds.join(', ')}` : ': drawing units changed'}`);
     const beforeEntities = Object.values(document.snapshot().objects).filter((object)=>!object.erased && object.kind === 'entity');
-    const afterEntities = Object.values(tx._draft().objects).filter((object)=>!object.erased && object.kind === 'entity');
+    const transactionObjects = Object.keys(tx._draft().objects).map((id)=>tx.getObject(id));
+    const afterEntities = transactionObjects.filter((object)=>!object.erased && object.kind === 'entity');
     const beforeIds = beforeEntities.map((object)=>object.id).sort(), afterIds = afterEntities.map((object)=>object.id).sort();
     if (canonicalStringify(beforeIds) !== canonicalStringify(afterIds)) fail(`${command} cannot create, erase or replace entities`);
     const beforeById = new Map(beforeEntities.map((object)=>[
@@ -1248,7 +1249,7 @@ async function commitAgentTaskTransformApproval(document, tx, input, command) {
         checks: requirements
     });
     if (!validation.passed) fail(`reviewed ${command} does not satisfy every deterministic geometry requirement`);
-    const nextScope = await scopeFrom((value)=>tx.getObject(value), Object.values(tx._draft().objects), scopedIds);
+    const nextScope = await scopeFrom((value)=>tx.getObject(value), transactionObjects, scopedIds);
     const at = timestamp(row.at, 'approval timestamp');
     if (Date.parse(at) < Date.parse(task.updatedAt)) fail('approval timestamp precedes the task');
     const taskVersion = task.taskVersion + 1;
