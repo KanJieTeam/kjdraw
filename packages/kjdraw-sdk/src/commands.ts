@@ -4,6 +4,7 @@ import { createCommandEditScope } from './edit-policy.js'
 import { applyRoadDrawingRevision } from './road-drawing-update.js'
 import { createDesignRelations, updateDesignRelations } from './design-relations.js'
 import { editHatch } from './hatch-edit.js'
+import { insertCatalogComponent, searchComponentCatalog } from './component-library.js'
 import type { KJRoadDrawingResult } from './road-drawing.js'
 import {
   entityArea2,
@@ -146,6 +147,11 @@ export interface KJCommandArguments extends Record<string, unknown> {
   property?: string
   status?: string
   referenceType?: string
+  componentId?: string
+  version?: string
+  locale?: string
+  category?: string
+  cursor?: string | number
   gripId?: string
   sha256?: string | null
   checkedAt?: unknown
@@ -173,6 +179,7 @@ export interface KJCommandArguments extends Record<string, unknown> {
   mappings?: unknown
   pattern?: unknown
   settings?: Record<string, unknown>
+  parameters?: unknown
   position?: unknown
   insertionPoint?: unknown
   center?: KJPointInput
@@ -254,6 +261,7 @@ export interface KJCommandArguments extends Record<string, unknown> {
   selectable?: unknown
   side?: unknown
   limit?: unknown
+  maxDefinitionEntities?: unknown
 }
 
 export interface KJCommandDefinition {
@@ -330,6 +338,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   SNAPSETTINGS: { domain: 'drafting-settings', snapModes: KJ_SNAP_MODES },
   BLOCKCREATE: { domain: 'block', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },
   BLOCKINSERT: { domain: 'block', entityType: 'INSERT' },
+  COMPONENTSEARCH: { domain: 'component-library', operation: 'search', catalog: 'readonly', pagination: 'cursor', maximumResults: 50 },
+  COMPONENTINSERT: { domain: 'component-library', operation: 'insert', entityType: 'INSERT', definitionType: 'BLOCK_RECORD', atomic: true, maximumDefinitionEntities: 64 },
   BLOCKINSTANCEUPDATE: { domain: 'block', scope: 'single-instance', entityType: 'INSERT', stableIdentity: true },
   BLOCKDEFINITIONUPDATE: { domain: 'block', scope: 'shared-definition', stableIdentity: true },
   XREFATTACH: { domain: 'external-reference', authority: 'local-file-or-project-asset', remoteUrls: false },
@@ -656,6 +666,18 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
         layerId: args.layerId,
       } as KJObjectPayload, { ownerId: args.ownerId } as KJObjectSpec)
     },
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'COMPONENTSEARCH', title: 'Search component library', transactional: false,
+    execute: (_context, args) => searchComponentCatalog({ query: args.query, category: args.category, locale: args.locale, limit: args.limit, cursor: args.cursor }),
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'COMPONENTINSERT', title: 'Insert library component',
+    execute: ({ document, transaction }, args) => insertCatalogComponent(document, transaction, {
+      componentId: args.componentId, version: args.version, units: args.units, parameters: args.parameters,
+      position: args.position, scale: args.scale, rotation: args.rotation, layerId: args.layerId,
+      ownerId: args.ownerId, maxDefinitionEntities: args.maxDefinitionEntities,
+    }),
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'BLOCKINSTANCEUPDATE', title: 'Update one block instance',

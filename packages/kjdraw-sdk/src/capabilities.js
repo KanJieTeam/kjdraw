@@ -56,6 +56,8 @@ export const KJDRAW_1_0_READINESS_PROFILE = Object.freeze({
         'SNAPSETTINGS',
         'BLOCKCREATE',
         'BLOCKINSERT',
+        'COMPONENTSEARCH',
+        'COMPONENTINSERT',
         'BLOCKINSTANCEUPDATE',
         'BLOCKDEFINITIONUPDATE',
         'GROUP',

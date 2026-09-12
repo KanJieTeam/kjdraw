@@ -101,6 +101,11 @@ export interface KJCommandArguments extends Record<string, unknown> {
     property?: string;
     status?: string;
     referenceType?: string;
+    componentId?: string;
+    version?: string;
+    locale?: string;
+    category?: string;
+    cursor?: string | number;
     gripId?: string;
     sha256?: string | null;
     checkedAt?: unknown;
@@ -128,6 +133,7 @@ export interface KJCommandArguments extends Record<string, unknown> {
     mappings?: unknown;
     pattern?: unknown;
     settings?: Record<string, unknown>;
+    parameters?: unknown;
     position?: unknown;
     insertionPoint?: unknown;
     center?: KJPointInput;
@@ -209,6 +215,7 @@ export interface KJCommandArguments extends Record<string, unknown> {
     selectable?: unknown;
     side?: unknown;
     limit?: unknown;
+    maxDefinitionEntities?: unknown;
 }
 export interface KJCommandDefinition {
     readonly id: string;
@@ -446,6 +453,21 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
     readonly BLOCKINSERT: {
         domain: string;
         entityType: string;
+    };
+    readonly COMPONENTSEARCH: {
+        domain: string;
+        operation: string;
+        catalog: string;
+        pagination: string;
+        maximumResults: number;
+    };
+    readonly COMPONENTINSERT: {
+        domain: string;
+        operation: string;
+        entityType: string;
+        definitionType: string;
+        atomic: boolean;
+        maximumDefinitionEntities: number;
     };
     readonly BLOCKINSTANCEUPDATE: {
         domain: string;

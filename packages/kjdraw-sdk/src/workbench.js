@@ -149,6 +149,23 @@ const copy = {
         hatchPatternAngle: 'Pattern angle (degrees)',
         hatchNoIslands: 'No inner islands',
         hatchApply: 'Apply hatch edit',
+        componentLibrary: 'Components',
+        componentLibraryDescription: 'Search the versioned original catalog, review license and parameters, then insert a native editable block.',
+        componentSearch: 'Search components',
+        componentCategory: 'Category',
+        componentAll: 'All categories',
+        componentMechanical: 'Mechanical',
+        componentArchitecture: 'Architecture',
+        componentElectrical: 'Electrical',
+        componentResults: 'Search results',
+        componentLicense: 'License and source',
+        componentPosition: 'Insertion X, Y',
+        componentScale: 'Scale',
+        componentRotation: 'Rotation (degrees)',
+        componentParameters: 'Parameters',
+        componentInsert: 'Insert component',
+        previous: 'Previous',
+        next: 'Next',
         firstPoint: 'Specify the first point',
         nextPoint: 'Specify the next point',
         finishPolyline: 'Click vertices · Enter or double-click to finish',
@@ -358,6 +375,23 @@ const copy = {
         hatchPatternAngle: '图案角度（度）',
         hatchNoIslands: '没有内岛',
         hatchApply: '应用填充修改',
+        componentLibrary: '部件库',
+        componentLibraryDescription: '搜索版本化原创目录，审查许可和参数后插入原生可编辑块。',
+        componentSearch: '搜索部件',
+        componentCategory: '类别',
+        componentAll: '全部类别',
+        componentMechanical: '机械',
+        componentArchitecture: '建筑',
+        componentElectrical: '电气',
+        componentResults: '搜索结果',
+        componentLicense: '许可与来源',
+        componentPosition: '插入 X, Y',
+        componentScale: '比例',
+        componentRotation: '旋转角度（度）',
+        componentParameters: '参数',
+        componentInsert: '插入部件',
+        previous: '上一页',
+        next: '下一页',
         firstPoint: '指定第一个点',
         nextPoint: '指定下一个点',
         finishPolyline: '连续指定顶点 · Enter 或双击完成',
@@ -1081,7 +1115,7 @@ export class KJDrawWorkbench {
             'pan',
             'measure'
         ];
-        for (const button of this.root.querySelectorAll('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-action="page-setup"],[data-action="dimension-styles"],[data-action="text-styles"],[data-tool]'))button.disabled = this.#readOnly && !allowed.includes(button.dataset.tool ?? '');
+        for (const button of this.root.querySelectorAll('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-action="component-library"],[data-action="page-setup"],[data-action="dimension-styles"],[data-action="text-styles"],[data-tool]'))button.disabled = this.#readOnly && !allowed.includes(button.dataset.tool ?? '');
         const command = this.root.querySelector('[data-command]'), run = this.root.querySelector('[data-action="run-command"]');
         if (command) command.disabled = this.paperPreview;
         if (run) run.disabled = this.paperPreview;
@@ -1448,7 +1482,7 @@ export class KJDrawWorkbench {
       </header>
       <nav class="ribbon" aria-label="CAD tools">
         <div class="group"><button type="button" class="tool active" data-tool="select">${icon('select')}<small data-copy="select">${t('select')}</small></button><button type="button" class="tool" data-tool="pan">${icon('pan')}<small data-copy="pan">${t('pan')}</small></button><span data-copy="view">${t('view')}</span></div>
-        <div class="group"><button type="button" class="tool" data-tool="point" ${readonly ? 'disabled' : ''}>${icon('point')}<small data-draft-label="point">${this.#localizedControlText(draftToolText.point)}</small></button><button type="button" class="tool" data-tool="line" ${readonly ? 'disabled' : ''}>${icon('line')}<small data-copy="line">${t('line')}</small></button><button type="button" class="tool" data-tool="polyline" ${readonly ? 'disabled' : ''}>${icon('polyline')}<small data-copy="polyline">${t('polyline')}</small></button><button type="button" class="tool" data-tool="circle" ${readonly ? 'disabled' : ''}>${icon('circle')}<small data-copy="circle">${t('circle')}</small></button><button type="button" class="tool" data-tool="arc" ${readonly ? 'disabled' : ''}>${icon('arc')}<small data-copy="arc">${t('arc')}</small></button><button type="button" class="tool" data-tool="ellipse" ${readonly ? 'disabled' : ''}>${icon('ellipse')}<small data-draft-label="ellipse">${this.#localizedControlText(draftToolText.ellipse)}</small></button><button type="button" class="tool" data-tool="rectangle" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-copy="rectangle">${t('rectangle')}</small></button><button type="button" class="tool" data-tool="polygon" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-draft-label="polygon">${this.#localizedControlText(draftToolText.polygon)}</small></button><button type="button" class="tool" data-tool="dimension" ${readonly ? 'disabled' : ''}>${icon('measure')}<small data-draft-label="dimension">${this.#localizedControlText(draftToolText.dimension)}</small></button><button type="button" class="tool" data-tool="text" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-copy="text">${t('text')}</small></button><button type="button" class="tool" data-action="draft" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="moreDraw">${t('moreDraw')}</small></button><span data-copy="draw">${t('draw')}</span></div>
+        <div class="group"><button type="button" class="tool" data-tool="point" ${readonly ? 'disabled' : ''}>${icon('point')}<small data-draft-label="point">${this.#localizedControlText(draftToolText.point)}</small></button><button type="button" class="tool" data-tool="line" ${readonly ? 'disabled' : ''}>${icon('line')}<small data-copy="line">${t('line')}</small></button><button type="button" class="tool" data-tool="polyline" ${readonly ? 'disabled' : ''}>${icon('polyline')}<small data-copy="polyline">${t('polyline')}</small></button><button type="button" class="tool" data-tool="circle" ${readonly ? 'disabled' : ''}>${icon('circle')}<small data-copy="circle">${t('circle')}</small></button><button type="button" class="tool" data-tool="arc" ${readonly ? 'disabled' : ''}>${icon('arc')}<small data-copy="arc">${t('arc')}</small></button><button type="button" class="tool" data-tool="ellipse" ${readonly ? 'disabled' : ''}>${icon('ellipse')}<small data-draft-label="ellipse">${this.#localizedControlText(draftToolText.ellipse)}</small></button><button type="button" class="tool" data-tool="rectangle" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-copy="rectangle">${t('rectangle')}</small></button><button type="button" class="tool" data-tool="polygon" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-draft-label="polygon">${this.#localizedControlText(draftToolText.polygon)}</small></button><button type="button" class="tool" data-tool="dimension" ${readonly ? 'disabled' : ''}>${icon('measure')}<small data-draft-label="dimension">${this.#localizedControlText(draftToolText.dimension)}</small></button><button type="button" class="tool" data-tool="text" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-copy="text">${t('text')}</small></button><button type="button" class="tool" data-action="component-library" ${readonly ? 'disabled' : ''}>${icon('layers')}<small data-copy="componentLibrary">${t('componentLibrary')}</small></button><button type="button" class="tool" data-action="draft" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="moreDraw">${t('moreDraw')}</small></button><span data-copy="draw">${t('draw')}</span></div>
         <div class="group"><button type="button" class="tool" data-tool="move" ${readonly ? 'disabled' : ''}>${icon('move')}<small data-copy="move">${t('move')}</small></button><button type="button" class="tool" data-tool="copy" ${readonly ? 'disabled' : ''}>${icon('copy')}<small data-copy="copy">${t('copy')}</small></button><button type="button" class="tool" data-action="modify" ${readonly ? 'disabled' : ''}>${icon('rotate')}<small data-copy="modifyTools">${t('modifyTools')}</small></button><button type="button" class="tool" data-action="undo" ${readonly ? 'disabled' : ''}>${icon('undo')}<small data-copy="undo">${t('undo')}</small></button><button type="button" class="tool" data-action="redo" ${readonly ? 'disabled' : ''}>${icon('redo')}<small data-copy="redo">${t('redo')}</small></button><button type="button" class="tool" data-action="erase" ${readonly ? 'disabled' : ''}>${icon('delete')}<small data-copy="erase">${t('erase')}</small></button><span data-copy="modify">${t('modify')}</span></div>
         <div class="group"><button type="button" class="tool" data-action="fit">${icon('fit')}<small data-copy="fit">${t('fit')}</small></button><button type="button" class="tool" data-action="grid">${icon('grid')}<small data-copy="grid">${t('grid')}</small></button><button type="button" class="tool" data-tool="measure">${icon('measure')}<small data-copy="measure">${t('measure')}</small></button><span data-copy="view">${t('view')}</span></div>
       </nav>
@@ -1692,6 +1726,9 @@ export class KJDrawWorkbench {
             signal
         });
         query(this.root, '[data-action="draft"]').addEventListener('click', ()=>this.#openDraftDialog(), {
+            signal
+        });
+        query(this.root, '[data-action="component-library"]').addEventListener('click', ()=>void this.#openComponentLibrary(), {
             signal
         });
         const draftDialog = query(this.root, '[data-draft-dialog]');
@@ -5215,6 +5252,123 @@ export class KJDrawWorkbench {
             row.append(label, ...controls, count);
             host.append(row);
         }
+    }
+    async #openComponentLibrary() {
+        const drawing = this.document;
+        if (!drawing || this.#readOnly) return;
+        const revision = drawing.revision;
+        const dialog = document.createElement('dialog');
+        dialog.className = 'modify-dialog component-dialog';
+        dialog.dataset.componentDialog = '';
+        dialog.innerHTML = '<form method="dialog" class="modify-form"><header class="modify-head"><h2>' + this.#t('componentLibrary') + '</h2><p>' + this.#t('componentLibraryDescription') + '</p></header><div class="modify-body"><div class="modify-fields"><label class="field"><span>' + this.#t('componentSearch') + '</span><input type="search" data-component-query></label><label class="field"><span>' + this.#t('componentCategory') + '</span><select data-component-category><option value="">' + this.#t('componentAll') + '</option><option value="mechanical">' + this.#t('componentMechanical') + '</option><option value="architecture">' + this.#t('componentArchitecture') + '</option><option value="electrical">' + this.#t('componentElectrical') + '</option></select></label></div><button type="button" data-component-search>' + this.#t('componentSearch') + '</button><label class="field"><span>' + this.#t('componentResults') + '</span><select data-component-results size="3"></select></label><p class="modify-order" data-component-description></p><p class="modify-order" data-component-license></p><fieldset><legend>' + this.#t('componentParameters') + '</legend><div class="modify-fields" data-component-parameters></div></fieldset><div class="modify-fields"><label class="field"><span>' + this.#t('componentPosition') + '</span><input data-component-position value="0, 0" required></label><label class="field"><span>' + this.#t('componentScale') + '</span><input data-component-scale type="number" min="0.000001" max="1000000" step="any" value="1" required></label><label class="field"><span>' + this.#t('componentRotation') + '</span><input data-component-rotation type="number" min="-360" max="360" step="any" value="0" required></label></div><div><button type="button" data-component-previous>' + this.#t('previous') + '</button><button type="button" data-component-next>' + this.#t('next') + '</button></div><p role="alert" data-component-error></p></div><footer class="modify-actions"><button type="button" data-component-cancel>' + this.#t('cancel') + '</button><button type="button" class="confirm" data-component-insert>' + this.#t('componentInsert') + '</button></footer></form>';
+        this.root.append(dialog);
+        const queryInput = query(dialog, '[data-component-query]'), category = query(dialog, '[data-component-category]');
+        const results = query(dialog, '[data-component-results]'), description = query(dialog, '[data-component-description]');
+        const license = query(dialog, '[data-component-license]'), parameterHost = query(dialog, '[data-component-parameters]');
+        const previous = query(dialog, '[data-component-previous]'), next = query(dialog, '[data-component-next]');
+        let page = null, cursor = null, cursors = [];
+        const item = ()=>page?.items.find((candidate)=>candidate.id === results.value) ?? null;
+        const syncItem = ()=>{
+            const selected = item();
+            parameterHost.replaceChildren();
+            if (!selected) {
+                description.textContent = '';
+                license.textContent = '';
+                return;
+            }
+            const zh = this.#locale === 'zh-CN';
+            description.textContent = (zh ? selected.description.zh : selected.description.en) + ` · ${selected.id}@${selected.version}`;
+            license.textContent = `${this.#t('componentLicense')}: ${selected.license.spdx} · ${selected.license.source} · ${selected.license.sourceUrl}`;
+            for (const parameter of selected.parameters){
+                const field = document.createElement('label');
+                field.className = 'field';
+                const label = document.createElement('span');
+                label.textContent = `${zh ? parameter.label.zh : parameter.label.en} (${parameter.unit})`;
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.step = parameter.integer ? '1' : 'any';
+                input.min = String(parameter.minimum);
+                input.max = String(parameter.maximum);
+                input.value = String(parameter.default);
+                input.dataset.componentParameter = parameter.name;
+                field.append(label, input);
+                parameterHost.append(field);
+            }
+        };
+        const load = async (targetCursor, remember = true)=>{
+            const result = await this.sdk.executeCommand('COMPONENTSEARCH', {
+                query: queryInput.value,
+                category: category.value,
+                locale: this.#locale,
+                limit: 3,
+                ...targetCursor === null ? {} : {
+                    cursor: targetCursor
+                }
+            }, {
+                document: drawing
+            });
+            page = result;
+            cursor = targetCursor;
+            if (remember && cursors.at(-1) !== targetCursor) cursors.push(targetCursor);
+            results.replaceChildren(...result.items.map((entry)=>{
+                const option = document.createElement('option');
+                option.value = entry.id;
+                option.textContent = `${this.#locale === 'zh-CN' ? entry.title.zh : entry.title.en} · ${entry.license.spdx}`;
+                return option;
+            }));
+            if (result.items.length) results.value = result.items[0].id;
+            previous.disabled = cursors.length < 2;
+            next.disabled = result.nextCursor === null;
+            syncItem();
+        };
+        const close = ()=>{
+            if (dialog.open) dialog.close();
+            else dialog.remove();
+        };
+        dialog.addEventListener('close', ()=>dialog.remove(), {
+            once: true
+        });
+        query(dialog, '[data-component-cancel]').addEventListener('click', close);
+        results.addEventListener('change', syncItem);
+        query(dialog, '[data-component-search]').addEventListener('click', ()=>void this.#run(async ()=>{
+                cursors = [];
+                await load(null);
+            }));
+        next.addEventListener('click', ()=>void this.#run(async ()=>{
+                if (page?.nextCursor) await load(page.nextCursor);
+            }));
+        previous.addEventListener('click', ()=>void this.#run(async ()=>{
+                if (cursors.length > 1) {
+                    cursors.pop();
+                    await load(cursors.at(-1) ?? null, false);
+                }
+            }));
+        query(dialog, '[data-component-insert]').addEventListener('click', ()=>void this.#run(async ()=>{
+                const selected = item();
+                if (!selected) throw new Error(this.#t('componentResults'));
+                const coordinates = query(dialog, '[data-component-position]').value.split(/[ ,]+/).filter(Boolean).map(Number);
+                if (coordinates.length !== 2 || coordinates.some((value)=>!Number.isFinite(value))) throw new Error(this.#t('componentPosition'));
+                const parameters = Object.fromEntries([
+                    ...parameterHost.querySelectorAll('[data-component-parameter]')
+                ].map((input)=>[
+                        input.dataset.componentParameter,
+                        Number(input.value)
+                    ]));
+                await this.execute('COMPONENTINSERT', {
+                    componentId: selected.id,
+                    version: selected.version,
+                    units: drawing.snapshot().header.units,
+                    parameters,
+                    position: coordinates,
+                    scale: Number(query(dialog, '[data-component-scale]').value),
+                    rotation: Number(query(dialog, '[data-component-rotation]').value) * Math.PI / 180
+                }, {
+                    expectedRevision: revision
+                });
+                close();
+            }));
+        dialog.showModal();
+        await this.#run(()=>load(null));
     }
     #openHatchEditor(entity, sourceIds = []) {
         const drawing = this.document;

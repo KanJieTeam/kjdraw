@@ -5,6 +5,7 @@ import { createCommandEditScope } from './edit-policy.js';
 import { applyRoadDrawingRevision } from './road-drawing-update.js';
 import { createDesignRelations, updateDesignRelations } from './design-relations.js';
 import { editHatch } from './hatch-edit.js';
+import { insertCatalogComponent, searchComponentCatalog } from './component-library.js';
 import { entityArea2, entityLength2, distance2, dot2, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
 import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
@@ -378,6 +379,21 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
     BLOCKINSERT: {
         domain: 'block',
         entityType: 'INSERT'
+    },
+    COMPONENTSEARCH: {
+        domain: 'component-library',
+        operation: 'search',
+        catalog: 'readonly',
+        pagination: 'cursor',
+        maximumResults: 50
+    },
+    COMPONENTINSERT: {
+        domain: 'component-library',
+        operation: 'insert',
+        entityType: 'INSERT',
+        definitionType: 'BLOCK_RECORD',
+        atomic: true,
+        maximumDefinitionEntities: 64
     },
     BLOCKINSTANCEUPDATE: {
         domain: 'block',
@@ -1038,6 +1054,38 @@ export function registerCoreCommands(registry) {
                 ownerId: args.ownerId
             });
         }
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'COMPONENTSEARCH',
+        title: 'Search component library',
+        transactional: false,
+        execute: (_context, args)=>searchComponentCatalog({
+                query: args.query,
+                category: args.category,
+                locale: args.locale,
+                limit: args.limit,
+                cursor: args.cursor
+            })
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'COMPONENTINSERT',
+        title: 'Insert library component',
+        execute: ({ document, transaction }, args)=>insertCatalogComponent(document, transaction, {
+                componentId: args.componentId,
+                version: args.version,
+                units: args.units,
+                parameters: args.parameters,
+                position: args.position,
+                scale: args.scale,
+                rotation: args.rotation,
+                layerId: args.layerId,
+                ownerId: args.ownerId,
+                maxDefinitionEntities: args.maxDefinitionEntities
+            })
     }, {
         owner: '@kanjieteam/kjdraw'
     }));

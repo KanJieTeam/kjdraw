@@ -549,6 +549,31 @@ async function editSelectedHatch(entity,sourceIds=[]){
   if(exactSource)command.sourceIds=sourceIds
   await execute('HATCHEDIT',command,{expectedRevision:revision})
 }
+async function openComponentLibrary(){
+  const drawing=doc(),revision=drawing.revision,locale=i18n.locale==='zh'?'zh-CN':'en'
+  const search=await requestLocalCommand({title:t('componentLibrary'),description:t('componentSearchHelp'),fields:[
+    {name:'query',label:t('componentQuery'),value:''},
+    {name:'category',label:t('componentCategory'),value:'',required:false,options:[['',t('componentAll')],['mechanical',i18n.locale==='zh'?'机械':'Mechanical'],['architecture',i18n.locale==='zh'?'建筑':'Architecture'],['electrical',i18n.locale==='zh'?'电气':'Electrical']]},
+  ]})
+  if(!search)return
+  const found=await sdk.executeCommand('COMPONENTSEARCH',{query:search.query,category:search.category,locale,limit:20},{document:drawing})
+  if(!found.items.length)throw new Error(t('componentNoResults'))
+  const selected=await requestLocalCommand({title:t('componentLibrary'),description:t('componentSearchHelp'),fields:[{name:'componentId',label:t('componentResult'),value:found.items[0].id,options:found.items.map(item=>[item.id,`${locale==='zh-CN'?item.title.zh:item.title.en} · ${item.license.spdx}`])}]})
+  if(!selected)return
+  const component=found.items.find(item=>item.id===selected.componentId)
+  if(!component)throw new Error(t('componentNoResults'))
+  const review=(locale==='zh-CN'?component.description.zh:component.description.en)+`\n${component.id}@${component.version}\n${component.license.spdx} · ${component.license.source}\n${component.license.sourceUrl}`
+  const fields=[...component.parameters.map(parameter=>({name:`parameter_${parameter.name}`,label:`${locale==='zh-CN'?parameter.label.zh:parameter.label.en} (${parameter.unit})`,type:'number',value:parameter.default,min:parameter.minimum,max:parameter.maximum,step:parameter.integer?1:'any'})),
+    {name:'position',label:t('componentPosition'),value:'0, 0'},{name:'scale',label:t('componentScale'),type:'number',value:1,min:.000001,max:1000000,step:'any'},{name:'rotation',label:t('componentRotation'),type:'number',value:0,min:-360,max:360,step:'any'}]
+  const values=await requestLocalCommand({title:locale==='zh-CN'?component.title.zh:component.title.en,description:review,submitLabel:t('componentInsert'),fields})
+  if(!values)return
+  const position=String(values.position).split(/[ ,]+/).filter(Boolean).map(Number)
+  if(position.length!==2||position.some(value=>!Number.isFinite(value)))throw new Error(t('componentPosition'))
+  const parameters=Object.fromEntries(component.parameters.map(parameter=>[parameter.name,Number(values[`parameter_${parameter.name}`])]))
+  if(doc()!==drawing)throw new Error(t('drawingChanged'))
+  const receipt=await execute('COMPONENTINSERT',{componentId:component.id,version:component.version,units:drawing.snapshot().header.units,parameters,position,scale:Number(values.scale),rotation:Number(values.rotation)*Math.PI/180},{expectedRevision:revision})
+  replaceSelection([receipt.result.insert.id]);setTool('select');refresh();fit()
+}
 function requestLocalCommand({title,description='',submitLabel,fields=[]}) {
   const dialog=$('app-dialog'),form=$('dialog-form'),fieldRoot=$('dialog-fields')
   form.onkeydown=event=>{if(event.key==='Enter'&&event.target.tagName==='INPUT'){event.preventDefault();form.requestSubmit($('dialog-submit'))}}
@@ -1066,7 +1091,9 @@ function initializeDraftingControls(){
     const option=bilingual(document.createElement('option'),en,zh);option.value=value;picker.append(option)
   }
   picker.setAttribute('aria-label',i18n.locale==='zh'?'绘图工具':'Drawing tool');picker.onchange=()=>{if(!busy){setTool(picker.value);canvas.focus()}}
-  library.append(picker);document.querySelector('.ribbon-groups').insertBefore(library,document.querySelector('.ribbon-group[data-section="modify"]'))
+  library.append(picker)
+  const components=bilingual(document.createElement('button'),'Components','部件库');components.id='component-library';components.type='button';components.onclick=()=>run(openComponentLibrary);library.append(components)
+  document.querySelector('.ribbon-groups').insertBefore(library,document.querySelector('.ribbon-group[data-section="modify"]'))
   const options=document.createElement('div');options.id='draft-options';options.className='draft-options';options.hidden=true;options.setAttribute('role','toolbar');options.setAttribute('aria-label','Drawing options')
   const add=(id,en,zh,tools,values,defaultValue,limits={})=>{
     const label=document.createElement('label');label.dataset.draftTools=tools;label.append(bilingual(document.createElement('span'),en,zh));let input

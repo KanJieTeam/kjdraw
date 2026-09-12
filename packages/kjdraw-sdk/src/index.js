@@ -1,6 +1,7 @@
 // Generated from index.ts by scripts/build-typescript.mjs. Do not edit directly.
 export * from './editor.js';
 export * from './commands.js';
+export * from './component-library.js';
 export * from './agent-plans.js';
 export * from './agent-tools.js';
 export * from './agent-capabilities.js';
