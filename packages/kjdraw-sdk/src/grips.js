@@ -2,6 +2,7 @@
 import { KJValidationError } from './errors.js';
 import { arcSweep, distance2, midpoint2, translation3, transformEntityPayload, vec2 } from './geometry/index.js';
 import { clone } from './utils.js';
+const TAU = Math.PI * 2;
 function point3(value, label = 'grip point') {
     const [x, y] = vec2(value, label);
     const record = value;
@@ -20,6 +21,33 @@ function polar(center, radius, angle) {
         value[1] + radius * Math.sin(angle),
         value[2]
     ];
+}
+function ellipsePoint(payload, parameter) {
+    const center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio);
+    return [
+        center[0] + major[0] * Math.cos(parameter) - major[1] * ratio * Math.sin(parameter),
+        center[1] + major[1] * Math.cos(parameter) + major[0] * ratio * Math.sin(parameter),
+        center[2] + major[2] * Math.cos(parameter)
+    ];
+}
+function ellipseParameter(payload, target) {
+    const center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio);
+    const majorLength = Math.hypot(major[0], major[1]);
+    if (!(majorLength > 1e-12) || !(ratio > 1e-12)) throw new KJValidationError('ELLIPSE axes must be non-degenerate');
+    const dx = target[0] - center[0], dy = target[1] - center[1];
+    const alongMajor = (dx * major[0] + dy * major[1]) / (majorLength * majorLength);
+    const alongMinor = (-dx * major[1] + dy * major[0]) / (majorLength * majorLength * ratio);
+    if (Math.hypot(alongMajor, alongMinor) <= 1e-12) throw new KJValidationError('Elliptical arc endpoint cannot be placed at its center');
+    return Math.atan2(alongMinor, alongMajor);
+}
+function ccwSweep(start, end) {
+    const sweep = ((end - start) % TAU + TAU) % TAU;
+    if (sweep <= 1e-10 || TAU - sweep <= 1e-10) throw new KJValidationError('Elliptical arc endpoints must define a non-zero partial sweep');
+    return sweep;
+}
+function isPartialEllipse(payload) {
+    const span = Number(payload.endParameter ?? TAU) - Number(payload.startParameter ?? 0);
+    return Number.isFinite(span) && Math.abs(span) > 1e-10 && Math.abs(span) < TAU - 1e-10;
 }
 function vertexPoint(vertex) {
     return Array.isArray(vertex) || !('point' in vertex) ? vertex : vertex.point;
@@ -131,6 +159,10 @@ export function getEntityGrips(entity) {
                     center[1] - minor[1],
                     center[2]
                 ]);
+                if (isPartialEllipse(payload)) {
+                    add('start-parameter', 'endpoint', ellipsePoint(payload, Number(payload.startParameter ?? 0)));
+                    add('end-parameter', 'endpoint', ellipsePoint(payload, Number(payload.endParameter ?? TAU)));
+                }
                 break;
             }
         case 'SPLINE':
@@ -279,7 +311,17 @@ export function editEntityGrip(entity, gripId, targetPoint) {
             {
                 if (gripId === 'center') return moveWhole();
                 const center = point3(payload.center);
-                if (gripId.startsWith('major:')) {
+                if (gripId === 'start-parameter' || gripId === 'end-parameter') {
+                    if (!isPartialEllipse(payload)) throw new KJValidationError('Full ellipses do not have independently editable endpoints');
+                    const parameter = ellipseParameter(payload, target);
+                    if (gripId === 'start-parameter') {
+                        const end = Number(payload.endParameter);
+                        payload.startParameter = end - ccwSweep(parameter, end);
+                    } else {
+                        const start = Number(payload.startParameter);
+                        payload.endParameter = start + ccwSweep(start, parameter);
+                    }
+                } else if (gripId.startsWith('major:')) {
                     const sign = gripId.endsWith('negative') ? -1 : 1;
                     payload.majorAxis = [
                         (target[0] - center[0]) * sign,

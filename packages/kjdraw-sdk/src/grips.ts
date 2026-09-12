@@ -3,6 +3,8 @@ import { arcSweep, distance2, midpoint2, translation3, transformEntityPayload, v
 import { clone } from './utils.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 
+const TAU = Math.PI * 2
+
 export type KJGripPoint = [number, number, number]
 export type KJPointInput = readonly number[] | { x: number; y: number; z?: number }
 
@@ -38,6 +40,8 @@ interface KJGripPayload extends KJObjectPayload {
   closed?: boolean
   majorAxis: KJPointInput
   ratio: number
+  startParameter?: number
+  endParameter?: number
   controlPoints?: KJPointInput[]
   fitPoints?: KJPointInput[]
   alignmentPoint?: KJPointInput
@@ -58,6 +62,37 @@ function point3(value: KJPointInput, label = 'grip point'): KJGripPoint {
 function polar(center: KJPointInput, radius: number, angle: number): KJGripPoint {
   const value = point3(center)
   return [value[0] + radius * Math.cos(angle), value[1] + radius * Math.sin(angle), value[2]]
+}
+
+function ellipsePoint(payload: KJGripPayload, parameter: number): KJGripPoint {
+  const center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio)
+  return [
+    center[0] + major[0] * Math.cos(parameter) - major[1] * ratio * Math.sin(parameter),
+    center[1] + major[1] * Math.cos(parameter) + major[0] * ratio * Math.sin(parameter),
+    center[2] + major[2] * Math.cos(parameter),
+  ]
+}
+
+function ellipseParameter(payload: KJGripPayload, target: KJGripPoint): number {
+  const center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio)
+  const majorLength = Math.hypot(major[0], major[1])
+  if (!(majorLength > 1e-12) || !(ratio > 1e-12)) throw new KJValidationError('ELLIPSE axes must be non-degenerate')
+  const dx = target[0] - center[0], dy = target[1] - center[1]
+  const alongMajor = (dx * major[0] + dy * major[1]) / (majorLength * majorLength)
+  const alongMinor = (-dx * major[1] + dy * major[0]) / (majorLength * majorLength * ratio)
+  if (Math.hypot(alongMajor, alongMinor) <= 1e-12) throw new KJValidationError('Elliptical arc endpoint cannot be placed at its center')
+  return Math.atan2(alongMinor, alongMajor)
+}
+
+function ccwSweep(start: number, end: number): number {
+  const sweep = ((end - start) % TAU + TAU) % TAU
+  if (sweep <= 1e-10 || TAU - sweep <= 1e-10) throw new KJValidationError('Elliptical arc endpoints must define a non-zero partial sweep')
+  return sweep
+}
+
+function isPartialEllipse(payload: KJGripPayload): boolean {
+  const span = Number(payload.endParameter ?? TAU) - Number(payload.startParameter ?? 0)
+  return Number.isFinite(span) && Math.abs(span) > 1e-10 && Math.abs(span) < TAU - 1e-10
 }
 
 function vertexPoint(vertex: KJPointInput | KJGripVertex): KJPointInput {
@@ -112,6 +147,10 @@ export function getEntityGrips(entity: KJReadonlyObjectRecord): readonly KJEntit
       add('major:negative', 'major-radius', [center[0] - mx, center[1] - my, center[2]])
       add('minor:positive', 'minor-radius', [center[0] + minor[0], center[1] + minor[1], center[2]])
       add('minor:negative', 'minor-radius', [center[0] - minor[0], center[1] - minor[1], center[2]])
+      if (isPartialEllipse(payload)) {
+        add('start-parameter', 'endpoint', ellipsePoint(payload, Number(payload.startParameter ?? 0)))
+        add('end-parameter', 'endpoint', ellipsePoint(payload, Number(payload.endParameter ?? TAU)))
+      }
       break
     }
     case 'SPLINE':
@@ -201,7 +240,15 @@ export function editEntityGrip(entity: KJReadonlyObjectRecord, gripId: string, t
     case 'ELLIPSE': {
       if (gripId === 'center') return moveWhole()
       const center = point3(payload.center)
-      if (gripId.startsWith('major:')) {
+      if (gripId === 'start-parameter' || gripId === 'end-parameter') {
+        if (!isPartialEllipse(payload)) throw new KJValidationError('Full ellipses do not have independently editable endpoints')
+        const parameter = ellipseParameter(payload, target)
+        if (gripId === 'start-parameter') {
+          const end = Number(payload.endParameter); payload.startParameter = end - ccwSweep(parameter, end)
+        } else {
+          const start = Number(payload.startParameter); payload.endParameter = start + ccwSweep(start, parameter)
+        }
+      } else if (gripId.startsWith('major:')) {
         const sign = gripId.endsWith('negative') ? -1 : 1
         payload.majorAxis = [(target[0] - center[0]) * sign, (target[1] - center[1]) * sign, (target[2] - center[2]) * sign]
       } else payload.ratio = distance2(center, target) / Math.hypot(...vec2(payload.majorAxis))
