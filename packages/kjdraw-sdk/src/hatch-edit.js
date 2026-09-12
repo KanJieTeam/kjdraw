@@ -1,5 +1,7 @@
 // Generated from hatch-edit.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJValidationError } from './errors.js';
+import { intersectCircleCircle2, intersectLineCircle2, intersectLineLine2 } from './geometry/intersections.js';
+const TAU = Math.PI * 2;
 function fail(message) {
     throw new KJValidationError(`HATCHEDIT: ${message}`);
 }
@@ -16,6 +18,31 @@ function point(value, index) {
 }
 const cross = (a, b, c)=>(b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
 const same = (a, b)=>a[0] === b[0] && a[1] === b[1];
+const distance = (a, b)=>Math.hypot(a[0] - b[0], a[1] - b[1]);
+const normalizeAngle = (value)=>(value % TAU + TAU) % TAU;
+const directedSweep = (edge)=>{
+    const raw = edge.counterClockwise ? edge.endAngle - edge.startAngle : edge.startAngle - edge.endAngle;
+    if (Math.abs(raw) >= TAU - 1e-12) return TAU;
+    return normalizeAngle(raw);
+};
+const arcPoint = (edge, atEnd = false)=>{
+    const angle = atEnd ? edge.endAngle : edge.startAngle;
+    return [
+        edge.center[0] + edge.radius * Math.cos(angle),
+        edge.center[1] + edge.radius * Math.sin(angle),
+        0
+    ];
+};
+const arcPointAt = (edge, progress)=>{
+    const angle = edge.startAngle + (edge.counterClockwise ? progress : -progress);
+    return [
+        edge.center[0] + edge.radius * Math.cos(angle),
+        edge.center[1] + edge.radius * Math.sin(angle),
+        0
+    ];
+};
+const edgeStart = (edge)=>edge.type === 'LINE' ? edge.start : arcPoint(edge);
+const edgeEnd = (edge)=>edge.type === 'LINE' ? edge.end : arcPoint(edge, true);
 const between = (a, b, c)=>c >= Math.min(a, b) - 1e-10 && c <= Math.max(a, b) + 1e-10;
 const onSegment = (a, b, p)=>Math.abs(cross(a, b, p)) <= 1e-10 && between(a[0], b[0], p[0]) && between(a[1], b[1], p[1]);
 function segmentsIntersect(a, b, c, d) {
@@ -29,47 +56,260 @@ function polygonArea(points) {
         return sum + a[0] * b[1] - b[0] * a[1];
     }, 0) / 2;
 }
-function insidePolygon(point, polygon) {
-    if (polygon.some((a, index)=>onSegment(a, polygon[(index + 1) % polygon.length], point))) return false;
+function parseEdge(value, index) {
+    const edge = value;
+    const type = String(edge?.type ?? '').toUpperCase();
+    if (type === 'SPLINE') return fail('SPLINE boundary edges are not supported for exact hatch island editing');
+    if (type === 'LINE') {
+        const start = point(edge.start, index), end = point(edge.end, index);
+        if (same(start, end)) return fail('LINE boundary edges must not be degenerate');
+        return {
+            type: 'LINE',
+            start,
+            end
+        };
+    }
+    if (type === 'ARC') {
+        const center = point(edge.center, index), radius = Number(edge.radius), startAngle = Number(edge.startAngle), endAngle = Number(edge.endAngle);
+        if (!(radius > 0) || ![
+            radius,
+            startAngle,
+            endAngle
+        ].every(Number.isFinite)) return fail('ARC boundary edges require a positive radius and finite angles');
+        const result = {
+            type: 'ARC',
+            center,
+            radius,
+            startAngle,
+            endAngle,
+            counterClockwise: edge.counterClockwise !== false
+        };
+        if (directedSweep(result) <= 1e-12) return fail('ARC boundary edges must have a non-zero sweep; use a CIRCLE source for a full circle');
+        return result;
+    }
+    return fail('exact hatch island boundaries support only LINE and ARC edges');
+}
+function exactLoopEdges(loop) {
+    if (Array.isArray(loop.vertices)) {
+        const vertices = [];
+        for (const [index, value] of loop.vertices.entries()){
+            const vertex = value;
+            if (!Array.isArray(value) && Number(vertex.bulge ?? 0) !== 0) return fail('bulge and SPLINE hatch boundaries cannot be validated for exact curve-island editing');
+            vertices.push(point(value, index));
+        }
+        if (vertices.length < 3) return fail('polygon hatch boundaries require at least three vertices');
+        return vertices.map((start, index)=>({
+                type: 'LINE',
+                start,
+                end: vertices[(index + 1) % vertices.length]
+            }));
+    }
+    if (!Array.isArray(loop.edges) || !loop.edges.length) return fail('hatch boundary loop has no exact LINE/ARC geometry');
+    return loop.edges.map(parseEdge);
+}
+function arcContains(edge, value, includeEnd = true) {
+    const radial = Math.hypot(value[0] - edge.center[0], value[1] - edge.center[1]);
+    if (Math.abs(radial - edge.radius) > 1e-8 * Math.max(1, edge.radius)) return false;
+    const angle = Math.atan2(value[1] - edge.center[1], value[0] - edge.center[0]), sweep = directedSweep(edge);
+    if (sweep >= TAU - 1e-12) return true;
+    const progress = normalizeAngle(edge.counterClockwise ? angle - edge.startAngle : edge.startAngle - angle);
+    return progress <= sweep + (includeEnd ? 1e-10 : -1e-10);
+}
+function edgeIntersections(first, second) {
+    let result;
+    if (first.type === 'LINE' && second.type === 'LINE') result = intersectLineLine2(first.start, first.end, second.start, second.end);
+    else if (first.type === 'LINE' && second.type === 'ARC') result = intersectLineCircle2(first.start, first.end, second.center, second.radius, {
+        mode: 'segment'
+    });
+    else if (first.type === 'ARC' && second.type === 'LINE') result = intersectLineCircle2(second.start, second.end, first.center, first.radius, {
+        mode: 'segment'
+    });
+    else {
+        const a = first, b = second;
+        result = intersectCircleCircle2(a.center, a.radius, b.center, b.radius);
+        if (result.kind === 'overlap') {
+            const overlap = arcContains(b, arcPointAt(a, directedSweep(a) / 2), false) || arcContains(a, arcPointAt(b, directedSweep(b) / 2), false);
+            const endpoints = [
+                edgeStart(a),
+                edgeEnd(a),
+                edgeStart(b),
+                edgeEnd(b)
+            ].filter((value)=>arcContains(a, value) && arcContains(b, value));
+            return {
+                overlap,
+                points: endpoints.filter((value, index)=>endpoints.findIndex((candidate)=>distance(candidate, value) <= 1e-8 * Math.max(1, a.radius, b.radius)) === index)
+            };
+        }
+    }
+    const points = result.points.filter((value)=>(first.type === 'LINE' || arcContains(first, value)) && (second.type === 'LINE' || arcContains(second, value))).map((value)=>[
+            value[0],
+            value[1],
+            0
+        ]);
+    return {
+        overlap: result.kind === 'overlap',
+        points: points.filter((value, index)=>points.findIndex((candidate)=>distance(candidate, value) <= 1e-8 * Math.max(1, distance(candidate, [
+                    0,
+                    0,
+                    0
+                ]))) === index)
+    };
+}
+function reverseEdge(edge) {
+    return edge.type === 'LINE' ? {
+        type: 'LINE',
+        start: edge.end,
+        end: edge.start
+    } : {
+        ...edge,
+        startAngle: edge.endAngle,
+        endAngle: edge.startAngle,
+        counterClockwise: !edge.counterClockwise
+    };
+}
+function loopScale(edges) {
+    const values = edges.flatMap((edge)=>edge.type === 'LINE' ? [
+            ...edge.start,
+            ...edge.end
+        ] : [
+            ...edge.center,
+            edge.radius
+        ]);
+    return Math.max(1, ...values.map(Math.abs));
+}
+function validateClosedLoop(edges) {
+    if (!edges.length || edges.length > 128) return fail('exact hatch island boundary requires 1–128 LINE/ARC edges');
+    const tolerance = 1e-8 * loopScale(edges);
+    for(let index = 0; index < edges.length; index++)if (distance(edgeEnd(edges[index]), edgeStart(edges[(index + 1) % edges.length])) > tolerance) return fail('selected LINE/ARC boundary is not closed end-to-end');
+    if (edges.length === 1) {
+        const only = edges[0];
+        if (only.type !== 'ARC' || directedSweep(only) < TAU - 1e-12) return fail('a one-edge island must be a full CIRCLE boundary');
+        return;
+    }
+    for(let i = 0; i < edges.length; i++)for(let j = i + 1; j < edges.length; j++){
+        const adjacent = j === i + 1 || i === 0 && j === edges.length - 1, intersection = edgeIntersections(edges[i], edges[j]);
+        if (intersection.overlap) return fail('selected LINE/ARC boundary overlaps itself');
+        if (!intersection.points.length) continue;
+        const shared = j === i + 1 ? [
+            edgeEnd(edges[i])
+        ] : i === 0 && j === edges.length - 1 ? [
+            edgeStart(edges[i])
+        ] : [];
+        if (edges.length === 2) shared.push(edgeStart(edges[i]));
+        if (!adjacent || intersection.points.some((value)=>!shared.some((point)=>distance(value, point) <= tolerance))) return fail('selected LINE/ARC boundary self-intersects');
+    }
+    let area = 0;
+    for (const edge of edges){
+        if (edge.type === 'LINE') area += (edge.start[0] * edge.end[1] - edge.end[0] * edge.start[1]) / 2;
+        else {
+            const signed = (edge.counterClockwise ? 1 : -1) * directedSweep(edge);
+            area += (edge.radius * (edge.center[0] * (Math.sin(edge.endAngle) - Math.sin(edge.startAngle)) - edge.center[1] * (Math.cos(edge.endAngle) - Math.cos(edge.startAngle))) + edge.radius * edge.radius * signed) / 2;
+        }
+    }
+    if (Math.abs(area) <= 1e-12 * loopScale(edges) ** 2) return fail('selected LINE/ARC boundary encloses zero area');
+}
+function pointInExactLoop(value, edges) {
     let inside = false;
-    for(let i = 0, j = polygon.length - 1; i < polygon.length; j = i++){
-        const a = polygon[i], b = polygon[j];
-        if (a[1] > point[1] !== b[1] > point[1] && point[0] < (b[0] - a[0]) * (point[1] - a[1]) / (b[1] - a[1]) + a[0]) inside = !inside;
+    for (const edge of edges){
+        if (edge.type === 'LINE') {
+            if (onSegment(edge.start, edge.end, value)) return false;
+            if (edge.start[1] > value[1] !== edge.end[1] > value[1] && value[0] < (edge.end[0] - edge.start[0]) * (value[1] - edge.start[1]) / (edge.end[1] - edge.start[1]) + edge.start[0]) inside = !inside;
+            continue;
+        }
+        if (arcContains(edge, value)) return false;
+        const dy = value[1] - edge.center[1];
+        if (Math.abs(dy) >= edge.radius) continue;
+        const dx = Math.sqrt(Math.max(0, edge.radius * edge.radius - dy * dy));
+        for (const x of [
+            edge.center[0] - dx,
+            edge.center[0] + dx
+        ]){
+            if (x <= value[0]) continue;
+            const angle = Math.atan2(dy, x - edge.center[0]), sweep = directedSweep(edge), progress = normalizeAngle(edge.counterClockwise ? angle - edge.startAngle : edge.startAngle - angle);
+            if (progress < sweep - 1e-10 && Math.abs(Math.cos(angle)) > 1e-10) inside = !inside;
+        }
     }
     return inside;
 }
-function polygonsIntersect(first, second) {
-    return first.some((a, index)=>second.some((c, other)=>segmentsIntersect(a, first[(index + 1) % first.length], c, second[(other + 1) % second.length])));
+function exactLoopsIntersect(first, second) {
+    return first.some((a)=>second.some((b)=>{
+            const result = edgeIntersections(a, b);
+            return result.overlap || result.points.length > 0;
+        }));
 }
-function polygonLoop(loop) {
-    if (Array.isArray(loop.vertices) && loop.vertices.length >= 3) {
-        const result = [];
-        for (const [index, vertex] of loop.vertices.entries()){
-            const record = vertex;
-            if (!Array.isArray(vertex) && Number(record?.bulge ?? 0) !== 0) return null;
-            try {
-                result.push(point(vertex, index));
-            } catch  {
-                return null;
-            }
-        }
-        return result;
+function sourceIsland(document, value) {
+    if (!Array.isArray(value) || !value.length || value.length > 128) return fail('sourceIds must contain 1–128 selected CIRCLE or LINE/ARC entities');
+    const ids = value.map(String);
+    if (new Set(ids).size !== ids.length) return fail('sourceIds must not contain duplicates');
+    const entities = ids.map((id)=>{
+        const entity = document.getObject(id);
+        if (!entity || entity.kind !== 'entity' || entity.erased) return fail('every sourceId must identify a live boundary entity');
+        if (entity.type === 'SPLINE') return fail('SPLINE source boundaries are not supported for exact hatch island editing');
+        return entity;
+    });
+    if (entities.length === 1 && entities[0].type === 'CIRCLE') {
+        const payload = entities[0].payload, center = point(payload.center, 0), radius = Number(payload.radius), normal = payload.normal;
+        if (!(radius > 0) || !Number.isFinite(radius) || normal && (!Array.isArray(normal) || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) return fail('CIRCLE source must be a finite XY circle with +Z normal');
+        return {
+            external: false,
+            closed: true,
+            edges: [
+                {
+                    type: 'ARC',
+                    center,
+                    radius,
+                    startAngle: 0,
+                    endAngle: TAU,
+                    counterClockwise: true
+                }
+            ]
+        };
     }
-    if (!Array.isArray(loop.edges) || loop.edges.length < 3) return null;
-    const result = [];
-    try {
-        for (const [index, value] of loop.edges.entries()){
-            const edge = value;
-            if (String(edge.type).toUpperCase() !== 'LINE') return null;
-            const start = point(edge.start, index), end = point(edge.end, index);
-            if (index && !same(start, point(loop.edges[index - 1].end, index - 1))) return null;
-            result.push(start);
-            if (index === loop.edges.length - 1 && !same(end, result[0])) return null;
-        }
-    } catch  {
-        return null;
+    if (entities.some((entity)=>entity.type === 'CIRCLE')) return fail('a CIRCLE source must be selected by itself');
+    const unordered = entities.map((entity, index)=>{
+        const payload = entity.payload, normal = payload.normal;
+        if (normal && (!Array.isArray(normal) || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) return fail('boundary sources must use the model XY plane with +Z normal');
+        if (entity.type === 'LINE') return parseEdge({
+            type: 'LINE',
+            start: payload.start,
+            end: payload.end
+        }, index);
+        if (entity.type === 'ARC') return parseEdge({
+            type: 'ARC',
+            center: payload.center,
+            radius: payload.radius,
+            startAngle: payload.startAngle,
+            endAngle: payload.endAngle,
+            counterClockwise: payload.clockwise !== true
+        }, index);
+        return fail('sourceIds support only CIRCLE or a closed chain of LINE/ARC entities');
+    });
+    const tolerance = 1e-8 * loopScale(unordered), ordered = [
+        unordered.shift()
+    ];
+    while(unordered.length){
+        const end = edgeEnd(ordered.at(-1)), matches = unordered.flatMap((edge, index)=>[
+                [
+                    index,
+                    false,
+                    distance(end, edgeStart(edge))
+                ],
+                [
+                    index,
+                    true,
+                    distance(end, edgeEnd(edge))
+                ]
+            ]).filter((match)=>match[2] <= tolerance);
+        if (matches.length !== 1) return fail(matches.length ? 'selected LINE/ARC boundary has an ambiguous branch' : 'selected LINE/ARC boundary is open or disconnected');
+        const [index, reversed] = matches[0], next = unordered.splice(index, 1)[0];
+        ordered.push(reversed ? reverseEdge(next) : next);
     }
-    return result;
+    validateClosedLoop(ordered);
+    return {
+        external: false,
+        closed: true,
+        edges: ordered
+    };
 }
 function normalizedIsland(vertices) {
     if (!Array.isArray(vertices) || vertices.length < 3 || vertices.length > 4096) return fail('a closed polygon island requires 3–4096 vertices');
@@ -93,15 +333,15 @@ function islandIndex(loops, value) {
     return index;
 }
 function validateIslandPlacement(loops, candidate, ignoredIndex = -1) {
-    const polygon = polygonLoop(candidate);
-    if (!polygon) return fail('new island must be a straight closed polygon');
-    const outerPolygons = loops.filter((loop)=>loop.external !== false).map(polygonLoop).filter((value)=>Boolean(value));
-    if (!outerPolygons.some((outer)=>polygon.every((vertex)=>insidePolygon(vertex, outer)) && !polygonsIntersect(polygon, outer))) return fail('island must lie strictly inside a polygonal outer boundary');
+    const candidateEdges = exactLoopEdges(candidate);
+    validateClosedLoop(candidateEdges);
+    const outerLoops = loops.filter((loop)=>loop.external !== false).map(exactLoopEdges);
+    if (!outerLoops.some((outer)=>!exactLoopsIntersect(candidateEdges, outer) && pointInExactLoop(edgeStart(candidateEdges[0]), outer))) return fail('island must lie strictly inside an exact closed outer boundary');
     for (const [index, loop] of loops.entries()){
         if (index === ignoredIndex || loop.external !== false) continue;
-        const other = polygonLoop(loop);
-        if (!other) return fail('existing non-polygon island cannot be safely combined with polygon editing');
-        if (polygonsIntersect(polygon, other) || insidePolygon(polygon[0], other) || insidePolygon(other[0], polygon)) return fail('island boundaries must not overlap or contain each other');
+        const other = exactLoopEdges(loop);
+        validateClosedLoop(other);
+        if (exactLoopsIntersect(candidateEdges, other) || pointInExactLoop(edgeStart(candidateEdges[0]), other) || pointInExactLoop(edgeStart(other[0]), candidateEdges)) return fail('island boundaries must not intersect, overlap or contain each other');
     }
 }
 export function editHatch(document, transaction, id, input) {
@@ -125,11 +365,13 @@ export function editHatch(document, transaction, id, input) {
     if (input.patternAngle != null && !Number.isFinite(Number(input.patternAngle))) return fail('patternAngle must be finite radians');
     if (input.operation === 'add-island') {
         if (loops.length >= 128) return fail('hatch already has 128 boundary loops');
-        const candidate = normalizedIsland(input.vertices);
+        if (input.sourceIds != null && input.vertices != null) return fail('use either sourceIds or vertices for one island edit');
+        const candidate = input.sourceIds != null ? sourceIsland(document, input.sourceIds) : normalizedIsland(input.vertices);
         validateIslandPlacement(loops, candidate);
         loops.push(candidate);
     } else if (input.operation === 'replace-island') {
-        const index = islandIndex(loops, input.loopIndex), candidate = normalizedIsland(input.vertices);
+        if (input.sourceIds != null && input.vertices != null) return fail('use either sourceIds or vertices for one island edit');
+        const index = islandIndex(loops, input.loopIndex), candidate = input.sourceIds != null ? sourceIsland(document, input.sourceIds) : normalizedIsland(input.vertices);
         validateIslandPlacement(loops, candidate, index);
         loops[index] = candidate;
     } else if (input.operation === 'remove-island') loops.splice(islandIndex(loops, input.loopIndex), 1);

@@ -121,6 +121,7 @@ export interface KJCommandArguments extends Record<string, unknown> {
     types?: readonly string[];
     boundaryLoops?: unknown;
     vertices?: readonly KJPointInput[];
+    sourceIds?: readonly string[];
     loopIndex?: unknown;
     attributes?: unknown;
     attributeValues?: Readonly<Record<string, unknown>>;

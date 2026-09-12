@@ -1155,6 +1155,7 @@ export function registerCoreCommands(registry) {
                 operation: String(args.operation ?? '').toLowerCase(),
                 loopIndex: args.loopIndex,
                 vertices: args.vertices,
+                sourceIds: args.sourceIds,
                 patternScale: args.patternScale,
                 patternAngle: args.patternAngle
             })

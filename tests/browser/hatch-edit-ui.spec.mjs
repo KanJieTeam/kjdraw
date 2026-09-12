@@ -6,7 +6,13 @@ const island = [[5,5],[12,5],[12,12],[5,12]]
 
 async function hatchFile() {
   const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'hatch-ui', units: 'millimeter' })
-  await drawing.transact('hatch fixture', tx => tx.createEntity('HATCH', { patternName: 'ANSI31', patternScale: 1, patternAngle: 0, boundaryLoops: [{ external: true, closed: true, vertices: outer }, { external: false, closed: true, vertices: island }] }, { id: 'hatch-ui' }))
+  await drawing.transact('hatch fixture', tx => {
+    tx.createEntity('HATCH', { patternName: 'ANSI31', patternScale: 1, patternAngle: 0, boundaryLoops: [{ external: true, closed: true, vertices: outer }, { external: false, closed: true, vertices: island }] }, { id: 'hatch-ui' })
+    tx.createEntity('LINE', { start: [22,20,0], end: [28,20,0] }, { id: 'cap-top' })
+    tx.createEntity('ARC', { center: [28,24,0], radius: 4, startAngle: -Math.PI/2, endAngle: Math.PI/2 }, { id: 'cap-right' })
+    tx.createEntity('LINE', { start: [28,28,0], end: [22,28,0] }, { id: 'cap-bottom' })
+    tx.createEntity('ARC', { center: [22,24,0], radius: 4, startAngle: Math.PI/2, endAngle: Math.PI*1.5 }, { id: 'cap-left' })
+  })
   return Buffer.from(await sdk.writeDocument(drawing, { format: 'KJD' }))
 }
 
@@ -18,8 +24,9 @@ test('Workbench edits the selected hatch and Cancel creates no history', async (
     const [{ createKJDrawSDK }, { mountKJDrawWorkbench }] = await Promise.all([import('/packages/kjdraw-sdk/src/sdk.js'), import('/packages/kjdraw-sdk/src/workbench.js')])
     const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'hatch-workbench-ui', units: 'millimeter' })
     await drawing.transact('fixture', tx => tx.createEntity('HATCH', { patternName: 'ANSI31', patternScale: 1, patternAngle: 0, boundaryLoops: [{ external: true, closed: true, vertices: outer }, { external: false, closed: true, vertices: island }] }, { id: 'hatch-ui' }))
+    await drawing.transact('exact source', tx => tx.createEntity('CIRCLE', { center: [25,15,0], radius: 4 }, { id: 'circle-source' }))
     const workbench = mountKJDrawWorkbench(host, { sdk, document: drawing, locale: 'en' }); await workbench.ready
-    await sdk.executeCommand('SELECT', { id: 'hatch-ui' }, { document: drawing })
+    await sdk.executeCommand('SELECT', { ids: ['hatch-ui','circle-source'], operation: 'replace' }, { document: drawing })
     window.__hatchUI = { sdk, drawing, workbench }
   }, { outer, island })
   const revision = await page.evaluate(() => window.__hatchUI.drawing.revision)
@@ -30,16 +37,16 @@ test('Workbench edits the selected hatch and Cancel creates no history', async (
   expect(await page.evaluate(() => window.__hatchUI.drawing.revision)).toBe(revision)
 
   await page.locator('[data-inspector] [data-action="edit-hatch"]').click()
-  await page.locator('[data-hatch-operation]').selectOption('add-island')
-  await page.locator('[data-hatch-vertices]').fill('22,8; 32,8; 32,18; 22,18')
+  await expect(page.locator('[data-hatch-source-review]')).toContainText('CIRCLE')
+  await expect(page.locator('[data-hatch-operation]')).toHaveValue('add-selected')
   await page.locator('[data-hatch-scale]').fill('2')
   await page.locator('[data-hatch-angle]').fill('30')
   await page.locator('[data-hatch-apply]').click()
   await expect(page.locator('[data-hatch-edit-dialog]')).toHaveCount(0)
   await expect.poll(() => page.evaluate(() => {
     const hatch = window.__hatchUI.drawing.getObject('hatch-ui')
-    return [hatch.id, hatch.payload.boundaryLoops.length, hatch.payload.patternScale, Math.round(hatch.payload.patternAngle * 180 / Math.PI)]
-  })).toEqual(['hatch-ui', 3, 2, 30])
+    return [hatch.id, hatch.payload.boundaryLoops.length, hatch.payload.boundaryLoops[2].edges[0].type, hatch.payload.patternScale, Math.round(hatch.payload.patternAngle * 180 / Math.PI)]
+  })).toEqual(['hatch-ui', 3, 'ARC', 2, 30])
   await page.evaluate(() => window.__hatchUI.sdk.executeCommand('UNDO', {}, { document: window.__hatchUI.drawing }))
   await expect.poll(() => page.evaluate(() => window.__hatchUI.drawing.getObject('hatch-ui').payload.boundaryLoops.length)).toBe(2)
   await page.evaluate(() => window.__hatchUI.sdk.executeCommand('REDO', {}, { document: window.__hatchUI.drawing }))
@@ -58,19 +65,20 @@ test('Playground exposes pattern and island editing for an opened drawing', asyn
   await page.goto('/')
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
   await page.locator('#file-input').setInputFiles({ name: 'hatch-ui.kjd', mimeType: 'application/json', buffer: await hatchFile() })
-  await expect(page.locator('#entity-count')).toHaveText('1 entities')
+  await expect(page.locator('#entity-count')).toHaveText('5 entities')
   await page.keyboard.press('Control+a')
   const revision = Number((await page.locator('#revision').textContent()).replace(/\D/g, ''))
   await page.locator('#inspector [data-action="edit-hatch"]').click()
-  await page.locator('#dialog-fields [name=operation]').selectOption('remove-island')
+  await expect(page.locator('#dialog-description')).toContainText('LINE')
+  await expect(page.locator('#dialog-fields [name=operation]')).toHaveValue('add-selected')
   await page.locator('#dialog-submit').click()
-  await expect(page.locator('#dialog-fields [name=loopIndex]')).toBeVisible()
+  await expect(page.locator('#dialog-fields [name=patternScale]')).toBeVisible()
   await page.locator('#app-dialog button[value=cancel]').click()
   await expect(page.locator('#app-dialog')).not.toBeVisible()
   expect(Number((await page.locator('#revision').textContent()).replace(/\D/g, ''))).toBe(revision)
 
   await page.locator('#inspector [data-action="edit-hatch"]').click()
-  await page.locator('#dialog-fields [name=operation]').selectOption('remove-island')
+  await expect(page.locator('#dialog-fields [name=operation]')).toHaveValue('add-selected')
   await page.locator('#dialog-submit').click()
   await page.locator('#dialog-submit').click()
   await expect(page.locator('#status')).toContainText('HATCHEDIT committed')

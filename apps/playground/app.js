@@ -413,7 +413,8 @@ function refresh() {
       dimensionFields={style,precision,scale,textHeight,textOverride}
     }
     const save=document.createElement('button');save.textContent=t('applyProperties');save.onclick=()=>run(async()=>{if(selectedEntities.length>1){if(!layerSelect.value||layerSelect.value===commonLayerId)return;await execute('PROPERTIES',{ids:selectedEntities.map(item=>item.id),patch:{payload:{layerId:layerSelect.value}}});return}const payload={layerId:layerSelect.value};if(valueInput&&(entity.type==='CIRCLE'||entity.type==='ARC'))payload.radius=Number(valueInput.value);if(valueInput&&(entity.type==='TEXT'||entity.type==='MTEXT'))payload.text=valueInput.value;if(dimensionFields){const invalid=[dimensionFields.precision,dimensionFields.scale,dimensionFields.textHeight].find(input=>!input.checkValidity());if(invalid){invalid.reportValidity();return}const style=doc().getObject(dimensionFields.style.value);Object.assign(payload,{styleId:dimensionFields.style.value,styleName:style?.name??'STANDARD',precision:Number(dimensionFields.precision.value),overallScale:Number(dimensionFields.scale.value),textHeight:Number(dimensionFields.textHeight.value),textOverride:dimensionFields.textOverride.value||null})}if(entity.type==='INSERT'&&blockScope?.value==='definition'){if(!blockMember?.value)throw new Error(t('blockMember'));await execute('BLOCKDEFINITIONUPDATE',{blockRecordId:entity.payload.blockRecordId,id:blockMember.value,patch:{payload}})}else if(entity.type==='INSERT')await execute('BLOCKINSTANCEUPDATE',{id:entity.id,patch:{payload}});else await execute('PROPERTIES',{id:entity.id,patch:{payload}})});editor.append(save);$('inspector').append(editor)
-    if(selectedEntities.length===1&&entity.type==='HATCH'){const editHatch=document.createElement('button');editHatch.dataset.action='edit-hatch';editHatch.textContent=t('hatchEdit');editHatch.onclick=()=>run(()=>editSelectedHatch(entity));$('inspector').append(editHatch)}
+    const selectedHatches=selectedEntities.filter(item=>item.type==='HATCH')
+    if(selectedHatches.length===1){const hatch=selectedHatches[0],sources=selectedEntities.filter(item=>item.id!==hatch.id).map(item=>item.id),editHatch=document.createElement('button');editHatch.dataset.action='edit-hatch';editHatch.textContent=t('hatchEdit');editHatch.onclick=()=>run(()=>editSelectedHatch(hatch,sources));$('inspector').append(editHatch)}
     const erase=document.createElement('button');erase.textContent=t('deleteSelected');erase.onclick=()=>run(()=>execute('ERASE',{ids:selectedIds()}));$('inspector').append(erase)
   }
   else {field($('inspector'),t('revision'),doc().revision);field($('inspector'),t('modelEntities'),currentModel.length);field($('inspector'),t('kernel'),authority?'Rust / WASM':t('jsReference'));field($('inspector'),t('units'),doc().snapshot().header.units??'unspecified');const help=document.createElement('div');help.className='inspector-empty';help.innerHTML=kjdrawIcon('select');help.append(document.createTextNode(t('inspectHint')));$('inspector').append(help)}
@@ -452,21 +453,24 @@ function hatchLoopText(loop){
 function parseHatchVertices(text){
   return String(text).split(/[;\n]+/).map(value=>value.trim()).filter(Boolean).map((value,index)=>{const point=value.split(/[ ,]+/).filter(Boolean).map(Number);if(point.length!==2||point.some(item=>!Number.isFinite(item)))throw new Error('HATCHEDIT: island vertex '+index+' must contain finite x,y coordinates');return point})
 }
-async function editSelectedHatch(entity){
+async function editSelectedHatch(entity,sourceIds=[]){
   const drawing=doc(),revision=drawing.revision,loops=Array.isArray(entity.payload.boundaryLoops)?entity.payload.boundaryLoops:[],innerIndexes=loops.map((loop,index)=>loop?.external===false?index:-1).filter(index=>index>=0)
   const operations=[['update-pattern',t('hatchPatternOnly')],['add-island',t('hatchAddIsland')]]
   if(innerIndexes.length)operations.push(['replace-island',t('hatchReplaceIsland')],['remove-island',t('hatchRemoveIsland')])
-  const choice=await requestLocalCommand({title:t('hatchEdit'),description:t('hatchEditHelp'),fields:[{name:'operation',label:t('hatchOperation'),value:'update-pattern',options:operations}]})
+  if(sourceIds.length){operations.push(['add-selected',t('hatchAddSelected')]);if(innerIndexes.length)operations.push(['replace-selected',t('hatchReplaceSelected')])}
+  const sources=sourceIds.map(id=>drawing.getObject(id)).filter(Boolean),review=sources.length?'\n'+t('hatchSourceReview')+': '+sources.map(value=>value.type+' · '+value.handle).join(' · '):''
+  const choice=await requestLocalCommand({title:t('hatchEdit'),description:t('hatchEditHelp')+review,fields:[{name:'operation',label:t('hatchOperation'),value:sourceIds.length?'add-selected':'update-pattern',options:operations}]})
   if(!choice)return
   const operation=choice.operation,fields=[]
-  if(operation==='replace-island'||operation==='remove-island')fields.push({name:'loopIndex',label:t('hatchIsland'),value:innerIndexes[0],options:innerIndexes.map(index=>[String(index),String(index)])})
+  if(operation==='replace-island'||operation==='replace-selected'||operation==='remove-island')fields.push({name:'loopIndex',label:t('hatchIsland'),value:innerIndexes[0],options:innerIndexes.map(index=>[String(index),String(index)])})
   if(operation==='add-island'||operation==='replace-island')fields.push({name:'vertices',label:t('hatchVertices'),value:operation==='replace-island'?hatchLoopText(loops[innerIndexes[0]]):''})
   fields.push({name:'patternScale',label:t('hatchScale'),type:'number',min:0.000000001,step:'any',value:Number(entity.payload.patternScale??1)},{name:'patternAngle',label:t('hatchAngle'),type:'number',step:'any',value:Number(entity.payload.patternAngle??0)*180/Math.PI})
   const values=await requestLocalCommand({title:t('hatchEdit'),description:t('hatchEditHelp'),submitLabel:t('hatchApply'),fields})
   if(!values)return
-  const command={id:entity.id,operation,patternScale:Number(values.patternScale),patternAngle:Number(values.patternAngle)*Math.PI/180}
-  if(operation==='replace-island'||operation==='remove-island')command.loopIndex=Number(values.loopIndex)
+  const exactSource=operation==='add-selected'||operation==='replace-selected',command={id:entity.id,operation:operation.replace('-selected','-island'),patternScale:Number(values.patternScale),patternAngle:Number(values.patternAngle)*Math.PI/180}
+  if(operation==='replace-island'||operation==='replace-selected'||operation==='remove-island')command.loopIndex=Number(values.loopIndex)
   if(operation==='add-island'||operation==='replace-island')command.vertices=parseHatchVertices(values.vertices)
+  if(exactSource)command.sourceIds=sourceIds
   await execute('HATCHEDIT',command,{expectedRevision:revision})
 }
 function requestLocalCommand({title,description='',submitLabel,fields=[]}) {

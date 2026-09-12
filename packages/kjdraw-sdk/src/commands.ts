@@ -165,6 +165,7 @@ export interface KJCommandArguments extends Record<string, unknown> {
   types?: readonly string[]
   boundaryLoops?: unknown
   vertices?: readonly KJPointInput[]
+  sourceIds?: readonly string[]
   loopIndex?: unknown
   attributes?: unknown
   attributeValues?: Readonly<Record<string, unknown>>
@@ -717,6 +718,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       operation: String(args.operation ?? '').toLowerCase() as 'update-pattern' | 'add-island' | 'replace-island' | 'remove-island',
       loopIndex: args.loopIndex,
       vertices: args.vertices,
+      sourceIds: args.sourceIds,
       patternScale: args.patternScale,
       patternAngle: args.patternAngle,
     }),

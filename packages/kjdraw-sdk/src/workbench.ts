@@ -154,7 +154,7 @@ const copy = {
     select: 'Select', pan: 'Pan', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', rectangle: 'Rectangle', text: 'Text', measure: 'Measure',
     undo: 'Undo', redo: 'Redo', erase: 'Delete', move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', fit: 'Fit', grid: 'Grid', ortho: 'Ortho', orthoOn: 'Orthogonal drafting on', orthoOff: 'Orthogonal drafting off', orthoBusy: 'Finish or cancel the current operation before changing Ortho', polar: 'Polar', polarOn: 'Polar tracking on', polarOff: 'Polar tracking off', polarBusy: 'Finish or cancel the current operation before changing Polar tracking', layers: 'Layers', properties: 'Properties',
     noSelection: 'Select an object to inspect its properties.', drawing: 'Drawing', entities: 'entities', selected: 'selected',
-    layer: 'Layer', textStyle: 'Text style', dimensionStyle: 'Dimension style', dimensionPrecision: 'Precision', dimensionScale: 'Overall scale', dimensionTextHeight: 'Dimension text height', dimensionTextOverride: 'Dimension text override', radius: 'Radius', apply: 'Apply', ready: 'Ready', readonly: 'Read only', blockEditScope: 'Edit scope', blockInstanceScope: 'This instance', blockDefinitionScope: 'Shared definition', blockMember: 'Definition member', blockScopeHint: 'Instance changes affect this occurrence. Definition changes affect every instance.', hatchEdit: 'Edit hatch', hatchEditDescription: 'Edit this hatch in one undoable transaction. Polygon islands close automatically; do not repeat the first vertex.', hatchOperation: 'Operation', hatchUpdatePattern: 'Pattern only', hatchAddIsland: 'Add island', hatchReplaceIsland: 'Replace island', hatchRemoveIsland: 'Remove island', hatchIsland: 'Inner island', hatchVertices: 'Island vertices (x,y; x,y; …)', hatchPatternScale: 'Pattern scale', hatchPatternAngle: 'Pattern angle (degrees)', hatchNoIslands: 'No inner islands', hatchApply: 'Apply hatch edit',
+    layer: 'Layer', textStyle: 'Text style', dimensionStyle: 'Dimension style', dimensionPrecision: 'Precision', dimensionScale: 'Overall scale', dimensionTextHeight: 'Dimension text height', dimensionTextOverride: 'Dimension text override', radius: 'Radius', apply: 'Apply', ready: 'Ready', readonly: 'Read only', blockEditScope: 'Edit scope', blockInstanceScope: 'This instance', blockDefinitionScope: 'Shared definition', blockMember: 'Definition member', blockScopeHint: 'Instance changes affect this occurrence. Definition changes affect every instance.', hatchEdit: 'Edit hatch', hatchEditDescription: 'Edit this hatch in one undoable transaction. Polygon islands close automatically; do not repeat the first vertex.', hatchOperation: 'Operation', hatchUpdatePattern: 'Pattern only', hatchAddIsland: 'Add polygon island', hatchReplaceIsland: 'Replace with polygon', hatchAddSelected: 'Add exact selected boundary', hatchReplaceSelected: 'Replace with exact selected boundary', hatchSourceReview: 'Exact boundary sources', hatchRemoveIsland: 'Remove island', hatchIsland: 'Inner island', hatchVertices: 'Island vertices (x,y; x,y; …)', hatchPatternScale: 'Pattern scale', hatchPatternAngle: 'Pattern angle (degrees)', hatchNoIslands: 'No inner islands', hatchApply: 'Apply hatch edit',
     firstPoint: 'Specify the first point', nextPoint: 'Specify the next point', finishPolyline: 'Click vertices · Enter or double-click to finish', arcStart: 'Specify arc start', arcEnd: 'Specify arc endpoint', textPrompt: 'Type TEXT followed by content, then click an insertion point', measured: 'Measured distance',
     unsupported: 'projection limits', theme: 'Theme', language: '中文', sample: 'Starter drawing', openFailed: 'Could not open drawing', command: 'Command', run: 'Run', commandHint: 'MOVE 10 0 · COPY 10 0 · ROTATE 15 · OFFSET 2 · SCALE 1.2', fileTooLarge: 'File exceeds the workbench limit',
     layout: 'Layout', layoutClassic: 'Classic', layoutCompact: 'Compact', layoutFocus: 'Focus', selectObjects: 'Select an object', basePoint: 'Specify the base point', destinationPoint: 'Specify the destination point', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
@@ -174,7 +174,7 @@ const copy = {
     select: '选择', pan: '平移', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', rectangle: '矩形', text: '文字', measure: '测距',
     undo: '撤销', redo: '重做', erase: '删除', move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', fit: '全图', grid: '栅格', ortho: '正交', orthoOn: '正交绘图已开启', orthoOff: '正交绘图已关闭', orthoBusy: '请先完成或取消当前操作，再切换正交模式', polar: '极轴', polarOn: '极轴跟踪已开启', polarOff: '极轴跟踪已关闭', polarBusy: '请先完成或取消当前操作，再切换极轴跟踪', layers: '图层', properties: '特性',
     noSelection: '选择图元后可查看和修改属性。', drawing: '图纸', entities: '图元', selected: '已选择',
-    layer: '图层', textStyle: '文字样式', dimensionStyle: '标注样式', dimensionPrecision: '标注精度', dimensionScale: '标注整体比例', dimensionTextHeight: '标注字高', dimensionTextOverride: '标注文字替代', radius: '半径', apply: '应用', ready: '就绪', readonly: '只读', blockEditScope: '修改范围', blockInstanceScope: '仅此实例', blockDefinitionScope: '共享块定义', blockMember: '定义成员', blockScopeHint: '实例修改仅影响当前对象；定义修改会影响全部实例。', hatchEdit: '编辑填充', hatchEditDescription: '在一个可撤销事务中修改当前填充。多边形内岛会自动闭合，请勿重复首点。', hatchOperation: '操作', hatchUpdatePattern: '仅修改图案', hatchAddIsland: '新增内岛', hatchReplaceIsland: '替换内岛', hatchRemoveIsland: '删除内岛', hatchIsland: '内岛边界', hatchVertices: '内岛顶点（x,y; x,y; …）', hatchPatternScale: '图案比例', hatchPatternAngle: '图案角度（度）', hatchNoIslands: '没有内岛', hatchApply: '应用填充修改',
+    layer: '图层', textStyle: '文字样式', dimensionStyle: '标注样式', dimensionPrecision: '标注精度', dimensionScale: '标注整体比例', dimensionTextHeight: '标注字高', dimensionTextOverride: '标注文字替代', radius: '半径', apply: '应用', ready: '就绪', readonly: '只读', blockEditScope: '修改范围', blockInstanceScope: '仅此实例', blockDefinitionScope: '共享块定义', blockMember: '定义成员', blockScopeHint: '实例修改仅影响当前对象；定义修改会影响全部实例。', hatchEdit: '编辑填充', hatchEditDescription: '在一个可撤销事务中修改当前填充。多边形内岛会自动闭合，请勿重复首点。', hatchOperation: '操作', hatchUpdatePattern: '仅修改图案', hatchAddIsland: '新增多边形内岛', hatchReplaceIsland: '替换为多边形', hatchAddSelected: '新增精确选中边界', hatchReplaceSelected: '替换为精确选中边界', hatchSourceReview: '精确边界来源', hatchRemoveIsland: '删除内岛', hatchIsland: '内岛边界', hatchVertices: '内岛顶点（x,y; x,y; …）', hatchPatternScale: '图案比例', hatchPatternAngle: '图案角度（度）', hatchNoIslands: '没有内岛', hatchApply: '应用填充修改',
     firstPoint: '指定第一个点', nextPoint: '指定下一个点', finishPolyline: '连续指定顶点 · Enter 或双击完成', arcStart: '指定圆弧起点', arcEnd: '指定圆弧端点', textPrompt: '输入 TEXT 和文字内容，再指定插入点', measured: '测量距离',
     unsupported: '投影限制', theme: '主题', language: 'EN', sample: '入门图纸', openFailed: '无法打开图纸', command: '命令', run: '执行', commandHint: 'MOVE 10 0 · COPY 10 0 · ROTATE 15 · OFFSET 2 · SCALE 1.2', fileTooLarge: '文件超过工作台限制',
     layout: '布局', layoutClassic: '经典', layoutCompact: '紧凑', layoutFocus: '专注', selectObjects: '选择对象', basePoint: '指定基点', destinationPoint: '指定目标点', zoomIn: '放大', zoomOut: '缩小',
@@ -2814,20 +2814,24 @@ export class KJDrawWorkbench {
     }
   }
 
-  #openHatchEditor(entity: KJReadonlyObjectRecord): void {
+  #openHatchEditor(entity: KJReadonlyObjectRecord, sourceIds: readonly string[] = []): void {
     const drawing = this.document
     if (!drawing || entity.type !== 'HATCH' || this.#readOnly) return
     const revision = drawing.revision
     const loops = (entity.payload.boundaryLoops ?? []) as readonly Readonly<Record<string, unknown>>[]
     const innerIndexes = loops.map((loop, index) => loop.external === false ? index : -1).filter(index => index >= 0)
     const dialog = document.createElement('dialog'); dialog.className = 'modify-dialog hatch-dialog'; dialog.dataset.hatchEditDialog = ''
-    dialog.innerHTML = '<form method="dialog" class="modify-form"><header class="modify-head"><h2>' + this.#t('hatchEdit') + '</h2><p>' + this.#t('hatchEditDescription') + '</p></header><div class="modify-body"><label class="field"><span>' + this.#t('hatchOperation') + '</span><select data-hatch-operation></select></label><label class="field" data-hatch-island-field><span>' + this.#t('hatchIsland') + '</span><select data-hatch-island></select></label><label class="field" data-hatch-vertices-field><span>' + this.#t('hatchVertices') + '</span><textarea data-hatch-vertices></textarea></label><div class="modify-fields"><label class="field"><span>' + this.#t('hatchPatternScale') + '</span><input data-hatch-scale type="number" min="0.000000001" step="any" required></label><label class="field"><span>' + this.#t('hatchPatternAngle') + '</span><input data-hatch-angle type="number" step="any" required></label></div><p role="alert" data-hatch-error></p></div><footer class="modify-actions"><button type="button" data-hatch-cancel>' + this.#t('cancel') + '</button><button type="button" class="confirm" data-hatch-apply>' + this.#t('hatchApply') + '</button></footer></form>'
+    const sources = sourceIds.map(id => drawing.getObject(id)).filter((value): value is KJReadonlyObjectRecord => value?.kind === 'entity' && !value.erased)
+    const review = sources.length ? '<p class="modify-order" data-hatch-source-review><strong>' + this.#t('hatchSourceReview') + ':</strong> ' + sources.map(value => value.type + ' · ' + value.handle).join(' · ') + '</p>' : ''
+    dialog.innerHTML = '<form method="dialog" class="modify-form"><header class="modify-head"><h2>' + this.#t('hatchEdit') + '</h2><p>' + this.#t('hatchEditDescription') + '</p></header><div class="modify-body">' + review + '<label class="field"><span>' + this.#t('hatchOperation') + '</span><select data-hatch-operation></select></label><label class="field" data-hatch-island-field><span>' + this.#t('hatchIsland') + '</span><select data-hatch-island></select></label><label class="field" data-hatch-vertices-field><span>' + this.#t('hatchVertices') + '</span><textarea data-hatch-vertices></textarea></label><div class="modify-fields"><label class="field"><span>' + this.#t('hatchPatternScale') + '</span><input data-hatch-scale type="number" min="0.000000001" step="any" required></label><label class="field"><span>' + this.#t('hatchPatternAngle') + '</span><input data-hatch-angle type="number" step="any" required></label></div><p role="alert" data-hatch-error></p></div><footer class="modify-actions"><button type="button" data-hatch-cancel>' + this.#t('cancel') + '</button><button type="button" class="confirm" data-hatch-apply>' + this.#t('hatchApply') + '</button></footer></form>'
     this.root.append(dialog)
     const operation = query<HTMLSelectElement>(dialog, '[data-hatch-operation]')
     for (const [value, label, disabled] of [
       ['update-pattern', this.#t('hatchUpdatePattern'), false],
       ['add-island', this.#t('hatchAddIsland'), false],
       ['replace-island', this.#t('hatchReplaceIsland'), innerIndexes.length === 0],
+      ['add-selected', this.#t('hatchAddSelected'), sources.length === 0],
+      ['replace-selected', this.#t('hatchReplaceSelected'), sources.length === 0 || innerIndexes.length === 0],
       ['remove-island', this.#t('hatchRemoveIsland'), innerIndexes.length === 0]
     ] as const) { const option = document.createElement('option'); option.value = value; option.textContent = label; option.disabled = disabled; operation.append(option) }
     const island = query<HTMLSelectElement>(dialog, '[data-hatch-island]')
@@ -2844,7 +2848,7 @@ export class KJDrawWorkbench {
       }).filter(Boolean).join('; ')
     }
     const sync = (): void => {
-      const needsIsland = operation.value === 'replace-island' || operation.value === 'remove-island'
+      const needsIsland = operation.value === 'replace-island' || operation.value === 'replace-selected' || operation.value === 'remove-island'
       const needsVertices = operation.value === 'add-island' || operation.value === 'replace-island'
       query<HTMLElement>(dialog, '[data-hatch-island-field]').hidden = !needsIsland
       query<HTMLElement>(dialog, '[data-hatch-vertices-field]').hidden = !needsVertices
@@ -2864,12 +2868,15 @@ export class KJDrawWorkbench {
         if (values.length !== 2 || values.some(item => !Number.isFinite(item))) throw new Error('HATCHEDIT: island vertex ' + index + ' must contain finite x,y coordinates')
         return values
       })
-      const command: Record<string, unknown> = { id: entity.id, operation: operation.value, patternScale: Number(query<HTMLInputElement>(dialog, '[data-hatch-scale]').value), patternAngle: Number(query<HTMLInputElement>(dialog, '[data-hatch-angle]').value) * Math.PI / 180 }
-      if (operation.value === 'replace-island' || operation.value === 'remove-island') command.loopIndex = Number(island.value)
+      const exactSource = operation.value === 'add-selected' || operation.value === 'replace-selected'
+      const command: Record<string, unknown> = { id: entity.id, operation: operation.value.replace('-selected', '-island'), patternScale: Number(query<HTMLInputElement>(dialog, '[data-hatch-scale]').value), patternAngle: Number(query<HTMLInputElement>(dialog, '[data-hatch-angle]').value) * Math.PI / 180 }
+      if (operation.value === 'replace-island' || operation.value === 'replace-selected' || operation.value === 'remove-island') command.loopIndex = Number(island.value)
       if (operation.value === 'add-island' || operation.value === 'replace-island') command.vertices = parseVertices()
+      if (exactSource) command.sourceIds = sources.map(value => value.id)
       await this.execute('HATCHEDIT', command, { expectedRevision: revision })
       close()
     }))
+    if (sources.length) operation.value = 'add-selected'
     sync(); dialog.showModal()
   }
 
@@ -2881,6 +2888,9 @@ export class KJDrawWorkbench {
     const entity = selectedEntities.at(-1) ?? null
     if (!entity || entity.kind !== 'entity') { const empty = document.createElement('p'); empty.className = 'empty'; empty.textContent = this.#t('noSelection'); host.append(empty); return }
     const multiple = selectedEntities.length > 1
+    const selectedHatches = selectedEntities.filter(item => item.type === 'HATCH')
+    const editableHatch = selectedHatches.length === 1 ? selectedHatches[0]! : null
+    const hatchSourceIds = editableHatch ? selectedEntities.filter(item => item.id !== editableHatch.id).map(item => item.id) : []
     const title = document.createElement('div'); title.className = 'entity-title'; title.textContent = multiple ? `${selectedEntities.length} ${this.#t('selected')}` : entity.type
     host.append(title, this.#kv('Handle', entity.handle), this.#kv(this.#t('layer'), drawing.getObject(String(entity.payload.layerId ?? ''))?.name ?? '0'))
     const layerField = document.createElement('label'); layerField.className = 'field'; layerField.innerHTML = `<span>${this.#t('layer')}</span>`
@@ -2975,9 +2985,9 @@ export class KJDrawWorkbench {
       const field = document.createElement('label'); field.className = 'field'; field.innerHTML = `<span>${this.#t('text')}</span>`
       valueInput = document.createElement('input'); valueInput.value = String(entity.payload.text ?? ''); valueInput.disabled = this.#readOnly === true; field.append(valueInput); host.append(field)
     }
-    if (!this.#readOnly && !multiple && entity.type === 'HATCH') {
+    if (!this.#readOnly && editableHatch) {
       const editHatch = document.createElement('button'); editHatch.type = 'button'; editHatch.className = 'apply'; editHatch.dataset.action = 'edit-hatch'; editHatch.textContent = this.#t('hatchEdit')
-      editHatch.addEventListener('click', () => this.#openHatchEditor(entity), { signal: this.#abort.signal })
+      editHatch.addEventListener('click', () => this.#openHatchEditor(editableHatch, hatchSourceIds), { signal: this.#abort.signal })
       host.append(editHatch)
     }
     if (!this.#readOnly) {

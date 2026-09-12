@@ -118,8 +118,11 @@ const copy = {
         hatchEditDescription: 'Edit this hatch in one undoable transaction. Polygon islands close automatically; do not repeat the first vertex.',
         hatchOperation: 'Operation',
         hatchUpdatePattern: 'Pattern only',
-        hatchAddIsland: 'Add island',
-        hatchReplaceIsland: 'Replace island',
+        hatchAddIsland: 'Add polygon island',
+        hatchReplaceIsland: 'Replace with polygon',
+        hatchAddSelected: 'Add exact selected boundary',
+        hatchReplaceSelected: 'Replace with exact selected boundary',
+        hatchSourceReview: 'Exact boundary sources',
         hatchRemoveIsland: 'Remove island',
         hatchIsland: 'Inner island',
         hatchVertices: 'Island vertices (x,y; x,y; …)',
@@ -306,8 +309,11 @@ const copy = {
         hatchEditDescription: '在一个可撤销事务中修改当前填充。多边形内岛会自动闭合，请勿重复首点。',
         hatchOperation: '操作',
         hatchUpdatePattern: '仅修改图案',
-        hatchAddIsland: '新增内岛',
-        hatchReplaceIsland: '替换内岛',
+        hatchAddIsland: '新增多边形内岛',
+        hatchReplaceIsland: '替换为多边形',
+        hatchAddSelected: '新增精确选中边界',
+        hatchReplaceSelected: '替换为精确选中边界',
+        hatchSourceReview: '精确边界来源',
         hatchRemoveIsland: '删除内岛',
         hatchIsland: '内岛边界',
         hatchVertices: '内岛顶点（x,y; x,y; …）',
@@ -4730,7 +4736,7 @@ export class KJDrawWorkbench {
             host.append(row);
         }
     }
-    #openHatchEditor(entity) {
+    #openHatchEditor(entity, sourceIds = []) {
         const drawing = this.document;
         if (!drawing || entity.type !== 'HATCH' || this.#readOnly) return;
         const revision = drawing.revision;
@@ -4739,7 +4745,9 @@ export class KJDrawWorkbench {
         const dialog = document.createElement('dialog');
         dialog.className = 'modify-dialog hatch-dialog';
         dialog.dataset.hatchEditDialog = '';
-        dialog.innerHTML = '<form method="dialog" class="modify-form"><header class="modify-head"><h2>' + this.#t('hatchEdit') + '</h2><p>' + this.#t('hatchEditDescription') + '</p></header><div class="modify-body"><label class="field"><span>' + this.#t('hatchOperation') + '</span><select data-hatch-operation></select></label><label class="field" data-hatch-island-field><span>' + this.#t('hatchIsland') + '</span><select data-hatch-island></select></label><label class="field" data-hatch-vertices-field><span>' + this.#t('hatchVertices') + '</span><textarea data-hatch-vertices></textarea></label><div class="modify-fields"><label class="field"><span>' + this.#t('hatchPatternScale') + '</span><input data-hatch-scale type="number" min="0.000000001" step="any" required></label><label class="field"><span>' + this.#t('hatchPatternAngle') + '</span><input data-hatch-angle type="number" step="any" required></label></div><p role="alert" data-hatch-error></p></div><footer class="modify-actions"><button type="button" data-hatch-cancel>' + this.#t('cancel') + '</button><button type="button" class="confirm" data-hatch-apply>' + this.#t('hatchApply') + '</button></footer></form>';
+        const sources = sourceIds.map((id)=>drawing.getObject(id)).filter((value)=>value?.kind === 'entity' && !value.erased);
+        const review = sources.length ? '<p class="modify-order" data-hatch-source-review><strong>' + this.#t('hatchSourceReview') + ':</strong> ' + sources.map((value)=>value.type + ' · ' + value.handle).join(' · ') + '</p>' : '';
+        dialog.innerHTML = '<form method="dialog" class="modify-form"><header class="modify-head"><h2>' + this.#t('hatchEdit') + '</h2><p>' + this.#t('hatchEditDescription') + '</p></header><div class="modify-body">' + review + '<label class="field"><span>' + this.#t('hatchOperation') + '</span><select data-hatch-operation></select></label><label class="field" data-hatch-island-field><span>' + this.#t('hatchIsland') + '</span><select data-hatch-island></select></label><label class="field" data-hatch-vertices-field><span>' + this.#t('hatchVertices') + '</span><textarea data-hatch-vertices></textarea></label><div class="modify-fields"><label class="field"><span>' + this.#t('hatchPatternScale') + '</span><input data-hatch-scale type="number" min="0.000000001" step="any" required></label><label class="field"><span>' + this.#t('hatchPatternAngle') + '</span><input data-hatch-angle type="number" step="any" required></label></div><p role="alert" data-hatch-error></p></div><footer class="modify-actions"><button type="button" data-hatch-cancel>' + this.#t('cancel') + '</button><button type="button" class="confirm" data-hatch-apply>' + this.#t('hatchApply') + '</button></footer></form>';
         this.root.append(dialog);
         const operation = query(dialog, '[data-hatch-operation]');
         for (const [value, label, disabled] of [
@@ -4757,6 +4765,16 @@ export class KJDrawWorkbench {
                 'replace-island',
                 this.#t('hatchReplaceIsland'),
                 innerIndexes.length === 0
+            ],
+            [
+                'add-selected',
+                this.#t('hatchAddSelected'),
+                sources.length === 0
+            ],
+            [
+                'replace-selected',
+                this.#t('hatchReplaceSelected'),
+                sources.length === 0 || innerIndexes.length === 0
             ],
             [
                 'remove-island',
@@ -4794,7 +4812,7 @@ export class KJDrawWorkbench {
             }).filter(Boolean).join('; ');
         };
         const sync = ()=>{
-            const needsIsland = operation.value === 'replace-island' || operation.value === 'remove-island';
+            const needsIsland = operation.value === 'replace-island' || operation.value === 'replace-selected' || operation.value === 'remove-island';
             const needsVertices = operation.value === 'add-island' || operation.value === 'replace-island';
             query(dialog, '[data-hatch-island-field]').hidden = !needsIsland;
             query(dialog, '[data-hatch-vertices-field]').hidden = !needsVertices;
@@ -4821,19 +4839,22 @@ export class KJDrawWorkbench {
                         if (values.length !== 2 || values.some((item)=>!Number.isFinite(item))) throw new Error('HATCHEDIT: island vertex ' + index + ' must contain finite x,y coordinates');
                         return values;
                     });
+                const exactSource = operation.value === 'add-selected' || operation.value === 'replace-selected';
                 const command = {
                     id: entity.id,
-                    operation: operation.value,
+                    operation: operation.value.replace('-selected', '-island'),
                     patternScale: Number(query(dialog, '[data-hatch-scale]').value),
                     patternAngle: Number(query(dialog, '[data-hatch-angle]').value) * Math.PI / 180
                 };
-                if (operation.value === 'replace-island' || operation.value === 'remove-island') command.loopIndex = Number(island.value);
+                if (operation.value === 'replace-island' || operation.value === 'replace-selected' || operation.value === 'remove-island') command.loopIndex = Number(island.value);
                 if (operation.value === 'add-island' || operation.value === 'replace-island') command.vertices = parseVertices();
+                if (exactSource) command.sourceIds = sources.map((value)=>value.id);
                 await this.execute('HATCHEDIT', command, {
                     expectedRevision: revision
                 });
                 close();
             }));
+        if (sources.length) operation.value = 'add-selected';
         sync();
         dialog.showModal();
     }
@@ -4851,6 +4872,9 @@ export class KJDrawWorkbench {
             return;
         }
         const multiple = selectedEntities.length > 1;
+        const selectedHatches = selectedEntities.filter((item)=>item.type === 'HATCH');
+        const editableHatch = selectedHatches.length === 1 ? selectedHatches[0] : null;
+        const hatchSourceIds = editableHatch ? selectedEntities.filter((item)=>item.id !== editableHatch.id).map((item)=>item.id) : [];
         const title = document.createElement('div');
         title.className = 'entity-title';
         title.textContent = multiple ? `${selectedEntities.length} ${this.#t('selected')}` : entity.type;
@@ -5060,13 +5084,13 @@ export class KJDrawWorkbench {
             field.append(valueInput);
             host.append(field);
         }
-        if (!this.#readOnly && !multiple && entity.type === 'HATCH') {
+        if (!this.#readOnly && editableHatch) {
             const editHatch = document.createElement('button');
             editHatch.type = 'button';
             editHatch.className = 'apply';
             editHatch.dataset.action = 'edit-hatch';
             editHatch.textContent = this.#t('hatchEdit');
-            editHatch.addEventListener('click', ()=>this.#openHatchEditor(entity), {
+            editHatch.addEventListener('click', ()=>this.#openHatchEditor(editableHatch, hatchSourceIds), {
                 signal: this.#abort.signal
             });
             host.append(editHatch);
