@@ -8,6 +8,7 @@ async function fixture() {
   await document.transact('Inspection geometry', tx => {
     tx.createEntity('LINE', { start: [0, 0, 0], end: [-3, -4, -12] }, { id: 'line' })
     tx.createEntity('CIRCLE', { center: [3, 4, 0], radius: 2 }, { id: 'circle' })
+    tx.createEntity('DIMENSION', { dimensionType: 'ALIGNED', definitionPoints: [[0, 2, 0], [0, 0, 0], [3, 4, 0]], textOverride: 'untrusted label' }, { id: 'dimension' })
     tx.createEntity('LWPOLYLINE', { vertices: [[0, 0], [10, 0], [10, 10]], closed: true }, { id: 'closed' })
     tx.createEntity('LINE', { start: [0, 0, 0], end: [3, 4, 0] }, { id: 'paper', ownerId: document.snapshot().spaces.paperSpaceIds[0] })
   })
@@ -16,18 +17,22 @@ async function fixture() {
 const input = (document, patch = {}) => ({ expectedRevision: document.revision, units: 'millimeter',
   lineLengths: [{ id: 'length', objectId: 'line', expected: 13, tolerance: 0 }],
   circleRadii: [{ id: 'radius', objectId: 'circle', expected: 2, tolerance: 0 }],
+  dimensionMeasurements: [{ id: 'dimension', objectId: 'dimension', expected: 5, tolerance: 1e-12 }],
   pointDistances: [{ id: 'spacing', from: { objectId: 'line', feature: 'start' }, to: { objectId: 'circle', feature: 'center' }, expected: 5, tolerance: 0 }],
   polylineClosures: [{ id: 'closure', objectId: 'closed', expected: true }], ...patch })
 
-test('geometry tool returns exact immutable evidence from all four groups without modifying drawing history', async () => {
+test('geometry tool returns exact immutable evidence including native dimensions without modifying drawing history', async () => {
   const { document, session } = await fixture(), before = document.serialize()
   assert.equal(session.definitions.find(tool => tool.name === 'cad_check_geometry').effect, 'read')
   const result = await session.call('cad_check_geometry', input(document))
   assert.equal(result.ok, true, JSON.stringify(result))
   assert.equal(result.value.passed, true)
   assert.equal(result.value.revision, document.revision)
-  assert.deepEqual(result.value.checks.map(check => check.actual), [13, 2, 5, true])
-  assert.deepEqual(result.value.checks.map(check => check.error), [0, 0, 0, 0])
+  const actual = result.value.checks.map(check => check.actual), errors = result.value.checks.map(check => check.error)
+  assert.deepEqual([actual[0], actual[1], actual[3], actual[4]], [13, 2, 5, true])
+  assert.ok(Math.abs(actual[2] - 5) < 1e-12)
+  assert.deepEqual([errors[0], errors[1], errors[3], errors[4]], [0, 0, 0, 0])
+  assert.ok(errors[2] < 1e-12)
   assert.equal(result.value.checks[0].references[0].ownerId, document.getObject('line').ownerId)
   assert.ok(Object.isFrozen(result.value.checks[0].references[0]))
   assert.equal(document.serialize(), before)
@@ -42,7 +47,7 @@ test('a failed requirement is a successful read, not a tool exception or an appl
   const result = await session.call('cad_check_geometry', args)
   assert.equal(result.ok, true)
   assert.equal(result.value.passed, false)
-  assert.deepEqual(result.value.checks.map(check => check.passed), [false, true, true, true])
+  assert.deepEqual(result.value.checks.map(check => check.passed), [false, true, true, true, true])
   assert.equal(result.value.checks[0].error, 7)
   assert.equal(result.value.checks[0].expected, 20)
   assert.equal(result.value.checks[1].tolerance, 2)
@@ -79,8 +84,8 @@ test('wrong refs, features, entity types, units, revisions and cross-group budge
   const missingGroup = input(document); delete missingGroup.circleRadii; cases.push(missingGroup)
   const missingTolerance = input(document); delete missingTolerance.lineLengths[0].tolerance; cases.push(missingTolerance)
   cases.push(input(document, { units: 'mm' }), input(document, { expectedRevision: document.revision - 1 }))
-  cases.push(input(document, { lineLengths: [], circleRadii: [], pointDistances: [], polylineClosures: [] }))
-  cases.push(input(document, { lineLengths: Array.from({ length: 64 }, (_, i) => ({ id: `line-${i}`, objectId: 'line', expected: 13, tolerance: 0 })), circleRadii: [{ id: 'extra', objectId: 'circle', expected: 2, tolerance: 0 }], pointDistances: [], polylineClosures: [] }))
+  cases.push(input(document, { lineLengths: [], circleRadii: [], dimensionMeasurements: [], pointDistances: [], polylineClosures: [] }))
+  cases.push(input(document, { lineLengths: Array.from({ length: 64 }, (_, i) => ({ id: `line-${i}`, objectId: 'line', expected: 13, tolerance: 0 })), circleRadii: [{ id: 'extra', objectId: 'circle', expected: 2, tolerance: 0 }], dimensionMeasurements: [], pointDistances: [], polylineClosures: [] }))
   for (const args of cases) {
     const result = await session.call('cad_check_geometry', args)
     assert.equal(result.ok, false, JSON.stringify(args))

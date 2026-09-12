@@ -81,6 +81,12 @@ export interface KJAgentGeometryValidationInput {
         expected: number;
         tolerance: number;
     }[];
+    dimensionMeasurements?: {
+        id: string;
+        objectId: string;
+        expected: number;
+        tolerance: number;
+    }[];
     pointDistances: {
         id: string;
         from: KJDrawingValidationPointReference;

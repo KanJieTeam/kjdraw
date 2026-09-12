@@ -8,6 +8,8 @@ async function fixture() {
   await document.transact('Original geometry', tx => {
     tx.createEntity('LINE', { start: [0, 0, 0], end: [3, 4, 12] }, { id: 'line' })
     tx.createEntity('CIRCLE', { center: [3, 4, 0], radius: 2 }, { id: 'circle' })
+    tx.createEntity('DIMENSION', { dimensionType: 'ALIGNED', definitionPoints: [[0, 2, 0], [0, 0, 0], [3, 4, 0]] }, { id: 'aligned-dimension' })
+    tx.createEntity('DIMENSION', { dimensionType: 'ANGULAR_3_POINT', definitionPoints: [[4, 4, 0], [10, 0, 0], [0, 10, 0], [0, 0, 0]] }, { id: 'angular-dimension' })
     tx.createEntity('LWPOLYLINE', { vertices: [[0, 0], [10, 0], [10, 10]], closed: true }, { id: 'closed' })
     tx.createEntity('POLYLINE', { vertices: [[0, 0, 2], [10, 0, 3]], closed: false }, { id: 'open' })
     tx.createEntity('CIRCLE', { center: [0, 0, 0], radius: 2, normal: [0, 1, 0] }, { id: 'tilted' })
@@ -44,6 +46,20 @@ test('failed requirements stay false, tolerance boundary is inclusive, and closu
   assert.deepEqual(result.checks.map(item => item.error), [1, 2, 1])
   assert.deepEqual(result.checks.map(item => item.passed), [true, false, false])
   assert.throws(() => check(document, [numeric('open', 'polyline-closed', true, 1)]), /tolerance 0/)
+})
+
+test('native linear and angular dimensions return kernel measurements rather than displayed text', async () => {
+  const { document } = await fixture(), before = document.serialize()
+  const result = check(document, [
+    numeric('aligned-dimension', 'dimension-measurement', 5, 1e-12),
+    numeric('angular-dimension', 'dimension-measurement', 90),
+  ])
+  assert.equal(result.passed, true)
+  assert.ok(Math.abs(result.checks[0].actual - 5) < 1e-12)
+  assert.equal(result.checks[1].actual, 90)
+  assert.deepEqual(result.checks.map(item => item.references[0].objectId), ['aligned-dimension', 'angular-dimension'])
+  assert.throws(() => check(document, [numeric('line', 'dimension-measurement', 13)]), /native DIMENSION/)
+  assert.equal(document.serialize(), before)
 })
 
 test('MOVE, undo and redo remeasure the actual objects and reject stale evidence revisions', async () => {

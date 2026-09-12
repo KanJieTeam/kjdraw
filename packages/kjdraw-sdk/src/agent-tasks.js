@@ -262,7 +262,7 @@ function geometryCheck(value, requirementId) {
         tolerance
     };
     const objectId = text(row.objectId, 'geometry object ID', 256);
-    if (kind === 'line-length' || kind === 'circle-radius') return {
+    if (kind === 'line-length' || kind === 'circle-radius' || kind === 'dimension-measurement') return {
         id: requirementId,
         kind,
         objectId,
@@ -440,6 +440,7 @@ function receiptCheck(value) {
     if (![
         'line-length',
         'circle-radius',
+        'dimension-measurement',
         'point-distance',
         'polyline-closed'
     ].includes(kind)) fail('receipt geometry check kind is invalid');

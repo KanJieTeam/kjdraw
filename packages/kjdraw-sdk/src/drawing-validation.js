@@ -1,6 +1,7 @@
 // Generated from drawing-validation.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJRevisionConflictError, KJValidationError } from './errors.js';
 import { deepFreeze } from './utils.js';
+import { projectDimension } from './geometry/annotation.js';
 const fail = (message)=>{
     throw new KJValidationError(message);
 };
@@ -121,6 +122,7 @@ function validateDrawingGeometryView(view, input) {
         if (![
             'line-length',
             'circle-radius',
+            'dimension-measurement',
             'point-distance',
             'polyline-closed'
         ].includes(item.kind)) return fail('Unsupported geometry check kind');
@@ -144,6 +146,14 @@ function validateDrawingGeometryView(view, input) {
                 if (object.type !== 'CIRCLE') fail('circle-radius requires a native CIRCLE entity');
                 actual = boundedNumber(object.payload.radius, 'Circle radius');
                 if (actual === 0) fail('Circle radius must be positive');
+                expected = boundedNumber(item.expected, 'expected');
+            } else if (kind === 'dimension-measurement') {
+                if (object.type !== 'DIMENSION') fail('dimension-measurement requires a native DIMENSION entity');
+                const styleId = object.payload.styleId == null ? null : String(object.payload.styleId);
+                const style = styleId ? view.getObject(styleId) : null;
+                const projection = projectDimension(object.payload, style?.kind === 'table-record' ? style.payload : {});
+                if (!projection) return fail('dimension-measurement requires supported nondegenerate native dimension geometry');
+                actual = boundedNumber(projection.measurement, 'Dimension measurement');
                 expected = boundedNumber(item.expected, 'expected');
             } else {
                 if (![

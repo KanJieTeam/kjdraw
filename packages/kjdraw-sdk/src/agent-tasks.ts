@@ -342,7 +342,7 @@ function geometryCheck(value: unknown, requirementId: string): KJDrawingValidati
   const tolerance = geometryNumber(row.tolerance, 'geometry tolerance')
   if (kind === 'point-distance') return { id: requirementId, kind, from: geometryReference(row.from), to: geometryReference(row.to), expected: geometryNumber(row.expected, 'geometry expected value'), tolerance }
   const objectId = text(row.objectId, 'geometry object ID', 256)
-  if (kind === 'line-length' || kind === 'circle-radius') return { id: requirementId, kind, objectId, expected: geometryNumber(row.expected, 'geometry expected value'), tolerance }
+  if (kind === 'line-length' || kind === 'circle-radius' || kind === 'dimension-measurement') return { id: requirementId, kind, objectId, expected: geometryNumber(row.expected, 'geometry expected value'), tolerance }
   if (kind === 'polyline-closed') {
     if (typeof row.expected !== 'boolean' || tolerance !== 0) fail('polyline closure requires a boolean expected value and zero tolerance')
     return { id: requirementId, kind, objectId, expected: row.expected, tolerance: 0 }
@@ -407,7 +407,7 @@ function progress(value: unknown, definition: KJAgentTaskDefinition): { steps: K
 function receiptCheck(value: unknown): KJDrawingValidationCheckResult {
   const row = plain(value, ['id', 'kind', 'actual', 'expected', 'error', 'tolerance', 'passed', 'references'], 'receipt geometry check')
   const id = identifier(row.id, 'receipt check id'), kind = String(row.kind)
-  if (!['line-length', 'circle-radius', 'point-distance', 'polyline-closed'].includes(kind)) fail('receipt geometry check kind is invalid')
+  if (!['line-length', 'circle-radius', 'dimension-measurement', 'point-distance', 'polyline-closed'].includes(kind)) fail('receipt geometry check kind is invalid')
   if (typeof row.passed !== 'boolean') fail('receipt geometry check result is invalid')
   const actual = row.actual, expected = row.expected
   if (!(typeof actual === 'boolean' || typeof actual === 'number' && Number.isFinite(actual)) || !(typeof expected === 'boolean' || typeof expected === 'number' && Number.isFinite(expected))) fail('receipt geometry values are invalid')

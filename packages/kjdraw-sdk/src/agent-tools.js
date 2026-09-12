@@ -591,27 +591,34 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_check_geometry',
         effect: 'read',
-        description: 'Check 1–64 explicit requirements against actual drawing objects at expectedRevision. Supply all four groups, unused groups as empty arrays. LINE lengths and point distances use native owner coordinates in 3D; point pairs must share an owner. CIRCLE radius is intrinsic. Point features are limited to supported native entities, not expanded block instances. Polyline closure checks the stored closed flag and valid vertices, not self-intersection or topology. Returns actual values, deviations, tolerances and pass/fail for supplied requirements only. Does not infer the user intent, certify a design, modify or approve a drawing.',
-        inputSchema: object({
-            expectedRevision: revision,
-            units: text,
-            lineLengths: drawingGroup(measuredObject),
-            circleRadii: drawingGroup(measuredObject),
-            pointDistances: drawingGroup(object({
-                id: text,
-                from: pointReference,
-                to: pointReference,
-                expected: nonnegative,
-                tolerance: nonnegative
-            })),
-            polylineClosures: drawingGroup(object({
-                id: text,
-                objectId: text,
-                expected: {
-                    type: 'boolean'
-                }
-            }))
-        })
+        description: 'Check 1–64 explicit requirements against actual drawing objects at expectedRevision. Supply lineLengths, circleRadii, pointDistances and polylineClosures; dimensionMeasurements is an optional additive group. LINE lengths and point distances use native owner coordinates in 3D; point pairs must share an owner. CIRCLE radius is intrinsic. Native DIMENSION measurements use drawing units for linear/radius/diameter and degrees for angular dimensions. Point features are limited to supported native entities, not expanded block instances. Polyline closure checks the stored closed flag and valid vertices, not self-intersection or topology. Returns actual values, deviations, tolerances and pass/fail for supplied requirements only. Does not infer the user intent, certify a design, modify or approve a drawing.',
+        inputSchema: (()=>{
+            const schema = object({
+                expectedRevision: revision,
+                units: text,
+                lineLengths: drawingGroup(measuredObject),
+                circleRadii: drawingGroup(measuredObject),
+                dimensionMeasurements: drawingGroup(measuredObject),
+                pointDistances: drawingGroup(object({
+                    id: text,
+                    from: pointReference,
+                    to: pointReference,
+                    expected: nonnegative,
+                    tolerance: nonnegative
+                })),
+                polylineClosures: drawingGroup(object({
+                    id: text,
+                    objectId: text,
+                    expected: {
+                        type: 'boolean'
+                    }
+                }))
+            });
+            return {
+                ...schema,
+                required: schema.required.filter((name)=>name !== 'dimensionMeasurements')
+            };
+        })()
     },
     {
         name: 'cad_read_drawing',
@@ -1228,6 +1235,10 @@ export class KJAgentToolSession {
                                 ...input.circleRadii.map((item)=>({
                                         ...item,
                                         kind: 'circle-radius'
+                                    })),
+                                ...(input.dimensionMeasurements ?? []).map((item)=>({
+                                        ...item,
+                                        kind: 'dimension-measurement'
                                     })),
                                 ...input.pointDistances.map((item)=>({
                                         ...item,

@@ -63,6 +63,7 @@ for (const protocol of protocols) {
       assert.equal(schema.additionalProperties, false)
       assert.deepEqual(schema.required, ['expectedRevision', 'units', 'lineLengths', 'circleRadii', 'pointDistances', 'polylineClosures'])
       assert.equal(schema.properties.lineLengths.maxItems, 64)
+      assert.equal(schema.properties.dimensionMeasurements.maxItems, 64)
       if (step++ === 0) return wire(protocol, [call('read', 'cad_read_drawing')])
       const toolResult = resultAtEnd(protocol, body)
       assert.equal(toolResult.ok, true, JSON.stringify(toolResult))

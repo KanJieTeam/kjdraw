@@ -3,11 +3,12 @@ import type { KJTransaction } from './transaction.js'
 import type { KJReadonlyObjectRecord } from './schema.js'
 import { KJRevisionConflictError, KJValidationError } from './errors.js'
 import { deepFreeze } from './utils.js'
+import { projectDimension } from './geometry/annotation.js'
 
 export type KJDrawingValidationFeature = 'start' | 'end' | 'center' | 'origin'
 export interface KJDrawingValidationPointReference { objectId: string; feature: KJDrawingValidationFeature }
 export type KJDrawingValidationCheck =
-  | { id: string; kind: 'line-length' | 'circle-radius'; objectId: string; expected: number; tolerance: number }
+  | { id: string; kind: 'line-length' | 'circle-radius' | 'dimension-measurement'; objectId: string; expected: number; tolerance: number }
   | { id: string; kind: 'point-distance'; from: KJDrawingValidationPointReference; to: KJDrawingValidationPointReference; expected: number; tolerance: number }
   | { id: string; kind: 'polyline-closed'; objectId: string; expected: boolean; tolerance: 0 }
 export interface KJDrawingValidationInput { expectedRevision: number; units: string; checks: readonly KJDrawingValidationCheck[] }
@@ -118,7 +119,7 @@ function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDra
     const id = text(item.id, 'Check id')
     if (ids.has(id)) fail('Check ids must be unique')
     ids.add(id)
-    if (!['line-length', 'circle-radius', 'point-distance', 'polyline-closed'].includes(item.kind as string)) return fail('Unsupported geometry check kind')
+    if (!['line-length', 'circle-radius', 'dimension-measurement', 'point-distance', 'polyline-closed'].includes(item.kind as string)) return fail('Unsupported geometry check kind')
     const kind = item.kind as KJDrawingValidationCheck['kind'], refs: KJDrawingValidationReference[] = []
     const tolerance = boundedNumber(item.tolerance, 'tolerance')
     let actual: number | boolean, expected: number | boolean
@@ -139,6 +140,14 @@ function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDra
         if (object.type !== 'CIRCLE') fail('circle-radius requires a native CIRCLE entity')
         actual = boundedNumber(object.payload.radius, 'Circle radius')
         if (actual === 0) fail('Circle radius must be positive')
+        expected = boundedNumber(item.expected, 'expected')
+      } else if (kind === 'dimension-measurement') {
+        if (object.type !== 'DIMENSION') fail('dimension-measurement requires a native DIMENSION entity')
+        const styleId = object.payload.styleId == null ? null : String(object.payload.styleId)
+        const style = styleId ? view.getObject(styleId) : null
+        const projection = projectDimension(object.payload, style?.kind === 'table-record' ? style.payload : {})
+        if (!projection) return fail('dimension-measurement requires supported nondegenerate native dimension geometry')
+        actual = boundedNumber(projection.measurement, 'Dimension measurement')
         expected = boundedNumber(item.expected, 'expected')
       } else {
         if (!['LWPOLYLINE', 'POLYLINE'].includes(object.type)) fail('polyline-closed requires a native polyline')
