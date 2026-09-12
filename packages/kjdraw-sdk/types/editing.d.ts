@@ -50,6 +50,19 @@ export interface KJLinePairEditResult {
     second: KJObjectPayload;
     connector: KJLineConnector | KJArcConnector;
 }
+export interface KJJoinEntity extends KJEditingEntity {
+    readonly id?: unknown;
+}
+export interface KJJoinOptions {
+    readonly tolerance?: unknown;
+    readonly primaryId?: unknown;
+}
+export interface KJJoinResult extends KJDerivedEntityPayload {
+    sourceIds: string[];
+    closed: boolean;
+}
+/** Join connected open linear/arc paths into one editable planar polyline. */
+export declare function joinEntityPayloads(entities: readonly KJJoinEntity[], options?: KJJoinOptions): KJJoinResult;
 export declare function offsetEntityPayload(entity: KJEditingEntity | null | undefined, distance: unknown, options?: KJOffsetOptions): KJObjectPayload;
 export declare function breakEntityPayloads(entity: KJEditingEntity | null | undefined, options?: KJBreakOptions): KJDerivedEntityPayload[];
 export declare function explodeEntity(entity: KJEditingEntity | null | undefined): KJDerivedEntityPayload[];

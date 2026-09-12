@@ -152,6 +152,7 @@ export interface KJCommandArguments extends Record<string, unknown> {
     rotation?: unknown;
     radius?: unknown;
     distance?: unknown;
+    tolerance?: unknown;
     distance1?: unknown;
     distance2?: unknown;
     dx?: unknown;
@@ -321,6 +322,12 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly domain: string;
         readonly precision: string;
         readonly supportedEntityTypes: readonly string[];
+    };
+    readonly JOIN: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly supportedEntityTypes: readonly string[];
+        readonly maximumEntities: number;
     };
     readonly EXPLODE: {
         readonly domain: string;
