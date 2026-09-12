@@ -761,7 +761,9 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id), pieces = breakEntityPayloads(entity, args)
       transaction.eraseObject(entity.id)
-      return pieces.map(piece => createDerived(transaction, entity, piece.type, piece.payload))
+      const derived = pieces.map(piece => createDerived(transaction, entity, piece.type, piece.payload))
+      replaceEntityMemberships(transaction, [entity.id], derived.map(piece => piece.id))
+      return derived
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
@@ -791,7 +793,9 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id), pieces = explodeEntity(entity)
       transaction.eraseObject(entity.id)
-      return pieces.map(piece => createDerived(transaction, entity, piece.type, piece.payload))
+      const derived = pieces.map(piece => createDerived(transaction, entity, piece.type, piece.payload))
+      replaceEntityMemberships(transaction, [entity.id], derived.map(piece => piece.id))
+      return derived
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
