@@ -997,6 +997,48 @@ function polylinePointAt(start: Point3, end: Point3, parameter: number): Point3 
   return [start[0] + (end[0] - start[0]) * parameter, start[1] + (end[1] - start[1]) * parameter, start[2] + (end[2] - start[2]) * parameter]
 }
 
+function polylineArcPayload(payload: KJObjectPayload, vertices: readonly EditablePolylineVertex[], source: EditablePolylineVertex, next: EditablePolylineVertex): KJArcConnector['payload'] {
+  if (Math.abs(source.point[2] - next.point[2]) > EDIT_PLANE_EPSILON) throw new KJValidationError('Bulge editing requires segment endpoints in one XY plane')
+  const elevation = Number(payload.elevation ?? 0)
+  const useElevation = elevation !== 0 && vertices.every(vertex => vertex.point[2] === 0)
+  const start: Point3 = [source.point[0], source.point[1], useElevation ? elevation : source.point[2]]
+  const end: Point3 = [next.point[0], next.point[1], useElevation ? elevation : next.point[2]]
+  const arc = bulgeArc(start, end, source.bulge)
+  if (!arc || ![...arc.center, arc.radius, arc.startAngle, arc.endAngle].every(Number.isFinite)) throw new KJValidationError('Bulge editing requires a bounded non-degenerate circular segment')
+  return arc
+}
+
+function pointOnPolylineSegment(payload: KJObjectPayload, vertices: readonly EditablePolylineVertex[], source: EditablePolylineVertex, next: EditablePolylineVertex, parameter: number): Point3 {
+  if (Math.abs(source.bulge) <= 1e-15) return polylinePointAt(source.point, next.point, parameter)
+  const arc = polylineArcPayload(payload, vertices, source, next), sweep = 4 * Math.atan(source.bulge)
+  const angle = arc.startAngle + sweep * parameter
+  return [arc.center[0] + arc.radius * Math.cos(angle), arc.center[1] + arc.radius * Math.sin(angle), source.point[2]]
+}
+
+function trimPolylineInterval(payload: KJObjectPayload, vertices: readonly EditablePolylineVertex[], source: EditablePolylineVertex,
+  next: EditablePolylineVertex, boundaries: readonly KJEditingEntity[], pickPoint: unknown): { lower: number; upper: number } {
+  if (Math.abs(source.bulge) <= 1e-15) {
+    const segment = { type: 'LINE', payload: { start: source.point, end: next.point } }
+    rejectAmbiguousLineBoundaries(segment, boundaries, 'segment')
+    const retained = trimLinePayloads(segment, boundaries, pickPoint), direction = subtract2(next.point, source.point)
+    const parameter = (point: unknown): number => projectParameter2(pointInput(point), source.point, direction)
+    const first = retained[0]!, last = retained.at(-1)!
+    return {
+      lower: Math.abs(parameter(first.start)) <= EDIT_ANGLE_EPSILON ? parameter(first.end) : 0,
+      upper: Math.abs(parameter(last.end) - 1) <= EDIT_ANGLE_EPSILON ? parameter(last.start) : 1,
+    }
+  }
+  const geometry = circularEditGeometry({ type: 'ARC', payload: polylineArcPayload(payload, vertices, source, next) })
+  const pick = circularPickOffset(geometry, pickPoint), cuts = circularCutOffsets(geometry, boundaries)
+  rejectExactCircularCut(pick, cuts)
+  const interior = cuts.filter(value => value > EDIT_ANGLE_EPSILON && value < geometry.span - EDIT_ANGLE_EPSILON)
+  if (!interior.length) throw new KJValidationError('No trim intersection lies inside the selected bulge arc')
+  return {
+    lower: (interior.filter(value => value < pick).at(-1) ?? 0) / geometry.span,
+    upper: (interior.find(value => value > pick) ?? geometry.span) / geometry.span,
+  }
+}
+
 function changedPolylinePayload(payload: KJObjectPayload, vertices: readonly EditablePolylineVertex[]): KJObjectPayload {
   const result: KJObjectPayload = { ...clone(payload), vertices: clone(vertices), closed: false }
   for (const key of ['rawTags', 'rawData', 'originalType']) delete result[key]
@@ -1007,27 +1049,19 @@ function changedPolylinePayload(payload: KJObjectPayload, vertices: readonly Edi
 function trimPolylinePayloads(target: KJEditingEntity, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[] {
   const { type, payload, vertices } = editableBoundaryPolyline(target, 'TRIM')
   const segmentIndex = pickedPolylineSegment(vertices, pickPoint), source = vertices[segmentIndex]!, next = vertices[segmentIndex + 1]!
-  if (Math.abs(source.bulge) > 1e-15) throw new KJValidationError('TRIM does not approximate bulge arcs; pick a straight polyline segment')
-  const segment = { type: 'LINE', payload: { start: source.point, end: next.point } }
-  rejectAmbiguousLineBoundaries(segment, boundaries, 'segment')
-  const retained = trimLinePayloads(segment, boundaries, pickPoint)
-  const direction = subtract2(next.point, source.point)
-  const parameter = (point: unknown): number => projectParameter2(pointInput(point), source.point, direction)
-  const first = retained[0]!, last = retained.at(-1)!
-  const startsAtBeginning = Math.abs(parameter(first.start)) <= EDIT_ANGLE_EPSILON
-  const endsAtEnd = Math.abs(parameter(last.end) - 1) <= EDIT_ANGLE_EPSILON
-  const lower = startsAtBeginning ? parameter(first.end) : 0
-  const upper = endsAtEnd ? parameter(last.start) : 1
+  const { lower, upper } = trimPolylineInterval(payload, vertices, source, next, boundaries, pickPoint)
+  const sweep = 4 * Math.atan(source.bulge)
   const pieces: EditablePolylineVertex[][] = []
   const upstream = vertices.slice(0, segmentIndex + 1).map(vertex => clone(vertex))
   if (lower > EDIT_ANGLE_EPSILON) {
+    upstream.at(-1)!.bulge = Math.tan(sweep * lower / 4)
     upstream.at(-1)!.endWidth = interpolatePolylineWidth(source, lower)
-    upstream.push({ ...clone(next), point: polylinePointAt(source.point, next.point, lower), bulge: 0,
+    upstream.push({ ...clone(next), point: pointOnPolylineSegment(payload, vertices, source, next, lower), bulge: 0,
       startWidth: interpolatePolylineWidth(source, lower), endWidth: interpolatePolylineWidth(source, lower) })
   } else upstream.at(-1)!.bulge = 0
   if (upstream.length >= 2) pieces.push(upstream)
   const downstream = vertices.slice(segmentIndex + 1).map(vertex => clone(vertex))
-  if (upper < 1 - EDIT_ANGLE_EPSILON) downstream.unshift({ ...clone(source), point: polylinePointAt(source.point, next.point, upper), bulge: 0,
+  if (upper < 1 - EDIT_ANGLE_EPSILON) downstream.unshift({ ...clone(source), point: pointOnPolylineSegment(payload, vertices, source, next, upper), bulge: Math.tan(sweep * (1 - upper) / 4),
     startWidth: interpolatePolylineWidth(source, upper), endWidth: source.endWidth })
   if (downstream.length >= 2) pieces.push(downstream)
   if (!pieces.length) throw new KJValidationError('TRIM must retain at least one polyline segment')
@@ -1043,13 +1077,27 @@ function extendPolylinePayload(target: KJEditingEntity, boundaries: readonly KJE
   }
   const extendStart = startDistance < endDistance, segmentIndex = extendStart ? 0 : vertices.length - 2
   const source = vertices[segmentIndex]!, next = vertices[segmentIndex + 1]!
-  if (Math.abs(source.bulge) > 1e-15) throw new KJValidationError('EXTEND does not approximate bulge arcs; choose a straight polyline endpoint segment')
-  const segment = { type: 'LINE', payload: { start: source.point, end: next.point } }
-  rejectAmbiguousLineBoundaries(segment, boundaries, 'line')
-  const extended = extendLinePayload(segment, boundaries, extendStart ? source.point : next.point)
   const output = vertices.map(vertex => clone(vertex))
-  if (extendStart) output[0]!.point = finiteEditPoint(extended.start)
-  else output.at(-1)!.point = finiteEditPoint(extended.end)
+  if (Math.abs(source.bulge) <= 1e-15) {
+    const segment = { type: 'LINE', payload: { start: source.point, end: next.point } }
+    rejectAmbiguousLineBoundaries(segment, boundaries, 'line')
+    const extended = extendLinePayload(segment, boundaries, extendStart ? source.point : next.point)
+    if (extendStart) output[0]!.point = finiteEditPoint(extended.start)
+    else output.at(-1)!.point = finiteEditPoint(extended.end)
+  } else {
+    const arc = polylineArcPayload(payload, vertices, source, next)
+    const arcCenter = finiteEditPoint(arc.center), arcRadius = Number(arc.radius)
+    const endpoint = (angle: number): Point3 => [arcCenter[0] + arcRadius * Math.cos(angle), arcCenter[1] + arcRadius * Math.sin(angle), arcCenter[2]]
+    const extended = extendEntityPayload({ type: 'ARC', payload: arc }, boundaries, endpoint(Number(extendStart ? arc.startAngle : arc.endAngle)))
+    const signedSweep = arcSweep(extended as ArcDefinition), bulge = Math.tan(signedSweep / 4)
+    if (!Number.isFinite(bulge)) throw new KJValidationError('EXTEND bulge result is outside the supported finite range')
+    output[segmentIndex]!.bulge = bulge
+    const center = finiteEditPoint(extended.center)
+    const angle = Number(extendStart ? extended.startAngle : extended.endAngle)
+    const point: Point3 = [center[0] + Number(extended.radius) * Math.cos(angle), center[1] + Number(extended.radius) * Math.sin(angle), extendStart ? source.point[2] : next.point[2]]
+    if (extendStart) output[0]!.point = point
+    else output.at(-1)!.point = point
+  }
   return changedPolylinePayload(payload, output)
 }
 
