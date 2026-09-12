@@ -72,6 +72,16 @@ export interface KJLengthenOptions {
     readonly targetPoint?: unknown;
     readonly point?: unknown;
 }
+export interface KJStretchOptions {
+    readonly crossingStart?: unknown;
+    readonly crossingEnd?: unknown;
+    readonly firstPoint?: unknown;
+    readonly secondPoint?: unknown;
+    readonly from?: unknown;
+    readonly to?: unknown;
+    readonly dx?: unknown;
+    readonly dy?: unknown;
+}
 /** Join connected open linear/arc paths into one editable planar polyline. */
 export declare function joinEntityPayloads(entities: readonly KJJoinEntity[], options?: KJJoinOptions): KJJoinResult;
 export declare function offsetEntityPayload(entity: KJEditingEntity | null | undefined, distance: unknown, options?: KJOffsetOptions): KJObjectPayload;
@@ -88,5 +98,7 @@ export declare function trimEntityPayloads(target: KJEditingEntity | null | unde
 export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;
 /** Change one endpoint while preserving a LINE direction or ARC radius and orientation. */
 export declare function lengthenEntityPayload(target: KJEditingEntity | null | undefined, options?: KJLengthenOptions): KJObjectPayload;
+/** Move only defining vertices inside a crossing window; return null when none are selected. */
+export declare function stretchEntityPayload(target: KJEditingEntity | null | undefined, options?: KJStretchOptions): KJObjectPayload | null;
 export declare function chamferLinePair(first: KJEditingEntity, second: KJEditingEntity, options?: KJLinePairOptions): KJLinePairEditResult;
 export declare function filletLinePair(first: KJEditingEntity, second: KJEditingEntity, options?: KJLinePairOptions): KJLinePairEditResult;

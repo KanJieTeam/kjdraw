@@ -353,6 +353,14 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly modes: readonly string[];
         readonly stableIdentity: boolean;
     };
+    readonly STRETCH: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly supportedEntityTypes: readonly string[];
+        readonly selection: string;
+        readonly maximumEntities: number;
+        readonly stableIdentity: boolean;
+    };
     readonly CHAMFER: {
         readonly domain: string;
         readonly precision: string;
