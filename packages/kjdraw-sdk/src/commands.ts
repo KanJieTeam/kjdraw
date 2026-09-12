@@ -577,6 +577,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   disposers.push(registry.register({
     id: 'PROPERTIES', title: 'Update object properties',
     execute: ({ document, transaction }, args) => {
+      validateDrawingPropertiesPatch(document, args.patch)
       if (args.ids == null) {
         assertGenericPropertyBoundary(document, args.id, args.patch)
         const updated = transaction.updateObject(args.id!, args.patch)
@@ -1681,6 +1682,16 @@ function updateBlockDefinition(
     return { block, entity: Object.keys(patch).length ? transaction.updateObject(entity.id, { payload: patch }) : transaction.getObject(entity.id)! }
   }
   return { block, entity: transaction.updateObject(entity.id, { payload: patch }) }
+}
+
+function validateDrawingPropertiesPatch(document: KJDocument, patch: KJObjectPatch | undefined): void {
+  const payload = patch?.payload
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return
+  if (Object.hasOwn(payload, 'linetypeScale')) {
+    const value = payload.linetypeScale
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw new KJValidationError('linetypeScale must be positive and finite')
+  }
+  if (Object.hasOwn(payload, 'linetypeId') && payload.linetypeId != null) resolveTableRecord(document, 'linetypes', payload.linetypeId)
 }
 
 function resolveTableRecord(document: KJDocument, tableName: KJTableName, value: unknown): KJReadonlyObjectRecord {

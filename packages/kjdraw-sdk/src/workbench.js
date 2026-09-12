@@ -130,6 +130,8 @@ const copy = {
         apply: 'Apply',
         ready: 'Ready',
         readonly: 'Read only',
+        linetypeScale: 'Entity linetype scale',
+        globalLinetypeScale: 'Global linetype scale',
         blockCreate: 'Create block',
         blockCreateDescription: 'Turn the current selection into one native block. Selected INSERTs remain nested, and attributes remain editable.',
         blockName: 'Block name',
@@ -379,6 +381,8 @@ const copy = {
         apply: '应用',
         ready: '就绪',
         readonly: '只读',
+        linetypeScale: '对象线型比例',
+        globalLinetypeScale: '全局线型比例',
         blockCreate: '创建图块',
         blockCreateDescription: '把当前选择转换为一个原生图块。选中的 INSERT 保持嵌套，属性仍可编辑。',
         blockName: '图块名称',
@@ -2260,6 +2264,15 @@ export class KJDrawWorkbench {
             if (command === 'FIT' || command === 'EXTENTS') {
                 this.renderer.fit();
                 this.#refreshViewport();
+                return;
+            }
+            if (command === 'LTSCALE') {
+                const [value] = finiteValues(1);
+                if (value <= 0) throw new Error('LTSCALE expects one positive numeric value');
+                await this.execute('SETVAR', {
+                    name: 'LTSCALE',
+                    value
+                });
                 return;
             }
             if (remainder.startsWith('{')) {
@@ -5943,6 +5956,32 @@ export class KJDrawWorkbench {
         const selectedEntities = (this.#selection?.ids ?? []).map((id)=>drawing.getObject(id)).filter((item)=>item?.kind === 'entity');
         const entity = selectedEntities.at(-1) ?? null;
         if (!entity || entity.kind !== 'entity') {
+            const scaleField = document.createElement('label');
+            scaleField.className = 'field';
+            const label = document.createElement('span');
+            label.textContent = this.#t('globalLinetypeScale');
+            const scale = document.createElement('input');
+            scale.type = 'number';
+            scale.min = '0.000001';
+            scale.step = '0.1';
+            scale.value = String(drawing.snapshot().header.systemVariables.LTSCALE ?? 1);
+            scale.disabled = this.#readOnly === true;
+            scale.dataset.property = 'global-linetype-scale';
+            scaleField.append(label, scale);
+            host.append(scaleField);
+            if (!this.#readOnly) {
+                const apply = document.createElement('button');
+                apply.type = 'button';
+                apply.className = 'apply';
+                apply.textContent = this.#t('apply');
+                apply.addEventListener('click', ()=>void this.#run(()=>this.execute('SETVAR', {
+                            name: 'LTSCALE',
+                            value: Number(scale.value)
+                        })), {
+                    signal: this.#abort.signal
+                });
+                host.append(apply);
+            }
             const empty = document.createElement('p');
             empty.className = 'empty';
             empty.textContent = this.#t('noSelection');
@@ -6207,6 +6246,23 @@ export class KJDrawWorkbench {
                 String(value),
                 value === -1 ? this.#t('byLayer') : value === 0 ? '0.00 mm' : `${(value / 100).toFixed(2)} mm`
             ]), new Set(selectedEntities.map((item)=>String(item.payload.lineweight ?? -1))));
+        const scaleValues = new Set(selectedEntities.map((item)=>String(item.payload.linetypeScale ?? 1))), commonLinetypeScale = scaleValues.size === 1 ? [
+            ...scaleValues
+        ][0] : '';
+        const scaleField = document.createElement('label');
+        scaleField.className = 'field';
+        const scaleLabel = document.createElement('span');
+        scaleLabel.textContent = this.#t('linetypeScale');
+        const linetypeScale = document.createElement('input');
+        linetypeScale.type = 'number';
+        linetypeScale.min = '0.000001';
+        linetypeScale.step = '0.1';
+        linetypeScale.value = commonLinetypeScale;
+        linetypeScale.placeholder = '—';
+        linetypeScale.disabled = this.#readOnly === true;
+        linetypeScale.dataset.property = 'linetype-scale';
+        scaleField.append(scaleLabel, linetypeScale);
+        host.append(scaleField);
         const textEntities = selectedEntities.filter((item)=>[
                 'TEXT',
                 'MTEXT',
@@ -6529,6 +6585,7 @@ export class KJDrawWorkbench {
                         payload.linetypeName = linetypes.select.value ? drawing.getObject(linetypes.select.value)?.name : 'BYLAYER';
                     }
                     if (lineweights.select.value && lineweights.select.value !== lineweights.common) payload.lineweight = Number(lineweights.select.value);
+                    if (linetypeScale.value && linetypeScale.value !== commonLinetypeScale) payload.linetypeScale = Number(linetypeScale.value);
                     if (textStyleSelect?.value && textStyleSelect.value !== commonTextStyleId) payload.styleId = textStyleSelect.value;
                     if (multiple) {
                         if (Object.keys(payload).length) await this.execute('PROPERTIES', {

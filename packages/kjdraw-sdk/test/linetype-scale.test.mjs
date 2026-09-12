@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 import { KJCanvasRenderer } from '../src/canvas-renderer.js'
 import { exportDrawingSvg } from '../src/svg-export.js'
 import { createDXFFileAdapter, createKJDrawSDK } from '../src/index.js'
@@ -148,4 +149,43 @@ test('DXF preserves global LTSCALE and rejects invalid global or entity scales',
   assert.equal(kjd.snapshot().header.systemVariables.LTSCALE, 5)
   assert.throws(() => sdk.createDocument({ systemVariables: { LTSCALE: 0 } }), error => error.details?.some(issue => issue.path === 'header.systemVariables.LTSCALE'))
   await assert.rejects(sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0, 0], end: [1, 0], linetypeScale: 0 } }, { document }), /linetypeScale/)
+})
+
+test('PROPERTIES rejects invalid entity scale and linetype references atomically', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument()
+  const first = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0, 0], end: [10, 0] } }, { document })
+  const second = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0, 5], end: [10, 5] } }, { document })
+  const before = document.serialize()
+  const revision = document.revision
+  for (const value of [0, -1, Number.NaN, '2']) {
+    await assert.rejects(
+      sdk.executeCommand('PROPERTIES', { ids: [first.id, second.id], patch: { payload: { linetypeScale: value } } }, { document }),
+      /linetypeScale must be positive and finite/,
+    )
+    assert.equal(document.serialize(), before)
+    assert.equal(document.revision, revision)
+  }
+  await assert.rejects(
+    sdk.executeCommand('PROPERTIES', { ids: [first.id, second.id], patch: { payload: { linetypeId: 'missing-linetype' } } }, { document }),
+    /linetypes record does not exist/,
+  )
+  assert.equal(document.serialize(), before)
+  assert.equal(document.revision, revision)
+})
+
+test('KJD and DXF preserve inherited block properties and linetype scales for independent ezdxf', async t => {
+  const sdk=createKJDrawSDK(),document=sdk.createDocument({systemVariables:{LTSCALE:3}})
+  const dash=await sdk.executeCommand('LINETYPE',{name:'SCALE-DASH',pattern:[4,-2]})
+  const layer=await sdk.executeCommand('LAYERNEW',{name:'SCALE-LAYER',color:2,linetypeId:dash.id,lineweight:50,current:true})
+  const direct=await sdk.executeCommand('CREATE',{type:'LINE',payload:{start:[0,0],end:[20,0],color:256,linetypeName:'BYLAYER',lineweight:-1,linetypeScale:2}})
+  let child,insert
+  await document.transact('Inherited block properties',tx=>{const zero=document.getTable('layers').records.find(item=>item.name==='0');const block=tx.upsertTableRecord('blockRecords',{name:'SCALE-BLOCK',type:'BLOCK_RECORD',payload:{basePoint:[0,0,0],isSpace:false}});child=tx.createEntity('LINE',{start:[0,0],end:[10,0],layerId:zero.id,color:0,linetypeName:'BYBLOCK',lineweight:-2,linetypeScale:1.25},{ownerId:block.id});insert=tx.createEntity('INSERT',{blockRecordId:block.id,position:[30,0],scale:[2,2,1],layerId:layer.id,color:256,linetypeName:'BYLAYER',lineweight:-1})})
+  await sdk.executeCommand('MOVE',{ids:[direct.id],dx:2,dy:3});assert.equal(document.getObject(direct.id).payload.linetypeScale,2)
+  const kjd=await createKJDrawSDK().readDocument(await sdk.writeDocument(document,{format:'KJD'}),{format:'KJD'});assert.equal(kjd.snapshot().header.systemVariables.LTSCALE,3);assert.equal(kjd.getObject(child.id).payload.linetypeScale,1.25)
+  const bytes=await sdk.writeDocument(document,{format:'DXF',version:'2018'}),dxf=typeof bytes==='string'?bytes:new TextDecoder().decode(bytes)
+  const reopened=await createKJDrawSDK().readDocument(bytes,{format:'DXF'});assert.equal(reopened.snapshot().header.systemVariables.LTSCALE,3);assert.equal(reopened.listEntities({type:'LINE',ownerId:reopened.spaces.modelSpaceId})[0].payload.linetypeScale,2)
+  const script='import io,json,ezdxf,sys,os; p=os.environ.get("KJDRAW_FILE_STDIN_PATH"); s=open(p,encoding="utf-8").read() if p else sys.stdin.read(); d=ezdxf.read(io.StringIO(s)); a=d.audit(); e=list(d.modelspace().query("LINE"))[0]; i=list(d.modelspace().query("INSERT"))[0]; c=list(d.blocks.get("SCALE-BLOCK").query("LINE"))[0]; l=d.layers.get("SCALE-LAYER"); print(json.dumps({"global":d.header["$LTSCALE"],"direct":[e.dxf.layer,e.dxf.color,e.dxf.linetype,e.dxf.lineweight,e.dxf.ltscale],"insert":[i.dxf.layer,i.dxf.color,i.dxf.linetype,i.dxf.lineweight],"child":[c.dxf.layer,c.dxf.color,c.dxf.linetype,c.dxf.lineweight,c.dxf.ltscale],"layer":[l.color,l.dxf.linetype,l.dxf.lineweight],"errors":len(a.errors),"fixes":len(a.fixes)}))'
+  const result=spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON??'python',['-c',script],dxf,{encoding:'utf8',windowsHide:true})
+  if(result.error?.code==='ENOENT'||result.status!==0&&/No module named ['"]ezdxf/.test(result.stderr)){t.skip('Independent ezdxf runtime is unavailable');return}
+  assert.equal(result.status,0,result.stderr);const value=JSON.parse(result.stdout);assert.equal(value.global,3);assert.deepEqual(value.direct,['SCALE-LAYER',256,'BYLAYER',-1,2]);assert.deepEqual(value.insert,['SCALE-LAYER',256,'BYLAYER',-1]);assert.deepEqual(value.child,['0',0,'BYBLOCK',-2,1.25]);assert.deepEqual(value.layer,[2,'SCALE-DASH',50]);assert.deepEqual([value.errors,value.fixes],[0,0])
 })
