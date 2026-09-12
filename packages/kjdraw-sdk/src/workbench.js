@@ -482,7 +482,8 @@ const DRAFT_TOOLS = Object.freeze([
     'xline',
     'spline',
     'hatch',
-    'dimension'
+    'dimension',
+    'leader'
 ]);
 const DRAFT_COMMAND_TO_TOOL = new Map([
     [
@@ -544,6 +545,14 @@ const DRAFT_COMMAND_TO_TOOL = new Map([
     [
         'DIMENSION',
         'dimension'
+    ],
+    [
+        'LE',
+        'leader'
+    ],
+    [
+        'LEADER',
+        'leader'
     ]
 ]);
 const DIMENSION_COMMAND_TO_TYPE = new Map([
@@ -624,6 +633,10 @@ const draftToolText = Object.freeze({
     dimension: {
         en: 'Dimension',
         zh: '标注'
+    },
+    leader: {
+        en: 'Leader',
+        zh: '引线'
     }
 });
 const draftPointText = Object.freeze({
@@ -754,6 +767,14 @@ const draftPointText = Object.freeze({
     pointOnCircle: {
         en: 'Specify a point on the circle',
         zh: '指定圆上一点'
+    },
+    arrowPoint: {
+        en: 'Specify the arrow point',
+        zh: '指定箭头点'
+    },
+    leaderVertex: {
+        en: 'Specify the next leader vertex',
+        zh: '指定下一引线顶点'
     }
 });
 const WORKBENCH_STYLE = `
@@ -1518,7 +1539,7 @@ export class KJDrawWorkbench {
       </header>
       <nav class="ribbon" aria-label="CAD tools">
         <div class="group"><button type="button" class="tool active" data-tool="select">${icon('select')}<small data-copy="select">${t('select')}</small></button><button type="button" class="tool" data-tool="pan">${icon('pan')}<small data-copy="pan">${t('pan')}</small></button><span data-copy="view">${t('view')}</span></div>
-        <div class="group"><button type="button" class="tool" data-tool="point" ${readonly ? 'disabled' : ''}>${icon('point')}<small data-draft-label="point">${this.#localizedControlText(draftToolText.point)}</small></button><button type="button" class="tool" data-tool="line" ${readonly ? 'disabled' : ''}>${icon('line')}<small data-copy="line">${t('line')}</small></button><button type="button" class="tool" data-tool="polyline" ${readonly ? 'disabled' : ''}>${icon('polyline')}<small data-copy="polyline">${t('polyline')}</small></button><button type="button" class="tool" data-tool="circle" ${readonly ? 'disabled' : ''}>${icon('circle')}<small data-copy="circle">${t('circle')}</small></button><button type="button" class="tool" data-tool="arc" ${readonly ? 'disabled' : ''}>${icon('arc')}<small data-copy="arc">${t('arc')}</small></button><button type="button" class="tool" data-tool="ellipse" ${readonly ? 'disabled' : ''}>${icon('ellipse')}<small data-draft-label="ellipse">${this.#localizedControlText(draftToolText.ellipse)}</small></button><button type="button" class="tool" data-tool="rectangle" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-copy="rectangle">${t('rectangle')}</small></button><button type="button" class="tool" data-tool="polygon" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-draft-label="polygon">${this.#localizedControlText(draftToolText.polygon)}</small></button><button type="button" class="tool" data-tool="dimension" ${readonly ? 'disabled' : ''}>${icon('measure')}<small data-draft-label="dimension">${this.#localizedControlText(draftToolText.dimension)}</small></button><button type="button" class="tool" data-tool="text" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-copy="text">${t('text')}</small></button><button type="button" class="tool" data-action="component-library" ${readonly ? 'disabled' : ''}>${icon('layers')}<small data-copy="componentLibrary">${t('componentLibrary')}</small></button><button type="button" class="tool" data-action="draft" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="moreDraw">${t('moreDraw')}</small></button><span data-copy="draw">${t('draw')}</span></div>
+        <div class="group"><button type="button" class="tool" data-tool="point" ${readonly ? 'disabled' : ''}>${icon('point')}<small data-draft-label="point">${this.#localizedControlText(draftToolText.point)}</small></button><button type="button" class="tool" data-tool="line" ${readonly ? 'disabled' : ''}>${icon('line')}<small data-copy="line">${t('line')}</small></button><button type="button" class="tool" data-tool="polyline" ${readonly ? 'disabled' : ''}>${icon('polyline')}<small data-copy="polyline">${t('polyline')}</small></button><button type="button" class="tool" data-tool="circle" ${readonly ? 'disabled' : ''}>${icon('circle')}<small data-copy="circle">${t('circle')}</small></button><button type="button" class="tool" data-tool="arc" ${readonly ? 'disabled' : ''}>${icon('arc')}<small data-copy="arc">${t('arc')}</small></button><button type="button" class="tool" data-tool="ellipse" ${readonly ? 'disabled' : ''}>${icon('ellipse')}<small data-draft-label="ellipse">${this.#localizedControlText(draftToolText.ellipse)}</small></button><button type="button" class="tool" data-tool="rectangle" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-copy="rectangle">${t('rectangle')}</small></button><button type="button" class="tool" data-tool="polygon" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-draft-label="polygon">${this.#localizedControlText(draftToolText.polygon)}</small></button><button type="button" class="tool" data-tool="dimension" ${readonly ? 'disabled' : ''}>${icon('measure')}<small data-draft-label="dimension">${this.#localizedControlText(draftToolText.dimension)}</small></button><button type="button" class="tool" data-tool="leader" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-draft-label="leader">${this.#localizedControlText(draftToolText.leader)}</small></button><button type="button" class="tool" data-tool="text" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-copy="text">${t('text')}</small></button><button type="button" class="tool" data-action="component-library" ${readonly ? 'disabled' : ''}>${icon('layers')}<small data-copy="componentLibrary">${t('componentLibrary')}</small></button><button type="button" class="tool" data-action="draft" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="moreDraw">${t('moreDraw')}</small></button><span data-copy="draw">${t('draw')}</span></div>
         <div class="group"><button type="button" class="tool" data-tool="move" ${readonly ? 'disabled' : ''}>${icon('move')}<small data-copy="move">${t('move')}</small></button><button type="button" class="tool" data-tool="copy" ${readonly ? 'disabled' : ''}>${icon('copy')}<small data-copy="copy">${t('copy')}</small></button><button type="button" class="tool" data-action="modify" ${readonly ? 'disabled' : ''}>${icon('rotate')}<small data-copy="modifyTools">${t('modifyTools')}</small></button><button type="button" class="tool" data-action="undo" ${readonly ? 'disabled' : ''}>${icon('undo')}<small data-copy="undo">${t('undo')}</small></button><button type="button" class="tool" data-action="redo" ${readonly ? 'disabled' : ''}>${icon('redo')}<small data-copy="redo">${t('redo')}</small></button><button type="button" class="tool" data-action="erase" ${readonly ? 'disabled' : ''}>${icon('delete')}<small data-copy="erase">${t('erase')}</small></button><span data-copy="modify">${t('modify')}</span></div>
         <div class="group"><button type="button" class="tool" data-action="fit">${icon('fit')}<small data-copy="fit">${t('fit')}</small></button><button type="button" class="tool" data-action="grid">${icon('grid')}<small data-copy="grid">${t('grid')}</small></button><button type="button" class="tool" data-tool="measure">${icon('measure')}<small data-copy="measure">${t('measure')}</small></button><span data-copy="view">${t('view')}</span></div>
       </nav>
@@ -2509,7 +2530,11 @@ export class KJDrawWorkbench {
         const host = this.root.querySelector('[data-draft-actions]');
         if (!host) return;
         const state = this.#draftGesture?.session.state;
-        const variableLength = state?.maximumPoints === null;
+        const variableLength = state?.maximumPoints === null, closable = Boolean(state && [
+            'polyline',
+            'spline',
+            'hatch'
+        ].includes(state.tool));
         host.hidden = !state || !variableLength && !state.points.length;
         const undo = host.querySelector('[data-action="draft-undo"]');
         const finish = host.querySelector('[data-action="draft-finish"]');
@@ -2523,7 +2548,7 @@ export class KJDrawWorkbench {
             finish.disabled = !state?.canFinish;
         }
         if (close) {
-            close.hidden = !variableLength;
+            close.hidden = !closable;
             close.disabled = !state?.canClose;
         }
         const command = this.root.querySelector('[data-command]');
@@ -2546,7 +2571,14 @@ export class KJDrawWorkbench {
         const points = gesture.session.points;
         const pointReferences = gesture.session.pointReferences;
         const variableLength = gesture.session.state.maximumPoints === null;
-        const receipt = await this.#run(()=>this.execute('CREATE', {
+        const receipt = await this.#run(()=>spec.type === 'LEADER' ? this.execute('LEADER', {
+                ...spec.payload,
+                ...spec.options?.ownerId ? {
+                    ownerId: spec.options.ownerId
+                } : {}
+            }, {
+                expectedRevision: gesture.revision
+            }) : this.execute('CREATE', {
                 type: spec.type,
                 payload: spec.payload,
                 ...spec.options ? {
@@ -2920,6 +2952,38 @@ export class KJDrawWorkbench {
                 required: false
             });
         }
+        if (tool === 'leader') {
+            const styleTable = this.document?.getTable('textStyles'), styleId = configured.styleId ?? styleTable?.currentId ?? styleTable?.records[0]?.id ?? '';
+            this.#draftField(host, 'leaderText', {
+                en: 'Annotation text',
+                zh: '引线文字'
+            }, {
+                type: 'text',
+                value: String(configured.leaderText ?? 'Note')
+            });
+            this.#draftSelect(host, 'styleId', {
+                en: 'Text style',
+                zh: '文字样式'
+            }, (styleTable?.records ?? []).map((record)=>({
+                    value: record.id,
+                    label: {
+                        en: record.name ?? 'STANDARD',
+                        zh: record.name ?? 'STANDARD'
+                    }
+                })), styleId);
+            this.#draftField(host, 'textHeight', {
+                en: 'Text height',
+                zh: '文字高度'
+            }, {
+                value: String(configured.textHeight ?? 2.5),
+                min: Number.EPSILON,
+                step: 'any'
+            });
+            this.#draftCheck(host, 'arrowEnabled', {
+                en: 'Arrowhead',
+                zh: '显示箭头'
+            }, configured.arrowEnabled !== false);
+        }
     }
     #openDraftDialog(tool) {
         if (this.#readOnly) {
@@ -2983,6 +3047,12 @@ export class KJDrawWorkbench {
                 textOverride: value('textOverride') || null
             };
         }
+        if (tool === 'leader') options = {
+            leaderText: value('leaderText'),
+            styleId: value('styleId'),
+            textHeight: Number(value('textHeight')),
+            arrowEnabled: checked('arrowEnabled')
+        };
         this.#draftOptions.set(tool, options);
         query(this.root, '[data-draft-dialog]').close();
         this.setTool(tool);
@@ -5753,6 +5823,7 @@ export class KJDrawWorkbench {
         }
         let valueInput = null;
         let textFields = null;
+        let leaderFields = null;
         if (!multiple && (entity.type === 'CIRCLE' || entity.type === 'ARC')) {
             const field = document.createElement('label');
             field.className = 'field';
@@ -5911,6 +5982,44 @@ export class KJDrawWorkbench {
                 rotation,
                 alignment
             };
+        } else if (!multiple && entity.type === 'LEADER') {
+            const annotation = entity.payload.annotationId ? drawing.getObject(String(entity.payload.annotationId)) : null;
+            const add = (labelText, control)=>{
+                const label = document.createElement('label');
+                label.className = control.type === 'checkbox' ? 'check' : 'field';
+                const span = document.createElement('span');
+                span.textContent = labelText;
+                label.append(span, control);
+                host.append(label);
+            };
+            const text = document.createElement('textarea');
+            text.value = String(annotation?.payload.text ?? entity.payload.text ?? '');
+            text.dataset.property = 'leader-text';
+            const style = document.createElement('select');
+            style.dataset.property = 'leader-style';
+            const styleId = String(annotation?.payload.styleId ?? drawing.getTable('textStyles')?.currentId ?? '');
+            for (const record of drawing.getTable('textStyles')?.records ?? [])style.add(new Option(record.name ?? 'STANDARD', record.id, false, record.id === styleId));
+            const height = document.createElement('input');
+            height.type = 'number';
+            height.required = true;
+            height.min = String(Number.EPSILON);
+            height.step = 'any';
+            height.value = String(annotation?.payload.height ?? entity.payload.textHeight ?? 2.5);
+            height.dataset.property = 'leader-height';
+            const arrow = document.createElement('input');
+            arrow.type = 'checkbox';
+            arrow.checked = entity.payload.arrowEnabled !== false;
+            arrow.dataset.property = 'leader-arrow';
+            add(this.#locale === 'zh-CN' ? '引线文字' : 'Leader text', text);
+            add(this.#t('textStyle'), style);
+            add(this.#locale === 'zh-CN' ? '文字高度' : 'Text height', height);
+            add(this.#locale === 'zh-CN' ? '显示箭头' : 'Arrowhead', arrow);
+            leaderFields = {
+                text,
+                style,
+                height,
+                arrow
+            };
         }
         if (!this.#readOnly && editableHatch) {
             const editHatch = document.createElement('button');
@@ -5939,6 +6048,23 @@ export class KJDrawWorkbench {
                             patch: {
                                 payload
                             }
+                        });
+                        return;
+                    }
+                    if (leaderFields) {
+                        if (!leaderFields.text.value.trim() || !leaderFields.height.checkValidity()) {
+                            leaderFields.height.reportValidity();
+                            return;
+                        }
+                        await this.execute('LEADEREDIT', {
+                            id: entity.id,
+                            vertices: entity.payload.vertices,
+                            textPosition: entity.payload.textPosition,
+                            text: leaderFields.text.value,
+                            styleId: leaderFields.style.value,
+                            textHeight: Number(leaderFields.height.value),
+                            arrowEnabled: leaderFields.arrow.checked,
+                            layerId: layerSelect.value
                         });
                         return;
                     }

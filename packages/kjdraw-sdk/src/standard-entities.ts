@@ -70,6 +70,15 @@ interface EntityPayloadShape extends Record<string, unknown> {
   solid?: unknown
   textPosition?: unknown
   annotationId?: unknown
+  ownsAnnotation?: unknown
+  arrowEnabled?: unknown
+  pathType?: unknown
+  annotationType?: unknown
+  hookLineDirection?: unknown
+  hookLineEnabled?: unknown
+  horizontalDirection?: unknown
+  blockOffset?: unknown
+  annotationOffset?: unknown
   dimensionType?: unknown
   definitionPoints?: unknown[]
   textOverride?: unknown
@@ -274,7 +283,13 @@ export function normalizeStandardEntityPayload(type: unknown, input: Record<stri
     }
     case 'IMAGE': return { ...base(payload), imageResourceId: String(payload.imageResourceId ?? ''), position: point3(payload.position, 'position'), uVector: vector3(payload.uVector, 'uVector'), vVector: vector3(payload.vVector, 'vVector'), clipBoundary: payload.clipBoundary?.map((point, index) => point3(point, `clipBoundary[${index}]`)) }
     case 'HATCH': return normalizeHatch(payload)
-    case 'LEADER':
+    case 'LEADER': {
+      const vertices = (payload.vertices ?? []).map((point, index) => point3(point, `vertices[${index}]`))
+      if (vertices.length < 2 || vertices.length > 4096) throw new KJValidationError('LEADER requires 2 to 4096 vertices')
+      if (vertices.some((point, index) => index > 0 && Math.hypot(point[0] - vertices[index - 1]![0], point[1] - vertices[index - 1]![1], point[2] - vertices[index - 1]![2]) <= 1e-12)) throw new KJValidationError('LEADER consecutive vertices must be distinct')
+      const integer = (value: unknown, fallback: number, label: string, minimum: number, maximum: number): number => { const result = finite(value ?? fallback, label); if (!Number.isInteger(result) || result < minimum || result > maximum) throw new KJValidationError(`${label} is outside its native LEADER range`); return result }
+      return { ...base(payload), vertices, textPosition: payload.textPosition && point3(payload.textPosition, 'textPosition'), annotationId: payload.annotationId == null ? null : String(payload.annotationId), ownsAnnotation: payload.ownsAnnotation === true, arrowEnabled: payload.arrowEnabled !== false, pathType: integer(payload.pathType, 0, 'pathType', 0, 1), annotationType: integer(payload.annotationType, payload.annotationId ? 0 : 3, 'annotationType', 0, 3), hookLineDirection: integer(payload.hookLineDirection, 0, 'hookLineDirection', 0, 1), hookLineEnabled: payload.hookLineEnabled === true, ...(payload.horizontalDirection == null ? {} : { horizontalDirection: point3(payload.horizontalDirection, 'horizontalDirection') }), ...(payload.blockOffset == null ? {} : { blockOffset: point3(payload.blockOffset, 'blockOffset') }), ...(payload.annotationOffset == null ? {} : { annotationOffset: point3(payload.annotationOffset, 'annotationOffset') }) }
+    }
     case 'MLEADER': return { ...base(payload), vertices: (payload.vertices ?? []).map((point, index) => point3(point, `vertices[${index}]`)), textPosition: payload.textPosition && point3(payload.textPosition, 'textPosition'), annotationId: payload.annotationId == null ? null : String(payload.annotationId) }
     case 'DIMENSION': return { ...base(payload), dimensionType: normalizeName(payload.dimensionType ?? 'ALIGNED'), definitionPoints: (payload.definitionPoints ?? []).map((point, index) => point3(point, `definitionPoints[${index}]`)), textPosition: payload.textPosition && point3(payload.textPosition, 'textPosition'), textOverride: payload.textOverride == null ? null : String(payload.textOverride), styleId: payload.styleId == null ? null : String(payload.styleId), styleName: String(payload.styleName ?? 'STANDARD'), blockName: payload.blockName == null ? null : String(payload.blockName), measurement: payload.measurement == null ? null : finite(payload.measurement, 'measurement'), dxfDimensionType: payload.dxfDimensionType == null ? null : Math.trunc(finite(payload.dxfDimensionType, 'dxfDimensionType')), rotation: finite(payload.rotation ?? 0, 'rotation'), ...(payload.dimensionAssociations == null ? {} : { dimensionAssociations: normalizeDimensionAssociations(payload.dimensionAssociations) }) }
     case 'VIEWPORT': {

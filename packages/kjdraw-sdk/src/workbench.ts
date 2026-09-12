@@ -3,7 +3,7 @@ import { createKJDrawSDK } from './sdk.js'
 import type { KJDrawSDK, KJSDKCommandEnvelopeReceipt } from './sdk.js'
 import { KJDocument } from './document.js'
 import type { KJCommandArguments } from './commands.js'
-import { editEntityGrip, type KJEntityGrip } from './grips.js'
+import { editEntityGrip, type KJEntityGrip, type KJPointInput } from './grips.js'
 import type { KJReadonlyObjectRecord } from './schema.js'
 import { getDocumentSnapSettings, type KJSnapCandidate, type KJSnapMode } from './snapping.js'
 import type { KJDxfPlotSettings } from './plot-settings.js'
@@ -198,13 +198,13 @@ const copy = {
   },
 } as const
 
-const DRAFT_TOOLS = Object.freeze(['line', 'polyline', 'circle', 'arc', 'ellipse', 'rectangle', 'polygon', 'point', 'ray', 'xline', 'spline', 'hatch', 'dimension'] as const satisfies readonly KJDraftTool[])
+const DRAFT_TOOLS = Object.freeze(['line', 'polyline', 'circle', 'arc', 'ellipse', 'rectangle', 'polygon', 'point', 'ray', 'xline', 'spline', 'hatch', 'dimension', 'leader'] as const satisfies readonly KJDraftTool[])
 
 const DRAFT_COMMAND_TO_TOOL = new Map<string, KJDraftTool>([
   ['P', 'point'], ['POINT', 'point'], ['RAY', 'ray'], ['XL', 'xline'], ['XLINE', 'xline'],
   ['EL', 'ellipse'], ['ELLIPSE', 'ellipse'], ['POL', 'polygon'], ['POLYGON', 'polygon'],
   ['SPL', 'spline'], ['SPLINE', 'spline'], ['H', 'hatch'], ['HATCH', 'hatch'],
-  ['DIM', 'dimension'], ['DIMENSION', 'dimension'],
+  ['DIM', 'dimension'], ['DIMENSION', 'dimension'], ['LE', 'leader'], ['LEADER', 'leader'],
 ])
 
 const DIMENSION_COMMAND_TO_TYPE = new Map<string, NonNullable<KJDraftingOptions['dimensionType']>>([
@@ -214,7 +214,7 @@ const DIMENSION_COMMAND_TO_TYPE = new Map<string, NonNullable<KJDraftingOptions[
 const draftToolText: Readonly<Record<KJDraftTool, KJLocalizedControlText>> = Object.freeze({
   line: { en: 'Line', zh: '直线' }, polyline: { en: 'Polyline', zh: '多段线' }, circle: { en: 'Circle', zh: '圆' }, arc: { en: 'Arc', zh: '圆弧' },
   ellipse: { en: 'Ellipse', zh: '椭圆' }, rectangle: { en: 'Rectangle', zh: '矩形' }, polygon: { en: 'Polygon', zh: '正多边形' }, point: { en: 'Point', zh: '点' },
-  ray: { en: 'Ray', zh: '射线' }, xline: { en: 'Construction line', zh: '构造线' }, spline: { en: 'Spline', zh: '样条曲线' }, hatch: { en: 'Hatch', zh: '填充' }, dimension: { en: 'Dimension', zh: '标注' },
+  ray: { en: 'Ray', zh: '射线' }, xline: { en: 'Construction line', zh: '构造线' }, spline: { en: 'Spline', zh: '样条曲线' }, hatch: { en: 'Hatch', zh: '填充' }, dimension: { en: 'Dimension', zh: '标注' }, leader: { en: 'Leader', zh: '引线' },
 })
 
 const draftPointText: Readonly<Record<KJDraftPointRole, KJLocalizedControlText>> = Object.freeze({
@@ -228,6 +228,7 @@ const draftPointText: Readonly<Record<KJDraftPointRole, KJLocalizedControlText>>
   boundaryPoint: { en: 'Specify the next boundary point', zh: '指定下一边界点' }, extensionOrigin1: { en: 'Specify the first extension origin', zh: '指定第一尺寸界线原点' }, extensionOrigin2: { en: 'Specify the second extension origin', zh: '指定第二尺寸界线原点' }, placement: { en: 'Specify the dimension-line position', zh: '指定尺寸线位置' },
   angleVertex: { en: 'Three-point angle 1/4: vertex → first ray → second ray → arc position', zh: '三点角度 1/4：顶点 → 第一射线点 → 第二射线点 → 弧位置' }, firstRayPoint: { en: '2/4: specify a point on the first ray', zh: '2/4：指定第一条射线上的点' }, secondRayPoint: { en: '3/4: specify a point on the second ray', zh: '3/4：指定第二条射线上的点' }, angularPlacement: { en: '4/4: place the angle arc; choose the opposite sector for a reflex angle', zh: '4/4：指定角度弧位置；在另一角域放置可标注反角' },
   oppositePoint: { en: 'Specify the opposite point', zh: '指定对侧点' }, pointOnCircle: { en: 'Specify a point on the circle', zh: '指定圆上一点' },
+  arrowPoint: { en: 'Specify the arrow point', zh: '指定箭头点' }, leaderVertex: { en: 'Specify the next leader vertex', zh: '指定下一引线顶点' },
 })
 
 const WORKBENCH_STYLE = `
@@ -878,7 +879,7 @@ export class KJDrawWorkbench {
       </header>
       <nav class="ribbon" aria-label="CAD tools">
         <div class="group"><button type="button" class="tool active" data-tool="select">${icon('select')}<small data-copy="select">${t('select')}</small></button><button type="button" class="tool" data-tool="pan">${icon('pan')}<small data-copy="pan">${t('pan')}</small></button><span data-copy="view">${t('view')}</span></div>
-        <div class="group"><button type="button" class="tool" data-tool="point" ${readonly ? 'disabled' : ''}>${icon('point')}<small data-draft-label="point">${this.#localizedControlText(draftToolText.point)}</small></button><button type="button" class="tool" data-tool="line" ${readonly ? 'disabled' : ''}>${icon('line')}<small data-copy="line">${t('line')}</small></button><button type="button" class="tool" data-tool="polyline" ${readonly ? 'disabled' : ''}>${icon('polyline')}<small data-copy="polyline">${t('polyline')}</small></button><button type="button" class="tool" data-tool="circle" ${readonly ? 'disabled' : ''}>${icon('circle')}<small data-copy="circle">${t('circle')}</small></button><button type="button" class="tool" data-tool="arc" ${readonly ? 'disabled' : ''}>${icon('arc')}<small data-copy="arc">${t('arc')}</small></button><button type="button" class="tool" data-tool="ellipse" ${readonly ? 'disabled' : ''}>${icon('ellipse')}<small data-draft-label="ellipse">${this.#localizedControlText(draftToolText.ellipse)}</small></button><button type="button" class="tool" data-tool="rectangle" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-copy="rectangle">${t('rectangle')}</small></button><button type="button" class="tool" data-tool="polygon" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-draft-label="polygon">${this.#localizedControlText(draftToolText.polygon)}</small></button><button type="button" class="tool" data-tool="dimension" ${readonly ? 'disabled' : ''}>${icon('measure')}<small data-draft-label="dimension">${this.#localizedControlText(draftToolText.dimension)}</small></button><button type="button" class="tool" data-tool="text" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-copy="text">${t('text')}</small></button><button type="button" class="tool" data-action="component-library" ${readonly ? 'disabled' : ''}>${icon('layers')}<small data-copy="componentLibrary">${t('componentLibrary')}</small></button><button type="button" class="tool" data-action="draft" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="moreDraw">${t('moreDraw')}</small></button><span data-copy="draw">${t('draw')}</span></div>
+        <div class="group"><button type="button" class="tool" data-tool="point" ${readonly ? 'disabled' : ''}>${icon('point')}<small data-draft-label="point">${this.#localizedControlText(draftToolText.point)}</small></button><button type="button" class="tool" data-tool="line" ${readonly ? 'disabled' : ''}>${icon('line')}<small data-copy="line">${t('line')}</small></button><button type="button" class="tool" data-tool="polyline" ${readonly ? 'disabled' : ''}>${icon('polyline')}<small data-copy="polyline">${t('polyline')}</small></button><button type="button" class="tool" data-tool="circle" ${readonly ? 'disabled' : ''}>${icon('circle')}<small data-copy="circle">${t('circle')}</small></button><button type="button" class="tool" data-tool="arc" ${readonly ? 'disabled' : ''}>${icon('arc')}<small data-copy="arc">${t('arc')}</small></button><button type="button" class="tool" data-tool="ellipse" ${readonly ? 'disabled' : ''}>${icon('ellipse')}<small data-draft-label="ellipse">${this.#localizedControlText(draftToolText.ellipse)}</small></button><button type="button" class="tool" data-tool="rectangle" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-copy="rectangle">${t('rectangle')}</small></button><button type="button" class="tool" data-tool="polygon" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-draft-label="polygon">${this.#localizedControlText(draftToolText.polygon)}</small></button><button type="button" class="tool" data-tool="dimension" ${readonly ? 'disabled' : ''}>${icon('measure')}<small data-draft-label="dimension">${this.#localizedControlText(draftToolText.dimension)}</small></button><button type="button" class="tool" data-tool="leader" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-draft-label="leader">${this.#localizedControlText(draftToolText.leader)}</small></button><button type="button" class="tool" data-tool="text" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-copy="text">${t('text')}</small></button><button type="button" class="tool" data-action="component-library" ${readonly ? 'disabled' : ''}>${icon('layers')}<small data-copy="componentLibrary">${t('componentLibrary')}</small></button><button type="button" class="tool" data-action="draft" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="moreDraw">${t('moreDraw')}</small></button><span data-copy="draw">${t('draw')}</span></div>
         <div class="group"><button type="button" class="tool" data-tool="move" ${readonly ? 'disabled' : ''}>${icon('move')}<small data-copy="move">${t('move')}</small></button><button type="button" class="tool" data-tool="copy" ${readonly ? 'disabled' : ''}>${icon('copy')}<small data-copy="copy">${t('copy')}</small></button><button type="button" class="tool" data-action="modify" ${readonly ? 'disabled' : ''}>${icon('rotate')}<small data-copy="modifyTools">${t('modifyTools')}</small></button><button type="button" class="tool" data-action="undo" ${readonly ? 'disabled' : ''}>${icon('undo')}<small data-copy="undo">${t('undo')}</small></button><button type="button" class="tool" data-action="redo" ${readonly ? 'disabled' : ''}>${icon('redo')}<small data-copy="redo">${t('redo')}</small></button><button type="button" class="tool" data-action="erase" ${readonly ? 'disabled' : ''}>${icon('delete')}<small data-copy="erase">${t('erase')}</small></button><span data-copy="modify">${t('modify')}</span></div>
         <div class="group"><button type="button" class="tool" data-action="fit">${icon('fit')}<small data-copy="fit">${t('fit')}</small></button><button type="button" class="tool" data-action="grid">${icon('grid')}<small data-copy="grid">${t('grid')}</small></button><button type="button" class="tool" data-tool="measure">${icon('measure')}<small data-copy="measure">${t('measure')}</small></button><span data-copy="view">${t('view')}</span></div>
       </nav>
@@ -1370,14 +1371,14 @@ export class KJDrawWorkbench {
     const host = this.root.querySelector<HTMLElement>('[data-draft-actions]')
     if (!host) return
     const state = this.#draftGesture?.session.state
-    const variableLength = state?.maximumPoints === null
+    const variableLength = state?.maximumPoints === null, closable = Boolean(state && ['polyline', 'spline', 'hatch'].includes(state.tool))
     host.hidden = !state || !variableLength && !state.points.length
     const undo = host.querySelector<HTMLButtonElement>('[data-action="draft-undo"]')
     const finish = host.querySelector<HTMLButtonElement>('[data-action="draft-finish"]')
     const close = host.querySelector<HTMLButtonElement>('[data-action="draft-close"]')
     if (undo) { undo.hidden = !state; undo.disabled = !(state?.points.length) }
     if (finish) { finish.hidden = !variableLength; finish.disabled = !(state?.canFinish) }
-    if (close) { close.hidden = !variableLength; close.disabled = !(state?.canClose) }
+    if (close) { close.hidden = !closable; close.disabled = !(state?.canClose) }
     const command = this.root.querySelector<HTMLInputElement>('[data-command]')
     if (command) command.placeholder = state ? this.#t('coordinateHint') : this.#t('commandHint')
   }
@@ -1395,11 +1396,9 @@ export class KJDrawWorkbench {
     const points = gesture.session.points
     const pointReferences = gesture.session.pointReferences
     const variableLength = gesture.session.state.maximumPoints === null
-    const receipt = await this.#run(() => this.execute('CREATE', {
-      type: spec.type,
-      payload: spec.payload,
-      ...(spec.options ? { options: spec.options } : {}),
-    }, { expectedRevision: gesture.revision }))
+    const receipt = await this.#run(() => spec.type === 'LEADER'
+      ? this.execute('LEADER', { ...spec.payload, ...(spec.options?.ownerId ? { ownerId: spec.options.ownerId } : {}) }, { expectedRevision: gesture.revision })
+      : this.execute('CREATE', { type: spec.type, payload: spec.payload, ...(spec.options ? { options: spec.options } : {}) }, { expectedRevision: gesture.revision }))
     if (this.document !== gesture.document) return
     if (!receipt) {
       this.#beginDraftGesture(gesture.session.tool)
@@ -1568,6 +1567,13 @@ export class KJDrawWorkbench {
       this.#draftField(host, 'textHeight', { en: 'Text height', zh: '标注字高' }, { value: String(configured.textHeight ?? style?.payload.textHeight ?? 2.5), min: Number.EPSILON, step: 'any' })
       this.#draftField(host, 'textOverride', { en: 'Text override (<> = measured value)', zh: '文字替代（<> 为测量值）' }, { type: 'text', value: String(configured.textOverride ?? ''), required: false })
     }
+    if (tool === 'leader') {
+      const styleTable = this.document?.getTable('textStyles'), styleId = configured.styleId ?? styleTable?.currentId ?? styleTable?.records[0]?.id ?? ''
+      this.#draftField(host, 'leaderText', { en: 'Annotation text', zh: '引线文字' }, { type: 'text', value: String(configured.leaderText ?? 'Note') })
+      this.#draftSelect(host, 'styleId', { en: 'Text style', zh: '文字样式' }, (styleTable?.records ?? []).map(record => ({ value: record.id, label: { en: record.name ?? 'STANDARD', zh: record.name ?? 'STANDARD' } })), styleId)
+      this.#draftField(host, 'textHeight', { en: 'Text height', zh: '文字高度' }, { value: String(configured.textHeight ?? 2.5), min: Number.EPSILON, step: 'any' })
+      this.#draftCheck(host, 'arrowEnabled', { en: 'Arrowhead', zh: '显示箭头' }, configured.arrowEnabled !== false)
+    }
   }
 
   #openDraftDialog(tool?: KJDraftTool): void {
@@ -1611,6 +1617,7 @@ export class KJDrawWorkbench {
         textOverride: value('textOverride') || null,
       }
     }
+    if (tool === 'leader') options = { leaderText: value('leaderText'), styleId: value('styleId'), textHeight: Number(value('textHeight')), arrowEnabled: checked('arrowEnabled') }
     this.#draftOptions.set(tool, options)
     query<HTMLDialogElement>(this.root, '[data-draft-dialog]').close()
     this.setTool(tool)
@@ -3339,6 +3346,7 @@ export class KJDrawWorkbench {
     }
     let valueInput: HTMLInputElement | HTMLTextAreaElement | null = null
     let textFields: { height: HTMLInputElement; rotation: HTMLInputElement; alignment: HTMLSelectElement } | null = null
+    let leaderFields: { text: HTMLTextAreaElement; style: HTMLSelectElement; height: HTMLInputElement; arrow: HTMLInputElement } | null = null
     if (!multiple && (entity.type === 'CIRCLE' || entity.type === 'ARC')) {
       const field = document.createElement('label'); field.className = 'field'; field.innerHTML = `<span>${this.#t('radius')}</span>`
       valueInput = document.createElement('input'); valueInput.type = 'number'; valueInput.min = '0.000001'; valueInput.step = '0.1'; valueInput.value = String(entity.payload.radius ?? ''); valueInput.disabled = this.#readOnly === true; field.append(valueInput); host.append(field)
@@ -3357,6 +3365,16 @@ export class KJDrawWorkbench {
       }
       textField(this.#locale === 'zh-CN' ? '文字高度' : 'Text height', height); textField(this.#locale === 'zh-CN' ? '旋转角（度）' : 'Rotation (degrees)', rotation); textField(this.#locale === 'zh-CN' ? '对齐' : 'Alignment', alignment)
       textFields = { height, rotation, alignment }
+    } else if (!multiple && entity.type === 'LEADER') {
+      const annotation = entity.payload.annotationId ? drawing.getObject(String(entity.payload.annotationId)) : null
+      const add = (labelText: string, control: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement): void => { const label = document.createElement('label'); label.className = control.type === 'checkbox' ? 'check' : 'field'; const span = document.createElement('span'); span.textContent = labelText; label.append(span, control); host.append(label) }
+      const text = document.createElement('textarea'); text.value = String(annotation?.payload.text ?? entity.payload.text ?? ''); text.dataset.property = 'leader-text'
+      const style = document.createElement('select'); style.dataset.property = 'leader-style'; const styleId = String(annotation?.payload.styleId ?? drawing.getTable('textStyles')?.currentId ?? '')
+      for (const record of drawing.getTable('textStyles')?.records ?? []) style.add(new Option(record.name ?? 'STANDARD', record.id, false, record.id === styleId))
+      const height = document.createElement('input'); height.type = 'number'; height.required = true; height.min = String(Number.EPSILON); height.step = 'any'; height.value = String(annotation?.payload.height ?? entity.payload.textHeight ?? 2.5); height.dataset.property = 'leader-height'
+      const arrow = document.createElement('input'); arrow.type = 'checkbox'; arrow.checked = entity.payload.arrowEnabled !== false; arrow.dataset.property = 'leader-arrow'
+      add(this.#locale === 'zh-CN' ? '引线文字' : 'Leader text', text); add(this.#t('textStyle'), style); add(this.#locale === 'zh-CN' ? '文字高度' : 'Text height', height); add(this.#locale === 'zh-CN' ? '显示箭头' : 'Arrowhead', arrow)
+      leaderFields = { text, style, height, arrow }
     }
     if (!this.#readOnly && editableHatch) {
       const editHatch = document.createElement('button'); editHatch.type = 'button'; editHatch.className = 'apply'; editHatch.dataset.action = 'edit-hatch'; editHatch.textContent = this.#t('hatchEdit')
@@ -3372,6 +3390,11 @@ export class KJDrawWorkbench {
           if (textStyleSelect?.value && textStyleSelect.value !== commonTextStyleId) payload.styleId = textStyleSelect.value
           if (!Object.keys(payload).length) return
           await this.execute('PROPERTIES', { ids: selectedEntities.map(item => item.id), patch: { payload } })
+          return
+        }
+        if (leaderFields) {
+          if (!leaderFields.text.value.trim() || !leaderFields.height.checkValidity()) { leaderFields.height.reportValidity(); return }
+          await this.execute('LEADEREDIT', { id: entity.id, vertices: entity.payload.vertices as readonly KJPointInput[], textPosition: entity.payload.textPosition as KJPointInput, text: leaderFields.text.value, styleId: leaderFields.style.value, textHeight: Number(leaderFields.height.value), arrowEnabled: leaderFields.arrow.checked, layerId: layerSelect.value })
           return
         }
         const payload: Record<string, unknown> = { layerId: layerSelect.value }

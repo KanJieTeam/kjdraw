@@ -1662,10 +1662,33 @@ export class KJCanvasRenderer {
         ].includes(entity.type)) {
             const values = points(Array.isArray(payload.vertices) && payload.vertices.length ? payload.vertices : payload.definitionPoints);
             drawn = this.#strokePath(values);
+            if (drawn && entity.type === 'LEADER' && payload.arrowEnabled !== false && values.length >= 2) {
+                const tip = this.worldToScreen(values[0]), next = this.worldToScreen(values[1]), length = Math.hypot(next[0] - tip[0], next[1] - tip[1]);
+                if (length > 1e-6) {
+                    const size = Math.max(5, Math.min(18, Math.abs(finite(payload.arrowSize, finite(payload.textHeight, 2.5))) * this.camera.scale)), ux = (next[0] - tip[0]) / length, uy = (next[1] - tip[1]) / length, rearX = tip[0] + ux * size, rearY = tip[1] + uy * size, half = size * .36;
+                    context.beginPath();
+                    context.moveTo(tip[0], tip[1]);
+                    context.lineTo(rearX - uy * half, rearY + ux * half);
+                    context.lineTo(rearX + uy * half, rearY - ux * half);
+                    context.closePath();
+                    context.fill();
+                }
+            }
             const position = point2(payload.textPosition);
-            if (position) {
+            if (position && !payload.annotationId) {
                 const screen = this.worldToScreen(position);
-                const text = payload.textOverride ?? (payload.measurement == null ? '' : finite(payload.measurement).toFixed(2));
+                const text = payload.text ?? payload.textOverride ?? (payload.measurement == null ? '' : finite(payload.measurement).toFixed(2)), style = this.#document?.getObject(String(payload.styleId ?? ''))?.payload;
+                const height = Math.max(.01, finite(payload.textHeight, 2.5));
+                context.font = `${height * this.camera.scale}px ${layoutCadText({
+                    position: [
+                        0,
+                        0
+                    ],
+                    text: String(text),
+                    height
+                }, style).family}`;
+                context.textAlign = 'left';
+                context.textBaseline = 'bottom';
                 context.fillText(String(text), screen[0], screen[1]);
             }
         } else if ([

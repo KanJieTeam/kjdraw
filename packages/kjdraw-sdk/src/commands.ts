@@ -350,6 +350,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   DESIGNUPDATE: { domain: 'design-relations', atomic: true, stableIdentity: true, requiresUnmodifiedGeometry: true },
   HATCH: { domain: 'entity', entityType: 'HATCH', boundaryModes: ['polyline', 'line-arc-edges'] },
   HATCHEDIT: { domain: 'entity', entityType: 'HATCH', operations: ['update-pattern', 'add-island', 'replace-island', 'remove-island'], stableIdentity: true },
+  LEADER: { domain: 'annotation', entityType: 'LEADER', annotationType: 'MTEXT', atomic: true, maximumVertices: 4096 },
+  LEADEREDIT: { domain: 'annotation', entityType: 'LEADER', annotationType: 'MTEXT', atomic: true, stableIdentity: true },
   LINETYPE: { domain: 'table', table: 'linetypes', operations: ['create', 'update'] },
   TEXTSTYLE: { domain: 'table', table: 'textStyles', operations: ['create', 'update', 'set-current'] },
   DIMSTYLE: { domain: 'table', table: 'dimensionStyles', operations: ['create', 'update', 'set-current'] },
@@ -750,6 +752,14 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       patternScale: args.patternScale,
       patternAngle: args.patternAngle,
     }),
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'LEADER', aliases: ['LE'], title: 'Create leader annotation',
+    execute: ({ document, transaction }, args) => createLeaderAnnotation(document, transaction, args),
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'LEADEREDIT', title: 'Edit leader annotation',
+    execute: ({ document, transaction }, args) => editLeaderAnnotation(document, transaction, args),
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'LINETYPE', aliases: ['LT'], title: 'Create or update linetype',
@@ -1170,7 +1180,13 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'GRIPEDIT', title: 'Edit entity grip',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id)
-      const updated = transaction.updateObject(entity.id, { payload: editEntityGrip(entity, args.gripId!, args.point!) })
+      const payload = editEntityGrip(entity, args.gripId!, args.point!)
+      if (entity.type === 'LEADER' && args.gripId === 'text' && entity.payload.annotationId) {
+        const annotation = requiredEntity(document, entity.payload.annotationId)
+        if (annotation.type !== 'MTEXT') throw new KJValidationError('LEADER annotation must reference MTEXT for native editing')
+        transaction.updateObject(annotation.id, { payload: { position: payload.textPosition } })
+      }
+      const updated = transaction.updateObject(entity.id, { payload })
       refreshAssociativeDimensions(transaction, [entity.id])
       return updated
     },
@@ -1347,11 +1363,77 @@ function validateCommandData(input: unknown, label = 'CREATEBATCH resources'): v
 
 function compoundRootIds(document: KJDocument, ids: readonly string[]): string[] {
   const selected = new Set(ids)
+  for (const id of [...selected]) {
+    const object = document.getObject(id, { includeErased: true })
+    if (object?.type === 'LEADER' && object.payload.ownsAnnotation === true && object.payload.annotationId) selected.add(String(object.payload.annotationId))
+    for (const leader of document.listObjects({ includeErased: true })) if (leader.type === 'LEADER' && leader.payload.ownsAnnotation === true && leader.payload.annotationId === id) selected.add(leader.id)
+  }
   return [...selected].filter(id => {
     const object = document.getObject(id, { includeErased: true })
     const parent = object?.payload.parentInsertId ?? (object?.type === 'SEQEND' ? object.ownerId : null)
     return !parent || !selected.has(parent)
   })
+}
+
+function leaderPoints(value: unknown): Point3[] {
+  if (!Array.isArray(value) || value.length < 2 || value.length > 4096) throw new KJValidationError('LEADER requires 2 to 4096 vertices')
+  const points = value.map((point, index) => vec3(point, `vertices[${index}]`))
+  if (points.some((point, index) => index > 0 && Math.hypot(point[0] - points[index - 1]![0], point[1] - points[index - 1]![1], point[2] - points[index - 1]![2]) <= 1e-12)) throw new KJValidationError('LEADER consecutive vertices must be distinct')
+  return points
+}
+
+function leaderText(value: unknown): string {
+  const text = String(value ?? '')
+  if (!text.trim() || text.length > 16384 || /\u0000/.test(text)) throw new KJValidationError('LEADER annotation text must be nonempty bounded Unicode text')
+  return text
+}
+
+function leaderTextStyle(document: KJDocument, value: unknown): string {
+  const table = document.getTable('textStyles')
+  const id = value == null ? table?.currentId : String(value)
+  if (!id || !table?.records.some(record => record.id === id)) throw new KJValidationError('LEADER text style must reference the text style table')
+  return id
+}
+
+function createLeaderAnnotation(document: KJDocument, transaction: KJTransaction, args: KJCommandArguments): { leader: KJObjectRecord; annotation: KJObjectRecord } {
+  const vertices = leaderPoints(args.vertices)
+  const textPosition = vec3(args.textPosition ?? vertices.at(-1), 'textPosition')
+  const text = leaderText(args.text)
+  const height = Number(args.textHeight ?? args.height ?? 2.5)
+  if (!Number.isFinite(height) || !(height > 0) || height > 1e12) throw new KJValidationError('LEADER text height must be positive and finite')
+  const width = args.width == null ? null : Number(args.width)
+  if (width !== null && (!Number.isFinite(width) || !(width > 0) || width > 1e12)) throw new KJValidationError('LEADER text width must be positive and finite')
+  const styleId = leaderTextStyle(document, args.styleId)
+  const ownerId = args.ownerId
+  const annotation = transaction.createEntity('MTEXT', {
+    position: textPosition, text, height, rotation: Number(args.rotation ?? 0), attachmentPoint: Number(args.attachmentPoint ?? 7),
+    styleId, ...(width === null ? {} : { width }), ...(args.layerId == null ? {} : { layerId: args.layerId }),
+  }, { ...(ownerId == null ? {} : { ownerId }) } as KJObjectSpec)
+  const leader = transaction.createEntity('LEADER', {
+    vertices, textPosition, annotationId: annotation.id, ownsAnnotation: true, arrowEnabled: args.arrowEnabled !== false,
+    annotationType: 0, pathType: 0, ...(args.layerId == null ? {} : { layerId: args.layerId }),
+  }, { ownerId: annotation.ownerId })
+  return { leader, annotation }
+}
+
+function editLeaderAnnotation(document: KJDocument, transaction: KJTransaction, args: KJCommandArguments): { leader: KJObjectRecord; annotation: KJObjectRecord } {
+  const source = requiredEntity(document, args.id)
+  if (source.type !== 'LEADER') throw new KJValidationError('LEADEREDIT requires a LEADER entity')
+  if (source.payload.unresolvedLeaderAnnotation) throw new KJValidationError('LEADEREDIT cannot edit an unresolved DXF annotation reference')
+  const annotation = source.payload.annotationId ? requiredEntity(document, source.payload.annotationId) : null
+  if (annotation && (annotation.type !== 'MTEXT' || annotation.ownerId !== source.ownerId)) throw new KJValidationError('LEADER annotation must reference MTEXT in the same drawing space')
+  const vertices = args.vertices == null ? leaderPoints(source.payload.vertices) : leaderPoints(args.vertices)
+  const textPosition = args.textPosition == null ? vec3(source.payload.textPosition ?? annotation?.payload.position ?? vertices.at(-1), 'textPosition') : vec3(args.textPosition, 'textPosition')
+  const text = args.text == null ? leaderText(annotation?.payload.text ?? source.payload.text) : leaderText(args.text)
+  const height = Number(args.textHeight ?? args.height ?? annotation?.payload.height ?? source.payload.textHeight ?? 2.5)
+  if (!Number.isFinite(height) || !(height > 0) || height > 1e12) throw new KJValidationError('LEADER text height must be positive and finite')
+  const styleId = leaderTextStyle(document, args.styleId ?? annotation?.payload.styleId ?? source.payload.styleId)
+  const layerId = args.layerId ?? source.payload.layerId
+  const updatedAnnotation = annotation
+    ? transaction.updateObject(annotation.id, { payload: { position: textPosition, text, height, styleId, ...(layerId == null ? {} : { layerId }) } })
+    : transaction.createEntity('MTEXT', { position: textPosition, text, height, rotation: 0, attachmentPoint: 7, styleId, ...(layerId == null ? {} : { layerId }) }, { ownerId: source.ownerId })
+  const updatedLeader = transaction.updateObject(source.id, { payload: { vertices, textPosition, annotationId: updatedAnnotation.id, ownsAnnotation: annotation ? source.payload.ownsAnnotation : true, annotationType: 0, arrowEnabled: args.arrowEnabled ?? source.payload.arrowEnabled ?? true, ...(layerId == null ? {} : { layerId }) } })
+  return { leader: updatedLeader, annotation: updatedAnnotation }
 }
 
 function createBatchResources(document: KJDocument, transaction: KJTransaction, resources: KJEntityBatchResources): void {

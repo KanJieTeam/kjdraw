@@ -941,8 +941,27 @@ function entityPayload(record, blockIds, resources = {}) {
                 type: 'LEADER',
                 payload: {
                     vertices: repeatedPoints(record),
-                    annotationHandle: first(record, 340),
-                    textPosition: point(record, 11, 21, 31)
+                    annotationHandle: first(record, 340) || null,
+                    arrowEnabled: number(record, 71, 1) !== 0,
+                    pathType: number(record, 72, 0),
+                    annotationType: number(record, 73, 3),
+                    hookLineDirection: number(record, 74, 0),
+                    hookLineEnabled: number(record, 75, 0) !== 0,
+                    ...values(record, 40).length ? {
+                        textHeight: number(record, 40)
+                    } : {},
+                    ...values(record, 41).length ? {
+                        textWidth: number(record, 41)
+                    } : {},
+                    ...optionalPoint(record, 211, 221, 231) ? {
+                        horizontalDirection: optionalPoint(record, 211, 221, 231)
+                    } : {},
+                    ...optionalPoint(record, 212, 222, 232) ? {
+                        blockOffset: optionalPoint(record, 212, 222, 232)
+                    } : {},
+                    ...optionalPoint(record, 213, 223, 233) ? {
+                        annotationOffset: optionalPoint(record, 213, 223, 233)
+                    } : {}
                 }
             };
         case 'DIMENSION':
@@ -1504,6 +1523,7 @@ async function readDXF(source, options = {}) {
         const occupiedHandles = new Set(Object.values(transaction._draft().objects).map((object)=>object.handle));
         const entityHandleIds = new Map();
         const viewportReferences = [];
+        const leaderReferences = [];
         const dimensionReferences = [];
         const importRecord = (record, index, ownerId, scope, parentInsertId)=>{
             const layerName = normalizeName(first(record, 8, '0'));
@@ -1544,6 +1564,10 @@ async function readDXF(source, options = {}) {
                 if (created.type === 'DIMENSION' && dimensionAssociations) dimensionReferences.push({
                     id: created.id,
                     associations: dimensionAssociations
+                });
+                if (created.type === 'LEADER' && converted.payload.annotationHandle) leaderReferences.push({
+                    id: created.id,
+                    annotationHandle: String(converted.payload.annotationHandle).toUpperCase()
                 });
             } catch (error) {
                 if (record.attributes || parentInsertId) throw error;
@@ -1646,6 +1670,33 @@ async function readDXF(source, options = {}) {
             transaction.updateObject(id, {
                 payload: {
                     dimensionAssociations: resolved
+                }
+            });
+        }
+        for (const { id, annotationHandle } of leaderReferences){
+            const annotationId = entityHandleIds.get(annotationHandle), annotation = annotationId ? transaction.getObject(annotationId) : null;
+            if (!annotation || annotation.kind !== 'entity' || annotation.type !== 'MTEXT') {
+                transaction.updateObject(id, {
+                    payload: {
+                        unresolvedLeaderAnnotation: annotationHandle
+                    }
+                });
+                continue;
+            }
+            const leader = transaction.getObject(id);
+            if (leader.ownerId !== annotation.ownerId) {
+                transaction.updateObject(id, {
+                    payload: {
+                        unresolvedLeaderAnnotation: `${annotationHandle}:wrong-owner`
+                    }
+                });
+                continue;
+            }
+            transaction.updateObject(id, {
+                payload: {
+                    annotationId: annotation.id,
+                    annotationHandle: null,
+                    textPosition: annotation.payload.position
                 }
             });
         }
@@ -2701,16 +2752,28 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emitSubclass(output, version, 'AcDbTrace');
         entityVertices.forEach((value, index)=>emitPoint(output, vertexPoint(value), 10 + index));
     } else if (entity.type === 'LEADER') {
+        if (p.unresolvedLeaderAnnotation) throw new KJValidationError(`DXF LEADER has an unresolved annotation reference: ${p.unresolvedLeaderAnnotation}`);
+        const annotation = p.annotationId ? resources.objects?.get(String(p.annotationId)) : null;
+        if (p.annotationId && (!annotation || annotation.erased || annotation.kind !== 'entity' || annotation.type !== 'MTEXT' || annotation.ownerId !== entity.ownerId)) throw new KJValidationError('DXF LEADER annotation must reference live MTEXT in the same owner space');
         emitSubclass(output, version, 'AcDbLeader');
         emit(output, 3, 'STANDARD');
-        emit(output, 71, 1);
-        emit(output, 72, 0);
-        emit(output, 73, 3);
-        emit(output, 74, 0);
-        emit(output, 75, 0);
+        emit(output, 71, p.arrowEnabled === false ? 0 : 1);
+        emit(output, 72, p.pathType ?? 0);
+        emit(output, 73, annotation ? 0 : p.annotationType ?? 3);
+        emit(output, 74, p.hookLineDirection ?? 0);
+        emit(output, 75, p.hookLineEnabled === true ? 1 : 0);
+        if (annotation?.payload.height != null) emit(output, 40, annotation.payload.height);
+        if (annotation?.payload.width != null) emit(output, 41, annotation.payload.width);
         emit(output, 76, entityVertices.length);
         for (const value of entityVertices)emitPoint(output, vertexPoint(value));
-        if (p.annotationHandle) emit(output, 340, p.annotationHandle);
+        emitPoint(output, p.horizontalDirection ?? [
+            1,
+            0,
+            0
+        ], 211);
+        if (p.blockOffset) emitPoint(output, p.blockOffset, 212);
+        if (p.annotationOffset) emitPoint(output, p.annotationOffset, 213);
+        if (annotation) emit(output, 340, annotation.handle);
     } else if (entity.type === 'DIMENSION') {
         if (!p.definitionPoints?.length) throw new KJValidationError('DXF DIMENSION requires at least one definition point');
         const dimension = resources.dimensions?.get(entity.handle);

@@ -520,6 +520,20 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly operations: readonly string[];
         readonly stableIdentity: boolean;
     };
+    readonly LEADER: {
+        domain: string;
+        entityType: string;
+        annotationType: string;
+        atomic: boolean;
+        maximumVertices: number;
+    };
+    readonly LEADEREDIT: {
+        domain: string;
+        entityType: string;
+        annotationType: string;
+        atomic: boolean;
+        stableIdentity: boolean;
+    };
     readonly LINETYPE: {
         readonly domain: string;
         readonly table: string;

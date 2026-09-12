@@ -337,6 +337,37 @@ export function normalizeStandardEntityPayload(type, input = {}) {
         case 'HATCH':
             return normalizeHatch(payload);
         case 'LEADER':
+            {
+                const vertices = (payload.vertices ?? []).map((point, index)=>point3(point, `vertices[${index}]`));
+                if (vertices.length < 2 || vertices.length > 4096) throw new KJValidationError('LEADER requires 2 to 4096 vertices');
+                if (vertices.some((point, index)=>index > 0 && Math.hypot(point[0] - vertices[index - 1][0], point[1] - vertices[index - 1][1], point[2] - vertices[index - 1][2]) <= 1e-12)) throw new KJValidationError('LEADER consecutive vertices must be distinct');
+                const integer = (value, fallback, label, minimum, maximum)=>{
+                    const result = finite(value ?? fallback, label);
+                    if (!Number.isInteger(result) || result < minimum || result > maximum) throw new KJValidationError(`${label} is outside its native LEADER range`);
+                    return result;
+                };
+                return {
+                    ...base(payload),
+                    vertices,
+                    textPosition: payload.textPosition && point3(payload.textPosition, 'textPosition'),
+                    annotationId: payload.annotationId == null ? null : String(payload.annotationId),
+                    ownsAnnotation: payload.ownsAnnotation === true,
+                    arrowEnabled: payload.arrowEnabled !== false,
+                    pathType: integer(payload.pathType, 0, 'pathType', 0, 1),
+                    annotationType: integer(payload.annotationType, payload.annotationId ? 0 : 3, 'annotationType', 0, 3),
+                    hookLineDirection: integer(payload.hookLineDirection, 0, 'hookLineDirection', 0, 1),
+                    hookLineEnabled: payload.hookLineEnabled === true,
+                    ...payload.horizontalDirection == null ? {} : {
+                        horizontalDirection: point3(payload.horizontalDirection, 'horizontalDirection')
+                    },
+                    ...payload.blockOffset == null ? {} : {
+                        blockOffset: point3(payload.blockOffset, 'blockOffset')
+                    },
+                    ...payload.annotationOffset == null ? {} : {
+                        annotationOffset: point3(payload.annotationOffset, 'annotationOffset')
+                    }
+                };
+            }
         case 'MLEADER':
             return {
                 ...base(payload),

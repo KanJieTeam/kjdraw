@@ -107,8 +107,8 @@ function setTool(value) {
   canvas.style.cursor=value==='pan'?'grab':value==='select'?'default':'crosshair'
   for (const b of document.querySelectorAll('[data-tool]')) { b.classList.toggle('active', b.dataset.tool === tool); b.setAttribute('aria-pressed', String(b.dataset.tool === tool)) }
   const hints = i18n.locale === 'zh'
-    ? { select:'滚轮缩放 · 中键拖动画布 · 单击检查对象', line:'直线：指定起点和终点', polyline:'多段线：依次指定三个顶点', circle:'圆：指定圆心和半径', arc:'圆弧：指定圆心、起点和终点', rectangle:'矩形：指定两个对角点', ellipse:'椭圆：指定中心和长轴端点', polygon:'正多边形：选择构造方式和边数', point:'点：指定位置', xline:'构造线：指定原点和方向', text:'文字：指定插入点', measure:'距离：指定两个测量点' }
-    : { select:'Scroll to zoom · middle-drag to pan · click to inspect', line:'LINE: first point, then endpoint', polyline:'POLYLINE: choose three vertices', circle:'CIRCLE: center, then radius', arc:'ARC: center, start, then endpoint', rectangle:'RECTANGLE: choose opposite corners', ellipse:'ELLIPSE: choose center and major-axis endpoint', polygon:'POLYGON: choose construction and side count', point:'POINT: choose a position', xline:'XLINE: choose origin and direction', text:'TEXT: choose insertion point', measure:'DISTANCE: choose two points' }
+    ? { select:'滚轮缩放 · 中键拖动画布 · 单击检查对象', line:'直线：指定起点和终点', polyline:'多段线：依次指定三个顶点', circle:'圆：指定圆心和半径', arc:'圆弧：指定圆心、起点和终点', rectangle:'矩形：指定两个对角点', ellipse:'椭圆：指定中心和长轴端点', polygon:'正多边形：选择构造方式和边数', point:'点：指定位置', xline:'构造线：指定原点和方向', leader:'引线：指定箭头点、转折点和文字位置', text:'文字：指定插入点', measure:'距离：指定两个测量点' }
+    : { select:'Scroll to zoom · middle-drag to pan · click to inspect', line:'LINE: first point, then endpoint', polyline:'POLYLINE: choose three vertices', circle:'CIRCLE: center, then radius', arc:'ARC: center, start, then endpoint', rectangle:'RECTANGLE: choose opposite corners', ellipse:'ELLIPSE: choose center and major-axis endpoint', polygon:'POLYGON: choose construction and side count', point:'POINT: choose a position', xline:'XLINE: choose origin and direction', leader:'LEADER: arrow point, bends, then annotation position', text:'TEXT: choose insertion point', measure:'DISTANCE: choose two points' }
   $('hint').textContent = `${hints[tool] ?? tool.toUpperCase()}${tool === 'select' ? '' : ' · Esc to cancel'}`
   if(value==='pan')$('hint').textContent=t('panHint')
   if(value==='select')$('hint').textContent=t('canvasHint')
@@ -121,7 +121,7 @@ function setTool(value) {
   updateDraftControls()
   if(sdk?.activeDocument)render()
 }
-function isDraftTool(value){return ['line','polyline','circle','arc','ellipse','rectangle','polygon','point','ray','xline','spline','hatch','dimension'].includes(value)}
+function isDraftTool(value){return ['line','polyline','circle','arc','ellipse','rectangle','polygon','point','ray','xline','spline','hatch','dimension','leader'].includes(value)}
 function drawingOptions(value){
   if(value==='circle')return {circleMode:$('circle-mode').value}
   if(value==='arc')return {arcMode:$('arc-mode').value}
@@ -132,6 +132,7 @@ function drawingOptions(value){
     const style=doc().getObject($('dimension-style').value)
     return {dimensionType:$('dimension-type').value,rotation:$('dimension-direction').value==='vertical'?Math.PI/2:0,styleId:style?.id??null,styleName:style?.name??'STANDARD',precision:Number($('dimension-precision').value),overallScale:Number($('dimension-scale').value),textHeight:Number($('dimension-height').value),textOverride:$('dimension-text-override').value||null}
   }
+  if(value==='leader')return {leaderText:$('leader-text').value,textHeight:Number($('leader-height').value),styleId:$('leader-style').value,arrowEnabled:$('leader-arrow').checked}
   if(value==='hatch')return {patternName:$('hatch-pattern').value,patternScale:Number($('hatch-scale').value),solid:$('hatch-pattern').value==='SOLID'}
   return {}
 }
@@ -141,12 +142,12 @@ function updateDraftControls(){
   if(isDraftTool(tool))$('drawing-tool').value=tool
   for(const field of container.querySelectorAll('[data-draft-tools]'))field.hidden=!field.dataset.draftTools.split(' ').includes(tool)
   const state=drafting?.session.state
-  for(const input of container.querySelectorAll('input,select'))input.dataset.previousValue=input.value
+  for(const input of container.querySelectorAll('input,select'))input.dataset.previousValue=input.type==='checkbox'?String(input.checked):input.value
   $('finish-draft').disabled=!state?.canFinish;$('close-draft').disabled=!state?.canClose;$('undo-draft-point').disabled=!state?.points.length
 }
 function updateDraftHint(){
   if(!drafting)return
-  const roles={start:['Start point','起点'],end:['Endpoint','终点'],vertex:['Next vertex','下一顶点'],position:['Position','位置'],origin:['Origin','原点'],directionPoint:['Direction point','方向点'],center:['Center','圆心 / 中心'],radiusPoint:['Radius point (or enter radius)','半径点（也可输入半径）'],diameterPoint1:['First diameter endpoint','直径起点'],diameterPoint2:['Opposite diameter endpoint','直径终点'],throughPoint:['Point on curve','曲线上一点'],majorAxisPoint:['Major-axis endpoint','长轴端点'],minorAxisPoint:['Minor-axis distance','短轴距离'],ellipseArcStart:['Elliptical-arc start direction','椭圆弧起点方向'],ellipseArcEnd:['Elliptical-arc end direction (counter-clockwise)','椭圆弧终点方向（逆时针）'],polygonVertex:['Vertex on circumcircle','外接圆上的顶点'],polygonSideMidpoint:['Side midpoint on incircle','内切圆上的边中点'],edgeStart:['First edge endpoint','边的第一端点'],edgeEnd:['Second edge endpoint','边的第二端点'],firstCorner:['First corner','第一角点'],oppositeCorner:['Opposite corner','对角点'],controlPoint:['Next control point','下一控制点'],boundaryPoint:['Boundary vertex','填充边界顶点'],extensionOrigin1:['First measured point','第一测量点'],extensionOrigin2:['Second measured point','第二测量点'],placement:['Dimension line position','尺寸线位置'],oppositePoint:['Opposite diameter point','直径对侧点'],pointOnCircle:['Point on circle','圆上一点'],angleVertex:['Three-point angle 1/4: vertex → first ray → second ray → arc position','三点角度 1/4：顶点 → 第一射线点 → 第二射线点 → 弧位置'],firstRayPoint:['2/4: point on first ray','2/4：第一条射线上的点'],secondRayPoint:['3/4: point on second ray','3/4：第二条射线上的点'],angularPlacement:['4/4: place angle arc; opposite sector gives reflex angle','4/4：指定角度弧位置；另一角域可标注反角']}
+  const roles={start:['Start point','起点'],end:['Endpoint','终点'],vertex:['Next vertex','下一顶点'],position:['Position','位置'],origin:['Origin','原点'],directionPoint:['Direction point','方向点'],center:['Center','圆心 / 中心'],radiusPoint:['Radius point (or enter radius)','半径点（也可输入半径）'],diameterPoint1:['First diameter endpoint','直径起点'],diameterPoint2:['Opposite diameter endpoint','直径终点'],throughPoint:['Point on curve','曲线上一点'],majorAxisPoint:['Major-axis endpoint','长轴端点'],minorAxisPoint:['Minor-axis distance','短轴距离'],ellipseArcStart:['Elliptical-arc start direction','椭圆弧起点方向'],ellipseArcEnd:['Elliptical-arc end direction (counter-clockwise)','椭圆弧终点方向（逆时针）'],polygonVertex:['Vertex on circumcircle','外接圆上的顶点'],polygonSideMidpoint:['Side midpoint on incircle','内切圆上的边中点'],edgeStart:['First edge endpoint','边的第一端点'],edgeEnd:['Second edge endpoint','边的第二端点'],firstCorner:['First corner','第一角点'],oppositeCorner:['Opposite corner','对角点'],controlPoint:['Next control point','下一控制点'],boundaryPoint:['Boundary vertex','填充边界顶点'],extensionOrigin1:['First measured point','第一测量点'],extensionOrigin2:['Second measured point','第二测量点'],placement:['Dimension line position','尺寸线位置'],oppositePoint:['Opposite diameter point','直径对侧点'],pointOnCircle:['Point on circle','圆上一点'],angleVertex:['Three-point angle 1/4: vertex → first ray → second ray → arc position','三点角度 1/4：顶点 → 第一射线点 → 第二射线点 → 弧位置'],firstRayPoint:['2/4: point on first ray','2/4：第一条射线上的点'],secondRayPoint:['3/4: point on second ray','3/4：第二条射线上的点'],angularPlacement:['4/4: place angle arc; opposite sector gives reflex angle','4/4：指定角度弧位置；另一角域可标注反角'],arrowPoint:['Arrow point','箭头点'],leaderVertex:['Next bend or annotation position','下一转折点或文字位置']}
   const state=drafting.session.state,role=roles[state.nextPoint]??[state.nextPoint??'',state.nextPoint??'']
   $('hint').textContent=`${tool.toUpperCase()} · ${role[i18n.locale==='zh'?1:0]} · ${state.points.length} ${i18n.locale==='zh'?'点':'points'} · x,y / @dx,dy / @distance<angle / ${i18n.locale==='zh'?'距离 / 距离<角度 / <角度':'distance / distance<angle / <angle'}${state.canFinish?' · Enter / FINISH':''}${state.canClose?' · C / CLOSE':''} · U / BACK · Esc / CANCEL`
   message($('hint').textContent);updateDraftControls()
@@ -163,7 +164,7 @@ async function applyDraftInput(value,{coordinate=false,finish=false,close=false}
   start=task.session.points.at(-1)??null
   cursor=start
   if(spec){
-    try{await execute('CREATE',spec,{expectedRevision:task.revision})}
+    try{await execute(spec.type==='LEADER'?'LEADER':'CREATE',spec.type==='LEADER'?spec.payload:spec,{expectedRevision:task.revision})}
     catch(error){task.session=createDraftingSession(task.session.tool,task.options);for(const p of previousPoints)task.session.addPoint(p);start=task.session.points.at(-1)??null;updateDraftHint();render();throw error}
     const currentTool=tool;setTool(currentTool);refresh()
   }
@@ -343,6 +344,12 @@ function syncDimensionStyleControl(){
   select.replaceChildren(...table.records.map(record=>new Option(record.name??'STANDARD',record.id)))
   select.value=table.records.some(record=>record.id===previous)?previous:table.currentId??table.records[0]?.id??''
 }
+function syncTextStyleControls(){
+  const select=$('leader-style');if(!select||!sdk?.activeDocument)return
+  const table=doc().getTable('textStyles'),previous=select.value
+  select.replaceChildren(...table.records.map(record=>new Option(record.name??'STANDARD',record.id)))
+  select.value=table.records.some(record=>record.id===previous)?previous:table.currentId??table.records[0]?.id??''
+}
 function useDimensionStyle(record){
   if(!record)return
   $('dimension-style').value=record.id
@@ -390,7 +397,7 @@ async function manageTextStyles(){
   const record=records.find(candidate=>candidate.id===choice.id)
   if(choice.operation==='set-current'){
     if(!record)throw new Error(zh?'请选择已有文字样式':'Select an existing text style')
-    await execute('TEXTSTYLE',{operation:'set-current',id:record.id});return
+    await execute('TEXTSTYLE',{operation:'set-current',id:record.id});syncTextStyleControls();return
   }
   if(choice.operation==='update'&&!record)throw new Error(zh?'请选择已有文字样式':'Select an existing text style')
   const payload=record?.payload??{}
@@ -407,10 +414,12 @@ async function manageTextStyles(){
   if(!values)return
   const {name,current,obliqueDegrees,...properties}=values;properties.fontFile=properties.fontFile.trim()||null;properties.bigFontFile=properties.bigFontFile.trim()||null;properties.obliqueAngle=Number(obliqueDegrees)*Math.PI/180
   await execute('TEXTSTYLE',choice.operation==='create'?{operation:'create',name,properties,current}:{operation:'update',id:record.id,newName:name,properties,current})
+  syncTextStyleControls()
 }
 function refresh() {
   outputControls?.sync()
   syncDimensionStyleControl()
+  syncTextStyleControls()
   const snapshot=doc().snapshot(),variables=snapshot.header.systemVariables
   orthoEnabled=Number(variables.ORTHOMODE??0)!==0;polarEnabled=Number(variables.POLARMODE??0)!==0
   const configuredAngle=Number(variables.POLARANG??45);polarAngle=configuredAngle>0&&configuredAngle<=180&&Number.isFinite(configuredAngle)?configuredAngle:45;syncTrackingButtons()
@@ -472,9 +481,10 @@ function refresh() {
     const textEntities=selectedEntities.filter(item=>['TEXT','MTEXT','ATTDEF','ATTRIB'].includes(item.type));let textStyleSelect=null,commonTextStyleId=''
     if(textEntities.length===selectedEntities.length){const table=doc().getTable('textStyles'),styleIds=new Set(textEntities.map(item=>item.payload.styleId??table.currentId));commonTextStyleId=styleIds.size===1?[...styleIds][0]:'';const label=document.createElement('label');label.textContent=i18n.locale==='zh'?'文字样式':'Text style';textStyleSelect=document.createElement('select');textStyleSelect.dataset.property='text-style';if(!commonTextStyleId){const option=document.createElement('option');option.value='';option.textContent='—';option.disabled=true;option.selected=true;textStyleSelect.append(option)}for(const style of table.records){const option=document.createElement('option');option.value=style.id;option.textContent=style.name;option.selected=style.id===commonTextStyleId;textStyleSelect.append(option)}label.append(textStyleSelect);editor.append(label)}
     let valueInput=null
-    let textFields=null
+    let textFields=null,leaderFields=null
     if(selectedEntities.length===1&&(entity.type==='CIRCLE'||entity.type==='ARC')){const label=document.createElement('label');label.textContent=t('radius');valueInput=document.createElement('input');valueInput.type='number';valueInput.min='0.000001';valueInput.step='0.1';valueInput.value=entity.payload.radius;label.append(valueInput);editor.append(label)}
     if(selectedEntities.length===1&&['TEXT','MTEXT','ATTDEF','ATTRIB'].includes(entity.type)){const labeled=(labelText,input)=>{const label=document.createElement('label');label.textContent=labelText;label.append(input);editor.append(label);return input};valueInput=document.createElement(entity.type==='MTEXT'?'textarea':'input');valueInput.value=entity.payload.text??'';labeled(t('textField'),valueInput);const height=document.createElement('input');height.type='number';height.required=true;height.min=String(Number.EPSILON);height.step='any';height.value=String(entity.payload.height??2.5);height.dataset.property='text-height';labeled(i18n.locale==='zh'?'高度':'Height',height);const rotation=document.createElement('input');rotation.type='number';rotation.required=true;rotation.step='any';rotation.value=String(Number(entity.payload.rotation??0)*180/Math.PI);rotation.dataset.property='text-rotation';labeled(i18n.locale==='zh'?'旋转（度）':'Rotation (degrees)',rotation);const alignment=document.createElement('select'),options=[['1',i18n.locale==='zh'?'左上':'Top left'],['2',i18n.locale==='zh'?'中上':'Top center'],['3',i18n.locale==='zh'?'右上':'Top right'],['4',i18n.locale==='zh'?'左中':'Middle left'],['5',i18n.locale==='zh'?'居中':'Middle center'],['6',i18n.locale==='zh'?'右中':'Middle right'],['7',i18n.locale==='zh'?'左下':'Bottom left'],['8',i18n.locale==='zh'?'中下':'Bottom center'],['9',i18n.locale==='zh'?'右下':'Bottom right']];alignment.dataset.property='text-alignment';const currentAlignment=entity.type==='MTEXT'?Number(entity.payload.attachmentPoint??1):(Number(entity.payload.verticalAlignment??0)===3?1:Number(entity.payload.verticalAlignment??0)===2?4:7)+Number(entity.payload.horizontalAlignment??0);for(const [value,labelText] of options)alignment.add(new Option(labelText,value,false,Number(value)===currentAlignment));labeled(i18n.locale==='zh'?'对齐':'Alignment',alignment);textFields={height,rotation,alignment}}
+    if(selectedEntities.length===1&&entity.type==='LEADER'){const annotation=entity.payload.annotationId?doc().getObject(entity.payload.annotationId):null,labeled=(labelText,input)=>{const label=document.createElement('label');label.textContent=labelText;label.append(input);editor.append(label);return input},text=labeled(i18n.locale==='zh'?'引线文字':'Annotation text',document.createElement('textarea')),style=labeled(i18n.locale==='zh'?'文字样式':'Text style',document.createElement('select')),height=labeled(i18n.locale==='zh'?'文字高度':'Text height',document.createElement('input')),arrow=labeled(i18n.locale==='zh'?'显示箭头':'Arrowhead',document.createElement('input'));text.value=annotation?.payload.text??entity.payload.text??'';text.dataset.property='leader-text';for(const record of doc().getTable('textStyles').records)style.add(new Option(record.name,record.id,false,record.id===(annotation?.payload.styleId??doc().getTable('textStyles').currentId)));style.dataset.property='leader-style';height.type='number';height.required=true;height.min=String(Number.EPSILON);height.step='any';height.value=String(annotation?.payload.height??entity.payload.textHeight??2.5);height.dataset.property='leader-height';arrow.type='checkbox';arrow.checked=entity.payload.arrowEnabled!==false;arrow.dataset.property='leader-arrow';leaderFields={text,style,height,arrow}}
     let dimensionFields=null
     if(selectedEntities.length===1&&entity.type==='DIMENSION'){
       const table=doc().getTable('dimensionStyles'),styleId=entity.payload.styleId??table.currentId,styleRecord=doc().getObject(styleId)
@@ -488,7 +498,7 @@ function refresh() {
       const textOverride=document.createElement('input');textOverride.type='text';textOverride.value=entity.payload.textOverride??'';labeled('dimension-text-override',i18n.locale==='zh'?'标注文字替代':'Dimension text override',textOverride)
       dimensionFields={style,precision,scale,textHeight,textOverride}
     }
-    const save=document.createElement('button');save.textContent=t('applyProperties');save.onclick=()=>run(async()=>{if(selectedEntities.length>1){const payload={};if(layerSelect.value&&layerSelect.value!==commonLayerId)payload.layerId=layerSelect.value;if(textStyleSelect?.value&&textStyleSelect.value!==commonTextStyleId)payload.styleId=textStyleSelect.value;if(!Object.keys(payload).length)return;await execute('PROPERTIES',{ids:selectedEntities.map(item=>item.id),patch:{payload}});return}const payload={layerId:layerSelect.value};if(textStyleSelect?.value)payload.styleId=textStyleSelect.value;if(valueInput&&(entity.type==='CIRCLE'||entity.type==='ARC'))payload.radius=Number(valueInput.value);if(valueInput&&['TEXT','MTEXT','ATTDEF','ATTRIB'].includes(entity.type))payload.text=valueInput.value;if(textFields){const invalid=[textFields.height,textFields.rotation].find(input=>!input.checkValidity());if(invalid){invalid.reportValidity();return}payload.height=Number(textFields.height.value);payload.rotation=Number(textFields.rotation.value)*Math.PI/180;const attachment=Number(textFields.alignment.value);if(entity.type==='MTEXT')payload.attachmentPoint=attachment;else{payload.horizontalAlignment=(attachment-1)%3;payload.verticalAlignment=attachment<=3?3:attachment<=6?2:0;if(payload.horizontalAlignment||payload.verticalAlignment)payload.alignmentPoint=payload.alignmentPoint??payload.position}}if(dimensionFields){const invalid=[dimensionFields.precision,dimensionFields.scale,dimensionFields.textHeight].find(input=>!input.checkValidity());if(invalid){invalid.reportValidity();return}const style=doc().getObject(dimensionFields.style.value);Object.assign(payload,{styleId:dimensionFields.style.value,styleName:style?.name??'STANDARD',precision:Number(dimensionFields.precision.value),overallScale:Number(dimensionFields.scale.value),textHeight:Number(dimensionFields.textHeight.value),textOverride:dimensionFields.textOverride.value||null})}if(entity.type==='INSERT'&&blockScope?.value==='definition'){if(!blockMember?.value)throw new Error(t('blockMember'));await execute('BLOCKDEFINITIONUPDATE',{blockRecordId:entity.payload.blockRecordId,id:blockMember.value,patch:{payload}})}else if(entity.type==='INSERT')await execute('BLOCKINSTANCEUPDATE',{id:entity.id,patch:{payload}});else await execute('PROPERTIES',{id:entity.id,patch:{payload}})});editor.append(save);$('inspector').append(editor)
+    const save=document.createElement('button');save.textContent=t('applyProperties');save.onclick=()=>run(async()=>{if(selectedEntities.length>1){const payload={};if(layerSelect.value&&layerSelect.value!==commonLayerId)payload.layerId=layerSelect.value;if(textStyleSelect?.value&&textStyleSelect.value!==commonTextStyleId)payload.styleId=textStyleSelect.value;if(!Object.keys(payload).length)return;await execute('PROPERTIES',{ids:selectedEntities.map(item=>item.id),patch:{payload}});return}if(leaderFields){if(!leaderFields.text.value.trim()||!leaderFields.height.checkValidity()){leaderFields.height.reportValidity();return}await execute('LEADEREDIT',{id:entity.id,vertices:entity.payload.vertices,textPosition:entity.payload.textPosition,text:leaderFields.text.value,styleId:leaderFields.style.value,textHeight:Number(leaderFields.height.value),arrowEnabled:leaderFields.arrow.checked,layerId:layerSelect.value});return}const payload={layerId:layerSelect.value};if(textStyleSelect?.value)payload.styleId=textStyleSelect.value;if(valueInput&&(entity.type==='CIRCLE'||entity.type==='ARC'))payload.radius=Number(valueInput.value);if(valueInput&&['TEXT','MTEXT','ATTDEF','ATTRIB'].includes(entity.type))payload.text=valueInput.value;if(textFields){const invalid=[textFields.height,textFields.rotation].find(input=>!input.checkValidity());if(invalid){invalid.reportValidity();return}payload.height=Number(textFields.height.value);payload.rotation=Number(textFields.rotation.value)*Math.PI/180;const attachment=Number(textFields.alignment.value);if(entity.type==='MTEXT')payload.attachmentPoint=attachment;else{payload.horizontalAlignment=(attachment-1)%3;payload.verticalAlignment=attachment<=3?3:attachment<=6?2:0;if(payload.horizontalAlignment||payload.verticalAlignment)payload.alignmentPoint=payload.alignmentPoint??payload.position}}if(dimensionFields){const invalid=[dimensionFields.precision,dimensionFields.scale,dimensionFields.textHeight].find(input=>!input.checkValidity());if(invalid){invalid.reportValidity();return}const style=doc().getObject(dimensionFields.style.value);Object.assign(payload,{styleId:dimensionFields.style.value,styleName:style?.name??'STANDARD',precision:Number(dimensionFields.precision.value),overallScale:Number(dimensionFields.scale.value),textHeight:Number(dimensionFields.textHeight.value),textOverride:dimensionFields.textOverride.value||null})}if(entity.type==='INSERT'&&blockScope?.value==='definition'){if(!blockMember?.value)throw new Error(t('blockMember'));await execute('BLOCKDEFINITIONUPDATE',{blockRecordId:entity.payload.blockRecordId,id:blockMember.value,patch:{payload}})}else if(entity.type==='INSERT')await execute('BLOCKINSTANCEUPDATE',{id:entity.id,patch:{payload}});else await execute('PROPERTIES',{id:entity.id,patch:{payload}})});editor.append(save);$('inspector').append(editor)
     const selectedHatches=selectedEntities.filter(item=>item.type==='HATCH')
     if(selectedHatches.length===1){const hatch=selectedHatches[0],sources=selectedEntities.filter(item=>item.id!==hatch.id).map(item=>item.id),editHatch=document.createElement('button');editHatch.dataset.action='edit-hatch';editHatch.textContent=t('hatchEdit');editHatch.onclick=()=>run(()=>editSelectedHatch(hatch,sources));$('inspector').append(editHatch)}
     const erase=document.createElement('button');erase.textContent=t('deleteSelected');erase.onclick=()=>run(()=>execute('ERASE',{ids:selectedIds()}));$('inspector').append(erase)
@@ -713,7 +723,7 @@ async function runTypedCommand(){
     if(!polygonMode)throw new Error(i18n.locale==='zh'?'正多边形模式必须是 INSCRIBED、CIRCUMSCRIBED 或 EDGE':'POLYGON mode must be INSCRIBED, CIRCUMSCRIBED, or EDGE')
     $('polygon-sides').value=String(sides);$('polygon-mode').value=polygonMode;$('command-input').value='';setTool('polygon');return
   }
-  const drawCommands={LINE:'line',L:'line',PLINE:'polyline',POLYLINE:'polyline',PL:'polyline',CIRCLE:'circle',CIRCLE2P:'circle',CIRCLE3P:'circle',ARC:'arc',ARC3P:'arc',ELLIPSE:'ellipse',ELLIPSEARC:'ellipse',POLYGON:'polygon',SPLINE:'spline',HATCH:'hatch',DIMALIGNED:'dimension',DIMLINEAR:'dimension',DIMRADIUS:'dimension',DIMDIAMETER:'dimension',DIMANGULAR:'dimension',DIMANGULAR3P:'dimension',RAY:'ray',XLINE:'xline',POINT:'point',RECTANGLE:'rectangle'}
+  const drawCommands={LINE:'line',L:'line',PLINE:'polyline',POLYLINE:'polyline',PL:'polyline',CIRCLE:'circle',CIRCLE2P:'circle',CIRCLE3P:'circle',ARC:'arc',ARC3P:'arc',ELLIPSE:'ellipse',ELLIPSEARC:'ellipse',POLYGON:'polygon',SPLINE:'spline',HATCH:'hatch',DIMALIGNED:'dimension',DIMLINEAR:'dimension',DIMRADIUS:'dimension',DIMDIAMETER:'dimension',DIMANGULAR:'dimension',DIMANGULAR3P:'dimension',LEADER:'leader',LE:'leader',RAY:'ray',XLINE:'xline',POINT:'point',RECTANGLE:'rectangle'}
   const drawCommand=raw.toUpperCase()
   if(drawCommands[drawCommand]){
     if(drawCommand.startsWith('CIRCLE'))$('circle-mode').value=drawCommand==='CIRCLE2P'?'2-point':drawCommand==='CIRCLE3P'?'3-point':'center-radius'
@@ -1093,7 +1103,7 @@ function initializeDraftingControls(){
   const library=document.createElement('div');library.className='ribbon-group drawing-library';library.dataset.section='draw'
   library.append(bilingual(document.createElement('small'),'CONSTRUCTION','图形构造'))
   const picker=document.createElement('select');picker.id='drawing-tool'
-  for(const [value,en,zh] of [['line','Line','直线'],['polyline','Polyline','多段线'],['circle','Circle','圆'],['arc','Arc','圆弧'],['ellipse','Ellipse','椭圆'],['rectangle','Rectangle','矩形'],['polygon','Polygon','正多边形'],['spline','Spline','样条曲线'],['hatch','Hatch / fill','填充'],['dimension','Dimension','尺寸标注'],['point','Point','点'],['ray','Ray','射线'],['xline','Construction line','构造线']]){
+  for(const [value,en,zh] of [['line','Line','直线'],['polyline','Polyline','多段线'],['circle','Circle','圆'],['arc','Arc','圆弧'],['ellipse','Ellipse','椭圆'],['rectangle','Rectangle','矩形'],['polygon','Polygon','正多边形'],['spline','Spline','样条曲线'],['hatch','Hatch / fill','填充'],['dimension','Dimension','尺寸标注'],['leader','Leader','引线'],['point','Point','点'],['ray','Ray','射线'],['xline','Construction line','构造线']]){
     const option=bilingual(document.createElement('option'),en,zh);option.value=value;picker.append(option)
   }
   picker.setAttribute('aria-label',i18n.locale==='zh'?'绘图工具':'Drawing tool');picker.onchange=()=>{if(!busy){setTool(picker.value);canvas.focus()}}
@@ -1105,9 +1115,9 @@ function initializeDraftingControls(){
     const label=document.createElement('label');label.dataset.draftTools=tools;label.append(bilingual(document.createElement('span'),en,zh));let input
     if(values){input=document.createElement('select');for(const [value,labelEn,labelZh] of values){const option=bilingual(document.createElement('option'),labelEn,labelZh);option.value=value;input.append(option)}}
     else {input=document.createElement('input');input.type=limits.type??'number';for(const [key,value]of Object.entries(limits))if(key!=='type')input[key]=String(value)}
-    input.id=id;input.value=String(defaultValue);input.dataset.previousValue=input.value;input.setAttribute('aria-label',i18n.locale==='zh'?zh:en)
+    input.id=id;if(input.type==='checkbox')input.checked=Boolean(defaultValue);else input.value=String(defaultValue);input.dataset.previousValue=input.type==='checkbox'?String(input.checked):input.value;input.setAttribute('aria-label',i18n.locale==='zh'?zh:en)
     input.onchange=()=>{
-      if(busy||drafting?.session.points.length){input.value=input.dataset.previousValue;if(busy)busyNotice();else message(i18n.locale==='zh'?'请先完成或按 Esc 取消当前图形，再更改构造参数。':'Finish the current shape or press Esc before changing construction options.');return}
+      if(busy||drafting?.session.points.length){if(input.type==='checkbox')input.checked=input.dataset.previousValue==='true';else input.value=input.dataset.previousValue;if(busy)busyNotice();else message(i18n.locale==='zh'?'请先完成或按 Esc 取消当前图形，再更改构造参数。':'Finish the current shape or press Esc before changing construction options.');return}
       if(!input.checkValidity()){input.reportValidity();return}
       if(isDraftTool(tool)){setTool(tool);canvas.focus()}
     };label.append(input);options.append(label)
@@ -1125,9 +1135,13 @@ function initializeDraftingControls(){
   add('dimension-scale','Overall scale','标注整体比例','dimension',null,1,{min:.000001,step:'any'})
   add('dimension-height','Text height','字高','dimension',null,2.5,{min:.001,step:'any'})
   add('dimension-text-override','Text override','文字替代','dimension',null,'',{type:'text'})
+  add('leader-text','Annotation text','引线文字','leader',null,'Note',{type:'text'})
+  add('leader-style','Text style','文字样式','leader',[['','STANDARD','STANDARD']],'')
+  add('leader-height','Text height','文字高度','leader',null,2.5,{min:.001,step:'any'})
+  add('leader-arrow','Arrowhead','显示箭头','leader',null,true,{type:'checkbox'})
   add('hatch-pattern','Pattern','图案','hatch',[['ANSI31','Diagonal','斜线'],['ANSI37','Cross','交叉'],['SOLID','Solid fill','实心']],'ANSI31')
   add('hatch-scale','Scale','比例','hatch',null,1,{min:.001,step:.1})
-  for(const [id,en,zh,tools,action] of [['finish-draft','Finish ↵','完成 ↵','polyline spline hatch',()=>run(()=>applyDraftInput(null,{finish:true}))],['close-draft','Close (C)','闭合 (C)','polyline spline hatch',()=>run(()=>applyDraftInput(null,{close:true}))],['undo-draft-point','Undo point','退回一点','polyline spline hatch ellipse polygon',undoDraftPoint]]){
+  for(const [id,en,zh,tools,action] of [['finish-draft','Finish ↵','完成 ↵','polyline spline hatch leader',()=>run(()=>applyDraftInput(null,{finish:true}))],['close-draft','Close (C)','闭合 (C)','polyline spline hatch',()=>run(()=>applyDraftInput(null,{close:true}))],['undo-draft-point','Undo point','退回一点','polyline spline hatch leader ellipse polygon',undoDraftPoint]]){
     const button=bilingual(document.createElement('button'),en,zh);button.id=id;button.dataset.draftTools=tools;button.onclick=action;options.append(button)
   }
   $('drop-zone').append(options)

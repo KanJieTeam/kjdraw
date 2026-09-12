@@ -15,7 +15,8 @@ const TOOLS = new Set([
     'xline',
     'spline',
     'hatch',
-    'dimension'
+    'dimension',
+    'leader'
 ]);
 const CIRCLE_MODES = new Set([
     'center-radius',
@@ -226,6 +227,8 @@ function normalizeOptions(options) {
     if (!patternName) throw new KJValidationError('patternName cannot be empty');
     const styleName = String(options.styleName ?? 'STANDARD').trim();
     if (!styleName) throw new KJValidationError('styleName cannot be empty');
+    const leaderText = String(options.leaderText ?? 'Note');
+    if (!leaderText.trim() || leaderText.length > 16384 || /\u0000/.test(leaderText)) throw new KJValidationError('Leader text must be nonempty bounded Unicode text');
     return {
         circleMode,
         arcMode,
@@ -242,6 +245,8 @@ function normalizeOptions(options) {
         styleName,
         precision,
         overallScale,
+        leaderText,
+        arrowEnabled: options.arrowEnabled !== false,
         patternName,
         patternScale,
         patternAngle,
@@ -270,6 +275,10 @@ function pointCounts(tool, options) {
     };
     if (tool === 'hatch') return {
         minimum: 3,
+        maximum: null
+    };
+    if (tool === 'leader') return {
+        minimum: 2,
         maximum: null
     };
     if (tool === 'circle') {
@@ -317,6 +326,7 @@ function nextPointRole(tool, count, options) {
     }
     if (tool === 'spline') return 'controlPoint';
     if (tool === 'hatch') return 'boundaryPoint';
+    if (tool === 'leader') return count === 0 ? 'arrowPoint' : 'leaderVertex';
     if (tool === 'ellipse') return options.ellipseMode === 'arc' ? [
         'center',
         'majorAxisPoint',
@@ -533,6 +543,7 @@ export class KJDraftingSession {
             if (this.tool === 'polyline' && points.length >= 2) return this.#polyline(points, false);
             if (this.tool === 'spline' && points.length >= this.#options.splineDegree + 1) return this.#spline(points, false);
             if (this.tool === 'hatch' && points.length >= 3) return this.#hatch(points);
+            if (this.tool === 'leader' && points.length >= 2) return this.#leader(points);
             if (this.tool === 'ellipse' && this.#options.ellipseMode === 'arc' && points.length >= 3 && points.length < 5) {
                 const ellipse = draftEllipse(points[0], points[1], points[2], this.#options.tolerance);
                 return this.#spec('ELLIPSE', {
@@ -648,6 +659,21 @@ export class KJDraftingSession {
             solid: this.#options.solid
         });
     }
+    #leader(source) {
+        const points = source.map((value)=>point2(value));
+        requirePoints(points, 2, 'Leader');
+        for(let index = 1; index < points.length; index += 1)requireDistinct(points[index - 1], points[index], this.#options.tolerance, 'Leader segment');
+        return this.#spec('LEADER', {
+            vertices: points.map(point3),
+            textPosition: point3(points.at(-1)),
+            text: this.#options.leaderText,
+            textHeight: this.#options.textHeight ?? 2.5,
+            ...this.#options.styleId ? {
+                styleId: this.#options.styleId
+            } : {},
+            arrowEnabled: this.#options.arrowEnabled
+        });
+    }
     #dimension(points) {
         const type = this.#options.dimensionType;
         const payload = {
@@ -760,6 +786,7 @@ export class KJDraftingSession {
         if (this.tool === 'polyline') return this.#polyline(points, closed);
         if (this.tool === 'spline') return this.#spline(points, closed);
         if (this.tool === 'hatch') return this.#hatch(points);
+        if (this.tool === 'leader') return this.#leader(points);
         if (this.tool === 'rectangle') {
             requirePoints(points, 2, 'Rectangle');
             const [a, b] = points;

@@ -21,6 +21,7 @@ export type KJDraftTool =
   | 'spline'
   | 'hatch'
   | 'dimension'
+  | 'leader'
 
 export type KJDraftCircleMode = 'center-radius' | '2-point' | '3-point'
 export type KJDraftArcMode = 'center-start-end' | '3-point'
@@ -61,6 +62,8 @@ export type KJDraftPointRole =
   | 'firstRayPoint'
   | 'secondRayPoint'
   | 'angularPlacement'
+  | 'arrowPoint'
+  | 'leaderVertex'
 
 export interface KJDraftEntitySpec {
   type: KJStandardEntityType
@@ -84,6 +87,8 @@ export interface KJDraftingOptions {
   styleName?: string
   precision?: number | null
   overallScale?: number | null
+  leaderText?: string
+  arrowEnabled?: boolean
   patternName?: string
   patternScale?: number
   patternAngle?: number
@@ -120,6 +125,8 @@ interface NormalizedOptions {
   styleName: string
   precision: number | null
   overallScale: number | null
+  leaderText: string
+  arrowEnabled: boolean
   patternName: string
   patternScale: number
   patternAngle: number
@@ -129,7 +136,7 @@ interface NormalizedOptions {
   tolerance: number
 }
 
-const TOOLS = new Set<KJDraftTool>(['line', 'polyline', 'circle', 'arc', 'ellipse', 'rectangle', 'polygon', 'point', 'ray', 'xline', 'spline', 'hatch', 'dimension'])
+const TOOLS = new Set<KJDraftTool>(['line', 'polyline', 'circle', 'arc', 'ellipse', 'rectangle', 'polygon', 'point', 'ray', 'xline', 'spline', 'hatch', 'dimension', 'leader'])
 const CIRCLE_MODES = new Set<KJDraftCircleMode>(['center-radius', '2-point', '3-point'])
 const ARC_MODES = new Set<KJDraftArcMode>(['center-start-end', '3-point'])
 const ELLIPSE_MODES = new Set<KJDraftEllipseMode>(['full', 'arc'])
@@ -293,6 +300,8 @@ function normalizeOptions(options: KJDraftingOptions): NormalizedOptions {
   if (!patternName) throw new KJValidationError('patternName cannot be empty')
   const styleName = String(options.styleName ?? 'STANDARD').trim()
   if (!styleName) throw new KJValidationError('styleName cannot be empty')
+  const leaderText = String(options.leaderText ?? 'Note')
+  if (!leaderText.trim() || leaderText.length > 16384 || /\u0000/.test(leaderText)) throw new KJValidationError('Leader text must be nonempty bounded Unicode text')
   return {
     circleMode,
     arcMode,
@@ -309,6 +318,8 @@ function normalizeOptions(options: KJDraftingOptions): NormalizedOptions {
     styleName,
     precision,
     overallScale,
+    leaderText,
+    arrowEnabled: options.arrowEnabled !== false,
     patternName,
     patternScale,
     patternAngle,
@@ -324,6 +335,7 @@ function pointCounts(tool: KJDraftTool, options: NormalizedOptions): { minimum: 
   if (tool === 'polyline') return { minimum: 2, maximum: null }
   if (tool === 'spline') return { minimum: options.splineDegree + 1, maximum: null }
   if (tool === 'hatch') return { minimum: 3, maximum: null }
+  if (tool === 'leader') return { minimum: 2, maximum: null }
   if (tool === 'circle') { const count = options.circleMode === '3-point' ? 3 : 2; return { minimum: count, maximum: count } }
   if (tool === 'arc') return { minimum: 3, maximum: 3 }
   if (tool === 'ellipse') { const count = options.ellipseMode === 'arc' ? 5 : 3; return { minimum: count, maximum: count } }
@@ -343,6 +355,7 @@ function nextPointRole(tool: KJDraftTool, count: number, options: NormalizedOpti
   }
   if (tool === 'spline') return 'controlPoint'
   if (tool === 'hatch') return 'boundaryPoint'
+  if (tool === 'leader') return count === 0 ? 'arrowPoint' : 'leaderVertex'
   if (tool === 'ellipse') return options.ellipseMode === 'arc'
     ? (['center', 'majorAxisPoint', 'minorAxisPoint', 'ellipseArcStart', 'ellipseArcEnd'] as const)[Math.min(count, 4)]!
     : (['center', 'majorAxisPoint', 'minorAxisPoint'] as const)[Math.min(count, 2)]!
@@ -511,6 +524,7 @@ export class KJDraftingSession {
       if (this.tool === 'polyline' && points.length >= 2) return this.#polyline(points, false)
       if (this.tool === 'spline' && points.length >= this.#options.splineDegree + 1) return this.#spline(points, false)
       if (this.tool === 'hatch' && points.length >= 3) return this.#hatch(points)
+      if (this.tool === 'leader' && points.length >= 2) return this.#leader(points)
       if (this.tool === 'ellipse' && this.#options.ellipseMode === 'arc' && points.length >= 3 && points.length < 5) {
         const ellipse = draftEllipse(points[0]!, points[1]!, points[2]!, this.#options.tolerance)
         return this.#spec('ELLIPSE', { ...ellipse, startParameter: 0, endParameter: TAU })
@@ -600,6 +614,16 @@ export class KJDraftingSession {
     })
   }
 
+  #leader(source: readonly KJDraftPoint[]): KJDraftEntitySpec {
+    const points = source.map(value => point2(value))
+    requirePoints(points, 2, 'Leader')
+    for (let index = 1; index < points.length; index += 1) requireDistinct(points[index - 1]!, points[index]!, this.#options.tolerance, 'Leader segment')
+    return this.#spec('LEADER', {
+      vertices: points.map(point3), textPosition: point3(points.at(-1)!), text: this.#options.leaderText,
+      textHeight: this.#options.textHeight ?? 2.5, ...(this.#options.styleId ? { styleId: this.#options.styleId } : {}), arrowEnabled: this.#options.arrowEnabled,
+    })
+  }
+
   #dimension(points: readonly KJDraftPoint[]): KJDraftEntitySpec {
     const type = this.#options.dimensionType
     const payload: KJObjectPayload = { dimensionType: type, styleName: this.#options.styleName }
@@ -663,6 +687,7 @@ export class KJDraftingSession {
     if (this.tool === 'polyline') return this.#polyline(points, closed)
     if (this.tool === 'spline') return this.#spline(points, closed)
     if (this.tool === 'hatch') return this.#hatch(points)
+    if (this.tool === 'leader') return this.#leader(points)
     if (this.tool === 'rectangle') {
       requirePoints(points, 2, 'Rectangle')
       const [a, b] = points
