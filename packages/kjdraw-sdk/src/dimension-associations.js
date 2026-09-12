@@ -59,6 +59,15 @@ export function normalizeDimensionAssociations(value) {
     if (new Set(result.map((item)=>item.definitionPointIndex)).size !== result.length) return fail('Dimension associations must target unique definition points');
     return clone(result);
 }
+export function requireAssociativeDimensionSourceIdentity(transaction, sourceId, operation) {
+    for (const object of Object.values(transaction._draft().objects)){
+        if (object.kind !== 'entity' || object.type !== 'DIMENSION' || object.erased || !Array.isArray(object.payload.dimensionAssociations)) continue;
+        const associations = normalizeDimensionAssociations(object.payload.dimensionAssociations);
+        if (associations.some((association)=>association.entityId === sourceId)) {
+            fail(operation + ' cannot split or replace source ' + sourceId + ' while dimension ' + object.id + ' references it');
+        }
+    }
+}
 const point3 = (value, name)=>{
     if (!Array.isArray(value) || value.length !== 3 || value.some((item)=>typeof item !== 'number' || !Number.isFinite(item)) || value[2] !== 0) return fail(`${name} must be a finite model-XY point`);
     return [

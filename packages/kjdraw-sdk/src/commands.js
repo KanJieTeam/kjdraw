@@ -7,7 +7,7 @@ import { createDesignRelations, updateDesignRelations } from './design-relations
 import { entityArea2, entityLength2, distance2, dot2, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
 import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
-import { refreshAssociativeDimensions } from './dimension-associations.js';
+import { refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js';
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js';
 import { KJ_SNAP_MODES } from './snapping.js';
 import { selectEntitiesByProperty } from './selection.js';
@@ -1663,6 +1663,7 @@ export function registerCoreCommands(registry) {
             const pieces = trimEntityPayloads(entity, boundaries, args.pickPoint);
             const first = pieces[0];
             if (!first) throw new KJValidationError('Trim must retain a non-empty entity');
+            if (pieces.length !== 1 || first.type !== entity.type) requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'TRIM');
             let primary;
             if (first.type === entity.type) primary = transaction.updateObject(entity.id, {
                 payload: first.payload
@@ -1678,6 +1679,9 @@ export function registerCoreCommands(registry) {
             replaceEntityMemberships(transaction, [
                 entity.id
             ], retainedIds);
+            if (primary.id === entity.id) refreshAssociativeDimensions(transaction, [
+                entity.id
+            ]);
             return primary;
         }
     }, {
@@ -1691,9 +1695,13 @@ export function registerCoreCommands(registry) {
         title: 'Extend entity',
         execute: ({ document, transaction }, args)=>{
             const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds, entity.id);
-            return transaction.updateObject(entity.id, {
+            const updated = transaction.updateObject(entity.id, {
                 payload: extendEntityPayload(entity, boundaries, args.pickPoint)
             });
+            refreshAssociativeDimensions(transaction, [
+                entity.id
+            ]);
+            return updated;
         }
     }, {
         owner: '@kanjieteam/kjdraw'
@@ -1784,9 +1792,13 @@ export function registerCoreCommands(registry) {
         title: 'Edit entity grip',
         execute: ({ document, transaction }, args)=>{
             const entity = requiredEntity(document, args.id);
-            return transaction.updateObject(entity.id, {
+            const updated = transaction.updateObject(entity.id, {
                 payload: editEntityGrip(entity, args.gripId, args.point)
             });
+            refreshAssociativeDimensions(transaction, [
+                entity.id
+            ]);
+            return updated;
         }
     }, {
         owner: '@kanjieteam/kjdraw'

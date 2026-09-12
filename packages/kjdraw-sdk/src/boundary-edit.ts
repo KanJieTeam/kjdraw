@@ -1,6 +1,7 @@
 import type { KJDocument } from './document.js'
 import { extendEntityPayload, trimEntityPayloads, type KJDerivedEntityPayload } from './editing.js'
 import { KJValidationError } from './errors.js'
+import { normalizeDimensionAssociations } from './dimension-associations.js'
 import type { KJCommandReceipt } from './product-contract.js'
 import type { KJDocumentState, KJObjectRecord, KJReadonlyObjectRecord, KJRevisionRecord } from './schema.js'
 import { normalizeStandardEntityPayload } from './standard-entities.js'
@@ -178,6 +179,9 @@ export class KJBoundaryEditSession {
       ? this.#document.listObjects({ kind: 'group' }).filter(group => ['GROUP', 'SELECTION_SET'].includes(group.type)
         && Array.isArray(group.payload.memberIds) && group.payload.memberIds.includes(original.id))
       : []
+    const originalDimensions = this.#document.listEntities({ type: 'DIMENSION' }).filter(dimension =>
+      Array.isArray(dimension.payload.dimensionAssociations)
+      && normalizeDimensionAssociations(dimension.payload.dimensionAssociations).some(association => association.entityId === original.id))
     const commits: KJBoundaryEditCommit[] = []
     const unsubscribe = this.#document.on('document:before-commit', event => {
       const operations = event.revision.operations.filter((operation): operation is Readonly<Record<string, unknown>> => !!operation && typeof operation === 'object')
@@ -195,7 +199,7 @@ export class KJBoundaryEditSession {
       const result = await execute(preview.command)
       const commit = commits[0]
       if (this.#document.revision !== this.#revision + 1 || !this.#isDocumentCurrent()
-        || commits.length !== 1 || !commit || !this.#matchesCommit(preview, original, originalGroups, result, commit)) {
+        || commits.length !== 1 || !commit || !this.#matchesCommit(preview, original, originalGroups, originalDimensions, result, commit)) {
         this.cancel()
         this.#fail('unexpected-commit', 'The drawing changed or the executor did not commit the previewed edit. Inspect the drawing before continuing.', '图纸已切换，或执行器提交的修改与预览不一致。请检查图纸后再继续。')
       }
@@ -216,7 +220,8 @@ export class KJBoundaryEditSession {
   }
 
   #matchesCommit(preview: KJBoundaryEditPreview, original: KJReadonlyObjectRecord,
-    originalGroups: readonly KJReadonlyObjectRecord[], receipt: unknown, commit: KJBoundaryEditCommit): boolean {
+    originalGroups: readonly KJReadonlyObjectRecord[], originalDimensions: readonly KJReadonlyObjectRecord[],
+    receipt: unknown, commit: KJBoundaryEditCommit): boolean {
     if (!receipt || typeof receipt !== 'object') return false
     const result = receipt as Readonly<KJCommandReceipt>
     const metadata = commit.revision.metadata as Readonly<Record<string, unknown>> | undefined
@@ -240,8 +245,8 @@ export class KJBoundaryEditSession {
     })) return false
     const retainedIds = retained.map(entity => entity!.id)
     return commit.before && commit.after
-      ? this.#matchesCompactedWrites(preview, original, originalGroups, retainedIds, commit)
-      : this.#matchesRecordedWrites(preview, original, originalGroups, retainedIds, commit)
+      ? this.#matchesCompactedWrites(preview, original, originalGroups, originalDimensions, retainedIds, commit)
+      : this.#matchesRecordedWrites(preview, original, originalGroups, originalDimensions, retainedIds, commit)
   }
 
   #expectedTarget(preview: KJBoundaryEditPreview, original: KJReadonlyObjectRecord): KJObjectRecord {
@@ -259,12 +264,30 @@ export class KJBoundaryEditSession {
     return expected
   }
 
+  #expectedDimension(dimension: KJReadonlyObjectRecord): KJObjectRecord | null {
+    const current = this.#document.getObject(dimension.id)
+    if (!current || current.kind !== 'entity' || current.type !== 'DIMENSION') return null
+    const expected = clone(dimension) as KJObjectRecord
+    expected.payload.definitionPoints = clone(current.payload.definitionPoints)
+    expected.payload.measurement = current.payload.measurement
+    expected.payload.blockName = current.payload.blockName
+    return sameValue(expected, current) ? expected : null
+  }
+
   #matchesRecordedWrites(preview: KJBoundaryEditPreview, original: KJReadonlyObjectRecord,
-    originalGroups: readonly KJReadonlyObjectRecord[], retainedIds: readonly string[], commit: KJBoundaryEditCommit): boolean {
+    originalGroups: readonly KJReadonlyObjectRecord[], originalDimensions: readonly KJReadonlyObjectRecord[],
+    retainedIds: readonly string[], commit: KJBoundaryEditCommit): boolean {
     const expectedTarget = this.#expectedTarget(preview, original)
     const expectedGroups = new Map(originalGroups.map(group => [group.id, this.#expectedGroup(group, original.id, retainedIds)]))
     const changedGroupIds = new Set(originalGroups.filter(group => !sameValue(group, expectedGroups.get(group.id))).map(group => group.id))
+    const expectedDimensions = new Map<string, KJObjectRecord>()
+    for (const dimension of originalDimensions) {
+      const expected = this.#expectedDimension(dimension)
+      if (!expected) return false
+      if (!sameValue(dimension, expected)) expectedDimensions.set(dimension.id, expected)
+    }
     const groupWrites = new Map<string, number>()
+    const dimensionWrites = new Map<string, number>()
     const createdIds: string[] = []
     let targetWrites = 0
     for (const operation of commit.operations) {
@@ -280,23 +303,35 @@ export class KJBoundaryEditSession {
         if (!sameValue(operation.before, original) || !sameValue(operation.after, expectedTarget)) return false
         continue
       }
+      const dimension = originalDimensions.find(candidate => candidate.id === id), expectedDimension = expectedDimensions.get(id)
+      if (dimension) {
+        if (!expectedDimension || !sameValue(operation.before, dimension) || !sameValue(operation.after, expectedDimension)) return false
+        dimensionWrites.set(id, (dimensionWrites.get(id) ?? 0) + 1)
+        continue
+      }
       const group = originalGroups.find(candidate => candidate.id === id), expected = expectedGroups.get(id)
       if (!group || !expected || !changedGroupIds.has(id)
         || !sameValue(operation.before, group) || !sameValue(operation.after, expected)) return false
       groupWrites.set(id, (groupWrites.get(id) ?? 0) + 1)
     }
     if (targetWrites !== 1 || !sameValue(createdIds, commit.createdIds)
-      || [...changedGroupIds].some(id => groupWrites.get(id) !== 1) || groupWrites.size !== changedGroupIds.size) return false
+      || [...changedGroupIds].some(id => groupWrites.get(id) !== 1) || groupWrites.size !== changedGroupIds.size
+      || [...expectedDimensions].some(([id]) => dimensionWrites.get(id) !== 1) || dimensionWrites.size !== expectedDimensions.size) return false
     if (!sameValue(this.#document.getObject(original.id, { includeErased: true }), expectedTarget)) return false
     return originalGroups.every(group => sameValue(this.#document.getObject(group.id), expectedGroups.get(group.id)))
+      && [...expectedDimensions].every(([id, expected]) => sameValue(this.#document.getObject(id), expected))
   }
 
   #matchesCompactedWrites(preview: KJBoundaryEditPreview, original: KJReadonlyObjectRecord,
-    originalGroups: readonly KJReadonlyObjectRecord[], retainedIds: readonly string[], commit: KJBoundaryEditCommit): boolean {
+    originalGroups: readonly KJReadonlyObjectRecord[], originalDimensions: readonly KJReadonlyObjectRecord[],
+    retainedIds: readonly string[], commit: KJBoundaryEditCommit): boolean {
     const before = commit.before!, after = commit.after!
     const expectedGroups = originalGroups.map(group => this.#expectedGroup(group, original.id, retainedIds))
     const changedGroupCount = originalGroups.filter((group, index) => !sameValue(group, expectedGroups[index])).length
-    const expectedByType: Record<string, number> = { 'object.update': 1 + changedGroupCount }
+    const expectedDimensions = originalDimensions.map(dimension => this.#expectedDimension(dimension))
+    if (expectedDimensions.some(dimension => !dimension)) return false
+    const changedDimensionCount = originalDimensions.filter((dimension, index) => !sameValue(dimension, expectedDimensions[index])).length
+    const expectedByType: Record<string, number> = { 'object.update': 1 + changedGroupCount + changedDimensionCount }
     if (commit.createdIds.length) expectedByType['object.create'] = commit.createdIds.length
     const expectedOperationCount = Object.values(expectedByType).reduce((total, count) => total + count, 0)
     const summary = commit.operations[0]
@@ -327,6 +362,9 @@ export class KJBoundaryEditSession {
       expected.objects[ownerId] = expectedOwner
     }
     for (const [index, group] of originalGroups.entries()) expected.objects[group.id] = expectedGroups[index]!
+    for (const [index, dimension] of originalDimensions.entries()) {
+      if (!sameValue(dimension, expectedDimensions[index])) expected.objects[dimension.id] = expectedDimensions[index]!
+    }
     return sameValue(expected, after)
   }
 

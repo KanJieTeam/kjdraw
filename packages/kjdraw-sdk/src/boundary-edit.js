@@ -1,6 +1,7 @@
 // Generated from boundary-edit.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { extendEntityPayload, trimEntityPayloads } from './editing.js';
 import { KJValidationError } from './errors.js';
+import { normalizeDimensionAssociations } from './dimension-associations.js';
 import { normalizeStandardEntityPayload } from './standard-entities.js';
 import { canonicalStringify, clone, deepFreeze, stableHash } from './utils.js';
 const BOUNDARY_TYPES = new Set([
@@ -147,6 +148,9 @@ export class KJBoundaryEditSession {
                 'GROUP',
                 'SELECTION_SET'
             ].includes(group.type) && Array.isArray(group.payload.memberIds) && group.payload.memberIds.includes(original.id)) : [];
+        const originalDimensions = this.#document.listEntities({
+            type: 'DIMENSION'
+        }).filter((dimension)=>Array.isArray(dimension.payload.dimensionAssociations) && normalizeDimensionAssociations(dimension.payload.dimensionAssociations).some((association)=>association.entityId === original.id));
         const commits = [];
         const unsubscribe = this.#document.on('document:before-commit', (event)=>{
             const operations = event.revision.operations.filter((operation)=>!!operation && typeof operation === 'object');
@@ -165,7 +169,7 @@ export class KJBoundaryEditSession {
         try {
             const result = await execute(preview.command);
             const commit = commits[0];
-            if (this.#document.revision !== this.#revision + 1 || !this.#isDocumentCurrent() || commits.length !== 1 || !commit || !this.#matchesCommit(preview, original, originalGroups, result, commit)) {
+            if (this.#document.revision !== this.#revision + 1 || !this.#isDocumentCurrent() || commits.length !== 1 || !commit || !this.#matchesCommit(preview, original, originalGroups, originalDimensions, result, commit)) {
                 this.cancel();
                 this.#fail('unexpected-commit', 'The drawing changed or the executor did not commit the previewed edit. Inspect the drawing before continuing.', '图纸已切换，或执行器提交的修改与预览不一致。请检查图纸后再继续。');
             }
@@ -184,7 +188,7 @@ export class KJBoundaryEditSession {
             unsubscribe();
         }
     }
-    #matchesCommit(preview, original, originalGroups, receipt, commit) {
+    #matchesCommit(preview, original, originalGroups, originalDimensions, receipt, commit) {
         if (!receipt || typeof receipt !== 'object') return false;
         const result = receipt;
         const metadata = commit.revision.metadata;
@@ -203,7 +207,7 @@ export class KJBoundaryEditSession {
             }));
         })) return false;
         const retainedIds = retained.map((entity)=>entity.id);
-        return commit.before && commit.after ? this.#matchesCompactedWrites(preview, original, originalGroups, retainedIds, commit) : this.#matchesRecordedWrites(preview, original, originalGroups, retainedIds, commit);
+        return commit.before && commit.after ? this.#matchesCompactedWrites(preview, original, originalGroups, originalDimensions, retainedIds, commit) : this.#matchesRecordedWrites(preview, original, originalGroups, originalDimensions, retainedIds, commit);
     }
     #expectedTarget(preview, original) {
         const expected = clone(original);
@@ -224,14 +228,30 @@ export class KJBoundaryEditSession {
         ];
         return expected;
     }
-    #matchesRecordedWrites(preview, original, originalGroups, retainedIds, commit) {
+    #expectedDimension(dimension) {
+        const current = this.#document.getObject(dimension.id);
+        if (!current || current.kind !== 'entity' || current.type !== 'DIMENSION') return null;
+        const expected = clone(dimension);
+        expected.payload.definitionPoints = clone(current.payload.definitionPoints);
+        expected.payload.measurement = current.payload.measurement;
+        expected.payload.blockName = current.payload.blockName;
+        return sameValue(expected, current) ? expected : null;
+    }
+    #matchesRecordedWrites(preview, original, originalGroups, originalDimensions, retainedIds, commit) {
         const expectedTarget = this.#expectedTarget(preview, original);
         const expectedGroups = new Map(originalGroups.map((group)=>[
                 group.id,
                 this.#expectedGroup(group, original.id, retainedIds)
             ]));
         const changedGroupIds = new Set(originalGroups.filter((group)=>!sameValue(group, expectedGroups.get(group.id))).map((group)=>group.id));
+        const expectedDimensions = new Map();
+        for (const dimension of originalDimensions){
+            const expected = this.#expectedDimension(dimension);
+            if (!expected) return false;
+            if (!sameValue(dimension, expected)) expectedDimensions.set(dimension.id, expected);
+        }
         const groupWrites = new Map();
+        const dimensionWrites = new Map();
         const createdIds = [];
         let targetWrites = 0;
         for (const operation of commit.operations){
@@ -247,24 +267,37 @@ export class KJBoundaryEditSession {
                 if (!sameValue(operation.before, original) || !sameValue(operation.after, expectedTarget)) return false;
                 continue;
             }
+            const dimension = originalDimensions.find((candidate)=>candidate.id === id), expectedDimension = expectedDimensions.get(id);
+            if (dimension) {
+                if (!expectedDimension || !sameValue(operation.before, dimension) || !sameValue(operation.after, expectedDimension)) return false;
+                dimensionWrites.set(id, (dimensionWrites.get(id) ?? 0) + 1);
+                continue;
+            }
             const group = originalGroups.find((candidate)=>candidate.id === id), expected = expectedGroups.get(id);
             if (!group || !expected || !changedGroupIds.has(id) || !sameValue(operation.before, group) || !sameValue(operation.after, expected)) return false;
             groupWrites.set(id, (groupWrites.get(id) ?? 0) + 1);
         }
         if (targetWrites !== 1 || !sameValue(createdIds, commit.createdIds) || [
             ...changedGroupIds
-        ].some((id)=>groupWrites.get(id) !== 1) || groupWrites.size !== changedGroupIds.size) return false;
+        ].some((id)=>groupWrites.get(id) !== 1) || groupWrites.size !== changedGroupIds.size || [
+            ...expectedDimensions
+        ].some(([id])=>dimensionWrites.get(id) !== 1) || dimensionWrites.size !== expectedDimensions.size) return false;
         if (!sameValue(this.#document.getObject(original.id, {
             includeErased: true
         }), expectedTarget)) return false;
-        return originalGroups.every((group)=>sameValue(this.#document.getObject(group.id), expectedGroups.get(group.id)));
+        return originalGroups.every((group)=>sameValue(this.#document.getObject(group.id), expectedGroups.get(group.id))) && [
+            ...expectedDimensions
+        ].every(([id, expected])=>sameValue(this.#document.getObject(id), expected));
     }
-    #matchesCompactedWrites(preview, original, originalGroups, retainedIds, commit) {
+    #matchesCompactedWrites(preview, original, originalGroups, originalDimensions, retainedIds, commit) {
         const before = commit.before, after = commit.after;
         const expectedGroups = originalGroups.map((group)=>this.#expectedGroup(group, original.id, retainedIds));
         const changedGroupCount = originalGroups.filter((group, index)=>!sameValue(group, expectedGroups[index])).length;
+        const expectedDimensions = originalDimensions.map((dimension)=>this.#expectedDimension(dimension));
+        if (expectedDimensions.some((dimension)=>!dimension)) return false;
+        const changedDimensionCount = originalDimensions.filter((dimension, index)=>!sameValue(dimension, expectedDimensions[index])).length;
         const expectedByType = {
-            'object.update': 1 + changedGroupCount
+            'object.update': 1 + changedGroupCount + changedDimensionCount
         };
         if (commit.createdIds.length) expectedByType['object.create'] = commit.createdIds.length;
         const expectedOperationCount = Object.values(expectedByType).reduce((total, count)=>total + count, 0);
@@ -292,6 +325,9 @@ export class KJBoundaryEditSession {
             expected.objects[ownerId] = expectedOwner;
         }
         for (const [index, group] of originalGroups.entries())expected.objects[group.id] = expectedGroups[index];
+        for (const [index, dimension] of originalDimensions.entries()){
+            if (!sameValue(dimension, expectedDimensions[index])) expected.objects[dimension.id] = expectedDimensions[index];
+        }
         return sameValue(expected, after);
     }
     finish() {

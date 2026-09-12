@@ -22,7 +22,7 @@ import { clone, deepFreeze, normalizeName, stableHash } from './utils.js'
 import type { ReadonlyDeep } from './utils.js'
 import { editEntityGrip } from './grips.js'
 import type { KJPointInput } from './grips.js'
-import { refreshAssociativeDimensions } from './dimension-associations.js'
+import { refreshAssociativeDimensions, requireAssociativeDimensionSourceIdentity } from './dimension-associations.js'
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js'
 import { KJ_SNAP_MODES } from './snapping.js'
 import type { KJDocument, KJDocumentHistoryOptions, KJDocumentTransactionOptions } from './document.js'
@@ -919,6 +919,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       const pieces = trimEntityPayloads(entity, boundaries, args.pickPoint)
       const first = pieces[0]
       if (!first) throw new KJValidationError('Trim must retain a non-empty entity')
+      if (pieces.length !== 1 || first.type !== entity.type) requireAssociativeDimensionSourceIdentity(transaction, entity.id, 'TRIM')
       let primary: KJObjectRecord
       if (first.type === entity.type) primary = transaction.updateObject(entity.id, { payload: first.payload })
       else {
@@ -930,6 +931,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       const retainedIds = [primary.id]
       for (const piece of pieces.slice(1)) retainedIds.push(createDerived(transaction, entity, piece.type, piece.payload).id)
       replaceEntityMemberships(transaction, [entity.id], retainedIds)
+      if (primary.id === entity.id) refreshAssociativeDimensions(transaction, [entity.id])
       return primary
     },
   }, { owner: '@kanjieteam/kjdraw' }))
@@ -937,7 +939,9 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'EXTEND', aliases: ['EX'], title: 'Extend entity',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds, entity.id)
-      return transaction.updateObject(entity.id, { payload: extendEntityPayload(entity, boundaries, args.pickPoint) })
+      const updated = transaction.updateObject(entity.id, { payload: extendEntityPayload(entity, boundaries, args.pickPoint) })
+      refreshAssociativeDimensions(transaction, [entity.id])
+      return updated
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
@@ -983,7 +987,9 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'GRIPEDIT', title: 'Edit entity grip',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id)
-      return transaction.updateObject(entity.id, { payload: editEntityGrip(entity, args.gripId!, args.point!) })
+      const updated = transaction.updateObject(entity.id, { payload: editEntityGrip(entity, args.gripId!, args.point!) })
+      refreshAssociativeDimensions(transaction, [entity.id])
+      return updated
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
