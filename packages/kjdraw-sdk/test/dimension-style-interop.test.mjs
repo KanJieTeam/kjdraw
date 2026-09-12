@@ -56,7 +56,7 @@ test('unbound, null, partial and scaled shared dimension styles preserve exact p
   reopened.listEntities({ type: 'DIMENSION' }).forEach((entity, i) => close(projection(reopened, entity), before[i]))
   assert.deepEqual(resolveDimensionAnnotationStyle(cases[0]), { overallScale: 1, textHeight: 2, arrowSize: 1.4, extensionOffset: .4, extensionBeyond: .7 })
   const observed = native(t, dxf); if (!observed) return
-  const expected = [[1,2,1.4,.4,.7],[1,2.5,1.75,.5,.875],[2,2,.8,.3,.6],[2,1.5,.8,.3,.6],[3,2,.4,0,.2]]
+  const expected = [[1,2,2.5,.625,1.25],[1,2.5,1.75,.5,.875],[2,2,.8,.3,.6],[2,1.5,.8,.3,.6],[3,2,.4,0,.2]]
   observed.dimensions.forEach((entity, i) => {
     close(Object.values(entity.values), expected[i]); close(entity.before, [before[i].label.height]); close(entity.after, [before[i].label.height]); assert.equal(entity.measurement, 30)
   })

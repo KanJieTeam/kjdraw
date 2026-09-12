@@ -125,7 +125,7 @@ test('JOIN rejects branches, duplicate ids, cross-space, non-coplanar and protec
 
   for (const protection of [{ locked: true }, { frozen: true }, { visible: false }]) {
     const sdk = createKJDrawSDK(), drawing = sdk.createDocument()
-    const protectedLayer = await sdk.executeCommand('LAYERNEW', { name: `Protected ${JSON.stringify(protection)}` })
+    const protectedLayer = await sdk.executeCommand('LAYERNEW', { name: `Protected-${Object.keys(protection)[0]}` })
     const first = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0, 0], end: [5, 0] } })
     const second = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [5, 0], end: [10, 0], layerId: protectedLayer.id } })
     await sdk.executeCommand('LAYERUPDATE', { id: protectedLayer.id, patch: protection })

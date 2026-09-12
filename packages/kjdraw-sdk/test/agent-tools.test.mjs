@@ -15,17 +15,21 @@ const circleArgs = (revision = 0) => ({ expectedRevision: revision, units: 'mill
 function value(result) { assert.equal(result.ok, true, JSON.stringify(result)); return result.value }
 
 test('tool definitions are frozen serializable schemas with no approval or arbitrary execution tool', () => {
-  assert.equal(KJDRAW_AGENT_TOOLS.length, 24)
+  assert.equal(KJDRAW_AGENT_TOOLS.length, 26)
   assert.ok(KJDRAW_AGENT_TOOLS.every(tool => ['read', 'propose'].includes(tool.effect)))
   assert.deepEqual(JSON.parse(JSON.stringify(KJDRAW_AGENT_TOOLS)), KJDRAW_AGENT_TOOLS)
   for (const tool of KJDRAW_AGENT_TOOLS) {
     assert.equal(tool.inputSchema.additionalProperties, false)
     const optional = tool.name === 'cad_propose_drawing_annotated'
       ? ['angularDimensions']
+      : tool.name === 'cad_read_components'
+        ? ['query', 'category', 'locale', 'limit', 'cursor']
+        : tool.name === 'cad_propose_component_insert'
+          ? ['layerId']
       : tool.name === 'cad_propose_lengthen'
         ? ['value', 'targetPoint']
         : tool.name === 'cad_propose_polyline_edit'
-          ? ['segmentIndex', 'vertexIndex', 'point', 'tolerance', 'bulge', 'sweepDegrees']
+          ? ['segmentIndex', 'vertexIndex', 'point', 'tolerance', 'bulge', 'sweepDegrees', 'startWidth', 'endWidth']
           : tool.name === 'cad_check_geometry'
             ? ['dimensionMeasurements', 'polylineVertexCounts', 'polylineSegmentBulges']
             : []
