@@ -153,7 +153,7 @@ const copy = {
     select: 'Select', pan: 'Pan', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', rectangle: 'Rectangle', text: 'Text', measure: 'Measure',
     undo: 'Undo', redo: 'Redo', erase: 'Delete', move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', fit: 'Fit', grid: 'Grid', ortho: 'Ortho', orthoOn: 'Orthogonal drafting on', orthoOff: 'Orthogonal drafting off', orthoBusy: 'Finish or cancel the current operation before changing Ortho', polar: 'Polar', polarOn: 'Polar tracking on', polarOff: 'Polar tracking off', polarBusy: 'Finish or cancel the current operation before changing Polar tracking', layers: 'Layers', properties: 'Properties',
     noSelection: 'Select an object to inspect its properties.', drawing: 'Drawing', entities: 'entities', selected: 'selected',
-    layer: 'Layer', textStyle: 'Text style', radius: 'Radius', apply: 'Apply', ready: 'Ready', readonly: 'Read only',
+    layer: 'Layer', textStyle: 'Text style', radius: 'Radius', apply: 'Apply', ready: 'Ready', readonly: 'Read only', blockEditScope: 'Edit scope', blockInstanceScope: 'This instance', blockDefinitionScope: 'Shared definition', blockMember: 'Definition member', blockScopeHint: 'Instance changes affect this occurrence. Definition changes affect every instance.',
     firstPoint: 'Specify the first point', nextPoint: 'Specify the next point', finishPolyline: 'Click vertices · Enter or double-click to finish', arcStart: 'Specify arc start', arcEnd: 'Specify arc endpoint', textPrompt: 'Type TEXT followed by content, then click an insertion point', measured: 'Measured distance',
     unsupported: 'projection limits', theme: 'Theme', language: '中文', sample: 'Starter drawing', openFailed: 'Could not open drawing', command: 'Command', run: 'Run', commandHint: 'MOVE 10 0 · COPY 10 0 · ROTATE 15 · OFFSET 2 · SCALE 1.2', fileTooLarge: 'File exceeds the workbench limit',
     layout: 'Layout', layoutClassic: 'Classic', layoutCompact: 'Compact', layoutFocus: 'Focus', selectObjects: 'Select an object', basePoint: 'Specify the base point', destinationPoint: 'Specify the destination point', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
@@ -173,7 +173,7 @@ const copy = {
     select: '选择', pan: '平移', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', rectangle: '矩形', text: '文字', measure: '测距',
     undo: '撤销', redo: '重做', erase: '删除', move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', fit: '全图', grid: '栅格', ortho: '正交', orthoOn: '正交绘图已开启', orthoOff: '正交绘图已关闭', orthoBusy: '请先完成或取消当前操作，再切换正交模式', polar: '极轴', polarOn: '极轴跟踪已开启', polarOff: '极轴跟踪已关闭', polarBusy: '请先完成或取消当前操作，再切换极轴跟踪', layers: '图层', properties: '特性',
     noSelection: '选择图元后可查看和修改属性。', drawing: '图纸', entities: '图元', selected: '已选择',
-    layer: '图层', textStyle: '文字样式', radius: '半径', apply: '应用', ready: '就绪', readonly: '只读',
+    layer: '图层', textStyle: '文字样式', radius: '半径', apply: '应用', ready: '就绪', readonly: '只读', blockEditScope: '修改范围', blockInstanceScope: '仅此实例', blockDefinitionScope: '共享块定义', blockMember: '定义成员', blockScopeHint: '实例修改仅影响当前对象；定义修改会影响全部实例。',
     firstPoint: '指定第一个点', nextPoint: '指定下一个点', finishPolyline: '连续指定顶点 · Enter 或双击完成', arcStart: '指定圆弧起点', arcEnd: '指定圆弧端点', textPrompt: '输入 TEXT 和文字内容，再指定插入点', measured: '测量距离',
     unsupported: '投影限制', theme: '主题', language: 'EN', sample: '入门图纸', openFailed: '无法打开图纸', command: '命令', run: '执行', commandHint: 'MOVE 10 0 · COPY 10 0 · ROTATE 15 · OFFSET 2 · SCALE 1.2', fileTooLarge: '文件超过工作台限制',
     layout: '布局', layoutClassic: '经典', layoutCompact: '紧凑', layoutFocus: '专注', selectObjects: '选择对象', basePoint: '指定基点', destinationPoint: '指定目标点', zoomIn: '放大', zoomOut: '缩小',
@@ -2778,6 +2778,35 @@ export class KJDrawWorkbench {
     for (const layer of drawing.getTable('layers')?.records ?? []) {
       const option = document.createElement('option'); option.value = layer.id; option.textContent = layer.name ?? '0'; option.selected = commonLayerId === layer.id; layerSelect.append(option)
     }
+    let blockScopeSelect: HTMLSelectElement | null = null
+    let blockMemberSelect: HTMLSelectElement | null = null
+    let blockMembers: KJReadonlyObjectRecord[] = []
+    if (!multiple && entity.type === 'INSERT') {
+      const definition = drawing.getObject(String(entity.payload.blockRecordId ?? ''))
+      if (definition?.kind === 'block-record' && definition.payload.isSpace !== true) {
+        blockMembers = (definition.payload.entityIds ?? []).map(id => drawing.getObject(id)).filter((item): item is KJReadonlyObjectRecord => item?.kind === 'entity' && !item.erased)
+        host.append(this.#kv(this.#t('blockDefinitionScope'), definition.name ?? definition.id))
+        const scopeField = document.createElement('label'); scopeField.className = 'field'; scopeField.innerHTML = `<span>${this.#t('blockEditScope')}</span>`
+        blockScopeSelect = document.createElement('select')
+        for (const [value, label] of Object.entries({ instance: this.#t('blockInstanceScope'), definition: this.#t('blockDefinitionScope') })) {
+          const option = document.createElement('option'); option.value = value; option.textContent = label; if (value === 'definition') option.disabled = blockMembers.length === 0; blockScopeSelect.append(option)
+        }
+        scopeField.append(blockScopeSelect); host.append(scopeField)
+        const memberField = document.createElement('label'); memberField.className = 'field'; memberField.hidden = true; memberField.innerHTML = `<span>${this.#t('blockMember')}</span>`
+        blockMemberSelect = document.createElement('select')
+        for (const member of blockMembers) { const option = document.createElement('option'); option.value = member.id; option.textContent = `${member.type} · ${member.handle}`; blockMemberSelect.append(option) }
+        memberField.append(blockMemberSelect); host.append(memberField)
+        const syncScope = () => {
+          const definitionMode = blockScopeSelect?.value === 'definition'
+          memberField.hidden = !definitionMode
+          const target = definitionMode ? blockMembers.find(item => item.id === blockMemberSelect?.value) : entity
+          if (target?.payload.layerId) layerSelect.value = String(target.payload.layerId)
+        }
+        blockScopeSelect.addEventListener('change', syncScope, { signal: this.#abort.signal })
+        blockMemberSelect.addEventListener('change', syncScope, { signal: this.#abort.signal })
+        const note = document.createElement('div'); note.className = 'warning'; note.dataset.blockScope = ''; note.textContent = this.#t('blockScopeHint'); host.append(note)
+      }
+    }
     layerField.append(layerSelect); host.append(layerField)
     const textEntities = selectedEntities.filter(item => ['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(item.type))
     let textStyleSelect: HTMLSelectElement | null = null
@@ -2815,11 +2844,16 @@ export class KJDrawWorkbench {
           await this.execute('PROPERTIES', { ids: selectedEntities.map(item => item.id), patch: { payload } })
           return
         }
-        const payload: Record<string, unknown> = { ...structuredClone(entity.payload), layerId: layerSelect.value }
+        const payload: Record<string, unknown> = { layerId: layerSelect.value }
         if (textStyleSelect?.value) payload.styleId = textStyleSelect.value
         if (valueInput && (entity.type === 'CIRCLE' || entity.type === 'ARC')) payload.radius = Number(valueInput.value)
         if (valueInput && ['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(entity.type)) payload.text = valueInput.value
-        await this.execute('PROPERTIES', { id: entity.id, patch: { payload } })
+        if (entity.type === 'INSERT' && blockScopeSelect?.value === 'definition') {
+          const definitionId = String(entity.payload.blockRecordId ?? ''), memberId = blockMemberSelect?.value
+          if (!memberId) throw new Error('Select a block definition member to edit')
+          await this.execute('BLOCKDEFINITIONUPDATE', { blockRecordId: definitionId, id: memberId, patch: { payload } })
+        } else if (entity.type === 'INSERT') await this.execute('BLOCKINSTANCEUPDATE', { id: entity.id, patch: { payload } })
+        else await this.execute('PROPERTIES', { id: entity.id, patch: { payload } })
       }), { signal: this.#abort.signal })
       host.append(apply)
     }

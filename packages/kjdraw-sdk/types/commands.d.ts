@@ -121,6 +121,7 @@ export interface KJCommandArguments extends Record<string, unknown> {
     types?: readonly string[];
     boundaryLoops?: unknown;
     attributes?: unknown;
+    attributeValues?: Readonly<Record<string, unknown>>;
     mappings?: unknown;
     pattern?: unknown;
     settings?: Record<string, unknown>;
@@ -442,6 +443,17 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
     readonly BLOCKINSERT: {
         domain: string;
         entityType: string;
+    };
+    readonly BLOCKINSTANCEUPDATE: {
+        domain: string;
+        scope: string;
+        entityType: string;
+        stableIdentity: boolean;
+    };
+    readonly BLOCKDEFINITIONUPDATE: {
+        domain: string;
+        scope: string;
+        stableIdentity: boolean;
     };
     readonly XREFATTACH: {
         domain: string;

@@ -352,11 +352,28 @@ function refresh() {
     const layerLabel=document.createElement('label');layerLabel.textContent=t('layer');const layerSelect=document.createElement('select'),layerIds=new Set(selectedEntities.map(item=>item.payload.layerId)),commonLayerId=layerIds.size===1?[...layerIds][0]:''
     if(!commonLayerId){const option=document.createElement('option');option.value='';option.textContent='—';option.selected=true;option.disabled=true;layerSelect.append(option)}
     for(const layer of doc().getTable('layers').records){const option=document.createElement('option');option.value=layer.id;option.textContent=layer.name;option.selected=layer.id===commonLayerId;layerSelect.append(option)}
+    let blockScope=null,blockMember=null,blockMembers=[]
+    if(selectedEntities.length===1&&entity.type==='INSERT'){
+      const definition=doc().getObject(String(entity.payload.blockRecordId??''))
+      if(definition?.kind==='block-record'&&definition.payload.isSpace!==true){
+        blockMembers=(definition.payload.entityIds??[]).map(id=>doc().getObject(id)).filter(item=>item?.kind==='entity'&&!item.erased)
+        field($('inspector'),t('blockDefinitionScope'),definition.name??definition.id)
+        const scopeLabel=document.createElement('label');scopeLabel.textContent=t('blockEditScope');blockScope=document.createElement('select')
+        for(const [value,label] of [['instance',t('blockInstanceScope')],['definition',t('blockDefinitionScope')]]){const option=document.createElement('option');option.value=value;option.textContent=label;option.disabled=value==='definition'&&!blockMembers.length;blockScope.append(option)}
+        scopeLabel.append(blockScope);editor.append(scopeLabel)
+        const memberLabel=document.createElement('label');memberLabel.textContent=t('blockMember');memberLabel.hidden=true;blockMember=document.createElement('select')
+        for(const member of blockMembers){const option=document.createElement('option');option.value=member.id;option.textContent=`${member.type} · ${member.handle}`;blockMember.append(option)}
+        memberLabel.append(blockMember);editor.append(memberLabel)
+        const syncScope=()=>{const definitionMode=blockScope.value==='definition';memberLabel.hidden=!definitionMode;const target=definitionMode?blockMembers.find(item=>item.id===blockMember.value):entity;if(target?.payload.layerId)layerSelect.value=String(target.payload.layerId)}
+        blockScope.onchange=syncScope;blockMember.onchange=syncScope
+        const note=document.createElement('div');note.className='selection-summary';note.dataset.blockScope='';note.textContent=t('blockScopeHint');$('inspector').append(note)
+      }
+    }
     layerLabel.append(layerSelect);editor.append(layerLabel)
     let valueInput=null
     if(selectedEntities.length===1&&(entity.type==='CIRCLE'||entity.type==='ARC')){const label=document.createElement('label');label.textContent=t('radius');valueInput=document.createElement('input');valueInput.type='number';valueInput.min='0.000001';valueInput.step='0.1';valueInput.value=entity.payload.radius;label.append(valueInput);editor.append(label)}
     if(selectedEntities.length===1&&(entity.type==='TEXT'||entity.type==='MTEXT')){const label=document.createElement('label');label.textContent=t('textField');valueInput=document.createElement('input');valueInput.value=entity.payload.text??'';label.append(valueInput);editor.append(label)}
-    const save=document.createElement('button');save.textContent=t('applyProperties');save.onclick=()=>run(async()=>{if(selectedEntities.length>1){if(!layerSelect.value||layerSelect.value===commonLayerId)return;await execute('PROPERTIES',{ids:selectedEntities.map(item=>item.id),patch:{payload:{layerId:layerSelect.value}}});return}const payload={...entity.payload,layerId:layerSelect.value};if(valueInput&&(entity.type==='CIRCLE'||entity.type==='ARC'))payload.radius=Number(valueInput.value);if(valueInput&&(entity.type==='TEXT'||entity.type==='MTEXT'))payload.text=valueInput.value;await execute('PROPERTIES',{id:entity.id,patch:{payload}})});editor.append(save);$('inspector').append(editor)
+    const save=document.createElement('button');save.textContent=t('applyProperties');save.onclick=()=>run(async()=>{if(selectedEntities.length>1){if(!layerSelect.value||layerSelect.value===commonLayerId)return;await execute('PROPERTIES',{ids:selectedEntities.map(item=>item.id),patch:{payload:{layerId:layerSelect.value}}});return}const payload={layerId:layerSelect.value};if(valueInput&&(entity.type==='CIRCLE'||entity.type==='ARC'))payload.radius=Number(valueInput.value);if(valueInput&&(entity.type==='TEXT'||entity.type==='MTEXT'))payload.text=valueInput.value;if(entity.type==='INSERT'&&blockScope?.value==='definition'){if(!blockMember?.value)throw new Error(t('blockMember'));await execute('BLOCKDEFINITIONUPDATE',{blockRecordId:entity.payload.blockRecordId,id:blockMember.value,patch:{payload}})}else if(entity.type==='INSERT')await execute('BLOCKINSTANCEUPDATE',{id:entity.id,patch:{payload}});else await execute('PROPERTIES',{id:entity.id,patch:{payload}})});editor.append(save);$('inspector').append(editor)
     const erase=document.createElement('button');erase.textContent=t('deleteSelected');erase.onclick=()=>run(()=>execute('ERASE',{ids:selectedIds()}));$('inspector').append(erase)
   }
   else {field($('inspector'),t('revision'),doc().revision);field($('inspector'),t('modelEntities'),currentModel.length);field($('inspector'),t('kernel'),authority?'Rust / WASM':t('jsReference'));field($('inspector'),t('units'),doc().snapshot().header.units??'unspecified');const help=document.createElement('div');help.className='inspector-empty';help.innerHTML=kjdrawIcon('select');help.append(document.createTextNode(t('inspectHint')));$('inspector').append(help)}

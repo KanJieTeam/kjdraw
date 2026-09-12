@@ -104,6 +104,11 @@ const copy = {
         apply: 'Apply',
         ready: 'Ready',
         readonly: 'Read only',
+        blockEditScope: 'Edit scope',
+        blockInstanceScope: 'This instance',
+        blockDefinitionScope: 'Shared definition',
+        blockMember: 'Definition member',
+        blockScopeHint: 'Instance changes affect this occurrence. Definition changes affect every instance.',
         firstPoint: 'Specify the first point',
         nextPoint: 'Specify the next point',
         finishPolyline: 'Click vertices · Enter or double-click to finish',
@@ -269,6 +274,11 @@ const copy = {
         apply: '应用',
         ready: '就绪',
         readonly: '只读',
+        blockEditScope: '修改范围',
+        blockInstanceScope: '仅此实例',
+        blockDefinitionScope: '共享块定义',
+        blockMember: '定义成员',
+        blockScopeHint: '实例修改仅影响当前对象；定义修改会影响全部实例。',
         firstPoint: '指定第一个点',
         nextPoint: '指定下一个点',
         finishPolyline: '连续指定顶点 · Enter 或双击完成',
@@ -4629,6 +4639,62 @@ export class KJDrawWorkbench {
             option.selected = commonLayerId === layer.id;
             layerSelect.append(option);
         }
+        let blockScopeSelect = null;
+        let blockMemberSelect = null;
+        let blockMembers = [];
+        if (!multiple && entity.type === 'INSERT') {
+            const definition = drawing.getObject(String(entity.payload.blockRecordId ?? ''));
+            if (definition?.kind === 'block-record' && definition.payload.isSpace !== true) {
+                blockMembers = (definition.payload.entityIds ?? []).map((id)=>drawing.getObject(id)).filter((item)=>item?.kind === 'entity' && !item.erased);
+                host.append(this.#kv(this.#t('blockDefinitionScope'), definition.name ?? definition.id));
+                const scopeField = document.createElement('label');
+                scopeField.className = 'field';
+                scopeField.innerHTML = `<span>${this.#t('blockEditScope')}</span>`;
+                blockScopeSelect = document.createElement('select');
+                for (const [value, label] of Object.entries({
+                    instance: this.#t('blockInstanceScope'),
+                    definition: this.#t('blockDefinitionScope')
+                })){
+                    const option = document.createElement('option');
+                    option.value = value;
+                    option.textContent = label;
+                    if (value === 'definition') option.disabled = blockMembers.length === 0;
+                    blockScopeSelect.append(option);
+                }
+                scopeField.append(blockScopeSelect);
+                host.append(scopeField);
+                const memberField = document.createElement('label');
+                memberField.className = 'field';
+                memberField.hidden = true;
+                memberField.innerHTML = `<span>${this.#t('blockMember')}</span>`;
+                blockMemberSelect = document.createElement('select');
+                for (const member of blockMembers){
+                    const option = document.createElement('option');
+                    option.value = member.id;
+                    option.textContent = `${member.type} · ${member.handle}`;
+                    blockMemberSelect.append(option);
+                }
+                memberField.append(blockMemberSelect);
+                host.append(memberField);
+                const syncScope = ()=>{
+                    const definitionMode = blockScopeSelect?.value === 'definition';
+                    memberField.hidden = !definitionMode;
+                    const target = definitionMode ? blockMembers.find((item)=>item.id === blockMemberSelect?.value) : entity;
+                    if (target?.payload.layerId) layerSelect.value = String(target.payload.layerId);
+                };
+                blockScopeSelect.addEventListener('change', syncScope, {
+                    signal: this.#abort.signal
+                });
+                blockMemberSelect.addEventListener('change', syncScope, {
+                    signal: this.#abort.signal
+                });
+                const note = document.createElement('div');
+                note.className = 'warning';
+                note.dataset.blockScope = '';
+                note.textContent = this.#t('blockScopeHint');
+                host.append(note);
+            }
+        }
         layerField.append(layerSelect);
         host.append(layerField);
         const textEntities = selectedEntities.filter((item)=>[
@@ -4717,7 +4783,6 @@ export class KJDrawWorkbench {
                         return;
                     }
                     const payload = {
-                        ...structuredClone(entity.payload),
                         layerId: layerSelect.value
                     };
                     if (textStyleSelect?.value) payload.styleId = textStyleSelect.value;
@@ -4728,7 +4793,23 @@ export class KJDrawWorkbench {
                         'ATTDEF',
                         'ATTRIB'
                     ].includes(entity.type)) payload.text = valueInput.value;
-                    await this.execute('PROPERTIES', {
+                    if (entity.type === 'INSERT' && blockScopeSelect?.value === 'definition') {
+                        const definitionId = String(entity.payload.blockRecordId ?? ''), memberId = blockMemberSelect?.value;
+                        if (!memberId) throw new Error('Select a block definition member to edit');
+                        await this.execute('BLOCKDEFINITIONUPDATE', {
+                            blockRecordId: definitionId,
+                            id: memberId,
+                            patch: {
+                                payload
+                            }
+                        });
+                    } else if (entity.type === 'INSERT') await this.execute('BLOCKINSTANCEUPDATE', {
+                        id: entity.id,
+                        patch: {
+                            payload
+                        }
+                    });
+                    else await this.execute('PROPERTIES', {
                         id: entity.id,
                         patch: {
                             payload

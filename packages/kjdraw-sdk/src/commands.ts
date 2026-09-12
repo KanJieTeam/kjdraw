@@ -164,6 +164,7 @@ export interface KJCommandArguments extends Record<string, unknown> {
   types?: readonly string[]
   boundaryLoops?: unknown
   attributes?: unknown
+  attributeValues?: Readonly<Record<string, unknown>>
   mappings?: unknown
   pattern?: unknown
   settings?: Record<string, unknown>
@@ -324,6 +325,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   SNAPSETTINGS: { domain: 'drafting-settings', snapModes: KJ_SNAP_MODES },
   BLOCKCREATE: { domain: 'block', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },
   BLOCKINSERT: { domain: 'block', entityType: 'INSERT' },
+  BLOCKINSTANCEUPDATE: { domain: 'block', scope: 'single-instance', entityType: 'INSERT', stableIdentity: true },
+  BLOCKDEFINITIONUPDATE: { domain: 'block', scope: 'shared-definition', stableIdentity: true },
   XREFATTACH: { domain: 'external-reference', authority: 'local-file-or-project-asset', remoteUrls: false },
   XREFRELOAD: { domain: 'external-reference', authority: 'local-file-or-project-asset' },
   XREFDETACH: { domain: 'external-reference' },
@@ -536,6 +539,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'PROPERTIES', title: 'Update object properties',
     execute: ({ document, transaction }, args) => {
       if (args.ids == null) {
+        assertGenericPropertyBoundary(document, args.id, args.patch)
         const updated = transaction.updateObject(args.id!, args.patch)
         refreshAssociativeDimensions(transaction, [updated.id])
         return updated
@@ -548,6 +552,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       for (const id of ids) {
         const object = document.getObject(id)
         if (!object || object.kind !== 'entity') throw new KJValidationError(`Batch PROPERTIES entity does not exist: ${id}`)
+        assertGenericPropertyBoundary(document, id, args.patch)
       }
       const updated = ids.map(id => transaction.updateObject(id, args.patch))
       refreshAssociativeDimensions(transaction, ids)
@@ -640,6 +645,14 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
         layerId: args.layerId,
       } as KJObjectPayload, { ownerId: args.ownerId } as KJObjectSpec)
     },
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'BLOCKINSTANCEUPDATE', title: 'Update one block instance',
+    execute: (context, args) => updateBlockInstance(context, args),
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'BLOCKDEFINITIONUPDATE', title: 'Update shared block definition',
+    execute: (context, args) => updateBlockDefinition(context, args),
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'XREFATTACH', aliases: ['XATTACH'], title: 'Attach local external reference',
@@ -1275,6 +1288,112 @@ function requiredEntity(document: KJDocument, id: unknown): KJReadonlyObjectReco
   const entity = document?.getObject(String(id))
   if (!entity || entity.kind !== 'entity') throw new KJValidationError(`Entity does not exist: ${id}`)
   return entity
+}
+
+const BLOCK_RELATION_FIELDS = new Set(['blockRecordId', 'attributeIds', 'sequenceEndId', 'parentInsertId'])
+
+function payloadPatch(value: KJObjectPatch | undefined, command: string): KJObjectPayload {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new KJValidationError(`${command} requires patch.payload`)
+  const patchKeys = Object.keys(value)
+  if (patchKeys.length !== 1 || patchKeys[0] !== 'payload') throw new KJValidationError(`${command} accepts only patch.payload`)
+  const payload = value.payload
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) || !Object.keys(payload).length) throw new KJValidationError(`${command} requires a non-empty patch.payload`)
+  if (Object.keys(payload).length > 64) throw new KJValidationError(`${command} patch.payload supports at most 64 fields`)
+  for (const field of Object.keys(payload)) if (BLOCK_RELATION_FIELDS.has(field)) {
+    throw new KJValidationError(`${command} cannot change structural field ${field}`)
+  }
+  return clone(payload)
+}
+
+function assertGenericPropertyBoundary(document: KJDocument, id: unknown, patch: KJObjectPatch | undefined): void {
+  const entity = document.getObject(String(id))
+  if (!entity || entity.kind !== 'entity' || !patch?.payload) return
+  const owner = document.getObject(String(entity.ownerId ?? ''))
+  if (owner?.kind === 'block-record' && owner.payload.isSpace !== true) {
+    throw new KJValidationError('PROPERTIES cannot modify block definition members; use BLOCKDEFINITIONUPDATE with the explicit definition id')
+  }
+  if (entity.type === 'INSERT') for (const field of Object.keys(patch.payload)) if (BLOCK_RELATION_FIELDS.has(field)) {
+    throw new KJValidationError(`PROPERTIES cannot change INSERT structural field ${field}; use the explicit block commands`)
+  }
+}
+
+function updateBlockInstance(
+  { document, transaction }: KJCommandContext,
+  args: KJCommandArguments,
+): { instance: KJObjectRecord; attributes: readonly KJObjectRecord[] } {
+  const instance = requiredEntity(document, args.id)
+  if (instance.type !== 'INSERT') throw new KJValidationError('BLOCKINSTANCEUPDATE requires an INSERT id')
+  const owner = document.getObject(String(instance.ownerId ?? ''))
+  if (owner?.kind === 'block-record' && owner.payload.isSpace !== true) {
+    throw new KJValidationError('BLOCKINSTANCEUPDATE cannot edit a nested INSERT stored in a shared definition; use BLOCKDEFINITIONUPDATE')
+  }
+  const patch = args.patch == null ? null : payloadPatch(args.patch, 'BLOCKINSTANCEUPDATE')
+  const values = args.attributeValues
+  if (patch == null && values == null) throw new KJValidationError('BLOCKINSTANCEUPDATE requires patch.payload or attributeValues')
+  if (patch && Object.hasOwn(patch, 'attributes') && (instance.payload.attributeIds?.length || instance.payload.sequenceEndId)) {
+    throw new KJValidationError('BLOCKINSTANCEUPDATE edits native attached values through attributeValues; payload.attributes is legacy-only')
+  }
+  if (values != null && (typeof values !== 'object' || Array.isArray(values))) throw new KJValidationError('BLOCKINSTANCEUPDATE attributeValues must be an object keyed by attribute tag')
+  const entries = Object.entries(values ?? {})
+  if (entries.length > 256) throw new KJValidationError('BLOCKINSTANCEUPDATE supports at most 256 attribute values')
+  if (patch == null && !entries.length) throw new KJValidationError('BLOCKINSTANCEUPDATE attributeValues must not be empty')
+  const changedAttributes: KJObjectRecord[] = []
+  if (entries.length) {
+    const attached = (instance.payload.attributeIds ?? []).map(id => requiredEntity(document, id))
+    if (attached.length) {
+      const byTag = new Map<string, KJReadonlyObjectRecord>()
+      for (const attribute of attached) {
+        if (attribute.type !== 'ATTRIB' || attribute.payload.parentInsertId !== instance.id) throw new KJValidationError('BLOCKINSTANCEUPDATE found an invalid attached attribute relationship')
+        const tag = String(attribute.payload.tag ?? '').trim().toUpperCase()
+        if (!tag || byTag.has(tag)) throw new KJValidationError('BLOCKINSTANCEUPDATE requires unique non-empty native attribute tags')
+        byTag.set(tag, attribute)
+      }
+      const seen = new Set<string>()
+      for (const [inputTag, value] of entries) {
+        const tag = inputTag.trim().toUpperCase()
+        if (!tag || seen.has(tag)) throw new KJValidationError('BLOCKINSTANCEUPDATE attribute tags must be unique and non-empty')
+        seen.add(tag)
+        const attribute = byTag.get(tag)
+        if (!attribute) throw new KJValidationError(`BLOCKINSTANCEUPDATE attribute tag does not exist: ${inputTag}`)
+        if (value != null && !['string', 'number', 'boolean'].includes(typeof value)) throw new KJValidationError(`BLOCKINSTANCEUPDATE attribute value must be scalar: ${inputTag}`)
+      }
+      for (const [inputTag, value] of entries) {
+        const attribute = byTag.get(inputTag.trim().toUpperCase())!
+        changedAttributes.push(transaction.updateObject(attribute.id, { payload: { text: String(value ?? '') } }))
+      }
+    } else {
+      const legacy = instance.payload.attributes
+      const next = legacy && typeof legacy === 'object' && !Array.isArray(legacy) ? clone(legacy as KJObjectPayload) : {}
+      for (const [tag, value] of entries) {
+        if (!tag.trim() || value != null && !['string', 'number', 'boolean'].includes(typeof value)) throw new KJValidationError('BLOCKINSTANCEUPDATE legacy attribute values require non-empty tags and scalar values')
+        next[tag] = String(value ?? '')
+      }
+      if (patch) patch.attributes = next
+      else return { instance: transaction.updateObject(instance.id, { payload: { attributes: next } }), attributes: [] }
+    }
+  }
+  return {
+    instance: patch ? transaction.updateObject(instance.id, { payload: patch }) : transaction.getObject(instance.id)!,
+    attributes: changedAttributes,
+  }
+}
+
+function updateBlockDefinition(
+  { document, transaction }: KJCommandContext,
+  args: KJCommandArguments,
+): { block: KJReadonlyObjectRecord; entity: KJObjectRecord } {
+  const block = resolveTableRecord(document, 'blockRecords', args.blockRecordId)
+  if (block.payload.isSpace === true) throw new KJValidationError('BLOCKDEFINITIONUPDATE cannot edit model or paper spaces')
+  if (block.payload.importedPlaceholder === true) throw new KJValidationError('BLOCKDEFINITIONUPDATE requires a complete local block definition')
+  const entity = requiredEntity(document, args.id)
+  if (entity.ownerId !== block.id || !(block.payload.entityIds ?? []).includes(entity.id)) {
+    throw new KJValidationError('BLOCKDEFINITIONUPDATE entity must be a direct member of the explicit block definition')
+  }
+  const patch = payloadPatch(args.patch, 'BLOCKDEFINITIONUPDATE')
+  if (entity.type === 'INSERT' && Object.hasOwn(patch, 'attributes') && (entity.payload.attributeIds?.length || entity.payload.sequenceEndId)) {
+    throw new KJValidationError('BLOCKDEFINITIONUPDATE cannot replace native attached attributes')
+  }
+  return { block, entity: transaction.updateObject(entity.id, { payload: patch }) }
 }
 
 function resolveTableRecord(document: KJDocument, tableName: KJTableName, value: unknown): KJReadonlyObjectRecord {

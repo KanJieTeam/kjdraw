@@ -27,7 +27,7 @@ const messages = {
     gripHint: 'Drag the grip to reshape · object snap and Ortho apply · Esc cancels', gripApplied: 'Grip edit applied · Undo restores the original geometry', interactionChanged: 'Drawing or view changed. The unfinished selection or grip edit was cancelled.',
     selected: 'selected', entities: 'entities', gridOn: 'GRID ON', gridOff: 'GRID OFF', orthoOn: 'ORTHO ON', orthoOff: 'ORTHO OFF', polarOn: 'POLAR 45°', polarOff: 'POLAR OFF', polarBusy: 'Finish or cancel the current operation before changing Polar tracking', snapOn: 'SNAP ON', snapOff: 'SNAP OFF', snap_endpoint: 'Endpoint', snap_midpoint: 'Midpoint', snap_center: 'Center', snap_quadrant: 'Quadrant', snap_intersection: 'Intersection', snap_perpendicular: 'Perpendicular', snap_tangent: 'Tangent', snap_insertion: 'Insertion', snap_node: 'Node', snap_nearest: 'Nearest', loading: 'Loading local SDK…',
     drawingDocument: 'Drawing document', objectsSelected: 'objects selected', primary: 'Primary', groupHint: 'transforms and delete apply to all selected objects',
-    handle: 'Handle', layer: 'Layer', radius: 'Radius', textField: 'Text', applyProperties: 'Apply properties', deleteSelected: 'Delete selected',
+    handle: 'Handle', layer: 'Layer', radius: 'Radius', textField: 'Text', applyProperties: 'Apply properties', deleteSelected: 'Delete selected', blockEditScope: 'Edit scope', blockInstanceScope: 'This instance', blockDefinitionScope: 'Shared definition', blockMember: 'Definition member', blockScopeHint: 'Instance changes affect this occurrence. Definition changes affect every instance.',
     revision: 'Revision', modelEntities: 'Model entities', kernel: 'Kernel', units: 'Units', jsReference: 'JS reference',
     githubTitle: 'Open source repository', docsTitle: 'Developer documentation', languageTitle: 'Switch language'
   },
@@ -59,7 +59,7 @@ const messages = {
     gripHint: '拖动夹点修改形状 · 支持对象捕捉和正交 · Esc 取消', gripApplied: '夹点修改已应用 · 可一次撤销恢复原始几何', interactionChanged: '图纸或视图已改变，未完成的选择或夹点修改已取消。',
     selected: '个已选择', entities: '个对象', gridOn: '栅格 开', gridOff: '栅格 关', orthoOn: '正交 开', orthoOff: '正交 关', polarOn: '极轴 45°', polarOff: '极轴 关', polarBusy: '请先完成或取消当前操作，再切换极轴跟踪', snapOn: '捕捉 开', snapOff: '捕捉 关', snap_endpoint: '端点', snap_midpoint: '中点', snap_center: '圆心', snap_quadrant: '象限点', snap_intersection: '交点', snap_perpendicular: '垂足', snap_tangent: '切点', snap_insertion: '插入点', snap_node: '节点', snap_nearest: '最近点', loading: '正在加载本地 SDK…',
     drawingDocument: '图纸文档', objectsSelected: '个对象已选择', primary: '主对象', groupHint: '移动、复制、旋转和删除将应用到全部已选对象',
-    handle: '句柄', layer: '图层', radius: '半径', textField: '文字', applyProperties: '应用特性', deleteSelected: '删除已选对象',
+    handle: '句柄', layer: '图层', radius: '半径', textField: '文字', applyProperties: '应用特性', deleteSelected: '删除已选对象', blockEditScope: '修改范围', blockInstanceScope: '仅此实例', blockDefinitionScope: '共享块定义', blockMember: '定义成员', blockScopeHint: '实例修改仅影响当前对象；定义修改会影响全部实例。',
     revision: '版本', modelEntities: '模型对象', kernel: '几何内核', units: '单位', jsReference: 'JavaScript 参考实现',
     githubTitle: '打开源代码仓库', docsTitle: '打开开发文档', languageTitle: '切换语言'
   }
