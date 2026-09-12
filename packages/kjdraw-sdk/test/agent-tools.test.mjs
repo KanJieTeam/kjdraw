@@ -27,7 +27,7 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
         : tool.name === 'cad_propose_polyline_edit'
           ? ['segmentIndex', 'vertexIndex', 'point', 'tolerance', 'bulge', 'sweepDegrees']
           : tool.name === 'cad_check_geometry'
-            ? ['dimensionMeasurements']
+            ? ['dimensionMeasurements', 'polylineVertexCounts', 'polylineSegmentBulges']
             : []
     assert.deepEqual(tool.inputSchema.required, Object.keys(tool.inputSchema.properties).filter(key => !optional.includes(key)))
     assert.throws(() => { tool.inputSchema.additionalProperties = true }, TypeError)

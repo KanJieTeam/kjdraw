@@ -1,9 +1,10 @@
 import type { KJDocument } from './document.js';
 import type { KJTransaction } from './transaction.js';
-export type KJDrawingValidationFeature = 'start' | 'end' | 'center' | 'origin';
+export type KJDrawingValidationFeature = 'start' | 'end' | 'center' | 'origin' | 'vertex';
 export interface KJDrawingValidationPointReference {
     objectId: string;
     feature: KJDrawingValidationFeature;
+    vertexIndex?: number;
 }
 export type KJDrawingValidationCheck = {
     id: string;
@@ -24,6 +25,19 @@ export type KJDrawingValidationCheck = {
     objectId: string;
     expected: boolean;
     tolerance: 0;
+} | {
+    id: string;
+    kind: 'polyline-vertex-count';
+    objectId: string;
+    expected: number;
+    tolerance: 0;
+} | {
+    id: string;
+    kind: 'polyline-segment-bulge';
+    objectId: string;
+    segmentIndex: number;
+    expected: number;
+    tolerance: number;
 };
 export interface KJDrawingValidationInput {
     expectedRevision: number;
@@ -34,6 +48,8 @@ export interface KJDrawingValidationReference {
     readonly objectId: string;
     readonly ownerId: string;
     readonly feature?: KJDrawingValidationFeature;
+    readonly vertexIndex?: number;
+    readonly segmentIndex?: number;
 }
 export interface KJDrawingValidationCheckResult {
     readonly id: string;

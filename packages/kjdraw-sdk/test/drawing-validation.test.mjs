@@ -39,6 +39,23 @@ test('native 3D length, radius, object feature distance and canonical closure pr
   assert.equal(document.serialize(), before)
 })
 
+test('polyline vertex, count and signed bulge checks expose exact native edit evidence', async () => {
+  const { document } = await fixture(), before = document.serialize()
+  const checks = [
+    numeric('closed', 'polyline-vertex-count', 3),
+    { id: 'closed-bulge', kind: 'polyline-segment-bulge', objectId: 'closed', segmentIndex: 2, expected: 0, tolerance: 0 },
+    { id: 'vertex-gap', kind: 'point-distance', from: { objectId: 'closed', feature: 'vertex', vertexIndex: 0 }, to: { objectId: 'closed', feature: 'vertex', vertexIndex: 2 }, expected: Math.sqrt(200), tolerance: 1e-12 },
+  ]
+  const result = check(document, checks)
+  assert.equal(result.passed, true)
+  assert.deepEqual(result.checks.map(item => item.actual), [3, 0, Math.sqrt(200)])
+  assert.equal(result.checks[1].references[0].segmentIndex, 2)
+  assert.deepEqual(result.checks[2].references.map(item => item.vertexIndex), [0, 2])
+  assert.throws(() => check(document, [{ ...checks[1], objectId: 'open', segmentIndex: 1 }]), /segmentIndex/)
+  assert.throws(() => check(document, [{ ...checks[2], from: { objectId: 'closed', feature: 'vertex' } }]), /vertexIndex/)
+  assert.equal(document.serialize(), before)
+})
+
 test('failed requirements stay false, tolerance boundary is inclusive, and closure never accepts numeric tolerance', async () => {
   const { document } = await fixture()
   const result = check(document, [numeric('line', 'line-length', 12, 1), numeric('circle', 'circle-radius', 4, 1), numeric('open', 'polyline-closed', true)])

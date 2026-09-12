@@ -5,14 +5,16 @@ import { KJRevisionConflictError, KJValidationError } from './errors.js'
 import { deepFreeze } from './utils.js'
 import { projectDimension } from './geometry/annotation.js'
 
-export type KJDrawingValidationFeature = 'start' | 'end' | 'center' | 'origin'
-export interface KJDrawingValidationPointReference { objectId: string; feature: KJDrawingValidationFeature }
+export type KJDrawingValidationFeature = 'start' | 'end' | 'center' | 'origin' | 'vertex'
+export interface KJDrawingValidationPointReference { objectId: string; feature: KJDrawingValidationFeature; vertexIndex?: number }
 export type KJDrawingValidationCheck =
   | { id: string; kind: 'line-length' | 'circle-radius' | 'dimension-measurement'; objectId: string; expected: number; tolerance: number }
   | { id: string; kind: 'point-distance'; from: KJDrawingValidationPointReference; to: KJDrawingValidationPointReference; expected: number; tolerance: number }
   | { id: string; kind: 'polyline-closed'; objectId: string; expected: boolean; tolerance: 0 }
+  | { id: string; kind: 'polyline-vertex-count'; objectId: string; expected: number; tolerance: 0 }
+  | { id: string; kind: 'polyline-segment-bulge'; objectId: string; segmentIndex: number; expected: number; tolerance: number }
 export interface KJDrawingValidationInput { expectedRevision: number; units: string; checks: readonly KJDrawingValidationCheck[] }
-export interface KJDrawingValidationReference { readonly objectId: string; readonly ownerId: string; readonly feature?: KJDrawingValidationFeature }
+export interface KJDrawingValidationReference { readonly objectId: string; readonly ownerId: string; readonly feature?: KJDrawingValidationFeature; readonly vertexIndex?: number; readonly segmentIndex?: number }
 export interface KJDrawingValidationCheckResult {
   readonly id: string
   readonly kind: KJDrawingValidationCheck['kind']
@@ -103,10 +105,35 @@ function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDra
     references.push({ objectId, ownerId: object.ownerId, ...(feature ? { feature } : {}) })
     return object
   }
+  const polylineVertices = (object: KJReadonlyObjectRecord): readonly Record<string, unknown>[] => {
+    const source = object.payload.vertices
+    if (!['LWPOLYLINE', 'POLYLINE'].includes(object.type) || !Array.isArray(source) || source.length < 2) fail('Polyline check requires a native polyline with at least two canonical vertices')
+    const vertices = source as unknown[]
+    verticesInspected += vertices.length
+    if (verticesInspected > 20000) fail('Polyline checks exceed the 20000-vertex budget')
+    return vertices.map((vertex: unknown) => {
+      if (!vertex || typeof vertex !== 'object' || Array.isArray(vertex)) return fail('Polyline checks require canonical vertices')
+      const row = vertex as Record<string, unknown>
+      point(row.point)
+      for (const name of ['bulge', 'startWidth', 'endWidth']) {
+        const number = row[name]
+        if (typeof number !== 'number' || !Number.isFinite(number) || Math.abs(number) > 1e12 || name !== 'bulge' && number < 0) fail('Polyline vertex parameters must be finite canonical values')
+      }
+      return row
+    })
+  }
   const featurePoint = (value: unknown, refs: KJDrawingValidationReference[]): readonly [number, number, number] => {
-    const ref = record(value, ['objectId', 'feature'], 'Point reference')
-    if (!['start', 'end', 'center', 'origin'].includes(ref.feature as string)) return fail('Unsupported geometry point feature')
+    const ref = record(value, ['objectId', 'feature', 'vertexIndex'], 'Point reference')
+    if (!['start', 'end', 'center', 'origin', 'vertex'].includes(ref.feature as string)) return fail('Unsupported geometry point feature')
     const feature = ref.feature as KJDrawingValidationFeature, object = entity(ref.objectId, refs, feature)
+    if (feature === 'vertex') {
+      if (!Number.isSafeInteger(ref.vertexIndex) || (ref.vertexIndex as number) < 0) fail('Polyline vertex reference requires a nonnegative safe vertexIndex')
+      const vertices = polylineVertices(object), vertexIndex = ref.vertexIndex as number
+      if (vertexIndex >= vertices.length) fail('Polyline vertexIndex is outside the native vertex list')
+      refs[refs.length - 1] = { ...refs.at(-1)!, vertexIndex }
+      return point(vertices[vertexIndex]!.point)
+    }
+    if (ref.vertexIndex !== undefined) fail('vertexIndex is valid only for a polyline vertex reference')
     if ((feature === 'start' || feature === 'end') && object.type !== 'LINE' || feature === 'origin' && !['XLINE', 'RAY'].includes(object.type) || feature === 'center' && !['CIRCLE', 'ARC'].includes(object.type)) return fail('Point feature is unsupported for this entity type')
     if (feature === 'center') {
       const normal = point(object.payload.normal)
@@ -115,11 +142,11 @@ function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDra
     return point(object.payload[feature])
   }
   const checks: KJDrawingValidationCheckResult[] = source.checks.map(value => {
-    const item = record(value, ['id', 'kind', 'objectId', 'from', 'to', 'expected', 'tolerance'], 'Geometry check')
+    const item = record(value, ['id', 'kind', 'objectId', 'from', 'to', 'segmentIndex', 'expected', 'tolerance'], 'Geometry check')
     const id = text(item.id, 'Check id')
     if (ids.has(id)) fail('Check ids must be unique')
     ids.add(id)
-    if (!['line-length', 'circle-radius', 'dimension-measurement', 'point-distance', 'polyline-closed'].includes(item.kind as string)) return fail('Unsupported geometry check kind')
+    if (!['line-length', 'circle-radius', 'dimension-measurement', 'point-distance', 'polyline-closed', 'polyline-vertex-count', 'polyline-segment-bulge'].includes(item.kind as string)) return fail('Unsupported geometry check kind')
     const kind = item.kind as KJDrawingValidationCheck['kind'], refs: KJDrawingValidationReference[] = []
     const tolerance = boundedNumber(item.tolerance, 'tolerance')
     let actual: number | boolean, expected: number | boolean
@@ -149,25 +176,30 @@ function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDra
         if (!projection) return fail('dimension-measurement requires supported nondegenerate native dimension geometry')
         actual = boundedNumber(projection.measurement, 'Dimension measurement')
         expected = boundedNumber(item.expected, 'expected')
-      } else {
-        if (!['LWPOLYLINE', 'POLYLINE'].includes(object.type)) fail('polyline-closed requires a native polyline')
-        if (typeof item.expected !== 'boolean' || tolerance !== 0) fail('polyline-closed requires a boolean expected and tolerance 0')
-        const vertices = object.payload.vertices
+      } else if (kind === 'polyline-closed') {
+        polylineVertices(object)
         // Two bulged segments may form a valid closed contour; this checks closure,
         // not area, self-intersection, winding or general topological validity.
-        if (typeof object.payload.closed !== 'boolean' || !Array.isArray(vertices) || vertices.length < 2) return fail('Polyline closure requires a canonical closed flag and valid vertices')
-        verticesInspected += vertices.length
-        if (verticesInspected > 20000) fail('Polyline checks exceed the 20000-vertex budget')
-        for (const vertex of vertices) {
-          if (!vertex || typeof vertex !== 'object' || Array.isArray(vertex)) fail('Polyline checks require canonical vertices')
-          point(vertex.point)
-          for (const name of ['bulge', 'startWidth', 'endWidth']) {
-            const number = vertex[name]
-            if (typeof number !== 'number' || !Number.isFinite(number) || Math.abs(number) > 1e12 || name !== 'bulge' && number < 0) fail('Polyline vertex parameters must be finite canonical values')
-          }
-        }
-        actual = object.payload.closed as boolean
-        expected = item.expected as boolean
+        const closed = object.payload.closed, expectedClosed = item.expected
+        if (typeof closed !== 'boolean' || typeof expectedClosed !== 'boolean' || tolerance !== 0) fail('polyline-closed requires a canonical closed flag, boolean expected value and tolerance 0')
+        actual = closed as boolean
+        expected = expectedClosed as boolean
+      } else if (kind === 'polyline-vertex-count') {
+        const vertices = polylineVertices(object)
+        if (!Number.isSafeInteger(item.expected) || (item.expected as number) < 2 || tolerance !== 0) fail('polyline-vertex-count requires an integer expected value of at least two and tolerance 0')
+        actual = vertices.length
+        expected = item.expected as number
+      } else {
+        const vertices = polylineVertices(object)
+        if (!Number.isSafeInteger(item.segmentIndex) || (item.segmentIndex as number) < 0) fail('polyline-segment-bulge requires a nonnegative safe segmentIndex')
+        const segmentIndex = item.segmentIndex as number, maximum = object.payload.closed === true ? vertices.length : vertices.length - 1
+        if (segmentIndex >= maximum) fail('Polyline segmentIndex is outside the native segment list')
+        if (typeof item.expected !== 'number' || !Number.isFinite(item.expected) || Math.abs(item.expected) > 32) fail('polyline-segment-bulge expected value must be finite within ±32')
+        refs[0] = { ...refs[0]!, segmentIndex }
+        const bulge = vertices[segmentIndex]!.bulge, expectedBulge = item.expected
+        if (typeof bulge !== 'number' || typeof expectedBulge !== 'number') fail('Polyline segment bulge must be numeric')
+        actual = expectedBulge === 0 && Object.is(bulge, -0) ? 0 : bulge as number
+        expected = expectedBulge as number
       }
     }
     const error = typeof actual === 'boolean' ? actual === expected ? 0 : 1 : Math.abs(actual - (expected as number))

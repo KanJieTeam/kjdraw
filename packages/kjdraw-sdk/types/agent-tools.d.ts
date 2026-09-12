@@ -99,6 +99,18 @@ export interface KJAgentGeometryValidationInput {
         objectId: string;
         expected: boolean;
     }[];
+    polylineVertexCounts?: {
+        id: string;
+        objectId: string;
+        expected: number;
+    }[];
+    polylineSegmentBulges?: {
+        id: string;
+        objectId: string;
+        segmentIndex: number;
+        expected: number;
+        tolerance: number;
+    }[];
 }
 export interface KJAgentToolSchema {
     readonly type: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';

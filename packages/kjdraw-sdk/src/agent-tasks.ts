@@ -38,7 +38,7 @@ export interface KJAgentTaskGeometryReceipt {
   planId: string
   executionEnvelopeId: string
   reviewerId: string
-  command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH'
+  command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT'
   sourceToolName: string
   beforeRevision: number
   afterRevision: number
@@ -220,6 +220,24 @@ export interface KJAgentTaskStretchApprovalInput {
   at: string
 }
 export interface KJAgentTaskStretchApprovalResult { task: KJObjectRecord; receipt: KJAgentTaskGeometryReceipt }
+export interface KJAgentTaskPolylineEditApprovalInput {
+  id: string
+  expectedRevision: number
+  expectedTaskVersion: number
+  expectedStatus: 'running'
+  expectedScopeSha256: string
+  sourceToolName: string
+  toolApiVersion: string
+  toolContractHash: string
+  argumentsDigest: string
+  capabilityLocks: KJAgentTaskCapabilityLock[]
+  planId: string
+  executionEnvelopeId: string
+  reviewerId: string
+  editedEntityIds: string[]
+  at: string
+}
+export interface KJAgentTaskPolylineEditApprovalResult { task: KJObjectRecord; receipt: KJAgentTaskGeometryReceipt }
 export interface KJAgentTaskView extends KJAgentTaskPayload { id: string; handle: string }
 export interface KJAgentTaskInspection {
   task: KJAgentTaskView
@@ -323,10 +341,12 @@ function assertion(value: unknown): KJAgentTaskAssertion {
   if (row.operator === 'is_true' && expected !== true || ['at_least', 'at_most'].includes(String(row.operator)) && typeof expected !== 'number') fail('assertion operator and expected value do not match')
   return { path, operator: row.operator as KJAgentTaskAssertion['operator'], expected }
 }
-function geometryReference(value: unknown): { objectId: string; feature: 'start' | 'end' | 'center' | 'origin' } {
-  const row = plain(value, ['objectId', 'feature'], 'geometry point reference')
+function geometryReference(value: unknown): { objectId: string; feature: 'start' | 'end' | 'center' | 'origin' | 'vertex'; vertexIndex?: number } {
+  const row = optionalPlain(value, ['objectId', 'feature', 'vertexIndex'], ['objectId', 'feature'], 'geometry point reference')
   const objectId = text(row.objectId, 'geometry object ID', 256)
-  if (!['start', 'end', 'center', 'origin'].includes(String(row.feature))) fail('geometry point feature is invalid')
+  if (!['start', 'end', 'center', 'origin', 'vertex'].includes(String(row.feature))) fail('geometry point feature is invalid')
+  if (row.feature === 'vertex') return { objectId, feature: 'vertex', vertexIndex: integer(row.vertexIndex, 'geometry vertex index') }
+  if (row.vertexIndex !== undefined) fail('geometry vertexIndex is valid only with feature vertex')
   return { objectId, feature: row.feature as 'start' | 'end' | 'center' | 'origin' }
 }
 function geometryNumber(value: unknown, label: string): number {
@@ -336,7 +356,7 @@ function geometryNumber(value: unknown, label: string): number {
 function geometryCheck(value: unknown, requirementId: string): KJDrawingValidationCheck {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail('geometry check must be a plain object')
   const kind = String((value as Record<string, unknown>).kind)
-  const fields = kind === 'point-distance' ? ['id', 'kind', 'from', 'to', 'expected', 'tolerance'] : ['id', 'kind', 'objectId', 'expected', 'tolerance']
+  const fields = kind === 'point-distance' ? ['id', 'kind', 'from', 'to', 'expected', 'tolerance'] : kind === 'polyline-segment-bulge' ? ['id', 'kind', 'objectId', 'segmentIndex', 'expected', 'tolerance'] : ['id', 'kind', 'objectId', 'expected', 'tolerance']
   const row = plain(value, fields, 'geometry check')
   if (identifier(row.id, 'geometry check id') !== requirementId) fail('geometry check ID must equal its requirement ID')
   const tolerance = geometryNumber(row.tolerance, 'geometry tolerance')
@@ -346,6 +366,15 @@ function geometryCheck(value: unknown, requirementId: string): KJDrawingValidati
   if (kind === 'polyline-closed') {
     if (typeof row.expected !== 'boolean' || tolerance !== 0) fail('polyline closure requires a boolean expected value and zero tolerance')
     return { id: requirementId, kind, objectId, expected: row.expected, tolerance: 0 }
+  }
+  if (kind === 'polyline-vertex-count') {
+    const expected = integer(row.expected, 'polyline expected vertex count', 2)
+    if (tolerance !== 0) fail('polyline vertex count requires zero tolerance')
+    return { id: requirementId, kind, objectId, expected, tolerance: 0 }
+  }
+  if (kind === 'polyline-segment-bulge') {
+    if (typeof row.expected !== 'number' || !Number.isFinite(row.expected) || Math.abs(row.expected) > 32) fail('polyline expected bulge must be finite within ±32')
+    return { id: requirementId, kind, objectId, segmentIndex: integer(row.segmentIndex, 'polyline segment index'), expected: row.expected, tolerance }
   }
   return fail('geometry check kind is invalid')
 }
@@ -407,33 +436,40 @@ function progress(value: unknown, definition: KJAgentTaskDefinition): { steps: K
 function receiptCheck(value: unknown): KJDrawingValidationCheckResult {
   const row = plain(value, ['id', 'kind', 'actual', 'expected', 'error', 'tolerance', 'passed', 'references'], 'receipt geometry check')
   const id = identifier(row.id, 'receipt check id'), kind = String(row.kind)
-  if (!['line-length', 'circle-radius', 'dimension-measurement', 'point-distance', 'polyline-closed'].includes(kind)) fail('receipt geometry check kind is invalid')
+  if (!['line-length', 'circle-radius', 'dimension-measurement', 'point-distance', 'polyline-closed', 'polyline-vertex-count', 'polyline-segment-bulge'].includes(kind)) fail('receipt geometry check kind is invalid')
   if (typeof row.passed !== 'boolean') fail('receipt geometry check result is invalid')
   const actual = row.actual, expected = row.expected
   if (!(typeof actual === 'boolean' || typeof actual === 'number' && Number.isFinite(actual)) || !(typeof expected === 'boolean' || typeof expected === 'number' && Number.isFinite(expected))) fail('receipt geometry values are invalid')
   const error = geometryNumber(row.error, 'receipt geometry error'), tolerance = geometryNumber(row.tolerance, 'receipt geometry tolerance')
   const references = array(row.references, 'receipt geometry references', 1, 2).map(item => {
-    const ref = optionalPlain(item, ['objectId', 'ownerId', 'feature'], ['objectId', 'ownerId'], 'receipt geometry reference')
+    const ref = optionalPlain(item, ['objectId', 'ownerId', 'feature', 'vertexIndex', 'segmentIndex'], ['objectId', 'ownerId'], 'receipt geometry reference')
     const feature = ref.feature
-    if (feature !== undefined && !['start', 'end', 'center', 'origin'].includes(String(feature))) fail('receipt geometry feature is invalid')
-    return { objectId: text(ref.objectId, 'receipt object ID', 256), ownerId: text(ref.ownerId, 'receipt owner ID', 256), ...(feature === undefined ? {} : { feature: feature as 'start' | 'end' | 'center' | 'origin' }) }
+    if (feature !== undefined && !['start', 'end', 'center', 'origin', 'vertex'].includes(String(feature))) fail('receipt geometry feature is invalid')
+    if (feature === 'vertex' && ref.vertexIndex === undefined || feature !== 'vertex' && ref.vertexIndex !== undefined) fail('receipt geometry vertex reference is invalid')
+    if (kind === 'polyline-segment-bulge' ? ref.segmentIndex === undefined : ref.segmentIndex !== undefined) fail('receipt geometry segment reference is invalid')
+    return {
+      objectId: text(ref.objectId, 'receipt object ID', 256), ownerId: text(ref.ownerId, 'receipt owner ID', 256),
+      ...(feature === undefined ? {} : { feature: feature as 'start' | 'end' | 'center' | 'origin' | 'vertex' }),
+      ...(ref.vertexIndex === undefined ? {} : { vertexIndex: integer(ref.vertexIndex, 'receipt vertex index') }),
+      ...(ref.segmentIndex === undefined ? {} : { segmentIndex: integer(ref.segmentIndex, 'receipt segment index') }),
+    }
   })
   const computedError = typeof actual === 'boolean' && typeof expected === 'boolean' ? actual === expected ? 0 : 1
     : typeof actual === 'number' && typeof expected === 'number' ? Math.abs(actual - expected) : NaN
   if (!Number.isFinite(computedError) || error !== computedError || row.passed !== (error <= tolerance)) fail('receipt geometry evidence is internally inconsistent')
   if (kind === 'point-distance' ? references.length !== 2 || references.some(reference => !reference.feature) : references.length !== 1 || references.some(reference => reference.feature)) fail('receipt geometry references do not match the check kind')
-  if (kind === 'polyline-closed' && (typeof actual !== 'boolean' || typeof expected !== 'boolean' || tolerance !== 0) || kind !== 'polyline-closed' && (typeof actual !== 'number' || typeof expected !== 'number')) fail('receipt geometry value types do not match the check kind')
+  if (kind === 'polyline-closed' && (typeof actual !== 'boolean' || typeof expected !== 'boolean' || tolerance !== 0) || kind !== 'polyline-closed' && (typeof actual !== 'number' || typeof expected !== 'number') || kind === 'polyline-vertex-count' && (!Number.isSafeInteger(actual) || !Number.isSafeInteger(expected) || tolerance !== 0)) fail('receipt geometry value types do not match the check kind')
   return { id, kind: kind as KJDrawingValidationCheck['kind'], actual, expected, error, tolerance, passed: row.passed, references }
 }
 function geometryReceipt(value: unknown): KJAgentTaskGeometryReceipt {
   const row = plain(value, ['schema', 'schemaVersion', 'receiptId', 'taskId', 'taskVersion', 'planId', 'executionEnvelopeId', 'reviewerId', 'command', 'sourceToolName', 'beforeRevision', 'afterRevision', 'at', 'units', 'toolContractHash', 'argumentsDigest', 'scopeSha256', 'checks', 'receiptDigest'], 'geometry receipt')
-  if (row.schema !== 'com.kanjie.kjdraw.agent-task-geometry-receipt' || row.schemaVersion !== 1 || !['CREATEBATCH', 'MOVE', 'ROTATE', 'SCALE', 'LENGTHEN', 'STRETCH'].includes(String(row.command))) fail('geometry receipt contract is invalid')
+  if (row.schema !== 'com.kanjie.kjdraw.agent-task-geometry-receipt' || row.schemaVersion !== 1 || !['CREATEBATCH', 'MOVE', 'ROTATE', 'SCALE', 'LENGTHEN', 'STRETCH', 'PEDIT'].includes(String(row.command))) fail('geometry receipt contract is invalid')
   if (typeof row.toolContractHash !== 'string' || !CONTENT_HASH.test(row.toolContractHash) || typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest) || typeof row.scopeSha256 !== 'string' || !SHA256.test(row.scopeSha256) || typeof row.receiptDigest !== 'string' || !CONTENT_HASH.test(row.receiptDigest)) fail('geometry receipt hashes are invalid')
   const checks = array(row.checks, 'receipt checks', 1, 64).map(receiptCheck)
   if (new Set(checks.map(check => check.id)).size !== checks.length || checks.some(check => !check.passed)) fail('geometry receipt requires unique passing checks')
   const result: KJAgentTaskGeometryReceipt = {
     schema: row.schema, schemaVersion: 1, receiptId: identifier(row.receiptId, 'receipt id'), taskId: text(row.taskId, 'receipt task id', 128), taskVersion: integer(row.taskVersion, 'receipt task version', 1),
-    planId: text(row.planId, 'receipt plan id', 256), executionEnvelopeId: text(row.executionEnvelopeId, 'receipt execution envelope id', 256), reviewerId: text(row.reviewerId, 'receipt reviewer id', 256), command: row.command as 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH', sourceToolName: identifier(row.sourceToolName, 'receipt source tool'),
+    planId: text(row.planId, 'receipt plan id', 256), executionEnvelopeId: text(row.executionEnvelopeId, 'receipt execution envelope id', 256), reviewerId: text(row.reviewerId, 'receipt reviewer id', 256), command: row.command as 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT', sourceToolName: identifier(row.sourceToolName, 'receipt source tool'),
     beforeRevision: integer(row.beforeRevision, 'receipt before revision'), afterRevision: integer(row.afterRevision, 'receipt after revision', 1), at: timestamp(row.at, 'receipt timestamp'), units: text(row.units, 'receipt units', 64), toolContractHash: row.toolContractHash, argumentsDigest: row.argumentsDigest, scopeSha256: row.scopeSha256, checks, receiptDigest: row.receiptDigest,
   }
   if (result.command === 'MOVE' && result.sourceToolName !== 'cad_propose_move') fail('MOVE receipt source tool is invalid')
@@ -441,6 +477,7 @@ function geometryReceipt(value: unknown): KJAgentTaskGeometryReceipt {
   if (result.command === 'SCALE' && result.sourceToolName !== 'cad_propose_scale') fail('SCALE receipt source tool is invalid')
   if (result.command === 'LENGTHEN' && result.sourceToolName !== 'cad_propose_lengthen') fail('LENGTHEN receipt source tool is invalid')
   if (result.command === 'STRETCH' && result.sourceToolName !== 'cad_propose_stretch') fail('STRETCH receipt source tool is invalid')
+  if (result.command === 'PEDIT' && result.sourceToolName !== 'cad_propose_polyline_edit') fail('PEDIT receipt source tool is invalid')
   if (result.afterRevision !== result.beforeRevision + 1) fail('geometry receipt must bind one atomic document revision')
   const { receiptId: _receiptId, receiptDigest: _receiptDigest, ...digestInput } = result
   if (result.receiptId !== `receipt:${result.receiptDigest}` || stableHash(digestInput) !== result.receiptDigest) fail('geometry receipt digest is invalid')
@@ -756,9 +793,9 @@ export async function commitAgentTaskCreateBatchApproval(document: KJDocument, t
   return { task: tx.updateObject(record.id, { payload: next }), receipt }
 }
 
-async function commitAgentTaskTransformApproval(document: KJDocument, tx: KJTransaction, input: unknown, command: 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH'): Promise<KJAgentTaskMoveApprovalResult> {
-  const entityIdsField = command === 'MOVE' ? 'movedEntityIds' : command === 'ROTATE' ? 'rotatedEntityIds' : command === 'SCALE' ? 'scaledEntityIds' : command === 'LENGTHEN' ? 'lengthenedEntityIds' : 'stretchedEntityIds'
-  const expectedSourceTool = command === 'MOVE' ? 'cad_propose_move' : command === 'ROTATE' ? 'cad_propose_rotate' : command === 'SCALE' ? 'cad_propose_scale' : command === 'LENGTHEN' ? 'cad_propose_lengthen' : 'cad_propose_stretch'
+async function commitAgentTaskTransformApproval(document: KJDocument, tx: KJTransaction, input: unknown, command: 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT'): Promise<KJAgentTaskMoveApprovalResult> {
+  const entityIdsField = command === 'MOVE' ? 'movedEntityIds' : command === 'ROTATE' ? 'rotatedEntityIds' : command === 'SCALE' ? 'scaledEntityIds' : command === 'LENGTHEN' ? 'lengthenedEntityIds' : command === 'STRETCH' ? 'stretchedEntityIds' : 'editedEntityIds'
+  const expectedSourceTool = command === 'MOVE' ? 'cad_propose_move' : command === 'ROTATE' ? 'cad_propose_rotate' : command === 'SCALE' ? 'cad_propose_scale' : command === 'LENGTHEN' ? 'cad_propose_lengthen' : command === 'STRETCH' ? 'cad_propose_stretch' : 'cad_propose_polyline_edit'
   const row = plain(input, ['id', 'expectedRevision', 'expectedTaskVersion', 'expectedStatus', 'expectedScopeSha256', 'sourceToolName', 'toolApiVersion', 'toolContractHash', 'argumentsDigest', 'capabilityLocks', 'planId', 'executionEnvelopeId', 'reviewerId', entityIdsField, 'at'], `${command} approval input`)
   const expectedRevision = inputRevision(document, tx, row.expectedRevision), id = text(row.id, 'task id', 128)
   const { record, task } = taskRecord(document, tx, id)
@@ -776,7 +813,7 @@ async function commitAgentTaskTransformApproval(document: KJDocument, tx: KJTran
     return { id: identifier(lock.id, 'approval capability id'), version: text(lock.version, 'approval capability version', 64), contentHash: lock.contentHash }
   })
   if (canonicalStringify(capabilityLocks) !== canonicalStringify(task.definition.capabilities)) fail('task capability lock conflict')
-  const transformedEntityIds = array(row[entityIdsField], `${command} entity IDs`, 1, command === 'LENGTHEN' ? 1 : 64).map(value => text(value, `${command} entity ID`, 256))
+  const transformedEntityIds = array(row[entityIdsField], `${command} entity IDs`, 1, command === 'LENGTHEN' || command === 'PEDIT' ? 1 : 64).map(value => text(value, `${command} entity ID`, 256))
   if (new Set(transformedEntityIds).size !== transformedEntityIds.length) fail(`${command} entity IDs must be unique`)
   const scopedIds = task.scope.members.map(member => member.id)
   if (transformedEntityIds.some(id => !scopedIds.includes(id))) fail(`${command} cannot target entities outside the persisted task scope`)
@@ -859,6 +896,11 @@ export async function commitAgentTaskLengthenApproval(document: KJDocument, tx: 
 /** Complete one reviewed STRETCH and its deterministic checks in the caller's transaction draft. */
 export async function commitAgentTaskStretchApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskStretchApprovalResult> {
   return commitAgentTaskTransformApproval(document, tx, input, 'STRETCH')
+}
+
+/** Complete one reviewed PEDIT and its deterministic checks in the caller's transaction draft. */
+export async function commitAgentTaskPolylineEditApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskPolylineEditApprovalResult> {
+  return commitAgentTaskTransformApproval(document, tx, input, 'PEDIT')
 }
 
 /** Explicitly accept the current dependency snapshot after stale or ambiguous approval recovery. */

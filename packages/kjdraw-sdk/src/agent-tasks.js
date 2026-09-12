@@ -213,7 +213,11 @@ function assertion(value) {
     };
 }
 function geometryReference(value) {
-    const row = plain(value, [
+    const row = optionalPlain(value, [
+        'objectId',
+        'feature',
+        'vertexIndex'
+    ], [
         'objectId',
         'feature'
     ], 'geometry point reference');
@@ -222,8 +226,15 @@ function geometryReference(value) {
         'start',
         'end',
         'center',
-        'origin'
+        'origin',
+        'vertex'
     ].includes(String(row.feature))) fail('geometry point feature is invalid');
+    if (row.feature === 'vertex') return {
+        objectId,
+        feature: 'vertex',
+        vertexIndex: integer(row.vertexIndex, 'geometry vertex index')
+    };
+    if (row.vertexIndex !== undefined) fail('geometry vertexIndex is valid only with feature vertex');
     return {
         objectId,
         feature: row.feature
@@ -241,6 +252,13 @@ function geometryCheck(value, requirementId) {
         'kind',
         'from',
         'to',
+        'expected',
+        'tolerance'
+    ] : kind === 'polyline-segment-bulge' ? [
+        'id',
+        'kind',
+        'objectId',
+        'segmentIndex',
         'expected',
         'tolerance'
     ] : [
@@ -277,6 +295,28 @@ function geometryCheck(value, requirementId) {
             objectId,
             expected: row.expected,
             tolerance: 0
+        };
+    }
+    if (kind === 'polyline-vertex-count') {
+        const expected = integer(row.expected, 'polyline expected vertex count', 2);
+        if (tolerance !== 0) fail('polyline vertex count requires zero tolerance');
+        return {
+            id: requirementId,
+            kind,
+            objectId,
+            expected,
+            tolerance: 0
+        };
+    }
+    if (kind === 'polyline-segment-bulge') {
+        if (typeof row.expected !== 'number' || !Number.isFinite(row.expected) || Math.abs(row.expected) > 32) fail('polyline expected bulge must be finite within ±32');
+        return {
+            id: requirementId,
+            kind,
+            objectId,
+            segmentIndex: integer(row.segmentIndex, 'polyline segment index'),
+            expected: row.expected,
+            tolerance
         };
     }
     return fail('geometry check kind is invalid');
@@ -442,7 +482,9 @@ function receiptCheck(value) {
         'circle-radius',
         'dimension-measurement',
         'point-distance',
-        'polyline-closed'
+        'polyline-closed',
+        'polyline-vertex-count',
+        'polyline-segment-bulge'
     ].includes(kind)) fail('receipt geometry check kind is invalid');
     if (typeof row.passed !== 'boolean') fail('receipt geometry check result is invalid');
     const actual = row.actual, expected = row.expected;
@@ -452,7 +494,9 @@ function receiptCheck(value) {
         const ref = optionalPlain(item, [
             'objectId',
             'ownerId',
-            'feature'
+            'feature',
+            'vertexIndex',
+            'segmentIndex'
         ], [
             'objectId',
             'ownerId'
@@ -462,20 +506,29 @@ function receiptCheck(value) {
             'start',
             'end',
             'center',
-            'origin'
+            'origin',
+            'vertex'
         ].includes(String(feature))) fail('receipt geometry feature is invalid');
+        if (feature === 'vertex' && ref.vertexIndex === undefined || feature !== 'vertex' && ref.vertexIndex !== undefined) fail('receipt geometry vertex reference is invalid');
+        if (kind === 'polyline-segment-bulge' ? ref.segmentIndex === undefined : ref.segmentIndex !== undefined) fail('receipt geometry segment reference is invalid');
         return {
             objectId: text(ref.objectId, 'receipt object ID', 256),
             ownerId: text(ref.ownerId, 'receipt owner ID', 256),
             ...feature === undefined ? {} : {
                 feature: feature
+            },
+            ...ref.vertexIndex === undefined ? {} : {
+                vertexIndex: integer(ref.vertexIndex, 'receipt vertex index')
+            },
+            ...ref.segmentIndex === undefined ? {} : {
+                segmentIndex: integer(ref.segmentIndex, 'receipt segment index')
             }
         };
     });
     const computedError = typeof actual === 'boolean' && typeof expected === 'boolean' ? actual === expected ? 0 : 1 : typeof actual === 'number' && typeof expected === 'number' ? Math.abs(actual - expected) : NaN;
     if (!Number.isFinite(computedError) || error !== computedError || row.passed !== error <= tolerance) fail('receipt geometry evidence is internally inconsistent');
     if (kind === 'point-distance' ? references.length !== 2 || references.some((reference)=>!reference.feature) : references.length !== 1 || references.some((reference)=>reference.feature)) fail('receipt geometry references do not match the check kind');
-    if (kind === 'polyline-closed' && (typeof actual !== 'boolean' || typeof expected !== 'boolean' || tolerance !== 0) || kind !== 'polyline-closed' && (typeof actual !== 'number' || typeof expected !== 'number')) fail('receipt geometry value types do not match the check kind');
+    if (kind === 'polyline-closed' && (typeof actual !== 'boolean' || typeof expected !== 'boolean' || tolerance !== 0) || kind !== 'polyline-closed' && (typeof actual !== 'number' || typeof expected !== 'number') || kind === 'polyline-vertex-count' && (!Number.isSafeInteger(actual) || !Number.isSafeInteger(expected) || tolerance !== 0)) fail('receipt geometry value types do not match the check kind');
     return {
         id,
         kind: kind,
@@ -515,7 +568,8 @@ function geometryReceipt(value) {
         'ROTATE',
         'SCALE',
         'LENGTHEN',
-        'STRETCH'
+        'STRETCH',
+        'PEDIT'
     ].includes(String(row.command))) fail('geometry receipt contract is invalid');
     if (typeof row.toolContractHash !== 'string' || !CONTENT_HASH.test(row.toolContractHash) || typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest) || typeof row.scopeSha256 !== 'string' || !SHA256.test(row.scopeSha256) || typeof row.receiptDigest !== 'string' || !CONTENT_HASH.test(row.receiptDigest)) fail('geometry receipt hashes are invalid');
     const checks = array(row.checks, 'receipt checks', 1, 64).map(receiptCheck);
@@ -546,6 +600,7 @@ function geometryReceipt(value) {
     if (result.command === 'SCALE' && result.sourceToolName !== 'cad_propose_scale') fail('SCALE receipt source tool is invalid');
     if (result.command === 'LENGTHEN' && result.sourceToolName !== 'cad_propose_lengthen') fail('LENGTHEN receipt source tool is invalid');
     if (result.command === 'STRETCH' && result.sourceToolName !== 'cad_propose_stretch') fail('STRETCH receipt source tool is invalid');
+    if (result.command === 'PEDIT' && result.sourceToolName !== 'cad_propose_polyline_edit') fail('PEDIT receipt source tool is invalid');
     if (result.afterRevision !== result.beforeRevision + 1) fail('geometry receipt must bind one atomic document revision');
     const { receiptId: _receiptId, receiptDigest: _receiptDigest, ...digestInput } = result;
     if (result.receiptId !== `receipt:${result.receiptDigest}` || stableHash(digestInput) !== result.receiptDigest) fail('geometry receipt digest is invalid');
@@ -1170,8 +1225,8 @@ export async function commitAgentTaskCreateBatchApproval(document, tx, input) {
     };
 }
 async function commitAgentTaskTransformApproval(document, tx, input, command) {
-    const entityIdsField = command === 'MOVE' ? 'movedEntityIds' : command === 'ROTATE' ? 'rotatedEntityIds' : command === 'SCALE' ? 'scaledEntityIds' : command === 'LENGTHEN' ? 'lengthenedEntityIds' : 'stretchedEntityIds';
-    const expectedSourceTool = command === 'MOVE' ? 'cad_propose_move' : command === 'ROTATE' ? 'cad_propose_rotate' : command === 'SCALE' ? 'cad_propose_scale' : command === 'LENGTHEN' ? 'cad_propose_lengthen' : 'cad_propose_stretch';
+    const entityIdsField = command === 'MOVE' ? 'movedEntityIds' : command === 'ROTATE' ? 'rotatedEntityIds' : command === 'SCALE' ? 'scaledEntityIds' : command === 'LENGTHEN' ? 'lengthenedEntityIds' : command === 'STRETCH' ? 'stretchedEntityIds' : 'editedEntityIds';
+    const expectedSourceTool = command === 'MOVE' ? 'cad_propose_move' : command === 'ROTATE' ? 'cad_propose_rotate' : command === 'SCALE' ? 'cad_propose_scale' : command === 'LENGTHEN' ? 'cad_propose_lengthen' : command === 'STRETCH' ? 'cad_propose_stretch' : 'cad_propose_polyline_edit';
     const row = plain(input, [
         'id',
         'expectedRevision',
@@ -1213,7 +1268,7 @@ async function commitAgentTaskTransformApproval(document, tx, input, command) {
         };
     });
     if (canonicalStringify(capabilityLocks) !== canonicalStringify(task.definition.capabilities)) fail('task capability lock conflict');
-    const transformedEntityIds = array(row[entityIdsField], `${command} entity IDs`, 1, command === 'LENGTHEN' ? 1 : 64).map((value)=>text(value, `${command} entity ID`, 256));
+    const transformedEntityIds = array(row[entityIdsField], `${command} entity IDs`, 1, command === 'LENGTHEN' || command === 'PEDIT' ? 1 : 64).map((value)=>text(value, `${command} entity ID`, 256));
     if (new Set(transformedEntityIds).size !== transformedEntityIds.length) fail(`${command} entity IDs must be unique`);
     const scopedIds = task.scope.members.map((member)=>member.id);
     if (transformedEntityIds.some((id)=>!scopedIds.includes(id))) fail(`${command} cannot target entities outside the persisted task scope`);
@@ -1351,6 +1406,9 @@ export async function commitAgentTaskLengthenApproval(document, tx, input) {
 }
 export async function commitAgentTaskStretchApproval(document, tx, input) {
     return commitAgentTaskTransformApproval(document, tx, input, 'STRETCH');
+}
+export async function commitAgentTaskPolylineEditApproval(document, tx, input) {
+    return commitAgentTaskTransformApproval(document, tx, input, 'PEDIT');
 }
 export async function rebaseAgentTask(document, tx, input) {
     const row = plain(input, [

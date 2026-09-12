@@ -81,18 +81,55 @@ function validateDrawingGeometryView(view, input) {
         });
         return object;
     };
+    const polylineVertices = (object)=>{
+        const source = object.payload.vertices;
+        if (![
+            'LWPOLYLINE',
+            'POLYLINE'
+        ].includes(object.type) || !Array.isArray(source) || source.length < 2) fail('Polyline check requires a native polyline with at least two canonical vertices');
+        const vertices = source;
+        verticesInspected += vertices.length;
+        if (verticesInspected > 20000) fail('Polyline checks exceed the 20000-vertex budget');
+        return vertices.map((vertex)=>{
+            if (!vertex || typeof vertex !== 'object' || Array.isArray(vertex)) return fail('Polyline checks require canonical vertices');
+            const row = vertex;
+            point(row.point);
+            for (const name of [
+                'bulge',
+                'startWidth',
+                'endWidth'
+            ]){
+                const number = row[name];
+                if (typeof number !== 'number' || !Number.isFinite(number) || Math.abs(number) > 1e12 || name !== 'bulge' && number < 0) fail('Polyline vertex parameters must be finite canonical values');
+            }
+            return row;
+        });
+    };
     const featurePoint = (value, refs)=>{
         const ref = record(value, [
             'objectId',
-            'feature'
+            'feature',
+            'vertexIndex'
         ], 'Point reference');
         if (![
             'start',
             'end',
             'center',
-            'origin'
+            'origin',
+            'vertex'
         ].includes(ref.feature)) return fail('Unsupported geometry point feature');
         const feature = ref.feature, object = entity(ref.objectId, refs, feature);
+        if (feature === 'vertex') {
+            if (!Number.isSafeInteger(ref.vertexIndex) || ref.vertexIndex < 0) fail('Polyline vertex reference requires a nonnegative safe vertexIndex');
+            const vertices = polylineVertices(object), vertexIndex = ref.vertexIndex;
+            if (vertexIndex >= vertices.length) fail('Polyline vertexIndex is outside the native vertex list');
+            refs[refs.length - 1] = {
+                ...refs.at(-1),
+                vertexIndex
+            };
+            return point(vertices[vertexIndex].point);
+        }
+        if (ref.vertexIndex !== undefined) fail('vertexIndex is valid only for a polyline vertex reference');
         if ((feature === 'start' || feature === 'end') && object.type !== 'LINE' || feature === 'origin' && ![
             'XLINE',
             'RAY'
@@ -113,6 +150,7 @@ function validateDrawingGeometryView(view, input) {
             'objectId',
             'from',
             'to',
+            'segmentIndex',
             'expected',
             'tolerance'
         ], 'Geometry check');
@@ -124,7 +162,9 @@ function validateDrawingGeometryView(view, input) {
             'circle-radius',
             'dimension-measurement',
             'point-distance',
-            'polyline-closed'
+            'polyline-closed',
+            'polyline-vertex-count',
+            'polyline-segment-bulge'
         ].includes(item.kind)) return fail('Unsupported geometry check kind');
         const kind = item.kind, refs = [];
         const tolerance = boundedNumber(item.tolerance, 'tolerance');
@@ -155,30 +195,31 @@ function validateDrawingGeometryView(view, input) {
                 if (!projection) return fail('dimension-measurement requires supported nondegenerate native dimension geometry');
                 actual = boundedNumber(projection.measurement, 'Dimension measurement');
                 expected = boundedNumber(item.expected, 'expected');
-            } else {
-                if (![
-                    'LWPOLYLINE',
-                    'POLYLINE'
-                ].includes(object.type)) fail('polyline-closed requires a native polyline');
-                if (typeof item.expected !== 'boolean' || tolerance !== 0) fail('polyline-closed requires a boolean expected and tolerance 0');
-                const vertices = object.payload.vertices;
-                if (typeof object.payload.closed !== 'boolean' || !Array.isArray(vertices) || vertices.length < 2) return fail('Polyline closure requires a canonical closed flag and valid vertices');
-                verticesInspected += vertices.length;
-                if (verticesInspected > 20000) fail('Polyline checks exceed the 20000-vertex budget');
-                for (const vertex of vertices){
-                    if (!vertex || typeof vertex !== 'object' || Array.isArray(vertex)) fail('Polyline checks require canonical vertices');
-                    point(vertex.point);
-                    for (const name of [
-                        'bulge',
-                        'startWidth',
-                        'endWidth'
-                    ]){
-                        const number = vertex[name];
-                        if (typeof number !== 'number' || !Number.isFinite(number) || Math.abs(number) > 1e12 || name !== 'bulge' && number < 0) fail('Polyline vertex parameters must be finite canonical values');
-                    }
-                }
-                actual = object.payload.closed;
+            } else if (kind === 'polyline-closed') {
+                polylineVertices(object);
+                const closed = object.payload.closed, expectedClosed = item.expected;
+                if (typeof closed !== 'boolean' || typeof expectedClosed !== 'boolean' || tolerance !== 0) fail('polyline-closed requires a canonical closed flag, boolean expected value and tolerance 0');
+                actual = closed;
+                expected = expectedClosed;
+            } else if (kind === 'polyline-vertex-count') {
+                const vertices = polylineVertices(object);
+                if (!Number.isSafeInteger(item.expected) || item.expected < 2 || tolerance !== 0) fail('polyline-vertex-count requires an integer expected value of at least two and tolerance 0');
+                actual = vertices.length;
                 expected = item.expected;
+            } else {
+                const vertices = polylineVertices(object);
+                if (!Number.isSafeInteger(item.segmentIndex) || item.segmentIndex < 0) fail('polyline-segment-bulge requires a nonnegative safe segmentIndex');
+                const segmentIndex = item.segmentIndex, maximum = object.payload.closed === true ? vertices.length : vertices.length - 1;
+                if (segmentIndex >= maximum) fail('Polyline segmentIndex is outside the native segment list');
+                if (typeof item.expected !== 'number' || !Number.isFinite(item.expected) || Math.abs(item.expected) > 32) fail('polyline-segment-bulge expected value must be finite within ±32');
+                refs[0] = {
+                    ...refs[0],
+                    segmentIndex
+                };
+                const bulge = vertices[segmentIndex].bulge, expectedBulge = item.expected;
+                if (typeof bulge !== 'number' || typeof expectedBulge !== 'number') fail('Polyline segment bulge must be numeric');
+                actual = expectedBulge === 0 && Object.is(bulge, -0) ? 0 : bulge;
+                expected = expectedBulge;
             }
         }
         const error = typeof actual === 'boolean' ? actual === expected ? 0 : 1 : Math.abs(actual - expected);

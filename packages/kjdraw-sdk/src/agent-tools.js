@@ -15,7 +15,7 @@ import { buildAgentAnnotationEntities } from './agent-annotations.js';
 import { decodeAgentCompactDrawing } from './agent-drawing-compact.js';
 import { expandRectangularDrawingPattern } from './agent-drawing-patterns.js';
 import { validateDrawingGeometry } from './drawing-validation.js';
-import { commitAgentTaskCreateBatchApproval, commitAgentTaskLengthenApproval, commitAgentTaskMoveApproval, commitAgentTaskRotateApproval, commitAgentTaskScaleApproval, commitAgentTaskStretchApproval, KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
+import { commitAgentTaskCreateBatchApproval, commitAgentTaskLengthenApproval, commitAgentTaskMoveApproval, commitAgentTaskPolylineEditApproval, commitAgentTaskRotateApproval, commitAgentTaskScaleApproval, commitAgentTaskStretchApproval, KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
 import { createAgentDesignContext } from './agent-design-relations.js';
 const number = {
     type: 'number',
@@ -141,7 +141,7 @@ const measuredObject = object({
     expected: nonnegative,
     tolerance: nonnegative
 });
-const pointReference = object({
+const pointReferenceBase = object({
     objectId: text,
     feature: {
         type: 'string',
@@ -149,10 +149,23 @@ const pointReference = object({
             'start',
             'end',
             'center',
-            'origin'
+            'origin',
+            'vertex'
         ]
+    },
+    vertexIndex: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 20000
     }
 });
+const pointReference = {
+    ...pointReferenceBase,
+    required: [
+        'objectId',
+        'feature'
+    ]
+};
 const drawingInputSchema = object({
     expectedRevision: revision,
     units: text,
@@ -591,7 +604,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_check_geometry',
         effect: 'read',
-        description: 'Check 1–64 explicit requirements against actual drawing objects at expectedRevision. Supply lineLengths, circleRadii, pointDistances and polylineClosures; dimensionMeasurements is an optional additive group. LINE lengths and point distances use native owner coordinates in 3D; point pairs must share an owner. CIRCLE radius is intrinsic. Native DIMENSION measurements use drawing units for linear/radius/diameter and degrees for angular dimensions. Point features are limited to supported native entities, not expanded block instances. Polyline closure checks the stored closed flag and valid vertices, not self-intersection or topology. Returns actual values, deviations, tolerances and pass/fail for supplied requirements only. Does not infer the user intent, certify a design, modify or approve a drawing.',
+        description: 'Check 1–64 explicit requirements against actual drawing objects at expectedRevision. Supply lineLengths, circleRadii, pointDistances and polylineClosures; dimensionMeasurements, polylineVertexCounts and polylineSegmentBulges are optional additive groups. LINE lengths and point distances use native owner coordinates in 3D; point references may address a native polyline vertex with feature=vertex and vertexIndex. CIRCLE radius is intrinsic. Native DIMENSION measurements use drawing units for linear/radius/diameter and degrees for angular dimensions. Polyline checks inspect the stored closed flag, vertex count or signed segment bulge; they do not infer topology. Returns actual values, deviations, tolerances and pass/fail for supplied requirements only. Does not infer user intent, certify a design, modify or approve a drawing.',
         inputSchema: (()=>{
             const schema = object({
                 expectedRevision: revision,
@@ -612,11 +625,39 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
                     expected: {
                         type: 'boolean'
                     }
+                })),
+                polylineVertexCounts: drawingGroup(object({
+                    id: text,
+                    objectId: text,
+                    expected: {
+                        type: 'integer',
+                        minimum: 2,
+                        maximum: 20000
+                    }
+                })),
+                polylineSegmentBulges: drawingGroup(object({
+                    id: text,
+                    objectId: text,
+                    segmentIndex: {
+                        type: 'integer',
+                        minimum: 0,
+                        maximum: 20000
+                    },
+                    expected: {
+                        type: 'number',
+                        minimum: -32,
+                        maximum: 32
+                    },
+                    tolerance: nonnegative
                 }))
             });
             return {
                 ...schema,
-                required: schema.required.filter((name)=>name !== 'dimensionMeasurements')
+                required: schema.required.filter((name)=>![
+                        'dimensionMeasurements',
+                        'polylineVertexCounts',
+                        'polylineSegmentBulges'
+                    ].includes(name))
             };
         })()
     },
@@ -1248,6 +1289,15 @@ export class KJAgentToolSession {
                                         ...item,
                                         kind: 'polyline-closed',
                                         tolerance: 0
+                                    })),
+                                ...(input.polylineVertexCounts ?? []).map((item)=>({
+                                        ...item,
+                                        kind: 'polyline-vertex-count',
+                                        tolerance: 0
+                                    })),
+                                ...(input.polylineSegmentBulges ?? []).map((item)=>({
+                                        ...item,
+                                        kind: 'polyline-segment-bulge'
                                     }))
                             ]
                         });
@@ -1624,8 +1674,9 @@ export class KJAgentToolSession {
             'ROTATE',
             'SCALE',
             'LENGTHEN',
-            'STRETCH'
-        ].includes(pending.envelope.command)) throw new KJValidationError('Persistent task approval supports an available CREATEBATCH, MOVE, ROTATE, SCALE, LENGTHEN or STRETCH proposal only');
+            'STRETCH',
+            'PEDIT'
+        ].includes(pending.envelope.command)) throw new KJValidationError('Persistent task approval supports an available CREATEBATCH, MOVE, ROTATE, SCALE, LENGTHEN, STRETCH or PEDIT proposal only');
         if (pending.task) throw new KJValidationError('Proposal is already bound to a persisted task');
         if (!input || typeof input !== 'object' || input.taskStatus !== 'running' || !Number.isSafeInteger(input.taskVersion) || input.taskVersion < 1 || !Number.isSafeInteger(input.documentRevision) || input.documentRevision < 0) throw new KJValidationError('Invalid persisted task proposal binding');
         if (input.documentRevision !== this.#document.revision || pending.envelope.expectedRevision !== input.documentRevision || input.units !== this.units) throw new KJValidationError('Persistent task proposal binding revision or units changed');
@@ -1658,7 +1709,8 @@ export class KJAgentToolSession {
                 'ROTATE',
                 'SCALE',
                 'LENGTHEN',
-                'STRETCH'
+                'STRETCH',
+                'PEDIT'
             ].includes(command) || pending.definition.id !== command || pending.definition.owner !== '@kanjieteam/kjdraw' || pending.definition.transactional === false) throw new KJValidationError('Persistent task approval is limited to a supported built-in transactional command');
             if (this.#sdk.commands.resolve(command) !== pending.definition) throw new KJValidationError('Command changed since preview; reject and propose again');
             if (binding.toolApiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION) throw new KJValidationError('Unsupported persistent task tool API version');
@@ -1750,9 +1802,14 @@ export class KJAgentToolSession {
                         lengthenedEntityIds: [
                             execution.arguments.id
                         ]
-                    }) : await commitAgentTaskStretchApproval(this.#document, transaction, {
+                    }) : command === 'STRETCH' ? await commitAgentTaskStretchApproval(this.#document, transaction, {
                         ...approval,
                         stretchedEntityIds: execution.arguments.ids
+                    }) : await commitAgentTaskPolylineEditApproval(this.#document, transaction, {
+                        ...approval,
+                        editedEntityIds: [
+                            execution.arguments.id
+                        ]
                     });
                     taskReceipt = completed.receipt;
                     agentPlan = await this.#sdk.agentPlans.consume(execution, this.#document);

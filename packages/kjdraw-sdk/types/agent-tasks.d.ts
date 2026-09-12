@@ -83,7 +83,7 @@ export interface KJAgentTaskGeometryReceipt {
     planId: string;
     executionEnvelopeId: string;
     reviewerId: string;
-    command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH';
+    command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT';
     sourceToolName: string;
     beforeRevision: number;
     afterRevision: number;
@@ -285,6 +285,27 @@ export interface KJAgentTaskStretchApprovalResult {
     task: KJObjectRecord;
     receipt: KJAgentTaskGeometryReceipt;
 }
+export interface KJAgentTaskPolylineEditApprovalInput {
+    id: string;
+    expectedRevision: number;
+    expectedTaskVersion: number;
+    expectedStatus: 'running';
+    expectedScopeSha256: string;
+    sourceToolName: string;
+    toolApiVersion: string;
+    toolContractHash: string;
+    argumentsDigest: string;
+    capabilityLocks: KJAgentTaskCapabilityLock[];
+    planId: string;
+    executionEnvelopeId: string;
+    reviewerId: string;
+    editedEntityIds: string[];
+    at: string;
+}
+export interface KJAgentTaskPolylineEditApprovalResult {
+    task: KJObjectRecord;
+    receipt: KJAgentTaskGeometryReceipt;
+}
 export interface KJAgentTaskView extends KJAgentTaskPayload {
     id: string;
     handle: string;
@@ -316,5 +337,7 @@ export declare function commitAgentTaskScaleApproval(document: KJDocument, tx: K
 export declare function commitAgentTaskLengthenApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskLengthenApprovalResult>;
 /** Complete one reviewed STRETCH and its deterministic checks in the caller's transaction draft. */
 export declare function commitAgentTaskStretchApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskStretchApprovalResult>;
+/** Complete one reviewed PEDIT and its deterministic checks in the caller's transaction draft. */
+export declare function commitAgentTaskPolylineEditApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskPolylineEditApprovalResult>;
 /** Explicitly accept the current dependency snapshot after stale or ambiguous approval recovery. */
 export declare function rebaseAgentTask(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJObjectRecord>;
