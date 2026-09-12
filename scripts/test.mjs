@@ -7,5 +7,8 @@ const tests = (await readdir(new URL(`../${dir}/`, import.meta.url))).filter(x =
 const reporters = process.env.GITHUB_ACTIONS === 'true'
   ? ['--test-reporter=spec', '--test-reporter=./scripts/github-test-reporter.mjs', '--test-reporter-destination=stdout', '--test-reporter-destination=stdout']
   : []
-const result = spawnSync(process.execPath, ['--test', ...reporters, ...tests], { cwd: root, stdio: 'inherit' })
+// Independent DXF tests launch Python/ezdxf subprocesses. Keep Linux hosted
+// release gates serial so those validators cannot contend for process streams.
+const concurrency = process.platform === 'linux' && process.env.GITHUB_ACTIONS === 'true' ? ['--test-concurrency=1'] : []
+const result = spawnSync(process.execPath, ['--test', ...concurrency, ...reporters, ...tests], { cwd: root, stdio: 'inherit' })
 process.exit(result.status ?? 1)
