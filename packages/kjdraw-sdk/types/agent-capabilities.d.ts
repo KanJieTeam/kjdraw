@@ -48,6 +48,7 @@ export declare class KJAgentCapabilityRegistry {
     constructor({ toolApiVersion }?: {
         toolApiVersion?: number;
     });
+    get toolApiVersion(): number;
     register(input: unknown): ReadonlyDeep<KJAgentCapabilityManifest>;
     list(): readonly ReadonlyDeep<KJAgentCapabilityManifest>[];
     /** Persist this JSON lock with the project; supplying new references is an explicit upgrade. */

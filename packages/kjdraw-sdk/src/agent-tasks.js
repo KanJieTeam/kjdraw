@@ -350,8 +350,8 @@ async function sha256(value) {
     ].map((byte)=>byte.toString(16).padStart(2, '0')).join('');
 }
 async function scopeFrom(get, objects, inputIds) {
-    const ids = array(inputIds, 'scope', 1, MAX_SCOPE_ENTITIES);
-    if (ids.some((id)=>typeof id !== 'string' || !id || id.length > 256) || new Set(ids).size !== ids.length) fail(`scope requires 1–${MAX_SCOPE_ENTITIES} unique entity IDs`);
+    const ids = array(inputIds, 'scope', 0, MAX_SCOPE_ENTITIES);
+    if (ids.some((id)=>typeof id !== 'string' || !id || id.length > 256) || new Set(ids).size !== ids.length) fail(`scope requires 0–${MAX_SCOPE_ENTITIES} unique entity IDs`);
     const members = [];
     let bytes = 0;
     for (const id of ids){
@@ -413,7 +413,7 @@ function scope(value) {
                 sha256: member.sha256
             };
         });
-    const members = parseMembers(row.members, 'scope members', 1, MAX_SCOPE_ENTITIES);
+    const members = parseMembers(row.members, 'scope members', 0, MAX_SCOPE_ENTITIES);
     const relations = parseMembers(row.relations, 'scope relations', 0, MAX_SCOPE_ENTITIES);
     if (new Set(members.map((member)=>member.id)).size !== members.length || new Set(relations.map((member)=>member.id)).size !== relations.length || typeof row.sha256 !== 'string' || !SHA256.test(row.sha256)) fail('scope IDs or digest are invalid');
     return {
@@ -679,6 +679,7 @@ export async function transitionAgentTask(document, tx, input) {
     const expectedVersion = integer(row.expectedTaskVersion, 'expected task version', 1), expectedStatus = taskStatus(row.expectedStatus, 'expected status'), to = taskStatus(row.to, 'next status');
     if (task.taskVersion !== expectedVersion || task.status !== expectedStatus) fail('task version or status conflict');
     if (TERMINAL.has(task.status) || !TRANSITIONS[task.status].includes(to)) fail(`illegal lifecycle transition ${task.status} -> ${to}`);
+    if (to === 'completed') fail('completed status requires a trusted geometry-check receipt API');
     const checkedResolution = row.resolution === undefined ? null : resolution(row.resolution);
     if ([
         'completed',
@@ -688,6 +689,7 @@ export async function transitionAgentTask(document, tx, input) {
     let nextProgress = clone(task.progress);
     if (row.stepUpdates !== undefined) {
         const updates = array(row.stepUpdates, 'step updates', 1, task.definition.steps.length).map((item)=>stepProgress(item, task.definition));
+        if (updates.some((update)=>update.status === 'passed' || update.checks.some((check)=>check.passed))) fail('passed checks require a trusted geometry-check receipt API');
         if (new Set(updates.map((item)=>item.id)).size !== updates.length) fail('step updates must have unique IDs');
         const stepTransitions = {
             pending: [

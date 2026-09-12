@@ -1048,6 +1048,15 @@ function failure(error) {
     });
 }
 export class KJAgentToolSession {
+    get documentId() {
+        return this.#document.id;
+    }
+    get revision() {
+        return this.#document.revision;
+    }
+    get units() {
+        return this.#document.snapshot().header.units;
+    }
     get definitions() {
         const units = this.#document.snapshot().header.units;
         return deepFreeze(KJDRAW_AGENT_TOOLS.map((tool)=>{

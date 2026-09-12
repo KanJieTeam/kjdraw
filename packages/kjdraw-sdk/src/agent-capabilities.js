@@ -148,6 +148,9 @@ export class KJAgentCapabilityRegistry {
         if (!Number.isSafeInteger(toolApiVersion) || toolApiVersion < 1) fail('Registry toolApiVersion must be a positive integer');
         this.#toolApiVersion = toolApiVersion;
     }
+    get toolApiVersion() {
+        return this.#toolApiVersion;
+    }
     register(input) {
         const manifest = validateAgentCapabilityManifest(input);
         if (manifest.toolApiVersion !== this.#toolApiVersion) throw new KJRegistrationError(`Capability ${manifest.id} requires tool API ${manifest.toolApiVersion}; current ${this.#toolApiVersion}`);

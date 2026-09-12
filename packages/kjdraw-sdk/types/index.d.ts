@@ -7,6 +7,7 @@ export * from './drawing-validation.js';
 export * from './model-usage.js';
 export * from './model-adapters.js';
 export * from './agent-runner.js';
+export * from './agent-task-runner.js';
 export * from './agent-tasks.js';
 export * from './capabilities.js';
 export * from './constants.js';

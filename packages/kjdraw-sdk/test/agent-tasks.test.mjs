@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { KJDocument } from '../src/document.js'
 import { createAgentTask, inspectAgentTask, readAgentTasks, rebaseAgentTask, transitionAgentTask } from '../src/agent-tasks.js'
+import { createKjpPackage, openKjpPackage } from '../src/project-package.js'
 
 const at = second => `2026-09-12T00:00:${String(second).padStart(2, '0')}.000Z`
 const actor = { kind: 'host', id: 'task-test' }
@@ -39,7 +40,7 @@ test('drawing-scoped task keeps stable identity, NOD binding, KJD persistence an
 test('strict schema and budgets reject unsafe or oversized creation without partial NOD records', async () => {
   const { document } = await fixture()
   const invalid = [
-    { id: '__proto__' }, { id: 'new', entityIds: [] }, { id: 'new', entityIds: ['edge', 'edge'] }, { id: 'new', entityIds: ['missing'] },
+    { id: '__proto__' }, { id: 'new', entityIds: ['edge', 'edge'] }, { id: 'new', entityIds: ['missing'] },
     { id: 'new', title: 'x'.repeat(257) }, { id: 'new', goal: 'x'.repeat(8193) }, { id: 'new', arbitrary: true },
     { id: 'new', actor: { kind: 'provider', id: 'bad' } }, { id: 'new', at: 'tomorrow' }, { id: 'new', expectedRevision: 0 },
   ]
@@ -57,6 +58,31 @@ test('strict schema and budgets reject unsafe or oversized creation without part
   const inherited = Object.create({ credential: 'must-not-be-read' })
   Object.assign(inherited, { id: 'inherited-task', expectedRevision: document.revision, title: 'Title', goal: 'Goal', entityIds: ['edge'], definition, at: at(2), actor })
   await assert.rejects(document.transact('Prototype', tx => createAgentTask(document, tx, inherited)), /plain object/)
+})
+
+test('an empty drawing task has a stable empty scope and survives native reopen', async () => {
+  const document = KJDocument.create({ documentId: 'empty-task', units: 'millimeter' })
+  await document.transact('Empty task', tx => createAgentTask(document, tx, {
+    id: 'empty', expectedRevision: document.revision, title: 'Start from blank', goal: 'Create the requested geometry.', entityIds: [], definition, at: at(1), actor,
+  }))
+  const task = readAgentTasks(document)[0]
+  assert.deepEqual(task.scope.members, []); assert.deepEqual(task.scope.relations, [])
+  assert.equal((await inspectAgentTask(document, task.id)).scopeMatches, true)
+  assert.deepEqual(readAgentTasks(KJDocument.open(document.serialize())), [task])
+  const packageBytes = await createKjpPackage({ projectId: 'empty-task-project', drawings: { [document.id]: document }, activeDrawing: document.id, createdAt: at(2), modifiedAt: at(2) })
+  assert.deepEqual(readAgentTasks((await openKjpPackage(packageBytes)).activeDocument), [task])
+})
+
+test('generic transitions cannot fabricate passed checks or completed status without a trusted receipt', async () => {
+  const { document } = await fixture()
+  let task = readAgentTasks(document)[0]
+  await transition(document, task, 'ready', 2); task = readAgentTasks(document)[0]
+  await transition(document, task, 'running', 3); task = readAgentTasks(document)[0]
+  const before = document.serialize()
+  const passed = { id: 'draw_and_check', status: 'passed', checks: [{ requirementId: 'geometry_valid', passed: true, summary: 'Model says it passed.' }] }
+  await assert.rejects(transition(document, task, 'running', 4, { stepUpdates: [passed] }), /trusted geometry-check receipt/)
+  await assert.rejects(transition(document, task, 'completed', 4, { resolution: { code: 'done', message: 'Model says done.', retryable: false }, stepUpdates: [passed] }), /trusted geometry-check receipt/)
+  assert.equal(document.serialize(), before)
 })
 
 test('lifecycle, task-version and document-revision conflicts fail atomically; terminal states stay terminal', async () => {
@@ -90,7 +116,7 @@ test('scoped edits are explicit drift; unrelated edits remain compatible and sta
   await document.transact('Manual drift', tx => tx.updateObject('edge', { payload: { end: [120, 0, 0] } }))
   const inspection = await inspectAgentTask(document, task.id)
   assert.equal(inspection.scopeMatches, false); assert.deepEqual(inspection.driftedEntityIds, ['edge']); assert.equal(inspection.recovery, 'replan-after-drift')
-  await assert.rejects(transition(document, task, 'completed', 4, { resolution: { code: 'done', message: 'Done', retryable: false } }), /scope drifted/)
+  await assert.rejects(transition(document, task, 'running', 4, { stepUpdates: [{ id: 'draw_and_check', status: 'failed', checks: [{ requirementId: 'geometry_valid', passed: false, summary: 'Drifted.' }] }] }), /scope drifted/)
   task = readAgentTasks(document)[0]
   await transition(document, task, 'stale', 4); task = readAgentTasks(document)[0]
   assert.equal((await inspectAgentTask(document, task.id)).recovery, 'replan-after-drift')

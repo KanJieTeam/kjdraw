@@ -82,6 +82,11 @@
       "import": "./src/agent-runner.js",
       "default": "./src/agent-runner.js"
     },
+    "./agent-task-runner": {
+      "types": "./types/agent-task-runner.d.ts",
+      "import": "./src/agent-task-runner.js",
+      "default": "./src/agent-task-runner.js"
+    },
     "./agent-tools": {
       "types": "./types/agent-tools.d.ts",
       "import": "./src/agent-tools.js",

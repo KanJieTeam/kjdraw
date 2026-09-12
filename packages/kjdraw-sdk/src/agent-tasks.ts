@@ -251,8 +251,8 @@ async function sha256(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 async function scopeFrom(get: (id: string) => KJReadonlyObjectRecord | KJObjectRecord | null, objects: readonly (KJReadonlyObjectRecord | KJObjectRecord)[], inputIds: readonly string[]): Promise<KJAgentTaskScope> {
-  const ids = array(inputIds, 'scope', 1, MAX_SCOPE_ENTITIES) as string[]
-  if (ids.some(id => typeof id !== 'string' || !id || id.length > 256) || new Set(ids).size !== ids.length) fail(`scope requires 1–${MAX_SCOPE_ENTITIES} unique entity IDs`)
+  const ids = array(inputIds, 'scope', 0, MAX_SCOPE_ENTITIES) as string[]
+  if (ids.some(id => typeof id !== 'string' || !id || id.length > 256) || new Set(ids).size !== ids.length) fail(`scope requires 0–${MAX_SCOPE_ENTITIES} unique entity IDs`)
   const members: KJAgentTaskScopeMember[] = []
   let bytes = 0
   for (const id of ids) {
@@ -287,7 +287,7 @@ function scope(value: unknown): KJAgentTaskScope {
     if (!/^[0-9A-F]+$/.test(handle) || typeof member.sha256 !== 'string' || !SHA256.test(member.sha256)) fail('scope member handle or digest is invalid')
     return { id, handle, sha256: member.sha256 }
   })
-  const members = parseMembers(row.members, 'scope members', 1, MAX_SCOPE_ENTITIES)
+  const members = parseMembers(row.members, 'scope members', 0, MAX_SCOPE_ENTITIES)
   const relations = parseMembers(row.relations, 'scope relations', 0, MAX_SCOPE_ENTITIES)
   if (new Set(members.map(member => member.id)).size !== members.length || new Set(relations.map(member => member.id)).size !== relations.length || typeof row.sha256 !== 'string' || !SHA256.test(row.sha256)) fail('scope IDs or digest are invalid')
   return { members, relations, sha256: row.sha256 }
@@ -413,11 +413,13 @@ export async function transitionAgentTask(document: KJDocument, tx: KJTransactio
   const expectedVersion = integer(row.expectedTaskVersion, 'expected task version', 1), expectedStatus = taskStatus(row.expectedStatus, 'expected status'), to = taskStatus(row.to, 'next status')
   if (task.taskVersion !== expectedVersion || task.status !== expectedStatus) fail('task version or status conflict')
   if (TERMINAL.has(task.status) || !TRANSITIONS[task.status].includes(to)) fail(`illegal lifecycle transition ${task.status} -> ${to}`)
+  if (to === 'completed') fail('completed status requires a trusted geometry-check receipt API')
   const checkedResolution = row.resolution === undefined ? null : resolution(row.resolution)
   if (['completed', 'failed', 'needs_attention'].includes(to) !== Boolean(checkedResolution)) fail('resolution is required exactly for completed, failed or needs_attention')
   let nextProgress = clone(task.progress)
   if (row.stepUpdates !== undefined) {
     const updates = array(row.stepUpdates, 'step updates', 1, task.definition.steps.length).map(item => stepProgress(item, task.definition))
+    if (updates.some(update => update.status === 'passed' || update.checks.some(check => check.passed))) fail('passed checks require a trusted geometry-check receipt API')
     if (new Set(updates.map(item => item.id)).size !== updates.length) fail('step updates must have unique IDs')
     const stepTransitions: Readonly<Record<KJAgentTaskStepStatus, readonly KJAgentTaskStepStatus[]>> = {
       pending: ['active', 'passed', 'failed', 'skipped'], active: ['passed', 'failed', 'skipped'], failed: ['active', 'passed', 'skipped'], passed: [], skipped: ['active', 'passed'],

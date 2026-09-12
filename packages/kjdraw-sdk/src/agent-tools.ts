@@ -331,6 +331,10 @@ function failure(error: unknown): KJAgentToolResult {
  * host operations, not model-callable tools and not authentication mechanisms.
  */
 export class KJAgentToolSession {
+  /** Read-only identity used to bind persisted tasks to this exact drawing. */
+  get documentId(): string { return this.#document.id }
+  get revision(): number { return this.#document.revision }
+  get units(): string { return this.#document.snapshot().header.units }
   /** Bind unit schemas to the drawing so models see its canonical unit name. */
   get definitions(): readonly KJAgentToolDefinition[] {
     const units = this.#document.snapshot().header.units
