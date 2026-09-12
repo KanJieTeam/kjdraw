@@ -123,6 +123,7 @@ function isDraftTool(value){return ['line','polyline','circle','arc','ellipse','
 function drawingOptions(value){
   if(value==='circle')return {circleMode:$('circle-mode').value}
   if(value==='arc')return {arcMode:$('arc-mode').value}
+  if(value==='ellipse')return {ellipseMode:$('ellipse-mode').value}
   if(value==='polygon')return {sides:Number($('polygon-sides').value)}
   if(value==='spline')return {splineDegree:Number($('spline-degree').value)}
   if(value==='dimension')return {dimensionType:$('dimension-type').value,rotation:$('dimension-direction').value==='vertical'?Math.PI/2:0,textHeight:Number($('dimension-height').value)}
@@ -140,7 +141,7 @@ function updateDraftControls(){
 }
 function updateDraftHint(){
   if(!drafting)return
-  const roles={start:['Start point','起点'],end:['Endpoint','终点'],vertex:['Next vertex','下一顶点'],position:['Position','位置'],origin:['Origin','原点'],directionPoint:['Direction point','方向点'],center:['Center','圆心 / 中心'],radiusPoint:['Radius point (or enter radius)','半径点（也可输入半径）'],diameterPoint1:['First diameter endpoint','直径起点'],diameterPoint2:['Opposite diameter endpoint','直径终点'],throughPoint:['Point on curve','曲线上一点'],majorAxisPoint:['Major-axis endpoint','长轴端点'],minorAxisPoint:['Minor-axis distance','短轴距离'],firstCorner:['First corner','第一角点'],oppositeCorner:['Opposite corner','对角点'],controlPoint:['Next control point','下一控制点'],boundaryPoint:['Boundary vertex','填充边界顶点'],extensionOrigin1:['First measured point','第一测量点'],extensionOrigin2:['Second measured point','第二测量点'],placement:['Dimension line position','尺寸线位置'],oppositePoint:['Opposite diameter point','直径对侧点'],pointOnCircle:['Point on circle','圆上一点'],angleVertex:['Three-point angle 1/4: vertex → first ray → second ray → arc position','三点角度 1/4：顶点 → 第一射线点 → 第二射线点 → 弧位置'],firstRayPoint:['2/4: point on first ray','2/4：第一条射线上的点'],secondRayPoint:['3/4: point on second ray','3/4：第二条射线上的点'],angularPlacement:['4/4: place angle arc; opposite sector gives reflex angle','4/4：指定角度弧位置；另一角域可标注反角']}
+  const roles={start:['Start point','起点'],end:['Endpoint','终点'],vertex:['Next vertex','下一顶点'],position:['Position','位置'],origin:['Origin','原点'],directionPoint:['Direction point','方向点'],center:['Center','圆心 / 中心'],radiusPoint:['Radius point (or enter radius)','半径点（也可输入半径）'],diameterPoint1:['First diameter endpoint','直径起点'],diameterPoint2:['Opposite diameter endpoint','直径终点'],throughPoint:['Point on curve','曲线上一点'],majorAxisPoint:['Major-axis endpoint','长轴端点'],minorAxisPoint:['Minor-axis distance','短轴距离'],ellipseArcStart:['Elliptical-arc start direction','椭圆弧起点方向'],ellipseArcEnd:['Elliptical-arc end direction (counter-clockwise)','椭圆弧终点方向（逆时针）'],firstCorner:['First corner','第一角点'],oppositeCorner:['Opposite corner','对角点'],controlPoint:['Next control point','下一控制点'],boundaryPoint:['Boundary vertex','填充边界顶点'],extensionOrigin1:['First measured point','第一测量点'],extensionOrigin2:['Second measured point','第二测量点'],placement:['Dimension line position','尺寸线位置'],oppositePoint:['Opposite diameter point','直径对侧点'],pointOnCircle:['Point on circle','圆上一点'],angleVertex:['Three-point angle 1/4: vertex → first ray → second ray → arc position','三点角度 1/4：顶点 → 第一射线点 → 第二射线点 → 弧位置'],firstRayPoint:['2/4: point on first ray','2/4：第一条射线上的点'],secondRayPoint:['3/4: point on second ray','3/4：第二条射线上的点'],angularPlacement:['4/4: place angle arc; opposite sector gives reflex angle','4/4：指定角度弧位置；另一角域可标注反角']}
   const state=drafting.session.state,role=roles[state.nextPoint]??[state.nextPoint??'',state.nextPoint??'']
   $('hint').textContent=`${tool.toUpperCase()} · ${role[i18n.locale==='zh'?1:0]} · ${state.points.length} ${i18n.locale==='zh'?'点':'points'} · x,y / @dx,dy / @distance<angle${state.canFinish?' · Enter':''}${state.canClose?' · C':''} · Esc`
   message($('hint').textContent);updateDraftControls()
@@ -516,11 +517,12 @@ async function runTypedCommand(){
   if(drafting&&/^@?[+\-.\d]/.test(raw)){$('command-input').value='';await applyDraftInput(raw,{coordinate:true});return}
   if(drafting&&/^(?:C|CLOSE)$/i.test(raw)){$('command-input').value='';await applyDraftInput(null,{close:true});return}
   if(drafting&&/^(?:U|BACK)$/i.test(raw)){$('command-input').value='';undoDraftPoint();return}
-  const drawCommands={LINE:'line',L:'line',PLINE:'polyline',POLYLINE:'polyline',PL:'polyline',CIRCLE:'circle',CIRCLE2P:'circle',CIRCLE3P:'circle',ARC:'arc',ARC3P:'arc',ELLIPSE:'ellipse',POLYGON:'polygon',SPLINE:'spline',HATCH:'hatch',DIMALIGNED:'dimension',DIMLINEAR:'dimension',DIMRADIUS:'dimension',DIMDIAMETER:'dimension',DIMANGULAR:'dimension',DIMANGULAR3P:'dimension',RAY:'ray',XLINE:'xline',POINT:'point',RECTANGLE:'rectangle'}
+  const drawCommands={LINE:'line',L:'line',PLINE:'polyline',POLYLINE:'polyline',PL:'polyline',CIRCLE:'circle',CIRCLE2P:'circle',CIRCLE3P:'circle',ARC:'arc',ARC3P:'arc',ELLIPSE:'ellipse',ELLIPSEARC:'ellipse',POLYGON:'polygon',SPLINE:'spline',HATCH:'hatch',DIMALIGNED:'dimension',DIMLINEAR:'dimension',DIMRADIUS:'dimension',DIMDIAMETER:'dimension',DIMANGULAR:'dimension',DIMANGULAR3P:'dimension',RAY:'ray',XLINE:'xline',POINT:'point',RECTANGLE:'rectangle'}
   const drawCommand=raw.toUpperCase()
   if(drawCommands[drawCommand]){
     if(drawCommand.startsWith('CIRCLE'))$('circle-mode').value=drawCommand==='CIRCLE2P'?'2-point':drawCommand==='CIRCLE3P'?'3-point':'center-radius'
     if(drawCommand.startsWith('ARC'))$('arc-mode').value=drawCommand==='ARC3P'?'3-point':'center-start-end'
+    if(drawCommand.startsWith('ELLIPSE'))$('ellipse-mode').value=drawCommand==='ELLIPSEARC'?'arc':'full'
     if(drawCommand.startsWith('DIM'))$('dimension-type').value=({DIMALIGNED:'ALIGNED',DIMLINEAR:'ROTATED',DIMRADIUS:'RADIUS',DIMDIAMETER:'DIAMETER',DIMANGULAR:'ANGULAR_3_POINT',DIMANGULAR3P:'ANGULAR_3_POINT'})[drawCommand]
     $('command-input').value='';setTool(drawCommands[drawCommand]);return
   }
@@ -740,6 +742,12 @@ canvas.onpointerup=e=>{
   if(drag?.started)run(()=>commitTranslation({...drag,command:'MOVE',base:drag.worldStart},translationPoint(world(location),drag.worldStart)))
   else render()
 }
+canvas.ondblclick=e=>{
+  if(e.button!==0||!drafting)return
+  const points=drafting.session.points,previous=points.at(-2),last=points.at(-1)
+  if(previous&&last&&Math.hypot(last[0]-previous[0],last[1]-previous[1])<=1e-9)undoDraftPoint()
+  if(drafting.session.state.canFinish){e.preventDefault();run(()=>applyDraftInput(null,{finish:true}))}
+}
 canvas.onpointercancel=e=>{if(!unrelatedPointer(e))setTool('select')}
 canvas.onpointerleave=e=>{if(!unrelatedPointer(e)&&boundaryEdit?.preview){boundaryEdit.preview=null;render()}}
 canvas.onlostpointercapture=e=>{if(pan?.pointerId===e.pointerId)pan=null;if([dragMove,selectionBox,gripDrag].some(binding=>binding?.pointerId===e.pointerId)){cancelSelectionGestures();render()}}
@@ -872,6 +880,7 @@ function initializeDraftingControls(){
   }
   add('circle-mode','Circle','画圆方式','circle',[['center-radius','Center / radius','圆心 / 半径'],['2-point','Two diameter points','直径两点'],['3-point','Three points','圆上三点']],'center-radius')
   add('arc-mode','Arc','圆弧方式','arc',[['center-start-end','Center / start / end','圆心 / 起点 / 终点'],['3-point','Start / through / end','起点 / 中间点 / 终点']],'center-start-end')
+  add('ellipse-mode','Ellipse','椭圆方式','ellipse',[['full','Full ellipse','完整椭圆'],['arc','Elliptical arc (5 points)','椭圆弧（五点）']],'full')
   add('polygon-sides','Sides','边数','polygon',null,6,{min:3,max:360,step:1})
   add('spline-degree','Degree','次数','spline',[['2','Quadratic','二次'],['3','Cubic','三次']],'3')
   add('dimension-type','Dimension','标注类型','dimension',[['ALIGNED','Aligned','对齐'],['ROTATED','Linear','线性'],['RADIUS','Radius','半径'],['DIAMETER','Diameter','直径'],['ANGULAR_3_POINT','Three-point angle (including reflex)','三点角度（含反角）']],'ALIGNED')
@@ -879,8 +888,8 @@ function initializeDraftingControls(){
   add('dimension-height','Text height','字高','dimension',null,2.5,{min:.001,step:.1})
   add('hatch-pattern','Pattern','图案','hatch',[['ANSI31','Diagonal','斜线'],['ANSI37','Cross','交叉'],['SOLID','Solid fill','实心']],'ANSI31')
   add('hatch-scale','Scale','比例','hatch',null,1,{min:.001,step:.1})
-  for(const [id,en,zh,action] of [['finish-draft','Finish ↵','完成 ↵',()=>run(()=>applyDraftInput(null,{finish:true}))],['close-draft','Close (C)','闭合 (C)',()=>run(()=>applyDraftInput(null,{close:true}))],['undo-draft-point','Undo point','退回一点',undoDraftPoint]]){
-    const button=bilingual(document.createElement('button'),en,zh);button.id=id;button.dataset.draftTools='polyline spline hatch';button.onclick=action;options.append(button)
+  for(const [id,en,zh,tools,action] of [['finish-draft','Finish ↵','完成 ↵','polyline spline hatch',()=>run(()=>applyDraftInput(null,{finish:true}))],['close-draft','Close (C)','闭合 (C)','polyline spline hatch',()=>run(()=>applyDraftInput(null,{close:true}))],['undo-draft-point','Undo point','退回一点','polyline spline hatch ellipse',undoDraftPoint]]){
+    const button=bilingual(document.createElement('button'),en,zh);button.id=id;button.dataset.draftTools=tools;button.onclick=action;options.append(button)
   }
   $('drop-zone').append(options)
   const modify=document.createElement('div');modify.className='ribbon-group modification-library';modify.dataset.section='modify';modify.append(bilingual(document.createElement('small'),'EDIT GEOMETRY','编辑几何'))

@@ -1644,7 +1644,16 @@ export class KJDrawWorkbench {
             signal
         });
         this.#canvas.addEventListener('dblclick', (event)=>{
-            if (this.#draftGesture?.session.state.canFinish) {
+            const session = this.#draftGesture?.session;
+            if (!session) return;
+            const points = session.points, previous = points.at(-2), last = points.at(-1);
+            if (previous && last && Math.hypot(last[0] - previous[0], last[1] - previous[1]) <= 1e-9) {
+                session.undoPoint();
+                this.#syncDraftActions();
+                this.#refreshDraftPreview();
+                this.#drawOverlay();
+            }
+            if (session.state.canFinish) {
                 event.preventDefault();
                 void this.#finishDraft(false);
             }
@@ -2170,13 +2179,23 @@ export class KJDrawWorkbench {
         const host = this.root.querySelector('[data-draft-actions]');
         if (!host) return;
         const state = this.#draftGesture?.session.state;
-        host.hidden = !state || state.maximumPoints !== null;
+        const variableLength = state?.maximumPoints === null;
+        host.hidden = !state || !variableLength && !state.points.length;
         const undo = host.querySelector('[data-action="draft-undo"]');
         const finish = host.querySelector('[data-action="draft-finish"]');
         const close = host.querySelector('[data-action="draft-close"]');
-        if (undo) undo.disabled = !state?.points.length;
-        if (finish) finish.disabled = !state?.canFinish;
-        if (close) close.disabled = !state?.canClose;
+        if (undo) {
+            undo.hidden = !state;
+            undo.disabled = !state?.points.length;
+        }
+        if (finish) {
+            finish.hidden = !variableLength;
+            finish.disabled = !state?.canFinish;
+        }
+        if (close) {
+            close.hidden = !variableLength;
+            close.disabled = !state?.canClose;
+        }
         const command = this.root.querySelector('[data-command]');
         if (command) command.placeholder = state ? this.#t('coordinateHint') : this.#t('commandHint');
     }
