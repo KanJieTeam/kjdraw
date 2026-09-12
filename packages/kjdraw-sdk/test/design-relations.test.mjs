@@ -91,6 +91,9 @@ test('designs persist in KJD and reopen for further updates; DXF requires explic
 
 test('conflicts, missing dependencies, cycles, duplicate writes and unmet requirements reject without changing the drawing', async () => {
   const { sdk, document, design } = await fixture()
+  let before = document.serialize()
+  await assert.rejects(sdk.executeCommand('DESIGNUPDATE', { id: design.id, parameters: { width: 40 } }), /requirement width_clearance failed: -10 outside \[0, 1000\]/)
+  assert.equal(document.serialize(), before)
   const invalidPatches = [{ width: 40 }, { width: 0 }, { width: NaN }, { width: Infinity }, { width: '300' }, { right: 300 }, { unknown: 1 }, {}, { width: 200 }, { margin: 100 }]
   for (const parameters of invalidPatches) {
     const before = document.serialize()
@@ -110,9 +113,19 @@ test('conflicts, missing dependencies, cycles, duplicate writes and unmet requir
     await assert.rejects(sdk.executeCommand('DESIGNCREATE', { name: 'Invalid design', definition }), /Design relations/)
     assert.equal(document.serialize(), before)
   }
+  for (const [change, message] of [
+    [m => { m.derived[0].expression = expr('missing_width') }, /under-defined derived parameter right: missing parameter missing_width/],
+    [m => { m.bindings[0].expression = expr('missing_width') }, /under-defined binding outline.vertices.1.0: missing parameter missing_width/],
+    [m => { m.requirements[0].expression = expr('missing_width') }, /under-defined requirement width_clearance: missing parameter missing_width/],
+    [m => { m.derived[0].expression = expr('top'); m.derived[1].expression = expr('right') }, /derived parameter dependency cycle: right, top/],
+  ]) {
+    const definition = model(); change(definition); const unchanged = document.serialize()
+    await assert.rejects(sdk.executeCommand('DESIGNCREATE', { name: 'Diagnostic design', definition }), message)
+    assert.equal(document.serialize(), unchanged)
+  }
   await sdk.executeCommand('MOVE', { ids: ['h0'], dx: 1, dy: 0 })
   assert.deepEqual(readDesignRelations(document)[0].driftedEntityIds, ['h0'])
-  const before = document.serialize()
+  before = document.serialize()
   await assert.rejects(sdk.executeCommand('DESIGNUPDATE', { id: design.id, parameters: { width: 300 } }), /geometry conflict at h0/)
   assert.equal(document.serialize(), before)
 })

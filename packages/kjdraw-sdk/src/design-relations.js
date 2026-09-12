@@ -130,6 +130,14 @@ function definition(input) {
             ...range(requirement)
         };
     });
+    const declared = new Set(names);
+    const requireDefined = (scope, expr)=>{
+        const missing = expr.terms.map((term)=>term.parameter).filter((parameter)=>!declared.has(parameter));
+        if (missing.length) fail(`under-defined ${scope}: missing parameter${missing.length === 1 ? '' : 's'} ${missing.join(', ')}`);
+    };
+    for (const parameter of derived)requireDefined(`derived parameter ${parameter.name}`, parameter.expression);
+    for (const binding of bindings)requireDefined(`binding ${binding.entityId}.${binding.path}`, binding.expression);
+    for (const requirement of requirements)requireDefined(`requirement ${requirement.name}`, requirement.expression);
     return {
         parameters,
         derived,
@@ -151,7 +159,7 @@ function resolve(model) {
             pending.delete(name);
             progressed = true;
         }
-        if (!progressed) fail(`missing parameters or dependency cycle: ${[
+        if (!progressed) fail(`derived parameter dependency cycle: ${[
             ...pending.keys()
         ].join(', ')}`);
     }

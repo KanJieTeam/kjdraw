@@ -85,3 +85,30 @@ test('chat binds original native geometry and keeps the new design editable thro
   expect(reopened.activeDocument.getObject('hole').payload.center).toEqual([18,2,3])
   expect(reopened.activeDocument.getObject('hole').handle).toBe(document.getObject('hole').handle)
 })
+
+test('chat returns concrete under-defined relation feedback to the model without changing native geometry', async ({page})=>{
+  const sdk=createKJDrawSDK(), document=sdk.createDocument({units:'millimeter'})
+  await document.transact('Original plate edge',tx=>tx.createEntity('LINE',{start:[0,0,0],end:[100,0,0]},{id:'edge'}))
+  await page.goto('/');await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
+  await page.locator('#file-input').setInputFiles({name:'under-defined.kjd',mimeType:'application/json',buffer:Buffer.from(document.serialize())})
+  await page.locator('#agent-tab').click();await page.getByRole('button',{name:'Connect model',exact:true}).click()
+  await page.locator('#chat-endpoint').fill('/api/model');await page.locator('#chat-model').fill('browser-fixture');await page.locator('#chat-protocol').selectOption('chat-completions')
+  await page.getByRole('button',{name:'Use this connection',exact:true}).click()
+  const requests=[]
+  await page.route('**/api/model',route=>{
+    requests.push(route.request().postDataJSON())
+    if(requests.length===1)return route.fulfill({json:{choices:[{finish_reason:'tool_calls',message:{role:'assistant',content:null,tool_calls:[{
+      id:'under-defined',type:'function',function:{name:'cad_propose_design_bind',arguments:JSON.stringify({expectedRevision:document.revision,units:'millimeter',name:'Plate edge',definition:{
+        parameters:[{name:'width',value:100,min:10,max:1000}],derived:[],
+        bindings:[{entityId:'edge',path:'end.0',expression:{constant:0,terms:[{parameter:'missing_width',coefficient:1}]}}],requirements:[],
+      }})},
+    }]}}]}})
+    return route.fulfill({json:{choices:[{finish_reason:'stop',message:{role:'assistant',content:'The relation is under-defined and was not applied.'}}]}})
+  })
+  await page.locator('#chat-input').fill('Bind the plate width.');await page.locator('#chat-send').click()
+  await expect(page.locator('#chat-messages')).toContainText('The relation is under-defined and was not applied.')
+  expect(requests).toHaveLength(2)
+  expect(JSON.stringify(requests[1])).toContain('under-defined binding edge.end.0: missing parameter missing_width')
+  await expect(page.getByRole('button',{name:'Apply changes',exact:true})).toHaveCount(0)
+  await expect(page.locator('#entity-count')).toHaveText('1 entities')
+})

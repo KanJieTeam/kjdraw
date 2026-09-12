@@ -88,6 +88,14 @@ function definition(input: unknown): KJDesignDefinition {
     requirementNames.add(requirement.name)
     return { name: requirement.name, expression: expression(requirement.expression), ...range(requirement) }
   })
+  const declared = new Set(names)
+  const requireDefined = (scope: string, expr: KJDesignExpression): void => {
+    const missing = expr.terms.map(term => term.parameter).filter(parameter => !declared.has(parameter))
+    if (missing.length) fail(`under-defined ${scope}: missing parameter${missing.length === 1 ? '' : 's'} ${missing.join(', ')}`)
+  }
+  for (const parameter of derived) requireDefined(`derived parameter ${parameter.name}`, parameter.expression)
+  for (const binding of bindings) requireDefined(`binding ${binding.entityId}.${binding.path}`, binding.expression)
+  for (const requirement of requirements) requireDefined(`requirement ${requirement.name}`, requirement.expression)
   return { parameters, derived, bindings, requirements }
 }
 function resolve(model: KJDesignDefinition): Record<string, number> {
@@ -99,7 +107,7 @@ function resolve(model: KJDesignDefinition): Record<string, number> {
     for (const [name, expr] of pending) if (expr.terms.every(term => Object.hasOwn(values, term.parameter))) {
       values[name] = evaluate(expr, values); pending.delete(name); progressed = true
     }
-    if (!progressed) fail(`missing parameters or dependency cycle: ${[...pending.keys()].join(', ')}`)
+    if (!progressed) fail(`derived parameter dependency cycle: ${[...pending.keys()].join(', ')}`)
   }
   for (const requirement of model.requirements) {
     const actual = evaluate(requirement.expression, values)
