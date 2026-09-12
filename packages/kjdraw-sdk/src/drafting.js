@@ -1,6 +1,7 @@
 // Generated from drafting.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJValidationError } from './errors.js';
 import { projectDimension } from './geometry/annotation.js';
+import { normalizeDimensionAssociations } from './dimension-associations.js';
 const TOOLS = new Set([
     'line',
     'polyline',
@@ -355,6 +356,7 @@ export class KJDraftingSession {
     tool;
     #options;
     #points = [];
+    #pointReferences = [];
     #status = 'collecting';
     #result = null;
     constructor(tool, options = {}){
@@ -367,6 +369,11 @@ export class KJDraftingSession {
                 point[0],
                 point[1]
             ]);
+    }
+    get pointReferences() {
+        return this.#pointReferences.map((reference)=>reference ? Object.freeze({
+                ...reference
+            }) : null);
     }
     get state() {
         const { minimum, maximum } = pointCounts(this.tool, this.#options);
@@ -387,7 +394,7 @@ export class KJDraftingSession {
             canClose: collecting && closable && this.#points.length >= (this.tool === 'spline' ? Math.max(3, minimum - 1) : 3)
         };
     }
-    addPoint(value) {
+    addPoint(value, reference = null) {
         this.#assertCollecting();
         const { maximum } = pointCounts(this.tool, this.#options);
         if (maximum !== null && this.#points.length >= maximum) throw new KJValidationError(`${this.tool} already has all required points`);
@@ -395,12 +402,30 @@ export class KJDraftingSession {
         const previous = this.#points.at(-1);
         if (previous && near(previous, point, this.#options.tolerance)) throw new KJValidationError('Consecutive draft points must be distinct');
         if (this.tool === 'dimension' && this.#options.dimensionType === 'ANGULAR_3_POINT' && this.#points.length === 2) requireDistinct(this.#points[0], point, this.#options.tolerance, 'Angular second ray and vertex');
+        if (reference && this.tool !== 'dimension') throw new KJValidationError('Draft point references are only supported by dimensions');
+        const normalizedReference = reference ? normalizeDimensionAssociations([
+            {
+                definitionPointIndex: 0,
+                ...reference
+            }
+        ])[0] : null;
         this.#points.push(point);
+        this.#pointReferences.push(normalizedReference ? {
+            entityId: normalizedReference.entityId,
+            feature: normalizedReference.feature,
+            ...normalizedReference.vertexIndex === undefined ? {} : {
+                vertexIndex: normalizedReference.vertexIndex
+            },
+            ...normalizedReference.angle === undefined ? {} : {
+                angle: normalizedReference.angle
+            }
+        } : null);
         if (maximum === null || this.#points.length !== maximum) return null;
         try {
             return this.#complete(this.#build(this.#points, false));
         } catch (error) {
             this.#points.pop();
+            this.#pointReferences.pop();
             throw error;
         }
     }
@@ -467,6 +492,7 @@ export class KJDraftingSession {
     undoPoint() {
         this.#assertCollecting();
         const removed = this.#points.pop();
+        this.#pointReferences.pop();
         return removed ? [
             removed[0],
             removed[1]
@@ -474,6 +500,7 @@ export class KJDraftingSession {
     }
     cancel() {
         this.#points = [];
+        this.#pointReferences = [];
         this.#result = null;
         this.#status = 'cancelled';
     }
@@ -590,6 +617,30 @@ export class KJDraftingSession {
         if (this.#options.textPosition) payload.textPosition = point3(this.#options.textPosition);
         if (this.#options.textOverride !== null) payload.textOverride = this.#options.textOverride;
         if (this.#options.textHeight !== null) payload.textHeight = this.#options.textHeight;
+        const indexMap = type === 'ANGULAR_3_POINT' ? [
+            3,
+            1,
+            2,
+            null
+        ] : type === 'ALIGNED' || type === 'ROTATED' ? [
+            1,
+            2,
+            null
+        ] : [
+            0,
+            1
+        ];
+        let associations = this.#pointReferences.flatMap((reference, index)=>{
+            const definitionPointIndex = indexMap[index];
+            return reference && definitionPointIndex !== null && definitionPointIndex !== undefined ? [
+                {
+                    definitionPointIndex,
+                    ...reference
+                }
+            ] : [];
+        });
+        if ((type === 'RADIUS' || type === 'DIAMETER') && (associations.length !== 2 || associations[0].entityId !== associations[1].entityId)) associations = [];
+        if (associations.length) payload.dimensionAssociations = normalizeDimensionAssociations(associations);
         return this.#spec('DIMENSION', payload);
     }
     #build(source, closed) {

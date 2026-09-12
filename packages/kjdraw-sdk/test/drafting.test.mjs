@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { constrainOrthogonalDraftPoint, createDraftingSession, parseDraftCoordinate } from '../src/drafting.js'
 import { createKJDrawSDK } from '../src/index.js'
+import { projectDimension } from '../src/geometry/annotation.js'
 
 const closeTo=(actual,expected,tolerance=1e-9)=>assert.ok(Math.abs(actual-expected)<=tolerance,`${actual} != ${expected}`)
 
@@ -102,6 +103,77 @@ test('hatch and dimension drafts emit native payload contracts',()=>{
   assert.deepEqual(radiusSpec?.payload.definitionPoints,[[0,0,0],[0,3,0]]);assert.equal(radiusSpec?.payload.measurement,3)
   const diameter=createDraftingSession('dimension',{dimensionType:'DIAMETER'});diameter.addPoint([-2,0]);const diameterSpec=diameter.addPoint([2,0])
   assert.deepEqual(diameterSpec?.payload.definitionPoints,[[-2,0,0],[2,0,0]]);assert.equal(diameterSpec?.payload.measurement,4)
+})
+
+test('dimension drafts preserve referenced snap features through point ordering, undo and validation retry',()=>{
+  const lineStart={entityId:'line-a',feature:'start'},lineEnd={entityId:'line-a',feature:'end'}
+  for(const type of ['ALIGNED','ROTATED']){
+    const draft=createDraftingSession('dimension',{dimensionType:type,rotation:0})
+    draft.addPoint([0,0],lineStart);draft.addPoint([10,0],lineEnd)
+    assert.deepEqual(draft.pointReferences,[lineStart,lineEnd])
+    const spec=draft.addPoint([5,4],{entityId:'ignored-placement',feature:'center'})
+    assert.deepEqual(spec.payload.dimensionAssociations,[
+      {definitionPointIndex:1,...lineStart},{definitionPointIndex:2,...lineEnd},
+    ])
+  }
+
+  const angular=createDraftingSession('dimension',{dimensionType:'ANGULAR_3_POINT'})
+  angular.addPoint([0,0],lineStart);angular.addPoint([10,0],lineEnd)
+  angular.addPoint([0,10],{entityId:'line-b',feature:'end'})
+  assert.deepEqual(angular.undoPoint(),[0,10]);assert.deepEqual(angular.pointReferences,[lineStart,lineEnd])
+  angular.addPoint([0,10],{entityId:'line-b',feature:'end'})
+  assert.throws(()=>angular.addPoint([6,0],{entityId:'ignored-placement',feature:'center'}),/ambiguous/)
+  assert.equal(angular.points.length,3);assert.equal(angular.pointReferences.length,3)
+  const angularSpec=angular.addPoint([6,6])
+  assert.deepEqual(angularSpec.payload.dimensionAssociations,[
+    {definitionPointIndex:3,...lineStart},{definitionPointIndex:1,...lineEnd},
+    {definitionPointIndex:2,entityId:'line-b',feature:'end'},
+  ])
+
+  const radius=createDraftingSession('dimension',{dimensionType:'RADIUS'})
+  radius.addPoint([0,0],{entityId:'circle',feature:'center'})
+  assert.deepEqual(radius.addPoint([5,0],{entityId:'circle',feature:'curve',angle:0}).payload.dimensionAssociations,[
+    {definitionPointIndex:0,entityId:'circle',feature:'center'},
+    {definitionPointIndex:1,entityId:'circle',feature:'curve',angle:0},
+  ])
+  const mismatched=createDraftingSession('dimension',{dimensionType:'DIAMETER'})
+  mismatched.addPoint([-5,0],{entityId:'circle-a',feature:'curve',angle:Math.PI})
+  assert.equal(mismatched.addPoint([5,0],{entityId:'circle-b',feature:'curve',angle:0}).payload.dimensionAssociations,undefined)
+  const cancelled=createDraftingSession('dimension');cancelled.addPoint([0,0],lineStart);cancelled.cancel();assert.deepEqual(cancelled.pointReferences,[])
+  assert.throws(()=>createDraftingSession('line').addPoint([0,0],lineStart),/only supported by dimensions/)
+})
+
+test('drafted associative dimensions update atomically and survive history plus KJD/DXF reopen',async()=>{
+  const sdk=createKJDrawSDK(),drawing=sdk.createDocument({documentId:'drafted-associations',units:'millimeter'})
+  await drawing.transact('Sources',tx=>{
+    tx.createEntity('LINE',{start:[0,0,0],end:[10,0,0]},{id:'line-source'})
+    tx.createEntity('CIRCLE',{center:[20,0,0],radius:5},{id:'circle-source'})
+  })
+  const aligned=createDraftingSession('dimension',{dimensionType:'ALIGNED'})
+  aligned.addPoint([0,0],{entityId:'line-source',feature:'start'})
+  aligned.addPoint([10,0],{entityId:'line-source',feature:'end'})
+  const alignedSpec=aligned.addPoint([5,4])
+  const radius=createDraftingSession('dimension',{dimensionType:'RADIUS'})
+  radius.addPoint([20,0],{entityId:'circle-source',feature:'center'})
+  const radiusSpec=radius.addPoint([25,0],{entityId:'circle-source',feature:'curve',angle:0})
+  const [linearDimension,radiusDimension]=await sdk.executeCommand('CREATEBATCH',{entities:[alignedSpec,radiusSpec]},{document:drawing})
+  const identity=[linearDimension.id,linearDimension.handle]
+  await sdk.executeCommand('LENGTHEN',{id:'line-source',totalLength:18,endpoint:'end'},{document:drawing})
+  await sdk.executeCommand('PROPERTIES',{id:'circle-source',patch:{payload:{radius:8}}},{document:drawing})
+  assert.equal(projectDimension(drawing.getObject(linearDimension.id).payload).measurement,18)
+  assert.equal(projectDimension(drawing.getObject(radiusDimension.id).payload).measurement,8)
+  assert.deepEqual([drawing.getObject(linearDimension.id).id,drawing.getObject(linearDimension.id).handle],identity)
+  await sdk.executeCommand('UNDO',{}, {document:drawing});assert.equal(projectDimension(drawing.getObject(radiusDimension.id).payload).measurement,5)
+  await sdk.executeCommand('REDO',{}, {document:drawing});assert.equal(projectDimension(drawing.getObject(radiusDimension.id).payload).measurement,8)
+  for(const format of ['KJD','DXF']){
+    const content=await sdk.writeDocument(drawing,{format}),copySdk=createKJDrawSDK(),copy=await copySdk.readDocument(content,{format})
+    const dimensions=copy.listEntities({type:'DIMENSION'})
+    assert.equal(dimensions.length,2);assert.ok(dimensions.every(entity=>Array.isArray(entity.payload.dimensionAssociations)))
+    const reopenedLinear=dimensions.find(entity=>entity.payload.dimensionType==='ALIGNED')
+    const sourceId=reopenedLinear.payload.dimensionAssociations.find(item=>item.feature==='end').entityId
+    await copySdk.executeCommand('LENGTHEN',{id:sourceId,totalLength:24,endpoint:'end'},{document:copy})
+    assert.equal(projectDimension(copy.getObject(reopenedLinear.id).payload).measurement,24)
+  }
 })
 
 test('draft validation rejects non-finite and degenerate construction geometry',()=>{

@@ -773,6 +773,7 @@ export class KJDrawWorkbench {
     #cursorWorld = null;
     #snapWorld = null;
     #snapMode = null;
+    #snapCandidate = null;
     #pendingText = 'KJDraw';
     #snappableEntityIds = [];
     #panStart = null;
@@ -2214,6 +2215,7 @@ export class KJDrawWorkbench {
             return;
         }
         const points = gesture.session.points;
+        const pointReferences = gesture.session.pointReferences;
         const variableLength = gesture.session.state.maximumPoints === null;
         const receipt = await this.#run(()=>this.execute('CREATE', {
                 type: spec.type,
@@ -2228,7 +2230,7 @@ export class KJDrawWorkbench {
         if (!receipt) {
             this.#beginDraftGesture(gesture.session.tool);
             const retryPoints = variableLength ? points : points.slice(0, -1);
-            for (const point of retryPoints)this.#draftGesture?.session.addPoint(point);
+            for (const [index, point] of retryPoints.entries())this.#draftGesture?.session.addPoint(point, pointReferences[index] ?? null);
             this.renderer.render();
             this.#syncDraftActions();
             this.#refreshDraftPreview();
@@ -2241,14 +2243,14 @@ export class KJDrawWorkbench {
         this.#refreshDraftPreview();
         this.#drawOverlay();
     }
-    async #addDraftPoint(world) {
+    async #addDraftPoint(world, reference = null) {
         const gesture = this.#draftGesture;
         if (!gesture || gesture.document !== this.document) {
             this.#cancelGesture();
             return;
         }
         const result = await this.#run(()=>({
-                spec: gesture.session.addPoint(world)
+                spec: gesture.session.addPoint(world, reference)
             }));
         if (!result) return;
         const { spec } = result;
@@ -3314,11 +3316,13 @@ export class KJDrawWorkbench {
     #snapAt(world, excludeIds = []) {
         if (this.paperPreview) {
             this.#snapMode = null;
+            this.#snapCandidate = null;
             return null;
         }
         const drawing = this.document;
         if (!drawing || !this.#snappableEntityIds.length) {
             this.#snapMode = null;
+            this.#snapCandidate = null;
             return null;
         }
         let settings;
@@ -3326,10 +3330,12 @@ export class KJDrawWorkbench {
             settings = getDocumentSnapSettings(drawing);
         } catch  {
             this.#snapMode = null;
+            this.#snapCandidate = null;
             return null;
         }
         if (!settings.modes.length) {
             this.#snapMode = null;
+            this.#snapCandidate = null;
             return null;
         }
         const referencePoint = this.#orthoBase();
@@ -3344,10 +3350,54 @@ export class KJDrawWorkbench {
             } : {}
         })[0];
         this.#snapMode = candidate?.mode ?? null;
+        this.#snapCandidate = candidate ?? null;
         return candidate ? [
             candidate.point[0],
             candidate.point[1]
         ] : null;
+    }
+    #dimensionPointReference(candidate, role) {
+        if (this.#draftGesture?.session.tool !== 'dimension' || !candidate || candidate.entityIds.length !== 1) return null;
+        if (!role || role === 'placement' || role === 'angularPlacement') return null;
+        const source = this.document?.getObject(candidate.entityIds[0]);
+        if (!source || source.kind !== 'entity' || source.erased || source.ownerId !== (this.spaceId ?? this.document?.spaces.modelSpaceId)) return null;
+        if (candidate.mode === 'endpoint') {
+            if ((source.type === 'LINE' || source.type === 'ARC') && (candidate.role === 'start' || candidate.role === 'end')) {
+                return {
+                    entityId: source.id,
+                    feature: candidate.role
+                };
+            }
+            if (source.type === 'LWPOLYLINE' && Number.isSafeInteger(candidate.vertexIndex) && Number(candidate.vertexIndex) >= 0) {
+                const vertices = source.payload.vertices;
+                if (!Array.isArray(vertices) || vertices.some((vertex)=>Number(vertex && typeof vertex === 'object' && 'bulge' in vertex ? vertex.bulge : 0) !== 0)) return null;
+                return {
+                    entityId: source.id,
+                    feature: 'vertex',
+                    vertexIndex: Number(candidate.vertexIndex)
+                };
+            }
+            return null;
+        }
+        if (candidate.mode === 'center' && (source.type === 'CIRCLE' || source.type === 'ARC')) return {
+            entityId: source.id,
+            feature: 'center'
+        };
+        if (source.type !== 'CIRCLE' || ![
+            'quadrant',
+            'nearest',
+            'perpendicular',
+            'tangent'
+        ].includes(candidate.mode)) return null;
+        const center = source.payload.center;
+        if (!Array.isArray(center)) return null;
+        const angle = candidate.angle ?? Math.atan2(candidate.point[1] - Number(center[1]), candidate.point[0] - Number(center[0]));
+        if (!Number.isFinite(angle)) return null;
+        return {
+            entityId: source.id,
+            feature: 'curve',
+            angle
+        };
     }
     #showSnap(world) {
         const marker = this.root.querySelector('[data-snap]');
@@ -3381,6 +3431,7 @@ export class KJDrawWorkbench {
     #hideSnap() {
         this.#snapWorld = null;
         this.#snapMode = null;
+        this.#snapCandidate = null;
         const marker = this.root.querySelector('[data-snap]');
         if (marker) {
             marker.style.display = 'none';
@@ -3681,7 +3732,8 @@ export class KJDrawWorkbench {
             return;
         }
         if (this.#draftGesture) {
-            await this.#addDraftPoint(world);
+            const role = this.#draftGesture.session.state.nextPoint;
+            await this.#addDraftPoint(world, snapped ? this.#dimensionPointReference(this.#snapCandidate, role) : null);
             return;
         }
         if (this.#modificationGesture) {

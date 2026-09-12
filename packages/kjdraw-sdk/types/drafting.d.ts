@@ -1,6 +1,8 @@
+import { type KJDimensionPointAssociation } from './dimension-associations.js';
 import type { KJStandardEntityType } from './constants.js';
 import type { KJObjectPayload, KJObjectSpec } from './schema.js';
 export type KJDraftPoint = readonly [number, number];
+export type KJDraftPointReference = Omit<KJDimensionPointAssociation, 'definitionPointIndex'>;
 export type KJDraftTool = 'line' | 'polyline' | 'circle' | 'arc' | 'ellipse' | 'rectangle' | 'polygon' | 'point' | 'ray' | 'xline' | 'spline' | 'hatch' | 'dimension';
 export type KJDraftCircleMode = 'center-radius' | '2-point' | '3-point';
 export type KJDraftArcMode = 'center-start-end' | '3-point';
@@ -52,8 +54,9 @@ export declare class KJDraftingSession {
     readonly tool: KJDraftTool;
     constructor(tool: KJDraftTool, options?: KJDraftingOptions);
     get points(): readonly KJDraftPoint[];
+    get pointReferences(): readonly (Readonly<KJDraftPointReference> | null)[];
     get state(): KJDraftState;
-    addPoint(value: KJDraftPoint): KJDraftEntitySpec | null;
+    addPoint(value: KJDraftPoint, reference?: KJDraftPointReference | null): KJDraftEntitySpec | null;
     addCoordinate(input: string, relativeBase?: KJDraftPoint | undefined): KJDraftEntitySpec | null;
     preview(cursor?: KJDraftPoint): KJDraftEntitySpec | null;
     finish(): KJDraftEntitySpec;

@@ -5,7 +5,7 @@ import { KJDocument } from './document.js'
 import type { KJCommandArguments } from './commands.js'
 import { editEntityGrip, type KJEntityGrip } from './grips.js'
 import type { KJReadonlyObjectRecord } from './schema.js'
-import { getDocumentSnapSettings, type KJSnapMode } from './snapping.js'
+import { getDocumentSnapSettings, type KJSnapCandidate, type KJSnapMode } from './snapping.js'
 import type { KJDxfPlotSettings } from './plot-settings.js'
 import type { KJFileAdapterOptions, KJFileReadProgress } from './file-adapters.js'
 import { openDrawingPrintWindow, type KJDrawingPrintHtml, type KJDrawingPrintOptions } from './print-export.js'
@@ -30,6 +30,7 @@ import {
   type KJDraftEntitySpec,
   type KJDraftingOptions,
   type KJDraftingSession,
+  type KJDraftPointReference,
   type KJDraftPointRole,
   type KJDraftTool,
 } from './drafting.js'
@@ -388,6 +389,7 @@ export class KJDrawWorkbench {
   #cursorWorld: Point2 | null = null
   #snapWorld: Point2 | null = null
   #snapMode: KJSnapMode | null = null
+  #snapCandidate: Readonly<KJSnapCandidate> | null = null
   #pendingText = 'KJDraw'
   #snappableEntityIds: string[] = []
   #panStart: Point2 | null = null
@@ -1279,6 +1281,7 @@ export class KJDrawWorkbench {
   async #commitDraft(gesture: KJWorkbenchDraftGesture, spec: KJDraftEntitySpec): Promise<void> {
     if (this.document !== gesture.document) { this.#cancelGesture(); return }
     const points = gesture.session.points
+    const pointReferences = gesture.session.pointReferences
     const variableLength = gesture.session.state.maximumPoints === null
     const receipt = await this.#run(() => this.execute('CREATE', {
       type: spec.type,
@@ -1289,7 +1292,7 @@ export class KJDrawWorkbench {
     if (!receipt) {
       this.#beginDraftGesture(gesture.session.tool)
       const retryPoints = variableLength ? points : points.slice(0, -1)
-      for (const point of retryPoints) this.#draftGesture?.session.addPoint(point)
+      for (const [index, point] of retryPoints.entries()) this.#draftGesture?.session.addPoint(point, pointReferences[index] ?? null)
       this.renderer.render()
       this.#syncDraftActions()
       this.#refreshDraftPreview()
@@ -1303,10 +1306,10 @@ export class KJDrawWorkbench {
     this.#drawOverlay()
   }
 
-  async #addDraftPoint(world: Point2): Promise<void> {
+  async #addDraftPoint(world: Point2, reference: KJDraftPointReference | null = null): Promise<void> {
     const gesture = this.#draftGesture
     if (!gesture || gesture.document !== this.document) { this.#cancelGesture(); return }
-    const result = await this.#run(() => ({ spec: gesture.session.addPoint(world) }))
+    const result = await this.#run(() => ({ spec: gesture.session.addPoint(world, reference) }))
     if (!result) return // Keep the validation error visible; no point was accepted.
     const { spec } = result
     if (spec) { await this.#commitDraft(gesture, spec); return }
@@ -1970,12 +1973,12 @@ export class KJDrawWorkbench {
   }
 
   #snapAt(world: Point2, excludeIds: readonly string[] = []): Point2 | null {
-    if (this.paperPreview) { this.#snapMode = null; return null }
+    if (this.paperPreview) { this.#snapMode = null; this.#snapCandidate = null; return null }
     const drawing = this.document
-    if (!drawing || !this.#snappableEntityIds.length) { this.#snapMode = null; return null }
+    if (!drawing || !this.#snappableEntityIds.length) { this.#snapMode = null; this.#snapCandidate = null; return null }
     let settings
-    try { settings = getDocumentSnapSettings(drawing) } catch { this.#snapMode = null; return null }
-    if (!settings.modes.length) { this.#snapMode = null; return null }
+    try { settings = getDocumentSnapSettings(drawing) } catch { this.#snapMode = null; this.#snapCandidate = null; return null }
+    if (!settings.modes.length) { this.#snapMode = null; this.#snapCandidate = null; return null }
     const referencePoint = this.#orthoBase()
     const candidate = this.sdk.snap(world, {
       document: drawing,
@@ -1986,7 +1989,33 @@ export class KJDrawWorkbench {
       ...(referencePoint ? { referencePoint } : {}),
     })[0]
     this.#snapMode = candidate?.mode ?? null
+    this.#snapCandidate = candidate ?? null
     return candidate ? [candidate.point[0], candidate.point[1]] : null
+  }
+
+  #dimensionPointReference(candidate: Readonly<KJSnapCandidate> | null, role: KJDraftPointRole | null): KJDraftPointReference | null {
+    if (this.#draftGesture?.session.tool !== 'dimension' || !candidate || candidate.entityIds.length !== 1) return null
+    if (!role || role === 'placement' || role === 'angularPlacement') return null
+    const source = this.document?.getObject(candidate.entityIds[0]!)
+    if (!source || source.kind !== 'entity' || source.erased || source.ownerId !== (this.spaceId ?? this.document?.spaces.modelSpaceId)) return null
+    if (candidate.mode === 'endpoint') {
+      if ((source.type === 'LINE' || source.type === 'ARC') && (candidate.role === 'start' || candidate.role === 'end')) {
+        return { entityId: source.id, feature: candidate.role }
+      }
+      if (source.type === 'LWPOLYLINE' && Number.isSafeInteger(candidate.vertexIndex) && Number(candidate.vertexIndex) >= 0) {
+        const vertices = source.payload.vertices
+        if (!Array.isArray(vertices) || vertices.some(vertex => Number(vertex && typeof vertex === 'object' && 'bulge' in vertex ? vertex.bulge : 0) !== 0)) return null
+        return { entityId: source.id, feature: 'vertex', vertexIndex: Number(candidate.vertexIndex) }
+      }
+      return null
+    }
+    if (candidate.mode === 'center' && (source.type === 'CIRCLE' || source.type === 'ARC')) return { entityId: source.id, feature: 'center' }
+    if (source.type !== 'CIRCLE' || !['quadrant', 'nearest', 'perpendicular', 'tangent'].includes(candidate.mode)) return null
+    const center = source.payload.center
+    if (!Array.isArray(center)) return null
+    const angle = candidate.angle ?? Math.atan2(candidate.point[1] - Number(center[1]), candidate.point[0] - Number(center[0]))
+    if (!Number.isFinite(angle)) return null
+    return { entityId: source.id, feature: 'curve', angle }
   }
 
   #showSnap(world: Point2 | null): void {
@@ -2007,6 +2036,7 @@ export class KJDrawWorkbench {
   #hideSnap(): void {
     this.#snapWorld = null
     this.#snapMode = null
+    this.#snapCandidate = null
     const marker = this.root.querySelector<HTMLElement>('[data-snap]')
     if (marker) { marker.style.display = 'none'; delete marker.dataset.mode; delete marker.dataset.label; marker.removeAttribute('aria-label') }
   }
@@ -2226,7 +2256,11 @@ export class KJDrawWorkbench {
       if (!previous || Math.hypot(previous[0] - rawWorld[0], previous[1] - rawWorld[1]) > 1e-12) fence.points.push(rawWorld)
       this.#setMessage(this.#t('fenceHint')); this.#drawOverlay(); return
     }
-    if (this.#draftGesture) { await this.#addDraftPoint(world); return }
+    if (this.#draftGesture) {
+      const role = this.#draftGesture.session.state.nextPoint
+      await this.#addDraftPoint(world, snapped ? this.#dimensionPointReference(this.#snapCandidate, role) : null)
+      return
+    }
     if (this.#modificationGesture) { await this.#addModificationPoint(world); return }
     if (this.#tool === 'select') {
       const hit = this.renderer.hitTest(location, 9)
