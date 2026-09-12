@@ -83,7 +83,7 @@ export interface KJAgentTaskGeometryReceipt {
     planId: string;
     executionEnvelopeId: string;
     reviewerId: string;
-    command: 'CREATEBATCH' | 'MOVE';
+    command: 'CREATEBATCH' | 'MOVE' | 'ROTATE';
     sourceToolName: string;
     beforeRevision: number;
     afterRevision: number;
@@ -201,6 +201,27 @@ export interface KJAgentTaskMoveApprovalResult {
     task: KJObjectRecord;
     receipt: KJAgentTaskGeometryReceipt;
 }
+export interface KJAgentTaskRotateApprovalInput {
+    id: string;
+    expectedRevision: number;
+    expectedTaskVersion: number;
+    expectedStatus: 'running';
+    expectedScopeSha256: string;
+    sourceToolName: string;
+    toolApiVersion: string;
+    toolContractHash: string;
+    argumentsDigest: string;
+    capabilityLocks: KJAgentTaskCapabilityLock[];
+    planId: string;
+    executionEnvelopeId: string;
+    reviewerId: string;
+    rotatedEntityIds: string[];
+    at: string;
+}
+export interface KJAgentTaskRotateApprovalResult {
+    task: KJObjectRecord;
+    receipt: KJAgentTaskGeometryReceipt;
+}
 export interface KJAgentTaskView extends KJAgentTaskPayload {
     id: string;
     handle: string;
@@ -224,5 +245,7 @@ export declare function transitionAgentTask(document: KJDocument, tx: KJTransact
 export declare function commitAgentTaskCreateBatchApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskCreateBatchApprovalResult>;
 /** Complete one reviewed MOVE and its deterministic checks in the caller's transaction draft. */
 export declare function commitAgentTaskMoveApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskMoveApprovalResult>;
+/** Complete one reviewed ROTATE and its deterministic checks in the caller's transaction draft. */
+export declare function commitAgentTaskRotateApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskRotateApprovalResult>;
 /** Explicitly accept the current dependency snapshot after stale or ambiguous approval recovery. */
 export declare function rebaseAgentTask(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJObjectRecord>;

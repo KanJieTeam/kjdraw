@@ -38,7 +38,7 @@ export interface KJAgentTaskGeometryReceipt {
   planId: string
   executionEnvelopeId: string
   reviewerId: string
-  command: 'CREATEBATCH' | 'MOVE'
+  command: 'CREATEBATCH' | 'MOVE' | 'ROTATE'
   sourceToolName: string
   beforeRevision: number
   afterRevision: number
@@ -148,6 +148,24 @@ export interface KJAgentTaskMoveApprovalInput {
   at: string
 }
 export interface KJAgentTaskMoveApprovalResult { task: KJObjectRecord; receipt: KJAgentTaskGeometryReceipt }
+export interface KJAgentTaskRotateApprovalInput {
+  id: string
+  expectedRevision: number
+  expectedTaskVersion: number
+  expectedStatus: 'running'
+  expectedScopeSha256: string
+  sourceToolName: string
+  toolApiVersion: string
+  toolContractHash: string
+  argumentsDigest: string
+  capabilityLocks: KJAgentTaskCapabilityLock[]
+  planId: string
+  executionEnvelopeId: string
+  reviewerId: string
+  rotatedEntityIds: string[]
+  at: string
+}
+export interface KJAgentTaskRotateApprovalResult { task: KJObjectRecord; receipt: KJAgentTaskGeometryReceipt }
 export interface KJAgentTaskView extends KJAgentTaskPayload { id: string; handle: string }
 export interface KJAgentTaskInspection {
   task: KJAgentTaskView
@@ -355,16 +373,17 @@ function receiptCheck(value: unknown): KJDrawingValidationCheckResult {
 }
 function geometryReceipt(value: unknown): KJAgentTaskGeometryReceipt {
   const row = plain(value, ['schema', 'schemaVersion', 'receiptId', 'taskId', 'taskVersion', 'planId', 'executionEnvelopeId', 'reviewerId', 'command', 'sourceToolName', 'beforeRevision', 'afterRevision', 'at', 'units', 'toolContractHash', 'argumentsDigest', 'scopeSha256', 'checks', 'receiptDigest'], 'geometry receipt')
-  if (row.schema !== 'com.kanjie.kjdraw.agent-task-geometry-receipt' || row.schemaVersion !== 1 || !['CREATEBATCH', 'MOVE'].includes(String(row.command))) fail('geometry receipt contract is invalid')
+  if (row.schema !== 'com.kanjie.kjdraw.agent-task-geometry-receipt' || row.schemaVersion !== 1 || !['CREATEBATCH', 'MOVE', 'ROTATE'].includes(String(row.command))) fail('geometry receipt contract is invalid')
   if (typeof row.toolContractHash !== 'string' || !CONTENT_HASH.test(row.toolContractHash) || typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest) || typeof row.scopeSha256 !== 'string' || !SHA256.test(row.scopeSha256) || typeof row.receiptDigest !== 'string' || !CONTENT_HASH.test(row.receiptDigest)) fail('geometry receipt hashes are invalid')
   const checks = array(row.checks, 'receipt checks', 1, 64).map(receiptCheck)
   if (new Set(checks.map(check => check.id)).size !== checks.length || checks.some(check => !check.passed)) fail('geometry receipt requires unique passing checks')
   const result: KJAgentTaskGeometryReceipt = {
     schema: row.schema, schemaVersion: 1, receiptId: identifier(row.receiptId, 'receipt id'), taskId: text(row.taskId, 'receipt task id', 128), taskVersion: integer(row.taskVersion, 'receipt task version', 1),
-    planId: text(row.planId, 'receipt plan id', 256), executionEnvelopeId: text(row.executionEnvelopeId, 'receipt execution envelope id', 256), reviewerId: text(row.reviewerId, 'receipt reviewer id', 256), command: row.command as 'CREATEBATCH' | 'MOVE', sourceToolName: identifier(row.sourceToolName, 'receipt source tool'),
+    planId: text(row.planId, 'receipt plan id', 256), executionEnvelopeId: text(row.executionEnvelopeId, 'receipt execution envelope id', 256), reviewerId: text(row.reviewerId, 'receipt reviewer id', 256), command: row.command as 'CREATEBATCH' | 'MOVE' | 'ROTATE', sourceToolName: identifier(row.sourceToolName, 'receipt source tool'),
     beforeRevision: integer(row.beforeRevision, 'receipt before revision'), afterRevision: integer(row.afterRevision, 'receipt after revision', 1), at: timestamp(row.at, 'receipt timestamp'), units: text(row.units, 'receipt units', 64), toolContractHash: row.toolContractHash, argumentsDigest: row.argumentsDigest, scopeSha256: row.scopeSha256, checks, receiptDigest: row.receiptDigest,
   }
   if (result.command === 'MOVE' && result.sourceToolName !== 'cad_propose_move') fail('MOVE receipt source tool is invalid')
+  if (result.command === 'ROTATE' && result.sourceToolName !== 'cad_propose_rotate') fail('ROTATE receipt source tool is invalid')
   if (result.afterRevision !== result.beforeRevision + 1) fail('geometry receipt must bind one atomic document revision')
   const { receiptId: _receiptId, receiptDigest: _receiptDigest, ...digestInput } = result
   if (result.receiptId !== `receipt:${result.receiptDigest}` || stableHash(digestInput) !== result.receiptDigest) fail('geometry receipt digest is invalid')
@@ -680,16 +699,17 @@ export async function commitAgentTaskCreateBatchApproval(document: KJDocument, t
   return { task: tx.updateObject(record.id, { payload: next }), receipt }
 }
 
-/** Complete one reviewed MOVE and its deterministic checks in the caller's transaction draft. */
-export async function commitAgentTaskMoveApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskMoveApprovalResult> {
-  const row = plain(input, ['id', 'expectedRevision', 'expectedTaskVersion', 'expectedStatus', 'expectedScopeSha256', 'sourceToolName', 'toolApiVersion', 'toolContractHash', 'argumentsDigest', 'capabilityLocks', 'planId', 'executionEnvelopeId', 'reviewerId', 'movedEntityIds', 'at'], 'MOVE approval input')
+async function commitAgentTaskTransformApproval(document: KJDocument, tx: KJTransaction, input: unknown, command: 'MOVE' | 'ROTATE'): Promise<KJAgentTaskMoveApprovalResult> {
+  const entityIdsField = command === 'MOVE' ? 'movedEntityIds' : 'rotatedEntityIds'
+  const expectedSourceTool = command === 'MOVE' ? 'cad_propose_move' : 'cad_propose_rotate'
+  const row = plain(input, ['id', 'expectedRevision', 'expectedTaskVersion', 'expectedStatus', 'expectedScopeSha256', 'sourceToolName', 'toolApiVersion', 'toolContractHash', 'argumentsDigest', 'capabilityLocks', 'planId', 'executionEnvelopeId', 'reviewerId', entityIdsField, 'at'], `${command} approval input`)
   const expectedRevision = inputRevision(document, tx, row.expectedRevision), id = text(row.id, 'task id', 128)
   const { record, task } = taskRecord(document, tx, id)
   const expectedTaskVersion = integer(row.expectedTaskVersion, 'expected task version', 1)
   if (row.expectedStatus !== 'running' || task.status !== 'running' || task.taskVersion !== expectedTaskVersion) fail('task version or status conflict')
   if (typeof row.expectedScopeSha256 !== 'string' || !SHA256.test(row.expectedScopeSha256) || task.scope.sha256 !== row.expectedScopeSha256) fail('task scope lock conflict')
   const sourceToolName = identifier(row.sourceToolName, 'source tool name')
-  if (sourceToolName !== 'cad_propose_move' || !task.definition.tools.names.includes(sourceToolName)) fail('MOVE source tool is outside the task tool lock')
+  if (sourceToolName !== expectedSourceTool || !task.definition.tools.names.includes(sourceToolName)) fail(`${command} source tool is outside the task tool lock`)
   if (row.toolApiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION || task.definition.tools.apiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION) fail('unsupported persistent task tool API version')
   if (typeof row.toolContractHash !== 'string' || row.toolContractHash !== task.definition.tools.contractHash) fail('task tool contract conflict')
   if (typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest)) fail('reviewed arguments digest is invalid')
@@ -699,32 +719,32 @@ export async function commitAgentTaskMoveApproval(document: KJDocument, tx: KJTr
     return { id: identifier(lock.id, 'approval capability id'), version: text(lock.version, 'approval capability version', 64), contentHash: lock.contentHash }
   })
   if (canonicalStringify(capabilityLocks) !== canonicalStringify(task.definition.capabilities)) fail('task capability lock conflict')
-  const movedEntityIds = array(row.movedEntityIds, 'moved entity IDs', 1, 64).map(value => text(value, 'moved entity ID', 256))
-  if (new Set(movedEntityIds).size !== movedEntityIds.length) fail('moved entity IDs must be unique')
+  const transformedEntityIds = array(row[entityIdsField], `${command} entity IDs`, 1, 64).map(value => text(value, `${command} entity ID`, 256))
+  if (new Set(transformedEntityIds).size !== transformedEntityIds.length) fail(`${command} entity IDs must be unique`)
   const scopedIds = task.scope.members.map(member => member.id)
-  if (movedEntityIds.some(id => !scopedIds.includes(id))) fail('MOVE cannot target entities outside the persisted task scope')
+  if (transformedEntityIds.some(id => !scopedIds.includes(id))) fail(`${command} cannot target entities outside the persisted task scope`)
   if (tx._draft().header.units !== task.units) fail('drawing units changed during task approval')
   const currentDrift = await drift(document, task)
   if (!currentDrift.unitsMatch || currentDrift.driftedEntityIds.length) fail(`task scope drifted${currentDrift.unitsMatch ? `: ${currentDrift.driftedEntityIds.join(', ')}` : ': drawing units changed'}`)
   const beforeEntities = Object.values(document.snapshot().objects).filter(object => !object.erased && object.kind === 'entity')
   const afterEntities = Object.values(tx._draft().objects).filter(object => !object.erased && object.kind === 'entity')
   const beforeIds = beforeEntities.map(object => object.id).sort(), afterIds = afterEntities.map(object => object.id).sort()
-  if (canonicalStringify(beforeIds) !== canonicalStringify(afterIds)) fail('MOVE cannot create, erase or replace entities')
+  if (canonicalStringify(beforeIds) !== canonicalStringify(afterIds)) fail(`${command} cannot create, erase or replace entities`)
   const beforeById = new Map(beforeEntities.map(object => [object.id, object]))
   const changedIds = afterEntities.filter(object => canonicalStringify(beforeById.get(object.id)) !== canonicalStringify(object)).map(object => object.id).sort()
-  const expectedChangedIds = [...movedEntityIds].sort()
-  if (canonicalStringify(changedIds) !== canonicalStringify(expectedChangedIds)) fail('MOVE must change exactly the reviewed in-scope entities')
-  for (const member of task.scope.members) if (tx.getObject(member.id)?.handle !== member.handle) fail('MOVE must preserve every scoped entity identity and handle')
+  const expectedChangedIds = [...transformedEntityIds].sort()
+  if (canonicalStringify(changedIds) !== canonicalStringify(expectedChangedIds)) fail(`${command} must change exactly the reviewed in-scope entities`)
+  for (const member of task.scope.members) if (tx.getObject(member.id)?.handle !== member.handle) fail(`${command} must preserve every scoped entity identity and handle`)
   const requirements = task.definition.requirements.map(requirement => {
     if (requirement.check.toolName !== 'cad_check_geometry' || !requirement.check.geometryCheck || requirement.check.assertion.path !== 'passed' || requirement.check.assertion.operator !== 'is_true' || requirement.check.assertion.expected !== true) fail('trusted completion requires deterministic cad_check_geometry requirements with passed is_true assertions')
     const referencedIds = geometryCheckObjectIds(requirement.check.geometryCheck)
-    if (referencedIds.some(id => id.startsWith('created:'))) fail('MOVE geometry checks cannot reference created entities')
-    if (referencedIds.some(id => !scopedIds.includes(id))) fail('MOVE geometry checks must reference only the persisted task scope')
+    if (referencedIds.some(id => id.startsWith('created:'))) fail(`${command} geometry checks cannot reference created entities`)
+    if (referencedIds.some(id => !scopedIds.includes(id))) fail(`${command} geometry checks must reference only the persisted task scope`)
     return clone(requirement.check.geometryCheck)
   })
   const afterRevision = expectedRevision + 1
   const validation = validateDrawingGeometryTransaction(document, tx, { expectedRevision: afterRevision, units: task.units, checks: requirements })
-  if (!validation.passed) fail('reviewed MOVE does not satisfy every deterministic geometry requirement')
+  if (!validation.passed) fail(`reviewed ${command} does not satisfy every deterministic geometry requirement`)
   const nextScope = await scopeFrom(value => tx.getObject(value), Object.values(tx._draft().objects), scopedIds)
   const at = timestamp(row.at, 'approval timestamp')
   if (Date.parse(at) < Date.parse(task.updatedAt)) fail('approval timestamp precedes the task')
@@ -732,7 +752,7 @@ export async function commitAgentTaskMoveApproval(document: KJDocument, tx: KJTr
   const receiptBase = {
     schema: 'com.kanjie.kjdraw.agent-task-geometry-receipt' as const, schemaVersion: 1 as const,
     taskId: task.taskId, taskVersion, planId: text(row.planId, 'plan id', 256), executionEnvelopeId: text(row.executionEnvelopeId, 'execution envelope id', 256),
-    reviewerId: text(row.reviewerId, 'reviewer id', 256), command: 'MOVE' as const, sourceToolName,
+    reviewerId: text(row.reviewerId, 'reviewer id', 256), command, sourceToolName,
     beforeRevision: expectedRevision, afterRevision, at, units: task.units, toolContractHash: row.toolContractHash,
     argumentsDigest: row.argumentsDigest, scopeSha256: nextScope.sha256,
     checks: validation.checks.map(check => clone(check)) as KJDrawingValidationCheckResult[],
@@ -744,7 +764,7 @@ export async function commitAgentTaskMoveApproval(document: KJDocument, tx: KJTr
     const check = checks.get(requirementId)!
     return { requirementId, passed: true, summary: `${check.kind}: ${String(check.actual)} (expected ${String(check.expected)}, tolerance ${check.tolerance})`, receiptId: receipt.receiptId }
   }) })) }
-  const eventItem: KJAgentTaskEvent = { version: taskVersion, from: task.status, to: 'completed', at, documentRevision: afterRevision, actor: { kind: 'host', id: receipt.reviewerId }, reason: 'reviewed MOVE committed with deterministic geometry checks' }
+  const eventItem: KJAgentTaskEvent = { version: taskVersion, from: task.status, to: 'completed', at, documentRevision: afterRevision, actor: { kind: 'host', id: receipt.reviewerId }, reason: `reviewed ${command} committed with deterministic geometry checks` }
   const next: KJAgentTaskPayload = {
     ...task, status: 'completed', taskVersion, updatedAt: at, observedRevision: afterRevision, updatedRevision: afterRevision,
     scope: nextScope, progress: nextProgress, receipts: [...task.receipts, receipt].slice(-16),
@@ -753,6 +773,16 @@ export async function commitAgentTaskMoveApproval(document: KJDocument, tx: KJTr
   }
   payload(next, afterRevision)
   return { task: tx.updateObject(record.id, { payload: next }), receipt }
+}
+
+/** Complete one reviewed MOVE and its deterministic checks in the caller's transaction draft. */
+export async function commitAgentTaskMoveApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskMoveApprovalResult> {
+  return commitAgentTaskTransformApproval(document, tx, input, 'MOVE')
+}
+
+/** Complete one reviewed ROTATE and its deterministic checks in the caller's transaction draft. */
+export async function commitAgentTaskRotateApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskRotateApprovalResult> {
+  return commitAgentTaskTransformApproval(document, tx, input, 'ROTATE')
 }
 
 /** Explicitly accept the current dependency snapshot after stale or ambiguous approval recovery. */
