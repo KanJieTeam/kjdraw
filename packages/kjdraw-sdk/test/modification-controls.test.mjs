@@ -21,10 +21,10 @@ async function drawingFixture(name) {
   return { sdk, drawing, create }
 }
 
-test('all 13 modification controls build exact arguments accepted by the real SDK', async t => {
+test('all 14 modification controls build exact arguments accepted by the real SDK', async t => {
   assert.deepEqual(KJ_MODIFICATION_IDS, [
     'rotate', 'scale', 'mirror', 'array-rect', 'array-polar', 'offset',
-    'break', 'join', 'explode', 'trim', 'extend', 'chamfer', 'fillet',
+    'break', 'join', 'explode', 'trim', 'extend', 'lengthen', 'chamfer', 'fillet',
   ])
 
   const cases = [
@@ -146,6 +146,16 @@ test('all 13 modification controls build exact arguments accepted by the real SD
         return {
           context: { ids: [target.id, boundary.id], values: {}, points: [[3, 0]] },
           expected: { id: target.id, boundaryIds: [boundary.id], pickPoint: [3, 0] },
+        }
+      },
+    },
+    {
+      id: 'lengthen',
+      arrange: async ({ create }) => {
+        const entity = await create('LINE', { start: [0, 0], end: [5, 0] })
+        return {
+          context: { ids: [entity.id], values: { value: 12 }, points: [[5, 0]] },
+          expected: { id: entity.id, mode: 'TOTAL', value: 12, pickPoint: [5, 0] },
         }
       },
     },

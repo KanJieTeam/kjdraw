@@ -8,7 +8,7 @@ import { clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { editEntityGrip } from './grips.js';
 import { intersectEntityPair2, nearestPointOnEntity2 } from './snapping.js';
 import { KJ_SNAP_MODES } from './snapping.js';
-import { breakEntityPayloads, chamferLinePair, explodeEntity, extendEntityPayload, filletLinePair, joinEntityPayloads, offsetEntityPayload, trimEntityPayloads } from './editing.js';
+import { breakEntityPayloads, chamferLinePair, explodeEntity, extendEntityPayload, filletLinePair, joinEntityPayloads, lengthenEntityPayload, offsetEntityPayload, trimEntityPayloads } from './editing.js';
 const AFFINE_ENTITY_TYPES = Object.freeze([
     'LINE',
     'RAY',
@@ -210,6 +210,21 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'CIRCLE',
             'ARC'
         ]
+    },
+    LENGTHEN: {
+        domain: 'topology',
+        precision: 'exact',
+        supportedEntityTypes: [
+            'LINE',
+            'ARC'
+        ],
+        modes: [
+            'TOTAL',
+            'DELTA',
+            'PERCENT',
+            'DYNAMIC'
+        ],
+        stableIdentity: true
     },
     CHAMFER: {
         domain: 'topology',
@@ -1491,6 +1506,21 @@ export function registerCoreCommands(registry) {
             const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds, entity.id);
             return transaction.updateObject(entity.id, {
                 payload: extendEntityPayload(entity, boundaries, args.pickPoint)
+            });
+        }
+    }, {
+        owner: '@kanjieteam/kjdraw'
+    }));
+    disposers.push(registry.register({
+        id: 'LENGTHEN',
+        aliases: [
+            'LEN'
+        ],
+        title: 'Lengthen entity',
+        execute: ({ document, transaction }, args)=>{
+            const entity = requiredEntity(document, args.id);
+            return transaction.updateObject(entity.id, {
+                payload: lengthenEntityPayload(entity, args)
             });
         }
     }, {

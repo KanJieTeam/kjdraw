@@ -882,6 +882,78 @@ export function extendEntityPayload(target, boundaries, pickPoint) {
     if (!outside.length) throw new KJValidationError('No boundary is available before the arc reaches its opposite end');
     return pick < geometry.span / 2 ? circularResultPayload(geometry, outside.at(-1) - TURN, geometry.span) : circularResultPayload(geometry, 0, outside[0]);
 }
+function lengthenEndpoint(options, start, end) {
+    if (options.endpoint != null) {
+        const endpoint = String(options.endpoint).trim().toLowerCase();
+        if (endpoint === 'start' || endpoint === 'end') return endpoint;
+        throw new KJValidationError('Lengthen endpoint must be start or end');
+    }
+    if (options.pickPoint == null) throw new KJValidationError('Lengthen requires endpoint or pickPoint');
+    const pick = finiteEditPoint(options.pickPoint);
+    const startDistance = distance2(pick, start), endDistance = distance2(pick, end);
+    if (Math.abs(startDistance - endDistance) <= Math.max(1e-12, Math.max(startDistance, endDistance) * 1e-12)) throw new KJValidationError('Pick closer to one endpoint to lengthen');
+    return startDistance < endDistance ? 'start' : 'end';
+}
+function lengthenMode(options) {
+    const mode = normalizeName(options.mode ?? (options.targetPoint != null || options.point != null ? 'DYNAMIC' : options.delta != null ? 'DELTA' : options.percent != null ? 'PERCENT' : 'TOTAL'));
+    if (![
+        'TOTAL',
+        'DELTA',
+        'PERCENT',
+        'DYNAMIC'
+    ].includes(mode)) throw new KJValidationError('Lengthen mode must be TOTAL, DELTA, PERCENT or DYNAMIC');
+    return mode;
+}
+function numericLengthenTarget(current, options, mode) {
+    const raw = mode === 'TOTAL' ? options.totalLength ?? options.value : mode === 'DELTA' ? options.delta ?? options.value : options.percent ?? options.value;
+    const value = Number(raw);
+    if (!Number.isFinite(value)) throw new KJValidationError(`Lengthen ${mode.toLowerCase()} value must be finite`);
+    const target = mode === 'TOTAL' ? value : mode === 'DELTA' ? current + value : current * value / 100;
+    if (!(target > 1e-12) || !Number.isFinite(target)) throw new KJValidationError('Lengthen result must have positive finite length');
+    return target;
+}
+function lengthenLinePayload(target, options) {
+    const payload = payloadOf(target), start = finiteEditPoint(payload.start), end = finiteEditPoint(payload.end);
+    const current = distance2(start, end);
+    if (!(current > 1e-12)) throw new KJValidationError('Lengthen requires a non-degenerate LINE');
+    const endpoint = lengthenEndpoint(options, start, end), fixed = endpoint === 'start' ? end : start, selected = endpoint === 'start' ? start : end;
+    const mode = lengthenMode(options);
+    let requested;
+    if (mode === 'DYNAMIC') {
+        const point = finiteEditPoint(options.targetPoint ?? options.point);
+        const unit = [
+            (selected[0] - fixed[0]) / current,
+            (selected[1] - fixed[1]) / current
+        ];
+        requested = dot2(subtract2(point, fixed), unit);
+        if (!(requested > 1e-12)) throw new KJValidationError('Dynamic lengthen point must remain beyond the fixed endpoint');
+    } else requested = numericLengthenTarget(current, options, mode);
+    const factor = requested / current;
+    const next = [
+        fixed[0] + (selected[0] - fixed[0]) * factor,
+        fixed[1] + (selected[1] - fixed[1]) * factor,
+        fixed[2] + (selected[2] - fixed[2]) * factor
+    ];
+    payload[endpoint] = next;
+    return payload;
+}
+export function lengthenEntityPayload(target, options = {}) {
+    if (target?.type === 'LINE') return lengthenLinePayload(target, options);
+    if (target?.type !== 'ARC') throw new KJValidationError('Lengthen requires a LINE or ARC target');
+    const geometry = circularEditGeometry(target);
+    const startPoint = polar(geometry.center, geometry.radius, geometry.start);
+    const endPoint = polar(geometry.center, geometry.radius, geometry.start + geometry.direction * geometry.span);
+    const endpoint = lengthenEndpoint(options, startPoint, endPoint), mode = lengthenMode(options);
+    let targetSpan;
+    if (mode === 'DYNAMIC') {
+        const point = finiteEditPoint(options.targetPoint ?? options.point);
+        if (distance2(point, geometry.center) <= Math.max(1e-10, geometry.radius * 1e-12)) throw new KJValidationError('Dynamic arc lengthen point cannot be its center');
+        const offset = circularOffset(geometry, point);
+        targetSpan = endpoint === 'end' ? offset : positiveTurn(geometry.span - offset);
+    } else targetSpan = numericLengthenTarget(geometry.radius * geometry.span, options, mode) / geometry.radius;
+    if (!(targetSpan > EDIT_ANGLE_EPSILON) || targetSpan >= TURN - EDIT_ANGLE_EPSILON) throw new KJValidationError('Lengthened arc must remain non-empty and less than a full circle');
+    return endpoint === 'end' ? circularResultPayload(geometry, 0, targetSpan) : circularResultPayload(geometry, geometry.span - targetSpan, geometry.span);
+}
 function selectedRay(line, intersection, pickPoint) {
     const payload = line.payload ?? {};
     const direction = normalize2(subtract2(pointInput(payload.end), pointInput(payload.start)));

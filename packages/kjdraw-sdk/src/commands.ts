@@ -41,6 +41,7 @@ import {
   extendEntityPayload,
   filletLinePair,
   joinEntityPayloads,
+  lengthenEntityPayload,
   offsetEntityPayload,
   trimEntityPayloads,
 } from './editing.js'
@@ -291,6 +292,7 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   EXPLODE: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LWPOLYLINE', 'POLYLINE', 'REVISION_CLOUD', 'WIPEOUT'] },
   TRIM: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE', 'ARC', 'CIRCLE'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
   EXTEND: { domain: 'topology', precision: 'exact', targetEntityTypes: ['LINE', 'ARC'], boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'] },
+  LENGTHEN: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC'], modes: ['TOTAL', 'DELTA', 'PERCENT', 'DYNAMIC'], stableIdentity: true },
   CHAMFER: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE'] },
   FILLET: { domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE'] },
   GRIPEDIT: { domain: 'geometry', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },
@@ -816,6 +818,13 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id), boundaries = requiredBoundaries(document, args.boundaryIds, entity.id)
       return transaction.updateObject(entity.id, { payload: extendEntityPayload(entity, boundaries, args.pickPoint) })
+    },
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'LENGTHEN', aliases: ['LEN'], title: 'Lengthen entity',
+    execute: ({ document, transaction }, args) => {
+      const entity = requiredEntity(document, args.id)
+      return transaction.updateObject(entity.id, { payload: lengthenEntityPayload(entity, args) })
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({

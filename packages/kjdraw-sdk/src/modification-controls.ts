@@ -12,6 +12,7 @@ export type KJModificationId =
   | 'explode'
   | 'trim'
   | 'extend'
+  | 'lengthen'
   | 'chamfer'
   | 'fillet'
 
@@ -92,7 +93,7 @@ const pick = (key: string, en: string, zh: string): KJModificationPointDefinitio
 
 export const KJ_MODIFICATION_IDS = Object.freeze([
   'rotate', 'scale', 'mirror', 'array-rect', 'array-polar', 'offset',
-  'break', 'join', 'explode', 'trim', 'extend', 'chamfer', 'fillet',
+  'break', 'join', 'explode', 'trim', 'extend', 'lengthen', 'chamfer', 'fillet',
 ] as const)
 
 export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = Object.freeze([
@@ -188,6 +189,14 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
     boundaryEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'],
     fields: [],
     pointKeys: [pick('pickPoint', 'Pick near the end of the target to extend', '在目标图形上靠近要延伸的一端点选')],
+  },
+  {
+    id: 'lengthen', command: 'LENGTHEN', label: text('Lengthen', '定长'),
+    description: text('Set the exact length from the endpoint selected on canvas.', '从画布中指定的端点设置精确长度。'),
+    minSelection: 1, maxSelection: 1,
+    supportedEntityTypes: ['LINE', 'ARC'],
+    fields: [number('value', 'Target length', '目标长度', 10, { min: Number.EPSILON, step: 0.1 })],
+    pointKeys: [pick('pickPoint', 'Pick the endpoint to change', '选择要修改的端点')],
   },
   {
     id: 'chamfer', command: 'CHAMFER', label: text('Chamfer lines', '直线倒角'),
@@ -311,6 +320,7 @@ export function buildKJModificationCommand(id: KJModificationId, context: KJModi
     case 'explode': return { command: definition.command, arguments: { id: ids[0]! } }
     case 'trim': return { command: definition.command, arguments: { id: ids[0]!, boundaryIds: ids.slice(1), pickPoint: points[0]! } }
     case 'extend': return { command: definition.command, arguments: { id: ids[0]!, boundaryIds: ids.slice(1), pickPoint: points[0]! } }
+    case 'lengthen': return { command: definition.command, arguments: { id: ids[0]!, mode: 'TOTAL', ...values, pickPoint: points[0]! } }
     case 'chamfer': return { command: definition.command, arguments: { firstId: ids[0]!, secondId: ids[1]!, ...values, pickPoint1: points[0]!, pickPoint2: points[1]! } }
     case 'fillet': return { command: definition.command, arguments: { firstId: ids[0]!, secondId: ids[1]!, ...values, pickPoint1: points[0]!, pickPoint2: points[1]! } }
   }

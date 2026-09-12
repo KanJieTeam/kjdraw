@@ -40,6 +40,7 @@ export const KJ_MODIFICATION_IDS = Object.freeze([
     'explode',
     'trim',
     'extend',
+    'lengthen',
     'chamfer',
     'fillet'
 ]);
@@ -258,6 +259,27 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         fields: [],
         pointKeys: [
             pick('pickPoint', 'Pick near the end of the target to extend', '在目标图形上靠近要延伸的一端点选')
+        ]
+    },
+    {
+        id: 'lengthen',
+        command: 'LENGTHEN',
+        label: text('Lengthen', '定长'),
+        description: text('Set the exact length from the endpoint selected on canvas.', '从画布中指定的端点设置精确长度。'),
+        minSelection: 1,
+        maxSelection: 1,
+        supportedEntityTypes: [
+            'LINE',
+            'ARC'
+        ],
+        fields: [
+            number('value', 'Target length', '目标长度', 10, {
+                min: Number.EPSILON,
+                step: 0.1
+            })
+        ],
+        pointKeys: [
+            pick('pickPoint', 'Pick the endpoint to change', '选择要修改的端点')
         ]
     },
     {
@@ -515,6 +537,16 @@ export function buildKJModificationCommand(id, context) {
                 arguments: {
                     id: ids[0],
                     boundaryIds: ids.slice(1),
+                    pickPoint: points[0]
+                }
+            };
+        case 'lengthen':
+            return {
+                command: definition.command,
+                arguments: {
+                    id: ids[0],
+                    mode: 'TOTAL',
+                    ...values,
                     pickPoint: points[0]
                 }
             };
