@@ -720,6 +720,7 @@ outputControls=createOutputControls({getContext:()=>({sdk,document:doc()}),local
 $('page-setup').onclick=outputControls.setup
 $('dimension-styles').onclick=()=>run(manageDimensionStyles)
 $('export-svg').onclick=outputControls.svg
+$('export-png').onclick=outputControls.png
 $('print-drawing').onclick=outputControls.print
 $('export').onclick=()=>run(async()=>{const text=await sdk.writeDocument(doc(),{format:'DXF',version:'2018'});download(text,'drawing.dxf','application/dxf');message('ASCII DXF 2018 downloaded · core adapter, see compatibility limits')})
 $('undo').onclick=()=>run(()=>execute('UNDO'));$('redo').onclick=()=>run(()=>execute('REDO'))

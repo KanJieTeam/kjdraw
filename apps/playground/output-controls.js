@@ -1,5 +1,6 @@
 import { openDrawingPrintWindow } from '../../packages/kjdraw-sdk/src/print-export.js'
 import { exportDrawingSvg } from '../../packages/kjdraw-sdk/src/svg-export.js'
+import { captureDrawingView } from '../../packages/kjdraw-sdk/src/drawing-image.js'
 
 const MILLIMETERS = Object.freeze({ millimeter: 1, centimeter: 10, meter: 1000, inch: 25.4, foot: 304.8 })
 const positive = (value, name) => { if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw Error(`${name} must be positive`); return value }
@@ -71,10 +72,32 @@ export function createOutputControls({ getContext, locale, select, request, run,
     download(result.svg, 'drawing.svg', result.mimeType)
     message(`${result.paper.widthMm} × ${result.paper.heightMm} mm · SVG${result.report.approximations.length ? (zh() ? ' · 字体采用本机替代，请检查文字' : ' · Local font substitution; check text') : ''}`)
   })
+  const png = () => run(async () => {
+    const context = selected(), drawing = context.document, source = drawing.snapshot(), layout = drawing.getObject(context.layoutId)
+    const spaceId = layout.payload.blockRecordId, model = spaceId === source.spaces.modelSpaceId, settings = layout.payload.dxfPlotSettings ?? {}
+    let bounds
+    if (model && settings.plotType === 4) bounds = [settings.windowMinX, settings.windowMinY, settings.windowMaxX, settings.windowMaxY]
+    else if (!model && Number(settings.paperWidth) > 0 && Number(settings.paperHeight) > 0) bounds = [0, 0, settings.paperWidth, settings.paperHeight]
+    else bounds = currentBounds()
+    if (!bounds.every(Number.isFinite) || !(bounds[2] > bounds[0] && bounds[3] > bounds[1])) throw Error(zh() ? '当前出图范围无效，请先设置页面或执行全图。' : 'The output extent is invalid. Configure the page or fit the drawing first.')
+    const aspect = (bounds[2] - bounds[0]) / (bounds[3] - bounds[1])
+    const width = Math.max(1, Math.min(1400, Math.round(aspect >= 1 ? 1400 : 1400 * aspect)))
+    const height = Math.max(1, Math.min(1400, Math.round(aspect >= 1 ? 1400 / aspect : 1400)))
+    const result = await captureDrawingView(drawing, { spaceId, bounds, width, height, pixelRatio: 1, theme: 'light' })
+    const report = result.renderReport
+    if (report.unsupported || report.detailCulled || report.hatchDiagnostics?.some(item => item.reason === 'budget' || item.reason === 'unsupported-boundary')) {
+      throw Error(zh() ? `PNG 已拒绝：${report.unsupported} 个对象不受支持，${report.detailCulled} 个细节因预算未绘制。` : `PNG refused: ${report.unsupported} unsupported object(s) and ${report.detailCulled} detail(s) omitted by the render budget.`)
+    }
+    const encoded = result.dataUrl.slice(result.dataUrl.indexOf(',') + 1), binary = atob(encoded), bytes = new Uint8Array(binary.length)
+    for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index)
+    download(bytes, 'drawing.png', result.mimeType)
+    const approximation = report.approximated ? (zh() ? ` · ${report.approximated} 个对象采用屏幕近似，请检查` : ` · ${report.approximated} object(s) use screen approximations; inspect the image`) : ''
+    message(`${result.pixelWidth} × ${result.pixelHeight} px · PNG${approximation}`)
+  })
   const print = () => run(async () => {
     const context = selected()
     await openDrawingPrintWindow(context.document, { layoutId: context.layoutId, title: title(context.document), locale: zh() ? 'zh-CN' : 'en', ownerWindow: window, isCurrent: () => { const current = getContext(); return current.sdk === context.sdk && current.document === context.document && select.value === context.layoutId } })
     message(zh() ? '打印已打开；可在浏览器中选择另存为 PDF。' : 'Print opened. Choose Save as PDF in your browser.')
   })
-  return { sync, setup, svg, print }
+  return { sync, setup, svg, png, print }
 }

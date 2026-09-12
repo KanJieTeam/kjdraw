@@ -23,7 +23,7 @@ async function saved(page) {
   return KJProjectSession.open(await readFile(await (await pending).path()), { sdk: createKJDrawSDK() })
 }
 
-test('main editor configures a real 1:100 model page, downloads SVG and keeps geometry through save and undo', async ({ page }) => {
+test('main editor configures a real 1:100 model page, downloads SVG and PNG, and keeps geometry through save and undo', async ({ page }) => {
   const { document, layoutId } = await openFixture(page)
   await page.locator('.ribbon-tabs [data-i18n="modify"]').click()
   await expect(page.locator('#move-selection')).toBeVisible(); await expect(page.locator('.ribbon-group [data-tool="line"]').first()).not.toBeVisible()
@@ -43,6 +43,15 @@ test('main editor configures a real 1:100 model page, downloads SVG and keeps ge
   const svg = await readFile(await download.path(), 'utf8')
   expect(svg).toContain('width="420mm"'); expect(svg).toContain('height="297mm"'); expect(svg).toContain('matrix(10 0 0 -10 20 277)')
   expect(svg).toContain('道路工程图 / Road detail')
+  const revisionBeforePng = await page.locator('#revision').textContent()
+  const pngPending = page.waitForEvent('download'); await page.locator('#export-png').click()
+  const pngDownload = await pngPending; expect(pngDownload.suggestedFilename()).toBe('drawing.png')
+  const png = await readFile(await pngDownload.path())
+  expect([...png.subarray(0,8)]).toEqual([137,80,78,71,13,10,26,10])
+  expect(png.readUInt32BE(16)).toBeGreaterThan(0); expect(png.readUInt32BE(16)).toBeLessThanOrEqual(1600)
+  expect(png.readUInt32BE(20)).toBeGreaterThan(0); expect(png.readUInt32BE(20)).toBeLessThanOrEqual(1600)
+  await expect(page.locator('#status')).toContainText('px · PNG')
+  await expect(page.locator('#revision')).toHaveText(revisionBeforePng)
   const project = await saved(page), output = project.activeDocument
   // KJD/KJP canonicalize object key order and omit undefined fields; compare all persisted geometry by stable ID.
   const entities = drawing => JSON.parse(JSON.stringify(drawing.listEntities().map(e=>({id:e.id,handle:e.handle,ownerId:e.ownerId,type:e.type,payload:e.payload})))).sort((a,b)=>a.id.localeCompare(b.id))
