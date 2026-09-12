@@ -1743,6 +1743,9 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   if (Object.values(state.objects).some(record => !record.erased && record.kind === 'custom' && record.type === 'DESIGN_RELATIONS') && options.designRelations !== 'flatten') {
     throw new KJValidationError('DXF cannot preserve KJDraw design relations; save KJD/KJP, or explicitly use designRelations: "flatten" to export editable geometry without parameter relations')
   }
+  if (Object.values(state.objects).some(record => !record.erased && record.kind === 'custom' && record.type === 'AI_TASK') && options.aiTasks !== 'omit') {
+    throw new KJValidationError('DXF cannot preserve KJDraw AI tasks; save KJD/KJP, or explicitly use aiTasks: "omit" to export geometry without task state')
+  }
   const layouts = state.spaces.layoutIds.map(id => state.objects[id]!).filter(layout => !layout.erased)
   const layoutHandles = new Map(layouts.map(layout => [String(layout.payload.blockRecordId), layout.handle]))
   const context: DxfWriteContext = {
