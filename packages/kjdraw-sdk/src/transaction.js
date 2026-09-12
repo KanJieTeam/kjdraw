@@ -15,7 +15,12 @@ function readonlyDraftView(value, cache) {
     const rejectMutation = ()=>{
         throw new KJTransactionError('Transaction draft views are read-only; use transaction methods to mutate state');
     };
-    const proxy = new Proxy(object, {
+    const target = Object.isFrozen(object) ? Array.isArray(object) ? [
+        ...object
+    ] : {
+        ...object
+    } : object;
+    const proxy = new Proxy(target, {
         get (target, property, receiver) {
             return readonlyDraftView(Reflect.get(target, property, receiver), cache);
         },

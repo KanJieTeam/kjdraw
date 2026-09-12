@@ -107,7 +107,7 @@ function sameRecord(actual: unknown, expected: KJObjectRecord): boolean {
 export async function applyRoadDrawingRevision(document: KJDocument, previous: ReadonlyDeep<KJRoadDrawingResult>, next: ReadonlyDeep<KJRoadDrawingResult>, options: KJRoadDrawingRevisionOptions): Promise<ReadonlyDeep<KJRoadDrawingRevisionReceipt>> {
   dataOnly({ previous, next, options }); fields(options, ['expectedRevision'])
   if (!Number.isSafeInteger(options.expectedRevision) || options.expectedRevision < 0) fail('expectedRevision must be a nonnegative safe integer')
-  const expectedRevision = options.expectedRevision, modelSpaceId = document.snapshot().spaces.modelSpaceId
+  const expectedRevision = options.expectedRevision, modelSpaceId = document.spaces.modelSpaceId
   const before = prepare(structuredClone(previous) as KJRoadDrawingResult, modelSpaceId), after = prepare(structuredClone(next) as KJRoadDrawingResult, modelSpaceId)
   if (before.drawingId !== after.drawingId) fail('previous and next drawingId must match')
   const updatedIds: string[] = [], createdIds: string[] = [], removedIds: string[] = [], unchangedIds: string[] = []

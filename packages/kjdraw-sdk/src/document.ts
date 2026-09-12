@@ -11,8 +11,11 @@ import { KJTransaction } from './transaction.js'
 import { canonicalStringify, clone, deepFreeze, nowIso, stableHash } from './utils.js'
 import type {
   KJDocumentOptions,
+  KJDocumentMetadata,
+  KJDocumentSpaces,
   KJDocumentState,
   KJLegacyScene,
+  KJObjectRecord,
   KJReadonlyObjectRecord,
   KJRevisionRecord,
   KJValidationResult,
@@ -154,6 +157,7 @@ export class KJDocument {
   #objectCache = new Map<string, KJReadonlyObjectRecord | null>()
   #queryCache = new Map<string, ReadonlyArray<KJReadonlyObjectRecord>>()
   #tableCache = new Map<string, Readonly<KJDocumentTableView> | null>()
+  #ownerEntityIndex: Map<string, readonly KJObjectRecord[]> | null = null
 
   constructor(input: KJDocumentInput = {}, options: KJDocumentConstructorOptions = {}) {
     const candidate = input as Record<string, unknown>
@@ -199,6 +203,10 @@ export class KJDocument {
     this.#snapshotCache ??= deepFreeze(clone(this.#state))
     return this.#snapshotCache
   }
+  /** Lightweight immutable document metadata without cloning the object graph. */
+  get metadata(): ReadonlyDeep<KJDocumentMetadata> { return deepFreeze(clone(this.#state.metadata)) }
+  /** Lightweight immutable layout/space registry without cloning the object graph. */
+  get spaces(): ReadonlyDeep<KJDocumentSpaces> { return deepFreeze(clone(this.#state.spaces)) }
   toJSON({ includeRevisions = true }: { includeRevisions?: boolean } = {}): KJDocumentState {
     const state = clone(this.#state)
     if (!includeRevisions) state.revisions = []
@@ -244,7 +252,10 @@ export class KJDocument {
     const key = `${includeErased ? '1' : '0'}:${String(id)}`
     if (this.#objectCache.has(key)) return this.#objectCache.get(key) ?? null
     const object = this.#state.objects[String(id)]
-    const result = !object || (object.erased && !includeErased) ? null : deepFreeze(clone(object))
+    // Object records are immutable between revisions. Transactions clone each
+    // touched record before mutation, so freezing the shared record avoids an
+    // O(entity count) clone when a renderer enumerates a large drawing.
+    const result = !object || (object.erased && !includeErased) ? null : deepFreeze(object)
     this.#objectCache.set(key, result)
     return result
   }
@@ -254,28 +265,10 @@ export class KJDocument {
     const key = `${kind ?? ''}|${normalizedType ?? ''}|${ownerId ?? ''}|${includeErased ? '1' : '0'}`
     const cached = this.#queryCache.get(key)
     if (cached) return cached
-    let objects = Object.values(this.#state.objects)
-      .filter(object => includeErased || !object.erased)
-      .filter(object => kind == null || object.kind === kind)
-      .filter(object => normalizedType == null || object.type === normalizedType)
-      .filter(object => ownerId == null || object.ownerId === ownerId)
-    if (kind === 'entity' && ownerId != null) {
-      // Object keys are canonically sorted in KJD and by authoritative backends.
-      // The owner's persisted membership array, not map insertion order, defines
-      // the drawing order used by rendering, selection and DXF export.
-      const remaining = new Map(objects.map(object => [object.id, object]))
-      objects = []
-      for (const id of this.#state.objects[ownerId]?.payload.entityIds ?? []) {
-        const object = remaining.get(id)
-        if (object) { objects.push(object); remaining.delete(id) }
-      }
-      // Older documents can omit membership entries. Retain these entities in
-      // stable native handle order without modifying their state or fingerprint.
-      objects.push(...[...remaining.values()].sort((a, b) => {
-        const left = BigInt(`0x${a.handle}`), right = BigInt(`0x${b.handle}`)
-        return left < right ? -1 : left > right ? 1 : 0
-      }))
-    }
+    let objects = kind === 'entity' && ownerId != null
+      ? [...this.#entitiesByOwner(ownerId)]
+      : Object.values(this.#state.objects).filter(object => kind == null || object.kind === kind).filter(object => ownerId == null || object.ownerId === ownerId)
+    objects = objects.filter(object => includeErased || !object.erased).filter(object => normalizedType == null || object.type === normalizedType)
     const result = Object.freeze(objects.map(object => this.getObject(object.id, { includeErased })!)) as ReadonlyArray<KJReadonlyObjectRecord>
     this.#queryCache.set(key, result)
     return result
@@ -301,6 +294,34 @@ export class KJDocument {
     this.#objectCache.clear()
     this.#queryCache.clear()
     this.#tableCache.clear()
+    this.#ownerEntityIndex = null
+  }
+
+  #entitiesByOwner(ownerId: string): readonly KJObjectRecord[] {
+    if (!this.#ownerEntityIndex) {
+      const grouped = new Map<string, KJObjectRecord[]>()
+      for (const object of Object.values(this.#state.objects)) if (object.kind === 'entity' && object.ownerId != null) {
+        const values = grouped.get(object.ownerId)
+        if (values) values.push(object)
+        else grouped.set(object.ownerId, [object])
+      }
+      this.#ownerEntityIndex = new Map()
+      for (const [owner, values] of grouped) {
+        // Persisted membership defines draw order. Old documents may omit
+        // entries, so append only those missing records by native handle.
+        const remaining = new Map(values.map(object => [object.id, object])), ordered: KJObjectRecord[] = []
+        for (const id of this.#state.objects[owner]?.payload.entityIds ?? []) {
+          const object = remaining.get(id)
+          if (object) { ordered.push(object); remaining.delete(id) }
+        }
+        ordered.push(...[...remaining.values()].sort((a, b) => {
+          const left = BigInt(`0x${a.handle}`), right = BigInt(`0x${b.handle}`)
+          return left < right ? -1 : left > right ? 1 : 0
+        }))
+        this.#ownerEntityIndex.set(owner, ordered)
+      }
+    }
+    return this.#ownerEntityIndex.get(String(ownerId)) ?? []
   }
 
   #enqueue<T>(work: () => Promise<T> | T): Promise<T> {

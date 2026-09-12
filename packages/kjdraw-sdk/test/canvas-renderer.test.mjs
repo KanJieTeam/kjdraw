@@ -244,6 +244,41 @@ test('Canvas renderer reacts to document commits and keeps ACI colors determinis
   renderer.dispose()
 })
 
+test('Canvas renderer culls large offscreen scenes and refreshes moved entity bounds', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'canvas-spatial-index' })
+  await document.transact('large scene', tx => {
+    tx.createEntity('LINE', { start: [-10,0], end: [10,0] }, { id: 'visible-line' })
+    tx.createEntity('LINE', { start: [20,20], end: [20.01,20] }, { id: 'subpixel-line' })
+    for (let index = 0; index < 4096; index++) {
+      const x = 10000 + index * 10
+      tx.createEntity('LINE', { start: [x,0], end: [x + 5,0] }, { id: `far-${index}` })
+    }
+  })
+  const { canvas, context } = mockCanvas(640,360)
+  const renderer = new KJCanvasRenderer(canvas, { document, pixelRatio: 1, grid: false })
+  Object.assign(renderer.camera, { centerX: 0, centerY: 0, scale: 1 })
+  context.calls.length = 0
+  renderer.render()
+
+  assert.equal(renderer.report.total, 4098)
+  assert.equal(renderer.report.rendered, 1)
+  assert.equal(renderer.report.culled, 4097)
+  assert.equal(renderer.report.detailCulled, 1)
+  assert.equal(renderer.report.overviewEntities, 1)
+  assert.equal(renderer.report.overviewPixels, 1)
+  assert.equal(context.calls.filter(call => call[0] === 'lineTo').length, 1)
+  assert.equal(renderer.hitTest(renderer.worldToScreen([0,0]))?.entity.id, 'visible-line')
+  assert.equal(renderer.hitTest(renderer.worldToScreen([20.005,20]))?.entity.id, 'subpixel-line', 'LOD does not remove precise picking candidates')
+
+  await document.transact('move into view', tx => tx.updateObject('far-2048', { payload: { start: [20,0], end: [30,0] } }))
+  assert.equal(renderer.report.rendered, 2)
+  assert.equal(renderer.report.culled, 4096)
+  assert.equal(renderer.report.detailCulled, 1)
+  assert.equal(renderer.report.overviewEntities, 1)
+  assert.equal(renderer.hitTest(renderer.worldToScreen([25,0]))?.entity.id, 'far-2048')
+  renderer.dispose()
+})
+
 test('unchanged resize notifications do not refit edited geometry under the pointer', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument()
   const line = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0,0], end: [100,0] } })

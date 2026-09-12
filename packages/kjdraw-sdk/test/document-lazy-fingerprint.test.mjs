@@ -11,8 +11,14 @@ test('ordinary commits defer whole-document fingerprints until a caller requests
   const changed = document.fingerprint()
   assert.notEqual(changed, initial)
   assert.equal(document.fingerprint(), changed)
+  const immutable = document.getObject(line.id), spaces = document.spaces, metadata = document.metadata
+  assert.ok(Object.isFrozen(immutable) && Object.isFrozen(immutable.payload) && Object.isFrozen(spaces) && Object.isFrozen(spaces.layoutIds) && Object.isFrozen(metadata))
+  assert.throws(() => { immutable.payload.start[0] = 99 }, TypeError)
+  assert.throws(() => { spaces.layoutIds.push('foreign') }, TypeError)
 
   await sdk.executeCommand('MOVE', { id: line.id, dx: 2, dy: 0 })
+  assert.deepEqual(immutable.payload.start, [0, 0, 0])
+  assert.deepEqual(document.getObject(line.id).payload.start, [2, 0, 0])
   assert.equal(document.snapshot().revisions.at(-1).fingerprint, undefined)
   const moved = document.fingerprint()
   assert.notEqual(moved, changed)

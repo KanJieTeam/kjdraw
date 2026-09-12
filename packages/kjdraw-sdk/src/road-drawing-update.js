@@ -214,7 +214,7 @@ export async function applyRoadDrawingRevision(document, previous, next, options
         'expectedRevision'
     ]);
     if (!Number.isSafeInteger(options.expectedRevision) || options.expectedRevision < 0) fail('expectedRevision must be a nonnegative safe integer');
-    const expectedRevision = options.expectedRevision, modelSpaceId = document.snapshot().spaces.modelSpaceId;
+    const expectedRevision = options.expectedRevision, modelSpaceId = document.spaces.modelSpaceId;
     const before = prepare(structuredClone(previous), modelSpaceId), after = prepare(structuredClone(next), modelSpaceId);
     if (before.drawingId !== after.drawingId) fail('previous and next drawingId must match');
     const updatedIds = [], createdIds = [], removedIds = [], unchangedIds = [];

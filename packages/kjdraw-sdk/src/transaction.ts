@@ -24,7 +24,11 @@ function readonlyDraftView<T>(value: T, cache: WeakMap<object, object>): Readonl
   const cached = cache.get(object)
   if (cached) return cached as ReadonlyDeep<T>
   const rejectMutation = (): never => { throw new KJTransactionError('Transaction draft views are read-only; use transaction methods to mutate state') }
-  const proxy = new Proxy(object, {
+  // A document read may have frozen a structurally shared record. Proxying a
+  // frozen target while returning nested proxies violates JavaScript's
+  // non-configurable property invariant, so use a shallow configurable view.
+  const target = Object.isFrozen(object) ? (Array.isArray(object) ? [...object] : { ...object }) : object
+  const proxy = new Proxy(target, {
     get(target, property, receiver) {
       return readonlyDraftView(Reflect.get(target, property, receiver), cache)
     },

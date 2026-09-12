@@ -831,9 +831,9 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
       blockIds.set(name, block.id)
     }
 
-    const modelSpaceId = document.snapshot().spaces.modelSpaceId
+    const modelSpaceId = document.spaces.modelSpaceId
     const paperSpaceIds = new Map<string, string>()
-    const defaultPaperLayoutId = document.snapshot().spaces.layoutIds.find(id => document.getObject(id)?.name !== 'Model')
+    const defaultPaperLayoutId = document.spaces.layoutIds.find(id => document.getObject(id)?.name !== 'Model')
     const defaultPaperLayout = defaultPaperLayoutId ? document.getObject(defaultPaperLayoutId) : null
     const sourceLayouts = records(section(tags, 'OBJECTS')).filter(record => record.type === 'LAYOUT').map(record => {
       const marker = record.tags.findIndex(tag => tag.code === 100 && tag.value === 'AcDbLayout')

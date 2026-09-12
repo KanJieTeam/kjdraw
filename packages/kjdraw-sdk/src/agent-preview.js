@@ -164,7 +164,7 @@ export async function createAgentGeometryPreview(document, command, args, option
             for (const id of args.ids){
                 const entity = document.getObject(String(id));
                 const layer = document.getObject(String(entity.payload.layerId ?? ''));
-                if (entity.ownerId !== document.snapshot().spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new KJValidationError('Transform preview requires visible editable model-space entities');
+                if (entity.ownerId !== document.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new KJValidationError('Transform preview requires visible editable model-space entities');
                 validateTransformGeometry(document, entity);
             }
         }

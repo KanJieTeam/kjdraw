@@ -443,7 +443,7 @@ export class KJAgentToolSession {
               const input = args as unknown as KJAgentAnnotatedDrawingInput
               const drawing = decodeAgentCompactDrawing(input)
               validate(drawingInputSchema, drawing)
-              const ownerId = document.snapshot().spaces.modelSpaceId
+              const ownerId = document.spaces.modelSpaceId
               const count = drawing.lines.length + drawing.circles.length + drawing.arcs.length + drawing.polylines.length
               if (!count && input.arrays.length) throw new KJValidationError('Arrays require base geometry')
               const entities = count ? buildPatternEntities(input, drawing, ownerId) : []
@@ -465,18 +465,18 @@ export class KJAgentToolSession {
             } else if (name === 'cad_propose_drawing' || name === 'cad_propose_drawing_compact' || name === 'cad_propose_drawing_pattern') {
               const drawing = name === 'cad_propose_drawing' ? args as unknown as KJAgentDrawingInput : decodeAgentCompactDrawing(args as unknown as KJAgentCompactDrawingInput)
               if (name !== 'cad_propose_drawing') validate(drawingInputSchema, drawing)
-              const ownerId = document.snapshot().spaces.modelSpaceId
+              const ownerId = document.spaces.modelSpaceId
               commandArgs = { entities: name === 'cad_propose_drawing_pattern' ? buildPatternEntities(args as unknown as KJAgentPatternDrawingInput, drawing, ownerId) : buildAgentDrawingEntities(drawing, ownerId) }
             } else if (name === 'cad_propose_lines') {
               commandArgs = { entities: (args.lines as { start: unknown; end: unknown }[]).map(line => {
                 const start = xy(line.start), end = xy(line.end)
                 if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError('A line requires distinct endpoints')
-                return { type: 'LINE', payload: { start, end }, options: { id: createId('entity'), ownerId: document.snapshot().spaces.modelSpaceId } }
+                return { type: 'LINE', payload: { start, end }, options: { id: createId('entity'), ownerId: document.spaces.modelSpaceId } }
               }) }
             } else if (name === 'cad_propose_circles') {
               commandArgs = { entities: (args.circles as { center: unknown; radius: number }[]).map(circle => {
                 if (circle.radius <= 0) throw new KJValidationError('Circle radius must be positive')
-                return { type: 'CIRCLE', payload: { center: xy(circle.center), radius: circle.radius }, options: { id: createId('entity'), ownerId: document.snapshot().spaces.modelSpaceId } }
+                return { type: 'CIRCLE', payload: { center: xy(circle.center), radius: circle.radius }, options: { id: createId('entity'), ownerId: document.spaces.modelSpaceId } }
               }) }
             } else {
               const ids = args.ids as string[]

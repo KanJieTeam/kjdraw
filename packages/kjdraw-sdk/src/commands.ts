@@ -624,7 +624,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
         if (viewport.type !== 'VIEWPORT') throw new KJValidationError(`Entity is not a viewport: ${args.id}`)
         return transaction.updateObject(viewport.id, { payload: clone(args.patch ?? {}) })
       }
-      const layout = resolveLayout(document, args.layoutId ?? args.layoutName ?? document.snapshot().spaces.activeLayoutId)
+      const layout = resolveLayout(document, args.layoutId ?? args.layoutName ?? document.spaces.activeLayoutId)
       const ownerId = args.ownerId ?? layout.payload.blockRecordId
       const viewport = transaction.createEntity('VIEWPORT', {
         center: args.center,
@@ -643,7 +643,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   disposers.push(registry.register({
     id: 'PLOTSETUP', aliases: ['PAGESETUP'], title: 'Configure layout plotting',
     execute: ({ document, transaction }, args) => {
-      const layout = resolveLayout(document, args.layoutId ?? args.layoutName ?? document.snapshot().spaces.activeLayoutId)
+      const layout = resolveLayout(document, args.layoutId ?? args.layoutName ?? document.spaces.activeLayoutId)
       if (args.dxf !== undefined) {
         validatePlotSettings(args.dxf)
         if (args.settings !== undefined) throw new KJValidationError('PLOTSETUP cannot mix dxf and native settings')
@@ -1081,7 +1081,7 @@ function resolveTableRecord(document: KJDocument, tableName: KJTableName, value:
 
 function resolveLayout(document: KJDocument, value: unknown): KJReadonlyObjectRecord {
   const key = String(value ?? '').toUpperCase()
-  const layout = document.snapshot().spaces.layoutIds.map(id => document.getObject(id)).find(record => record?.id === String(value) || String(record?.name).toUpperCase() === key)
+  const layout = document.spaces.layoutIds.map(id => document.getObject(id)).find(record => record?.id === String(value) || String(record?.name).toUpperCase() === key)
   if (!layout) throw new KJValidationError(`Layout does not exist: ${value}`)
   return layout
 }

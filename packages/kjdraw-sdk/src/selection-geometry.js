@@ -472,6 +472,118 @@ function criticalPoints(part) {
         part.b
     ];
 }
+function mergeBounds(a, b) {
+    return a ? [
+        Math.min(a[0], b[0]),
+        Math.min(a[1], b[1]),
+        Math.max(a[2], b[2]),
+        Math.max(a[3], b[3])
+    ] : b;
+}
+function transformBounds(bounds, matrix) {
+    let result = null;
+    for (const p of [
+        [
+            bounds[0],
+            bounds[1]
+        ],
+        [
+            bounds[2],
+            bounds[1]
+        ],
+        [
+            bounds[2],
+            bounds[3]
+        ],
+        [
+            bounds[0],
+            bounds[3]
+        ]
+    ]){
+        const x = matrix[0] * p[0] + matrix[2] * p[1] + matrix[4], y = matrix[1] * p[0] + matrix[3] * p[1] + matrix[5];
+        result = mergeBounds(result, [
+            x,
+            y,
+            x,
+            y
+        ]);
+    }
+    return result;
+}
+export function displayedEntityBounds(document, entity, cache = new WeakMap(), depth = 0) {
+    if (cache.has(entity)) return cache.get(entity) ?? null;
+    try {
+        if (entity.type === 'INSERT') {
+            if (depth >= 12) return null;
+            const payload = entity.payload, block = document.getObject(String(payload.blockRecordId ?? '')), position = point(payload.position);
+            if (!block || !position) return null;
+            let blockBounds = cache.get(block) ?? null;
+            if (!cache.has(block)) {
+                let complete = true;
+                for (const child of document.listEntities({
+                    ownerId: block.id
+                })){
+                    const layer = document.getObject(String(child.payload.layerId ?? ''))?.payload;
+                    if (isAttachedAttribute(child) || attributeHidden(child) || child.type === 'ATTDEF' && (Number(child.payload.flags ?? 0) & 2) === 0 || child.payload.visible === false || layer?.visible === false || layer?.frozen === true) continue;
+                    const childBounds = displayedEntityBounds(document, child, cache, depth + 1);
+                    if (!childBounds) {
+                        complete = false;
+                        break;
+                    }
+                    blockBounds = mergeBounds(blockBounds, childBounds);
+                }
+                if (!complete) blockBounds = null;
+                cache.set(block, blockBounds);
+            }
+            const base = point(block.payload.basePoint) ?? [
+                0,
+                0
+            ], scales = Array.isArray(payload.scale) ? payload.scale : [
+                payload.scale ?? 1,
+                payload.scale ?? 1
+            ];
+            const matrix = multiply3(translation3(position[0], position[1]), multiply3(rotation3(finite(payload.rotation)), multiply3(scale3(finite(scales[0], 1), finite(scales[1], 1)), translation3(-base[0], -base[1]))));
+            if (!blockBounds) {
+                cache.set(entity, null);
+                return null;
+            }
+            let result = transformBounds(blockBounds, matrix);
+            for (const attribute of insertAttributes(document, entity)){
+                if (!visibleAttribute(document, attribute)) continue;
+                const attributeBounds = displayedEntityBounds(document, attribute, cache, depth + 1);
+                if (!attributeBounds) {
+                    result = null;
+                    break;
+                }
+                result = mergeBounds(result, attributeBounds);
+            }
+            cache.set(entity, result);
+            return result;
+        }
+        const projection = project(entity, document);
+        if (!projection.complete || projection.parts.some((part)=>part.kind === 'ray' || part.kind === 'line')) return null;
+        const points = projection.parts.flatMap(criticalPoints);
+        for (const regions of projection.fills)for (const loop of regions)points.push(...loop);
+        if (!points.length) return null;
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const point of points){
+            minX = Math.min(minX, point[0]);
+            minY = Math.min(minY, point[1]);
+            maxX = Math.max(maxX, point[0]);
+            maxY = Math.max(maxY, point[1]);
+        }
+        const result = [
+            minX,
+            minY,
+            maxX,
+            maxY
+        ];
+        cache.set(entity, result);
+        return result;
+    } catch  {
+        return null;
+    }
+}
 function insideCurvedLoops(p, loops) {
     let inside = false;
     const startOf = (part)=>part.kind === 'curve' ? curveAt(part, part.start) : part.kind === 'point' ? part.point : part.a;
@@ -626,7 +738,7 @@ export function hitTestDisplayedEntity(document, entity, at, tolerance) {
 }
 export function isEntitySelectable(document, entity, options = {}) {
     if (isAttachedAttribute(entity) || attributeHidden(entity)) return false;
-    if (entity.kind !== 'entity' || entity.erased || entity.ownerId !== (options.spaceId ?? document.snapshot().spaces.modelSpaceId) || entity.payload.visible === false) return false;
+    if (entity.kind !== 'entity' || entity.erased || entity.ownerId !== (options.spaceId ?? document.spaces.modelSpaceId) || entity.payload.visible === false) return false;
     const layer = document.getObject(String(entity.payload.layerId ?? ''))?.payload;
     return layer?.visible !== false && layer?.frozen !== true && (options.includeLocked === true || layer?.locked !== true);
 }
@@ -643,7 +755,7 @@ function checkedPoint(value) {
 export function selectEntitiesInBox(document, first, second, mode = 'window', options = {}) {
     options = {
         ...options,
-        spaceId: options.spaceId ?? document.snapshot().spaces.modelSpaceId
+        spaceId: options.spaceId ?? document.spaces.modelSpaceId
     };
     if (mode !== 'window' && mode !== 'crossing') throw new TypeError('Selection mode must be window or crossing');
     const a = checkedPoint(first), b = checkedPoint(second), tolerance = epsilon(options);
@@ -667,9 +779,9 @@ export function selectEntitiesInBox(document, first, second, mode = 'window', op
         ]
     ];
     const inside = (p)=>p[0] >= minX - tolerance && p[0] <= maxX + tolerance && p[1] >= minY - tolerance && p[1] <= maxY + tolerance;
-    return Object.freeze(document.listEntities({
-        ownerId: options.spaceId ?? document.snapshot().spaces.modelSpaceId
-    }).filter((entity)=>{
+    return Object.freeze((options.candidates ?? document.listEntities({
+        ownerId: options.spaceId ?? document.spaces.modelSpaceId
+    })).filter((entity)=>{
         if (!isEntitySelectable(document, entity, options)) return false;
         try {
             const projection = project(entity, document);
@@ -684,13 +796,13 @@ export function selectEntitiesInBox(document, first, second, mode = 'window', op
 export function selectEntitiesByFence(document, vertices, options = {}) {
     options = {
         ...options,
-        spaceId: options.spaceId ?? document.snapshot().spaces.modelSpaceId
+        spaceId: options.spaceId ?? document.spaces.modelSpaceId
     };
     if (vertices.length < 2) throw new TypeError('Selection fence requires at least two points');
     const fence = vertices.map(checkedPoint), tolerance = epsilon(options);
-    return Object.freeze(document.listEntities({
-        ownerId: options.spaceId ?? document.snapshot().spaces.modelSpaceId
-    }).filter((entity)=>{
+    return Object.freeze((options.candidates ?? document.listEntities({
+        ownerId: options.spaceId ?? document.spaces.modelSpaceId
+    })).filter((entity)=>{
         if (!isEntitySelectable(document, entity, options)) return false;
         try {
             const projection = project(entity, document);

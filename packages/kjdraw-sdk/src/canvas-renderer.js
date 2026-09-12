@@ -8,7 +8,7 @@ import { createHatchStrokeCoverage } from './geometry/hatch-coverage.js';
 import { getEntityGrips } from './grips.js';
 import { attributeHidden, insertAttributes, isAttachedAttribute, visibleAttribute } from './attribute-display.js';
 import { layoutCadText } from './geometry/text-layout.js';
-import { hitTestDisplayedEntity, isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence } from './selection-geometry.js';
+import { displayedEntityBounds, hitTestDisplayedEntity, isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence } from './selection-geometry.js';
 const HATCH_RASTER_PIXEL_LIMIT = 1048576;
 const HATCH_RASTER_FRAME_WORK = 4000000;
 const HATCH_RASTER_CACHE_BYTES = 32 * 1024 * 1024;
@@ -349,6 +349,8 @@ export class KJCanvasRenderer {
     #selectionColor;
     #showLineweights;
     #sceneProvider;
+    #spatialScene = null;
+    #boundsCache = new WeakMap();
     #width = 1;
     #height = 1;
     #fittedCamera = null;
@@ -363,6 +365,10 @@ export class KJCanvasRenderer {
     #hatchRasterCache = [];
     #report = Object.freeze({
         total: 0,
+        culled: 0,
+        detailCulled: 0,
+        overviewEntities: 0,
+        overviewPixels: 0,
         rendered: 0,
         approximated: 0,
         hidden: 0,
@@ -419,8 +425,20 @@ export class KJCanvasRenderer {
         this.#disposeDocument?.();
         this.#disposeDocument = null;
         this.#document = document;
+        this.#spatialScene = null;
+        this.#boundsCache = new WeakMap();
         this.#hatchRasterCache = [];
-        if (document) this.#disposeDocument = document.on('document:change', ()=>this.render());
+        if (document) this.#disposeDocument = document.on('document:change', (event)=>{
+            this.#spatialScene = null;
+            const operations = Array.isArray(event.revision?.operations) ? event.revision.operations : [];
+            const active = this.#spaceId ?? document.spaces.modelSpaceId;
+            const localUpdates = operations.length > 0 && operations.every((operation)=>{
+                const value = operation;
+                return value.type === 'object.update' && value.after?.kind === 'entity' && value.after.ownerId === active;
+            });
+            if (!localUpdates) this.#boundsCache = new WeakMap();
+            this.render();
+        });
         this.#selection.clear();
         this.render();
         return this;
@@ -442,12 +460,14 @@ export class KJCanvasRenderer {
     }
     setSpace(spaceId) {
         this.#spaceId = spaceId;
+        this.#spatialScene = null;
         this.#selection.clear();
         this.render();
         return this;
     }
     setSceneProvider(provider) {
         this.#sceneProvider = provider;
+        this.#spatialScene = null;
         this.render();
         return this;
     }
@@ -509,10 +529,22 @@ export class KJCanvasRenderer {
                 layer.payload
             ]) ?? []);
         const unboundedOrigins = [];
-        const values = this.#entities().filter((entity)=>{
+        const scene = this.#sceneProvider ? null : this.#defaultScene();
+        const source = scene?.entities ?? this.#entities();
+        const values = [];
+        source.forEach((entity, index)=>{
             const layer = layers.get(String(entity.payload.layerId ?? ''));
-            return entity.payload.visible !== false && layer?.visible !== false && layer?.frozen !== true;
-        }).flatMap((entity)=>this.#fitPoints(entity, 0, unboundedOrigins));
+            if (entity.payload.visible === false || layer?.visible === false || layer?.frozen === true) return;
+            const bounds = scene?.bounds[index];
+            if (bounds) values.push([
+                bounds[0],
+                bounds[1]
+            ], [
+                bounds[2],
+                bounds[3]
+            ]);
+            else values.push(...this.#fitPoints(entity, 0, unboundedOrigins));
+        });
         if (!values.length) {
             this.camera.centerX = unboundedOrigins[0]?.[0] ?? 50;
             this.camera.centerY = unboundedOrigins[0]?.[1] ?? 40;
@@ -554,7 +586,12 @@ export class KJCanvasRenderer {
             point,
             radius
         };
-        const candidates = this.#sceneProvider?.hitCandidates?.(query) ?? this.#entities();
+        const candidates = this.#sceneProvider?.hitCandidates?.(query) ?? this.#entities([
+            point[0] - radius,
+            point[1] - radius,
+            point[0] + radius,
+            point[1] + radius
+        ]);
         for (const entity of candidates){
             if (!isEntitySelectable(document, entity, {
                 ...options,
@@ -663,21 +700,37 @@ export class KJCanvasRenderer {
     }
     selectBox(first, second, options = {}) {
         if (!this.#document) return Object.freeze([]);
-        const sceneIds = new Set(this.#entities().map((entity)=>entity.id));
-        return Object.freeze(selectEntitiesInBox(this.#document, this.screenToWorld(first), this.screenToWorld(second), options.mode ?? (second[0] >= first[0] ? 'window' : 'crossing'), {
+        const a = this.screenToWorld(first), b = this.screenToWorld(second), tolerance = .25 / this.camera.scale;
+        const candidates = this.#entities([
+            Math.min(a[0], b[0]) - tolerance,
+            Math.min(a[1], b[1]) - tolerance,
+            Math.max(a[0], b[0]) + tolerance,
+            Math.max(a[1], b[1]) + tolerance
+        ]);
+        return Object.freeze(selectEntitiesInBox(this.#document, a, b, options.mode ?? (second[0] >= first[0] ? 'window' : 'crossing'), {
             ...options,
             spaceId: this.#activeSpaceId(),
-            tolerance: .25 / this.camera.scale
-        }).filter((id)=>sceneIds.has(id)));
+            tolerance,
+            candidates
+        }));
     }
     selectFence(points, options = {}) {
         if (!this.#document) return Object.freeze([]);
-        const sceneIds = new Set(this.#entities().map((entity)=>entity.id));
-        return Object.freeze(selectEntitiesByFence(this.#document, points.map((point)=>this.screenToWorld(point)), {
+        const world = points.map((point)=>this.screenToWorld(point)), tolerance = .25 / this.camera.scale;
+        const xs = world.map((point)=>point[0]), ys = world.map((point)=>point[1]);
+        const candidates = world.length ? [
+            Math.min(...xs) - tolerance,
+            Math.min(...ys) - tolerance,
+            Math.max(...xs) + tolerance,
+            Math.max(...ys) + tolerance
+        ] : undefined;
+        const entities = this.#entities(candidates);
+        return Object.freeze(selectEntitiesByFence(this.#document, world, {
             ...options,
             spaceId: this.#activeSpaceId(),
-            tolerance: .25 / this.camera.scale
-        }).filter((id)=>sceneIds.has(id)));
+            tolerance,
+            candidates: entities
+        }));
     }
     selectAll(options = {}) {
         const document = this.#document;
@@ -757,6 +810,10 @@ export class KJCanvasRenderer {
         if (!document) {
             this.#report = Object.freeze({
                 total: 0,
+                culled: 0,
+                detailCulled: 0,
+                overviewEntities: 0,
+                overviewPixels: 0,
                 rendered: 0,
                 approximated: 0,
                 hidden: 0,
@@ -769,7 +826,14 @@ export class KJCanvasRenderer {
             });
             return this.#report;
         }
-        const entities = this.#entities();
+        const candidates = this.#entities(this.#visibleBounds());
+        const sceneTotal = this.#sceneProvider ? candidates.length : this.#defaultScene().entities.length;
+        const entities = [], detailEntities = [];
+        for (const entity of candidates){
+            if (sceneTotal < 1000 || this.#selection.has(entity.id) || this.#detailVisible(entity)) entities.push(entity);
+            else detailEntities.push(entity);
+        }
+        const detailCulled = detailEntities.length;
         const layers = new Map(document.getTable('layers')?.records.map((layer)=>[
                 layer.id,
                 layer.payload
@@ -794,8 +858,13 @@ export class KJCanvasRenderer {
                 }
             } else unsupported.add(entity.type);
         }
+        const overview = this.#drawOverview(detailEntities, layers);
         this.#report = Object.freeze({
-            total: entities.length,
+            total: sceneTotal,
+            culled: Math.max(0, sceneTotal - entities.length),
+            detailCulled,
+            overviewEntities: overview.entities,
+            overviewPixels: overview.pixels,
             rendered,
             approximated,
             hidden,
@@ -862,13 +931,15 @@ export class KJCanvasRenderer {
         this.#observer?.disconnect();
         this.#observer = null;
         this.#document = null;
+        this.#spatialScene = null;
+        this.#boundsCache = new WeakMap();
         this.#selection.clear();
         this.#hatchRasterCache = [];
     }
     #activeSpaceId() {
         const document = this.#document;
         if (!document) return '';
-        return this.#spaceId ?? document.snapshot().spaces.modelSpaceId;
+        return this.#spaceId ?? document.spaces.modelSpaceId;
     }
     #color(entity, layer) {
         const ownTrueColor = entity.payload.trueColor == null ? null : explicitColor(entity.payload.trueColor);
@@ -935,16 +1006,154 @@ export class KJCanvasRenderer {
         }
         return output;
     }
-    #entities() {
+    #visibleBounds() {
+        const lower = this.screenToWorld([
+            0,
+            this.#height
+        ]), upper = this.screenToWorld([
+            this.#width,
+            0
+        ]);
+        const margin = 4 / this.camera.scale;
+        return [
+            lower[0] - margin,
+            lower[1] - margin,
+            upper[0] + margin,
+            upper[1] + margin
+        ];
+    }
+    #detailVisible(entity) {
+        if (entity.type === 'POINT' || entity.type === 'RAY' || entity.type === 'XLINE') return true;
+        const bounds = this.#boundsCache.get(entity);
+        if (!bounds) return true;
+        return Math.max(bounds[2] - bounds[0], bounds[3] - bounds[1]) * this.camera.scale >= .1;
+    }
+    #drawOverview(entities, layers) {
+        if (!entities.length) return {
+            entities: 0,
+            pixels: 0
+        };
+        const occupied = new Set();
+        let visible = 0;
+        for (const entity of entities){
+            const layer = layers.get(String(entity.payload.layerId ?? ''));
+            if (attributeHidden(entity) || entity.payload.visible === false || layer?.visible === false || layer?.frozen === true) continue;
+            const bounds = this.#boundsCache.get(entity);
+            if (!bounds) continue;
+            const screen = this.worldToScreen([
+                (bounds[0] + bounds[2]) / 2,
+                (bounds[1] + bounds[3]) / 2
+            ]);
+            const x = Math.floor(screen[0]), y = Math.floor(screen[1]);
+            if (x >= 0 && x < this.#width && y >= 0 && y < this.#height) occupied.add(y * Math.ceil(this.#width) + x);
+            visible++;
+        }
+        if (occupied.size) {
+            const canvas = this.context;
+            canvas.save();
+            canvas.fillStyle = this.#theme === 'dark' ? '#9fb4c8' : '#53687d';
+            canvas.globalAlpha = .7;
+            const stride = Math.ceil(this.#width);
+            for (const key of occupied)canvas.fillRect(key % stride, Math.floor(key / stride), 1, 1);
+            canvas.restore();
+        }
+        return {
+            entities: visible,
+            pixels: occupied.size
+        };
+    }
+    #defaultScene() {
+        const document = this.#document;
+        if (!document) throw new Error('A document is required for the default canvas scene');
+        const spaceId = this.#activeSpaceId();
+        if (this.#spatialScene?.document === document && this.#spatialScene.revision === document.revision && this.#spatialScene.spaceId === spaceId) return this.#spatialScene;
+        const entities = document.listEntities({
+            ownerId: spaceId
+        }).filter((entity)=>!isAttachedAttribute(entity));
+        const bounds = entities.map((entity)=>{
+            const cached = this.#boundsCache.get(entity);
+            if (cached !== undefined || this.#boundsCache.has(entity)) return cached ?? null;
+            return displayedEntityBounds(document, entity, this.#boundsCache);
+        });
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const value of bounds)if (value) {
+            minX = Math.min(minX, value[0]);
+            minY = Math.min(minY, value[1]);
+            maxX = Math.max(maxX, value[2]);
+            maxY = Math.max(maxY, value[3]);
+        }
+        if (!Number.isFinite(minX)) minX = minY = 0, maxX = maxY = 1;
+        if (maxX <= minX) maxX = minX + 1;
+        if (maxY <= minY) maxY = minY + 1;
+        const extent = [
+            minX,
+            minY,
+            maxX,
+            maxY
+        ];
+        const divisions = Math.max(1, Math.min(128, Math.ceil(Math.sqrt(Math.max(1, entities.length) / 8))));
+        const cells = new Map();
+        const globals = [];
+        const cellX = (value)=>Math.max(0, Math.min(divisions - 1, Math.floor((value - minX) / (maxX - minX) * divisions)));
+        const cellY = (value)=>Math.max(0, Math.min(divisions - 1, Math.floor((value - minY) / (maxY - minY) * divisions)));
+        bounds.forEach((value, index)=>{
+            if (!value) {
+                globals.push(index);
+                return;
+            }
+            const x0 = cellX(value[0]), x1 = cellX(value[2]), y0 = cellY(value[1]), y1 = cellY(value[3]);
+            if ((x1 - x0 + 1) * (y1 - y0 + 1) > 256) {
+                globals.push(index);
+                return;
+            }
+            for(let y = y0; y <= y1; y++)for(let x = x0; x <= x1; x++){
+                const key = y * divisions + x, bucket = cells.get(key);
+                if (bucket) bucket.push(index);
+                else cells.set(key, [
+                    index
+                ]);
+            }
+        });
+        const buckets = new Map();
+        for (const [key, value] of cells)buckets.set(key, Object.freeze(value));
+        this.#spatialScene = {
+            document,
+            revision: document.revision,
+            spaceId,
+            entities: Object.freeze(entities),
+            bounds: Object.freeze(bounds),
+            globals: Object.freeze(globals),
+            buckets,
+            divisions,
+            extent
+        };
+        return this.#spatialScene;
+    }
+    #entities(bounds) {
         const document = this.#document;
         if (!document) return [];
-        const query = {
+        const spaceId = this.#activeSpaceId();
+        if (this.#sceneProvider) return this.#sceneProvider.listEntities({
             document,
-            spaceId: this.#activeSpaceId()
-        };
-        return (this.#sceneProvider?.listEntities(query) ?? document.listEntities({
-            ownerId: query.spaceId
-        })).filter((entity)=>!isAttachedAttribute(entity));
+            spaceId,
+            ...bounds ? {
+                bounds
+            } : {}
+        }).filter((entity)=>!isAttachedAttribute(entity));
+        const scene = this.#defaultScene();
+        if (!bounds) return scene.entities;
+        const [minX, minY, maxX, maxY] = scene.extent;
+        const intersects = (value)=>value[2] >= bounds[0] && value[0] <= bounds[2] && value[3] >= bounds[1] && value[1] <= bounds[3];
+        const selected = new Set(scene.globals);
+        if (bounds[2] >= minX && bounds[0] <= maxX && bounds[3] >= minY && bounds[1] <= maxY) {
+            const cellX = (value)=>Math.max(0, Math.min(scene.divisions - 1, Math.floor((value - minX) / (maxX - minX) * scene.divisions)));
+            const cellY = (value)=>Math.max(0, Math.min(scene.divisions - 1, Math.floor((value - minY) / (maxY - minY) * scene.divisions)));
+            const x0 = cellX(bounds[0]), x1 = cellX(bounds[2]), y0 = cellY(bounds[1]), y1 = cellY(bounds[3]);
+            for(let y = y0; y <= y1; y++)for(let x = x0; x <= x1; x++)for (const index of scene.buckets.get(y * scene.divisions + x) ?? [])selected.add(index);
+        }
+        return [
+            ...selected
+        ].sort((a, b)=>a - b).filter((index)=>scene.bounds[index] === null || intersects(scene.bounds[index])).map((index)=>scene.entities[index]);
     }
     #drawGrid() {
         const context = this.context;
@@ -1671,7 +1880,7 @@ export class KJCanvasRenderer {
         this.#viewportDiagnostics.push(diagnostic);
         const document = this.#document, p = entity.payload, center = point2(p.center), viewCenter = point2(p.viewCenter);
         const width = finite(p.width), height = finite(p.height), viewHeight = finite(p.viewHeight), twist = finite(p.twistAngle);
-        if (!document || entity.ownerId === document.snapshot().spaces.modelSpaceId || entity.ownerId !== this.#activeSpaceId()) {
+        if (!document || entity.ownerId === document.spaces.modelSpaceId || entity.ownerId !== this.#activeSpaceId()) {
             diagnostic.reason = 'not-paper-space';
             return false;
         }
@@ -1736,7 +1945,7 @@ export class KJCanvasRenderer {
             context.clip();
             const query = {
                 document,
-                spaceId: document.snapshot().spaces.modelSpaceId
+                spaceId: document.spaces.modelSpaceId
             };
             for (const model of this.#sceneProvider?.listEntities(query) ?? document.listEntities({
                 ownerId: query.spaceId

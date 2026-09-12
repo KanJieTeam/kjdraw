@@ -455,7 +455,7 @@ export class KJDrawWorkbench {
   get layout(): KJWorkbenchLayout { return this.#layout }
   /** Null means model space; independent of the classic/compact/focus interface layout. */
   get drawingLayoutId(): string | null { return this.#drawingLayoutId }
-  get spaceId(): string | null { return this.renderer.spaceId ?? this.document?.snapshot().spaces.modelSpaceId ?? null }
+  get spaceId(): string | null { return this.renderer.spaceId ?? this.document?.spaces.modelSpaceId ?? null }
   get paperPreview(): boolean { return this.#drawingLayoutId !== null }
   get #readOnly(): boolean { return this.#options.readonly === true || this.paperPreview }
   get tool(): KJWorkbenchTool { return this.#tool }
@@ -486,10 +486,10 @@ export class KJDrawWorkbench {
   #paperLayouts(): KJReadonlyObjectRecord[] {
     const drawing = this.document
     if (!drawing) return []
-    const state = drawing.snapshot(), result: KJReadonlyObjectRecord[] = []
-    for (const id of state.spaces.layoutIds) {
+    const spaces = drawing.spaces, result: KJReadonlyObjectRecord[] = []
+    for (const id of spaces.layoutIds) {
       const layout = drawing.getObject(id), ownerId = String(layout?.payload.blockRecordId ?? ''), owner = drawing.getObject(ownerId)
-      if (layout?.kind === 'layout' && !layout.erased && owner?.kind === 'block-record' && !owner.erased && owner.payload.isSpace === true && state.spaces.paperSpaceIds.includes(ownerId)) result.push(layout)
+      if (layout?.kind === 'layout' && !layout.erased && owner?.kind === 'block-record' && !owner.erased && owner.payload.isSpace === true && spaces.paperSpaceIds.includes(ownerId)) result.push(layout)
     }
     return result.sort((a, b) => Number(a.payload.tabOrder ?? 0) - Number(b.payload.tabOrder ?? 0))
   }
@@ -670,7 +670,7 @@ export class KJDrawWorkbench {
       this.renderer.setDocument(document)
       this.#subscribeDocument(document)
       const selection = this.sdk.getSelectionManager(document.id)?.active
-      const modelIds = selection?.ids.filter(id => document.getObject(id)?.ownerId === document.snapshot().spaces.modelSpaceId) ?? []
+      const modelIds = selection?.ids.filter(id => document.getObject(id)?.ownerId === document.spaces.modelSpaceId) ?? []
       if (selection && modelIds.length !== selection.ids.length) selection.replace(modelIds)
       this.renderer.setSelection(modelIds)
       if (DRAFT_TOOLS.includes(this.#tool as KJDraftTool)) this.#beginDraftGesture(this.#tool as KJDraftTool)
@@ -737,7 +737,7 @@ export class KJDrawWorkbench {
     if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed')
     const drawing = this.document
     if (!drawing) throw new Error('No active KJDraw document')
-    const output = await this.sdk.writeDocument(drawing, { ...options, format, ...(format === 'SVG' ? { layoutId: options.layoutId ?? this.#drawingLayoutId ?? drawing.snapshot().spaces.activeLayoutId } : {}), ...(format === 'DXF' && options.version == null ? { version: '2018' } : {}) })
+    const output = await this.sdk.writeDocument(drawing, { ...options, format, ...(format === 'SVG' ? { layoutId: options.layoutId ?? this.#drawingLayoutId ?? drawing.spaces.activeLayoutId } : {}), ...(format === 'DXF' && options.version == null ? { version: '2018' } : {}) })
     if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed')
     if (options.download !== false) {
       const extension = format.toLowerCase()
@@ -755,7 +755,7 @@ export class KJDrawWorkbench {
     const layout = this.#drawingLayoutId
     const output = await openDrawingPrintWindow(drawing, {
       ...options,
-      layoutId: options.layoutId ?? layout ?? drawing.snapshot().spaces.activeLayoutId,
+      layoutId: options.layoutId ?? layout ?? drawing.spaces.activeLayoutId,
       locale: this.#locale,
       title: options.title ?? this.#fileName,
       ...(this.root.ownerDocument.defaultView ? { ownerWindow: this.root.ownerDocument.defaultView } : {}),
@@ -1454,8 +1454,8 @@ export class KJDrawWorkbench {
     this.#cancelGesture()
     this.#pageBinding = { document: drawing, revision: drawing.revision, layoutId: '', settings: {} }
     const select = query<HTMLSelectElement>(this.root, '[data-page-sheet]')
-    select.replaceChildren(...drawing.snapshot().spaces.layoutIds.map(id => new Option(drawing.getObject(id)?.name ?? id, id)))
-    select.value = drawing.snapshot().spaces.activeLayoutId
+    select.replaceChildren(...drawing.spaces.layoutIds.map(id => new Option(drawing.getObject(id)?.name ?? id, id)))
+    select.value = drawing.spaces.activeLayoutId
     this.#loadPageSheet()
     query<HTMLDialogElement>(this.root, '[data-page-dialog]').showModal()
   }
@@ -1892,7 +1892,7 @@ export class KJDrawWorkbench {
   #visibleModelEntityIds(): string[] {
     const drawing = this.document
     if (!drawing) return []
-    const modelSpaceId = this.spaceId ?? drawing.snapshot().spaces.modelSpaceId
+    const modelSpaceId = this.spaceId ?? drawing.spaces.modelSpaceId
     const layers = new Map(drawing.getTable('layers')?.records.map(layer => [layer.id, layer.payload]) ?? [])
     return drawing.listEntities({ ownerId: modelSpaceId }).filter(entity => {
       const layer = layers.get(String(entity.payload.layerId ?? ''))
@@ -2525,7 +2525,7 @@ export class KJDrawWorkbench {
     this.#syncEditability()
     this.#snappableEntityIds = this.#visibleModelEntityIds()
     const name = this.root.querySelector<HTMLElement>('[data-document-name]')
-    if (name) name.textContent = this.#options.title ?? String(drawing.snapshot().metadata.title ?? drawing.id)
+    if (name) name.textContent = this.#options.title ?? String(drawing.metadata.title ?? drawing.id)
     const count = drawing.listEntities().length
     const set = (selector: string, value: string) => { const element = this.root.querySelector<HTMLElement>(selector); if (element) element.textContent = value }
     set('[data-count]', `${count.toLocaleString()} ${this.#t('entities')}`)

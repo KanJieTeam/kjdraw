@@ -82,6 +82,7 @@ export class KJDocument {
     #objectCache = new Map();
     #queryCache = new Map();
     #tableCache = new Map();
+    #ownerEntityIndex = null;
     constructor(input = {}, options = {}){
         const candidate = input;
         const state = candidate?.schema || Array.isArray(candidate?.entities) || Array.isArray(candidate?.layers) ? migrateDocumentState(input) : createEmptyDocumentState(input);
@@ -134,6 +135,12 @@ export class KJDocument {
         this.#snapshotCache ??= deepFreeze(clone(this.#state));
         return this.#snapshotCache;
     }
+    get metadata() {
+        return deepFreeze(clone(this.#state.metadata));
+    }
+    get spaces() {
+        return deepFreeze(clone(this.#state.spaces));
+    }
     toJSON({ includeRevisions = true } = {}) {
         const state = clone(this.#state);
         if (!includeRevisions) state.revisions = [];
@@ -184,7 +191,7 @@ export class KJDocument {
         const key = `${includeErased ? '1' : '0'}:${String(id)}`;
         if (this.#objectCache.has(key)) return this.#objectCache.get(key) ?? null;
         const object = this.#state.objects[String(id)];
-        const result = !object || object.erased && !includeErased ? null : deepFreeze(clone(object));
+        const result = !object || object.erased && !includeErased ? null : deepFreeze(object);
         this.#objectCache.set(key, result);
         return result;
     }
@@ -193,27 +200,10 @@ export class KJDocument {
         const key = `${kind ?? ''}|${normalizedType ?? ''}|${ownerId ?? ''}|${includeErased ? '1' : '0'}`;
         const cached = this.#queryCache.get(key);
         if (cached) return cached;
-        let objects = Object.values(this.#state.objects).filter((object)=>includeErased || !object.erased).filter((object)=>kind == null || object.kind === kind).filter((object)=>normalizedType == null || object.type === normalizedType).filter((object)=>ownerId == null || object.ownerId === ownerId);
-        if (kind === 'entity' && ownerId != null) {
-            const remaining = new Map(objects.map((object)=>[
-                    object.id,
-                    object
-                ]));
-            objects = [];
-            for (const id of this.#state.objects[ownerId]?.payload.entityIds ?? []){
-                const object = remaining.get(id);
-                if (object) {
-                    objects.push(object);
-                    remaining.delete(id);
-                }
-            }
-            objects.push(...[
-                ...remaining.values()
-            ].sort((a, b)=>{
-                const left = BigInt(`0x${a.handle}`), right = BigInt(`0x${b.handle}`);
-                return left < right ? -1 : left > right ? 1 : 0;
-            }));
-        }
+        let objects = kind === 'entity' && ownerId != null ? [
+            ...this.#entitiesByOwner(ownerId)
+        ] : Object.values(this.#state.objects).filter((object)=>kind == null || object.kind === kind).filter((object)=>ownerId == null || object.ownerId === ownerId);
+        objects = objects.filter((object)=>includeErased || !object.erased).filter((object)=>normalizedType == null || object.type === normalizedType);
         const result = Object.freeze(objects.map((object)=>this.getObject(object.id, {
                 includeErased
             })));
@@ -249,6 +239,41 @@ export class KJDocument {
         this.#objectCache.clear();
         this.#queryCache.clear();
         this.#tableCache.clear();
+        this.#ownerEntityIndex = null;
+    }
+    #entitiesByOwner(ownerId) {
+        if (!this.#ownerEntityIndex) {
+            const grouped = new Map();
+            for (const object of Object.values(this.#state.objects))if (object.kind === 'entity' && object.ownerId != null) {
+                const values = grouped.get(object.ownerId);
+                if (values) values.push(object);
+                else grouped.set(object.ownerId, [
+                    object
+                ]);
+            }
+            this.#ownerEntityIndex = new Map();
+            for (const [owner, values] of grouped){
+                const remaining = new Map(values.map((object)=>[
+                        object.id,
+                        object
+                    ])), ordered = [];
+                for (const id of this.#state.objects[owner]?.payload.entityIds ?? []){
+                    const object = remaining.get(id);
+                    if (object) {
+                        ordered.push(object);
+                        remaining.delete(id);
+                    }
+                }
+                ordered.push(...[
+                    ...remaining.values()
+                ].sort((a, b)=>{
+                    const left = BigInt(`0x${a.handle}`), right = BigInt(`0x${b.handle}`);
+                    return left < right ? -1 : left > right ? 1 : 0;
+                }));
+                this.#ownerEntityIndex.set(owner, ordered);
+            }
+        }
+        return this.#ownerEntityIndex.get(String(ownerId)) ?? [];
     }
     #enqueue(work) {
         const result = this.#queue.then(work, work);

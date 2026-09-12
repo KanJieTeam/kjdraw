@@ -20,6 +20,8 @@ export interface KJSpatialSelectionOptions {
   includeLocked?: boolean
   /** Model-space tolerance. The Canvas adapter supplies a sub-pixel tolerance. */
   tolerance?: number
+  /** Optional conservative candidate page supplied by a spatial index. */
+  candidates?: ReadonlyArray<KJReadonlyObjectRecord>
 }
 const TAU = Math.PI * 2
 const point = (value: unknown): Point | null => Array.isArray(value) && value.length >= 2 && value.slice(0, 2).every(v => Number.isFinite(Number(v))) ? [Number(value[0]), Number(value[1])] : null
@@ -246,6 +248,70 @@ function insideFills(point: Point, loops: readonly Point[][]): boolean {
 }
 function criticalPoints(part: Primitive): Point[] { return part.kind === 'curve' ? curveExtrema(part) : part.kind === 'point' ? [part.point] : [part.a, part.b] }
 
+type DisplayBounds = readonly [number, number, number, number]
+function mergeBounds(a: DisplayBounds | null, b: DisplayBounds): DisplayBounds {
+  return a ? [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])] : b
+}
+function transformBounds(bounds: DisplayBounds, matrix: readonly number[]): DisplayBounds {
+  let result: DisplayBounds | null = null
+  for (const p of [[bounds[0], bounds[1]], [bounds[2], bounds[1]], [bounds[2], bounds[3]], [bounds[0], bounds[3]]] as const) {
+    const x = matrix[0]! * p[0] + matrix[2]! * p[1] + matrix[4]!, y = matrix[1]! * p[0] + matrix[3]! * p[1] + matrix[5]!
+    result = mergeBounds(result, [x, y, x, y])
+  }
+  return result!
+}
+
+/** Conservative displayed XY bounds for viewport indexes. Null keeps an
+ * unbounded or incompletely projected entity in every candidate page. */
+export function displayedEntityBounds(document: KJDocument, entity: KJReadonlyObjectRecord, cache = new WeakMap<object, DisplayBounds | null>(), depth = 0): DisplayBounds | null {
+  if (cache.has(entity as object)) return cache.get(entity as object) ?? null
+  try {
+    if (entity.type === 'INSERT') {
+      if (depth >= 12) return null
+      const payload = entity.payload, block = document.getObject(String(payload.blockRecordId ?? '')), position = point(payload.position)
+      if (!block || !position) return null
+      let blockBounds = cache.get(block as object) ?? null
+      if (!cache.has(block as object)) {
+        let complete = true
+        for (const child of document.listEntities({ ownerId: block.id })) {
+          const layer = document.getObject(String(child.payload.layerId ?? ''))?.payload
+          if (isAttachedAttribute(child) || attributeHidden(child) || child.type === 'ATTDEF' && (Number(child.payload.flags ?? 0) & 2) === 0 || child.payload.visible === false || layer?.visible === false || layer?.frozen === true) continue
+          const childBounds = displayedEntityBounds(document, child, cache, depth + 1)
+          if (!childBounds) { complete = false; break }
+          blockBounds = mergeBounds(blockBounds, childBounds)
+        }
+        if (!complete) blockBounds = null
+        cache.set(block as object, blockBounds)
+      }
+      const base = point(block.payload.basePoint) ?? [0, 0], scales = Array.isArray(payload.scale) ? payload.scale : [payload.scale ?? 1, payload.scale ?? 1]
+      const matrix = multiply3(translation3(position[0], position[1]), multiply3(rotation3(finite(payload.rotation)), multiply3(scale3(finite(scales[0], 1), finite(scales[1], 1)), translation3(-base[0], -base[1]))))
+      if (!blockBounds) { cache.set(entity as object, null); return null }
+      let result: DisplayBounds | null = transformBounds(blockBounds, matrix)
+      for (const attribute of insertAttributes(document, entity)) {
+        if (!visibleAttribute(document, attribute)) continue
+        const attributeBounds = displayedEntityBounds(document, attribute, cache, depth + 1)
+        if (!attributeBounds) { result = null; break }
+        result = mergeBounds(result, attributeBounds)
+      }
+      cache.set(entity as object, result)
+      return result
+    }
+    const projection = project(entity, document)
+    if (!projection.complete || projection.parts.some(part => part.kind === 'ray' || part.kind === 'line')) return null
+    const points = projection.parts.flatMap(criticalPoints)
+    for (const regions of projection.fills) for (const loop of regions) points.push(...loop)
+    if (!points.length) return null
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const point of points) {
+      minX = Math.min(minX, point[0]); minY = Math.min(minY, point[1])
+      maxX = Math.max(maxX, point[0]); maxY = Math.max(maxY, point[1])
+    }
+    const result: DisplayBounds = [minX, minY, maxX, maxY]
+    cache.set(entity as object, result)
+    return result
+  } catch { return null }
+}
+
 /** Horizontal-ray parity on circular arcs split at Y extrema. No chord sampling. */
 function insideCurvedLoops(p: Point, loops: readonly Primitive[][]): boolean {
   let inside = false
@@ -342,7 +408,7 @@ export function hitTestDisplayedEntity(document: KJDocument, entity: KJReadonlyO
 /** One shared visibility/locking rule for picking, region queries and editable grips. */
 export function isEntitySelectable(document: KJDocument, entity: KJReadonlyObjectRecord, options: KJSpatialSelectionOptions = {}): boolean {
   if (isAttachedAttribute(entity) || attributeHidden(entity)) return false
-  if (entity.kind !== 'entity' || entity.erased || entity.ownerId !== (options.spaceId ?? document.snapshot().spaces.modelSpaceId) || entity.payload.visible === false) return false
+  if (entity.kind !== 'entity' || entity.erased || entity.ownerId !== (options.spaceId ?? document.spaces.modelSpaceId) || entity.payload.visible === false) return false
   const layer = document.getObject(String(entity.payload.layerId ?? ''))?.payload
   return layer?.visible !== false && layer?.frozen !== true && (options.includeLocked === true || layer?.locked !== true)
 }
@@ -358,13 +424,13 @@ function checkedPoint(value: Point): Point {
 }
 /** Select complete geometry (window) or geometry touching the box (crossing), in model coordinates. Does not mutate selection/history. */
 export function selectEntitiesInBox(document: KJDocument, first: Point, second: Point, mode: KJBoxSelectionMode = 'window', options: KJSpatialSelectionOptions = {}): readonly string[] {
-  options = { ...options, spaceId: options.spaceId ?? document.snapshot().spaces.modelSpaceId }
+  options = { ...options, spaceId: options.spaceId ?? document.spaces.modelSpaceId }
   if (mode !== 'window' && mode !== 'crossing') throw new TypeError('Selection mode must be window or crossing')
   const a = checkedPoint(first), b = checkedPoint(second), tolerance = epsilon(options)
   const minX = Math.min(a[0], b[0]), maxX = Math.max(a[0], b[0]), minY = Math.min(a[1], b[1]), maxY = Math.max(a[1], b[1])
   const corners: Point[] = [[minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]]
   const inside = (p: Point) => p[0] >= minX - tolerance && p[0] <= maxX + tolerance && p[1] >= minY - tolerance && p[1] <= maxY + tolerance
-  return Object.freeze(document.listEntities({ ownerId: options.spaceId ?? document.snapshot().spaces.modelSpaceId }).filter(entity => {
+  return Object.freeze((options.candidates ?? document.listEntities({ ownerId: options.spaceId ?? document.spaces.modelSpaceId })).filter(entity => {
     if (!isEntitySelectable(document, entity, options)) return false
     try {
       const projection = project(entity, document)
@@ -376,10 +442,10 @@ export function selectEntitiesInBox(document: KJDocument, first: Point, second: 
 }
 /** Select geometry intersecting an open fence polyline. This is not a polygon/window query. */
 export function selectEntitiesByFence(document: KJDocument, vertices: readonly Point[], options: KJSpatialSelectionOptions = {}): readonly string[] {
-  options = { ...options, spaceId: options.spaceId ?? document.snapshot().spaces.modelSpaceId }
+  options = { ...options, spaceId: options.spaceId ?? document.spaces.modelSpaceId }
   if (vertices.length < 2) throw new TypeError('Selection fence requires at least two points')
   const fence = vertices.map(checkedPoint), tolerance = epsilon(options)
-  return Object.freeze(document.listEntities({ ownerId: options.spaceId ?? document.snapshot().spaces.modelSpaceId }).filter(entity => {
+  return Object.freeze((options.candidates ?? document.listEntities({ ownerId: options.spaceId ?? document.spaces.modelSpaceId })).filter(entity => {
     if (!isEntitySelectable(document, entity, options)) return false
     try {
       const projection = project(entity, document)

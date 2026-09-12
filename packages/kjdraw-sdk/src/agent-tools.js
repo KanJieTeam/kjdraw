@@ -1064,7 +1064,7 @@ export class KJAgentToolSession {
                             const input = args;
                             const drawing = decodeAgentCompactDrawing(input);
                             validate(drawingInputSchema, drawing);
-                            const ownerId = document.snapshot().spaces.modelSpaceId;
+                            const ownerId = document.spaces.modelSpaceId;
                             const count = drawing.lines.length + drawing.circles.length + drawing.arcs.length + drawing.polylines.length;
                             if (!count && input.arrays.length) throw new KJValidationError('Arrays require base geometry');
                             const entities = count ? buildPatternEntities(input, drawing, ownerId) : [];
@@ -1116,7 +1116,7 @@ export class KJAgentToolSession {
                         } else if (name === 'cad_propose_drawing' || name === 'cad_propose_drawing_compact' || name === 'cad_propose_drawing_pattern') {
                             const drawing = name === 'cad_propose_drawing' ? args : decodeAgentCompactDrawing(args);
                             if (name !== 'cad_propose_drawing') validate(drawingInputSchema, drawing);
-                            const ownerId = document.snapshot().spaces.modelSpaceId;
+                            const ownerId = document.spaces.modelSpaceId;
                             commandArgs = {
                                 entities: name === 'cad_propose_drawing_pattern' ? buildPatternEntities(args, drawing, ownerId) : buildAgentDrawingEntities(drawing, ownerId)
                             };
@@ -1133,7 +1133,7 @@ export class KJAgentToolSession {
                                         },
                                         options: {
                                             id: createId('entity'),
-                                            ownerId: document.snapshot().spaces.modelSpaceId
+                                            ownerId: document.spaces.modelSpaceId
                                         }
                                     };
                                 })
@@ -1150,7 +1150,7 @@ export class KJAgentToolSession {
                                         },
                                         options: {
                                             id: createId('entity'),
-                                            ownerId: document.snapshot().spaces.modelSpaceId
+                                            ownerId: document.spaces.modelSpaceId
                                         }
                                     };
                                 })

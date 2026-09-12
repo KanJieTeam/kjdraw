@@ -36,7 +36,7 @@ export function createSVGFileAdapter() {
             if (!(document instanceof KJDocument)) throw new KJValidationError('SVG writer requires a KJDocument');
             if (options.allowPartial !== undefined && options.allowPartial !== false) throw new KJValidationError('SVG file output requires complete geometry; use exportDrawingSvg to inspect partial output and diagnostics');
             if (options.signal instanceof AbortSignal && options.signal.aborted) throw new KJValidationError('SVG export aborted');
-            const layoutId = options.layoutId ?? document.snapshot().spaces.activeLayoutId;
+            const layoutId = options.layoutId ?? document.spaces.activeLayoutId;
             if (typeof layoutId !== 'string' || !layoutId) throw new KJValidationError('SVG export requires a layoutId with physical page settings');
             if (options.maxEntities !== undefined && (typeof options.maxEntities !== 'number' || !Number.isSafeInteger(options.maxEntities))) throw new KJValidationError('SVG maxEntities must be an integer');
             return exportDrawingSvg(document, {
