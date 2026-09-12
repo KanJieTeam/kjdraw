@@ -25,6 +25,7 @@ import {
 } from './modification-controls.js'
 import {
   constrainOrthogonalDraftPoint,
+  constrainPolarDraftPoint,
   createDraftingSession,
   parseDraftCoordinate,
   type KJDraftEntitySpec,
@@ -147,7 +148,7 @@ const copy = {
     pageSetup: 'Page setup', pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.', pageSheet: 'Sheet', pageStale: 'The drawing changed. Close and reopen page setup before applying.', pageWidth: 'Paper width (mm)', pageHeight: 'Paper height (mm)', pageLeft: 'Left margin (mm)', pageRight: 'Right margin (mm)', pageTop: 'Top margin (mm)', pageBottom: 'Bottom margin (mm)', pageUnits: 'Plot units', pageRotation: 'Rotation (counterclockwise)', pageNumerator: 'Custom scale: paper units', pageDenominator: 'Custom scale: drawing units', pageScaleNote: 'Choose Fit to paper or edit the custom ratio. Window coordinates use drawing units; physical offsets use millimeters.', pageUnchanged: 'Keep existing', pageInches: 'Inches', pageMm: 'Millimeters', pagePixels: 'Pixels', pageArea: 'Plot area', pageDisplay: 'Last display', pageExtents: 'Drawing extents', pageLimits: 'Drawing limits', pageView: 'Named view', pageWindow: 'Window', pageLayout: 'Layout', pageViewName: 'View name', pageMinX: 'Window minimum X', pageMinY: 'Window minimum Y', pageMaxX: 'Window maximum X', pageMaxY: 'Window maximum Y', pageOriginX: 'Origin X (mm)', pageOriginY: 'Origin Y (mm)', pageScaleMode: 'Scale mode', pageFit: 'Fit to paper', pageCustom: 'Custom ratio',
     open: 'Open', openSource: 'Reading file', openParse: 'Parsing DXF', openImport: 'Building drawing', openCancelHint: 'Esc cancels', openCancelled: 'Open cancelled', saveKjd: 'Save KJD', exportDxf: 'Export DXF', exportSvg: 'Export SVG', print: 'Print / PDF', printOpened: 'Print dialog opened · choose Save as PDF for vector output', draw: 'Draw', modify: 'Modify', view: 'View',
     select: 'Select', pan: 'Pan', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', rectangle: 'Rectangle', text: 'Text', measure: 'Measure',
-    undo: 'Undo', redo: 'Redo', erase: 'Delete', move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', fit: 'Fit', grid: 'Grid', ortho: 'Ortho', orthoOn: 'Orthogonal drafting on', orthoOff: 'Orthogonal drafting off', orthoBusy: 'Finish or cancel the current operation before changing Ortho', layers: 'Layers', properties: 'Properties',
+    undo: 'Undo', redo: 'Redo', erase: 'Delete', move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', fit: 'Fit', grid: 'Grid', ortho: 'Ortho', orthoOn: 'Orthogonal drafting on', orthoOff: 'Orthogonal drafting off', orthoBusy: 'Finish or cancel the current operation before changing Ortho', polar: 'Polar', polarOn: 'Polar tracking on', polarOff: 'Polar tracking off', polarBusy: 'Finish or cancel the current operation before changing Polar tracking', layers: 'Layers', properties: 'Properties',
     noSelection: 'Select an object to inspect its properties.', drawing: 'Drawing', entities: 'entities', selected: 'selected',
     layer: 'Layer', textStyle: 'Text style', radius: 'Radius', apply: 'Apply', ready: 'Ready', readonly: 'Read only',
     firstPoint: 'Specify the first point', nextPoint: 'Specify the next point', finishPolyline: 'Click vertices · Enter or double-click to finish', arcStart: 'Specify arc start', arcEnd: 'Specify arc endpoint', textPrompt: 'Type TEXT followed by content, then click an insertion point', measured: 'Measured distance',
@@ -167,7 +168,7 @@ const copy = {
     pageSetup: '页面设置', pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。', pageSheet: '图纸布局', pageStale: '图档已变更，请关闭并重新打开页面设置后再应用。', pageWidth: '纸张宽度（毫米）', pageHeight: '纸张高度（毫米）', pageLeft: '左边距（毫米）', pageRight: '右边距（毫米）', pageTop: '上边距（毫米）', pageBottom: '下边距（毫米）', pageUnits: '打印单位', pageRotation: '旋转（逆时针）', pageNumerator: '自定义比例：纸张单位', pageDenominator: '自定义比例：图形单位', pageScaleNote: '可选适合纸张或编辑自定义比例。窗口坐标使用绘图单位，物理偏移使用毫米。', pageUnchanged: '保留已有值', pageInches: '英寸', pageMm: '毫米', pagePixels: '像素', pageArea: '打印范围', pageDisplay: '上次显示范围', pageExtents: '图形范围', pageLimits: '图形界限', pageView: '命名视图', pageWindow: '窗口', pageLayout: '布局', pageViewName: '视图名称', pageMinX: '窗口最小 X', pageMinY: '窗口最小 Y', pageMaxX: '窗口最大 X', pageMaxY: '窗口最大 Y', pageOriginX: '原点 X（毫米）', pageOriginY: '原点 Y（毫米）', pageScaleMode: '比例模式', pageFit: '适合纸张', pageCustom: '自定义比例',
     open: '打开', openSource: '正在读取文件', openParse: '正在解析 DXF', openImport: '正在构建图纸', openCancelHint: 'Esc 取消', openCancelled: '已取消打开', saveKjd: '保存 KJD', exportDxf: '导出 DXF', exportSvg: '导出 SVG', print: '打印 / PDF', printOpened: '已打开打印对话框 · 选择另存为 PDF 可保留矢量', draw: '绘图', modify: '修改', view: '视图',
     select: '选择', pan: '平移', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', rectangle: '矩形', text: '文字', measure: '测距',
-    undo: '撤销', redo: '重做', erase: '删除', move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', fit: '全图', grid: '栅格', ortho: '正交', orthoOn: '正交绘图已开启', orthoOff: '正交绘图已关闭', orthoBusy: '请先完成或取消当前操作，再切换正交模式', layers: '图层', properties: '特性',
+    undo: '撤销', redo: '重做', erase: '删除', move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', fit: '全图', grid: '栅格', ortho: '正交', orthoOn: '正交绘图已开启', orthoOff: '正交绘图已关闭', orthoBusy: '请先完成或取消当前操作，再切换正交模式', polar: '极轴', polarOn: '极轴跟踪已开启', polarOff: '极轴跟踪已关闭', polarBusy: '请先完成或取消当前操作，再切换极轴跟踪', layers: '图层', properties: '特性',
     noSelection: '选择图元后可查看和修改属性。', drawing: '图纸', entities: '图元', selected: '已选择',
     layer: '图层', textStyle: '文字样式', radius: '半径', apply: '应用', ready: '就绪', readonly: '只读',
     firstPoint: '指定第一个点', nextPoint: '指定下一个点', finishPolyline: '连续指定顶点 · Enter 或双击完成', arcStart: '指定圆弧起点', arcEnd: '指定圆弧端点', textPrompt: '输入 TEXT 和文字内容，再指定插入点', measured: '测量距离',
@@ -836,7 +837,7 @@ export class KJDrawWorkbench {
         <main class="canvas-wrap"><div class="drawing-space"><select data-drawing-layout></select><span data-paper-preview role="status" hidden></span></div><canvas class="cad-canvas" data-canvas aria-label="KJDraw CAD canvas"></canvas><canvas class="overlay" data-overlay aria-hidden="true"></canvas><span class="snap" data-snap></span><nav class="navigator" aria-label="${t('view')}"><button type="button" class="active" data-tool="select" data-copy-title="select" title="${t('select')}">${icon('select')}</button><button type="button" data-tool="pan" data-copy-title="pan" title="${t('pan')}">${icon('pan')}</button><button type="button" data-action="nav-fit" data-copy-title="fit" title="${t('fit')}">${icon('fit')}</button><button type="button" data-action="zoom-in" data-copy-title="zoomIn" title="${t('zoomIn')}">${icon('zoom-in')}</button><button type="button" data-action="zoom-out" data-copy-title="zoomOut" title="${t('zoomOut')}">${icon('zoom-out')}</button></nav><div class="draft-actions" data-draft-actions hidden><button type="button" data-action="draft-undo" data-copy="undoPoint">${t('undoPoint')}</button><button type="button" data-action="draft-finish" data-copy="finish">${t('finish')}</button><button type="button" data-action="draft-close" data-copy="closeShape">${t('closeShape')}</button></div><div class="command"><span data-copy="command">${t('command')}</span><input data-command aria-label="${t('command')}" placeholder="${t('commandHint')}" autocomplete="off"><button type="button" data-action="run-command" data-copy="run">${t('run')}</button></div><div class="hint" data-hint>${t('ready')}</div></main>
         <aside class="side right" ${this.#options.showInspector === false ? 'hidden' : ''}><h2 data-copy="properties">${t('properties')}</h2><div class="inspector" data-inspector><p class="empty">${t('noSelection')}</p></div></aside>
       </div>
-      <footer class="statusbar"><span class="message" data-message>${readonly ? t('readonly') : t('ready')}</span><span data-coordinate>X 0.000 · Y 0.000</span><span data-selection>0 ${t('selected')}</span><b data-count>0 ${t('entities')}</b><span data-revision>REV 0</span><button type="button" class="draft-toggle" data-action="ortho" aria-pressed="false"><span data-copy="ortho">${t('ortho')}</span></button><span data-zoom>100%</span></footer>
+      <footer class="statusbar"><span class="message" data-message>${readonly ? t('readonly') : t('ready')}</span><span data-coordinate>X 0.000 · Y 0.000</span><span data-selection>0 ${t('selected')}</span><b data-count>0 ${t('entities')}</b><span data-revision>REV 0</span><button type="button" class="draft-toggle" data-action="ortho" aria-pressed="false"><span data-copy="ortho">${t('ortho')}</span></button><button type="button" class="draft-toggle" data-action="polar" aria-pressed="false"><span data-copy="polar">${t('polar')}</span></button><span data-zoom>100%</span></footer>
       <dialog class="modify-dialog" data-modification-dialog aria-label="${t('modifyTitle')}">
         <div class="modify-form" data-modification-form>
           <header class="modify-head"><h2 data-copy="modifyTitle">${t('modifyTitle')}</h2><p data-copy="modifyDescription">${t('modifyDescription')}</p></header>
@@ -938,6 +939,7 @@ export class KJDrawWorkbench {
     query<HTMLButtonElement>(this.root, '[data-action="zoom-out"]').addEventListener('click', () => { this.renderer.zoomAt(0.8, [this.#canvas.clientWidth / 2, this.#canvas.clientHeight / 2]); this.#refreshViewport() }, { signal })
     query<HTMLButtonElement>(this.root, '[data-action="grid"]').addEventListener('click', () => { this.renderer.setGrid(!this.renderer.grid); this.#refreshViewport() }, { signal })
     query<HTMLButtonElement>(this.root, '[data-action="ortho"]').addEventListener('click', () => void this.#toggleOrtho(), { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="polar"]').addEventListener('click', () => void this.#togglePolar(), { signal })
     query<HTMLButtonElement>(this.root, '[data-action="theme"]').addEventListener('click', () => this.setTheme(this.#theme === 'dark' ? 'light' : 'dark'), { signal })
     query<HTMLButtonElement>(this.root, '[data-action="language"]').addEventListener('click', () => this.setLocale(this.#locale === 'en' ? 'zh-CN' : 'en'), { signal })
     const commandInput = query<HTMLInputElement>(this.root, '[data-command]')
@@ -979,6 +981,7 @@ export class KJDrawWorkbench {
     }, { signal })
     this.root.addEventListener('keydown', event => {
       if (event.key === 'F8') { event.preventDefault(); void this.#toggleOrtho(); return }
+      if (event.key === 'F10') { event.preventDefault(); void this.#togglePolar(); return }
       if (event.key === 'Escape' && this.#fileReadAbort) { event.preventDefault(); this.#fileReadAbort.abort(); return }
       if (event.key === 'Escape') { this.setTool('select'); return }
       if (event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable="true"]')) return
@@ -1936,6 +1939,15 @@ export class KJDrawWorkbench {
     return Number(this.document?.snapshot().header.systemVariables.ORTHOMODE ?? 0) !== 0
   }
 
+  #polarEnabled(): boolean {
+    return Number(this.document?.snapshot().header.systemVariables.POLARMODE ?? 0) !== 0
+  }
+
+  #polarAngle(): number {
+    const angle = Number(this.document?.snapshot().header.systemVariables.POLARANG ?? 45)
+    return angle > 0 && angle <= 180 && Number.isFinite(angle) ? angle : 45
+  }
+
   #orthoBase(): Point2 | null {
     if (this.#gripGesture) return [this.#gripGesture.grip.point[0], this.#gripGesture.grip.point[1]]
     if (this.#selectionDrag) return this.#selectionDrag.baseWorld
@@ -1948,9 +1960,12 @@ export class KJDrawWorkbench {
   }
 
   #constrainPointer(world: Point2, snapped: Point2 | null): Point2 {
-    if (snapped || !this.#orthoEnabled()) return snapped ?? world
+    if (snapped) return snapped
     const base = this.#orthoBase()
-    return base ? constrainOrthogonalDraftPoint(world, base) as Point2 : world
+    if (!base) return world
+    if (this.#orthoEnabled()) return constrainOrthogonalDraftPoint(world, base) as Point2
+    if (this.#polarEnabled()) return constrainPolarDraftPoint(world, base, this.#polarAngle()) as Point2
+    return world
   }
 
   #syncOrtho(): void {
@@ -1963,6 +1978,17 @@ export class KJDrawWorkbench {
     button.setAttribute('aria-label', button.title)
   }
 
+  #syncPolar(): void {
+    const button = this.root.querySelector<HTMLButtonElement>('[data-action="polar"]')
+    if (!button) return
+    const enabled = this.#polarEnabled(), angle = this.#polarAngle()
+    button.disabled = this.#readOnly
+    button.setAttribute('aria-pressed', String(enabled))
+    button.dataset.angle = String(angle)
+    button.title = `${this.#t(enabled ? 'polarOn' : 'polarOff')} · ${angle}° · F10`
+    button.setAttribute('aria-label', button.title)
+  }
+
   async #toggleOrtho(): Promise<void> {
     if (this.#readOnly || !this.document) return
     if (this.#draftGesture || this.#transformGesture || this.#modificationGesture || this.#gripGesture || this.#selectionDrag || this.#boundarySession || this.#fenceSelection) {
@@ -1970,6 +1996,15 @@ export class KJDrawWorkbench {
       return
     }
     await this.#run(() => this.execute('ORTHO', { enabled: !this.#orthoEnabled() }))
+  }
+
+  async #togglePolar(): Promise<void> {
+    if (this.#readOnly || !this.document) return
+    if (this.#draftGesture || this.#transformGesture || this.#modificationGesture || this.#gripGesture || this.#selectionDrag || this.#boundarySession || this.#fenceSelection) {
+      this.#setMessage(this.#t('polarBusy'))
+      return
+    }
+    await this.#run(() => this.execute('POLAR', { enabled: !this.#polarEnabled(), angleIncrement: this.#polarAngle() }))
   }
 
   #snapAt(world: Point2, excludeIds: readonly string[] = []): Point2 | null {
@@ -2651,6 +2686,7 @@ export class KJDrawWorkbench {
     if (undo) undo.disabled = this.#readOnly === true || !drawing.history.canUndo
     if (redo) redo.disabled = this.#readOnly === true || !drawing.history.canRedo
     this.#syncOrtho()
+    this.#syncPolar()
     this.#refreshLayers()
     this.#refreshSelectionPanels()
     this.#refreshViewport()

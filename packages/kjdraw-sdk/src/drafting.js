@@ -66,6 +66,27 @@ export function constrainOrthogonalDraftPoint(value, base) {
         point[1]
     ];
 }
+export function constrainPolarDraftPoint(value, base, angleIncrement = 45) {
+    const point = point2(value), origin = point2(base, 'base');
+    const increment = positive(angleIncrement, 'angleIncrement');
+    if (increment > 180) throw new KJValidationError('angleIncrement must be at most 180 degrees');
+    const dx = point[0] - origin[0], dy = point[1] - origin[1];
+    if (dx === 0 && dy === 0) return [
+        point[0],
+        point[1]
+    ];
+    const radians = increment * Math.PI / 180;
+    const trackedAngle = Math.round(Math.atan2(dy, dx) / radians) * radians;
+    const direction = [
+        Math.cos(trackedAngle),
+        Math.sin(trackedAngle)
+    ];
+    const distance = dx * direction[0] + dy * direction[1];
+    return [
+        origin[0] + direction[0] * distance,
+        origin[1] + direction[1] * distance
+    ];
+}
 function point3(value) {
     return [
         value[0],

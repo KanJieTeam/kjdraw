@@ -147,6 +147,20 @@ export function constrainOrthogonalDraftPoint(value: KJDraftPoint, base: KJDraft
   return dx >= dy ? [point[0], origin[1]] : [origin[0], point[1]]
 }
 
+/** Project a pointer-derived point onto the nearest polar tracking ray. */
+export function constrainPolarDraftPoint(value: KJDraftPoint, base: KJDraftPoint, angleIncrement = 45): KJDraftPoint {
+  const point = point2(value), origin = point2(base, 'base')
+  const increment = positive(angleIncrement, 'angleIncrement')
+  if (increment > 180) throw new KJValidationError('angleIncrement must be at most 180 degrees')
+  const dx = point[0] - origin[0], dy = point[1] - origin[1]
+  if (dx === 0 && dy === 0) return [point[0], point[1]]
+  const radians = increment * Math.PI / 180
+  const trackedAngle = Math.round(Math.atan2(dy, dx) / radians) * radians
+  const direction: KJDraftPoint = [Math.cos(trackedAngle), Math.sin(trackedAngle)]
+  const distance = dx * direction[0] + dy * direction[1]
+  return [origin[0] + direction[0] * distance, origin[1] + direction[1] * distance]
+}
+
 function point3(value: KJDraftPoint): [number, number, number] { return [value[0], value[1], 0] }
 function distance(a: KJDraftPoint, b: KJDraftPoint): number { return Math.hypot(b[0] - a[0], b[1] - a[1]) }
 function near(a: KJDraftPoint, b: KJDraftPoint, tolerance: number): boolean { return distance(a, b) <= tolerance }

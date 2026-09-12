@@ -10,7 +10,7 @@ import { KJDRAW_THEME_CSS, kjdrawIcon } from './theme.js';
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from './layout.js';
 import { createBoundaryEditSession } from './boundary-edit.js';
 import { KJ_MODIFICATION_DEFINITIONS, buildKJModificationCommand, getKJModificationDefinition, getKJModificationSelectionCenter, validateKJModificationSelection } from './modification-controls.js';
-import { constrainOrthogonalDraftPoint, createDraftingSession, parseDraftCoordinate } from './drafting.js';
+import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, parseDraftCoordinate } from './drafting.js';
 const copy = {
     en: {
         drawingSpace: 'Drawing space',
@@ -88,6 +88,10 @@ const copy = {
         orthoOn: 'Orthogonal drafting on',
         orthoOff: 'Orthogonal drafting off',
         orthoBusy: 'Finish or cancel the current operation before changing Ortho',
+        polar: 'Polar',
+        polarOn: 'Polar tracking on',
+        polarOff: 'Polar tracking off',
+        polarBusy: 'Finish or cancel the current operation before changing Polar tracking',
         layers: 'Layers',
         properties: 'Properties',
         noSelection: 'Select an object to inspect its properties.',
@@ -249,6 +253,10 @@ const copy = {
         orthoOn: '正交绘图已开启',
         orthoOff: '正交绘图已关闭',
         orthoBusy: '请先完成或取消当前操作，再切换正交模式',
+        polar: '极轴',
+        polarOn: '极轴跟踪已开启',
+        polarOff: '极轴跟踪已关闭',
+        polarBusy: '请先完成或取消当前操作，再切换极轴跟踪',
         layers: '图层',
         properties: '特性',
         noSelection: '选择图元后可查看和修改属性。',
@@ -1337,7 +1345,7 @@ export class KJDrawWorkbench {
         <main class="canvas-wrap"><div class="drawing-space"><select data-drawing-layout></select><span data-paper-preview role="status" hidden></span></div><canvas class="cad-canvas" data-canvas aria-label="KJDraw CAD canvas"></canvas><canvas class="overlay" data-overlay aria-hidden="true"></canvas><span class="snap" data-snap></span><nav class="navigator" aria-label="${t('view')}"><button type="button" class="active" data-tool="select" data-copy-title="select" title="${t('select')}">${icon('select')}</button><button type="button" data-tool="pan" data-copy-title="pan" title="${t('pan')}">${icon('pan')}</button><button type="button" data-action="nav-fit" data-copy-title="fit" title="${t('fit')}">${icon('fit')}</button><button type="button" data-action="zoom-in" data-copy-title="zoomIn" title="${t('zoomIn')}">${icon('zoom-in')}</button><button type="button" data-action="zoom-out" data-copy-title="zoomOut" title="${t('zoomOut')}">${icon('zoom-out')}</button></nav><div class="draft-actions" data-draft-actions hidden><button type="button" data-action="draft-undo" data-copy="undoPoint">${t('undoPoint')}</button><button type="button" data-action="draft-finish" data-copy="finish">${t('finish')}</button><button type="button" data-action="draft-close" data-copy="closeShape">${t('closeShape')}</button></div><div class="command"><span data-copy="command">${t('command')}</span><input data-command aria-label="${t('command')}" placeholder="${t('commandHint')}" autocomplete="off"><button type="button" data-action="run-command" data-copy="run">${t('run')}</button></div><div class="hint" data-hint>${t('ready')}</div></main>
         <aside class="side right" ${this.#options.showInspector === false ? 'hidden' : ''}><h2 data-copy="properties">${t('properties')}</h2><div class="inspector" data-inspector><p class="empty">${t('noSelection')}</p></div></aside>
       </div>
-      <footer class="statusbar"><span class="message" data-message>${readonly ? t('readonly') : t('ready')}</span><span data-coordinate>X 0.000 · Y 0.000</span><span data-selection>0 ${t('selected')}</span><b data-count>0 ${t('entities')}</b><span data-revision>REV 0</span><button type="button" class="draft-toggle" data-action="ortho" aria-pressed="false"><span data-copy="ortho">${t('ortho')}</span></button><span data-zoom>100%</span></footer>
+      <footer class="statusbar"><span class="message" data-message>${readonly ? t('readonly') : t('ready')}</span><span data-coordinate>X 0.000 · Y 0.000</span><span data-selection>0 ${t('selected')}</span><b data-count>0 ${t('entities')}</b><span data-revision>REV 0</span><button type="button" class="draft-toggle" data-action="ortho" aria-pressed="false"><span data-copy="ortho">${t('ortho')}</span></button><button type="button" class="draft-toggle" data-action="polar" aria-pressed="false"><span data-copy="polar">${t('polar')}</span></button><span data-zoom>100%</span></footer>
       <dialog class="modify-dialog" data-modification-dialog aria-label="${t('modifyTitle')}">
         <div class="modify-form" data-modification-form>
           <header class="modify-head"><h2 data-copy="modifyTitle">${t('modifyTitle')}</h2><p data-copy="modifyDescription">${t('modifyDescription')}</p></header>
@@ -1571,6 +1579,9 @@ export class KJDrawWorkbench {
         query(this.root, '[data-action="ortho"]').addEventListener('click', ()=>void this.#toggleOrtho(), {
             signal
         });
+        query(this.root, '[data-action="polar"]').addEventListener('click', ()=>void this.#togglePolar(), {
+            signal
+        });
         query(this.root, '[data-action="theme"]').addEventListener('click', ()=>this.setTheme(this.#theme === 'dark' ? 'light' : 'dark'), {
             signal
         });
@@ -1665,6 +1676,11 @@ export class KJDrawWorkbench {
             if (event.key === 'F8') {
                 event.preventDefault();
                 void this.#toggleOrtho();
+                return;
+            }
+            if (event.key === 'F10') {
+                event.preventDefault();
+                void this.#togglePolar();
                 return;
             }
             if (event.key === 'Escape' && this.#fileReadAbort) {
@@ -3273,6 +3289,13 @@ export class KJDrawWorkbench {
     #orthoEnabled() {
         return Number(this.document?.snapshot().header.systemVariables.ORTHOMODE ?? 0) !== 0;
     }
+    #polarEnabled() {
+        return Number(this.document?.snapshot().header.systemVariables.POLARMODE ?? 0) !== 0;
+    }
+    #polarAngle() {
+        const angle = Number(this.document?.snapshot().header.systemVariables.POLARANG ?? 45);
+        return angle > 0 && angle <= 180 && Number.isFinite(angle) ? angle : 45;
+    }
     #orthoBase() {
         if (this.#gripGesture) return [
             this.#gripGesture.grip.point[0],
@@ -3290,9 +3313,12 @@ export class KJDrawWorkbench {
         return this.#draftPoints.at(-1) ?? this.#draftStart;
     }
     #constrainPointer(world, snapped) {
-        if (snapped || !this.#orthoEnabled()) return snapped ?? world;
+        if (snapped) return snapped;
         const base = this.#orthoBase();
-        return base ? constrainOrthogonalDraftPoint(world, base) : world;
+        if (!base) return world;
+        if (this.#orthoEnabled()) return constrainOrthogonalDraftPoint(world, base);
+        if (this.#polarEnabled()) return constrainPolarDraftPoint(world, base, this.#polarAngle());
+        return world;
     }
     #syncOrtho() {
         const button = this.root.querySelector('[data-action="ortho"]');
@@ -3303,6 +3329,16 @@ export class KJDrawWorkbench {
         button.title = this.#t(enabled ? 'orthoOn' : 'orthoOff');
         button.setAttribute('aria-label', button.title);
     }
+    #syncPolar() {
+        const button = this.root.querySelector('[data-action="polar"]');
+        if (!button) return;
+        const enabled = this.#polarEnabled(), angle = this.#polarAngle();
+        button.disabled = this.#readOnly;
+        button.setAttribute('aria-pressed', String(enabled));
+        button.dataset.angle = String(angle);
+        button.title = `${this.#t(enabled ? 'polarOn' : 'polarOff')} · ${angle}° · F10`;
+        button.setAttribute('aria-label', button.title);
+    }
     async #toggleOrtho() {
         if (this.#readOnly || !this.document) return;
         if (this.#draftGesture || this.#transformGesture || this.#modificationGesture || this.#gripGesture || this.#selectionDrag || this.#boundarySession || this.#fenceSelection) {
@@ -3311,6 +3347,17 @@ export class KJDrawWorkbench {
         }
         await this.#run(()=>this.execute('ORTHO', {
                 enabled: !this.#orthoEnabled()
+            }));
+    }
+    async #togglePolar() {
+        if (this.#readOnly || !this.document) return;
+        if (this.#draftGesture || this.#transformGesture || this.#modificationGesture || this.#gripGesture || this.#selectionDrag || this.#boundarySession || this.#fenceSelection) {
+            this.#setMessage(this.#t('polarBusy'));
+            return;
+        }
+        await this.#run(()=>this.execute('POLAR', {
+                enabled: !this.#polarEnabled(),
+                angleIncrement: this.#polarAngle()
             }));
     }
     #snapAt(world, excludeIds = []) {
@@ -4379,6 +4426,7 @@ export class KJDrawWorkbench {
         if (undo) undo.disabled = this.#readOnly === true || !drawing.history.canUndo;
         if (redo) redo.disabled = this.#readOnly === true || !drawing.history.canRedo;
         this.#syncOrtho();
+        this.#syncPolar();
         this.#refreshLayers();
         this.#refreshSelectionPanels();
         this.#refreshViewport();

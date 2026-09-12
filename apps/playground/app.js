@@ -3,7 +3,7 @@ import { createKJDrawSDK, getDocumentSnapSettings, KJProjectSession, instantiate
 import { KJCanvasRenderer, aciColor } from '../../packages/kjdraw-sdk/src/canvas-renderer.js'
 import { kjdrawIcon } from '../../packages/kjdraw-sdk/src/theme.js'
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from '../../packages/kjdraw-sdk/src/layout.js'
-import { createDraftingSession, parseDraftCoordinate } from '../../packages/kjdraw-sdk/src/drafting.js'
+import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, parseDraftCoordinate } from '../../packages/kjdraw-sdk/src/drafting.js'
 import { editEntityGrip } from '../../packages/kjdraw-sdk/src/grips.js'
 import { createBoundaryEditSession } from '../../packages/kjdraw-sdk/src/boundary-edit.js'
 import { KJ_MODIFICATION_DEFINITIONS, getKJModificationDefinition, buildKJModificationCommand, getKJModificationSelectionCenter, validateKJModificationSelection } from '../../packages/kjdraw-sdk/src/modification-controls.js'
@@ -32,7 +32,7 @@ const SAMPLE_DESCRIPTORS = Object.freeze([
   { id: SHOWCASE_DOCUMENT_ID, title: 'Resilient energy campus', titleZh: '韧性能源园区', discipline: 'ENERGY' },
   ...INDUSTRY_SAMPLES,
 ])
-let sdk, session, selection = new Set(), tool = 'select', start = null, draft = [], cursor = null, snapEnabled = true, gridEnabled = true, orthoEnabled = false, pendingPlan = null, pan = null, busy = false, authority = null, solidAuthority = null, measurement = null, width = 1, height = 1, lastReceipt = null
+let sdk, session, selection = new Set(), tool = 'select', start = null, draft = [], cursor = null, snapEnabled = true, gridEnabled = true, orthoEnabled = false, polarEnabled = false, polarAngle = 45, pendingPlan = null, pan = null, busy = false, authority = null, solidAuthority = null, measurement = null, width = 1, height = 1, lastReceipt = null
 let translation = null, dragMove = null, drafting = null, modification = null
 let selectionBox = null, gripDrag = null, fence = null, hoveredGrip = null, disposeInteractionDocument = null
 let boundaryEdit = null
@@ -315,7 +315,10 @@ function renderMeasurement(container,value) {
 }
 function refresh() {
   outputControls?.sync()
-  const allEntities=doc().listEntities(),modelSpaceId=doc().snapshot().spaces.modelSpaceId,currentModel=allEntities.filter(entity=>entity.ownerId===modelSpaceId),layerEntityCounts=new Map()
+  const snapshot=doc().snapshot(),variables=snapshot.header.systemVariables
+  orthoEnabled=Number(variables.ORTHOMODE??0)!==0;polarEnabled=Number(variables.POLARMODE??0)!==0
+  const configuredAngle=Number(variables.POLARANG??45);polarAngle=configuredAngle>0&&configuredAngle<=180&&Number.isFinite(configuredAngle)?configuredAngle:45;syncTrackingButtons()
+  const allEntities=doc().listEntities(),modelSpaceId=snapshot.spaces.modelSpaceId,currentModel=allEntities.filter(entity=>entity.ownerId===modelSpaceId),layerEntityCounts=new Map()
   for(const entity of allEntities)layerEntityCounts.set(entity.payload?.layerId,(layerEntityCounts.get(entity.payload?.layerId)??0)+1)
   const tabs=$('document-tabs');for(const old of tabs.querySelectorAll('[data-document]'))old.remove()
   for(const drawing of session?.documents?.values()??[]){const button=document.createElement('button');button.dataset.document=drawing.id;button.textContent=documentTitle(drawing);button.title=documentTitle(drawing);button.classList.toggle('active',drawing.id===session.activeDocumentId);button.onclick=()=>activateDrawing(drawing.id);tabs.insertBefore(button,$('new-drawing'))}
@@ -590,8 +593,18 @@ $('new-drawing').onclick=()=>run(async()=>{const values=await requestLocalComman
 $('reset').onclick=()=>run(async()=>{const accepted=await requestLocalCommand({title:i18n.locale==='zh'?'重新加载原创示例？':'Reload the original sample?',description:i18n.locale==='zh'?'当前内存中的修改将被替换。需要保留时，请先保存 KJP。':'In-memory edits will be replaced. Save a KJP first if you need to keep them.',submitLabel:i18n.locale==='zh'?'重新加载':'Reload'});if(accepted)await freshSample()})
 $('snap').onclick=()=>{snapEnabled=!snapEnabled;if(!snapEnabled){snapHit=null;delete workbench.dataset.snapMode}$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');$('snap').setAttribute('aria-pressed',String(snapEnabled));render()}
 $('grid').onclick=()=>{gridEnabled=!gridEnabled;$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('grid').setAttribute('aria-pressed',String(gridEnabled));render()}
-$('ortho').onclick=()=>{orthoEnabled=!orthoEnabled;$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('ortho').setAttribute('aria-pressed',String(orthoEnabled));render()}
-$('language').onclick=()=>{const canonical=knownIntent($('agent-intent').value);i18n.toggle();if(canonical)setCanonicalIntent();$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');$('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');if(sdk){populateSampleSelector();refresh();message(`${t('ready')} · ${documentTitle(doc())}`)}if(pendingPlan)displayAgentPlan(pendingPlan);if(boundaryEdit){boundaryEdit.session.setLocale(i18n.locale==='zh'?'zh':'en');updateBoundaryEditHint()}else if(translation)updateTranslationHint();else if(drafting)updateDraftHint();else if(modification)updateModificationHint();else if(tool==='select')$('hint').textContent=t('canvasHint');else if(tool==='pan')$('hint').textContent=t('panHint');else if(tool==='fence')$('hint').textContent=t('fenceHint')}
+function trackingGestureActive(){return Boolean(busy||drafting||modification||translation||gripDrag||dragMove||boundaryEdit||fence)}
+function syncTrackingButtons(){
+  $('ortho').textContent=t(orthoEnabled?'orthoOn':'orthoOff');$('ortho').setAttribute('aria-pressed',String(orthoEnabled));$('ortho').title=`${t(orthoEnabled?'orthoOn':'orthoOff')} · F8`
+  $('polar').textContent=polarEnabled?(i18n.locale==='zh'?`极轴 ${polarAngle}°`:`POLAR ${polarAngle}°`):t('polarOff');$('polar').setAttribute('aria-pressed',String(polarEnabled));$('polar').title=`${t(polarEnabled?'polarOn':'polarOff')} · ${polarAngle}° · F10`;$('polar').dataset.angle=String(polarAngle)
+}
+function toggleTracking(mode){
+  if(trackingGestureActive()){const text=t(mode==='POLAR'?'polarBusy':'interactionChanged');message(text);$('hint').textContent=text;return}
+  run(()=>execute(mode,{enabled:mode==='POLAR'?!polarEnabled:!orthoEnabled,...(mode==='POLAR'?{angleIncrement:polarAngle}:{})}))
+}
+$('ortho').onclick=()=>toggleTracking('ORTHO')
+$('polar').onclick=()=>toggleTracking('POLAR')
+$('language').onclick=()=>{const canonical=knownIntent($('agent-intent').value);i18n.toggle();if(canonical)setCanonicalIntent();$('grid').textContent=t(gridEnabled?'gridOn':'gridOff');syncTrackingButtons();$('snap').textContent=t(snapEnabled?'snapOn':'snapOff');if(sdk){populateSampleSelector();refresh();message(`${t('ready')} · ${documentTitle(doc())}`)}if(pendingPlan)displayAgentPlan(pendingPlan);if(boundaryEdit){boundaryEdit.session.setLocale(i18n.locale==='zh'?'zh':'en');updateBoundaryEditHint()}else if(translation)updateTranslationHint();else if(drafting)updateDraftHint();else if(modification)updateModificationHint();else if(tool==='select')$('hint').textContent=t('canvasHint');else if(tool==='pan')$('hint').textContent=t('panHint');else if(tool==='fence')$('hint').textContent=t('fenceHint')}
 for(const b of document.querySelectorAll('[data-tool]'))b.onclick=()=>{setTool(b.dataset.tool);canvas.focus()}
 function planStep(title,detail){const item=document.createElement('li'),heading=document.createElement('b');heading.textContent=title;item.append(heading,document.createTextNode(detail));$('plan-steps').append(item)}
 function displayAgentPlan(plan){
@@ -652,8 +665,9 @@ function snap(p,excludeIds=[],referencePoint=null){
   if(hit){snapHit=hit;workbench.dataset.snapMode=hit.mode}
   return hit?.point??p
 }
-function constrainedPoint(p){const value=snap(p,[],start);if(!orthoEnabled||!start||snapHit)return value;const dx=Math.abs(value[0]-start[0]),dy=Math.abs(value[1]-start[1]);return dx>=dy?[value[0],start[1]]:[start[0],value[1]]}
-function translationPoint(p,base,excludeIds=[]){const value=snap(p,excludeIds,base);if(!orthoEnabled||!base||snapHit)return value;return Math.abs(value[0]-base[0])>=Math.abs(value[1]-base[1])?[value[0],base[1]]:[base[0],value[1]]}
+function constrainTracking(value,base){if(!base||snapHit)return value;if(orthoEnabled)return constrainOrthogonalDraftPoint(value,base);if(polarEnabled)return constrainPolarDraftPoint(value,base,polarAngle);return value}
+function constrainedPoint(p){return constrainTracking(snap(p,[],start),start)}
+function translationPoint(p,base,excludeIds=[]){return constrainTracking(snap(p,excludeIds,base),base)}
 function unrelatedPointer(event){
   const owner=pan??selectionBox??gripDrag??dragMove
   return (event.pointerType==='touch'&&!event.isPrimary)||(owner&&owner.pointerId!==event.pointerId)
@@ -755,6 +769,8 @@ canvas.addEventListener('wheel',e=>{e.preventDefault();cancelSelectionGestures()
 window.addEventListener('keydown',e=>{
   if($('app-dialog').open)return
   if(e.key==='Escape'){e.preventDefault();setTool('select');invalidatePlan();render();return}
+  if(e.key==='F8'){e.preventDefault();$('ortho').click();return}
+  if(e.key==='F10'){e.preventDefault();$('polar').click();return}
   if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)||e.target.isContentEditable)return
   const key=e.key.toLowerCase()
   if(e.ctrlKey||e.metaKey){

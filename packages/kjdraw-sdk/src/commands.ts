@@ -320,6 +320,7 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   INTERSECT: { domain: 'geometry-query', precision: 'exact', supportedEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE'] },
   NEAREST: { domain: 'geometry-query', precision: 'exact', supportedEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE'] },
   ORTHO: { domain: 'drafting-settings', systemVariable: 'ORTHOMODE' },
+  POLAR: { domain: 'drafting-settings', systemVariables: ['POLARMODE', 'POLARANG'] },
   SNAPSETTINGS: { domain: 'drafting-settings', snapModes: KJ_SNAP_MODES },
   BLOCKCREATE: { domain: 'block', precision: 'exact', supportedEntityTypes: AFFINE_ENTITY_TYPES },
   BLOCKINSERT: { domain: 'block', entityType: 'INSERT' },
@@ -559,7 +560,24 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'ORTHO', title: 'Set orthogonal drafting mode',
-    execute: ({ transaction }, args) => transaction.setSystemVariable('ORTHOMODE', args.enabled === false || Number(args.enabled) === 0 ? 0 : 1),
+    execute: ({ transaction }, args) => {
+      const enabled = !(args.enabled === false || Number(args.enabled) === 0)
+      transaction.setSystemVariable('ORTHOMODE', enabled ? 1 : 0)
+      if (enabled) transaction.setSystemVariable('POLARMODE', 0)
+      return { enabled }
+    },
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'POLAR', title: 'Set polar tracking mode',
+    execute: ({ document, transaction }, args) => {
+      const enabled = !(args.enabled === false || Number(args.enabled) === 0)
+      const angleIncrement = Number(args.angleIncrement ?? document.snapshot().header.systemVariables.POLARANG ?? 45)
+      if (!(angleIncrement > 0) || angleIncrement > 180 || !Number.isFinite(angleIncrement)) throw new KJValidationError('POLAR angleIncrement must be a finite number greater than 0 and at most 180 degrees')
+      transaction.setSystemVariable('POLARMODE', enabled ? 1 : 0)
+      transaction.setSystemVariable('POLARANG', angleIncrement)
+      if (enabled) transaction.setSystemVariable('ORTHOMODE', 0)
+      return { enabled, angleIncrement }
+    },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'SNAPSETTINGS', title: 'Set object snap modes',

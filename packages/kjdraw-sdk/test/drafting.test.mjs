@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { constrainOrthogonalDraftPoint, createDraftingSession, parseDraftCoordinate } from '../src/drafting.js'
+import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, parseDraftCoordinate } from '../src/drafting.js'
 import { createKJDrawSDK } from '../src/index.js'
 import { projectDimension } from '../src/geometry/annotation.js'
 
@@ -31,6 +31,36 @@ test('orthogonal pointer constraint uses the dominant axis without changing expl
   assert.equal(Number(drawing.snapshot().header.systemVariables.ORTHOMODE ?? 0), 0)
   await drawing.redo()
   assert.equal(drawing.snapshot().header.systemVariables.ORTHOMODE, 1)
+})
+
+test('polar tracking projects pointer input to the nearest configured ray and persists atomically', async () => {
+  const tracked = constrainPolarDraftPoint([30, 20], [0, 0], 45)
+  closeTo(tracked[0], 25); closeTo(tracked[1], 25)
+  assert.deepEqual(constrainPolarDraftPoint([14, 8], [2, 3], 90), [14, 3])
+  assert.deepEqual(constrainPolarDraftPoint([2, 3], [2, 3], 30), [2, 3])
+  assert.throws(() => constrainPolarDraftPoint([1, 1], [0, 0], 0), /positive/)
+  assert.throws(() => constrainPolarDraftPoint([1, 1], [0, 0], 181), /at most 180/)
+
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'polar-roundtrip', units: 'millimeter' })
+  await sdk.executeCommand('ORTHO', { enabled: true }, { document: drawing })
+  const beforeInvalid = drawing.revision
+  await assert.rejects(() => sdk.executeCommand('POLAR', { enabled: true, angleIncrement: 0 }, { document: drawing }), /greater than 0/)
+  assert.equal(drawing.revision, beforeInvalid)
+  await sdk.executeCommand('POLAR', { enabled: true, angleIncrement: 30 }, { document: drawing })
+  assert.equal(drawing.snapshot().header.systemVariables.POLARMODE, 1)
+  assert.equal(drawing.snapshot().header.systemVariables.POLARANG, 30)
+  assert.equal(drawing.snapshot().header.systemVariables.ORTHOMODE, 0)
+  const bytes = await sdk.writeDocument(drawing, { format: 'KJD' })
+  const reopened = await createKJDrawSDK().readDocument(bytes, { format: 'KJD' })
+  assert.equal(reopened.snapshot().header.systemVariables.POLARMODE, 1)
+  assert.equal(reopened.snapshot().header.systemVariables.POLARANG, 30)
+  await drawing.undo()
+  assert.equal(Number(drawing.snapshot().header.systemVariables.POLARMODE ?? 0), 0)
+  assert.equal(drawing.snapshot().header.systemVariables.ORTHOMODE, 1)
+  await drawing.redo()
+  assert.equal(drawing.snapshot().header.systemVariables.POLARMODE, 1)
+  await sdk.executeCommand('ORTHO', { enabled: true }, { document: drawing })
+  assert.equal(drawing.snapshot().header.systemVariables.POLARMODE, 0)
 })
 
 test('unbounded tools preview a finite direction guide until the second point is confirmed',()=>{
