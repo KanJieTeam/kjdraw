@@ -5,6 +5,8 @@ import type { ReadonlyDeep } from './utils.js';
 import { type KJDrawingValidationCheck, type KJDrawingValidationCheckResult } from './drawing-validation.js';
 export declare const KJ_AGENT_TASK_TYPE: 'AI_TASK';
 export declare const KJ_AGENT_TASK_CONTRACT_VERSION: 1;
+/** Exact persisted tool-contract version understood by atomic task approval. */
+export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;
 export type KJAgentTaskStatus = 'draft' | 'ready' | 'running' | 'awaiting_approval' | 'needs_attention' | 'stale' | 'completed' | 'failed' | 'cancelled';
 export interface KJAgentTaskActor {
     kind: 'host' | 'agent' | 'system';
@@ -164,6 +166,7 @@ export interface KJAgentTaskCreateBatchApprovalInput {
     expectedStatus: 'running';
     expectedScopeSha256: string;
     sourceToolName: string;
+    toolApiVersion: string;
     toolContractHash: string;
     argumentsDigest: string;
     capabilityLocks: KJAgentTaskCapabilityLock[];
@@ -184,6 +187,7 @@ export interface KJAgentTaskMoveApprovalInput {
     expectedStatus: 'running';
     expectedScopeSha256: string;
     sourceToolName: string;
+    toolApiVersion: string;
     toolContractHash: string;
     argumentsDigest: string;
     capabilityLocks: KJAgentTaskCapabilityLock[];

@@ -5,9 +5,12 @@ import type { KJTransaction } from './transaction.js'
 import type { KJObjectRecord, KJReadonlyObjectRecord } from './schema.js'
 import type { ReadonlyDeep } from './utils.js'
 import { validateDrawingGeometryTransaction, type KJDrawingValidationCheck, type KJDrawingValidationCheckResult } from './drawing-validation.js'
+import { KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION } from './agent-capabilities.js'
 
 export const KJ_AGENT_TASK_TYPE = 'AI_TASK' as const
 export const KJ_AGENT_TASK_CONTRACT_VERSION = 1 as const
+/** Exact persisted tool-contract version understood by atomic task approval. */
+export const KJDRAW_AGENT_TASK_TOOL_API_VERSION = String(KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION)
 
 export type KJAgentTaskStatus =
   | 'draft' | 'ready' | 'running' | 'awaiting_approval' | 'needs_attention'
@@ -116,6 +119,7 @@ export interface KJAgentTaskCreateBatchApprovalInput {
   expectedStatus: 'running'
   expectedScopeSha256: string
   sourceToolName: string
+  toolApiVersion: string
   toolContractHash: string
   argumentsDigest: string
   capabilityLocks: KJAgentTaskCapabilityLock[]
@@ -133,6 +137,7 @@ export interface KJAgentTaskMoveApprovalInput {
   expectedStatus: 'running'
   expectedScopeSha256: string
   sourceToolName: string
+  toolApiVersion: string
   toolContractHash: string
   argumentsDigest: string
   capabilityLocks: KJAgentTaskCapabilityLock[]
@@ -595,7 +600,7 @@ function geometryCheckObjectIds(check: KJDrawingValidationCheck): string[] {
 
 /** Complete one reviewed CREATEBATCH and its deterministic checks in the caller's transaction draft. */
 export async function commitAgentTaskCreateBatchApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskCreateBatchApprovalResult> {
-  const row = plain(input, ['id', 'expectedRevision', 'expectedTaskVersion', 'expectedStatus', 'expectedScopeSha256', 'sourceToolName', 'toolContractHash', 'argumentsDigest', 'capabilityLocks', 'planId', 'executionEnvelopeId', 'reviewerId', 'createdEntityIds', 'at'], 'CREATEBATCH approval input')
+  const row = plain(input, ['id', 'expectedRevision', 'expectedTaskVersion', 'expectedStatus', 'expectedScopeSha256', 'sourceToolName', 'toolApiVersion', 'toolContractHash', 'argumentsDigest', 'capabilityLocks', 'planId', 'executionEnvelopeId', 'reviewerId', 'createdEntityIds', 'at'], 'CREATEBATCH approval input')
   const expectedRevision = inputRevision(document, tx, row.expectedRevision), id = text(row.id, 'task id', 128)
   const { record, task } = taskRecord(document, tx, id)
   const expectedTaskVersion = integer(row.expectedTaskVersion, 'expected task version', 1)
@@ -603,6 +608,7 @@ export async function commitAgentTaskCreateBatchApproval(document: KJDocument, t
   if (typeof row.expectedScopeSha256 !== 'string' || !SHA256.test(row.expectedScopeSha256) || task.scope.sha256 !== row.expectedScopeSha256) fail('task scope lock conflict')
   const sourceToolName = identifier(row.sourceToolName, 'source tool name')
   if (!task.definition.tools.names.includes(sourceToolName)) fail('source tool is outside the task tool lock')
+  if (row.toolApiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION || task.definition.tools.apiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION) fail('unsupported persistent task tool API version')
   if (typeof row.toolContractHash !== 'string' || row.toolContractHash !== task.definition.tools.contractHash) fail('task tool contract conflict')
   if (typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest)) fail('reviewed arguments digest is invalid')
   const capabilityLocks = array(row.capabilityLocks, 'approval capability locks', 0, 32).map(item => {
@@ -676,7 +682,7 @@ export async function commitAgentTaskCreateBatchApproval(document: KJDocument, t
 
 /** Complete one reviewed MOVE and its deterministic checks in the caller's transaction draft. */
 export async function commitAgentTaskMoveApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskMoveApprovalResult> {
-  const row = plain(input, ['id', 'expectedRevision', 'expectedTaskVersion', 'expectedStatus', 'expectedScopeSha256', 'sourceToolName', 'toolContractHash', 'argumentsDigest', 'capabilityLocks', 'planId', 'executionEnvelopeId', 'reviewerId', 'movedEntityIds', 'at'], 'MOVE approval input')
+  const row = plain(input, ['id', 'expectedRevision', 'expectedTaskVersion', 'expectedStatus', 'expectedScopeSha256', 'sourceToolName', 'toolApiVersion', 'toolContractHash', 'argumentsDigest', 'capabilityLocks', 'planId', 'executionEnvelopeId', 'reviewerId', 'movedEntityIds', 'at'], 'MOVE approval input')
   const expectedRevision = inputRevision(document, tx, row.expectedRevision), id = text(row.id, 'task id', 128)
   const { record, task } = taskRecord(document, tx, id)
   const expectedTaskVersion = integer(row.expectedTaskVersion, 'expected task version', 1)
@@ -684,6 +690,7 @@ export async function commitAgentTaskMoveApproval(document: KJDocument, tx: KJTr
   if (typeof row.expectedScopeSha256 !== 'string' || !SHA256.test(row.expectedScopeSha256) || task.scope.sha256 !== row.expectedScopeSha256) fail('task scope lock conflict')
   const sourceToolName = identifier(row.sourceToolName, 'source tool name')
   if (sourceToolName !== 'cad_propose_move' || !task.definition.tools.names.includes(sourceToolName)) fail('MOVE source tool is outside the task tool lock')
+  if (row.toolApiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION || task.definition.tools.apiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION) fail('unsupported persistent task tool API version')
   if (typeof row.toolContractHash !== 'string' || row.toolContractHash !== task.definition.tools.contractHash) fail('task tool contract conflict')
   if (typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest)) fail('reviewed arguments digest is invalid')
   const capabilityLocks = array(row.capabilityLocks, 'approval capability locks', 0, 32).map(item => {

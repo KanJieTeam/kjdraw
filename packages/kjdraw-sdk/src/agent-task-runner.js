@@ -1,10 +1,10 @@
 // Generated from agent-task-runner.ts by scripts/build-typescript.mjs. Do not edit directly.
-import { KJAgentCapabilityRegistry, KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION } from './agent-capabilities.js';
+import { KJAgentCapabilityRegistry } from './agent-capabilities.js';
 import { runKJAgentTask } from './agent-runner.js';
-import { inspectAgentTask } from './agent-tasks.js';
+import { inspectAgentTask, KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
 import { KJValidationError } from './errors.js';
 import { deepFreeze, stableHash } from './utils.js';
-export const KJDRAW_AGENT_TASK_TOOL_API_VERSION = String(KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION);
+export { KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
 const fail = (message)=>{
     throw new KJValidationError(`Persistent agent task: ${message}`);
 };

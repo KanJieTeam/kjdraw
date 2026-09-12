@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { createAgentTaskToolBinding, runPersistedKJAgentTask } from '../src/agent-task-runner.js'
-import { createAgentTask, readAgentTasks, transitionAgentTask } from '../src/agent-tasks.js'
+import { commitAgentTaskMoveApproval, createAgentTask, readAgentTasks, transitionAgentTask } from '../src/agent-tasks.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { createKjpPackage, openKjpPackage } from '../src/project-package.js'
@@ -12,7 +12,18 @@ const actor = { kind: 'host', id: 'atomic-move-test' }
 const at = second => `2026-09-12T08:00:${String(second).padStart(2, '0')}.000Z`
 const toolNames = ['cad_check_geometry', 'cad_propose_move']
 
-async function fixture(expectedDistance = 10) {
+function taskToolBinding(session, apiVersion = '1') {
+  const binding = createAgentTaskToolBinding(session.definitions, toolNames)
+  if (apiVersion === binding.apiVersion) return binding
+  const definitions = new Map(session.definitions.map(definition => [definition.name, definition]))
+  const tools = [...binding.names].sort().map(name => {
+    const definition = definitions.get(name)
+    return { name: definition.name, effect: definition.effect, description: definition.description, inputSchema: definition.inputSchema }
+  })
+  return { ...binding, apiVersion, contractHash: stableHash({ apiVersion, tools }) }
+}
+
+async function fixture(expectedDistance = 10, toolApiVersion = '1') {
   const sdk = createKJDrawSDK()
   const document = sdk.createDocument({ documentId: `atomic-move-${Math.random()}`, units: 'millimeter' })
   await document.transact('Seed drawing', tx => {
@@ -31,7 +42,7 @@ async function fixture(expectedDistance = 10) {
       },
     }],
     steps: [{ id: 'move', title: 'Move and verify the edge', requirementIds: ['edge_to_anchor'] }],
-    tools: createAgentTaskToolBinding(session.definitions, toolNames), capabilities: [],
+    tools: taskToolBinding(session, toolApiVersion), capabilities: [],
   }
   await document.transact('Create task', tx => createAgentTask(document, tx, {
     id: 'task-move', expectedRevision: document.revision, title: 'Atomic move task', goal: 'Move only the edge by five millimeters.',
@@ -138,6 +149,24 @@ test('MOVE cannot modify an out-of-scope object or execute after task revision d
   assert.equal(stale.document.serialize(), beforeApproval)
   assert.equal(stale.document.revision, staleRevision)
   assert.deepEqual(stale.document.getObject('edge').payload.start, [0, 0, 0])
+})
+
+test('manual MOVE binding and atomic commit reject unsupported persisted tool API versions', async () => {
+  const value = await fixture(10, '999'), planId = await directProposal(value), before = value.document.serialize()
+  assert.throws(() => value.session.bindTaskProposal(planId, exactBinding(value)), /Unsupported persistent task tool API version/)
+  assert.equal((await value.session.approveTask(planId, 'reviewer', at(4))).ok, false)
+  value.session.bindTaskProposal(planId, { ...exactBinding(value), toolApiVersion: '1' })
+  assert.equal((await value.session.approveTask(planId, 'reviewer', at(4))).ok, false)
+  assert.equal(value.document.serialize(), before)
+
+  const atomic = await fixture(10, '999'), revision = atomic.document.revision, task = atomic.task, atomicBefore = atomic.document.serialize()
+  await assert.rejects(atomic.document.transact('Forged atomic MOVE', tx => commitAgentTaskMoveApproval(atomic.document, tx, {
+    id: task.id, expectedRevision: revision, expectedTaskVersion: task.taskVersion, expectedStatus: 'running', expectedScopeSha256: task.scope.sha256,
+    sourceToolName: 'cad_propose_move', toolApiVersion: '999', toolContractHash: task.definition.tools.contractHash, argumentsDigest: stableHash({ ids: ['edge'], dx: 5, dy: 0 }),
+    capabilityLocks: [], planId: 'plan-forged', executionEnvelopeId: 'envelope-forged', reviewerId: 'reviewer', movedEntityIds: ['edge'], at: at(4),
+  })), /unsupported persistent task tool API version/)
+  assert.equal(atomic.document.revision, revision)
+  assert.equal(atomic.document.serialize(), atomicBefore)
 })
 
 test('forged MOVE bindings and command replacement fail without mutation or plan consumption', async () => {

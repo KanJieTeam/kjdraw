@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { createAgentTaskToolBinding, runPersistedKJAgentTask } from '../src/agent-task-runner.js'
-import { createAgentTask, readAgentTasks, transitionAgentTask } from '../src/agent-tasks.js'
+import { commitAgentTaskCreateBatchApproval, createAgentTask, readAgentTasks, transitionAgentTask } from '../src/agent-tasks.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { stableHash } from '../src/utils.js'
@@ -13,7 +13,18 @@ const actor = { kind: 'host', id: 'atomic-task-test' }
 const at = second => `2026-09-12T06:00:${String(second).padStart(2, '0')}.000Z`
 const toolNames = ['cad_check_geometry', 'cad_propose_lines']
 
-async function fixture(expectedLength = 10, withSeed = false, stopAtReady = false, deterministic = true) {
+function taskToolBinding(session, apiVersion = '1') {
+  const binding = createAgentTaskToolBinding(session.definitions, toolNames)
+  if (apiVersion === binding.apiVersion) return binding
+  const definitions = new Map(session.definitions.map(definition => [definition.name, definition]))
+  const tools = [...binding.names].sort().map(name => {
+    const definition = definitions.get(name)
+    return { name: definition.name, effect: definition.effect, description: definition.description, inputSchema: definition.inputSchema }
+  })
+  return { ...binding, apiVersion, contractHash: stableHash({ apiVersion, tools }) }
+}
+
+async function fixture(expectedLength = 10, withSeed = false, stopAtReady = false, deterministic = true, toolApiVersion = '1') {
   const sdk = createKJDrawSDK()
   const document = sdk.createDocument({ documentId: `atomic-task-${Math.random()}`, units: 'millimeter' })
   const session = new KJAgentToolSession(sdk, document)
@@ -29,7 +40,7 @@ async function fixture(expectedLength = 10, withSeed = false, stopAtReady = fals
       },
     }],
     steps: [{ id: 'draw', title: 'Draw and verify the line', requirementIds: ['created_line_length'] }],
-    tools: createAgentTaskToolBinding(session.definitions, toolNames),
+    tools: taskToolBinding(session, toolApiVersion),
     capabilities: [],
   }
   await document.transact('Create task', tx => createAgentTask(document, tx, {
@@ -192,6 +203,25 @@ test('forged task bindings and a replaced CREATEBATCH fail before any commit', a
   assert.equal((await replaced.session.approveTask(replacedPlan, 'reviewer', at(4))).ok, false)
   assert.equal(replaced.document.serialize(), before)
   assert.equal(replaced.sdk.agentPlans.get(replacedPlan).status, 'active')
+})
+
+test('manual CREATEBATCH binding and atomic commit reject unsupported persisted tool API versions', async () => {
+  const value = await fixture(10, false, false, true, '999'), planId = await directProposal(value), before = value.document.serialize()
+  assert.throws(() => value.session.bindTaskProposal(planId, exactBinding(value)), /Unsupported persistent task tool API version/)
+  assert.equal((await value.session.approveTask(planId, 'reviewer', at(4))).ok, false)
+  value.session.bindTaskProposal(planId, { ...exactBinding(value), toolApiVersion: '1' })
+  assert.equal((await value.session.approveTask(planId, 'reviewer', at(4))).ok, false)
+  assert.equal(value.document.serialize(), before)
+
+  const atomic = await fixture(10, false, false, true, '999'), revision = atomic.document.revision, task = atomic.task, atomicBefore = atomic.document.serialize()
+  await assert.rejects(atomic.document.transact('Reject unsupported task API', tx => commitAgentTaskCreateBatchApproval(atomic.document, tx, {
+    id: task.id, expectedRevision: revision, expectedTaskVersion: task.taskVersion, expectedStatus: 'running', expectedScopeSha256: task.scope.sha256,
+    sourceToolName: 'cad_propose_lines', toolApiVersion: '999', toolContractHash: task.definition.tools.contractHash,
+    argumentsDigest: stableHash({}), capabilityLocks: [], planId: 'manual-plan', executionEnvelopeId: 'manual-envelope', reviewerId: 'reviewer',
+    createdEntityIds: ['created'], at: at(4),
+  })), /unsupported persistent task tool API version/)
+  assert.equal(atomic.document.revision, revision)
+  assert.equal(atomic.document.serialize(), atomicBefore)
 })
 
 async function assertRejectedPersistentProposals(value, run, count) {

@@ -15,7 +15,7 @@ import { buildAgentAnnotationEntities } from './agent-annotations.js';
 import { decodeAgentCompactDrawing } from './agent-drawing-compact.js';
 import { expandRectangularDrawingPattern } from './agent-drawing-patterns.js';
 import { validateDrawingGeometry } from './drawing-validation.js';
-import { commitAgentTaskCreateBatchApproval, commitAgentTaskMoveApproval } from './agent-tasks.js';
+import { commitAgentTaskCreateBatchApproval, commitAgentTaskMoveApproval, KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
 import { createAgentDesignContext } from './agent-design-relations.js';
 const number = {
     type: 'number',
@@ -1615,6 +1615,7 @@ export class KJAgentToolSession {
         if (!input || typeof input !== 'object' || input.taskStatus !== 'running' || !Number.isSafeInteger(input.taskVersion) || input.taskVersion < 1 || !Number.isSafeInteger(input.documentRevision) || input.documentRevision < 0) throw new KJValidationError('Invalid persisted task proposal binding');
         if (input.documentRevision !== this.#document.revision || pending.envelope.expectedRevision !== input.documentRevision || input.units !== this.units) throw new KJValidationError('Persistent task proposal binding revision or units changed');
         if (typeof input.taskId !== 'string' || !input.taskId || typeof input.scopeSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(input.scopeSha256) || typeof input.toolApiVersion !== 'string' || typeof input.toolContractHash !== 'string') throw new KJValidationError('Invalid persisted task proposal identity or hashes');
+        if (input.toolApiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION) throw new KJValidationError('Unsupported persistent task tool API version');
         if (!Array.isArray(input.toolNames) || !input.toolNames.includes(pending.sourceToolName) || new Set(input.toolNames).size !== input.toolNames.length || !Array.isArray(input.capabilityLocks)) throw new KJValidationError('Proposal source tool or capability lock is not bound by the task');
         const plan = this.#sdk.agentPlans.get(planId);
         if (!plan || plan.status !== 'active' || plan.command !== pending.envelope.command || plan.documentId !== this.#document.id || plan.expectedRevision !== this.#document.revision) throw new KJValidationError('Agent plan is unavailable or no longer exact');
@@ -1641,6 +1642,7 @@ export class KJAgentToolSession {
                 'MOVE'
             ].includes(command) || pending.definition.id !== command || pending.definition.owner !== '@kanjieteam/kjdraw' || pending.definition.transactional === false) throw new KJValidationError('Persistent task approval is limited to a supported built-in transactional command');
             if (this.#sdk.commands.resolve(command) !== pending.definition) throw new KJValidationError('Command changed since preview; reject and propose again');
+            if (binding.toolApiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION) throw new KJValidationError('Unsupported persistent task tool API version');
             if (binding.documentRevision !== this.#document.revision || binding.units !== this.units) throw new KJValidationError('Task-bound drawing revision or units changed');
             const definitions = new Map(this.definitions.map((definition)=>[
                     definition.name,
@@ -1704,6 +1706,7 @@ export class KJAgentToolSession {
                         expectedScopeSha256: binding.scopeSha256,
                         sourceToolName: pending.sourceToolName,
                         toolContractHash: binding.toolContractHash,
+                        toolApiVersion: binding.toolApiVersion,
                         argumentsDigest,
                         capabilityLocks: binding.capabilityLocks,
                         planId,

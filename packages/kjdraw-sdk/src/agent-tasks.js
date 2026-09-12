@@ -2,8 +2,10 @@
 import { KJValidationError } from './errors.js';
 import { canonicalStringify, clone, deepFreeze, normalizeName, stableHash } from './utils.js';
 import { validateDrawingGeometryTransaction } from './drawing-validation.js';
+import { KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION } from './agent-capabilities.js';
 export const KJ_AGENT_TASK_TYPE = 'AI_TASK';
 export const KJ_AGENT_TASK_CONTRACT_VERSION = 1;
+export const KJDRAW_AGENT_TASK_TOOL_API_VERSION = String(KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION);
 const MAX_SCOPE_ENTITIES = 512;
 const MAX_SCOPE_BYTES = 4 * 1024 * 1024;
 const MAX_RECORD_BYTES = 256 * 1024;
@@ -1012,6 +1014,7 @@ export async function commitAgentTaskCreateBatchApproval(document, tx, input) {
         'expectedStatus',
         'expectedScopeSha256',
         'sourceToolName',
+        'toolApiVersion',
         'toolContractHash',
         'argumentsDigest',
         'capabilityLocks',
@@ -1028,6 +1031,7 @@ export async function commitAgentTaskCreateBatchApproval(document, tx, input) {
     if (typeof row.expectedScopeSha256 !== 'string' || !SHA256.test(row.expectedScopeSha256) || task.scope.sha256 !== row.expectedScopeSha256) fail('task scope lock conflict');
     const sourceToolName = identifier(row.sourceToolName, 'source tool name');
     if (!task.definition.tools.names.includes(sourceToolName)) fail('source tool is outside the task tool lock');
+    if (row.toolApiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION || task.definition.tools.apiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION) fail('unsupported persistent task tool API version');
     if (typeof row.toolContractHash !== 'string' || row.toolContractHash !== task.definition.tools.contractHash) fail('task tool contract conflict');
     if (typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest)) fail('reviewed arguments digest is invalid');
     const capabilityLocks = array(row.capabilityLocks, 'approval capability locks', 0, 32).map((item)=>{
@@ -1164,6 +1168,7 @@ export async function commitAgentTaskMoveApproval(document, tx, input) {
         'expectedStatus',
         'expectedScopeSha256',
         'sourceToolName',
+        'toolApiVersion',
         'toolContractHash',
         'argumentsDigest',
         'capabilityLocks',
@@ -1180,6 +1185,7 @@ export async function commitAgentTaskMoveApproval(document, tx, input) {
     if (typeof row.expectedScopeSha256 !== 'string' || !SHA256.test(row.expectedScopeSha256) || task.scope.sha256 !== row.expectedScopeSha256) fail('task scope lock conflict');
     const sourceToolName = identifier(row.sourceToolName, 'source tool name');
     if (sourceToolName !== 'cad_propose_move' || !task.definition.tools.names.includes(sourceToolName)) fail('MOVE source tool is outside the task tool lock');
+    if (row.toolApiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION || task.definition.tools.apiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION) fail('unsupported persistent task tool API version');
     if (typeof row.toolContractHash !== 'string' || row.toolContractHash !== task.definition.tools.contractHash) fail('task tool contract conflict');
     if (typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest)) fail('reviewed arguments digest is invalid');
     const capabilityLocks = array(row.capabilityLocks, 'approval capability locks', 0, 32).map((item)=>{

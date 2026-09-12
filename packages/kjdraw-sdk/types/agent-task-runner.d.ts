@@ -4,8 +4,7 @@ import { type KJAgentTaskToolBinding } from './agent-tasks.js';
 import type { KJAgentToolDefinition, KJAgentToolSession } from './agent-tools.js';
 import type { KJDocument } from './document.js';
 import { type ReadonlyDeep } from './utils.js';
-/** Exact persisted tool-contract version understood by this runtime. */
-export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;
+export { KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
 export interface KJPersistedAgentTaskRunOptions extends Omit<KJAgentRunOptions, 'session' | 'prompt' | 'toolNames' | 'capabilities'> {
     document: KJDocument;
     session: KJAgentToolSession;

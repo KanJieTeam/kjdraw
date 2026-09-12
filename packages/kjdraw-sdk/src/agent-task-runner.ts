@@ -1,13 +1,12 @@
-import { KJAgentCapabilityRegistry, KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION } from './agent-capabilities.js'
+import { KJAgentCapabilityRegistry } from './agent-capabilities.js'
 import { runKJAgentTask, type KJAgentRunOptions, type KJAgentRunResult } from './agent-runner.js'
-import { inspectAgentTask, type KJAgentTaskToolBinding } from './agent-tasks.js'
+import { inspectAgentTask, KJDRAW_AGENT_TASK_TOOL_API_VERSION, type KJAgentTaskToolBinding } from './agent-tasks.js'
 import type { KJAgentToolDefinition, KJAgentToolSession } from './agent-tools.js'
 import type { KJDocument } from './document.js'
 import { KJValidationError } from './errors.js'
 import { deepFreeze, stableHash, type ReadonlyDeep } from './utils.js'
 
-/** Exact persisted tool-contract version understood by this runtime. */
-export const KJDRAW_AGENT_TASK_TOOL_API_VERSION = String(KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION)
+export { KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js'
 
 export interface KJPersistedAgentTaskRunOptions extends Omit<KJAgentRunOptions, 'session' | 'prompt' | 'toolNames' | 'capabilities'> {
   document: KJDocument
