@@ -335,6 +335,43 @@ function syncDimensionStyleControl(){
   select.replaceChildren(...table.records.map(record=>new Option(record.name??'STANDARD',record.id)))
   select.value=table.records.some(record=>record.id===previous)?previous:table.currentId??table.records[0]?.id??''
 }
+function useDimensionStyle(record){
+  if(!record)return
+  $('dimension-style').value=record.id
+  $('dimension-precision').value=String(record.payload.decimalPlaces??2)
+  $('dimension-scale').value=String(record.payload.overallScale??1)
+  $('dimension-height').value=String(record.payload.textHeight??2.5)
+}
+async function manageDimensionStyles(){
+  const zh=i18n.locale==='zh',table=doc().getTable('dimensionStyles'),records=table.records
+  const choice=await requestLocalCommand({title:zh?'标注样式':'Dimension styles',description:zh?'创建、编辑或设为当前样式。旧标注继续引用原样式。':'Create, edit, or activate a style. Existing dimensions keep their original style reference.',fields:[
+    {name:'operation',label:zh?'操作':'Operation',value:'create',options:[['create',zh?'新建样式':'Create style'],['update',zh?'编辑样式':'Edit style'],['set-current',zh?'设为当前':'Set current']]},
+    {name:'id',label:zh?'已有样式':'Existing style',value:table.currentId??records[0]?.id??'',options:records.map(record=>[record.id,`${record.name}${record.id===table.currentId?(zh?' · 当前':' · Current'):''}`])},
+  ]})
+  if(!choice)return
+  const record=records.find(candidate=>candidate.id===choice.id)
+  if(choice.operation==='set-current'){
+    if(!record)throw new Error(zh?'请选择已有标注样式':'Select an existing dimension style')
+    await execute('DIMSTYLE',{operation:'set-current',id:record.id});useDimensionStyle(record);return
+  }
+  if(choice.operation==='update'&&!record)throw new Error(zh?'请选择已有标注样式':'Select an existing dimension style')
+  const payload=record?.payload??{}
+  const values=await requestLocalCommand({title:choice.operation==='create'?(zh?'新建标注样式':'Create dimension style'):(zh?'编辑标注样式':'Edit dimension style'),fields:[
+    {name:'name',label:zh?'样式名称':'Style name',value:record?.name??`DIMSTYLE-${records.length+1}`},
+    {name:'precision',label:zh?'精度':'Precision',type:'number',value:payload.decimalPlaces??2,min:0,max:8,step:1},
+    {name:'overallScale',label:zh?'全局比例':'Overall scale',type:'number',value:payload.overallScale??1,min:Number.EPSILON,max:1e12,step:'any'},
+    {name:'textHeight',label:zh?'文字高度':'Text height',type:'number',value:payload.textHeight??2.5,min:Number.EPSILON,max:1e12,step:'any'},
+    {name:'arrowSize',label:zh?'箭头大小':'Arrow size',type:'number',value:payload.arrowSize??2.5,min:Number.EPSILON,max:1e12,step:'any'},
+    {name:'extensionOffset',label:zh?'尺寸界线偏移':'Extension-line offset',type:'number',value:payload.extensionOffset??.625,min:0,max:1e12,step:'any'},
+    {name:'extensionBeyond',label:zh?'尺寸界线超出量':'Extension beyond dimension line',type:'number',value:payload.extensionBeyond??1.25,min:0,max:1e12,step:'any'},
+    {name:'current',label:zh?'保存后设为当前':'Set current after saving',type:'checkbox',value:record?.id===table.currentId,required:false},
+  ]})
+  if(!values)return
+  const {name,current,...properties}=values
+  await execute('DIMSTYLE',choice.operation==='create'?{operation:'create',name,properties,current}:{operation:'update',id:record.id,newName:name,properties,current})
+  const saved=choice.operation==='create'?doc().getTable('dimensionStyles').records.find(candidate=>candidate.name===name):doc().getObject(record.id)
+  if(current)useDimensionStyle(saved)
+}
 function refresh() {
   outputControls?.sync()
   syncDimensionStyleControl()
@@ -681,6 +718,7 @@ async function saveLocalProject(){
 const localSave=$('save-local');localSave.hidden=!BrowserKjpFileBinding.supported();localSave.onclick=()=>run(saveLocalProject)
 outputControls=createOutputControls({getContext:()=>({sdk,document:doc()}),locale:()=>i18n.locale,select:$('output-layout'),request:requestLocalCommand,run,execute,download,message,currentBounds:()=>{const a=world([0,height]),b=world([width,0]);return [a[0],a[1],b[0],b[1]]},title:documentTitle})
 $('page-setup').onclick=outputControls.setup
+$('dimension-styles').onclick=()=>run(manageDimensionStyles)
 $('export-svg').onclick=outputControls.svg
 $('print-drawing').onclick=outputControls.print
 $('export').onclick=()=>run(async()=>{const text=await sdk.writeDocument(doc(),{format:'DXF',version:'2018'});download(text,'drawing.dxf','application/dxf');message('ASCII DXF 2018 downloaded · core adapter, see compatibility limits')})

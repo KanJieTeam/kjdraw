@@ -459,7 +459,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         table: 'dimensionStyles',
         operations: [
             'create',
-            'update'
+            'update',
+            'set-current'
         ]
     },
     UCS: {
@@ -826,6 +827,11 @@ export function registerCoreCommands(registry) {
                 'ATTDEF',
                 'ATTRIB'
             ].includes(type) && payload.styleId === undefined && currentTextStyleId) payload.styleId = currentTextStyleId;
+            const currentDimensionStyleId = document.getTable('dimensionStyles')?.currentId;
+            if (type === 'DIMENSION' && payload.styleId === undefined && currentDimensionStyleId) {
+                payload.styleId = currentDimensionStyleId;
+                payload.styleName = document.getObject(currentDimensionStyleId)?.name ?? 'STANDARD';
+            }
             return transaction.createEntity(type, payload, args.options);
         }
     }, {
@@ -1220,11 +1226,68 @@ export function registerCoreCommands(registry) {
             'D'
         ],
         title: 'Create or update dimension style',
-        execute: ({ transaction }, args)=>transaction.upsertTableRecord('dimensionStyles', {
-                name: args.name,
-                type: 'DIM_STYLE',
-                payload: clone(args.properties ?? args.payload ?? {})
-            })
+        execute: ({ document, transaction }, args)=>{
+            const operation = String(args.operation ?? 'upsert').toLowerCase();
+            if (operation === 'set-current') return transaction.setCurrentTableRecord('dimensionStyles', resolveTableRecord(document, 'dimensionStyles', args.id ?? args.name).id);
+            if (![
+                'upsert',
+                'create',
+                'update'
+            ].includes(operation)) throw new KJValidationError(`Unsupported dimension style operation: ${operation}`);
+            const source = clone(args.properties ?? args.payload ?? {});
+            if (!source || typeof source !== 'object' || Array.isArray(source)) throw new KJValidationError('Dimension style properties must be an object');
+            if (Object.hasOwn(source, 'precision')) {
+                if (Object.hasOwn(source, 'decimalPlaces') && Number(source.precision) !== Number(source.decimalPlaces)) throw new KJValidationError('Dimension style precision conflicts with decimalPlaces');
+                source.decimalPlaces = source.precision;
+                delete source.precision;
+            }
+            const numeric = (key, minimum, inclusive)=>{
+                if (!Object.hasOwn(source, key)) return;
+                const value = Number(source[key]);
+                if (!Number.isFinite(value) || value > 1e12 || (inclusive ? value < minimum : value <= minimum)) throw new KJValidationError(`Dimension style ${key} is outside its supported range`);
+                source[key] = value;
+            };
+            numeric('overallScale', 0, false);
+            numeric('textHeight', 0, false);
+            numeric('arrowSize', 0, false);
+            numeric('extensionOffset', 0, true);
+            numeric('extensionBeyond', 0, true);
+            if (Object.hasOwn(source, 'decimalPlaces')) {
+                const precision = Number(source.decimalPlaces);
+                if (!Number.isInteger(precision) || precision < 0 || precision > 8) throw new KJValidationError('Dimension style precision must be an integer from 0 to 8');
+                source.decimalPlaces = precision;
+            }
+            const table = document.getTable('dimensionStyles');
+            if (!table) throw new KJValidationError('Dimension style table is unavailable');
+            const requestedName = String(args.newName ?? args.name ?? '').trim();
+            let record;
+            if (operation === 'update') {
+                const target = resolveTableRecord(document, 'dimensionStyles', args.id ?? args.name);
+                const name = requestedName || target.name || '';
+                const conflict = table.records.find((item)=>item.id !== target.id && normalizeName(item.name) === normalizeName(name));
+                if (conflict) throw new KJValidationError(`Dimension style name already exists: ${name}`);
+                record = transaction.updateObject(target.id, {
+                    name,
+                    payload: {
+                        ...clone(target.payload),
+                        ...source
+                    }
+                });
+            } else {
+                if (!requestedName) throw new KJValidationError('Dimension style name is required');
+                const existing = table.records.find((item)=>normalizeName(item.name) === normalizeName(requestedName));
+                if (operation === 'create' && existing) throw new KJValidationError(`Dimension style name already exists: ${requestedName}`);
+                record = transaction.upsertTableRecord('dimensionStyles', {
+                    name: requestedName,
+                    type: 'DIM_STYLE',
+                    payload: existing ? {
+                        ...clone(existing.payload),
+                        ...source
+                    } : source
+                });
+            }
+            return args.current === true ? transaction.setCurrentTableRecord('dimensionStyles', record.id) : record;
+        }
     }, {
         owner: '@kanjieteam/kjdraw'
     }));
@@ -2306,6 +2369,8 @@ function createEntityBatch({ document, transaction }, args = {}) {
             String(record.name).toUpperCase(),
             record.id
         ]));
+    const currentDimensionStyleId = document.getTable('dimensionStyles')?.currentId;
+    const currentDimensionStyleName = currentDimensionStyleId ? document.getObject(currentDimensionStyleId)?.name ?? 'STANDARD' : 'STANDARD';
     for (const layer of args.resources?.layers ?? [])layerIds.set(layer.name.toUpperCase(), layer.id);
     const created = [];
     for (const spec of specs){
@@ -2329,10 +2394,15 @@ function createEntityBatch({ document, transaction }, args = {}) {
             layerId = layer.id;
             layerIds.set(layerKey, layerId);
         }
-        created.push(transaction.createEntity(spec.type, {
+        const payload = {
             ...clone(spec.payload ?? {}),
             layerId
-        }, spec.options ?? {}));
+        };
+        if (normalizeName(spec.type) === 'DIMENSION' && payload.styleId === undefined && currentDimensionStyleId) {
+            payload.styleId = currentDimensionStyleId;
+            payload.styleName = currentDimensionStyleName;
+        }
+        created.push(transaction.createEntity(spec.type, payload, spec.options ?? {}));
     }
     return created;
 }

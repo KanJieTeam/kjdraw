@@ -100,3 +100,79 @@ test('main playground exposes style, precision, scale and text controls on real 
   expect(entity.payload).toMatchObject({ styleId: style.id, styleName: 'SHOP-DIM', precision: 4, overallScale: 1.25, textHeight: 2.25, textOverride: 'REF <> MAX' })
   session.destroy()
 })
+
+test('mounted workbench manages dimension style records and new dimensions inherit the current style', async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(async () => {
+    document.body.replaceChildren()
+    const host = document.createElement('div'); host.id = 'style-workbench'; host.style.cssText = 'width:1280px;height:840px'; document.body.append(host)
+    const [{ createKJDrawSDK }, { mountKJDrawWorkbench }] = await Promise.all([import('/packages/kjdraw-sdk/src/sdk.js'), import('/packages/kjdraw-sdk/src/workbench.js')])
+    const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'dimension-style-workbench', units: 'millimeter' })
+    const workbench = mountKJDrawWorkbench(host, { sdk, document: drawing, grid: false }); await workbench.ready
+    window.__dimensionStyles = { sdk, drawing, workbench }
+  })
+  const root = page.locator('#style-workbench'), dialog = root.locator('[data-dimension-style-dialog]')
+  const initial = await page.evaluate(() => window.__dimensionStyles.drawing.revision)
+  await root.locator('[data-action="dimension-styles"]').click(); await dialog.locator('[data-action="cancel-dimension-style"]').click()
+  await expect(dialog).not.toBeVisible()
+  expect(await page.evaluate(() => window.__dimensionStyles.drawing.revision)).toBe(initial)
+  await root.locator('[data-action="dimension-styles"]').click(); await expect(dialog).toBeVisible()
+  await dialog.locator('[data-action="new-dimension-style"]').click()
+  await dialog.locator('[data-dimension-style-field="name"]').fill('UI-DETAIL')
+  for (const [key, value] of [['precision', '4'], ['overallScale', '2'], ['textHeight', '1.8'], ['arrowSize', '.9'], ['extensionOffset', '.35'], ['extensionBeyond', '.7']]) await dialog.locator(`[data-dimension-style-field="${key}"]`).fill(value)
+  await dialog.locator('[data-action="save-dimension-style"]').click(); await expect(dialog).not.toBeVisible()
+  await expect.poll(() => page.evaluate(() => window.__dimensionStyles.drawing.revision)).toBe(initial + 1)
+
+  await root.locator('[data-action="dimension-styles"]').click(); await dialog.locator('[data-action="new-dimension-style"]').click()
+  await dialog.locator('[data-dimension-style-field="name"]').fill('ui-detail'); await dialog.locator('[data-action="save-dimension-style"]').click()
+  await expect(dialog.locator('[data-dimension-style-error]')).toContainText('already exists')
+  expect(await page.evaluate(() => window.__dimensionStyles.drawing.revision)).toBe(initial + 1)
+  await dialog.locator('[data-action="cancel-dimension-style"]').click()
+
+  await root.locator('[data-action="dimension-styles"]').click(); await dialog.locator('[data-dimension-style-record]').selectOption({ label: 'UI-DETAIL' })
+  await dialog.locator('[data-action="set-current-dimension-style"]').click(); await expect(dialog).not.toBeVisible()
+  const style = await page.evaluate(() => {
+    const { drawing } = window.__dimensionStyles, record = drawing.getTable('dimensionStyles').records.find(candidate => candidate.name === 'UI-DETAIL')
+    return { id: record.id, currentId: drawing.getTable('dimensionStyles').currentId }
+  })
+  expect(style.currentId).toBe(style.id)
+
+  await command(page, '#style-workbench [data-command]', 'DIMALIGNED')
+  for (const coordinate of ['0,0', '12.5,0', '6,5']) await command(page, '#style-workbench [data-command]', coordinate)
+  const dimension = await page.evaluate(() => window.__dimensionStyles.drawing.listEntities({ type: 'DIMENSION' })[0])
+  expect(dimension.payload).toMatchObject({ styleId: style.id, styleName: 'UI-DETAIL' })
+
+  await root.locator('[data-action="dimension-styles"]').click(); await dialog.locator('[data-dimension-style-record]').selectOption(style.id)
+  await dialog.locator('[data-dimension-style-field="precision"]').fill('5'); await dialog.locator('[data-action="save-dimension-style"]').click()
+  expect(await page.evaluate(id => window.__dimensionStyles.drawing.getObject(id).payload.styleId, dimension.id)).toBe(style.id)
+  await root.locator('[data-action="undo"]').click()
+  await expect.poll(() => page.evaluate(id => window.__dimensionStyles.drawing.getObject(id).payload.decimalPlaces, style.id)).toBe(4)
+  await root.locator('[data-action="redo"]').click()
+  await expect.poll(() => page.evaluate(id => window.__dimensionStyles.drawing.getObject(id).payload.decimalPlaces, style.id)).toBe(5)
+  await page.evaluate(() => window.__dimensionStyles.workbench.setOptions({ readonly: true }))
+  await expect(root.locator('[data-action="dimension-styles"]')).toBeDisabled()
+})
+
+test('main playground creates and activates a complete dimension style through its native dialog', async ({ page }) => {
+  const fixtureSdk = createKJDrawSDK(), drawing = fixtureSdk.createDocument({ documentId: 'playground-dimension-style', units: 'millimeter' })
+  const content = await fixtureSdk.writeDocument(drawing, { format: 'KJD' })
+  await page.goto('/'); await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  await page.locator('#file-input').setInputFiles({ name: 'dimension-style.kjd', mimeType: 'application/json', buffer: Buffer.from(content) })
+  await page.locator('#dimension-styles').click()
+  await page.locator('#app-dialog select[name="operation"]').selectOption('create'); await page.locator('#dialog-submit').click()
+  const dialog = page.locator('#app-dialog')
+  await dialog.locator('input[name="name"]').fill('PLAYGROUND-DETAIL')
+  for (const [key, value] of [['precision', '4'], ['overallScale', '1.75'], ['textHeight', '2.2'], ['arrowSize', '1.1'], ['extensionOffset', '.4'], ['extensionBeyond', '.8']]) await dialog.locator(`input[name="${key}"]`).fill(value)
+  await dialog.locator('input[name="current"]').check(); await page.locator('#dialog-submit').click(); await expect(dialog).not.toBeVisible()
+  await expect(page.locator('#dimension-style option', { hasText: 'PLAYGROUND-DETAIL' })).toHaveCount(1)
+  await command(page, '#command-input', 'DIMALIGNED')
+  for (const coordinate of ['0,0', '20,0', '10,6']) await command(page, '#command-input', coordinate)
+  const pending = page.waitForEvent('download'); await page.locator('#save').click(); const download = await pending
+  const bytes = await readFile(await download.path()), session = await KJProjectSession.open(bytes, { sdk: createKJDrawSDK() })
+  const style = session.activeDocument.getTable('dimensionStyles').records.find(record => record.name === 'PLAYGROUND-DETAIL')
+  const dimension = session.activeDocument.listEntities({ type: 'DIMENSION' })[0]
+  expect(style.payload).toMatchObject({ decimalPlaces: 4, overallScale: 1.75, textHeight: 2.2, arrowSize: 1.1, extensionOffset: .4, extensionBeyond: .8 })
+  expect(session.activeDocument.getTable('dimensionStyles').currentId).toBe(style.id)
+  expect(dimension.payload.styleId).toBe(style.id)
+  session.destroy()
+})

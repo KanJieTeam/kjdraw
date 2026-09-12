@@ -149,7 +149,7 @@ interface KJWorkbenchFenceSelection {
 const copy = {
   en: {
     drawingSpace: 'Drawing space', modelSpace: 'Model', paperPreview: 'Paper preview · return to Model to edit',
-    pageSetup: 'Page setup', pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.', pageSheet: 'Sheet', pageStale: 'The drawing changed. Close and reopen page setup before applying.', pageWidth: 'Paper width (mm)', pageHeight: 'Paper height (mm)', pageLeft: 'Left margin (mm)', pageRight: 'Right margin (mm)', pageTop: 'Top margin (mm)', pageBottom: 'Bottom margin (mm)', pageUnits: 'Plot units', pageRotation: 'Rotation (counterclockwise)', pageNumerator: 'Custom scale: paper units', pageDenominator: 'Custom scale: drawing units', pageScaleNote: 'Choose Fit to paper or edit the custom ratio. Window coordinates use drawing units; physical offsets use millimeters.', pageUnchanged: 'Keep existing', pageInches: 'Inches', pageMm: 'Millimeters', pagePixels: 'Pixels', pageArea: 'Plot area', pageDisplay: 'Last display', pageExtents: 'Drawing extents', pageLimits: 'Drawing limits', pageView: 'Named view', pageWindow: 'Window', pageLayout: 'Layout', pageViewName: 'View name', pageMinX: 'Window minimum X', pageMinY: 'Window minimum Y', pageMaxX: 'Window maximum X', pageMaxY: 'Window maximum Y', pageOriginX: 'Origin X (mm)', pageOriginY: 'Origin Y (mm)', pageScaleMode: 'Scale mode', pageFit: 'Fit to paper', pageCustom: 'Custom ratio',
+    pageSetup: 'Page setup', dimensionStyles: 'Dimension styles', dimensionStylesDescription: 'Create, edit, or activate native dimension styles.', newDimensionStyle: 'New style', setCurrentStyle: 'Set current', currentStyle: 'Current', styleName: 'Style name', dimensionArrowSize: 'Arrow size', dimensionExtensionOffset: 'Extension-line offset', dimensionExtensionBeyond: 'Extension beyond dimension line', pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.', pageSheet: 'Sheet', pageStale: 'The drawing changed. Close and reopen the dialog before applying.', pageWidth: 'Paper width (mm)', pageHeight: 'Paper height (mm)', pageLeft: 'Left margin (mm)', pageRight: 'Right margin (mm)', pageTop: 'Top margin (mm)', pageBottom: 'Bottom margin (mm)', pageUnits: 'Plot units', pageRotation: 'Rotation (counterclockwise)', pageNumerator: 'Custom scale: paper units', pageDenominator: 'Custom scale: drawing units', pageScaleNote: 'Choose Fit to paper or edit the custom ratio. Window coordinates use drawing units; physical offsets use millimeters.', pageUnchanged: 'Keep existing', pageInches: 'Inches', pageMm: 'Millimeters', pagePixels: 'Pixels', pageArea: 'Plot area', pageDisplay: 'Last display', pageExtents: 'Drawing extents', pageLimits: 'Drawing limits', pageView: 'Named view', pageWindow: 'Window', pageLayout: 'Layout', pageViewName: 'View name', pageMinX: 'Window minimum X', pageMinY: 'Window minimum Y', pageMaxX: 'Window maximum X', pageMaxY: 'Window maximum Y', pageOriginX: 'Origin X (mm)', pageOriginY: 'Origin Y (mm)', pageScaleMode: 'Scale mode', pageFit: 'Fit to paper', pageCustom: 'Custom ratio',
     open: 'Open', openSource: 'Reading file', openParse: 'Parsing DXF', openImport: 'Building drawing', openCancelHint: 'Esc cancels', openCancelled: 'Open cancelled', saveKjd: 'Save KJD', exportDxf: 'Export DXF', exportSvg: 'Export SVG', print: 'Print / PDF', printOpened: 'Print dialog opened · choose Save as PDF for vector output', draw: 'Draw', modify: 'Modify', view: 'View',
     select: 'Select', pan: 'Pan', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', rectangle: 'Rectangle', text: 'Text', measure: 'Measure',
     undo: 'Undo', redo: 'Redo', erase: 'Delete', move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', fit: 'Fit', grid: 'Grid', ortho: 'Ortho', orthoOn: 'Orthogonal drafting on', orthoOff: 'Orthogonal drafting off', orthoBusy: 'Finish or cancel the current operation before changing Ortho', polar: 'Polar', polarOn: 'Polar tracking on', polarOff: 'Polar tracking off', polarBusy: 'Finish or cancel the current operation before changing Polar tracking', layers: 'Layers', properties: 'Properties',
@@ -169,7 +169,7 @@ const copy = {
   },
   'zh-CN': {
     drawingSpace: '图纸空间', modelSpace: '模型', paperPreview: '纸空间只读预览 · 返回模型后编辑',
-    pageSetup: '页面设置', pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。', pageSheet: '图纸布局', pageStale: '图档已变更，请关闭并重新打开页面设置后再应用。', pageWidth: '纸张宽度（毫米）', pageHeight: '纸张高度（毫米）', pageLeft: '左边距（毫米）', pageRight: '右边距（毫米）', pageTop: '上边距（毫米）', pageBottom: '下边距（毫米）', pageUnits: '打印单位', pageRotation: '旋转（逆时针）', pageNumerator: '自定义比例：纸张单位', pageDenominator: '自定义比例：图形单位', pageScaleNote: '可选适合纸张或编辑自定义比例。窗口坐标使用绘图单位，物理偏移使用毫米。', pageUnchanged: '保留已有值', pageInches: '英寸', pageMm: '毫米', pagePixels: '像素', pageArea: '打印范围', pageDisplay: '上次显示范围', pageExtents: '图形范围', pageLimits: '图形界限', pageView: '命名视图', pageWindow: '窗口', pageLayout: '布局', pageViewName: '视图名称', pageMinX: '窗口最小 X', pageMinY: '窗口最小 Y', pageMaxX: '窗口最大 X', pageMaxY: '窗口最大 Y', pageOriginX: '原点 X（毫米）', pageOriginY: '原点 Y（毫米）', pageScaleMode: '比例模式', pageFit: '适合纸张', pageCustom: '自定义比例',
+    pageSetup: '页面设置', dimensionStyles: '标注样式', dimensionStylesDescription: '创建、编辑或启用原生标注样式。', newDimensionStyle: '新建样式', setCurrentStyle: '设为当前', currentStyle: '当前', styleName: '样式名称', dimensionArrowSize: '箭头大小', dimensionExtensionOffset: '尺寸界线偏移', dimensionExtensionBeyond: '尺寸界线超出量', pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。', pageSheet: '图纸布局', pageStale: '图档已变更，请关闭并重新打开对话框后再应用。', pageWidth: '纸张宽度（毫米）', pageHeight: '纸张高度（毫米）', pageLeft: '左边距（毫米）', pageRight: '右边距（毫米）', pageTop: '上边距（毫米）', pageBottom: '下边距（毫米）', pageUnits: '打印单位', pageRotation: '旋转（逆时针）', pageNumerator: '自定义比例：纸张单位', pageDenominator: '自定义比例：绘图单位', pageScaleNote: '可选适合纸张或编辑自定义比例。窗口坐标使用绘图单位，物理偏移使用毫米。', pageUnchanged: '保留已有值', pageInches: '英寸', pageMm: '毫米', pagePixels: '像素', pageArea: '打印范围', pageDisplay: '上次显示范围', pageExtents: '图形范围', pageLimits: '图形界限', pageView: '命名视图', pageWindow: '窗口', pageLayout: '布局', pageViewName: '视图名称', pageMinX: '窗口最小 X', pageMinY: '窗口最小 Y', pageMaxX: '窗口最大 X', pageMaxY: '窗口最大 Y', pageOriginX: '原点 X（毫米）', pageOriginY: '原点 Y（毫米）', pageScaleMode: '比例模式', pageFit: '适合纸张', pageCustom: '自定义比例',
     open: '打开', openSource: '正在读取文件', openParse: '正在解析 DXF', openImport: '正在构建图纸', openCancelHint: 'Esc 取消', openCancelled: '已取消打开', saveKjd: '保存 KJD', exportDxf: '导出 DXF', exportSvg: '导出 SVG', print: '打印 / PDF', printOpened: '已打开打印对话框 · 选择另存为 PDF 可保留矢量', draw: '绘图', modify: '修改', view: '视图',
     select: '选择', pan: '平移', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', rectangle: '矩形', text: '文字', measure: '测距',
     undo: '撤销', redo: '重做', erase: '删除', move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', fit: '全图', grid: '栅格', ortho: '正交', orthoOn: '正交绘图已开启', orthoOff: '正交绘图已关闭', orthoBusy: '请先完成或取消当前操作，再切换正交模式', polar: '极轴', polarOn: '极轴跟踪已开启', polarOff: '极轴跟踪已关闭', polarBusy: '请先完成或取消当前操作，再切换极轴跟踪', layers: '图层', properties: '特性',
@@ -414,6 +414,7 @@ export class KJDrawWorkbench {
   #transformGesture: { document: KJDocument; revision: number; ids: readonly string[]; operation: 'MOVE' | 'COPY'; base: Point2 | null } | null = null
   #modificationGesture: KJModificationGesture | null = null
   #pageBinding: { document: KJDocument; revision: number; layoutId: string; settings: KJDxfPlotSettings } | null = null
+  #dimensionStyleBinding: { document: KJDocument; revision: number; recordId: string | null } | null = null
   #boundarySession: KJBoundaryEditSession | null = null
   #boundaryPointer: KJWorkbenchBoundaryPointer | null = null
   #boundaryPreview: ReturnType<KJBoundaryEditSession['preview']> | null = null
@@ -528,7 +529,7 @@ export class KJDrawWorkbench {
 
   #syncEditability(): void {
     const allowed = this.paperPreview ? ['select', 'fence', 'pan'] : ['select', 'fence', 'pan', 'measure']
-    for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-action="page-setup"],[data-tool]')) button.disabled = this.#readOnly && !allowed.includes(button.dataset.tool ?? '')
+    for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-command-template],[data-action="erase"],[data-action="modify"],[data-action="draft"],[data-action="page-setup"],[data-action="dimension-styles"],[data-tool]')) button.disabled = this.#readOnly && !allowed.includes(button.dataset.tool ?? '')
     const command = this.root.querySelector<HTMLInputElement>('[data-command]'), run = this.root.querySelector<HTMLButtonElement>('[data-action="run-command"]')
     if (command) command.disabled = this.paperPreview
     if (run) run.disabled = this.paperPreview
@@ -833,6 +834,7 @@ export class KJDrawWorkbench {
         <button type="button" class="file-action" data-action="save-svg" data-copy-title="exportSvg" title="${t('exportSvg')}" aria-label="${t('exportSvg')}">${icon('export')}<span data-copy="exportSvg">${t('exportSvg')}</span></button>
         <button type="button" class="file-action" data-action="print" data-copy-title="print" title="${t('print')}" aria-label="${t('print')}">${icon('export')}<span data-copy="print">${t('print')}</span></button>
         <button type="button" class="file-action" data-action="page-setup" data-copy-title="pageSetup" title="${t('pageSetup')}" aria-label="${t('pageSetup')}" ${readonly ? 'disabled' : ''}>${icon('panel')}<span data-copy="pageSetup">${t('pageSetup')}</span></button>
+        <button type="button" class="file-action" data-action="dimension-styles" data-copy-title="dimensionStyles" title="${t('dimensionStyles')}" aria-label="${t('dimensionStyles')}" ${readonly ? 'disabled' : ''}>${icon('measure')}<span data-copy="dimensionStyles">${t('dimensionStyles')}</span></button>
       </header>
       <nav class="ribbon" aria-label="CAD tools">
         <div class="group"><button type="button" class="tool active" data-tool="select">${icon('select')}<small data-copy="select">${t('select')}</small></button><button type="button" class="tool" data-tool="pan">${icon('pan')}<small data-copy="pan">${t('pan')}</small></button><span data-copy="view">${t('view')}</span></div>
@@ -866,6 +868,13 @@ export class KJDrawWorkbench {
           <div class="modify-body"><label class="field"><span data-copy="pageSheet">${t('pageSheet')}</span><select data-page-sheet></select></label><div class="modify-fields" data-page-fields></div><p class="modify-order" data-copy="pageScaleNote">${t('pageScaleNote')}</p><p role="alert" data-page-error></p></div>
           <footer class="modify-actions"><button type="button" data-action="cancel-page" data-copy="cancel">${t('cancel')}</button><button type="button" data-action="apply-page" class="confirm" data-copy="apply">${t('apply')}</button></footer>
         </div>
+      </dialog>
+      <dialog class="modify-dialog" data-dimension-style-dialog aria-label="${t('dimensionStyles')}">
+        <div class="modify-form" data-dimension-style-form>
+          <header class="modify-head"><h2 data-copy="dimensionStyles">${t('dimensionStyles')}</h2><p data-copy="dimensionStylesDescription">${t('dimensionStylesDescription')}</p></header>
+          <div class="modify-body"><label class="field"><span data-copy="dimensionStyles">${t('dimensionStyles')}</span><select data-dimension-style-record></select></label><div class="modify-fields" data-dimension-style-fields></div><p role="alert" data-dimension-style-error></p></div>
+          <footer class="modify-actions"><button type="button" data-action="cancel-dimension-style" data-copy="cancel">${t('cancel')}</button><button type="button" data-action="new-dimension-style" data-copy="newDimensionStyle">${t('newDimensionStyle')}</button><button type="button" data-action="set-current-dimension-style" data-copy="setCurrentStyle">${t('setCurrentStyle')}</button><button type="button" class="confirm" data-action="save-dimension-style" data-copy="apply">${t('apply')}</button></footer>
+        </div>
       </dialog>`
   }
 
@@ -883,6 +892,17 @@ export class KJDrawWorkbench {
     pageDialog.addEventListener('keydown', event => {
       if (event.key === 'Enter' && event.target instanceof HTMLInputElement) { event.preventDefault(); event.stopPropagation(); if (!event.repeat && !event.isComposing) void this.#applyPageSetup() }
     }, { signal })
+    const dimensionStyleDialog = query<HTMLDialogElement>(this.root, '[data-dimension-style-dialog]')
+    query<HTMLButtonElement>(this.root, '[data-action="dimension-styles"]').addEventListener('click', () => this.#openDimensionStyles(), { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="cancel-dimension-style"]').addEventListener('click', () => dimensionStyleDialog.close(), { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="new-dimension-style"]').addEventListener('click', () => this.#newDimensionStyle(), { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="set-current-dimension-style"]').addEventListener('click', () => void this.#setCurrentDimensionStyle(), { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="save-dimension-style"]').addEventListener('click', () => void this.#saveDimensionStyle(), { signal })
+    query<HTMLSelectElement>(this.root, '[data-dimension-style-record]').addEventListener('change', event => {
+      if (this.#dimensionStyleBinding) this.#dimensionStyleBinding.recordId = (event.currentTarget as HTMLSelectElement).value || null
+      this.#renderDimensionStyleForm()
+    }, { signal })
+    dimensionStyleDialog.addEventListener('close', () => { this.#dimensionStyleBinding = null }, { signal })
     this.root.addEventListener('focusin', () => this.#activateDocument(), { signal })
     this.root.addEventListener('pointerdown', () => this.#activateDocument(), { signal })
     for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-tool]')) button.addEventListener('click', () => this.setTool(button.dataset.tool as KJWorkbenchTool), { signal })
@@ -1523,6 +1543,105 @@ export class KJDrawWorkbench {
 
   #localizedControlText(value: KJLocalizedControlText): string {
     return this.#locale === 'zh-CN' ? value.zh : value.en
+  }
+
+  #openDimensionStyles(): void {
+    const drawing = this.document
+    if (!drawing || this.#readOnly || this.#abort.signal.aborted) return
+    this.#cancelGesture()
+    const table = drawing.getTable('dimensionStyles')
+    if (!table) return
+    this.#dimensionStyleBinding = { document: drawing, revision: drawing.revision, recordId: table.currentId ?? table.records[0]?.id ?? null }
+    const select = query<HTMLSelectElement>(this.root, '[data-dimension-style-record]')
+    select.replaceChildren(...table.records.map(record => new Option(`${record.name ?? record.id}${record.id === table.currentId ? ` · ${this.#t('currentStyle')}` : ''}`, record.id)))
+    select.value = this.#dimensionStyleBinding.recordId ?? ''
+    this.#renderDimensionStyleForm()
+    query<HTMLDialogElement>(this.root, '[data-dimension-style-dialog]').showModal()
+  }
+
+  #newDimensionStyle(): void {
+    const binding = this.#dimensionStyleBinding
+    if (!binding) return
+    binding.recordId = null
+    query<HTMLSelectElement>(this.root, '[data-dimension-style-record]').value = ''
+    this.#renderDimensionStyleForm()
+    query<HTMLInputElement>(this.root, '[data-dimension-style-field="name"]').focus()
+  }
+
+  #renderDimensionStyleForm(): void {
+    const binding = this.#dimensionStyleBinding
+    if (!binding) return
+    const table = binding.document.getTable('dimensionStyles')
+    if (!table) return
+    const record = binding.recordId ? table.records.find(candidate => candidate.id === binding.recordId) : null
+    const defaults = { decimalPlaces: 2, overallScale: 1, textHeight: 2.5, arrowSize: 2.5, extensionOffset: .625, extensionBeyond: 1.25 }
+    const values = { ...defaults, ...(record?.payload ?? {}) }
+    const host = query<HTMLElement>(this.root, '[data-dimension-style-fields]')
+    host.replaceChildren()
+    const add = (key: string, copyKey: keyof typeof copy.en, value: string, options: { type?: string; min?: number; max?: number; step?: string } = {}): void => {
+      const label = document.createElement('label'); label.className = 'field'
+      const span = document.createElement('span'); span.dataset.copy = copyKey; span.textContent = this.#t(copyKey)
+      const input = document.createElement('input'); input.type = options.type ?? 'number'; input.value = value; input.required = true; input.dataset.dimensionStyleField = key
+      if (options.min !== undefined) input.min = String(options.min)
+      if (options.max !== undefined) input.max = String(options.max)
+      if (options.step !== undefined) input.step = options.step
+      label.append(span, input); host.append(label)
+    }
+    const newName = `DIMSTYLE-${table.records.length + 1}`
+    add('name', 'styleName', record?.name ?? newName, { type: 'text' })
+    add('precision', 'dimensionPrecision', String(values.decimalPlaces), { min: 0, max: 8, step: '1' })
+    add('overallScale', 'dimensionScale', String(values.overallScale), { min: Number.EPSILON, max: 1e12, step: 'any' })
+    add('textHeight', 'dimensionTextHeight', String(values.textHeight), { min: Number.EPSILON, max: 1e12, step: 'any' })
+    add('arrowSize', 'dimensionArrowSize', String(values.arrowSize), { min: Number.EPSILON, max: 1e12, step: 'any' })
+    add('extensionOffset', 'dimensionExtensionOffset', String(values.extensionOffset), { min: 0, max: 1e12, step: 'any' })
+    add('extensionBeyond', 'dimensionExtensionBeyond', String(values.extensionBeyond), { min: 0, max: 1e12, step: 'any' })
+    query<HTMLElement>(this.root, '[data-dimension-style-error]').textContent = ''
+    const current = table.currentId === record?.id
+    query<HTMLButtonElement>(this.root, '[data-action="set-current-dimension-style"]').disabled = !record || current || this.#readOnly
+  }
+
+  #dimensionStyleProperties(): { name: string; precision: number; overallScale: number; textHeight: number; arrowSize: number; extensionOffset: number; extensionBeyond: number } | null {
+    const form = query<HTMLElement>(this.root, '[data-dimension-style-form]')
+    const invalid = form.querySelector<HTMLInputElement>('input:invalid')
+    if (invalid) { invalid.reportValidity(); return null }
+    const read = (key: string): string => query<HTMLInputElement>(form, `[data-dimension-style-field="${key}"]`).value
+    return { name: read('name').trim(), precision: Number(read('precision')), overallScale: Number(read('overallScale')), textHeight: Number(read('textHeight')), arrowSize: Number(read('arrowSize')), extensionOffset: Number(read('extensionOffset')), extensionBeyond: Number(read('extensionBeyond')) }
+  }
+
+  async #saveDimensionStyle(): Promise<void> {
+    const binding = this.#dimensionStyleBinding, dialog = query<HTMLDialogElement>(this.root, '[data-dimension-style-dialog]')
+    if (!binding || !dialog.open) return
+    const values = this.#dimensionStyleProperties()
+    if (!values) return
+    const button = query<HTMLButtonElement>(dialog, '[data-action="save-dimension-style"]')
+    button.disabled = true
+    try {
+      if (this.#readOnly) throw new Error(this.#t('readonly'))
+      if (this.document !== binding.document || binding.document.revision !== binding.revision) throw new Error(this.#t('pageStale'))
+      const { name, ...properties } = values
+      await this.execute('DIMSTYLE', binding.recordId ? { operation: 'update', id: binding.recordId, newName: name, properties } : { operation: 'create', name, properties }, { expectedRevision: binding.revision })
+      dialog.close()
+    } catch (error) {
+      query<HTMLElement>(dialog, '[data-dimension-style-error]').textContent = error instanceof Error ? error.message : String(error)
+    } finally { button.disabled = false }
+  }
+
+  async #setCurrentDimensionStyle(): Promise<void> {
+    const binding = this.#dimensionStyleBinding, dialog = query<HTMLDialogElement>(this.root, '[data-dimension-style-dialog]')
+    if (!binding?.recordId || !dialog.open) return
+    const button = query<HTMLButtonElement>(dialog, '[data-action="set-current-dimension-style"]')
+    button.disabled = true
+    try {
+      if (this.#readOnly) throw new Error(this.#t('readonly'))
+      if (this.document !== binding.document || binding.document.revision !== binding.revision) throw new Error(this.#t('pageStale'))
+      const record = binding.document.getObject(binding.recordId)
+      await this.execute('DIMSTYLE', { operation: 'set-current', id: binding.recordId }, { expectedRevision: binding.revision })
+      const configured = this.#draftOptions.get('dimension') ?? {}
+      this.#draftOptions.set('dimension', { ...configured, styleId: binding.recordId, styleName: record?.name ?? 'STANDARD' })
+      dialog.close()
+    } catch (error) {
+      query<HTMLElement>(dialog, '[data-dimension-style-error]').textContent = error instanceof Error ? error.message : String(error)
+    } finally { button.disabled = false }
   }
 
   #openPageSetup(): void {
@@ -2554,6 +2673,9 @@ export class KJDrawWorkbench {
     const pageDialog = this.root.querySelector<HTMLDialogElement>('[data-page-dialog]')
     if (pageDialog?.open) pageDialog.close()
     this.#pageBinding = null
+    const dimensionStyleDialog = this.root.querySelector<HTMLDialogElement>('[data-dimension-style-dialog]')
+    if (dimensionStyleDialog?.open) dimensionStyleDialog.close()
+    this.#dimensionStyleBinding = null
     this.#cancelPointer()
     this.#hideSnap()
     if (hadDraft) this.renderer.render()
