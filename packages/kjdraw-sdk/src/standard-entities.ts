@@ -162,7 +162,9 @@ function vector3(value: unknown, label: string): KJPoint3 {
 }
 
 function base(payload: Record<string, unknown>): KJObjectPayload {
-  return { ...clone(payload), contractVersion: KJ_ENTITY_CONTRACT_VERSION }
+  const result: KJObjectPayload = { ...clone(payload), contractVersion: KJ_ENTITY_CONTRACT_VERSION }
+  if (payload.linetypeScale != null) result.linetypeScale = positive(payload.linetypeScale, 'linetypeScale')
+  return result
 }
 
 function nativeTextFields(payload: EntityPayloadShape): KJObjectPayload {

@@ -1121,6 +1121,16 @@ function dxfHeaderInteger(tags, name) {
     if (!value || value.code !== 70 || !/^\s*\d+\s*$/.test(String(value.value))) throw new KJValidationError(`Invalid DXF ${name} header value`);
     return Number(value.value);
 }
+function dxfHeaderNumber(tags, name, fallback) {
+    const header = section(tags, 'HEADER');
+    const index = header.findIndex((tag)=>tag.code === 9 && normalizeName(tag.value) === name);
+    if (index < 0) return fallback;
+    const value = header[index + 1];
+    if (!value || value.code !== 40 || !String(value.value).trim()) throw new KJValidationError(`Invalid DXF ${name} header value`);
+    const result = Number(value.value);
+    if (!Number.isFinite(result) || result <= 0) throw new KJValidationError(`Invalid DXF ${name} header value`);
+    return result;
+}
 function dxfDrawingUnits(tags) {
     const code = dxfHeaderInteger(tags, '$INSUNITS') ?? 0;
     const units = DXF_UNIT_NAMES[code];
@@ -1258,6 +1268,9 @@ async function readDXF(source, options = {}) {
         sourceVersion: version,
         codePage: dxfCodePage(tags),
         ...dxfDrawingUnits(tags),
+        systemVariables: {
+            LTSCALE: dxfHeaderNumber(tags, '$LTSCALE', 1)
+        },
         title: 'Imported DXF'
     });
     await document.transact('Import ASCII DXF', async (transaction)=>{
@@ -2949,6 +2962,10 @@ function writeDXF(document, options = {}) {
     emit(output, 9, '$HANDSEED');
     emit(output, 5, '0');
     const handleSeedValueIndex = output.length - 1;
+    const linetypeScale = Number(state.header.systemVariables.LTSCALE ?? 1);
+    if (!Number.isFinite(linetypeScale) || linetypeScale <= 0) throw new KJValidationError('Cannot export invalid LTSCALE');
+    emit(output, 9, '$LTSCALE');
+    emit(output, 40, linetypeScale);
     if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
         emit(output, 9, '$INSUNITS');
         emit(output, 70, dxfUnitCode(state.header.units));

@@ -158,6 +158,7 @@ def generate(path: Path) -> None:
     # LWPOLYLINE/SOLID entities to KJDraw's all-owner import assertions.
     document = ezdxf.new("R2018")
     document.header["$INSUNITS"] = 4  # millimetres
+    document.header["$LTSCALE"] = 2.75
     document.layers.add("KJ_INTEROP", color=3)
     document.layers.add("KJ_STYLES", color=5)
     document.linetypes.add("KJ_INTEROP_DASH", pattern=[4.0, 3.0, -1.0])
@@ -232,6 +233,7 @@ def inspect(path: Path) -> dict[str, object]:
     return {
         "ezdxfVersion": ezdxf.__version__,
         "dxfVersion": document.dxfversion,
+        "globalLinetypeScale": float(document.header["$LTSCALE"]),
         "modelspaceEntities": counts,
         "layers": sorted(layer.dxf.name for layer in document.layers),
         "layouts": [{"name": layout.name, "order": layout.dxf.taborder,

@@ -69,10 +69,12 @@ function vector3(value, label) {
     return result;
 }
 function base(payload) {
-    return {
+    const result = {
         ...clone(payload),
         contractVersion: KJ_ENTITY_CONTRACT_VERSION
     };
+    if (payload.linetypeScale != null) result.linetypeScale = positive(payload.linetypeScale, 'linetypeScale');
+    return result;
 }
 function nativeTextFields(payload) {
     const integer = (value, name, maximum)=>{

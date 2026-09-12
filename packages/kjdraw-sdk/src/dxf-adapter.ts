@@ -732,6 +732,17 @@ function dxfHeaderInteger(tags: readonly DxfTag[], name: string): number | undef
   return Number(value.value)
 }
 
+function dxfHeaderNumber(tags: readonly DxfTag[], name: string, fallback: number): number {
+  const header = section(tags, 'HEADER')
+  const index = header.findIndex(tag => tag.code === 9 && normalizeName(tag.value) === name)
+  if (index < 0) return fallback
+  const value = header[index + 1]
+  if (!value || value.code !== 40 || !String(value.value).trim()) throw new KJValidationError(`Invalid DXF ${name} header value`)
+  const result = Number(value.value)
+  if (!Number.isFinite(result) || result <= 0) throw new KJValidationError(`Invalid DXF ${name} header value`)
+  return result
+}
+
 function dxfDrawingUnits(tags: readonly DxfTag[]): { units: string; measurement: string } {
   const code = dxfHeaderInteger(tags, '$INSUNITS') ?? 0
   const units = DXF_UNIT_NAMES[code]
@@ -784,7 +795,7 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
   const tags = await tagsFromText(await sourceText(source, options), options)
   if (!section(tags, 'ENTITIES').length && !tags.some(tag => tag.code === 0 && normalizeName(tag.value) === 'SECTION')) throw new KJValidationError('DXF has no valid SECTION structure')
   const version = dxfVersion(tags)
-  const document = KJDocument.create({ sourceFormat: 'DXF', sourceVersion: version, codePage: dxfCodePage(tags), ...dxfDrawingUnits(tags), title: 'Imported DXF' })
+  const document = KJDocument.create({ sourceFormat: 'DXF', sourceVersion: version, codePage: dxfCodePage(tags), ...dxfDrawingUnits(tags), systemVariables: { LTSCALE: dxfHeaderNumber(tags, '$LTSCALE', 1) }, title: 'Imported DXF' })
   await document.transact('Import ASCII DXF', async transaction => {
     const tableRecords = records(section(tags, 'TABLES'))
     const resources = importResourceTables(transaction, tableRecords, document)
@@ -1824,6 +1835,9 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
   emit(output, 0, 'SECTION'); emit(output, 2, 'HEADER'); emit(output, 9, '$ACADVER'); emit(output, 1, ACADVER[version])
   emit(output, 9, '$HANDSEED'); emit(output, 5, '0')
   const handleSeedValueIndex = output.length - 1
+  const linetypeScale = Number(state.header.systemVariables.LTSCALE ?? 1)
+  if (!Number.isFinite(linetypeScale) || linetypeScale <= 0) throw new KJValidationError('Cannot export invalid LTSCALE')
+  emit(output, 9, '$LTSCALE'); emit(output, 40, linetypeScale)
   if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
     emit(output, 9, '$INSUNITS'); emit(output, 70, dxfUnitCode(state.header.units))
     if (!['metric', 'imperial', 'english'].includes(state.header.measurement)) throw new KJValidationError('Cannot export unrecognized DXF measurement system')

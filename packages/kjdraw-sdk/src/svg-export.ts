@@ -8,6 +8,7 @@ import { aciColor } from './canvas-renderer.js'
 import { projectDimension } from './geometry/annotation.js'
 import { multiply3, rotation3, scale3, translation3, type AffineMatrix3 } from './geometry/matrix3.js'
 import { deepFreeze } from './utils.js'
+import { effectiveLinetypeScale } from './linetype-scale.js'
 
 export interface KJSvgExportOptions { layoutId: string; allowPartial?: boolean; maxEntities?: number }
 export interface KJSvgDiagnostic { entityId: string; type: string; reason: string }
@@ -190,7 +191,7 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
       if (!lineType || lineType.type !== 'LINETYPE') fail('linetype reference is unavailable')
       const pattern = lineType.payload.patternSegments ?? lineType.payload.pattern ?? []
       if (!Array.isArray(pattern) || pattern.length > 32 || pattern.length % 2 || pattern.some((v,i)=>typeof v!=='number'||!Number.isFinite(v)||(i%2?v>=0:v<=0))) fail('complex or invalid linetype is unsupported')
-      const dashScale = numeric(p.linetypeScale,1); if (!(dashScale > 0)) fail('linetype scale must be positive')
+      const dashScale = effectiveLinetypeScale(source.header.systemVariables, p)
       let inner: string
       if (entity.type === 'INSERT') {
         const id = String(p.blockRecordId), block = document.getObject(id)

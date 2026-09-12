@@ -405,6 +405,8 @@ function validateObjectGraph(state: KJDocumentState, issues: KJValidationIssue[]
   } catch (error) {
     issues.push({ path: 'header.handseed', message: errorMessage(error) })
   }
+  const linetypeScale = state.header.systemVariables?.LTSCALE ?? 1
+  if (typeof linetypeScale !== 'number' || !Number.isFinite(linetypeScale) || linetypeScale <= 0) issues.push({ path: 'header.systemVariables.LTSCALE', message: 'LTSCALE must be positive and finite' })
 }
 
 function validateTables(state: KJDocumentState, issues: KJValidationIssue[]): void {

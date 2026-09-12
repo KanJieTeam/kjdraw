@@ -56,7 +56,7 @@ try {
   const roundTrip = join(directory, 'kjdraw-roundtrip.dxf')
 
   const sdk = createKJDrawSDK()
-  const drawing = sdk.createDocument({ documentId: 'cross-implementation-output', title: 'KJDraw → ezdxf' })
+  const drawing = sdk.createDocument({ documentId: 'cross-implementation-output', title: 'KJDraw → ezdxf', systemVariables: { LTSCALE: 3.25 } })
   const layer = await sdk.executeCommand('LAYERNEW', { name: 'KJ_INTEROP', color: 3 })
   const payloads = [
     ['LINE', { start: [0, 0, 0], end: [120, 35, 0], layerId: layer.id }],
@@ -93,6 +93,7 @@ try {
   await writeFile(kjdrawOutput, emitted)
   const externalRead = runPython('inspect', kjdrawOutput)
   assert.equal(externalRead.dxfVersion, 'AC1032')
+  assert.equal(externalRead.globalLinetypeScale, 3.25)
   assert.equal(externalRead.auditErrors, 0)
   assert.equal(externalRead.auditFixes, 0)
   assert.equal(externalRead.modelspaceEntities.LINE, 2)
@@ -169,6 +170,7 @@ try {
   const externalBytes = await readFile(externalInput)
   const imported = await createKJDrawSDK().readDocument(externalBytes, { format: 'DXF', version: '2018' })
   assert.equal(imported.getTable('layers').records.some(row => row.name === 'KJ_INTEROP'), true)
+  assert.equal(imported.snapshot().header.systemVariables.LTSCALE, 2.75)
   const importedModelSpaceId = imported.snapshot().spaces.modelSpaceId
   assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'LINE' }).length, 2)
   assert.equal(imported.listEntities({ ownerId: importedModelSpaceId, type: 'CIRCLE' }).length, 1)
@@ -199,6 +201,7 @@ try {
     { name: 'Empty 42', order: 4, types: [], lines: [] },
   ], 'independent layout identity, tab order, ownership and exact paper geometry')
   assert.equal(externalRoundTrip.auditErrors, 0)
+  assert.equal(externalRoundTrip.globalLinetypeScale, 2.75)
   assert.equal(externalRoundTrip.auditFixes, 0)
   assert.equal(externalRoundTrip.styledEntities.length, 2)
   assert.equal(externalRoundTrip.modelspaceEntities.INSERT, 1)
@@ -216,7 +219,7 @@ try {
     schema: 'com.kanjie.kjdraw.audit.dxf-interop@1',
     independentImplementation: `ezdxf ${externalRead.ezdxfVersion}`,
     direction: ['KJDraw write → ezdxf read/audit', 'ezdxf write → KJDraw read/write → ezdxf read/audit'],
-    entityStyleCoverage: ['ACI', 'trueColor', 'linetype reference', 'linetype scale', 'lineweight', 'visibility'],
+    entityStyleCoverage: ['ACI', 'trueColor', 'linetype reference', 'global and entity linetype scale', 'lineweight', 'visibility'],
     explodedGeometryCoverage: ['elevated bulge ARC', 'elevated LINE', 'native endpoints and Z=6'],
     files: {
       kjdrawOutputSha256: sha256(Buffer.from(emitted)),

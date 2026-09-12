@@ -8,6 +8,7 @@ import { createHatchStrokeCoverage } from './geometry/hatch-coverage.js';
 import { getEntityGrips } from './grips.js';
 import { attributeHidden, insertAttributes, isAttachedAttribute, visibleAttribute } from './attribute-display.js';
 import { layoutCadText } from './geometry/text-layout.js';
+import { effectiveLinetypeScale } from './linetype-scale.js';
 import { displayedEntityBounds, hitTestDisplayedEntity, isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence } from './selection-geometry.js';
 const HATCH_RASTER_PIXEL_LIMIT = 1048576;
 const HATCH_RASTER_FRAME_WORK = 4000000;
@@ -147,6 +148,12 @@ function point2(input) {
 function points(input) {
     if (!Array.isArray(input)) return [];
     return input.map((value)=>point2(value?.point ?? value)).filter((value)=>value !== null);
+}
+function uniformTransformScale(matrix) {
+    const sx = Math.hypot(matrix[0] ?? 1, matrix[1] ?? 0), sy = Math.hypot(matrix[2] ?? 0, matrix[3] ?? 1);
+    const dot = (matrix[0] ?? 1) * (matrix[2] ?? 0) + (matrix[1] ?? 0) * (matrix[3] ?? 1);
+    const tolerance = 1e-10 * Math.max(sx, sy, 1);
+    return sx > 0 && sy > 0 && Math.abs(sx - sy) <= tolerance && Math.abs(dot) <= tolerance * Math.max(sx, sy) ? sx : null;
 }
 function finite(value, fallback = 0) {
     const result = Number(value);
@@ -1350,7 +1357,14 @@ export class KJCanvasRenderer {
         const linetypeId = String(linetypeName === 'BYBLOCK' ? inherited?.linetypeId ?? layerPayload?.linetypeId ?? '' : linetypeName === 'BYLAYER' ? layerPayload?.linetypeId ?? '' : payload.linetypeId ?? layerPayload?.linetypeId ?? '');
         const linetype = this.#previewResources.get(linetypeId) ?? this.#document?.getObject(linetypeId);
         const pattern = Array.isArray(linetype?.payload.patternSegments) ? linetype.payload.patternSegments : Array.isArray(linetype?.payload.pattern) ? linetype.payload.pattern : [];
-        const dash = pattern.map((value)=>Math.max(1, Math.abs(finite(value)) * this.camera.scale * (view?.scale ?? 1))).filter((value)=>value > 0);
+        const sourcePayload = projection?.payload ?? payload;
+        const nativeDashScale = effectiveLinetypeScale(this.#document?.snapshot().header.systemVariables ?? {}, sourcePayload);
+        const transformScale = projection?.matrix ? uniformTransformScale(projection.matrix) : view?.scale ?? 1;
+        if (pattern.length && transformScale == null) {
+            context.restore();
+            return false;
+        }
+        const dash = pattern.map((value)=>Math.abs(finite(value)) * nativeDashScale * this.camera.scale * (transformScale ?? 1)).filter((value)=>value > 0);
         context.setLineDash(dash);
         let drawn = true;
         if (entity.type === 'LINE') drawn = this.#strokePath(points([
