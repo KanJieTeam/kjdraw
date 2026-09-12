@@ -335,6 +335,10 @@ export class KJAgentToolSession {
   get documentId(): string { return this.#document.id }
   get revision(): number { return this.#document.revision }
   get units(): string { return this.#document.snapshot().header.units }
+  /** Exact instance/SDK attachment check for trusted host orchestration. */
+  isBoundTo(document: KJDocument): boolean {
+    return document === this.#document && this.#sdk.documents.get(this.#document.id) === this.#document
+  }
   /** Bind unit schemas to the drawing so models see its canonical unit name. */
   get definitions(): readonly KJAgentToolDefinition[] {
     const units = this.#document.snapshot().header.units

@@ -158,7 +158,7 @@ test('revision, version, status, document identity, units and scope are checked 
   const model = { createConversation() { contacts++; throw new Error('model must not be contacted') } }
   for (const patch of attempts) await assert.rejects(runPersistedKJAgentTask(runOptions(value, model, patch)), /revision|version|status/)
   const otherSdk = createKJDrawSDK(), other = otherSdk.createDocument({ units: 'millimeter' })
-  await assert.rejects(runPersistedKJAgentTask(runOptions(value, model, { session: new KJAgentToolSession(otherSdk, other) })), /another drawing/)
+  await assert.rejects(runPersistedKJAgentTask(runOptions(value, model, { session: new KJAgentToolSession(otherSdk, other) })), /exact attached drawing instance/)
   await value.document.transact('Drift scoped geometry', tx => tx.updateObject('seed', { payload: { end: [30, 0, 0] } }))
   const driftBefore = value.document.serialize()
   await assert.rejects(runPersistedKJAgentTask(runOptions(value, model, { expectedRevision: value.document.revision })), /scope drifted/)
@@ -182,4 +182,32 @@ test('a proposal leaves task and drawing revisions unchanged and remains approva
   const approval = await value.session.approve(result.proposalIds[0], 'trusted-reviewer')
   assert.equal(approval.ok, true); assert.equal(value.document.revision, revision + 1)
   assert.equal(value.document.listEntities({ type: 'LINE' }).length, 2)
+})
+
+test('same document ID and revision cannot substitute another attached document instance', async () => {
+  const value = await fixture()
+  const foreignSdk = createKJDrawSDK(), foreign = foreignSdk.openDocument(value.document.serialize())
+  assert.equal(foreign.id, value.document.id); assert.equal(foreign.revision, value.document.revision)
+  let contacts = 0
+  const model = { createConversation() { contacts++; throw new Error('model must not be contacted') } }
+  await assert.rejects(runPersistedKJAgentTask(runOptions(value, model, { session: new KJAgentToolSession(foreignSdk, foreign) })), /exact attached drawing instance/)
+  assert.equal(contacts, 0)
+})
+
+test('a drawing change while the model is pending invalidates the run before its result is returned', async () => {
+  const value = await fixture()
+  let release, entered
+  const pending = new Promise(resolve => { entered = resolve })
+  const model = { createConversation: () => ({ next: async () => {
+    entered()
+    await new Promise(resolve => { release = resolve })
+    return { text: 'No tool call is required.', calls: [] }
+  } }) }
+  const running = runPersistedKJAgentTask(runOptions(value, model))
+  await pending
+  await value.document.transact('Concurrent unrelated edit', tx => tx.createEntity('POINT', { position: [100, 100, 0] }, { id: 'concurrent' }))
+  release()
+  await assert.rejects(running, /drawing revision conflict/)
+  assert.equal(value.document.getObject('concurrent').type, 'POINT')
+  assert.equal(readAgentTasks(value.document)[0].taskVersion, value.task.taskVersion)
 })

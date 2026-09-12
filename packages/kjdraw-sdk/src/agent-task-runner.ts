@@ -68,6 +68,7 @@ function assertInteger(value: unknown, label: string): number {
 }
 
 function assertSessionBinding(document: KJDocument, session: KJAgentToolSession, expectedRevision: number): void {
+  if (!session.isBoundTo(document)) fail('tool session is not bound to this exact attached drawing instance')
   if (session.documentId !== document.id) fail('tool session belongs to another drawing')
   if (document.revision !== expectedRevision || session.revision !== expectedRevision) fail('drawing revision conflict')
   if (session.units !== document.snapshot().header.units) fail('tool session units do not match the drawing')
@@ -147,5 +148,6 @@ export async function runPersistedKJAgentTask(options: KJPersistedAgentTaskRunOp
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
   })
+  assertSessionBinding(options.document, options.session, expectedRevision)
   return deepFreeze({ ...result, task: { id: task.taskId, version: task.taskVersion, status: task.status as 'ready' | 'running', documentId: task.documentId, revision: expectedRevision } })
 }

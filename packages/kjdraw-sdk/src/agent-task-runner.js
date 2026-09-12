@@ -55,6 +55,7 @@ function assertInteger(value, label) {
     return value;
 }
 function assertSessionBinding(document, session, expectedRevision) {
+    if (!session.isBoundTo(document)) fail('tool session is not bound to this exact attached drawing instance');
     if (session.documentId !== document.id) fail('tool session belongs to another drawing');
     if (document.revision !== expectedRevision || session.revision !== expectedRevision) fail('drawing revision conflict');
     if (session.units !== document.snapshot().header.units) fail('tool session units do not match the drawing');
@@ -155,6 +156,7 @@ export async function runPersistedKJAgentTask(options) {
             onProgress: options.onProgress
         }
     });
+    assertSessionBinding(options.document, options.session, expectedRevision);
     return deepFreeze({
         ...result,
         task: {

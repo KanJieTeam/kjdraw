@@ -135,6 +135,8 @@ export declare class KJAgentToolSession {
     get documentId(): string;
     get revision(): number;
     get units(): string;
+    /** Exact instance/SDK attachment check for trusted host orchestration. */
+    isBoundTo(document: KJDocument): boolean;
     /** Bind unit schemas to the drawing so models see its canonical unit name. */
     get definitions(): readonly KJAgentToolDefinition[];
     constructor(sdk: KJDrawSDK, document: KJDocument);

@@ -1057,6 +1057,9 @@ export class KJAgentToolSession {
     get units() {
         return this.#document.snapshot().header.units;
     }
+    isBoundTo(document) {
+        return document === this.#document && this.#sdk.documents.get(this.#document.id) === this.#document;
+    }
     get definitions() {
         const units = this.#document.snapshot().header.units;
         return deepFreeze(KJDRAW_AGENT_TOOLS.map((tool)=>{
