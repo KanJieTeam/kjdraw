@@ -52,6 +52,13 @@ test('Pages uploads and deploys the same run-and-attempt-scoped artifact', async
   assert.match(workflow, /artifact_name: \$\{\{ env\.PAGES_ARTIFACT_NAME \}\}/)
 })
 
+test('CI verifies the packed editor lifecycle in a clean offline browser consumer', async () => {
+  const workflow = await read('.github/workflows/ci.yml')
+
+  assert.match(workflow, /Verify packed editor lifecycle in a clean offline consumer/)
+  assert.match(workflow, /node scripts\/audits\/verify-packed-editor-lifecycle\.mjs/)
+})
+
 test('publishing guide distinguishes reusable and standalone trusted publishers', async () => {
   const guide = await read('docs/npm-publishing.md')
 

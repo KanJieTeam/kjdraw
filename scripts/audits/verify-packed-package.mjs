@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, dirname, join, relative, resolve } from 'node:path'
+import { basename, delimiter, dirname, join, relative, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
@@ -58,6 +58,23 @@ async function findNpmCli() {
       for (const version of versions) add(join(nvmRoot, version, 'node_modules', 'npm', 'bin', 'npm-cli.js'))
     } catch {
       // NVM is optional. Other candidates remain available.
+    }
+  }
+
+  const pathValue = process.env.PATH ?? process.env.Path ?? process.env.path ?? ''
+  for (const value of pathValue.split(delimiter)) {
+    const root = value.trim().replace(/^"|"$/g, '')
+    if (!root) continue
+    add(join(root, 'node_modules', 'npm', 'bin', 'npm-cli.js'))
+    for (const launcher of ['npm', 'npm-cli.js']) {
+      const path = join(root, launcher)
+      if (!existsSync(path)) continue
+      try {
+        const target = await realpath(path)
+        if (target.toLowerCase().endsWith('.js')) add(target)
+      } catch {
+        // A stale PATH entry does not invalidate the remaining candidates.
+      }
     }
   }
 
