@@ -81,7 +81,7 @@ export interface KJAgentTaskGeometryReceipt {
     planId: string;
     executionEnvelopeId: string;
     reviewerId: string;
-    command: 'CREATEBATCH';
+    command: 'CREATEBATCH' | 'MOVE';
     sourceToolName: string;
     beforeRevision: number;
     afterRevision: number;
@@ -177,6 +177,26 @@ export interface KJAgentTaskCreateBatchApprovalResult {
     task: KJObjectRecord;
     receipt: KJAgentTaskGeometryReceipt;
 }
+export interface KJAgentTaskMoveApprovalInput {
+    id: string;
+    expectedRevision: number;
+    expectedTaskVersion: number;
+    expectedStatus: 'running';
+    expectedScopeSha256: string;
+    sourceToolName: string;
+    toolContractHash: string;
+    argumentsDigest: string;
+    capabilityLocks: KJAgentTaskCapabilityLock[];
+    planId: string;
+    executionEnvelopeId: string;
+    reviewerId: string;
+    movedEntityIds: string[];
+    at: string;
+}
+export interface KJAgentTaskMoveApprovalResult {
+    task: KJObjectRecord;
+    receipt: KJAgentTaskGeometryReceipt;
+}
 export interface KJAgentTaskView extends KJAgentTaskPayload {
     id: string;
     handle: string;
@@ -198,5 +218,7 @@ export declare function inspectAgentTask(document: KJDocument, id: string): Prom
 export declare function transitionAgentTask(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJObjectRecord>;
 /** Complete one reviewed CREATEBATCH and its deterministic checks in the caller's transaction draft. */
 export declare function commitAgentTaskCreateBatchApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskCreateBatchApprovalResult>;
+/** Complete one reviewed MOVE and its deterministic checks in the caller's transaction draft. */
+export declare function commitAgentTaskMoveApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskMoveApprovalResult>;
 /** Explicitly accept the current dependency snapshot after stale or ambiguous approval recovery. */
 export declare function rebaseAgentTask(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJObjectRecord>;

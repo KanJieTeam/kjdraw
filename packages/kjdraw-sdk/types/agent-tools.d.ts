@@ -164,7 +164,7 @@ export declare class KJAgentToolSession {
     call(name: string, input: unknown): Promise<KJAgentToolResult>;
     /** Bind one in-memory reviewed proposal to the exact persisted running task. Host-only. */
     bindTaskProposal(planId: string, input: KJAgentTaskProposalBinding): void;
-    /** Approve an exact task-bound CREATEBATCH; geometry, checks and task receipt commit atomically. */
+    /** Approve an exact task-bound mutation; geometry, checks and task receipt commit atomically. */
     approveTask(planId: string, reviewerId: string, at: string): Promise<KJAgentToolResult>;
     /** Invoke only after an authenticated host collected review of these exact arguments. */
     approve(planId: string, reviewerId: string): Promise<KJAgentToolResult>;

@@ -163,25 +163,30 @@ export async function runPersistedKJAgentTask(options) {
             for (const planId of result.proposalIds)options.session.reject(planId, 'kjdraw:persistent-task-binding-rejected');
             fail('a persistent task mutation requires one proposal from a running task with deterministic geometry checks');
         }
-        options.session.bindTaskProposal(result.proposalIds[0], {
-            taskId: task.taskId,
-            taskVersion: task.taskVersion,
-            taskStatus: 'running',
-            documentRevision: expectedRevision,
-            units: task.units,
-            scopeSha256: task.scope.sha256,
-            toolApiVersion: task.definition.tools.apiVersion,
-            toolNames: [
-                ...task.definition.tools.names
-            ],
-            toolContractHash: task.definition.tools.contractHash,
-            capabilityLocks: task.definition.capabilities.map((lock)=>({
-                    ...lock
-                })),
-            ...options.capabilityRegistry ? {
-                capabilityRegistry: options.capabilityRegistry
-            } : {}
-        });
+        try {
+            options.session.bindTaskProposal(result.proposalIds[0], {
+                taskId: task.taskId,
+                taskVersion: task.taskVersion,
+                taskStatus: 'running',
+                documentRevision: expectedRevision,
+                units: task.units,
+                scopeSha256: task.scope.sha256,
+                toolApiVersion: task.definition.tools.apiVersion,
+                toolNames: [
+                    ...task.definition.tools.names
+                ],
+                toolContractHash: task.definition.tools.contractHash,
+                capabilityLocks: task.definition.capabilities.map((lock)=>({
+                        ...lock
+                    })),
+                ...options.capabilityRegistry ? {
+                    capabilityRegistry: options.capabilityRegistry
+                } : {}
+            });
+        } catch (error) {
+            for (const planId of result.proposalIds)options.session.reject(planId, 'kjdraw:persistent-task-binding-rejected');
+            throw error;
+        }
     }
     return deepFreeze({
         ...result,

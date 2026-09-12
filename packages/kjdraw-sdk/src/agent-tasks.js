@@ -506,7 +506,10 @@ function geometryReceipt(value) {
         'checks',
         'receiptDigest'
     ], 'geometry receipt');
-    if (row.schema !== 'com.kanjie.kjdraw.agent-task-geometry-receipt' || row.schemaVersion !== 1 || row.command !== 'CREATEBATCH') fail('geometry receipt contract is invalid');
+    if (row.schema !== 'com.kanjie.kjdraw.agent-task-geometry-receipt' || row.schemaVersion !== 1 || ![
+        'CREATEBATCH',
+        'MOVE'
+    ].includes(String(row.command))) fail('geometry receipt contract is invalid');
     if (typeof row.toolContractHash !== 'string' || !CONTENT_HASH.test(row.toolContractHash) || typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest) || typeof row.scopeSha256 !== 'string' || !SHA256.test(row.scopeSha256) || typeof row.receiptDigest !== 'string' || !CONTENT_HASH.test(row.receiptDigest)) fail('geometry receipt hashes are invalid');
     const checks = array(row.checks, 'receipt checks', 1, 64).map(receiptCheck);
     if (new Set(checks.map((check)=>check.id)).size !== checks.length || checks.some((check)=>!check.passed)) fail('geometry receipt requires unique passing checks');
@@ -519,7 +522,7 @@ function geometryReceipt(value) {
         planId: text(row.planId, 'receipt plan id', 256),
         executionEnvelopeId: text(row.executionEnvelopeId, 'receipt execution envelope id', 256),
         reviewerId: text(row.reviewerId, 'receipt reviewer id', 256),
-        command: 'CREATEBATCH',
+        command: row.command,
         sourceToolName: identifier(row.sourceToolName, 'receipt source tool'),
         beforeRevision: integer(row.beforeRevision, 'receipt before revision'),
         afterRevision: integer(row.afterRevision, 'receipt after revision', 1),
@@ -531,6 +534,7 @@ function geometryReceipt(value) {
         checks,
         receiptDigest: row.receiptDigest
     };
+    if (result.command === 'MOVE' && result.sourceToolName !== 'cad_propose_move') fail('MOVE receipt source tool is invalid');
     if (result.afterRevision !== result.beforeRevision + 1) fail('geometry receipt must bind one atomic document revision');
     const { receiptId: _receiptId, receiptDigest: _receiptDigest, ...digestInput } = result;
     if (result.receiptId !== `receipt:${result.receiptDigest}` || stableHash(digestInput) !== result.receiptDigest) fail('geometry receipt digest is invalid');
@@ -671,7 +675,7 @@ function payload(value, currentRevision) {
     ].includes(status) !== Boolean(resolved)) fail('task resolution does not match its status');
     const definition = taskDefinition(row.definition), taskProgress = progress(row.progress, definition);
     const receipts = row.receipts === undefined ? [] : array(row.receipts, 'geometry receipts', 0, 16).map(geometryReceipt);
-    if (new Set(receipts.map((receipt)=>receipt.receiptId)).size !== receipts.length || receipts.some((receipt)=>receipt.taskId !== taskId || receipt.taskVersion > taskVersion || receipt.afterRevision > currentRevision)) fail('geometry receipt binding is invalid');
+    if (new Set(receipts.map((receipt)=>receipt.receiptId)).size !== receipts.length || receipts.some((receipt)=>receipt.taskId !== taskId || receipt.taskVersion > taskVersion || receipt.afterRevision > currentRevision || !definition.tools.names.includes(receipt.sourceToolName))) fail('geometry receipt binding is invalid');
     const parsedScope = scope(row.scope), units = text(row.units, 'units', 64);
     const completionReceipt = receipts.find((receipt)=>receipt.taskVersion === taskVersion && receipt.afterRevision === updatedRevision && receipt.at === updatedAt && receipt.units === units && receipt.scopeSha256 === parsedScope.sha256 && receipt.toolContractHash === definition.tools.contractHash);
     if (observedRevision === updatedRevision && !(status === 'completed' && completionReceipt)) fail('same-revision observation requires the current atomic completion receipt');
@@ -992,6 +996,14 @@ function resolveGeometryCheck(check, createdEntityIds) {
         objectId: resolveCreatedReference(check.objectId, createdEntityIds)
     };
 }
+function geometryCheckObjectIds(check) {
+    return check.kind === 'point-distance' ? [
+        check.from.objectId,
+        check.to.objectId
+    ] : [
+        check.objectId
+    ];
+}
 export async function commitAgentTaskCreateBatchApproval(document, tx, input) {
     const row = plain(input, [
         'id',
@@ -1115,6 +1127,169 @@ export async function commitAgentTaskCreateBatchApproval(document, tx, input) {
             id: receipt.reviewerId
         },
         reason: 'reviewed CREATEBATCH committed with deterministic geometry checks'
+    };
+    const next = {
+        ...task,
+        status: 'completed',
+        taskVersion,
+        updatedAt: at,
+        observedRevision: afterRevision,
+        updatedRevision: afterRevision,
+        scope: nextScope,
+        progress: nextProgress,
+        receipts: [
+            ...task.receipts,
+            receipt
+        ].slice(-16),
+        resolution: {
+            code: 'geometry.verified',
+            message: 'Reviewed geometry passed every deterministic task requirement.',
+            retryable: false
+        },
+        ...append(task, eventItem)
+    };
+    payload(next, afterRevision);
+    return {
+        task: tx.updateObject(record.id, {
+            payload: next
+        }),
+        receipt
+    };
+}
+export async function commitAgentTaskMoveApproval(document, tx, input) {
+    const row = plain(input, [
+        'id',
+        'expectedRevision',
+        'expectedTaskVersion',
+        'expectedStatus',
+        'expectedScopeSha256',
+        'sourceToolName',
+        'toolContractHash',
+        'argumentsDigest',
+        'capabilityLocks',
+        'planId',
+        'executionEnvelopeId',
+        'reviewerId',
+        'movedEntityIds',
+        'at'
+    ], 'MOVE approval input');
+    const expectedRevision = inputRevision(document, tx, row.expectedRevision), id = text(row.id, 'task id', 128);
+    const { record, task } = taskRecord(document, tx, id);
+    const expectedTaskVersion = integer(row.expectedTaskVersion, 'expected task version', 1);
+    if (row.expectedStatus !== 'running' || task.status !== 'running' || task.taskVersion !== expectedTaskVersion) fail('task version or status conflict');
+    if (typeof row.expectedScopeSha256 !== 'string' || !SHA256.test(row.expectedScopeSha256) || task.scope.sha256 !== row.expectedScopeSha256) fail('task scope lock conflict');
+    const sourceToolName = identifier(row.sourceToolName, 'source tool name');
+    if (sourceToolName !== 'cad_propose_move' || !task.definition.tools.names.includes(sourceToolName)) fail('MOVE source tool is outside the task tool lock');
+    if (typeof row.toolContractHash !== 'string' || row.toolContractHash !== task.definition.tools.contractHash) fail('task tool contract conflict');
+    if (typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest)) fail('reviewed arguments digest is invalid');
+    const capabilityLocks = array(row.capabilityLocks, 'approval capability locks', 0, 32).map((item)=>{
+        const lock = plain(item, [
+            'id',
+            'version',
+            'contentHash'
+        ], 'approval capability lock');
+        if (typeof lock.contentHash !== 'string' || !CONTENT_HASH.test(lock.contentHash)) fail('approval capability lock hash is invalid');
+        return {
+            id: identifier(lock.id, 'approval capability id'),
+            version: text(lock.version, 'approval capability version', 64),
+            contentHash: lock.contentHash
+        };
+    });
+    if (canonicalStringify(capabilityLocks) !== canonicalStringify(task.definition.capabilities)) fail('task capability lock conflict');
+    const movedEntityIds = array(row.movedEntityIds, 'moved entity IDs', 1, 64).map((value)=>text(value, 'moved entity ID', 256));
+    if (new Set(movedEntityIds).size !== movedEntityIds.length) fail('moved entity IDs must be unique');
+    const scopedIds = task.scope.members.map((member)=>member.id);
+    if (movedEntityIds.some((id)=>!scopedIds.includes(id))) fail('MOVE cannot target entities outside the persisted task scope');
+    if (tx._draft().header.units !== task.units) fail('drawing units changed during task approval');
+    const currentDrift = await drift(document, task);
+    if (!currentDrift.unitsMatch || currentDrift.driftedEntityIds.length) fail(`task scope drifted${currentDrift.unitsMatch ? `: ${currentDrift.driftedEntityIds.join(', ')}` : ': drawing units changed'}`);
+    const beforeEntities = Object.values(document.snapshot().objects).filter((object)=>!object.erased && object.kind === 'entity');
+    const afterEntities = Object.values(tx._draft().objects).filter((object)=>!object.erased && object.kind === 'entity');
+    const beforeIds = beforeEntities.map((object)=>object.id).sort(), afterIds = afterEntities.map((object)=>object.id).sort();
+    if (canonicalStringify(beforeIds) !== canonicalStringify(afterIds)) fail('MOVE cannot create, erase or replace entities');
+    const beforeById = new Map(beforeEntities.map((object)=>[
+            object.id,
+            object
+        ]));
+    const changedIds = afterEntities.filter((object)=>canonicalStringify(beforeById.get(object.id)) !== canonicalStringify(object)).map((object)=>object.id).sort();
+    const expectedChangedIds = [
+        ...movedEntityIds
+    ].sort();
+    if (canonicalStringify(changedIds) !== canonicalStringify(expectedChangedIds)) fail('MOVE must change exactly the reviewed in-scope entities');
+    for (const member of task.scope.members)if (tx.getObject(member.id)?.handle !== member.handle) fail('MOVE must preserve every scoped entity identity and handle');
+    const requirements = task.definition.requirements.map((requirement)=>{
+        if (requirement.check.toolName !== 'cad_check_geometry' || !requirement.check.geometryCheck || requirement.check.assertion.path !== 'passed' || requirement.check.assertion.operator !== 'is_true' || requirement.check.assertion.expected !== true) fail('trusted completion requires deterministic cad_check_geometry requirements with passed is_true assertions');
+        const referencedIds = geometryCheckObjectIds(requirement.check.geometryCheck);
+        if (referencedIds.some((id)=>id.startsWith('created:'))) fail('MOVE geometry checks cannot reference created entities');
+        if (referencedIds.some((id)=>!scopedIds.includes(id))) fail('MOVE geometry checks must reference only the persisted task scope');
+        return clone(requirement.check.geometryCheck);
+    });
+    const afterRevision = expectedRevision + 1;
+    const validation = validateDrawingGeometryTransaction(document, tx, {
+        expectedRevision: afterRevision,
+        units: task.units,
+        checks: requirements
+    });
+    if (!validation.passed) fail('reviewed MOVE does not satisfy every deterministic geometry requirement');
+    const nextScope = await scopeFrom((value)=>tx.getObject(value), Object.values(tx._draft().objects), scopedIds);
+    const at = timestamp(row.at, 'approval timestamp');
+    if (Date.parse(at) < Date.parse(task.updatedAt)) fail('approval timestamp precedes the task');
+    const taskVersion = task.taskVersion + 1;
+    const receiptBase = {
+        schema: 'com.kanjie.kjdraw.agent-task-geometry-receipt',
+        schemaVersion: 1,
+        taskId: task.taskId,
+        taskVersion,
+        planId: text(row.planId, 'plan id', 256),
+        executionEnvelopeId: text(row.executionEnvelopeId, 'execution envelope id', 256),
+        reviewerId: text(row.reviewerId, 'reviewer id', 256),
+        command: 'MOVE',
+        sourceToolName,
+        beforeRevision: expectedRevision,
+        afterRevision,
+        at,
+        units: task.units,
+        toolContractHash: row.toolContractHash,
+        argumentsDigest: row.argumentsDigest,
+        scopeSha256: nextScope.sha256,
+        checks: validation.checks.map((check)=>clone(check))
+    };
+    const receiptDigest = stableHash(receiptBase);
+    const receipt = {
+        ...receiptBase,
+        receiptId: `receipt:${receiptDigest}`,
+        receiptDigest
+    };
+    const checks = new Map(receipt.checks.map((check)=>[
+            check.id,
+            check
+        ]));
+    const nextProgress = {
+        steps: task.definition.steps.map((step)=>({
+                id: step.id,
+                status: 'passed',
+                checks: step.requirementIds.map((requirementId)=>{
+                    const check = checks.get(requirementId);
+                    return {
+                        requirementId,
+                        passed: true,
+                        summary: `${check.kind}: ${String(check.actual)} (expected ${String(check.expected)}, tolerance ${check.tolerance})`,
+                        receiptId: receipt.receiptId
+                    };
+                })
+            }))
+    };
+    const eventItem = {
+        version: taskVersion,
+        from: task.status,
+        to: 'completed',
+        at,
+        documentRevision: afterRevision,
+        actor: {
+            kind: 'host',
+            id: receipt.reviewerId
+        },
+        reason: 'reviewed MOVE committed with deterministic geometry checks'
     };
     const next = {
         ...task,
