@@ -61,6 +61,17 @@ export interface KJJoinResult extends KJDerivedEntityPayload {
     sourceIds: string[];
     closed: boolean;
 }
+export interface KJLengthenOptions {
+    readonly mode?: unknown;
+    readonly value?: unknown;
+    readonly totalLength?: unknown;
+    readonly delta?: unknown;
+    readonly percent?: unknown;
+    readonly endpoint?: unknown;
+    readonly pickPoint?: unknown;
+    readonly targetPoint?: unknown;
+    readonly point?: unknown;
+}
 /** Join connected open linear/arc paths into one editable planar polyline. */
 export declare function joinEntityPayloads(entities: readonly KJJoinEntity[], options?: KJJoinOptions): KJJoinResult;
 export declare function offsetEntityPayload(entity: KJEditingEntity | null | undefined, distance: unknown, options?: KJOffsetOptions): KJObjectPayload;
@@ -75,5 +86,7 @@ export declare function extendLinePayload(target: KJEditingEntity | null | undef
 export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];
 /** Extend the picked end of a LINE or ARC to the nearest boundary in its continuation domain. */
 export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;
+/** Change one endpoint while preserving a LINE direction or ARC radius and orientation. */
+export declare function lengthenEntityPayload(target: KJEditingEntity | null | undefined, options?: KJLengthenOptions): KJObjectPayload;
 export declare function chamferLinePair(first: KJEditingEntity, second: KJEditingEntity, options?: KJLinePairOptions): KJLinePairEditResult;
 export declare function filletLinePair(first: KJEditingEntity, second: KJEditingEntity, options?: KJLinePairOptions): KJLinePairEditResult;
