@@ -4,6 +4,7 @@ import {mkdtemp,mkdir,rm,writeFile,readFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {spawnSync} from 'node:child_process'
+import {spawnSyncWithFileStdin} from '../../../scripts/spawn-file-stdin.mjs'
 import {buildPythonEzdxfBaselineRequest,extractPythonEzdxfProgram,preparePythonEzdxfBaseline,executeReviewedPythonEzdxfBaseline} from '../../../scripts/benchmarks/python-ezdxf-baseline.mjs'
 import {createKJRoadRoleManifest,roadRoleManifestContract} from '../../../scripts/benchmarks/road-role-contract.mjs'
 import {createKJDrawSDK} from '../src/sdk.js'
@@ -50,7 +51,7 @@ test('independent road validator accepts real approved 488-entity evidence, inde
  const sdk=createKJDrawSDK(),document=sdk.createDocument({units:'meter'}),input=createRoadDesignFixture(),options=structuredClone(roadDrawingFixtureOptions),proposal=buildAgentRoadDrawing(document,{...input,...options,expectedRevision:0})
  await sdk.executeCommand('CREATEBATCH',proposal.commandArgs)
  const manifest=createKJRoadRoleManifest(document,proposal.evidence),dxf=await sdk.writeDocument(document,{format:'DXF',version:'2018'})
- const validate=payload=>{const r=spawnSync(python,['scripts/benchmarks/road-independent-validator.py'],{input:JSON.stringify(payload),encoding:'utf8',timeout:30000,maxBuffer:262144});assert.equal(r.status,0,r.stderr);return JSON.parse(r.stdout)}
+ const validate=payload=>{const r=spawnSyncWithFileStdin(python,['scripts/benchmarks/road-independent-validator.py'],JSON.stringify(payload),{encoding:'utf8',timeout:30000,maxBuffer:262144});assert.equal(r.status,0,r.stderr||r.error?.message);return JSON.parse(r.stdout)}
  const payload={dxf,input,options,manifest},result=validate(payload);assert.equal(result.passed,true,JSON.stringify(result));assert.equal(result.sections,13);assert.equal(result.entities,488)
  assert.ok(Math.abs(result.cutVolume-proposal.evidence.calculation.totalVolume.cut)<1e-6);assert.ok(Math.abs(result.fillVolume-proposal.evidence.calculation.totalVolume.fill)<1e-6)
  for(const mutate of [p=>p.manifest.sections.pop(),p=>p.manifest.profile.origin[0]+=1,p=>p.manifest.sections[3].design=p.manifest.sections[3].ground,p=>p.manifest.totals.cells.reverse(),p=>p.input.pavement.leftWidth+=.1,p=>p.input.sections[3].ground[2][1]+=.1,p=>p.manifest.profile.origin[0]=null,p=>p.manifest.sections[0].elevationDatum='NaN',p=>p.manifest.plan.alignment.push(p.manifest.plan.alignment[0]),p=>p.manifest.sections[1].labels=p.manifest.sections[0].labels]){
