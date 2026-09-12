@@ -25,6 +25,10 @@ const ARC_MODES = new Set([
     'center-start-end',
     '3-point'
 ]);
+const ELLIPSE_MODES = new Set([
+    'full',
+    'arc'
+]);
 const DIMENSION_TYPES = new Set([
     'ALIGNED',
     'ROTATED',
@@ -69,6 +73,37 @@ function normalizedAngle(value) {
 }
 function ccwDelta(start, end) {
     return normalizedAngle(end - start);
+}
+function draftEllipse(center, axisPoint, minorPoint, tolerance) {
+    requireDistinct(center, axisPoint, tolerance, 'Ellipse major axis');
+    const ax = axisPoint[0] - center[0], ay = axisPoint[1] - center[1], axisLength = Math.hypot(ax, ay);
+    const signedMinor = (ax * (minorPoint[1] - center[1]) - ay * (minorPoint[0] - center[0])) / axisLength;
+    const minorLength = Math.abs(signedMinor);
+    if (!(minorLength > tolerance)) throw new KJValidationError('Ellipse minor axis is degenerate');
+    const perpendicular = [
+        -ay / axisLength * signedMinor,
+        ax / axisLength * signedMinor
+    ];
+    const majorAxis = minorLength > axisLength ? perpendicular : [
+        ax,
+        ay
+    ];
+    return {
+        center: point3(center),
+        majorAxis: point3(majorAxis),
+        ratio: Math.min(axisLength, minorLength) / Math.max(axisLength, minorLength)
+    };
+}
+function ellipseParameter(ellipse, value, tolerance, label) {
+    const center = ellipse.center, u = ellipse.majorAxis;
+    const dx = value[0] - center[0], dy = value[1] - center[1];
+    if (Math.hypot(dx, dy) <= tolerance) throw new KJValidationError(`${label} must differ from the ellipse center`);
+    const v = [
+        -u[1] * ellipse.ratio,
+        u[0] * ellipse.ratio
+    ];
+    const u2 = u[0] * u[0] + u[1] * u[1], v2 = v[0] * v[0] + v[1] * v[1];
+    return normalizedAngle(Math.atan2((dx * v[0] + dy * v[1]) / v2, (dx * u[0] + dy * u[1]) / u2));
 }
 function requireDistinct(a, b, tolerance, label) {
     if (near(a, b, tolerance)) throw new KJValidationError(`${label} is degenerate`);
@@ -129,6 +164,8 @@ function normalizeOptions(options) {
     if (!CIRCLE_MODES.has(circleMode)) throw new KJValidationError(`Unsupported circle mode: ${String(circleMode)}`);
     const arcMode = options.arcMode ?? 'center-start-end';
     if (!ARC_MODES.has(arcMode)) throw new KJValidationError(`Unsupported arc mode: ${String(arcMode)}`);
+    const ellipseMode = options.ellipseMode ?? 'full';
+    if (!ELLIPSE_MODES.has(ellipseMode)) throw new KJValidationError(`Unsupported ellipse mode: ${String(ellipseMode)}`);
     const dimensionType = String(options.dimensionType ?? 'ALIGNED').toUpperCase();
     if (!DIMENSION_TYPES.has(dimensionType)) throw new KJValidationError(`Unsupported dimension type: ${String(options.dimensionType)}`);
     const sides = Number(options.sides ?? 6);
@@ -147,6 +184,7 @@ function normalizeOptions(options) {
     return {
         circleMode,
         arcMode,
+        ellipseMode,
         sides,
         splineDegree,
         dimensionType,
@@ -192,10 +230,17 @@ function pointCounts(tool, options) {
             maximum: count
         };
     }
-    if (tool === 'arc' || tool === 'ellipse') return {
+    if (tool === 'arc') return {
         minimum: 3,
         maximum: 3
     };
+    if (tool === 'ellipse') {
+        const count = options.ellipseMode === 'arc' ? 5 : 3;
+        return {
+            minimum: count,
+            maximum: count
+        };
+    }
     if (tool === 'dimension') {
         const count = options.dimensionType === 'ANGULAR_3_POINT' ? 4 : [
             'ALIGNED',
@@ -220,7 +265,13 @@ function nextPointRole(tool, count, options) {
     if (tool === 'polygon') return count === 0 ? 'center' : 'vertex';
     if (tool === 'spline') return 'controlPoint';
     if (tool === 'hatch') return 'boundaryPoint';
-    if (tool === 'ellipse') return [
+    if (tool === 'ellipse') return options.ellipseMode === 'arc' ? [
+        'center',
+        'majorAxisPoint',
+        'minorAxisPoint',
+        'ellipseArcStart',
+        'ellipseArcEnd'
+    ][Math.min(count, 4)] : [
         'center',
         'majorAxisPoint',
         'minorAxisPoint'
@@ -364,6 +415,14 @@ export class KJDraftingSession {
             if (this.tool === 'polyline' && points.length >= 2) return this.#polyline(points, false);
             if (this.tool === 'spline' && points.length >= this.#options.splineDegree + 1) return this.#spline(points, false);
             if (this.tool === 'hatch' && points.length >= 3) return this.#hatch(points);
+            if (this.tool === 'ellipse' && this.#options.ellipseMode === 'arc' && points.length >= 3 && points.length < 5) {
+                const ellipse = draftEllipse(points[0], points[1], points[2], this.#options.tolerance);
+                return this.#spec('ELLIPSE', {
+                    ...ellipse,
+                    startParameter: 0,
+                    endParameter: TAU
+                });
+            }
             const { maximum } = pointCounts(this.tool, this.#options);
             if (maximum !== null && points.length >= maximum) return this.#build(points.slice(0, maximum), false);
         } catch (error) {
@@ -649,28 +708,22 @@ export class KJDraftingSession {
             });
         }
         if (this.tool === 'ellipse') {
-            requirePoints(points, 3, 'Ellipse');
-            const [center, axisPoint, minorPoint] = points;
-            requireDistinct(center, axisPoint, tolerance, 'Ellipse major axis');
-            const ax = axisPoint[0] - center[0], ay = axisPoint[1] - center[1], majorLength = Math.hypot(ax, ay);
-            const signedMinor = (ax * (minorPoint[1] - center[1]) - ay * (minorPoint[0] - center[0])) / majorLength;
-            const minorLength = Math.abs(signedMinor);
-            if (!(minorLength > tolerance)) throw new KJValidationError('Ellipse minor axis is degenerate');
-            const perpendicular = [
-                -ay / majorLength * signedMinor,
-                ax / majorLength * signedMinor
-            ];
-            const majorAxis = minorLength > majorLength ? perpendicular : [
-                ax,
-                ay
-            ];
-            const ratio = Math.min(majorLength, minorLength) / Math.max(majorLength, minorLength);
-            return this.#spec('ELLIPSE', {
-                center: point3(center),
-                majorAxis: point3(majorAxis),
-                ratio,
+            const required = this.#options.ellipseMode === 'arc' ? 5 : 3;
+            requirePoints(points, required, this.#options.ellipseMode === 'arc' ? 'Elliptical arc' : 'Ellipse');
+            const ellipse = draftEllipse(points[0], points[1], points[2], tolerance);
+            if (this.#options.ellipseMode === 'full') return this.#spec('ELLIPSE', {
+                ...ellipse,
                 startParameter: 0,
                 endParameter: TAU
+            });
+            const startParameter = ellipseParameter(ellipse, points[3], tolerance, 'Elliptical arc start');
+            const end = ellipseParameter(ellipse, points[4], tolerance, 'Elliptical arc end');
+            const sweep = ccwDelta(startParameter, end);
+            if (sweep <= tolerance) throw new KJValidationError('Elliptical arc sweep is degenerate');
+            return this.#spec('ELLIPSE', {
+                ...ellipse,
+                startParameter,
+                endParameter: startParameter + sweep
             });
         }
         if (this.tool === 'dimension') return this.#dimension(points);

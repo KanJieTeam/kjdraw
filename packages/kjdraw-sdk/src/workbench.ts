@@ -205,6 +205,7 @@ const draftPointText: Readonly<Record<KJDraftPointRole, KJLocalizedControlText>>
   origin: { en: 'Specify the origin', zh: '指定原点' }, directionPoint: { en: 'Specify a point on the direction', zh: '指定方向上的一点' }, center: { en: 'Specify the center', zh: '指定中心' }, radiusPoint: { en: 'Specify a point on the radius', zh: '指定半径点' },
   diameterPoint1: { en: 'Specify the first diameter point', zh: '指定直径第一点' }, diameterPoint2: { en: 'Specify the second diameter point', zh: '指定直径第二点' }, throughPoint: { en: 'Specify a point on the arc', zh: '指定圆弧经过点' }, majorAxisPoint: { en: 'Specify the major-axis endpoint', zh: '指定长轴端点' },
   minorAxisPoint: { en: 'Specify the minor-axis endpoint', zh: '指定短轴端点' }, firstCorner: { en: 'Specify the first corner', zh: '指定第一个角点' }, oppositeCorner: { en: 'Specify the opposite corner', zh: '指定对角点' }, controlPoint: { en: 'Specify the next control point', zh: '指定下一控制点' },
+  ellipseArcStart: { en: 'Specify the elliptical-arc start direction', zh: '指定椭圆弧起点方向' }, ellipseArcEnd: { en: 'Specify the elliptical-arc end direction (counter-clockwise)', zh: '指定椭圆弧终点方向（逆时针）' },
   boundaryPoint: { en: 'Specify the next boundary point', zh: '指定下一边界点' }, extensionOrigin1: { en: 'Specify the first extension origin', zh: '指定第一尺寸界线原点' }, extensionOrigin2: { en: 'Specify the second extension origin', zh: '指定第二尺寸界线原点' }, placement: { en: 'Specify the dimension-line position', zh: '指定尺寸线位置' },
   angleVertex: { en: 'Three-point angle 1/4: vertex → first ray → second ray → arc position', zh: '三点角度 1/4：顶点 → 第一射线点 → 第二射线点 → 弧位置' }, firstRayPoint: { en: '2/4: specify a point on the first ray', zh: '2/4：指定第一条射线上的点' }, secondRayPoint: { en: '3/4: specify a point on the second ray', zh: '3/4：指定第二条射线上的点' }, angularPlacement: { en: '4/4: place the angle arc; choose the opposite sector for a reflex angle', zh: '4/4：指定角度弧位置；在另一角域放置可标注反角' },
   oppositePoint: { en: 'Specify the opposite point', zh: '指定对侧点' }, pointOnCircle: { en: 'Specify a point on the circle', zh: '指定圆上一点' },
@@ -1141,6 +1142,12 @@ export class KJDrawWorkbench {
         this.setTool('arc')
         return
       }
+      if (command === 'ELLIPSEARC') {
+        if (tokens.length) throw new Error('ELLIPSEARC accepts canvas or command-line coordinates after activation')
+        this.#draftOptions.set('ellipse', { ellipseMode: 'arc' })
+        this.setTool('ellipse')
+        return
+      }
       const dimensionPreset = DIMENSION_COMMAND_TO_TYPE.get(command)
       if (dimensionPreset) {
         if (tokens.length) throw new Error(`${command} accepts canvas or command-line coordinates after activation`)
@@ -1393,6 +1400,10 @@ export class KJDrawWorkbench {
       { value: 'center-start-end', label: { en: 'Center, start, end', zh: '圆心、起点、终点' } },
       { value: '3-point', label: { en: 'Start, through, end', zh: '起点、经过点、终点' } },
     ], configured.arcMode ?? 'center-start-end')
+    if (tool === 'ellipse') this.#draftSelect(host, 'ellipseMode', { en: 'Construction', zh: '构造方式' }, [
+      { value: 'full', label: { en: 'Full ellipse', zh: '完整椭圆' } },
+      { value: 'arc', label: { en: 'Elliptical arc (5 points)', zh: '椭圆弧（五点）' } },
+    ], configured.ellipseMode ?? 'full')
     if (tool === 'polygon') this.#draftField(host, 'sides', { en: 'Sides', zh: '边数' }, { value: String(configured.sides ?? 6), min: 3, max: 1024, step: 1 })
     if (tool === 'spline') this.#draftField(host, 'splineDegree', { en: 'Degree', zh: '次数' }, { value: String(configured.splineDegree ?? 3), min: 1, max: 10, step: 1 })
     if (tool === 'hatch') {
@@ -1435,6 +1446,7 @@ export class KJDrawWorkbench {
     let options: KJDraftingOptions = {}
     if (tool === 'circle') options = { circleMode: value('circleMode') as NonNullable<KJDraftingOptions['circleMode']> }
     if (tool === 'arc') options = { arcMode: value('arcMode') as NonNullable<KJDraftingOptions['arcMode']> }
+    if (tool === 'ellipse') options = { ellipseMode: value('ellipseMode') as NonNullable<KJDraftingOptions['ellipseMode']> }
     if (tool === 'polygon') options = { sides: Number(value('sides')) }
     if (tool === 'spline') options = { splineDegree: Number(value('splineDegree')) }
     if (tool === 'hatch') options = { patternName: value('patternName'), patternScale: Number(value('patternScale')), patternAngle: Number(value('patternAngleDegrees')) * Math.PI / 180, solid: checked('solid') }

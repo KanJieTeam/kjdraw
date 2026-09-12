@@ -612,6 +612,18 @@ export class KJCanvasRenderer {
                     };
                     continue;
                 }
+                if (entity.type === 'ELLIPSE') {
+                    if (hitTestDisplayedEntity(document, entity, point, radius)) best = {
+                        entity,
+                        distance: 0,
+                        point: [
+                            point[0],
+                            point[1],
+                            0
+                        ]
+                    };
+                    continue;
+                }
                 if (entity.type === 'SPLINE') {
                     const vertices = splineSamples(entity.payload).map((point)=>({
                             point

@@ -526,6 +526,14 @@ const draftPointText = Object.freeze({
         en: 'Specify the next control point',
         zh: '指定下一控制点'
     },
+    ellipseArcStart: {
+        en: 'Specify the elliptical-arc start direction',
+        zh: '指定椭圆弧起点方向'
+    },
+    ellipseArcEnd: {
+        en: 'Specify the elliptical-arc end direction (counter-clockwise)',
+        zh: '指定椭圆弧终点方向（逆时针）'
+    },
     boundaryPoint: {
         en: 'Specify the next boundary point',
         zh: '指定下一边界点'
@@ -1904,6 +1912,14 @@ export class KJDrawWorkbench {
                 this.setTool('arc');
                 return;
             }
+            if (command === 'ELLIPSEARC') {
+                if (tokens.length) throw new Error('ELLIPSEARC accepts canvas or command-line coordinates after activation');
+                this.#draftOptions.set('ellipse', {
+                    ellipseMode: 'arc'
+                });
+                this.setTool('ellipse');
+                return;
+            }
             const dimensionPreset = DIMENSION_COMMAND_TO_TYPE.get(command);
             if (dimensionPreset) {
                 if (tokens.length) throw new Error(`${command} accepts canvas or command-line coordinates after activation`);
@@ -2312,6 +2328,25 @@ export class KJDrawWorkbench {
                 }
             }
         ], configured.arcMode ?? 'center-start-end');
+        if (tool === 'ellipse') this.#draftSelect(host, 'ellipseMode', {
+            en: 'Construction',
+            zh: '构造方式'
+        }, [
+            {
+                value: 'full',
+                label: {
+                    en: 'Full ellipse',
+                    zh: '完整椭圆'
+                }
+            },
+            {
+                value: 'arc',
+                label: {
+                    en: 'Elliptical arc (5 points)',
+                    zh: '椭圆弧（五点）'
+                }
+            }
+        ], configured.ellipseMode ?? 'full');
         if (tool === 'polygon') this.#draftField(host, 'sides', {
             en: 'Sides',
             zh: '边数'
@@ -2440,6 +2475,9 @@ export class KJDrawWorkbench {
         };
         if (tool === 'arc') options = {
             arcMode: value('arcMode')
+        };
+        if (tool === 'ellipse') options = {
+            ellipseMode: value('ellipseMode')
         };
         if (tool === 'polygon') options = {
             sides: Number(value('sides'))
