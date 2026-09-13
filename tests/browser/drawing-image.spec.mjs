@@ -78,9 +78,10 @@ test('layout PNG export uses configured plot bounds and refuses incomplete rende
     let strictError = ''
     try { await exportDrawingPng(drawing, { layoutId }) } catch (error) { strictError = error.message }
     const partial = await exportDrawingPng(drawing, { layoutId, allowPartial:true, maxEdge:400 })
-    return { layoutId:image.layoutId, spaceId:image.spaceId, bounds:image.bounds, width:image.pixelWidth, height:image.pixelHeight, revisionUnchanged:image.revision===revision, strictError, partialUnsupported:partial.renderReport.unsupported }
+    return { layoutId:image.layoutId, spaceId:image.spaceId, bounds:image.bounds, width:image.pixelWidth, height:image.pixelHeight, paper:image.paper, origin:image.plot.plotOriginPixels, revisionUnchanged:image.revision===revision, strictError, partialUnsupported:partial.renderReport.unsupported }
   })
-  expect(result).toMatchObject({ bounds:[0,0,10,10], width:1400, height:1400, revisionUnchanged:true, partialUnsupported:1 })
+  expect(result).toMatchObject({ bounds:[0,0,10,10], width:1400, height:990, paper:{widthMm:420,heightMm:297}, revisionUnchanged:true, partialUnsupported:1 })
+  expect(result.paper.pixelsPerMillimeter).toBeCloseTo(10/3,10); expect(result.origin[0]).toBeCloseTo(100/3,10); expect(result.origin[1]).toBeCloseTo(2870/3,10)
   expect(result.layoutId).toBeTruthy(); expect(result.spaceId).toBeTruthy(); expect(result.strictError).toContain('incomplete')
 })
 

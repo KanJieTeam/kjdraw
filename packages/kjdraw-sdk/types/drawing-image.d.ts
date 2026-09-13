@@ -40,15 +40,45 @@ export interface KJDrawingPngOptions {
     /** Opt in to output that renderer diagnostics identify as incomplete. */
     allowPartial?: boolean;
 }
+export interface KJDrawingPngPlan {
+    readonly layoutId: string;
+    readonly spaceId: string;
+    readonly coordinateSystem: 'modelXY' | 'paperXY';
+    readonly bounds: readonly [number, number, number, number];
+    readonly viewBounds: readonly [number, number, number, number];
+    readonly width: number;
+    readonly height: number;
+    readonly paper: {
+        readonly widthMm: number;
+        readonly heightMm: number;
+        readonly pixelsPerMillimeter: number;
+        readonly rasterAreaPixels: {
+            readonly minimum: readonly [number, number];
+            readonly maximum: readonly [number, number];
+        };
+    };
+    readonly plot: {
+        readonly printableAreaPixels: {
+            readonly minimum: readonly [number, number];
+            readonly maximum: readonly [number, number];
+        };
+        readonly plotOriginPixels: readonly [number, number];
+        readonly sourceRange: {
+            readonly kind: 'layout' | 'window';
+            readonly minimum: readonly [number, number];
+            readonly maximum: readonly [number, number];
+        };
+        readonly drawingToPixelMatrix: readonly [number, number, number, number, number, number];
+    };
+}
 export interface KJDrawingPngExport extends KJDrawingViewImage {
     readonly layoutId: string;
+    readonly paper: KJDrawingPngPlan['paper'];
+    readonly plot: KJDrawingPngPlan['plot'];
 }
-/**
- * Capture a read-only XY space view using the same canvas renderer as the workbench.
- * Aspect-ratio differences expand viewBounds; geometry is never stretched.
- * This is a visual aid, not geometric verification: inspect renderReport for limitations.
- * Requires a browser DOM canvas. All sizes are bounded before canvas allocation.
- */
+/** Capture one bounded read-only XY view without changing the drawing or workbench camera. */
 export declare function captureDrawingView(drawing: KJDocument, options: KJDrawingViewOptions): Promise<KJDrawingViewImage>;
+/** Resolve the exact configured paper-to-raster transform without allocating a canvas. */
+export declare function resolveDrawingPngPlot(drawing: KJDocument, options: Pick<KJDrawingPngOptions, 'layoutId' | 'maxEdge'>): KJDrawingPngPlan;
 /** Export one configured model or paper layout as a bounded PNG raster. */
 export declare function exportDrawingPng(drawing: KJDocument, options: KJDrawingPngOptions): Promise<KJDrawingPngExport>;
