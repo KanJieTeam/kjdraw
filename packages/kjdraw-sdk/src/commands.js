@@ -905,9 +905,7 @@ export function registerCoreCommands(registry) {
             'DELETE'
         ],
         title: 'Erase objects',
-        execute: ({ document, transaction }, args)=>compoundRootIds(document, (args.ids ?? [
-                args.id
-            ]).filter(Boolean).map(String)).map((id)=>transaction.eraseObject(id))
+        execute: (context, args)=>eraseEntities(context, args)
     }, {
         owner: '@kanjieteam/kjdraw'
     }));
@@ -2545,6 +2543,116 @@ function compoundRootIds(document, ids) {
         return !parent || !selected.has(parent);
     });
 }
+function effectiveEntityLayerId(document, entity) {
+    return String(entity.payload.layerId ?? document.getTable('layers')?.currentId ?? '');
+}
+function assertOwnedLeaderPairWritable(document, entity, command) {
+    const layerId = effectiveEntityLayerId(document, entity);
+    const layer = document.getObject(layerId);
+    const protectedRecord = entity.payload.locked === true ? {
+        reason: 'locked'
+    } : entity.payload.frozen === true ? {
+        reason: 'frozen'
+    } : entity.payload.visible === false ? {
+        reason: 'hidden'
+    } : layer?.payload.locked === true ? {
+        reason: 'locked'
+    } : layer?.payload.frozen === true ? {
+        reason: 'frozen'
+    } : layer?.payload.visible === false ? {
+        reason: 'hidden'
+    } : null;
+    if (!protectedRecord) return;
+    throw new KJValidationError(`${command}: owned LEADER annotation pair contains ${protectedRecord.reason} geometry`, {
+        policy: 'layer-editability',
+        commandId: command,
+        layerId,
+        entityId: entity.id,
+        reason: protectedRecord.reason
+    });
+}
+function leaderAnnotationPositionMatches(leader, annotation) {
+    const first = leader.payload.textPosition, second = annotation.payload.position;
+    if (!Array.isArray(first) || !Array.isArray(second) || first.length < 2 || second.length < 2) return false;
+    const values = [
+        Number(first[0]),
+        Number(first[1]),
+        Number(first[2] ?? 0),
+        Number(second[0]),
+        Number(second[1]),
+        Number(second[2] ?? 0)
+    ];
+    return values.every(Number.isFinite) && Math.hypot(values[0] - values[3], values[1] - values[4], values[2] - values[5]) <= 1e-9;
+}
+function resolveOwnedLeaderPairSelection(document, inputIds, command) {
+    const ids = new Set(inputIds);
+    const pairs = new Map();
+    const leaders = document.listEntities({
+        type: 'LEADER'
+    });
+    const inspect = (member)=>{
+        let candidates = [];
+        if (member.type === 'LEADER') {
+            if (member.payload.annotationId == null && member.payload.ownsAnnotation !== true && !member.payload.unresolvedLeaderAnnotation) return;
+            candidates = [
+                member
+            ];
+        } else if (member.type === 'MTEXT') {
+            candidates = leaders.filter((leader)=>String(leader.payload.annotationId ?? '') === member.id);
+            if (!candidates.length) return;
+        } else return;
+        if (candidates.length !== 1) throw new KJValidationError(`${command} rejects ambiguous LEADER annotation ownership`);
+        const leader = candidates[0];
+        if (leader.payload.ownsAnnotation !== true || leader.payload.annotationType !== 0 || leader.payload.unresolvedLeaderAnnotation || !leader.payload.annotationId) {
+            throw new KJValidationError(`${command} requires an owning, resolved LEADER + MTEXT annotation pair`);
+        }
+        const annotation = document.getObject(String(leader.payload.annotationId));
+        if (!annotation || annotation.kind !== 'entity' || annotation.type !== 'MTEXT') throw new KJValidationError(`${command} rejects a broken LEADER annotation reference`);
+        const reverse = leaders.filter((candidate)=>String(candidate.payload.annotationId ?? '') === annotation.id);
+        if (reverse.length !== 1 || reverse[0].id !== leader.id) throw new KJValidationError(`${command} rejects ambiguous LEADER annotation ownership`);
+        if (leader.ownerId !== annotation.ownerId) throw new KJValidationError(`${command} rejects a LEADER annotation pair across drawing spaces`);
+        if (effectiveEntityLayerId(document, leader) !== effectiveEntityLayerId(document, annotation)) throw new KJValidationError(`${command} rejects a LEADER annotation pair across layers`);
+        if (!leaderAnnotationPositionMatches(leader, annotation)) throw new KJValidationError(`${command} rejects a LEADER annotation pair with drifted text positions`);
+        assertOwnedLeaderPairWritable(document, leader, command);
+        assertOwnedLeaderPairWritable(document, annotation, command);
+        ids.add(leader.id);
+        ids.add(annotation.id);
+        pairs.set(leader.id, {
+            leaderId: leader.id,
+            annotationId: annotation.id
+        });
+    };
+    for (const id of [
+        ...ids
+    ]){
+        const member = document.getObject(id);
+        if (member?.kind === 'entity') inspect(member);
+    }
+    const pairIds = new Set([
+        ...pairs.values()
+    ].flatMap((pair)=>[
+            pair.leaderId,
+            pair.annotationId
+        ]));
+    return {
+        ids: [
+            ...ids
+        ],
+        pairIds,
+        pairs: [
+            ...pairs.values()
+        ]
+    };
+}
+function eraseEntities({ document, transaction }, args) {
+    const selected = resolveOwnedLeaderPairSelection(document, entityIds(args), 'ERASE');
+    const roots = compoundRootIds(document, selected.ids);
+    const erased = roots.map((id)=>transaction.eraseObject(id)).filter((object)=>object !== null);
+    if (selected.pairIds.size) replaceEntityMemberships(transaction, [
+        ...selected.pairIds
+    ], []);
+    return erased;
+}
 function leaderPoints(value) {
     if (!Array.isArray(value) || value.length < 2 || value.length > 4096) throw new KJValidationError('LEADER requires 2 to 4096 vertices');
     const points = value.map((point, index)=>vec3(point, `vertices[${index}]`));
@@ -3570,7 +3678,20 @@ function requireSelectedAssociativeDimensions(document, selectedIds, command) {
     }
 }
 function copyEntities({ document, transaction }, args, matrix, command) {
-    const selected = new Set(entityIds(args));
+    const requestedIds = entityIds(args);
+    const leaderSelection = command === 'COPY' ? resolveOwnedLeaderPairSelection(document, requestedIds, command) : {
+        ids: requestedIds,
+        pairIds: new Set(),
+        pairs: []
+    };
+    if (leaderSelection.pairIds.size) {
+        if (args.payloadPatch && Object.keys(args.payloadPatch).length) throw new KJValidationError(`${command} cannot patch an owned LEADER annotation pair while copying it`);
+        for (const pair of leaderSelection.pairs){
+            const source = requiredEntity(document, pair.leaderId);
+            if (args.ownerId != null && String(args.ownerId) !== source.ownerId) throw new KJValidationError(`${command} cannot move an owned LEADER annotation pair to another drawing space`);
+        }
+    }
+    const selected = new Set(leaderSelection.ids);
     const sourceIds = [
         ...selected
     ].filter((id)=>{
@@ -3652,6 +3773,15 @@ function copyEntities({ document, transaction }, args, matrix, command) {
         ]));
     const retargeted = copies.map((copy, index)=>{
         const source = requiredEntity(document, sourceIds[index]);
+        if (source.type === 'LEADER' && leaderSelection.pairIds.has(source.id)) {
+            const annotationId = replacements.get(String(source.payload.annotationId));
+            if (!annotationId) throw new KJValidationError(`${command} could not isolate the copied LEADER annotation pair`);
+            return transaction.updateObject(copy.id, {
+                payload: {
+                    annotationId
+                }
+            });
+        }
         if (source.type !== 'DIMENSION' || !Array.isArray(source.payload.dimensionAssociations)) return copy;
         const dimensionAssociations = normalizeDimensionAssociations(source.payload.dimensionAssociations).map((association)=>({
                 ...association,
@@ -3663,6 +3793,9 @@ function copyEntities({ document, transaction }, args, matrix, command) {
             }
         });
     });
+    if (leaderSelection.pairIds.size) appendCopiedMemberships(transaction, new Map([
+        ...replacements
+    ].filter(([id])=>leaderSelection.pairIds.has(id))));
     refreshAssociativeDimensions(transaction, retargeted.filter((object)=>object.type !== 'DIMENSION').map((object)=>object.id));
     return retargeted.map((object)=>transaction.getObject(object.id));
 }
@@ -3717,6 +3850,29 @@ function replaceCopiedMemberships(transaction, replacements) {
         if (!Array.isArray(members) || !members.some((id)=>replacements.has(id))) continue;
         const memberIds = [
             ...new Set(members.map((id)=>replacements.get(id) ?? id))
+        ];
+        transaction.updateObject(group.id, {
+            payload: {
+                memberIds
+            }
+        });
+    }
+}
+function appendCopiedMemberships(transaction, replacements) {
+    for (const group of Object.values(transaction._draft().objects)){
+        if (group.erased || group.kind !== 'group' || ![
+            'GROUP',
+            'SELECTION_SET'
+        ].includes(group.type)) continue;
+        const members = group.payload.memberIds;
+        if (!Array.isArray(members) || !members.some((id)=>replacements.has(id))) continue;
+        const memberIds = [
+            ...new Set(members.flatMap((id)=>replacements.has(id) ? [
+                    id,
+                    replacements.get(id)
+                ] : [
+                    id
+                ]))
         ];
         transaction.updateObject(group.id, {
             payload: {
