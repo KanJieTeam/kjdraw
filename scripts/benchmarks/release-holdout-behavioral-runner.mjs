@@ -7,7 +7,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { createKJDrawSDK } from '../../packages/kjdraw-sdk/src/sdk.js'
 import { KJAgentToolSession } from '../../packages/kjdraw-sdk/src/agent-tools.js'
 import { extractKJModelUsage } from '../../packages/kjdraw-sdk/src/model-usage.js'
-import { benchmarkProviderSettings, liveModelConfiguration, pairedModelPlan, safeResponse } from './paired-model-benchmark.mjs'
+import { benchmarkPricing, benchmarkProviderSettings, benchmarkRunCost, liveModelConfiguration, pairedModelPlan, safeResponse } from './paired-model-benchmark.mjs'
 import { releaseHoldoutBehavioralTasks, releaseHoldoutGenerationTasks, releaseHoldoutTaskSuiteScope } from './release-holdout-task-suite.mjs'
 
 const protocol = 'chat-completions'
@@ -48,6 +48,11 @@ export function evaluateBehavioralState(task, before, document, responses) {
 
 const addKnown = values => values.length && values.every(value => Number.isSafeInteger(value) && value >= 0) ? values.reduce((sum, value) => sum + value, 0) : null
 const addKnownFinite = values => values.length && values.every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0) ? values.reduce((sum, value) => sum + value, 0) : null
+const addKnownCosts = values => {
+  if (!values.length || values.some(value => !value || typeof value.amount !== 'number' || !Number.isFinite(value.amount) || typeof value.currency !== 'string')) return null
+  const currencies = [...new Set(values.map(value => value.currency))]
+  return currencies.length === 1 ? { currency: currencies[0], amount: Number(values.reduce((sum, value) => sum + value.amount, 0).toFixed(12)) } : null
+}
 function combinedUsage(responses) {
   const values = responses.map(response => response.usage ?? {})
   const usage = {
@@ -70,7 +75,7 @@ function validateInterventionEvents(events, task, repetition) {
   for (const event of events) if (!event || event.taskId !== task.id || event.repetition !== repetition || typeof event.turnId !== 'string' || typeof event.kind !== 'string' || typeof event.note !== 'string') throw new Error(`Invalid human intervention event for ${task.id}`)
 }
 
-export async function runBehavioralScenario({ task, invoke, repetition = 1, humanInterventionEvents, artifactDirectory, runPrefix = `${task?.id ?? 'task'}-${repetition}` }) {
+export async function runBehavioralScenario({ task, invoke, repetition = 1, humanInterventionEvents, artifactDirectory, runPrefix = `${task?.id ?? 'task'}-${repetition}`, pricing }) {
   if (task?.kind !== 'behavioral' || typeof invoke !== 'function') throw new Error('Provide one behavioral holdout task and an invoke function')
   validateInterventionEvents(humanInterventionEvents, task, repetition)
   const seedSdk = createKJDrawSDK(), seeded = seedSdk.createDocument({ documentId: `holdout-${task.id}`, units: task.units })
@@ -112,13 +117,13 @@ export async function runBehavioralScenario({ task, invoke, repetition = 1, huma
   const reopenStateMatches = reopened.revision === document.revision && isDeepStrictEqual([...entityState(reopened)], [...entityState(document)])
   if (!reopenStateMatches && failure === null) failure = 'FINAL_KJD_REOPEN_MISMATCH'
   if (artifactDirectory) { const name = `${runPrefix}-final.kjd`; await writeFile(resolve(artifactDirectory, name), finalKjd, { flag: 'wx' }); files.finalKjd = name }
-  const totalMs = performance.now() - started, usage = combinedUsage(responses), humanInterventionCount = humanInterventionEvents.length
+  const totalMs = performance.now() - started, usage = combinedUsage(responses), cost = benchmarkRunCost(usage, pricing), humanInterventionCount = humanInterventionEvents.length
   const budget = budgetCompliance(task, usage, modelToolCalls, totalMs, humanInterventionCount)
   const passed = failure === null && state.passed && budget.passed && turnStates.length === task.turns.length
   return {
     schema: 'com.kanjie.kjdraw.benchmark.behavioral-run@2', taskId: task.id, taskVersion: task.version, taskCategory: task.category, repetition,
     seedSha256: task.seedSha256, seedKjdSha256, finalKjdSha256: hash(finalKjd), acceptanceSha256: task.acceptanceSha256,
-    status: passed ? 'passed' : 'failed', failure, responses, history, turnStates, state, budget, usage,
+    status: passed ? 'passed' : 'failed', failure, responses, history, turnStates, state, budget, usage, cost,
     requestedModels: [...new Set(responses.map(response => response.requestedModel).filter(Boolean))], returnedModels: [...new Set(responses.map(response => response.returnedModel).filter(Boolean))],
     modelToolCallCount: modelToolCalls, providerLatencyMs: addKnownFinite(responses.map(response => response.transportLatencyMs)), totalMs, timingDefinition, latencyDefinition,
     humanInterventionCount, humanInterventionEvents: structuredClone(humanInterventionEvents), harnessProposalApprovalCount: history.filter(item => item.role === 'tool' && item.content?.planId).length,
@@ -158,6 +163,7 @@ async function sourceHashes() {
 
 export async function runBehavioralSuite({ tasks = releaseHoldoutBehavioralTasks, repetitions = 5, maxRuns, invoke, output, evidence = {}, humanInterventionLedger }) {
   const plan = behavioralModelPlan({ tasks, repetitions, maxRuns })
+  const pricing = benchmarkPricing(evidence.pricing)
   if (typeof invoke !== 'function') throw new Error('Provide a behavioral model invocation function')
   if (!humanInterventionLedger || !Array.isArray(humanInterventionLedger.events) || typeof humanInterventionLedger.sourceSha256 !== 'string') throw new Error('Provide an auditable human intervention ledger and SHA-256')
   const validTaskIds = new Set(tasks.map(task => task.id))
@@ -165,7 +171,7 @@ export async function runBehavioralSuite({ tasks = releaseHoldoutBehavioralTasks
   const report = {
     schema: 'com.kanjie.kjdraw.benchmark.behavioral-suite@2', mode: evidence.mode ?? 'fixture', publishableModelEvidence: false, publicationReviewRequired: evidence.mode === 'live',
     fixtureWarning: evidence.mode === 'live' ? null : 'FIXTURE OR INJECTED MODEL: runner conformance only; never use as release evidence.',
-    model: evidence.model ?? null, endpointOrigin: evidence.endpointOrigin ?? null, settings: evidence.settings ?? null, timeoutMs: evidence.timeoutMs ?? null,
+    model: evidence.model ?? null, endpointOrigin: evidence.endpointOrigin ?? null, settings: evidence.settings ?? null, timeoutMs: evidence.timeoutMs ?? null, pricing, cost: null,
     repetitions, plannedRuns: plan.plannedRuns, attemptedRuns: 0, unexecutedRuns: plan.plannedRuns, tasks: plan.tasks, source: evidence.source ?? {},
     humanInterventionLedger: { source: humanInterventionLedger.source, sourceSha256: humanInterventionLedger.sourceSha256, eventCount: humanInterventionLedger.events.length },
     humanInterventionDefinition: 'A ledger event records a manual prompt edit, retry, CAD correction, validation override or other human action after a benchmark run starts. Automated proposal approvals are counted separately.',
@@ -180,7 +186,7 @@ export async function runBehavioralSuite({ tasks = releaseHoldoutBehavioralTasks
   await persist()
   for (let repetition = 1; repetition <= repetitions; repetition++) for (const task of tasks) {
     const events = humanInterventionLedger.events.filter(event => event.taskId === task.id && event.repetition === repetition)
-    const run = await runBehavioralScenario({ task, repetition, humanInterventionEvents: events, artifactDirectory: output, runPrefix: `${task.id}-${repetition}`, invoke })
+    const run = await runBehavioralScenario({ task, repetition, humanInterventionEvents: events, artifactDirectory: output, runPrefix: `${task.id}-${repetition}`, invoke, pricing })
     report.runs.push(run); report.attemptedRuns++; await persist()
   }
   report.status = report.runs.every(run => run.status === 'passed') ? 'complete' : 'failed'
@@ -189,6 +195,7 @@ export async function runBehavioralSuite({ tasks = releaseHoldoutBehavioralTasks
   report.returnedModels = [...new Set(report.runs.flatMap(run => run.returnedModels))]
   report.consistentReturnedModel = report.returnedModels.length === 1 && report.runs.every(run => run.returnedModels.length === 1 && run.returnedModels[0] === report.returnedModels[0])
   report.usage = Object.fromEntries(['inputTokens', 'outputTokens', 'totalTokens', 'cacheReadInputTokens', 'cacheMissInputTokens', 'reasoningOutputTokens'].map(name => [name, addKnown(report.runs.map(run => run.usage?.[name]))]))
+  report.cost = addKnownCosts(report.runs.map(run => run.cost))
   report.totalMs = addKnownFinite(report.runs.map(run => run.totalMs)); report.providerLatencyMs = addKnownFinite(report.runs.map(run => run.providerLatencyMs))
   await persist(); return report
 }
@@ -256,7 +263,7 @@ export async function runBehavioralLiveBenchmark({ repetitions = 5, maxRuns = 65
   if (ledger?.schema !== 'com.kanjie.kjdraw.benchmark.human-interventions@1' || !Array.isArray(ledger.events)) throw new Error('Invalid human intervention ledger schema')
   const directory = resolve(output)
   await mkdir(dirname(directory), { recursive: true }); await mkdir(directory)
-  return runBehavioralSuite({ tasks: releaseHoldoutBehavioralTasks, repetitions, maxRuns, output: directory, invoke: createBehavioralLiveInvoker(config), evidence: { mode: 'live', model: config.model, endpointOrigin: config.endpointOrigin, settings: config.settings, timeoutMs: config.timeoutMs, source: await sourceHashes() }, humanInterventionLedger: { source: resolve(humanInterventionLedgerPath), sourceSha256: hash(ledgerBytes), events: ledger.events } })
+  return runBehavioralSuite({ tasks: releaseHoldoutBehavioralTasks, repetitions, maxRuns, output: directory, invoke: createBehavioralLiveInvoker(config), evidence: { mode: 'live', model: config.model, endpointOrigin: config.endpointOrigin, settings: config.settings, timeoutMs: config.timeoutMs, pricing: config.pricing, source: await sourceHashes() }, humanInterventionLedger: { source: resolve(humanInterventionLedgerPath), sourceSha256: hash(ledgerBytes), events: ledger.events } })
 }
 function cliValue(args, name, fallback) { const index = args.indexOf(`--${name}`); return index < 0 ? fallback : args[index + 1] }
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {

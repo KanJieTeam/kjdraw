@@ -262,13 +262,17 @@ test('behavioral suite persists seed/final bytes, report state and intervention 
   try {
     const tasks = [releaseHoldoutBehavioralTasks.find(task => task.category === 'missing-context')]
     const ledger = { source: 'fixture-ledger.json', sourceSha256: hash('{"events":[]}'), events: [] }
-    const report = await runBehavioralSuite({ tasks, repetitions: 5, maxRuns: 5, invoke: fixtureInvocation, output, humanInterventionLedger: ledger, evidence: { mode: 'fixture', model: 'fixture-model', settings: { temperature: 0 } } })
+    const pricing = { currency: 'CNY', inputPerMillion: 1, cachedInputPerMillion: 1, outputPerMillion: 2 }
+    const report = await runBehavioralSuite({ tasks, repetitions: 5, maxRuns: 5, invoke: fixtureInvocation, output, humanInterventionLedger: ledger, evidence: { mode: 'fixture', model: 'fixture-model', settings: { temperature: 0 }, pricing } })
     assert.equal(report.status, 'complete')
     assert.equal(report.fixtureWarning.includes('never use as release evidence'), true)
     const persisted = JSON.parse(await readFile(join(output, 'report.json'), 'utf8'))
     assert.equal(persisted.attemptedRuns, 5)
     assert.equal(persisted.humanInterventionLedger.sourceSha256, ledger.sourceSha256)
+    assert.deepEqual(persisted.pricing, pricing)
+    assert.deepEqual(persisted.cost, { currency: 'CNY', amount: 0.000015 })
     for (const run of persisted.runs) {
+      assert.deepEqual(run.cost, { currency: 'CNY', amount: 0.000003, uncachedInputTokens: 1, cachedInputTokens: 0, outputTokens: 1, ratesPerMillion: pricing })
       const seed = await readFile(join(output, run.files.seedKjd)), final = await readFile(join(output, run.files.finalKjd))
       assert.equal(createHash('sha256').update(seed).digest('hex'), run.seedKjdSha256)
       assert.equal(createHash('sha256').update(final).digest('hex'), run.finalKjdSha256)
