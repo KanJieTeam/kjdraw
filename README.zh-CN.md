@@ -20,9 +20,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
 </p>
 
-<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow-zh.gif" alt="KJDraw AI 根据一条制造需求生成并验证包含 409 个可编辑对象的夹具板工程图" width="100%"></a></p>
+<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow-zh.gif" alt="KJDraw AI 创建、修改、保存并重开一张经过验证的 409 对象夹具板工程图" width="100%"></a></p>
 
-<p align="center"><sub>真实模型录制：1 次调用 · 3,820 total tokens · 409 个可编辑对象 · 保存并重新打开验证。</sub></p>
+<p align="center"><sub>真实模型工作流：2 次模型请求 · 5,449 total tokens · 409 个可编辑对象 · 一次精确修改 · 保存并重新打开验证。</sub></p>
 
 ## 为什么选择 KJDraw？
 
