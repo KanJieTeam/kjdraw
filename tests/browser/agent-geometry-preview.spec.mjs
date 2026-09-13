@@ -36,6 +36,31 @@ test('a moved construction line paints only a temporary reviewed overlay before 
   expect(result).toEqual({ overlay: true, unchanged: true, cleared: true, approved: true, committed: true, exact: true, undone: true })
 })
 
+test('reviewed AI move, rotate and scale keep a native ellipse selectable and editable through reopen',async({page})=>{
+  await page.goto('/')
+  const result=await page.evaluate(async()=>{
+    const [{createKJDrawSDK},{KJAgentToolSession},{KJCanvasRenderer}]=await Promise.all([import('/packages/kjdraw-sdk/src/sdk.js'),import('/packages/kjdraw-sdk/src/agent-tools.js'),import('/packages/kjdraw-sdk/src/canvas-renderer.js')])
+    const canvas=document.createElement('canvas');canvas.style.cssText='width:640px;height:480px';document.body.replaceChildren(canvas)
+    const sdk=createKJDrawSDK(),drawing=sdk.createDocument({units:'millimeter'})
+    await drawing.transact('ellipse',tx=>tx.createEntity('ELLIPSE',{center:[10,0,0],majorAxis:[8,0,0],ratio:.5,startParameter:.2,endParameter:5.8},{id:'ellipse'}))
+    const session=new KJAgentToolSession(sdk,drawing),previews=[],readOnly=[]
+    for(const [name,extra]of [['cad_propose_move',{dx:5,dy:5}],['cad_propose_rotate',{center:{x:0,y:0},angleDegrees:90}],['cad_propose_scale',{center:{x:0,y:0},factor:2}]]){
+      const before=drawing.serialize()
+      const proposed=await session.call(name,{expectedRevision:drawing.revision,units:'millimeter',ids:['ellipse'],...extra})
+      if(!proposed.ok)throw new Error(JSON.stringify(proposed));previews.push(proposed.value.preview.after[0]);readOnly.push(drawing.serialize()===before)
+      const approved=await session.approve(proposed.value.planId,'browser-reviewer');if(!approved.ok)throw new Error(JSON.stringify(approved))
+    }
+    const final=drawing.getObject('ellipse'),renderer=new KJCanvasRenderer(canvas,{document:drawing,grid:false,pixelRatio:1}).fit(),report=renderer.render()
+    const selected=renderer.hitTest(renderer.worldToScreen([-18,30]))?.entity.id
+    await sdk.executeCommand('UNDO');const undo=drawing.getObject('ellipse').payload
+    await sdk.executeCommand('REDO')
+    const reopened=await createKJDrawSDK().readDocument(await sdk.writeDocument(drawing,{format:'KJD'}),{format:'KJD'}),saved=reopened.listEntities({type:'ELLIPSE'})[0]
+    renderer.dispose();const clean=values=>values.map(value=>Math.abs(value)<1e-10?0:Math.abs(value-Math.round(value))<1e-10?Math.round(value):value)
+    return {sourceUnchangedBeforeApproval:readOnly.every(Boolean),types:previews.map(item=>item.type),center:clean(final.payload.center),axis:clean(final.payload.majorAxis),ratio:final.payload.ratio,parameters:[final.payload.startParameter,final.payload.endParameter],selected,unsupported:report.unsupported,undoCenter:clean(undo.center),saved:{center:clean(saved.payload.center),axis:clean(saved.payload.majorAxis),ratio:saved.payload.ratio}}
+  })
+  expect(result).toEqual({sourceUnchangedBeforeApproval:true,types:['ELLIPSE','ELLIPSE','ELLIPSE'],center:[-10,30,0],axis:[0,16,0],ratio:.5,parameters:[.2,5.8],selected:'ellipse',unsupported:0,undoCenter:[-5,15,0],saved:{center:[-10,30,0],axis:[0,16,0],ratio:.5}})
+})
+
 test('mixed agent geometry opens in the packaged editor and remains selectable after undo and redo', async ({ page }) => {
   await page.goto('/')
   const result = await page.evaluate(async input => {

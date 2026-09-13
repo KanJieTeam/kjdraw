@@ -21,6 +21,7 @@ async function fixture() {
     tx.createEntity('LINE', { start: [20, 30, 0], end: [60, 30, 0] }, { id: 'edge' })
     tx.createEntity('CIRCLE', { center: [40, 45, 0], radius: 5 }, { id: 'hole' })
     tx.createEntity('ARC', { center: [55, 45, 0], radius: 7, startAngle: .2, endAngle: 2.1 }, { id: 'arc' })
+    tx.createEntity('ELLIPSE', { center: [35, 55, 0], majorAxis: [8, 6, 0], ratio: .35, startParameter: .2, endParameter: 5.8, color: 4 }, { id: 'ellipse' })
     tx.createEntity('LWPOLYLINE', { vertices: [{ point: [20, 30, 0], bulge: .4 }, { point: [40, 50, 0] }, { point: [60, 30, 0] }], closed: true }, { id: 'outline' })
     tx.createEntity('XLINE', { origin: [20, 30, 0], direction: [1, 2, 0] }, { id: 'guide' })
     tx.createEntity('RAY', { origin: [20, 30, 0], direction: [-2, 1, 0] }, { id: 'ray' })
@@ -42,8 +43,24 @@ async function fixture() {
     tx.createEntity('INSERT', { blockRecordId: block.id, position: [70, 40, 0], scale: [1, 1, 1], rotation: .2 }, { id: 'pump' })
     tx.createEntity('INSERT', { blockRecordId: block.id, position: [200, 200, 0] }, { id: 'unrelated' })
   })
-  return { sdk, document, session: new KJAgentToolSession(sdk, document), ids: ['edge', 'hole', 'arc', 'outline', 'guide', 'ray', 'note', 'aligned', 'rotated', 'radius', 'diameter', 'angular', 'pump'] }
+  return { sdk, document, session: new KJAgentToolSession(sdk, document), ids: ['edge', 'hole', 'arc', 'ellipse', 'outline', 'guide', 'ray', 'note', 'aligned', 'rotated', 'radius', 'diameter', 'angular', 'pump'] }
 }
+
+test('MOVE keeps a native elliptical arc editable while preserving its axes, parameters, identity and files',async()=>{
+  const {sdk,document,session}=await fixture(),before=document.getObject('ellipse'),source=document.serialize()
+  const proposal=value(await session.call('cad_propose_move',{expectedRevision:document.revision,units:'millimeter',ids:['ellipse'],dx:3,dy:-4}))
+  assert.equal(document.serialize(),source);assert.deepEqual(proposal.preview.before,[{id:'ellipse',type:'ELLIPSE',payload:before.payload}])
+  const preview=proposal.preview.after[0];nearPoint(preview.payload.center,[38,51,0]);nearPoint(preview.payload.majorAxis,[8,6,0])
+  for(const field of ['ratio','startParameter','endParameter'])near(preview.payload[field],before.payload[field])
+  value(await session.approve(proposal.planId,'reviewer'))
+  const moved=document.getObject('ellipse');assert.equal(moved.id,before.id);assert.equal(moved.handle,before.handle);assert.equal(moved.ownerId,before.ownerId)
+  for(const format of ['KJD','DXF']){
+    const reopened=await createKJDrawSDK().readDocument(await sdk.writeDocument(document,{format,...(format==='DXF'?{version:'2018'}:{})}),{format}),ellipse=reopened.listEntities({type:'ELLIPSE'})[0]
+    nearPoint(ellipse.payload.center,[38,51,0]);nearPoint(ellipse.payload.majorAxis,[8,6,0]);near(ellipse.payload.ratio,.35);near(ellipse.payload.startParameter,.2);near(ellipse.payload.endParameter,5.8)
+  }
+  await document.undo();assert.deepEqual(document.getObject('ellipse'),before)
+  await document.redo();assert.deepEqual(document.getObject('ellipse'),moved)
+})
 
 for (const type of ['ROTATE', 'SCALE']) test(`${type} previews native geometry, block hierarchy and measured annotations; approval, files and history retain identity`, async () => {
   const { sdk, document, session, ids } = await fixture()
@@ -57,6 +74,7 @@ for (const type of ['ROTATE', 'SCALE']) test(`${type} previews native geometry, 
     const original = before.get(after.id).payload
     for (const field of ['start', 'end', 'center', 'origin', 'position', 'alignmentPoint', 'textPosition']) if (Array.isArray(original[field])) nearPoint(after.payload[field], transformedPoint(original[field], type))
     if (original.direction) nearPoint(after.payload.direction, transformedPoint(original.direction, type, true))
+    if (original.majorAxis) { nearPoint(after.payload.majorAxis, transformedPoint(original.majorAxis, type, true));near(after.payload.ratio,original.ratio);near(after.payload.startParameter,original.startParameter);near(after.payload.endParameter,original.endParameter) }
     if (original.radius) near(after.payload.radius, original.radius * (type === 'SCALE' ? 2 : 1))
     if (after.type === 'ARC') for (const field of ['startAngle', 'endAngle']) {
       const expected = original[field] + (type === 'ROTATE' ? Math.PI / 2 : 0)
@@ -91,10 +109,11 @@ for (const type of ['ROTATE', 'SCALE']) test(`${type} previews native geometry, 
       // DXF import reserves its default resources and remaps conflicting low handles.
       const actual = candidates.find(item => item.handle === expected.handle) ?? (candidates.length === 1 ? candidates[0] : undefined)
       assert.ok(actual, `${format} ${id}`); assert.equal(actual.type, expected.type)
-      for (const field of ['start', 'end', 'center', 'origin', 'position', 'alignmentPoint', 'textPosition', 'scale']) if (Array.isArray(expected.payload[field])) nearPoint(actual.payload[field], expected.payload[field])
+      for (const field of ['start', 'end', 'center', 'origin', 'position', 'alignmentPoint', 'textPosition', 'scale', 'majorAxis']) if (Array.isArray(expected.payload[field])) nearPoint(actual.payload[field], expected.payload[field])
       if (expected.payload.definitionPoints) expected.payload.definitionPoints.forEach((p, i) => nearPoint(actual.payload.definitionPoints[i], p))
       if (expected.type === 'DIMENSION') near(projectDimension(actual.payload).measurement, projectDimension(expected.payload).measurement)
       if (expected.payload.radius) near(actual.payload.radius, expected.payload.radius)
+      if (expected.type === 'ELLIPSE') { near(actual.payload.ratio,expected.payload.ratio);near(actual.payload.startParameter,expected.payload.startParameter);near(actual.payload.endParameter,expected.payload.endParameter) }
       if (expected.payload.direction) {
         const divisor = format === 'DXF' ? Math.hypot(...expected.payload.direction) : 1
         nearPoint(actual.payload.direction, expected.payload.direction.map(n => n / divisor))

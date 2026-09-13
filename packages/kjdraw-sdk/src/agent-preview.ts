@@ -35,11 +35,12 @@ export interface KJAgentGeometryPreview {
 }
 const project = (entity: KJReadonlyObjectRecord): KJAgentPreviewEntity => ({ id: entity.id, type: entity.type, payload: entity.payload })
 const supported = ['LINE', 'CIRCLE', 'ARC', 'LWPOLYLINE']
-export const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[] = Object.freeze([...supported, 'XLINE', 'RAY', 'TEXT', 'DIMENSION', 'INSERT'])
+export const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[] = Object.freeze([...supported, 'ELLIPSE', 'XLINE', 'RAY', 'TEXT', 'DIMENSION', 'INSERT'])
 const creatable = [...supported, 'TEXT', 'DIMENSION']
 const stretchable = ['LINE', 'LWPOLYLINE', 'POLYLINE']
 
 function validateMovableAnnotation(document: KJDocument, entity: KJReadonlyObjectRecord): void {
+  if (entity.type === 'ELLIPSE') { validateTransformGeometry(document, entity); return }
   if (entity.type !== 'TEXT' && entity.type !== 'DIMENSION') return
   const payload = entity.payload
   for (const field of ['normal', 'extrusionDirection']) {
@@ -67,6 +68,10 @@ function validateTransformGeometry(document: KJDocument, entity: KJReadonlyObjec
     points = [payload.center]
     if (!bounded(payload.radius) || payload.radius <= 1e-12) throw new KJValidationError('Transform preview requires a bounded nondegenerate radius')
     if (entity.type === 'ARC' && (!bounded(payload.startAngle) || !bounded(payload.endAngle))) throw new KJValidationError('Transform preview requires finite arc angles')
+  } else if (entity.type === 'ELLIPSE') {
+    points = [payload.center, payload.majorAxis]
+    const axis = payload.majorAxis
+    if (!Array.isArray(axis) || axis.length !== 3 || Math.hypot(Number(axis[0]), Number(axis[1])) <= 1e-12 || !bounded(payload.ratio) || payload.ratio <= 1e-12 || payload.ratio > 1 || !bounded(payload.startParameter ?? 0) || !bounded(payload.endParameter ?? Math.PI * 2)) throw new KJValidationError('Transform preview requires a bounded nondegenerate native ellipse')
   } else if (entity.type === 'XLINE' || entity.type === 'RAY') {
     points = [payload.origin, payload.direction]
     if (!Array.isArray(payload.direction) || Math.hypot(Number(payload.direction[0]), Number(payload.direction[1])) <= 1e-12) throw new KJValidationError('Transform preview requires a nonzero XY guide direction')
