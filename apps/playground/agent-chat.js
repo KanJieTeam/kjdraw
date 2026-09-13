@@ -145,9 +145,10 @@ export function createAgentChat(container, options) {
   for (const [key, input] of [['endpoint',endpoint],['model',name],['protocol',protocol],['maxOutputTokens',outputTokens]]) {
     const field = element('label'); field.append(label(element('span'),key),input); settings.append(field)
   }
-  const configure = button('saveConnection'), disconnect = button('disconnect'), connectionError = element('p','chat-error')
+  const configure = button('saveConnection'), disconnect = button('disconnect'), connectionError = element('p','chat-error'), connectionActions = element('div','chat-settings-actions')
   connectionError.setAttribute('role','alert')
-  settings.append(label(element('p'),'outputTokenHelp'),label(element('p'), 'connectionHelp'), configure, disconnect, connectionError)
+  connectionActions.append(configure,disconnect)
+  settings.append(label(element('p'),'outputTokenHelp'),label(element('p'), 'connectionHelp'), connectionActions, connectionError)
   const log = element('div','chat-log'); log.id = 'chat-messages'; log.setAttribute('role','log'); log.setAttribute('aria-live','polite'); log.setAttribute('aria-relevant','additions text')
   const welcome = element('div','chat-welcome')
   welcome.append(element('div','chat-mark','K'), label(element('h3'),'welcome'), label(element('p'),'welcomeBody'))

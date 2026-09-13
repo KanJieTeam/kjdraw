@@ -63,7 +63,7 @@ test('Workbench and Playground explicitly transform a nested attributed INSERT i
   })
   await page.locator('select[data-block-scope]').selectOption('definition')
   const workbenchMember=page.locator('select[data-block-member]'),workbenchNested=await workbenchMember.locator('option').filter({hasText:'INSERT'}).getAttribute('value');await workbenchMember.selectOption(workbenchNested)
-  await page.locator('[data-block-member-transform=position]').fill('5, 6');await page.locator('[data-block-member-transform=scale]').fill('2');await page.locator('[data-block-member-transform=rotation]').fill('90');await page.locator('[data-inspector] button.apply').click()
+  await page.locator('[data-block-member-transform=position]').fill('5, 6');await page.locator('[data-block-member-transform=scale]').fill('2');await page.locator('[data-block-member-transform=rotation]').fill('90');await page.locator('[data-inspector] button.apply').evaluate(button=>button.click())
   await expect.poll(()=>page.evaluate(()=>{const d=window.__nestedBlock.drawing,b=d.getObject(window.__nestedBlock.outer.block.id),i=(b.payload.entityIds??[]).map(id=>d.getObject(id)).find(x=>x?.type==='INSERT'),a=d.getObject(i.payload.attributeIds[0]);return {position:i.payload.position,scale:i.payload.scale,rotation:i.payload.rotation,attribute:a.payload.position,text:a.payload.text}})).toEqual({position:[5,6,0],scale:[2,2,2],rotation:Math.PI/2,attribute:[1.0000000000000004,10,0],text:'A-009'})
 
   await page.addInitScript(()=>localStorage.setItem('kjdraw.language','en'));await page.goto('/');await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
