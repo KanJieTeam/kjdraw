@@ -38,6 +38,8 @@ const copy = {
   roadLength: ['Route length', '路线长度'], roadSections: ['Supplied sections', '已提供横断面'], roadCut: ['Cut volume', '挖方量'], roadFill: ['Fill volume', '填方量'],
   roadDrawing: ['Road drawing', '道路图'], roadUpdated: ['Updated objects', '更新对象'], roadCreated: ['Added objects', '新增对象'], roadRemoved: ['Removed objects', '移除对象'],
   roadScope: ['Calculated from supplied data using average end areas. Projected profile/section diagrams; review is required before applying. Not construction certification.', '按提供的数据以平均断面法计算。纵横断面为投影图，应用前请检查，不代表施工认证。'],
+  manufacturingDrawing: ['Manufacturing drawing', '制造工程图'], manufacturingPlate: ['Plate', '板件'], manufacturingFeatures: ['Machined features', '加工特征'], manufacturingObjects: ['Editable objects', '可编辑对象'],
+  manufacturingScope: ['Compiled locally from versioned parameters. Geometry, layers and native dimensions are included in this review before one atomic edit.', '由版本化参数在本地编译；本次审阅包含几何、图层和原生尺寸，确认后一次性写入。'],
   help: ['Enter to send · Shift+Enter for a new line', 'Enter 发送 · Shift+Enter 换行'], examples: ['Local examples', '本地示例'],
   endpoint: ['Your server endpoint', '你的服务端地址'], model: ['Model name', '模型名称'], protocol: ['API protocol', '接口协议'],
   maxOutputTokens: ['Max output tokens', '最大输出 token'], outputTokenHelp: ['Total output, including reasoning. Server and model limits still apply; higher limits can increase usage.', '总输出额度，包含推理 token。仍受服务端和模型上限约束；提高额度可能增加用量。'],
@@ -238,6 +240,17 @@ export function createAgentChat(container, options) {
         const row=element('p');row.dataset.field=key;row.append(label(element('b'),key),element('span','',` ${number(evidence.changedCounts[field])}`));details.append(row)
       }
       details.append(label(element('p'),'roadScope'));card.insertBefore(details,state)
+    }
+    if(evidence?.units==='millimeter'&&evidence.skillId==='manufacturing-sheet'&&evidence.parameters){
+      const details=element('div','chat-road-evidence chat-manufacturing-evidence'), parameters=evidence.parameters
+      details.dataset.entityCount=String(evidence.entityCount)
+      for(const [key,value] of [
+        ['manufacturingDrawing',evidence.drawingId],
+        ['manufacturingPlate',`${parameters.length} × ${parameters.width} × ${parameters.thickness} mm`],
+        ['manufacturingFeatures',`${parameters.holeCount} holes · ${parameters.slotCount} slots`],
+        ['manufacturingObjects',evidence.entityCount],
+      ]){const row=element('p');row.dataset.field=key;row.append(label(element('b'),key),element('span','',` ${value}`));details.append(row)}
+      details.append(label(element('p'),'manufacturingScope'));card.insertBefore(details,state)
     }
     const item={proposal,actions}; pending.push(item)
     preview.onclick=()=>{syncContext();if(!pending.includes(item))return;overlay=proposal.preview;options.onPreview(evidence?.bounds?{bounds:evidence.bounds}:undefined)}

@@ -6,6 +6,7 @@ import { mountingProfile } from '../../packages/kjdraw-sdk/examples/fixtures/mou
 import { createRoadDesignFixture, roadDrawingFixtureOptions } from '../../packages/kjdraw-sdk/examples/fixtures/road-design.mjs'
 import { buildRoadDrawing } from '../../packages/kjdraw-sdk/src/road-drawing.js'
 import { restoreRoadDrawingRecipe } from '../../packages/kjdraw-sdk/src/road-drawing-recipe.js'
+import { buildAgentManufacturingSheet } from '../../packages/kjdraw-sdk/src/agent-manufacturing-sheet.js'
 
 function patternProfile(revision = 0) {
   const source = mountingProfile(revision)
@@ -514,6 +515,27 @@ test('engineering proposal previews native dimensions and dashed layers, then sa
   expect(saved.listEntities({ownerId:saved.snapshot().spaces.modelSpaceId}).filter(e=>e.type==='DIMENSION')).toHaveLength(14)
   expect(saved.getTable('layers').records.some(e=>e.name==='HIDDEN')).toBe(true)
   await page.getByRole('button', { name: 'Undo this change', exact: true }).click()
+  await expect(page.locator('#entity-count')).toHaveText('0 entities')
+})
+
+test('manufacturing intent previews a compiled editable sheet and evidence before one approval', async ({ page }) => {
+  const input={version:'1.0.0',expectedRevision:0,units:'millimeter',drawingId:'FP-240',title:'CNC FIXTURE PLATE',revision:'A',material:'MIC-6 CAST ALUMINUM',quantity:1,length:240,width:140,thickness:12,
+    holePatterns:[{rows:4,columns:6,origin:[20,20],spacing:[40,32],throughDiameter:6},{rows:2,columns:2,origin:[15,15],spacing:[210,110],throughDiameter:8.5,counterboreDiameter:14,counterboreDepth:5}],
+    slots:[{center:[120,70],length:44,width:12,orientationDegrees:0}],sheet:{origin:[0,0],size:[420,297]},textHeight:3}
+  const sdk=createKJDrawSDK(),document=sdk.createDocument({units:'millimeter'}),compiled=buildAgentManufacturingSheet(document,input)
+  await openChat(page)
+  await page.route('**/api/model',route=>route.fulfill({json:wire([['manufacturing','cad_propose_manufacturing_sheet',input]],'Fixture plate compiled from design parameters; review before applying.')}))
+  await connect(page);await send(page,'Create the specified CNC fixture plate as a complete editable manufacturing sheet.')
+  const evidence=page.locator('.chat-manufacturing-evidence')
+  await expect(evidence).toHaveAttribute('data-entity-count',String(compiled.evidence.entityCount))
+  await expect(evidence.locator('[data-field="manufacturingPlate"]')).toContainText('240 × 140 × 12 mm')
+  await expect(evidence.locator('[data-field="manufacturingFeatures"]')).toContainText('28 holes · 1 slots')
+  await expect(page.locator('#entity-count')).toHaveText('0 entities')
+  await page.getByRole('button',{name:'Preview on drawing',exact:true}).click()
+  await expect(page.locator('#entity-count')).toHaveText('0 entities')
+  await page.getByRole('button',{name:'Apply changes',exact:true}).click()
+  await expect(page.locator('#entity-count')).toHaveText(`${compiled.evidence.entityCount} entities`)
+  await page.getByRole('button',{name:'Undo this change',exact:true}).click()
   await expect(page.locator('#entity-count')).toHaveText('0 entities')
 })
 
