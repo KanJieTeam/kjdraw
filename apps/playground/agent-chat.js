@@ -13,10 +13,20 @@ export const KJDRAW_CHAT_TOOL_NAMES = Object.freeze([
 const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES.filter(name=>name!=='cad_propose_manufacturing_sheet'), 'cad_propose_road_drawing'])
 const roadRevisionToolNames = Object.freeze([...meterToolNames, 'cad_propose_road_revision'])
 const selectionToolNames = new Map([KJDRAW_CHAT_TOOL_NAMES,meterToolNames,roadRevisionToolNames].map(names=>[names,Object.freeze([...names,'cad_read_selection_sets'])]))
+const manufacturingToolNames = Object.freeze(['cad_propose_manufacturing_sheet'])
 /** Host policy only: SDK defaults and explicitly selected/locked tools remain unchanged. */
 export function getKJDrawChatToolNames(document,roadDrawingIds=[]) {
   const names=document.snapshot().header.units === 'meter' ? roadDrawingIds.length?roadRevisionToolNames:meterToolNames : KJDRAW_CHAT_TOOL_NAMES
   return document.listObjects({kind:'group',type:'SELECTION_SET'}).length?selectionToolNames.get(names):names
+}
+
+/** Narrow an empty millimeter drawing to the semantic manufacturing compiler when the request is explicit. */
+export function getKJDrawChatToolNamesForRequest(document,request,roadDrawingIds=[]) {
+  const names=getKJDrawChatToolNames(document,roadDrawingIds)
+  if(document.snapshot().header.units!=='millimeter'||document.listEntities().length||typeof request!=='string')return names
+  const normalized=request.normalize('NFKC').toLowerCase()
+  const manufacturingIntent=/\b(?:manufacturing drawing|fixture plate|counterbore|machining notes?|through holes?)\b|制造工程图|夹具板|沉孔|加工说明|通孔/.test(normalized)
+  return manufacturingIntent?manufacturingToolNames:names
 }
 
 const copy = {
@@ -327,7 +337,7 @@ export function createAgentChat(container, options) {
       if(controller.signal.aborted){activity.remove();append('assistant',L('cancelled'));return}
       const roadAsset=await prepareChatRoadAsset(session,attachedData)
       const dataPrompt=roadAsset?'\n'+roadAsset.contextText:attachedData?chatDataAttachmentPrompt(attachedData):''
-      const toolNames=roadAsset?[...roadAsset.toolNames,...(roadContext?.drawingIds?.length?['cad_propose_road_revision']:[])]:getKJDrawChatToolNames(source.document,roadContext?.drawingIds)
+      const toolNames=roadAsset?[...roadAsset.toolNames,...(roadContext?.drawingIds?.length?['cad_propose_road_revision']:[])]:getKJDrawChatToolNamesForRequest(source.document,text,roadContext?.drawingIds)
       if(current!==epoch||binding!==source)return
       if(controller.signal.aborted){activity.remove();append('assistant',L('cancelled'));return}
       if(source.document.revision!==revision)throw new Error('Drawing changed while preparing model context')

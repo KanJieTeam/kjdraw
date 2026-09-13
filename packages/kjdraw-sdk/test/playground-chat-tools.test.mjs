@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { KJDRAW_CHAT_TOOL_NAMES, getKJDrawChatToolNames } from '../../../apps/playground/agent-chat.js'
+import { KJDRAW_CHAT_TOOL_NAMES, getKJDrawChatToolNames, getKJDrawChatToolNamesForRequest } from '../../../apps/playground/agent-chat.js'
 import { createRoadDesignFixture, roadDrawingFixtureOptions } from '../examples/fixtures/road-design.mjs'
 import { buildRoadDrawing } from '../src/road-drawing.js'
 import { createKJDrawSDK } from '../src/sdk.js'
@@ -31,6 +31,20 @@ test('workbench exposes useful tools and creates ordinary geometry through patte
   assert.equal(result.outputs[0].result.value.preview.after.length, 2)
   assert.equal((await session.approve(result.proposalIds[0], 'reviewer')).ok, true)
   assert.deepEqual(document.listEntities({ type: 'CIRCLE' })[0].payload.center, [3, 4, 0])
+})
+
+test('explicit manufacturing requests on an empty millimeter drawing send only the semantic compiler schema', async () => {
+  for (const prompt of ['Create a manufacturing drawing for a fixture plate with counterbores.', '绘制夹具板制造工程图，包含沉孔和加工说明。']) {
+    const { document, session } = fixture(), toolNames=getKJDrawChatToolNamesForRequest(document,prompt)
+    assert.ok(Object.isFrozen(toolNames));assert.deepEqual(toolNames,['cad_propose_manufacturing_sheet'])
+    const input={version:'1.0.0',expectedRevision:0,units:'millimeter',drawingId:'ROUTED-1',title:'ROUTED FIXTURE PLATE',revision:'A',material:'ALUMINIUM',quantity:1,length:100,width:60,thickness:8,holePatterns:[],slots:[],sheet:{origin:[0,0],size:[297,210]},textHeight:3}
+    const result=await runKJAgentTask({session,prompt,toolNames,model:modelCall('cad_propose_manufacturing_sheet',input,tools=>assert.deepEqual(tools.map(item=>item.name),toolNames))})
+    assert.equal(result.status,'awaiting-approval')
+  }
+  const {document}=fixture()
+  assert.equal(getKJDrawChatToolNamesForRequest(document,'Draw a plate outline.'),KJDRAW_CHAT_TOOL_NAMES)
+  await document.transact('existing geometry',tx=>tx.createEntity('LINE',{start:[0,0,0],end:[1,0,0]}))
+  assert.equal(getKJDrawChatToolNamesForRequest(document,'Create a manufacturing drawing for a fixture plate.'),KJDRAW_CHAT_TOOL_NAMES)
 })
 
 test('workbench policy rejects unexposed legacy creation before dispatch', async () => {
