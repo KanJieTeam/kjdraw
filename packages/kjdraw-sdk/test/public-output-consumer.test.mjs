@@ -17,7 +17,7 @@ async function createConsumerScratch(parent=process.env.KJDRAW_AUDIT_TMPDIR||tmp
 }
 async function removeConsumerScratch(scratch){
  assert.equal(await realpath(scratch),scratch,'Refuse cleanup through a redirected scratch directory')
- await rm(scratch,{recursive:true,force:true})
+ await rm(scratch,{recursive:true,force:true,maxRetries:12,retryDelay:100})
 }
 async function compiler(){const tsc=join(root,'node_modules/typescript/bin/tsc');if(existsSync(tsc))return[process.execPath,[tsc]];const name=`typescript-${process.platform}-${process.arch}`;const binary=join(root,'node_modules/@typescript',name,'lib',process.platform==='win32'?'tsc.exe':'tsc');assert.ok(existsSync(binary),'Install the locked TypeScript compiler first');return[binary,[]]}
 
