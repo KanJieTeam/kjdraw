@@ -6,7 +6,7 @@ import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { pairedModelPlan, liveModelConfiguration, independentValidation, runPairedModelBenchmark, safeResponse } from '../../../scripts/benchmarks/paired-model-benchmark.mjs'
+import { benchmarkPricing, benchmarkRunCost, pairedModelPlan, liveModelConfiguration, independentValidation, runPairedModelBenchmark, safeResponse } from '../../../scripts/benchmarks/paired-model-benchmark.mjs'
 import { pilotTasks } from '../../../scripts/benchmarks/model-drawing-pilot.mjs'
 import { parametricDrawingTasks, deterministicFixturePatternInputs } from '../../../scripts/benchmarks/parametric-drawing-tasks.mjs'
 import { expandRectangularDrawingPattern } from '../src/agent-drawing-patterns.js'
@@ -57,6 +57,27 @@ test('paired live plan defaults to no network and refuses incomplete budgets or 
   assert.equal((await readdir(folder)).length, 0)
 })
 
+test('benchmark pricing records reproducible uncached, cached and output cost without estimating unknown usage', () => {
+  const pricing = benchmarkPricing({ currency: 'USD', inputPerMillion: 2, cachedInputPerMillion: 0.5, outputPerMillion: 8 })
+  assert.deepEqual(benchmarkRunCost({ inputTokens: 1_000_000, cacheReadInputTokens: 250_000, outputTokens: 100_000 }, pricing), {
+    currency: 'USD', amount: 2.425, uncachedInputTokens: 750_000, cachedInputTokens: 250_000, outputTokens: 100_000, ratesPerMillion: pricing,
+  })
+  assert.equal(benchmarkRunCost({ inputTokens: null, cacheReadInputTokens: 0, outputTokens: 10 }, pricing), null)
+  assert.equal(benchmarkRunCost({ inputTokens: 100, cacheReadInputTokens: null, outputTokens: 10 }, pricing), null)
+  assert.equal(benchmarkRunCost({ inputTokens: 100, cacheReadInputTokens: null, outputTokens: 10 }, { currency: 'CNY', inputPerMillion: 1, cachedInputPerMillion: 1, outputPerMillion: 2 }).amount, 0.00012)
+  for (const invalid of [
+    {}, { currency: 'usd', inputPerMillion: 1, cachedInputPerMillion: 1, outputPerMillion: 1 },
+    { currency: 'USD', inputPerMillion: -1, cachedInputPerMillion: 1, outputPerMillion: 1 },
+    { currency: 'USD', inputPerMillion: 1, cachedInputPerMillion: 1, outputPerMillion: 1, hidden: 0 },
+  ]) assert.throws(() => benchmarkPricing(invalid), /pricing/i)
+  const live = liveModelConfiguration({
+    KJDRAW_BENCH_PROTOCOL: 'chat-completions', KJDRAW_BENCH_MODEL: 'priced-model', KJDRAW_BENCH_ENDPOINT: 'https://provider.example/v1/chat/completions', KJDRAW_BENCH_API_KEY: fixtureKey,
+    KJDRAW_BENCH_PRICING_JSON: JSON.stringify({ currency: 'CNY', inputPerMillion: 1.25, cachedInputPerMillion: 0.25, outputPerMillion: 4 }),
+  })
+  assert.deepEqual(live.pricing, { currency: 'CNY', inputPerMillion: 1.25, cachedInputPerMillion: 0.25, outputPerMillion: 4 })
+  assert.throws(() => liveModelConfiguration({ ...live, KJDRAW_BENCH_PROTOCOL: 'chat-completions', KJDRAW_BENCH_MODEL: 'priced-model', KJDRAW_BENCH_ENDPOINT: 'https://provider.example/v1/chat/completions', KJDRAW_BENCH_API_KEY: fixtureKey, KJDRAW_BENCH_PRICING_JSON: '{bad' }), /PRICING_JSON/)
+})
+
 test('missing independent validator produces a setup failure report and makes no provider request', async t => {
   const folder = await directory(t)
   let requests = 0
@@ -87,7 +108,8 @@ test('fixture paired run uses real HTTP, SDK materialization and independent ezd
     res.writeHead(200, { 'Content-Type': 'application/json', 'X-Private-Debug': fixtureKey }).end(JSON.stringify({ model: 'fixture-model', usage, choices: [{ finish_reason: tool ? 'tool_calls' : 'stop', message }] }))
   })
   const output = join(folder, 'fixture-only')
-  const report = await runPairedModelBenchmark({ ...baseOptions, endpoint, output })
+  const pricing = { currency: 'USD', inputPerMillion: 2, cachedInputPerMillion: 0.5, outputPerMillion: 8 }
+  const report = await runPairedModelBenchmark({ ...baseOptions, endpoint, output, pricing })
   assert.equal(report.mode, 'fixture')
   assert.equal(report.publishableModelEvidence, false)
   assert.match(report.fixtureWarning, /Never use/)
@@ -107,7 +129,10 @@ test('fixture paired run uses real HTTP, SDK materialization and independent ezd
   assert.equal(report.runs[0].usage.inputTokens, 100)
   assert.equal(report.runs[0].usage.cacheReadInputTokens, 20)
   assert.equal(report.runs[0].usage.reasoningOutputTokens, 50)
+  assert.equal(report.runs[0].cost.amount, 0.00177)
+  assert.deepEqual(report.runs[0].cost.ratesPerMillion, pricing)
   assert.equal(report.runs[1].usage.inputTokens, null)
+  assert.equal(report.runs[1].cost, null)
   assert.ok(report.runs[1].usage.invalidFields.includes('usage.prompt_tokens'))
   assert.equal(report.summary['direct-dxf'].inputTokens, null)
   assert.equal(report.chatTokenParameter, 'max_tokens')
@@ -121,7 +146,9 @@ test('fixture paired run uses real HTTP, SDK materialization and independent ezd
     assert.ok(!content.includes('PRIVATE_REASONING_MUST_NOT_BE_SAVED'), file)
     assert.ok(!content.includes('X-Private-Debug'), file)
   }
-  assert.equal(report.runs.every(run => run.cost === null && Number.isFinite(run.transportLatencyMs) && run.totalMs >= run.transportLatencyMs), true)
+  assert.deepEqual(report.pricing, pricing)
+  assert.equal(report.cost, null)
+  assert.equal(report.runs.every(run => Number.isFinite(run.transportLatencyMs) && run.totalMs >= run.transportLatencyMs), true)
 })
 
 test('provider HTTP failures and redirects stop immediately and retain all unexecuted requests', async t => {

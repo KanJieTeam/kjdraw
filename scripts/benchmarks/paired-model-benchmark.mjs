@@ -37,6 +37,28 @@ export function benchmarkProviderSettings({ chatTokenParameter = 'max_tokens', m
   return { temperature: 0, [chatTokenParameter]: maxOutputTokens, stream: false, ...(thinkingMode !== undefined ? { thinking: { type: thinkingMode } } : {}), ...(enableThinking !== undefined ? { enable_thinking: enableThinking } : {}), ...(reasoningEffort !== undefined ? { reasoning_effort: reasoningEffort } : {}) }
 }
 
+export function benchmarkPricing(value) {
+  if (value === undefined || value === null) return null
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Benchmark pricing must be an object')
+  const keys = Object.keys(value).sort()
+  if (keys.join(',') !== 'cachedInputPerMillion,currency,inputPerMillion,outputPerMillion') throw new Error('Benchmark pricing requires currency and exact per-million input, cached-input and output rates')
+  if (typeof value.currency !== 'string' || !/^[A-Z]{3}$/.test(value.currency)) throw new Error('Benchmark pricing currency must be a three-letter uppercase code')
+  for (const name of ['inputPerMillion', 'cachedInputPerMillion', 'outputPerMillion']) if (typeof value[name] !== 'number' || !Number.isFinite(value[name]) || value[name] < 0 || value[name] > 1_000_000) throw new Error(`Benchmark pricing ${name} must be a finite nonnegative number`)
+  return Object.freeze({ currency: value.currency, inputPerMillion: value.inputPerMillion, cachedInputPerMillion: value.cachedInputPerMillion, outputPerMillion: value.outputPerMillion })
+}
+
+export function benchmarkRunCost(usage, pricing) {
+  if (!pricing) return null
+  const normalized = benchmarkPricing(pricing)
+  const inputTokens = usage?.inputTokens, outputTokens = usage?.outputTokens, cachedInputTokens = usage?.cacheReadInputTokens
+  if (!Number.isSafeInteger(inputTokens) || inputTokens < 0 || !Number.isSafeInteger(outputTokens) || outputTokens < 0) return null
+  if ((!Number.isSafeInteger(cachedInputTokens) || cachedInputTokens < 0 || cachedInputTokens > inputTokens) && normalized.cachedInputPerMillion !== normalized.inputPerMillion) return null
+  const cached = Number.isSafeInteger(cachedInputTokens) && cachedInputTokens >= 0 && cachedInputTokens <= inputTokens ? cachedInputTokens : 0
+  const uncached = inputTokens - cached
+  const amount = (uncached * normalized.inputPerMillion + cached * normalized.cachedInputPerMillion + outputTokens * normalized.outputPerMillion) / 1_000_000
+  return { currency: normalized.currency, amount: Number(amount.toFixed(12)), uncachedInputTokens: uncached, cachedInputTokens: cached, outputTokens, ratesPerMillion: normalized }
+}
+
 export function pairedModelPlan({ repetitions = 5, maxRequests = 30, taskSuite = 'pilot', drawingTool, maxOutputTokens = 4096, exploratory = false, chatTokenParameter = 'max_tokens', thinkingMode, enableThinking, reasoningEffort } = {}) {
   if (typeof exploratory !== 'boolean') throw new Error('Exploratory mode must be explicit boolean')
   if (!Object.hasOwn(taskSuites, taskSuite)) throw new Error('Choose an explicit supported task suite')
@@ -69,7 +91,11 @@ export function liveModelConfiguration(env = process.env) {
   const reasoningEffort = env.KJDRAW_BENCH_REASONING_EFFORT
   const explicit = { chatTokenParameter, ...(thinkingMode !== undefined ? { thinkingMode } : {}), ...(enableThinking !== undefined ? { enableThinking: enableThinking === 'true' } : {}), ...(reasoningEffort !== undefined ? { reasoningEffort } : {}) }
   benchmarkProviderSettings(explicit)
-  return { mode: 'live', protocol, model: env.KJDRAW_BENCH_MODEL, endpoint: env.KJDRAW_BENCH_ENDPOINT, apiKey: env.KJDRAW_BENCH_API_KEY, toolChoiceMode, drawingTool, ...explicit }
+  let pricing = null
+  if (env.KJDRAW_BENCH_PRICING_JSON !== undefined) {
+    try { pricing = benchmarkPricing(JSON.parse(env.KJDRAW_BENCH_PRICING_JSON)) } catch (error) { throw new Error(`Invalid KJDRAW_BENCH_PRICING_JSON: ${error instanceof Error ? error.message : 'unknown error'}`) }
+  }
+  return { mode: 'live', protocol, model: env.KJDRAW_BENCH_MODEL, endpoint: env.KJDRAW_BENCH_ENDPOINT, apiKey: env.KJDRAW_BENCH_API_KEY, toolChoiceMode, drawingTool, pricing, ...explicit }
 }
 
 export function independentValidation({ python = process.env.KJDRAW_PYTHON ?? 'python', dxf, expected, timeoutMs = 30000, taskSuite = 'pilot', validatorKind } = {}) {
@@ -102,7 +128,7 @@ function configuration(options) {
   const timeoutMs = options.timeoutMs ?? 60000
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 10 || timeoutMs > 120000) throw new Error('Choose an HTTP timeout between 10 and 120000 milliseconds')
   if (typeof options.output !== 'string' || !options.output.trim()) throw new Error('Choose a new report directory')
-  return { ...plan, mode: options.mode, model: options.model, endpoint: url.href, apiKey: options.apiKey, timeoutMs, output: resolve(options.output), python: options.python ?? process.env.KJDRAW_PYTHON ?? 'python' }
+  return { ...plan, mode: options.mode, model: options.model, endpoint: url.href, apiKey: options.apiKey, timeoutMs, output: resolve(options.output), python: options.python ?? process.env.KJDRAW_PYTHON ?? 'python', pricing: benchmarkPricing(options.pricing) }
 }
 
 function toolDefinition(name, units = 'millimeter') {
@@ -187,10 +213,15 @@ async function materialize(response, arm, modelName, name, units = 'millimeter')
 
 const sumKnown = values => values.length && values.every(value => Number.isSafeInteger(value) && value >= 0) && Number.isSafeInteger(values.reduce((a, b) => a + b, 0)) ? values.reduce((a, b) => a + b, 0) : null
 const sumKnownFinite = values => values.length && values.every(value => typeof value === 'number' && Number.isFinite(value) && value >= 0) ? values.reduce((a, b) => a + b, 0) : null
+const sumCosts = values => {
+  if (!values.length || values.some(value => !value || typeof value.amount !== 'number' || !Number.isFinite(value.amount) || typeof value.currency !== 'string')) return null
+  const currencies = [...new Set(values.map(value => value.currency))]
+  return currencies.length === 1 ? { currency: currencies[0], amount: Number(values.reduce((total, value) => total + value.amount, 0).toFixed(12)) } : null
+}
 function summary(runs) {
   return Object.fromEntries(arms.map(arm => {
     const selected = runs.filter(run => run.arm === arm)
-    return [arm, { attempted: selected.length, passed: selected.filter(run => run.status === 'passed').length, failures: selected.filter(run => run.status !== 'passed').length, humanInterventionCount: selected.reduce((total, run) => total + run.humanInterventionCount, 0), transportLatencyMs: sumKnownFinite(selected.map(run => run.transportLatencyMs)), totalMs: sumKnownFinite(selected.map(run => run.totalMs)), inputTokens: sumKnown(selected.map(run => run.usage?.inputTokens)), outputTokens: sumKnown(selected.map(run => run.usage?.outputTokens)), totalTokens: sumKnown(selected.map(run => run.usage?.totalTokens)), cacheReadInputTokens: sumKnown(selected.map(run => run.usage?.cacheReadInputTokens)), cacheMissInputTokens: sumKnown(selected.map(run => run.usage?.cacheMissInputTokens)), reasoningOutputTokens: sumKnown(selected.map(run => run.usage?.reasoningOutputTokens)), cost: null }]
+    return [arm, { attempted: selected.length, passed: selected.filter(run => run.status === 'passed').length, failures: selected.filter(run => run.status !== 'passed').length, humanInterventionCount: selected.reduce((total, run) => total + run.humanInterventionCount, 0), transportLatencyMs: sumKnownFinite(selected.map(run => run.transportLatencyMs)), totalMs: sumKnownFinite(selected.map(run => run.totalMs)), inputTokens: sumKnown(selected.map(run => run.usage?.inputTokens)), outputTokens: sumKnown(selected.map(run => run.usage?.outputTokens)), totalTokens: sumKnown(selected.map(run => run.usage?.totalTokens)), cacheReadInputTokens: sumKnown(selected.map(run => run.usage?.cacheReadInputTokens)), cacheMissInputTokens: sumKnown(selected.map(run => run.usage?.cacheMissInputTokens)), reasoningOutputTokens: sumKnown(selected.map(run => run.usage?.reasoningOutputTokens)), cost: sumCosts(selected.map(run => run.cost)) }]
   }))
 }
 
@@ -211,7 +242,7 @@ export async function runPairedModelBenchmark(options) {
     const { referenceInput, ...record } = task
     return { ...record, fixtureSha256: hash(JSON.stringify(task.expected)), inputSha256: task.inputSha256 ?? null }
   })
-  const report = { schema: 'com.kanjie.kjdraw.benchmark.paired-model@1', mode: config.mode, exploratory: config.exploratory, publishableModelEvidence: false, publicationReviewRequired: config.mode === 'live', status: 'preparing', createdAt: new Date().toISOString(), model: config.model, protocol, endpointOrigin: new URL(config.endpoint).origin, settings: config.settings, repetitions: config.repetitions, maxRequests: config.maxRequests, plannedRequests: config.plannedRequests, attemptedRequests: 0, unexecutedRequests: config.plannedRequests, timeoutMs: config.timeoutMs, cost: null, humanInterventionCount: 0, humanInterventionDefinition: 'Manual prompt edits, CAD corrections, retries or validation overrides performed after a benchmark request starts. Synthetic proposal approval by the harness is recorded separately and is not a human intervention.', humanInterventionSource: { kind: 'noninteractive-harness', evidence: 'After dispatch the runner has no interactive input path; requests, materialization, approval and validation execute automatically. Harness approvals are counted separately.' }, timingDefinition: 'totalMs begins immediately before the provider request and ends after response capture, CAD materialization, DXF serialization and independent validation for either arm.', latencyDefinition: 'transportLatencyMs measures only the matching HTTP provider request for either arm.', scope: config.scope, fixtureWarning: config.mode === 'fixture' ? 'LOCAL FAKE PROVIDER: transport/SDK/validator conformance only. Never use these simulated usage counters in public model rankings or savings claims.' : null, taskSuite: config.taskSuite, tasks: reportTasks, validator: null, source: {}, runs: [], summary: {} }
+  const report = { schema: 'com.kanjie.kjdraw.benchmark.paired-model@1', mode: config.mode, exploratory: config.exploratory, publishableModelEvidence: false, publicationReviewRequired: config.mode === 'live', status: 'preparing', createdAt: new Date().toISOString(), model: config.model, protocol, endpointOrigin: new URL(config.endpoint).origin, settings: config.settings, repetitions: config.repetitions, maxRequests: config.maxRequests, plannedRequests: config.plannedRequests, attemptedRequests: 0, unexecutedRequests: config.plannedRequests, timeoutMs: config.timeoutMs, pricing: config.pricing, cost: null, humanInterventionCount: 0, humanInterventionDefinition: 'Manual prompt edits, CAD corrections, retries or validation overrides performed after a benchmark request starts. Synthetic proposal approval by the harness is recorded separately and is not a human intervention.', humanInterventionSource: { kind: 'noninteractive-harness', evidence: 'After dispatch the runner has no interactive input path; requests, materialization, approval and validation execute automatically. Harness approvals are counted separately.' }, timingDefinition: 'totalMs begins immediately before the provider request and ends after response capture, CAD materialization, DXF serialization and independent validation for either arm.', latencyDefinition: 'transportLatencyMs measures only the matching HTTP provider request for either arm.', scope: config.scope, fixtureWarning: config.mode === 'fixture' ? 'LOCAL FAKE PROVIDER: transport/SDK/validator conformance only. Never use these simulated usage counters in public model rankings or savings claims.' : null, taskSuite: config.taskSuite, tasks: reportTasks, validator: null, source: {}, runs: [], summary: {} }
   report.toolChoiceMode = config.toolChoiceMode
   report.drawingTool = config.drawingTool
   report.chatTokenParameter = config.chatTokenParameter
@@ -224,6 +255,7 @@ export async function runPairedModelBenchmark(options) {
   const persist = async () => {
     report.unexecutedRequests = report.plannedRequests - report.attemptedRequests
     report.summary = summary(report.runs)
+    report.cost = sumCosts(report.runs.map(run => run.cost))
     report.humanInterventionCount = report.runs.reduce((total, run) => total + run.humanInterventionCount, 0)
     report.returnedModels = [...new Set(report.runs.map(run => run.returnedModel).filter(Boolean))]
     report.consistentReturnedModel = report.returnedModels.length === 1 && report.runs.every(run => typeof run.returnedModel === 'string' && run.returnedModel.length > 0)
@@ -258,6 +290,7 @@ export async function runPairedModelBenchmark(options) {
         let raw
         try { raw = await transport(config, body) } finally { run.transportLatencyMs = performance.now() - transportStarted }
         run.usage = extractKJModelUsage(protocol, raw, { latencyMs: run.transportLatencyMs })
+        run.cost = benchmarkRunCost(run.usage, config.pricing)
         const safe = safeResponse(raw, run.usage, config.apiKey)
         run.modelToolCallCount = safe.choices[0].message.tool_calls?.length ?? 0
         run.returnedModel = safe.model
