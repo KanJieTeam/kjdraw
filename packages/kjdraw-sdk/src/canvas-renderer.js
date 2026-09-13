@@ -329,6 +329,18 @@ function entityPoints(entity) {
                     center[0] + radius,
                     center[1] + radius
                 ]);
+            } else if (edge.type === 'ELLIPSE') {
+                const center = point2(edge.center), axis = point2(edge.majorAxis), ratio = Math.abs(finite(edge.ratio));
+                if (center && axis && ratio > 0) {
+                    const radius = Math.hypot(axis[0], axis[1]);
+                    output.push([
+                        center[0] - radius,
+                        center[1] - radius
+                    ], [
+                        center[0] + radius,
+                        center[1] + radius
+                    ]);
+                }
             }
         }
     }
@@ -1507,7 +1519,8 @@ export class KJCanvasRenderer {
             const loops = Array.isArray(payload.boundaryLoops) ? payload.boundaryLoops : [];
             const unsupportedBoundary = loops.some((loop)=>Array.isArray(loop.edges) && loop.edges.some((edge)=>![
                         'LINE',
-                        'ARC'
+                        'ARC',
+                        'ELLIPSE'
                     ].includes(String(edge.type).toUpperCase())));
             const paths = loops.map((loop)=>{
                 const value = loop;
@@ -1518,7 +1531,21 @@ export class KJCanvasRenderer {
                 const result = [];
                 for (const edge of Array.isArray(value.edges) ? value.edges : []){
                     const e = edge, center = point2(e.center);
-                    if (center && finite(e.radius) > 0) {
+                    if (String(e.type).toUpperCase() === 'ELLIPSE') {
+                        const axis = point2(e.majorAxis), ratio = finite(e.ratio), a = finite(e.startAngle), b = finite(e.endAngle), ccw = e.counterClockwise !== false;
+                        if (!center || !axis || !(ratio > 0)) {
+                            result.length = 0;
+                            break;
+                        }
+                        const raw = ccw ? b - a : a - b, sweep = (Math.abs(raw) >= Math.PI * 2 - 1e-12 ? Math.PI * 2 : normalizeSweep(0, raw)) * (ccw ? 1 : -1);
+                        for(let step = 0; step <= 96; step++){
+                            const angle = a + sweep * step / 96;
+                            result.push([
+                                center[0] + axis[0] * Math.cos(angle) - axis[1] * ratio * Math.sin(angle),
+                                center[1] + axis[1] * Math.cos(angle) + axis[0] * ratio * Math.sin(angle)
+                            ]);
+                        }
+                    } else if (center && finite(e.radius) > 0) {
                         const a = finite(e.startAngle), b = finite(e.endAngle), clockwise = e.clockwise === true || e.counterClockwise === false;
                         const sweep = clockwise ? -normalizeSweep(b, a) : normalizeSweep(a, b);
                         for(let step = 0; step <= 72; step++){

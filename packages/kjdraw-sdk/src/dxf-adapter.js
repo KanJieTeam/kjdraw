@@ -740,6 +740,40 @@ function hatchBoundaryLoops(record) {
                         else if (tag.code === 73) edge.counterClockwise = Number(tag.value) !== 0;
                     }
                     edges.push(edge);
+                } else if (edgeType === 3) {
+                    const edge = {
+                        type: 'ELLIPSE',
+                        center: [
+                            0,
+                            0,
+                            0
+                        ],
+                        majorAxis: [
+                            0,
+                            0,
+                            0
+                        ],
+                        ratio: 0,
+                        startAngle: 0,
+                        endAngle: 0,
+                        counterClockwise: true
+                    };
+                    while(cursor < tags.length && ![
+                        72,
+                        92,
+                        97
+                    ].includes(tags[cursor].code)){
+                        const tag = tags[cursor++];
+                        if (tag.code === 10) edge.center[0] = Number(tag.value);
+                        else if (tag.code === 20) edge.center[1] = Number(tag.value);
+                        else if (tag.code === 11) edge.majorAxis[0] = Number(tag.value);
+                        else if (tag.code === 21) edge.majorAxis[1] = Number(tag.value);
+                        else if (tag.code === 40) edge.ratio = Number(tag.value);
+                        else if (tag.code === 50) edge.startAngle = Number(tag.value) * Math.PI / 180;
+                        else if (tag.code === 51) edge.endAngle = Number(tag.value) * Math.PI / 180;
+                        else if (tag.code === 73) edge.counterClockwise = Number(tag.value) !== 0;
+                    }
+                    edges.push(edge);
                 } else {
                     const rawTags = [];
                     while(cursor < tags.length && ![
@@ -748,7 +782,7 @@ function hatchBoundaryLoops(record) {
                         97
                     ].includes(tags[cursor].code))rawTags.push(tags[cursor++]);
                     edges.push({
-                        type: edgeType === 3 ? 'ELLIPSE' : edgeType === 4 ? 'SPLINE' : 'UNKNOWN',
+                        type: edgeType === 4 ? 'SPLINE' : 'UNKNOWN',
                         dxfEdgeType: edgeType,
                         rawTags
                     });
@@ -2332,7 +2366,11 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
             } else if (edge.type === 'ARC') {
                 requireXY(edge.center);
                 if (!Number.isFinite(edge.radius) || edge.radius <= 0 || !Number.isFinite(edge.startAngle) || !Number.isFinite(edge.endAngle)) throw new KJValidationError('Native DXF HATCH arc edges require a positive radius and finite angles');
-            } else throw new KJValidationError(`Native DXF HATCH edge type ${edge.type} is not supported; use LINE or ARC boundaries`);
+            } else if (edge.type === 'ELLIPSE') {
+                requireXY(edge.center);
+                requireXY(edge.majorAxis);
+                if (Math.hypot(edge.majorAxis[0], edge.majorAxis[1]) <= 1e-15 || !Number.isFinite(edge.ratio) || edge.ratio <= 0 || edge.ratio > 1 || !Number.isFinite(edge.startAngle) || !Number.isFinite(edge.endAngle)) throw new KJValidationError('Native DXF HATCH ellipse edges require a non-zero XY major axis, ratio in (0,1], and finite angles');
+            } else throw new KJValidationError(`Native DXF HATCH edge type ${edge.type} is not supported; use LINE, ARC or ELLIPSE boundaries`);
         }
     }
     emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames);
@@ -2374,6 +2412,16 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
                     emit(output, 10, edge.center[0]);
                     emit(output, 20, edge.center[1]);
                     emit(output, 40, edge.radius);
+                    emit(output, 50, edge.startAngle * 180 / Math.PI);
+                    emit(output, 51, edge.endAngle * 180 / Math.PI);
+                    emit(output, 73, edge.counterClockwise === false ? 0 : 1);
+                } else if (edge.type === 'ELLIPSE') {
+                    emit(output, 72, 3);
+                    emit(output, 10, edge.center[0]);
+                    emit(output, 20, edge.center[1]);
+                    emit(output, 11, edge.majorAxis[0]);
+                    emit(output, 21, edge.majorAxis[1]);
+                    emit(output, 40, edge.ratio);
                     emit(output, 50, edge.startAngle * 180 / Math.PI);
                     emit(output, 51, edge.endAngle * 180 / Math.PI);
                     emit(output, 73, edge.counterClockwise === false ? 0 : 1);

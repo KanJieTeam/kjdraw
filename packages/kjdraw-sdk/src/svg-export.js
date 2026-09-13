@@ -70,6 +70,45 @@ function polyPath(vertices, closed) {
     }
     return path + (closed ? ' Z' : '');
 }
+function hatchEdgePath(value) {
+    const loop = data(value), edges = loop.edges;
+    if (!Array.isArray(edges) || !edges.length || edges.length > 4096) fail('hatch edge loop requires 1–4096 edges');
+    let path = '';
+    for (const [index, raw] of edges.entries()){
+        const edge = data(raw), type = String(edge.type).toUpperCase();
+        if (type === 'LINE') {
+            const a = point(edge.start), b = point(edge.end);
+            path += `${index ? ` L ${pos(a)}` : `M ${pos(a)}`} L ${pos(b)}`;
+            continue;
+        }
+        const center = point(edge.center), start = numeric(edge.startAngle), end = numeric(edge.endAngle), ccw = edge.counterClockwise !== false;
+        const rawSweep = ccw ? end - start : start - end, sweep = Math.abs(rawSweep) >= TAU - 1e-12 ? TAU : (rawSweep % TAU + TAU) % TAU;
+        if (type === 'ARC') {
+            const radius = numeric(edge.radius);
+            if (!(radius > 0)) fail('hatch arc radius must be positive');
+            const at = (angle)=>[
+                    center[0] + radius * Math.cos(angle),
+                    center[1] + radius * Math.sin(angle)
+                ], finish = start + (ccw ? sweep : -sweep), flag = ccw ? 1 : 0;
+            path += index ? ` L ${pos(at(start))}` : `M ${pos(at(start))}`;
+            path += sweep === TAU ? ` A ${radius} ${radius} 0 0 ${flag} ${pos(at(start + (ccw ? Math.PI : -Math.PI)))} A ${radius} ${radius} 0 0 ${flag} ${pos(at(finish))}` : ` A ${radius} ${radius} 0 ${sweep > Math.PI ? 1 : 0} ${flag} ${pos(at(finish))}`;
+            continue;
+        }
+        if (type === 'ELLIPSE') {
+            const axis = point(edge.majorAxis), radius = Math.hypot(axis[0], axis[1]), ratio = numeric(edge.ratio);
+            if (!(radius > 0 && ratio > 0 && ratio <= 1)) fail('invalid hatch ellipse edge');
+            const at = (angle)=>[
+                    center[0] + axis[0] * Math.cos(angle) - axis[1] * ratio * Math.sin(angle),
+                    center[1] + axis[1] * Math.cos(angle) + axis[0] * ratio * Math.sin(angle)
+                ], finish = start + (ccw ? sweep : -sweep), rotation = Math.atan2(axis[1], axis[0]) * 180 / Math.PI, flag = ccw ? 1 : 0;
+            path += index ? ` L ${pos(at(start))}` : `M ${pos(at(start))}`;
+            path += sweep === TAU ? ` A ${radius} ${radius * ratio} ${rotation} 0 ${flag} ${pos(at(start + (ccw ? Math.PI : -Math.PI)))} A ${radius} ${radius * ratio} ${rotation} 0 ${flag} ${pos(at(finish))}` : ` A ${radius} ${radius * ratio} ${rotation} ${sweep > Math.PI ? 1 : 0} ${flag} ${pos(at(finish))}`;
+            continue;
+        }
+        fail(`unsupported hatch edge ${type}`);
+    }
+    return path + ' Z';
+}
 export function exportDrawingSvg(document, options) {
     const source = document.snapshot(), revision = document.revision;
     if (!options || typeof options.layoutId !== 'string' || typeof options.allowPartial !== 'undefined' && typeof options.allowPartial !== 'boolean') fail('layoutId and valid export options are required');
@@ -278,7 +317,7 @@ export function exportDrawingSvg(document, options) {
         }
         if (entity.type === 'HATCH' && p.solid === true) {
             if (!Array.isArray(p.boundaryLoops) || !p.boundaryLoops.length) fail('solid hatch has no boundaries');
-            return `<path d="${p.boundaryLoops.map((loop)=>polyPath(data(loop).vertices, true)).join(' ')}" fill="currentColor" fill-rule="evenodd" stroke="none"/>`;
+            return `<path d="${p.boundaryLoops.map((loop)=>Array.isArray(data(loop).vertices) ? polyPath(data(loop).vertices, true) : hatchEdgePath(loop)).join(' ')}" fill="currentColor" fill-rule="evenodd" stroke="none"/>`;
         }
         return fail(`unsupported entity ${entity.type}`);
     };

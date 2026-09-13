@@ -64,6 +64,17 @@ function transformEdge(matrix, edge, mirrored, scale) {
             }
         };
     }
+    if (type === 'ELLIPSE') {
+        const counterClockwise = record.counterClockwise !== false;
+        return {
+            ...clone(record),
+            center: transformPoint3(matrix, record.center),
+            majorAxis: transformVector3(matrix, record.majorAxis),
+            startAngle: mirrored ? -Number(record.startAngle) : Number(record.startAngle),
+            endAngle: mirrored ? -Number(record.endAngle) : Number(record.endAngle),
+            counterClockwise: mirrored ? !counterClockwise : counterClockwise
+        };
+    }
     throw new KJValidationError(`Unsupported hatch edge transform: ${type}`);
 }
 export function transformEntityPayload(type, source, matrix) {

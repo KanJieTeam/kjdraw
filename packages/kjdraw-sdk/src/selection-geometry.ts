@@ -75,7 +75,10 @@ function hatchEdges(edges: readonly unknown[]): Projection {
   for (const raw of edges) {
     const edge = raw as Record<string, unknown>, center = point(edge?.center), radius = finite(edge?.radius)
     let part: Primitive | null = null
-    if (center && radius > 0) {
+    if(String(edge?.type).toUpperCase()==='ELLIPSE'){
+      const u=point(edge.majorAxis),ratio=finite(edge.ratio),start=finite(edge.startAngle),end=finite(edge.endAngle),counterClockwise=edge.counterClockwise!==false
+      if(center&&u&&ratio>0&&ratio<=1){const raw=counterClockwise?end-start:start-end,sweep=(Math.abs(raw)>=TAU-1e-12?TAU:mod(raw)||TAU)*(counterClockwise?1:-1);part={kind:'curve',center,u,v:[-u[1]*ratio,u[0]*ratio],start,sweep}}
+    } else if (center && radius > 0) {
       const start = finite(edge.startAngle), end = finite(edge.endAngle), clockwise = edge.clockwise === true || edge.counterClockwise === false
       const delta = clockwise ? start - end : end - start
       const sweep = (delta > 0 ? delta : mod(delta) || TAU) * (clockwise ? -1 : 1)
@@ -325,6 +328,15 @@ function insideCurvedLoops(p: Point, loops: readonly Primitive[][]): boolean {
       if ((a[1] > p[1]) !== (end[1] > p[1]) && p[0] < a[0] + (end[0] - a[0]) * (p[1] - a[1]) / (end[1] - a[1])) inside = !inside
       continue
     }
+    const circular=Math.abs(part.u[1])<=1e-12&&Math.abs(part.v[0])<=1e-12&&Math.abs(Math.abs(part.u[0])-Math.abs(part.v[1]))<=1e-12*Math.max(1,Math.abs(part.u[0]),Math.abs(part.v[1]))
+    if(!circular&&Math.abs(part.sweep)>=TAU-1e-10){
+      const dy=p[1]-part.center[1],radius=Math.hypot(part.u[1],part.v[1])
+      if(radius>0&&Math.abs(dy)<radius-1e-12){
+        const phase=Math.atan2(part.v[1],part.u[1]),offset=Math.acos(dy/radius)
+        for(const angle of [phase-offset,phase+offset])if(curveAt(part,angle)[0]>p[0])inside=!inside
+      }
+      continue
+    }
     const cuts = [0, 1], sweep = Math.abs(part.sweep)
     for (const angle of [Math.PI / 2, 3 * Math.PI / 2]) {
       const t = mod((angle - part.start) * Math.sign(part.sweep)) / sweep
@@ -369,7 +381,7 @@ export function classifyEntityInBox(document: KJDocument, entity: KJReadonlyObje
       } else if (Array.isArray(loop.edges)) {
         edges += loop.edges.length
         if (edges > 4096) return 'unclassified'
-        if (!loop.edges.length || loop.edges.some((e: Record<string, unknown>) => !e || (e.type === 'LINE' ? !point(e.start) || !point(e.end) : e.type !== 'ARC' || !point(e.center) || typeof e.radius !== 'number' || e.radius <= 0 || !Number.isFinite(e.radius) || !Number.isFinite(e.startAngle) || !Number.isFinite(e.endAngle)))) return 'unclassified'
+        if (!loop.edges.length || loop.edges.some((e: Record<string, unknown>) => !e || (e.type === 'LINE' ? !point(e.start) || !point(e.end) : e.type === 'ARC' ? !point(e.center) || typeof e.radius !== 'number' || e.radius <= 0 || !Number.isFinite(e.radius) || !Number.isFinite(e.startAngle) || !Number.isFinite(e.endAngle) : e.type !== 'ELLIPSE' || !point(e.center) || !point(e.majorAxis) || typeof e.ratio !== 'number' || e.ratio <= 0 || e.ratio > 1 || !Number.isFinite(e.startAngle) || !Number.isFinite(e.endAngle) || Math.abs(Number(e.endAngle)-Number(e.startAngle))<TAU-1e-10))) return 'unclassified'
         const boundary = hatchEdges(loop.edges)
         if (!boundary.complete) return 'unclassified'
         hatchLoops.push(boundary.parts)

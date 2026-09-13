@@ -90,6 +90,17 @@ function transformEdge(
       ...(record.counterClockwise === undefined ? {} : { counterClockwise: !transformedClockwise }),
     }
   }
+  if (type === 'ELLIPSE') {
+    const counterClockwise = record.counterClockwise !== false
+    return {
+      ...clone(record),
+      center: transformPoint3(matrix, record.center as Point2Input),
+      majorAxis: transformVector3(matrix, record.majorAxis as Point2Input),
+      startAngle: mirrored ? -Number(record.startAngle) : Number(record.startAngle),
+      endAngle: mirrored ? -Number(record.endAngle) : Number(record.endAngle),
+      counterClockwise: mirrored ? !counterClockwise : counterClockwise,
+    }
+  }
   throw new KJValidationError(`Unsupported hatch edge transform: ${type}`)
 }
 

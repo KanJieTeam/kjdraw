@@ -537,6 +537,8 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly domain: string;
         readonly entityType: string;
         readonly operations: readonly string[];
+        readonly exactSourceTypes: readonly string[];
+        readonly openEllipseArcBoundary: boolean;
         readonly stableIdentity: boolean;
     };
     readonly LEADER: {

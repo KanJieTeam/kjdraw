@@ -452,7 +452,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         entityType: 'HATCH',
         boundaryModes: [
             'polyline',
-            'line-arc-edges'
+            'line-arc-edges',
+            'full-ellipse-edge'
         ]
     },
     HATCHEDIT: {
@@ -464,6 +465,13 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'replace-island',
             'remove-island'
         ],
+        exactSourceTypes: [
+            'CIRCLE',
+            'ELLIPSE',
+            'LINE',
+            'ARC'
+        ],
+        openEllipseArcBoundary: false,
         stableIdentity: true
     },
     LEADER: {

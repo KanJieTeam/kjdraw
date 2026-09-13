@@ -34,6 +34,23 @@ const STANDARD = new Set([
     'PROXY_ENTITY',
     'SOLID3D'
 ]);
+function normalizeHatchEdge(edge, loopIndex, edgeIndex) {
+    if (!edge || typeof edge !== 'object' || Array.isArray(edge)) throw new KJValidationError(`Hatch edge ${loopIndex}.${edgeIndex} must be an object`);
+    const value = edge, type = normalizeName(value.type);
+    if (type !== 'ELLIPSE' || Array.isArray(value.rawTags)) return clone(value);
+    const ratio = positive(value.ratio, `boundaryLoops[${loopIndex}].edges[${edgeIndex}].ratio`);
+    if (ratio > 1) throw new KJValidationError(`Hatch ellipse edge ${loopIndex}.${edgeIndex} ratio cannot exceed 1`);
+    return {
+        ...clone(value),
+        type,
+        center: point3(value.center, `boundaryLoops[${loopIndex}].edges[${edgeIndex}].center`),
+        majorAxis: vector3(value.majorAxis, `boundaryLoops[${loopIndex}].edges[${edgeIndex}].majorAxis`),
+        ratio,
+        startAngle: finite(value.startAngle ?? 0, `boundaryLoops[${loopIndex}].edges[${edgeIndex}].startAngle`),
+        endAngle: finite(value.endAngle ?? Math.PI * 2, `boundaryLoops[${loopIndex}].edges[${edgeIndex}].endAngle`),
+        counterClockwise: value.counterClockwise !== false
+    };
+}
 export function listStandardEntityTypes() {
     return Object.freeze([
         ...STANDARD
@@ -138,7 +155,8 @@ function normalizeHatch(payload) {
             external: loop.external !== false
         };
         if (loop.vertices) value.vertices = loop.vertices.map((vertex, index)=>normalizeVertex(vertex, `${loopIndex}.${index}`));
-        if (!value.vertices?.length && !Array.isArray(loop.edges)) throw new KJValidationError(`Hatch loop ${loopIndex} requires vertices or edges`);
+        if (Array.isArray(loop.edges)) value.edges = loop.edges.map((edge, edgeIndex)=>normalizeHatchEdge(edge, loopIndex, edgeIndex));
+        if (!value.vertices?.length && !Array.isArray(value.edges)) throw new KJValidationError(`Hatch loop ${loopIndex} requires vertices or edges`);
         return value;
     });
     return {

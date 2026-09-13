@@ -25,6 +25,14 @@ const directedSweep = (edge)=>{
     if (Math.abs(raw) >= TAU - 1e-12) return TAU;
     return normalizeAngle(raw);
 };
+const ellipsePoint = (edge, atEnd = false)=>{
+    const angle = atEnd ? edge.endAngle : edge.startAngle, ux = edge.majorAxis[0], uy = edge.majorAxis[1];
+    return [
+        edge.center[0] + ux * Math.cos(angle) - uy * edge.ratio * Math.sin(angle),
+        edge.center[1] + uy * Math.cos(angle) + ux * edge.ratio * Math.sin(angle),
+        0
+    ];
+};
 const arcPoint = (edge, atEnd = false)=>{
     const angle = atEnd ? edge.endAngle : edge.startAngle;
     return [
@@ -41,8 +49,8 @@ const arcPointAt = (edge, progress)=>{
         0
     ];
 };
-const edgeStart = (edge)=>edge.type === 'LINE' ? edge.start : arcPoint(edge);
-const edgeEnd = (edge)=>edge.type === 'LINE' ? edge.end : arcPoint(edge, true);
+const edgeStart = (edge)=>edge.type === 'LINE' ? edge.start : edge.type === 'ARC' ? arcPoint(edge) : ellipsePoint(edge);
+const edgeEnd = (edge)=>edge.type === 'LINE' ? edge.end : edge.type === 'ARC' ? arcPoint(edge, true) : ellipsePoint(edge, true);
 const between = (a, b, c)=>c >= Math.min(a, b) - 1e-10 && c <= Math.max(a, b) + 1e-10;
 const onSegment = (a, b, p)=>Math.abs(cross(a, b, p)) <= 1e-10 && between(a[0], b[0], p[0]) && between(a[1], b[1], p[1]);
 function segmentsIntersect(a, b, c, d) {
@@ -87,7 +95,26 @@ function parseEdge(value, index) {
         if (directedSweep(result) <= 1e-12) return fail('ARC boundary edges must have a non-zero sweep; use a CIRCLE source for a full circle');
         return result;
     }
-    return fail('exact hatch island boundaries support only LINE and ARC edges');
+    if (type === 'ELLIPSE') {
+        const center = point(edge.center, index), majorAxis = point(edge.majorAxis, index), ratio = Number(edge.ratio), startAngle = Number(edge.startAngle ?? 0), endAngle = Number(edge.endAngle ?? TAU);
+        if (Math.hypot(majorAxis[0], majorAxis[1]) <= 1e-15 || majorAxis[2] !== 0 || !(ratio > 0 && ratio <= 1) || ![
+            ratio,
+            startAngle,
+            endAngle
+        ].every(Number.isFinite)) return fail('ELLIPSE boundary edges require a non-zero XY major axis, ratio in (0,1], and finite angles');
+        const result = {
+            type: 'ELLIPSE',
+            center,
+            majorAxis,
+            ratio,
+            startAngle,
+            endAngle,
+            counterClockwise: edge.counterClockwise !== false
+        };
+        if (directedSweep(result) < TAU - 1e-12) return fail('open ELLIPSE arcs cannot form a boundary by themselves; join a rigorously closed supported boundary first');
+        return result;
+    }
+    return fail('exact hatch island boundaries support only LINE, ARC and full ELLIPSE edges');
 }
 function exactLoopEdges(loop) {
     if (Array.isArray(loop.vertices)) {
@@ -115,7 +142,39 @@ function arcContains(edge, value, includeEnd = true) {
     const progress = normalizeAngle(edge.counterClockwise ? angle - edge.startAngle : edge.startAngle - angle);
     return progress <= sweep + (includeEnd ? 1e-10 : -1e-10);
 }
+function lineEllipseIntersections(line, ellipse) {
+    const ux = ellipse.majorAxis[0], uy = ellipse.majorAxis[1], scale = ux * ux + uy * uy, ratio = ellipse.ratio;
+    const local = (p)=>{
+        const x = p[0] - ellipse.center[0], y = p[1] - ellipse.center[1];
+        return [
+            (x * ux + y * uy) / scale,
+            (-x * uy + y * ux) / (scale * ratio)
+        ];
+    };
+    const a = local(line.start), b = local(line.end), dx = b[0] - a[0], dy = b[1] - a[1], qa = dx * dx + dy * dy, qb = 2 * (a[0] * dx + a[1] * dy), qc = a[0] * a[0] + a[1] * a[1] - 1, disc = qb * qb - 4 * qa * qc;
+    if (!(qa > 0) || disc < -1e-12) return [];
+    const root = Math.sqrt(Math.max(0, disc)), values = [
+        (-qb - root) / (2 * qa),
+        (-qb + root) / (2 * qa)
+    ];
+    return values.filter((t, index)=>t >= -1e-10 && t <= 1 + 1e-10 && values.findIndex((v)=>Math.abs(v - t) <= 1e-10) === index).map((t)=>[
+            line.start[0] + (line.end[0] - line.start[0]) * t,
+            line.start[1] + (line.end[1] - line.start[1]) * t,
+            0
+        ]);
+}
 function edgeIntersections(first, second) {
+    if (first.type === 'ELLIPSE' || second.type === 'ELLIPSE') {
+        if (first.type === 'LINE' && second.type === 'ELLIPSE') return {
+            overlap: false,
+            points: lineEllipseIntersections(first, second)
+        };
+        if (first.type === 'ELLIPSE' && second.type === 'LINE') return {
+            overlap: false,
+            points: lineEllipseIntersections(second, first)
+        };
+        return fail('exact ELLIPSE boundary validation currently supports intersections with LINE edges; ARC/ELLIPSE combinations are refused');
+    }
     let result;
     if (first.type === 'LINE' && second.type === 'LINE') result = intersectLineLine2(first.start, first.end, second.start, second.end);
     else if (first.type === 'LINE' && second.type === 'ARC') result = intersectLineCircle2(first.start, first.end, second.center, second.radius, {
@@ -171,19 +230,23 @@ function loopScale(edges) {
     const values = edges.flatMap((edge)=>edge.type === 'LINE' ? [
             ...edge.start,
             ...edge.end
-        ] : [
+        ] : edge.type === 'ARC' ? [
             ...edge.center,
             edge.radius
+        ] : [
+            ...edge.center,
+            ...edge.majorAxis,
+            edge.ratio
         ]);
     return Math.max(1, ...values.map(Math.abs));
 }
 function validateClosedLoop(edges) {
     if (!edges.length || edges.length > 128) return fail('exact hatch island boundary requires 1–128 LINE/ARC edges');
     const tolerance = 1e-8 * loopScale(edges);
-    for(let index = 0; index < edges.length; index++)if (distance(edgeEnd(edges[index]), edgeStart(edges[(index + 1) % edges.length])) > tolerance) return fail('selected LINE/ARC boundary is not closed end-to-end');
+    for(let index = 0; index < edges.length; index++)if (distance(edgeEnd(edges[index]), edgeStart(edges[(index + 1) % edges.length])) > tolerance) return fail('selected exact boundary is not closed end-to-end');
     if (edges.length === 1) {
         const only = edges[0];
-        if (only.type !== 'ARC' || directedSweep(only) < TAU - 1e-12) return fail('a one-edge island must be a full CIRCLE boundary');
+        if (only.type === 'LINE' || directedSweep(only) < TAU - 1e-12) return fail('a one-edge island must be a full CIRCLE or ELLIPSE boundary');
         return;
     }
     for(let i = 0; i < edges.length; i++)for(let j = i + 1; j < edges.length; j++){
@@ -201,14 +264,19 @@ function validateClosedLoop(edges) {
     let area = 0;
     for (const edge of edges){
         if (edge.type === 'LINE') area += (edge.start[0] * edge.end[1] - edge.end[0] * edge.start[1]) / 2;
-        else {
+        else if (edge.type === 'ARC') {
             const signed = (edge.counterClockwise ? 1 : -1) * directedSweep(edge);
             area += (edge.radius * (edge.center[0] * (Math.sin(edge.endAngle) - Math.sin(edge.startAngle)) - edge.center[1] * (Math.cos(edge.endAngle) - Math.cos(edge.startAngle))) + edge.radius * edge.radius * signed) / 2;
-        }
+        } else area += (edge.counterClockwise ? 1 : -1) * Math.PI * Math.hypot(edge.majorAxis[0], edge.majorAxis[1]) ** 2 * edge.ratio;
     }
-    if (Math.abs(area) <= 1e-12 * loopScale(edges) ** 2) return fail('selected LINE/ARC boundary encloses zero area');
+    if (Math.abs(area) <= 1e-12 * loopScale(edges) ** 2) return fail('selected exact boundary encloses zero area');
 }
 function pointInExactLoop(value, edges) {
+    if (edges.length === 1 && edges[0]?.type === 'ELLIPSE') {
+        const edge = edges[0], ux = edge.majorAxis[0], uy = edge.majorAxis[1], scale = ux * ux + uy * uy, x = value[0] - edge.center[0], y = value[1] - edge.center[1];
+        const a = (x * ux + y * uy) / scale, b = (-x * uy + y * ux) / (scale * edge.ratio), q = a * a + b * b;
+        return q < 1 - 1e-10;
+    }
     let inside = false;
     for (const edge of edges){
         if (edge.type === 'LINE') {
@@ -216,6 +284,7 @@ function pointInExactLoop(value, edges) {
             if (edge.start[1] > value[1] !== edge.end[1] > value[1] && value[0] < (edge.end[0] - edge.start[0]) * (value[1] - edge.start[1]) / (edge.end[1] - edge.start[1]) + edge.start[0]) inside = !inside;
             continue;
         }
+        if (edge.type === 'ELLIPSE') return fail('mixed ELLIPSE boundary chains are not supported for exact point classification');
         if (arcContains(edge, value)) return false;
         const dy = value[1] - edge.center[1];
         if (Math.abs(dy) >= edge.radius) continue;
@@ -238,7 +307,7 @@ function exactLoopsIntersect(first, second) {
         }));
 }
 function sourceIsland(document, value) {
-    if (!Array.isArray(value) || !value.length || value.length > 128) return fail('sourceIds must contain 1–128 selected CIRCLE or LINE/ARC entities');
+    if (!Array.isArray(value) || !value.length || value.length > 128) return fail('sourceIds must contain one full ELLIPSE/CIRCLE or 1–128 LINE/ARC entities');
     const ids = value.map(String);
     if (new Set(ids).size !== ids.length) return fail('sourceIds must not contain duplicates');
     const entities = ids.map((id)=>{
@@ -265,7 +334,36 @@ function sourceIsland(document, value) {
             ]
         };
     }
-    if (entities.some((entity)=>entity.type === 'CIRCLE')) return fail('a CIRCLE source must be selected by itself');
+    if (entities.length === 1 && entities[0].type === 'ELLIPSE') {
+        const payload = entities[0].payload, center = point(payload.center, 0), majorAxis = point(payload.majorAxis, 0), ratio = Number(payload.ratio), startAngle = Number(payload.startParameter ?? 0), endAngle = Number(payload.endParameter ?? TAU);
+        if (center[2] !== 0 || majorAxis[2] !== 0 || Math.hypot(majorAxis[0], majorAxis[1]) <= 1e-15 || !(ratio > 0 && ratio <= 1) || ![
+            ratio,
+            startAngle,
+            endAngle
+        ].every(Number.isFinite)) return fail('ELLIPSE source must be a finite non-degenerate XY ellipse');
+        const edge = {
+            type: 'ELLIPSE',
+            center,
+            majorAxis,
+            ratio,
+            startAngle,
+            endAngle,
+            counterClockwise: true
+        };
+        if (directedSweep(edge) < TAU - 1e-12) return fail('open ELLIPSE arc sources are not closed hatch boundaries');
+        return {
+            external: false,
+            closed: true,
+            edges: [
+                {
+                    ...edge,
+                    startAngle: 0,
+                    endAngle: TAU
+                }
+            ]
+        };
+    }
+    if (entities.some((entity)=>entity.type === 'CIRCLE' || entity.type === 'ELLIPSE')) return fail('a CIRCLE or ELLIPSE source must be selected by itself');
     const unordered = entities.map((entity, index)=>{
         const payload = entity.payload, normal = payload.normal;
         if (normal && (!Array.isArray(normal) || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) return fail('boundary sources must use the model XY plane with +Z normal');
@@ -282,7 +380,7 @@ function sourceIsland(document, value) {
             endAngle: payload.endAngle,
             counterClockwise: payload.clockwise !== true
         }, index);
-        return fail('sourceIds support only CIRCLE or a closed chain of LINE/ARC entities');
+        return fail('sourceIds support only a full CIRCLE/ELLIPSE or a closed chain of LINE/ARC entities');
     });
     const tolerance = 1e-8 * loopScale(unordered), ordered = [
         unordered.shift()
