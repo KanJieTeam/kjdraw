@@ -34,6 +34,7 @@ export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput
         lineweight: number;
     }[];
     texts: KJAgentAnnotationInput['texts'];
+    leaders?: NonNullable<KJAgentAnnotationInput['leaders']>;
     alignedDimensions: Omit<Extract<KJAgentAnnotationInput['dimensions'][number], {
         type: 'ALIGNED';
     }>, 'type'>[];

@@ -85,13 +85,20 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
         'expectedRevision',
         'units',
         'texts',
+        'dimensions',
+        'leaders'
+    ], [
+        'expectedRevision',
+        'units',
+        'texts',
         'dimensions'
     ]);
     if (!Number.isSafeInteger(source.expectedRevision) || source.expectedRevision < 0) fail('expectedRevision must be a nonnegative safe integer');
     if (source.expectedRevision !== document.revision) throw new KJRevisionConflictError(source.expectedRevision, document.revision);
     const state = document.snapshot(), ownerId = state.spaces.modelSpaceId;
     if (id(source.units) !== state.header.units) fail('Annotation units must exactly match drawing units');
-    if (!Array.isArray(source.texts) || !Array.isArray(source.dimensions) || source.texts.length + source.dimensions.length < 1 || source.texts.length + source.dimensions.length > 64) fail('Supply 1–64 total text and dimension annotations');
+    const leaders = source.leaders === undefined ? [] : source.leaders;
+    if (!Array.isArray(source.texts) || !Array.isArray(source.dimensions) || !Array.isArray(leaders) || source.texts.length + source.dimensions.length + leaders.length < 1 || source.texts.length + source.dimensions.length + leaders.length > 64) fail('Supply 1–64 total text, dimension and leader annotations');
     const opts = record(jsonSnapshot(options, 4194304), [
         'baseEntities'
     ], []);
@@ -267,14 +274,16 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
     };
     const append = (type, payload)=>{
         const entityId = createId('entity');
-        entities.push({
+        const spec = {
             type,
             payload: omitUndefined(normalizeStandardEntityPayload(type, payload)),
             options: {
                 id: entityId,
                 ownerId
             }
-        });
+        };
+        entities.push(spec);
+        return spec;
     };
     for (const value of source.texts){
         const item = record(value, [
@@ -463,6 +472,43 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
         }
         for (const point of definitionPoints)nativePoint(point);
         append('DIMENSION', payload);
+    }
+    for (const value of leaders){
+        const item = record(value, [
+            'vertices',
+            'textPosition',
+            'text',
+            'height',
+            'width',
+            'rotationDegrees',
+            'attachmentPoint',
+            'arrowEnabled'
+        ]);
+        const vertexValues = Array.isArray(item.vertices) ? item.vertices : fail('LEADER annotation requires 2–64 vertices');
+        if (vertexValues.length < 2 || vertexValues.length > 64) fail('LEADER annotation requires 2–64 vertices');
+        const vertices = vertexValues.map((point)=>xy(point));
+        if (vertices.some((point, index)=>index > 0 && Math.hypot(point[0] - vertices[index - 1][0], point[1] - vertices[index - 1][1]) <= 1e-12)) fail('LEADER annotation consecutive vertices must be distinct');
+        if (typeof item.text !== 'string' || !item.text.trim() || item.text.length > 4096 || /[\u0000-\u0009\u000b-\u001f\u007f]/.test(item.text)) fail('LEADER annotation text must be nonempty bounded Unicode MTEXT');
+        const textPosition = xy(item.textPosition), height = number(item.height, 'Leader text height', 1e-6, 1e6);
+        const width = number(item.width, 'Leader text width', 1e-6, 1e12), rotation = number(item.rotationDegrees, 'Leader text angle', 0, 360) * Math.PI / 180;
+        const attachmentPoint = number(item.attachmentPoint, 'Leader text attachment', 1, 9);
+        if (!Number.isSafeInteger(attachmentPoint) || typeof item.arrowEnabled !== 'boolean') fail('LEADER attachment must be an integer from 1 to 9 and arrowEnabled must be boolean');
+        const annotation = append('MTEXT', {
+            position: textPosition,
+            text: item.text,
+            height,
+            width,
+            rotation,
+            attachmentPoint
+        });
+        append('LEADER', {
+            vertices,
+            textPosition,
+            annotationId: annotation.options.id,
+            ownsAnnotation: true,
+            arrowEnabled: item.arrowEnabled,
+            annotationType: 0
+        });
     }
     if (document.revision !== source.expectedRevision || document.snapshot() !== state) throw new KJRevisionConflictError(source.expectedRevision, document.revision);
     return deepFreeze(entities);

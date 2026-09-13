@@ -103,6 +103,30 @@ test('annotated drawings combine editable hatch islands, styles and notes in one
   assert.equal(document.getObject(hatch.payload.layerId).payload.lineweight, 25)
 })
 
+test('annotated drawings create native editable leader and owned multiline MTEXT in one approval', async () => {
+  const { sdk, document, session } = fixture()
+  const leaders = [{ vertices: [{ x: 5, y: 5 }, { x: 15, y: 12 }, { x: 28, y: 12 }], textPosition: { x: 30, y: 12 }, text: String.raw`VALVE V-101\PKEEP CLEAR 600`, height: 3, width: 24, rotationDegrees: 0, attachmentPoint: 7, arrowEnabled: true }]
+  const proposal = value(await session.call(tool, { ...empty(), leaders, styles: [{ name: 'NOTES', sources: ['leaders:0'], pattern: [], color: 7, lineweight: 18 }] }))
+  assert.deepEqual(proposal.preview.after.map(item => item.type), ['MTEXT', 'LEADER'])
+  const [noteEntity, leader] = proposal.preview.after
+  assert.equal(leader.payload.annotationId, noteEntity.id)
+  assert.equal(leader.payload.ownsAnnotation, true)
+  assert.equal(noteEntity.payload.text, leaders[0].text)
+  assert.equal(noteEntity.payload.layerId, leader.payload.layerId)
+  value(await session.approve(proposal.planId, 'reviewer'))
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format }), { format })
+    const reopenedLeader = reopened.listEntities({ type: 'LEADER' })[0], reopenedNote = reopened.getObject(reopenedLeader.payload.annotationId)
+    assert.equal(reopenedNote.type, 'MTEXT')
+    assert.equal(reopenedNote.payload.text, leaders[0].text)
+    assert.equal(reopenedLeader.payload.annotationId, reopenedNote.id)
+  }
+  await sdk.executeCommand('UNDO')
+  assert.equal(document.listEntities().length, 0)
+  await sdk.executeCommand('REDO')
+  assert.equal(document.listEntities().length, 2)
+})
+
 test('invalid references, degenerate projected dimensions and total annotation budgets leave the drawing unchanged',async()=>{
  const {document,session}=fixture(),source=document.serialize()
  const cases=[]
@@ -110,6 +134,7 @@ test('invalid references, degenerate projected dimensions and total annotation b
  bad=drawing();bad.rotatedDimensions[0].rotationDegrees=90;cases.push(bad)
  bad=drawing();bad.texts=Array.from({length:64},note);cases.push(bad)
  bad=drawing();bad.texts[0].text='bad\nmultiline';cases.push(bad)
+ bad={...empty(),leaders:[{vertices:[{x:0,y:0}],textPosition:{x:1,y:1},text:'bad',height:2,width:10,rotationDegrees:0,attachmentPoint:1,arrowEnabled:true}]};cases.push(bad)
  bad=empty();bad.texts=[note()];bad.arrays=[{sources:['circles:0'],rows:2,columns:2,dx:10,dy:10}];cases.push(bad)
  for(const item of cases){assert.equal((await session.call(tool,item)).ok,false,JSON.stringify(item));assert.equal(document.serialize(),source)}
 })

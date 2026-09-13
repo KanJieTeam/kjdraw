@@ -523,6 +523,29 @@ const radialAnnotation = {
     directionDegrees: angle,
     ...annotationPlacement
 };
+const leaderAnnotation = object({
+    vertices: {
+        ...collection(point),
+        minItems: 2,
+        maxItems: 64
+    },
+    textPosition: point,
+    text: {
+        ...text,
+        maxLength: 4096
+    },
+    height: radius,
+    width: radius,
+    rotationDegrees: angle,
+    attachmentPoint: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 9
+    },
+    arrowEnabled: {
+        type: 'boolean'
+    }
+});
 const annotatedDrawingSchemaBase = objectWithOptional({
     ...compactDrawingProperties,
     arrays: arraySchema,
@@ -571,11 +594,13 @@ const annotatedDrawingSchemaBase = objectWithOptional({
         rotationDegrees: angle
     })),
     radiusDimensions: drawingGroup(object(radialAnnotation)),
-    diameterDimensions: drawingGroup(object(radialAnnotation))
+    diameterDimensions: drawingGroup(object(radialAnnotation)),
+    leaders: drawingGroup(leaderAnnotation)
 }, [
     'ellipses',
     'splines',
-    'hatches'
+    'hatches',
+    'leaders'
 ]);
 const annotatedDrawingSchema = {
     ...annotatedDrawingSchemaBase,
@@ -852,7 +877,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_drawing_annotated',
         effect: 'propose',
-        description: 'Compose editable engineering geometry, open native NURBS, polygonal native HATCH, TEXT notes and measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. Hatch loop 0 is the outer boundary and later loops are islands; built-in SOLID/ANSI31/ANSI37/CROSS patterns remain editable. Arrays use group-local curve seed refs. Styles apply named editable layers to geometry, hatches and array copies. No edit occurs before host approval; approval creates one undoable transaction.',
+        description: 'Compose editable engineering geometry, open native NURBS, polygonal native HATCH, TEXT/MTEXT leader notes and measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. Leaders create a native LEADER plus its owned editable MTEXT. Hatch loop 0 is the outer boundary and later loops are islands; built-in SOLID/ANSI31/ANSI37/CROSS patterns remain editable. Arrays use group-local curve seed refs. Styles apply named editable layers to geometry, annotations and array copies. No edit occurs before host approval; approval creates one undoable transaction.',
         inputSchema: annotatedDrawingSchema
     },
     {
@@ -1347,6 +1372,7 @@ function styleAnnotatedDrawing(document, input, source) {
         'diameterDimensions',
         'angularDimensions'
     ])for(let index = 0; index < (input[group]?.length ?? 0); index++)keys.push(`${group}:${index}`);
+    for(let index = 0; index < (input.leaders?.length ?? 0); index++)keys.push(`leaders:${index}`, `leaders:${index}`);
     if (keys.length !== entities.length) throw new KJValidationError('Annotated entity identity mismatch');
     const resources = {
         linetypes: [],
@@ -1777,12 +1803,15 @@ export class KJAgentToolSession {
                                         type: 'ANGULAR_3_POINT'
                                     }))
                             ];
-                            if (entities.length + input.texts.length + dimensions.length > 512) throw new KJValidationError('Annotated drawing exceeds the 512 entity budget');
+                            if (entities.length + input.texts.length + dimensions.length + (input.leaders?.length ?? 0) * 2 > 512) throw new KJValidationError('Annotated drawing exceeds the 512 entity budget');
                             const annotations = buildAgentAnnotationEntities(document, {
                                 expectedRevision: input.expectedRevision,
                                 units: input.units,
                                 texts: input.texts,
-                                dimensions
+                                dimensions,
+                                ...input.leaders === undefined ? {} : {
+                                    leaders: input.leaders
+                                }
                             }, {
                                 baseEntities
                             });

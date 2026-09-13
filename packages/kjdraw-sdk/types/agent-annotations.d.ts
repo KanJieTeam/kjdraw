@@ -20,6 +20,16 @@ export interface KJAgentTextAnnotation {
     height: number;
     rotationDegrees: number;
 }
+export interface KJAgentLeaderAnnotation {
+    vertices: readonly KJAnnotationPoint[];
+    textPosition: KJAnnotationPoint;
+    text: string;
+    height: number;
+    width: number;
+    rotationDegrees: number;
+    attachmentPoint: number;
+    arrowEnabled: boolean;
+}
 export type KJAgentDimensionAnnotation = {
     type: 'ALIGNED';
     from: KJAnnotationPointReference;
@@ -58,6 +68,7 @@ export interface KJAgentAnnotationInput {
     units: string;
     texts: readonly KJAgentTextAnnotation[];
     dimensions: readonly KJAgentDimensionAnnotation[];
+    leaders?: readonly KJAgentLeaderAnnotation[];
 }
 export interface KJAnnotationEntitySpec {
     type: string;

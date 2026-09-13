@@ -15,13 +15,14 @@ export interface KJAnnotationPointReference extends KJAnnotationReference {
   vertexIndex?: number
 }
 export interface KJAgentTextAnnotation { text: string; position: KJAnnotationPoint; height: number; rotationDegrees: number }
+export interface KJAgentLeaderAnnotation { vertices: readonly KJAnnotationPoint[]; textPosition: KJAnnotationPoint; text: string; height: number; width: number; rotationDegrees: number; attachmentPoint: number; arrowEnabled: boolean }
 export type KJAgentDimensionAnnotation =
   | { type: 'ALIGNED'; from: KJAnnotationPointReference; to: KJAnnotationPointReference; position: KJAnnotationPoint; height: number }
   | { type: 'ROTATED'; from: KJAnnotationPointReference; to: KJAnnotationPointReference; position: KJAnnotationPoint; height: number; rotationDegrees: number }
   | { type: 'RADIUS'; source: KJAnnotationReference; directionDegrees: number; position: KJAnnotationPoint; height: number }
   | { type: 'DIAMETER'; source: KJAnnotationReference; directionDegrees: number; position: KJAnnotationPoint; height: number }
   | { type: 'ANGULAR_3_POINT'; center: KJAnnotationPointReference; first: KJAnnotationPointReference; second: KJAnnotationPointReference; position: KJAnnotationPoint; height: number }
-export interface KJAgentAnnotationInput { expectedRevision: number; units: string; texts: readonly KJAgentTextAnnotation[]; dimensions: readonly KJAgentDimensionAnnotation[] }
+export interface KJAgentAnnotationInput { expectedRevision: number; units: string; texts: readonly KJAgentTextAnnotation[]; dimensions: readonly KJAgentDimensionAnnotation[]; leaders?: readonly KJAgentLeaderAnnotation[] }
 export interface KJAnnotationEntitySpec { type: string; payload: KJObjectPayload; options: { id: string; ownerId: string } }
 export interface KJAgentAnnotationOptions {
   /** Trusted host mapping of semantic proposal references to the actual base entities being proposed. */
@@ -87,12 +88,13 @@ function nativePoint(value: unknown): [number, number, number] {
 
 /** Compile revision-bound native annotations with persistent native point associations. */
 export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgentAnnotationInput, options: KJAgentAnnotationOptions = {}): readonly ReadonlyDeep<KJAnnotationEntitySpec>[] {
-  const source = record(jsonSnapshot(input, 65536), ['expectedRevision', 'units', 'texts', 'dimensions'])
+  const source = record(jsonSnapshot(input, 65536), ['expectedRevision', 'units', 'texts', 'dimensions', 'leaders'], ['expectedRevision', 'units', 'texts', 'dimensions'])
   if (!Number.isSafeInteger(source.expectedRevision) || (source.expectedRevision as number) < 0) fail('expectedRevision must be a nonnegative safe integer')
   if (source.expectedRevision !== document.revision) throw new KJRevisionConflictError(source.expectedRevision, document.revision)
   const state = document.snapshot(), ownerId = state.spaces.modelSpaceId
   if (id(source.units) !== state.header.units) fail('Annotation units must exactly match drawing units')
-  if (!Array.isArray(source.texts) || !Array.isArray(source.dimensions) || source.texts.length + source.dimensions.length < 1 || source.texts.length + source.dimensions.length > 64) fail('Supply 1–64 total text and dimension annotations')
+  const leaders = source.leaders === undefined ? [] : source.leaders
+  if (!Array.isArray(source.texts) || !Array.isArray(source.dimensions) || !Array.isArray(leaders) || source.texts.length + source.dimensions.length + leaders.length < 1 || source.texts.length + source.dimensions.length + leaders.length > 64) fail('Supply 1–64 total text, dimension and leader annotations')
   const opts = record(jsonSnapshot(options, 4194304), ['baseEntities'], [])
   if (opts.baseEntities !== undefined && (!opts.baseEntities || typeof opts.baseEntities !== 'object' || Array.isArray(opts.baseEntities))) fail('baseEntities must be a plain object map')
   const bases = opts.baseEntities === undefined ? {} : record(opts.baseEntities, Object.keys(opts.baseEntities as object), [])
@@ -172,7 +174,9 @@ export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgen
   }
   const append = (type: string, payload: KJObjectPayload) => {
     const entityId = createId('entity')
-    entities.push({ type, payload: omitUndefined(normalizeStandardEntityPayload(type, payload)) as KJObjectPayload, options: { id: entityId, ownerId } })
+    const spec = { type, payload: omitUndefined(normalizeStandardEntityPayload(type, payload)) as KJObjectPayload, options: { id: entityId, ownerId } }
+    entities.push(spec)
+    return spec
   }
   for (const value of source.texts as unknown[]) {
     const item = record(value, ['text', 'position', 'height', 'rotationDegrees'])
@@ -227,6 +231,20 @@ export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgen
     }
     for (const point of definitionPoints) nativePoint(point)
     append('DIMENSION', payload)
+  }
+  for (const value of leaders as unknown[]) {
+    const item = record(value, ['vertices', 'textPosition', 'text', 'height', 'width', 'rotationDegrees', 'attachmentPoint', 'arrowEnabled'])
+    const vertexValues = Array.isArray(item.vertices) ? item.vertices : fail('LEADER annotation requires 2–64 vertices')
+    if (vertexValues.length < 2 || vertexValues.length > 64) fail('LEADER annotation requires 2–64 vertices')
+    const vertices = vertexValues.map((point: unknown) => xy(point))
+    if (vertices.some((point, index) => index > 0 && Math.hypot(point[0] - vertices[index - 1]![0], point[1] - vertices[index - 1]![1]) <= 1e-12)) fail('LEADER annotation consecutive vertices must be distinct')
+    if (typeof item.text !== 'string' || !item.text.trim() || item.text.length > 4096 || /[\u0000-\u0009\u000b-\u001f\u007f]/.test(item.text)) fail('LEADER annotation text must be nonempty bounded Unicode MTEXT')
+    const textPosition = xy(item.textPosition), height = number(item.height, 'Leader text height', 1e-6, 1e6)
+    const width = number(item.width, 'Leader text width', 1e-6, 1e12), rotation = number(item.rotationDegrees, 'Leader text angle', 0, 360) * Math.PI / 180
+    const attachmentPoint = number(item.attachmentPoint, 'Leader text attachment', 1, 9)
+    if (!Number.isSafeInteger(attachmentPoint) || typeof item.arrowEnabled !== 'boolean') fail('LEADER attachment must be an integer from 1 to 9 and arrowEnabled must be boolean')
+    const annotation = append('MTEXT', { position: textPosition, text: item.text, height, width, rotation, attachmentPoint })
+    append('LEADER', { vertices, textPosition, annotationId: annotation.options.id, ownsAnnotation: true, arrowEnabled: item.arrowEnabled, annotationType: 0 })
   }
   if (document.revision !== source.expectedRevision || document.snapshot() !== state) throw new KJRevisionConflictError(source.expectedRevision, document.revision)
   return deepFreeze(entities)

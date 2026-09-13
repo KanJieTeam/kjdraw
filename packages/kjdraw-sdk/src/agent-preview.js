@@ -34,6 +34,8 @@ const creatable = [
     'SPLINE',
     'HATCH',
     'TEXT',
+    'MTEXT',
+    'LEADER',
     'DIMENSION'
 ];
 const stretchable = [
@@ -328,7 +330,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     const maxCreatedEntities = options.maxCreatedEntities ?? 64;
     if (!Number.isSafeInteger(maxCreatedEntities) || maxCreatedEntities < 1 || maxCreatedEntities > 512) throw new KJValidationError('Preview creation budget must be an integer from 1 to 512');
     if (command === 'CREATEBATCH') {
-        if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some((spec)=>!spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} LINE/CIRCLE/ARC/ELLIPSE/SPLINE/LWPOLYLINE/HATCH/TEXT/DIMENSION entities`);
+        if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some((spec)=>!spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} supported drawing and annotation entities`);
     } else if (command !== 'COMPONENTINSERT') {
         const ids = bindingIds ?? (design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' ? [
             args.id
