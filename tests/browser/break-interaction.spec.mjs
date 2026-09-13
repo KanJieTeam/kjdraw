@@ -145,15 +145,24 @@ async function circleDrawing() {
 }
 
 async function playgroundPoint(page, x, y) {
-  const box = await page.locator('#canvas').boundingBox(), scale = Math.min((box.width - 164) / 40, (box.height - 164) / 40)
-  return { x: box.x + box.width / 2 + x * scale, y: box.y + box.height / 2 - y * scale }
+  return page.evaluate(([x, y]) => {
+    const renderer = window.__breakPlaygroundRenderer, rect = document.querySelector('#canvas').getBoundingClientRect()
+    if (!renderer) throw new Error('Playground renderer was not captured')
+    const point = renderer.worldToScreen([x, y])
+    return { x: rect.left + point[0], y: rect.top + point[1] }
+  }, [x, y])
 }
 
 test('Playground BREAK command chooses the two-point circle flow, previews two arcs, cancels and then commits', async ({ page }) => {
   await page.goto('/'); await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  await page.evaluate(async () => {
+    const { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js'), original = KJCanvasRenderer.prototype.screenToWorld
+    KJCanvasRenderer.prototype.screenToWorld = function (point) { window.__breakPlaygroundRenderer = this; return original.call(this, point) }
+  })
   await page.locator('#file-input').setInputFiles({ name: 'break.kjd', mimeType: 'application/json', buffer: await circleDrawing() })
   await expect(page.locator('#entity-count')).toHaveText('3 entities')
   if (await page.locator('#snap').getAttribute('aria-pressed') === 'true') await page.locator('#snap').click()
+  const canvas = await page.locator('#canvas').boundingBox(); await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2)
   const right = await playgroundPoint(page, 10, 0); await page.mouse.click(right.x, right.y); await expect(page.locator('#selection-count')).toHaveText('1 selected')
   const revision = Number((await page.locator('#revision').textContent()).replace('REV ', ''))
   const command = async () => { await page.locator('#command-input').fill('BREAK'); await page.locator('#command-input').press('Enter'); await expect(page.locator('#app-dialog')).toBeVisible() }

@@ -15,9 +15,12 @@ async function workbenchPoint(page, world) {
 }
 
 async function playgroundPoint(page, world) {
-  const box = await page.locator('#canvas').boundingBox()
-  const scale = Math.min((box.width - 164) / 40, (box.height - 164) / 40)
-  return { x: box.x + box.width / 2 + world[0] * scale, y: box.y + box.height / 2 - world[1] * scale }
+  return page.evaluate(world => {
+    const renderer = window.__ellipseArcPlaygroundRenderer, rect = document.querySelector('#canvas').getBoundingClientRect()
+    if (!renderer) throw new Error('Playground renderer was not captured')
+    const point = renderer.worldToScreen(world)
+    return { x: rect.left + point[0], y: rect.top + point[1] }
+  }, world)
 }
 
 async function drag(page, point, from, to) {
@@ -60,8 +63,13 @@ test('elliptical arc endpoint grips are real pointer edits in Workbench and Play
   await page.locator('[data-action=redo]').click(); await expect.poll(() => page.evaluate(() => window.__ellipseArc.drawing.getObject(window.__ellipseArc.ellipse.id).payload.startParameter)).toBeCloseTo(Math.PI / 4, 5)
 
   await page.goto('/'); await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  await page.evaluate(async () => {
+    const { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js'), original = KJCanvasRenderer.prototype.screenToWorld
+    KJCanvasRenderer.prototype.screenToWorld = function (point) { window.__ellipseArcPlaygroundRenderer = this; return original.call(this, point) }
+  })
   await page.locator('#file-input').setInputFiles({ name: 'ellipse-arc.kjd', mimeType: 'application/json', buffer: await fixtureBuffer() }); await expect(page.locator('#entity-count')).toHaveText('5 entities')
   if (await page.locator('#snap').getAttribute('aria-pressed') === 'true') await page.locator('#snap').click()
+  const canvas = await page.locator('#canvas').boundingBox(); await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2)
   const body = await playgroundPoint(page, [0,5]); await page.mouse.click(body.x, body.y); await expect(page.locator('#selection-count')).toHaveText('1 selected')
   await drag(page, playgroundPoint, [10,0], target); await expect(page.locator('#status')).toContainText('Grip edit applied')
   let snapshot = await savedPlayground(page); expect(snapshot.objects.ellipse.payload.startParameter).toBeCloseTo(Math.PI / 4, 5)
