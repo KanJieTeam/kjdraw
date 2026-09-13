@@ -63,7 +63,7 @@ test('workbench pointer drawing commits exact perpendicular and tangent points f
 
 })
 
-test('workbench pointer drawing commits an exact tangent to a rotated ellipse', async ({ page }) => {
+test('workbench pointer drawing commits exact tangent and perpendicular lines to a rotated ellipse', async ({ page }) => {
   await page.goto('/')
   await page.evaluate(async () => {
     document.body.replaceChildren()
@@ -76,7 +76,7 @@ test('workbench pointer drawing commits an exact tangent to a rotated ellipse', 
     await drawing.transact('Reference ellipse', tx => tx.createEntity('ELLIPSE', {
       center: [-30, 20, 0], majorAxis: [8, 6, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2, layerId: locked.id,
     }, { id: 'reference-ellipse' }))
-    await sdk.executeCommand('SNAPSETTINGS', { modes: ['tangent'], radius: 18 }, { document: drawing })
+    await sdk.executeCommand('SNAPSETTINGS', { modes: ['tangent', 'perpendicular'], radius: 18 }, { document: drawing })
     const workbench = mountKJDrawWorkbench(host, { sdk, document: drawing, locale: 'en', grid: false, showLayers: false, showInspector: false })
     await workbench.ready; await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     workbench.renderer.resize(); Object.assign(workbench.renderer.camera, { centerX: -20, centerY: 20, scale: 6 }); workbench.renderer.render()
@@ -95,6 +95,16 @@ test('workbench pointer drawing commits an exact tangent to a rotated ellipse', 
   expect(tangent.start).toEqual([...base, 0])
   expect(tangent.end[0]).toBeCloseTo(point[0], 9)
   expect(tangent.end[1]).toBeCloseTo(point[1], 9)
+
+  const foot = [-22, 26], footScreen = await screenPoint(page, 'ellipseTangent', foot)
+  await page.locator('#ellipse-tangent-host [data-tool="line"]').click()
+  await page.mouse.click(baseScreen.x, baseScreen.y)
+  await page.mouse.move(footScreen.x + 1, footScreen.y - 1)
+  await expect(marker).toHaveAttribute('data-mode', 'perpendicular')
+  await page.mouse.click(footScreen.x + 1, footScreen.y - 1)
+  const perpendicular = await page.evaluate(() => window.ellipseTangent.drawing.listEntities({ type: 'LINE' }).at(-1).payload)
+  expect(perpendicular.start).toEqual([...base, 0])
+  expect(perpendicular.end).toEqual([...foot, 0])
 })
 
 test('playground pointer drawing exposes and applies perpendicular snap mode', async ({ page }) => {

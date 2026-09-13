@@ -179,6 +179,74 @@ function ellipseTangentCandidates(entity, cursor, reference, payload) {
         ];
     });
 }
+function ellipseNormalParameters(payload, reference) {
+    const domain = ellipseParameters(payload), local = ellipseLocalCoordinates(payload, reference), ratioSquared = Number(payload.ratio) ** 2;
+    if (Math.abs(ratioSquared - 1) <= 1e-14 && local[0] * local[0] + local[1] * local[1] <= 1e-24) return [];
+    const evaluate = (parameter)=>{
+        const sine = Math.sin(parameter), cosine = Math.cos(parameter);
+        return (ratioSquared - 1) * sine * cosine + local[0] * sine - ratioSquared * local[1] * cosine;
+    };
+    const derivative = (parameter)=>{
+        const sine = Math.sin(parameter), cosine = Math.cos(parameter);
+        return (ratioSquared - 1) * (cosine * cosine - sine * sine) + local[0] * cosine + ratioSquared * local[1] * sine;
+    };
+    const start = domain.start, end = start + domain.span, samples = Math.max(64, Math.ceil(128 * domain.span / TURN)), roots = [];
+    const normalize = (parameter)=>domain.full ? start + positiveTurn(parameter - start) : Math.max(start, Math.min(end, parameter));
+    const add = (parameter)=>{
+        parameter = normalize(parameter);
+        if (Math.abs(evaluate(parameter)) > 1e-9) return;
+        if (!roots.some((value)=>Math.min(positiveTurn(value - parameter), positiveTurn(parameter - value)) <= 1e-7)) roots.push(parameter);
+    };
+    let previousParameter = start, previousValue = evaluate(start);
+    add(start);
+    for(let index = 1; index <= samples; index += 1){
+        const parameter = start + domain.span * index / samples, value = evaluate(parameter);
+        if (value === 0) add(parameter);
+        else if (previousValue !== 0 && value * previousValue < 0) {
+            let lower = previousParameter, upper = parameter, lowerValue = previousValue;
+            for(let iteration = 0; iteration < 52; iteration += 1){
+                const middle = (lower + upper) / 2, middleValue = evaluate(middle);
+                if (lowerValue * middleValue <= 0) upper = middle;
+                else {
+                    lower = middle;
+                    lowerValue = middleValue;
+                }
+            }
+            add((lower + upper) / 2);
+        }
+        previousParameter = parameter;
+        previousValue = value;
+    }
+    for(let index = 0; index < samples; index += 1){
+        let parameter = start + domain.span * (index + .5) / samples;
+        for(let iteration = 0; iteration < 16; iteration += 1){
+            const slope = derivative(parameter);
+            if (Math.abs(slope) <= 1e-14) break;
+            const next = normalize(parameter - evaluate(parameter) / slope);
+            if (Math.abs(next - parameter) <= 1e-13) {
+                parameter = next;
+                break;
+            }
+            parameter = next;
+        }
+        add(parameter);
+    }
+    return roots.sort((a, b)=>a - b);
+}
+function ellipsePerpendicularCandidates(entity, cursor, reference, payload) {
+    return ellipseNormalParameters(payload, reference).map((parameter)=>{
+        const point = ellipsePointAt(payload, parameter);
+        return {
+            mode: 'perpendicular',
+            point,
+            entityIds: [
+                entity.id
+            ],
+            distance: distance2(cursor, point),
+            parameter
+        };
+    });
+}
 function positiveTurn(value) {
     value %= TURN;
     return value < 0 ? value + TURN : value;
@@ -552,7 +620,11 @@ function baseCandidates(entity, modes, cursor, reference, radius) {
         'TABLE'
     ].includes(entity.type)) add('insertion', payload.position);
     if (modes.has('node') && entity.type === 'POINT') add('node', payload.position);
-    if (reference && modes.has('perpendicular')) result.push(...perpendicularCandidates(entity, cursor, reference));
+    if (reference && modes.has('perpendicular')) {
+        if (entity.type === 'ELLIPSE') {
+            if (ellipseBoxDistance(cursor, payload) <= radius) result.push(...ellipsePerpendicularCandidates(entity, cursor, reference, payload));
+        } else result.push(...perpendicularCandidates(entity, cursor, reference));
+    }
     if (reference && modes.has('tangent')) {
         if (entity.type === 'ELLIPSE') {
             if (ellipseBoxDistance(cursor, payload) <= radius) result.push(...ellipseTangentCandidates(entity, cursor, reference, payload));

@@ -133,6 +133,30 @@ test('ellipse tangent snaps are exact for external references and respect partia
   assert.equal(tangents.length, 1); closePoint(tangents[0].point, [35, 5 * Math.sqrt(3) / 2]); close(tangents[0].parameter, Math.PI / 3)
 })
 
+test('ellipse perpendicular snaps solve rotated normal points and respect partial-arc domains', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'ellipse-perpendicular-snaps' })
+  const full = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [-30, 20, 0], majorAxis: [8, 6, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2,
+  } })
+  const reference = [-14, 32], majorEnd = [-22, 26]
+  let feet = sdk.snap(majorEnd, { radius: .01, modes: ['perpendicular'], entityIds: [full.id], referencePoint: reference })
+  assert.equal(feet.length, 1); closePoint(feet[0].point, majorEnd); close(feet[0].parameter, 0)
+  const tangentVector = [-3, 4], connector = [feet[0].point[0] - reference[0], feet[0].point[1] - reference[1]]
+  close(connector[0] * tangentVector[0] + connector[1] * tangentVector[1], 0)
+
+  const partial = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [20, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: Math.PI / 2, endParameter: Math.PI * 1.5,
+  } })
+  feet = sdk.snap([30, 0], { radius: .01, modes: ['perpendicular'], entityIds: [partial.id], referencePoint: [40, 0] })
+  assert.equal(feet.length, 0)
+  feet = sdk.snap([10, 0], { radius: .01, modes: ['perpendicular'], entityIds: [partial.id], referencePoint: [40, 0] })
+  assert.equal(feet.length, 1); closePoint(feet[0].point, [10, 0]); close(feet[0].parameter, Math.PI)
+  const circular = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [60, 0, 0], majorAxis: [5, 0, 0], ratio: 1, startParameter: 0, endParameter: Math.PI * 2,
+  } })
+  assert.equal(sdk.snap([65, 0], { radius: 10, modes: ['perpendicular'], entityIds: [circular.id], referencePoint: [60, 0] }).length, 0)
+})
+
 test('exact snaps outrank nearest while nearest remains an explicit fallback', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'snap-priority' })
   const circle = await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: [0, 0], radius: 10 } })
