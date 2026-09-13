@@ -28,6 +28,7 @@ export interface KJLayoutOptions {
     name?: string;
     paper?: unknown;
     dxfPlotSettings?: import('./plot-settings.js').KJDxfPlotSettings;
+    dxfLayoutGeometry?: import('./layout-geometry.js').KJDxfLayoutGeometry;
 }
 export declare class KJTransaction {
     #private;

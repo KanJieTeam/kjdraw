@@ -1,6 +1,7 @@
 // Generated from schema.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJD_SCHEMA, KJD_SCHEMA_VERSION, KJ_OBJECT_KINDS, KJ_SPACE_NAMES, KJ_TABLE_NAMES } from './constants.js';
 import { KJValidationError } from './errors.js';
+import { validateDxfLayoutGeometry } from './layout-geometry.js';
 import { createId } from './ids.js';
 import { isStandardEntityType, normalizeLegacyEntityPayload, normalizeStandardEntityPayload } from './standard-entities.js';
 import { assertPlainObject, clone, fromHexHandle, normalizeName, nowIso, toHexHandle } from './utils.js';
@@ -161,6 +162,10 @@ export function createEmptyDocumentState(options = {}) {
             blockRecordId: modelSpaceId,
             tabOrder: 0,
             paper: null,
+            dxfLayoutGeometry: {
+                limits: null,
+                extents: null
+            },
             viewportIds: []
         }
     });
@@ -177,6 +182,19 @@ export function createEmptyDocumentState(options = {}) {
                 width: 420,
                 height: 297,
                 unit: 'mm'
+            },
+            dxfLayoutGeometry: {
+                limits: {
+                    minimum: [
+                        0,
+                        0
+                    ],
+                    maximum: [
+                        420,
+                        297
+                    ]
+                },
+                extents: null
             },
             viewportIds: []
         }
@@ -553,6 +571,14 @@ function validateSpaces(state, issues, previousState) {
                 path: `objects.${object.id}.payload.viewportIds`,
                 message: `Invalid viewport: ${viewportId}`
             });
+            if (object.payload?.dxfLayoutGeometry !== undefined) try {
+                validateDxfLayoutGeometry(object.payload.dxfLayoutGeometry);
+            } catch (error) {
+                issues.push({
+                    path: `objects.${object.id}.payload.dxfLayoutGeometry`,
+                    message: errorMessage(error)
+                });
+            }
         }
         if (object.kind === 'dictionary') {
             for (const referenced of Object.values(object.payload?.entries ?? {}).flat()){

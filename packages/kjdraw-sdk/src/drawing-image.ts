@@ -73,7 +73,7 @@ export interface KJDrawingPngPlan {
     }
     readonly plotOriginPixels: readonly [number, number]
     readonly sourceRange: {
-      readonly kind: 'layout' | 'window' | 'view'
+      readonly kind: 'layout' | 'layout-limits' | 'window' | 'view'
       readonly minimum: readonly [number, number]
       readonly maximum: readonly [number, number]
     }
@@ -211,11 +211,11 @@ export function resolveDrawingPngPlot(drawing: KJDocument, options: Pick<KJDrawi
   const printableWidth = paperWidth - left - right, printableHeight = paperHeight - top - bottom
   if (!(printableWidth > 0) || !(printableHeight > 0)) invalid('margins leave no printable area')
   let plotSource
-  try { plotSource = resolveDxfPlotSource(drawing, settings, model) }
+  try { plotSource = resolveDxfPlotSource(drawing, layout.id, settings, model) }
   catch (error) { invalid(error instanceof Error ? error.message : 'invalid plot source') }
   let x = 0, y = 0, maximumX = 0, maximumY = 0, minimumX = 0, minimumY = 0
   let plotWidth: number | undefined, plotHeight: number | undefined
-  if (plotSource.kind !== 'layout') {
+  if (plotSource.bounded) {
     x = plotSource.minimum[0]; y = plotSource.minimum[1]
     minimumX = x; minimumY = y; maximumX = plotSource.maximum[0]; maximumY = plotSource.maximum[1]
     plotWidth = plotSource.width; plotHeight = plotSource.height
@@ -224,7 +224,7 @@ export function resolveDrawingPngPlot(drawing: KJDocument, options: Pick<KJDrawi
   try { resolved = resolvePlotScale(settings, { printableWidth, printableHeight, sourceWidth: plotWidth, sourceHeight: plotHeight, isModel: model }) }
   catch (error) { invalid(error instanceof Error ? error.message : 'invalid plot scale') }
   const scale = resolved.millimetersPerDrawingUnit, originX = resolved.originX, originY = resolved.originY
-  if (plotSource.kind === 'layout') {
+  if (!plotSource.bounded) {
     minimumX = originX === 0 ? 0 : -originX / scale; minimumY = originY === 0 ? 0 : -originY / scale
     maximumX = printableWidth / scale - originX / scale; maximumY = printableHeight / scale - originY / scale
   }

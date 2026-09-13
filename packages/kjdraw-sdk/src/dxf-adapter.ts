@@ -14,6 +14,8 @@ import type { KJDimensionPointAssociation } from './dimension-associations.js'
 import { normalizeName } from './utils.js'
 import { PLOT_SETTING_FIELDS, validatePlotSettings } from './plot-settings.js'
 import type { KJDxfPlotSettings } from './plot-settings.js'
+import { validateDxfLayoutGeometry } from './layout-geometry.js'
+import type { KJDxfLayoutGeometry } from './layout-geometry.js'
 
 type DxfVersion = 'R12' | 'R14' | '2000' | '2004' | '2010' | '2013' | '2018' | '2024'
 type DxfProductVersion = Exclude<DxfVersion, 'R12'>
@@ -570,6 +572,21 @@ function number(record: DxfRecord, code: number, fallback = 0): number {
 }
 function point(record: DxfRecord, xCode = 10, yCode = 20, zCode = 30): Point3 { return [number(record, xCode), number(record, yCode), number(record, zCode)] }
 
+function readLayoutGeometry(record: DxfRecord): KJDxfLayoutGeometry {
+  const hasLimits = [10,20,11,21].map(code => values(record, code).length > 0)
+  if (hasLimits.some(Boolean) && !hasLimits.every(Boolean)) throw new KJValidationError('DXF AcDbLayout has incomplete limits')
+  const limits = hasLimits.every(Boolean) ? { minimum:[number(record,10),number(record,20)] as [number,number], maximum:[number(record,11),number(record,21)] as [number,number] } : null
+  const hasExtents = [14,24,15,25].map(code => values(record, code).length > 0)
+  if (hasExtents.some(Boolean) && !hasExtents.every(Boolean)) throw new KJValidationError('DXF AcDbLayout has incomplete extents')
+  const rawMinimum = hasExtents.every(Boolean) ? point(record,14,24,34) : null
+  const rawMaximum = hasExtents.every(Boolean) ? point(record,15,25,35) : null
+  const unset = rawMinimum !== null && rawMaximum !== null && rawMinimum.slice(0,2).every(value => value >= 1e19) && rawMaximum.slice(0,2).every(value => value <= -1e19)
+  const extents = rawMinimum && rawMaximum && !unset ? { minimum:rawMinimum, maximum:rawMaximum } : null
+  const geometry = { limits, extents }
+  validateDxfLayoutGeometry(geometry)
+  return geometry
+}
+
 function repeatedPoints(record: DxfRecord, xCode = 10, yCode = 20, zCode = 30): Point3[] {
   const result: Point3[] = []
   for (let index = 0; index < record.tags.length; index += 1) {
@@ -958,7 +975,7 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
     const sourceLayouts = records(section(tags, 'OBJECTS')).filter(record => record.type === 'LAYOUT').map(record => {
       const marker = record.tags.findIndex(tag => tag.code === 100 && tag.value === 'AcDbLayout')
       const layout = { ...record, tags: marker < 0 ? record.tags : record.tags.slice(marker + 1) }
-      return { name: String(first(layout, 1) ?? '').trim(), handle: String(first(record, 5) ?? '').toUpperCase(), blockHandle: recordOwner(layout), order: number(layout, 71, 0), plotSettings: readPlotSettings(record) }
+      return { name: String(first(layout, 1) ?? '').trim(), handle: String(first(record, 5) ?? '').toUpperCase(), blockHandle: recordOwner(layout), order: number(layout, 71, 0), plotSettings: readPlotSettings(record), geometry: readLayoutGeometry(layout) }
     }).filter(layout => layout.name).sort((a, b) => a.order - b.order)
     const layoutNames = new Set<string>(), layoutOwners = new Set<string>()
     for (const layout of sourceLayouts) {
@@ -978,10 +995,10 @@ async function readDXF(source: unknown, options: DxfReadOptions = {}): Promise<K
       return layout.payload.blockRecordId
     }
     for (const layout of sourceLayouts) if (normalizeName(layout.name) !== 'MODEL') ensurePaperSpace(layout.name, layout.order)
-    for (const layout of sourceLayouts) if (layout.plotSettings) {
+    for (const layout of sourceLayouts) {
       const id = transaction._draft().spaces.layoutIds.find(id => normalizeName(transaction.getObject(id)?.name) === normalizeName(layout.name))
       if (!id) throw new KJValidationError('DXF page configuration has no layout')
-      transaction.updateObject(id, { payload: { dxfPlotSettings: layout.plotSettings } })
+      transaction.updateObject(id, { payload: { ...(layout.plotSettings ? { dxfPlotSettings:layout.plotSettings } : {}), dxfLayoutGeometry:layout.geometry } })
     }
     const sourceLayoutByBlock = new Map(sourceLayouts.map(layout => [layout.blockHandle, layout.name]))
     const sourceLayoutByHandle = new Map(sourceLayouts.map(layout => [layout.handle, layout.name]))
@@ -2104,8 +2121,11 @@ function writeDXF(document: unknown, options: KJFileAdapterContext = {}): string
       }
       emit(output, 100, 'AcDbLayout')
       emit(output, 1, layout.name); emit(output, 70, 1); emit(output, 71, layout.payload.tabOrder ?? index)
-      emit(output, 10, 0); emit(output, 20, 0); emit(output, 11, 420); emit(output, 21, 297)
-      emitPoint(output, [0, 0, 0], 12); emitPoint(output, [0, 0, 0], 14); emitPoint(output, [0, 0, 0], 15)
+      const geometry = layout.payload.dxfLayoutGeometry as KJDxfLayoutGeometry | undefined
+      if (geometry !== undefined) validateDxfLayoutGeometry(geometry)
+      if (geometry?.limits) { emit(output, 10, geometry.limits.minimum[0]); emit(output, 20, geometry.limits.minimum[1]); emit(output, 11, geometry.limits.maximum[0]); emit(output, 21, geometry.limits.maximum[1]) }
+      emitPoint(output, [0, 0, 0], 12)
+      emitPoint(output, geometry?.extents?.minimum ?? [1e20,1e20,1e20], 14); emitPoint(output, geometry?.extents?.maximum ?? [-1e20,-1e20,-1e20], 15)
       emitPoint(output, [0, 0, 0], 13); emitPoint(output, [1, 0, 0], 16); emitPoint(output, [0, 1, 0], 17)
       emit(output, 330, state.objects[String(layout.payload.blockRecordId)]!.handle)
     }

@@ -9,6 +9,7 @@ import { normalizeStandardEntityPayload } from './standard-entities.js';
 import { normalizeDimensionAssociations } from './dimension-associations.js';
 import { normalizeName } from './utils.js';
 import { PLOT_SETTING_FIELDS, validatePlotSettings } from './plot-settings.js';
+import { validateDxfLayoutGeometry } from './layout-geometry.js';
 function readDimensionAssociationHandles(record) {
     const starts = record.tags.map((tag, index)=>tag.code === 1001 && tag.value === 'KJDRAW' ? index : -1).filter((index)=>index >= 0);
     if (!starts.length) return null;
@@ -564,6 +565,45 @@ function point(record, xCode = 10, yCode = 20, zCode = 30) {
         number(record, yCode),
         number(record, zCode)
     ];
+}
+function readLayoutGeometry(record) {
+    const hasLimits = [
+        10,
+        20,
+        11,
+        21
+    ].map((code)=>values(record, code).length > 0);
+    if (hasLimits.some(Boolean) && !hasLimits.every(Boolean)) throw new KJValidationError('DXF AcDbLayout has incomplete limits');
+    const limits = hasLimits.every(Boolean) ? {
+        minimum: [
+            number(record, 10),
+            number(record, 20)
+        ],
+        maximum: [
+            number(record, 11),
+            number(record, 21)
+        ]
+    } : null;
+    const hasExtents = [
+        14,
+        24,
+        15,
+        25
+    ].map((code)=>values(record, code).length > 0);
+    if (hasExtents.some(Boolean) && !hasExtents.every(Boolean)) throw new KJValidationError('DXF AcDbLayout has incomplete extents');
+    const rawMinimum = hasExtents.every(Boolean) ? point(record, 14, 24, 34) : null;
+    const rawMaximum = hasExtents.every(Boolean) ? point(record, 15, 25, 35) : null;
+    const unset = rawMinimum !== null && rawMaximum !== null && rawMinimum.slice(0, 2).every((value)=>value >= 1e19) && rawMaximum.slice(0, 2).every((value)=>value <= -1e19);
+    const extents = rawMinimum && rawMaximum && !unset ? {
+        minimum: rawMinimum,
+        maximum: rawMaximum
+    } : null;
+    const geometry = {
+        limits,
+        extents
+    };
+    validateDxfLayoutGeometry(geometry);
+    return geometry;
 }
 function repeatedPoints(record, xCode = 10, yCode = 20, zCode = 30) {
     const result = [];
@@ -1591,7 +1631,8 @@ async function readDXF(source, options = {}) {
                 handle: String(first(record, 5) ?? '').toUpperCase(),
                 blockHandle: recordOwner(layout),
                 order: number(layout, 71, 0),
-                plotSettings: readPlotSettings(record)
+                plotSettings: readPlotSettings(record),
+                geometry: readLayoutGeometry(layout)
             };
         }).filter((layout)=>layout.name).sort((a, b)=>a.order - b.order);
         const layoutNames = new Set(), layoutOwners = new Set();
@@ -1621,12 +1662,15 @@ async function readDXF(source, options = {}) {
             return layout.payload.blockRecordId;
         };
         for (const layout of sourceLayouts)if (normalizeName(layout.name) !== 'MODEL') ensurePaperSpace(layout.name, layout.order);
-        for (const layout of sourceLayouts)if (layout.plotSettings) {
+        for (const layout of sourceLayouts){
             const id = transaction._draft().spaces.layoutIds.find((id)=>normalizeName(transaction.getObject(id)?.name) === normalizeName(layout.name));
             if (!id) throw new KJValidationError('DXF page configuration has no layout');
             transaction.updateObject(id, {
                 payload: {
-                    dxfPlotSettings: layout.plotSettings
+                    ...layout.plotSettings ? {
+                        dxfPlotSettings: layout.plotSettings
+                    } : {},
+                    dxfLayoutGeometry: layout.geometry
                 }
             });
         }
@@ -3503,24 +3547,28 @@ function writeDXF(document, options = {}) {
             emit(output, 1, layout.name);
             emit(output, 70, 1);
             emit(output, 71, layout.payload.tabOrder ?? index);
-            emit(output, 10, 0);
-            emit(output, 20, 0);
-            emit(output, 11, 420);
-            emit(output, 21, 297);
+            const geometry = layout.payload.dxfLayoutGeometry;
+            if (geometry !== undefined) validateDxfLayoutGeometry(geometry);
+            if (geometry?.limits) {
+                emit(output, 10, geometry.limits.minimum[0]);
+                emit(output, 20, geometry.limits.minimum[1]);
+                emit(output, 11, geometry.limits.maximum[0]);
+                emit(output, 21, geometry.limits.maximum[1]);
+            }
             emitPoint(output, [
                 0,
                 0,
                 0
             ], 12);
-            emitPoint(output, [
-                0,
-                0,
-                0
+            emitPoint(output, geometry?.extents?.minimum ?? [
+                1e20,
+                1e20,
+                1e20
             ], 14);
-            emitPoint(output, [
-                0,
-                0,
-                0
+            emitPoint(output, geometry?.extents?.maximum ?? [
+                -1e20,
+                -1e20,
+                -1e20
             ], 15);
             emitPoint(output, [
                 0,

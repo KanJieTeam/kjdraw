@@ -1,5 +1,6 @@
 // Generated from plot-range.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJValidationError } from './errors.js';
+import { validateDxfLayoutGeometry } from './layout-geometry.js';
 import { normalizeName } from './utils.js';
 function finitePoint(value, label) {
     if (!Array.isArray(value) || value.length < 2) throw new KJValidationError(`${label} must be an XY or XYZ point`);
@@ -11,12 +12,27 @@ function finitePoint(value, label) {
     if (!point.every(Number.isFinite)) throw new KJValidationError(`${label} must contain finite coordinates`);
     return point;
 }
-export function resolveDxfPlotSource(document, settings, isModel) {
+export function resolveDxfPlotSource(document, layoutId, settings, isModel) {
     const plotType = Number(settings.plotType ?? (isModel ? -1 : 5));
     if (plotType === 5) {
         if (isModel) throw new KJValidationError('Layout plot area is available only in paper space');
+        const fit = (Number(settings.flags ?? 0) & 16) !== 0 && Number(settings.standardScaleType ?? 16) === 0;
+        if (!fit) return Object.freeze({
+            kind: 'layout',
+            bounded: false
+        });
+        const layout = document.getObject(layoutId), geometry = layout?.payload.dxfLayoutGeometry;
+        if (!layout || layout.kind !== 'layout' || geometry === undefined) throw new KJValidationError('Paper-layout fit requires persistent AcDbLayout limits');
+        validateDxfLayoutGeometry(geometry);
+        if (!geometry.limits) throw new KJValidationError('Paper-layout fit requires finite AcDbLayout limits');
+        const { minimum, maximum } = geometry.limits, width = maximum[0] - minimum[0], height = maximum[1] - minimum[1];
         return Object.freeze({
-            kind: 'layout'
+            kind: 'layout-limits',
+            bounded: true,
+            minimum,
+            maximum,
+            width,
+            height
         });
     }
     if (plotType === 4) {
@@ -35,6 +51,7 @@ export function resolveDxfPlotSource(document, settings, isModel) {
         ].every(Number.isFinite) || !(width > 0) || !(height > 0)) throw new KJValidationError('Plot window must have four finite coordinates and positive dimensions');
         return Object.freeze({
             kind: 'window',
+            bounded: true,
             minimum,
             maximum,
             width,
@@ -89,6 +106,7 @@ export function resolveDxfPlotSource(document, settings, isModel) {
     ].every(Number.isFinite)) throw new KJValidationError(`Named view ${name} range exceeds finite drawing coordinates`);
     return Object.freeze({
         kind: 'view',
+        bounded: true,
         minimum,
         maximum,
         width,

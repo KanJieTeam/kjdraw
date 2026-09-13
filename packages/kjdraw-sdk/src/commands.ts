@@ -1,5 +1,7 @@
 import { KJRegistrationError, KJValidationError } from './errors.js'
 import { validatePlotSettings } from './plot-settings.js'
+import { paperLimitsFromPlotSettings } from './layout-geometry.js'
+import type { KJDxfLayoutGeometry } from './layout-geometry.js'
 import { createCommandEditScope } from './edit-policy.js'
 import { applyRoadDrawingRevision } from './road-drawing-update.js'
 import { createDesignRelations, updateDesignRelations } from './design-relations.js'
@@ -953,7 +955,15 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
           const views = document.getTable('views')?.records.filter(record => normalizeName(record.name) === normalizeName(viewName)) ?? []
           if (views.length !== 1) throw new KJValidationError(views.length ? `Named view is ambiguous: ${viewName}` : `Named view does not exist: ${viewName}`)
         }
-        return transaction.updateObject(layout.id, { payload: { dxfPlotSettings: settings } })
+        const geometryFields = ['paperWidth','paperHeight','paperUnits','marginLeft','marginBottom','originX','originY']
+        const paper = layout.payload.paper && typeof layout.payload.paper === 'object' ? layout.payload.paper as Record<string, unknown> : {}
+        const refreshLimits = layout.payload.blockRecordId !== document.spaces.modelSpaceId && changed.some(key => geometryFields.includes(key))
+        const currentGeometry = layout.payload.dxfLayoutGeometry as KJDxfLayoutGeometry | undefined
+        const dxfLayoutGeometry = refreshLimits ? {
+          limits: paperLimitsFromPlotSettings({ ...settings, paperWidth: settings.paperWidth ?? Number(paper.width), paperHeight: settings.paperHeight ?? Number(paper.height) }),
+          extents: currentGeometry?.extents ?? null,
+        } : currentGeometry
+        return transaction.updateObject(layout.id, { payload: { dxfPlotSettings: settings, ...(dxfLayoutGeometry === undefined ? {} : { dxfLayoutGeometry }) } })
       }
       const settings = normalizePlotSettings(args.settings ?? args)
       if (settings.plotStyleId && !document.snapshot().resources.plotStyles?.[settings.plotStyleId]) throw new KJValidationError(`Plot style does not exist: ${settings.plotStyleId}`)

@@ -29,7 +29,7 @@ export interface KJSvgDrawingExport {
     /** Drawing origin measured from the lower-left paper edge. */
     plotOriginMm: readonly [number, number]
     /** Exact source coordinates admitted by the physical page and selected plot range. */
-    sourceRange: { kind: 'layout' | 'window' | 'view'; minimum: readonly [number, number]; maximum: readonly [number, number] }
+    sourceRange: { kind: 'layout' | 'layout-limits' | 'window' | 'view'; minimum: readonly [number, number]; maximum: readonly [number, number] }
     /** Drawing XY to SVG paper millimeters, whose origin is the page's upper-left corner. */
     drawingToPaperMatrix: AffineMatrix3
   }
@@ -137,11 +137,11 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
   if (left + right >= width || top + bottom >= height) fail('margins leave no printable area')
   const printableWidth = width - left - right, printableHeight = height - top - bottom
   let plotSource
-  try { plotSource = resolveDxfPlotSource(document, settings, isModel) }
+  try { plotSource = resolveDxfPlotSource(document, layout.id, settings, isModel) }
   catch (error) { fail(error instanceof Error ? error.message : 'invalid plot source') }
   let x = 0, y = 0, sourceMinimumX = 0, sourceMinimumY = 0, maximumX = 0, maximumY = 0, plotClip = ''
   let plotWidth: number | undefined, plotHeight: number | undefined
-  if (plotSource.kind !== 'layout') {
+  if (plotSource.bounded) {
     x = plotSource.minimum[0]; y = plotSource.minimum[1]
     maximumX = plotSource.maximum[0]; maximumY = plotSource.maximum[1]
     sourceMinimumX = x; sourceMinimumY = y
@@ -152,7 +152,7 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
   try { resolved = resolvePlotScale(settings, { printableWidth, printableHeight, sourceWidth: plotWidth, sourceHeight: plotHeight, isModel }) }
   catch (error) { fail(error instanceof Error ? error.message : 'invalid plot scale') }
   const scale = resolved.millimetersPerDrawingUnit, originX = resolved.originX, originY = resolved.originY
-  if (plotSource.kind === 'layout') {
+  if (!plotSource.bounded) {
     sourceMinimumX = originX === 0 ? 0 : -originX / scale; sourceMinimumY = originY === 0 ? 0 : -originY / scale
     maximumX = printableWidth / scale - originX / scale; maximumY = printableHeight / scale - originY / scale
   }

@@ -7,6 +7,7 @@ import {
 } from './constants.js'
 import type { KJObjectKind, KJTableName } from './constants.js'
 import { KJValidationError } from './errors.js'
+import { validateDxfLayoutGeometry } from './layout-geometry.js'
 import { createId } from './ids.js'
 import { isStandardEntityType, normalizeLegacyEntityPayload, normalizeStandardEntityPayload } from './standard-entities.js'
 import {
@@ -268,8 +269,8 @@ export function createEmptyDocumentState(options: KJDocumentOptions = {}): KJDoc
   const layerId = add({ id: createId('layer'), kind: 'table-record', type: 'LAYER', name: '0', payload: { color: 7, linetypeId: continuousId, linetypeName: 'CONTINUOUS', lineweight: -1, visible: true, frozen: false, locked: false, plottable: true } })
   const modelSpaceId = add({ id: createId('block'), kind: 'block-record', type: 'BLOCK_RECORD', name: KJ_SPACE_NAMES.MODEL, payload: { entityIds: [], isSpace: true } })
   const paperSpaceId = add({ id: createId('block'), kind: 'block-record', type: 'BLOCK_RECORD', name: KJ_SPACE_NAMES.PAPER, payload: { entityIds: [], isSpace: true } })
-  const modelLayoutId = add({ id: createId('layout'), kind: 'layout', type: 'LAYOUT', ownerId: nodId, name: 'Model', payload: { blockRecordId: modelSpaceId, tabOrder: 0, paper: null, viewportIds: [] } })
-  const paperLayoutId = add({ id: createId('layout'), kind: 'layout', type: 'LAYOUT', ownerId: nodId, name: 'Layout1', payload: { blockRecordId: paperSpaceId, tabOrder: 1, paper: { width: 420, height: 297, unit: 'mm' }, viewportIds: [] } })
+  const modelLayoutId = add({ id: createId('layout'), kind: 'layout', type: 'LAYOUT', ownerId: nodId, name: 'Model', payload: { blockRecordId: modelSpaceId, tabOrder: 0, paper: null, dxfLayoutGeometry: { limits:null, extents:null }, viewportIds: [] } })
+  const paperLayoutId = add({ id: createId('layout'), kind: 'layout', type: 'LAYOUT', ownerId: nodId, name: 'Layout1', payload: { blockRecordId: paperSpaceId, tabOrder: 1, paper: { width: 420, height: 297, unit: 'mm' }, dxfLayoutGeometry: { limits:{ minimum:[0,0], maximum:[420,297] }, extents:null }, viewportIds: [] } })
   const entries = objects[nodId]!.payload.entries ??= {}
   entries.ACAD_LAYOUT = [modelLayoutId, paperLayoutId]
 
@@ -459,6 +460,7 @@ function validateSpaces(state: KJDocumentState, issues: KJValidationIssue[], pre
     if (object.kind === 'layout') {
       if (state.objects[object.payload?.blockRecordId ?? '']?.kind !== 'block-record') issues.push({ path: `objects.${object.id}.payload.blockRecordId`, message: 'Layout block record is missing' })
       for (const viewportId of object.payload?.viewportIds ?? []) if (state.objects[viewportId]?.type !== 'VIEWPORT') issues.push({ path: `objects.${object.id}.payload.viewportIds`, message: `Invalid viewport: ${viewportId}` })
+      if (object.payload?.dxfLayoutGeometry !== undefined) try { validateDxfLayoutGeometry(object.payload.dxfLayoutGeometry) } catch (error) { issues.push({ path: `objects.${object.id}.payload.dxfLayoutGeometry`, message: errorMessage(error) }) }
     }
     if (object.kind === 'dictionary') {
       for (const referenced of Object.values(object.payload?.entries ?? {}).flat()) {

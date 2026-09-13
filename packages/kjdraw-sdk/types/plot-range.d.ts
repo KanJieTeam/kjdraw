@@ -3,16 +3,18 @@ import type { KJDxfPlotSettings } from './plot-settings.js';
 type Point2 = readonly [number, number];
 export type KJResolvedPlotSource = Readonly<{
     kind: 'layout';
+    bounded: false;
 }> | Readonly<{
-    kind: 'window' | 'view';
+    kind: 'layout-limits' | 'window' | 'view';
+    bounded: true;
     minimum: Point2;
     maximum: Point2;
     width: number;
     height: number;
 }>;
 /** Resolve only plot sources whose coordinates are explicit and persistent.
- * Layout mode is intentionally unbounded: its visible range depends on the
- * physical page. Named views are accepted only for an unambiguous planar WCS
+ * Layout mode uses AcDbLayout limits only for fit; custom and fixed scales
+ * retain their physical-page-derived range. Named views require a planar WCS
  * top view; perspective, clipping, UCS and twist require a different matrix. */
-export declare function resolveDxfPlotSource(document: KJDocument, settings: KJDxfPlotSettings, isModel: boolean): KJResolvedPlotSource;
+export declare function resolveDxfPlotSource(document: KJDocument, layoutId: string, settings: KJDxfPlotSettings, isModel: boolean): KJResolvedPlotSource;
 export {};

@@ -1,6 +1,7 @@
 // Generated from commands.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJRegistrationError, KJValidationError } from './errors.js';
 import { validatePlotSettings } from './plot-settings.js';
+import { paperLimitsFromPlotSettings } from './layout-geometry.js';
 import { createCommandEditScope } from './edit-policy.js';
 import { applyRoadDrawingRevision } from './road-drawing-update.js';
 import { createDesignRelations, updateDesignRelations } from './design-relations.js';
@@ -1588,9 +1589,32 @@ export function registerCoreCommands(registry) {
                     const views = document.getTable('views')?.records.filter((record)=>normalizeName(record.name) === normalizeName(viewName)) ?? [];
                     if (views.length !== 1) throw new KJValidationError(views.length ? `Named view is ambiguous: ${viewName}` : `Named view does not exist: ${viewName}`);
                 }
+                const geometryFields = [
+                    'paperWidth',
+                    'paperHeight',
+                    'paperUnits',
+                    'marginLeft',
+                    'marginBottom',
+                    'originX',
+                    'originY'
+                ];
+                const paper = layout.payload.paper && typeof layout.payload.paper === 'object' ? layout.payload.paper : {};
+                const refreshLimits = layout.payload.blockRecordId !== document.spaces.modelSpaceId && changed.some((key)=>geometryFields.includes(key));
+                const currentGeometry = layout.payload.dxfLayoutGeometry;
+                const dxfLayoutGeometry = refreshLimits ? {
+                    limits: paperLimitsFromPlotSettings({
+                        ...settings,
+                        paperWidth: settings.paperWidth ?? Number(paper.width),
+                        paperHeight: settings.paperHeight ?? Number(paper.height)
+                    }),
+                    extents: currentGeometry?.extents ?? null
+                } : currentGeometry;
                 return transaction.updateObject(layout.id, {
                     payload: {
-                        dxfPlotSettings: settings
+                        dxfPlotSettings: settings,
+                        ...dxfLayoutGeometry === undefined ? {} : {
+                            dxfLayoutGeometry
+                        }
                     }
                 });
             }

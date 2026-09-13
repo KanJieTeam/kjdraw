@@ -1,13 +1,15 @@
 import type { KJDocument } from './document.js'
 import { KJValidationError } from './errors.js'
 import type { KJDxfPlotSettings } from './plot-settings.js'
+import { validateDxfLayoutGeometry } from './layout-geometry.js'
+import type { KJDxfLayoutGeometry } from './layout-geometry.js'
 import { normalizeName } from './utils.js'
 
 type Point2 = readonly [number, number]
 
 export type KJResolvedPlotSource =
-  | Readonly<{ kind: 'layout' }>
-  | Readonly<{ kind: 'window' | 'view'; minimum: Point2; maximum: Point2; width: number; height: number }>
+  | Readonly<{ kind: 'layout'; bounded: false }>
+  | Readonly<{ kind: 'layout-limits' | 'window' | 'view'; bounded: true; minimum: Point2; maximum: Point2; width: number; height: number }>
 
 function finitePoint(value: unknown, label: string): readonly [number, number, number] {
   if (!Array.isArray(value) || value.length < 2) throw new KJValidationError(`${label} must be an XY or XYZ point`)
@@ -17,21 +19,28 @@ function finitePoint(value: unknown, label: string): readonly [number, number, n
 }
 
 /** Resolve only plot sources whose coordinates are explicit and persistent.
- * Layout mode is intentionally unbounded: its visible range depends on the
- * physical page. Named views are accepted only for an unambiguous planar WCS
+ * Layout mode uses AcDbLayout limits only for fit; custom and fixed scales
+ * retain their physical-page-derived range. Named views require a planar WCS
  * top view; perspective, clipping, UCS and twist require a different matrix. */
-export function resolveDxfPlotSource(document: KJDocument, settings: KJDxfPlotSettings, isModel: boolean): KJResolvedPlotSource {
+export function resolveDxfPlotSource(document: KJDocument, layoutId: string, settings: KJDxfPlotSettings, isModel: boolean): KJResolvedPlotSource {
   const plotType = Number(settings.plotType ?? (isModel ? -1 : 5))
   if (plotType === 5) {
     if (isModel) throw new KJValidationError('Layout plot area is available only in paper space')
-    return Object.freeze({ kind:'layout' })
+    const fit = (Number(settings.flags ?? 0) & 16) !== 0 && Number(settings.standardScaleType ?? 16) === 0
+    if (!fit) return Object.freeze({ kind:'layout', bounded:false })
+    const layout = document.getObject(layoutId), geometry = layout?.payload.dxfLayoutGeometry as KJDxfLayoutGeometry | undefined
+    if (!layout || layout.kind !== 'layout' || geometry === undefined) throw new KJValidationError('Paper-layout fit requires persistent AcDbLayout limits')
+    validateDxfLayoutGeometry(geometry)
+    if (!geometry.limits) throw new KJValidationError('Paper-layout fit requires finite AcDbLayout limits')
+    const { minimum, maximum } = geometry.limits, width = maximum[0] - minimum[0], height = maximum[1] - minimum[1]
+    return Object.freeze({ kind:'layout-limits', bounded:true, minimum, maximum, width, height })
   }
   if (plotType === 4) {
     const minimum = [Number(settings.windowMinX), Number(settings.windowMinY)] as const
     const maximum = [Number(settings.windowMaxX), Number(settings.windowMaxY)] as const
     const width = maximum[0] - minimum[0], height = maximum[1] - minimum[1]
     if (![...minimum, ...maximum].every(Number.isFinite) || !(width > 0) || !(height > 0)) throw new KJValidationError('Plot window must have four finite coordinates and positive dimensions')
-    return Object.freeze({ kind:'window', minimum, maximum, width, height })
+    return Object.freeze({ kind:'window', bounded:true, minimum, maximum, width, height })
   }
   if (plotType !== 3) throw new KJValidationError('Select a paper layout, explicit window or named view for strict output')
   const name = String(settings.viewName ?? '').trim()
@@ -54,5 +63,5 @@ export function resolveDxfPlotSource(document: KJDocument, settings: KJDxfPlotSe
   const x = center[0] + target[0], y = center[1] + target[1]
   const minimum = [x - width / 2, y - height / 2] as const, maximum = [x + width / 2, y + height / 2] as const
   if (![...minimum,...maximum].every(Number.isFinite)) throw new KJValidationError(`Named view ${name} range exceeds finite drawing coordinates`)
-  return Object.freeze({ kind:'view', minimum, maximum, width, height })
+  return Object.freeze({ kind:'view', bounded:true, minimum, maximum, width, height })
 }

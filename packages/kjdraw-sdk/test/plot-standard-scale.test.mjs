@@ -69,7 +69,6 @@ print(json.dumps({'flags':m.plot_layout_flags,'scale':m.standard_scale_type,'err
 
 test('fit, centered and unsupported flag failures are read-only and explicit', async () => {
   for (const settings of [
-    { flags:16, standardScaleType:0, plotType:5 },
     { flags:4, plotType:5 },
     { flags:32 },
     { flags:16, standardScaleType:26, windowMaxX:50000 },

@@ -2,6 +2,7 @@ import { KJ_TABLE_NAMES } from './constants.js'
 import type { KJTableName } from './constants.js'
 import { KJTransactionError, KJValidationError } from './errors.js'
 import { createId } from './ids.js'
+import { paperLimitsFromPlotSettings } from './layout-geometry.js'
 import { allocateHandle, createObjectRecord } from './schema.js'
 import { isStandardEntityType, normalizeStandardEntityPayload } from './standard-entities.js'
 import { transformEntityPayload } from './geometry/transform.js'
@@ -81,6 +82,7 @@ export interface KJLayoutOptions {
   name?: string
   paper?: unknown
   dxfPlotSettings?: import('./plot-settings.js').KJDxfPlotSettings
+  dxfLayoutGeometry?: import('./layout-geometry.js').KJDxfLayoutGeometry
 }
 
 export class KJTransaction {
@@ -397,12 +399,17 @@ export class KJTransaction {
     if (this.#state.spaces.layoutIds.some(id => String(this.#state.objects[id]?.name).toUpperCase() === name.toUpperCase())) throw new KJValidationError(`Layout already exists: ${name}`)
     const blockName = `*PAPER_SPACE_${this.#state.spaces.paperSpaceIds.length + 1}`
     const block = this.upsertTableRecord('blockRecords', { name: blockName, type: 'BLOCK_RECORD', payload: { entityIds: [], isSpace: true } })
+    const paper = options.paper && typeof options.paper === 'object' && !Array.isArray(options.paper) ? options.paper as Record<string, unknown> : {}
+    const paperWidth = Number(options.dxfPlotSettings?.paperWidth ?? paper.width ?? 420)
+    const paperHeight = Number(options.dxfPlotSettings?.paperHeight ?? paper.height ?? 297)
+    const dxfLayoutGeometry = options.dxfLayoutGeometry ?? { limits:paperLimitsFromPlotSettings({ ...options.dxfPlotSettings, paperWidth, paperHeight }), extents:null }
     const layout = this.createObject({
       kind: 'layout', type: 'LAYOUT', ownerId: this.#state.namedObjectsDictionaryId, name,
       payload: {
         blockRecordId: block.id,
         tabOrder: this.#state.spaces.layoutIds.length,
         paper: clone(options.paper ?? { width: 420, height: 297, unit: 'mm' }),
+        dxfLayoutGeometry: clone(dxfLayoutGeometry),
         ...(options.dxfPlotSettings === undefined ? {} : { dxfPlotSettings: clone(options.dxfPlotSettings) }),
         viewportIds: [],
       },

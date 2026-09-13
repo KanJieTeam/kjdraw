@@ -193,6 +193,36 @@ test('Workbench named view provides a persisted fit range for a paper layout', a
   expect((await output()).source.kind).toBe('view')
 })
 
+test('Workbench paper-layout fit persists native layout limits for SVG and PNG through history and DXF reopen', async ({ page }) => {
+  await mount(page)
+  await open(page, 'Empty sheet')
+  await field(page, 'plotType').selectOption('5')
+  for (const [key, value] of Object.entries({ paperWidth:210, paperHeight:100, marginLeft:10, marginRight:10, marginTop:15, marginBottom:5, originX:2, originY:3 })) await field(page, key).fill(String(value))
+  await field(page, 'paperUnits').selectOption('1')
+  await page.locator('[data-page-scale-mode]').selectOption('fit')
+  await dialog(page).getByRole('button', { name:'Apply', exact:true }).click()
+  await expect(dialog(page)).not.toBeVisible()
+  const output = async () => page.evaluate(async () => {
+    const { exportDrawingSvg } = await import('/packages/kjdraw-sdk/src/index.js')
+    const { resolveDrawingPngPlot } = await import('/packages/kjdraw-sdk/src/drawing-image.js')
+    const drawing = window.pageEditor.document, layoutId = drawing.snapshot().spaces.layoutIds.find(id => drawing.getObject(id).name === 'Empty sheet')
+    const layout = drawing.getObject(layoutId), svg = exportDrawingSvg(drawing, { layoutId }), png = resolveDrawingPngPlot(drawing, { layoutId })
+    return { geometry:layout.payload.dxfLayoutGeometry, source:svg.plot.sourceRange, svgScale:svg.paper.millimetersPerDrawingUnit, pngScale:png.plot.drawingToPixelMatrix[0] / png.paper.pixelsPerMillimeter }
+  })
+  const fitted = await output()
+  expect(fitted.geometry).toEqual({ limits:{ minimum:[-12,-8], maximum:[198,92] }, extents:null })
+  expect(fitted.source).toEqual({ kind:'layout-limits', minimum:[-12,-8], maximum:[198,92] })
+  expect(fitted.svgScale).toBeCloseTo(.8, 12); expect(fitted.pngScale).toBeCloseTo(.8, 12)
+  await page.evaluate(() => window.pageEditor.undo())
+  expect(await page.evaluate(() => window.pageEditor.document.snapshot().spaces.layoutIds.map(id => window.pageEditor.document.getObject(id)).find(layout => layout.name === 'Empty sheet').payload.dxfLayoutGeometry)).toEqual({ limits:{ minimum:[0,0], maximum:[148,210] }, extents:null })
+  await page.evaluate(() => window.pageEditor.redo()); expect((await output()).geometry).toEqual(fitted.geometry)
+  await page.evaluate(async () => {
+    const editor = window.pageEditor
+    await editor.open(new File([await editor.save({ format:'DXF', download:false })], 'layout-limits-fit.dxf'))
+  })
+  expect((await output()).source).toEqual(fitted.source)
+})
+
 test('plot windows reject missing and reversed coordinates; named views require a name', async ({ page }) => {
   await mount(page, 'zh-CN')
   const before = await values(page)

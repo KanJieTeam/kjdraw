@@ -148,13 +148,13 @@ export function exportDrawingSvg(document, options) {
     const printableWidth = width - left - right, printableHeight = height - top - bottom;
     let plotSource;
     try {
-        plotSource = resolveDxfPlotSource(document, settings, isModel);
+        plotSource = resolveDxfPlotSource(document, layout.id, settings, isModel);
     } catch (error) {
         fail(error instanceof Error ? error.message : 'invalid plot source');
     }
     let x = 0, y = 0, sourceMinimumX = 0, sourceMinimumY = 0, maximumX = 0, maximumY = 0, plotClip = '';
     let plotWidth, plotHeight;
-    if (plotSource.kind !== 'layout') {
+    if (plotSource.bounded) {
         x = plotSource.minimum[0];
         y = plotSource.minimum[1];
         maximumX = plotSource.maximum[0];
@@ -178,7 +178,7 @@ export function exportDrawingSvg(document, options) {
         fail(error instanceof Error ? error.message : 'invalid plot scale');
     }
     const scale = resolved.millimetersPerDrawingUnit, originX = resolved.originX, originY = resolved.originY;
-    if (plotSource.kind === 'layout') {
+    if (!plotSource.bounded) {
         sourceMinimumX = originX === 0 ? 0 : -originX / scale;
         sourceMinimumY = originY === 0 ? 0 : -originY / scale;
         maximumX = printableWidth / scale - originX / scale;

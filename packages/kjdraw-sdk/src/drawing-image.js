@@ -153,13 +153,13 @@ export function resolveDrawingPngPlot(drawing, options) {
     if (!(printableWidth > 0) || !(printableHeight > 0)) invalid('margins leave no printable area');
     let plotSource;
     try {
-        plotSource = resolveDxfPlotSource(drawing, settings, model);
+        plotSource = resolveDxfPlotSource(drawing, layout.id, settings, model);
     } catch (error) {
         invalid(error instanceof Error ? error.message : 'invalid plot source');
     }
     let x = 0, y = 0, maximumX = 0, maximumY = 0, minimumX = 0, minimumY = 0;
     let plotWidth, plotHeight;
-    if (plotSource.kind !== 'layout') {
+    if (plotSource.bounded) {
         x = plotSource.minimum[0];
         y = plotSource.minimum[1];
         minimumX = x;
@@ -182,7 +182,7 @@ export function resolveDrawingPngPlot(drawing, options) {
         invalid(error instanceof Error ? error.message : 'invalid plot scale');
     }
     const scale = resolved.millimetersPerDrawingUnit, originX = resolved.originX, originY = resolved.originY;
-    if (plotSource.kind === 'layout') {
+    if (!plotSource.bounded) {
         minimumX = originX === 0 ? 0 : -originX / scale;
         minimumY = originY === 0 ? 0 : -originY / scale;
         maximumX = printableWidth / scale - originX / scale;
