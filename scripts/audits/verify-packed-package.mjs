@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, delimiter, dirname, join, relative, resolve } from 'node:path'
-import { spawnSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
 const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url))
 const packageRoot = join(repositoryRoot, 'packages', 'kjdraw-sdk')
 const fixturesRoot = join(repositoryRoot, 'fixtures', 'consumer-types')
+const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repositoryRoot, encoding: 'utf8', windowsHide: true }).trim()
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -530,6 +532,7 @@ async function main() {
     assert.equal(typeof packedPath, 'string', `Unable to resolve packed tarball ${packMetadata.filename}; found ${packedFiles.join(', ')}`)
     const tarball = join(packDirectory, packedPath)
     assert.ok(existsSync(tarball), `Packed tarball is missing: ${tarball}`)
+    const artifactSha256 = createHash('sha256').update(await readFile(tarball)).digest('hex')
 
     await writeFile(join(consumerDirectory, 'package.json'), `${JSON.stringify({
       name: 'kjdraw-packed-consumer-audit',
@@ -746,8 +749,10 @@ console.log(JSON.stringify({ guide: '${locale}', geometricPreview: true, reviewe
     console.log(JSON.stringify({
       ok: true,
       package: `${installedPackage.name}@${installedPackage.version}`,
+      sourceCommit,
       source: fromRegistry ? 'npm-registry' : 'local-pack',
       tarball: basename(tarball),
+      artifactSha256,
       packedFiles: packMetadata.entryCount,
       unpackedBytes: packMetadata.unpackedSize,
       publicEntryPoints: importResults.length,
