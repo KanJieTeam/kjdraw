@@ -114,6 +114,57 @@ test('public nearest-point and intersection queries accept native ellipses', asy
   for (const expected of [[16, 28], [4, 12]]) assert.ok(intersections.points.some(point => Math.hypot(point[0] - expected[0], point[1] - expected[1]) < 1e-9))
 })
 
+test('native rational SPLINE intersects LINE, RAY and XLINE within both finite domains', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-linear-intersections' })
+  const spline = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2,
+    controlPoints: [[1, 0, 0], [1, 1, 0], [0, 1, 0]],
+    weights: [1, Math.SQRT1_2, 1],
+    knots: [0, 0, 0, 1, 1, 1],
+  } })
+  const expected = [Math.sqrt(3) / 2, .5]
+  const xline = await sdk.executeCommand('CREATE', { type: 'XLINE', payload: { origin: [0, .5, 0], direction: [1, 0, 0] } })
+  let result = intersectEntityPair2(spline, xline)
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 1); closePoint(result.points[0], expected, 2e-8)
+
+  const segment = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [.8, .5, 0], end: [.9, .5, 0] } })
+  result = intersectEntityPair2(spline, segment)
+  assert.equal(result.kind, 'point'); closePoint(result.points[0], expected, 2e-8)
+  const short = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0, .5, 0], end: [.8, .5, 0] } })
+  assert.equal(intersectEntityPair2(spline, short).kind, 'none')
+  const forward = await sdk.executeCommand('CREATE', { type: 'RAY', payload: { origin: [.8, .5, 0], direction: [1, 0, 0] } })
+  result = intersectEntityPair2(spline, forward); assert.equal(result.kind, 'point'); closePoint(result.points[0], expected, 2e-8)
+  const away = await sdk.executeCommand('CREATE', { type: 'RAY', payload: { origin: [.9, .5, 0], direction: [1, 0, 0] } })
+  assert.equal(intersectEntityPair2(spline, away).kind, 'none')
+
+  const candidates = sdk.snap([expected[0] + .002, expected[1] - .001], { radius: .02, modes: ['nearest', 'intersection'], entityIds: [spline.id, xline.id] })
+  assert.equal(candidates.length, 1); assert.equal(candidates[0].mode, 'intersection'); closePoint(candidates[0].point, expected, 2e-8)
+})
+
+test('SPLINE intersection isolates tangency and repeated-knot spans with a bounded fail-closed degree', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-intersection-bounds' })
+  const tangent = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints: [[-1, 1, 0], [0, -1, 0], [1, 1, 0]], knots: [0, 0, 0, 1, 1, 1],
+  } })
+  const axis = await sdk.executeCommand('CREATE', { type: 'XLINE', payload: { origin: [0, 0, 0], direction: [1, 0, 0] } })
+  let result = intersectEntityPair2(tangent, axis)
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 1); closePoint(result.points[0], [0, 0], 2e-8)
+
+  const multi = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2,
+    controlPoints: [[-2, -1, 0], [-1, 1, 0], [0, -1, 0], [1, 1, 0], [2, -1, 0]],
+    knots: [0, 0, 0, .5, .5, 1, 1, 1],
+  } })
+  result = intersectEntityPair2(multi, axis)
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 2)
+  assert.ok(result.points.every(point => Math.abs(point[1]) <= 2e-8 && point[0] >= -2 && point[0] <= 2))
+  assert.ok(result.points[0][0] < 0 && result.points[1][0] > 0)
+
+  const degree = 17, controls = Array.from({ length: degree + 1 }, (_, index) => [index, index % 2, 0])
+  const oversizedDegree = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: { degree, controlPoints: controls, knots: [...Array(degree + 1).fill(0), ...Array(degree + 1).fill(1)] } })
+  assert.throws(() => intersectEntityPair2(oversizedDegree, axis), /degree must be an integer from 1 to 16/)
+})
+
 test('ellipse intersections support circles, arc domains and tangent contact', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'ellipse-circular-intersections' })
   const ellipse = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {

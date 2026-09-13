@@ -17,7 +17,7 @@ import {
   subtract2,
   vec2,
 } from './geometry/index.js'
-import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js'
+import { normalizeSplineDefinition, type NormalizedSplineDefinition } from './geometry/curves.js'
 import type { KJDocument } from './document.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 
@@ -140,7 +140,13 @@ interface EllipseIntersectionPrimitive {
   entityId: string
 }
 
-type IntersectionPrimitive = SnapPrimitive | EllipseIntersectionPrimitive
+interface SplineIntersectionPrimitive {
+  kind: 'spline'
+  payload: SnapPayload
+  entityId: string
+}
+
+type IntersectionPrimitive = SnapPrimitive | EllipseIntersectionPrimitive | SplineIntersectionPrimitive
 
 interface NearestPoint {
   point: KJSnapPointInput
@@ -168,6 +174,11 @@ interface MutableSnapCandidate extends Record<string, unknown> {
 }
 
 const TURN = Math.PI * 2
+const MAX_SNAP_SPLINE_DEGREE = 64
+const MAX_SPLINE_INTERSECTION_DEGREE = 16
+const MAX_SNAP_SPLINE_CONTROLS = 4096
+const MAX_SNAP_SPLINE_SPANS = 4096
+const MAX_SPLINE_INTERSECTION_WORK = 131072
 
 const point3 = (point: KJSnapPointInput): KJSnapPoint => {
   const record = point as { x: number; y: number; z?: number }
@@ -233,18 +244,57 @@ function ellipseBoxDistance(cursor: KJSnapPointInput, payload: SnapPayload): num
 }
 
 function splineGeometry(payload: SnapPayload) {
-  const definition = normalizeSplineDefinition(payload), controls = payload.controlPoints ?? []
+  const rawDegree = Number(payload.degree), controls = payload.controlPoints ?? []
+  if (!Number.isInteger(rawDegree) || rawDegree < 1 || rawDegree > MAX_SNAP_SPLINE_DEGREE) throw new KJValidationError(`SPLINE snap degree must be an integer from 1 to ${MAX_SNAP_SPLINE_DEGREE}`)
+  if (!Array.isArray(controls) || controls.length < rawDegree + 1 || controls.length > MAX_SNAP_SPLINE_CONTROLS) throw new KJValidationError(`SPLINE snap requires degree + 1 to ${MAX_SNAP_SPLINE_CONTROLS} control points`)
+  if (controls.some(point => point3(point).some(value => !Number.isFinite(value) || Math.abs(value) > 1e12))) throw new KJValidationError('SPLINE snap control points must be finite within ±1e12')
+  const definition = normalizeSplineDefinition(payload)
+  if (definition.knots.length > MAX_SNAP_SPLINE_CONTROLS + MAX_SNAP_SPLINE_DEGREE + 1) throw new KJValidationError('SPLINE snap knot vector exceeds its budget')
+  const start = definition.knots[definition.degree]!, end = definition.knots[definition.controlPoints.length]!
+  const spans = definition.knots.slice(definition.degree, definition.controlPoints.length + 1).filter((value, index, values) => index > 0 && value > values[index - 1]!).length
+  if (spans < 1 || spans > MAX_SNAP_SPLINE_SPANS) throw new KJValidationError(`SPLINE snap requires 1–${MAX_SNAP_SPLINE_SPANS} nonempty knot spans`)
   const zDefinition = normalizeSplineDefinition({
     degree: definition.degree,
     knots: definition.knots,
     weights: definition.weights,
     controlPoints: controls.map(point => [point3(point)[2], 0]),
   })
-  return { definition, zDefinition, start: definition.knots[definition.degree]!, end: definition.knots[definition.controlPoints.length]! }
+  return { definition, zDefinition, start, end }
+}
+
+/** Evaluate an already validated definition without rescanning thousands of
+ * controls and knots for every bounded root-isolation sample. */
+function normalizedSplinePoint2(definition: NormalizedSplineDefinition, parameter: number): [number, number] {
+  const { degree, controlPoints, knots, weights } = definition, n = controlPoints.length - 1
+  const start = knots[degree]!, end = knots[n + 1]!, resolved = Math.max(start, Math.min(end, parameter))
+  if (!Number.isFinite(resolved)) throw new KJValidationError('SPLINE snap parameter must be finite')
+  let span = n
+  if (resolved < end) {
+    let lower = degree, upper = n + 1
+    while (upper - lower > 1) {
+      const middle = Math.floor((lower + upper) / 2)
+      if (resolved < knots[middle]!) upper = middle
+      else lower = middle
+    }
+    span = lower
+  }
+  const values: [number, number, number][] = Array.from({ length: degree + 1 }, (_, index) => {
+    const controlIndex = span - degree + index, weight = weights[controlIndex] ?? 1, point = controlPoints[controlIndex]!
+    return [point[0] * weight, point[1] * weight, weight]
+  })
+  for (let level = 1; level <= degree; level += 1) for (let index = degree; index >= level; index -= 1) {
+    const knotIndex = span - degree + index, denominator = knots[knotIndex + degree + 1 - level]! - knots[knotIndex]!
+    const alpha = Math.abs(denominator) <= Number.EPSILON ? 0 : (resolved - knots[knotIndex]!) / denominator
+    const previous = values[index - 1]!, current = values[index]!
+    values[index] = [previous[0] * (1 - alpha) + current[0] * alpha, previous[1] * (1 - alpha) + current[1] * alpha, previous[2] * (1 - alpha) + current[2] * alpha]
+  }
+  const value = values[degree]!
+  if (!Number.isFinite(value[2]) || value[2] <= 0) throw new KJValidationError('SPLINE snap homogeneous weight is invalid')
+  return [value[0] / value[2], value[1] / value[2]]
 }
 
 function splinePointAt3(geometry: ReturnType<typeof splineGeometry>, parameter: number): KJSnapPoint {
-  const point = splinePoint2(geometry.definition, parameter), z = splinePoint2(geometry.zDefinition, parameter)[0]
+  const point = normalizedSplinePoint2(geometry.definition, parameter), z = normalizedSplinePoint2(geometry.zDefinition, parameter)[0]
   return [point[0], point[1], z]
 }
 
@@ -291,6 +341,134 @@ function splineBoxDistance(cursor: KJSnapPointInput, payload: SnapPayload): numb
   const minimumX = Math.min(...controls.map(value => value[0])), maximumX = Math.max(...controls.map(value => value[0]))
   const minimumY = Math.min(...controls.map(value => value[1])), maximumY = Math.max(...controls.map(value => value[1]))
   return Math.hypot(Math.max(0, minimumX - point[0], point[0] - maximumX), Math.max(0, minimumY - point[1], point[1] - maximumY))
+}
+
+interface SplineIntersectionBudget { remaining: number }
+
+function binomial(n: number, k: number): number {
+  k = Math.min(k, n - k)
+  let result = 1
+  for (let index = 1; index <= k; index += 1) result = result * (n - k + index) / index
+  return result
+}
+
+/** Recover the Bernstein coefficients of one polynomial knot span. Values are
+ * sampled from the homogeneous NURBS numerator, whose roots equal the rational
+ * curve roots because native spline weights are strictly positive. */
+function bernsteinCoefficients(samples: readonly number[]): number[] {
+  const degree = samples.length - 1
+  if (degree === 1) return [...samples]
+  const matrix = samples.map((_, row) => {
+    const x = row / degree
+    return Array.from({ length: degree + 1 }, (_, column) => binomial(degree, column) * x ** column * (1 - x) ** (degree - column))
+  })
+  const values = [...samples]
+  for (let column = 0; column <= degree; column += 1) {
+    let pivot = column
+    for (let row = column + 1; row <= degree; row += 1) if (Math.abs(matrix[row]![column]!) > Math.abs(matrix[pivot]![column]!)) pivot = row
+    if (Math.abs(matrix[pivot]![column]!) <= 1e-15) throw new KJValidationError('SPLINE intersection polynomial is numerically singular')
+    ;[matrix[column], matrix[pivot]] = [matrix[pivot]!, matrix[column]!]
+    ;[values[column], values[pivot]] = [values[pivot]!, values[column]!]
+    const pivotRow = matrix[column]!, divisor = pivotRow[column]!
+    for (let index = column; index <= degree; index += 1) pivotRow[index] = pivotRow[index]! / divisor
+    values[column] = values[column]! / divisor
+    for (let row = 0; row <= degree; row += 1) {
+      if (row === column) continue
+      const factor = matrix[row]![column]!
+      if (factor === 0) continue
+      const targetRow = matrix[row]!
+      for (let index = column; index <= degree; index += 1) targetRow[index] = targetRow[index]! - factor * pivotRow[index]!
+      values[row] = values[row]! - factor * values[column]!
+    }
+  }
+  return values
+}
+
+function splitBezier(values: readonly number[]): [number[], number[]] {
+  const levels: number[][] = [[...values]]
+  while (levels.at(-1)!.length > 1) {
+    const previous = levels.at(-1)!
+    levels.push(Array.from({ length: previous.length - 1 }, (_, index) => (previous[index]! + previous[index + 1]!) / 2))
+  }
+  return [levels.map(level => level[0]!), levels.map(level => level.at(-1)!).reverse()]
+}
+
+function bezierValue(values: readonly number[], parameter: number): number {
+  const work = [...values]
+  for (let level = 1; level < values.length; level += 1) for (let index = 0; index < values.length - level; index += 1) work[index] = work[index]! * (1 - parameter) + work[index + 1]! * parameter
+  return work[0]!
+}
+
+function splineLineIntersection(spline: SplineIntersectionPrimitive, line: LinePrimitive, budget: SplineIntersectionBudget): PrimitiveIntersection {
+  const geometry = splineGeometry(spline.payload), lineStart = point3(line.start), lineEnd = point3(line.end)
+  if (geometry.definition.degree > MAX_SPLINE_INTERSECTION_DEGREE) throw new KJValidationError(`SPLINE intersection degree must be an integer from 1 to ${MAX_SPLINE_INTERSECTION_DEGREE}`)
+  const dx = lineEnd[0] - lineStart[0], dy = lineEnd[1] - lineStart[1], length = Math.hypot(dx, dy)
+  if (!(length > 1e-12) || !Number.isFinite(length)) return { kind: 'none', points: [] }
+  const controls = spline.payload.controlPoints!.map(point3), weights = geometry.definition.weights.length ? geometry.definition.weights : controls.map(() => 1)
+  const largestWeight = Math.max(...weights)
+  if (!Number.isFinite(largestWeight) || largestWeight <= 0) throw new KJValidationError('SPLINE intersection requires positive finite weights')
+  const signed = (point: KJSnapPointInput): number => {
+    const value = point3(point)
+    return ((value[0] - lineStart[0]) * dy - (value[1] - lineStart[1]) * dx) / length
+  }
+  const numerator = normalizeSplineDefinition({
+    degree: geometry.definition.degree,
+    knots: geometry.definition.knots,
+    controlPoints: controls.map((point, index) => [signed(point) * weights[index]! / largestWeight, 0]),
+  })
+  const coordinateScale = Math.max(1, length, ...controls.flatMap(point => [Math.abs(point[0] - lineStart[0]), Math.abs(point[1] - lineStart[1])]))
+  const absoluteScale = Math.max(1, ...controls.flatMap(point => [Math.abs(point[0]), Math.abs(point[1])]), Math.abs(lineStart[0]), Math.abs(lineStart[1]))
+  const distanceTolerance = Math.max(1e-9 * coordinateScale, Number.EPSILON * absoluteScale * 64)
+  const coefficientTolerance = distanceTolerance * Math.max(1, ...weights.map(weight => weight / largestWeight))
+  const lineParameter = (point: KJSnapPointInput): number => {
+    const value = point3(point)
+    return ((value[0] - lineStart[0]) * dx + (value[1] - lineStart[1]) * dy) / (length * length)
+  }
+  const accepted = (point: KJSnapPointInput): boolean => acceptsLineParameter(line, lineParameter(point), distanceTolerance / Math.max(1, length))
+  const roots: number[] = []
+  let overlap = false
+  const addRoot = (parameter: number): void => {
+    parameter = Math.max(geometry.start, Math.min(geometry.end, parameter))
+    const point = splinePointAt3(geometry, parameter)
+    if (Math.abs(signed(point)) > distanceTolerance * 4 || !accepted(point)) return
+    if (!roots.some(value => Math.abs(value - parameter) <= 1e-9 * Math.max(1, Math.abs(parameter), Math.abs(value)))) roots.push(parameter)
+  }
+  const isolate = (coefficients: readonly number[], start: number, end: number, depth: number): void => {
+    if (--budget.remaining < 0) throw new KJValidationError(`SPLINE intersection exceeds the ${MAX_SPLINE_INTERSECTION_WORK} interval work budget`)
+    const minimum = Math.min(...coefficients), maximum = Math.max(...coefficients)
+    if (minimum > coefficientTolerance || maximum < -coefficientTolerance) return
+    const firstZero = Math.abs(coefficients[0]!) <= coefficientTolerance, lastZero = Math.abs(coefficients.at(-1)!) <= coefficientTolerance
+    if (firstZero) addRoot(start)
+    if (lastZero) addRoot(end)
+    if (coefficients.every(value => Math.abs(value) <= coefficientTolerance)) {
+      const samples = Array.from({ length: Math.max(3, coefficients.length * 2) }, (_, index) => splinePointAt3(geometry, start + (end - start) * index / Math.max(2, coefficients.length * 2 - 1)))
+      if (samples.some(accepted)) overlap = true
+      return
+    }
+    if (minimum >= -coefficientTolerance || maximum <= coefficientTolerance) return
+    if (depth >= 52 || end - start <= 1e-13 * Math.max(1, Math.abs(start), Math.abs(end))) { addRoot((start + end) / 2); return }
+    const [left, right] = splitBezier(coefficients), middle = (start + end) / 2
+    isolate(left, start, middle, depth + 1)
+    isolate(right, middle, end, depth + 1)
+  }
+  const knots = geometry.definition.knots, degree = geometry.definition.degree
+  for (let index = degree; index < geometry.definition.controlPoints.length; index += 1) {
+    const start = knots[index]!, end = knots[index + 1]!
+    if (!(end > start)) continue
+    const samples = Array.from({ length: degree + 1 }, (_, sample) => normalizedSplinePoint2(numerator, start + (end - start) * sample / degree)[0])
+    const coefficients = bernsteinCoefficients(samples)
+    // A second grid proves that interpolation remained accurate enough for a
+    // fail-closed root classification at this degree and coordinate magnitude.
+    for (let sample = 0; sample <= degree + 1; sample += 1) {
+      const local = (sample + .5) / (degree + 2), parameter = start + (end - start) * local
+      const exact = normalizedSplinePoint2(numerator, parameter)[0], reconstructed = bezierValue(coefficients, local)
+      if (Math.abs(exact - reconstructed) > Math.max(coefficientTolerance * 8, Number.EPSILON * Math.max(1, Math.abs(exact)) * 2048)) throw new KJValidationError('SPLINE intersection polynomial did not meet its accuracy bound')
+    }
+    isolate(coefficients, start, end, 0)
+  }
+  if (overlap) return { kind: 'overlap', points: [], infinite: true }
+  const points = roots.sort((a, b) => a - b).map(parameter => splinePointAt3(geometry, parameter))
+  return { kind: points.length ? 'point' : 'none', points }
 }
 
 function ellipseLocalCoordinates(payload: SnapPayload, input: KJSnapPointInput): [number, number] {
@@ -692,7 +870,9 @@ function ellipseEllipseIntersection(first: EllipseIntersectionPrimitive, second:
 }
 
 function intersectionPrimitiveDistance(cursor: KJSnapPointInput, primitive: IntersectionPrimitive): number {
-  return primitive.kind === 'ellipse' ? nearestOnEllipse(cursor, primitive.payload).distance : nearestOnPrimitive(cursor, primitive).distance
+  if (primitive.kind === 'ellipse') return nearestOnEllipse(cursor, primitive.payload).distance
+  if (primitive.kind === 'spline') return splineBoxDistance(cursor, primitive.payload)
+  return nearestOnPrimitive(cursor, primitive).distance
 }
 
 function intersectionPrimitiveBounds(primitive: IntersectionPrimitive): [number, number, number, number] | null {
@@ -700,6 +880,11 @@ function intersectionPrimitiveBounds(primitive: IntersectionPrimitive): [number,
     const payload = primitive.payload, center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio)
     const extentX = Math.hypot(major[0], major[1] * ratio), extentY = Math.hypot(major[1], major[0] * ratio)
     return [center[0] - extentX, center[1] - extentY, center[0] + extentX, center[1] + extentY]
+  }
+  if (primitive.kind === 'spline') {
+    const controls = primitive.payload.controlPoints?.map(point3) ?? []
+    if (!controls.length) return null
+    return [Math.min(...controls.map(point => point[0])), Math.min(...controls.map(point => point[1])), Math.max(...controls.map(point => point[0])), Math.max(...controls.map(point => point[1]))]
   }
   if (primitive.kind === 'circle' || primitive.kind === 'arc') {
     const center = point3(primitive.center)
@@ -715,9 +900,13 @@ function finiteBoundsOverlap(first: IntersectionPrimitive, second: IntersectionP
   return !a || !b || a[0] <= b[2] + 1e-10 && a[2] + 1e-10 >= b[0] && a[1] <= b[3] + 1e-10 && a[3] + 1e-10 >= b[1]
 }
 
-function primitiveIntersection(a: IntersectionPrimitive, b: IntersectionPrimitive): PrimitiveIntersection {
+function primitiveIntersection(a: IntersectionPrimitive, b: IntersectionPrimitive, splineBudget: SplineIntersectionBudget = { remaining: MAX_SPLINE_INTERSECTION_WORK }): PrimitiveIntersection {
   let result: PrimitiveIntersection
-  if (a.kind === 'ellipse' || b.kind === 'ellipse') {
+  if (a.kind === 'spline' || b.kind === 'spline') {
+    const spline = a.kind === 'spline' ? a : b.kind === 'spline' ? b : null
+    const line = a.kind === 'line' ? a : b.kind === 'line' ? b : null
+    return spline && line ? splineLineIntersection(spline, line, splineBudget) : { kind: 'unsupported', points: [] }
+  } else if (a.kind === 'ellipse' || b.kind === 'ellipse') {
     const ellipse = (a.kind === 'ellipse' ? a : b.kind === 'ellipse' ? b : null)
     const line = (a.kind === 'line' ? a : b.kind === 'line' ? b : null)
     const circle = (a.kind === 'circle' || a.kind === 'arc' ? a : b.kind === 'circle' || b.kind === 'arc' ? b : null)
@@ -743,6 +932,7 @@ function intersectionCandidates(entities: ReadonlyArray<KJReadonlyObjectRecord>,
   const primitives: IntersectionPrimitive[] = []
   for (const entity of entities) {
     if (entity.type === 'ELLIPSE') primitives.push({ kind: 'ellipse', payload: entity.payload as unknown as SnapPayload, entityId: entity.id })
+    else if (entity.type === 'SPLINE') primitives.push({ kind: 'spline', payload: entity.payload as unknown as SnapPayload, entityId: entity.id })
     else primitives.push(...primitiveSegments(entity))
   }
   const ordered = primitives
@@ -751,13 +941,14 @@ function intersectionCandidates(entities: ReadonlyArray<KJReadonlyObjectRecord>,
     .map(value => value.primitive)
   const result: MutableSnapCandidate[] = []
   let pairs = 0
+  const splineBudget = { remaining: MAX_SPLINE_INTERSECTION_WORK }
   pairSearch: for (let left = 0; left < ordered.length; left += 1) for (let right = left + 1; right < ordered.length; right += 1) {
     const a = ordered[left]!, b = ordered[right]!
     if (a.entityId === b.entityId) continue
     if (!finiteBoundsOverlap(a, b)) continue
     if (pairs >= maxPairs) break pairSearch
     pairs += 1
-    for (const point of primitiveIntersection(a, b).points) result.push({ mode: 'intersection', point: point3(point), entityIds: [a.entityId, b.entityId], distance: distance2(cursor, point) })
+    for (const point of primitiveIntersection(a, b, splineBudget).points) result.push({ mode: 'intersection', point: point3(point), entityIds: [a.entityId, b.entityId], distance: distance2(cursor, point) })
   }
   return result
 }
@@ -843,13 +1034,14 @@ export function intersectEntityPair2(first: KJReadonlyObjectRecord, second: KJRe
   if (!first || !second || first.id === second.id) throw new KJValidationError('Intersection query requires two different entities')
   const primitives = (entity: KJReadonlyObjectRecord): IntersectionPrimitive[] => entity.type === 'ELLIPSE'
     ? [{ kind: 'ellipse', payload: entity.payload as unknown as SnapPayload, entityId: entity.id }]
-    : primitiveSegments(entity)
+    : entity.type === 'SPLINE' ? [{ kind: 'spline', payload: entity.payload as unknown as SnapPayload, entityId: entity.id }] : primitiveSegments(entity)
   const left = primitives(first), right = primitives(second)
   if (!left.length || !right.length) throw new KJValidationError(`Intersection query is not implemented for ${first.type}/${second.type}`)
   const points: KJSnapPoint[] = []
   let overlap = false, infinite = false
+  const splineBudget = { remaining: MAX_SPLINE_INTERSECTION_WORK }
   for (const a of left) for (const b of right) {
-    const result = primitiveIntersection(a, b)
+    const result = primitiveIntersection(a, b, splineBudget)
     overlap ||= result.kind === 'overlap'
     infinite ||= Boolean(result.infinite)
     for (const point of result.points) if (!points.some(candidate => distance2(candidate, point) <= 1e-9)) points.push(point3(point))
