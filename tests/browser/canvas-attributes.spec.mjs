@@ -34,7 +34,14 @@ test('attached attributes render once in their owner coordinates, preserve text 
   const layoutId=drawing.snapshot().spaces.layoutIds[0]
   await sdk.executeCommand('PLOTSETUP',{layoutId,dxf:{paperWidth:420,paperHeight:297,paperUnits:1,plotType:4,flags:0,windowMinX:0,windowMinY:0,windowMaxX:400,windowMaxY:200,scaleNumerator:1,scaleDenominator:1}},{document:drawing})
   const exported=exportDrawingSvg(drawing,{layoutId}),host=document.createElement('div');host.innerHTML=exported.svg;document.body.append(host)
-  const glyphs=[...host.querySelectorAll('text')].map(e=>{const m=host.querySelector('svg').getCTM().inverse().multiply(e.getCTM());return{text:e.textContent,matrix:[m.a,m.b,m.c,m.d,m.e,m.f]}})
+  // Root getCTM() includes CSS millimetre-to-pixel scaling differently across
+  // engines. Compose the SVG transform lists themselves to verify drawing-space
+  // geometry without depending on the embedding page's physical-unit policy.
+  const svg=host.querySelector('svg'),drawingMatrix=element=>{
+   const chain=[];for(let current=element;current&&current!==svg;current=current.parentElement)chain.unshift(current)
+   let result=new DOMMatrix();for(const current of chain){const local=current.transform?.baseVal?.consolidate()?.matrix;if(local)result=result.multiply(local)}return result
+  }
+  const glyphs=[...host.querySelectorAll('text')].map(e=>{const m=drawingMatrix(e);return{text:e.textContent,matrix:[m.a,m.b,m.c,m.d,m.e,m.f]}})
   await drawing.transact('reflect ancestor',tx=>tx.updateObject('outer-insert',{payload:{scale:[-2,1.5,1]}}));calls=[];renderer.render()
   const reflected=calls.find(c=>c.text==='NESTED'),reflectedOrigin=renderer.worldToScreen([160,58]),reflectedHit=renderer.hitTest(renderer.worldToScreen([154,60]),2)?.entity.id
   await drawing.transact('hide parent',tx=>tx.updateObject('root',{payload:{visible:false}}));calls=[];renderer.render()
