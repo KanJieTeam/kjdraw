@@ -101,6 +101,13 @@ function transformEdge(
       counterClockwise: mirrored ? !counterClockwise : counterClockwise,
     }
   }
+  if(type==='SPLINE')return {
+    ...clone(record),
+    controlPoints:((record.controlPoints??[]) as readonly unknown[]).map(point=>transformPoint3(matrix,point as Point2Input)),
+    fitPoints:((record.fitPoints??[]) as readonly unknown[]).map(point=>transformPoint3(matrix,point as Point2Input)),
+    ...(record.startTangent==null?{}:{startTangent:transformVector3(matrix,record.startTangent as Point2Input)}),
+    ...(record.endTangent==null?{}:{endTangent:transformVector3(matrix,record.endTangent as Point2Input)}),
+  }
   throw new KJValidationError(`Unsupported hatch edge transform: ${type}`)
 }
 

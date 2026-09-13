@@ -3,6 +3,7 @@ import type { KJDocument } from './document.js'
 import type { KJObjectPayload, KJObjectRecord } from './schema.js'
 import type { KJTransaction } from './transaction.js'
 import { intersectCircleCircle2, intersectLineCircle2, intersectLineLine2 } from './geometry/intersections.js'
+import { closedHatchSplineConic, normalizeHatchSplineEdge } from './geometry/hatch-boundary.js'
 
 type Point = readonly [number, number, number]
 type Loop = Readonly<Record<string, unknown>>
@@ -67,7 +68,6 @@ function polygonArea(points: readonly Point[]): number {
 function parseEdge(value: unknown,index: number): Edge {
   const edge=value as {type?:unknown;start?:unknown;end?:unknown;center?:unknown;radius?:unknown;majorAxis?:unknown;ratio?:unknown;startAngle?:unknown;endAngle?:unknown;counterClockwise?:unknown}
   const type=String(edge?.type??'').toUpperCase()
-  if(type==='SPLINE')return fail('SPLINE boundary edges are not supported for exact hatch island editing')
   if(type==='LINE'){
     const start=point(edge.start,index),end=point(edge.end,index)
     if(same(start,end))return fail('LINE boundary edges must not be degenerate')
@@ -87,7 +87,12 @@ function parseEdge(value: unknown,index: number): Edge {
     if(directedSweep(result)<TAU-1e-12)return fail('open ELLIPSE arcs cannot form a boundary by themselves; join a rigorously closed supported boundary first')
     return result
   }
-  return fail('exact hatch island boundaries support only LINE, ARC and full ELLIPSE edges')
+  if(type==='SPLINE'){
+    const conic=closedHatchSplineConic(edge as Readonly<Record<string,unknown>>)
+    if(!conic)return fail('SPLINE hatch boundaries require the exact closed rational-quadratic conic contract')
+    return {type:'ELLIPSE',...conic,startAngle:0,endAngle:TAU}
+  }
+  return fail('exact hatch island boundaries support only LINE, ARC, full ELLIPSE and verified closed SPLINE edges')
 }
 function exactLoopEdges(loop: Loop): Edge[] {
   if(Array.isArray(loop.vertices)){
@@ -211,7 +216,6 @@ function sourceIsland(document:KJDocument,value:unknown):Loop{
   const entities=ids.map(id=>{
     const entity=document.getObject(id)
     if(!entity||entity.kind!=='entity'||entity.erased)return fail('every sourceId must identify a live boundary entity')
-    if(entity.type==='SPLINE')return fail('SPLINE source boundaries are not supported for exact hatch island editing')
     return entity
   })
   if(entities.length===1&&entities[0]!.type==='CIRCLE'){
@@ -226,13 +230,21 @@ function sourceIsland(document:KJDocument,value:unknown):Loop{
     if(directedSweep(edge)<TAU-1e-12)return fail('open ELLIPSE arc sources are not closed hatch boundaries')
     return {external:false,closed:true,edges:[{...edge,startAngle:0,endAngle:TAU}]}
   }
-  if(entities.some(entity=>entity.type==='CIRCLE'||entity.type==='ELLIPSE'))return fail('a CIRCLE or ELLIPSE source must be selected by itself')
+  if(entities.length===1&&entities[0]!.type==='SPLINE'){
+    const payload=entities[0]!.payload
+    if(payload.closed!==true)return fail('SPLINE source must be explicitly closed')
+    let edge
+    try{edge=normalizeHatchSplineEdge(payload,'HATCHEDIT SPLINE source')}catch(error){return fail(error instanceof Error?error.message:'SPLINE source is invalid')}
+    if(!closedHatchSplineConic(edge))return fail('SPLINE source must be a verified closed rational-quadratic conic without fit points')
+    return {external:false,closed:true,edges:[edge]}
+  }
+  if(entities.some(entity=>entity.type==='CIRCLE'||entity.type==='ELLIPSE'||entity.type==='SPLINE'))return fail('a CIRCLE, ELLIPSE or SPLINE source must be selected by itself')
   const unordered:Edge[]=entities.map((entity,index)=>{
     const payload=entity.payload,normal=payload.normal as readonly number[]|undefined
     if(normal&&(!Array.isArray(normal)||normal[0]!==0||normal[1]!==0||normal[2]!==1))return fail('boundary sources must use the model XY plane with +Z normal')
     if(entity.type==='LINE')return parseEdge({type:'LINE',start:payload.start,end:payload.end},index)
     if(entity.type==='ARC')return parseEdge({type:'ARC',center:payload.center,radius:payload.radius,startAngle:payload.startAngle,endAngle:payload.endAngle,counterClockwise:payload.clockwise!==true},index)
-    return fail('sourceIds support only a full CIRCLE/ELLIPSE or a closed chain of LINE/ARC entities')
+    return fail('sourceIds support only a full CIRCLE/ELLIPSE, verified closed SPLINE, or a closed chain of LINE/ARC entities')
   })
   const tolerance=1e-8*loopScale(unordered),ordered:Edge[]=[unordered.shift()!]
   while(unordered.length){

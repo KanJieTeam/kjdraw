@@ -75,6 +75,17 @@ function transformEdge(matrix, edge, mirrored, scale) {
             counterClockwise: mirrored ? !counterClockwise : counterClockwise
         };
     }
+    if (type === 'SPLINE') return {
+        ...clone(record),
+        controlPoints: (record.controlPoints ?? []).map((point)=>transformPoint3(matrix, point)),
+        fitPoints: (record.fitPoints ?? []).map((point)=>transformPoint3(matrix, point)),
+        ...record.startTangent == null ? {} : {
+            startTangent: transformVector3(matrix, record.startTangent)
+        },
+        ...record.endTangent == null ? {} : {
+            endTangent: transformVector3(matrix, record.endTangent)
+        }
+    };
     throw new KJValidationError(`Unsupported hatch edge transform: ${type}`);
 }
 export function transformEntityPayload(type, source, matrix) {

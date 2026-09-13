@@ -1,6 +1,7 @@
 // Generated from hatch-edit.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJValidationError } from './errors.js';
 import { intersectCircleCircle2, intersectLineCircle2, intersectLineLine2 } from './geometry/intersections.js';
+import { closedHatchSplineConic, normalizeHatchSplineEdge } from './geometry/hatch-boundary.js';
 const TAU = Math.PI * 2;
 function fail(message) {
     throw new KJValidationError(`HATCHEDIT: ${message}`);
@@ -67,7 +68,6 @@ function polygonArea(points) {
 function parseEdge(value, index) {
     const edge = value;
     const type = String(edge?.type ?? '').toUpperCase();
-    if (type === 'SPLINE') return fail('SPLINE boundary edges are not supported for exact hatch island editing');
     if (type === 'LINE') {
         const start = point(edge.start, index), end = point(edge.end, index);
         if (same(start, end)) return fail('LINE boundary edges must not be degenerate');
@@ -114,7 +114,17 @@ function parseEdge(value, index) {
         if (directedSweep(result) < TAU - 1e-12) return fail('open ELLIPSE arcs cannot form a boundary by themselves; join a rigorously closed supported boundary first');
         return result;
     }
-    return fail('exact hatch island boundaries support only LINE, ARC and full ELLIPSE edges');
+    if (type === 'SPLINE') {
+        const conic = closedHatchSplineConic(edge);
+        if (!conic) return fail('SPLINE hatch boundaries require the exact closed rational-quadratic conic contract');
+        return {
+            type: 'ELLIPSE',
+            ...conic,
+            startAngle: 0,
+            endAngle: TAU
+        };
+    }
+    return fail('exact hatch island boundaries support only LINE, ARC, full ELLIPSE and verified closed SPLINE edges');
 }
 function exactLoopEdges(loop) {
     if (Array.isArray(loop.vertices)) {
@@ -313,7 +323,6 @@ function sourceIsland(document, value) {
     const entities = ids.map((id)=>{
         const entity = document.getObject(id);
         if (!entity || entity.kind !== 'entity' || entity.erased) return fail('every sourceId must identify a live boundary entity');
-        if (entity.type === 'SPLINE') return fail('SPLINE source boundaries are not supported for exact hatch island editing');
         return entity;
     });
     if (entities.length === 1 && entities[0].type === 'CIRCLE') {
@@ -363,7 +372,25 @@ function sourceIsland(document, value) {
             ]
         };
     }
-    if (entities.some((entity)=>entity.type === 'CIRCLE' || entity.type === 'ELLIPSE')) return fail('a CIRCLE or ELLIPSE source must be selected by itself');
+    if (entities.length === 1 && entities[0].type === 'SPLINE') {
+        const payload = entities[0].payload;
+        if (payload.closed !== true) return fail('SPLINE source must be explicitly closed');
+        let edge;
+        try {
+            edge = normalizeHatchSplineEdge(payload, 'HATCHEDIT SPLINE source');
+        } catch (error) {
+            return fail(error instanceof Error ? error.message : 'SPLINE source is invalid');
+        }
+        if (!closedHatchSplineConic(edge)) return fail('SPLINE source must be a verified closed rational-quadratic conic without fit points');
+        return {
+            external: false,
+            closed: true,
+            edges: [
+                edge
+            ]
+        };
+    }
+    if (entities.some((entity)=>entity.type === 'CIRCLE' || entity.type === 'ELLIPSE' || entity.type === 'SPLINE')) return fail('a CIRCLE, ELLIPSE or SPLINE source must be selected by itself');
     const unordered = entities.map((entity, index)=>{
         const payload = entity.payload, normal = payload.normal;
         if (normal && (!Array.isArray(normal) || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) return fail('boundary sources must use the model XY plane with +Z normal');
@@ -380,7 +407,7 @@ function sourceIsland(document, value) {
             endAngle: payload.endAngle,
             counterClockwise: payload.clockwise !== true
         }, index);
-        return fail('sourceIds support only a full CIRCLE/ELLIPSE or a closed chain of LINE/ARC entities');
+        return fail('sourceIds support only a full CIRCLE/ELLIPSE, verified closed SPLINE, or a closed chain of LINE/ARC entities');
     });
     const tolerance = 1e-8 * loopScale(unordered), ordered = [
         unordered.shift()

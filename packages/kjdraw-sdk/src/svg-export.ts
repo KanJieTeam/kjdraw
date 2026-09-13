@@ -9,6 +9,7 @@ import { projectDimension } from './geometry/annotation.js'
 import { multiply3, rotation3, scale3, translation3, type AffineMatrix3 } from './geometry/matrix3.js'
 import { deepFreeze } from './utils.js'
 import { effectiveLinetypeScale } from './linetype-scale.js'
+import { closedHatchSplineConic } from './geometry/hatch-boundary.js'
 
 export interface KJSvgExportOptions { layoutId: string; allowPartial?: boolean; maxEntities?: number }
 export interface KJSvgDiagnostic { entityId: string; type: string; reason: string }
@@ -85,6 +86,11 @@ function hatchEdgePath(value: unknown): string {
     const edge=data(raw),type=String(edge.type).toUpperCase()
     if(type==='LINE'){
       const a=point(edge.start),b=point(edge.end);path+=`${index?` L ${pos(a)}`:`M ${pos(a)}`} L ${pos(b)}`;continue
+    }
+    if(type==='SPLINE'){
+      const conic=closedHatchSplineConic(edge)
+      if(!conic||edges.length!==1)fail('SVG export supports a SPLINE hatch loop only when it is one verified closed rational-quadratic conic')
+      return hatchEdgePath({edges:[{type:'ELLIPSE',...conic,startAngle:0,endAngle:TAU}]})
     }
     const center=point(edge.center),start=numeric(edge.startAngle),end=numeric(edge.endAngle),ccw=edge.counterClockwise!==false
     const rawSweep=ccw?end-start:start-end,sweep=Math.abs(rawSweep)>=TAU-1e-12?TAU:((rawSweep%TAU)+TAU)%TAU

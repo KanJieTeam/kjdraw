@@ -5,6 +5,7 @@ import { projectDimension } from './geometry/annotation.js';
 import { attributeHidden, insertAttributes, isAttachedAttribute, visibleAttribute } from './attribute-display.js';
 import { layoutCadMText, layoutCadText } from './geometry/text-layout.js';
 import { hatchPatternLines } from './geometry/hatch.js';
+import { closedHatchSplineConic } from './geometry/hatch-boundary.js';
 const TAU = Math.PI * 2;
 const point = (value)=>Array.isArray(value) && value.length >= 2 && value.slice(0, 2).every((v)=>Number.isFinite(Number(v))) ? [
         Number(value[0]),
@@ -95,7 +96,26 @@ function hatchEdges(edges) {
     for (const raw of edges){
         const edge = raw, center = point(edge?.center), radius = finite(edge?.radius);
         let part = null;
-        if (String(edge?.type).toUpperCase() === 'ELLIPSE') {
+        if (String(edge?.type).toUpperCase() === 'SPLINE') {
+            const conic = closedHatchSplineConic(edge);
+            if (conic) part = {
+                kind: 'curve',
+                center: [
+                    conic.center[0],
+                    conic.center[1]
+                ],
+                u: [
+                    conic.majorAxis[0],
+                    conic.majorAxis[1]
+                ],
+                v: [
+                    -conic.majorAxis[1] * conic.ratio,
+                    conic.majorAxis[0] * conic.ratio
+                ],
+                start: 0,
+                sweep: (conic.counterClockwise ? 1 : -1) * TAU
+            };
+        } else if (String(edge?.type).toUpperCase() === 'ELLIPSE') {
             const u = point(edge.majorAxis), ratio = finite(edge.ratio), start = finite(edge.startAngle), end = finite(edge.endAngle), counterClockwise = edge.counterClockwise !== false;
             if (center && u && ratio > 0 && ratio <= 1) {
                 const raw = counterClockwise ? end - start : start - end, sweep = (Math.abs(raw) >= TAU - 1e-12 ? TAU : mod(raw) || TAU) * (counterClockwise ? 1 : -1);
@@ -688,7 +708,7 @@ export function classifyEntityInBox(document, entity, bounds) {
             } else if (Array.isArray(loop.edges)) {
                 edges += loop.edges.length;
                 if (edges > 4096) return 'unclassified';
-                if (!loop.edges.length || loop.edges.some((e)=>!e || (e.type === 'LINE' ? !point(e.start) || !point(e.end) : e.type === 'ARC' ? !point(e.center) || typeof e.radius !== 'number' || e.radius <= 0 || !Number.isFinite(e.radius) || !Number.isFinite(e.startAngle) || !Number.isFinite(e.endAngle) : e.type !== 'ELLIPSE' || !point(e.center) || !point(e.majorAxis) || typeof e.ratio !== 'number' || e.ratio <= 0 || e.ratio > 1 || !Number.isFinite(e.startAngle) || !Number.isFinite(e.endAngle) || Math.abs(Number(e.endAngle) - Number(e.startAngle)) < TAU - 1e-10))) return 'unclassified';
+                if (!loop.edges.length || loop.edges.some((e)=>!e || (e.type === 'LINE' ? !point(e.start) || !point(e.end) : e.type === 'ARC' ? !point(e.center) || typeof e.radius !== 'number' || e.radius <= 0 || !Number.isFinite(e.radius) || !Number.isFinite(e.startAngle) || !Number.isFinite(e.endAngle) : e.type === 'SPLINE' ? !closedHatchSplineConic(e) : e.type !== 'ELLIPSE' || !point(e.center) || !point(e.majorAxis) || typeof e.ratio !== 'number' || e.ratio <= 0 || e.ratio > 1 || !Number.isFinite(e.startAngle) || !Number.isFinite(e.endAngle) || Math.abs(Number(e.endAngle) - Number(e.startAngle)) < TAU - 1e-10))) return 'unclassified';
                 const boundary = hatchEdges(loop.edges);
                 if (!boundary.complete) return 'unclassified';
                 hatchLoops.push(boundary.parts);

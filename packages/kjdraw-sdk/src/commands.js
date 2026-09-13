@@ -453,7 +453,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         boundaryModes: [
             'polyline',
             'line-arc-edges',
-            'full-ellipse-edge'
+            'full-ellipse-edge',
+            'verified-closed-spline-edge'
         ]
     },
     HATCHEDIT: {
@@ -468,10 +469,12 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         exactSourceTypes: [
             'CIRCLE',
             'ELLIPSE',
+            'SPLINE',
             'LINE',
             'ARC'
         ],
         openEllipseArcBoundary: false,
+        splineBoundaryContract: 'closed-rational-quadratic-conic',
         stableIdentity: true
     },
     LEADER: {

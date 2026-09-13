@@ -5,6 +5,7 @@ import type { KJObjectPayload } from './schema.js'
 import type { Point2Input } from './geometry/vector2.js'
 import type { KJStandardEntityType as KJDeclaredStandardEntityType } from './constants.js'
 import { normalizeDimensionAssociations } from './dimension-associations.js'
+import { normalizeHatchSplineEdge } from './geometry/hatch-boundary.js'
 
 export type KJPoint3 = [number, number, number]
 
@@ -136,6 +137,7 @@ interface HatchLoopInput extends Record<string, unknown> {
 function normalizeHatchEdge(edge: unknown, loopIndex: number, edgeIndex: number): unknown {
   if (!edge || typeof edge !== 'object' || Array.isArray(edge)) throw new KJValidationError(`Hatch edge ${loopIndex}.${edgeIndex} must be an object`)
   const value = edge as Record<string, unknown>, type = normalizeName(value.type)
+  if(type==='SPLINE'&&!Array.isArray(value.rawTags))return {...clone(value),...normalizeHatchSplineEdge(value,`Hatch edge ${loopIndex}.${edgeIndex}`)}
   if (type !== 'ELLIPSE' || Array.isArray(value.rawTags)) return clone(value)
   const ratio = positive(value.ratio, `boundaryLoops[${loopIndex}].edges[${edgeIndex}].ratio`)
   if (ratio > 1) throw new KJValidationError(`Hatch ellipse edge ${loopIndex}.${edgeIndex} ratio cannot exceed 1`)

@@ -3,6 +3,7 @@ import { KJValidationError } from './errors.js';
 import { clone, normalizeName } from './utils.js';
 import { length2, vec2 } from './geometry/vector2.js';
 import { normalizeDimensionAssociations } from './dimension-associations.js';
+import { normalizeHatchSplineEdge } from './geometry/hatch-boundary.js';
 export const KJ_ENTITY_CONTRACT_VERSION = 1;
 const STANDARD = new Set([
     'LINE',
@@ -37,6 +38,10 @@ const STANDARD = new Set([
 function normalizeHatchEdge(edge, loopIndex, edgeIndex) {
     if (!edge || typeof edge !== 'object' || Array.isArray(edge)) throw new KJValidationError(`Hatch edge ${loopIndex}.${edgeIndex} must be an object`);
     const value = edge, type = normalizeName(value.type);
+    if (type === 'SPLINE' && !Array.isArray(value.rawTags)) return {
+        ...clone(value),
+        ...normalizeHatchSplineEdge(value, `Hatch edge ${loopIndex}.${edgeIndex}`)
+    };
     if (type !== 'ELLIPSE' || Array.isArray(value.rawTags)) return clone(value);
     const ratio = positive(value.ratio, `boundaryLoops[${loopIndex}].edges[${edgeIndex}].ratio`);
     if (ratio > 1) throw new KJValidationError(`Hatch ellipse edge ${loopIndex}.${edgeIndex} ratio cannot exceed 1`);

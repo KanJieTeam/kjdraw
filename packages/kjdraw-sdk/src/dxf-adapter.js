@@ -774,6 +774,106 @@ function hatchBoundaryLoops(record) {
                         else if (tag.code === 73) edge.counterClockwise = Number(tag.value) !== 0;
                     }
                     edges.push(edge);
+                } else if (edgeType === 4) {
+                    const edge = {
+                        type: 'SPLINE',
+                        degree: 0,
+                        periodic: false,
+                        controlPoints: [],
+                        knots: [],
+                        weights: [],
+                        fitPoints: []
+                    };
+                    let rational = false, knotCount = 0, controlCount = 0;
+                    while(cursor < tags.length && ![
+                        72,
+                        92
+                    ].includes(tags[cursor].code)){
+                        const tag = tags[cursor];
+                        if (tag.code === 94) {
+                            edge.degree = Number(tag.value);
+                            cursor++;
+                        } else if (tag.code === 73) {
+                            rational = Number(tag.value) !== 0;
+                            cursor++;
+                        } else if (tag.code === 74) {
+                            edge.periodic = Number(tag.value) !== 0;
+                            cursor++;
+                        } else if (tag.code === 95) {
+                            knotCount = Number(tag.value);
+                            cursor++;
+                            break;
+                        } else cursor++;
+                    }
+                    while(cursor < tags.length && tags[cursor].code !== 96)cursor++;
+                    if (tags[cursor]?.code === 96) {
+                        controlCount = Number(tags[cursor++].value);
+                    }
+                    while(cursor < tags.length && edge.knots.length < knotCount){
+                        if (tags[cursor].code === 40) edge.knots.push(Number(tags[cursor].value));
+                        cursor++;
+                    }
+                    while(cursor < tags.length && edge.controlPoints.length < controlCount){
+                        if (tags[cursor].code !== 10) {
+                            cursor++;
+                            continue;
+                        }
+                        const control = [
+                            Number(tags[cursor++].value),
+                            0,
+                            0
+                        ];
+                        let weight;
+                        while(cursor < tags.length && tags[cursor].code !== 10 && tags[cursor].code !== 97 && ![
+                            72,
+                            92
+                        ].includes(tags[cursor].code)){
+                            const tag = tags[cursor++];
+                            if (tag.code === 20) control[1] = Number(tag.value);
+                            else if (tag.code === 42) weight = Number(tag.value);
+                        }
+                        edge.controlPoints.push(control);
+                        if (rational) edge.weights.push(Number(weight));
+                    }
+                    if (tags[cursor]?.code === 97 && !(Number(tags[cursor].value) > 0 && tags[cursor + 1]?.code === 330)) {
+                        const fitCount = Number(tags[cursor++].value);
+                        while(cursor < tags.length && edge.fitPoints.length < fitCount){
+                            if (tags[cursor].code !== 11) {
+                                cursor++;
+                                continue;
+                            }
+                            const fit = [
+                                Number(tags[cursor++].value),
+                                0,
+                                0
+                            ];
+                            while(cursor < tags.length && tags[cursor].code !== 11 && ![
+                                12,
+                                13,
+                                72,
+                                92,
+                                97
+                            ].includes(tags[cursor].code)){
+                                const tag = tags[cursor++];
+                                if (tag.code === 21) fit[1] = Number(tag.value);
+                            }
+                            edge.fitPoints.push(fit);
+                        }
+                    }
+                    const tangent = (xCode, yCode)=>{
+                        if (tags[cursor]?.code !== xCode) return undefined;
+                        const value = [
+                            Number(tags[cursor++].value),
+                            0,
+                            0
+                        ];
+                        if (tags[cursor]?.code === yCode) value[1] = Number(tags[cursor++].value);
+                        return value;
+                    };
+                    const startTangent = tangent(12, 22), endTangent = tangent(13, 23);
+                    if (startTangent) edge.startTangent = startTangent;
+                    if (endTangent) edge.endTangent = endTangent;
+                    edges.push(edge);
                 } else {
                     const rawTags = [];
                     while(cursor < tags.length && ![
@@ -782,7 +882,7 @@ function hatchBoundaryLoops(record) {
                         97
                     ].includes(tags[cursor].code))rawTags.push(tags[cursor++]);
                     edges.push({
-                        type: edgeType === 4 ? 'SPLINE' : 'UNKNOWN',
+                        type: 'UNKNOWN',
                         dxfEdgeType: edgeType,
                         rawTags
                     });
@@ -2370,7 +2470,15 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
                 requireXY(edge.center);
                 requireXY(edge.majorAxis);
                 if (Math.hypot(edge.majorAxis[0], edge.majorAxis[1]) <= 1e-15 || !Number.isFinite(edge.ratio) || edge.ratio <= 0 || edge.ratio > 1 || !Number.isFinite(edge.startAngle) || !Number.isFinite(edge.endAngle)) throw new KJValidationError('Native DXF HATCH ellipse edges require a non-zero XY major axis, ratio in (0,1], and finite angles');
-            } else throw new KJValidationError(`Native DXF HATCH edge type ${edge.type} is not supported; use LINE, ARC or ELLIPSE boundaries`);
+            } else if (edge.type === 'SPLINE') {
+                if (!Number.isInteger(edge.degree) || edge.degree < 1 || edge.degree > 10 || edge.controlPoints.length < edge.degree + 1 || edge.controlPoints.length > 4096 || edge.knots.length !== edge.controlPoints.length + edge.degree + 1 || edge.knots.some((value, index)=>!Number.isFinite(value) || index > 0 && value < edge.knots[index - 1]) || edge.weights.length && edge.weights.length !== edge.controlPoints.length || edge.weights.some((value)=>!Number.isFinite(value) || value <= 0)) throw new KJValidationError('Native DXF HATCH spline edge has an invalid degree, knot, control-point or weight contract');
+                for (const value of [
+                    ...edge.controlPoints,
+                    ...edge.fitPoints
+                ])requireXY(value);
+                if (edge.startTangent) requireXY(edge.startTangent);
+                if (edge.endTangent) requireXY(edge.endTangent);
+            } else throw new KJValidationError(`Native DXF HATCH edge type ${edge.type} is not supported; use LINE, ARC, ELLIPSE or SPLINE boundaries`);
         }
     }
     emitEntityHeader(output, 'HATCH', entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames);
@@ -2425,6 +2533,32 @@ function emitHatch(output, entity, layerName, ownerHandle, space, context) {
                     emit(output, 50, edge.startAngle * 180 / Math.PI);
                     emit(output, 51, edge.endAngle * 180 / Math.PI);
                     emit(output, 73, edge.counterClockwise === false ? 0 : 1);
+                } else if (edge.type === 'SPLINE') {
+                    emit(output, 72, 4);
+                    emit(output, 94, edge.degree);
+                    emit(output, 73, edge.weights.length ? 1 : 0);
+                    emit(output, 74, edge.periodic ? 1 : 0);
+                    emit(output, 95, edge.knots.length);
+                    emit(output, 96, edge.controlPoints.length);
+                    for (const knot of edge.knots)emit(output, 40, knot);
+                    for (const [index, control] of edge.controlPoints.entries()){
+                        emit(output, 10, control[0]);
+                        emit(output, 20, control[1]);
+                        if (edge.weights.length) emit(output, 42, edge.weights[index]);
+                    }
+                    emit(output, 97, edge.fitPoints.length);
+                    for (const fit of edge.fitPoints){
+                        emit(output, 11, fit[0]);
+                        emit(output, 21, fit[1]);
+                    }
+                    if (edge.startTangent) {
+                        emit(output, 12, edge.startTangent[0]);
+                        emit(output, 22, edge.startTangent[1]);
+                    }
+                    if (edge.endTangent) {
+                        emit(output, 13, edge.endTangent[0]);
+                        emit(output, 23, edge.endTangent[1]);
+                    }
                 } else throw new KJValidationError(`DXF HATCH writer does not support ${edge.type} boundary edges`);
             }
         }

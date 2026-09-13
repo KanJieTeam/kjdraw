@@ -8,6 +8,7 @@ import { createHatchStrokeCoverage } from './geometry/hatch-coverage.js';
 import { getEntityGrips } from './grips.js';
 import { attributeHidden, insertAttributes, isAttachedAttribute, visibleAttribute } from './attribute-display.js';
 import { layoutCadMText, layoutCadText } from './geometry/text-layout.js';
+import { sampleHatchSpline } from './geometry/hatch-boundary.js';
 import { effectiveLinetypeScale } from './linetype-scale.js';
 import { displayedEntityBounds, hitTestDisplayedEntity, isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence } from './selection-geometry.js';
 const HATCH_RASTER_PIXEL_LIMIT = 1048576;
@@ -341,7 +342,7 @@ function entityPoints(entity) {
                         center[1] + radius
                     ]);
                 }
-            }
+            } else if (edge.type === 'SPLINE') output.push(...points(edge.controlPoints));
         }
     }
     return output;
@@ -1520,7 +1521,8 @@ export class KJCanvasRenderer {
             const unsupportedBoundary = loops.some((loop)=>Array.isArray(loop.edges) && loop.edges.some((edge)=>![
                         'LINE',
                         'ARC',
-                        'ELLIPSE'
+                        'ELLIPSE',
+                        'SPLINE'
                     ].includes(String(edge.type).toUpperCase())));
             const paths = loops.map((loop)=>{
                 const value = loop;
@@ -1531,7 +1533,14 @@ export class KJCanvasRenderer {
                 const result = [];
                 for (const edge of Array.isArray(value.edges) ? value.edges : []){
                     const e = edge, center = point2(e.center);
-                    if (String(e.type).toUpperCase() === 'ELLIPSE') {
+                    if (String(e.type).toUpperCase() === 'SPLINE') {
+                        try {
+                            result.push(...sampleHatchSpline(e));
+                        } catch  {
+                            result.length = 0;
+                            break;
+                        }
+                    } else if (String(e.type).toUpperCase() === 'ELLIPSE') {
                         const axis = point2(e.majorAxis), ratio = finite(e.ratio), a = finite(e.startAngle), b = finite(e.endAngle), ccw = e.counterClockwise !== false;
                         if (!center || !axis || !(ratio > 0)) {
                             result.length = 0;
