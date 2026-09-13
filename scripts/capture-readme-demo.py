@@ -148,7 +148,10 @@ def main() -> None:
     durations = []
 
     for entry in manifest["frames"]:
-        with Image.open(entry["path"]) as capture:
+        frame_path = Path(entry["path"])
+        if not frame_path.is_absolute():
+            frame_path = frames_dir / frame_path
+        with Image.open(frame_path) as capture:
             source = capture.convert("RGB")
         target_height = round(source.height * target_width / source.width)
         resized_images.append(
