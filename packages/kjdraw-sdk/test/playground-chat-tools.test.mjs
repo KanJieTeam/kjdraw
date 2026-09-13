@@ -87,6 +87,43 @@ test('explicit manufacturing requests on an empty millimeter drawing send only t
   assert.equal(getKJDrawChatToolNamesForRequest(document,'Create a manufacturing drawing for a fixture plate.'),KJDRAW_CHAT_TOOL_NAMES)
 })
 
+test('explicit single MOVE requests use only the move schema when the host supplies exact selected entities', async () => {
+  const {document,session}=fixture()
+  await document.transact('Selectable geometry',tx=>{
+    tx.createEntity('LINE',{start:[0,0,0],end:[20,0,0]},{id:'selected-edge'})
+    tx.createEntity('CIRCLE',{center:[10,10,0],radius:3},{id:'selected-hole'})
+  })
+  const selectedIds=['selected-edge','selected-hole']
+  for(const prompt of ['Move the selected objects 5 mm to the right.', '把选中的对象向右移动 5 毫米。', 'Translate the selection by (5, -2).', '将选中对象平移 (5, -2)。']){
+    const toolNames=getKJDrawChatToolNamesForRequest(document,prompt,selectedIds)
+    assert.ok(Object.isFrozen(toolNames));assert.deepEqual(toolNames,['cad_propose_move'])
+  }
+  const toolNames=getKJDrawChatToolNamesForRequest(document,'Move the selected objects by dx=5 and dy=-2.',selectedIds)
+  const result=await runKJAgentTask({session,prompt:'Move the selected objects by dx=5 and dy=-2.',toolNames,
+    model:modelCall('cad_propose_move',{expectedRevision:document.revision,units:'millimeter',ids:selectedIds,dx:5,dy:-2},tools=>assert.deepEqual(tools.map(tool=>tool.name),['cad_propose_move']))})
+  assert.equal(result.status,'awaiting-approval')
+  assert.equal(document.revision,1)
+})
+
+test('MOVE routing stays conservative without exact selection, displacement, or a single edit intent', async () => {
+  const {document}=fixture()
+  await document.transact('Selectable geometry',tx=>tx.createEntity('LINE',{start:[0,0,0],end:[20,0,0]},{id:'selected-edge'}))
+  const full=getKJDrawChatToolNames(document), selected=['selected-edge']
+  for(const [prompt,ids] of [
+    ['Move the selected object 5 mm right.',[]],
+    ['Move the selected object 5 mm right.',['missing']],
+    ['Move the selected object 5 mm right.',['selected-edge','selected-edge']],
+    ['Move the selected object.',selected],
+    ['How can I move the selected object 5 mm right?',selected],
+    ["Don't move the selected object 5 mm right.",selected],
+    ['Move and rotate the selected object 5 mm right.',selected],
+    ['Move or copy the selected object 5 mm right.',selected],
+    ['把选中对象向右移动 5 毫米并旋转 10 度。',selected],
+    ['如何把选中对象向右移动 5 毫米？',selected],
+    ['不要把选中对象向右移动 5 毫米。',selected],
+  ])assert.equal(getKJDrawChatToolNamesForRequest(document,prompt,ids),full,prompt)
+})
+
 test('workbench policy rejects unexposed legacy creation before dispatch', async () => {
   const { session, document } = fixture()
   for (const name of ['cad_propose_lines', 'cad_propose_circles', 'cad_propose_drawing', 'cad_propose_drawing_compact']) {

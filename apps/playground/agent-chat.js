@@ -17,16 +17,37 @@ const selectionToolNames = new Map([KJDRAW_CHAT_TOOL_NAMES,meterToolNames,roadRe
 const manufacturingToolNames = Object.freeze(['cad_propose_manufacturing_sheet'])
 const architectureToolNames = Object.freeze(['cad_propose_architecture_plan'])
 const siteToolNames = Object.freeze(['cad_propose_site_plan'])
+const moveToolNames = Object.freeze(['cad_propose_move'])
 /** Host policy only: SDK defaults and explicitly selected/locked tools remain unchanged. */
 export function getKJDrawChatToolNames(document,roadDrawingIds=[]) {
   const names=document.snapshot().header.units === 'meter' ? roadDrawingIds.length?roadRevisionToolNames:meterToolNames : KJDRAW_CHAT_TOOL_NAMES
   return document.listObjects({kind:'group',type:'SELECTION_SET'}).length?selectionToolNames.get(names):names
 }
 
-/** Narrow an empty drawing to one explicit semantic compiler so the model returns parameters instead of entity streams. */
-export function getKJDrawChatToolNamesForRequest(document,request,roadDrawingIds=[]) {
+function isExplicitSingleMoveRequest(document,request,selectedIds) {
+  if(!Array.isArray(selectedIds)||!selectedIds.length||selectedIds.length>64)return false
+  const ids=new Set(selectedIds)
+  if(ids.size!==selectedIds.length||selectedIds.some(id=>typeof id!=='string'||!id||document.getObject(id)?.kind!=='entity'))return false
+  const normalized=request.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim()
+  const moveIntent=/\b(?:move|translate|shift|relocate)\b|移动|平移|挪动|移至|移到/.test(normalized)
+  if(!moveIntent)return false
+  // Route only an actionable geometric translation. Questions, negation and compound edits retain the complete policy.
+  const hasNumber=/[+-]?\d+(?:\.\d+)?/.test(normalized)
+  const hasDirection=/\b(?:left|right|up|down|north|south|east|west)\b|(?:向|往)(?:左|右|上|下|北|南|东|西)/.test(normalized)
+  const actionable=/\b(?:dx|dy)\s*[:=]?\s*[+-]?\d|\b(?:by|vector)\s*\(?\s*[+-]?\d+(?:\.\d+)?\s*[,， ]\s*[+-]?\d|(?:平移|移动)\s*\(?\s*[+-]?\d+(?:\.\d+)?\s*[,，]\s*[+-]?\d|\b(?:to|onto)\s+(?:the\s+)?(?:origin|point|coordinates?|x\s*[:=]?\s*[+-]?\d)|(?:到|至)(?:原点|(?:坐标|点位|位置)\s*\(?\s*[+-]?\d)|[xy]\s*[+-]\s*\d/.test(normalized)||(hasNumber&&hasDirection)
+  if(!actionable)return false
+  const questionOrNegation=/\b(?:how (?:do|can|should) i|what if|what (?:happens|would happen)|should i|explain|tell me how|do not|don't|dont|should not|shouldn't|without moving)\b|(?:怎么|如何).{0,24}(?:移动|平移)|如果.{0,24}(?:移动|平移).{0,12}(?:怎样|如何|会)|(?:不要|别|无需|不应).{0,8}(?:移动|平移)/.test(normalized)
+  if(questionOrNegation)return false
+  const otherEdit=/\b(?:copy|duplicate|rotate|scale|offset|stretch|lengthen|trim|extend|delete|erase|draw|create|measure|inspect|query|check|set|change|modify|update|make|add|remove|mirror|align|array|join|break|fillet|chamfer|hatch|zoom|pan)\b|复制|旋转|缩放|偏移|拉伸|延长|修剪|删除|擦除|绘制|创建|测量|检查|查询|设置|更改|修改|更新|改成|设为|添加|移除|镜像|对齐|阵列|合并|打断|圆角|倒角|填充|缩放视图|平移视图/.test(normalized)
+  return !otherEdit
+}
+
+/** Narrow an explicit request when the host already supplies all target context, or an empty drawing to one semantic compiler. */
+export function getKJDrawChatToolNamesForRequest(document,request,selectedIds=[],roadDrawingIds=[]) {
   const names=getKJDrawChatToolNames(document,roadDrawingIds)
-  if(document.listEntities().length||typeof request!=='string')return names
+  if(typeof request!=='string')return names
+  if(isExplicitSingleMoveRequest(document,request,selectedIds))return moveToolNames
+  if(document.listEntities().length)return names
   const normalized=request.normalize('NFKC').toLowerCase()
   const units=document.snapshot().header.units
   if(units==='meter'){
@@ -331,7 +352,7 @@ export function createAgentChat(container, options) {
     syncContext()
     if(!model){append('assistant',L('needConnection'),false);settings.hidden=false;connection.setAttribute('aria-expanded','true');endpoint.focus();return}
     cancelProposals('chat-new-request'); options.onBeforeRun()
-    const selected=JSON.stringify(options.getSelected().slice(0,64)), selectedContext=selected.length<4096?selected:'[] (selection omitted: too large)'
+    const selectedIds=options.getSelected().slice(0,64), selected=JSON.stringify(selectedIds), selectedContext=selected.length<4096?selected:'[] (selection omitted: too large)'
     let contextText=`Host context: document ${binding.document.id}; selected object IDs ${selectedContext}.`
     const previous=history.slice(-16), historyLength=history.length
     const attachedData=dataAttachment
@@ -348,7 +369,7 @@ export function createAgentChat(container, options) {
       if(controller.signal.aborted){activity.remove();append('assistant',L('cancelled'));return}
       const roadAsset=await prepareChatRoadAsset(session,attachedData)
       const dataPrompt=roadAsset?'\n'+roadAsset.contextText:attachedData?chatDataAttachmentPrompt(attachedData):''
-      const toolNames=roadAsset?[...roadAsset.toolNames,...(roadContext?.drawingIds?.length?['cad_propose_road_revision']:[])]:getKJDrawChatToolNamesForRequest(source.document,text,roadContext?.drawingIds)
+      const toolNames=roadAsset?[...roadAsset.toolNames,...(roadContext?.drawingIds?.length?['cad_propose_road_revision']:[])]:getKJDrawChatToolNamesForRequest(source.document,text,selectedIds,roadContext?.drawingIds)
       if(current!==epoch||binding!==source)return
       if(controller.signal.aborted){activity.remove();append('assistant',L('cancelled'));return}
       if(source.document.revision!==revision)throw new Error('Drawing changed while preparing model context')

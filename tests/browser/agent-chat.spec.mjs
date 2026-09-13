@@ -422,6 +422,33 @@ test('chat preview belongs to the current document identity even before the host
   expect(previewAfterSwitch).toBeNull()
 })
 
+test('chat sends only the MOVE schema for an exact selected translation', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  await page.evaluate(async () => {
+    const { createAgentChat } = await import('/apps/playground/agent-chat.js')
+    const { createKJDrawSDK } = await import('/packages/kjdraw-sdk/src/index.js')
+    const sdk=createKJDrawSDK(), document=sdk.createDocument({documentId:'move-route',units:'millimeter'})
+    await document.transact('Selected geometry',tx=>tx.createEntity('LINE',{start:[0,0,0],end:[20,0,0]},{id:'selected-edge'}))
+    const container=window.document.createElement('section');container.id='move-route-chat'
+    container.style.cssText='position:fixed;inset:0 auto auto 0;width:400px;height:600px;z-index:10000;background:white;display:flex;flex-direction:column'
+    window.document.body.append(container);window.moveRouteContext={sdk,document};window.moveRouteTools=[]
+    const chat=createAgentChat(container,{locale:()=> 'en',getContext:()=>window.moveRouteContext,getSelected:()=>['selected-edge'],
+      onPreview(){},onBeforeRun(){},runMutation:operation=>operation(),onApplied(){},onSave(){}})
+    chat.setModel({createConversation({tools}){
+      window.moveRouteTools=tools.map(tool=>tool.name)
+      return {next:async()=>({text:'',calls:[{id:'move',name:'cad_propose_move',arguments:{expectedRevision:document.revision,units:'millimeter',ids:['selected-edge'],dx:5,dy:-2}}]})}
+    }})
+  })
+  const chat=page.locator('#move-route-chat')
+  await chat.locator('#chat-input').fill('Move the selected object by dx=5 and dy=-2.')
+  await chat.locator('#chat-send').click()
+  await expect(chat.getByRole('button',{name:'Apply changes',exact:true})).toBeEnabled()
+  expect(await page.evaluate(()=>window.moveRouteTools)).toEqual(['cad_propose_move'])
+  await chat.getByRole('button',{name:'Apply changes',exact:true}).click()
+  expect(await page.evaluate(()=>window.moveRouteContext.document.getObject('selected-edge').payload)).toMatchObject({start:[5,-2,0],end:[25,-2,0]})
+})
+
 test('an old chat undo cannot erase a later manual edit', async ({ page }) => {
   await openChat(page)
   await page.route('**/api/model', route => route.fulfill({ json: wire([['profile', 'cad_propose_drawing_pattern', patternProfile()]]) }))
