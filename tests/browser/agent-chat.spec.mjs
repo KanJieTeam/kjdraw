@@ -7,6 +7,7 @@ import { createRoadDesignFixture, roadDrawingFixtureOptions } from '../../packag
 import { buildRoadDrawing } from '../../packages/kjdraw-sdk/src/road-drawing.js'
 import { restoreRoadDrawingRecipe } from '../../packages/kjdraw-sdk/src/road-drawing-recipe.js'
 import { buildAgentManufacturingSheet } from '../../packages/kjdraw-sdk/src/agent-manufacturing-sheet.js'
+import { KJDRAW_CHAT_TOOL_NAMES } from '../../apps/playground/agent-chat.js'
 
 function patternProfile(revision = 0) {
   const source = mountingProfile(revision)
@@ -227,7 +228,7 @@ test('chat queries the real drawing, previews native geometry, applies once, sav
   })
   await page.route('**/api/model', async route => {
     const body = route.request().postDataJSON(); requests.push(body)
-    expect(body.tools.map(tool => tool.function.name).sort()).toEqual(['cad_read_drawing', 'cad_read_page', 'cad_query_drawing', 'cad_read_layouts', 'cad_read_designs', 'cad_read_components', 'cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update', 'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet'].sort())
+    expect(body.tools.map(tool => tool.function.name).sort()).toEqual([...KJDRAW_CHAT_TOOL_NAMES].sort())
     if (requests.length === 1) return route.fulfill({ json: wire([['read', 'cad_read_drawing']]) })
     const result = JSON.parse(body.messages.at(-1).content)
     expect(result.ok).toBe(true)
