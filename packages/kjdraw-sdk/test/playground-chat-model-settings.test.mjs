@@ -56,3 +56,22 @@ test('workbench maps a streamed Responses output-limit terminal without retrying
  const sdk=createKJDrawSDK(),document=sdk.createDocument(),result=await runKJAgentTask({session:new KJAgentToolSession(sdk,document),model,prompt:'draw'})
  assert.equal(result.status,'failed');assert.equal(result.error.code,'KJMODEL_OUTPUT_LIMIT');assert.equal(requests,1);assert.equal(result.toolCalls,0);assert.equal(result.measurements.totals.totalTokens,4101)
 })
+
+test('workbench maps streamed Anthropic and Gemini output limits and preserves terminal usage',async()=>{
+ const cases=[
+  ['anthropic-messages','anthropicStreaming',[
+   {type:'message_start',message:{id:'msg-limit',type:'message',role:'assistant',content:[],model:'fixture',stop_reason:null,stop_sequence:null,usage:{input_tokens:5,cache_read_input_tokens:0,cache_creation_input_tokens:0}}},
+   {type:'message_delta',delta:{stop_reason:'max_tokens',stop_sequence:null},usage:{output_tokens:4096}},
+   {type:'message_stop'},
+  ],4101],
+  ['gemini-generate-content','geminiStreaming',[
+   {candidates:[{index:0,content:{role:'model',parts:[{text:'partial'}]},finishReason:'MAX_TOKENS'}],usageMetadata:{promptTokenCount:5,candidatesTokenCount:4096,thoughtsTokenCount:0,totalTokenCount:4101}},
+  ],4101],
+ ]
+ for(const[protocol,option,chunks,total]of cases){
+  let requests=0
+  const model=createChatModelAdapter({protocol,model:'stream-limit',[option]:true,request:async()=>{requests++;return{async*[Symbol.asyncIterator](){for(const chunk of chunks)yield chunk}}}})
+  const sdk=createKJDrawSDK(),document=sdk.createDocument(),result=await runKJAgentTask({session:new KJAgentToolSession(sdk,document),model,prompt:'draw'})
+  assert.equal(result.status,'failed',protocol);assert.equal(result.error.code,'KJMODEL_OUTPUT_LIMIT',protocol);assert.equal(requests,1,protocol);assert.equal(result.toolCalls,0,protocol);assert.equal(result.measurements.totals.totalTokens,total,protocol)
+ }
+})

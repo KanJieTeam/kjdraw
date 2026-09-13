@@ -52,6 +52,8 @@ export interface KJModelRequest {
     readonly model: string;
     /** REST JSON body. Gemini's model belongs in the URL, not this body. */
     readonly body: Readonly<Record<string, unknown>>;
+    /** Select a streaming transport operation. Gemini hosts use this to choose streamGenerateContent because its request body is unchanged. */
+    readonly streaming: boolean;
     readonly signal: AbortSignal;
 }
 export interface KJModelAdapterOptions {
@@ -66,11 +68,17 @@ export interface KJModelAdapterOptions {
     chatStreaming?: boolean;
     /** Request and strictly assemble Responses API events. The transport parses SSE and yields each JSON data object. */
     responsesStreaming?: boolean;
+    /** Request and strictly assemble Anthropic Messages events. The transport parses SSE and yields each JSON data object. */
+    anthropicStreaming?: boolean;
+    /** Strictly assemble Gemini streamGenerateContent responses. The host transport selects the streaming endpoint. */
+    geminiStreaming?: boolean;
     /** Ask compatible endpoints for a final usage chunk; keep disabled for endpoints that reject stream_options. */
     chatStreamIncludeUsage?: boolean;
     /** Send tool_stream=true for compatible endpoints that require it for incremental tool arguments. */
     chatStreamToolCalls?: boolean;
     maxResponseBytes?: number;
+    /** Maximum parsed events or chunks accepted for one streamed response. */
+    maxStreamEvents?: number;
     maxHistoryBytes?: number;
     /** Adapter-wide visible text observer, including runs created through runKJAgentTask. Exceptions are isolated. */
     onTextDelta?: (delta: string) => void;

@@ -243,23 +243,75 @@ function streamIndex(value, label) {
     if (!Number.isSafeInteger(value) || value < 0) invalid(`Streaming ${label} must be a non-negative integer`);
     return value;
 }
-async function assembleResponsesStream(source, maximumBytes, signal, onTextDelta) {
+function streamRecord(value, label, budget) {
+    if (++budget.events > budget.maximumEvents) throw new KJModelError('KJMODEL_SIZE_LIMIT', `Streaming ${label} exceeds its configured event limit`);
+    const serialized = JSON.stringify(value);
+    if (!serialized) invalid(`Streaming ${label} must be JSON serializable`);
+    budget.bytes += new TextEncoder().encode(serialized).length;
+    if (budget.bytes > budget.maximumBytes) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model response or conversation exceeds its configured JSON byte limit');
+    return record(JSON.parse(serialized));
+}
+async function* streamValues(source, signal) {
+    const iterator = source[Symbol.asyncIterator]();
+    let complete = false;
+    try {
+        while(true){
+            signal.throwIfAborted();
+            let rejectAbort;
+            const abort = new Promise((_, reject)=>{
+                rejectAbort = reject;
+            });
+            const onAbort = ()=>{
+                try {
+                    signal.throwIfAborted();
+                } catch (error) {
+                    rejectAbort?.(error);
+                }
+            };
+            signal.addEventListener('abort', onAbort, {
+                once: true
+            });
+            let result;
+            try {
+                result = await Promise.race([
+                    Promise.resolve().then(()=>iterator.next()),
+                    abort
+                ]);
+            } finally{
+                signal.removeEventListener('abort', onAbort);
+            }
+            if (result.done) {
+                complete = true;
+                return;
+            }
+            yield result.value;
+        }
+    } finally{
+        if (!complete && typeof iterator.return === 'function') {
+            try {
+                void Promise.resolve(iterator.return()).catch(()=>{});
+            } catch  {}
+        }
+    }
+}
+async function assembleResponsesStream(source, maximumBytes, maximumEvents, signal, onTextDelta) {
     if (!isAsyncIterable(source)) invalid('Streaming Responses transport must return an async iterable of parsed JSON events');
     const texts = new Map();
     const calls = new Map();
-    let bytes = 0, sequence = -1, terminal, chunks = 0;
-    for await (const rawEvent of source){
+    const budget = {
+        bytes: 0,
+        events: 0,
+        maximumBytes,
+        maximumEvents
+    };
+    let sequence = -1, terminal;
+    for await (const rawEvent of streamValues(source, signal)){
         signal.throwIfAborted();
-        const serialized = JSON.stringify(rawEvent);
-        if (!serialized) invalid('Streaming Responses event must be JSON serializable');
-        bytes += new TextEncoder().encode(serialized).length;
-        if (bytes > maximumBytes) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model response or conversation exceeds its configured JSON byte limit');
-        const event = record(JSON.parse(serialized)), type = event.type;
+        const event = streamRecord(rawEvent, 'Responses event', budget), type = event.type;
         if (typeof type !== 'string') invalid('Streaming Responses event requires a type');
         const nextSequence = streamIndex(event.sequence_number, 'sequence number');
         if (nextSequence <= sequence) invalid('Streaming Responses sequence numbers must increase');
         sequence = nextSequence;
-        chunks++;
         if (terminal) invalid('Streaming Responses terminal event must be last');
         if (type === 'response.output_text.delta') {
             const itemId = identifier(event.item_id), outputIndex = streamIndex(event.output_index, 'output index'), contentIndex = streamIndex(event.content_index, 'content index');
@@ -334,7 +386,7 @@ async function assembleResponsesStream(source, maximumBytes, signal, onTextDelta
             'response.output_item.done'
         ].includes(type) && !type.startsWith('response.reasoning_')) invalid('Unsupported Responses streaming event');
     }
-    if (!chunks || !terminal) invalid('Streaming Responses response ended without a terminal event');
+    if (!budget.events || !terminal) invalid('Streaming Responses response ended without a terminal event');
     const output = array(terminal.output);
     for (const current of texts.values()){
         if (!current.done) invalid('Streaming Responses text ended before done');
@@ -350,18 +402,19 @@ async function assembleResponsesStream(source, maximumBytes, signal, onTextDelta
     }
     return terminal;
 }
-async function assembleChatStream(source, maximumBytes, signal, onTextDelta) {
+async function assembleChatStream(source, maximumBytes, maximumEvents, signal, onTextDelta) {
     if (!isAsyncIterable(source)) invalid('Streaming Chat transport must return an async iterable of parsed JSON chunks');
     const tools = new Map();
-    let bytes = 0, text = '', reasoning = '', finishReason = null, usage, chunks = 0;
-    for await (const rawChunk of source){
+    const budget = {
+        bytes: 0,
+        events: 0,
+        maximumBytes,
+        maximumEvents
+    };
+    let text = '', reasoning = '', finishReason = null, usage;
+    for await (const rawChunk of streamValues(source, signal)){
         signal.throwIfAborted();
-        const serialized = JSON.stringify(rawChunk);
-        if (!serialized) invalid('Streaming Chat chunk must be JSON serializable');
-        bytes += new TextEncoder().encode(serialized).length;
-        if (bytes > maximumBytes) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model response or conversation exceeds its configured JSON byte limit');
-        const chunk = record(JSON.parse(serialized));
-        chunks++;
+        const chunk = streamRecord(rawChunk, 'Chat chunk', budget);
         if (Object.prototype.hasOwnProperty.call(chunk, 'usage') && chunk.usage !== null) {
             if (usage !== undefined) invalid('Streaming Chat response contains duplicate usage chunks');
             usage = chunk.usage;
@@ -425,10 +478,7 @@ async function assembleChatStream(source, maximumBytes, signal, onTextDelta) {
         if (choice.finish_reason !== undefined && choice.finish_reason !== null) finishReason = choice.finish_reason;
     }
     signal.throwIfAborted();
-    if (!chunks || ![
-        'stop',
-        'tool_calls'
-    ].includes(String(finishReason))) throw new KJModelError('KJMODEL_INCOMPLETE', 'Streaming Chat response is truncated, blocked or incomplete');
+    if (!budget.events || typeof finishReason !== 'string' || !finishReason) throw new KJModelError('KJMODEL_INCOMPLETE', 'Streaming Chat response ended without a finish reason');
     const indexes = [
         ...tools.keys()
     ].sort((left, right)=>left - right);
@@ -465,6 +515,238 @@ async function assembleChatStream(source, maximumBytes, signal, onTextDelta) {
         }
     };
 }
+async function assembleAnthropicStream(source, maximumBytes, maximumEvents, signal, onTextDelta) {
+    if (!isAsyncIterable(source)) invalid('Streaming Anthropic transport must return an async iterable of parsed JSON events');
+    const budget = {
+        bytes: 0,
+        events: 0,
+        maximumBytes,
+        maximumEvents
+    }, blocks = new Map();
+    let message, stopReason, stopSequence = null, finalUsage;
+    let messageDeltas = 0, stopped = false;
+    for await (const rawEvent of streamValues(source, signal)){
+        signal.throwIfAborted();
+        const event = streamRecord(rawEvent, 'Anthropic event', budget), type = event.type;
+        if (typeof type !== 'string') invalid('Streaming Anthropic event requires a type');
+        if (stopped) invalid('Streaming Anthropic message_stop must be last');
+        if (type === 'ping') continue;
+        if (type === 'error') throw new KJModelError('KJMODEL_INCOMPLETE', 'Anthropic stream failed; no tool calls were dispatched');
+        if (type === 'message_start') {
+            if (message || blocks.size || messageDeltas) invalid('Streaming Anthropic response contains duplicate or late message_start');
+            message = record(event.message);
+            if (message.role !== 'assistant' || array(message.content).length || message.stop_reason !== null && message.stop_reason !== undefined) invalid('Streaming Anthropic message_start is invalid');
+        } else if (type === 'content_block_start') {
+            if (!message || messageDeltas) invalid('Streaming Anthropic content block started outside a message');
+            const index = streamIndex(event.index, 'content block index');
+            if (index > 31 || blocks.has(index)) invalid('Streaming Anthropic content block index is duplicate or too large');
+            const block = record(event.content_block);
+            if (block.type === 'text') {
+                if (typeof block.text !== 'string') invalid('Streaming Anthropic text block requires initial text');
+                blocks.set(index, {
+                    type: 'text',
+                    text: block.text,
+                    done: false
+                });
+                notifyText(onTextDelta, block.text);
+            } else if (block.type === 'tool_use') {
+                const input = record(block.input);
+                blocks.set(index, {
+                    type: 'tool_use',
+                    id: identifier(block.id),
+                    name: identifier(block.name),
+                    initialInput: input,
+                    arguments: '',
+                    done: false
+                });
+            } else if (block.type === 'thinking') {
+                if (typeof block.thinking !== 'string') invalid('Streaming Anthropic thinking block requires initial text');
+                blocks.set(index, {
+                    type: 'thinking',
+                    thinking: block.thinking,
+                    ...typeof block.signature === 'string' ? {
+                        signature: block.signature
+                    } : {},
+                    done: false
+                });
+            } else if (block.type === 'redacted_thinking') {
+                if (typeof block.data !== 'string') invalid('Streaming Anthropic redacted thinking block requires data');
+                blocks.set(index, {
+                    type: 'redacted_thinking',
+                    data: block.data,
+                    done: false
+                });
+            } else invalid('Unsupported streaming Anthropic content block');
+        } else if (type === 'content_block_delta') {
+            if (!message || messageDeltas) invalid('Streaming Anthropic content delta occurred outside content');
+            const index = streamIndex(event.index, 'content block index'), block = blocks.get(index), delta = record(event.delta);
+            if (!block || block.done) invalid('Streaming Anthropic content delta requires an open block');
+            if (delta.type === 'text_delta' && block.type === 'text') {
+                if (typeof delta.text !== 'string') invalid('Streaming Anthropic text delta must be a string');
+                block.text += delta.text;
+                notifyText(onTextDelta, delta.text);
+            } else if (delta.type === 'input_json_delta' && block.type === 'tool_use') {
+                if (typeof delta.partial_json !== 'string') invalid('Streaming Anthropic tool arguments delta must be a string');
+                block.arguments += delta.partial_json;
+            } else if (delta.type === 'thinking_delta' && block.type === 'thinking') {
+                if (typeof delta.thinking !== 'string') invalid('Streaming Anthropic thinking delta must be a string');
+                block.thinking += delta.thinking;
+            } else if (delta.type === 'signature_delta' && block.type === 'thinking') {
+                if (typeof delta.signature !== 'string' || block.signature !== undefined) invalid('Streaming Anthropic signature delta is invalid or duplicate');
+                block.signature = delta.signature;
+            } else invalid('Streaming Anthropic delta does not match its content block');
+        } else if (type === 'content_block_stop') {
+            if (!message || messageDeltas) invalid('Streaming Anthropic content block stopped outside content');
+            const index = streamIndex(event.index, 'content block index'), block = blocks.get(index);
+            if (!block || block.done) invalid('Streaming Anthropic content block stop requires an open block');
+            block.done = true;
+        } else if (type === 'message_delta') {
+            if (!message || [
+                ...blocks.values()
+            ].some((block)=>!block.done)) invalid('Streaming Anthropic message_delta requires completed content blocks');
+            const delta = record(event.delta);
+            if (delta.stop_reason !== undefined && delta.stop_reason !== null) stopReason = delta.stop_reason;
+            if (delta.stop_sequence !== undefined) stopSequence = delta.stop_sequence;
+            finalUsage = {
+                ...finalUsage ?? {},
+                ...record(event.usage)
+            };
+            messageDeltas++;
+        } else if (type === 'message_stop') {
+            if (!message || !messageDeltas || typeof stopReason !== 'string' || !stopReason) throw new KJModelError('KJMODEL_INCOMPLETE', 'Streaming Anthropic response ended without a stop reason');
+            stopped = true;
+        } else invalid('Unsupported Anthropic streaming event');
+    }
+    signal.throwIfAborted();
+    if (!stopped || !message || !messageDeltas) invalid('Streaming Anthropic response ended without message_stop');
+    const indexes = [
+        ...blocks.keys()
+    ].sort((left, right)=>left - right);
+    if (indexes.some((value, index)=>value !== index)) invalid('Streaming Anthropic content block indexes must be contiguous');
+    const content = indexes.map((index)=>{
+        const block = blocks.get(index);
+        if (!block.done) invalid('Streaming Anthropic content block ended before stop');
+        if (block.type === 'tool_use') {
+            let input = block.initialInput;
+            if (block.arguments) {
+                try {
+                    input = JSON.parse(block.arguments);
+                } catch  {
+                    invalid('Streaming Anthropic tool arguments are not complete JSON');
+                }
+            }
+            if (!input || typeof input !== 'object' || Array.isArray(input)) invalid('Streaming Anthropic tool arguments must be a JSON object');
+            return {
+                type: block.type,
+                id: block.id,
+                name: block.name,
+                input
+            };
+        }
+        if (block.type === 'thinking') {
+            if (block.signature === undefined) invalid('Streaming Anthropic thinking block is missing its signature');
+            return {
+                type: block.type,
+                thinking: block.thinking,
+                signature: block.signature
+            };
+        }
+        if (block.type === 'redacted_thinking') return {
+            type: block.type,
+            data: block.data
+        };
+        return {
+            type: block.type,
+            text: block.text
+        };
+    });
+    const startUsage = message.usage === undefined ? {} : record(message.usage);
+    return {
+        ...message,
+        role: 'assistant',
+        content,
+        stop_reason: stopReason,
+        stop_sequence: stopSequence,
+        usage: {
+            ...startUsage,
+            ...finalUsage
+        }
+    };
+}
+async function assembleGeminiStream(source, maximumBytes, maximumEvents, signal, onTextDelta) {
+    if (!isAsyncIterable(source)) invalid('Streaming Gemini transport must return an async iterable of parsed JSON responses');
+    const budget = {
+        bytes: 0,
+        events: 0,
+        maximumBytes,
+        maximumEvents
+    }, parts = [];
+    let finishReason, usageMetadata, modelVersion, responseId;
+    for await (const rawChunk of streamValues(source, signal)){
+        signal.throwIfAborted();
+        const chunk = streamRecord(rawChunk, 'Gemini chunk', budget);
+        if (finishReason !== undefined) invalid('Streaming Gemini emitted chunks after its finish reason');
+        if (chunk.usageMetadata !== undefined) usageMetadata = record(chunk.usageMetadata);
+        if (chunk.modelVersion !== undefined) {
+            if (typeof chunk.modelVersion !== 'string') invalid('Streaming Gemini modelVersion must be a string');
+            modelVersion = chunk.modelVersion;
+        }
+        if (chunk.responseId !== undefined) {
+            if (typeof chunk.responseId !== 'string') invalid('Streaming Gemini responseId must be a string');
+            responseId = chunk.responseId;
+        }
+        const candidates = array(chunk.candidates ?? []);
+        if (!candidates.length) continue;
+        if (candidates.length !== 1) invalid('Expected exactly one streaming Gemini candidate');
+        const candidate = record(candidates[0]);
+        if (candidate.index !== undefined && candidate.index !== 0) invalid('Streaming Gemini candidate index must be zero');
+        if (candidate.content !== undefined) {
+            const content = record(candidate.content);
+            if (content.role !== undefined && content.role !== 'model') invalid('Expected streaming Gemini model content');
+            for (const rawPart of array(content.parts)){
+                const part = record(rawPart);
+                if (part.functionCall !== undefined) {
+                    const call = record(part.functionCall);
+                    identifier(call.name);
+                    const args = call.args ?? {};
+                    if (!args || typeof args !== 'object' || Array.isArray(args)) invalid('Streaming Gemini function arguments must be a JSON object');
+                    if (call.id !== undefined) identifier(call.id);
+                    parts.push(part);
+                } else if (typeof part.text === 'string') {
+                    if (part.thought !== undefined && part.thought !== true && part.thought !== false) invalid('Streaming Gemini thought marker must be boolean');
+                    if (part.thoughtSignature !== undefined && typeof part.thoughtSignature !== 'string') invalid('Streaming Gemini thought signature must be a string');
+                    parts.push(part);
+                    if (part.thought !== true) notifyText(onTextDelta, part.text);
+                } else invalid('Unsupported streaming Gemini part');
+            }
+        }
+        if (candidate.finishReason !== undefined) finishReason = candidate.finishReason;
+    }
+    signal.throwIfAborted();
+    if (!budget.events || typeof finishReason !== 'string' || !finishReason) throw new KJModelError('KJMODEL_INCOMPLETE', 'Streaming Gemini response ended without a finish reason');
+    if (!parts.length) invalid('Streaming Gemini response returned no content');
+    return {
+        candidates: [
+            {
+                index: 0,
+                finishReason,
+                content: {
+                    role: 'model',
+                    parts
+                }
+            }
+        ],
+        ...usageMetadata === undefined ? {} : {
+            usageMetadata
+        },
+        ...modelVersion === undefined ? {} : {
+            modelVersion
+        },
+        ...responseId === undefined ? {} : {
+            responseId
+        }
+    };
+}
 export function createKJModelAdapter(options) {
     const { protocol, request, onTextDelta: adapterText, onUsage: adapterUsage } = options;
     if (![
@@ -484,11 +766,15 @@ export function createKJModelAdapter(options) {
     ].includes(chatTokenParameter)) invalid('Unsupported chat token-limit field');
     const chatStreaming = options.chatStreaming ?? false;
     const responsesStreaming = options.responsesStreaming ?? false;
+    const anthropicStreaming = options.anthropicStreaming ?? false;
+    const geminiStreaming = options.geminiStreaming ?? false;
     const chatStreamIncludeUsage = options.chatStreamIncludeUsage ?? false;
     const chatStreamToolCalls = options.chatStreamToolCalls ?? false;
-    if (typeof chatStreaming !== 'boolean' || typeof responsesStreaming !== 'boolean' || typeof chatStreamIncludeUsage !== 'boolean' || typeof chatStreamToolCalls !== 'boolean' || (chatStreaming || chatStreamIncludeUsage || chatStreamToolCalls) && protocol !== 'chat-completions' || responsesStreaming && protocol !== 'responses' || (chatStreamIncludeUsage || chatStreamToolCalls) && !chatStreaming) invalid('Streaming options require their matching model protocol');
+    if (typeof chatStreaming !== 'boolean' || typeof responsesStreaming !== 'boolean' || typeof anthropicStreaming !== 'boolean' || typeof geminiStreaming !== 'boolean' || typeof chatStreamIncludeUsage !== 'boolean' || typeof chatStreamToolCalls !== 'boolean' || (chatStreaming || chatStreamIncludeUsage || chatStreamToolCalls) && protocol !== 'chat-completions' || responsesStreaming && protocol !== 'responses' || anthropicStreaming && protocol !== 'anthropic-messages' || geminiStreaming && protocol !== 'gemini-generate-content' || (chatStreamIncludeUsage || chatStreamToolCalls) && !chatStreaming) invalid('Streaming options require their matching model protocol');
     const responseBytes = limit(options.maxResponseBytes, 1048576, 16777216);
+    const streamEvents = limit(options.maxStreamEvents, 16384, 131072);
     const historyBytes = limit(options.maxHistoryBytes, 2097152, 16777216);
+    const streaming = chatStreaming || responsesStreaming || anthropicStreaming || geminiStreaming;
     return Object.freeze({
         createConversation ({ instructions, tools, onTextDelta, onUsage }) {
             if (onTextDelta !== undefined && typeof onTextDelta !== 'function') invalid('onTextDelta must be a function');
@@ -665,7 +951,7 @@ export function createKJModelAdapter(options) {
                                     input_schema: tool.parameters
                                 })),
                             max_tokens: outputTokens,
-                            stream: false
+                            stream: anthropicStreaming
                         };
                         else body = {
                             systemInstruction: {
@@ -696,6 +982,7 @@ export function createKJModelAdapter(options) {
                             protocol,
                             model,
                             body: outgoing,
+                            streaming,
                             signal
                         });
                         const streamedResponse = isAsyncIterable(responseSource);
@@ -703,8 +990,8 @@ export function createKJModelAdapter(options) {
                             notifyText(onTextDelta, text);
                             notifyText(adapterText, text);
                         };
-                        const rawResponse = chatStreaming && streamedResponse ? await assembleChatStream(responseSource, responseBytes, signal, delta) : responsesStreaming && streamedResponse ? await assembleResponsesStream(responseSource, responseBytes, signal, delta) : responseSource;
-                        if (!chatStreaming && !responsesStreaming && streamedResponse) invalid('Non-streaming model transport returned an async iterable');
+                        const rawResponse = chatStreaming && streamedResponse ? await assembleChatStream(responseSource, responseBytes, streamEvents, signal, delta) : responsesStreaming && streamedResponse ? await assembleResponsesStream(responseSource, responseBytes, streamEvents, signal, delta) : anthropicStreaming && streamedResponse ? await assembleAnthropicStream(responseSource, responseBytes, streamEvents, signal, delta) : geminiStreaming && streamedResponse ? await assembleGeminiStream(responseSource, responseBytes, streamEvents, signal, delta) : responseSource;
+                        if (!streaming && streamedResponse) invalid('Non-streaming model transport returned an async iterable');
                         const usage = extractKJModelUsage(protocol, rawResponse, {
                             latencyMs: Math.max(0, performance.now() - startedAt)
                         });
@@ -801,7 +1088,7 @@ export function createKJModelAdapter(options) {
                         }
                         if (calls.length > 16 || new Set(calls.map((call)=>call.id)).size !== calls.length) invalid('Too many calls or duplicate call IDs in one model turn');
                         if (!calls.length && !text.trim()) invalid('Model returned neither tool calls nor user-visible text');
-                        if ((chatStreaming || responsesStreaming) && !streamedResponse) delta(text);
+                        if (streaming && !streamedResponse) delta(text);
                         pending = calls;
                         ended = !calls.length;
                         return deepFreeze({

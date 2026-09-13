@@ -635,11 +635,128 @@ test('streaming options are protocol-bound and response byte limits cover all ch
   for (const options of [
     { protocol: 'responses', chatStreaming: true },
     { protocol: 'chat-completions', responsesStreaming: true },
+    { protocol: 'responses', anthropicStreaming: true },
+    { protocol: 'responses', geminiStreaming: true },
     { protocol: 'chat-completions', chatStreamIncludeUsage: true },
     { protocol: 'chat-completions', chatStreamToolCalls: true },
     { protocol: 'chat-completions', chatStreaming: 'yes' },
   ]) assert.throws(() => createKJModelAdapter({ ...options, model: 'invalid-stream-config', request: async () => ({}) }), /Streaming options/)
+  assert.throws(() => createKJModelAdapter({ protocol: 'anthropic-messages', model: 'invalid-stream-config', maxStreamEvents: 0, request: async () => ({}) }), /limit/)
   const model = createKJModelAdapter({ protocol: 'chat-completions', model: 'bounded-stream', chatStreaming: true, maxResponseBytes: 100, request: async () => streamed([streamChoice({ content: 'x'.repeat(200) }, 'stop')]) })
   const result = await runKJAgentTask({ session: fixture().session, prompt: 'inspect', model })
   assert.equal(result.status, 'failed'); assert.equal(result.error.code, 'KJMODEL_SIZE_LIMIT'); assert.equal(result.toolCalls, 0)
+})
+
+const anthropicEvent = (type, fields = {}) => ({ type, ...fields })
+const anthropicStart = usage => anthropicEvent('message_start', { message: { id: 'msg-stream', type: 'message', role: 'assistant', content: [], model: 'fixture', stop_reason: null, stop_sequence: null, usage } })
+
+test('streaming Anthropic assembles signed thinking, fragmented tool JSON, text and usage', async () => {
+  const { session } = fixture(), definition = session.definitions.find(tool => tool.name === 'cad_read_drawing')
+  const deltas = [], usages = []; let requestNumber = 0
+  const model = createKJModelAdapter({ protocol: 'anthropic-messages', model: 'claude-stream', anthropicStreaming: true, onTextDelta: delta => deltas.push(delta), request: async ({ body, streaming }) => {
+    assert.equal(streaming, true)
+    assert.equal(body.stream, true)
+    if (requestNumber++ === 0) return streamed([
+      anthropicStart({ input_tokens: 40, cache_read_input_tokens: 10, cache_creation_input_tokens: 2 }),
+      anthropicEvent('content_block_start', { index: 0, content_block: { type: 'thinking', thinking: '' } }),
+      anthropicEvent('content_block_delta', { index: 0, delta: { type: 'thinking_delta', thinking: 'inspect' } }),
+      anthropicEvent('content_block_delta', { index: 0, delta: { type: 'signature_delta', signature: 'signed-thinking' } }),
+      anthropicEvent('content_block_stop', { index: 0 }),
+      anthropicEvent('content_block_start', { index: 1, content_block: { type: 'tool_use', id: 'read', name: 'cad_read_drawing', input: {} } }),
+      anthropicEvent('content_block_delta', { index: 1, delta: { type: 'input_json_delta', partial_json: '{' } }),
+      anthropicEvent('content_block_delta', { index: 1, delta: { type: 'input_json_delta', partial_json: '}' } }),
+      anthropicEvent('content_block_stop', { index: 1 }),
+      anthropicEvent('message_delta', { delta: {}, usage: { output_tokens: 4 } }),
+      anthropicEvent('message_delta', { delta: { stop_reason: 'tool_use', stop_sequence: null }, usage: { output_tokens: 8 } }),
+      anthropicEvent('message_stop'),
+    ])
+    assert.equal(body.messages.at(-2).content[0].signature, 'signed-thinking')
+    assert.equal(body.messages.at(-1).content[0].tool_use_id, 'read')
+    return streamed([
+      anthropicStart({ input_tokens: 60, cache_read_input_tokens: 20, cache_creation_input_tokens: 0 }),
+      anthropicEvent('content_block_start', { index: 0, content_block: { type: 'text', text: '' } }),
+      anthropicEvent('content_block_delta', { index: 0, delta: { type: 'text_delta', text: 'Drawing ' } }),
+      anthropicEvent('content_block_delta', { index: 0, delta: { type: 'text_delta', text: 'ready.' } }),
+      anthropicEvent('content_block_stop', { index: 0 }),
+      anthropicEvent('message_delta', { delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 4 } }),
+      anthropicEvent('message_stop'),
+    ])
+  } })
+  const conversation = model.createConversation({ instructions: 'Read safely.', tools: [definition], onUsage: usage => usages.push(usage) })
+  const first = await conversation.next({ kind: 'prompt', text: 'Inspect.' }, new AbortController().signal)
+  assert.deepEqual(first.calls, [{ id: 'read', name: 'cad_read_drawing', arguments: {} }])
+  assert.equal(first.usage.inputTokens, 52); assert.equal(first.usage.outputTokens, 8)
+  const result = await session.call(first.calls[0].name, first.calls[0].arguments)
+  const second = await conversation.next({ kind: 'tool-results', results: [{ id: 'read', name: 'cad_read_drawing', result }] }, new AbortController().signal)
+  assert.equal(second.text, 'Drawing ready.'); assert.deepEqual(deltas, ['Drawing ', 'ready.']); assert.deepEqual(usages.map(usage => usage.totalTokens), [60, 84])
+})
+
+test('streaming Gemini assembles complete function-call chunks, visible deltas, thought signatures and usage', async () => {
+  const { session } = fixture(), definition = session.definitions.find(tool => tool.name === 'cad_read_drawing')
+  const deltas = []; let requestNumber = 0
+  const model = createKJModelAdapter({ protocol: 'gemini-generate-content', model: 'gemini-stream', geminiStreaming: true, request: async ({ body, streaming }) => {
+    assert.equal(streaming, true)
+    assert.equal('stream' in body, false)
+    if (requestNumber++ === 0) return streamed([
+      { candidates: [{ index: 0, content: { role: 'model', parts: [{ text: 'private reasoning', thought: true, thoughtSignature: 'signed-thought' }] } }], modelVersion: 'fixture-v1' },
+      { candidates: [{ index: 0, content: { role: 'model', parts: [{ functionCall: { id: 'read', name: 'cad_read_drawing', args: {} } }] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 20, candidatesTokenCount: 3, thoughtsTokenCount: 2, totalTokenCount: 25 } },
+    ])
+    assert.equal(body.contents.at(-2).parts[0].thoughtSignature, 'signed-thought')
+    assert.equal(body.contents.at(-1).parts[0].functionResponse.id, 'read')
+    return streamed([
+      { candidates: [{ index: 0, content: { role: 'model', parts: [{ text: 'Drawing ' }] } }] },
+      { candidates: [{ index: 0, content: { role: 'model', parts: [{ text: 'ready.' }] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 3, thoughtsTokenCount: 0, totalTokenCount: 33 } },
+    ])
+  } })
+  const conversation = model.createConversation({ instructions: 'Read safely.', tools: [definition], onTextDelta: delta => deltas.push(delta) })
+  const first = await conversation.next({ kind: 'prompt', text: 'Inspect.' }, new AbortController().signal)
+  assert.deepEqual(first.calls, [{ id: 'read', name: 'cad_read_drawing', arguments: {} }]); assert.equal(first.usage.totalTokens, 25)
+  const result = await session.call(first.calls[0].name, first.calls[0].arguments)
+  const second = await conversation.next({ kind: 'tool-results', results: [{ id: 'read', name: 'cad_read_drawing', result }] }, new AbortController().signal)
+  assert.equal(second.text, 'Drawing ready.'); assert.deepEqual(deltas, ['Drawing ', 'ready.']); assert.equal(second.usage.totalTokens, 33)
+})
+
+test('all streaming protocols enforce event budgets and abort an uncooperative iterator before tool dispatch', async () => {
+  for (const [protocol, option] of [
+    ['responses', 'responsesStreaming'], ['chat-completions', 'chatStreaming'], ['anthropic-messages', 'anthropicStreaming'], ['gemini-generate-content', 'geminiStreaming'],
+  ]) {
+    const { session, document } = fixture(), before = document.serialize()
+    const chunks = protocol === 'responses' ? [0, 1, 2].map(sequence_number => responseEvent('response.in_progress', sequence_number))
+      : protocol === 'chat-completions' ? [0, 1, 2].map(() => streamChoice({ content: '' }))
+        : protocol === 'anthropic-messages' ? [0, 1, 2].map(() => anthropicEvent('ping')) : [0, 1, 2].map(() => ({ candidates: [] }))
+    const result = await runKJAgentTask({ session, prompt: 'inspect', model: createKJModelAdapter({ protocol, model: 'event-budget', [option]: true, maxStreamEvents: 2, request: async () => streamed(chunks) }) })
+    assert.equal(result.status, 'failed', protocol); assert.equal(result.error.code, 'KJMODEL_SIZE_LIMIT', protocol); assert.equal(result.toolCalls, 0); assert.equal(document.serialize(), before)
+  }
+  let iteratorClosed = false
+  const neverFinishes = {
+    [Symbol.asyncIterator]() {
+      return { next: () => new Promise(() => {}), return() { iteratorClosed = true; return Promise.resolve({ done: true }) } }
+    },
+  }
+  const controller = new AbortController()
+  const conversation = createKJModelAdapter({ protocol: 'anthropic-messages', model: 'cancel-stream', anthropicStreaming: true, request: async () => neverFinishes }).createConversation({ instructions: 'Wait.', tools: [] })
+  const pending = conversation.next({ kind: 'prompt', text: 'Wait.' }, controller.signal)
+  setTimeout(() => controller.abort(new Error('cancelled by host')), 5)
+  await assert.rejects(pending, /cancelled by host/)
+  await new Promise(resolve => setTimeout(resolve, 0))
+  assert.equal(iteratorClosed, true)
+})
+
+test('Anthropic and Gemini streams reject malformed or truncated tool calls before CAD dispatch', async () => {
+  const invalidStreams = [
+    ['anthropic-messages', 'anthropicStreaming', streamed([
+      anthropicStart({ input_tokens: 1 }),
+      anthropicEvent('content_block_start', { index: 0, content_block: { type: 'tool_use', id: 'read', name: 'cad_read_drawing', input: {} } }),
+      anthropicEvent('content_block_delta', { index: 0, delta: { type: 'input_json_delta', partial_json: '{' } }),
+      anthropicEvent('content_block_stop', { index: 0 }),
+      anthropicEvent('message_delta', { delta: { stop_reason: 'tool_use', stop_sequence: null }, usage: { output_tokens: 1 } }),
+      anthropicEvent('message_stop'),
+    ])],
+    ['gemini-generate-content', 'geminiStreaming', streamed([{ candidates: [{ index: 0, content: { role: 'model', parts: [{ functionCall: { name: 'cad_read_drawing', args: 'not-an-object' } }] }, finishReason: 'STOP' }] }])],
+  ]
+  for (const [protocol, option, response] of invalidStreams) {
+    const { session, document } = fixture(), before = document.serialize()
+    const result = await runKJAgentTask({ session, prompt: 'inspect', model: createKJModelAdapter({ protocol, model: 'invalid-stream', [option]: true, request: async () => response }) })
+    assert.equal(result.status, 'failed', protocol); assert.equal(result.toolCalls, 0, protocol); assert.equal(document.serialize(), before, protocol)
+  }
 })
