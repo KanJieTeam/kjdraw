@@ -23,7 +23,8 @@
     "NOTICE"
   ],
   "bin": {
-    "kjdraw": "./bin/kjdraw.mjs"
+    "kjdraw": "./bin/kjdraw.mjs",
+    "kjdraw-mcp": "./bin/kjdraw-mcp.mjs"
   },
   "publishConfig": {
     "access": "public",
