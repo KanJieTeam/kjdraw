@@ -156,3 +156,56 @@ export function validatePlotSettings(value) {
         if (!valid) throw new KJValidationError(`Invalid layout plotSettings.${key}`);
     }
 }
+export function resolvePhysicalPlotPaper(settings) {
+    validatePlotSettings(settings);
+    const width = Number(settings.paperWidth), height = Number(settings.paperHeight);
+    const left = Number(settings.marginLeft ?? 0), right = Number(settings.marginRight ?? 0);
+    const top = Number(settings.marginTop ?? 0), bottom = Number(settings.marginBottom ?? 0);
+    const rotation = Number(settings.rotation ?? 0);
+    if (![
+        width,
+        height,
+        left,
+        right,
+        top,
+        bottom
+    ].every(Number.isFinite) || width <= 0 || height <= 0) {
+        throw new KJValidationError('Physical plot paper requires positive finite dimensions and finite margins');
+    }
+    if (rotation === 1) return {
+        width: height,
+        height: width,
+        left: top,
+        right: bottom,
+        top: right,
+        bottom: left,
+        rotation
+    };
+    if (rotation === 2) return {
+        width,
+        height,
+        left: right,
+        right: left,
+        top: bottom,
+        bottom: top,
+        rotation
+    };
+    if (rotation === 3) return {
+        width: height,
+        height: width,
+        left: bottom,
+        right: top,
+        top: left,
+        bottom: right,
+        rotation
+    };
+    return {
+        width,
+        height,
+        left,
+        right,
+        top,
+        bottom,
+        rotation
+    };
+}

@@ -33,10 +33,24 @@ export interface KJDxfPlotSettings {
     imageOriginX?: number;
     imageOriginY?: number;
 }
+export interface KJPhysicalPlotPaper {
+    width: number;
+    height: number;
+    left: number;
+    right: number;
+    top: number;
+    bottom: number;
+    rotation: 0 | 1 | 2 | 3;
+}
 type Field = readonly [code: number, kind: 'string' | 'number' | 'integer' | 'positive', min?: number, max?: number];
 export declare const PLOT_SETTING_FIELDS: Readonly<{
     [K in keyof KJDxfPlotSettings]-?: Field;
 }>;
 /** Shared commit/import/export validation; rejects malformed settings without coercion. */
 export declare function validatePlotSettings(value: unknown): asserts value is KJDxfPlotSettings;
+/** Resolve DXF plot rotation into the physical output page. DXF rotations 1
+ * and 3 exchange the paper axes; every rotation carries the asymmetric
+ * hardware margins to the corresponding physical edge. Drawing coordinates
+ * then remain in the output page coordinate system used by print/PDF/PNG. */
+export declare function resolvePhysicalPlotPaper(settings: KJDxfPlotSettings): KJPhysicalPlotPaper;
 export {};

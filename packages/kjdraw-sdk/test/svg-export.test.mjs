@@ -159,8 +159,8 @@ test('visible unsupported geometry rejects the whole default SVG; explicit parti
   assert.throws(()=>exportDrawingSvg(document,{layoutId,maxEntities:1}),/budget/)
 })
 
-test('SVG refuses unsupported page transformations and native 3D, fitted text and unpositioned attribute values without silently changing semantics',async()=>{
-  for(const payload of [{flags:4},{rotation:1},{flags:16},{paperUnits:2},{styleSheet:'unknown.ctb'}]){
+test('SVG refuses unsupported page settings and native 3D, fitted text and unpositioned attribute values without silently changing semantics',async()=>{
+  for(const payload of [{flags:4},{flags:16},{paperUnits:2},{styleSheet:'unknown.ctb'}]){
     const {sdk,document,layoutId}=await fixture()
     await sdk.executeCommand('PLOTSETUP',{layoutId,dxf:payload})
     assert.throws(()=>exportDrawingSvg(document,{layoutId}),/SVG export/)

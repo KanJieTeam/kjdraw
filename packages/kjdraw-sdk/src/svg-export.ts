@@ -1,7 +1,7 @@
 import type { KJDocument } from './document.js'
 import type { KJReadonlyObjectRecord } from './schema.js'
 import { KJRevisionConflictError, KJValidationError } from './errors.js'
-import { validatePlotSettings } from './plot-settings.js'
+import { resolvePhysicalPlotPaper, validatePlotSettings } from './plot-settings.js'
 import { insertAttributes, isAttachedAttribute } from './attribute-display.js'
 import { layoutCadMText, textFontFamily } from './geometry/text-layout.js'
 import { aciColor } from './canvas-renderer.js'
@@ -91,9 +91,8 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
   const settings = layout.payload.dxfPlotSettings
   if (!settings) fail('configure explicit paper dimensions and a custom scale with PAGESETUP before exporting SVG')
   validatePlotSettings(settings)
-  const width = numeric(settings.paperWidth), height = numeric(settings.paperHeight)
-  if (width <= 0 || height <= 0 || width > 10000 || height > 10000) fail('paper dimensions must be positive millimeters, at most 10000')
-  if (numeric(settings.rotation, 0) !== 0) fail('rotated plot setup is unsupported; supply landscape paper dimensions with rotation 0')
+  const rawWidth = numeric(settings.paperWidth), rawHeight = numeric(settings.paperHeight)
+  if (rawWidth <= 0 || rawHeight <= 0 || rawWidth > 10000 || rawHeight > 10000) fail('paper dimensions must be positive millimeters, at most 10000')
   if ((numeric(settings.flags, 0) & 16) !== 0) fail('standard/fit plotting is unsupported; select an explicit custom ratio')
   if (numeric(settings.flags, 0) !== 0) fail('nonzero plot flags are unsupported; use explicit origin, margins and custom ratio')
   if (settings.styleSheet || settings.printerName || numeric(settings.shadeMode, 0) !== 0) fail('external plot styles, printer-specific configuration and shaded plotting are unsupported')
@@ -101,7 +100,8 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
   if (paperUnits !== 0 && paperUnits !== 1) fail('pixel paper units have no supported physical scale')
   const scale = numeric(settings.scaleNumerator, 1) / numeric(settings.scaleDenominator, 1) * (paperUnits === 0 ? 25.4 : 1)
   if (!(scale > 0) || !Number.isFinite(scale)) fail('invalid custom plot ratio')
-  const left = numeric(settings.marginLeft, 0), right = numeric(settings.marginRight, 0), top = numeric(settings.marginTop, 0), bottom = numeric(settings.marginBottom, 0)
+  const physical = resolvePhysicalPlotPaper(settings)
+  const { width, height, left, right, top, bottom } = physical
   if (left + right >= width || top + bottom >= height) fail('margins leave no printable area')
   const printableWidth = width - left - right, printableHeight = height - top - bottom
   const plotType = numeric(settings.plotType, isModel ? -1 : 5)

@@ -1,7 +1,7 @@
 // Generated from drawing-image.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJCanvasRenderer } from './canvas-renderer.js';
 import { KJRevisionConflictError, KJValidationError } from './errors.js';
-import { validatePlotSettings } from './plot-settings.js';
+import { resolvePhysicalPlotPaper, validatePlotSettings } from './plot-settings.js';
 import { deepFreeze } from './utils.js';
 const MAX_DATA_URL_BYTES = 1024 * 1024;
 function invalid(message) {
@@ -141,16 +141,16 @@ export function resolveDrawingPngPlot(drawing, options) {
     const settings = layout.payload.dxfPlotSettings;
     if (!settings) invalid('configure PAGESETUP before PNG export');
     validatePlotSettings(settings);
-    const paperWidth = Number(settings.paperWidth), paperHeight = Number(settings.paperHeight);
-    if (!(paperWidth > 0) || !(paperHeight > 0) || paperWidth > 10000 || paperHeight > 10000) invalid('paper dimensions must be positive millimeters, at most 10000');
-    if (Number(settings.rotation ?? 0) !== 0) invalid('rotated plot setup is unsupported; supply landscape paper dimensions with rotation 0');
+    const rawPaperWidth = Number(settings.paperWidth), rawPaperHeight = Number(settings.paperHeight);
+    if (!(rawPaperWidth > 0) || !(rawPaperHeight > 0) || rawPaperWidth > 10000 || rawPaperHeight > 10000) invalid('paper dimensions must be positive millimeters, at most 10000');
     if (Number(settings.flags ?? 0) !== 0) invalid('fit or nonzero plot flags are unsupported; use an explicit custom ratio');
     if (settings.styleSheet || settings.printerName || Number(settings.shadeMode ?? 0) !== 0) invalid('external plot styles, printer configuration and shaded plotting are unsupported');
     const paperUnits = Number(settings.paperUnits ?? 1);
     if (paperUnits !== 0 && paperUnits !== 1) invalid('pixel paper units have no physical raster scale');
     const scale = Number(settings.scaleNumerator ?? 1) / Number(settings.scaleDenominator ?? 1) * (paperUnits === 0 ? 25.4 : 1);
     if (!(scale > 0) || !Number.isFinite(scale)) invalid('custom plot ratio must be positive and finite');
-    const left = Number(settings.marginLeft ?? 0), right = Number(settings.marginRight ?? 0), top = Number(settings.marginTop ?? 0), bottom = Number(settings.marginBottom ?? 0);
+    const physical = resolvePhysicalPlotPaper(settings);
+    const { width: paperWidth, height: paperHeight, left, right, top, bottom } = physical;
     const printableWidth = paperWidth - left - right, printableHeight = paperHeight - top - bottom;
     if (!(printableWidth > 0) || !(printableHeight > 0)) invalid('margins leave no printable area');
     const originX = Number(settings.originX ?? 0), originY = Number(settings.originY ?? 0);
