@@ -51,6 +51,18 @@ function arcPath(center, radius, start, end, clockwise = false) {
     const tail = sweep === TAU ? `A ${radius} ${radius} 0 0 ${flag} ${pos(at(start + (clockwise ? -Math.PI : Math.PI)))} A ${radius} ${radius} 0 0 ${flag} ${pos(at(finish))}` : `A ${radius} ${radius} 0 ${sweep > Math.PI ? 1 : 0} ${flag} ${pos(at(finish))}`;
     return `M ${pos(at(start))} ${tail}`;
 }
+function ellipsePath(center, axis, ratio, start, end) {
+    const radius = Math.hypot(axis[0], axis[1]);
+    if (!(radius > 0) || !(ratio > 0 && ratio <= 1)) fail('ellipse axis and ratio must be positive');
+    const at = (angle)=>[
+            center[0] + axis[0] * Math.cos(angle) - axis[1] * ratio * Math.sin(angle),
+            center[1] + axis[1] * Math.cos(angle) + axis[0] * ratio * Math.sin(angle)
+        ];
+    const raw = end - start, sweep = Math.abs(raw) >= TAU - 1e-12 ? TAU : (raw % TAU + TAU) % TAU || TAU;
+    const finish = start + sweep, rotation = Math.atan2(axis[1], axis[0]) * 180 / Math.PI;
+    const tail = sweep === TAU ? `A ${radius} ${radius * ratio} ${rotation} 0 1 ${pos(at(start + Math.PI))} A ${radius} ${radius * ratio} ${rotation} 0 1 ${pos(at(finish))}` : `A ${radius} ${radius * ratio} ${rotation} ${sweep > Math.PI ? 1 : 0} 1 ${pos(at(finish))}`;
+    return `M ${pos(at(start))} ${tail}`;
+}
 function polyPath(vertices, closed) {
     if (!Array.isArray(vertices) || vertices.length < 2 || vertices.length > 50000) fail('polyline requires 2–50000 vertices');
     const rows = vertices.map((v)=>({
@@ -84,7 +96,12 @@ function viewportClip(document, viewport) {
         if (!(radius > 0) || numeric(payload.thickness, 0) !== 0 || payload.normal && JSON.stringify(payload.normal) !== '[0,0,1]' || payload.extrusionDirection && JSON.stringify(payload.extrusionDirection) !== '[0,0,1]') fail('viewport clipping circle must be positive and lie in the XY plane');
         return `<circle cx="${center[0]}" cy="${center[1]}" r="${radius}"/>`;
     }
-    if (boundary.type !== 'LWPOLYLINE' && boundary.type !== 'POLYLINE') fail('viewport clipping boundary must be a circle or closed 2D polyline');
+    if (boundary.type === 'ELLIPSE') {
+        const center = point(payload.center), axis = point(payload.majorAxis), radius = Math.hypot(axis[0], axis[1]), ratio = numeric(payload.ratio), start = numeric(payload.startParameter, 0), end = numeric(payload.endParameter, Math.PI * 2);
+        if (!(radius > 0) || !(ratio > 0 && ratio <= 1) || Math.abs(end - start - Math.PI * 2) > 1e-12 || numeric(payload.thickness, 0) !== 0 || payload.normal && JSON.stringify(payload.normal) !== '[0,0,1]' || payload.extrusionDirection && JSON.stringify(payload.extrusionDirection) !== '[0,0,1]') fail('viewport clipping ellipse must be complete, nondegenerate and lie in the XY plane');
+        return `<ellipse cx="${center[0]}" cy="${center[1]}" rx="${radius}" ry="${radius * ratio}" transform="rotate(${Math.atan2(axis[1], axis[0]) * 180 / Math.PI} ${center[0]} ${center[1]})"/>`;
+    }
+    if (boundary.type !== 'LWPOLYLINE' && boundary.type !== 'POLYLINE') fail('viewport clipping boundary must be a circle, complete ellipse or closed 2D polyline');
     if (payload.closed !== true || numeric(payload.elevation, 0) !== 0 || numeric(payload.constantWidth, 0) !== 0 || boundary.type === 'POLYLINE' && (numeric(payload.dxfFlags, 0) & (8 | 16 | 64)) !== 0) fail('viewport clipping boundary must be a closed zero-width 2D polyline');
     if (!Array.isArray(payload.vertices) || payload.vertices.length < 3 || payload.vertices.length > 4096) fail('viewport clipping boundary requires 3–4096 vertices');
     const rows = payload.vertices.map((value)=>({
@@ -331,6 +348,7 @@ export function exportDrawingSvg(document, options) {
             return `<circle cx="${a[0]}" cy="${a[1]}" r="${r}"/>`;
         }
         if (entity.type === 'ARC') return `<path d="${arcPath(point(p.center), numeric(p.radius), numeric(p.startAngle), numeric(p.endAngle), p.clockwise === true)}"/>`;
+        if (entity.type === 'ELLIPSE') return `<path d="${ellipsePath(point(p.center), point(p.majorAxis), numeric(p.ratio), numeric(p.startParameter, 0), numeric(p.endParameter, TAU))}"/>`;
         if (entity.type === 'LWPOLYLINE' || entity.type === 'POLYLINE') {
             if (numeric(p.elevation, 0) || numeric(p.constantWidth, 0) || (numeric(p.dxfFlags, 0) & (8 | 16 | 64)) !== 0) fail('polyline elevation/width is unsupported');
             return `<path d="${polyPath(p.vertices ?? p.points, p.closed === true)}"/>`;

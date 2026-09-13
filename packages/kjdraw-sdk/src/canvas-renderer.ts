@@ -234,7 +234,7 @@ function polylineSamples(payload: Readonly<Record<string, unknown>>): Point2[] {
   return output
 }
 
-type ViewportClip = { kind: 'polyline'; points: Point2[] } | { kind: 'circle'; center: Point2; radius: number }
+type ViewportClip = { kind: 'polyline'; points: Point2[] } | { kind: 'circle'; center: Point2; radius: number } | { kind: 'ellipse'; center: Point2; radius: number; ratio: number; rotation: number }
 function viewportClip(document: KJDocument, viewport: KJReadonlyObjectRecord): ViewportClip | null | 'invalid' {
   const id = viewport.payload.clippingBoundaryId
   if (id == null) return null
@@ -245,6 +245,12 @@ function viewportClip(document: KJDocument, viewport: KJReadonlyObjectRecord): V
     const center = point2(payload.center), radius = Number(payload.radius)
     if (!center || !Number.isFinite(radius) || radius <= 0 || Number((payload.center as readonly unknown[] | undefined)?.[2] ?? 0) !== 0 || finite(payload.thickness) !== 0 || payload.normal && JSON.stringify(payload.normal) !== '[0,0,1]' || payload.extrusionDirection && JSON.stringify(payload.extrusionDirection) !== '[0,0,1]') return 'invalid'
     return { kind: 'circle', center, radius }
+  }
+  if (boundary.type === 'ELLIPSE') {
+    const center = point2(payload.center), axis = point2(payload.majorAxis), ratio = Number(payload.ratio), start = Number(payload.startParameter ?? 0), end = Number(payload.endParameter ?? Math.PI * 2)
+    const radius = axis ? Math.hypot(axis[0], axis[1]) : 0
+    if (!center || !axis || !Number.isFinite(ratio) || ratio <= 0 || ratio > 1 || !(radius > 0) || !Number.isFinite(start) || !Number.isFinite(end) || Math.abs(end - start - Math.PI * 2) > 1e-12 || Number((payload.center as readonly unknown[] | undefined)?.[2] ?? 0) !== 0 || Number((payload.majorAxis as readonly unknown[] | undefined)?.[2] ?? 0) !== 0 || finite(payload.thickness) !== 0 || payload.normal && JSON.stringify(payload.normal) !== '[0,0,1]' || payload.extrusionDirection && JSON.stringify(payload.extrusionDirection) !== '[0,0,1]') return 'invalid'
+    return { kind: 'ellipse', center, radius, ratio, rotation: Math.atan2(axis[1], axis[0]) }
   }
   if (boundary.type !== 'LWPOLYLINE' && boundary.type !== 'POLYLINE') return 'invalid'
   if (payload.closed !== true || finite(payload.elevation) !== 0 || finite(payload.constantWidth) !== 0 || boundary.type === 'POLYLINE' && (finite(payload.dxfFlags) & (8 | 16 | 64)) !== 0) return 'invalid'
@@ -1367,6 +1373,9 @@ export class KJCanvasRenderer {
       if (clipping?.kind === 'circle') {
         const screen = this.worldToScreen(clipping.center)
         context.arc(screen[0], screen[1], clipping.radius * this.camera.scale, 0, Math.PI * 2)
+      } else if (clipping?.kind === 'ellipse') {
+        const screen = this.worldToScreen(clipping.center)
+        context.ellipse(screen[0], screen[1], clipping.radius * this.camera.scale, clipping.radius * clipping.ratio * this.camera.scale, -clipping.rotation, 0, Math.PI * 2)
       } else corners.forEach((point, i) => { const screen = this.worldToScreen(point); i ? context.lineTo(...screen) : context.moveTo(...screen) })
       context.closePath(); context.clip()
       const query = { document, spaceId: document.spaces.modelSpaceId }

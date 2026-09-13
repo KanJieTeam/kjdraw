@@ -87,13 +87,46 @@ test('circular viewport clips, scales and survives print plus KJD/DXF reopen wit
   }
 })
 
-test('unsupported, open, degenerate and cross-space viewport clips fail closed without exposing model content', async () => {
-  for (const mode of ['ellipse', 'open', 'degenerate', 'cross-space']) {
+test('complete elliptical viewport preserves rotation through editing, print and KJD/DXF reopen', async () => {
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ units: 'millimeter' }), model = drawing.spaces.modelSpaceId
+  let layout, boundary, viewport
+  await drawing.transact('elliptical detail viewport', tx => {
+    tx.createEntity('LINE', { start: [-30, 0, 0], end: [30, 0, 0], trueColor: 0x0000ff }, { ownerId: model })
+    layout = tx.createLayout({ name: 'Elliptical detail' })
+    boundary = tx.createEntity('ELLIPSE', { center: [50, 50, 0], majorAxis: [20, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2 }, { ownerId: layout.payload.blockRecordId })
+    viewport = tx.createEntity('VIEWPORT', { center: [50, 50, 0], width: 40, height: 20, viewCenter: [0, 0, 0], viewHeight: 20, viewTarget: [0, 0, 0], viewDirection: [0, 0, 1], flags: 65536, clippingBoundaryId: boundary.id }, { ownerId: layout.payload.blockRecordId })
+    tx.updateObject(layout.id, { payload: { viewportIds: [viewport.id] } })
+  })
+  await sdk.executeCommand('PAGESETUP', { layoutId: layout.id, dxf: { paperWidth: 100, paperHeight: 100, paperUnits: 1, plotType: 5, flags: 0, scaleNumerator: 1, scaleDenominator: 1, marginLeft: 0, marginRight: 0, marginTop: 0, marginBottom: 0, originX: 0, originY: 0, printerName: '', styleSheet: '', shadeMode: 0 } }, { document: drawing })
+  const ellipse = (document, layoutId) => {
+    const output = exportDrawingSvg(document, { layoutId }), match = output.svg.match(/<clipPath id="kj-viewport-\d+"[^>]*><ellipse cx="50" cy="50" rx="([^\"]+)" ry="([^\"]+)" transform="rotate\(([^ ]+) 50 50\)"\/><\/clipPath>/)
+    assert.equal(output.report.status, 'complete'); assert.ok(match)
+    assert.ok(Math.abs(Number(match[1]) - 20) <= 1e-9); assert.ok(Math.abs(Number(match[2]) - 10) <= 1e-9)
+    return Number(match[3])
+  }
+  assert.ok(Math.abs(ellipse(drawing, layout.id)) <= 1e-9)
+  assert.match(createDrawingPrintHtml(drawing, { layoutId: layout.id }).html, /<ellipse cx="50" cy="50"/)
+  await sdk.executeCommand('ROTATE', { ids: [boundary.id], center: [50, 50], angle: Math.PI / 6 }, { document: drawing })
+  assert.ok(Math.abs(ellipse(drawing, layout.id) - 30) <= 1e-9)
+  await sdk.executeCommand('UNDO', {}, { document: drawing }); assert.ok(Math.abs(ellipse(drawing, layout.id)) <= 1e-9)
+  await sdk.executeCommand('REDO', {}, { document: drawing }); assert.ok(Math.abs(ellipse(drawing, layout.id) - 30) <= 1e-9)
+  for (const format of ['KJD', 'DXF']) {
+    const artifact = await sdk.writeDocument(drawing, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await createKJDrawSDK().readDocument(artifact, { format }), reopenedLayout = reopened.listObjects({ kind: 'layout' }).find(item => item.name === 'Elliptical detail')
+    const reopenedViewport = reopened.listEntities({ ownerId: reopenedLayout.payload.blockRecordId, type: 'VIEWPORT' }).find(item => item.payload.viewportId !== 1)
+    const reopenedBoundary = reopened.getObject(reopenedViewport.payload.clippingBoundaryId)
+    assert.equal(reopenedBoundary.type, 'ELLIPSE'); assert.ok(Math.abs(Math.atan2(reopenedBoundary.payload.majorAxis[1], reopenedBoundary.payload.majorAxis[0]) - Math.PI / 6) <= 1e-9)
+    assert.ok(Math.abs(ellipse(reopened, reopenedLayout.id) - 30) <= 1e-9)
+  }
+})
+
+test('elliptic arcs, open, degenerate and cross-space viewport clips fail closed without exposing model content', async () => {
+  for (const mode of ['ellipse-arc', 'open', 'degenerate', 'cross-space']) {
     const f = await fixture(), ownerId = mode === 'cross-space' ? f.drawing.spaces.modelSpaceId : f.layout.payload.blockRecordId
     let replacement
     await f.drawing.transact(`invalid ${mode} clip`, tx => {
-      replacement = mode === 'ellipse'
-        ? tx.createEntity('ELLIPSE', { center: [50, 50, 0], majorAxis: [15, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2 }, { ownerId })
+      replacement = mode === 'ellipse-arc'
+        ? tx.createEntity('ELLIPSE', { center: [50, 50, 0], majorAxis: [15, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI }, { ownerId })
         : tx.createEntity('LWPOLYLINE', { vertices: mode === 'degenerate' ? [[10, 10, 0], [20, 20, 0], [30, 30, 0]] : [[30, 30, 0], [70, 30, 0], [50, 70, 0]], closed: mode !== 'open' }, { ownerId })
       tx.updateObject(f.viewport.id, { payload: { clippingBoundaryId: replacement.id, flags: 65536 } })
     })
