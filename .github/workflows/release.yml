@@ -79,6 +79,7 @@ jobs:
           mkdir -p dist/release
           asset="$(npm pack --workspace packages/kjdraw-sdk --pack-destination dist/release --silent | tail -n 1)"
           node scripts/release-artifacts.mjs "dist/release/$asset"
+          node scripts/audits/verify-release-artifacts.mjs dist/release
       - name: Publish GitHub release
         shell: bash
         run: |
