@@ -1524,7 +1524,7 @@ export class KJCanvasRenderer {
             }
         } else if (entity.type === 'HATCH') {
             const loops = Array.isArray(payload.boundaryLoops) ? payload.boundaryLoops : [];
-            const unsupportedBoundary = loops.some((loop)=>Array.isArray(loop.edges) && loop.edges.some((edge)=>![
+            let unsupportedBoundary = loops.some((loop)=>Array.isArray(loop.edges) && loop.edges.some((edge)=>![
                         'LINE',
                         'ARC',
                         'ELLIPSE',
@@ -1532,23 +1532,30 @@ export class KJCanvasRenderer {
                     ].includes(String(edge.type).toUpperCase())));
             const paths = loops.map((loop)=>{
                 const value = loop;
-                if (Array.isArray(value.vertices)) return polylineSamples({
-                    vertices: value.vertices,
-                    closed: true
-                });
+                if (Array.isArray(value.vertices)) {
+                    const path = polylineSamples({
+                        vertices: value.vertices,
+                        closed: true
+                    });
+                    if (path.length < 3) unsupportedBoundary = true;
+                    return path;
+                }
                 const result = [];
                 for (const edge of Array.isArray(value.edges) ? value.edges : []){
                     const e = edge, center = point2(e.center);
-                    if (String(e.type).toUpperCase() === 'SPLINE') {
+                    const edgeType = String(e.type).toUpperCase();
+                    if (edgeType === 'SPLINE') {
                         try {
                             result.push(...sampleHatchSpline(e));
                         } catch  {
+                            unsupportedBoundary = true;
                             result.length = 0;
                             break;
                         }
-                    } else if (String(e.type).toUpperCase() === 'ELLIPSE') {
+                    } else if (edgeType === 'ELLIPSE') {
                         const axis = point2(e.majorAxis), ratio = finite(e.ratio), a = finite(e.startAngle), b = finite(e.endAngle), ccw = e.counterClockwise !== false;
                         if (!center || !axis || !(ratio > 0)) {
+                            unsupportedBoundary = true;
                             result.length = 0;
                             break;
                         }
@@ -1560,7 +1567,7 @@ export class KJCanvasRenderer {
                                 center[1] + axis[1] * Math.cos(angle) + axis[0] * ratio * Math.sin(angle)
                             ]);
                         }
-                    } else if (center && finite(e.radius) > 0) {
+                    } else if (edgeType === 'ARC' && center && finite(e.radius) > 0) {
                         const a = finite(e.startAngle), b = finite(e.endAngle), clockwise = e.clockwise === true || e.counterClockwise === false;
                         const sweep = clockwise ? -normalizeSweep(b, a) : normalizeSweep(a, b);
                         for(let step = 0; step <= 72; step++){
@@ -1570,11 +1577,24 @@ export class KJCanvasRenderer {
                                 center[1] + Math.sin(angle) * finite(e.radius)
                             ]);
                         }
-                    } else result.push(...points([
-                        e.start,
-                        e.end
-                    ]));
+                    } else if (edgeType === 'LINE') {
+                        const line = points([
+                            e.start,
+                            e.end
+                        ]);
+                        if (line.length !== 2) {
+                            unsupportedBoundary = true;
+                            result.length = 0;
+                            break;
+                        }
+                        result.push(...line);
+                    } else {
+                        unsupportedBoundary = true;
+                        result.length = 0;
+                        break;
+                    }
                 }
+                if (result.length < 3) unsupportedBoundary = true;
                 return result;
             }).filter((path)=>path.length >= 3);
             drawn = paths.length > 0 && !unsupportedBoundary;

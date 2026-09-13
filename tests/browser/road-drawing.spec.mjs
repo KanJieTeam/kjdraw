@@ -158,7 +158,8 @@ test('explicit host rebuild updates the same road document with stable identitie
       const actual=drawing.getObject(entity.options.id), old=originalIdentities.get(entity.options.id)
       return actual.handle===old.handle && actual.ownerId===old.ownerId && actual.type===old.type
     })
-    const allNativePayloads=next.entities.every(entity=>JSON.stringify(drawing.getObject(entity.options.id).payload)===JSON.stringify(normalizeStandardEntityPayload(entity.type,entity.payload)))
+    const currentTextStyleId=drawing.getTable('textStyles').currentId
+    const allNativePayloads=next.entities.every(entity=>JSON.stringify(drawing.getObject(entity.options.id).payload)===JSON.stringify(normalizeStandardEntityPayload(entity.type,entity.type==='TEXT'?{...entity.payload,styleId:currentTextStyleId}:entity.payload)))
     const externalPreserved=JSON.stringify(drawing.getObject(external.id))===JSON.stringify(external)
     const after=modelState(), beforeCapture=drawing.serialize()
     await captureDetails(next,'applied')

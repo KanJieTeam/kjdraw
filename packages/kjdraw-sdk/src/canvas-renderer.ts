@@ -1073,26 +1073,36 @@ export class KJCanvasRenderer {
       } catch { drawn = false }
     } else if (entity.type === 'HATCH') {
       const loops = Array.isArray(payload.boundaryLoops) ? payload.boundaryLoops : []
-      const unsupportedBoundary = loops.some(loop => Array.isArray(loop.edges) && loop.edges.some((edge: Record<string, unknown>) => !['LINE', 'ARC', 'ELLIPSE', 'SPLINE'].includes(String(edge.type).toUpperCase())))
+      let unsupportedBoundary = loops.some(loop => Array.isArray(loop.edges) && loop.edges.some((edge: Record<string, unknown>) => !['LINE', 'ARC', 'ELLIPSE', 'SPLINE'].includes(String(edge.type).toUpperCase())))
       const paths = loops.map(loop => {
         const value = loop as Record<string, unknown>
-        if (Array.isArray(value.vertices)) return polylineSamples({ vertices: value.vertices, closed: true })
+        if (Array.isArray(value.vertices)) {
+          const path=polylineSamples({ vertices:value.vertices, closed:true })
+          if(path.length<3)unsupportedBoundary=true
+          return path
+        }
         const result: Point2[] = []
         for (const edge of Array.isArray(value.edges) ? value.edges : []) {
           const e = edge as Record<string, unknown>, center = point2(e.center)
-          if(String(e.type).toUpperCase()==='SPLINE'){
-            try{result.push(...sampleHatchSpline(e))}catch{result.length=0;break}
-          } else if(String(e.type).toUpperCase()==='ELLIPSE'){
+          const edgeType=String(e.type).toUpperCase()
+          if(edgeType==='SPLINE'){
+            try{result.push(...sampleHatchSpline(e))}catch{unsupportedBoundary=true;result.length=0;break}
+          } else if(edgeType==='ELLIPSE'){
             const axis=point2(e.majorAxis),ratio=finite(e.ratio),a=finite(e.startAngle),b=finite(e.endAngle),ccw=e.counterClockwise!==false
-            if(!center||!axis||!(ratio>0)){result.length=0;break}
+            if(!center||!axis||!(ratio>0)){unsupportedBoundary=true;result.length=0;break}
             const raw=ccw?b-a:a-b,sweep=(Math.abs(raw)>=Math.PI*2-1e-12?Math.PI*2:normalizeSweep(0,raw))*(ccw?1:-1)
             for(let step=0;step<=96;step++){const angle=a+sweep*step/96;result.push([center[0]+axis[0]*Math.cos(angle)-axis[1]*ratio*Math.sin(angle),center[1]+axis[1]*Math.cos(angle)+axis[0]*ratio*Math.sin(angle)])}
-          } else if (center && finite(e.radius) > 0) {
+          } else if (edgeType==='ARC' && center && finite(e.radius) > 0) {
             const a = finite(e.startAngle), b = finite(e.endAngle), clockwise = e.clockwise === true || e.counterClockwise === false
             const sweep = clockwise ? -normalizeSweep(b, a) : normalizeSweep(a, b)
             for (let step = 0; step <= 72; step++) { const angle = a + sweep * step / 72; result.push([center[0] + Math.cos(angle) * finite(e.radius), center[1] + Math.sin(angle) * finite(e.radius)]) }
-          } else result.push(...points([e.start, e.end]))
+          } else if(edgeType==='LINE'){
+            const line=points([e.start,e.end])
+            if(line.length!==2){unsupportedBoundary=true;result.length=0;break}
+            result.push(...line)
+          } else {unsupportedBoundary=true;result.length=0;break}
         }
+        if(result.length<3)unsupportedBoundary=true
         return result
       }).filter(path => path.length >= 3)
       drawn = paths.length > 0 && !unsupportedBoundary
