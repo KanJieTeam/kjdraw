@@ -359,6 +359,44 @@ function bezierValue(values, parameter) {
     for(let level = 1; level < values.length; level += 1)for(let index = 0; index < values.length - level; index += 1)work[index] = work[index] * (1 - parameter) + work[index + 1] * parameter;
     return work[0];
 }
+function splineSpanBernstein(definition, start, end) {
+    const degree = definition.degree;
+    return bernsteinCoefficients(Array.from({
+        length: degree + 1
+    }, (_, sample)=>normalizedSplinePoint2(definition, start + (end - start) * sample / degree)[0]));
+}
+function multiplyBernstein(first, second) {
+    const leftDegree = first.length - 1, rightDegree = second.length - 1, degree = leftDegree + rightDegree;
+    return Array.from({
+        length: degree + 1
+    }, (_, index)=>{
+        let value = 0;
+        for(let left = Math.max(0, index - rightDegree); left <= Math.min(leftDegree, index); left += 1){
+            value += binomial(leftDegree, left) * binomial(rightDegree, index - left) / binomial(degree, index) * first[left] * second[index - left];
+        }
+        return value;
+    });
+}
+function isolateSplinePolynomial(coefficients, start, end, tolerance, budget, addRoot, addOverlap, depth = 0) {
+    if (--budget.remaining < 0) throw new KJValidationError(`SPLINE intersection exceeds the ${MAX_SPLINE_INTERSECTION_WORK} interval work budget`);
+    const minimum = Math.min(...coefficients), maximum = Math.max(...coefficients);
+    if (minimum > tolerance || maximum < -tolerance) return;
+    const firstZero = Math.abs(coefficients[0]) <= tolerance, lastZero = Math.abs(coefficients.at(-1)) <= tolerance;
+    if (firstZero) addRoot(start);
+    if (lastZero) addRoot(end);
+    if (coefficients.every((value)=>Math.abs(value) <= tolerance)) {
+        addOverlap(start, end);
+        return;
+    }
+    if (minimum >= -tolerance || maximum <= tolerance) return;
+    if (depth >= 52 || end - start <= 1e-13 * Math.max(1, Math.abs(start), Math.abs(end))) {
+        addRoot((start + end) / 2);
+        return;
+    }
+    const [left, right] = splitBezier(coefficients), middle = (start + end) / 2;
+    isolateSplinePolynomial(left, start, middle, tolerance, budget, addRoot, addOverlap, depth + 1);
+    isolateSplinePolynomial(right, middle, end, tolerance, budget, addRoot, addOverlap, depth + 1);
+}
 function splineLineIntersection(spline, line, budget) {
     const geometry = splineGeometry(spline.payload), lineStart = point3(line.start), lineEnd = point3(line.end);
     if (geometry.definition.degree > MAX_SPLINE_INTERSECTION_DEGREE) throw new KJValidationError(`SPLINE intersection degree must be an integer from 1 to ${MAX_SPLINE_INTERSECTION_DEGREE}`);
@@ -370,6 +408,7 @@ function splineLineIntersection(spline, line, budget) {
     const controls = spline.payload.controlPoints.map(point3), weights = geometry.definition.weights.length ? geometry.definition.weights : controls.map(()=>1);
     const largestWeight = Math.max(...weights);
     if (!Number.isFinite(largestWeight) || largestWeight <= 0) throw new KJValidationError('SPLINE intersection requires positive finite weights');
+    if (Math.min(...weights) / largestWeight < 1e-12) throw new KJValidationError('SPLINE intersection weight ratio exceeds the 1e12 accuracy bound');
     const signed = (point)=>{
         const value = point3(point);
         return ((value[0] - lineStart[0]) * dy - (value[1] - lineStart[1]) * dx) / length;
@@ -405,43 +444,24 @@ function splineLineIntersection(spline, line, budget) {
         if (Math.abs(signed(point)) > distanceTolerance * 4 || !accepted(point)) return;
         if (!roots.some((value)=>Math.abs(value - parameter) <= 1e-9 * Math.max(1, Math.abs(parameter), Math.abs(value)))) roots.push(parameter);
     };
-    const isolate = (coefficients, start, end, depth)=>{
-        if (--budget.remaining < 0) throw new KJValidationError(`SPLINE intersection exceeds the ${MAX_SPLINE_INTERSECTION_WORK} interval work budget`);
-        const minimum = Math.min(...coefficients), maximum = Math.max(...coefficients);
-        if (minimum > coefficientTolerance || maximum < -coefficientTolerance) return;
-        const firstZero = Math.abs(coefficients[0]) <= coefficientTolerance, lastZero = Math.abs(coefficients.at(-1)) <= coefficientTolerance;
-        if (firstZero) addRoot(start);
-        if (lastZero) addRoot(end);
-        if (coefficients.every((value)=>Math.abs(value) <= coefficientTolerance)) {
-            const samples = Array.from({
-                length: Math.max(3, coefficients.length * 2)
-            }, (_, index)=>splinePointAt3(geometry, start + (end - start) * index / Math.max(2, coefficients.length * 2 - 1)));
-            if (samples.some(accepted)) overlap = true;
-            return;
-        }
-        if (minimum >= -coefficientTolerance || maximum <= coefficientTolerance) return;
-        if (depth >= 52 || end - start <= 1e-13 * Math.max(1, Math.abs(start), Math.abs(end))) {
-            addRoot((start + end) / 2);
-            return;
-        }
-        const [left, right] = splitBezier(coefficients), middle = (start + end) / 2;
-        isolate(left, start, middle, depth + 1);
-        isolate(right, middle, end, depth + 1);
+    const addOverlap = (start, end)=>{
+        const count = Math.max(3, (geometry.definition.degree + 1) * 2);
+        const samples = Array.from({
+            length: count
+        }, (_, index)=>splinePointAt3(geometry, start + (end - start) * index / (count - 1)));
+        if (samples.some(accepted)) overlap = true;
     };
     const knots = geometry.definition.knots, degree = geometry.definition.degree;
     for(let index = degree; index < geometry.definition.controlPoints.length; index += 1){
         const start = knots[index], end = knots[index + 1];
         if (!(end > start)) continue;
-        const samples = Array.from({
-            length: degree + 1
-        }, (_, sample)=>normalizedSplinePoint2(numerator, start + (end - start) * sample / degree)[0]);
-        const coefficients = bernsteinCoefficients(samples);
+        const coefficients = splineSpanBernstein(numerator, start, end);
         for(let sample = 0; sample <= degree + 1; sample += 1){
             const local = (sample + .5) / (degree + 2), parameter = start + (end - start) * local;
             const exact = normalizedSplinePoint2(numerator, parameter)[0], reconstructed = bezierValue(coefficients, local);
             if (Math.abs(exact - reconstructed) > Math.max(coefficientTolerance * 8, Number.EPSILON * Math.max(1, Math.abs(exact)) * 2048)) throw new KJValidationError('SPLINE intersection polynomial did not meet its accuracy bound');
         }
-        isolate(coefficients, start, end, 0);
+        isolateSplinePolynomial(coefficients, start, end, coefficientTolerance, budget, addRoot, addOverlap);
     }
     if (overlap) return {
         kind: 'overlap',
@@ -452,6 +472,95 @@ function splineLineIntersection(spline, line, budget) {
     return {
         kind: points.length ? 'point' : 'none',
         points
+    };
+}
+function splineCircleIntersection(spline, circle, budget) {
+    const geometry = splineGeometry(spline.payload);
+    if (geometry.definition.degree > MAX_SPLINE_INTERSECTION_DEGREE) throw new KJValidationError(`SPLINE intersection degree must be an integer from 1 to ${MAX_SPLINE_INTERSECTION_DEGREE}`);
+    const center = point3(circle.center), radius = Number(circle.radius), controls = spline.payload.controlPoints.map(point3);
+    if (!Number.isFinite(radius) || radius <= 1e-12 || radius > 1e12) throw new KJValidationError('SPLINE circular intersection requires a bounded nondegenerate radius');
+    const weights = geometry.definition.weights.length ? geometry.definition.weights : controls.map(()=>1), largestWeight = Math.max(...weights);
+    if (!Number.isFinite(largestWeight) || largestWeight <= 0) throw new KJValidationError('SPLINE intersection requires positive finite weights');
+    if (Math.min(...weights) / largestWeight < 1e-12) throw new KJValidationError('SPLINE intersection weight ratio exceeds the 1e12 accuracy bound');
+    const weightValues = weights.map((weight)=>weight / largestWeight);
+    const polynomial = (value)=>normalizeSplineDefinition({
+            degree: geometry.definition.degree,
+            knots: geometry.definition.knots,
+            controlPoints: controls.map((point, index)=>[
+                    value(point) * weightValues[index],
+                    0
+                ])
+        });
+    const xNumerator = polynomial((point)=>point[0] - center[0]), yNumerator = polynomial((point)=>point[1] - center[1]), denominator = polynomial(()=>1);
+    const coordinateScale = Math.max(1, radius, ...controls.flatMap((point)=>[
+            Math.abs(point[0] - center[0]),
+            Math.abs(point[1] - center[1])
+        ]));
+    const absoluteScale = Math.max(1, Math.abs(center[0]), Math.abs(center[1]), ...controls.flatMap((point)=>[
+            Math.abs(point[0]),
+            Math.abs(point[1])
+        ]));
+    const distanceTolerance = Math.max(1e-9 * coordinateScale, Number.EPSILON * absoluteScale * 64);
+    const roots = [];
+    let overlap = false;
+    const radialError = (point)=>{
+        const value = point3(point);
+        return Math.abs(Math.hypot(value[0] - center[0], value[1] - center[1]) - radius);
+    };
+    const accepted = (point)=>accepts(circle, point);
+    const addRoot = (parameter)=>{
+        parameter = Math.max(geometry.start, Math.min(geometry.end, parameter));
+        const point = splinePointAt3(geometry, parameter);
+        if (radialError(point) > distanceTolerance * 4 || !accepted(point)) return;
+        if (!roots.some((value)=>Math.abs(value - parameter) <= 1e-9 * Math.max(1, Math.abs(parameter), Math.abs(value)))) roots.push(parameter);
+    };
+    const knots = geometry.definition.knots, degree = geometry.definition.degree;
+    for(let index = degree; index < geometry.definition.controlPoints.length; index += 1){
+        const start = knots[index], end = knots[index + 1];
+        if (!(end > start)) continue;
+        const x = splineSpanBernstein(xNumerator, start, end), y = splineSpanBernstein(yNumerator, start, end), w = splineSpanBernstein(denominator, start, end);
+        for (const [definition, coefficients] of [
+            [
+                xNumerator,
+                x
+            ],
+            [
+                yNumerator,
+                y
+            ],
+            [
+                denominator,
+                w
+            ]
+        ])for(let sample = 0; sample <= degree + 1; sample += 1){
+            const local = (sample + .5) / (degree + 2), parameter = start + (end - start) * local;
+            const exact = normalizedSplinePoint2(definition, parameter)[0], reconstructed = bezierValue(coefficients, local);
+            if (Math.abs(exact - reconstructed) > Math.max(distanceTolerance * 1e-3, Number.EPSILON * Math.max(1, Math.abs(exact)) * 2048)) throw new KJValidationError('SPLINE circular intersection polynomial did not meet its accuracy bound');
+        }
+        const xx = multiplyBernstein(x, x), yy = multiplyBernstein(y, y), ww = multiplyBernstein(w, w);
+        const equation = xx.map((value, position)=>value + yy[position] - radius * radius * ww[position]);
+        const equationScale = Math.max(1, ...equation.map(Math.abs)), minimumWeight = Math.min(...w);
+        if (!(minimumWeight > 0)) throw new KJValidationError('SPLINE circular intersection denominator is not strictly positive');
+        const equationTolerance = Math.max(distanceTolerance * 2 * coordinateScale * minimumWeight * minimumWeight, Number.EPSILON * equationScale * 4096);
+        isolateSplinePolynomial(equation, start, end, equationTolerance, budget, addRoot, (overlapStart, overlapEnd)=>{
+            const count = Math.max(3, (degree + 1) * 2);
+            for(let sample = 0; sample < count; sample += 1){
+                const point = splinePointAt3(geometry, overlapStart + (overlapEnd - overlapStart) * sample / (count - 1));
+                if (accepted(point) && radialError(point) <= distanceTolerance * 4) {
+                    overlap = true;
+                    break;
+                }
+            }
+        });
+    }
+    if (overlap) return {
+        kind: 'overlap',
+        points: [],
+        infinite: true
+    };
+    return {
+        kind: roots.length ? 'point' : 'none',
+        points: roots.sort((a, b)=>a - b).map((parameter)=>splinePointAt3(geometry, parameter))
     };
 }
 function ellipseLocalCoordinates(payload, input) {
@@ -1215,7 +1324,9 @@ function primitiveIntersection(a, b, splineBudget = {
     if (a.kind === 'spline' || b.kind === 'spline') {
         const spline = a.kind === 'spline' ? a : b.kind === 'spline' ? b : null;
         const line = a.kind === 'line' ? a : b.kind === 'line' ? b : null;
-        return spline && line ? splineLineIntersection(spline, line, splineBudget) : {
+        const circle = a.kind === 'circle' || a.kind === 'arc' ? a : b.kind === 'circle' || b.kind === 'arc' ? b : null;
+        if (spline && line) return splineLineIntersection(spline, line, splineBudget);
+        return spline && circle ? splineCircleIntersection(spline, circle, splineBudget) : {
             kind: 'unsupported',
             points: []
         };

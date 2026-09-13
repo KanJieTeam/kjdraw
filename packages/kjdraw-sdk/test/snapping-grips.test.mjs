@@ -165,6 +165,50 @@ test('SPLINE intersection isolates tangency and repeated-knot spans with a bound
   assert.throws(() => intersectEntityPair2(oversizedDegree, axis), /degree must be an integer from 1 to 16/)
 })
 
+test('native rational SPLINE intersects CIRCLE and filters the native ARC angular domain', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-circular-intersections' })
+  const spline = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2,
+    controlPoints: [[1, 0, 0], [1, 1, 0], [0, 1, 0]],
+    weights: [1, Math.SQRT1_2, 1],
+    knots: [0, 0, 0, 1, 1, 1],
+  } })
+  const expected = [.6875, Math.sqrt(1 - .6875 ** 2)]
+  const circle = await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: [.5, 0, 0], radius: .75 } })
+  let result = intersectEntityPair2(spline, circle)
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 1); closePoint(result.points[0], expected, 2e-8)
+  assert.deepEqual(intersectEntityPair2(circle, spline), result)
+
+  const upper = await sdk.executeCommand('CREATE', { type: 'ARC', payload: { center: [.5, 0, 0], radius: .75, startAngle: 0, endAngle: Math.PI } })
+  result = intersectEntityPair2(spline, upper)
+  assert.equal(result.kind, 'point'); closePoint(result.points[0], expected, 2e-8)
+  const lower = await sdk.executeCommand('CREATE', { type: 'ARC', payload: { center: [.5, 0, 0], radius: .75, startAngle: Math.PI, endAngle: Math.PI * 2 } })
+  assert.equal(intersectEntityPair2(spline, lower).kind, 'none')
+
+  const candidates = sdk.snap([expected[0] + .001, expected[1] - .002], { radius: .02, modes: ['nearest', 'intersection'], entityIds: [spline.id, circle.id] })
+  assert.equal(candidates.length, 1); assert.equal(candidates[0].mode, 'intersection'); closePoint(candidates[0].point, expected, 2e-8)
+})
+
+test('SPLINE circular intersections retain tangent contact, overlap and weight accuracy boundaries', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-circular-boundaries' })
+  const spline = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2,
+    controlPoints: [[1, 0, 0], [1, 1, 0], [0, 1, 0]],
+    weights: [1, Math.SQRT1_2, 1], knots: [0, 0, 0, 1, 1, 1],
+  } })
+  const tangent = await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: [Math.SQRT1_2 / 2, Math.SQRT1_2 / 2, 0], radius: .5 } })
+  let result = intersectEntityPair2(spline, tangent)
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 1); closePoint(result.points[0], [Math.SQRT1_2, Math.SQRT1_2], 2e-8)
+  const sameCircle = await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: [0, 0, 0], radius: 1 } })
+  result = intersectEntityPair2(spline, sameCircle)
+  assert.deepEqual(result, { kind: 'overlap', points: [], infinite: true })
+
+  const unstable = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints: [[0, 0, 0], [1, 1, 0], [2, 0, 0]], weights: [1, 1e-13, 1], knots: [0, 0, 0, 1, 1, 1],
+  } })
+  assert.throws(() => intersectEntityPair2(unstable, sameCircle), /weight ratio exceeds the 1e12 accuracy bound/)
+})
+
 test('ellipse intersections support circles, arc domains and tangent contact', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'ellipse-circular-intersections' })
   const ellipse = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
