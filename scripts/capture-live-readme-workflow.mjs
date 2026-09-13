@@ -32,8 +32,8 @@ const captureSourcePaths = Object.freeze([
 const locales = new Set(['en', 'zh-CN'])
 const loopback = new Set(['127.0.0.1', 'localhost', '[::1]'])
 const prompts = Object.freeze({
-  en: 'Create an editable ISO A2 landscape manufacturing drawing JIG-300-180-A, revision A, titled HIGH-DENSITY MODULAR FIXTURE PLATE, material MIC6 CAST ALUMINIUM TOOLING PLATE, quantity 1. The plate is 300 × 180 × 12 mm. Add an 8 × 12 grid of Ø5 through holes starting at (30,30), with X/Y pitch 22/17; four 2 × 2 mounting holes starting at (15,15), pitch 270/150, Ø8.5 through with Ø14 counterbores depth 7; and two horizontal 40 × 10 through slots centered at (75,165) and (225,165). Include 1:1 top/front views, standard layers, center/hidden lines, native dimensions, title block and machining notes. Keep everything editable and show the complete preview before applying.',
-  'zh-CN': '绘制一张 ISO A2 横向制造工程图：图号 JIG-300-180-A，修订 A，标题 HIGH-DENSITY MODULAR FIXTURE PLATE，材料 MIC6 CAST ALUMINIUM TOOLING PLATE，数量 1。板件 300×180×12 mm；8×12 个 Ø5 通孔，首孔 (30,30)，X/Y 间距 22/17；四个 2×2 安装孔，首孔 (15,15)，X/Y 间距 270/150，Ø8.5 通孔、Ø14 沉孔深 7；两个 40×10 水平通槽，中心 (75,165) 和 (225,165)。包含 1:1 顶视图/前视图、标准图层、中心线/隐藏线、原生尺寸、标题栏和加工说明。全部可编辑，先完整预览再应用。',
+  en: 'Create an editable ISO A2 landscape manufacturing drawing JIG-300-180-A, revision A, titled HIGH-DENSITY MODULAR FIXTURE PLATE, material MIC6 CAST ALUMINIUM TOOLING PLATE, quantity 1. Use sheet origin (0,0), sheet size 594 × 420 mm and text height 3 mm. The plate is 300 × 180 × 12 mm. Add an 8 × 12 grid of Ø5 through holes starting at (30,30), with X/Y pitch 22/17; four 2 × 2 mounting holes starting at (15,15), pitch 270/150, Ø8.5 through with Ø14 counterbores depth 7; and two horizontal 40 × 10 through slots centered at (75,165) and (225,165). Include 1:1 top/front views, standard layers, center/hidden lines, native dimensions, title block and machining notes. Keep everything editable and show the complete preview before applying.',
+  'zh-CN': '绘制一张 ISO A2 横向制造工程图：图号 JIG-300-180-A，修订 A，标题 HIGH-DENSITY MODULAR FIXTURE PLATE，材料 MIC6 CAST ALUMINIUM TOOLING PLATE，数量 1。图纸原点为 (0,0)，图幅尺寸 594×420 mm，文字高度 3 mm。板件 300×180×12 mm；8×12 个 Ø5 通孔，首孔 (30,30)，X/Y 间距 22/17；四个 2×2 安装孔，首孔 (15,15)，X/Y 间距 270/150，Ø8.5 通孔、Ø14 沉孔深 7；两个 40×10 水平通槽，中心 (75,165) 和 (225,165)。包含 1:1 顶视图/前视图、标准图层、中心线/隐藏线、原生尺寸、标题栏和加工说明。全部可编辑，先完整预览再应用。',
 })
 const movePrompts = Object.freeze({
   en: 'Move only the currently selected REV: A note exactly 5 millimeters to the right. Use one cad_propose_move proposal with dx 5 and dy 0. Keep all other objects unchanged.',
@@ -239,6 +239,12 @@ export async function runLiveReadmeWorkflow(configuration) {
           const json = JSON.parse(bytes.toString('utf8'))
           request.record.returnedModel = typeof json.model === 'string' ? json.model.slice(0, 256) : null
           request.record.usage = extractKJModelUsage('chat-completions', json, { latencyMs: elapsed })
+          request.record.toolCalls = (json.choices?.[0]?.message?.tool_calls ?? []).map(call => {
+            const raw = typeof call?.function?.arguments === 'string' ? call.function.arguments : ''
+            let argumentsValue = null
+            try { argumentsValue = JSON.parse(raw) } catch {}
+            return { name: typeof call?.function?.name === 'string' ? call.function.name.slice(0, 128) : null, arguments: argumentsValue, argumentsSha256: hash(raw) }
+          })
         } catch { request.record.responseInvalid = true }
       })())
     })
@@ -310,10 +316,11 @@ export async function runLiveReadmeWorkflow(configuration) {
     await writeExclusive(join(configuration.output, 'workflow.dxf'), dxfBytes)
     const dxf = new TextDecoder().decode(dxfBytes)
     const validation = independentValidation({ python: configuration.python, dxf, expected: manufacturingDrawingRequirements(), taskSuite: 'manufacturing' })
-    if (!validation.passed) throw new Error(`Independent manufacturing validation failed: ${validation.reason ?? 'unknown'}`)
     const validationText = `${JSON.stringify(validation, null, 2)}\n`
     await writeAtomic(join(configuration.output, 'validator.json'), validationText)
     await settleResponses()
+    await writeAtomic(join(configuration.output, 'provider-calls.json'), `${JSON.stringify(calls, null, 2)}\n`)
+    if (!validation.passed) throw new Error(`Independent manufacturing validation failed: ${validation.reason ?? 'unknown'}`)
 
     const mediaFrames = frames.map(frame => ({ ...frame, path: frame.path.slice(configuration.output.length + 1).replaceAll('\\', '/') }))
     await writeExclusive(join(configuration.output, 'manifest.json'), `${JSON.stringify({ locale: configuration.locale, width: 1120, frames: mediaFrames }, null, 2)}\n`)
@@ -332,7 +339,7 @@ export async function runLiveReadmeWorkflow(configuration) {
     const sourceFiles = trackedCaptureSources()
     const sources = Object.fromEntries(await Promise.all(sourceFiles.map(async name => [name, hash(await readFile(join(repositoryRoot, name)))])))
     const artifacts = {}
-    for (const name of ['before-move.kjp', 'workflow.kjp', 'workflow.dxf', 'validator.json', 'workflow.webm', 'workflow.gif']) {
+    for (const name of ['before-move.kjp', 'workflow.kjp', 'workflow.dxf', 'validator.json', 'provider-calls.json', 'workflow.webm', 'workflow.gif']) {
       const bytes = await readFile(join(configuration.output, name)); artifacts[name] = { bytes: bytes.length, sha256: hash(bytes) }
     }
     const frameEvidence = await Promise.all(frames.map(async frame => { const bytes = await readFile(frame.path); return { file: frame.path.slice(configuration.output.length + 1).replaceAll('\\', '/'), durationMs: frame.duration, bytes: bytes.length, sha256: hash(bytes) } }))

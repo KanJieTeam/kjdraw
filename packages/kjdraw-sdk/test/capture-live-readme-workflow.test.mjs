@@ -75,11 +75,13 @@ test('fixture transport records the complete two-turn Chromium workflow but is b
   assert.deepEqual(evidence.geometry.modification.target.delta, [5, 0, 0])
   assert.equal(evidence.geometry.independentValidation.passed, true)
   assert.equal(evidence.reopen.method, 'playground-file-input')
-  for (const name of ['workflow.kjp', 'workflow.dxf', 'validator.json', 'workflow.webm', 'workflow.gif']) {
+  for (const name of ['workflow.kjp', 'workflow.dxf', 'validator.json', 'provider-calls.json', 'workflow.webm', 'workflow.gif']) {
     const bytes = await readFile(join(output, name)); assert.equal(evidence.artifacts[name].sha256.length, 64); assert.equal(evidence.artifacts[name].bytes, bytes.length)
   }
   const disk = JSON.parse(await readFile(join(output, 'evidence.json'), 'utf8'))
   assert.equal(JSON.stringify(disk).includes('API_KEY'), false); assert.equal(JSON.stringify(disk).includes('fixture-secret'), false)
+  assert.equal(disk.calls[0].toolCalls[0].name, 'cad_propose_manufacturing_sheet')
+  assert.equal(disk.calls[0].toolCalls[0].arguments.textHeight, 3)
   assert.equal(disk.sources['scripts/capture-live-readme-workflow.mjs'].length, 64)
   const manifest = JSON.parse(await readFile(join(output, 'manifest.json'), 'utf8'))
   assert.ok(manifest.frames.length > 5)
