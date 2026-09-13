@@ -217,6 +217,45 @@ test('embeddable workbench isolates its UI and keeps document, locale, selection
   await expect(page.locator('#workbench-host [data-snap]')).toHaveCSS('display', 'none')
 })
 
+test('command bar serializes captured entries, preserves the latest input and drops pending work after disposal', async ({ page }) => {
+  await mountWorkbench(page)
+  await page.evaluate(async () => {
+    const { sdk, drawing, line } = window.__workbenchTest
+    await sdk.executeCommand('SELECT', { ids: [line.id], operation: 'replace' }, { document: drawing })
+  })
+  const root = page.locator('#workbench-host .kjwb'), command = root.locator('[data-command]')
+  await command.fill('MOVE 1 0'); await command.press('Enter')
+  await command.fill('MOVE 2 0'); await command.press('Enter')
+  await expect(root).toHaveAttribute('data-command-state', 'idle')
+  expect(await page.evaluate(() => window.__workbenchTest.drawing.getObject(window.__workbenchTest.line.id).payload.start)).toEqual([3, 0, 0])
+
+  await command.fill('MOVE nope'); await command.press('Enter')
+  await command.fill('MOVE 4 0'); await command.press('Enter')
+  await expect(root).toHaveAttribute('data-command-state', 'idle')
+  await expect(command).toHaveValue('')
+  expect(await page.evaluate(() => window.__workbenchTest.drawing.getObject(window.__workbenchTest.line.id).payload.start)).toEqual([7, 0, 0])
+
+  await page.evaluate(() => {
+    const state = window.__workbenchTest, original = state.workbench.execute.bind(state.workbench)
+    let release
+    const blocker = new Promise(resolve => { release = resolve })
+    state.commandExecuteCalls = 0
+    state.releaseCommand = release
+    state.workbench.execute = async (...args) => {
+      const result = await original(...args)
+      if (args[0] === 'MOVE' && ++state.commandExecuteCalls === 1) await blocker
+      return result
+    }
+  })
+  await command.fill('MOVE 1 0'); await command.press('Enter')
+  await command.fill('MOVE 10 0'); await command.press('Enter')
+  await expect.poll(() => page.evaluate(() => window.__workbenchTest.commandExecuteCalls)).toBe(1)
+  expect(await page.evaluate(() => window.__workbenchTest.drawing.getObject(window.__workbenchTest.line.id).payload.start)).toEqual([8, 0, 0])
+  await page.evaluate(() => { window.__workbenchTest.workbench.dispose(); window.__workbenchTest.releaseCommand() })
+  await page.waitForTimeout(50)
+  expect(await page.evaluate(() => ({ calls: window.__workbenchTest.commandExecuteCalls, start: window.__workbenchTest.drawing.getObject(window.__workbenchTest.line.id).payload.start }))).toEqual({ calls: 1, start: [8, 0, 0] })
+})
+
 test('drawing tools, rubber-band preview and command bar execute real SDK edits', async ({ page }) => {
   await mountWorkbench(page, { maxFileBytes: 1024 })
   const command = page.locator('#workbench-host [data-command]')
@@ -235,8 +274,10 @@ test('drawing tools, rubber-band preview and command bar execute real SDK edits'
   await command.press('Enter')
   await command.fill('OFFSET 2')
   await command.press('Enter')
+  await expect(page.locator('#workbench-host .kjwb')).toHaveAttribute('data-command-state', 'idle')
   await expect(page.locator('#workbench-host [data-modification-dialog]')).toBeVisible()
   await page.locator('#workbench-host [data-action="start-modification"]').click()
+  await expect(page.locator('#workbench-host [data-modification-dialog]')).not.toBeVisible()
   const offsetSide = await canvasPoint(page, [13, 5])
   await page.mouse.click(offsetSide.x, offsetSide.y)
   expect(await page.evaluate(() => window.__workbenchTest.drawing.listEntities({ type: 'LINE' }).length)).toBe(3)

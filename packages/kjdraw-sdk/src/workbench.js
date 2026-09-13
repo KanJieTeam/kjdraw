@@ -1077,6 +1077,10 @@ export class KJDrawWorkbench {
     #maxFileBytes;
     #fileReadAbort = null;
     #leasedDocument = null;
+    #commandQueue = Promise.resolve();
+    #pendingCommandCount = 0;
+    #commandInputVersion = 0;
+    #commandSequence = 0;
     constructor(container, options = {}){
         assertBrowser();
         if (!(container instanceof HTMLElement) && !(container instanceof ShadowRoot)) throw new TypeError('KJDrawWorkbench requires an HTMLElement or ShadowRoot');
@@ -1095,6 +1099,8 @@ export class KJDrawWorkbench {
         this.root = document.createElement('section');
         this.root.className = `kjwb ${this.#theme} layout-${this.#layout}${options.toolbar === false ? ' no-toolbar' : ''}`;
         this.root.tabIndex = 0;
+        this.root.dataset.commandState = 'idle';
+        this.root.setAttribute('aria-busy', 'false');
         this.root.innerHTML = this.#markup();
         const boundaryActions = document.createElement('div');
         boundaryActions.className = 'draft-actions boundary-actions';
@@ -1973,13 +1979,18 @@ export class KJDrawWorkbench {
             signal
         });
         const commandInput = query(this.root, '[data-command]');
-        query(this.root, '[data-action="run-command"]').addEventListener('click', ()=>void this.#runCommand(), {
+        commandInput.addEventListener('input', ()=>{
+            this.#commandInputVersion += 1;
+        }, {
+            signal
+        });
+        query(this.root, '[data-action="run-command"]').addEventListener('click', ()=>this.#enqueueCommand(), {
             signal
         });
         commandInput.addEventListener('keydown', (event)=>{
             if (event.key === 'Enter') {
                 event.preventDefault();
-                void this.#runCommand();
+                this.#enqueueCommand();
             }
         }, {
             signal
@@ -2206,69 +2217,85 @@ export class KJDrawWorkbench {
         this.#leasedDocument = null;
         releaseDocumentLease(this.sdk, this, drawing);
     }
-    async #runCommand() {
-        if (this.paperPreview) {
-            this.#setMessage(this.#t('paperPreview'));
-            return;
-        }
+    #enqueueCommand() {
         const input = query(this.root, '[data-command]');
         const raw = input.value.trim();
+        const inputVersion = this.#commandInputVersion;
+        const sequence = ++this.#commandSequence;
+        if (raw) input.value = '';
+        this.#pendingCommandCount += 1;
+        this.root.dataset.commandState = 'busy';
+        this.root.setAttribute('aria-busy', 'true');
+        const run = async ()=>{
+            try {
+                if (this.#abort.signal.aborted) return;
+                const consumed = await this.#runCommand(raw);
+                if (!this.#abort.signal.aborted && !consumed && sequence === this.#commandSequence && this.#commandInputVersion === inputVersion && !input.value) input.value = raw;
+            } catch (error) {
+                if (this.#abort.signal.aborted) return;
+                this.#handleError(error);
+                if (sequence === this.#commandSequence && this.#commandInputVersion === inputVersion && !input.value) input.value = raw;
+            } finally{
+                this.#pendingCommandCount -= 1;
+                if (!this.#pendingCommandCount) {
+                    this.root.dataset.commandState = 'idle';
+                    this.root.setAttribute('aria-busy', 'false');
+                }
+            }
+        };
+        this.#commandQueue = this.#commandQueue.then(run, run);
+    }
+    async #runCommand(raw) {
+        if (this.paperPreview) {
+            this.#setMessage(this.#t('paperPreview'));
+            return false;
+        }
         if (!raw) {
             if (this.#boundarySession) {
                 if (this.#boundarySession.state.phase === 'boundaries') await this.#run(()=>this.#confirmBoundaryEdit());
                 else if (this.#boundarySession.state.phase === 'targets') this.#finishBoundaryEdit();
-                return;
+                return true;
             }
             if (this.#fenceSelection) {
                 await this.#finishFence();
-                return;
+                return true;
             }
             if (this.#draftGesture?.session.state.canFinish) await this.#finishDraft(false);
-            return;
+            return true;
         }
         if (this.#draftGesture) {
             const draftCommand = raw.toUpperCase();
             if ([
                 'C',
                 'CLOSE'
-            ].includes(draftCommand)) {
-                if (await this.#finishDraft(true)) input.value = '';
-                return;
-            }
+            ].includes(draftCommand)) return this.#finishDraft(true);
             if ([
                 'F',
                 'FINISH',
                 'DONE'
-            ].includes(draftCommand)) {
-                if (await this.#finishDraft(false)) input.value = '';
-                return;
-            }
+            ].includes(draftCommand)) return this.#finishDraft(false);
             if ([
                 'U',
                 'BACK'
             ].includes(draftCommand)) {
                 this.#undoDraftPoint();
-                input.value = '';
-                return;
+                return true;
             }
             if ([
                 'ESC',
                 'CANCEL'
             ].includes(draftCommand)) {
                 this.setTool('select');
-                input.value = '';
-                return;
+                return true;
             }
         }
         if (this.#modificationGesture && (/^@?[^,]+,[^,]+$/.test(raw) || /^@[^<]+<[^<]+$/.test(raw))) {
             const result = await this.#run(()=>this.#addModificationCoordinate(raw));
-            if (result !== null) input.value = '';
-            return;
+            return result !== null;
         }
         if (this.#draftGesture && isDraftPointInput(raw)) {
             const accepted = await this.#addDraftCoordinate(raw);
-            if (accepted || !/^\s*(?:\d+(?:\.\d+)?|\.\d+|<[-+]?\d+(?:\.\d+)?)\s*$/.test(raw)) input.value = '';
-            return;
+            return accepted || !/^\s*(?:\d+(?:\.\d+)?|\.\d+|<[-+]?\d+(?:\.\d+)?)\s*$/.test(raw);
         }
         const separator = raw.search(/\s/);
         const command = (separator < 0 ? raw : raw.slice(0, separator)).toUpperCase();
@@ -2638,7 +2665,7 @@ export class KJDrawWorkbench {
             }
             throw new Error(`${command} arguments must use JSON, for example: ${command} {"id":"..."}`);
         });
-        if (result !== null) input.value = '';
+        return result !== null;
     }
     #draftPrompt(role) {
         return role ? this.#localizedControlText(draftPointText[role]) : this.#t('ready');
@@ -2999,7 +3026,7 @@ export class KJDrawWorkbench {
             }, {
                 value: String(configured.patternScale ?? 1),
                 min: Number.EPSILON,
-                step: 0.1
+                step: 'any'
             });
             this.#draftField(host, 'patternAngleDegrees', {
                 en: 'Pattern angle (°)',

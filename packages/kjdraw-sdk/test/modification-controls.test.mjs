@@ -20,6 +20,14 @@ const closePoint = (actual, expected, epsilon = 1e-9) => {
   close(actual[1], expected[1], epsilon)
 }
 
+test('strictly-positive continuous controls do not inherit an epsilon-based HTML step grid', () => {
+  for (const [id, key] of [['offset', 'distance'], ['lengthen', 'value'], ['fillet', 'radius']]) {
+    const field = getKJModificationDefinition(id).fields.find(candidate => candidate.key === key)
+    assert.equal(field.min, Number.EPSILON)
+    assert.equal(field.step, 'any')
+  }
+})
+
 test('boundary controls expose executable polyline targets consistently with SDK discovery',()=>{
   const commands=createKJDrawSDK().capabilities().commands
   for(const id of ['trim','extend']){

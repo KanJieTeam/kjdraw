@@ -40,7 +40,7 @@ export interface KJModificationFieldDefinition {
   readonly default: number | boolean
   readonly min?: number
   readonly max?: number
-  readonly step?: number
+  readonly step?: number | 'any'
 }
 
 export interface KJModificationPointDefinition {
@@ -105,7 +105,7 @@ const number = (
   en: string,
   zh: string,
   defaultValue: number,
-  options: { type?: 'number' | 'integer'; min?: number; max?: number; step?: number } = {},
+  options: { type?: 'number' | 'integer'; min?: number; max?: number; step?: number | 'any' } = {},
 ): KJModificationFieldDefinition => Object.freeze({
   key,
   label: text(en, zh),
@@ -179,7 +179,7 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
     description: text('Create one exact parallel or concentric entity.', '在指定侧创建一个精确平行或同心对象。'),
     minSelection: 1, maxSelection: 1,
     supportedEntityTypes: ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'],
-    fields: [number('distance', 'Distance', '偏移距离', 2, { min: Number.EPSILON, step: 0.1 })],
+    fields: [number('distance', 'Distance', '偏移距离', 2, { min: Number.EPSILON, step: 'any' })],
     pointKeys: [pick('sidePoint', 'Pick the offset side', '在画布上指定偏移侧')],
   },
   {
@@ -236,7 +236,7 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
     description: text('Set the exact length from the endpoint selected on canvas.', '从画布中指定的端点设置精确长度。'),
     minSelection: 1, maxSelection: 1,
     supportedEntityTypes: ['LINE', 'ARC'],
-    fields: [number('value', 'Target length', '目标长度', 10, { min: Number.EPSILON, step: 0.1 })],
+    fields: [number('value', 'Target length', '目标长度', 10, { min: Number.EPSILON, step: 'any' })],
     pointKeys: [pick('pickPoint', 'Pick the endpoint to change', '选择要修改的端点')],
   },
   {
@@ -302,7 +302,7 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
     description: text('Trim two selected LINE entities and add a tangent arc.', '修剪两条选中直线并创建相切圆弧。'),
     minSelection: 2, maxSelection: 2,
     supportedEntityTypes: ['LINE'],
-    fields: [number('radius', 'Radius', '半径', 2, { min: Number.EPSILON, step: 0.1 })],
+    fields: [number('radius', 'Radius', '半径', 2, { min: Number.EPSILON, step: 'any' })],
     pointKeys: [pick('pickPoint1', 'Pick the side of the first line to keep', '在第一条直线上指定保留侧'), pick('pickPoint2', 'Pick the side of the second line to keep', '在第二条直线上指定保留侧')],
   },
 ] satisfies readonly KJModificationDefinition[])

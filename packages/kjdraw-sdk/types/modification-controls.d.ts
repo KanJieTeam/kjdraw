@@ -14,7 +14,7 @@ export interface KJModificationFieldDefinition {
     readonly default: number | boolean;
     readonly min?: number;
     readonly max?: number;
-    readonly step?: number;
+    readonly step?: number | 'any';
 }
 export interface KJModificationPointDefinition {
     readonly key: string;

@@ -87,7 +87,9 @@ test('workbench aliases prefill six modification workflows and OFFSET requires a
     { command: 'OFFSET 2.5', cursor: [0, 5], count: '1' },
   ]) {
     await enterWorkbench(page, operation.command)
+    await expect(root.locator('.kjwb')).toHaveAttribute('data-command-state', 'idle')
     await root.locator('[data-action="start-modification"]').click()
+    await expect(dialog).not.toBeVisible()
     if (operation.first) await enterWorkbench(page, operation.first)
     await moveWorkbenchPointer(page, operation.cursor)
     await expect(root.locator('[data-overlay]')).toHaveAttribute('data-modification-preview-count', operation.count)
@@ -120,6 +122,7 @@ test('workbench aliases prefill six modification workflows and OFFSET requires a
 
   const before = await page.evaluate(() => window.__modifyEntry.drawing.revision)
   await enterWorkbench(page, 'OFFSET 2.5')
+  await expect(root.locator('.kjwb')).toHaveAttribute('data-command-state', 'idle')
   await root.locator('[data-action="start-modification"]').click()
   await expect(dialog).not.toBeVisible()
   expect(await page.evaluate(() => window.__modifyEntry.drawing.revision)).toBe(before)
@@ -165,7 +168,9 @@ test('workbench rejects all six modification workflows on locked, frozen and hid
     }, item)
     const before = await page.evaluate(() => ({ revision: window.__modifyEntry.drawing.revision, fingerprint: window.__modifyEntry.drawing.fingerprint(), history: window.__modifyEntry.drawing.history }))
     await enterWorkbench(page, item.command)
+    await expect(root.locator('.kjwb')).toHaveAttribute('data-command-state', 'idle')
     await root.locator('[data-action="start-modification"]').click()
+    await expect(root.locator('[data-modification-dialog]')).not.toBeVisible()
     for (const point of item.points) await enterWorkbench(page, point)
     await expect(root.locator('[data-message]')).toContainText(item.reason)
     await page.keyboard.press('Escape')
@@ -206,6 +211,7 @@ test('playground uses the same six command parameters and keeps OFFSET transacti
   await expect(dialog).toBeVisible()
   await dialog.locator('#dialog-submit').click()
   await expect(dialog).not.toBeVisible()
+  await expect(page.locator('.workbench')).toHaveAttribute('aria-busy', 'false')
   await expect(page.locator('#entity-count')).toHaveText('1 entities')
   const canvasBox = await page.locator('#canvas').boundingBox()
   await page.mouse.move(canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 3)

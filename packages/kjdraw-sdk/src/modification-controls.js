@@ -180,7 +180,7 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         fields: [
             number('distance', 'Distance', '偏移距离', 2, {
                 min: Number.EPSILON,
-                step: 0.1
+                step: 'any'
             })
         ],
         pointKeys: [
@@ -338,7 +338,7 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         fields: [
             number('value', 'Target length', '目标长度', 10, {
                 min: Number.EPSILON,
-                step: 0.1
+                step: 'any'
             })
         ],
         pointKeys: [
@@ -507,7 +507,7 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         fields: [
             number('radius', 'Radius', '半径', 2, {
                 min: Number.EPSILON,
-                step: 0.1
+                step: 'any'
             })
         ],
         pointKeys: [

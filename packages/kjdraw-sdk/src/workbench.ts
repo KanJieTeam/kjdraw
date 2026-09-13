@@ -461,6 +461,10 @@ export class KJDrawWorkbench {
   #maxFileBytes: number
   #fileReadAbort: AbortController | null = null
   #leasedDocument: KJDocument | null = null
+  #commandQueue: Promise<void> = Promise.resolve()
+  #pendingCommandCount = 0
+  #commandInputVersion = 0
+  #commandSequence = 0
 
   constructor(container: HTMLElement | ShadowRoot, options: KJDrawWorkbenchOptions = {}) {
     assertBrowser()
@@ -477,6 +481,8 @@ export class KJDrawWorkbench {
     this.root = document.createElement('section')
     this.root.className = `kjwb ${this.#theme} layout-${this.#layout}${options.toolbar === false ? ' no-toolbar' : ''}`
     this.root.tabIndex = 0
+    this.root.dataset.commandState = 'idle'
+    this.root.setAttribute('aria-busy', 'false')
     this.root.innerHTML = this.#markup()
     const boundaryActions = document.createElement('div')
     boundaryActions.className = 'draft-actions boundary-actions'
@@ -1056,8 +1062,9 @@ export class KJDrawWorkbench {
     query<HTMLButtonElement>(this.root, '[data-action="theme"]').addEventListener('click', () => this.setTheme(this.#theme === 'dark' ? 'light' : 'dark'), { signal })
     query<HTMLButtonElement>(this.root, '[data-action="language"]').addEventListener('click', () => this.setLocale(this.#locale === 'en' ? 'zh-CN' : 'en'), { signal })
     const commandInput = query<HTMLInputElement>(this.root, '[data-command]')
-    query<HTMLButtonElement>(this.root, '[data-action="run-command"]').addEventListener('click', () => void this.#runCommand(), { signal })
-    commandInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); void this.#runCommand() } }, { signal })
+    commandInput.addEventListener('input', () => { this.#commandInputVersion += 1 }, { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="run-command"]').addEventListener('click', () => this.#enqueueCommand(), { signal })
+    commandInput.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); this.#enqueueCommand() } }, { signal })
     this.#canvas.addEventListener('wheel', event => {
       event.preventDefault()
       if (this.#selectionDrag || this.#boxSelection || this.#gripGesture || event.buttons !== 0) return
@@ -1173,39 +1180,64 @@ export class KJDrawWorkbench {
     releaseDocumentLease(this.sdk, this, drawing)
   }
 
-  async #runCommand(): Promise<void> {
-    if (this.paperPreview) { this.#setMessage(this.#t('paperPreview')); return }
+  #enqueueCommand(): void {
     const input = query<HTMLInputElement>(this.root, '[data-command]')
     const raw = input.value.trim()
+    const inputVersion = this.#commandInputVersion
+    const sequence = ++this.#commandSequence
+    if (raw) input.value = ''
+    this.#pendingCommandCount += 1
+    this.root.dataset.commandState = 'busy'
+    this.root.setAttribute('aria-busy', 'true')
+    const run = async (): Promise<void> => {
+      try {
+        if (this.#abort.signal.aborted) return
+        const consumed = await this.#runCommand(raw)
+        if (!this.#abort.signal.aborted && !consumed && sequence === this.#commandSequence && this.#commandInputVersion === inputVersion && !input.value) input.value = raw
+      } catch (error) {
+        if (this.#abort.signal.aborted) return
+        this.#handleError(error)
+        if (sequence === this.#commandSequence && this.#commandInputVersion === inputVersion && !input.value) input.value = raw
+      } finally {
+        this.#pendingCommandCount -= 1
+        if (!this.#pendingCommandCount) {
+          this.root.dataset.commandState = 'idle'
+          this.root.setAttribute('aria-busy', 'false')
+        }
+      }
+    }
+    this.#commandQueue = this.#commandQueue.then(run, run)
+  }
+
+  async #runCommand(raw: string): Promise<boolean> {
+    if (this.paperPreview) { this.#setMessage(this.#t('paperPreview')); return false }
     if (!raw) {
       if (this.#boundarySession) {
         if (this.#boundarySession.state.phase === 'boundaries') await this.#run(() => this.#confirmBoundaryEdit())
         else if (this.#boundarySession.state.phase === 'targets') this.#finishBoundaryEdit()
-        return
+        return true
       }
-      if (this.#fenceSelection) { await this.#finishFence(); return }
+      if (this.#fenceSelection) { await this.#finishFence(); return true }
       if (this.#draftGesture?.session.state.canFinish) await this.#finishDraft(false)
-      return
+      return true
     }
     if (this.#draftGesture) {
       const draftCommand = raw.toUpperCase()
-      if (['C', 'CLOSE'].includes(draftCommand)) { if (await this.#finishDraft(true)) input.value = ''; return }
-      if (['F', 'FINISH', 'DONE'].includes(draftCommand)) { if (await this.#finishDraft(false)) input.value = ''; return }
-      if (['U', 'BACK'].includes(draftCommand)) { this.#undoDraftPoint(); input.value = ''; return }
-      if (['ESC', 'CANCEL'].includes(draftCommand)) { this.setTool('select'); input.value = ''; return }
+      if (['C', 'CLOSE'].includes(draftCommand)) return this.#finishDraft(true)
+      if (['F', 'FINISH', 'DONE'].includes(draftCommand)) return this.#finishDraft(false)
+      if (['U', 'BACK'].includes(draftCommand)) { this.#undoDraftPoint(); return true }
+      if (['ESC', 'CANCEL'].includes(draftCommand)) { this.setTool('select'); return true }
     }
     if (this.#modificationGesture && (/^@?[^,]+,[^,]+$/.test(raw) || /^@[^<]+<[^<]+$/.test(raw))) {
       const result = await this.#run(() => this.#addModificationCoordinate(raw))
-      if (result !== null) input.value = ''
-      return
+      return result !== null
     }
     if (this.#draftGesture && isDraftPointInput(raw)) {
       const accepted = await this.#addDraftCoordinate(raw)
       // Keep only pointer-dependent distance/angle shorthand for retry. An
       // absolute/relative coordinate was fully consumed even when geometry
       // validation rejected it, so leave the draft active and clear the box.
-      if (accepted || !/^\s*(?:\d+(?:\.\d+)?|\.\d+|<[-+]?\d+(?:\.\d+)?)\s*$/.test(raw)) input.value = ''
-      return
+      return accepted || !/^\s*(?:\d+(?:\.\d+)?|\.\d+|<[-+]?\d+(?:\.\d+)?)\s*$/.test(raw)
     }
     const separator = raw.search(/\s/)
     const command = (separator < 0 ? raw : raw.slice(0, separator)).toUpperCase()
@@ -1398,7 +1430,7 @@ export class KJDrawWorkbench {
       if (!remainder) { await this.execute(command); return }
       throw new Error(`${command} arguments must use JSON, for example: ${command} {"id":"..."}`)
     })
-    if (result !== null) input.value = ''
+    return result !== null
   }
 
   #draftPrompt(role: KJDraftPointRole | null): string {
@@ -1602,7 +1634,7 @@ export class KJDrawWorkbench {
     if (tool === 'spline') this.#draftField(host, 'splineDegree', { en: 'Degree', zh: '次数' }, { value: String(configured.splineDegree ?? 3), min: 1, max: 10, step: 1 })
     if (tool === 'hatch') {
       this.#draftField(host, 'patternName', { en: 'Pattern', zh: '图案' }, { type: 'text', value: String(configured.patternName ?? 'SOLID') })
-      this.#draftField(host, 'patternScale', { en: 'Pattern scale', zh: '图案比例' }, { value: String(configured.patternScale ?? 1), min: Number.EPSILON, step: 0.1 })
+      this.#draftField(host, 'patternScale', { en: 'Pattern scale', zh: '图案比例' }, { value: String(configured.patternScale ?? 1), min: Number.EPSILON, step: 'any' })
       this.#draftField(host, 'patternAngleDegrees', { en: 'Pattern angle (°)', zh: '图案角度（°）' }, { value: String(Number(configured.patternAngle ?? 0) * 180 / Math.PI), step: 1 })
       this.#draftCheck(host, 'solid', { en: 'Solid fill', zh: '实体填充' }, configured.solid ?? true)
     }
