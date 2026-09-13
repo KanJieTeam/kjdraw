@@ -561,6 +561,15 @@ export interface KJNearestPointResult {
 
 export function nearestPointOnEntity2(entity: KJReadonlyObjectRecord, pointInput: KJSnapPointInput): Readonly<KJNearestPointResult> {
   const point = vec2(pointInput, 'point')
+  if (entity?.type === 'ELLIPSE') {
+    const nearest = nearestOnEllipse(point, entity.payload as unknown as SnapPayload)
+    return Object.freeze({
+      point: Object.freeze(point3(nearest.point)),
+      distance: nearest.distance,
+      parameter: nearest.parameter ?? null,
+      segmentIndex: null,
+    })
+  }
   const candidates = primitiveSegments(entity).map(primitive => ({ ...nearestOnPrimitive(point, primitive), primitive }))
   candidates.sort((a, b) => a.distance - b.distance)
   const nearest = candidates[0]
@@ -581,7 +590,10 @@ export interface KJEntityIntersectionResult {
 
 export function intersectEntityPair2(first: KJReadonlyObjectRecord, second: KJReadonlyObjectRecord): Readonly<KJEntityIntersectionResult> {
   if (!first || !second || first.id === second.id) throw new KJValidationError('Intersection query requires two different entities')
-  const left = primitiveSegments(first), right = primitiveSegments(second)
+  const primitives = (entity: KJReadonlyObjectRecord): IntersectionPrimitive[] => entity.type === 'ELLIPSE'
+    ? [{ kind: 'ellipse', payload: entity.payload as unknown as SnapPayload, entityId: entity.id }]
+    : primitiveSegments(entity)
+  const left = primitives(first), right = primitives(second)
   if (!left.length || !right.length) throw new KJValidationError(`Intersection query is not implemented for ${first.type}/${second.type}`)
   const points: KJSnapPoint[] = []
   let overlap = false, infinite = false

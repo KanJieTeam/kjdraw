@@ -732,6 +732,15 @@ export function findBestSnap(document, cursor, options = {}) {
 }
 export function nearestPointOnEntity2(entity, pointInput) {
     const point = vec2(pointInput, 'point');
+    if (entity?.type === 'ELLIPSE') {
+        const nearest = nearestOnEllipse(point, entity.payload);
+        return Object.freeze({
+            point: Object.freeze(point3(nearest.point)),
+            distance: nearest.distance,
+            parameter: nearest.parameter ?? null,
+            segmentIndex: null
+        });
+    }
     const candidates = primitiveSegments(entity).map((primitive)=>({
             ...nearestOnPrimitive(point, primitive),
             primitive
@@ -748,7 +757,14 @@ export function nearestPointOnEntity2(entity, pointInput) {
 }
 export function intersectEntityPair2(first, second) {
     if (!first || !second || first.id === second.id) throw new KJValidationError('Intersection query requires two different entities');
-    const left = primitiveSegments(first), right = primitiveSegments(second);
+    const primitives = (entity)=>entity.type === 'ELLIPSE' ? [
+            {
+                kind: 'ellipse',
+                payload: entity.payload,
+                entityId: entity.id
+            }
+        ] : primitiveSegments(entity);
+    const left = primitives(first), right = primitives(second);
     if (!left.length || !right.length) throw new KJValidationError(`Intersection query is not implemented for ${first.type}/${second.type}`);
     const points = [];
     let overlap = false, infinite = false;

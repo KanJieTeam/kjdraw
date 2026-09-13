@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { KJValidationError, createKJDrawSDK, findBestSnap, getDocumentSnapSettings, getEntityGrips } from '../src/index.js'
+import { KJValidationError, createKJDrawSDK, findBestSnap, getDocumentSnapSettings, getEntityGrips, intersectEntityPair2, nearestPointOnEntity2 } from '../src/index.js'
 
 const close = (actual, expected, epsilon = 1e-9) => assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`)
 const closePoint = (actual, expected, epsilon = 1e-9) => { close(actual[0], expected[0], epsilon); close(actual[1], expected[1], epsilon) }
@@ -99,6 +99,19 @@ test('ellipse intersection snaps transform line, ray and xline domains into the 
   assert.equal(intersections.length, 1); closePoint(intersections[0].point, [40, 5])
   const away = await sdk.executeCommand('CREATE', { type: 'RAY', payload: { origin: [70, 20, 0], direction: [1, 0, 0] } })
   assert.equal(sdk.snap([16, 28], { radius: 100, modes: ['intersection'], entityIds: [rotated.id, away.id] }).length, 0)
+})
+
+test('public nearest-point and intersection queries accept native ellipses', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'ellipse-geometry-queries' })
+  const ellipse = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [10, 20, 0], majorAxis: [6, 8, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2,
+  } })
+  const line = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [-2, 4, 0], end: [22, 36, 0] } })
+  const nearest = nearestPointOnEntity2(ellipse, [16.2, 28.1])
+  closePoint(nearest.point, [16, 28], 1e-7); close(nearest.parameter, 0, 1e-7); assert.equal(nearest.segmentIndex, null)
+  const intersections = intersectEntityPair2(ellipse, line)
+  assert.equal(intersections.kind, 'point'); assert.equal(intersections.infinite, false); assert.equal(intersections.points.length, 2)
+  for (const expected of [[16, 28], [4, 12]]) assert.ok(intersections.points.some(point => Math.hypot(point[0] - expected[0], point[1] - expected[1]) < 1e-9))
 })
 
 test('ellipse tangent snaps are exact for external references and respect partial-arc domains', async () => {
