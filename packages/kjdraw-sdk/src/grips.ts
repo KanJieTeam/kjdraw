@@ -1,9 +1,12 @@
 import { KJValidationError } from './errors.js'
-import { arcSweep, distance2, midpoint2, translation3, transformEntityPayload, vec2 } from './geometry/index.js'
+import { arcSweep, distance2, midpoint2, normalizeSplineDefinition, translation3, transformEntityPayload, vec2 } from './geometry/index.js'
 import { clone } from './utils.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 
 const TAU = Math.PI * 2
+const MAX_SPLINE_CONTROL_GRIPS = 4096
+const MAX_SPLINE_GRIP_DEGREE = 64
+const MAX_SPLINE_GRIP_COORDINATE = 1e12
 
 export type KJGripPoint = [number, number, number]
 export type KJPointInput = readonly number[] | { x: number; y: number; z?: number }
@@ -108,6 +111,19 @@ function fitSplineProblem(payload: KJGripPayload): string | null {
   if (fitPoints.length < degree + 1) return 'SPLINE fit-point editing requires at least degree + 1 fit points'
   if (fitPoints.length > 128) return 'SPLINE fit-point editing exceeds the 128-point interactive budget'
   return null
+}
+
+function controlSplinePoints(payload: KJGripPayload): KJGripPoint[] {
+  if (payload.fitPoints?.length) throw new KJValidationError('Fit-point-defined SPLINE must be edited through fit-point grips')
+  const controls = payload.controlPoints ?? [], degree = Number(payload.degree)
+  if (!Number.isInteger(degree) || degree < 1 || degree > MAX_SPLINE_GRIP_DEGREE) throw new KJValidationError(`SPLINE control-point editing requires degree 1 through ${MAX_SPLINE_GRIP_DEGREE}`)
+  if (controls.length < degree + 1 || controls.length > MAX_SPLINE_CONTROL_GRIPS) throw new KJValidationError(`SPLINE control-point editing requires degree + 1 to ${MAX_SPLINE_CONTROL_GRIPS} control points`)
+  const points = controls.map((point, index) => point3(point, `controlPoints[${index}]`))
+  if (points.some(point => point.some(value => Math.abs(value) > MAX_SPLINE_GRIP_COORDINATE))) throw new KJValidationError(`SPLINE control points must stay within ±${MAX_SPLINE_GRIP_COORDINATE}`)
+  // Validate the complete rational definition before exposing an editable grip.
+  // The edit changes one point only; knots, weights and parameterization remain exact.
+  normalizeSplineDefinition(payload)
+  return points
 }
 
 function splineBasisRow(parameter: number, degree: number, knots: readonly number[], count: number): number[] {
@@ -233,9 +249,11 @@ export function getEntityGrips(entity: KJReadonlyObjectRecord): readonly KJEntit
     }
     case 'SPLINE':
       if (payload.fitPoints?.length) {
+        const problem = fitSplineProblem(payload)
+        if (problem) throw new KJValidationError(problem)
         for (const [index, point] of payload.fitPoints.entries()) add(`fit:${index}`, 'fit-point', point, { fitPointIndex: index })
       } else {
-        for (const [index, point] of (payload.controlPoints ?? []).entries()) add(`control:${index}`, 'control-point', point, { controlPointIndex: index })
+        for (const [index, point] of controlSplinePoints(payload).entries()) add(`control:${index}`, 'control-point', point, { controlPointIndex: index })
       }
       break
     case 'TEXT':
@@ -275,6 +293,11 @@ function updateVertex(vertex: KJPointInput | KJGripVertex, target: KJGripPoint):
 export function editEntityGrip(entity: KJReadonlyObjectRecord, gripId: string, targetPoint: KJPointInput): KJObjectPayload {
   if (!entity || entity.kind !== 'entity') throw new KJValidationError('Grip edit requires an entity')
   gripId = String(gripId); const target = point3(targetPoint), payload = clone(entity.payload) as unknown as KJGripPayload
+  if (entity.type === 'SPLINE' && payload.fitPoints?.length && gripId.startsWith('control:')) throw new KJValidationError('Fit-point-defined SPLINE must be edited through fit-point grips')
+  if (entity.type === 'SPLINE' && payload.fitPoints?.length && gripId.startsWith('fit:')) {
+    const problem = fitSplineProblem(payload)
+    if (problem) throw new KJValidationError(problem)
+  }
   const currentGrip = getEntityGrips(entity).find(grip => grip.id === gripId)
   if (!currentGrip) throw new KJValidationError(`Grip does not exist on ${entity.type}: ${gripId}`)
   const moveWhole = (): KJObjectPayload => transformEntityPayload(entity.type, payload, translation3(target[0] - currentGrip.point[0], target[1] - currentGrip.point[1]))
@@ -336,8 +359,7 @@ export function editEntityGrip(entity: KJReadonlyObjectRecord, gripId: string, t
       return payload
     }
     case 'SPLINE': {
-      const [kind, rawIndex] = gripId.split(':'), key = kind === 'fit' ? 'fitPoints' : 'controlPoints'
-      if (payload.fitPoints?.length && kind !== 'fit') throw new KJValidationError('Fit-point-defined SPLINE must be edited through fit-point grips')
+      const [kind, rawIndex] = gripId.split(':')
       if (kind === 'fit') {
         const problem = fitSplineProblem(payload)
         if (problem) throw new KJValidationError(problem)
@@ -348,7 +370,10 @@ export function editEntityGrip(entity: KJReadonlyObjectRecord, gripId: string, t
         payload.fitPoints = fitPoints; payload.controlPoints = interpolation.controlPoints; payload.knots = interpolation.knots
         return payload
       }
-      payload[key] = [...(payload[key] ?? [])]; payload[key]![Number(rawIndex)] = target; return payload
+      const controlPoints = controlSplinePoints(payload), index = Number(rawIndex)
+      if (!Number.isInteger(index) || index < 0 || index >= controlPoints.length) throw new KJValidationError(`SPLINE control-point grip does not exist: ${gripId}`)
+      if (target.some(value => Math.abs(value) > MAX_SPLINE_GRIP_COORDINATE)) throw new KJValidationError(`SPLINE control points must stay within ±${MAX_SPLINE_GRIP_COORDINATE}`)
+      controlPoints[index] = target; payload.controlPoints = controlPoints; return payload
     }
     case 'TEXT':
     case 'MTEXT':

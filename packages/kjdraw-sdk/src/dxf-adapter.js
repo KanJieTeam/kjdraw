@@ -1018,7 +1018,7 @@ function entityPayload(record, blockIds, resources = {}) {
             };
         case 'SPLINE':
             {
-                const weights = values(record, 41).map(Number);
+                const weights = values(record, 41).map(Number), startTangent = optionalPoint(record, 12, 22, 32), endTangent = optionalPoint(record, 13, 23, 33);
                 return {
                     type: 'SPLINE',
                     payload: {
@@ -1028,7 +1028,13 @@ function entityPayload(record, blockIds, resources = {}) {
                         controlPoints: repeatedPoints(record),
                         fitPoints: repeatedPoints(record, 11, 21, 31),
                         closed: (number(record, 70, 0) & 1) === 1,
-                        periodic: (number(record, 70, 0) & 2) === 2
+                        periodic: (number(record, 70, 0) & 2) === 2,
+                        ...startTangent ? {
+                            startTangent
+                        } : {},
+                        ...endTangent ? {
+                            endTangent
+                        } : {}
                     }
                 };
             }
@@ -2919,6 +2925,8 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emit(output, 72, p.knots?.length ?? 0);
         emit(output, 73, p.controlPoints?.length ?? 0);
         emit(output, 74, p.fitPoints?.length ?? 0);
+        if (p.startTangent) emitPoint(output, p.startTangent, 12);
+        if (p.endTangent) emitPoint(output, p.endTangent, 13);
         for (const knot of p.knots ?? [])emit(output, 40, knot);
         for (const weight of p.weights ?? [])emit(output, 41, weight);
         for (const value of p.controlPoints ?? [])emitPoint(output, value);

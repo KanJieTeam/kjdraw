@@ -166,6 +166,8 @@ interface DxfPayload extends KJObjectPayload {
   controlPoints?: readonly Point3[]
   fitPoints?: readonly Point3[]
   periodic?: boolean
+  startTangent?: Point3
+  endTangent?: Point3
   text?: string
   height?: number
   rotation?: number
@@ -759,8 +761,8 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
     case 'POLYLINE': return { type: 'POLYLINE', payload: { vertices: legacyPolylineVertices(record), closed: (number(record, 70, 0) & 1) === 1, elevation: number(record, 30, 0), dxfFlags: number(record, 70, 0) } }
     case 'ELLIPSE': return { type: 'ELLIPSE', payload: { center: point(record), majorAxis: point(record, 11, 21, 31), ratio: number(record, 40), startParameter: number(record, 41, 0), endParameter: number(record, 42, Math.PI * 2) } }
     case 'SPLINE': {
-      const weights = values(record, 41).map(Number)
-      return { type: 'SPLINE', payload: { degree: number(record, 71), knots: values(record, 40).map(Number), weights: weights.length ? weights : undefined, controlPoints: repeatedPoints(record), fitPoints: repeatedPoints(record, 11, 21, 31), closed: (number(record, 70, 0) & 1) === 1, periodic: (number(record, 70, 0) & 2) === 2 } }
+      const weights = values(record, 41).map(Number), startTangent = optionalPoint(record, 12, 22, 32), endTangent = optionalPoint(record, 13, 23, 33)
+      return { type: 'SPLINE', payload: { degree: number(record, 71), knots: values(record, 40).map(Number), weights: weights.length ? weights : undefined, controlPoints: repeatedPoints(record), fitPoints: repeatedPoints(record, 11, 21, 31), closed: (number(record, 70, 0) & 1) === 1, periodic: (number(record, 70, 0) & 2) === 2, ...(startTangent ? { startTangent } : {}), ...(endTangent ? { endTangent } : {}) } }
     }
     case 'TEXT': return { type: 'TEXT', payload: { ...readSingleLineText(record, resources), verticalAlignment: number(record, 73, 0) } }
     case 'MTEXT': return { type: 'MTEXT', payload: { position: point(record), text: values(record, 3).join('') + first(record, 1, ''), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, attachmentPoint: number(record, 71, 1), ...(values(record, 41).length ? { width: number(record, 41) } : {}), styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null } }
@@ -1780,6 +1782,8 @@ function emitEntity(
     emitSubclass(output, version, 'AcDbSpline')
     const flags = (p.closed ? 1 : 0) | (p.periodic ? 2 : 0) | (p.weights?.length ? 4 : 0)
     emit(output, 70, flags); emit(output, 71, p.degree); emit(output, 72, p.knots?.length ?? 0); emit(output, 73, p.controlPoints?.length ?? 0); emit(output, 74, p.fitPoints?.length ?? 0)
+    if (p.startTangent) emitPoint(output, p.startTangent, 12)
+    if (p.endTangent) emitPoint(output, p.endTangent, 13)
     for (const knot of p.knots ?? []) emit(output, 40, knot)
     for (const weight of p.weights ?? []) emit(output, 41, weight)
     for (const value of p.controlPoints ?? []) emitPoint(output, value)

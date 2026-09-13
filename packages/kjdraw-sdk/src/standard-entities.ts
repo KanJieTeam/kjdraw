@@ -47,6 +47,8 @@ interface EntityPayloadShape extends Record<string, unknown> {
   weights?: unknown[]
   knots?: unknown[]
   periodic?: unknown
+  startTangent?: unknown
+  endTangent?: unknown
   alignmentPoint?: unknown
   attachmentPoint?: unknown
   text?: unknown
@@ -285,7 +287,7 @@ export function normalizeStandardEntityPayload(type: unknown, input: Record<stri
       if (knots && knots.length !== controlPoints.length + degree + 1) throw new KJValidationError('Spline knot vector length must equal control points + degree + 1')
       if (knots?.some((value, index) => index > 0 && value < knots[index - 1]!)) throw new KJValidationError('Spline knots must be non-decreasing')
       if (knots && !(knots[controlPoints.length]! > knots[degree]!)) throw new KJValidationError('Spline knot domain is empty')
-      return { ...base(payload), degree, controlPoints, fitPoints: payload.fitPoints?.map((point, index) => point3(point, `fitPoints[${index}]`)), knots, weights, closed: Boolean(payload.closed), periodic: Boolean(payload.periodic) }
+      return { ...base(payload), degree, controlPoints, fitPoints: payload.fitPoints?.map((point, index) => point3(point, `fitPoints[${index}]`)), knots, weights, closed: Boolean(payload.closed), periodic: Boolean(payload.periodic), ...(payload.startTangent == null ? {} : { startTangent: vector3(payload.startTangent, 'startTangent') }), ...(payload.endTangent == null ? {} : { endTangent: vector3(payload.endTangent, 'endTangent') }) }
     }
     case 'TEXT': return { ...base(payload), ...nativeTextFields(payload), position: point3(payload.position, 'position'), alignmentPoint: payload.alignmentPoint && point3(payload.alignmentPoint, 'alignmentPoint'), text: String(payload.text ?? ''), height: positive(payload.height ?? 2.5, 'height'), rotation: finite(payload.rotation ?? 0, 'rotation'), styleId: payload.styleId == null ? null : String(payload.styleId) }
     case 'MTEXT': {

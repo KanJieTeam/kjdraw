@@ -272,7 +272,13 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                     knots,
                     weights,
                     closed: Boolean(payload.closed),
-                    periodic: Boolean(payload.periodic)
+                    periodic: Boolean(payload.periodic),
+                    ...payload.startTangent == null ? {} : {
+                        startTangent: vector3(payload.startTangent, 'startTangent')
+                    },
+                    ...payload.endTangent == null ? {} : {
+                        endTangent: vector3(payload.endTangent, 'endTangent')
+                    }
                 };
             }
         case 'TEXT':
