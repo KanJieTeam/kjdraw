@@ -137,7 +137,7 @@ def contract_dimensions(expected):
     top_x, top_y = expected['views']['top']['origin']
     front_x, front_y = expected['views']['front']['origin']
     length, width, thickness = (expected['plate'][key] for key in ('length', 'width', 'thickness'))
-    pad = 12
+    pad = max(10, expected['dimensionTextHeight'] * 4)
     dimensions = [
         ('ALIGNED', [p3(top_x, top_y), p3(top_x + length, top_y)], p3(top_x + length / 2, top_y - pad / 2), length),
         ('ALIGNED', [p3(top_x, top_y), p3(top_x, top_y + width)], p3(top_x - pad / 2, top_y + width / 2), width),
