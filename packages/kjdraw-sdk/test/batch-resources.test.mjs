@@ -69,6 +69,67 @@ test('resource batches can reference existing linetypes, accept empty groups, an
   assert.equal(document.getTable('layers').records.find(item => item.name === 'LEGACY').payload.color, 2)
 })
 
+test('resource batches create reusable native blocks and inserts in one undoable transaction', async () => {
+  const { sdk, document } = fixture(), continuous = document.getTable('linetypes').currentId
+  const args = {
+    resources: {
+      linetypes: [],
+      layers: [{ id: 'opening-layer', name: 'A-OPENING', color: 1, linetypeId: continuous, lineweight: 25 }],
+      blocks: [{ id: 'door-block', name: 'DOOR-900', basePoint: [0, 0, 0], entities: [
+        { type: 'LINE', payload: { start: [0, 0, 0], end: [900, 0, 0], layerId: 'opening-layer' }, options: { id: 'door-leaf' } },
+        { type: 'ARC', payload: { center: [0, 0, 0], radius: 900, startAngle: 0, endAngle: Math.PI / 2, layerId: 'opening-layer' }, options: { id: 'door-swing' } },
+      ] }],
+    },
+    entities: [
+      { type: 'INSERT', payload: { blockRecordId: 'door-block', position: [1000, 2000, 0], scale: [1, 1, 1], rotation: 0, attributes: {}, attributeIds: [], sequenceEndId: null, layerId: 'opening-layer' }, options: { id: 'door-1' } },
+      { type: 'INSERT', payload: { blockRecordId: 'door-block', position: [4000, 2000, 0], scale: [1, 1, 1], rotation: Math.PI, attributes: {}, attributeIds: [], sequenceEndId: null, layerId: 'opening-layer' }, options: { id: 'door-2' } },
+    ],
+  }
+  const created = await sdk.executeCommand('CREATEBATCH', args)
+  assert.deepEqual(created.map(entity => entity.id), ['door-leaf', 'door-swing', 'door-1', 'door-2'])
+  assert.deepEqual(document.getObject('door-block').payload.entityIds, ['door-leaf', 'door-swing'])
+  assert.equal(document.getObject('door-leaf').ownerId, 'door-block')
+  assert.equal(document.listEntities({ type: 'INSERT' }).length, 2)
+  assert.equal(document.validate().valid, true)
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format }), { format })
+    const block = reopened.getTable('blockRecords').records.find(record => record.name === 'DOOR-900')
+    assert.ok(block)
+    assert.equal(block.payload.entityIds.length, 2)
+    assert.equal(reopened.listEntities({ type: 'INSERT' }).length, 2)
+  }
+  await sdk.executeCommand('UNDO')
+  assert.equal(document.getObject('door-block'), null)
+  assert.equal(document.listEntities().length, 0)
+  await sdk.executeCommand('REDO')
+  assert.equal(document.getObject('door-block').payload.entityIds.length, 2)
+})
+
+test('block resource identity, ownership and references are validated atomically', async () => {
+  const { sdk, document } = fixture(), source = document.serialize(), continuous = document.getTable('linetypes').currentId
+  const valid = () => ({
+    resources: { linetypes: [], layers: [{ id: 'layer', name: 'BLOCKS', color: 7, linetypeId: continuous, lineweight: 25 }], blocks: [{
+      id: 'block', name: 'SAFE-BLOCK', basePoint: [0, 0, 0], entities: [{ type: 'LINE', payload: { start: [0, 0, 0], end: [1, 0, 0], layerId: 'layer' }, options: { id: 'member' } }],
+    }] },
+    entities: [{ type: 'INSERT', payload: { blockRecordId: 'block', position: [0, 0, 0], scale: [1, 1, 1], rotation: 0, attributeIds: [], sequenceEndId: null, layerId: 'layer' }, options: { id: 'insert' } }],
+  })
+  const cases = [
+    args => { args.resources.blocks[0].name = '*MODEL_SPACE' },
+    args => { args.resources.blocks[0].entities[0].options.ownerId = 'other' },
+    args => { args.resources.blocks[0].entities[0].options.id = 'block' },
+    args => { args.resources.blocks[0].entities[0].payload.layerId = 'missing' },
+    args => { args.resources.blocks[0].entities[0].type = 'INSERT' },
+    args => { args.entities[0].payload.blockRecordId = 'missing' },
+    args => { args.entities[0].payload.attributeIds = ['forged'] },
+    args => { args.resources.blocks = Array.from({ length: 17 }, (_, index) => ({ id: `b-${index}`, name: `B-${index}`, basePoint: [0, 0, 0], entities: [{ type: 'POINT', payload: { position: [0, 0, 0], layerId: 'layer' }, options: { id: `m-${index}` } }] })) },
+  ]
+  for (const mutate of cases) {
+    const args = valid(); mutate(args)
+    await assert.rejects(sdk.executeCommand('CREATEBATCH', args))
+    assert.equal(document.serialize(), source)
+  }
+})
+
 test('an empty resource pattern is a true continuous linetype through SDK and independent DXF tags', async () => {
   const { sdk, document } = fixture()
   const args = { resources: {

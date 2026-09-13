@@ -2800,17 +2800,24 @@ function editLeaderAnnotation(document, transaction, args) {
         annotation: updatedAnnotation
     };
 }
-function createBatchResources(document, transaction, resources) {
+function createBatchResources(document, transaction, resources, modelSpecs) {
     const fields = (value, expected)=>{
         if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== expected.length || expected.some((key)=>!Object.hasOwn(value, key))) throw new KJValidationError('CREATEBATCH resource fields do not match the declared format');
     };
-    fields(resources, [
-        'linetypes',
-        'layers'
-    ]);
+    const resourceKeys = Object.keys(resources).sort();
+    if (![
+        'layers',
+        'linetypes'
+    ].every((key)=>resourceKeys.includes(key)) || resourceKeys.some((key)=>![
+            'blocks',
+            'layers',
+            'linetypes'
+        ].includes(key))) throw new KJValidationError('CREATEBATCH resource fields do not match the declared format');
+    const blocks = resources.blocks ?? [];
     for (const group of [
         resources.linetypes,
-        resources.layers
+        resources.layers,
+        blocks
     ])if (!Array.isArray(group) || group.length > 16) throw new KJValidationError('CREATEBATCH resources allow at most 16 records per table');
     const ids = new Set(), linetypes = new Map(document.getTable('linetypes').records.filter((item)=>!item.erased).map((item)=>[
             item.id,
@@ -2860,6 +2867,54 @@ function createBatchResources(document, transaction, resources) {
         if (!BATCH_LINEWEIGHTS.has(layer.lineweight)) throw new KJValidationError('CREATEBATCH layer lineweight must be a supported DXF hundredth-millimetre value');
         if (typeof layer.linetypeId !== 'string' || !linetypes.has(layer.linetypeId)) throw new KJValidationError('CREATEBATCH layer linetypeId must reference the linetype table');
     }
+    const blockNames = new Set(document.getTable('blockRecords').records.map((item)=>normalizeName(String(item.name))));
+    const explicitEntityIds = new Set();
+    const validateExplicitEntityId = (spec, label, required)=>{
+        const id = spec.options?.id;
+        if (id == null && !required) return;
+        if (typeof id !== 'string' || !id.trim() || id !== id.trim() || id.length > 256 || /[\u0000-\u001f\u007f]/.test(id) || [
+            '__proto__',
+            'constructor',
+            'prototype'
+        ].includes(id)) throw new KJValidationError(`${label} requires a bounded entity id`);
+        if (ids.has(id) || explicitEntityIds.has(id) || Object.hasOwn(document.snapshot().objects, id)) throw new KJValidationError('CREATEBATCH resource and entity IDs must be globally unique');
+        explicitEntityIds.add(id);
+    };
+    for (const [index, block] of blocks.entries()){
+        fields(block, [
+            'id',
+            'name',
+            'basePoint',
+            'entities'
+        ]);
+        validateIdentity(block, blockNames);
+        vec3(block.basePoint, `CREATEBATCH resources.blocks[${index}].basePoint`);
+        if (!Array.isArray(block.entities) || !block.entities.length || block.entities.length > 64) throw new KJValidationError('CREATEBATCH blocks require 1 to 64 definition entities');
+        for (const [memberIndex, spec] of block.entities.entries()){
+            fields(spec, [
+                'type',
+                'payload',
+                'options'
+            ]);
+            if (typeof spec.type !== 'string' || !spec.type.trim()) throw new KJValidationError('CREATEBATCH block entity type is required');
+            if (normalizeName(spec.type) === 'INSERT' || [
+                'ATTRIB',
+                'SEQEND'
+            ].includes(normalizeName(spec.type))) throw new KJValidationError('CREATEBATCH v1 blocks do not support nested or attached entities');
+            fields(spec.options, [
+                'id'
+            ]);
+            validateExplicitEntityId(spec, `CREATEBATCH resources.blocks[${index}].entities[${memberIndex}]`, true);
+            if (spec.payload?.layerId !== undefined && !new Set([
+                ...document.getTable('layers').records.filter((item)=>!item.erased).map((item)=>item.id),
+                ...resources.layers.map((item)=>item.id)
+            ]).has(String(spec.payload.layerId))) throw new KJValidationError('CREATEBATCH block entity layerId must reference the layer table');
+            if (spec.payload?.linetypeId !== undefined && !linetypes.has(String(spec.payload.linetypeId))) throw new KJValidationError('CREATEBATCH block entity linetypeId must reference the linetype table');
+            if (spec.payload?.lineweight !== undefined && !BATCH_LINEWEIGHTS.has(Number(spec.payload.lineweight))) throw new KJValidationError('CREATEBATCH block entity lineweight must be supported');
+            if (Object.keys(spec.payload ?? {}).some((key)=>BLOCK_RELATION_FIELDS.has(key))) throw new KJValidationError('CREATEBATCH block entities cannot supply ownership or attachment relationships');
+        }
+    }
+    for (const spec of modelSpecs)validateExplicitEntityId(spec, 'CREATEBATCH entity', false);
     for (const type of resources.linetypes)transaction.upsertTableRecord('linetypes', {
         id: type.id,
         name: type.name,
@@ -2886,13 +2941,34 @@ function createBatchResources(document, transaction, resources) {
             plottable: true
         }
     });
+    const created = [];
+    for (const block of blocks){
+        const record = transaction.upsertTableRecord('blockRecords', {
+            id: block.id,
+            name: block.name,
+            type: 'BLOCK_RECORD',
+            payload: {
+                entityIds: [],
+                isSpace: false,
+                basePoint: vec3(block.basePoint, 'block basePoint'),
+                description: null
+            }
+        });
+        for (const spec of block.entities)created.push(transaction.createEntity(spec.type, clone(spec.payload ?? {}), {
+            id: String(spec.options.id),
+            ownerId: record.id
+        }));
+    }
+    return created;
 }
 function createEntityBatch({ document, transaction }, args = {}) {
     const specs = args.entities;
     if (!Array.isArray(specs) || !specs.length) throw new KJValidationError('CREATEBATCH requires at least one entity');
-    if (specs.length > 100000) throw new KJValidationError('CREATEBATCH exceeds the 100000 entity safety limit');
+    const blockMemberCount = args.resources?.blocks?.reduce((sum, block)=>sum + (Array.isArray(block.entities) ? block.entities.length : 0), 0) ?? 0;
+    if (specs.length + blockMemberCount > 100000) throw new KJValidationError('CREATEBATCH exceeds the 100000 entity safety limit');
+    const created = [];
     if (Object.hasOwn(args, 'resources')) {
-        createBatchResources(document, transaction, args.resources);
+        created.push(...createBatchResources(document, transaction, args.resources, specs));
         const tableIds = (table)=>new Set([
                 ...document.getTable(table).records.filter((item)=>!item.erased).map((item)=>item.id),
                 ...args.resources[table].map((item)=>item.id)
@@ -2902,6 +2978,12 @@ function createEntityBatch({ document, transaction }, args = {}) {
             if (spec?.payload?.layerId !== undefined && !layers.has(spec.payload.layerId)) throw new KJValidationError('CREATEBATCH entity layerId must reference the layer table');
             if (spec?.payload?.linetypeId !== undefined && !linetypes.has(spec.payload.linetypeId)) throw new KJValidationError('CREATEBATCH entity linetypeId must reference the linetype table');
             if (spec?.payload?.lineweight !== undefined && !BATCH_LINEWEIGHTS.has(spec.payload.lineweight)) throw new KJValidationError('CREATEBATCH entity lineweight must be a supported DXF hundredth-millimetre value');
+            if (normalizeName(String(spec?.type ?? '')) === 'INSERT') {
+                const blockId = String(spec?.payload?.blockRecordId ?? '');
+                const block = transaction.getObject(blockId);
+                if (!block || block.kind !== 'block-record' || block.payload.isSpace === true) throw new KJValidationError('CREATEBATCH INSERT blockRecordId must reference a reusable block definition');
+                if (spec?.payload?.attributeIds?.length || spec?.payload?.sequenceEndId != null || spec?.payload?.parentInsertId != null) throw new KJValidationError('CREATEBATCH INSERT cannot supply attached entity relationships');
+            }
         }
     }
     const layerIds = new Map(document.getTable('layers').records.map((record)=>[
@@ -2912,7 +2994,6 @@ function createEntityBatch({ document, transaction }, args = {}) {
     const currentDimensionStyleName = currentDimensionStyleId ? document.getObject(currentDimensionStyleId)?.name ?? 'STANDARD' : 'STANDARD';
     const currentTextStyleId = document.getTable('textStyles')?.currentId;
     for (const layer of args.resources?.layers ?? [])layerIds.set(layer.name.toUpperCase(), layer.id);
-    const created = [];
     for (const spec of specs){
         if (!spec || typeof spec !== 'object' || Array.isArray(spec)) throw new KJValidationError('CREATEBATCH entity specs must be objects');
         const layerName = String(spec.layerName ?? '0').trim() || '0';
