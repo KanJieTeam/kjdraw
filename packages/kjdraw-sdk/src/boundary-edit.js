@@ -81,6 +81,7 @@ export class KJBoundaryEditSession {
             'LINE',
             'ARC',
             'CIRCLE',
+            'ELLIPSE',
             'LWPOLYLINE',
             'POLYLINE'
         ] : [

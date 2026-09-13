@@ -21,6 +21,7 @@ async function mountCurveFixture(page, type, extend = false) {
     const target = await sdk.executeCommand('CREATE', { type, options: { name: 'Elevated curve' }, payload: {
       layerId: layer.id, center: [0, 0, 6], radius: 10, color: 2, lineweight: 35, linetypeScale: 1.5,
       ...(type === 'ARC' ? { startAngle: 0, endAngle: extend ? Math.PI / 2 : Math.PI, clockwise: false } : {}),
+      ...(type === 'ELLIPSE' ? { majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI } : {}),
     } }, { document: drawing })
     const definitions = type === 'CIRCLE'
       ? [{ start: [-15, 0, 6], end: [15, 0, 6] }]
@@ -62,7 +63,7 @@ async function state(page) {
     return {
       revision: drawing.revision, objects: drawing.snapshot().objects, count: drawing.listEntities().length,
       pieces: drawing.listEntities().filter(entity => entity.payload.layerId === layer.id)
-        .sort((a, b) => Number(a.payload.startAngle ?? 0) - Number(b.payload.startAngle ?? 0)),
+        .sort((a, b) => Number(a.payload.startParameter ?? a.payload.startAngle ?? 0) - Number(b.payload.startParameter ?? b.payload.startAngle ?? 0)),
       boundaries: boundaries.map(entity => drawing.getObject(entity.id)),
       original: target, currentTarget: drawing.getObject(target.id), layerId: layer.id,
       groupMembers: drawing.getObject(group.id).payload.memberIds,
@@ -72,9 +73,9 @@ async function state(page) {
   })
 }
 
-async function selectAndTrim(page, before, boundaryPicks) {
+async function selectAndTrim(page, before, boundaryPicks, targetPick = [0, 10]) {
   // Initial target selection and added boundary selections use ordinary mouse hit tests.
-  await clickWorld(page, [0, 10])
+  await clickWorld(page, targetPick)
   await expect.poll(async () => (await state(page)).selectedIds).toEqual([before.original.id])
   await page.keyboard.down('Shift')
   for (const point of boundaryPicks) await clickWorld(page, point)
@@ -88,7 +89,7 @@ async function selectAndTrim(page, before, boundaryPicks) {
   await page.locator('#curve-trim-editor [data-action="start-modification"]').click()
   await expect(page.locator('#curve-trim-editor [data-modification-dialog]')).not.toBeVisible()
   expect((await state(page)).objects).toEqual(before.objects)
-  await clickWorld(page, [0, 10])
+  await clickWorld(page, targetPick)
   await expect.poll(async () => (await state(page)).revision).toBe(before.revision + 1)
 }
 
@@ -182,6 +183,20 @@ test('embedded toolbar removes only the middle of an elevated ARC and retains bo
   expectArcPoint(first.payload, 1, [5, intersectY])
   expectArcPoint(last.payload, 0, [-5, intersectY])
   expectArcPoint(last.payload, 1, [-10, 0])
+  await verifyUndoRedoAndReopen(page, before, trimmed)
+})
+
+test('embedded toolbar trims a native elliptical arc and preserves parameters through history and reopen', async ({ page }) => {
+  await mountCurveFixture(page, 'ELLIPSE')
+  const before = await state(page)
+  await selectAndTrim(page, before, [[5, 13], [-5, 13]], [0, 5])
+  const trimmed = await state(page)
+  expect(trimmed.pieces).toHaveLength(2)
+  const pieces = [...trimmed.pieces].sort((a, b) => a.payload.startParameter - b.payload.startParameter)
+  expect(pieces[0].id).toBe(before.original.id)
+  expect(pieces[0].payload.endParameter).toBeCloseTo(Math.PI / 3, 9)
+  expect(pieces[1].payload.startParameter).toBeCloseTo(2 * Math.PI / 3, 9)
+  for (const piece of pieces) expect(piece.payload).toMatchObject({ center: [0, 0, 6], majorAxis: [10, 0, 0], ratio: .5, color: 2, lineweight: 35 })
   await verifyUndoRedoAndReopen(page, before, trimmed)
 })
 

@@ -685,6 +685,17 @@ interface CircularEditGeometry {
   circle: boolean
 }
 
+interface EllipseEditGeometry {
+  payload: KJObjectPayload
+  center: Point3
+  majorAxis: Point3
+  majorLength: number
+  ratio: number
+  start: number
+  span: number
+  full: boolean
+}
+
 function finiteEditPoint(value: unknown): Point3 {
   const point = point3(value)
   if (!point.every(Number.isFinite)) throw new KJValidationError('Editing coordinates must be finite')
@@ -796,6 +807,95 @@ function circularResultPayload(geometry: CircularEditGeometry, first: number, la
     endAngle: positiveTurn(geometry.start + geometry.direction * last), clockwise: geometry.direction < 0 }
 }
 
+function ellipseEditGeometry(entity: KJEditingEntity): EllipseEditGeometry {
+  const payload = payloadOf(entity)
+  assertEditingXYPlane(payload)
+  const center = finiteEditPoint(payload.center), majorAxis = finiteEditPoint(payload.majorAxis)
+  if (Math.abs(majorAxis[2]) > EDIT_PLANE_EPSILON) throw new KJValidationError('Ellipse editing requires a major axis in the XY plane')
+  const majorLength = Math.hypot(majorAxis[0], majorAxis[1])
+  if (!Number.isFinite(majorLength) || majorLength <= EDIT_PLANE_EPSILON) throw new KJValidationError('Ellipse editing requires a non-zero finite major axis')
+  const ratio = positive(payload.ratio, 'Ellipse ratio')
+  if (ratio > 1) throw new KJValidationError('Ellipse ratio cannot exceed 1')
+  const start = Number(payload.startParameter ?? 0), end = Number(payload.endParameter ?? TURN), rawSpan = end - start
+  if (!Number.isFinite(start) || !Number.isFinite(end) || rawSpan < -EDIT_ANGLE_EPSILON || rawSpan > TURN + EDIT_ANGLE_EPSILON) {
+    throw new KJValidationError('Ellipse editing requires finite increasing parameters spanning at most one turn')
+  }
+  const full = Math.abs(rawSpan - TURN) <= EDIT_ANGLE_EPSILON
+  if (!full && rawSpan <= EDIT_ANGLE_EPSILON) throw new KJValidationError('Elliptical arc editing requires a non-empty parameter span')
+  return { payload, center, majorAxis, majorLength, ratio, start, span: full ? TURN : rawSpan, full }
+}
+
+function ellipseUnitPoint(geometry: EllipseEditGeometry, point: Point2 | Point3): Point2 {
+  const dx = point[0] - geometry.center[0], dy = point[1] - geometry.center[1]
+  const ux = geometry.majorAxis[0] / geometry.majorLength, uy = geometry.majorAxis[1] / geometry.majorLength
+  return [(dx * ux + dy * uy) / geometry.majorLength, (-dx * uy + dy * ux) / (geometry.majorLength * geometry.ratio)]
+}
+
+function ellipseOffset(geometry: EllipseEditGeometry, unitPoint: Point2): number {
+  const offset = positiveTurn(Math.atan2(unitPoint[1], unitPoint[0]) - geometry.start)
+  return TURN - offset <= EDIT_ANGLE_EPSILON ? 0 : offset
+}
+
+function ellipsePickOffset(geometry: EllipseEditGeometry, pickPoint: unknown): number {
+  const unitPoint = ellipseUnitPoint(geometry, finiteEditPoint(pickPoint))
+  if (Math.hypot(unitPoint[0], unitPoint[1]) <= EDIT_PLANE_EPSILON) throw new KJValidationError('Pick a point on the elliptical portion, not its center')
+  const offset = ellipseOffset(geometry, unitPoint)
+  if (!geometry.full && offset > geometry.span + EDIT_ANGLE_EPSILON) throw new KJValidationError('Pick must lie within the target elliptical arc')
+  return !geometry.full && Math.abs(offset - geometry.span) <= EDIT_ANGLE_EPSILON ? geometry.span : offset
+}
+
+function ellipseBoundaryOffsets(target: EllipseEditGeometry, boundary: KJEditingEntity): number[] {
+  const payload = payloadOf(boundary), type = boundary.type
+  if (type !== 'LINE' && type !== 'RAY' && type !== 'XLINE') {
+    throw new KJValidationError(`ELLIPSE trim boundaries support LINE, RAY or XLINE, not ${String(type)}`)
+  }
+  const start = finiteEditPoint(type === 'LINE' ? payload.start : payload.origin)
+  const direction = type === 'LINE' ? null : finiteEditPoint(payload.direction)
+  const end: Point3 = type === 'LINE' ? finiteEditPoint(payload.end) : [start[0] + direction![0], start[1] + direction![1], start[2]]
+  assertSameEditPlane(start, target.center[2])
+  if (type === 'LINE') assertSameEditPlane(end, target.center[2])
+  else if (Math.abs(finiteEditPoint(payload.direction)[2]) > EDIT_PLANE_EPSILON) {
+    throw new KJValidationError('Ellipse editing requires boundary directions in the XY plane')
+  }
+  assertEditingXYPlane(payload)
+  const unitStart = ellipseUnitPoint(target, start), unitEnd = ellipseUnitPoint(target, end)
+  if (distance2(unitStart, unitEnd) <= EDIT_PLANE_EPSILON) throw new KJValidationError('Ellipse boundary requires a non-zero finite XY direction')
+  const mode = type === 'LINE' ? 'segment' : type === 'RAY' ? 'ray' : 'line'
+  return intersectLineCircle2(unitStart, unitEnd, [0, 0], 1, { mode }).points.map(point => ellipseOffset(target, point))
+}
+
+function ellipseCutOffsets(target: EllipseEditGeometry, boundaries: readonly KJEditingEntity[]): number[] {
+  const offsets = boundaries.flatMap(boundary => ellipseBoundaryOffsets(target, boundary)).sort((a, b) => a - b)
+  return offsets.filter((value, index) => index === 0 || value - offsets[index - 1]! > EDIT_ANGLE_EPSILON)
+}
+
+function ellipseResultPayload(geometry: EllipseEditGeometry, first: number, last: number): KJObjectPayload {
+  const payload = clone(geometry.payload)
+  for (const key of ['rawTags', 'rawData', 'originalType', 'fullEllipse']) delete payload[key]
+  return { ...payload, center: [...geometry.center], majorAxis: [...geometry.majorAxis], ratio: geometry.ratio,
+    startParameter: geometry.start + first, endParameter: geometry.start + last }
+}
+
+function trimEllipsePayloads(target: KJEditingEntity, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[] {
+  const geometry = ellipseEditGeometry(target), pick = ellipsePickOffset(geometry, pickPoint)
+  const cuts = ellipseCutOffsets(geometry, boundaries)
+  rejectExactCircularCut(pick, cuts)
+  if (geometry.full) {
+    if (cuts.length < 2) throw new KJValidationError('Full ellipse trim requires at least two distinct cutting points')
+    const lower = cuts.filter(value => value < pick).at(-1) ?? cuts.at(-1)! - TURN
+    const upper = cuts.find(value => value > pick) ?? cuts[0]! + TURN
+    return [{ type: 'ELLIPSE', payload: ellipseResultPayload(geometry, upper, lower + TURN) }]
+  }
+  const interior = cuts.filter(value => value > EDIT_ANGLE_EPSILON && value < geometry.span - EDIT_ANGLE_EPSILON)
+  if (!interior.length) throw new KJValidationError('No trim intersection lies inside the target elliptical arc')
+  const lower = interior.filter(value => value < pick).at(-1) ?? 0
+  const upper = interior.find(value => value > pick) ?? geometry.span
+  const pieces: KJDerivedEntityPayload[] = []
+  if (lower > EDIT_ANGLE_EPSILON) pieces.push({ type: 'ELLIPSE', payload: ellipseResultPayload(geometry, 0, lower) })
+  if (upper < geometry.span - EDIT_ANGLE_EPSILON) pieces.push({ type: 'ELLIPSE', payload: ellipseResultPayload(geometry, upper, geometry.span) })
+  return pieces
+}
+
 function rejectAmbiguousLineBoundaries(target: KJEditingEntity, boundaries: readonly KJEditingEntity[], mode: LineDomain): void {
   const payload = payloadOf(target)
   for (const boundary of boundaries) {
@@ -821,14 +921,15 @@ function rejectAmbiguousLineBoundaries(target: KJEditingEntity, boundaries: read
   }
 }
 
-/** Remove the picked line/arc/polyline interval, or replace a cut CIRCLE with its remaining ARC. */
+/** Remove the picked interval from a line, polyline, circular curve or native ellipse. */
 export function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[] {
   if (target?.type === 'LINE') {
     rejectAmbiguousLineBoundaries(target, boundaries, 'segment')
     return trimLinePayloads(target, boundaries, pickPoint).map(payload => ({ type: 'LINE', payload }))
   }
   if (target?.type === 'LWPOLYLINE' || target?.type === 'POLYLINE') return trimPolylinePayloads(target, boundaries, pickPoint)
-  if (target?.type !== 'ARC' && target?.type !== 'CIRCLE') throw new KJValidationError('Trim requires a LINE, ARC, CIRCLE, LWPOLYLINE or POLYLINE target')
+  if (target?.type === 'ELLIPSE') return trimEllipsePayloads(target, boundaries, pickPoint)
+  if (target?.type !== 'ARC' && target?.type !== 'CIRCLE') throw new KJValidationError('Trim requires a LINE, ARC, CIRCLE, ELLIPSE, LWPOLYLINE or POLYLINE target')
   const geometry = circularEditGeometry(target), pick = circularPickOffset(geometry, pickPoint)
   const cuts = circularCutOffsets(geometry, boundaries)
   rejectExactCircularCut(pick, cuts)

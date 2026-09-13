@@ -272,12 +272,13 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         id: 'trim',
         command: 'TRIM',
         label: text('Trim', '修剪'),
-        description: text('Select the line, arc or circle first, then Shift-select the cutting boundaries.', '先选择待修剪的直线、圆弧或圆，再按住 Shift 选择切割边界。'),
+        description: text('Select the line, arc, circle or ellipse first, then Shift-select the cutting boundaries.', '先选择待修剪的直线、圆弧、圆或椭圆，再按住 Shift 选择切割边界。'),
         minSelection: 2,
         targetEntityTypes: [
             'LINE',
             'ARC',
-            'CIRCLE'
+            'CIRCLE',
+            'ELLIPSE'
         ],
         boundaryEntityTypes: [
             'LINE',

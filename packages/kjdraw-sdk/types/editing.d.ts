@@ -108,7 +108,7 @@ export declare function trimLinePayloads(target: KJEditingEntity | null | undefi
 /** Single-result compatibility helper; use trimLinePayloads for interior cuts. */
 export declare function trimLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;
 export declare function extendLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;
-/** Remove the picked line/arc/polyline interval, or replace a cut CIRCLE with its remaining ARC. */
+/** Remove the picked interval from a line, polyline, circular curve or native ellipse. */
 export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];
 /** Extend the picked end of a line, arc or open polyline to the nearest continuation boundary. */
 export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;

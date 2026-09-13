@@ -195,7 +195,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         targetEntityTypes: [
             'LINE',
             'ARC',
-            'CIRCLE'
+            'CIRCLE',
+            'ELLIPSE'
         ],
         boundaryEntityTypes: [
             'LINE',

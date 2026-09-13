@@ -121,7 +121,7 @@ test('curve edits reject protected layers, self-boundaries, coincident circles a
 test('shared modification preflight exposes the same curve targets and boundary restrictions in both languages', () => {
   const entity = (type, id = type) => ({ id, kind: 'entity', type })
   for (const locale of ['en', 'zh']) {
-    for (const type of ['LINE', 'ARC', 'CIRCLE']) assert.doesNotThrow(() => validateKJModificationSelection(getKJModificationDefinition('trim'), [entity(type, 'target'), entity('LINE', 'boundary')], locale))
+    for (const type of ['LINE', 'ARC', 'CIRCLE', 'ELLIPSE']) assert.doesNotThrow(() => validateKJModificationSelection(getKJModificationDefinition('trim'), [entity(type, 'target'), entity('LINE', 'boundary')], locale))
     for (const type of ['LINE', 'ARC']) assert.doesNotThrow(() => validateKJModificationSelection(getKJModificationDefinition('extend'), [entity(type, 'target'), entity('RAY', 'boundary')], locale))
     assert.throws(() => validateKJModificationSelection(getKJModificationDefinition('extend'), [entity('CIRCLE'), entity('LINE')], locale), locale === 'zh' ? /请先选择目标/ : /target first/)
     assert.throws(() => validateKJModificationSelection(getKJModificationDefinition('trim'), [entity('ARC'), entity('SPLINE')], locale), locale === 'zh' ? /边界必须/ : /Boundaries must/)
