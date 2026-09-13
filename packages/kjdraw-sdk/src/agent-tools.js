@@ -417,6 +417,7 @@ const moveSchema = {
             'selectionSetName'
         ].includes(name))
 };
+const copySchema = moveSchema;
 const rotateSchemaBase = object({
     expectedRevision: revision,
     units: text,
@@ -1023,6 +1024,12 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         effect: 'propose',
         description: `Propose an XY displacement of one exact target: either 1–64 visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs, or one persistent named selectionSetName discovered with cad_read_selection_sets. Never supply both. A selection set is resolved to its exact stored members at the requested drawing revision; missing, ambiguous, empty, duplicate, oversized or protected membership is rejected before a plan exists. HATCH accepts bounded canonical polygon loops and LINE/ARC/ELLIPSE edge loops; a SPLINE loop must contain exactly one semantic closed rational-quadratic circle or ellipse edge, while raw tags and free-form splines are rejected. Selecting either member of one owned native LEADER + MTEXT annotation expands to that exact pair; broken, ambiguous, unowned, cross-space, cross-layer or protected pairs are rejected before a plan exists. TEXT and supported native DIMENSION must have drawable geometry on model XY at z=0 with default +Z orientation. All annotation points translate together; dimension measurements, text, guide directions and selection-set membership are preserved. Include geometry and annotations together to move a complete detail; this does not establish associative constraints or move only a dimension label. INSERT requires a local, visible, unlocked block graph with positive uniform XY scale, no attributes or external references, up to 8 levels and 512 expanded instances; complete block geometry and styles are included in blockDependencies within 128 KiB. Native block DIMENSION is measured in its original local definition; instance transforms change its display, not the annotated value. Unsupported, cyclic or incomplete graphs are rejected. Returns complete before/after native geometry and resolved selection-set identity without editing; host approval applies one undoable transaction.`,
         inputSchema: moveSchema
+    },
+    {
+        name: 'cad_propose_copy',
+        effect: 'propose',
+        description: `Propose one exact nonzero XY copy of either 1–64 visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs or one persistent named selectionSetName. Never supply both. KJDraw allocates stable result IDs before preview so the reviewed entities are exactly the entities committed on approval. Owned LEADER + MTEXT pairs expand and copy together; associative DIMENSION requires every referenced source in the same copy. INSERT must be a bounded local block graph without attached attributes or external references. Unsupported, protected, incomplete, ambiguous or out-of-budget geometry is rejected before a plan exists. The model supplies source identity and dx/dy only. Returns complete new native geometry and dependencies without editing; host approval applies one undoable COPY transaction.`,
+        inputSchema: copySchema
     },
     {
         name: 'cad_propose_rotate',
@@ -2024,6 +2031,7 @@ export class KJAgentToolSession {
                             const byIds = Object.hasOwn(args, 'ids'), bySelectionSet = Object.hasOwn(args, 'selectionSetName');
                             if ([
                                 'cad_propose_move',
+                                'cad_propose_copy',
                                 'cad_propose_rotate',
                                 'cad_propose_scale'
                             ].includes(name) && byIds === bySelectionSet) throw new KJValidationError('Transform requires exactly one of ids or selectionSetName');
@@ -2050,11 +2058,14 @@ export class KJAgentToolSession {
                                     }
                                 };
                             } else {
-                                command = 'MOVE';
+                                command = name === 'cad_propose_copy' ? 'COPY' : 'MOVE';
                                 commandArgs = {
                                     ids,
                                     dx: args.dx,
-                                    dy: args.dy
+                                    dy: args.dy,
+                                    ...command === 'COPY' ? {
+                                        resultIds: ids.map(()=>createId('entity'))
+                                    } : {}
                                 };
                             }
                         }

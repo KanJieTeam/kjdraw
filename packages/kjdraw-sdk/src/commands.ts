@@ -2145,6 +2145,11 @@ function copyEntities({ document, transaction }: KJCommandContext, args: KJComma
     const entity = requiredEntity(document, id)
     return !entity.payload.parentInsertId || !selected.has(entity.payload.parentInsertId)
   })
+  const resultIds = args.resultIds
+  if (resultIds != null) {
+    if (command !== 'COPY' || !Array.isArray(resultIds) || resultIds.length !== sourceIds.length || resultIds.some(id => typeof id !== 'string' || !id) || new Set(resultIds).size !== resultIds.length) throw new KJValidationError('COPY resultIds must provide one unique preallocated ID per copied source')
+    if (resultIds.some(id => document.getObject(id))) throw new KJValidationError('COPY resultIds must not already exist')
+  }
   const copiedSourceIds = new Set(sourceIds)
   for (const id of sourceIds) {
     const dimension = requiredEntity(document, id)
@@ -2152,10 +2157,11 @@ function copyEntities({ document, transaction }: KJCommandContext, args: KJComma
     const missing = normalizeDimensionAssociations(dimension.payload.dimensionAssociations).find(association => !copiedSourceIds.has(association.entityId))
     if (missing) throw new KJValidationError(`${command} cannot copy associated dimension ${dimension.id} without source ${missing.entityId}`)
   }
-  const copies = sourceIds.map(id => {
+  const copies = sourceIds.map((id, sourceIndex) => {
     const entity = requiredEntity(document, id)
     if (entity.payload.parentInsertId) throw new KJValidationError('Copy attached attributes through their INSERT')
     const attributed = entity.type === 'INSERT' && Boolean(entity.payload.attributeIds?.length || entity.payload.sequenceEndId)
+    if (attributed && resultIds != null) throw new KJValidationError('Preallocated COPY does not support attached attribute sequences')
     if (attributed && args.payloadPatch && Object.keys(args.payloadPatch).length) throw new KJValidationError('Attributed INSERT copy does not support payloadPatch')
     const children = attributed ? (entity.payload.attributeIds ?? []).map(childId => requiredEntity(document, childId)) : []
     if (attributed) for (const source of [entity, ...children]) {
@@ -2163,6 +2169,7 @@ function copyEntities({ document, transaction }: KJCommandContext, args: KJComma
       if (layer && (layer.payload.locked === true || layer.payload.frozen === true || layer.payload.visible === false)) throw new KJValidationError('Copy requires writable layers for the INSERT and every attached attribute')
     }
     const copied = transaction.createEntity(entity.type, { ...transformEntityPayload(entity.type, entity.payload, matrix), ...clone(args.payloadPatch ?? {}), ...(attributed ? { attributeIds: [], sequenceEndId: null } : {}) }, {
+      ...(resultIds == null ? {} : { id: resultIds[sourceIndex] as string }),
       ownerId: args.ownerId ?? entity.ownerId,
       name: entity.name,
       extension: entity.extension as unknown as NonNullable<KJObjectSpec['extension']>,

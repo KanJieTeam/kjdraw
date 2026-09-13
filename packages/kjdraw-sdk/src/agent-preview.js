@@ -420,6 +420,7 @@ export async function createAgentGeometryPreview(document, command, args, option
         'CREATEBATCH',
         'COMPONENTINSERT',
         'MOVE',
+        'COPY',
         'ROTATE',
         'SCALE',
         'STRETCH',
@@ -430,12 +431,23 @@ export async function createAgentGeometryPreview(document, command, args, option
     ].includes(command)) throw new KJValidationError('Unsupported core preview command');
     if ([
         'MOVE',
+        'COPY',
         'ROTATE',
         'SCALE'
     ].includes(command) && Array.isArray(args.ids)) args = {
         ...args,
         ids: resolveAgentTransformEntityIds(document, args.ids)
     };
+    if (command === 'COPY') {
+        if (Object.keys(args).some((key)=>![
+                'ids',
+                'dx',
+                'dy',
+                'resultIds'
+            ].includes(key))) throw new KJValidationError('Unexpected COPY preview argument');
+        if (!Array.isArray(args.resultIds) || !Array.isArray(args.ids) || args.resultIds.length !== args.ids.length || args.resultIds.some((id)=>typeof id !== 'string' || !id) || new Set(args.resultIds).size !== args.resultIds.length || args.resultIds.some((id)=>document.getObject(String(id)))) throw new KJValidationError('COPY preview requires one unique new result ID per source');
+        if (typeof args.dx !== 'number' || typeof args.dy !== 'number' || !Number.isFinite(args.dx) || !Number.isFinite(args.dy) || Math.abs(args.dx) > 1e12 || Math.abs(args.dy) > 1e12 || args.dx === 0 && args.dy === 0) throw new KJValidationError('COPY preview requires a bounded nonzero XY displacement');
+    }
     let bindingIds;
     if (command === 'DESIGNCREATE') {
         if (typeof args.id !== 'string' || !args.id.trim() || Object.keys(args).some((key)=>![
@@ -503,6 +515,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     ] : args.ids);
     const blockDependencies = [
         'MOVE',
+        'COPY',
         'ROTATE',
         'SCALE'
     ].includes(command) ? captureAgentBlockDependencies(document, ids) : undefined;
@@ -532,7 +545,7 @@ export async function createAgentGeometryPreview(document, command, args, option
         const previous = old.get(entity.id);
         if (!previous || canonicalStringify(project(previous)) !== canonicalStringify(project(entity))) {
             if (previous) before.push(project(previous));
-            if (command === 'MOVE') validateMovableAnnotation(draft, entity);
+            if (command === 'MOVE' || command === 'COPY') validateMovableAnnotation(draft, entity);
             if (affine) validateTransformGeometry(draft, entity);
             if (command === 'LENGTHEN') validateLengthenPreview(draft, args);
             if (command === 'PEDIT' || command === 'STRETCH' || command === 'LENGTHEN') {
