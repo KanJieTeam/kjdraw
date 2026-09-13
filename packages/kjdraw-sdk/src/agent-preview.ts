@@ -36,12 +36,12 @@ export interface KJAgentGeometryPreview {
 }
 const project = (entity: KJReadonlyObjectRecord): KJAgentPreviewEntity => ({ id: entity.id, type: entity.type, payload: entity.payload })
 const supported = ['LINE', 'CIRCLE', 'ARC', 'LWPOLYLINE']
-export const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[] = Object.freeze([...supported, 'ELLIPSE', 'SPLINE', 'XLINE', 'RAY', 'TEXT', 'DIMENSION', 'INSERT'])
+export const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[] = Object.freeze([...supported, 'ELLIPSE', 'SPLINE', 'HATCH', 'XLINE', 'RAY', 'TEXT', 'DIMENSION', 'INSERT'])
 const creatable = [...supported, 'ELLIPSE', 'SPLINE', 'HATCH', 'TEXT', 'MTEXT', 'LEADER', 'DIMENSION']
 const stretchable = ['LINE', 'LWPOLYLINE', 'POLYLINE']
 
 function validateMovableAnnotation(document: KJDocument, entity: KJReadonlyObjectRecord): void {
-  if (entity.type === 'ELLIPSE' || entity.type === 'SPLINE') { validateTransformGeometry(document, entity); return }
+  if (['ELLIPSE', 'SPLINE', 'HATCH'].includes(entity.type)) { validateTransformGeometry(document, entity); return }
   if (entity.type !== 'TEXT' && entity.type !== 'DIMENSION') return
   const payload = entity.payload
   for (const field of ['normal', 'extrusionDirection']) {
@@ -92,6 +92,40 @@ function validateTransformGeometry(document: KJDocument, entity: KJReadonlyObjec
     const projection = projectDimension(payload, document.getObject(String(payload.styleId ?? ''))?.payload)!
     const visiblePoints = [...projection.lines.flat(), ...projection.arrows.flat(), projection.label.position, ...projection.arcs.map(arc => arc.center)]
     if (!visiblePoints.every(p => p.every(bounded)) || !bounded(projection.measurement) || !bounded(projection.label.height) || projection.arcs.some(arc => !bounded(arc.radius))) throw new KJValidationError('Transform annotation projection exceeds its finite coordinate budget')
+  } else if (entity.type === 'HATCH') {
+    const loops = Array.isArray(payload.boundaryLoops) ? payload.boundaryLoops : []
+    if (!loops.length || loops.length > 64 || !bounded(payload.patternScale) || payload.patternScale <= 0 || !bounded(payload.patternAngle)) throw new KJValidationError('Transform preview requires a bounded native hatch')
+    let boundaryCount = 0
+    for (const value of loops) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new KJValidationError('Transform preview requires canonical hatch loops')
+      const loop = value as Readonly<Record<string, unknown>>
+      if (Array.isArray(loop.vertices)) {
+        boundaryCount += loop.vertices.length
+        for (const value of loop.vertices) {
+          if (!value || typeof value !== 'object' || Array.isArray(value)) throw new KJValidationError('Transform preview requires canonical hatch vertices')
+          const vertex = value as Readonly<Record<string, unknown>>
+          if (!bounded(vertex.bulge ?? 0)) throw new KJValidationError('Transform preview requires bounded hatch bulges')
+          points.push(vertex.point)
+        }
+      } else if (Array.isArray(loop.edges)) {
+        boundaryCount += loop.edges.length
+        for (const value of loop.edges) {
+          if (!value || typeof value !== 'object' || Array.isArray(value)) throw new KJValidationError('Transform preview requires canonical hatch edges')
+          const edge = value as Readonly<Record<string, unknown>>, type = String(edge.type).toUpperCase()
+          if (type === 'LINE') {
+            points.push(edge.start, edge.end)
+          } else if (type === 'ARC') {
+            points.push(edge.center)
+            if (!bounded(edge.radius) || edge.radius <= 1e-12 || !bounded(edge.startAngle) || !bounded(edge.endAngle)) throw new KJValidationError('Transform preview requires a bounded hatch arc edge')
+          } else if (type === 'ELLIPSE') {
+            points.push(edge.center, edge.majorAxis)
+            const axis = edge.majorAxis
+            if (!Array.isArray(axis) || Math.hypot(Number(axis[0]), Number(axis[1])) <= 1e-12 || !bounded(edge.ratio) || edge.ratio <= 1e-12 || edge.ratio > 1 || !bounded(edge.startAngle) || !bounded(edge.endAngle)) throw new KJValidationError('Transform preview requires a bounded hatch ellipse edge')
+          } else throw new KJValidationError(`Transform preview does not support hatch edge ${type || 'UNKNOWN'}`)
+        }
+      } else throw new KJValidationError('Transform preview requires hatch vertices or edges')
+    }
+    if (boundaryCount < 1 || boundaryCount > 4096) throw new KJValidationError('Transform preview hatch boundary budget is 1–4096 elements')
   } else if (entity.type === 'LWPOLYLINE') {
     for (const key of ['constantWidth', 'width', 'defaultStartWidth', 'defaultEndWidth']) if (payload[key] != null && payload[key] !== 0) throw new KJValidationError('Transform preview does not support wide polylines')
     if (!Array.isArray(payload.vertices) || payload.vertices.length < 2 || payload.vertices.length > 4096) throw new KJValidationError('Transform preview requires 2–4096 polyline vertices')
