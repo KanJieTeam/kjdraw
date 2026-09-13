@@ -6,6 +6,19 @@ const repositoryRoot = new URL('../../../', import.meta.url)
 const read = path => readFile(new URL(path, repositoryRoot), 'utf8')
 const exactMainBinding = /test "\$\(git rev-parse refs\/remotes\/origin\/main\)" = "\$sha"/
 
+function workflowTimeoutMinutes(workflow) {
+  const value = /timeout-minutes:\s*(\d+)/.exec(workflow)?.[1]
+  assert.ok(value, 'release workflow must declare a job timeout')
+  return Number(value)
+}
+
+function exactMainWaitSeconds(workflow) {
+  const attempts = /for attempt in \$\(seq 1 (\d+)\)/.exec(workflow)?.[1]
+  const interval = /sleep (\d+)/.exec(workflow)?.[1]
+  assert.ok(attempts && interval, 'exact-main gate must declare a bounded polling window')
+  return Number(attempts) * Number(interval)
+}
+
 function requireExactMainBinding(workflow) {
   assert.match(workflow, exactMainBinding, 'release publication must require the tagged SHA to equal current origin/main')
 }
@@ -39,6 +52,36 @@ test('release gates the exact main SHA on CI and Pages without publishing drafts
   assert.match(release, /already exists as a draft/)
   assert.match(release, /publish or delete that draft manually/)
   assert.doesNotMatch(release, /gh release edit[^\n]*--draft=false/)
+})
+
+test('release workflows outwait hosted browser checks, reject terminal failures and recheck before publication', async () => {
+  const [provenance, release, npmPublish] = await Promise.all([
+    read('.github/workflows/release-provenance.yml'),
+    read('.github/workflows/release.yml'),
+    read('.github/workflows/npm-publish.yml'),
+  ])
+
+  const minimumExactMainWaitSeconds = 25 * 60
+  assert.ok(exactMainWaitSeconds(provenance) >= minimumExactMainWaitSeconds)
+  assert.ok(exactMainWaitSeconds(release) >= minimumExactMainWaitSeconds)
+  assert.ok(workflowTimeoutMinutes(provenance) * 60 >= exactMainWaitSeconds(provenance) + 15 * 60)
+  assert.ok(workflowTimeoutMinutes(release) * 60 >= exactMainWaitSeconds(release) + 30 * 60)
+  assert.ok(workflowTimeoutMinutes(npmPublish) >= 30)
+  for (const workflow of [provenance, release]) assert.match(workflow, /\[\[ -n "\$conclusion" && "\$conclusion" != "success" \]\]/)
+
+  const releaseVerify = release.indexOf('Verify and package the exact tagged SDK')
+  const releaseRecheck = release.indexOf('Recheck exact main immediately before GitHub publication')
+  const releasePublish = release.indexOf('Publish GitHub release')
+  assert.ok(releaseVerify >= 0 && releaseRecheck > releaseVerify && releasePublish > releaseRecheck)
+  const npmVerify = npmPublish.indexOf('Verify the exact released package')
+  const npmRecheck = npmPublish.indexOf('Recheck exact main immediately before npm publication')
+  const npmPublishStep = npmPublish.indexOf('Publish with the correct distribution tag')
+  assert.ok(npmVerify >= 0 && npmRecheck > npmVerify && npmPublishStep > npmRecheck)
+  for (const workflow of [release.slice(releaseRecheck, releasePublish), npmPublish.slice(npmRecheck, npmPublishStep)]) {
+    requireExactMainBinding(workflow)
+    assert.match(workflow, /workflows\/ci\.yml\/runs\?head_sha=\$sha&event=push/)
+    assert.match(workflow, /workflows\/pages\.yml\/runs\?head_sha=\$sha&event=push/)
+  }
 })
 
 test('release exact-main gate rejects an ancestor-only publication workflow', () => {

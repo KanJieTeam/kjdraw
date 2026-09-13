@@ -20,7 +20,7 @@ concurrency:
 jobs:
   verify-candidate:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -43,13 +43,13 @@ jobs:
 
           ci_conclusion=""
           pages_conclusion=""
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 50); do
             ci_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
             pages_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pages.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
             if [[ "$ci_conclusion" == "success" && "$pages_conclusion" == "success" ]]; then break; fi
             for result in "CI:$ci_conclusion" "Pages:$pages_conclusion"; do
               conclusion="${result#*:}"
-              if [[ "$conclusion" == "failure" || "$conclusion" == "cancelled" || "$conclusion" == "timed_out" ]]; then
+              if [[ -n "$conclusion" && "$conclusion" != "success" ]]; then
                 echo "::error::Exact-main ${result%%:*} concluded $conclusion for $sha"
                 exit 1
               fi

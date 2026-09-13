@@ -21,7 +21,7 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
     env:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
       GH_TOKEN: ${{ github.token }}
@@ -46,14 +46,14 @@ jobs:
 
           ci_conclusion=""
           pages_conclusion=""
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 50); do
             ci_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
             pages_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pages.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
             if [[ "$ci_conclusion" == "success" && "$pages_conclusion" == "success" ]]; then break; fi
             for result in "CI:$ci_conclusion" "Pages:$pages_conclusion"; do
               workflow="${result%%:*}"
               conclusion="${result#*:}"
-              if [[ "$conclusion" == "failure" || "$conclusion" == "cancelled" || "$conclusion" == "timed_out" ]]; then
+              if [[ -n "$conclusion" && "$conclusion" != "success" ]]; then
                 echo "Exact main $workflow concluded $conclusion for $sha"
                 exit 1
               fi
@@ -83,6 +83,16 @@ jobs:
           asset="$(npm pack --workspace packages/kjdraw-sdk --pack-destination dist/release --silent | tail -n 1)"
           node scripts/release-artifacts.mjs "dist/release/$asset"
           node scripts/audits/verify-release-artifacts.mjs dist/release
+      - name: Recheck exact main immediately before GitHub publication
+        shell: bash
+        run: |
+          sha="$(git rev-parse HEAD)"
+          git fetch --no-tags origin main
+          test "$(git rev-parse refs/remotes/origin/main)" = "$sha"
+          ci_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
+          pages_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pages.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
+          test "$ci_conclusion" = "success"
+          test "$pages_conclusion" = "success"
       - name: Publish GitHub release
         shell: bash
         run: |
