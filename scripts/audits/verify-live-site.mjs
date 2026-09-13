@@ -49,9 +49,14 @@ try {
   await page.goto(base.href)
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
   await expect(page.locator('#sample-select option')).toHaveCount(5)
-  for (const id of ['sample-site-plan', 'sample-architecture', 'sample-road-profile', 'sample-mechanical']) {
+  const selectDrawing = async id => {
+    await expect(page.locator('.workbench')).toHaveAttribute('aria-busy', 'false')
     await page.locator('#sample-select').selectOption(id)
-    await expect(page.locator('.document-tabs .active')).toHaveAttribute('data-document', id)
+    await expect(page.locator(`.document-tabs .active[data-document="${id}"]`)).toBeVisible()
+    await expect(page.locator('.workbench')).toHaveAttribute('aria-busy', 'false')
+  }
+  for (const id of ['sample-site-plan', 'sample-architecture', 'sample-road-profile', 'sample-mechanical']) {
+    await selectDrawing(id)
     await expect(page.locator('#entity-count')).not.toHaveText('0 entities')
   }
   await page.locator('#toggle-layers').click()
@@ -59,8 +64,10 @@ try {
   await page.screenshot({ path: fileURLToPath(new URL('workbench.png', output)) })
   checks.push('Industry drawings load and layer panels open')
 
-  await page.locator('#sample-select').selectOption('sample-resilient-campus')
+  await selectDrawing('sample-resilient-campus')
   await page.locator('#agent-tab').click()
+  await page.locator('#agent-examples > summary').click()
+  await expect(page.locator('#agent-examples')).toHaveAttribute('open', '')
   await page.locator('#plan').click()
   await expect(page.locator('#plan-state')).toContainText('NO MUTATION')
   await page.locator('#confirm').click()

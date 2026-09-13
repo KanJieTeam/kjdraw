@@ -64,6 +64,19 @@ test('Pages uploads and deploys the same run-and-attempt-scoped artifact', async
   assert.match(workflow, /artifact_name: \$\{\{ env\.PAGES_ARTIFACT_NAME \}\}/)
 })
 
+test('Pages success requires the deployed workbench and docs to match the exact checkout', async () => {
+  const workflow = await read('.github/workflows/pages.yml')
+  const deployment = workflow.indexOf('uses: actions/deploy-pages@')
+  const liveVerification = workflow.indexOf('node scripts/audits/verify-live-site.mjs "$DEPLOYED_SITE_URL"')
+
+  assert.ok(deployment >= 0, 'Pages must deploy an artifact')
+  assert.ok(liveVerification > deployment, 'live verification must run after deployment')
+  assert.match(workflow, /DEPLOYED_SITE_URL: \$\{\{ steps\.deployment\.outputs\.page_url \}\}/)
+  assert.match(workflow, /npx playwright install --with-deps chromium/)
+  assert.match(workflow, /for attempt in \$\(seq 1 10\)/)
+  assert.match(workflow, /exit 1/)
+})
+
 test('CI verifies the packed editor lifecycle in a clean offline browser consumer', async () => {
   const workflow = await read('.github/workflows/ci.yml')
 
