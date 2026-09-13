@@ -56,6 +56,7 @@ test('manufacturing sheet compiler emits deterministic native drawing entities a
   assert.ok(first.commandArgs.entities.filter(entity => entity.type === 'LWPOLYLINE').length >= 4, 'frame, two views and title block are native polylines')
   assert.ok(first.commandArgs.entities.filter(entity => entity.type === 'ARC').length >= 4, 'slots retain native tangent arcs')
   assert.ok(first.commandArgs.entities.some(entity => entity.type === 'DIMENSION' && entity.payload.dimensionType === 'DIAMETER'))
+  assert.ok(first.commandArgs.entities.filter(entity => entity.type === 'DIMENSION').every(entity => entity.payload.textHeight === 3.5))
   const centerLayer = first.commandArgs.resources.layers.find(layer => layer.name === 'CENTER')
   assert.ok(centerLayer)
   assert.ok(first.commandArgs.entities.some(entity => entity.type === 'LINE' && entity.payload.layerId === centerLayer.id))

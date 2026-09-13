@@ -335,6 +335,7 @@ export function buildAgentManufacturingSheet(document, source) {
             ] : definitionPoints,
             textPosition,
             textOverride: null,
+            textHeight: input.textHeight,
             styleName: 'STANDARD'
         });
     rectangle(sheetX, sheetY, sheetWidth, sheetHeight, 'SHEET');

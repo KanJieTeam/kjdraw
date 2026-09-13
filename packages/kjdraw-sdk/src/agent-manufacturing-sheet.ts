@@ -247,6 +247,7 @@ export function buildAgentManufacturingSheet(document: ManufacturingDocument, so
     definitionPoints: dimensionType === 'ALIGNED' ? [textPosition, ...definitionPoints] : definitionPoints,
     textPosition,
     textOverride: null,
+    textHeight: input.textHeight,
     styleName: 'STANDARD',
   })
 

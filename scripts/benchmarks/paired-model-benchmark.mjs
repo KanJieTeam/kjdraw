@@ -9,13 +9,14 @@ import { createKJModelAdapter } from '../../packages/kjdraw-sdk/src/model-adapte
 import { extractKJModelUsage } from '../../packages/kjdraw-sdk/src/model-usage.js'
 import { pilotTasks } from './model-drawing-pilot.mjs'
 import { engineeringDrawingTasks, engineeringDrawingScope } from './engineering-drawing-tasks.mjs'
+import { manufacturingDrawingTasks, manufacturingDrawingScope } from './manufacturing-drawing-tasks.mjs'
 import { parametricDrawingTasks } from './parametric-drawing-tasks.mjs'
 import { spawnSyncWithFileStdin } from '../spawn-file-stdin.mjs'
 
 const protocol = 'chat-completions'
 const arms = ['kjdraw-tool', 'direct-dxf']
 const drawingTools = ['cad_propose_drawing', 'cad_propose_drawing_compact', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet']
-const taskSuites = { pilot: pilotTasks, parametric: parametricDrawingTasks, engineering: engineeringDrawingTasks.map(({ id, prompt, requirements }) => ({ id, prompt, expected: requirements })) }
+const taskSuites = { pilot: pilotTasks, parametric: parametricDrawingTasks, engineering: engineeringDrawingTasks.map(({ id, prompt, requirements }) => ({ id, prompt, expected: requirements })), manufacturing: manufacturingDrawingTasks }
 const validatorScript = fileURLToPath(new URL('./paired-model-validator.py', import.meta.url))
 const hash = value => createHash('sha256').update(value).digest('hex')
 const byteLength = value => Buffer.byteLength(JSON.stringify(value))
@@ -42,7 +43,7 @@ export function pairedModelPlan({ repetitions = 5, maxRequests = 30, taskSuite =
   if (!Number.isSafeInteger(repetitions) || repetitions < (exploratory ? 1 : 5) || repetitions > 30) throw new Error('Choose 5–30 repetitions, or explicitly exploratory 1–30')
   const plannedRequests = tasks.length * arms.length * repetitions
   if (!Number.isSafeInteger(maxRequests) || maxRequests < plannedRequests || maxRequests > 180) throw new Error('Explicit request budget must cover the complete paired plan and be at most 180')
-  return { mode: 'dry-run', exploratory, protocol, repetitions, maxRequests, plannedRequests, actualRequests: 0, tasks: tasks.map(task => ({ id: task.id, prompt: task.prompt })), taskSuite, arms, chatTokenParameter, settings: providerSettings({ chatTokenParameter, maxOutputTokens, thinkingMode, enableThinking, reasoningEffort }), scope: taskSuite === 'engineering' ? engineeringDrawingScope : taskSuite === 'pilot' ? 'Three simple fully specified synthetic tasks, repeated one-shot generation. This is not a complex autonomous CAD evaluation.' : 'Three fully specified synthetic 2D geometry tasks with repeated patterns, repeated one-shot generation. No dimensions, annotations, complete drawing sheets or autonomous design are evaluated.' }
+  return { mode: 'dry-run', exploratory, protocol, repetitions, maxRequests, plannedRequests, actualRequests: 0, tasks: tasks.map(task => ({ id: task.id, prompt: task.prompt })), taskSuite, arms, chatTokenParameter, settings: providerSettings({ chatTokenParameter, maxOutputTokens, thinkingMode, enableThinking, reasoningEffort }), scope: taskSuite === 'engineering' ? engineeringDrawingScope : taskSuite === 'manufacturing' ? manufacturingDrawingScope : taskSuite === 'pilot' ? 'Three simple fully specified synthetic tasks, repeated one-shot generation. This is not a complex autonomous CAD evaluation.' : 'Three fully specified synthetic 2D geometry tasks with repeated patterns, repeated one-shot generation. No dimensions, annotations, complete drawing sheets or autonomous design are evaluated.' }
 }
 
 export function liveModelConfiguration(env = process.env) {
@@ -64,12 +65,13 @@ export function liveModelConfiguration(env = process.env) {
 }
 
 export function independentValidation({ python = process.env.KJDRAW_PYTHON ?? 'python', dxf, expected, timeoutMs = 30000, taskSuite = 'pilot' } = {}) {
-  const script = taskSuite === 'engineering' ? fileURLToPath(new URL('./engineering-model-validator.py', import.meta.url)) : validatorScript
+  const script = taskSuite === 'engineering' ? fileURLToPath(new URL('./engineering-model-validator.py', import.meta.url)) : taskSuite === 'manufacturing' ? fileURLToPath(new URL('./manufacturing-model-validator.py', import.meta.url)) : validatorScript
   const result = spawnSyncWithFileStdin(python, ['-B', script, ...(dxf === undefined ? ['--probe'] : [])], dxf === undefined ? undefined : JSON.stringify({ dxf, expected }), { encoding: 'utf8', timeout: timeoutMs, maxBuffer: 65536, windowsHide: true })
   if (result.status !== 0 || result.error) throw new BenchmarkFailure('INDEPENDENT_VALIDATOR_UNAVAILABLE', true)
   let value
   try { value = JSON.parse(result.stdout) } catch { throw new BenchmarkFailure('INDEPENDENT_VALIDATOR_INVALID', true) }
-  if (value.validator !== (taskSuite === 'engineering' ? 'ezdxf-engineering' : 'ezdxf') || typeof value.version !== 'string' || !/^\d+(?:\.\d+){1,3}$/.test(value.version) || (dxf !== undefined && typeof value.passed !== 'boolean')) throw new BenchmarkFailure('INDEPENDENT_VALIDATOR_INVALID', true)
+  const expectedValidator = taskSuite === 'engineering' ? 'ezdxf-engineering' : taskSuite === 'manufacturing' ? 'ezdxf-manufacturing' : 'ezdxf'
+  if (value.validator !== expectedValidator || typeof value.version !== 'string' || !/^\d+(?:\.\d+){1,3}$/.test(value.version) || (dxf !== undefined && typeof value.passed !== 'boolean')) throw new BenchmarkFailure('INDEPENDENT_VALIDATOR_INVALID', true)
   return value
 }
 
@@ -102,11 +104,11 @@ function toolDefinition(name) {
 }
 
 function requestBody(task, arm, config, tool) {
-  const engineering = config.taskSuite === 'engineering'
-  const common = engineering ? 'The drawing is empty, revision 0, units millimeter, model XY at z=0. Produce all geometry, dimensions, text and styles explicitly requested below. ' : 'Create a 2D engineering drawing from the following fully specified synthetic request. All coordinates and lengths are millimeters, model XY at z=0. The drawing is empty, revision 0. No text, dimensions, hatch, construction lines or additional geometry. '
+  const completeDrawing = config.taskSuite === 'engineering' || config.taskSuite === 'manufacturing'
+  const common = completeDrawing ? 'The drawing is empty, revision 0, units millimeter, model XY at z=0. Produce all geometry, dimensions, text and styles explicitly requested below. ' : 'Create a 2D engineering drawing from the following fully specified synthetic request. All coordinates and lengths are millimeters, model XY at z=0. The drawing is empty, revision 0. No text, dimensions, hatch, construction lines or additional geometry. '
   const system = arm === 'kjdraw-tool'
     ? `Use exactly one ${config.drawingTool} tool call. The current units and revision have already been supplied. Return requested editable geometry for synthetic benchmark review.`
-    : `Return only a complete valid ASCII DXF file, no markdown or commentary. Use DXF AC1027 or newer and set $INSUNITS to 4 (millimeters). ${engineering ? 'Use editable LINE, CIRCLE, ARC, straight LWPOLYLINE, TEXT and native DIMENSION entities, with valid dimension graphics blocks, layer and linetype tables as requested.' : 'Use LINE, CIRCLE, ARC and/or straight LWPOLYLINE entities.'} Do not use any CAD library or tool.`
+    : `Return only a complete valid ASCII DXF file, no markdown or commentary. Use DXF AC1027 or newer and set $INSUNITS to 4 (millimeters). ${completeDrawing ? 'Use editable LINE, CIRCLE, ARC, straight LWPOLYLINE, TEXT and native DIMENSION entities, with valid dimension graphics blocks, layer and linetype tables as requested.' : 'Use LINE, CIRCLE, ARC and/or straight LWPOLYLINE entities.'} Do not use any CAD library or tool.`
   return { model: config.model, messages: [{ role: 'system', content: system }, { role: 'user', content: common + task.prompt }], ...config.settings, ...(arm === 'kjdraw-tool' ? { tools: [tool], tool_choice: config.toolChoiceMode === 'auto' ? 'auto' : { type: 'function', function: { name: config.drawingTool } } } : {}) }
 }
 
@@ -188,7 +190,7 @@ export async function runPairedModelBenchmark(options) {
   report.toolChoiceMode = config.toolChoiceMode
   report.drawingTool = config.drawingTool
   report.chatTokenParameter = config.chatTokenParameter
-  for (const name of ['paired-model-benchmark.mjs', 'paired-model-validator.py', 'model-drawing-pilot.mjs', 'deepseek-drawing-pilot.py', 'parametric-drawing-tasks.mjs', 'drawing-strategies.mjs', 'engineering-drawing-tasks.mjs', 'engineering-model-validator.py']) report.source[name] = hash(await readFile(new URL(name, import.meta.url)))
+  for (const name of ['paired-model-benchmark.mjs', 'paired-model-validator.py', 'model-drawing-pilot.mjs', 'deepseek-drawing-pilot.py', 'parametric-drawing-tasks.mjs', 'drawing-strategies.mjs', 'engineering-drawing-tasks.mjs', 'engineering-model-validator.py', 'manufacturing-drawing-tasks.mjs', 'manufacturing-model-validator.py']) report.source[name] = hash(await readFile(new URL(name, import.meta.url)))
   report.source['model-usage.js'] = hash(await readFile(new URL('../../packages/kjdraw-sdk/src/model-usage.js', import.meta.url)))
   const sdkFolder = new URL('../../packages/kjdraw-sdk/src/', import.meta.url), sdkHash = createHash('sha256')
   for (const name of (await readdir(sdkFolder, { recursive: true })).map(name => name.replaceAll('\\', '/')).filter(name => name.endsWith('.js')).sort()) { sdkHash.update(name); sdkHash.update(await readFile(new URL(name, sdkFolder))) }
