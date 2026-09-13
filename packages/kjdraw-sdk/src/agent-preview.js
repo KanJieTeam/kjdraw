@@ -7,6 +7,7 @@ import { displayedEntityBounds } from './selection-geometry.js';
 import { readDesignRelations } from './design-relations.js';
 import { captureAgentBlockDependencies, agentBlockDependenciesMatchDocument } from './agent-preview-blocks.js';
 import { normalizeSplineDefinition } from './geometry/curves.js';
+import { closedHatchSplineConic } from './geometry/hatch-boundary.js';
 const project = (entity)=>({
         id: entity.id,
         type: entity.type,
@@ -175,6 +176,7 @@ function validateTransformGeometry(document, entity) {
                 }
             } else if (Array.isArray(loop.edges)) {
                 boundaryCount += loop.edges.length;
+                if (loop.edges.some((value)=>value && typeof value === 'object' && !Array.isArray(value) && String(value.type).toUpperCase() === 'SPLINE') && loop.edges.length !== 1) throw new KJValidationError('Transform preview requires a verified SPLINE to be the only edge in its closed hatch loop');
                 for (const value of loop.edges){
                     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new KJValidationError('Transform preview requires canonical hatch edges');
                     const edge = value, type = String(edge.type).toUpperCase();
@@ -187,6 +189,9 @@ function validateTransformGeometry(document, entity) {
                         points.push(edge.center, edge.majorAxis);
                         const axis = edge.majorAxis;
                         if (!Array.isArray(axis) || Math.hypot(Number(axis[0]), Number(axis[1])) <= 1e-12 || !bounded(edge.ratio) || edge.ratio <= 1e-12 || edge.ratio > 1 || !bounded(edge.startAngle) || !bounded(edge.endAngle)) throw new KJValidationError('Transform preview requires a bounded hatch ellipse edge');
+                    } else if (type === 'SPLINE') {
+                        if (edge.rawTags != null || !closedHatchSplineConic(edge)) throw new KJValidationError('Transform preview requires a semantic closed rational quadratic circle or ellipse SPLINE hatch edge');
+                        points.push(...edge.controlPoints);
                     } else throw new KJValidationError(`Transform preview does not support hatch edge ${type || 'UNKNOWN'}`);
                 }
             } else throw new KJValidationError('Transform preview requires hatch vertices or edges');
