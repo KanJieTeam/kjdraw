@@ -61,6 +61,10 @@ test('full and partial ellipses expose exact rotated quadrant, endpoint and para
     assert.ok(candidate); assert.equal(candidate.point[2], 3); assert.ok(Number.isFinite(candidate.parameter))
   }
   assert.equal(sdk.snap([16, 28], { radius: .01, modes: ['endpoint'], entityIds: [full.id] }).length, 0)
+  const exactParameter = Math.PI / 4
+  const exactPoint = [10 + 2 * Math.SQRT1_2, 20 + 11 * Math.SQRT1_2]
+  const nearest = sdk.snap(exactPoint, { radius: .01, modes: ['nearest'], entityIds: [full.id] })
+  assert.equal(nearest.length, 1); closePoint(nearest[0].point, exactPoint, 1e-7); close(nearest[0].parameter, exactParameter, 1e-7)
 
   const partial = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
     center: [-20, 5, 0], majorAxis: [10, 0, 0], ratio: .4, startParameter: Math.PI / 2, endParameter: Math.PI * 1.5,
@@ -72,6 +76,8 @@ test('full and partial ellipses expose exact rotated quadrant, endpoint and para
   assert.equal(midpoint.length, 1); closePoint(midpoint[0].point, [-30, 5])
   const partialQuadrants = sdk.snap([-20, 5], { radius: 20, modes: ['quadrant'], entityIds: [partial.id] })
   assert.deepEqual(partialQuadrants.map(value => value.parameter).sort((a, b) => a - b), [Math.PI / 2, Math.PI, Math.PI * 1.5])
+  const nearestEndpoint = sdk.snap([-10, 5], { radius: 20, modes: ['nearest'], entityIds: [partial.id] })
+  assert.equal(nearestEndpoint.length, 1); closePoint(nearestEndpoint[0].point, [-20, 9]); close(nearestEndpoint[0].parameter, Math.PI / 2)
 })
 
 test('exact snaps outrank nearest while nearest remains an explicit fallback', async () => {

@@ -187,6 +187,41 @@ function parameterOnEllipse(parameter: number, start: number, span: number, epsi
   return positiveTurn(parameter - start) <= span + epsilon
 }
 
+function nearestOnEllipse(cursor: KJSnapPointInput, payload: SnapPayload): NearestPoint {
+  const ellipse = ellipseParameters(payload), samples = Math.max(16, Math.ceil(32 * ellipse.span / TURN))
+  const distanceAt = (offset: number): number => distance2(cursor, ellipsePointAt(payload, ellipse.start + offset))
+  let bestIndex = 0, bestDistance = distanceAt(0)
+  for (let index = 1; index <= samples; index += 1) {
+    const distance = distanceAt(ellipse.span * index / samples)
+    if (distance < bestDistance) { bestDistance = distance; bestIndex = index }
+  }
+  let lower = ellipse.span * Math.max(0, bestIndex - 1) / samples
+  let upper = ellipse.span * Math.min(samples, bestIndex + 1) / samples
+  const ratio = (Math.sqrt(5) - 1) / 2
+  let left = upper - (upper - lower) * ratio, right = lower + (upper - lower) * ratio
+  let leftDistance = distanceAt(left), rightDistance = distanceAt(right)
+  for (let iteration = 0; iteration < 36; iteration += 1) {
+    if (leftDistance <= rightDistance) {
+      upper = right; right = left; rightDistance = leftDistance
+      left = upper - (upper - lower) * ratio; leftDistance = distanceAt(left)
+    } else {
+      lower = left; left = right; leftDistance = rightDistance
+      right = lower + (upper - lower) * ratio; rightDistance = distanceAt(right)
+    }
+  }
+  const candidates = [0, ellipse.span, (lower + upper) / 2]
+    .map(offset => ({ offset, point: ellipsePointAt(payload, ellipse.start + offset), distance: distanceAt(offset) }))
+    .sort((a, b) => a.distance - b.distance)
+  const best = candidates[0]!
+  return { point: best.point, distance: best.distance, parameter: ellipse.start + best.offset }
+}
+
+function ellipseBoxDistance(cursor: KJSnapPointInput, payload: SnapPayload): number {
+  const point = point3(cursor), center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio)
+  const extentX = Math.hypot(major[0], major[1] * ratio), extentY = Math.hypot(major[1], major[0] * ratio)
+  return Math.hypot(Math.max(0, Math.abs(point[0] - center[0]) - extentX), Math.max(0, Math.abs(point[1] - center[1]) - extentY))
+}
+
 function positiveTurn(value: number): number {
   value %= TURN
   return value < 0 ? value + TURN : value
@@ -317,7 +352,7 @@ function tangentCandidates(entity: KJReadonlyObjectRecord, cursor: KJSnapPointIn
   return result
 }
 
-function baseCandidates(entity: KJReadonlyObjectRecord, modes: ReadonlySet<KJSnapMode>, cursor: KJSnapPointInput, reference: KJSnapPointInput | null): MutableSnapCandidate[] {
+function baseCandidates(entity: KJReadonlyObjectRecord, modes: ReadonlySet<KJSnapMode>, cursor: KJSnapPointInput, reference: KJSnapPointInput | null, radius: number): MutableSnapCandidate[] {
   const payload = entity.payload as unknown as SnapPayload, result: MutableSnapCandidate[] = []
   const add = (mode: KJSnapMode, point: KJSnapPointInput, detail: Record<string, unknown> = {}): void => {
     result.push({ mode, point: point3(point), entityIds: [entity.id], ...detail })
@@ -330,7 +365,7 @@ function baseCandidates(entity: KJReadonlyObjectRecord, modes: ReadonlySet<KJSna
       const primitive = primitives[0]
       if (primitive?.kind === 'arc') { const [start, end] = arcEndpoints(primitive); add('endpoint', start, { role: 'start' }); add('endpoint', end, { role: 'end' }) }
     }
-    if (entity.type === 'ELLIPSE') {
+    if (entity.type === 'ELLIPSE' && ellipseBoxDistance(cursor, payload) <= radius) {
       const ellipse = ellipseParameters(payload)
       if (!ellipse.full) {
         add('endpoint', ellipsePointAt(payload, ellipse.start), { role: 'start', parameter: ellipse.start })
@@ -368,8 +403,13 @@ function baseCandidates(entity: KJReadonlyObjectRecord, modes: ReadonlySet<KJSna
   if (reference && modes.has('perpendicular')) result.push(...perpendicularCandidates(entity, cursor, reference))
   if (reference && modes.has('tangent')) result.push(...tangentCandidates(entity, cursor, reference))
   if (modes.has('nearest')) {
-    const nearest = primitives.map(primitive => ({ ...nearestOnPrimitive(cursor, primitive), primitive })).sort((a, b) => a.distance - b.distance)[0]
-    if (nearest) add('nearest', nearest.point, { segmentIndex: nearest.primitive.segmentIndex, parameter: nearest.parameter })
+    if (entity.type === 'ELLIPSE') {
+      const nearest = nearestOnEllipse(cursor, payload)
+      add('nearest', nearest.point, { parameter: nearest.parameter })
+    } else {
+      const nearest = primitives.map(primitive => ({ ...nearestOnPrimitive(cursor, primitive), primitive })).sort((a, b) => a.distance - b.distance)[0]
+      if (nearest) add('nearest', nearest.point, { segmentIndex: nearest.primitive.segmentIndex, parameter: nearest.parameter })
+    }
   }
   return result
 }
@@ -431,7 +471,7 @@ export function findSnapCandidates(document: KJDocument, cursorInput: KJSnapPoin
     const layer = layers.get(String(entity.payload.layerId ?? ''))
     return layer?.visible !== false && layer?.frozen !== true
   })
-  let candidates = entities.flatMap(entity => baseCandidates(entity, modes, cursor, reference))
+  let candidates = entities.flatMap(entity => baseCandidates(entity, modes, cursor, reference, radius))
     .map(candidate => ({ ...candidate, distance: candidate.distance ?? distance2(cursor, candidate.point) }))
   if (modes.has('intersection')) {
     const maxIntersectionPairs = Number(options.maxIntersectionPairs ?? 10000)

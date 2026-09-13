@@ -64,6 +64,19 @@ test('workbench uses document snap settings for quadrant and intersection withou
   await page.locator('#snap-host [data-action="undo"]').click()
   await expect.poll(() => page.evaluate(() => window.snapWorkbench.drawing.listEntities({ type: 'LINE' }).length)).toBe(3)
 
+  await page.evaluate(() => window.snapWorkbench.sdk.executeCommand('SNAPSETTINGS', { modes: ['nearest'], radius: 12 }, { document: window.snapWorkbench.drawing }))
+  const ellipseNearestWorld = [-30 + 5 * Math.SQRT1_2, 10 * Math.SQRT1_2], ellipseNearest = await workbenchPoint(page, ellipseNearestWorld)
+  await page.locator('#snap-host [data-tool="line"]').click(); await page.mouse.move(ellipseNearest.x + 3, ellipseNearest.y - 2)
+  await expect(marker).toHaveAttribute('data-mode', 'nearest'); await page.mouse.click(ellipseNearest.x + 3, ellipseNearest.y - 2); await page.mouse.click(target.x, target.y)
+  const nearestLine = await page.evaluate(() => window.snapWorkbench.drawing.listEntities({ type: 'LINE' }).at(-1).payload)
+  const dx = nearestLine.start[0] + 30, dy = nearestLine.start[1]
+  const localX = (dx * .8 + dy * .6) / 10, localY = (-dx * .6 + dy * .8) / 5
+  expect(localX * localX + localY * localY).toBeCloseTo(1, 9)
+  const rawNearest = [ellipseNearestWorld[0] + 1.5, ellipseNearestWorld[1] + 1]
+  expect(Math.hypot(nearestLine.start[0] - rawNearest[0], nearestLine.start[1] - rawNearest[1])).toBeLessThan(2)
+  await page.locator('#snap-host [data-action="undo"]').click()
+  await expect.poll(() => page.evaluate(() => window.snapWorkbench.drawing.listEntities({ type: 'LINE' }).length)).toBe(3)
+
   await page.evaluate(() => window.snapWorkbench.sdk.executeCommand('SNAPSETTINGS', { modes: ['intersection', 'nearest'], radius: 12 }, { document: window.snapWorkbench.drawing }))
   const crossing = await workbenchPoint(page, [0, 0])
   await page.locator('#snap-host [data-tool="line"]').click()
