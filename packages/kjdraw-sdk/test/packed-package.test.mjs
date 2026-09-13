@@ -26,5 +26,28 @@ test('packed npm artifact works from an isolated JavaScript and TypeScript consu
     vue: '3.5.42',
   })
   assert.deepEqual(report.typedConsumers, ['Vanilla TypeScript', 'React TSX', 'Vue composable'])
+  assert.equal(report.productionWorkflows.source, 'installed-tarball')
+  assert.equal(report.productionWorkflows.blankDocuments, 3)
+  assert.deepEqual(report.productionWorkflows.workflows.map(workflow => workflow.id), ['mechanical', 'architecture', 'site'])
+  for (const workflow of report.productionWorkflows.workflows) {
+    assert.ok(workflow.entities > 0)
+    assert.equal(typeof workflow.edit, 'string')
+    assert.equal(workflow.undoRedo, true)
+    assert.deepEqual(workflow.reopen, { KJD: true, DXF: true })
+    assert.equal(workflow.output.format, 'SVG')
+    assert.ok(workflow.output.millimetersPerModelUnit > 0)
+  }
+  assert.deepEqual(report.productionWorkflows.workflows.map(workflow => ({
+    id: workflow.id,
+    units: workflow.units,
+    edit: workflow.edit,
+    paper: workflow.output.paper,
+    scale: workflow.output.scale,
+    millimetersPerModelUnit: workflow.output.millimetersPerModelUnit,
+  })), [
+    { id: 'mechanical', units: 'millimeter', edit: 'move-counterbored-hole', paper: 'A3', scale: '1:2', millimetersPerModelUnit: 0.5 },
+    { id: 'architecture', units: 'millimeter', edit: 'move-door-instance', paper: 'A3', scale: '1:100', millimetersPerModelUnit: 0.01 },
+    { id: 'site', units: 'meter', edit: 'move-road-layer-selection', paper: 'A1', scale: '1:500', millimetersPerModelUnit: 2 },
+  ])
   assert.equal(report.quickstart.entities, 1)
 })

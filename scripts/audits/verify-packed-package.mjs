@@ -278,6 +278,226 @@ async function prepareReadmeConsumers(consumerDirectory, installedPackage) {
   return report
 }
 
+const productionWorkflowConsumer = String.raw`
+import assert from 'node:assert/strict'
+import {
+  KJDRAW_MANUFACTURING_SHEET_VERSION,
+  buildAgentManufacturingSheet,
+  createKJDrawSDK,
+  exportDrawingSvg,
+} from '@kanjieteam/kjdraw'
+
+const near = (actual, expected, tolerance = 1e-9) =>
+  assert.ok(Math.abs(actual - expected) <= tolerance, String(actual) + ' != ' + String(expected))
+
+function namedLayout(document, name) {
+  const layout = document.listObjects({ kind: 'layout' }).find(item => item.name === name)
+  assert.ok(layout, 'missing layout ' + name)
+  return layout
+}
+
+function assertLayerCount(document, layerName, count) {
+  const layer = document.getTable('layers').records.find(item => item.name === layerName)
+  assert.ok(layer, 'missing layer ' + layerName)
+  assert.equal(document.listEntities().filter(item => item.payload.layerId === layer.id).length, count)
+}
+
+async function reopenAndVerify(document, layoutName, scale, verify) {
+  const sdk = createKJDrawSDK()
+  for (const format of ['KJD', 'DXF']) {
+    const source = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const copy = await createKJDrawSDK().readDocument(source, { format })
+    assert.equal(copy.validate().valid, true)
+    assert.equal(copy.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+    verify(copy)
+    const output = exportDrawingSvg(copy, { layoutId: namedLayout(copy, layoutName).id })
+    assert.equal(output.report.diagnostics.length, 0)
+    assert.equal(output.report.viewports.length, 1)
+    near(output.report.viewports[0].millimetersPerModelUnit, scale)
+  }
+}
+
+async function mechanical() {
+  const sdk = createKJDrawSDK()
+  const document = sdk.createDocument({ documentId: 'packed-mechanical', units: 'millimeter' })
+  assert.equal(document.listEntities().length, 0)
+  const compiled = buildAgentManufacturingSheet(document, {
+    version: KJDRAW_MANUFACTURING_SHEET_VERSION,
+    expectedRevision: 0,
+    units: 'millimeter',
+    drawingId: 'PACKED-MECH-001',
+    title: 'MOUNTING PLATE',
+    revision: 'A',
+    material: '6061-T6',
+    quantity: 2,
+    length: 240,
+    width: 140,
+    thickness: 12,
+    holePatterns: [{ rows: 2, columns: 3, origin: [30, 30], spacing: [90, 80], throughDiameter: 10, counterboreDiameter: 18, counterboreDepth: 5 }],
+    slots: [{ center: [120, 70], length: 42, width: 12, orientationDegrees: 0 }],
+    sheet: { origin: [15, 25], size: [420, 297] },
+    textHeight: 3.5,
+  })
+  await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
+  const hole = document.listEntities({ type: 'CIRCLE' }).find(item => item.payload.radius === 5)
+  assert.ok(hole)
+  const counterbore = document.listEntities({ type: 'CIRCLE' }).find(item =>
+    item.payload.radius === 9 && item.payload.center[0] === hole.payload.center[0] && item.payload.center[1] === hole.payload.center[1])
+  assert.ok(counterbore)
+  const before = hole.payload.center
+  await sdk.executeCommand('MOVE', { ids: [hole.id, counterbore.id], dx: 5, dy: 0 }, { document })
+  assert.deepEqual(document.getObject(hole.id)?.payload.center, [before[0] + 5, before[1], 0])
+  assert.deepEqual(document.getObject(counterbore.id)?.payload.center, [before[0] + 5, before[1], 0])
+  await sdk.executeCommand('UNDO', {}, { document })
+  assert.deepEqual(document.getObject(hole.id)?.payload.center, before)
+  assert.deepEqual(document.getObject(counterbore.id)?.payload.center, before)
+  await sdk.executeCommand('REDO', {}, { document })
+  assert.deepEqual(document.getObject(hole.id)?.payload.center, [before[0] + 5, before[1], 0])
+  assert.deepEqual(document.getObject(counterbore.id)?.payload.center, [before[0] + 5, before[1], 0])
+  const layout = await sdk.executeCommand('LAYOUT', { operation: 'create', name: 'Mechanical A3 1:2' }, { document })
+  await sdk.executeCommand('PAGESETUP', { layoutId: layout.id, dxf: { paperWidth: 420, paperHeight: 297, paperUnits: 1, scaleNumerator: 1, scaleDenominator: 1, plotType: 5, flags: 0 } }, { document })
+  await sdk.executeCommand('VIEWPORT', { layoutId: layout.id, center: [210, 148.5], width: 210, height: 140, viewCenter: [135, 95], viewHeight: 280 }, { document })
+  const verify = copy => {
+    const throughHoles = copy.listEntities({ type: 'CIRCLE' }).filter(item => item.payload.radius === 5)
+    const counterbores = copy.listEntities({ type: 'CIRCLE' }).filter(item => item.payload.radius === 9)
+    assert.equal(throughHoles.length, 6)
+    assert.equal(counterbores.length, 6)
+    for (const throughHole of throughHoles) {
+      assert.ok(counterbores.some(item => item.payload.center[0] === throughHole.payload.center[0] && item.payload.center[1] === throughHole.payload.center[1]))
+    }
+    assert.ok(copy.listEntities({ type: 'DIMENSION' }).length >= 3)
+  }
+  verify(document)
+  await reopenAndVerify(document, 'Mechanical A3 1:2', 0.5, verify)
+  const output = exportDrawingSvg(document, { layoutId: layout.id })
+  assert.match(output.svg, /width="420mm"/)
+  return { id: 'mechanical', units: 'millimeter', entities: document.listEntities().length, edit: 'move-counterbored-hole', undoRedo: true, reopen: { KJD: true, DXF: true }, output: { format: 'SVG', paper: 'A3', scale: '1:2', millimetersPerModelUnit: 0.5 } }
+}
+
+async function architecture() {
+  const sdk = createKJDrawSDK()
+  const document = sdk.createDocument({ documentId: 'packed-architecture', units: 'millimeter' })
+  assert.equal(document.listEntities().length, 0)
+  const wall = await sdk.executeCommand('LAYERNEW', { name: 'A-WALL', color: 7, lineweight: 50 }, { document })
+  const opening = await sdk.executeCommand('LAYERNEW', { name: 'A-OPENING', color: 2, lineweight: 25 }, { document })
+  const symbol = await sdk.executeCommand('LAYERNEW', { name: 'A-SYMBOL', color: 1, lineweight: 25 }, { document })
+  const walls = await sdk.executeCommand('CREATEBATCH', { entities: [
+    { type: 'LWPOLYLINE', payload: { vertices: [[0, 0], [10000, 0], [10000, 8000], [0, 8000]], closed: true, layerId: wall.id } },
+    { type: 'LWPOLYLINE', payload: { vertices: [[200, 200], [4900, 200], [4900, 7800], [200, 7800]], closed: true, layerId: wall.id } },
+    { type: 'LWPOLYLINE', payload: { vertices: [[5100, 200], [9800, 200], [9800, 7800], [5100, 7800]], closed: true, layerId: wall.id } },
+  ] }, { document })
+  assert.equal(walls.length, 3)
+  const doorParts = await sdk.executeCommand('CREATEBATCH', { entities: [
+    { type: 'LINE', payload: { start: [0, 0], end: [900, 0], layerId: symbol.id } },
+    { type: 'ARC', payload: { center: [0, 0], radius: 900, startAngle: 0, endAngle: Math.PI / 2, layerId: symbol.id } },
+  ] }, { document })
+  const door = await sdk.executeCommand('BLOCKCREATE', { name: 'DOOR-0900', ids: doorParts.map(item => item.id), basePoint: [0, 0] }, { document })
+  await sdk.executeCommand('PROPERTIES', { id: door.insert.id, patch: { payload: { layerId: opening.id } } }, { document })
+  await sdk.executeCommand('MOVE', { id: door.insert.id, from: [0, 0], to: [1200, 200] }, { document })
+  assert.deepEqual(document.getObject(door.insert.id)?.payload.position, [1200, 200, 0])
+  await sdk.executeCommand('UNDO', {}, { document })
+  assert.deepEqual(document.getObject(door.insert.id)?.payload.position, [0, 0, 0])
+  await sdk.executeCommand('REDO', {}, { document })
+  assert.deepEqual(document.getObject(door.insert.id)?.payload.position, [1200, 200, 0])
+  await sdk.executeCommand('BLOCKINSERT', { name: 'DOOR-0900', position: [4900, 3300], rotation: Math.PI / 2, layerId: opening.id }, { document })
+  const layout = await sdk.executeCommand('LAYOUT', { operation: 'create', name: 'Architecture A3 1:100' }, { document })
+  await sdk.executeCommand('PAGESETUP', { layoutId: layout.id, dxf: { paperWidth: 420, paperHeight: 297, paperUnits: 1, scaleNumerator: 1, scaleDenominator: 1, plotType: 5, flags: 0 } }, { document })
+  await sdk.executeCommand('VIEWPORT', { layoutId: layout.id, center: [210, 148.5], width: 100, height: 80, viewCenter: [5000, 4000], viewHeight: 8000 }, { document })
+  const verify = copy => {
+    assertLayerCount(copy, 'A-WALL', 3)
+    const definition = copy.getTable('blockRecords').records.find(item => item.name === 'DOOR-0900')
+    assert.ok(definition)
+    assert.equal(copy.listEntities({ ownerId: definition.id }).length, 2)
+    assert.equal(copy.listEntities({ type: 'INSERT' }).filter(item => item.payload.blockRecordId === definition.id).length, 2)
+  }
+  verify(document)
+  await reopenAndVerify(document, 'Architecture A3 1:100', 0.01, verify)
+  return { id: 'architecture', units: 'millimeter', entities: document.listEntities().length, edit: 'move-door-instance', undoRedo: true, reopen: { KJD: true, DXF: true }, output: { format: 'SVG', paper: 'A3', scale: '1:100', millimetersPerModelUnit: 0.01 } }
+}
+
+async function site() {
+  const sdk = createKJDrawSDK()
+  const document = sdk.createDocument({ documentId: 'packed-site', units: 'meter' })
+  assert.equal(document.listEntities().length, 0)
+  const boundary = await sdk.executeCommand('LAYERNEW', { name: 'C-BOUNDARY', color: 2, lineweight: 50 }, { document })
+  const road = await sdk.executeCommand('LAYERNEW', { name: 'C-ROAD', color: 1, lineweight: 35 }, { document })
+  const building = await sdk.executeCommand('LAYERNEW', { name: 'A-BUILDING', color: 3, lineweight: 50 }, { document })
+  const utility = await sdk.executeCommand('LAYERNEW', { name: 'U-WATER', color: 5, lineweight: 25 }, { document })
+  await sdk.executeCommand('CREATEBATCH', { entities: [
+    { type: 'LWPOLYLINE', payload: { vertices: [[500000, 3000000], [500120, 3000000], [500120, 3000080], [500000, 3000080]], closed: true, layerId: boundary.id }, options: { id: 'site-boundary' } },
+    { type: 'LWPOLYLINE', payload: { vertices: [[500010, 3000040], [500110, 3000040]], layerId: road.id }, options: { id: 'road-center' } },
+    { type: 'LWPOLYLINE', payload: { vertices: [[500010, 3000035], [500110, 3000035]], layerId: road.id }, options: { id: 'road-south' } },
+    { type: 'LWPOLYLINE', payload: { vertices: [[500010, 3000045], [500110, 3000045]], layerId: road.id }, options: { id: 'road-north' } },
+    { type: 'LWPOLYLINE', payload: { vertices: [[500025, 3000052], [500045, 3000052], [500045, 3000070], [500025, 3000070]], closed: true, layerId: building.id }, options: { id: 'building-a' } },
+    { type: 'LWPOLYLINE', payload: { vertices: [[500015, 3000020], [500060, 3000030], [500105, 3000020]], layerId: utility.id }, options: { id: 'water-main' } },
+  ] }, { document })
+  const roads = await sdk.executeCommand('SELECTBYPROPERTY', { property: 'layer', value: 'C-ROAD' }, { document })
+  assert.deepEqual(roads, ['road-center', 'road-south', 'road-north'])
+  await sdk.executeCommand('MOVE', { ids: roads, dx: 5, dy: -2 }, { document })
+  assert.deepEqual(document.getObject('road-center')?.payload.vertices[0].point, [500015, 3000038, 0])
+  await sdk.executeCommand('UNDO', {}, { document })
+  assert.deepEqual(document.getObject('road-center')?.payload.vertices[0].point, [500010, 3000040, 0])
+  await sdk.executeCommand('REDO', {}, { document })
+  assert.deepEqual(document.getObject('road-center')?.payload.vertices[0].point, [500015, 3000038, 0])
+  const layout = await sdk.executeCommand('LAYOUT', { operation: 'create', name: 'Site A1 1:500' }, { document })
+  await sdk.executeCommand('PAGESETUP', { layoutId: layout.id, dxf: { paperWidth: 841, paperHeight: 594, paperUnits: 1, scaleNumerator: 1, scaleDenominator: 1, plotType: 5, flags: 0 } }, { document })
+  await sdk.executeCommand('VIEWPORT', { layoutId: layout.id, center: [200, 150], width: 300, height: 200, viewCenter: [500065, 3000040], viewHeight: 100 }, { document })
+  const verify = copy => {
+    assert.equal(copy.snapshot().header.units, 'meter')
+    assertLayerCount(copy, 'C-BOUNDARY', 1)
+    assertLayerCount(copy, 'C-ROAD', 3)
+    assertLayerCount(copy, 'A-BUILDING', 1)
+    assertLayerCount(copy, 'U-WATER', 1)
+    const roadLayer = copy.getTable('layers').records.find(item => item.name === 'C-ROAD')
+    assert.ok(roadLayer)
+    const center = copy.listEntities({ type: 'LWPOLYLINE' }).find(item =>
+      item.payload.layerId === roadLayer.id && item.payload.vertices[0]?.point[1] === 3000038)
+    assert.ok(center)
+    assert.deepEqual(center.payload.vertices[0].point, [500015, 3000038, 0])
+    assert.deepEqual(center.payload.vertices[1].point, [500115, 3000038, 0])
+  }
+  verify(document)
+  await reopenAndVerify(document, 'Site A1 1:500', 2, verify)
+  return { id: 'site', units: 'meter', entities: document.listEntities().length, edit: 'move-road-layer-selection', undoRedo: true, reopen: { KJD: true, DXF: true }, output: { format: 'SVG', paper: 'A1', scale: '1:500', millimetersPerModelUnit: 2 } }
+}
+
+export async function runProductionWorkflows() {
+  const workflows = await Promise.all([mechanical(), architecture(), site()])
+  return { source: 'installed-tarball', blankDocuments: 3, workflows }
+}
+`
+
+const productionWorkflowTypes = String.raw`
+export type ProductionWorkflowEvidence = {
+  id: 'mechanical' | 'architecture' | 'site'
+  units: 'millimeter' | 'meter'
+  entities: number
+  edit: string
+  undoRedo: true
+  reopen: { KJD: true; DXF: true }
+  output: { format: 'SVG'; paper: string; scale: string; millimetersPerModelUnit: number }
+}
+export declare function runProductionWorkflows(): Promise<{
+  source: 'installed-tarball'
+  blankDocuments: 3
+  workflows: ProductionWorkflowEvidence[]
+}>
+`
+
+async function prepareProductionWorkflowConsumer(consumerDirectory) {
+  const consumerSources = join(consumerDirectory, 'src')
+  await mkdir(consumerSources, { recursive: true })
+  const helperPath = join(consumerSources, 'production-workflows.mjs')
+  await writeFile(helperPath, productionWorkflowConsumer)
+  await writeFile(join(consumerSources, 'production-workflows.d.mts'), productionWorkflowTypes)
+  await writeFile(join(consumerSources, 'production-workflows-react.tsx'), `import { useEffect } from 'react'\nimport { runProductionWorkflows } from './production-workflows.mjs'\nexport function ProductionWorkflowReact() { useEffect(() => { void runProductionWorkflows() }, []); return null }\n`)
+  await writeFile(join(consumerSources, 'production-workflows-vue.ts'), `import { defineComponent, onMounted } from 'vue'\nimport { runProductionWorkflows } from './production-workflows.mjs'\nexport const ProductionWorkflowVue = defineComponent({ setup() { onMounted(() => { void runProductionWorkflows() }); return () => null } })\n`)
+  const runnerPath = join(consumerDirectory, 'verify-production-workflows.mjs')
+  await writeFile(runnerPath, `import { runProductionWorkflows } from './src/production-workflows.mjs'\nconsole.log(JSON.stringify(await runProductionWorkflows()))\n`)
+  const probe = run(process.execPath, [runnerPath], { cwd: consumerDirectory })
+  return JSON.parse(probe.stdout)
+}
+
 async function main() {
   const npmCli = await findNpmCli()
   const expectedPackage = JSON.parse(await readFile(join(packageRoot, 'package.json'), 'utf8'))
@@ -465,6 +685,7 @@ console.log(JSON.stringify(results))
 
     const consumerSources = join(consumerDirectory, 'src')
     await cp(fixturesRoot, consumerSources, { recursive: true })
+    const productionWorkflows = await prepareProductionWorkflowConsumer(consumerDirectory)
     const readmeConsumers = await prepareReadmeConsumers(consumerDirectory, installedPackage)
     // Exercise the actual maintained guide, not a separately retyped example.
     const agentGuide = (await readFile(join(repositoryRoot, 'docs/site/pages/agent.md'), 'utf8')).replaceAll('\r\n', '\n')
@@ -536,6 +757,7 @@ console.log(JSON.stringify({ guide: '${locale}', geometricPreview: true, reviewe
         packages: peerVersions,
       },
       typedConsumers: ['Vanilla TypeScript', 'React TSX', 'Vue composable'],
+      productionWorkflows,
       readmeConsumers,
       cli: 'kjdraw --version',
       quickstart: {
