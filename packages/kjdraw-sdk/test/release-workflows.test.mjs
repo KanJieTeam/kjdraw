@@ -35,12 +35,10 @@ test('release gates the exact main SHA on CI and Pages without publishing drafts
   assert.doesNotMatch(release, /gh release edit[^\n]*--draft=false/)
 })
 
-test('Pages runs for dependency and package-manifest changes', async () => {
+test('Pages uses the release runtime for every main commit', async () => {
   const workflow = await read('.github/workflows/pages.yml')
 
-  assert.match(workflow, /- package\.json/)
-  assert.match(workflow, /- package-lock\.json/)
-  assert.match(workflow, /- packages\/kjdraw-sdk\/package\.json/)
+  assert.doesNotMatch(workflow, /^    paths(?:-ignore)?:/m)
   assert.match(workflow, /node-version:\s*24/)
 })
 
