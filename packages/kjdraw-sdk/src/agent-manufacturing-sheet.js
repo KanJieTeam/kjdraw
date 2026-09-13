@@ -195,9 +195,9 @@ function boundsForEntities(entities) {
             'position',
             'textPosition'
         ])accept(payload[key]);
-        for (const point of payload.definitionPoints ?? [])accept(point);
-        for (const vertex of payload.vertices ?? [])accept(vertex?.point ?? vertex);
-        if (entity.type === 'CIRCLE' && Array.isArray(payload.center)) {
+        if (Array.isArray(payload.definitionPoints)) for (const point of payload.definitionPoints)accept(point);
+        if (Array.isArray(payload.vertices)) for (const vertex of payload.vertices)accept(vertex && typeof vertex === 'object' && 'point' in vertex ? vertex.point : vertex);
+        if (entity.type === 'CIRCLE' && Array.isArray(payload.center) && typeof payload.radius === 'number') {
             minX = Math.min(minX, payload.center[0] - payload.radius);
             minY = Math.min(minY, payload.center[1] - payload.radius);
             maxX = Math.max(maxX, payload.center[0] + payload.radius);
@@ -359,7 +359,7 @@ export function buildAgentManufacturingSheet(document, source) {
         p3(frontX, frontY + input.thickness)
     ], p3(frontX - dimensionPad / 2, frontY + input.thickness / 2));
     input.holePatterns.forEach((pattern, patternIndex)=>{
-        let firstCenter = null;
+        let firstCenter = null, lastCenter = null;
         const projectedColumns = new Set();
         for(let row = 0; row < pattern.rows; row += 1)for(let column = 0; column < pattern.columns; column += 1){
             const plateX = pattern.origin[0] + column * pattern.spacing[0];
@@ -367,6 +367,7 @@ export function buildAgentManufacturingSheet(document, source) {
             const y = topY + (pattern.origin[1] + row * pattern.spacing[1]) * scale;
             const center = p3(x, y);
             firstCenter ??= center;
+            lastCenter = center;
             add('CIRCLE', 'OUTLINE', {
                 center,
                 radius: pattern.throughDiameter * scale / 2
@@ -398,26 +399,28 @@ export function buildAgentManufacturingSheet(document, source) {
             }
         }
         if (firstCenter) {
+            const dimensionLane = patternIndex + 1;
+            const dimensionCenter = patternIndex % 2 === 0 ? firstCenter : lastCenter;
             const diameterText = pattern.counterboreDiameter == null ? `${pattern.rows * pattern.columns}X DIA ${formatMillimeters(pattern.throughDiameter)} THRU` : `${pattern.rows * pattern.columns}X DIA ${formatMillimeters(pattern.throughDiameter)} THRU / C'BORE DIA ${formatMillimeters(pattern.counterboreDiameter)} DEPTH ${formatMillimeters(pattern.counterboreDepth)}`;
             const radius = pattern.throughDiameter / 2;
             dimension([
-                p3(firstCenter[0] - radius, firstCenter[1]),
-                p3(firstCenter[0] + radius, firstCenter[1])
-            ], p3(firstCenter[0] + dimensionPad, firstCenter[1] + dimensionPad / 2), 'DIAMETER');
-            text(firstCenter[0] + dimensionPad, firstCenter[1] + dimensionPad, diameterText);
+                p3(dimensionCenter[0] - radius, dimensionCenter[1]),
+                p3(dimensionCenter[0] + radius, dimensionCenter[1])
+            ], p3(dimensionCenter[0] + dimensionPad * 2, dimensionCenter[1] + dimensionPad * (patternIndex === 0 ? 1 : -1)), 'DIAMETER');
+            text(topX, topY + input.width + input.textHeight * (4 + patternIndex * 2), diameterText);
             if (pattern.columns > 1) {
                 dimension([
                     p3(topX + pattern.origin[0], topY + pattern.origin[1]),
                     p3(topX + pattern.origin[0] + pattern.spacing[0], topY + pattern.origin[1])
-                ], p3(topX + pattern.origin[0] + pattern.spacing[0] / 2, topY + pattern.origin[1] - dimensionPad / 2));
-                text(topX + pattern.origin[0], topY + pattern.origin[1] - dimensionPad, `${pattern.columns - 1} SPACES @ ${formatMillimeters(pattern.spacing[0])}`);
+                ], p3(topX + pattern.origin[0] + pattern.spacing[0] / 2, topY - dimensionLane * dimensionPad / 2));
+                text(topX + pattern.origin[0], topY + input.textHeight * (2 + patternIndex * 1.5), `${pattern.columns - 1} SPACES @ ${formatMillimeters(pattern.spacing[0])}`);
             }
             if (pattern.rows > 1) {
                 dimension([
                     p3(topX + pattern.origin[0], topY + pattern.origin[1]),
                     p3(topX + pattern.origin[0], topY + pattern.origin[1] + pattern.spacing[1])
-                ], p3(topX + pattern.origin[0] - dimensionPad / 2, topY + pattern.origin[1] + pattern.spacing[1] / 2));
-                text(topX + pattern.origin[0] + input.textHeight, topY + pattern.origin[1] + pattern.spacing[1] / 2, `${pattern.rows - 1} SPACES @ ${formatMillimeters(pattern.spacing[1])}`);
+                ], p3(topX - dimensionLane * dimensionPad / 2, topY + pattern.origin[1] + pattern.spacing[1] / 2));
+                text(topX + input.textHeight * (2 + patternIndex * 15), topY + input.width + input.textHeight * (2 + patternIndex * 2), `${pattern.rows - 1} SPACES @ ${formatMillimeters(pattern.spacing[1])}`);
             }
         }
     });

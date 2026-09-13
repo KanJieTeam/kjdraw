@@ -53,14 +53,14 @@ const SLOT_KEYS = ['center', 'length', 'width', 'orientationDegrees']
 const SHEET_KEYS = ['origin', 'size']
 const MAX_ENTITY_COUNT = 512
 
-function plain(value: unknown, label: string): Record<string, any> {
+function plain(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new KJValidationError(`${label} must be an object`)
   const prototype = Object.getPrototypeOf(value)
   if (prototype !== Object.prototype && prototype !== null) throw new KJValidationError(`${label} must be a plain object`)
-  return value as Record<string, any>
+  return value as Record<string, unknown>
 }
 
-function exactKeys(value: Record<string, any>, allowed: string[], label: string): void {
+function exactKeys(value: Record<string, unknown>, allowed: string[], label: string): void {
   const unknown = Object.keys(value).filter(key => !allowed.includes(key))
   if (unknown.length) throw new KJValidationError(`${label} contains unsupported field: ${unknown[0]}`)
 }
@@ -186,11 +186,11 @@ function boundsForEntities(entities: EntitySpec[]) {
     minX = Math.min(minX, value[0]); minY = Math.min(minY, value[1]); maxX = Math.max(maxX, value[0]); maxY = Math.max(maxY, value[1])
   }
   for (const entity of entities) {
-    const payload: any = entity.payload
+    const payload = entity.payload
     for (const key of ['start', 'end', 'center', 'position', 'textPosition']) accept(payload[key])
-    for (const point of payload.definitionPoints ?? []) accept(point)
-    for (const vertex of payload.vertices ?? []) accept(vertex?.point ?? vertex)
-    if (entity.type === 'CIRCLE' && Array.isArray(payload.center)) {
+    if (Array.isArray(payload.definitionPoints)) for (const point of payload.definitionPoints) accept(point)
+    if (Array.isArray(payload.vertices)) for (const vertex of payload.vertices) accept(vertex && typeof vertex === 'object' && 'point' in vertex ? vertex.point : vertex)
+    if (entity.type === 'CIRCLE' && Array.isArray(payload.center) && typeof payload.radius === 'number') {
       minX = Math.min(minX, payload.center[0] - payload.radius); minY = Math.min(minY, payload.center[1] - payload.radius)
       maxX = Math.max(maxX, payload.center[0] + payload.radius); maxY = Math.max(maxY, payload.center[1] + payload.radius)
     }
@@ -265,7 +265,7 @@ export function buildAgentManufacturingSheet(document: ManufacturingDocument, so
   dimension([p3(frontX, frontY), p3(frontX, frontY + input.thickness)], p3(frontX - dimensionPad / 2, frontY + input.thickness / 2))
 
   input.holePatterns.forEach((pattern, patternIndex) => {
-    let firstCenter: Point3 | null = null
+    let firstCenter: Point3 | null = null, lastCenter: Point3 | null = null
     const projectedColumns = new Set<string>()
     for (let row = 0; row < pattern.rows; row += 1) for (let column = 0; column < pattern.columns; column += 1) {
       const plateX = pattern.origin[0] + column * pattern.spacing[0]
@@ -273,6 +273,7 @@ export function buildAgentManufacturingSheet(document: ManufacturingDocument, so
       const y = topY + (pattern.origin[1] + row * pattern.spacing[1]) * scale
       const center = p3(x, y)
       firstCenter ??= center
+      lastCenter = center
       add('CIRCLE', 'OUTLINE', { center, radius: pattern.throughDiameter * scale / 2 })
       if (pattern.counterboreDiameter != null) add('CIRCLE', 'OUTLINE', { center, radius: pattern.counterboreDiameter * scale / 2 })
       const centerSize = Math.max(input.textHeight, pattern.throughDiameter * scale * 0.75)
@@ -298,19 +299,31 @@ export function buildAgentManufacturingSheet(document: ManufacturingDocument, so
       }
     }
     if (firstCenter) {
+      const dimensionLane = patternIndex + 1
+      const dimensionCenter = patternIndex % 2 === 0 ? firstCenter : lastCenter!
       const diameterText = pattern.counterboreDiameter == null
         ? `${pattern.rows * pattern.columns}X DIA ${formatMillimeters(pattern.throughDiameter)} THRU`
         : `${pattern.rows * pattern.columns}X DIA ${formatMillimeters(pattern.throughDiameter)} THRU / C'BORE DIA ${formatMillimeters(pattern.counterboreDiameter)} DEPTH ${formatMillimeters(pattern.counterboreDepth!)}`
       const radius = pattern.throughDiameter / 2
-      dimension([p3(firstCenter[0] - radius, firstCenter[1]), p3(firstCenter[0] + radius, firstCenter[1])], p3(firstCenter[0] + dimensionPad, firstCenter[1] + dimensionPad / 2), 'DIAMETER')
-      text(firstCenter[0] + dimensionPad, firstCenter[1] + dimensionPad, diameterText)
+      dimension(
+        [p3(dimensionCenter[0] - radius, dimensionCenter[1]), p3(dimensionCenter[0] + radius, dimensionCenter[1])],
+        p3(dimensionCenter[0] + dimensionPad * 2, dimensionCenter[1] + dimensionPad * (patternIndex === 0 ? 1 : -1)),
+        'DIAMETER',
+      )
+      text(topX, topY + input.width + input.textHeight * (4 + patternIndex * 2), diameterText)
       if (pattern.columns > 1) {
-        dimension([p3(topX + pattern.origin[0], topY + pattern.origin[1]), p3(topX + pattern.origin[0] + pattern.spacing[0], topY + pattern.origin[1])], p3(topX + pattern.origin[0] + pattern.spacing[0] / 2, topY + pattern.origin[1] - dimensionPad / 2))
-        text(topX + pattern.origin[0], topY + pattern.origin[1] - dimensionPad, `${pattern.columns - 1} SPACES @ ${formatMillimeters(pattern.spacing[0])}`)
+        dimension(
+          [p3(topX + pattern.origin[0], topY + pattern.origin[1]), p3(topX + pattern.origin[0] + pattern.spacing[0], topY + pattern.origin[1])],
+          p3(topX + pattern.origin[0] + pattern.spacing[0] / 2, topY - dimensionLane * dimensionPad / 2),
+        )
+        text(topX + pattern.origin[0], topY + input.textHeight * (2 + patternIndex * 1.5), `${pattern.columns - 1} SPACES @ ${formatMillimeters(pattern.spacing[0])}`)
       }
       if (pattern.rows > 1) {
-        dimension([p3(topX + pattern.origin[0], topY + pattern.origin[1]), p3(topX + pattern.origin[0], topY + pattern.origin[1] + pattern.spacing[1])], p3(topX + pattern.origin[0] - dimensionPad / 2, topY + pattern.origin[1] + pattern.spacing[1] / 2))
-        text(topX + pattern.origin[0] + input.textHeight, topY + pattern.origin[1] + pattern.spacing[1] / 2, `${pattern.rows - 1} SPACES @ ${formatMillimeters(pattern.spacing[1])}`)
+        dimension(
+          [p3(topX + pattern.origin[0], topY + pattern.origin[1]), p3(topX + pattern.origin[0], topY + pattern.origin[1] + pattern.spacing[1])],
+          p3(topX - dimensionLane * dimensionPad / 2, topY + pattern.origin[1] + pattern.spacing[1] / 2),
+        )
+        text(topX + input.textHeight * (2 + patternIndex * 15), topY + input.width + input.textHeight * (2 + patternIndex * 2), `${pattern.rows - 1} SPACES @ ${formatMillimeters(pattern.spacing[1])}`)
       }
     }
   })

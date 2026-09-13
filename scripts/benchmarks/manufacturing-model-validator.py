@@ -143,16 +143,19 @@ def contract_dimensions(expected):
         ('ALIGNED', [p3(top_x, top_y), p3(top_x, top_y + width)], p3(top_x - pad / 2, top_y + width / 2), width),
         ('ALIGNED', [p3(front_x, front_y), p3(front_x, front_y + thickness)], p3(front_x - pad / 2, front_y + thickness / 2), thickness),
     ]
-    for pattern in expected['holePatterns']:
+    for pattern_index, pattern in enumerate(expected['holePatterns']):
         cx, cy = top_x + pattern['origin'][0], top_y + pattern['origin'][1]
         radius = pattern['throughDiameter'] / 2
-        dimensions.append(('DIAMETER', [p3(cx - radius, cy), p3(cx + radius, cy)], p3(cx + pad, cy + pad / 2), pattern['throughDiameter']))
+        lane = pattern_index + 1
+        diameter_x = cx if pattern_index % 2 == 0 else cx + (pattern['columns'] - 1) * pattern['spacing'][0]
+        diameter_y = cy if pattern_index % 2 == 0 else cy + (pattern['rows'] - 1) * pattern['spacing'][1]
+        dimensions.append(('DIAMETER', [p3(diameter_x - radius, diameter_y), p3(diameter_x + radius, diameter_y)], p3(diameter_x + pad * 2, diameter_y + pad * (1 if pattern_index == 0 else -1)), pattern['throughDiameter']))
         if pattern['columns'] > 1:
             pitch = pattern['spacing'][0]
-            dimensions.append(('ALIGNED', [p3(cx, cy), p3(cx + pitch, cy)], p3(cx + pitch / 2, cy - pad / 2), pitch))
+            dimensions.append(('ALIGNED', [p3(cx, cy), p3(cx + pitch, cy)], p3(cx + pitch / 2, top_y - lane * pad / 2), pitch))
         if pattern['rows'] > 1:
             pitch = pattern['spacing'][1]
-            dimensions.append(('ALIGNED', [p3(cx, cy), p3(cx, cy + pitch)], p3(cx - pad / 2, cy + pitch / 2), pitch))
+            dimensions.append(('ALIGNED', [p3(cx, cy), p3(cx, cy + pitch)], p3(top_x - lane * pad / 2, cy + pitch / 2), pitch))
     for slot in expected['slots']:
         cx, cy = top_x + slot['center'][0], top_y + slot['center'][1]
         half = slot['length'] / 2

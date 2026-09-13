@@ -102,7 +102,7 @@ export declare function buildAgentManufacturingSheet(document: ManufacturingDocu
         drawingId: string;
         skillId: string;
         skillVersion: "1.0.0";
-        units: any;
+        units: string;
         expectedRevision: number;
         entityCount: number;
         bounds: {
