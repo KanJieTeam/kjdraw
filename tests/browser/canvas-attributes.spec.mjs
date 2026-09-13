@@ -55,7 +55,7 @@ test('attached attributes render once in their owner coordinates, preserve text 
  expect(result.glyphs.map(c=>c.text)).toEqual(['AB','NESTED']);expect(result.svgDiagnostics).toEqual([])
  result.glyphs[0].matrix.forEach((value,i)=>expect(value).toBeCloseTo([.7,0,0,1,100,247][i],5))
  result.glyphs[1].matrix.forEach((value,i)=>expect(value).toBeCloseTo([2,0,0,2,340,233][i],5))
- result.reflected.matrix.forEach((value,i)=>expect(value).toBeCloseTo(Math.fround([-2,0,0,1.5,...result.reflectedOrigin][i]),6))
+ result.reflected.matrix.forEach((value,i)=>{const expected=Math.fround([-2,0,0,1.5,...result.reflectedOrigin][i]),float32Ulp=Math.max(1e-6,Math.abs(expected)*2**-23);expect(Math.abs(value-expected)).toBeLessThanOrEqual(float32Ulp)})
  expect(result.reflectedHit).toBe('outer-insert')
  expect(result.hiddenLabels).toEqual(['NESTED']);expect(result.hiddenHit).toBeNull()
 })

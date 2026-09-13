@@ -29,6 +29,11 @@ test('Workbench creates an attributed native block and edits its instance value'
     await drawing.transact('source',tx=>{tx.createEntity('LINE',{start:[0,0],end:[30,0]},{id:'line'});tx.createEntity('CIRCLE',{center:[15,10],radius:4},{id:'circle'})})
     const workbench=mountKJDrawWorkbench(host,{sdk,document:drawing,locale:'en'});await workbench.ready;await sdk.executeCommand('SELECT',{ids:['line','circle']},{document:drawing});window.__blockAuthoring={sdk,drawing,workbench}
   })
+  const layout=await page.evaluate(()=>{const host=document.querySelector('body>div'),root=document.querySelector('.kjwb'),canvas=document.querySelector('[data-canvas]'),rect=element=>element.getBoundingClientRect();return {host:rect(host),root:rect(root),canvas:rect(canvas),backing:[canvas.width,canvas.height],dpr:devicePixelRatio,display:getComputedStyle(root).display,styleSheets:document.adoptedStyleSheets.length}})
+  expect(layout.display).toBe('grid');expect(layout.styleSheets).toBeGreaterThan(0)
+  expect(layout.root.width).toBeLessThanOrEqual(layout.host.width);expect(layout.root.height).toBeLessThanOrEqual(layout.host.height)
+  expect(layout.canvas.width).toBeLessThanOrEqual(layout.host.width);expect(layout.canvas.height).toBeLessThanOrEqual(layout.host.height)
+  expect(layout.backing).toEqual([Math.round(layout.canvas.width*layout.dpr),Math.round(layout.canvas.height*layout.dpr)])
   const revision=await page.evaluate(()=>window.__blockAuthoring.drawing.revision)
   await page.locator('[data-action=block-create]').click();await expect(page.locator('[data-block-create-dialog]')).toBeVisible();await page.keyboard.press('Escape')
   expect(await page.evaluate(()=>window.__blockAuthoring.drawing.revision)).toBe(revision)
@@ -63,7 +68,7 @@ test('Workbench and Playground explicitly transform a nested attributed INSERT i
   })
   await page.locator('select[data-block-scope]').selectOption('definition')
   const workbenchMember=page.locator('select[data-block-member]'),workbenchNested=await workbenchMember.locator('option').filter({hasText:'INSERT'}).getAttribute('value');await workbenchMember.selectOption(workbenchNested)
-  await page.locator('[data-block-member-transform=position]').fill('5, 6');await page.locator('[data-block-member-transform=scale]').fill('2');await page.locator('[data-block-member-transform=rotation]').fill('90');await page.locator('[data-inspector] button.apply').evaluate(button=>button.click())
+  await page.locator('[data-block-member-transform=position]').fill('5, 6');await page.locator('[data-block-member-transform=scale]').fill('2');await page.locator('[data-block-member-transform=rotation]').fill('90');await page.locator('[data-inspector] button.apply').click()
   await expect.poll(()=>page.evaluate(()=>{const d=window.__nestedBlock.drawing,b=d.getObject(window.__nestedBlock.outer.block.id),i=(b.payload.entityIds??[]).map(id=>d.getObject(id)).find(x=>x?.type==='INSERT'),a=d.getObject(i.payload.attributeIds[0]);return {position:i.payload.position,scale:i.payload.scale,rotation:i.payload.rotation,attribute:a.payload.position,text:a.payload.text}})).toEqual({position:[5,6,0],scale:[2,2,2],rotation:Math.PI/2,attribute:[1.0000000000000004,10,0],text:'A-009'})
 
   await page.addInitScript(()=>localStorage.setItem('kjdraw.language','en'));await page.goto('/');await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
@@ -71,4 +76,18 @@ test('Workbench and Playground explicitly transform a nested attributed INSERT i
   await page.locator('#inspector select[data-block-scope]').selectOption('definition');const playgroundMember=page.locator('#inspector select[data-block-member]'),playgroundNested=await playgroundMember.locator('option').filter({hasText:'INSERT'}).getAttribute('value');await playgroundMember.selectOption(playgroundNested)
   await page.locator('#inspector [data-block-member-transform=position]').fill('5, 6');await page.locator('#inspector [data-block-member-transform=scale]').fill('2');await page.locator('#inspector [data-block-member-transform=rotation]').fill('90');await page.getByRole('button',{name:'Apply properties',exact:true}).click();await expect(page.locator('#status')).toContainText('BLOCKDEFINITIONUPDATE committed')
   await page.locator('#inspector select[data-block-scope]').selectOption('definition');await page.locator('#inspector select[data-block-member]').selectOption(playgroundNested);await expect(page.locator('#inspector [data-block-member-transform=position]')).toHaveValue('5, 6');await expect(page.locator('#inspector [data-block-member-transform=scale]')).toHaveValue('2');await expect(page.locator('#inspector [data-block-member-transform=rotation]')).toHaveValue('90')
+})
+
+test('custom element styles stay CSP compatible and bounded by the host',async({page})=>{
+  await page.goto('/')
+  const layout=await page.evaluate(async()=>{
+    document.body.replaceChildren();const {defineKJDrawWorkbenchElement}=await import('/packages/kjdraw-sdk/src/workbench.js');defineKJDrawWorkbenchElement('kjdraw-csp-workbench')
+    const host=document.createElement('kjdraw-csp-workbench');host.style.cssText='display:block;width:900px;height:600px';document.body.append(host);await host.instance.ready;await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));host.instance.renderer.resize()
+    const root=host.shadowRoot.querySelector('.kjwb'),canvas=host.shadowRoot.querySelector('[data-canvas]'),rect=element=>element.getBoundingClientRect()
+    return {host:rect(host),root:rect(root),canvas:rect(canvas),backing:[canvas.width,canvas.height],dpr:devicePixelRatio,display:getComputedStyle(root).display,position:getComputedStyle(root).position,styleSheets:host.shadowRoot.adoptedStyleSheets.length}
+  })
+  expect(layout.display).toBe('grid');expect(layout.position).toBe('absolute');expect(layout.styleSheets).toBeGreaterThan(0)
+  expect(layout.root.width).toBeLessThanOrEqual(layout.host.width);expect(layout.root.height).toBeLessThanOrEqual(layout.host.height)
+  expect(layout.canvas.width).toBeLessThanOrEqual(layout.host.width);expect(layout.canvas.height).toBeLessThanOrEqual(layout.host.height)
+  expect(layout.backing).toEqual([Math.round(layout.canvas.width*layout.dpr),Math.round(layout.canvas.height*layout.dpr)])
 })

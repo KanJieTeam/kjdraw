@@ -72,6 +72,13 @@ function expectPoint(actual, expected, digits = 5) {
   for (const [index, value] of expected.entries()) expect(actual[index]).toBeCloseTo(value, digits)
 }
 
+function expectPointerPoint(actual, expected, scale) {
+  expect(actual).toHaveLength(expected.length)
+  expect(Math.abs(actual[0] - expected[0])).toBeLessThanOrEqual(2 / scale)
+  expect(Math.abs(actual[1] - expected[1])).toBeLessThanOrEqual(2 / scale)
+  expect(actual[2]).toBe(expected[2])
+}
+
 test('fit-point spline grips rebuild visible native geometry in Workbench and Playground', async ({ page }) => {
   await page.goto('/')
   await page.evaluate(async points => {
@@ -133,9 +140,10 @@ test('rational SPLINE control grip previews without mutation and commits in Work
   await page.locator('#file-input').setInputFiles({ name: 'control-spline.kjd', mimeType: 'application/json', buffer: await controlFixtureBuffer() }); await expect(page.locator('#entity-count')).toHaveText('5 entities')
   if (await page.locator('#snap').getAttribute('aria-pressed') === 'true') await page.locator('#snap').click()
   const endpoint = await playgroundPoint(page, [0,0]); await page.mouse.click(endpoint.x, endpoint.y); await expect(page.locator('#selection-count')).toHaveText('1 selected')
+  const playgroundScale = await page.evaluate(() => window.__fitSplinePlaygroundRenderer.camera.scale)
   await drag(page, playgroundPoint, [8,18], [11,19]); await expect(page.locator('#status')).toContainText('Grip edit applied')
   let snapshot = await savedPlayground(page), payload = snapshot.objects['control-spline'].payload
-  expectPoint(payload.controlPoints[1], [11,19,3]); expect(payload.knots).toEqual(rationalKnots); expect(payload.weights).toEqual(rationalWeights); expect(payload.startTangent).toEqual([2,1,0]); expect(payload.endTangent).toEqual([3,-1,0])
+  expectPointerPoint(payload.controlPoints[1], [11,19,3], playgroundScale); expect(payload.knots).toEqual(rationalKnots); expect(payload.weights).toEqual(rationalWeights); expect(payload.startTangent).toEqual([2,1,0]); expect(payload.endTangent).toEqual([3,-1,0])
   await page.locator('#undo').click(); snapshot = await savedPlayground(page); expect(snapshot.objects['control-spline'].payload.controlPoints[1]).toEqual([8,18,3])
-  await page.locator('#redo').click(); snapshot = await savedPlayground(page); expectPoint(snapshot.objects['control-spline'].payload.controlPoints[1], [11,19,3])
+  await page.locator('#redo').click(); snapshot = await savedPlayground(page); expectPointerPoint(snapshot.objects['control-spline'].payload.controlPoints[1], [11,19,3], playgroundScale)
 })

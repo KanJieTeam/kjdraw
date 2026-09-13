@@ -235,7 +235,8 @@ const draftPointText: Readonly<Record<KJDraftPointRole, KJLocalizedControlText>>
 
 const WORKBENCH_STYLE = `
 :host{display:block;position:relative;min-height:480px;color-scheme:light}
-.kjwb{--surface:var(--kj-surface,#fff);--surface-subtle:var(--kj-surface-subtle,#eef1f5);--chrome:var(--kj-chrome,#f6f7f9);--border:var(--kj-border,#d9dee6);--text:var(--kj-text,#202936);--muted:var(--kj-muted,#637083);--action:var(--kj-action,#2863df);--action-soft:var(--kj-action-soft,#eaf1ff);--brand:var(--kj-brand,#bdf878);--radius:var(--kj-radius,6px);position:absolute;inset:0;min-height:480px;display:grid;grid-template-rows:44px 92px minmax(300px,1fr) 32px;background:var(--chrome);color:var(--text);font:13px/1.4 var(--kj-font,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif);border:1px solid var(--border);overflow:hidden;isolation:isolate}
+.kjwb{--surface:var(--kj-surface,#fff);--surface-subtle:var(--kj-surface-subtle,#eef1f5);--chrome:var(--kj-chrome,#f6f7f9);--border:var(--kj-border,#d9dee6);--text:var(--kj-text,#202936);--muted:var(--kj-muted,#637083);--action:var(--kj-action,#2863df);--action-soft:var(--kj-action-soft,#eaf1ff);--brand:var(--kj-brand,#bdf878);--radius:var(--kj-radius,6px);position:relative;width:100%;height:100%;min-height:480px;display:grid;grid-template-rows:44px 92px minmax(300px,1fr) 32px;background:var(--chrome);color:var(--text);font:13px/1.4 var(--kj-font,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif);border:1px solid var(--border);overflow:hidden;isolation:isolate}
+:host>.kjwb{position:absolute;inset:0;width:auto;height:auto}
 /* Long status messages must never resize the canvas by expanding an implicit auto grid column. */
 .kjwb{grid-template-columns:minmax(0,1fr);min-width:0}.kjwb :is(.appbar,.ribbon,.workspace,.statusbar){min-width:0}
 .kjwb .appbar button,.kjwb .appbar .layout-select,.kjwb .appbar .brand{flex-shrink:0;white-space:nowrap}
@@ -270,6 +271,26 @@ const WORKBENCH_STYLE = `
 @media(max-width:460px){.kjwb .appbar .brand{display:none}.kjwb .layout-select{max-width:82px}}
 .kjwb .drawing-space{position:absolute;top:10px;left:10px;z-index:4;display:flex;align-items:center;flex-wrap:wrap;gap:8px;max-width:calc(100% - 70px);font-size:12px}.kjwb .drawing-space select{max-width:210px;min-height:30px;padding:4px 8px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}.kjwb .drawing-space span{padding:5px 8px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:var(--radius)}
 `
+
+const WORKBENCH_CSS = `${KJDRAW_THEME_CSS}\n${WORKBENCH_STYLE}\n.kjwb [hidden]{display:none!important}.kjwb.no-toolbar{grid-template-rows:44px 0 minmax(300px,1fr) 32px}.kjwb.no-toolbar .ribbon{visibility:hidden;overflow:hidden;pointer-events:none}`
+const workbenchStyleSheets = new WeakMap<Document | ShadowRoot, CSSStyleSheet>()
+
+function installWorkbenchStyles(container: HTMLElement | ShadowRoot): void {
+  const target = container instanceof ShadowRoot ? container : container.ownerDocument
+  if ('adoptedStyleSheets' in target && typeof CSSStyleSheet !== 'undefined') {
+    let sheet = workbenchStyleSheets.get(target)
+    if (!sheet) {
+      sheet = new CSSStyleSheet()
+      sheet.replaceSync(WORKBENCH_CSS)
+      workbenchStyleSheets.set(target, sheet)
+      target.adoptedStyleSheets = [...target.adoptedStyleSheets, sheet]
+    }
+    return
+  }
+  const style = document.createElement('style')
+  style.textContent = WORKBENCH_CSS
+  container.append(style)
+}
 
 function assertBrowser(): void {
   if (typeof document === 'undefined') throw new Error('KJDraw workbench requires a browser DOM')
@@ -452,6 +473,7 @@ export class KJDrawWorkbench {
     this.#maxFileBytes = Number(options.maxFileBytes ?? 64 * 1024 * 1024)
     if (!Number.isSafeInteger(this.#maxFileBytes) || this.#maxFileBytes <= 0) throw new RangeError('maxFileBytes must be a positive safe integer')
     this.sdk = options.sdk ?? createKJDrawSDK()
+    installWorkbenchStyles(container)
     this.root = document.createElement('section')
     this.root.className = `kjwb ${this.#theme} layout-${this.#layout}${options.toolbar === false ? ' no-toolbar' : ''}`
     this.root.tabIndex = 0
@@ -865,8 +887,7 @@ export class KJDrawWorkbench {
     const showLayers = this.#options.showLayers !== false
     const showInspector = this.#options.showInspector !== false
     const layoutCopy: Record<KJWorkbenchLayout, keyof typeof copy.en> = { classic: 'layoutClassic', compact: 'layoutCompact', focus: 'layoutFocus' }
-    return `<style>${KJDRAW_THEME_CSS}\n${WORKBENCH_STYLE}\n.kjwb [hidden]{display:none!important}.kjwb.no-toolbar{grid-template-rows:44px 0 minmax(300px,1fr) 32px}.kjwb.no-toolbar .ribbon{visibility:hidden;overflow:hidden;pointer-events:none}</style>
-      <header class="appbar"><span class="mark" aria-hidden="true">${icon('logo')}</span><span class="brand">KJDraw</span><span class="docname" data-document-name>${t('sample')}</span><span class="spacer"></span>
+    return `<header class="appbar"><span class="mark" aria-hidden="true">${icon('logo')}</span><span class="brand">KJDraw</span><span class="docname" data-document-name>${t('sample')}</span><span class="spacer"></span>
         <input class="file-input" type="file" accept=".dxf,.kjd" aria-label="${t('open')}" data-file>
         <select class="layout-select" data-layout aria-label="${t('layout')}" title="${t('layout')}">${KJDRAW_LAYOUTS.map(layout => `<option value="${layout}" data-copy="${layoutCopy[layout]}"${layout === this.#layout ? ' selected' : ''}>${t(layoutCopy[layout])}</option>`).join('')}</select>
         <button type="button" class="panel-toggle hide-small ${showLayers ? 'active' : ''}" data-action="toggle-layers" aria-pressed="${showLayers}">${icon('layers')}<span data-copy="layers">${t('layers')}</span></button>
