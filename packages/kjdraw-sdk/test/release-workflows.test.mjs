@@ -49,6 +49,29 @@ git merge-base --is-ancestor "$sha" origin/main`
   assert.throws(() => requireExactMainBinding(ancestorOnly), /must require the tagged SHA to equal current origin\/main/)
 })
 
+test('release provenance audit binds exact main and can only verify, attest and upload',async()=>{
+ const workflow=await read('.github/workflows/release-provenance.yml')
+ assert.match(workflow,/branches:\s*\n\s*- main/)
+ assert.match(workflow,/workflow_dispatch:/)
+ assert.match(workflow,/contents:\s*read/)
+ assert.doesNotMatch(workflow,/contents:\s*write/)
+ assert.match(workflow,/test "\$sha" = "\$GITHUB_SHA"/)
+ assert.match(workflow,/test "\$\(git rev-parse refs\/remotes\/origin\/main\)" = "\$sha"/)
+ assert.match(workflow,/workflows\/ci\.yml\/runs\?head_sha=\$sha&event=push/)
+ assert.match(workflow,/workflows\/pages\.yml\/runs\?head_sha=\$sha&event=push/)
+ const pack=workflow.indexOf('npm pack --workspace packages/kjdraw-sdk')
+ const generate=workflow.indexOf('node scripts/release-artifacts.mjs')
+ const verify=workflow.indexOf('node scripts/audits/verify-release-artifacts.mjs dist/release-candidate')
+ const attest=workflow.indexOf('uses: actions/attest@')
+ const upload=workflow.indexOf('uses: actions/upload-artifact@')
+ assert.ok(pack>=0&&generate>pack&&verify>generate&&attest>verify&&upload>attest)
+ assert.match(workflow,/subject-checksums: dist\/release-candidate\/SHA256SUMS/)
+ assert.match(workflow,/gh attestation verify "dist\/release-candidate\/\$name" --repo "\$GITHUB_REPOSITORY"/)
+ assert.match(workflow,/dist\/provenance-audit\/provenance\.sigstore\.json/)
+ assert.match(workflow,/published:false/)
+ assert.doesNotMatch(workflow,/npm publish|gh release (?:create|upload|edit)|git tag|push:\s*\n\s*tags:/)
+})
+
 test('Pages uses the release runtime for every main commit', async () => {
   const workflow = await read('.github/workflows/pages.yml')
 
