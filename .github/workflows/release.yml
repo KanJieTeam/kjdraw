@@ -76,6 +76,7 @@ jobs:
           node --no-warnings scripts/build-typescript.mjs --check
           node scripts/audits/verify-packed-package.mjs
           node scripts/check.mjs
+          node scripts/audits/verify-three-industry-candidate.mjs
           node scripts/audits/release-readiness.mjs --require-ready
           mkdir -p dist/release
           asset="$(npm pack --workspace packages/kjdraw-sdk --pack-destination dist/release --silent | tail -n 1)"

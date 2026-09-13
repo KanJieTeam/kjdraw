@@ -1,4 +1,5 @@
 import { readFile, readdir } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
 
 const root = new URL('../../', import.meta.url)
 const readJson = async path => JSON.parse(await readFile(new URL(path, root), 'utf8'))
@@ -6,6 +7,21 @@ const readJson = async path => JSON.parse(await readFile(new URL(path, root), 'u
 const repositoryPackage = await readJson('package.json')
 const sdkPackage = await readJson('packages/kjdraw-sdk/package.json')
 const matrix = await readJson('docs/KJDRAW_1_0_ACCEPTANCE_MATRIX.json')
+const requireReady = process.argv.includes('--require-ready')
+const candidateEvidencePath = process.env.KJDRAW_THREE_INDUSTRY_EVIDENCE ?? '.cache/release-evidence/three-industry-candidate.json'
+const headCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
+let threeIndustryEvidence = null
+try { threeIndustryEvidence = await readJson(candidateEvidencePath) } catch {}
+const requiredIndustries = ['mechanical', 'architecture', 'site']
+const threeIndustryEvidenceValid = threeIndustryEvidence?.schema === 'com.kanjie.kjdraw.audit.three-industry-candidate@1'
+  && threeIndustryEvidence.commit === headCommit
+  && threeIndustryEvidence.cleanCandidateSources === true
+  && threeIndustryEvidence.browser === 'chromium'
+  && requiredIndustries.every(kind => {
+    const row = threeIndustryEvidence.scenarios?.find(candidate => candidate.kind === kind)
+    return row?.startedBlank === true && row?.kjdReopened === true && row?.kjpReopened === true && row?.valid === true
+      && row?.pngComplete === true && row?.svgDiagnostics === 0 && row?.svgBytes > 1_000 && row?.pngBytes > 1_000 && row?.printBytes > row?.svgBytes
+  })
 const sourceFiles = await readdir(new URL('packages/kjdraw-sdk/src/', root), { recursive: true })
 const implementationFiles = sourceFiles.filter(path => /\.(?:js|ts)$/.test(path))
 const typescriptFiles = implementationFiles.filter(path => path.endsWith('.ts'))
@@ -38,7 +54,14 @@ for (const gate of matrix.gates ?? []) {
       status: gate.status,
       gap: gate.gap ?? null,
     }
-    if (isReleaseCandidate && gate.verifyOnCandidate === true && gate.status === 'partial') {
+    if (isReleaseCandidate && gate.verifyOnCandidate === true && gate.status === 'partial' && gate.id === 'cad.production-workflows' && (requireReady || isStableOne) && !threeIndustryEvidenceValid) {
+      findings.push({
+        code: 'THREE_INDUSTRY_CANDIDATE_EVIDENCE_REQUIRED',
+        gate: gate.id,
+        evidence: candidateEvidencePath,
+        commit: headCommit,
+      })
+    } else if (isReleaseCandidate && gate.verifyOnCandidate === true && gate.status === 'partial') {
       pendingCandidateVerification.push(finding)
     } else {
       findings.push(finding)
@@ -68,9 +91,15 @@ const report = {
   ),
   findings,
   pendingCandidateVerification,
+  threeIndustryCandidate: {
+    evidence: candidateEvidencePath,
+    valid: threeIndustryEvidenceValid,
+    commit: threeIndustryEvidence?.commit ?? null,
+    scenarios: threeIndustryEvidence?.scenarios?.map(row => row.kind) ?? [],
+  },
 }
 
 console.log(JSON.stringify(report, null, 2))
 
 const requiredReadiness = isReleaseCandidate ? candidateReady : ready
-if ((isStableOne || process.argv.includes('--require-ready')) && !requiredReadiness) process.exitCode = 1
+if ((isStableOne || requireReady) && !requiredReadiness) process.exitCode = 1
