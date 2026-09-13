@@ -35,6 +35,7 @@ const isReleaseCandidate = /^1\.\d+\.\d+-rc\.\d+$/.test(sdkPackage.version)
 
 const findings = []
 const pendingCandidateVerification = []
+const verifiedCandidateGates = []
 if (repositoryPackage.version !== sdkPackage.version) findings.push({
   code: 'PACKAGE_VERSION_MISMATCH',
   repository: repositoryPackage.version,
@@ -54,7 +55,9 @@ for (const gate of matrix.gates ?? []) {
       status: gate.status,
       gap: gate.gap ?? null,
     }
-    if (isReleaseCandidate && gate.verifyOnCandidate === true && gate.status === 'partial' && gate.id === 'cad.production-workflows' && (requireReady || isStableOne) && !threeIndustryEvidenceValid) {
+    if (isReleaseCandidate && gate.verifyOnCandidate === true && gate.status === 'partial' && gate.id === 'cad.production-workflows' && threeIndustryEvidenceValid) {
+      verifiedCandidateGates.push({ gate: gate.id, evidence: candidateEvidencePath, commit: headCommit })
+    } else if (isReleaseCandidate && gate.verifyOnCandidate === true && gate.status === 'partial' && gate.id === 'cad.production-workflows' && requireReady) {
       findings.push({
         code: 'THREE_INDUSTRY_CANDIDATE_EVIDENCE_REQUIRED',
         gate: gate.id,
@@ -91,6 +94,7 @@ const report = {
   ),
   findings,
   pendingCandidateVerification,
+  verifiedCandidateGates,
   threeIndustryCandidate: {
     evidence: candidateEvidencePath,
     valid: threeIndustryEvidenceValid,
