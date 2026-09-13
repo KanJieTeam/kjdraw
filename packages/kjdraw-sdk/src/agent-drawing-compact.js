@@ -45,6 +45,12 @@ export function decodeAgentCompactDrawing(input) {
         polylines: input.polylines.map(({ points, closed })=>({
                 vertices: points.map(([x, y])=>point(x, y)),
                 closed
+            })),
+        hatches: (input.hatches ?? []).map((hatch)=>({
+                ...hatch,
+                loops: hatch.loops.map((loop)=>({
+                        vertices: loop.vertices.map(({ x, y })=>point(x, y))
+                    }))
             }))
     };
 }

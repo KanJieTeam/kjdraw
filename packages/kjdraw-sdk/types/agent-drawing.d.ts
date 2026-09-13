@@ -41,6 +41,15 @@ export interface KJAgentDrawingInput {
         vertices: KJAgentPoint[];
         closed: boolean;
     }[];
+    /** Polygonal native hatch. The first loop is external; later loops are islands. */
+    hatches?: {
+        loops: {
+            vertices: KJAgentPoint[];
+        }[];
+        patternName: 'SOLID' | 'ANSI31' | 'ANSI37' | 'CROSS';
+        patternScale: number;
+        patternAngleDegrees: number;
+    }[];
 }
 /** Input is validated against the tool's JSON schema before normalization. */
 export declare function buildAgentDrawingEntities(input: KJAgentDrawingInput, ownerId: string): {

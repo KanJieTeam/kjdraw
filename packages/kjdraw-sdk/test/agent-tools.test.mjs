@@ -21,9 +21,9 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
   for (const tool of KJDRAW_AGENT_TOOLS) {
     assert.equal(tool.inputSchema.additionalProperties, false)
     const optional = tool.name === 'cad_propose_drawing_annotated'
-      ? ['ellipses', 'splines', 'angularDimensions']
+      ? ['ellipses', 'splines', 'hatches', 'angularDimensions']
       : ['cad_propose_drawing', 'cad_propose_drawing_compact', 'cad_propose_drawing_pattern'].includes(tool.name)
-        ? ['ellipses', 'splines']
+        ? ['ellipses', 'splines', 'hatches']
       : tool.name === 'cad_read_components'
         ? ['query', 'category', 'locale', 'limit', 'cursor']
         : tool.name === 'cad_propose_component_insert'

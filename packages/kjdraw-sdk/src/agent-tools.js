@@ -201,6 +201,32 @@ const splineSchema = {
         'controlPoints'
     ]
 };
+const hatchSchema = object({
+    loops: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 32,
+        items: object({
+            vertices: {
+                type: 'array',
+                minItems: 3,
+                maxItems: 256,
+                items: point
+            }
+        })
+    },
+    patternName: {
+        type: 'string',
+        enum: [
+            'SOLID',
+            'ANSI31',
+            'ANSI37',
+            'CROSS'
+        ]
+    },
+    patternScale: radius,
+    patternAngleDegrees: angle
+});
 const drawingInputSchema = objectWithOptional({
     expectedRevision: revision,
     units: text,
@@ -238,10 +264,12 @@ const drawingInputSchema = objectWithOptional({
         closed: {
             type: 'boolean'
         }
-    }))
+    })),
+    hatches: drawingGroup(hatchSchema)
 }, [
     'ellipses',
-    'splines'
+    'splines',
+    'hatches'
 ]);
 const numericTuple = (length)=>({
         type: 'array',
@@ -265,11 +293,13 @@ const compactDrawingProperties = {
         closed: {
             type: 'boolean'
         }
-    }))
+    })),
+    hatches: drawingGroup(hatchSchema)
 };
 const compactDrawingSchema = objectWithOptional(compactDrawingProperties, [
     'ellipses',
-    'splines'
+    'splines',
+    'hatches'
 ]);
 const patternCount = {
     type: 'integer',
@@ -544,7 +574,8 @@ const annotatedDrawingSchemaBase = objectWithOptional({
     diameterDimensions: drawingGroup(object(radialAnnotation))
 }, [
     'ellipses',
-    'splines'
+    'splines',
+    'hatches'
 ]);
 const annotatedDrawingSchema = {
     ...annotatedDrawingSchemaBase,
@@ -821,7 +852,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_drawing_annotated',
         effect: 'propose',
-        description: 'Compose editable engineering geometry, open native NURBS, TEXT notes and measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. Arrays use unique group-local seed refs, including splines:0, and include each original. Text and dimension values are derived and checked against native geometry; styles apply named editable layers to group-local sources and array copies. No edit occurs before host approval; approval creates one undoable transaction.',
+        description: 'Compose editable engineering geometry, open native NURBS, polygonal native HATCH, TEXT notes and measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. Hatch loop 0 is the outer boundary and later loops are islands; built-in SOLID/ANSI31/ANSI37/CROSS patterns remain editable. Arrays use group-local curve seed refs. Styles apply named editable layers to geometry, hatches and array copies. No edit occurs before host approval; approval creates one undoable transaction.',
         inputSchema: annotatedDrawingSchema
     },
     {
@@ -993,19 +1024,19 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_drawing',
         effect: 'propose',
-        description: 'Compose 1–64 native LINE, CIRCLE, ARC, ELLIPSE, open SPLINE and straight-segment LWPOLYLINE entities as one reviewed, undoable edit. Optional splines provide degree, control points and optional knots/positive weights; omitted knots use a clamped uniform vector. Model XY, z=0, drawing units. Returns exact before/after geometry without modifying the drawing until host approval.',
+        description: 'Compose 1–64 native LINE, CIRCLE, ARC, ELLIPSE, open SPLINE, straight LWPOLYLINE and polygonal HATCH entities as one reviewed edit. Hatches support outer loops, islands and built-in SOLID/ANSI31/ANSI37/CROSS patterns. Model XY, z=0, drawing units. Returns exact before/after geometry without modifying the drawing until host approval.',
         inputSchema: drawingInputSchema
     },
     {
         name: 'cad_propose_drawing_compact',
         effect: 'propose',
-        description: 'Propose 1–64 native entities in model XY, z=0, drawing units. Common geometry uses compact tuples; optional open splines retain structured control points, knots and weights. Returns geometry without editing; host approval applies one undoable edit.',
+        description: 'Propose 1–64 native entities in model XY, z=0, drawing units. Common geometry uses compact tuples; optional structured groups cover open splines and polygonal hatches with islands. Returns geometry without editing; host approval applies one undoable edit.',
         inputSchema: compactDrawingSchema
     },
     {
         name: 'cad_propose_drawing_pattern',
         effect: 'propose',
-        description: 'Propose 1–64 base entities and up to 16 rectangular arrays, at most 512 total native entities. Uses compact common geometry plus optional open NURBS; array sources are group-local zero-based references such as circles:0, ellipses:0 or splines:0. Full preview, no edit before host approval, one undoable edit.',
+        description: 'Propose 1–64 base entities and up to 16 rectangular curve arrays, at most 512 total native entities. Optional open NURBS and polygonal hatches remain native; array sources are group-local zero-based curve references such as circles:0, ellipses:0 or splines:0. Hatches can coexist but are not array seeds. Full preview, no edit before host approval, one undoable edit.',
         inputSchema: objectWithOptional({
             ...compactDrawingProperties,
             arrays: {
@@ -1026,7 +1057,8 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
             }
         }, [
             'ellipses',
-            'splines'
+            'splines',
+            'hatches'
         ])
     },
     {
@@ -1218,7 +1250,7 @@ function xy(value) {
     ];
 }
 function buildPatternEntities(input, drawing, ownerId) {
-    const baseCount = drawing.lines.length + drawing.circles.length + drawing.arcs.length + (drawing.ellipses?.length ?? 0) + (drawing.splines?.length ?? 0) + drawing.polylines.length;
+    const baseCount = drawing.lines.length + drawing.circles.length + drawing.arcs.length + (drawing.ellipses?.length ?? 0) + (drawing.splines?.length ?? 0) + drawing.polylines.length + (drawing.hatches?.length ?? 0);
     if (baseCount < 1 || baseCount > 64) throw new KJValidationError('A drawing pattern requires 1–64 total base entities');
     const offsets = {
         lines: 0,
@@ -1293,7 +1325,8 @@ function styleAnnotatedDrawing(document, input, source) {
         'arcs',
         'ellipses',
         'splines',
-        'polylines'
+        'polylines',
+        'hatches'
     ])for(let index = 0; index < (input[group]?.length ?? 0); index++)keys.push(`${group}:${index}`);
     for (const array of input.arrays)for(let row = 0; row < array.rows; row++)for(let column = 0; column < array.columns; column++)if (row || column) keys.push(...array.sources);
     for (const group of [
@@ -1684,7 +1717,7 @@ export class KJAgentToolSession {
                             const drawing = decodeAgentCompactDrawing(input);
                             validate(drawingInputSchema, drawing);
                             const ownerId = document.spaces.modelSpaceId;
-                            const count = drawing.lines.length + drawing.circles.length + drawing.arcs.length + (drawing.ellipses?.length ?? 0) + (drawing.splines?.length ?? 0) + drawing.polylines.length;
+                            const count = drawing.lines.length + drawing.circles.length + drawing.arcs.length + (drawing.ellipses?.length ?? 0) + (drawing.splines?.length ?? 0) + drawing.polylines.length + (drawing.hatches?.length ?? 0);
                             if (!count && input.arrays.length) throw new KJValidationError('Arrays require base geometry');
                             const entities = count ? buildPatternEntities(input, drawing, ownerId) : [];
                             const baseEntities = {};
@@ -1695,10 +1728,11 @@ export class KJAgentToolSession {
                                 'arcs',
                                 'ellipses',
                                 'splines',
-                                'polylines'
+                                'polylines',
+                                'hatches'
                             ]){
                                 for(let index = 0; index < (drawing[group]?.length ?? 0); index++){
-                                    if (group !== 'splines') baseEntities[`${group}:${index}`] = entities[offset];
+                                    if (group !== 'splines' && group !== 'hatches') baseEntities[`${group}:${index}`] = entities[offset];
                                     offset++;
                                 }
                             }

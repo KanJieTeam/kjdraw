@@ -87,6 +87,34 @@ test('mixed drawing creates editable rational NURBS with explicit and generated 
   }
 })
 
+test('mixed drawing creates an editable patterned hatch with a native island', async () => {
+  const { sdk, document, session } = fixture()
+  const base = { expectedRevision: 0, units: 'millimeter', lines: [], circles: [], arcs: [], polylines: [] }
+  const hatches = [{
+    loops: [
+      { vertices: [{ x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 30 }, { x: 0, y: 30 }] },
+      { vertices: [{ x: 10, y: 10 }, { x: 20, y: 10 }, { x: 20, y: 20 }, { x: 10, y: 20 }] },
+    ],
+    patternName: 'ANSI31', patternScale: 2, patternAngleDegrees: 30,
+  }]
+  const proposal = value(await session.call('cad_propose_drawing', { ...base, hatches }))
+  assert.equal(document.listEntities().length, 0)
+  assert.equal(proposal.preview.after[0].type, 'HATCH')
+  assert.equal(proposal.preview.after[0].payload.boundaryLoops.length, 2)
+  value(await session.approve(proposal.planId, 'reviewer'))
+  const accepted = document.listEntities({ type: 'HATCH' })[0]
+  assert.equal(accepted.payload.patternName, 'ANSI31')
+  assert.equal(accepted.payload.solid, false)
+  assert.equal(accepted.payload.boundaryLoops[0].external, true)
+  assert.equal(accepted.payload.boundaryLoops[1].external, false)
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format }), { format })
+    const hatch = reopened.listEntities({ type: 'HATCH' })[0]
+    assert.equal(hatch.payload.patternName, 'ANSI31')
+    assert.equal(hatch.payload.boundaryLoops.length, 2)
+  }
+})
+
 test('mixed drawing rejects malformed or oversized groups atomically', async () => {
   const { document, session } = fixture()
   const empty = { expectedRevision: 0, units: 'millimeter', lines: [], circles: [], arcs: [], polylines: [] }
@@ -105,6 +133,9 @@ test('mixed drawing rejects malformed or oversized groups atomically', async () 
     { ...good, splines: [{ degree: 2, controlPoints: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }] },
     { ...good, splines: [{ degree: 2, controlPoints: [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 0 }], knots: [0, 0, 1, 1] }] },
     { ...good, splines: [{ degree: 1, controlPoints: [{ x: 0, y: 0 }, { x: 1, y: 1 }], weights: [1, 0] }] },
+    { ...good, hatches: [{ loops: [], patternName: 'SOLID', patternScale: 1, patternAngleDegrees: 0 }] },
+    { ...good, hatches: [{ loops: [{ vertices: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 0 }] }], patternName: 'SOLID', patternScale: 1, patternAngleDegrees: 0 }] },
+    { ...good, hatches: [{ loops: [{ vertices: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }] }], patternName: 'CUSTOM', patternScale: 1, patternAngleDegrees: 0 }] },
     { ...good, commands: [{ command: 'DELETE' }] },
   ]
   const source = document.serialize()

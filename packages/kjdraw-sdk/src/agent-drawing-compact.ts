@@ -12,6 +12,7 @@ export interface KJAgentCompactDrawingInput {
   /** Open NURBS definitions stay structured because knot and weight lengths vary. */
   splines?: { degree: number; controlPoints: KJAgentPoint[]; knots?: number[]; weights?: number[] }[]
   polylines: { points: [number, number][]; closed: boolean }[]
+  hatches?: { loops: { vertices: KJAgentPoint[] }[]; patternName: 'SOLID' | 'ANSI31' | 'ANSI37' | 'CROSS'; patternScale: number; patternAngleDegrees: number }[]
 }
 
 /** Decode only after compact schema validation; validate the result against the full drawing schema before building entities. */
@@ -33,5 +34,6 @@ export function decodeAgentCompactDrawing(input: KJAgentCompactDrawingInput): KJ
       ...(spline.weights ? { weights: [...spline.weights] } : {}),
     })),
     polylines: input.polylines.map(({ points, closed }) => ({ vertices: points.map(([x, y]) => point(x, y)), closed })),
+    hatches: (input.hatches ?? []).map(hatch => ({ ...hatch, loops: hatch.loops.map(loop => ({ vertices: loop.vertices.map(({ x, y }) => point(x, y)) })) })),
   }
 }

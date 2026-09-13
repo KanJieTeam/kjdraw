@@ -19,6 +19,14 @@ export interface KJAgentCompactDrawingInput {
         points: [number, number][];
         closed: boolean;
     }[];
+    hatches?: {
+        loops: {
+            vertices: KJAgentPoint[];
+        }[];
+        patternName: 'SOLID' | 'ANSI31' | 'ANSI37' | 'CROSS';
+        patternScale: number;
+        patternAngleDegrees: number;
+    }[];
 }
 /** Decode only after compact schema validation; validate the result against the full drawing schema before building entities. */
 export declare function decodeAgentCompactDrawing(input: KJAgentCompactDrawingInput): KJAgentDrawingInput;

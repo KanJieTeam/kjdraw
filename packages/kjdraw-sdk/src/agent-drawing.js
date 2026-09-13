@@ -11,9 +11,11 @@ const same = (a, b)=>a.x === b.x && a.y === b.y;
 export function buildAgentDrawingEntities(input, ownerId) {
     const ellipses = input.ellipses ?? [];
     const splines = input.splines ?? [];
-    const total = input.lines.length + input.circles.length + input.arcs.length + ellipses.length + splines.length + input.polylines.length;
+    const hatches = input.hatches ?? [];
+    const total = input.lines.length + input.circles.length + input.arcs.length + ellipses.length + splines.length + input.polylines.length + hatches.length;
     if (total < 1 || total > 64) throw new KJValidationError('A drawing proposal requires 1–64 total entities across all groups');
     if (splines.reduce((sum, spline)=>sum + spline.controlPoints.length, 0) > 1024) throw new KJValidationError('A drawing proposal supports at most 1024 spline control points');
+    if (hatches.reduce((sum, hatch)=>sum + hatch.loops.reduce((count, loop)=>count + loop.vertices.length, 0), 0) > 4096) throw new KJValidationError('A drawing proposal supports at most 4096 hatch boundary vertices');
     const entity = (type, payload)=>({
             type,
             payload,
@@ -94,6 +96,26 @@ export function buildAgentDrawingEntities(input, ownerId) {
             return entity('LWPOLYLINE', {
                 vertices: points.map(xyz),
                 closed: polyline.closed
+            });
+        }),
+        ...hatches.map((hatch)=>{
+            if (!hatch.loops.length || hatch.loops.length > 32) throw new KJValidationError('A hatch requires 1–32 boundary loops');
+            const boundaryLoops = hatch.loops.map((loop, loopIndex)=>{
+                const points = loop.vertices;
+                if (points.length < 3 || points.length > 256) throw new KJValidationError('A hatch boundary loop requires 3–256 vertices');
+                if (points.some((point, index)=>index > 0 && same(point, points[index - 1])) || same(points[0], points.at(-1))) throw new KJValidationError('Hatch boundary vertices must form nondegenerate implicit closure without repeating the first point');
+                return {
+                    external: loopIndex === 0,
+                    closed: true,
+                    vertices: points.map(xyz)
+                };
+            });
+            return entity('HATCH', {
+                boundaryLoops,
+                patternName: hatch.patternName,
+                solid: hatch.patternName === 'SOLID',
+                patternScale: hatch.patternScale,
+                patternAngle: hatch.patternAngleDegrees * Math.PI / 180
             });
         })
     ];

@@ -85,6 +85,24 @@ test('annotated drawings combine styled rational splines, arrays and notes in on
   assert.equal(document.getObject(curves[0].payload.layerId).payload.lineweight, 35)
 })
 
+test('annotated drawings combine editable hatch islands, styles and notes in one approval', async () => {
+  const { document, session } = fixture()
+  const hatches = [{ loops: [
+    { vertices: [{ x: 0, y: 0 }, { x: 30, y: 0 }, { x: 30, y: 20 }, { x: 0, y: 20 }] },
+    { vertices: [{ x: 10, y: 5 }, { x: 20, y: 5 }, { x: 20, y: 15 }, { x: 10, y: 15 }] },
+  ], patternName: 'CROSS', patternScale: 1.5, patternAngleDegrees: 15 }]
+  const proposal = value(await session.call(tool, {
+    ...empty(), hatches, texts: [note()],
+    styles: [{ name: 'SECTION', sources: ['hatches:0'], pattern: [], color: 2, lineweight: 25 }],
+  }))
+  assert.deepEqual(proposal.preview.after.map(item => item.type), ['HATCH', 'TEXT'])
+  assert.equal(proposal.preview.after[0].payload.boundaryLoops.length, 2)
+  value(await session.approve(proposal.planId, 'reviewer'))
+  const hatch = document.listEntities({ type: 'HATCH' })[0]
+  assert.equal(hatch.payload.patternName, 'CROSS')
+  assert.equal(document.getObject(hatch.payload.layerId).payload.lineweight, 25)
+})
+
 test('invalid references, degenerate projected dimensions and total annotation budgets leave the drawing unchanged',async()=>{
  const {document,session}=fixture(),source=document.serialize()
  const cases=[]
