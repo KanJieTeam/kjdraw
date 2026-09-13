@@ -216,6 +216,29 @@ async function snapshot(page, width, name) {
   await page.screenshot({ path: `.cache/agent-chat/${name}-${width}.png` })
 }
 
+test('chat displays OpenAI-compatible SSE text incrementally',async({page})=>{
+ await openChat(page)
+ await page.evaluate(()=>{
+  window.chatStreamStates=[]
+  new MutationObserver(()=>{for(const node of document.querySelectorAll('.chat-message-body'))if(node.textContent.includes('Stream'))window.chatStreamStates.push(node.textContent)}).observe(document.querySelector('#chat-messages'),{childList:true,subtree:true,characterData:true})
+ })
+ let requestBody
+ await page.route('**/api/model',route=>{
+  requestBody=route.request().postDataJSON()
+  return route.fulfill({status:200,contentType:'text/event-stream; charset=utf-8',body:[
+   'data: {"choices":[{"index":0,"delta":{"role":"assistant","content":"Stream one"}}]}',
+   '',
+   'data: {"choices":[{"index":0,"delta":{"content":" two"},"finish_reason":"stop"}]}',
+   '',
+   'data: [DONE]','','',
+  ].join('\n')})
+ })
+ await connect(page);await send(page,'Stream a status response.')
+ await expect(page.locator('.chat-message-body').last()).toHaveText('Stream one two')
+ await expect.poll(()=>page.evaluate(()=>window.chatStreamStates)).toContain('Stream one')
+ expect(requestBody.stream).toBe(true);expect(requestBody.stream_options).toEqual({include_usage:true})
+})
+
 test('chat queries the real drawing, previews native geometry, applies once, saves and undoes', async ({ page }) => {
   const errors = [], requests = []
   page.on('pageerror', error => errors.push(error.message))

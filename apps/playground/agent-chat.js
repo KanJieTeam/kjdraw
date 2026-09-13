@@ -1,6 +1,5 @@
 import { KJAgentToolSession } from '../../packages/kjdraw-sdk/src/agent-tools.js'
-import { KJModelError } from '../../packages/kjdraw-sdk/src/model-adapters.js'
-import { createChatModelAdapter, CHAT_OUTPUT_TOKEN_LIMITS } from './chat-model-settings.js'
+import { createChatModelAdapter, CHAT_OUTPUT_TOKEN_LIMITS, readChatModelResponse } from './chat-model-settings.js'
 import { runKJAgentTask } from '../../packages/kjdraw-sdk/src/agent-runner.js'
 import { parseChatDataAttachment, chatDataAttachmentPrompt } from './chat-data-attachment.js'
 import { prepareChatRoadAsset } from './chat-road-asset.js'
@@ -119,6 +118,7 @@ const element = (tag, className, text) => {
 export function createAgentChat(container, options) {
   const L = key => copy[key][options.locale() === 'zh' ? 1 : 0]
   let binding = null, tools = null, model = null, modelLabel = '', controller = null, epoch = 0, pending = [], overlay = null, applying = false
+  let streamTarget = null, streamText = ''
   let dataAttachment = null, dataGeneration = 0, dataLoading = false
   const history = [], translated = []
   const label = (node, key, property = 'textContent') => { translated.push([node,key,property]); node[property] = L(key); return node }
@@ -202,7 +202,7 @@ export function createAgentChat(container, options) {
   function syncContext() {
     const next=options.getContext()
     if (!binding || binding.document!==next.document || binding.sdk!==next.sdk || binding.project!==next.project) {
-      epoch++; controller?.abort(); controller=null; cancelProposals('chat-document-change')
+      epoch++; controller?.abort(); controller=null; streamTarget=null; streamText=''; cancelProposals('chat-document-change')
       binding=next; attach.checked=false; clearData(); tools=new KJAgentToolSession(next.sdk,next.document)
       history.length=0; log.replaceChildren(welcome); welcome.hidden=false; busy(false)
     } else if (!applying && pending.some(item=>item.proposal.expectedRevision!==next.document.revision)) {
@@ -215,21 +215,12 @@ export function createAgentChat(container, options) {
     connection.textContent=model?`${L('configured')} · ${modelLabel}`:L('connect')
     connection.title=modelLabel||L('offline')
   }
-  async function responseJson(response) {
-    const reader=response.body.getReader(), chunks=[]; let length=0
-    try { while(true){const {value,done}=await reader.read();if(done)break;length+=value.byteLength;if(length>2097152)throw new Error('Model response exceeds budget');chunks.push(value)} }
-    finally { await reader.cancel().catch(()=>{}); reader.releaseLock() }
-    const bytes=new Uint8Array(length); let offset=0
-    for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
-    const json=JSON.parse(new TextDecoder().decode(bytes))
-    if(!response.ok){if(json?.error?.code==='MODEL_TOKEN_LIMIT')throw new KJModelError('KJMODEL_SERVER_TOKEN_LIMIT','Server output-token policy rejected the request');throw new Error('Model endpoint failed')}
-    return json
-  }
   configure.onclick=()=>{
     try {
       const url=new URL(endpoint.value,location.href), modelName=name.value.trim()
       if(!endpoint.value.trim()||url.origin!==location.origin||!['http:','https:'].includes(url.protocol)||url.username||url.password||!modelName)throw new Error('Invalid connection')
-      const next=createChatModelAdapter({protocol:protocol.value,model:modelName,maxOutputTokens:Number(outputTokens.value),request:async({body,signal})=>responseJson(await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal,credentials:'same-origin',redirect:'error'}))})
+      const streaming=protocol.value==='chat-completions'
+      const next=createChatModelAdapter({protocol:protocol.value,model:modelName,maxOutputTokens:Number(outputTokens.value),...(streaming?{chatStreaming:true,chatStreamIncludeUsage:true,onTextDelta:delta=>{if(!streamTarget||!streamTarget.isConnected)return;streamText=(streamText+delta).slice(-16000);streamTarget.textContent=streamText}}:{}),request:async({body,signal})=>readChatModelResponse(await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal,credentials:'same-origin',redirect:'error'}))})
       setConnection(next,modelName); settings.hidden=true; connection.setAttribute('aria-expanded','false'); connectionError.textContent=''; input.focus()
     } catch { connectionError.textContent=L('invalidConnection') }
   }
@@ -359,6 +350,7 @@ export function createAgentChat(container, options) {
     const userMessage=append('user',text); input.value=''
     if(attachedData){userMessage.append(attachmentView(attachedData));history[history.length-1].text+=`\n[User attached ${JSON.stringify(attachedData.name)} for that request only; content is not retained in subsequent requests.]`;clearData()}
     const activity=append('assistant',L('working'),false), source=binding, current=++epoch
+    streamTarget=activity.querySelector('.chat-message-body');streamText=''
     controller=new AbortController(); busy(true)
     try {
       // A fresh session cannot retain a recipe invalidated by Undo, manual editing or a project reopen.
@@ -407,12 +399,12 @@ export function createAgentChat(container, options) {
         for(const output of result.outputs)if(output.result.ok&&output.result.value?.status==='awaiting-host-approval')showProposal(output.result.value)
       }
     } catch {if(current===epoch){activity.remove();append('assistant',L('failed'))}}
-    finally {if(current===epoch){controller=null;busy(false);input.focus();syncContext()}}
+    finally {if(current===epoch){streamTarget=null;streamText='';controller=null;busy(false);input.focus();syncContext()}}
   }
   send.onclick=submit
   input.onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();submit()}}
   stop.onclick=()=>controller?.abort()
-  reset.onclick=()=>{epoch++;controller?.abort();controller=null;cancelProposals();clearData();history.length=0;log.replaceChildren(welcome);welcome.hidden=false;tools=new KJAgentToolSession(binding.sdk,binding.document);input.value='';busy(false);input.focus()}
+  reset.onclick=()=>{epoch++;controller?.abort();controller=null;streamTarget=null;streamText='';cancelProposals();clearData();history.length=0;log.replaceChildren(welcome);welcome.hidden=false;tools=new KJAgentToolSession(binding.sdk,binding.document);input.value='';busy(false);input.focus()}
   const relabel=()=>{for(const [node,key,property]of translated)node[property]=L(key);reset.textContent='＋';setConnection(model,modelLabel);syncContext()}
   document.addEventListener('kjdraw:language',relabel)
   syncContext();setConnection(null)

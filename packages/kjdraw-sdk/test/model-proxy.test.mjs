@@ -4,6 +4,7 @@ import { createServer, request as httpRequest } from 'node:http'
 import { once } from 'node:events'
 import { createModelProxy, modelProxyFromEnvironment } from '../../../scripts/model-proxy.mjs'
 import { createKJModelAdapter } from '../src/model-adapters.js'
+import { readChatModelResponse } from '../../../apps/playground/chat-model-settings.js'
 
 const protocols = ['responses', 'chat-completions', 'anthropic-messages', 'gemini-generate-content']
 const body = { model: 'fixed-model', messages: [], max_tokens: 32, stream: false }
@@ -62,7 +63,7 @@ test('local model proxy connects all four SDK model adapters over HTTP with serv
   })
 })
 
-test('model proxy rejects cross-origin, missing-origin, DNS-rebinding, wrong-model and streaming requests before upstream access', async t => {
+test('model proxy rejects cross-origin, missing-origin, DNS-rebinding and invalid requests before upstream access', async t => {
   let requests = 0
   const app = await fixture(t, (req, res) => { requests++; req.resume(); json(res, {}) })
   const invalid = [
@@ -73,13 +74,40 @@ test('model proxy rejects cross-origin, missing-origin, DNS-rebinding, wrong-mod
     [{ method: 'GET', body: undefined }, 405],
     [{ body: '{broken' }, 400],
     [{ body: JSON.stringify({ ...body, model: 'other-model' }) }, 400],
-    [{ body: JSON.stringify({ ...body, stream: true }) }, 400],
     [{ body: JSON.stringify({ ...body, stream: 'true' }) }, 400],
+    [{ body: JSON.stringify({ ...body, tool_stream: true }) }, 400],
     [{ body: JSON.stringify({ ...body, max_tokens: 999999 }) }, 400],
     [{ body: JSON.stringify({ model: 'fixed-model', messages: [] }) }, 400],
   ]
   for (const [settings, status] of invalid) assert.equal((await app.post(body, settings)).status, status)
   assert.equal(requests, 0)
+})
+
+test('model proxy streams OpenAI-compatible SSE into the SDK without exposing credentials', async t => {
+  const seen=[]
+  const app=await fixture(t,async(req,res)=>{
+    const chunks=[];for await(const chunk of req)chunks.push(chunk);seen.push({headers:req.headers,body:JSON.parse(Buffer.concat(chunks))})
+    res.writeHead(200,{'Content-Type':'text/event-stream'})
+    res.write('data: {"choices":[{"index":0,"delta":{"role":"assistant","content":"CAD "}}]}\n\n')
+    await new Promise(resolve=>setTimeout(resolve,10))
+    res.write('data: {"choices":[{"index":0,"delta":{"content":"ready"},"finish_reason":"stop"}]}\n\n')
+    res.end('data: {"choices":[],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}\n\ndata: [DONE]\n\n')
+  },{chatStreamToolCalls:true})
+  const deltas=[]
+  const model=createKJModelAdapter({protocol:'chat-completions',model:'fixed-model',chatStreaming:true,chatStreamIncludeUsage:true,onTextDelta:delta=>deltas.push(delta),request:async({body,signal})=>{
+    const response=await app.post(body,{signal});assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/^text\/event-stream/);assert.equal(response.headers.get('access-control-allow-origin'),null)
+    return readChatModelResponse(response)
+  }})
+  const turn=await model.createConversation({instructions:'Read only.',tools:[]}).next({kind:'prompt',text:'Hello'},new AbortController().signal)
+  assert.equal(turn.text,'CAD ready');assert.deepEqual(deltas,['CAD ','ready']);assert.equal(turn.usage.totalTokens,5)
+  assert.equal(seen.length,1);assert.equal(seen[0].headers.authorization,'Bearer server-only-secret');assert.equal(seen[0].body.stream,true);assert.equal(seen[0].body.stream_options.include_usage,true);assert.equal(seen[0].body.tool_stream,true)
+})
+
+test('model proxy terminates an SSE event that completes a reflected credential',async t=>{
+ const app=await fixture(t,async(req,res)=>{req.resume();res.writeHead(200,{'Content-Type':'text/event-stream'});res.write('data: {"choices":[{"delta":{"content":"server-only-"}}]}\n\n');await new Promise(resolve=>setTimeout(resolve,10));res.end('data: {"choices":[{"delta":{"content":"secret"},"finish_reason":"stop"}]}\n\n')})
+ const response=await app.post({...body,stream:true});assert.equal(response.status,502)
+ const received=await response.text()
+ assert.ok(!received.includes('server-only-'));assert.ok(!received.includes('server-only-secret'))
 })
 
 test('model proxy enforces both declared and chunked request byte limits', async t => {

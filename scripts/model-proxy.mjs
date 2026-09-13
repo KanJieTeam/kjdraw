@@ -58,6 +58,75 @@ async function readResponse(response, limit) {
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
 }
 
+function containsCredential(value, apiKey, tails, path = '$') {
+  if (!apiKey) return false
+  if (typeof value === 'string') {
+    const combined = (tails.get(path) ?? '') + value
+    tails.set(path, combined.slice(Math.max(0, combined.length - apiKey.length + 1)))
+    return combined.includes(apiKey)
+  }
+  if (Array.isArray(value)) return value.some((item, index) => containsCredential(item, apiKey, tails, `${path}.${index}`))
+  if (object(value)) return Object.entries(value).some(([key, item]) => containsCredential(item, apiKey, tails, `${path}.${key}`))
+  return false
+}
+
+function hasCredentialPrefix(apiKey, tails) {
+  if (!apiKey) return false
+  return [...tails.values()].some(tail => {
+    for (let length = Math.min(tail.length, apiKey.length - 1); length > 0; length--) if (apiKey.startsWith(tail.slice(-length))) return true
+    return false
+  })
+}
+
+async function streamResponse(response, res, limit, apiKey) {
+  if (!response.ok || !response.body) { await response.body?.cancel(); throw new ProxyError(502, 'MODEL_UPSTREAM_FAILED') }
+  if (!/^text\/event-stream(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) throw new ProxyError(502, 'MODEL_RESPONSE_INVALID')
+  const reader = response.body.getReader(), decoder = new TextDecoder('utf-8', { fatal: true }), tails = new Map()
+  let bytes = 0, buffer = '', data = [], pending = [], wrote = false, finished = false
+  const write = async payload => {
+    if (!wrote) {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Accel-Buffering': 'no' })
+      wrote = true
+    }
+    if (!res.write(`data: ${payload}\n\n`)) await new Promise((resolve, reject) => { res.once('drain', resolve); res.once('error', reject) })
+  }
+  const emit = async () => {
+    const payload = data.join('\n'); data = []
+    if (!payload) return
+    if (payload === '[DONE]') {
+      if (pending.length) throw new ProxyError(502, 'MODEL_UPSTREAM_FAILED')
+      finished = true; await write(payload); return
+    } else {
+      let value
+      try { value = JSON.parse(payload) } catch { throw new ProxyError(502, 'MODEL_RESPONSE_INVALID') }
+      const escaped = JSON.stringify(apiKey ?? '').slice(1, -1)
+      if (!object(value) || (apiKey && (payload.includes(apiKey) || (escaped && payload.includes(escaped)) || containsCredential(value, apiKey, tails)))) throw new ProxyError(502, 'MODEL_UPSTREAM_FAILED')
+    }
+    pending.push(payload)
+    if (hasCredentialPrefix(apiKey, tails)) return
+    const ready = pending; pending = []
+    for (const item of ready) await write(item)
+  }
+  try {
+    while (!finished) {
+      const { done, value } = await reader.read(); if (done) break
+      bytes += value.byteLength; if (bytes > limit) throw new ProxyError(502, 'MODEL_RESPONSE_LIMIT')
+      buffer += decoder.decode(value, { stream: true })
+      let newline
+      while ((newline = buffer.indexOf('\n')) >= 0) {
+        let line = buffer.slice(0, newline); buffer = buffer.slice(newline + 1); if (line.endsWith('\r')) line = line.slice(0, -1)
+        if (line === '') await emit()
+        else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''))
+      }
+    }
+    buffer += decoder.decode()
+    if (!finished && buffer) { if (buffer.endsWith('\r')) buffer = buffer.slice(0, -1); if (buffer.startsWith('data:')) data.push(buffer.slice(5).replace(/^ /, '')) }
+    if (!finished) await emit()
+    if (!wrote) throw new ProxyError(502, 'MODEL_RESPONSE_INVALID')
+    res.end()
+  } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
+}
+
 /** Accept the SDK adapter's JSON body; the server alone chooses protocol, model and endpoint. */
 export function createModelProxy(options) {
   const { protocol, model, endpoint, apiKey } = options
@@ -71,6 +140,7 @@ export function createModelProxy(options) {
   const responseBytes = positiveLimit(options.maxResponseBytes, 1048576, 16777216)
   const timeoutMs = positiveLimit(options.timeoutMs, 60000, 120000)
   const maxOutputTokens = positiveLimit(options.maxOutputTokens, 16384, 131072)
+  if (options.chatStreamToolCalls !== undefined && typeof options.chatStreamToolCalls !== 'boolean') throw new Error('Invalid model proxy stream-tool setting')
   const headers = { 'Content-Type': 'application/json' }
   if (protocol === 'anthropic-messages') { headers['anthropic-version'] = '2023-06-01'; if (apiKey) headers['x-api-key'] = apiKey }
   else if (protocol === 'gemini-generate-content') { if (apiKey) headers['x-goog-api-key'] = apiKey }
@@ -96,25 +166,30 @@ export function createModelProxy(options) {
       timer = setTimeout(() => controller.abort(new ProxyError(504, 'MODEL_TIMEOUT')), timeoutMs)
       let body
       try { body = JSON.parse(await readRequest(req, requestBytes, controller.signal)) } catch (error) { if (error instanceof ProxyError) throw error; throw new ProxyError(400, 'MODEL_REQUEST_INVALID') }
-      if (!object(body) || (body.stream !== undefined && body.stream !== false) || (protocol === 'gemini-generate-content' ? 'model' in body : body.model !== model)) throw new ProxyError(400, 'MODEL_REQUEST_INVALID')
+      if (!object(body) || (body.stream !== undefined && typeof body.stream !== 'boolean') || (body.stream === true && protocol !== 'chat-completions') || 'tool_stream' in body || (protocol === 'gemini-generate-content' ? 'model' in body : body.model !== model)) throw new ProxyError(400, 'MODEL_REQUEST_INVALID')
       const tokenLimits = protocol === 'gemini-generate-content' ? [body.generationConfig?.maxOutputTokens] : protocol === 'responses' ? [body.max_output_tokens] : [body.max_tokens, body.max_completion_tokens].filter(value => value !== undefined)
       if (!tokenLimits.length || tokenLimits.some(value => !Number.isSafeInteger(value) || value < 1 || value > maxOutputTokens)) throw new ProxyError(400, 'MODEL_TOKEN_LIMIT')
+      if (body.stream === true && options.chatStreamToolCalls === true) body.tool_stream = true
       const response = await fetch(upstream, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal, redirect: 'error' })
+      if (body.stream === true && /^text\/event-stream(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) { await streamResponse(response, res, responseBytes, apiKey); return }
       const result = await readResponse(response, responseBytes)
       if (apiKey && JSON.stringify(result).includes(apiKey)) throw new ProxyError(502, 'MODEL_UPSTREAM_FAILED')
       respond(200, result)
     } catch (error) {
       const failure = controller.signal.aborted ? controller.signal.reason : error
-      respond(failure instanceof ProxyError ? failure.status : 502, { error: { code: failure instanceof ProxyError ? failure.code : 'MODEL_UPSTREAM_FAILED' } })
+      if (res.headersSent) res.destroy()
+      else respond(failure instanceof ProxyError ? failure.status : 502, { error: { code: failure instanceof ProxyError ? failure.code : 'MODEL_UPSTREAM_FAILED' } })
     } finally { clearTimeout(timer); res.off('close', disconnect) }
   }
 }
 
 export function modelProxyFromEnvironment(env = process.env) {
-  const names = ['KJDRAW_MODEL_PROTOCOL', 'KJDRAW_MODEL_NAME', 'KJDRAW_MODEL_ENDPOINT', 'KJDRAW_MODEL_API_KEY', 'KJDRAW_MODEL_MAX_OUTPUT_TOKENS']
+  const names = ['KJDRAW_MODEL_PROTOCOL', 'KJDRAW_MODEL_NAME', 'KJDRAW_MODEL_ENDPOINT', 'KJDRAW_MODEL_API_KEY', 'KJDRAW_MODEL_MAX_OUTPUT_TOKENS', 'KJDRAW_MODEL_CHAT_TOOL_STREAM']
   if (!names.some(name => env[name] !== undefined)) return null
   if (!names.slice(0, 3).every(name => env[name])) throw new Error('Set KJDRAW_MODEL_PROTOCOL, KJDRAW_MODEL_NAME and KJDRAW_MODEL_ENDPOINT together')
   const configuredLimit=env.KJDRAW_MODEL_MAX_OUTPUT_TOKENS
   if(configuredLimit!==undefined&&(typeof configuredLimit!=='string'||!/^\d+$/.test(configuredLimit)))throw new Error('Set KJDRAW_MODEL_MAX_OUTPUT_TOKENS to an integer from 1 to 131072')
-  return createModelProxy({ protocol: env.KJDRAW_MODEL_PROTOCOL, model: env.KJDRAW_MODEL_NAME, endpoint: env.KJDRAW_MODEL_ENDPOINT, apiKey: env.KJDRAW_MODEL_API_KEY, ...(configuredLimit===undefined?{}:{maxOutputTokens:positiveLimit(Number(configuredLimit),16384,131072)}) })
+  const toolStream=env.KJDRAW_MODEL_CHAT_TOOL_STREAM
+  if(toolStream!==undefined&&!['true','false'].includes(toolStream))throw new Error('Set KJDRAW_MODEL_CHAT_TOOL_STREAM to true or false')
+  return createModelProxy({ protocol: env.KJDRAW_MODEL_PROTOCOL, model: env.KJDRAW_MODEL_NAME, endpoint: env.KJDRAW_MODEL_ENDPOINT, apiKey: env.KJDRAW_MODEL_API_KEY, ...(configuredLimit===undefined?{}:{maxOutputTokens:positiveLimit(Number(configuredLimit),16384,131072)}), ...(toolStream===undefined?{}:{chatStreamToolCalls:toolStream==='true'}) })
 }
