@@ -362,7 +362,7 @@ function geometryCheck(value: unknown, requirementId: string): KJDrawingValidati
   const tolerance = geometryNumber(row.tolerance, 'geometry tolerance')
   if (kind === 'point-distance') return { id: requirementId, kind, from: geometryReference(row.from), to: geometryReference(row.to), expected: geometryNumber(row.expected, 'geometry expected value'), tolerance }
   const objectId = text(row.objectId, 'geometry object ID', 256)
-  if (['line-length', 'circle-radius', 'ellipse-major-radius', 'ellipse-minor-radius', 'spline-length', 'dimension-measurement'].includes(kind)) return { id: requirementId, kind: kind as 'line-length' | 'circle-radius' | 'ellipse-major-radius' | 'ellipse-minor-radius' | 'spline-length' | 'dimension-measurement', objectId, expected: geometryNumber(row.expected, 'geometry expected value'), tolerance }
+  if (['line-length', 'circle-radius', 'ellipse-major-radius', 'ellipse-minor-radius', 'spline-length', 'dimension-measurement', 'hatch-area'].includes(kind)) return { id: requirementId, kind: kind as 'line-length' | 'circle-radius' | 'ellipse-major-radius' | 'ellipse-minor-radius' | 'spline-length' | 'dimension-measurement' | 'hatch-area', objectId, expected: geometryNumber(row.expected, 'geometry expected value'), tolerance }
   if (kind === 'polyline-closed') {
     if (typeof row.expected !== 'boolean' || tolerance !== 0) fail('polyline closure requires a boolean expected value and zero tolerance')
     return { id: requirementId, kind, objectId, expected: row.expected, tolerance: 0 }
@@ -370,6 +370,12 @@ function geometryCheck(value: unknown, requirementId: string): KJDrawingValidati
   if (kind === 'polyline-vertex-count') {
     const expected = integer(row.expected, 'polyline expected vertex count', 2)
     if (tolerance !== 0) fail('polyline vertex count requires zero tolerance')
+    return { id: requirementId, kind, objectId, expected, tolerance: 0 }
+  }
+  if (kind === 'hatch-loop-count') {
+    const expected = integer(row.expected, 'hatch expected loop count', 1)
+    if (expected > 64) fail('hatch expected loop count must not exceed 64')
+    if (tolerance !== 0) fail('hatch loop count requires zero tolerance')
     return { id: requirementId, kind, objectId, expected, tolerance: 0 }
   }
   if (kind === 'polyline-segment-bulge') {
@@ -436,7 +442,7 @@ function progress(value: unknown, definition: KJAgentTaskDefinition): { steps: K
 function receiptCheck(value: unknown): KJDrawingValidationCheckResult {
   const row = plain(value, ['id', 'kind', 'actual', 'expected', 'error', 'tolerance', 'passed', 'references'], 'receipt geometry check')
   const id = identifier(row.id, 'receipt check id'), kind = String(row.kind)
-  if (!['line-length', 'circle-radius', 'ellipse-major-radius', 'ellipse-minor-radius', 'spline-length', 'dimension-measurement', 'point-distance', 'polyline-closed', 'polyline-vertex-count', 'polyline-segment-bulge'].includes(kind)) fail('receipt geometry check kind is invalid')
+  if (!['line-length', 'circle-radius', 'ellipse-major-radius', 'ellipse-minor-radius', 'spline-length', 'dimension-measurement', 'hatch-area', 'point-distance', 'polyline-closed', 'polyline-vertex-count', 'hatch-loop-count', 'polyline-segment-bulge'].includes(kind)) fail('receipt geometry check kind is invalid')
   if (typeof row.passed !== 'boolean') fail('receipt geometry check result is invalid')
   const actual = row.actual, expected = row.expected
   if (!(typeof actual === 'boolean' || typeof actual === 'number' && Number.isFinite(actual)) || !(typeof expected === 'boolean' || typeof expected === 'number' && Number.isFinite(expected))) fail('receipt geometry values are invalid')
@@ -458,7 +464,7 @@ function receiptCheck(value: unknown): KJDrawingValidationCheckResult {
     : typeof actual === 'number' && typeof expected === 'number' ? Math.abs(actual - expected) : NaN
   if (!Number.isFinite(computedError) || error !== computedError || row.passed !== (error <= tolerance)) fail('receipt geometry evidence is internally inconsistent')
   if (kind === 'point-distance' ? references.length !== 2 || references.some(reference => !reference.feature) : references.length !== 1 || references.some(reference => reference.feature)) fail('receipt geometry references do not match the check kind')
-  if (kind === 'polyline-closed' && (typeof actual !== 'boolean' || typeof expected !== 'boolean' || tolerance !== 0) || kind !== 'polyline-closed' && (typeof actual !== 'number' || typeof expected !== 'number') || kind === 'polyline-vertex-count' && (!Number.isSafeInteger(actual) || !Number.isSafeInteger(expected) || tolerance !== 0)) fail('receipt geometry value types do not match the check kind')
+  if (kind === 'polyline-closed' && (typeof actual !== 'boolean' || typeof expected !== 'boolean' || tolerance !== 0) || kind !== 'polyline-closed' && (typeof actual !== 'number' || typeof expected !== 'number') || ['polyline-vertex-count', 'hatch-loop-count'].includes(kind) && (!Number.isSafeInteger(actual) || !Number.isSafeInteger(expected) || tolerance !== 0)) fail('receipt geometry value types do not match the check kind')
   return { id, kind: kind as KJDrawingValidationCheck['kind'], actual, expected, error, tolerance, passed: row.passed, references }
 }
 function geometryReceipt(value: unknown): KJAgentTaskGeometryReceipt {

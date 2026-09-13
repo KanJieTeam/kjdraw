@@ -9,10 +9,11 @@ import { ellipseRadii, splineLength2, type EllipseDefinition, type SplineDefinit
 export type KJDrawingValidationFeature = 'start' | 'end' | 'center' | 'origin' | 'vertex'
 export interface KJDrawingValidationPointReference { objectId: string; feature: KJDrawingValidationFeature; vertexIndex?: number }
 export type KJDrawingValidationCheck =
-  | { id: string; kind: 'line-length' | 'circle-radius' | 'ellipse-major-radius' | 'ellipse-minor-radius' | 'spline-length' | 'dimension-measurement'; objectId: string; expected: number; tolerance: number }
+  | { id: string; kind: 'line-length' | 'circle-radius' | 'ellipse-major-radius' | 'ellipse-minor-radius' | 'spline-length' | 'dimension-measurement' | 'hatch-area'; objectId: string; expected: number; tolerance: number }
   | { id: string; kind: 'point-distance'; from: KJDrawingValidationPointReference; to: KJDrawingValidationPointReference; expected: number; tolerance: number }
   | { id: string; kind: 'polyline-closed'; objectId: string; expected: boolean; tolerance: 0 }
   | { id: string; kind: 'polyline-vertex-count'; objectId: string; expected: number; tolerance: 0 }
+  | { id: string; kind: 'hatch-loop-count'; objectId: string; expected: number; tolerance: 0 }
   | { id: string; kind: 'polyline-segment-bulge'; objectId: string; segmentIndex: number; expected: number; tolerance: number }
 export interface KJDrawingValidationInput { expectedRevision: number; units: string; checks: readonly KJDrawingValidationCheck[] }
 export interface KJDrawingValidationReference { readonly objectId: string; readonly ownerId: string; readonly feature?: KJDrawingValidationFeature; readonly vertexIndex?: number; readonly segmentIndex?: number }
@@ -123,6 +124,41 @@ function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDra
       return row
     })
   }
+  const hatchLoops = (object: KJReadonlyObjectRecord): readonly Record<string, unknown>[] => {
+    if (object.type !== 'HATCH') fail('Hatch check requires a native HATCH with boundary loops')
+    const loops = Array.isArray(object.payload.boundaryLoops) ? object.payload.boundaryLoops : fail('Hatch check requires a native HATCH with boundary loops')
+    if (!loops.length) fail('Hatch check requires a native HATCH with boundary loops')
+    if (loops.length > 64) fail('Hatch checks exceed the 64-loop budget')
+    return loops.map((value: unknown) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) fail('Hatch checks require canonical boundary loops')
+      return value as Record<string, unknown>
+    })
+  }
+  const hatchArea = (object: KJReadonlyObjectRecord): number => {
+    let area = 0
+    for (const [loopIndex, loop] of hatchLoops(object).entries()) {
+      const vertices = Array.isArray(loop.vertices) ? loop.vertices : fail('hatch-area currently requires polygonal vertex boundary loops')
+      if (vertices.length < 3) fail('hatch-area currently requires polygonal vertex boundary loops')
+      verticesInspected += vertices.length
+      if (verticesInspected > 20000) fail('Hatch checks exceed the 20000-vertex budget')
+      const points = vertices.map((value: unknown) => {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) fail('hatch-area requires canonical vertices')
+        const vertex = value as Record<string, unknown>, p = point(vertex.point)
+        if (p[2] !== 0 || vertex.bulge !== 0) fail('hatch-area requires straight polygonal XY loops without bulges')
+        return p
+      })
+      let signed = 0
+      for (let index = 0; index < points.length; index++) {
+        const current = points[index]!, next = points[(index + 1) % points.length]!
+        signed += current[0] * next[1] - next[0] * current[1]
+      }
+      const loopArea = Math.abs(signed / 2)
+      if (!(loopArea > 0)) fail(`hatch-area boundary loop ${loopIndex} has zero area`)
+      area += loop.external === false ? -loopArea : loopArea
+    }
+    if (!(area >= 0)) fail('hatch-area islands exceed the external boundary area')
+    return boundedNumber(area, 'Hatch area')
+  }
   const featurePoint = (value: unknown, refs: KJDrawingValidationReference[]): readonly [number, number, number] => {
     const ref = record(value, ['objectId', 'feature', 'vertexIndex'], 'Point reference')
     if (!['start', 'end', 'center', 'origin', 'vertex'].includes(ref.feature as string)) return fail('Unsupported geometry point feature')
@@ -147,7 +183,7 @@ function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDra
     const id = text(item.id, 'Check id')
     if (ids.has(id)) fail('Check ids must be unique')
     ids.add(id)
-    if (!['line-length', 'circle-radius', 'ellipse-major-radius', 'ellipse-minor-radius', 'spline-length', 'dimension-measurement', 'point-distance', 'polyline-closed', 'polyline-vertex-count', 'polyline-segment-bulge'].includes(item.kind as string)) return fail('Unsupported geometry check kind')
+    if (!['line-length', 'circle-radius', 'ellipse-major-radius', 'ellipse-minor-radius', 'spline-length', 'dimension-measurement', 'hatch-area', 'point-distance', 'polyline-closed', 'polyline-vertex-count', 'hatch-loop-count', 'polyline-segment-bulge'].includes(item.kind as string)) return fail('Unsupported geometry check kind')
     const kind = item.kind as KJDrawingValidationCheck['kind'], refs: KJDrawingValidationReference[] = []
     const tolerance = boundedNumber(item.tolerance, 'tolerance')
     let actual: number | boolean, expected: number | boolean
@@ -186,6 +222,9 @@ function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDra
         if (!projection) return fail('dimension-measurement requires supported nondegenerate native dimension geometry')
         actual = boundedNumber(projection.measurement, 'Dimension measurement')
         expected = boundedNumber(item.expected, 'expected')
+      } else if (kind === 'hatch-area') {
+        actual = hatchArea(object)
+        expected = boundedNumber(item.expected, 'expected')
       } else if (kind === 'polyline-closed') {
         polylineVertices(object)
         // Two bulged segments may form a valid closed contour; this checks closure,
@@ -198,6 +237,11 @@ function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDra
         const vertices = polylineVertices(object)
         if (!Number.isSafeInteger(item.expected) || (item.expected as number) < 2 || tolerance !== 0) fail('polyline-vertex-count requires an integer expected value of at least two and tolerance 0')
         actual = vertices.length
+        expected = item.expected as number
+      } else if (kind === 'hatch-loop-count') {
+        const loops = hatchLoops(object)
+        if (!Number.isSafeInteger(item.expected) || (item.expected as number) < 1 || tolerance !== 0) fail('hatch-loop-count requires a positive integer expected value and tolerance 0')
+        actual = loops.length
         expected = item.expected as number
       } else {
         const vertices = polylineVertices(object)

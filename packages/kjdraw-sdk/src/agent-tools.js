@@ -858,7 +858,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_check_geometry',
         effect: 'read',
-        description: 'Check 1–64 explicit requirements against actual drawing objects at expectedRevision. Supply lineLengths, circleRadii, pointDistances and polylineClosures; ellipseMajorRadii, ellipseMinorRadii, splineLengths, dimensionMeasurements, polylineVertexCounts and polylineSegmentBulges are optional additive groups. LINE lengths and point distances use native owner coordinates in 3D; point references may address a native polyline vertex with feature=vertex and vertexIndex. Circle and ellipse radii are intrinsic; spline length follows the native rational B-spline. Native DIMENSION measurements use drawing units for linear/radius/diameter and degrees for angular dimensions. Polyline checks inspect the stored closed flag, vertex count or signed segment bulge; they do not infer topology. Returns actual values, deviations, tolerances and pass/fail for supplied requirements only. Does not infer user intent, certify a design, modify or approve a drawing.',
+        description: 'Check 1–64 explicit requirements against actual drawing objects at expectedRevision. Supply lineLengths, circleRadii, pointDistances and polylineClosures; ellipseMajorRadii, ellipseMinorRadii, splineLengths, dimensionMeasurements, hatchAreas, hatchLoopCounts, polylineVertexCounts and polylineSegmentBulges are optional additive groups. LINE lengths and point distances use native owner coordinates in 3D; point references may address a native polyline vertex with feature=vertex and vertexIndex. Circle and ellipse radii are intrinsic; spline length follows the native rational B-spline. Native DIMENSION measurements use drawing units for linear/radius/diameter and degrees for angular dimensions. Hatch area is exact for straight polygonal XY loops and subtracts island loops; unsupported curved boundaries fail closed. Polyline and hatch checks inspect stored topology fields and do not infer user intent. Returns actual values, deviations, tolerances and pass/fail for supplied requirements only. Does not certify a design, modify or approve a drawing.',
         inputSchema: (()=>{
             const schema = object({
                 expectedRevision: revision,
@@ -869,6 +869,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
                 ellipseMinorRadii: drawingGroup(measuredObject),
                 splineLengths: drawingGroup(measuredObject),
                 dimensionMeasurements: drawingGroup(measuredObject),
+                hatchAreas: drawingGroup(measuredObject),
                 pointDistances: drawingGroup(object({
                     id: text,
                     from: pointReference,
@@ -890,6 +891,15 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
                         type: 'integer',
                         minimum: 2,
                         maximum: 20000
+                    }
+                })),
+                hatchLoopCounts: drawingGroup(object({
+                    id: text,
+                    objectId: text,
+                    expected: {
+                        type: 'integer',
+                        minimum: 1,
+                        maximum: 64
                     }
                 })),
                 polylineSegmentBulges: drawingGroup(object({
@@ -1637,6 +1647,10 @@ export class KJAgentToolSession {
                                         ...item,
                                         kind: 'dimension-measurement'
                                     })),
+                                ...(input.hatchAreas ?? []).map((item)=>({
+                                        ...item,
+                                        kind: 'hatch-area'
+                                    })),
                                 ...input.pointDistances.map((item)=>({
                                         ...item,
                                         kind: 'point-distance'
@@ -1649,6 +1663,11 @@ export class KJAgentToolSession {
                                 ...(input.polylineVertexCounts ?? []).map((item)=>({
                                         ...item,
                                         kind: 'polyline-vertex-count',
+                                        tolerance: 0
+                                    })),
+                                ...(input.hatchLoopCounts ?? []).map((item)=>({
+                                        ...item,
+                                        kind: 'hatch-loop-count',
                                         tolerance: 0
                                     })),
                                 ...(input.polylineSegmentBulges ?? []).map((item)=>({

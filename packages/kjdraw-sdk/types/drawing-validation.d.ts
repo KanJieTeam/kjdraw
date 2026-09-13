@@ -8,7 +8,7 @@ export interface KJDrawingValidationPointReference {
 }
 export type KJDrawingValidationCheck = {
     id: string;
-    kind: 'line-length' | 'circle-radius' | 'ellipse-major-radius' | 'ellipse-minor-radius' | 'spline-length' | 'dimension-measurement';
+    kind: 'line-length' | 'circle-radius' | 'ellipse-major-radius' | 'ellipse-minor-radius' | 'spline-length' | 'dimension-measurement' | 'hatch-area';
     objectId: string;
     expected: number;
     tolerance: number;
@@ -28,6 +28,12 @@ export type KJDrawingValidationCheck = {
 } | {
     id: string;
     kind: 'polyline-vertex-count';
+    objectId: string;
+    expected: number;
+    tolerance: 0;
+} | {
+    id: string;
+    kind: 'hatch-loop-count';
     objectId: string;
     expected: number;
     tolerance: 0;

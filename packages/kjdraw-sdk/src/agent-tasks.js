@@ -286,7 +286,8 @@ function geometryCheck(value, requirementId) {
         'ellipse-major-radius',
         'ellipse-minor-radius',
         'spline-length',
-        'dimension-measurement'
+        'dimension-measurement',
+        'hatch-area'
     ].includes(kind)) return {
         id: requirementId,
         kind: kind,
@@ -307,6 +308,18 @@ function geometryCheck(value, requirementId) {
     if (kind === 'polyline-vertex-count') {
         const expected = integer(row.expected, 'polyline expected vertex count', 2);
         if (tolerance !== 0) fail('polyline vertex count requires zero tolerance');
+        return {
+            id: requirementId,
+            kind,
+            objectId,
+            expected,
+            tolerance: 0
+        };
+    }
+    if (kind === 'hatch-loop-count') {
+        const expected = integer(row.expected, 'hatch expected loop count', 1);
+        if (expected > 64) fail('hatch expected loop count must not exceed 64');
+        if (tolerance !== 0) fail('hatch loop count requires zero tolerance');
         return {
             id: requirementId,
             kind,
@@ -491,9 +504,11 @@ function receiptCheck(value) {
         'ellipse-minor-radius',
         'spline-length',
         'dimension-measurement',
+        'hatch-area',
         'point-distance',
         'polyline-closed',
         'polyline-vertex-count',
+        'hatch-loop-count',
         'polyline-segment-bulge'
     ].includes(kind)) fail('receipt geometry check kind is invalid');
     if (typeof row.passed !== 'boolean') fail('receipt geometry check result is invalid');
@@ -538,7 +553,10 @@ function receiptCheck(value) {
     const computedError = typeof actual === 'boolean' && typeof expected === 'boolean' ? actual === expected ? 0 : 1 : typeof actual === 'number' && typeof expected === 'number' ? Math.abs(actual - expected) : NaN;
     if (!Number.isFinite(computedError) || error !== computedError || row.passed !== error <= tolerance) fail('receipt geometry evidence is internally inconsistent');
     if (kind === 'point-distance' ? references.length !== 2 || references.some((reference)=>!reference.feature) : references.length !== 1 || references.some((reference)=>reference.feature)) fail('receipt geometry references do not match the check kind');
-    if (kind === 'polyline-closed' && (typeof actual !== 'boolean' || typeof expected !== 'boolean' || tolerance !== 0) || kind !== 'polyline-closed' && (typeof actual !== 'number' || typeof expected !== 'number') || kind === 'polyline-vertex-count' && (!Number.isSafeInteger(actual) || !Number.isSafeInteger(expected) || tolerance !== 0)) fail('receipt geometry value types do not match the check kind');
+    if (kind === 'polyline-closed' && (typeof actual !== 'boolean' || typeof expected !== 'boolean' || tolerance !== 0) || kind !== 'polyline-closed' && (typeof actual !== 'number' || typeof expected !== 'number') || [
+        'polyline-vertex-count',
+        'hatch-loop-count'
+    ].includes(kind) && (!Number.isSafeInteger(actual) || !Number.isSafeInteger(expected) || tolerance !== 0)) fail('receipt geometry value types do not match the check kind');
     return {
         id,
         kind: kind,

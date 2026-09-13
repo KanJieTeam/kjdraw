@@ -105,6 +105,12 @@ export interface KJAgentGeometryValidationInput {
         expected: number;
         tolerance: number;
     }[];
+    hatchAreas?: {
+        id: string;
+        objectId: string;
+        expected: number;
+        tolerance: number;
+    }[];
     pointDistances: {
         id: string;
         from: KJDrawingValidationPointReference;
@@ -118,6 +124,11 @@ export interface KJAgentGeometryValidationInput {
         expected: boolean;
     }[];
     polylineVertexCounts?: {
+        id: string;
+        objectId: string;
+        expected: number;
+    }[];
+    hatchLoopCounts?: {
         id: string;
         objectId: string;
         expected: number;

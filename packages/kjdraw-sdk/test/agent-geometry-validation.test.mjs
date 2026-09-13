@@ -10,6 +10,10 @@ async function fixture() {
     tx.createEntity('CIRCLE', { center: [3, 4, 0], radius: 2 }, { id: 'circle' })
     tx.createEntity('ELLIPSE', { center: [6, 8, 0], majorAxis: [6, 8, 0], ratio: 0.4, startParameter: 0, endParameter: Math.PI * 2 }, { id: 'ellipse' })
     tx.createEntity('SPLINE', { degree: 1, controlPoints: [[0, 0, 0], [3, 4, 0]], knots: [0, 0, 1, 1] }, { id: 'spline' })
+    tx.createEntity('HATCH', { solid: false, patternName: 'ANSI31', boundaryLoops: [
+      { external: true, vertices: [[0, 0], [10, 0], [10, 8], [0, 8]] },
+      { external: false, vertices: [[2, 2], [4, 2], [4, 5], [2, 5]] },
+    ] }, { id: 'hatch' })
     tx.createEntity('DIMENSION', { dimensionType: 'ALIGNED', definitionPoints: [[0, 2, 0], [0, 0, 0], [3, 4, 0]], textOverride: 'untrusted label' }, { id: 'dimension' })
     tx.createEntity('LWPOLYLINE', { vertices: [[0, 0], [10, 0], [10, 10]], closed: true }, { id: 'closed' })
     tx.createEntity('LINE', { start: [0, 0, 0], end: [3, 4, 0] }, { id: 'paper', ownerId: document.snapshot().spaces.paperSpaceIds[0] })
@@ -40,12 +44,14 @@ test('geometry tool returns exact immutable evidence including native dimensions
   assert.equal(document.serialize(), before)
 })
 
-test('geometry tool validates native ellipse radii and spline length through explicit optional groups', async () => {
+test('geometry tool validates native curves and polygonal hatch topology through explicit optional groups', async () => {
   const { document, session } = await fixture(), before = document.serialize()
   const definition = session.definitions.find(tool => tool.name === 'cad_check_geometry')
   assert.ok(definition.inputSchema.properties.ellipseMajorRadii)
   assert.ok(definition.inputSchema.properties.ellipseMinorRadii)
   assert.ok(definition.inputSchema.properties.splineLengths)
+  assert.ok(definition.inputSchema.properties.hatchAreas)
+  assert.ok(definition.inputSchema.properties.hatchLoopCounts)
   assert.equal(definition.inputSchema.required.includes('ellipseMajorRadii'), false)
   assert.equal(definition.inputSchema.required.includes('splineLengths'), false)
   const result = await session.call('cad_check_geometry', {
@@ -55,12 +61,30 @@ test('geometry tool validates native ellipse radii and spline length through exp
     ellipseMajorRadii: [{ id: 'major', objectId: 'ellipse', expected: 10, tolerance: 0 }],
     ellipseMinorRadii: [{ id: 'minor', objectId: 'ellipse', expected: 4, tolerance: 0 }],
     splineLengths: [{ id: 'spline', objectId: 'spline', expected: 5, tolerance: 1e-12 }],
+    hatchAreas: [{ id: 'hatch-area', objectId: 'hatch', expected: 74, tolerance: 0 }],
+    hatchLoopCounts: [{ id: 'hatch-loops', objectId: 'hatch', expected: 2 }],
   })
   assert.equal(result.ok, true, JSON.stringify(result))
   assert.equal(result.value.passed, true)
-  assert.deepEqual(result.value.checks.map(item => item.kind), ['ellipse-major-radius', 'ellipse-minor-radius', 'spline-length'])
-  assert.deepEqual(result.value.checks.map(item => item.actual), [10, 4, 5])
+  assert.deepEqual(result.value.checks.map(item => item.kind), ['ellipse-major-radius', 'ellipse-minor-radius', 'spline-length', 'hatch-area', 'hatch-loop-count'])
+  assert.deepEqual(result.value.checks.map(item => item.actual), [10, 4, 5, 74, 2])
   assert.equal(document.serialize(), before)
+})
+
+test('hatch geometry checks fail closed for curved, nonplanar and invalid island boundaries', async () => {
+  const { document, session } = await fixture()
+  for (const payload of [
+    { boundaryLoops: [{ edges: [{ type: 'ARC', center: [0, 0, 0], radius: 5, startAngle: 0, endAngle: Math.PI * 2 }] }] },
+    { boundaryLoops: [{ vertices: [[0, 0, 1], [4, 0, 1], [0, 4, 1]] }] },
+    { boundaryLoops: [{ external: true, vertices: [[0, 0], [2, 0], [0, 2]] }, { external: false, vertices: [[0, 0], [4, 0], [0, 4]] }] },
+  ]) {
+    const id = `invalid-hatch-${document.revision}`
+    await document.transact('invalid hatch area fixture', tx => tx.createEntity('HATCH', payload, { id }))
+    const beforeCheck = document.serialize()
+    const result = await session.call('cad_check_geometry', { expectedRevision: document.revision, units: 'millimeter', lineLengths: [], circleRadii: [], pointDistances: [], polylineClosures: [], hatchAreas: [{ id: 'area', objectId: id, expected: 1, tolerance: 0 }] })
+    assert.equal(result.ok, false)
+    assert.equal(document.serialize(), beforeCheck)
+  }
 })
 
 test('a failed requirement is a successful read, not a tool exception or an applied edit', async () => {

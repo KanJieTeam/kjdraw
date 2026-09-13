@@ -106,6 +106,41 @@ function validateDrawingGeometryView(view, input) {
             return row;
         });
     };
+    const hatchLoops = (object)=>{
+        if (object.type !== 'HATCH') fail('Hatch check requires a native HATCH with boundary loops');
+        const loops = Array.isArray(object.payload.boundaryLoops) ? object.payload.boundaryLoops : fail('Hatch check requires a native HATCH with boundary loops');
+        if (!loops.length) fail('Hatch check requires a native HATCH with boundary loops');
+        if (loops.length > 64) fail('Hatch checks exceed the 64-loop budget');
+        return loops.map((value)=>{
+            if (!value || typeof value !== 'object' || Array.isArray(value)) fail('Hatch checks require canonical boundary loops');
+            return value;
+        });
+    };
+    const hatchArea = (object)=>{
+        let area = 0;
+        for (const [loopIndex, loop] of hatchLoops(object).entries()){
+            const vertices = Array.isArray(loop.vertices) ? loop.vertices : fail('hatch-area currently requires polygonal vertex boundary loops');
+            if (vertices.length < 3) fail('hatch-area currently requires polygonal vertex boundary loops');
+            verticesInspected += vertices.length;
+            if (verticesInspected > 20000) fail('Hatch checks exceed the 20000-vertex budget');
+            const points = vertices.map((value)=>{
+                if (!value || typeof value !== 'object' || Array.isArray(value)) fail('hatch-area requires canonical vertices');
+                const vertex = value, p = point(vertex.point);
+                if (p[2] !== 0 || vertex.bulge !== 0) fail('hatch-area requires straight polygonal XY loops without bulges');
+                return p;
+            });
+            let signed = 0;
+            for(let index = 0; index < points.length; index++){
+                const current = points[index], next = points[(index + 1) % points.length];
+                signed += current[0] * next[1] - next[0] * current[1];
+            }
+            const loopArea = Math.abs(signed / 2);
+            if (!(loopArea > 0)) fail(`hatch-area boundary loop ${loopIndex} has zero area`);
+            area += loop.external === false ? -loopArea : loopArea;
+        }
+        if (!(area >= 0)) fail('hatch-area islands exceed the external boundary area');
+        return boundedNumber(area, 'Hatch area');
+    };
     const featurePoint = (value, refs)=>{
         const ref = record(value, [
             'objectId',
@@ -170,9 +205,11 @@ function validateDrawingGeometryView(view, input) {
             'ellipse-minor-radius',
             'spline-length',
             'dimension-measurement',
+            'hatch-area',
             'point-distance',
             'polyline-closed',
             'polyline-vertex-count',
+            'hatch-loop-count',
             'polyline-segment-bulge'
         ].includes(item.kind)) return fail('Unsupported geometry check kind');
         const kind = item.kind, refs = [];
@@ -213,6 +250,9 @@ function validateDrawingGeometryView(view, input) {
                 if (!projection) return fail('dimension-measurement requires supported nondegenerate native dimension geometry');
                 actual = boundedNumber(projection.measurement, 'Dimension measurement');
                 expected = boundedNumber(item.expected, 'expected');
+            } else if (kind === 'hatch-area') {
+                actual = hatchArea(object);
+                expected = boundedNumber(item.expected, 'expected');
             } else if (kind === 'polyline-closed') {
                 polylineVertices(object);
                 const closed = object.payload.closed, expectedClosed = item.expected;
@@ -223,6 +263,11 @@ function validateDrawingGeometryView(view, input) {
                 const vertices = polylineVertices(object);
                 if (!Number.isSafeInteger(item.expected) || item.expected < 2 || tolerance !== 0) fail('polyline-vertex-count requires an integer expected value of at least two and tolerance 0');
                 actual = vertices.length;
+                expected = item.expected;
+            } else if (kind === 'hatch-loop-count') {
+                const loops = hatchLoops(object);
+                if (!Number.isSafeInteger(item.expected) || item.expected < 1 || tolerance !== 0) fail('hatch-loop-count requires a positive integer expected value and tolerance 0');
+                actual = loops.length;
                 expected = item.expected;
             } else {
                 const vertices = polylineVertices(object);
