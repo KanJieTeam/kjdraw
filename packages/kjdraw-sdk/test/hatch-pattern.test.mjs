@@ -45,6 +45,17 @@ test('ANSI37 exports crossed 45/135-degree families and SOLID emits no pattern d
   assert.deepEqual(values(solid.tags,70),[1]);assert.deepEqual(values(solid.tags,78),[]);assert.deepEqual(values(solid.tags,53),[])
 })
 
+test('omitting hatch pattern settings creates a real SOLID hatch that exports and reopens',async()=>{
+  const sdk=createKJDrawSDK(),drawing=sdk.createDocument({documentId:'default-solid-hatch'})
+  await drawing.transact('Create default hatch',tx=>tx.createEntity('HATCH',{boundaryLoops:[{vertices:[[0,0],[8,0],[8,6],[0,6]]}]},{id:'default-solid'}))
+  const hatch=drawing.getObject('default-solid')
+  assert.equal(hatch.payload.patternName,'SOLID');assert.equal(hatch.payload.solid,true)
+  const source=await sdk.writeDocument(drawing,{format:'DXF',version:'2018'}),tags=entityTags(source,'HATCH')
+  assert.deepEqual(values(tags,70),[1]);assert.deepEqual(values(tags,78),[])
+  const reopened=await createKJDrawSDK().readDocument(source,{format:'DXF'}),restored=reopened.listEntities({type:'HATCH'})[0]
+  assert.equal(restored.payload.patternName,'SOLID');assert.equal(restored.payload.solid,true)
+})
+
 test('native pattern export reopens with pattern settings and outer/hole boundary roles intact',async()=>{
   const {adapter,artifact}=await nativeHatch('ANSI31',{patternAngle:-Math.PI/8,patternScale:1.5})
   const reopened=await adapter.read(artifact),hatch=reopened.listEntities({type:'HATCH'})[0]

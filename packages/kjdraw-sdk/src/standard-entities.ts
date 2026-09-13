@@ -245,7 +245,8 @@ function normalizeHatch(payload: EntityPayloadShape): KJObjectPayload {
     if (!value.vertices?.length && !Array.isArray(value.edges)) throw new KJValidationError(`Hatch loop ${loopIndex} requires vertices or edges`)
     return value
   })
-  return { ...base(payload), boundaryLoops: loops, patternName: String(payload.patternName ?? 'SOLID'), patternScale: positive(payload.patternScale ?? 1, 'patternScale'), patternAngle: finite(payload.patternAngle ?? 0, 'patternAngle'), solid: Boolean(payload.solid ?? normalizeName(payload.patternName) === 'SOLID') }
+  const patternName = String(payload.patternName ?? 'SOLID')
+  return { ...base(payload), boundaryLoops: loops, patternName, patternScale: positive(payload.patternScale ?? 1, 'patternScale'), patternAngle: finite(payload.patternAngle ?? 0, 'patternAngle'), solid: Boolean(payload.solid ?? normalizeName(patternName) === 'SOLID') }
 }
 
 export function isStandardEntityType(type: unknown): type is KJNormalizedEntityType { return STANDARD.has(normalizeName(type) as KJNormalizedEntityType) }
