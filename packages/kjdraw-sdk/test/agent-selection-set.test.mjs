@@ -10,6 +10,7 @@ import { createKJDrawSDK } from '../src/sdk.js'
 const value = result => { assert.equal(result.ok, true, JSON.stringify(result)); return result.value }
 const readArgs = document => ({ expectedRevision: document.revision, offset: 0, limit: 20, maxBytes: 65536 })
 const moveArgs = (document, change = {}) => ({ expectedRevision: document.revision, units: 'millimeter', selectionSetName: 'FRAME', dx: 5, dy: -2, ...change })
+const transformArgs = (document, name, change = {}) => ({ expectedRevision: document.revision, units: 'millimeter', selectionSetName: 'FRAME', center: { x: 0, y: 0 }, ...(name === 'cad_propose_rotate' ? { angleDegrees: 90 } : { factor: 2 }), ...change })
 
 async function fixture() {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: `selection-agent-${Math.random()}`, units: 'millimeter' })
@@ -57,6 +58,39 @@ test('agent discovers a bounded named selection and moves its exact members thro
   assert.deepEqual(reopened.listObjects({ kind: 'group', type: 'SELECTION_SET' }).map(row => [row.name, row.payload.memberIds]), [['Frame', ['edge-a', 'hole-a']]])
 })
 
+for (const [toolName, command] of [['cad_propose_rotate', 'ROTATE'], ['cad_propose_scale', 'SCALE']]) test(`${command} resolves a named block selection and retains complete dependencies, history and KJD`, async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: `selection-${command.toLowerCase()}`, units: 'millimeter' })
+  await document.transact('Seed selected block', tx => {
+    const block = tx.upsertTableRecord('blockRecords', { id: 'pump-block', name: 'PUMP', payload: { basePoint: [0, 0, 0], entityIds: [] } })
+    tx.createEntity('LINE', { start: [0, 0, 0], end: [20, 0, 0] }, { id: 'block-edge', ownerId: block.id })
+    tx.createEntity('INSERT', { blockRecordId: block.id, position: [10, 5, 0], scale: [1, 1, 1] }, { id: 'pump' })
+  })
+  const group = await sdk.getSelectionManager(document.id).saveNamed('Frame', { ids: ['pump'] })
+  const session = new KJAgentToolSession(sdk, document), before = document.serialize(), original = document.getObject('pump')
+  const proposal = value(await session.call(toolName, transformArgs(document, toolName)))
+  assert.equal(document.serialize(), before)
+  assert.equal(proposal.command, command)
+  assert.deepEqual(proposal.arguments.ids, ['pump'])
+  assert.deepEqual(proposal.selectionSet, { id: group.id, name: 'Frame', memberIds: ['pump'] })
+  assert.deepEqual(proposal.preview.blockDependencies.find(row => row.id === 'block-edge').payload, document.getObject('block-edge').payload)
+  value(await session.approve(proposal.planId, 'host-reviewer'))
+  const accepted = document.getObject('pump')
+  if (command === 'ROTATE') {
+    assert.ok(Math.abs(accepted.payload.position[0] + 5) < 1e-9)
+    assert.ok(Math.abs(accepted.payload.position[1] - 10) < 1e-9)
+    assert.ok(Math.abs(accepted.payload.rotation - Math.PI / 2) < 1e-9)
+  } else {
+    assert.deepEqual(accepted.payload.position, [20, 10, 0])
+    assert.deepEqual(accepted.payload.scale, [2, 2, 2])
+  }
+  assert.deepEqual(document.getObject(group.id).payload.memberIds, ['pump'])
+  await document.undo(); assert.deepEqual(document.getObject('pump'), original)
+  await document.redo(); assert.deepEqual(document.getObject('pump'), accepted)
+  const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  for (const field of ['blockRecordId', 'position', 'scale', 'rotation']) assert.deepEqual(reopened.getObject('pump').payload[field], accepted.payload[field])
+  assert.deepEqual(reopened.getObject(group.id).payload.memberIds, ['pump'])
+})
+
 test('selection-set MOVE rejects ambiguous targets, malformed membership, protection and stale approval without moving geometry', async () => {
   const { sdk, document, session } = await fixture()
   const initial = document.serialize()
@@ -87,6 +121,15 @@ test('selection-set MOVE rejects ambiguous targets, malformed membership, protec
   }
   const context = value(await session.call('cad_read_selection_sets', readArgs(document)))
   assert.equal(context.selectionSets.find(row => row.name === 'Repeated').membershipValid, false)
+  for (const toolName of ['cad_propose_rotate', 'cad_propose_scale']) {
+    for (const change of [{ selectionSetName: 'missing' }, { selectionSetName: 'Protected' }, { ids: ['edge-a'] }]) {
+      assert.equal((await session.call(toolName, transformArgs(document, toolName, change))).ok, false)
+      assert.equal(document.serialize(), protectedSource)
+    }
+    const noTarget = transformArgs(document, toolName); delete noTarget.selectionSetName
+    assert.equal((await session.call(toolName, noTarget)).ok, false)
+    assert.equal(document.serialize(), protectedSource)
+  }
 
   const proposal = value(await session.call('cad_propose_move', moveArgs(document)))
   await sdk.getSelectionManager(document.id).saveNamed('Frame', { ids: ['edge-a'] })
@@ -96,38 +139,43 @@ test('selection-set MOVE rejects ambiguous targets, malformed membership, protec
   assert.deepEqual(document.getObject('edge-a').payload.start, [0, 0, 0])
 })
 
-test('persisted task approval accepts the named-set MOVE through the existing atomic MOVE receipt path', async () => {
-  const { sdk, document, session } = await fixture()
-  const tools = createAgentTaskToolBinding(session.definitions, ['cad_check_geometry', 'cad_propose_move'])
-  const actor = { kind: 'host', id: 'selection-task-host' }
-  const definition = {
-    requirements: [{ id: 'edge-length', description: 'The moved edge stays 20 mm long.', check: { toolName: 'cad_check_geometry', assertion: { path: 'passed', operator: 'is_true', expected: true }, geometryCheck: { id: 'edge-length', kind: 'line-length', objectId: 'edge-a', expected: 20, tolerance: 0 } } }],
-    steps: [{ id: 'move-frame', title: 'Move the named frame selection', requirementIds: ['edge-length'] }], tools, capabilities: [],
+test('persisted task approval accepts named-set MOVE, ROTATE and SCALE through their atomic receipt paths', async () => {
+  for (const [toolName, command, expectedLength] of [['cad_propose_move', 'MOVE', 20], ['cad_propose_rotate', 'ROTATE', 20], ['cad_propose_scale', 'SCALE', 40]]) {
+    const { sdk, document, session } = await fixture()
+    const tools = createAgentTaskToolBinding(session.definitions, ['cad_check_geometry', toolName])
+    const actor = { kind: 'host', id: 'selection-task-host' }
+    const definition = {
+      requirements: [{ id: 'edge-length', description: 'The transformed edge has its exact required length.', check: { toolName: 'cad_check_geometry', assertion: { path: 'passed', operator: 'is_true', expected: true }, geometryCheck: { id: 'edge-length', kind: 'line-length', objectId: 'edge-a', expected: expectedLength, tolerance: 1e-9 } } }],
+      steps: [{ id: 'transform-frame', title: 'Transform the named frame selection', requirementIds: ['edge-length'] }], tools, capabilities: [],
+    }
+    await document.transact('Create named selection task', tx => createAgentTask(document, tx, { id: 'selection-task', expectedRevision: document.revision, title: `Apply ${command}`, goal: `Apply ${command} to the saved Frame selection.`, entityIds: ['edge-a', 'hole-a'], definition, at: '2026-09-13T08:00:00.000Z', actor }))
+    for (const [status, at] of [['ready', '2026-09-13T08:00:01.000Z'], ['running', '2026-09-13T08:00:02.000Z']]) {
+      const task = readAgentTasks(document)[0]
+      await document.transact(`Task ${status}`, tx => transitionAgentTask(document, tx, { id: task.id, expectedRevision: document.revision, expectedTaskVersion: task.taskVersion, expectedStatus: task.status, to: status, at, actor, reason: `Task ${status}` }))
+    }
+    const task = readAgentTasks(document)[0], proposal = value(await session.call(toolName, toolName === 'cad_propose_move' ? moveArgs(document) : transformArgs(document, toolName)))
+    session.bindTaskProposal(proposal.planId, { taskId: task.taskId, taskVersion: task.taskVersion, taskStatus: 'running', documentRevision: document.revision, units: task.units, scopeSha256: task.scope.sha256, toolApiVersion: task.definition.tools.apiVersion, toolNames: [...task.definition.tools.names], toolContractHash: task.definition.tools.contractHash, capabilityLocks: [] })
+    const approved = value(await session.approveTask(proposal.planId, 'host-reviewer', '2026-09-13T08:00:03.000Z'))
+    assert.equal(approved.command, command)
+    assert.equal(readAgentTasks(document)[0].status, 'completed')
+    assert.equal(readAgentTasks(document)[0].receipts[0].sourceToolName, toolName)
+    const accepted = document.getObject('edge-a'), length = Math.hypot(...accepted.payload.end.map((coordinate, index) => coordinate - accepted.payload.start[index]))
+    assert.ok(Math.abs(length - expectedLength) < 1e-9)
+    await document.undo()
+    assert.equal(readAgentTasks(document)[0].status, 'running')
+    assert.deepEqual(document.getObject('edge-a').payload.start, [0, 0, 0])
+    assert.deepEqual(document.getObject('edge-a').payload.end, [20, 0, 0])
+    await document.redo()
+    assert.equal(readAgentTasks(document)[0].status, 'completed')
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+    assert.equal(readAgentTasks(reopened)[0].receipts[0].sourceToolName, toolName)
+    assert.deepEqual(reopened.getObject('edge-a').payload.start, accepted.payload.start)
+    assert.deepEqual(reopened.getObject('edge-a').payload.end, accepted.payload.end)
   }
-  await document.transact('Create named selection task', tx => createAgentTask(document, tx, { id: 'selection-task', expectedRevision: document.revision, title: 'Move frame', goal: 'Move the saved Frame selection.', entityIds: ['edge-a', 'hole-a'], definition, at: '2026-09-13T08:00:00.000Z', actor }))
-  for (const [status, at] of [['ready', '2026-09-13T08:00:01.000Z'], ['running', '2026-09-13T08:00:02.000Z']]) {
-    const task = readAgentTasks(document)[0]
-    await document.transact(`Task ${status}`, tx => transitionAgentTask(document, tx, { id: task.id, expectedRevision: document.revision, expectedTaskVersion: task.taskVersion, expectedStatus: task.status, to: status, at, actor, reason: `Task ${status}` }))
-  }
-  const task = readAgentTasks(document)[0], proposal = value(await session.call('cad_propose_move', moveArgs(document)))
-  session.bindTaskProposal(proposal.planId, { taskId: task.taskId, taskVersion: task.taskVersion, taskStatus: 'running', documentRevision: document.revision, units: task.units, scopeSha256: task.scope.sha256, toolApiVersion: task.definition.tools.apiVersion, toolNames: [...task.definition.tools.names], toolContractHash: task.definition.tools.contractHash, capabilityLocks: [] })
-  const approved = value(await session.approveTask(proposal.planId, 'host-reviewer', '2026-09-13T08:00:03.000Z'))
-  assert.equal(approved.command, 'MOVE')
-  assert.equal(readAgentTasks(document)[0].status, 'completed')
-  assert.equal(readAgentTasks(document)[0].receipts[0].sourceToolName, 'cad_propose_move')
-  assert.deepEqual(document.getObject('edge-a').payload.start, [5, -2, 0])
-  await document.undo()
-  assert.equal(readAgentTasks(document)[0].status, 'running')
-  assert.deepEqual(document.getObject('edge-a').payload.start, [0, 0, 0])
-  await document.redo()
-  assert.equal(readAgentTasks(document)[0].status, 'completed')
-  const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
-  assert.equal(readAgentTasks(reopened)[0].receipts[0].sourceToolName, 'cad_propose_move')
-  assert.deepEqual(reopened.getObject('edge-a').payload.start, [5, -2, 0])
 })
 
-test('selection-set read and MOVE schemas serialize identically across all four model protocols without model claims', async () => {
-  const { session } = await fixture(), names = ['cad_read_selection_sets', 'cad_propose_move']
+test('selection-set read and transform schemas serialize identically across all four model protocols without model claims', async () => {
+  const { session } = await fixture(), names = ['cad_read_selection_sets', 'cad_propose_move', 'cad_propose_rotate', 'cad_propose_scale']
   const expected = new Map(session.definitions.filter(tool => names.includes(tool.name)).map(tool => [tool.name, tool.inputSchema]))
   for (const protocol of ['responses', 'chat-completions', 'anthropic-messages', 'gemini-generate-content']) {
     let body
@@ -139,9 +187,15 @@ test('selection-set read and MOVE schemas serialize identically across all four 
         : protocol === 'anthropic-messages' ? body.tools.map(tool => ({ ...tool, parameters: tool.input_schema }))
           : body.tools[0].functionDeclarations.map(tool => ({ ...tool, parameters: tool.parametersJsonSchema }))
     for (const name of names) assert.deepEqual(definitions.find(tool => tool.name === name).parameters, expected.get(name), `${protocol} ${name}`)
-    const move = definitions.find(tool => tool.name === 'cad_propose_move').parameters
-    assert.deepEqual(move.required, ['expectedRevision', 'units', 'dx', 'dy'])
-    assert.deepEqual(Object.keys(move.properties).sort(), ['dx', 'dy', 'expectedRevision', 'ids', 'selectionSetName', 'units'])
-    assert.equal(move.additionalProperties, false)
+    for (const [name, required, properties] of [
+      ['cad_propose_move', ['expectedRevision', 'units', 'dx', 'dy'], ['dx', 'dy', 'expectedRevision', 'ids', 'selectionSetName', 'units']],
+      ['cad_propose_rotate', ['expectedRevision', 'units', 'center', 'angleDegrees'], ['angleDegrees', 'center', 'expectedRevision', 'ids', 'selectionSetName', 'units']],
+      ['cad_propose_scale', ['expectedRevision', 'units', 'center', 'factor'], ['center', 'expectedRevision', 'factor', 'ids', 'selectionSetName', 'units']],
+    ]) {
+      const schema = definitions.find(tool => tool.name === name).parameters
+      assert.deepEqual(schema.required, required)
+      assert.deepEqual(Object.keys(schema.properties).sort(), properties)
+      assert.equal(schema.additionalProperties, false)
+    }
   }
 })

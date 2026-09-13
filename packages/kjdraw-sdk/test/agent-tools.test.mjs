@@ -28,7 +28,7 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
           ? ['layerId']
       : tool.name === 'cad_propose_lengthen'
         ? ['value', 'targetPoint']
-        : tool.name === 'cad_propose_move'
+        : ['cad_propose_move', 'cad_propose_rotate', 'cad_propose_scale'].includes(tool.name)
           ? ['ids', 'selectionSetName']
         : tool.name === 'cad_propose_polyline_edit'
           ? ['segmentIndex', 'vertexIndex', 'point', 'tolerance', 'bulge', 'sweepDegrees', 'startWidth', 'endWidth']

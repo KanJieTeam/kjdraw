@@ -332,6 +332,44 @@ const moveSchema = {
             'selectionSetName'
         ].includes(name))
 };
+const rotateSchemaBase = object({
+    expectedRevision: revision,
+    units: text,
+    ids: collection(text),
+    selectionSetName,
+    center: point,
+    angleDegrees: {
+        type: 'number',
+        minimum: -360,
+        maximum: 360
+    }
+});
+const rotateSchema = {
+    ...rotateSchemaBase,
+    required: rotateSchemaBase.required.filter((name)=>![
+            'ids',
+            'selectionSetName'
+        ].includes(name))
+};
+const scaleSchemaBase = object({
+    expectedRevision: revision,
+    units: text,
+    ids: collection(text),
+    selectionSetName,
+    center: point,
+    factor: {
+        type: 'number',
+        minimum: 1e-6,
+        maximum: 1e6
+    }
+});
+const scaleSchema = {
+    ...scaleSchemaBase,
+    required: scaleSchemaBase.required.filter((name)=>![
+            'ids',
+            'selectionSetName'
+        ].includes(name))
+};
 const arraySchema = {
     type: 'array',
     minItems: 0,
@@ -859,34 +897,14 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_rotate',
         effect: 'propose',
-        description: `Propose rotation of 1–64 exact visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs around explicit center={x,y} in drawing units. angleDegrees is counterclockwise from the current orientation, strictly between -360 and 360, excluding 0; negative is clockwise. Geometry must be default +Z, z=0, within ±1e12; wide polylines and unsupported annotation projections are rejected. Include geometry and annotations together to rotate a detail; native dimensions retain measurements. INSERT uses the same bounded local blockDependencies as cad_propose_move. Native block DIMENSION keeps its original local measurement while its graphics follow the instance transform; attributes, reflection, nonuniform scales and external/cyclic/protected block graphs are rejected. Returns exact before/after geometry and block dependencies without editing; host approval applies one undoable transaction.`,
-        inputSchema: object({
-            expectedRevision: revision,
-            units: text,
-            ids: collection(text),
-            center: point,
-            angleDegrees: {
-                type: 'number',
-                minimum: -360,
-                maximum: 360
-            }
-        })
+        description: `Propose rotation of one exact target: either 1–64 visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs, or one persistent named selectionSetName discovered with cad_read_selection_sets. Never supply both. The selection set is resolved at the requested revision and retains its membership. Rotate around explicit center={x,y} in drawing units; angleDegrees is counterclockwise, strictly between -360 and 360 excluding 0. Geometry must be default +Z, z=0, within ±1e12; wide polylines and unsupported annotation projections are rejected. Include geometry and annotations together; native dimensions retain measurements. INSERT returns the same bounded complete blockDependencies as cad_propose_move. Attributes, reflection, nonuniform scales and external/cyclic/protected block graphs are rejected. Returns exact before/after geometry, resolved selection-set identity and dependencies without editing; host approval applies one undoable transaction.`,
+        inputSchema: rotateSchema
     },
     {
         name: 'cad_propose_scale',
         effect: 'propose',
-        description: `Propose positive uniform scaling of 1–64 exact visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs around explicit center={x,y} in drawing units. factor is dimensionless, 0.000001–1000000 excluding 1; no reflection or nonuniform scaling. Geometry must be default +Z, z=0, within ±1e12; wide polylines and unsupported annotation projections are rejected. Include geometry and annotations together to scale a detail. TEXT height scales; native DIMENSION definition/text positions and measured lengths scale while dimension style/text height remain unchanged; angular measurements remain unchanged. INSERT keeps definitions unchanged and returns bounded blockDependencies as in cad_propose_move. Dimensions inside blocks preserve their original local measured values while their lines, arrows, arcs and text display scale with the instance. Attributes, reflection, nonuniform scales and external/cyclic/protected graphs are rejected. Returns exact before/after geometry without editing; host approval applies one undoable transaction.`,
-        inputSchema: object({
-            expectedRevision: revision,
-            units: text,
-            ids: collection(text),
-            center: point,
-            factor: {
-                type: 'number',
-                minimum: 1e-6,
-                maximum: 1e6
-            }
-        })
+        description: `Propose positive uniform scaling of one exact target: either 1–64 visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs, or one persistent named selectionSetName discovered with cad_read_selection_sets. Never supply both. The selection set is resolved at the requested revision and retains its membership. Scale around explicit center={x,y}; factor is dimensionless, 0.000001–1000000 excluding 1, with no reflection or nonuniform scaling. Geometry must be default +Z, z=0, within ±1e12; wide polylines and unsupported annotation projections are rejected. Include geometry and annotations together. TEXT height and native linear measurements scale; angular measurements remain unchanged. INSERT keeps definitions unchanged and returns bounded complete blockDependencies. Attributes, reflection, nonuniform scales and external/cyclic/protected block graphs are rejected. Returns exact before/after geometry, resolved selection-set identity and dependencies without editing; host approval applies one undoable transaction.`,
+        inputSchema: scaleSchema
     },
     {
         name: 'cad_propose_stretch',
@@ -1834,8 +1852,12 @@ export class KJAgentToolSession {
                             };
                         } else {
                             const byIds = Object.hasOwn(args, 'ids'), bySelectionSet = Object.hasOwn(args, 'selectionSetName');
-                            if (name === 'cad_propose_move' && byIds === bySelectionSet) throw new KJValidationError('MOVE requires exactly one of ids or selectionSetName');
-                            selectionSet = name === 'cad_propose_move' && bySelectionSet ? selectionSetRecord(document, args.selectionSetName) : undefined;
+                            if ([
+                                'cad_propose_move',
+                                'cad_propose_rotate',
+                                'cad_propose_scale'
+                            ].includes(name) && byIds === bySelectionSet) throw new KJValidationError('Transform requires exactly one of ids or selectionSetName');
+                            selectionSet = bySelectionSet ? selectionSetRecord(document, args.selectionSetName) : undefined;
                             const ids = selectionSet?.memberIds ?? args.ids;
                             if (new Set(ids).size !== ids.length) throw new KJValidationError('Object IDs must be unique');
                             const context = createDrawingContext(document, {
