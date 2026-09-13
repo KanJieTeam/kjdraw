@@ -3,6 +3,7 @@ export * from './commands.js';
 export * from './component-library.js';
 export * from './agent-plans.js';
 export * from './agent-tools.js';
+export * from './agent-manufacturing-sheet.js';
 export * from './agent-capabilities.js';
 export * from './drawing-validation.js';
 export * from './model-usage.js';

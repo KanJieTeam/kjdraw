@@ -14,7 +14,7 @@ import { spawnSyncWithFileStdin } from '../spawn-file-stdin.mjs'
 
 const protocol = 'chat-completions'
 const arms = ['kjdraw-tool', 'direct-dxf']
-const drawingTools = ['cad_propose_drawing', 'cad_propose_drawing_compact', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated']
+const drawingTools = ['cad_propose_drawing', 'cad_propose_drawing_compact', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet']
 const taskSuites = { pilot: pilotTasks, parametric: parametricDrawingTasks, engineering: engineeringDrawingTasks.map(({ id, prompt, requirements }) => ({ id, prompt, expected: requirements })) }
 const validatorScript = fileURLToPath(new URL('./paired-model-validator.py', import.meta.url))
 const hash = value => createHash('sha256').update(value).digest('hex')

@@ -21,8 +21,8 @@ const modelCall = (name, args, inspect = () => {}) => ({ createConversation({ to
 test('workbench exposes useful tools and creates ordinary geometry through pattern arrays=[]', async () => {
   const { session, document } = fixture()
   assert.ok(Object.isFrozen(KJDRAW_CHAT_TOOL_NAMES))
-  assert.equal(KJDRAW_CHAT_TOOL_NAMES.length, 21)
-  assert.deepEqual(KJDRAW_CHAT_TOOL_NAMES.filter(name => name.startsWith('cad_propose_')), ['cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update', 'cad_propose_move', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated'])
+  assert.equal(KJDRAW_CHAT_TOOL_NAMES.length, 22)
+  assert.deepEqual(KJDRAW_CHAT_TOOL_NAMES.filter(name => name.startsWith('cad_propose_')), ['cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update', 'cad_propose_move', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet'])
   const args = { expectedRevision: 0, units: 'millimeter', lines: [[0, 0, 20, 0]], circles: [[3, 4, 2]], arcs: [], polylines: [], arrays: [] }
   const result = await runKJAgentTask({ session, prompt: 'Draw a line and circle.', toolNames: KJDRAW_CHAT_TOOL_NAMES,
     model: modelCall('cad_propose_drawing_pattern', args, tools => assert.deepEqual(tools.map(item => item.name).sort(), [...KJDRAW_CHAT_TOOL_NAMES].sort())) })
@@ -66,6 +66,7 @@ test('chat discovers selection sets only in drawings containing them and keeps e
     assert.ok(policy.includes('cad_read_selection_sets'))
     assert.equal(policy.includes('cad_propose_road_revision'),units==='meter')
   }
+  await document.transact('Restore millimeter units',tx=>tx.setHeader('units','millimeter'))
   const denied=await runKJAgentTask({session,prompt:'Inspect.',toolNames:emptyPolicy,model:modelCall('cad_read_selection_sets',{})})
   assert.equal(denied.error.code,'KJAGENT_TOOL_NOT_ALLOWED'); assert.equal(denied.toolCalls,0)
 })
@@ -105,7 +106,7 @@ test('locked legacy capability tools are not replaced by workbench defaults and 
 test('meter workbench exposes the road tool and retains the complete native proposal and all resources', async () => {
   const sdk=createKJDrawSDK(), document=sdk.createDocument({units:'meter'}), session=new KJAgentToolSession(sdk,document)
   const toolNames=getKJDrawChatToolNames(document), input={...createRoadDesignFixture(),...roadDrawingFixtureOptions,expectedRevision:0}
-  assert.ok(Object.isFrozen(toolNames)); assert.deepEqual(toolNames,[...KJDRAW_CHAT_TOOL_NAMES,'cad_propose_road_drawing'])
+  assert.ok(Object.isFrozen(toolNames)); assert.deepEqual(toolNames,[...KJDRAW_CHAT_TOOL_NAMES.filter(name=>name!=='cad_propose_manufacturing_sheet'),'cad_propose_road_drawing'])
   const expected=buildRoadDrawing(createRoadDesignFixture(),roadDrawingFixtureOptions), before=document.serialize()
   assert.ok(expected.entities.length>64)
   const result=await runKJAgentTask({session,prompt:'Compile this fully supplied road study for host review.',toolNames,

@@ -92,6 +92,11 @@
       "import": "./src/agent-tools.js",
       "default": "./src/agent-tools.js"
     },
+    "./agent-manufacturing-sheet": {
+      "types": "./types/agent-manufacturing-sheet.d.ts",
+      "import": "./src/agent-manufacturing-sheet.js",
+      "default": "./src/agent-manufacturing-sheet.js"
+    },
     "./drawing-context": {
       "types": "./types/drawing-context.d.ts",
       "import": "./src/drawing-context.js",

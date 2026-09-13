@@ -18,6 +18,7 @@ import { validateDrawingGeometry } from './drawing-validation.js';
 import { commitAgentTaskCreateBatchApproval, commitAgentTaskLengthenApproval, commitAgentTaskMoveApproval, commitAgentTaskPolylineEditApproval, commitAgentTaskRotateApproval, commitAgentTaskScaleApproval, commitAgentTaskStretchApproval, KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
 import { createAgentDesignContext } from './agent-design-relations.js';
 import { createCatalogComponentInsertIdentity, searchComponentCatalog } from './component-library.js';
+import { buildAgentManufacturingSheet } from './agent-manufacturing-sheet.js';
 const number = {
     type: 'number',
     minimum: -1e12,
@@ -739,6 +740,98 @@ const roadDrawingFromAssetSchema = object({
             roadDrawingSchema.properties[key]
         ]))
 });
+const manufacturingHolePatternBase = object({
+    rows: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 64
+    },
+    columns: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 64
+    },
+    origin: numericTuple(2),
+    spacing: numericTuple(2),
+    throughDiameter: radius,
+    counterboreDiameter: radius,
+    counterboreDepth: radius
+});
+const manufacturingHolePattern = {
+    ...manufacturingHolePatternBase,
+    required: manufacturingHolePatternBase.required.filter((name)=>![
+            'counterboreDiameter',
+            'counterboreDepth'
+        ].includes(name))
+};
+const manufacturingSheetSchema = objectWithOptional({
+    expectedRevision: revision,
+    units: {
+        type: 'string',
+        enum: [
+            'millimeter'
+        ]
+    },
+    version: {
+        type: 'string',
+        enum: [
+            '1.0.0'
+        ]
+    },
+    drawingId: {
+        ...text,
+        maxLength: 64
+    },
+    title: {
+        ...text,
+        maxLength: 256
+    },
+    revision: {
+        ...text,
+        maxLength: 32
+    },
+    material: {
+        ...text,
+        maxLength: 128
+    },
+    quantity: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 10000
+    },
+    length: radius,
+    width: radius,
+    thickness: radius,
+    holePatterns: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 16,
+        items: manufacturingHolePattern
+    },
+    slots: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 16,
+        items: object({
+            center: numericTuple(2),
+            length: radius,
+            width: radius,
+            orientationDegrees: {
+                type: 'integer',
+                minimum: 0,
+                maximum: 90
+            }
+        })
+    },
+    sheet: object({
+        origin: numericTuple(2),
+        size: numericTuple(2)
+    }),
+    textHeight: radius
+}, [
+    'holePatterns',
+    'slots'
+]);
 const componentSearchSchemaBase = object({
     expectedRevision: revision,
     query: {
@@ -916,6 +1009,12 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         effect: 'propose',
         description: 'Compose editable engineering geometry, open native NURBS, polygonal native HATCH, TEXT/MTEXT leader notes and measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. Preserve requested native primitives: use circles for circular features, arcs for curved segments and lines or straight polylines for straight edges. Leaders create a native LEADER plus its owned editable MTEXT. Hatch loop 0 is the outer boundary and later loops are islands; built-in SOLID/ANSI31/ANSI37/CROSS patterns remain editable. Arrays use group-local curve seed refs. Styles apply named editable layers to geometry, annotations and array copies; sources may be empty when the drawing requires an unused layer. A continuous style uses pattern=[]; every nonempty dash pattern strictly alternates positive dash and negative gap values. No edit occurs before host approval; approval creates one undoable transaction.',
         inputSchema: annotatedDrawingSchema
+    },
+    {
+        name: 'cad_propose_manufacturing_sheet',
+        effect: 'propose',
+        description: 'Compile a complete editable millimeter manufacturing drawing from a compact versioned intent instead of emitting every CAD entity. Version 1.0.0 supports a rectangular plate, bounded rectangular through-hole patterns with optional counterbores, horizontal or vertical through slots, aligned top/front views, center marks, native measured dimensions, named engineering layers, sheet border, title block and machining notes. KJDraw validates all feature relationships, generates deterministic native geometry locally and returns the full preview. The model supplies design parameters only; host approval applies one atomic CREATEBATCH transaction.',
+        inputSchema: manufacturingSheetSchema
     },
     {
         name: 'cad_check_geometry',
@@ -1578,7 +1677,7 @@ export class KJAgentToolSession {
     }
     get definitions() {
         const units = this.#document.snapshot().header.units;
-        return deepFreeze(KJDRAW_AGENT_TOOLS.map((tool)=>{
+        return deepFreeze(KJDRAW_AGENT_TOOLS.filter((tool)=>tool.name !== 'cad_propose_manufacturing_sheet' || units === 'millimeter').map((tool)=>{
             if (!tool.inputSchema.properties?.units) return tool;
             return {
                 ...tool,
@@ -1839,6 +1938,10 @@ export class KJAgentToolSession {
                                 ...componentArgs,
                                 identity: createCatalogComponentInsertIdentity(document, componentArgs)
                             };
+                        } else if (name === 'cad_propose_manufacturing_sheet') {
+                            const compiled = buildAgentManufacturingSheet(document, args);
+                            commandArgs = structuredClone(compiled.commandArgs);
+                            engineeringEvidence = compiled.evidence;
                         } else if (name === 'cad_propose_road_drawing' || name === 'cad_propose_road_drawing_from_asset') {
                             let roadInput = args;
                             if (name === 'cad_propose_road_drawing_from_asset') {
@@ -2216,6 +2319,7 @@ export class KJAgentToolSession {
                         } : [
                             'cad_propose_drawing_pattern',
                             'cad_propose_drawing_annotated',
+                            'cad_propose_manufacturing_sheet',
                             'cad_propose_road_drawing',
                             'cad_propose_road_drawing_from_asset'
                         ].includes(name) ? {
