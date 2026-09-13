@@ -6,6 +6,12 @@ test.use({ viewport: { width: 1280, height: 900 } })
 
 const target = [10 * Math.SQRT1_2, 5 * Math.SQRT1_2]
 
+function endpointError(payload) {
+  const angle = payload.startParameter, major = payload.majorAxis, ratio = payload.ratio, center = payload.center
+  const point = [center[0] + major[0] * Math.cos(angle) - major[1] * ratio * Math.sin(angle), center[1] + major[1] * Math.cos(angle) + major[0] * ratio * Math.sin(angle)]
+  return Math.hypot(point[0] - target[0], point[1] - target[1])
+}
+
 async function workbenchPoint(page, world) {
   return page.evaluate(world => {
     const { workbench } = window.__ellipseArc
@@ -58,9 +64,9 @@ test('elliptical arc endpoint grips are real pointer edits in Workbench and Play
   })
   await expect(page.locator('[data-overlay]')).toHaveAttribute('data-grip-count', '7')
   await drag(page, workbenchPoint, [10,0], target)
-  await expect.poll(() => page.evaluate(() => window.__ellipseArc.drawing.getObject(window.__ellipseArc.ellipse.id).payload.startParameter)).toBeCloseTo(Math.PI / 4, 5)
+  await expect.poll(async () => endpointError(await page.evaluate(() => window.__ellipseArc.drawing.getObject(window.__ellipseArc.ellipse.id).payload))).toBeLessThanOrEqual(.15)
   await page.locator('[data-action=undo]').click(); await expect.poll(() => page.evaluate(() => window.__ellipseArc.drawing.getObject(window.__ellipseArc.ellipse.id).payload.startParameter)).toBe(0)
-  await page.locator('[data-action=redo]').click(); await expect.poll(() => page.evaluate(() => window.__ellipseArc.drawing.getObject(window.__ellipseArc.ellipse.id).payload.startParameter)).toBeCloseTo(Math.PI / 4, 5)
+  await page.locator('[data-action=redo]').click(); await expect.poll(async () => endpointError(await page.evaluate(() => window.__ellipseArc.drawing.getObject(window.__ellipseArc.ellipse.id).payload))).toBeLessThanOrEqual(.15)
 
   await page.goto('/'); await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
   await page.evaluate(async () => {
@@ -72,7 +78,7 @@ test('elliptical arc endpoint grips are real pointer edits in Workbench and Play
   const canvas = await page.locator('#canvas').boundingBox(); await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2)
   const body = await playgroundPoint(page, [0,5]); await page.mouse.click(body.x, body.y); await expect(page.locator('#selection-count')).toHaveText('1 selected')
   await drag(page, playgroundPoint, [10,0], target); await expect(page.locator('#status')).toContainText('Grip edit applied')
-  let snapshot = await savedPlayground(page); expect(snapshot.objects.ellipse.payload.startParameter).toBeCloseTo(Math.PI / 4, 5)
+  let snapshot = await savedPlayground(page); expect(endpointError(snapshot.objects.ellipse.payload)).toBeLessThanOrEqual(.15)
   await page.locator('#undo').click(); snapshot = await savedPlayground(page); expect(snapshot.objects.ellipse.payload.startParameter).toBe(0)
-  await page.locator('#redo').click(); snapshot = await savedPlayground(page); expect(snapshot.objects.ellipse.payload.startParameter).toBeCloseTo(Math.PI / 4, 5)
+  await page.locator('#redo').click(); snapshot = await savedPlayground(page); expect(endpointError(snapshot.objects.ellipse.payload)).toBeLessThanOrEqual(.15)
 })

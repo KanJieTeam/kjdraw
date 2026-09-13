@@ -85,12 +85,18 @@ test('Workbench BREAK selects one-point elliptical-arc and two-point full-ellips
   await expect.poll(() => page.evaluate(() => window.__breakWorkbench.editor.document.revision)).toBe(revision + 1)
   const result = await page.evaluate(() => {
     const { editor, ellipses } = window.__breakWorkbench
-    return editor.document.listEntities({ type: 'ELLIPSE' }).filter(item => item.id === ellipses.full.id || item.source?.derivedFromId === ellipses.full.id).map(item => ({ id: item.id, start: item.payload.startParameter, end: item.payload.endParameter }))
+    return { scale: editor.workbench.renderer.camera.scale, pieces: editor.document.listEntities({ type: 'ELLIPSE' }).filter(item => item.id === ellipses.full.id || item.source?.derivedFromId === ellipses.full.id).map(item => ({ id: item.id, start: item.payload.startParameter, end: item.payload.endParameter })) }
   })
-  expect(result).toHaveLength(2)
-  expect(result[0].id).toBe(await page.evaluate(() => window.__breakWorkbench.ellipses.full.id))
-  expect(result[0].start).toBe(0); expect(result[0].end).toBeCloseTo(Math.PI / 2, 6)
-  expect(result[1].start).toBeCloseTo(Math.PI / 2, 6); expect(result[1].end).toBeCloseTo(Math.PI * 2, 6)
+  expect(result.pieces).toHaveLength(2)
+  expect(result.pieces[0].id).toBe(await page.evaluate(() => window.__breakWorkbench.ellipses.full.id))
+  // A real pointer is quantized to CSS pixels. Verify the two break parameters
+  // remain within two pixels on the ellipse instead of requiring synthetic,
+  // sub-pixel-identical pointer coordinates from every browser engine.
+  const parameterTolerance = 2 / (result.scale * 5)
+  expect(Math.abs(result.pieces[0].start)).toBeLessThanOrEqual(parameterTolerance)
+  expect(Math.abs(result.pieces[0].end - Math.PI / 2)).toBeLessThanOrEqual(parameterTolerance)
+  expect(Math.abs(result.pieces[1].start - Math.PI / 2)).toBeLessThanOrEqual(parameterTolerance)
+  expect(Math.abs(result.pieces[1].end - Math.PI * 2)).toBeLessThanOrEqual(parameterTolerance)
 })
 
 test('Workbench JOIN applies two selected elliptical arcs as one native ellipse with history, hit testing and KJD reopen', async ({ page }) => {
