@@ -2522,22 +2522,38 @@ function leaderTextStyle(document, value) {
     if (!id || !table?.records.some((record)=>record.id === id)) throw new KJValidationError('LEADER text style must reference the text style table');
     return id;
 }
+function leaderTextRotation(value, fallback = 0) {
+    const rotation = Number(value ?? fallback);
+    if (!Number.isFinite(rotation)) throw new KJValidationError('LEADER text rotation must be finite');
+    return rotation;
+}
+function leaderTextAttachment(value, fallback = 7) {
+    const attachment = Number(value ?? fallback);
+    if (!Number.isInteger(attachment) || attachment < 1 || attachment > 9) throw new KJValidationError('LEADER text attachment must be an integer from 1 to 9');
+    return attachment;
+}
+function leaderTextWidth(value, fallback = null) {
+    const width = value === undefined ? fallback == null ? null : Number(fallback) : value == null || value === '' ? null : Number(value);
+    if (width !== null && (!Number.isFinite(width) || !(width > 0) || width > 1e12)) throw new KJValidationError('LEADER text width must be positive and finite');
+    return width;
+}
 function createLeaderAnnotation(document, transaction, args) {
     const vertices = leaderPoints(args.vertices);
     const textPosition = vec3(args.textPosition ?? vertices.at(-1), 'textPosition');
     const text = leaderText(args.text);
     const height = Number(args.textHeight ?? args.height ?? 2.5);
     if (!Number.isFinite(height) || !(height > 0) || height > 1e12) throw new KJValidationError('LEADER text height must be positive and finite');
-    const width = args.width == null ? null : Number(args.width);
-    if (width !== null && (!Number.isFinite(width) || !(width > 0) || width > 1e12)) throw new KJValidationError('LEADER text width must be positive and finite');
+    const width = leaderTextWidth(args.width);
+    const rotation = leaderTextRotation(args.rotation);
+    const attachmentPoint = leaderTextAttachment(args.attachmentPoint);
     const styleId = leaderTextStyle(document, args.styleId);
     const ownerId = args.ownerId;
     const annotation = transaction.createEntity('MTEXT', {
         position: textPosition,
         text,
         height,
-        rotation: Number(args.rotation ?? 0),
-        attachmentPoint: Number(args.attachmentPoint ?? 7),
+        rotation,
+        attachmentPoint,
         styleId,
         ...width === null ? {} : {
             width
@@ -2581,12 +2597,21 @@ function editLeaderAnnotation(document, transaction, args) {
     const height = Number(args.textHeight ?? args.height ?? annotation?.payload.height ?? source.payload.textHeight ?? 2.5);
     if (!Number.isFinite(height) || !(height > 0) || height > 1e12) throw new KJValidationError('LEADER text height must be positive and finite');
     const styleId = leaderTextStyle(document, args.styleId ?? annotation?.payload.styleId ?? source.payload.styleId);
+    const width = leaderTextWidth(args.width, annotation?.payload.width);
+    const widthPatch = args.width === undefined && annotation?.payload.width === undefined ? {} : {
+        width
+    };
+    const rotation = leaderTextRotation(args.rotation, Number(annotation?.payload.rotation ?? 0));
+    const attachmentPoint = leaderTextAttachment(args.attachmentPoint, Number(annotation?.payload.attachmentPoint ?? 7));
     const layerId = args.layerId ?? source.payload.layerId;
     const updatedAnnotation = annotation ? transaction.updateObject(annotation.id, {
         payload: {
             position: textPosition,
             text,
             height,
+            ...widthPatch,
+            rotation,
+            attachmentPoint,
             styleId,
             ...layerId == null ? {} : {
                 layerId
@@ -2596,8 +2621,11 @@ function editLeaderAnnotation(document, transaction, args) {
         position: textPosition,
         text,
         height,
-        rotation: 0,
-        attachmentPoint: 7,
+        ...width === null ? {} : {
+            width
+        },
+        rotation,
+        attachmentPoint,
         styleId,
         ...layerId == null ? {} : {
             layerId

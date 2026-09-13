@@ -225,6 +225,12 @@ export interface KJCommandArguments extends Record<string, unknown> {
   angleDegrees?: unknown
   rotation?: unknown
   radius?: unknown
+  text?: unknown
+  textPosition?: unknown
+  textHeight?: unknown
+  styleId?: unknown
+  attachmentPoint?: unknown
+  arrowEnabled?: unknown
   distance?: unknown
   tolerance?: unknown
   segmentIndex?: unknown
@@ -1422,18 +1428,37 @@ function leaderTextStyle(document: KJDocument, value: unknown): string {
   return id
 }
 
+function leaderTextRotation(value: unknown, fallback = 0): number {
+  const rotation = Number(value ?? fallback)
+  if (!Number.isFinite(rotation)) throw new KJValidationError('LEADER text rotation must be finite')
+  return rotation
+}
+
+function leaderTextAttachment(value: unknown, fallback = 7): number {
+  const attachment = Number(value ?? fallback)
+  if (!Number.isInteger(attachment) || attachment < 1 || attachment > 9) throw new KJValidationError('LEADER text attachment must be an integer from 1 to 9')
+  return attachment
+}
+
+function leaderTextWidth(value: unknown, fallback: unknown = null): number | null {
+  const width = value === undefined ? fallback == null ? null : Number(fallback) : value == null || value === '' ? null : Number(value)
+  if (width !== null && (!Number.isFinite(width) || !(width > 0) || width > 1e12)) throw new KJValidationError('LEADER text width must be positive and finite')
+  return width
+}
+
 function createLeaderAnnotation(document: KJDocument, transaction: KJTransaction, args: KJCommandArguments): { leader: KJObjectRecord; annotation: KJObjectRecord } {
   const vertices = leaderPoints(args.vertices)
   const textPosition = vec3(args.textPosition ?? vertices.at(-1), 'textPosition')
   const text = leaderText(args.text)
   const height = Number(args.textHeight ?? args.height ?? 2.5)
   if (!Number.isFinite(height) || !(height > 0) || height > 1e12) throw new KJValidationError('LEADER text height must be positive and finite')
-  const width = args.width == null ? null : Number(args.width)
-  if (width !== null && (!Number.isFinite(width) || !(width > 0) || width > 1e12)) throw new KJValidationError('LEADER text width must be positive and finite')
+  const width = leaderTextWidth(args.width)
+  const rotation = leaderTextRotation(args.rotation)
+  const attachmentPoint = leaderTextAttachment(args.attachmentPoint)
   const styleId = leaderTextStyle(document, args.styleId)
   const ownerId = args.ownerId
   const annotation = transaction.createEntity('MTEXT', {
-    position: textPosition, text, height, rotation: Number(args.rotation ?? 0), attachmentPoint: Number(args.attachmentPoint ?? 7),
+    position: textPosition, text, height, rotation, attachmentPoint,
     styleId, ...(width === null ? {} : { width }), ...(args.layerId == null ? {} : { layerId: args.layerId }),
   }, { ...(ownerId == null ? {} : { ownerId }) } as KJObjectSpec)
   const leader = transaction.createEntity('LEADER', {
@@ -1455,10 +1480,14 @@ function editLeaderAnnotation(document: KJDocument, transaction: KJTransaction, 
   const height = Number(args.textHeight ?? args.height ?? annotation?.payload.height ?? source.payload.textHeight ?? 2.5)
   if (!Number.isFinite(height) || !(height > 0) || height > 1e12) throw new KJValidationError('LEADER text height must be positive and finite')
   const styleId = leaderTextStyle(document, args.styleId ?? annotation?.payload.styleId ?? source.payload.styleId)
+  const width = leaderTextWidth(args.width, annotation?.payload.width)
+  const widthPatch = args.width === undefined && annotation?.payload.width === undefined ? {} : { width }
+  const rotation = leaderTextRotation(args.rotation, Number(annotation?.payload.rotation ?? 0))
+  const attachmentPoint = leaderTextAttachment(args.attachmentPoint, Number(annotation?.payload.attachmentPoint ?? 7))
   const layerId = args.layerId ?? source.payload.layerId
   const updatedAnnotation = annotation
-    ? transaction.updateObject(annotation.id, { payload: { position: textPosition, text, height, styleId, ...(layerId == null ? {} : { layerId }) } })
-    : transaction.createEntity('MTEXT', { position: textPosition, text, height, rotation: 0, attachmentPoint: 7, styleId, ...(layerId == null ? {} : { layerId }) }, { ownerId: source.ownerId })
+    ? transaction.updateObject(annotation.id, { payload: { position: textPosition, text, height, ...widthPatch, rotation, attachmentPoint, styleId, ...(layerId == null ? {} : { layerId }) } })
+    : transaction.createEntity('MTEXT', { position: textPosition, text, height, ...(width === null ? {} : { width }), rotation, attachmentPoint, styleId, ...(layerId == null ? {} : { layerId }) }, { ownerId: source.ownerId })
   const updatedLeader = transaction.updateObject(source.id, { payload: { vertices, textPosition, annotationId: updatedAnnotation.id, ownsAnnotation: annotation ? source.payload.ownsAnnotation : true, annotationType: 0, arrowEnabled: args.arrowEnabled ?? source.payload.arrowEnabled ?? true, ...(layerId == null ? {} : { layerId }) } })
   return { leader: updatedLeader, annotation: updatedAnnotation }
 }

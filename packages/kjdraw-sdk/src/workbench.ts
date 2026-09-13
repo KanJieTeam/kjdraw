@@ -3498,7 +3498,7 @@ export class KJDrawWorkbench {
     }
     let valueInput: HTMLInputElement | HTMLTextAreaElement | null = null
     let textFields: { height: HTMLInputElement; rotation: HTMLInputElement; alignment: HTMLSelectElement } | null = null
-    let leaderFields: { text: HTMLTextAreaElement; style: HTMLSelectElement; height: HTMLInputElement; arrow: HTMLInputElement } | null = null
+    let leaderFields: { text: HTMLTextAreaElement; style: HTMLSelectElement; height: HTMLInputElement; width: HTMLInputElement; rotation: HTMLInputElement; attachment: HTMLSelectElement; arrow: HTMLInputElement } | null = null
     if (!multiple && (entity.type === 'CIRCLE' || entity.type === 'ARC')) {
       const field = document.createElement('label'); field.className = 'field'; field.innerHTML = `<span>${this.#t('radius')}</span>`
       valueInput = document.createElement('input'); valueInput.type = 'number'; valueInput.min = '0.000001'; valueInput.step = '0.1'; valueInput.value = String(entity.payload.radius ?? ''); valueInput.disabled = this.#readOnly === true; field.append(valueInput); host.append(field)
@@ -3524,9 +3524,13 @@ export class KJDrawWorkbench {
       const style = document.createElement('select'); style.dataset.property = 'leader-style'; const styleId = String(annotation?.payload.styleId ?? drawing.getTable('textStyles')?.currentId ?? '')
       for (const record of drawing.getTable('textStyles')?.records ?? []) style.add(new Option(record.name ?? 'STANDARD', record.id, false, record.id === styleId))
       const height = document.createElement('input'); height.type = 'number'; height.required = true; height.min = String(Number.EPSILON); height.step = 'any'; height.value = String(annotation?.payload.height ?? entity.payload.textHeight ?? 2.5); height.dataset.property = 'leader-height'
+      const width = document.createElement('input'); width.type = 'number'; width.min = String(Number.EPSILON); width.step = 'any'; width.placeholder = this.#locale === 'zh-CN' ? '自动' : 'Auto'; width.value = annotation?.payload.width == null ? '' : String(annotation.payload.width); width.dataset.property = 'leader-width'
+      const rotation = document.createElement('input'); rotation.type = 'number'; rotation.required = true; rotation.step = 'any'; rotation.value = String(Number(annotation?.payload.rotation ?? 0) * 180 / Math.PI); rotation.dataset.property = 'leader-rotation'
+      const attachment = document.createElement('select'); attachment.dataset.property = 'leader-attachment'
+      for (const [value, en, zh] of [[1, 'Top left', '左上'], [2, 'Top center', '中上'], [3, 'Top right', '右上'], [4, 'Middle left', '左中'], [5, 'Middle center', '居中'], [6, 'Middle right', '右中'], [7, 'Bottom left', '左下'], [8, 'Bottom center', '中下'], [9, 'Bottom right', '右下']] as const) attachment.add(new Option(this.#locale === 'zh-CN' ? zh : en, String(value), false, Number(annotation?.payload.attachmentPoint ?? 7) === value))
       const arrow = document.createElement('input'); arrow.type = 'checkbox'; arrow.checked = entity.payload.arrowEnabled !== false; arrow.dataset.property = 'leader-arrow'
-      add(this.#locale === 'zh-CN' ? '引线文字' : 'Leader text', text); add(this.#t('textStyle'), style); add(this.#locale === 'zh-CN' ? '文字高度' : 'Text height', height); add(this.#locale === 'zh-CN' ? '显示箭头' : 'Arrowhead', arrow)
-      leaderFields = { text, style, height, arrow }
+      add(this.#locale === 'zh-CN' ? '引线文字' : 'Leader text', text); add(this.#t('textStyle'), style); add(this.#locale === 'zh-CN' ? '文字高度' : 'Text height', height); add(this.#locale === 'zh-CN' ? '文字宽度' : 'Text width', width); add(this.#locale === 'zh-CN' ? '旋转角（度）' : 'Rotation (degrees)', rotation); add(this.#locale === 'zh-CN' ? '文字对齐' : 'Text attachment', attachment); add(this.#locale === 'zh-CN' ? '显示箭头' : 'Arrowhead', arrow)
+      leaderFields = { text, style, height, width, rotation, attachment, arrow }
     }
     if (!this.#readOnly && editableHatch) {
       const editHatch = document.createElement('button'); editHatch.type = 'button'; editHatch.className = 'apply'; editHatch.dataset.action = 'edit-hatch'; editHatch.textContent = this.#t('hatchEdit')
@@ -3548,8 +3552,9 @@ export class KJDrawWorkbench {
           return
         }
         if (leaderFields) {
-          if (!leaderFields.text.value.trim() || !leaderFields.height.checkValidity()) { leaderFields.height.reportValidity(); return }
-          await this.execute('LEADEREDIT', { id: entity.id, vertices: entity.payload.vertices as readonly KJPointInput[], textPosition: entity.payload.textPosition as KJPointInput, text: leaderFields.text.value, styleId: leaderFields.style.value, textHeight: Number(leaderFields.height.value), arrowEnabled: leaderFields.arrow.checked, layerId: layerSelect.value })
+          const invalid = [leaderFields.height, leaderFields.width, leaderFields.rotation].find(input => !input.checkValidity())
+          if (!leaderFields.text.value.trim() || invalid) { invalid?.reportValidity(); return }
+          await this.execute('LEADEREDIT', { id: entity.id, vertices: entity.payload.vertices as readonly KJPointInput[], textPosition: entity.payload.textPosition as KJPointInput, text: leaderFields.text.value, styleId: leaderFields.style.value, textHeight: Number(leaderFields.height.value), width: leaderFields.width.value ? Number(leaderFields.width.value) : null, rotation: Number(leaderFields.rotation.value) * Math.PI / 180, attachmentPoint: Number(leaderFields.attachment.value), arrowEnabled: leaderFields.arrow.checked, layerId: layerSelect.value })
           return
         }
         if (valueInput && (entity.type === 'CIRCLE' || entity.type === 'ARC')) payload.radius = Number(valueInput.value)

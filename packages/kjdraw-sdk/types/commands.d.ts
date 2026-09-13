@@ -176,6 +176,12 @@ export interface KJCommandArguments extends Record<string, unknown> {
     angleDegrees?: unknown;
     rotation?: unknown;
     radius?: unknown;
+    text?: unknown;
+    textPosition?: unknown;
+    textHeight?: unknown;
+    styleId?: unknown;
+    attachmentPoint?: unknown;
+    arrowEnabled?: unknown;
     distance?: unknown;
     tolerance?: unknown;
     segmentIndex?: unknown;
