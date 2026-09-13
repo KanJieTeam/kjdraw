@@ -9,6 +9,8 @@ export interface KJAgentCompactDrawingInput {
   arcs: [number, number, number, number, number][]
   /** Center XY, major-axis vector XY, ratio, then start/end parameters in degrees. */
   ellipses?: [number, number, number, number, number, number, number][]
+  /** Open NURBS definitions stay structured because knot and weight lengths vary. */
+  splines?: { degree: number; controlPoints: KJAgentPoint[]; knots?: number[]; weights?: number[] }[]
   polylines: { points: [number, number][]; closed: boolean }[]
 }
 
@@ -23,6 +25,12 @@ export function decodeAgentCompactDrawing(input: KJAgentCompactDrawingInput): KJ
     arcs: input.arcs.map(([x, y, radius, startDegrees, endDegrees]) => ({ center: point(x, y), radius, startDegrees, endDegrees })),
     ellipses: (input.ellipses ?? []).map(([x, y, majorX, majorY, ratio, startDegrees, endDegrees]) => ({
       center: point(x, y), majorAxis: point(majorX, majorY), ratio, startDegrees, endDegrees,
+    })),
+    splines: (input.splines ?? []).map(spline => ({
+      degree: spline.degree,
+      controlPoints: spline.controlPoints.map(({ x, y }) => point(x, y)),
+      ...(spline.knots ? { knots: [...spline.knots] } : {}),
+      ...(spline.weights ? { weights: [...spline.weights] } : {}),
     })),
     polylines: input.polylines.map(({ points, closed }) => ({ vertices: points.map(([x, y]) => point(x, y)), closed })),
   }

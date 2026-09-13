@@ -21,7 +21,9 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
   for (const tool of KJDRAW_AGENT_TOOLS) {
     assert.equal(tool.inputSchema.additionalProperties, false)
     const optional = tool.name === 'cad_propose_drawing_annotated'
-      ? ['angularDimensions']
+      ? ['ellipses', 'splines', 'angularDimensions']
+      : ['cad_propose_drawing', 'cad_propose_drawing_compact', 'cad_propose_drawing_pattern'].includes(tool.name)
+        ? ['ellipses', 'splines']
       : tool.name === 'cad_read_components'
         ? ['query', 'category', 'locale', 'limit', 'cursor']
         : tool.name === 'cad_propose_component_insert'
@@ -33,7 +35,7 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
         : tool.name === 'cad_propose_polyline_edit'
           ? ['segmentIndex', 'vertexIndex', 'point', 'tolerance', 'bulge', 'sweepDegrees', 'startWidth', 'endWidth']
           : tool.name === 'cad_check_geometry'
-            ? ['dimensionMeasurements', 'polylineVertexCounts', 'polylineSegmentBulges']
+            ? ['ellipseMajorRadii', 'ellipseMinorRadii', 'splineLengths', 'dimensionMeasurements', 'polylineVertexCounts', 'polylineSegmentBulges']
             : []
     assert.deepEqual(tool.inputSchema.required, Object.keys(tool.inputSchema.properties).filter(key => !optional.includes(key)))
     assert.throws(() => { tool.inputSchema.additionalProperties = true }, TypeError)

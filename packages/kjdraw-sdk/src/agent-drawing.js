@@ -1,6 +1,7 @@
 // Generated from agent-drawing.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { createId } from './ids.js';
 import { KJValidationError } from './errors.js';
+import { normalizeSplineDefinition } from './geometry/curves.js';
 const xyz = (point)=>[
         point.x,
         point.y,
@@ -9,8 +10,10 @@ const xyz = (point)=>[
 const same = (a, b)=>a.x === b.x && a.y === b.y;
 export function buildAgentDrawingEntities(input, ownerId) {
     const ellipses = input.ellipses ?? [];
-    const total = input.lines.length + input.circles.length + input.arcs.length + ellipses.length + input.polylines.length;
+    const splines = input.splines ?? [];
+    const total = input.lines.length + input.circles.length + input.arcs.length + ellipses.length + splines.length + input.polylines.length;
     if (total < 1 || total > 64) throw new KJValidationError('A drawing proposal requires 1–64 total entities across all groups');
+    if (splines.reduce((sum, spline)=>sum + spline.controlPoints.length, 0) > 1024) throw new KJValidationError('A drawing proposal supports at most 1024 spline control points');
     const entity = (type, payload)=>({
             type,
             payload,
@@ -53,6 +56,35 @@ export function buildAgentDrawingEntities(input, ownerId) {
                 ratio: ellipse.ratio,
                 startParameter: ellipse.startDegrees * Math.PI / 180,
                 endParameter: ellipse.endDegrees * Math.PI / 180
+            });
+        }),
+        ...splines.map((spline)=>{
+            const normalized = normalizeSplineDefinition({
+                degree: spline.degree,
+                controlPoints: spline.controlPoints.map((point)=>[
+                        point.x,
+                        point.y
+                    ]),
+                ...spline.knots ? {
+                    knots: spline.knots
+                } : {},
+                ...spline.weights ? {
+                    weights: spline.weights
+                } : {}
+            });
+            return entity('SPLINE', {
+                degree: normalized.degree,
+                controlPoints: normalized.controlPoints.map((point)=>[
+                        point[0],
+                        point[1],
+                        0
+                    ]),
+                knots: normalized.knots,
+                ...normalized.weights.length ? {
+                    weights: normalized.weights
+                } : {},
+                closed: false,
+                periodic: false
             });
         }),
         ...input.polylines.map((polyline)=>{

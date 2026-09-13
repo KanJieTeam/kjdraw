@@ -29,6 +29,7 @@ export const KJDRAW_AGENT_MOVABLE_TYPES = Object.freeze([
 const creatable = [
     ...supported,
     'ELLIPSE',
+    'SPLINE',
     'TEXT',
     'DIMENSION'
 ];
@@ -306,7 +307,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     const maxCreatedEntities = options.maxCreatedEntities ?? 64;
     if (!Number.isSafeInteger(maxCreatedEntities) || maxCreatedEntities < 1 || maxCreatedEntities > 512) throw new KJValidationError('Preview creation budget must be an integer from 1 to 512');
     if (command === 'CREATEBATCH') {
-        if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some((spec)=>!spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} LINE/CIRCLE/ARC/ELLIPSE/LWPOLYLINE/TEXT/DIMENSION entities`);
+        if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some((spec)=>!spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} LINE/CIRCLE/ARC/ELLIPSE/SPLINE/LWPOLYLINE/TEXT/DIMENSION entities`);
     } else if (command !== 'COMPONENTINSERT') {
         const ids = bindingIds ?? (design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' ? [
             args.id

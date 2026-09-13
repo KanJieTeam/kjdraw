@@ -1,5 +1,6 @@
 // Generated from agent-drawing-patterns.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJValidationError } from './errors.js';
+import { normalizeSplineDefinition } from './geometry/curves.js';
 const ENTITY_LIMIT = 4096;
 const POINT_LIMIT = 262144;
 const COORDINATE_LIMIT = 1e12;
@@ -115,6 +116,35 @@ export function expandRectangularDrawingPattern(entities, pattern, budget = {}) 
                     ].every((parameter)=>Number.isFinite(parameter) && parameter >= 0 && parameter <= Math.PI * 2) || startParameter === endParameter) reject('Pattern ellipses require bounded radian parameters and a nonzero sweep');
                     break;
                 }
+            case 'SPLINE':
+                {
+                    keys(payload, entity.payload.weights ? [
+                        'degree',
+                        'controlPoints',
+                        'knots',
+                        'weights',
+                        'closed',
+                        'periodic'
+                    ] : [
+                        'degree',
+                        'controlPoints',
+                        'knots',
+                        'closed',
+                        'periodic'
+                    ]);
+                    const { degree, controlPoints, knots, weights, closed, periodic } = entity.payload;
+                    if (closed !== false || periodic !== false || !Array.isArray(controlPoints) || controlPoints.length > 64) reject('Pattern splines require an open bounded native NURBS definition');
+                    controlPoints.forEach(checkPoint);
+                    normalizeSplineDefinition({
+                        degree,
+                        controlPoints,
+                        knots,
+                        ...weights ? {
+                            weights
+                        } : {}
+                    });
+                    break;
+                }
             case 'LWPOLYLINE':
                 {
                     keys(payload, [
@@ -194,6 +224,23 @@ export function expandRectangularDrawingPattern(entities, pattern, budget = {}) 
                             majorAxis: [
                                 ...entity.payload.majorAxis
                             ]
+                        }
+                    });
+                    break;
+                case 'SPLINE':
+                    expanded.push({
+                        type: 'SPLINE',
+                        payload: {
+                            ...entity.payload,
+                            controlPoints: entity.payload.controlPoints.map(translate),
+                            knots: [
+                                ...entity.payload.knots
+                            ],
+                            ...entity.payload.weights ? {
+                                weights: [
+                                    ...entity.payload.weights
+                                ]
+                            } : {}
                         }
                     });
                     break;

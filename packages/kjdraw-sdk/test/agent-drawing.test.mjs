@@ -60,6 +60,33 @@ test('the whole profile can be moved with an exact geometry preview and one undo
   for (const expected of moved.preview.before) assert.deepEqual(document.getObject(expected.id).payload, expected.payload)
 })
 
+test('mixed drawing creates editable rational NURBS with explicit and generated knot vectors', async () => {
+  const { sdk, document, session } = fixture()
+  const base = { expectedRevision: 0, units: 'millimeter', lines: [], circles: [], arcs: [], polylines: [] }
+  const proposal = value(await session.call('cad_propose_drawing', { ...base, splines: [
+    { degree: 2, controlPoints: [{ x: 0, y: 0 }, { x: 5, y: 10 }, { x: 10, y: 0 }], knots: [0, 0, 0, 1, 1, 1], weights: [1, 0.5, 1] },
+    { degree: 1, controlPoints: [{ x: 20, y: 0 }, { x: 24, y: 3 }] },
+  ] }))
+  assert.equal(proposal.preview.after.length, 2)
+  assert.equal(document.listEntities().length, 0)
+  value(await session.approve(proposal.planId, 'reviewer'))
+  const splines = document.listEntities({ type: 'SPLINE' })
+  assert.equal(splines.length, 2)
+  assert.deepEqual(splines[0].payload.controlPoints, [[0, 0, 0], [5, 10, 0], [10, 0, 0]])
+  assert.deepEqual(splines[0].payload.weights, [1, 0.5, 1])
+  assert.deepEqual(splines[1].payload.knots, [0, 0, 1, 1])
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format }), { format })
+    const curves = reopened.listEntities({ type: 'SPLINE' })
+    assert.equal(curves.length, 2)
+    const rational = curves.find(curve => curve.payload.controlPoints[0][0] === 0)
+    const generated = curves.find(curve => curve.payload.controlPoints[0][0] === 20)
+    assert.deepEqual(rational.payload.knots, [0, 0, 0, 1, 1, 1])
+    assert.deepEqual(rational.payload.weights, [1, 0.5, 1])
+    assert.deepEqual(generated.payload.controlPoints, [[20, 0, 0], [24, 3, 0]])
+  }
+})
+
 test('mixed drawing rejects malformed or oversized groups atomically', async () => {
   const { document, session } = fixture()
   const empty = { expectedRevision: 0, units: 'millimeter', lines: [], circles: [], arcs: [], polylines: [] }
@@ -75,6 +102,9 @@ test('mixed drawing rejects malformed or oversized groups atomically', async () 
     { ...good, polylines: [{ vertices: [{ x: 0, y: 0 }, { x: 0, y: 0 }], closed: false }] },
     { ...good, polylines: [{ vertices: [...good.polylines[0].vertices, { x: 0, y: 0 }], closed: true }] },
     { ...good, polylines: [{ vertices: Array(65).fill({ x: 1, y: 2 }), closed: false }] },
+    { ...good, splines: [{ degree: 2, controlPoints: [{ x: 0, y: 0 }, { x: 1, y: 1 }] }] },
+    { ...good, splines: [{ degree: 2, controlPoints: [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 0 }], knots: [0, 0, 1, 1] }] },
+    { ...good, splines: [{ degree: 1, controlPoints: [{ x: 0, y: 0 }, { x: 1, y: 1 }], weights: [1, 0] }] },
     { ...good, commands: [{ command: 'DELETE' }] },
   ]
   const source = document.serialize()

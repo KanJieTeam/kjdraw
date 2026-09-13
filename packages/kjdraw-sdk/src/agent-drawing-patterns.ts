@@ -1,4 +1,5 @@
 import { KJValidationError } from './errors.js'
+import { normalizeSplineDefinition } from './geometry/curves.js'
 
 export type KJPatternPoint = readonly [number, number, number]
 export type KJPatternEntity =
@@ -6,6 +7,7 @@ export type KJPatternEntity =
   | { type: 'CIRCLE'; payload: { center: KJPatternPoint; radius: number } }
   | { type: 'ARC'; payload: { center: KJPatternPoint; radius: number; startAngle: number; endAngle: number; clockwise: boolean } }
   | { type: 'ELLIPSE'; payload: { center: KJPatternPoint; majorAxis: KJPatternPoint; ratio: number; startParameter: number; endParameter: number } }
+  | { type: 'SPLINE'; payload: { degree: number; controlPoints: readonly KJPatternPoint[]; knots: readonly number[]; weights?: readonly number[]; closed: false; periodic: false } }
   | { type: 'LWPOLYLINE'; payload: { vertices: readonly KJPatternPoint[]; closed: boolean } }
 export interface KJRectangularDrawingPattern { rows: number; columns: number; dx: number; dy: number }
 export interface KJDrawingPatternBudget { maxEntities?: number; maxPoints?: number }
@@ -90,6 +92,14 @@ export function expandRectangularDrawingPattern(
         if (![startParameter, endParameter].every(parameter => Number.isFinite(parameter) && parameter >= 0 && parameter <= Math.PI * 2) || startParameter === endParameter) reject('Pattern ellipses require bounded radian parameters and a nonzero sweep')
         break
       }
+      case 'SPLINE': {
+        keys(payload, entity.payload.weights ? ['degree', 'controlPoints', 'knots', 'weights', 'closed', 'periodic'] : ['degree', 'controlPoints', 'knots', 'closed', 'periodic'])
+        const { degree, controlPoints, knots, weights, closed, periodic } = entity.payload
+        if (closed !== false || periodic !== false || !Array.isArray(controlPoints) || controlPoints.length > 64) reject('Pattern splines require an open bounded native NURBS definition')
+        controlPoints.forEach(checkPoint)
+        normalizeSplineDefinition({ degree, controlPoints, knots, ...(weights ? { weights } : {}) })
+        break
+      }
       case 'LWPOLYLINE': {
         keys(payload, ['vertices', 'closed'])
         const { vertices, closed } = entity.payload
@@ -131,6 +141,7 @@ export function expandRectangularDrawingPattern(
         case 'CIRCLE': expanded.push({ type: 'CIRCLE', payload: { center: translate(entity.payload.center), radius: entity.payload.radius } }); break
         case 'ARC': expanded.push({ type: 'ARC', payload: { ...entity.payload, center: translate(entity.payload.center) } }); break
         case 'ELLIPSE': expanded.push({ type: 'ELLIPSE', payload: { ...entity.payload, center: translate(entity.payload.center), majorAxis: [...entity.payload.majorAxis] } }); break
+        case 'SPLINE': expanded.push({ type: 'SPLINE', payload: { ...entity.payload, controlPoints: entity.payload.controlPoints.map(translate), knots: [...entity.payload.knots], ...(entity.payload.weights ? { weights: [...entity.payload.weights] } : {}) } }); break
         case 'LWPOLYLINE': expanded.push({ type: 'LWPOLYLINE', payload: { vertices: entity.payload.vertices.map(translate), closed: entity.payload.closed } }); break
       }
     }

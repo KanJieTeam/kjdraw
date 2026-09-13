@@ -68,6 +68,23 @@ test('annotated drawings retain native elliptical arcs and style their array cop
   assert.deepEqual(document.getObject(layer.payload.linetypeId).payload.pattern, [4, -1])
 })
 
+test('annotated drawings combine styled rational splines, arrays and notes in one approval', async () => {
+  const { document, session } = fixture()
+  const spline = { degree: 2, controlPoints: [{ x: 0, y: 0 }, { x: 10, y: 12 }, { x: 20, y: 0 }], knots: [0, 0, 0, 1, 1, 1], weights: [1, 0.7, 1] }
+  const proposal = value(await session.call(tool, {
+    ...empty(), splines: [spline], texts: [note()],
+    arrays: [{ sources: ['splines:0'], rows: 2, columns: 1, dx: 0, dy: 30 }],
+    styles: [{ name: 'CAM-PROFILE', sources: ['splines:0'], pattern: [], color: 3, lineweight: 35 }],
+  }))
+  assert.deepEqual(proposal.preview.after.map(item => item.type), ['SPLINE', 'SPLINE', 'TEXT'])
+  assert.deepEqual(proposal.preview.after.filter(item => item.type === 'SPLINE').map(item => item.payload.controlPoints[0]), [[0, 0, 0], [0, 30, 0]])
+  value(await session.approve(proposal.planId, 'reviewer'))
+  const curves = document.listEntities({ type: 'SPLINE' })
+  assert.equal(curves.length, 2)
+  assert.ok(curves.every(curve => curve.payload.layerId === curves[0].payload.layerId))
+  assert.equal(document.getObject(curves[0].payload.layerId).payload.lineweight, 35)
+})
+
 test('invalid references, degenerate projected dimensions and total annotation budgets leave the drawing unchanged',async()=>{
  const {document,session}=fixture(),source=document.serialize()
  const cases=[]

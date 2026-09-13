@@ -28,6 +28,20 @@ export function decodeAgentCompactDrawing(input) {
                 startDegrees,
                 endDegrees
             })),
+        splines: (input.splines ?? []).map((spline)=>({
+                degree: spline.degree,
+                controlPoints: spline.controlPoints.map(({ x, y })=>point(x, y)),
+                ...spline.knots ? {
+                    knots: [
+                        ...spline.knots
+                    ]
+                } : {},
+                ...spline.weights ? {
+                    weights: [
+                        ...spline.weights
+                    ]
+                } : {}
+            })),
         polylines: input.polylines.map(({ points, closed })=>({
                 vertices: points.map(([x, y])=>point(x, y)),
                 closed

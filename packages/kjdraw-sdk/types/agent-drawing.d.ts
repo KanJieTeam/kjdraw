@@ -29,6 +29,13 @@ export interface KJAgentDrawingInput {
         startDegrees: number;
         endDegrees: number;
     }[];
+    /** Open native NURBS curves. Omit knots for a clamped uniform vector and weights for non-rational curves. */
+    splines?: {
+        degree: number;
+        controlPoints: KJAgentPoint[];
+        knots?: number[];
+        weights?: number[];
+    }[];
     /** Straight-segment polylines. Do not repeat the first vertex to close. */
     polylines: {
         vertices: KJAgentPoint[];

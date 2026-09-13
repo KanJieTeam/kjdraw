@@ -96,6 +96,19 @@ test('native elliptical arcs can seed compact rectangular arrays without tessell
   assert.equal(document.revision,0);value(await session.approve(proposal.planId,'reviewer'));assert.equal(document.listEntities({type:'ELLIPSE'}).length,4)
 })
 
+test('native rational splines can seed reviewed rectangular arrays without tessellation', async () => {
+  const { document, session } = fixture()
+  const spline = { degree: 2, controlPoints: [{ x: 0, y: 0 }, { x: 5, y: 8 }, { x: 10, y: 0 }], knots: [0, 0, 0, 1, 1, 1], weights: [1, 0.5, 1] }
+  const proposal = value(await session.call(tool, { ...empty(), splines: [spline], arrays: [array({ sources: ['splines:0'], rows: 1, columns: 3, dx: 20, dy: 0 })] }))
+  assert.equal(proposal.preview.after.length, 3)
+  assert.ok(proposal.preview.after.every(item => item.type === 'SPLINE'))
+  assert.deepEqual(proposal.preview.after.map(item => item.payload.controlPoints[0]), [[0, 0, 0], [20, 0, 0], [40, 0, 0]])
+  assert.ok(proposal.preview.after.every(item => JSON.stringify(item.payload.knots) === JSON.stringify([0, 0, 0, 1, 1, 1])))
+  assert.ok(proposal.preview.after.every(item => JSON.stringify(item.payload.weights) === JSON.stringify([1, 0.5, 1])))
+  value(await session.approve(proposal.planId, 'reviewer'))
+  assert.equal(document.listEntities({ type: 'SPLINE' }).length, 3)
+})
+
 test('pattern total budget accepts exactly 512 and rejects 513 across all arrays before geometry expansion', async () => {
   const { document, session } = fixture(), source = document.serialize()
   const good = { ...empty(), circles: [[0, 0, 1]], arrays: [array({ rows: 16, columns: 32, dx: 4, dy: 5 })] }

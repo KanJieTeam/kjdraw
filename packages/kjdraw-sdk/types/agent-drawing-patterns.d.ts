@@ -30,6 +30,16 @@ export type KJPatternEntity = {
         endParameter: number;
     };
 } | {
+    type: 'SPLINE';
+    payload: {
+        degree: number;
+        controlPoints: readonly KJPatternPoint[];
+        knots: readonly number[];
+        weights?: readonly number[];
+        closed: false;
+        periodic: false;
+    };
+} | {
     type: 'LWPOLYLINE';
     payload: {
         vertices: readonly KJPatternPoint[];
