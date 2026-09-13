@@ -219,8 +219,8 @@ export function createAgentChat(container, options) {
     try {
       const url=new URL(endpoint.value,location.href), modelName=name.value.trim()
       if(!endpoint.value.trim()||url.origin!==location.origin||!['http:','https:'].includes(url.protocol)||url.username||url.password||!modelName)throw new Error('Invalid connection')
-      const streaming=protocol.value==='chat-completions'
-      const next=createChatModelAdapter({protocol:protocol.value,model:modelName,maxOutputTokens:Number(outputTokens.value),...(streaming?{chatStreaming:true,chatStreamIncludeUsage:true,onTextDelta:delta=>{if(!streamTarget||!streamTarget.isConnected)return;streamText=(streamText+delta).slice(-16000);streamTarget.textContent=streamText}}:{}),request:async({body,signal})=>readChatModelResponse(await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal,credentials:'same-origin',redirect:'error'}))})
+      const selectedProtocol=protocol.value,streaming=['chat-completions','responses'].includes(selectedProtocol)
+      const next=createChatModelAdapter({protocol:selectedProtocol,model:modelName,maxOutputTokens:Number(outputTokens.value),...(streaming?{...(selectedProtocol==='chat-completions'?{chatStreaming:true,chatStreamIncludeUsage:true}:{responsesStreaming:true}),onTextDelta:delta=>{if(!streamTarget||!streamTarget.isConnected)return;streamText=(streamText+delta).slice(-16000);streamTarget.textContent=streamText}}:{}),request:async({body,signal})=>readChatModelResponse(await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal,credentials:'same-origin',redirect:'error'}))})
       setConnection(next,modelName); settings.hidden=true; connection.setAttribute('aria-expanded','false'); connectionError.textContent=''; input.focus()
     } catch { connectionError.textContent=L('invalidConnection') }
   }

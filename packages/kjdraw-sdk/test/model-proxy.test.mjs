@@ -103,6 +103,26 @@ test('model proxy streams OpenAI-compatible SSE into the SDK without exposing cr
   assert.equal(seen.length,1);assert.equal(seen[0].headers.authorization,'Bearer server-only-secret');assert.equal(seen[0].body.stream,true);assert.equal(seen[0].body.stream_options.include_usage,true);assert.equal(seen[0].body.tool_stream,true)
 })
 
+test('model proxy streams Responses API events, function arguments and terminal usage',async t=>{
+ const seen=[]
+ const app=await fixture(t,async(req,res)=>{
+  const chunks=[];for await(const chunk of req)chunks.push(chunk);seen.push({headers:req.headers,body:JSON.parse(Buffer.concat(chunks))})
+  const item={type:'function_call',id:'item-read',call_id:'read',name:'cad_read_drawing',arguments:'{}',status:'completed'}
+  const events=[
+   {type:'response.function_call_arguments.delta',sequence_number:0,item_id:'item-read',output_index:0,delta:'{'},
+   {type:'response.function_call_arguments.delta',sequence_number:1,item_id:'item-read',output_index:0,delta:'}'},
+   {type:'response.function_call_arguments.done',sequence_number:2,item_id:'item-read',output_index:0,name:'cad_read_drawing',arguments:'{}'},
+   {type:'response.completed',sequence_number:3,response:{status:'completed',output:[item],usage:{input_tokens:9,output_tokens:2,total_tokens:11}}},
+  ]
+  res.writeHead(200,{'Content-Type':'text/event-stream'});for(const event of events)res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);res.end()
+ },{protocol:'responses'})
+ const model=createKJModelAdapter({protocol:'responses',model:'fixed-model',responsesStreaming:true,request:async({body,signal})=>readChatModelResponse(await app.post(body,{signal}))})
+ const definition={name:'cad_read_drawing',description:'Read',inputSchema:{type:'object',properties:{},required:[],additionalProperties:false}}
+ const turn=await model.createConversation({instructions:'Read.',tools:[definition]}).next({kind:'prompt',text:'Inspect.'},new AbortController().signal)
+ assert.deepEqual(turn.calls,[{id:'read',name:'cad_read_drawing',arguments:{}}]);assert.equal(turn.usage.totalTokens,11)
+ assert.equal(seen.length,1);assert.equal(seen[0].headers.authorization,'Bearer server-only-secret');assert.equal(seen[0].body.stream,true);assert.equal(seen[0].body.store,false);assert.equal('tool_stream' in seen[0].body,false)
+})
+
 test('model proxy terminates an SSE event that completes a reflected credential',async t=>{
  const app=await fixture(t,async(req,res)=>{req.resume();res.writeHead(200,{'Content-Type':'text/event-stream'});res.write('data: {"choices":[{"delta":{"content":"server-only-"}}]}\n\n');await new Promise(resolve=>setTimeout(resolve,10));res.end('data: {"choices":[{"delta":{"content":"secret"},"finish_reason":"stop"}]}\n\n')})
  const response=await app.post({...body,stream:true});assert.equal(response.status,502)

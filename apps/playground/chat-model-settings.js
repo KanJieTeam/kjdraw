@@ -1,7 +1,7 @@
 import {createKJModelAdapter,KJModelError} from '../../packages/kjdraw-sdk/src/model-adapters.js'
 export const CHAT_OUTPUT_TOKEN_LIMITS=Object.freeze([4096,8192,16384,32768])
 const outputLimited=(protocol,response)=>protocol==='chat-completions'?Array.isArray(response?.choices)&&response.choices.some(choice=>choice?.finish_reason==='length')
- :protocol==='responses'?response?.status==='incomplete'&&response?.incomplete_details?.reason==='max_output_tokens'
+ :protocol==='responses'?(response?.response??response)?.status==='incomplete'&&(response?.response??response)?.incomplete_details?.reason==='max_output_tokens'
  :protocol==='anthropic-messages'?response?.stop_reason==='max_tokens'
  :protocol==='gemini-generate-content'?Array.isArray(response?.candidates)&&response.candidates.some(candidate=>candidate?.finishReason==='MAX_TOKENS'):false
 const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value)

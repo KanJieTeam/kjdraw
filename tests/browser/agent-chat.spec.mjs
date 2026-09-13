@@ -199,11 +199,11 @@ for(const kind of ['move','rotate','scale'])test(`chat discovers and reviews an 
   for(const object of applied.listObjects())expect(redone.getObject(object.id)).toEqual(object)
   expect(requests).toHaveLength(4);expect(errors).toEqual([])
 })
-async function connect(page) {
+async function connect(page,protocol='chat-completions') {
   await page.getByRole('button', { name: 'Connect model', exact: true }).click()
   await page.locator('#chat-endpoint').fill('/api/model')
   await page.locator('#chat-model').fill('browser-fixture')
-  await page.locator('#chat-protocol').selectOption('chat-completions')
+  await page.locator('#chat-protocol').selectOption(protocol)
   await page.getByRole('button', { name: 'Use this connection', exact: true }).click()
 }
 async function send(page, text) {
@@ -216,7 +216,7 @@ async function snapshot(page, width, name) {
   await page.screenshot({ path: `.cache/agent-chat/${name}-${width}.png` })
 }
 
-test('chat displays OpenAI-compatible SSE text incrementally',async({page})=>{
+test('chat displays Responses API SSE text incrementally',async({page})=>{
  await openChat(page)
  await page.evaluate(()=>{
   window.chatStreamStates=[]
@@ -225,18 +225,24 @@ test('chat displays OpenAI-compatible SSE text incrementally',async({page})=>{
  let requestBody
  await page.route('**/api/model',route=>{
   requestBody=route.request().postDataJSON()
+  const response={status:'completed',output:[{id:'msg-stream',type:'message',status:'completed',role:'assistant',content:[{type:'output_text',text:'Stream one two',annotations:[]}]}],usage:{input_tokens:3,output_tokens:3,total_tokens:6}}
   return route.fulfill({status:200,contentType:'text/event-stream; charset=utf-8',body:[
-   'data: {"choices":[{"index":0,"delta":{"role":"assistant","content":"Stream one"}}]}',
+   'event: response.output_text.delta',
+   'data: {"type":"response.output_text.delta","sequence_number":0,"item_id":"msg-stream","output_index":0,"content_index":0,"delta":"Stream one"}',
    '',
-   'data: {"choices":[{"index":0,"delta":{"content":" two"},"finish_reason":"stop"}]}',
+   'event: response.output_text.delta',
+   'data: {"type":"response.output_text.delta","sequence_number":1,"item_id":"msg-stream","output_index":0,"content_index":0,"delta":" two"}',
    '',
-   'data: [DONE]','','',
+   'event: response.output_text.done',
+   'data: {"type":"response.output_text.done","sequence_number":2,"item_id":"msg-stream","output_index":0,"content_index":0,"text":"Stream one two"}',
+   '',
+   `event: response.completed\ndata: ${JSON.stringify({type:'response.completed',sequence_number:3,response})}`,'','',
   ].join('\n')})
  })
- await connect(page);await send(page,'Stream a status response.')
+ await connect(page,'responses');await send(page,'Stream a status response.')
  await expect(page.locator('.chat-message-body').last()).toHaveText('Stream one two')
  await expect.poll(()=>page.evaluate(()=>window.chatStreamStates)).toContain('Stream one')
- expect(requestBody.stream).toBe(true);expect(requestBody.stream_options).toEqual({include_usage:true})
+ expect(requestBody.stream).toBe(true);expect(requestBody.store).toBe(false);expect(requestBody.stream_options).toBeUndefined()
 })
 
 test('chat queries the real drawing, previews native geometry, applies once, saves and undoes', async ({ page }) => {

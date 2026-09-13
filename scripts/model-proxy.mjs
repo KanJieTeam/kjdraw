@@ -166,10 +166,10 @@ export function createModelProxy(options) {
       timer = setTimeout(() => controller.abort(new ProxyError(504, 'MODEL_TIMEOUT')), timeoutMs)
       let body
       try { body = JSON.parse(await readRequest(req, requestBytes, controller.signal)) } catch (error) { if (error instanceof ProxyError) throw error; throw new ProxyError(400, 'MODEL_REQUEST_INVALID') }
-      if (!object(body) || (body.stream !== undefined && typeof body.stream !== 'boolean') || (body.stream === true && protocol !== 'chat-completions') || 'tool_stream' in body || (protocol === 'gemini-generate-content' ? 'model' in body : body.model !== model)) throw new ProxyError(400, 'MODEL_REQUEST_INVALID')
+      if (!object(body) || (body.stream !== undefined && typeof body.stream !== 'boolean') || (body.stream === true && !['chat-completions', 'responses'].includes(protocol)) || 'tool_stream' in body || (protocol === 'gemini-generate-content' ? 'model' in body : body.model !== model)) throw new ProxyError(400, 'MODEL_REQUEST_INVALID')
       const tokenLimits = protocol === 'gemini-generate-content' ? [body.generationConfig?.maxOutputTokens] : protocol === 'responses' ? [body.max_output_tokens] : [body.max_tokens, body.max_completion_tokens].filter(value => value !== undefined)
       if (!tokenLimits.length || tokenLimits.some(value => !Number.isSafeInteger(value) || value < 1 || value > maxOutputTokens)) throw new ProxyError(400, 'MODEL_TOKEN_LIMIT')
-      if (body.stream === true && options.chatStreamToolCalls === true) body.tool_stream = true
+      if (protocol === 'chat-completions' && body.stream === true && options.chatStreamToolCalls === true) body.tool_stream = true
       const response = await fetch(upstream, { method: 'POST', headers, body: JSON.stringify(body), signal: controller.signal, redirect: 'error' })
       if (body.stream === true && /^text\/event-stream(?:\s*;|$)/i.test(response.headers.get('content-type') ?? '')) { await streamResponse(response, res, responseBytes, apiKey); return }
       const result = await readResponse(response, responseBytes)

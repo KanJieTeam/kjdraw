@@ -45,3 +45,14 @@ test('workbench maps a streamed output-limit finish without retrying',async()=>{
  const result=await runKJAgentTask({session:new KJAgentToolSession(sdk,document),model,prompt:'draw'})
  assert.equal(result.status,'failed');assert.equal(result.error.code,'KJMODEL_OUTPUT_LIMIT');assert.equal(requests,1);assert.equal(result.toolCalls,0)
 })
+
+test('workbench maps a streamed Responses output-limit terminal without retrying',async()=>{
+ let requests=0
+ const request=async()=>{
+  requests++
+  return{async*[Symbol.asyncIterator](){yield{type:'response.incomplete',sequence_number:0,response:{status:'incomplete',incomplete_details:{reason:'max_output_tokens'},output:[],usage:{input_tokens:5,output_tokens:4096,total_tokens:4101}}}}}
+ }
+ const model=createChatModelAdapter({protocol:'responses',model:'responses-stream-limit',responsesStreaming:true,request})
+ const sdk=createKJDrawSDK(),document=sdk.createDocument(),result=await runKJAgentTask({session:new KJAgentToolSession(sdk,document),model,prompt:'draw'})
+ assert.equal(result.status,'failed');assert.equal(result.error.code,'KJMODEL_OUTPUT_LIMIT');assert.equal(requests,1);assert.equal(result.toolCalls,0);assert.equal(result.measurements.totals.totalTokens,4101)
+})

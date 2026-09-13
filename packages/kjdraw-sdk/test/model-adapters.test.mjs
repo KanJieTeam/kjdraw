@@ -494,6 +494,51 @@ test('Chat stop compatibility does not accept incomplete, refused, empty or stru
 
 const streamed = chunks => (async function * () { for (const chunk of chunks) yield chunk })()
 const streamChoice = (delta, finish_reason = null) => ({ choices: [{ index: 0, delta, finish_reason }], usage: null })
+const responseEvent=(type,sequence_number,fields={})=>({type,sequence_number,...fields})
+
+test('streaming Responses assembles text, function arguments, terminal output and usage',async()=>{
+ const {session}=fixture(),definition=session.definitions.find(tool=>tool.name==='cad_read_drawing'),deltas=[];let requestNumber=0
+ const model=createKJModelAdapter({protocol:'responses',model:'responses-stream',responsesStreaming:true,onTextDelta:delta=>deltas.push(delta),request:async({body})=>{
+  assert.equal(body.stream,true)
+  if(requestNumber++===0){
+   const item={type:'function_call',id:'item-read',call_id:'read',name:'cad_read_drawing',arguments:'{}',status:'completed'}
+   return streamed([
+    responseEvent('response.created',0,{response:{status:'in_progress'}}),
+    responseEvent('response.function_call_arguments.delta',1,{item_id:'item-read',output_index:0,delta:'{'}),
+    responseEvent('response.function_call_arguments.delta',2,{item_id:'item-read',output_index:0,delta:'}'}),
+    responseEvent('response.function_call_arguments.done',3,{item_id:'item-read',output_index:0,name:'cad_read_drawing',arguments:'{}'}),
+    responseEvent('response.completed',4,{response:{status:'completed',output:[item],usage:{input_tokens:20,output_tokens:4,total_tokens:24}}}),
+   ])
+  }
+  assert.equal(body.input.at(-1).call_id,'read')
+  const item={type:'message',id:'msg-ready',status:'completed',role:'assistant',content:[{type:'output_text',text:'Drawing ready.',annotations:[]}]}
+  return streamed([
+   responseEvent('response.output_text.delta',0,{item_id:'msg-ready',output_index:0,content_index:0,delta:'Drawing '}),
+   responseEvent('response.output_text.delta',1,{item_id:'msg-ready',output_index:0,content_index:0,delta:'ready.'}),
+   responseEvent('response.output_text.done',2,{item_id:'msg-ready',output_index:0,content_index:0,text:'Drawing ready.'}),
+   responseEvent('response.completed',3,{response:{status:'completed',output:[item],usage:{input_tokens:30,output_tokens:3,total_tokens:33}}}),
+  ])
+ }})
+ const conversation=model.createConversation({instructions:'Read safely.',tools:[definition]})
+ const first=await conversation.next({kind:'prompt',text:'Inspect.'},new AbortController().signal)
+ assert.deepEqual(first.calls,[{id:'read',name:'cad_read_drawing',arguments:{}}]);assert.equal(first.usage.totalTokens,24)
+ const result=await session.call(first.calls[0].name,first.calls[0].arguments)
+ const second=await conversation.next({kind:'tool-results',results:[{id:'read',name:'cad_read_drawing',result}]},new AbortController().signal)
+ assert.equal(second.text,'Drawing ready.');assert.equal(second.usage.totalTokens,33);assert.deepEqual(deltas,['Drawing ','ready.'])
+})
+
+test('streaming Responses preserves complete JSON fallback and rejects incomplete or inconsistent events',async()=>{
+ const fallbackDeltas=[]
+ const fallback=await runKJAgentTask({session:fixture().session,prompt:'status',model:createKJModelAdapter({protocol:'responses',model:'fallback',responsesStreaming:true,onTextDelta:delta=>fallbackDeltas.push(delta),request:async()=>wire('responses',[],'fallback ready')})})
+ assert.equal(fallback.status,'responded');assert.equal(fallback.text,'fallback ready');assert.deepEqual(fallbackDeltas,['fallback ready'])
+ const bad=[
+  streamed([responseEvent('response.output_text.delta',0,{item_id:'msg',output_index:0,content_index:0,delta:'partial'})]),
+  streamed([responseEvent('response.function_call_arguments.delta',0,{item_id:'call',output_index:0,delta:'{'}),responseEvent('response.function_call_arguments.done',1,{item_id:'call',output_index:0,name:'cad_read_drawing',arguments:'{}'})]),
+  streamed([responseEvent('response.failed',0,{response:{status:'failed',output:[]}})]),
+  streamed([responseEvent('error',0,{code:'server_error',message:'private provider detail'})]),
+ ]
+ for(const response of bad){const{session,document}=fixture(),before=document.serialize();const result=await runKJAgentTask({session,prompt:'inspect',model:createKJModelAdapter({protocol:'responses',model:'bad-stream',responsesStreaming:true,request:async()=>response})});assert.equal(result.status,'failed');assert.equal(result.toolCalls,0);assert.equal(document.serialize(),before)}
+})
 
 test('streaming Chat assembles fragmented OpenAI-compatible tool calls, visible text and reported usage', async () => {
   const { session } = fixture()
@@ -589,10 +634,11 @@ test('streaming Chat accepts a complete-JSON fallback and rejects truncated or a
 test('streaming options are protocol-bound and response byte limits cover all chunks', async () => {
   for (const options of [
     { protocol: 'responses', chatStreaming: true },
+    { protocol: 'chat-completions', responsesStreaming: true },
     { protocol: 'chat-completions', chatStreamIncludeUsage: true },
     { protocol: 'chat-completions', chatStreamToolCalls: true },
     { protocol: 'chat-completions', chatStreaming: 'yes' },
-  ]) assert.throws(() => createKJModelAdapter({ ...options, model: 'invalid-stream-config', request: async () => ({}) }), /Chat streaming/)
+  ]) assert.throws(() => createKJModelAdapter({ ...options, model: 'invalid-stream-config', request: async () => ({}) }), /Streaming options/)
   const model = createKJModelAdapter({ protocol: 'chat-completions', model: 'bounded-stream', chatStreaming: true, maxResponseBytes: 100, request: async () => streamed([streamChoice({ content: 'x'.repeat(200) }, 'stop')]) })
   const result = await runKJAgentTask({ session: fixture().session, prompt: 'inspect', model })
   assert.equal(result.status, 'failed'); assert.equal(result.error.code, 'KJMODEL_SIZE_LIMIT'); assert.equal(result.toolCalls, 0)

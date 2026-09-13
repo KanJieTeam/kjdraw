@@ -20,7 +20,7 @@ export interface KJAgentModel {
 export interface KJModelConversationOptions {
   readonly instructions: string
   readonly tools: readonly KJAgentToolDefinition[]
-  /** Visible text fragments from a configured streaming Chat Completions response. Observer failures are isolated. */
+  /** Visible text fragments from a configured streaming response. Observer failures are isolated. */
   readonly onTextDelta?: (delta: string) => void
   /** One observation per completed model turn, even when response parsing later fails. Exceptions are isolated. */
   readonly onUsage?: (usage: KJModelUsage) => void
@@ -35,13 +35,15 @@ export interface KJModelRequest {
 export interface KJModelAdapterOptions {
   protocol: KJModelProtocol
   model: string
-  /** Trusted host transport owns credentials, endpoint allowlisting and HTTP errors; return parsed JSON or parsed JSON chunks for configured Chat streaming. */
+  /** Trusted host transport owns credentials, endpoint allowlisting and HTTP errors; return parsed JSON or parsed JSON events for configured streaming. */
   request: (request: KJModelRequest) => Promise<unknown | AsyncIterable<unknown>>
   maxOutputTokens?: number
   /** Compatible endpoints differ; choose the field accepted by the selected model. */
   chatTokenParameter?: 'max_tokens' | 'max_completion_tokens'
   /** Request and strictly assemble Chat Completions deltas. The transport parses SSE and yields each JSON data object. */
   chatStreaming?: boolean
+  /** Request and strictly assemble Responses API events. The transport parses SSE and yields each JSON data object. */
+  responsesStreaming?: boolean
   /** Ask compatible endpoints for a final usage chunk; keep disabled for endpoints that reject stream_options. */
   chatStreamIncludeUsage?: boolean
   /** Send tool_stream=true for compatible endpoints that require it for incremental tool arguments. */
@@ -205,6 +207,77 @@ function notifyText(observer: ((delta: string) => void) | undefined, delta: stri
 function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
   return !!value && typeof value === 'object' && typeof (value as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] === 'function'
 }
+function streamIndex(value: unknown, label: string): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) invalid(`Streaming ${label} must be a non-negative integer`)
+  return value as number
+}
+async function assembleResponsesStream(source: unknown, maximumBytes: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
+  if (!isAsyncIterable(source)) invalid('Streaming Responses transport must return an async iterable of parsed JSON events')
+  const texts = new Map<string, { itemId: string; outputIndex: number; contentIndex: number; text: string; done: boolean }>()
+  const calls = new Map<string, { itemId: string; outputIndex: number; arguments: string; name?: string; done: boolean }>()
+  let bytes = 0, sequence = -1, terminal: Record<string, unknown> | undefined, chunks = 0
+  for await (const rawEvent of source) {
+    signal.throwIfAborted()
+    const serialized = JSON.stringify(rawEvent)
+    if (!serialized) invalid('Streaming Responses event must be JSON serializable')
+    bytes += new TextEncoder().encode(serialized).length
+    if (bytes > maximumBytes) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model response or conversation exceeds its configured JSON byte limit')
+    const event = record(JSON.parse(serialized) as unknown), type = event.type
+    if (typeof type !== 'string') invalid('Streaming Responses event requires a type')
+    const nextSequence = streamIndex(event.sequence_number, 'sequence number')
+    if (nextSequence <= sequence) invalid('Streaming Responses sequence numbers must increase')
+    sequence = nextSequence; chunks++
+    if (terminal) invalid('Streaming Responses terminal event must be last')
+    if (type === 'response.output_text.delta') {
+      const itemId = identifier(event.item_id), outputIndex = streamIndex(event.output_index, 'output index'), contentIndex = streamIndex(event.content_index, 'content index')
+      if (typeof event.delta !== 'string') invalid('Streaming Responses text delta must be a string')
+      const key = `${itemId}:${contentIndex}`, current = texts.get(key) ?? { itemId, outputIndex, contentIndex, text: '', done: false }
+      if (current.outputIndex !== outputIndex || current.done) invalid('Streaming Responses text delta changed identity or followed done')
+      current.text += event.delta; texts.set(key, current); notifyText(onTextDelta, event.delta)
+    } else if (type === 'response.output_text.done') {
+      const itemId = identifier(event.item_id), outputIndex = streamIndex(event.output_index, 'output index'), contentIndex = streamIndex(event.content_index, 'content index')
+      if (typeof event.text !== 'string') invalid('Streaming Responses final text must be a string')
+      const key = `${itemId}:${contentIndex}`, current = texts.get(key) ?? { itemId, outputIndex, contentIndex, text: '', done: false }
+      if (current.outputIndex !== outputIndex || current.done || current.text !== event.text) invalid('Streaming Responses final text does not match its deltas')
+      current.done = true; texts.set(key, current)
+    } else if (type === 'response.function_call_arguments.delta') {
+      const itemId = identifier(event.item_id), outputIndex = streamIndex(event.output_index, 'output index')
+      if (typeof event.delta !== 'string') invalid('Streaming Responses function arguments delta must be a string')
+      const current = calls.get(itemId) ?? { itemId, outputIndex, arguments: '', done: false }
+      if (current.outputIndex !== outputIndex || current.done) invalid('Streaming Responses function delta changed identity or followed done')
+      current.arguments += event.delta; calls.set(itemId, current)
+    } else if (type === 'response.function_call_arguments.done') {
+      const itemId = identifier(event.item_id), outputIndex = streamIndex(event.output_index, 'output index'), name = identifier(event.name)
+      if (typeof event.arguments !== 'string') invalid('Streaming Responses final function arguments must be a string')
+      const current = calls.get(itemId) ?? { itemId, outputIndex, arguments: '', done: false }
+      if (current.outputIndex !== outputIndex || current.done || current.arguments !== event.arguments) invalid('Streaming Responses final function arguments do not match their deltas')
+      current.name = name; current.done = true; calls.set(itemId, current)
+    } else if (['response.completed', 'response.incomplete', 'response.failed'].includes(type)) {
+      terminal = record(event.response)
+      const expected = type.slice('response.'.length)
+      if (terminal.status !== expected) invalid('Streaming Responses terminal type and status disagree')
+    } else if (type === 'response.refusal.delta' || type === 'response.refusal.done') {
+      throw new KJModelError('KJMODEL_REFUSED', 'The model refused this request')
+    } else if (type === 'error') {
+      throw new KJModelError('KJMODEL_INCOMPLETE', 'Responses stream failed; no tool calls were dispatched')
+    } else if (!['response.created', 'response.in_progress', 'response.output_item.added', 'response.content_part.added', 'response.content_part.done', 'response.output_item.done'].includes(type) && !type.startsWith('response.reasoning_')) invalid('Unsupported Responses streaming event')
+  }
+  if (!chunks || !terminal) invalid('Streaming Responses response ended without a terminal event')
+  const output = array(terminal.output)
+  for (const current of texts.values()) {
+    if (!current.done) invalid('Streaming Responses text ended before done')
+    const item = record(output[current.outputIndex])
+    if (item.id !== current.itemId || item.type !== 'message') invalid('Streaming Responses final text item changed identity')
+    const part = record(array(item.content)[current.contentIndex])
+    if (part.type !== 'output_text' || part.text !== current.text) invalid('Streaming Responses final response text does not match deltas')
+  }
+  for (const current of calls.values()) {
+    if (!current.done) invalid('Streaming Responses function arguments ended before done')
+    const item = record(output[current.outputIndex])
+    if (item.id !== current.itemId || item.type !== 'function_call' || item.name !== current.name || item.arguments !== current.arguments) invalid('Streaming Responses final function call does not match deltas')
+  }
+  return terminal
+}
 async function assembleChatStream(source: unknown, maximumBytes: number, signal: AbortSignal, onTextDelta?: (delta: string) => void): Promise<Record<string, unknown>> {
   if (!isAsyncIterable(source)) invalid('Streaming Chat transport must return an async iterable of parsed JSON chunks')
   const tools = new Map<number, { id?: string; type?: string; name: string; arguments: string }>()
@@ -302,9 +375,10 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
   const chatTokenParameter = options.chatTokenParameter ?? 'max_tokens'
   if (!['max_tokens', 'max_completion_tokens'].includes(chatTokenParameter)) invalid('Unsupported chat token-limit field')
   const chatStreaming = options.chatStreaming ?? false
+  const responsesStreaming = options.responsesStreaming ?? false
   const chatStreamIncludeUsage = options.chatStreamIncludeUsage ?? false
   const chatStreamToolCalls = options.chatStreamToolCalls ?? false
-  if (typeof chatStreaming !== 'boolean' || typeof chatStreamIncludeUsage !== 'boolean' || typeof chatStreamToolCalls !== 'boolean' || (chatStreaming || chatStreamIncludeUsage || chatStreamToolCalls) && protocol !== 'chat-completions' || (chatStreamIncludeUsage || chatStreamToolCalls) && !chatStreaming) invalid('Chat streaming options require the Chat Completions protocol')
+  if (typeof chatStreaming !== 'boolean' || typeof responsesStreaming !== 'boolean' || typeof chatStreamIncludeUsage !== 'boolean' || typeof chatStreamToolCalls !== 'boolean' || (chatStreaming || chatStreamIncludeUsage || chatStreamToolCalls) && protocol !== 'chat-completions' || responsesStreaming && protocol !== 'responses' || (chatStreamIncludeUsage || chatStreamToolCalls) && !chatStreaming) invalid('Streaming options require their matching model protocol')
   const responseBytes = limit(options.maxResponseBytes, 1048576, 16777216)
   const historyBytes = limit(options.maxHistoryBytes, 2097152, 16777216)
   return Object.freeze({
@@ -344,7 +418,7 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
               else history.push({ role: 'function', parts: results.map(item => ({ functionResponse: { ...(geminiIds.has(item.id) ? { id: geminiIds.get(item.id) } : {}), name: item.name, response: item.result } })) })
             }
             let body: Record<string, unknown>
-            if (protocol === 'responses') body = { model, instructions, input: history, tools: schema.map(tool => ({ type: 'function', ...tool, strict: false })), max_output_tokens: outputTokens, store: false, include: ['reasoning.encrypted_content'] }
+            if (protocol === 'responses') body = { model, instructions, input: history, tools: schema.map(tool => ({ type: 'function', ...tool, strict: false })), max_output_tokens: outputTokens, store: false, stream: responsesStreaming, include: ['reasoning.encrypted_content'] }
             else if (protocol === 'chat-completions') body = { model, messages: [{ role: 'system', content: instructions }, ...history], tools: schema.map(tool => ({ type: 'function', function: tool })), [chatTokenParameter]: outputTokens, stream: chatStreaming, ...(chatStreamIncludeUsage ? { stream_options: { include_usage: true } } : {}), ...(chatStreamToolCalls ? { tool_stream: true } : {}) }
             else if (protocol === 'anthropic-messages') body = { model, system: instructions, messages: history, tools: schema.map(tool => ({ name: tool.name, description: tool.description, input_schema: tool.parameters })), max_tokens: outputTokens, stream: false }
             else body = { systemInstruction: { parts: [{ text: instructions }] }, contents: history, tools: [{ functionDeclarations: schema.map(tool => ({ name: tool.name, description: tool.description, parametersJsonSchema: tool.parameters })) }], generationConfig: { maxOutputTokens: outputTokens, candidateCount: 1 } }
@@ -353,8 +427,9 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
             const startedAt = performance.now()
             const responseSource = await request({ protocol, model, body: outgoing, signal })
             const streamedResponse = isAsyncIterable(responseSource)
-            const rawResponse = chatStreaming && streamedResponse ? await assembleChatStream(responseSource, responseBytes, signal, delta => { notifyText(onTextDelta, delta); notifyText(adapterText, delta) }) : responseSource
-            if (!chatStreaming && streamedResponse) invalid('Non-streaming model transport returned an async iterable')
+            const delta = (text: string) => { notifyText(onTextDelta, text); notifyText(adapterText, text) }
+            const rawResponse = chatStreaming && streamedResponse ? await assembleChatStream(responseSource, responseBytes, signal, delta) : responsesStreaming && streamedResponse ? await assembleResponsesStream(responseSource, responseBytes, signal, delta) : responseSource
+            if (!chatStreaming && !responsesStreaming && streamedResponse) invalid('Non-streaming model transport returned an async iterable')
             const usage = extractKJModelUsage(protocol, rawResponse, { latencyMs: Math.max(0, performance.now() - startedAt) })
             notifyUsage(onUsage, usage)
             notifyUsage(adapterUsage, usage)
@@ -419,7 +494,7 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
             }
             if (calls.length > 16 || new Set(calls.map(call => call.id)).size !== calls.length) invalid('Too many calls or duplicate call IDs in one model turn')
             if (!calls.length && !text.trim()) invalid('Model returned neither tool calls nor user-visible text')
-            if (chatStreaming && !streamedResponse) { notifyText(onTextDelta, text); notifyText(adapterText, text) }
+            if ((chatStreaming || responsesStreaming) && !streamedResponse) delta(text)
             pending = calls
             ended = !calls.length
             return deepFreeze({ text, calls, usage }) as KJModelTurn
