@@ -355,13 +355,14 @@ async function assembleChatStream(source, maximumBytes, signal, onTextDelta) {
     };
 }
 export function createKJModelAdapter(options) {
-    const { protocol, request, onUsage: adapterUsage } = options;
+    const { protocol, request, onTextDelta: adapterText, onUsage: adapterUsage } = options;
     if (![
         'responses',
         'chat-completions',
         'anthropic-messages',
         'gemini-generate-content'
     ].includes(protocol) || typeof request !== 'function') invalid('Choose an explicit protocol and host transport');
+    if (adapterText !== undefined && typeof adapterText !== 'function') invalid('onTextDelta must be a function');
     if (adapterUsage !== undefined && typeof adapterUsage !== 'function') invalid('onUsage must be a function');
     const model = identifier(options.model);
     const outputTokens = limit(options.maxOutputTokens, 4096, 131072);
@@ -584,7 +585,10 @@ export function createKJModelAdapter(options) {
                             body: outgoing,
                             signal
                         });
-                        const rawResponse = chatStreaming ? await assembleChatStream(responseSource, responseBytes, signal, onTextDelta) : responseSource;
+                        const rawResponse = chatStreaming ? await assembleChatStream(responseSource, responseBytes, signal, (delta)=>{
+                                notifyText(onTextDelta, delta);
+                                notifyText(adapterText, delta);
+                            }) : responseSource;
                         if (!chatStreaming && isAsyncIterable(rawResponse)) invalid('Non-streaming model transport returned an async iterable');
                         const usage = extractKJModelUsage(protocol, rawResponse, {
                             latencyMs: Math.max(0, performance.now() - startedAt)

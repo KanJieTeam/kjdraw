@@ -70,6 +70,8 @@ export interface KJModelAdapterOptions {
     chatStreamToolCalls?: boolean;
     maxResponseBytes?: number;
     maxHistoryBytes?: number;
+    /** Adapter-wide visible text observer, including runs created through runKJAgentTask. Exceptions are isolated. */
+    onTextDelta?: (delta: string) => void;
     /** Host-only observer; contains counters and timing, never response text or credentials. Exceptions are isolated. */
     onUsage?: (usage: KJModelUsage) => void;
 }

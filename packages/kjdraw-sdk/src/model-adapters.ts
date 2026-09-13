@@ -48,6 +48,8 @@ export interface KJModelAdapterOptions {
   chatStreamToolCalls?: boolean
   maxResponseBytes?: number
   maxHistoryBytes?: number
+  /** Adapter-wide visible text observer, including runs created through runKJAgentTask. Exceptions are isolated. */
+  onTextDelta?: (delta: string) => void
   /** Host-only observer; contains counters and timing, never response text or credentials. Exceptions are isolated. */
   onUsage?: (usage: KJModelUsage) => void
 }
@@ -291,8 +293,9 @@ async function assembleChatStream(source: unknown, maximumBytes: number, signal:
 
 /** Four wire formats, one CAD tool schema. This adapter never fetches, approves edits or selects a model. */
 export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentModel {
-  const { protocol, request, onUsage: adapterUsage } = options
+  const { protocol, request, onTextDelta: adapterText, onUsage: adapterUsage } = options
   if (!['responses', 'chat-completions', 'anthropic-messages', 'gemini-generate-content'].includes(protocol) || typeof request !== 'function') invalid('Choose an explicit protocol and host transport')
+  if (adapterText !== undefined && typeof adapterText !== 'function') invalid('onTextDelta must be a function')
   if (adapterUsage !== undefined && typeof adapterUsage !== 'function') invalid('onUsage must be a function')
   const model = identifier(options.model)
   const outputTokens = limit(options.maxOutputTokens, 4096, 131072)
@@ -349,7 +352,7 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
             const outgoing = deepFreeze(jsonCopy(body, historyBytes))
             const startedAt = performance.now()
             const responseSource = await request({ protocol, model, body: outgoing, signal })
-            const rawResponse = chatStreaming ? await assembleChatStream(responseSource, responseBytes, signal, onTextDelta) : responseSource
+            const rawResponse = chatStreaming ? await assembleChatStream(responseSource, responseBytes, signal, delta => { notifyText(onTextDelta, delta); notifyText(adapterText, delta) }) : responseSource
             if (!chatStreaming && isAsyncIterable(rawResponse)) invalid('Non-streaming model transport returned an async iterable')
             const usage = extractKJModelUsage(protocol, rawResponse, { latencyMs: Math.max(0, performance.now() - startedAt) })
             notifyUsage(onUsage, usage)

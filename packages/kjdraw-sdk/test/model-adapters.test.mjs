@@ -537,7 +537,8 @@ test('streaming Chat assembles fragmented OpenAI-compatible tool calls, visible 
 
 test('streaming Chat keeps endpoint parameter choices explicit and isolates text observers', async () => {
   let seen
-  const model = createKJModelAdapter({ protocol: 'chat-completions', model: 'openai-compatible-stream', chatTokenParameter: 'max_completion_tokens', chatStreaming: true, request: async ({ body }) => {
+  const adapterDeltas = []
+  const model = createKJModelAdapter({ protocol: 'chat-completions', model: 'openai-compatible-stream', chatTokenParameter: 'max_completion_tokens', chatStreaming: true, onTextDelta: delta => adapterDeltas.push(delta), request: async ({ body }) => {
     seen = body
     return streamed([streamChoice({ role: 'assistant', content: 'ok' }), streamChoice({}, 'stop')])
   } })
@@ -545,6 +546,11 @@ test('streaming Chat keeps endpoint parameter choices explicit and isolates text
   const turn = await conversation.next({ kind: 'prompt', text: 'status' }, new AbortController().signal)
   assert.equal(turn.text, 'ok')
   assert.equal(seen.stream, true); assert.equal(seen.max_completion_tokens, 4096); assert.equal('max_tokens' in seen, false); assert.equal('stream_options' in seen, false); assert.equal('tool_stream' in seen, false)
+  assert.deepEqual(adapterDeltas, ['ok'])
+  const runnerDeltas = []
+  const runnerModel = createKJModelAdapter({ protocol: 'chat-completions', model: 'runner-stream', chatStreaming: true, onTextDelta: delta => runnerDeltas.push(delta), request: async () => streamed([streamChoice({ role: 'assistant', content: 'runner ' }), streamChoice({ content: 'ready' }, 'stop')]) })
+  const result = await runKJAgentTask({ session: fixture().session, model: runnerModel, prompt: 'status' })
+  assert.equal(result.status, 'responded'); assert.equal(result.text, 'runner ready'); assert.deepEqual(runnerDeltas, ['runner ', 'ready'])
 })
 
 test('streaming Chat rejects truncated or ambiguous tool deltas before dispatch', async () => {
