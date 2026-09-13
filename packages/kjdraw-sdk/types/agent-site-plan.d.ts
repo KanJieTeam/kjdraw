@@ -49,6 +49,7 @@ interface SitePlanDocument {
     };
 }
 type Point2 = [number, number];
+type Point3 = [number, number, number];
 type EntitySpec = {
     type: string;
     payload: Record<string, unknown>;
@@ -139,6 +140,38 @@ export declare function buildAgentSitePlan(document: SitePlanDocument, source: K
                 name: string;
             })[];
         };
+        layout: {
+            id: string;
+            blockRecordId: string;
+            name: string;
+            dxfPlotSettings: {
+                paperWidth: number;
+                paperHeight: number;
+                marginLeft: number;
+                marginBottom: number;
+                marginRight: number;
+                marginTop: number;
+                originX: number;
+                originY: number;
+                scaleNumerator: number;
+                scaleDenominator: number;
+                flags: number;
+                paperUnits: 1;
+                rotation: 0;
+                plotType: 5;
+            };
+            viewport: {
+                id: string;
+                center: Point3;
+                width: number;
+                height: number;
+                viewCenter: Point3;
+                viewHeight: number;
+                twistAngle: number;
+                modelUnits: 'meter';
+                scaleDenominator: number;
+            };
+        };
     };
     outputConfig: {
         layoutName: string;
@@ -173,6 +206,7 @@ export declare function buildAgentSitePlan(document: SitePlanDocument, source: K
         skillVersion: "1.0.0";
         units: 'meter';
         expectedRevision: number;
+        modelEntityCount: number;
         entityCount: number;
         siteAreaSquareMeters: number;
         boundaryBounds: {

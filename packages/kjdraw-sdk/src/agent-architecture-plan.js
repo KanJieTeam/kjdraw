@@ -517,8 +517,8 @@ export function buildAgentArchitecturePlan(document, source) {
         ...blockByKey.values()
     ].sort((left, right)=>left.name.localeCompare(right.name));
     const blockMemberCount = blocks.reduce((sum, block)=>sum + block.entities.length, 0);
-    const totalEntityCount = entities.length + blockMemberCount;
-    if (totalEntityCount > MAX_ENTITY_COUNT) throw new KJValidationError(`Architecture plan expands to ${totalEntityCount} entities; maximum is ${MAX_ENTITY_COUNT}`);
+    const generatedEntityCount = entities.length + blockMemberCount;
+    if (generatedEntityCount + 1 > MAX_ENTITY_COUNT) throw new KJValidationError(`Architecture plan expands to ${generatedEntityCount + 1} entities; maximum is ${MAX_ENTITY_COUNT}`);
     const resources = {
         linetypes: [
             {
@@ -541,10 +541,52 @@ export function buildAgentArchitecturePlan(document, source) {
             })),
         blocks
     };
+    const layoutName = `KJ_ARCH_${idPrefix.slice(5, 17).toUpperCase()}_A3`;
+    const layout = {
+        id: `${idPrefix}-layout`,
+        blockRecordId: `${idPrefix}-paper-space`,
+        name: layoutName,
+        dxfPlotSettings: {
+            paperWidth: 420,
+            paperHeight: 297,
+            marginLeft: 0,
+            marginBottom: 0,
+            marginRight: 0,
+            marginTop: 0,
+            originX: 0,
+            originY: 0,
+            scaleNumerator: 1,
+            scaleDenominator: 1,
+            flags: 0,
+            paperUnits: 1,
+            rotation: 0,
+            plotType: 5
+        },
+        viewport: {
+            id: `${idPrefix}-viewport`,
+            center: [
+                210,
+                148.5,
+                0
+            ],
+            width: 420,
+            height: 297,
+            viewCenter: [
+                sheetX + sheetWidth / 2,
+                sheetY + sheetHeight / 2,
+                0
+            ],
+            viewHeight: 29_700,
+            twistAngle: 0,
+            modelUnits: 'millimeter',
+            scaleDenominator: 100
+        }
+    };
     return {
         commandArgs: {
             entities,
-            resources
+            resources,
+            layout
         },
         evidence: {
             drawingId: input.drawingId,
@@ -552,7 +594,7 @@ export function buildAgentArchitecturePlan(document, source) {
             skillVersion: KJDRAW_ARCHITECTURE_PLAN_VERSION,
             units: input.units,
             expectedRevision: input.expectedRevision,
-            entityCount: totalEntityCount,
+            entityCount: generatedEntityCount + 1,
             modelEntityCount: entities.length,
             blockDefinitionCount: blocks.length,
             blockMemberCount,
@@ -571,6 +613,7 @@ export function buildAgentArchitecturePlan(document, source) {
                 sheet: {
                     paper: 'A3',
                     scale: '1:100',
+                    layoutName,
                     modelFrame: {
                         origin: [
                             sheetX,
@@ -595,7 +638,7 @@ export function buildAgentArchitecturePlan(document, source) {
             limitations: [
                 'Rectangular exterior envelope',
                 'Straight horizontal or vertical partitions',
-                'A3 output is an equivalent 1:100 model-space frame'
+                'One A3 landscape paper layout at 1:100'
             ]
         }
     };

@@ -1,3 +1,4 @@
+import type { KJDxfPlotSettings } from './plot-settings.js';
 import type { ReadonlyDeep } from './utils.js';
 import type { KJPointInput } from './grips.js';
 import type { KJDocument } from './document.js';
@@ -80,6 +81,23 @@ export interface KJEntityBatchResources {
         entities: KJEntityBatchSpec[];
     }[];
 }
+export interface KJEntityBatchLayout {
+    id: string;
+    blockRecordId: string;
+    name: string;
+    dxfPlotSettings: KJDxfPlotSettings;
+    viewport: {
+        id: string;
+        center: KJPointInput;
+        width: number;
+        height: number;
+        viewCenter: KJPointInput;
+        viewHeight: number;
+        twistAngle: number;
+        modelUnits: 'millimeter' | 'meter' | 'inch' | 'foot';
+        scaleDenominator: number;
+    };
+}
 export interface KJBlockAttributeDefinitionInput {
     readonly tag: string;
     readonly prompt?: string;
@@ -97,6 +115,7 @@ export interface KJBlockAttributeDefinitionInput {
  */
 export interface KJCommandArguments extends Record<string, unknown> {
     resources?: KJEntityBatchResources;
+    layout?: KJEntityBatchLayout;
     id?: string;
     ids?: readonly string[];
     firstId?: string;

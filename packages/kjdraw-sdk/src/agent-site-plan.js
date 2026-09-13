@@ -605,19 +605,24 @@ export function buildAgentSitePlan(document, source) {
         noteOrigin[0],
         noteOrigin[1] - textHeight * 3
     ], `SITE AREA ${format(polygonArea(input.boundary))} m2`, textHeight);
-    if (entities.length > MAX_ENTITY_COUNT) throw new KJValidationError(`Site plan expands to ${entities.length} entities; maximum is ${MAX_ENTITY_COUNT}`);
+    if (entities.length + 1 > MAX_ENTITY_COUNT) throw new KJValidationError(`Site plan expands to ${entities.length + 1} entities; maximum is ${MAX_ENTITY_COUNT}`);
+    const viewCenter = [
+        (minimum[0] + maximum[0]) / 2,
+        (minimum[1] + maximum[1]) / 2
+    ];
     const viewBounds = {
         minimum: [
-            minimum[0] - input.viewMargin,
-            minimum[1] - input.viewMargin
+            viewCenter[0] - 400.5 / 2,
+            viewCenter[1] - 272 / 2
         ],
         maximum: [
-            maximum[0] + input.viewMargin,
-            maximum[1] + input.viewMargin
+            viewCenter[0] + 400.5 / 2,
+            viewCenter[1] + 272 / 2
         ]
     };
+    const layoutName = `KJ_SITE_${idPrefix.slice(5, 17).toUpperCase()}_A1`;
     const outputConfig = {
-        layoutName: 'SITE PLAN A1',
+        layoutName,
         paper: {
             standard: 'ISO A1',
             orientation: 'landscape',
@@ -634,13 +639,50 @@ export function buildAgentSitePlan(document, source) {
         scaleDenominator: 500,
         modelUnits: 'meter',
         viewport: {
-            center: [
-                (minimum[0] + maximum[0]) / 2,
-                (minimum[1] + maximum[1]) / 2
-            ],
+            center: viewCenter,
             bounds: viewBounds,
             width: viewBounds.maximum[0] - viewBounds.minimum[0],
             height: viewBounds.maximum[1] - viewBounds.minimum[1]
+        }
+    };
+    const layout = {
+        id: `${idPrefix}-layout`,
+        blockRecordId: `${idPrefix}-paper-space`,
+        name: layoutName,
+        dxfPlotSettings: {
+            paperWidth: 841,
+            paperHeight: 594,
+            marginLeft: 20,
+            marginBottom: 35,
+            marginRight: 20,
+            marginTop: 15,
+            originX: 0,
+            originY: 0,
+            scaleNumerator: 1,
+            scaleDenominator: 1,
+            flags: 0,
+            paperUnits: 1,
+            rotation: 0,
+            plotType: 5
+        },
+        viewport: {
+            id: `${idPrefix}-viewport`,
+            center: [
+                420.5,
+                307,
+                0
+            ],
+            width: 801,
+            height: 544,
+            viewCenter: [
+                viewCenter[0],
+                viewCenter[1],
+                0
+            ],
+            viewHeight: 272,
+            twistAngle: 0,
+            modelUnits: 'meter',
+            scaleDenominator: 500
         }
     };
     const resources = {
@@ -677,7 +719,8 @@ export function buildAgentSitePlan(document, source) {
     return {
         commandArgs: {
             entities,
-            resources
+            resources,
+            layout
         },
         outputConfig,
         evidence: {
@@ -686,7 +729,8 @@ export function buildAgentSitePlan(document, source) {
             skillVersion: KJDRAW_SITE_PLAN_VERSION,
             units: 'meter',
             expectedRevision: input.expectedRevision,
-            entityCount: entities.length,
+            modelEntityCount: entities.length,
+            entityCount: entities.length + 1,
             siteAreaSquareMeters: polygonArea(input.boundary),
             boundaryBounds: input.boundaryExtent,
             roadCount: input.roads.length,

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createKJDrawSDK, KJDocument, KJValidationError } from '../src/index.js'
 import { KJDRAW_SITE_PLAN_VERSION, buildAgentSitePlan } from '../src/agent-site-plan.js'
+import { exportDrawingSvg } from '../src/svg-export.js'
 
 function practicalInput(overrides = {}) {
   return {
@@ -50,11 +51,12 @@ test('site plan compiler deterministically expands compact intent into useful na
   assert.ok(first.evidence.siteAreaSquareMeters > 50_000)
   assert.ok(first.evidence.roadCenterlineMeters > 500)
   assert.ok(first.evidence.utilityMeters > 600)
-  assert.equal(first.evidence.entityCount, first.commandArgs.entities.length)
+  assert.equal(first.evidence.modelEntityCount, first.commandArgs.entities.length)
+  assert.equal(first.evidence.entityCount, first.commandArgs.entities.length + 1)
   assert.ok(first.evidence.entityCount < 100, 'compact intent should remain far smaller than an entity-by-entity model response')
   assert.ok(JSON.stringify(practicalInput()).length < 2_000, 'practical multi-discipline intent stays within a small model response')
   assert.ok(JSON.stringify(first.commandArgs).length > JSON.stringify(practicalInput()).length * 5, 'local compiler performs the high-volume geometry expansion')
-  assert.equal(new Set(first.commandArgs.entities.map(entity => entity.options.id)).size, first.evidence.entityCount)
+  assert.equal(new Set(first.commandArgs.entities.map(entity => entity.options.id)).size, first.evidence.modelEntityCount)
 
   const layerNames = new Set(first.commandArgs.resources.layers.map(layer => layer.name))
   for (const name of ['SITE_BOUNDARY', 'ROAD_EDGE', 'ROAD_CENTER', 'BUILDING', 'WATER', 'DRAINAGE', 'POWER', 'UTILITY_NODE', 'ANNOTATION', 'DIMENSIONS']) assert.ok(layerNames.has(name), `missing ${name}`)
@@ -70,6 +72,8 @@ test('site plan compiler deterministically expands compact intent into useful na
   assert.equal(first.outputConfig.scaleDenominator, 500)
   assert.ok(first.outputConfig.viewport.width <= 400.5)
   assert.ok(first.outputConfig.viewport.height <= 272)
+  assert.equal(first.commandArgs.layout.viewport.height / first.commandArgs.layout.viewport.viewHeight, 2)
+  assert.equal(first.commandArgs.layout.viewport.modelUnits, 'meter')
 })
 
 test('site plan compiles to one atomic CREATEBATCH and survives undo, redo, KJD and DXF reopening', async () => {
@@ -83,6 +87,12 @@ test('site plan compiles to one atomic CREATEBATCH and survives undo, redo, KJD 
   assert.equal(document.listEntities().length, compiled.evidence.entityCount)
   assert.equal(document.getTable('layers').records.some(layer => layer.name === 'SITE_BOUNDARY'), true)
   assert.equal(document.listEntities({ type: 'DIMENSION' }).length, 2)
+  const layout = document.snapshot().spaces.layoutIds.map(id => document.getObject(id)).find(record => record?.name === compiled.commandArgs.layout.name)
+  assert.ok(layout)
+  assert.equal(layout.payload.dxfPlotSettings.paperWidth, 841)
+  assert.equal(layout.payload.dxfPlotSettings.paperHeight, 594)
+  assert.equal(document.listEntities({ ownerId: layout.payload.blockRecordId, type: 'VIEWPORT' }).length, 1)
+  assert.equal(exportDrawingSvg(document, { layoutId: layout.id }).report.diagnostics.length, 0)
 
   await sdk.executeCommand('UNDO', {}, { document })
   assert.equal(document.listEntities().length, 0)
@@ -100,8 +110,14 @@ test('site plan compiles to one atomic CREATEBATCH and survives undo, redo, KJD 
   const reopenedDxf = await sdk.readDocument(dxf, { format: 'DXF', version: '2018' })
   const modelSpaceId = reopenedDxf.snapshot().spaces.modelSpaceId
   assert.equal(reopenedDxf.snapshot().header.units, 'meter')
-  assert.equal(reopenedDxf.listEntities({ ownerId: modelSpaceId }).length, compiled.evidence.entityCount)
+  assert.equal(reopenedDxf.listEntities({ ownerId: modelSpaceId }).length, compiled.evidence.modelEntityCount)
   assert.equal(reopenedDxf.listEntities({ ownerId: modelSpaceId, type: 'DIMENSION' }).length, 2)
+  const dxfLayout = reopenedDxf.snapshot().spaces.layoutIds.map(id => reopenedDxf.getObject(id)).find(record => record?.name === compiled.commandArgs.layout.name)
+  assert.ok(dxfLayout)
+  assert.equal(dxfLayout.payload.dxfPlotSettings.paperWidth, 841)
+  const dxfViewport = reopenedDxf.listEntities({ ownerId: dxfLayout.payload.blockRecordId, type: 'VIEWPORT' })[0]
+  assert.ok(dxfViewport)
+  assert.equal(dxfViewport.payload.height / dxfViewport.payload.viewHeight, 2)
   assert.equal(reopenedDxf.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
 })
 

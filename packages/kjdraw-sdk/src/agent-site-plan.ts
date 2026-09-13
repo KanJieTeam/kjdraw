@@ -425,22 +425,40 @@ export function buildAgentSitePlan(document: SitePlanDocument, source: KJAgentSi
   text([noteOrigin[0], noteOrigin[1] - textHeight * 1.6], `DRAWING ${input.drawingId}  REV ${input.revision}  SCALE 1:500`, textHeight)
   text([noteOrigin[0], noteOrigin[1] - textHeight * 3], `SITE AREA ${format(polygonArea(input.boundary))} m2`, textHeight)
 
-  if (entities.length > MAX_ENTITY_COUNT) throw new KJValidationError(`Site plan expands to ${entities.length} entities; maximum is ${MAX_ENTITY_COUNT}`)
+  if (entities.length + 1 > MAX_ENTITY_COUNT) throw new KJValidationError(`Site plan expands to ${entities.length + 1} entities; maximum is ${MAX_ENTITY_COUNT}`)
+  const viewCenter: Point2 = [(minimum[0] + maximum[0]) / 2, (minimum[1] + maximum[1]) / 2]
   const viewBounds = {
-    minimum: [minimum[0] - input.viewMargin, minimum[1] - input.viewMargin] as Point2,
-    maximum: [maximum[0] + input.viewMargin, maximum[1] + input.viewMargin] as Point2,
+    minimum: [viewCenter[0] - 400.5 / 2, viewCenter[1] - 272 / 2] as Point2,
+    maximum: [viewCenter[0] + 400.5 / 2, viewCenter[1] + 272 / 2] as Point2,
   }
+  const layoutName = `KJ_SITE_${idPrefix.slice(5, 17).toUpperCase()}_A1`
   const outputConfig = {
-    layoutName: 'SITE PLAN A1',
+    layoutName,
     paper: { standard: 'ISO A1', orientation: 'landscape', widthMm: 841, heightMm: 594, marginsMm: { left: 20, right: 20, top: 15, bottom: 35 } },
     scaleNumerator: 1,
     scaleDenominator: 500,
     modelUnits: 'meter' as const,
     viewport: {
-      center: [(minimum[0] + maximum[0]) / 2, (minimum[1] + maximum[1]) / 2] as Point2,
+      center: viewCenter,
       bounds: viewBounds,
       width: viewBounds.maximum[0] - viewBounds.minimum[0],
       height: viewBounds.maximum[1] - viewBounds.minimum[1],
+    },
+  }
+  const layout = {
+    id: `${idPrefix}-layout`,
+    blockRecordId: `${idPrefix}-paper-space`,
+    name: layoutName,
+    dxfPlotSettings: {
+      paperWidth: 841, paperHeight: 594,
+      marginLeft: 20, marginBottom: 35, marginRight: 20, marginTop: 15,
+      originX: 0, originY: 0, scaleNumerator: 1, scaleDenominator: 1,
+      flags: 0, paperUnits: 1 as const, rotation: 0 as const, plotType: 5 as const,
+    },
+    viewport: {
+      id: `${idPrefix}-viewport`, center: [420.5, 307, 0] as Point3, width: 801, height: 544,
+      viewCenter: [viewCenter[0], viewCenter[1], 0] as Point3,
+      viewHeight: 272, twistAngle: 0, modelUnits: 'meter' as const, scaleDenominator: 500,
     },
   }
   const resources = {
@@ -452,7 +470,7 @@ export function buildAgentSitePlan(document: SitePlanDocument, source: KJAgentSi
     layers: Object.entries(layerDefinitions).map(([name, definition]) => ({ name, ...definition })),
   }
   return {
-    commandArgs: { entities, resources },
+    commandArgs: { entities, resources, layout },
     outputConfig,
     evidence: {
       drawingId: input.drawingId,
@@ -460,7 +478,8 @@ export function buildAgentSitePlan(document: SitePlanDocument, source: KJAgentSi
       skillVersion: KJDRAW_SITE_PLAN_VERSION,
       units: 'meter' as const,
       expectedRevision: input.expectedRevision,
-      entityCount: entities.length,
+      modelEntityCount: entities.length,
+      entityCount: entities.length + 1,
       siteAreaSquareMeters: polygonArea(input.boundary),
       boundaryBounds: input.boundaryExtent,
       roadCount: input.roads.length,

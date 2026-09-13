@@ -698,7 +698,7 @@ export class KJCommandRegistry {
         const command = this.resolve(id);
         if (!command) throw new KJValidationError(`Unknown command: ${id}`);
         if (context.expectedDefinition && command !== context.expectedDefinition) throw new KJValidationError(`Command changed before execution: ${command.id}`);
-        if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'resources')) validateCommandData(args);
+        if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && (Object.hasOwn(args, 'resources') || Object.hasOwn(args, 'layout'))) validateCommandData(args);
         if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE');
         if (command.transactional === false) {
             if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);
@@ -735,7 +735,7 @@ export class KJCommandRegistry {
         if (!command || this.resolve(command.id) !== command) throw new KJValidationError('Command changed before transactional composition');
         if (command.transactional === false) throw new KJValidationError(`Command cannot be composed transactionally: ${command.id}`);
         if (!context.document || !context.transaction) throw new KJValidationError(`Command ${command.id} requires a document transaction`);
-        if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && Object.hasOwn(args, 'resources')) validateCommandData(args);
+        if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && (Object.hasOwn(args, 'resources') || Object.hasOwn(args, 'layout'))) validateCommandData(args);
         if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE');
         if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`);
         const scope = createCommandEditScope(context.transaction, command.id);
@@ -2961,11 +2961,183 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
     }
     return created;
 }
+function validateBatchLayout(document, input, args) {
+    if (input === undefined) return null;
+    const exact = (value, keys, label)=>{
+        if (!value || typeof value !== 'object' || Array.isArray(value) || ![
+            Object.prototype,
+            null
+        ].includes(Object.getPrototypeOf(value))) throw new KJValidationError(`${label} must be a plain object`);
+        const record = value, actual = Object.keys(record);
+        if (actual.length !== keys.length || actual.some((key)=>!keys.includes(key))) throw new KJValidationError(`${label} fields do not match the declared format`);
+        return record;
+    };
+    const layout = exact(input, [
+        'id',
+        'blockRecordId',
+        'name',
+        'dxfPlotSettings',
+        'viewport'
+    ], 'CREATEBATCH layout');
+    const name = String(layout.name ?? '');
+    if (!name.trim() || name !== name.trim() || name.length > 128 || /[\u0000-\u001f\u007f<>/\\":;?*|=]/.test(name)) throw new KJValidationError('CREATEBATCH layout name must be a bounded table name');
+    if (document.snapshot().spaces.layoutIds.some((id)=>normalizeName(document.getObject(id)?.name) === normalizeName(name))) throw new KJValidationError(`CREATEBATCH layout already exists: ${name}`);
+    const settingKeys = [
+        'paperWidth',
+        'paperHeight',
+        'marginLeft',
+        'marginBottom',
+        'marginRight',
+        'marginTop',
+        'originX',
+        'originY',
+        'scaleNumerator',
+        'scaleDenominator',
+        'flags',
+        'paperUnits',
+        'rotation',
+        'plotType'
+    ];
+    const settingRecord = exact(layout.dxfPlotSettings, settingKeys, 'CREATEBATCH layout.dxfPlotSettings');
+    validatePlotSettings(settingRecord);
+    const settings = clone(settingRecord);
+    if (settings.paperUnits !== 1) throw new KJValidationError('CREATEBATCH physical layout requires millimeter paper units');
+    if (settings.plotType !== 5) throw new KJValidationError('CREATEBATCH physical layout must plot the paper layout');
+    if (settings.rotation !== 0 || settings.flags !== 0 || settings.originX !== 0 || settings.originY !== 0 || settings.scaleNumerator !== 1 || settings.scaleDenominator !== 1) {
+        throw new KJValidationError('CREATEBATCH physical layout requires unrotated 1:1 paper output at the paper origin');
+    }
+    const paperValues = [
+        settings.paperWidth,
+        settings.paperHeight,
+        settings.marginLeft,
+        settings.marginRight,
+        settings.marginTop,
+        settings.marginBottom
+    ];
+    if (!paperValues.every((value)=>typeof value === 'number' && Number.isFinite(value)) || !(settings.paperWidth > 0) || !(settings.paperHeight > 0) || settings.marginLeft < 0 || settings.marginRight < 0 || settings.marginTop < 0 || settings.marginBottom < 0 || settings.marginLeft + settings.marginRight >= settings.paperWidth || settings.marginTop + settings.marginBottom >= settings.paperHeight) {
+        throw new KJValidationError('CREATEBATCH physical layout paper and margins must define a positive printable area');
+    }
+    const viewportRecord = exact(layout.viewport, [
+        'id',
+        'center',
+        'width',
+        'height',
+        'viewCenter',
+        'viewHeight',
+        'twistAngle',
+        'modelUnits',
+        'scaleDenominator'
+    ], 'CREATEBATCH layout.viewport');
+    const layoutId = String(layout.id ?? ''), blockRecordId = String(layout.blockRecordId ?? ''), id = String(viewportRecord.id ?? '');
+    const validId = (value)=>Boolean(value.trim()) && value === value.trim() && value.length <= 256 && !/[\u0000-\u001f\u007f]/.test(value) && ![
+            '__proto__',
+            'constructor',
+            'prototype'
+        ].includes(value);
+    if (!validId(layoutId) || !validId(blockRecordId) || !validId(id) || new Set([
+        layoutId,
+        blockRecordId,
+        id
+    ]).size !== 3) throw new KJValidationError('CREATEBATCH layout and viewport require distinct bounded object IDs');
+    const occupiedIds = new Set([
+        ...Object.keys(document.snapshot().objects),
+        ...(args.resources?.linetypes ?? []).map((record)=>record.id),
+        ...(args.resources?.layers ?? []).map((record)=>record.id),
+        ...(args.resources?.blocks ?? []).flatMap((block)=>[
+                block.id,
+                ...block.entities.map((entity)=>String(entity.options?.id ?? ''))
+            ]),
+        ...(args.entities ?? []).map((entity)=>String(entity.options?.id ?? '')).filter(Boolean)
+    ]);
+    if ([
+        layoutId,
+        blockRecordId,
+        id
+    ].some((value)=>occupiedIds.has(value))) throw new KJValidationError('CREATEBATCH layout and viewport IDs must be globally unique');
+    const center = vec3(viewportRecord.center, 'CREATEBATCH layout.viewport.center'), viewCenter = vec3(viewportRecord.viewCenter, 'CREATEBATCH layout.viewport.viewCenter');
+    const width = Number(viewportRecord.width), height = Number(viewportRecord.height), viewHeight = Number(viewportRecord.viewHeight), twistAngle = Number(viewportRecord.twistAngle);
+    if (![
+        width,
+        height,
+        viewHeight
+    ].every((value)=>Number.isFinite(value) && value > 0) || !Number.isFinite(twistAngle)) throw new KJValidationError('CREATEBATCH layout viewport dimensions and view must be finite and positive');
+    if (Math.abs(center[2]) > 1e-9 || Math.abs(viewCenter[2]) > 1e-9) throw new KJValidationError('CREATEBATCH layout viewport supports planar centers only');
+    const printableMinimumX = settings.marginLeft, printableMaximumX = settings.paperWidth - settings.marginRight;
+    const printableMinimumY = settings.marginBottom, printableMaximumY = settings.paperHeight - settings.marginTop;
+    if (center[0] - width / 2 < printableMinimumX - 1e-9 || center[0] + width / 2 > printableMaximumX + 1e-9 || center[1] - height / 2 < printableMinimumY - 1e-9 || center[1] + height / 2 > printableMaximumY + 1e-9) {
+        throw new KJValidationError('CREATEBATCH layout viewport must fit inside the printable paper area');
+    }
+    const modelUnits = String(viewportRecord.modelUnits), documentUnits = String(document.snapshot().header.units);
+    const millimetersPerUnit = {
+        millimeter: 1,
+        meter: 1_000,
+        inch: 25.4,
+        foot: 304.8
+    };
+    if (!Object.hasOwn(millimetersPerUnit, modelUnits) || modelUnits !== documentUnits) throw new KJValidationError('CREATEBATCH layout viewport modelUnits must match the supported document units');
+    const scaleDenominator = Number(viewportRecord.scaleDenominator);
+    if (!Number.isFinite(scaleDenominator) || scaleDenominator <= 0 || scaleDenominator > 1_000_000_000) throw new KJValidationError('CREATEBATCH layout viewport scaleDenominator must be finite and positive');
+    const actualPaperMillimetersPerDrawingUnit = height / viewHeight;
+    const requiredPaperMillimetersPerDrawingUnit = millimetersPerUnit[modelUnits] / scaleDenominator;
+    if (Math.abs(actualPaperMillimetersPerDrawingUnit - requiredPaperMillimetersPerDrawingUnit) > Math.max(1e-10, requiredPaperMillimetersPerDrawingUnit * 1e-9)) {
+        throw new KJValidationError('CREATEBATCH layout viewport geometry does not match its declared physical scale');
+    }
+    return {
+        id: layoutId,
+        blockRecordId,
+        name,
+        settings,
+        viewport: {
+            id,
+            center,
+            width,
+            height,
+            viewCenter,
+            viewHeight,
+            twistAngle
+        }
+    };
+}
+function createBatchLayout(transaction, layout) {
+    const record = transaction.createLayout({
+        id: layout.id,
+        blockRecordId: layout.blockRecordId,
+        name: layout.name,
+        paper: {
+            width: layout.settings.paperWidth,
+            height: layout.settings.paperHeight,
+            unit: 'mm'
+        },
+        dxfPlotSettings: layout.settings
+    });
+    const ownerId = String(record.payload.blockRecordId);
+    const viewport = transaction.createEntity('VIEWPORT', {
+        center: layout.viewport.center,
+        width: layout.viewport.width,
+        height: layout.viewport.height,
+        viewCenter: layout.viewport.viewCenter,
+        viewHeight: layout.viewport.viewHeight,
+        twistAngle: layout.viewport.twistAngle,
+        frozenLayerIds: []
+    }, {
+        id: layout.viewport.id,
+        ownerId
+    });
+    transaction.updateObject(record.id, {
+        payload: {
+            viewportIds: [
+                viewport.id
+            ]
+        }
+    });
+    return viewport;
+}
 function createEntityBatch({ document, transaction }, args = {}) {
     const specs = args.entities;
     if (!Array.isArray(specs) || !specs.length) throw new KJValidationError('CREATEBATCH requires at least one entity');
     const blockMemberCount = args.resources?.blocks?.reduce((sum, block)=>sum + (Array.isArray(block.entities) ? block.entities.length : 0), 0) ?? 0;
-    if (specs.length + blockMemberCount > 100000) throw new KJValidationError('CREATEBATCH exceeds the 100000 entity safety limit');
+    if (specs.length + blockMemberCount + (args.layout ? 1 : 0) > 100000) throw new KJValidationError('CREATEBATCH exceeds the 100000 entity safety limit');
+    const batchLayout = validateBatchLayout(document, args.layout, args);
     const created = [];
     if (Object.hasOwn(args, 'resources')) {
         created.push(...createBatchResources(document, transaction, args.resources, specs));
@@ -3031,6 +3203,7 @@ function createEntityBatch({ document, transaction }, args = {}) {
         ].includes(normalizeName(spec.type)) && payload.styleId === undefined && currentTextStyleId) payload.styleId = currentTextStyleId;
         created.push(transaction.createEntity(spec.type, payload, spec.options ?? {}));
     }
+    if (batchLayout) created.push(createBatchLayout(transaction, batchLayout));
     return created;
 }
 function requiredEntity(document, id) {

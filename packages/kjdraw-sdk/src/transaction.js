@@ -456,11 +456,28 @@ export class KJTransaction {
     }
     createLayout(options = {}) {
         this.#assertOpen();
+        const rawExplicitIds = [
+            options.id,
+            options.blockRecordId
+        ].filter((value)=>value !== undefined);
+        if (rawExplicitIds.some((id)=>typeof id !== 'string')) throw new KJValidationError('Explicit layout IDs must be strings');
+        const explicitIds = rawExplicitIds;
+        if (explicitIds.some((id)=>!id.trim() || id !== id.trim() || id.length > 256 || /[\u0000-\u001f\u007f]/.test(id) || [
+                '__proto__',
+                'constructor',
+                'prototype'
+            ].includes(id))) throw new KJValidationError('Explicit layout IDs must be bounded nonempty data strings');
+        if (new Set(explicitIds).size !== explicitIds.length) throw new KJValidationError('Layout and paper-space block IDs must be distinct');
+        const conflictingId = explicitIds.find((id)=>this.#state.objects[id]);
+        if (conflictingId) throw new KJValidationError(`Duplicate object id: ${conflictingId}`);
         const name = String(options.name ?? '').trim();
         if (!name) throw new KJValidationError('Layout name is required');
         if (this.#state.spaces.layoutIds.some((id)=>String(this.#state.objects[id]?.name).toUpperCase() === name.toUpperCase())) throw new KJValidationError(`Layout already exists: ${name}`);
         const blockName = `*PAPER_SPACE_${this.#state.spaces.paperSpaceIds.length + 1}`;
         const block = this.upsertTableRecord('blockRecords', {
+            ...options.blockRecordId === undefined ? {} : {
+                id: options.blockRecordId
+            },
             name: blockName,
             type: 'BLOCK_RECORD',
             payload: {
@@ -480,6 +497,9 @@ export class KJTransaction {
             extents: null
         };
         const layout = this.createObject({
+            ...options.id === undefined ? {} : {
+                id: options.id
+            },
             kind: 'layout',
             type: 'LAYOUT',
             ownerId: this.#state.namedObjectsDictionaryId,

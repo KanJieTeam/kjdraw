@@ -9,7 +9,12 @@ const python=process.env.KJDRAW_PYTHON||'python'
 const validator=`import io,json,os,ezdxf
 s=open(os.environ['KJDRAW_FILE_STDIN_PATH'],encoding='utf-8').read();d=ezdxf.read(io.StringIO(s));a=d.audit();m=d.modelspace()
 names=[e.dxf.name for e in m.query('INSERT')];layers={e.dxf.layer for e in m};blocks={b.name:len(list(b)) for b in d.blocks if b.name.startswith('KJ_ARCH_')}
-print(json.dumps({'version':ezdxf.__version__,'units':d.units,'errors':len(a.errors),'fixes':len(a.fixes),'entities':len(m),'insertNames':names,'blocks':blocks,'layers':sorted(layers),'dimensions':len(m.query('DIMENSION')),'circles':len(m.query('CIRCLE'))}))`
+layouts=[]
+for layout in d.layouts:
+ if layout.name.startswith('KJ_'):
+  viewports=list(layout.query('VIEWPORT'))
+  layouts.append({'name':layout.name,'paperWidth':layout.dxf_layout.dxf.paper_width,'paperHeight':layout.dxf_layout.dxf.paper_height,'paperUnits':layout.dxf_layout.dxf.plot_paper_units,'plotType':layout.dxf_layout.dxf.plot_type,'viewports':[{'paper':v.dxf.paperspace,'height':v.dxf.height,'viewHeight':v.dxf.view_height,'ratio':v.dxf.height/v.dxf.view_height} for v in viewports]})
+print(json.dumps({'version':ezdxf.__version__,'units':d.units,'errors':len(a.errors),'fixes':len(a.fixes),'entities':len(m),'insertNames':names,'blocks':blocks,'layers':sorted(layers),'dimensions':len(m.query('DIMENSION')),'circles':len(m.query('CIRCLE')),'layouts':layouts}))`
 
 function inspectDxf(dxf){
   const result=spawnSyncWithFileStdin(python,['-c',validator],dxf,{encoding:'utf8',env:{...process.env,PYTHONPATH:process.env.KJDRAW_EZDXF_PATH||process.env.PYTHONPATH||''}})
@@ -32,6 +37,10 @@ test('official ezdxf independently reads architectural semantic blocks and dimen
   assert.equal(report.insertNames.filter(name=>name==='KJ_ARCH_DOOR_900').length,2)
   assert.equal(report.insertNames.filter(name=>name==='KJ_ARCH_WINDOW_1500').length,1)
   assert.equal(report.dimensions,2)
+  assert.equal(report.layouts.length,1);assert.match(report.layouts[0].name,/^KJ_ARCH_/)
+  assert.deepEqual([report.layouts[0].paperWidth,report.layouts[0].paperHeight,report.layouts[0].paperUnits,report.layouts[0].plotType],[420,297,1,5])
+  assert.equal(report.layouts[0].viewports.length,1);assert.equal(report.layouts[0].viewports[0].paper,1)
+  assert.ok(Math.abs(report.layouts[0].viewports[0].ratio-0.01)<1e-12)
 })
 
 test('official ezdxf independently reads site layers, utilities and dimensions',async t=>{
@@ -47,4 +56,8 @@ test('official ezdxf independently reads site layers, utilities and dimensions',
   assert.equal(report.units,6);assert.equal(report.errors,0);assert.equal(report.fixes,0)
   for(const layer of ['SITE_BOUNDARY','ROAD_EDGE','ROAD_CENTER','BUILDING','WATER','DRAINAGE','UTILITY_NODE','DIMENSIONS'])assert.ok(report.layers.includes(layer),layer)
   assert.equal(report.circles,6);assert.equal(report.dimensions,2)
+  assert.equal(report.layouts.length,1);assert.match(report.layouts[0].name,/^KJ_SITE_/)
+  assert.deepEqual([report.layouts[0].paperWidth,report.layouts[0].paperHeight,report.layouts[0].paperUnits,report.layouts[0].plotType],[841,594,1,5])
+  assert.equal(report.layouts[0].viewports.length,1);assert.equal(report.layouts[0].viewports[0].paper,1)
+  assert.ok(Math.abs(report.layouts[0].viewports[0].ratio-2)<1e-12)
 })

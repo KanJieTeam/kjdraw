@@ -79,6 +79,8 @@ export interface KJTableRecordInput extends KJObjectSpec {
 }
 
 export interface KJLayoutOptions {
+  id?: string
+  blockRecordId?: string
   name?: string
   paper?: unknown
   dxfPlotSettings?: import('./plot-settings.js').KJDxfPlotSettings
@@ -394,16 +396,24 @@ export class KJTransaction {
 
   createLayout(options: KJLayoutOptions = {}): KJObjectRecord {
     this.#assertOpen()
+    const rawExplicitIds = [options.id, options.blockRecordId].filter(value => value !== undefined)
+    if (rawExplicitIds.some(id => typeof id !== 'string')) throw new KJValidationError('Explicit layout IDs must be strings')
+    const explicitIds = rawExplicitIds as string[]
+    if (explicitIds.some(id => !id.trim() || id !== id.trim() || id.length > 256 || /[\u0000-\u001f\u007f]/.test(id) || ['__proto__', 'constructor', 'prototype'].includes(id))) throw new KJValidationError('Explicit layout IDs must be bounded nonempty data strings')
+    if (new Set(explicitIds).size !== explicitIds.length) throw new KJValidationError('Layout and paper-space block IDs must be distinct')
+    const conflictingId = explicitIds.find(id => this.#state.objects[id])
+    if (conflictingId) throw new KJValidationError(`Duplicate object id: ${conflictingId}`)
     const name = String(options.name ?? '').trim()
     if (!name) throw new KJValidationError('Layout name is required')
     if (this.#state.spaces.layoutIds.some(id => String(this.#state.objects[id]?.name).toUpperCase() === name.toUpperCase())) throw new KJValidationError(`Layout already exists: ${name}`)
     const blockName = `*PAPER_SPACE_${this.#state.spaces.paperSpaceIds.length + 1}`
-    const block = this.upsertTableRecord('blockRecords', { name: blockName, type: 'BLOCK_RECORD', payload: { entityIds: [], isSpace: true } })
+    const block = this.upsertTableRecord('blockRecords', { ...(options.blockRecordId === undefined ? {} : { id: options.blockRecordId }), name: blockName, type: 'BLOCK_RECORD', payload: { entityIds: [], isSpace: true } })
     const paper = options.paper && typeof options.paper === 'object' && !Array.isArray(options.paper) ? options.paper as Record<string, unknown> : {}
     const paperWidth = Number(options.dxfPlotSettings?.paperWidth ?? paper.width ?? 420)
     const paperHeight = Number(options.dxfPlotSettings?.paperHeight ?? paper.height ?? 297)
     const dxfLayoutGeometry = options.dxfLayoutGeometry ?? { limits:paperLimitsFromPlotSettings({ ...options.dxfPlotSettings, paperWidth, paperHeight }), extents:null }
     const layout = this.createObject({
+      ...(options.id === undefined ? {} : { id: options.id }),
       kind: 'layout', type: 'LAYOUT', ownerId: this.#state.namedObjectsDictionaryId, name,
       payload: {
         blockRecordId: block.id,

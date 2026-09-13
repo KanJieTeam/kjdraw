@@ -25,6 +25,8 @@ export interface KJTableRecordInput extends KJObjectSpec {
     name?: string;
 }
 export interface KJLayoutOptions {
+    id?: string;
+    blockRecordId?: string;
     name?: string;
     paper?: unknown;
     dxfPlotSettings?: import('./plot-settings.js').KJDxfPlotSettings;

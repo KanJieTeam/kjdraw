@@ -5,6 +5,7 @@ import {
   KJDRAW_ARCHITECTURE_PLAN_VERSION,
   buildAgentArchitecturePlan,
 } from '../src/agent-architecture-plan.js'
+import { exportDrawingSvg } from '../src/svg-export.js'
 
 function practicalInput(overrides = {}) {
   return {
@@ -54,9 +55,10 @@ test('architecture compiler deterministically emits bounded native walls, reusab
   assert.equal(first.evidence.parameters.openingCount, 4)
   assert.equal(first.evidence.parameters.roomCount, 2)
   assert.deepEqual(first.evidence.parameters.roomAreasSquareMeters, { R101: 35.72, R102: 35.72 })
-  assert.deepEqual(first.evidence.parameters.sheet, {
-    paper: 'A3', scale: '1:100', modelFrame: { origin: [-3_000, -4_500], size: [42_000, 29_700] },
-  })
+  assert.equal(first.evidence.parameters.sheet.paper, 'A3')
+  assert.equal(first.evidence.parameters.sheet.scale, '1:100')
+  assert.match(first.evidence.parameters.sheet.layoutName, /^KJ_ARCH_[A-F0-9]+_A3$/)
+  assert.deepEqual(first.evidence.parameters.sheet.modelFrame, { origin: [-3_000, -4_500], size: [42_000, 29_700] })
   assert.deepEqual(first.evidence.validation, {
     blankDocument: true, wallBounds: true, openingBounds: true, openingSeparation: true,
     roomBounds: true, roomOverlap: false, roomPartitionIntersections: false,
@@ -79,7 +81,7 @@ test('architecture compiler deterministically emits bounded native walls, reusab
   assert.equal(new Set([
     ...first.commandArgs.entities.map(entity => entity.options.id),
     ...first.commandArgs.resources.blocks.flatMap(block => block.entities.map(entity => entity.options.id)),
-  ]).size, first.evidence.entityCount)
+  ]).size, first.evidence.entityCount - 1)
 
   const layerByName = Object.fromEntries(first.commandArgs.resources.layers.map(layer => [layer.name, layer.id]))
   const walls = first.commandArgs.entities.filter(entity => entity.type === 'LWPOLYLINE' && entity.payload.layerId === layerByName['A-WALL'])
@@ -92,21 +94,30 @@ test('architecture compiler deterministically emits bounded native walls, reusab
   assert.equal(first.commandArgs.entities.filter(entity => entity.type === 'DIMENSION').length, 2)
   assert.equal(first.commandArgs.entities.filter(entity => entity.type === 'TEXT' && /m2$/.test(entity.payload.text)).length, 2)
   assert.ok(first.commandArgs.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === 'SCALE 1:100 / mm'))
-  assert.equal(first.evidence.entityCount, first.evidence.modelEntityCount + first.evidence.blockMemberCount)
+  assert.equal(first.evidence.entityCount, first.evidence.modelEntityCount + first.evidence.blockMemberCount + 1)
+  assert.equal(first.commandArgs.layout.viewport.height / first.commandArgs.layout.viewport.viewHeight, 0.01)
+  assert.equal(first.commandArgs.layout.viewport.scaleDenominator, 100)
   assert.ok(first.evidence.entityCount <= 512)
 })
 
 test('architecture plan commits atomically and retains native blocks through undo, redo, KJD and DXF reopening', async () => {
   const sdk=createKJDrawSDK(), document=sdk.createDocument({documentId:'architecture-roundtrip',units:'millimeter'})
+  const initialLayoutCount=document.snapshot().spaces.layoutIds.length
   const compiled=buildAgentArchitecturePlan(document,practicalInput())
   const created=await sdk.executeCommand('CREATEBATCH',compiled.commandArgs,{document})
   assert.equal(created.length,compiled.evidence.entityCount)
   assert.equal(document.revision,1)
   assert.equal(document.listEntities({type:'INSERT'}).length,4)
   assert.equal(document.getTable('blockRecords').records.filter(record=>record.name.startsWith('KJ_ARCH_')).length,2)
+  let layout=document.snapshot().spaces.layoutIds.map(id=>document.getObject(id)).find(record=>record?.name===compiled.commandArgs.layout.name)
+  assert.ok(layout)
+  assert.equal(layout.payload.dxfPlotSettings.paperWidth,420)
+  assert.equal(layout.payload.dxfPlotSettings.paperHeight,297)
+  assert.equal(exportDrawingSvg(document,{layoutId:layout.id}).report.diagnostics.length,0)
   await sdk.executeCommand('UNDO',{}, {document})
   assert.equal(document.listEntities().length,0)
   assert.equal(document.getTable('blockRecords').records.some(record=>record.name.startsWith('KJ_ARCH_')),false)
+  assert.equal(document.snapshot().spaces.layoutIds.length,initialLayoutCount)
   await sdk.executeCommand('REDO',{}, {document})
   for(const format of ['KJD','DXF']){
     const reopened=await sdk.readDocument(await sdk.writeDocument(document,{format}),{format})
@@ -114,6 +125,12 @@ test('architecture plan commits atomically and retains native blocks through und
     const blocks=reopened.getTable('blockRecords').records.filter(record=>record.name.startsWith('KJ_ARCH_'))
     assert.equal(blocks.length,2)
     assert.deepEqual(blocks.map(block=>block.payload.entityIds.length).sort((a,b)=>a-b),[2,3])
+    layout=reopened.snapshot().spaces.layoutIds.map(id=>reopened.getObject(id)).find(record=>record?.name===compiled.commandArgs.layout.name)
+    assert.ok(layout)
+    const viewport=reopened.listEntities({ownerId:layout.payload.blockRecordId,type:'VIEWPORT'})[0]
+    assert.ok(viewport)
+    assert.ok(Math.abs(viewport.payload.height/viewport.payload.viewHeight-0.01)<1e-12)
+    assert.equal(exportDrawingSvg(reopened,{layoutId:layout.id}).report.diagnostics.length,0)
     assert.equal(reopened.listEntities({type:'PROXY_ENTITY'}).length,0)
   }
 })

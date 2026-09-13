@@ -117,6 +117,38 @@ export declare function buildAgentArchitecturePlan(document: ArchitectureDocumen
             })[];
             blocks: BlockSpec[];
         };
+        layout: {
+            id: string;
+            blockRecordId: string;
+            name: string;
+            dxfPlotSettings: {
+                paperWidth: number;
+                paperHeight: number;
+                marginLeft: number;
+                marginBottom: number;
+                marginRight: number;
+                marginTop: number;
+                originX: number;
+                originY: number;
+                scaleNumerator: number;
+                scaleDenominator: number;
+                flags: number;
+                paperUnits: 1;
+                rotation: 0;
+                plotType: 5;
+            };
+            viewport: {
+                id: string;
+                center: Point3;
+                width: number;
+                height: number;
+                viewCenter: Point3;
+                viewHeight: number;
+                twistAngle: number;
+                modelUnits: 'millimeter';
+                scaleDenominator: number;
+            };
+        };
     };
     evidence: {
         drawingId: string;
@@ -142,6 +174,7 @@ export declare function buildAgentArchitecturePlan(document: ArchitectureDocumen
             sheet: {
                 paper: string;
                 scale: string;
+                layoutName: string;
                 modelFrame: {
                     origin: number[];
                     size: number[];
