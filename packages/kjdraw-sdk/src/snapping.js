@@ -63,6 +63,33 @@ const pointAt = (center, radius, angle)=>{
         value[2]
     ];
 };
+function ellipsePointAt(payload, parameter) {
+    const center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio);
+    if (![
+        ...center,
+        ...major,
+        ratio,
+        parameter
+    ].every(Number.isFinite) || Math.hypot(major[0], major[1]) <= 1e-12 || ratio <= 0 || ratio > 1) throw new KJValidationError('ELLIPSE snap geometry is invalid');
+    const x = Math.cos(parameter), y = Math.sin(parameter) * ratio;
+    return [
+        center[0] + major[0] * x - major[1] * y,
+        center[1] + major[1] * x + major[0] * y,
+        center[2]
+    ];
+}
+function ellipseParameters(payload) {
+    const start = Number(payload.startParameter ?? 0), end = Number(payload.endParameter ?? TURN), span = end - start;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || span <= 1e-12 || span > TURN + 1e-10) throw new KJValidationError('ELLIPSE snap parameters are invalid');
+    return {
+        start,
+        span: Math.min(span, TURN),
+        full: Math.abs(span - TURN) <= 1e-10
+    };
+}
+function parameterOnEllipse(parameter, start, span, epsilon = 1e-10) {
+    return positiveTurn(parameter - start) <= span + epsilon;
+}
 function positiveTurn(value) {
     value %= TURN;
     return value < 0 ? value + TURN : value;
@@ -345,6 +372,19 @@ function baseCandidates(entity, modes, cursor, reference) {
                 });
             }
         }
+        if (entity.type === 'ELLIPSE') {
+            const ellipse = ellipseParameters(payload);
+            if (!ellipse.full) {
+                add('endpoint', ellipsePointAt(payload, ellipse.start), {
+                    role: 'start',
+                    parameter: ellipse.start
+                });
+                add('endpoint', ellipsePointAt(payload, ellipse.start + ellipse.span), {
+                    role: 'end',
+                    parameter: ellipse.start + ellipse.span
+                });
+            }
+        }
         if ([
             'LWPOLYLINE',
             'POLYLINE'
@@ -375,6 +415,12 @@ function baseCandidates(entity, modes, cursor, reference) {
             segmentIndex: primitive.segmentIndex
         });
     }
+    if (modes.has('midpoint') && entity.type === 'ELLIPSE') {
+        const ellipse = ellipseParameters(payload);
+        if (!ellipse.full) add('midpoint', ellipsePointAt(payload, ellipse.start + ellipse.span / 2), {
+            parameter: ellipse.start + ellipse.span / 2
+        });
+    }
     if (modes.has('center') && [
         'CIRCLE',
         'ARC',
@@ -393,6 +439,19 @@ function baseCandidates(entity, modes, cursor, reference) {
         if (primitive?.kind === 'circle' || primitive?.kind === 'arc' && angleOnArc(angle, primitive)) add('quadrant', pointAt(payload.center, payload.radius, angle), {
             angle
         });
+    }
+    if (modes.has('quadrant') && entity.type === 'ELLIPSE') {
+        const ellipse = ellipseParameters(payload);
+        for (const parameter of [
+            0,
+            Math.PI / 2,
+            Math.PI,
+            Math.PI * 1.5
+        ]){
+            if (ellipse.full || parameterOnEllipse(parameter, ellipse.start, ellipse.span)) add('quadrant', ellipsePointAt(payload, parameter), {
+                parameter
+            });
+        }
     }
     if (modes.has('insertion') && [
         'INSERT',

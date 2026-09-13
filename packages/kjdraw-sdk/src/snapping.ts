@@ -88,6 +88,10 @@ interface SnapPayload extends KJObjectPayload {
   center: KJSnapPointInput
   position: KJSnapPointInput
   radius: number
+  majorAxis: KJSnapPointInput
+  ratio: number
+  startParameter: number
+  endParameter: number
   startAngle: number
   endAngle: number
   clockwise?: boolean
@@ -164,6 +168,23 @@ const point3 = (point: KJSnapPointInput): KJSnapPoint => {
 const pointAt = (center: KJSnapPointInput, radius: number, angle: number): KJSnapPoint => {
   const value = point3(center)
   return [value[0] + radius * Math.cos(angle), value[1] + radius * Math.sin(angle), value[2]]
+}
+
+function ellipsePointAt(payload: SnapPayload, parameter: number): KJSnapPoint {
+  const center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio)
+  if (![...center, ...major, ratio, parameter].every(Number.isFinite) || Math.hypot(major[0], major[1]) <= 1e-12 || ratio <= 0 || ratio > 1) throw new KJValidationError('ELLIPSE snap geometry is invalid')
+  const x = Math.cos(parameter), y = Math.sin(parameter) * ratio
+  return [center[0] + major[0] * x - major[1] * y, center[1] + major[1] * x + major[0] * y, center[2]]
+}
+
+function ellipseParameters(payload: SnapPayload): { start: number; span: number; full: boolean } {
+  const start = Number(payload.startParameter ?? 0), end = Number(payload.endParameter ?? TURN), span = end - start
+  if (!Number.isFinite(start) || !Number.isFinite(end) || span <= 1e-12 || span > TURN + 1e-10) throw new KJValidationError('ELLIPSE snap parameters are invalid')
+  return { start, span: Math.min(span, TURN), full: Math.abs(span - TURN) <= 1e-10 }
+}
+
+function parameterOnEllipse(parameter: number, start: number, span: number, epsilon = 1e-10): boolean {
+  return positiveTurn(parameter - start) <= span + epsilon
 }
 
 function positiveTurn(value: number): number {
@@ -309,6 +330,13 @@ function baseCandidates(entity: KJReadonlyObjectRecord, modes: ReadonlySet<KJSna
       const primitive = primitives[0]
       if (primitive?.kind === 'arc') { const [start, end] = arcEndpoints(primitive); add('endpoint', start, { role: 'start' }); add('endpoint', end, { role: 'end' }) }
     }
+    if (entity.type === 'ELLIPSE') {
+      const ellipse = ellipseParameters(payload)
+      if (!ellipse.full) {
+        add('endpoint', ellipsePointAt(payload, ellipse.start), { role: 'start', parameter: ellipse.start })
+        add('endpoint', ellipsePointAt(payload, ellipse.start + ellipse.span), { role: 'end', parameter: ellipse.start + ellipse.span })
+      }
+    }
     if (['LWPOLYLINE', 'POLYLINE'].includes(entity.type)) for (const [index, vertex] of (payload.vertices ?? []).entries()) add('endpoint', vertexPoint(vertex), { vertexIndex: index })
     if (['SOLID', 'TRACE'].includes(entity.type)) for (const [index, point] of (payload.vertices ?? []).entries()) add('endpoint', vertexPoint(point), { vertexIndex: index })
     if (entity.type === 'SPLINE') {
@@ -320,10 +348,20 @@ function baseCandidates(entity: KJReadonlyObjectRecord, modes: ReadonlySet<KJSna
     const point = primitive.kind === 'line' ? midpoint2(primitive.start, primitive.end) : pointAt(primitive.center, primitive.radius, primitive.startAngle + primitive.sweep / 2)
     add('midpoint', point, { segmentIndex: primitive.segmentIndex })
   }
+  if (modes.has('midpoint') && entity.type === 'ELLIPSE') {
+    const ellipse = ellipseParameters(payload)
+    if (!ellipse.full) add('midpoint', ellipsePointAt(payload, ellipse.start + ellipse.span / 2), { parameter: ellipse.start + ellipse.span / 2 })
+  }
   if (modes.has('center') && ['CIRCLE', 'ARC', 'ELLIPSE'].includes(entity.type)) add('center', payload.center)
   if (modes.has('quadrant') && ['CIRCLE', 'ARC'].includes(entity.type)) for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
     const primitive = primitives[0]
     if (primitive?.kind === 'circle' || primitive?.kind === 'arc' && angleOnArc(angle, primitive)) add('quadrant', pointAt(payload.center, payload.radius, angle), { angle })
+  }
+  if (modes.has('quadrant') && entity.type === 'ELLIPSE') {
+    const ellipse = ellipseParameters(payload)
+    for (const parameter of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+      if (ellipse.full || parameterOnEllipse(parameter, ellipse.start, ellipse.span)) add('quadrant', ellipsePointAt(payload, parameter), { parameter })
+    }
   }
   if (modes.has('insertion') && ['INSERT', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'IMAGE', 'TABLE'].includes(entity.type)) add('insertion', payload.position)
   if (modes.has('node') && entity.type === 'POINT') add('node', payload.position)

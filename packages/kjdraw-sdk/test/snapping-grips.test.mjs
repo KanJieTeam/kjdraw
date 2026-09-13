@@ -49,6 +49,31 @@ test('circle and arc quadrant snaps keep exact coordinates, sweep boundaries and
   assert.throws(() => sdk.snap([0, 0], { radius: 0, modes: ['quadrant'] }), /radius must be positive/)
 })
 
+test('full and partial ellipses expose exact rotated quadrant, endpoint and parameter-midpoint snaps', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'ellipse-object-snaps' })
+  const full = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [10, 20, 3], majorAxis: [6, 8, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2,
+  } })
+  const quadrants = sdk.snap([10, 20], { radius: 11, modes: ['quadrant'], entityIds: [full.id] })
+  assert.equal(quadrants.length, 4)
+  for (const expected of [[16, 28], [6, 23], [4, 12], [14, 17]]) {
+    const candidate = quadrants.find(value => Math.hypot(value.point[0] - expected[0], value.point[1] - expected[1]) < 1e-9)
+    assert.ok(candidate); assert.equal(candidate.point[2], 3); assert.ok(Number.isFinite(candidate.parameter))
+  }
+  assert.equal(sdk.snap([16, 28], { radius: .01, modes: ['endpoint'], entityIds: [full.id] }).length, 0)
+
+  const partial = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [-20, 5, 0], majorAxis: [10, 0, 0], ratio: .4, startParameter: Math.PI / 2, endParameter: Math.PI * 1.5,
+  } })
+  const endpoints = sdk.snap([-20, 5], { radius: 20, modes: ['endpoint'], entityIds: [partial.id] })
+  assert.equal(endpoints.length, 2); closePoint(endpoints[0].point, [-20, 9]); closePoint(endpoints[1].point, [-20, 1])
+  assert.deepEqual(endpoints.map(value => value.role), ['start', 'end'])
+  const midpoint = sdk.snap([-30, 5], { radius: 20, modes: ['midpoint'], entityIds: [partial.id] })
+  assert.equal(midpoint.length, 1); closePoint(midpoint[0].point, [-30, 5])
+  const partialQuadrants = sdk.snap([-20, 5], { radius: 20, modes: ['quadrant'], entityIds: [partial.id] })
+  assert.deepEqual(partialQuadrants.map(value => value.parameter).sort((a, b) => a - b), [Math.PI / 2, Math.PI, Math.PI * 1.5])
+})
+
 test('exact snaps outrank nearest while nearest remains an explicit fallback', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'snap-priority' })
   const circle = await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: [0, 0], radius: 10 } })

@@ -23,6 +23,7 @@ test('workbench uses document snap settings for quadrant and intersection withou
     const frozen = await sdk.executeCommand('LAYERNEW', { name: 'Frozen reference', frozen: true }, { document: drawing })
     await drawing.transact('Snap fixtures', tx => {
       tx.createEntity('CIRCLE', { center: [30, 0, 0], radius: 10, layerId: locked.id })
+      tx.createEntity('ELLIPSE', { center: [-30, 0, 0], majorAxis: [8, 6, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2 })
       tx.createEntity('CIRCLE', { center: [10, 30, 0], radius: 10, layerId: hidden.id })
       tx.createEntity('CIRCLE', { center: [-10, 30, 0], radius: 10, layerId: frozen.id })
       tx.createEntity('LINE', { start: [-12, 0, 0], end: [12, 0, 0] })
@@ -52,6 +53,14 @@ test('workbench uses document snap settings for quadrant and intersection withou
   await page.mouse.click(east.x, east.y); await page.mouse.click(target.x, target.y)
   const quadrantLine = await page.evaluate(() => window.snapWorkbench.drawing.listEntities({ type: 'LINE' }).at(-1).payload)
   expect(quadrantLine.start).toEqual([40, 0, 0])
+  await page.locator('#snap-host [data-action="undo"]').click()
+  await expect.poll(() => page.evaluate(() => window.snapWorkbench.drawing.listEntities({ type: 'LINE' }).length)).toBe(3)
+
+  const ellipseQuadrant = await workbenchPoint(page, [-22, 6])
+  await page.locator('#snap-host [data-tool="line"]').click(); await page.mouse.move(ellipseQuadrant.x + 3, ellipseQuadrant.y - 2)
+  await expect(marker).toHaveAttribute('data-mode', 'quadrant'); await page.mouse.click(ellipseQuadrant.x + 3, ellipseQuadrant.y - 2); await page.mouse.click(target.x, target.y)
+  const ellipseLine = await page.evaluate(() => window.snapWorkbench.drawing.listEntities({ type: 'LINE' }).at(-1).payload)
+  expect(ellipseLine.start).toEqual([-22, 6, 0])
   await page.locator('#snap-host [data-action="undo"]').click()
   await expect.poll(() => page.evaluate(() => window.snapWorkbench.drawing.listEntities({ type: 'LINE' }).length)).toBe(3)
 
