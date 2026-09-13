@@ -83,7 +83,7 @@ export interface KJAgentTaskGeometryReceipt {
     planId: string;
     executionEnvelopeId: string;
     reviewerId: string;
-    command: 'CREATEBATCH' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT';
+    command: 'CREATEBATCH' | 'COPY' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT';
     sourceToolName: string;
     beforeRevision: number;
     afterRevision: number;
@@ -177,6 +177,28 @@ export interface KJAgentTaskCreateBatchApprovalInput {
     at: string;
 }
 export interface KJAgentTaskCreateBatchApprovalResult {
+    task: KJObjectRecord;
+    receipt: KJAgentTaskGeometryReceipt;
+}
+export interface KJAgentTaskCopyApprovalInput {
+    id: string;
+    expectedRevision: number;
+    expectedTaskVersion: number;
+    expectedStatus: 'running';
+    expectedScopeSha256: string;
+    sourceToolName: string;
+    toolApiVersion: string;
+    toolContractHash: string;
+    argumentsDigest: string;
+    capabilityLocks: KJAgentTaskCapabilityLock[];
+    planId: string;
+    executionEnvelopeId: string;
+    reviewerId: string;
+    sourceEntityIds: string[];
+    copiedEntityIds: string[];
+    at: string;
+}
+export interface KJAgentTaskCopyApprovalResult {
     task: KJObjectRecord;
     receipt: KJAgentTaskGeometryReceipt;
 }
@@ -327,6 +349,8 @@ export declare function inspectAgentTask(document: KJDocument, id: string): Prom
 export declare function transitionAgentTask(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJObjectRecord>;
 /** Complete one reviewed CREATEBATCH and its deterministic checks in the caller's transaction draft. */
 export declare function commitAgentTaskCreateBatchApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskCreateBatchApprovalResult>;
+/** Complete one reviewed COPY and its deterministic checks in the caller's transaction draft. */
+export declare function commitAgentTaskCopyApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskCopyApprovalResult>;
 /** Complete one reviewed MOVE and its deterministic checks in the caller's transaction draft. */
 export declare function commitAgentTaskMoveApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskMoveApprovalResult>;
 /** Complete one reviewed ROTATE and its deterministic checks in the caller's transaction draft. */
