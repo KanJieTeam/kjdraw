@@ -11,13 +11,14 @@ import { pilotTasks } from './model-drawing-pilot.mjs'
 import { engineeringDrawingTasks, engineeringDrawingScope } from './engineering-drawing-tasks.mjs'
 import { manufacturingDrawingTasks, manufacturingDrawingScope } from './manufacturing-drawing-tasks.mjs'
 import { manufacturingTaskSuite, manufacturingTaskSuiteScope } from './manufacturing-task-suite.mjs'
+import { releaseHoldoutDrawingTool, releaseHoldoutGenerationTasks, releaseHoldoutTaskSuiteScope } from './release-holdout-task-suite.mjs'
 import { parametricDrawingTasks } from './parametric-drawing-tasks.mjs'
 import { spawnSyncWithFileStdin } from '../spawn-file-stdin.mjs'
 
 const protocol = 'chat-completions'
 const arms = ['kjdraw-tool', 'direct-dxf']
-const drawingTools = ['cad_propose_drawing', 'cad_propose_drawing_compact', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet']
-const taskSuites = { pilot: pilotTasks, parametric: parametricDrawingTasks, engineering: engineeringDrawingTasks.map(({ id, prompt, requirements }) => ({ id, prompt, expected: requirements })), manufacturing: manufacturingDrawingTasks, 'manufacturing-30': manufacturingTaskSuite }
+const drawingTools = ['cad_propose_drawing', 'cad_propose_drawing_compact', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan', 'cad_propose_site_plan']
+const taskSuites = { pilot: pilotTasks, parametric: parametricDrawingTasks, engineering: engineeringDrawingTasks.map(({ id, prompt, requirements }) => ({ id, prompt, expected: requirements })), manufacturing: manufacturingDrawingTasks, 'manufacturing-30': manufacturingTaskSuite, 'release-holdout-generation': releaseHoldoutGenerationTasks }
 const validatorScript = fileURLToPath(new URL('./paired-model-validator.py', import.meta.url))
 const hash = value => createHash('sha256').update(value).digest('hex')
 const byteLength = value => Buffer.byteLength(JSON.stringify(value))
@@ -26,7 +27,7 @@ class BenchmarkFailure extends Error {
 }
 const fail = (code, stop = false, status = null) => { throw new BenchmarkFailure(code, stop, status) }
 
-function providerSettings({ chatTokenParameter = 'max_tokens', maxOutputTokens = 4096, thinkingMode, enableThinking, reasoningEffort } = {}) {
+export function benchmarkProviderSettings({ chatTokenParameter = 'max_tokens', maxOutputTokens = 4096, thinkingMode, enableThinking, reasoningEffort } = {}) {
   if (!['max_tokens', 'max_completion_tokens'].includes(chatTokenParameter)) throw new Error('chatTokenParameter must be max_tokens or max_completion_tokens')
   if (thinkingMode !== undefined && !['disabled', 'enabled'].includes(thinkingMode)) throw new Error('thinkingMode must be disabled or enabled')
   if (enableThinking !== undefined && typeof enableThinking !== 'boolean') throw new Error('enableThinking must be boolean')
@@ -39,16 +40,18 @@ function providerSettings({ chatTokenParameter = 'max_tokens', maxOutputTokens =
 export function pairedModelPlan({ repetitions = 5, maxRequests = 30, taskSuite = 'pilot', drawingTool, maxOutputTokens = 4096, exploratory = false, chatTokenParameter = 'max_tokens', thinkingMode, enableThinking, reasoningEffort } = {}) {
   if (typeof exploratory !== 'boolean') throw new Error('Exploratory mode must be explicit boolean')
   if (!Object.hasOwn(taskSuites, taskSuite)) throw new Error('Choose an explicit supported task suite')
+  const perTaskTools = taskSuite === 'release-holdout-generation'
+  if (perTaskTools && drawingTool !== undefined) throw new Error(`${taskSuite} selects the declared tool and units independently for every task`)
   const requiredDrawingTool = taskSuite === 'manufacturing-30' ? 'cad_propose_manufacturing_sheet' : null
   const selectedDrawingTool = drawingTool ?? requiredDrawingTool ?? 'cad_propose_drawing'
-  if (!drawingTools.includes(selectedDrawingTool)) throw new Error('Unsupported explicit drawing tool')
+  if (!perTaskTools && !drawingTools.includes(selectedDrawingTool)) throw new Error('Unsupported explicit drawing tool')
   if (requiredDrawingTool && selectedDrawingTool !== requiredDrawingTool) throw new Error(`${taskSuite} requires ${requiredDrawingTool}`)
   if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 4096 || maxOutputTokens > 32768) throw new Error('Choose an output cap from 4096 to 32768 tokens')
   const tasks = taskSuites[taskSuite]
   if (!Number.isSafeInteger(repetitions) || repetitions < (exploratory ? 1 : 5) || repetitions > 30) throw new Error('Choose 5–30 repetitions, or explicitly exploratory 1–30')
   const plannedRequests = tasks.length * arms.length * repetitions
   if (!Number.isSafeInteger(maxRequests) || maxRequests < plannedRequests || maxRequests > 1800) throw new Error('Explicit request budget must cover the complete paired plan and be at most 1800')
-  return { mode: 'dry-run', exploratory, protocol, repetitions, maxRequests, plannedRequests, actualRequests: 0, tasks: tasks.map(task => ({ id: task.id, prompt: task.prompt, ...(task.version ? { version: task.version } : {}), ...(task.inputSha256 ? { inputSha256: task.inputSha256 } : {}) })), taskSuite, drawingTool: selectedDrawingTool, arms, chatTokenParameter, settings: providerSettings({ chatTokenParameter, maxOutputTokens, thinkingMode, enableThinking, reasoningEffort }), scope: taskSuite === 'engineering' ? engineeringDrawingScope : taskSuite === 'manufacturing' ? manufacturingDrawingScope : taskSuite === 'manufacturing-30' ? manufacturingTaskSuiteScope : taskSuite === 'pilot' ? 'Three simple fully specified synthetic tasks, repeated one-shot generation. This is not a complex autonomous CAD evaluation.' : 'Three fully specified synthetic 2D geometry tasks with repeated patterns, repeated one-shot generation. No dimensions, annotations, complete drawing sheets or autonomous design are evaluated.' }
+  return { mode: 'dry-run', exploratory, protocol, repetitions, maxRequests, plannedRequests, actualRequests: 0, tasks: tasks.map(task => ({ id: task.id, prompt: task.prompt, ...(task.version ? { version: task.version } : {}), ...(task.category ? { category: task.category } : {}), ...(task.drawingTool ? { drawingTool: task.drawingTool } : {}), ...(task.units ? { units: task.units } : {}), ...(task.inputSha256 ? { inputSha256: task.inputSha256 } : {}), ...(task.referenceInputSha256 ? { referenceInputSha256: task.referenceInputSha256 } : {}), ...(task.acceptanceSha256 ? { acceptanceSha256: task.acceptanceSha256 } : {}), ...(task.budget ? { budget: structuredClone(task.budget) } : {}) })), taskSuite, drawingTool: perTaskTools ? releaseHoldoutDrawingTool : selectedDrawingTool, arms, chatTokenParameter, settings: benchmarkProviderSettings({ chatTokenParameter, maxOutputTokens, thinkingMode, enableThinking, reasoningEffort }), scope: taskSuite === 'engineering' ? engineeringDrawingScope : taskSuite === 'manufacturing' ? manufacturingDrawingScope : taskSuite === 'manufacturing-30' ? manufacturingTaskSuiteScope : taskSuite === 'release-holdout-generation' ? releaseHoldoutTaskSuiteScope : taskSuite === 'pilot' ? 'Three simple fully specified synthetic tasks, repeated one-shot generation. This is not a complex autonomous CAD evaluation.' : 'Three fully specified synthetic 2D geometry tasks with repeated patterns, repeated one-shot generation. No dimensions, annotations, complete drawing sheets or autonomous design are evaluated.' }
 }
 
 export function liveModelConfiguration(env = process.env) {
@@ -65,17 +68,18 @@ export function liveModelConfiguration(env = process.env) {
   const chatTokenParameter = env.KJDRAW_BENCH_CHAT_TOKEN_PARAMETER ?? 'max_tokens'
   const reasoningEffort = env.KJDRAW_BENCH_REASONING_EFFORT
   const explicit = { chatTokenParameter, ...(thinkingMode !== undefined ? { thinkingMode } : {}), ...(enableThinking !== undefined ? { enableThinking: enableThinking === 'true' } : {}), ...(reasoningEffort !== undefined ? { reasoningEffort } : {}) }
-  providerSettings(explicit)
+  benchmarkProviderSettings(explicit)
   return { mode: 'live', protocol, model: env.KJDRAW_BENCH_MODEL, endpoint: env.KJDRAW_BENCH_ENDPOINT, apiKey: env.KJDRAW_BENCH_API_KEY, toolChoiceMode, drawingTool, ...explicit }
 }
 
-export function independentValidation({ python = process.env.KJDRAW_PYTHON ?? 'python', dxf, expected, timeoutMs = 30000, taskSuite = 'pilot' } = {}) {
-  const script = taskSuite === 'engineering' ? fileURLToPath(new URL('./engineering-model-validator.py', import.meta.url)) : taskSuite === 'manufacturing' || taskSuite === 'manufacturing-30' ? fileURLToPath(new URL('./manufacturing-model-validator.py', import.meta.url)) : validatorScript
+export function independentValidation({ python = process.env.KJDRAW_PYTHON ?? 'python', dxf, expected, timeoutMs = 30000, taskSuite = 'pilot', validatorKind } = {}) {
+  const kind = validatorKind ?? (taskSuite === 'engineering' ? 'engineering' : taskSuite === 'manufacturing' || taskSuite === 'manufacturing-30' ? 'manufacturing' : 'generic')
+  const script = kind === 'engineering' ? fileURLToPath(new URL('./engineering-model-validator.py', import.meta.url)) : kind === 'manufacturing' ? fileURLToPath(new URL('./manufacturing-model-validator.py', import.meta.url)) : kind === 'release-holdout' ? fileURLToPath(new URL('./release-holdout-validator.py', import.meta.url)) : validatorScript
   const result = spawnSyncWithFileStdin(python, ['-B', script, ...(dxf === undefined ? ['--probe'] : [])], dxf === undefined ? undefined : JSON.stringify({ dxf, expected }), { encoding: 'utf8', timeout: timeoutMs, maxBuffer: 65536, windowsHide: true })
   if (result.status !== 0 || result.error) throw new BenchmarkFailure('INDEPENDENT_VALIDATOR_UNAVAILABLE', true)
   let value
   try { value = JSON.parse(result.stdout) } catch { throw new BenchmarkFailure('INDEPENDENT_VALIDATOR_INVALID', true) }
-  const expectedValidator = taskSuite === 'engineering' ? 'ezdxf-engineering' : taskSuite === 'manufacturing' || taskSuite === 'manufacturing-30' ? 'ezdxf-manufacturing' : 'ezdxf'
+  const expectedValidator = kind === 'engineering' ? 'ezdxf-engineering' : kind === 'manufacturing' ? 'ezdxf-manufacturing' : kind === 'release-holdout' ? 'ezdxf-release-holdout' : 'ezdxf'
   if (value.validator !== expectedValidator || typeof value.version !== 'string' || !/^\d+(?:\.\d+){1,3}$/.test(value.version) || (dxf !== undefined && typeof value.passed !== 'boolean')) throw new BenchmarkFailure('INDEPENDENT_VALIDATOR_INVALID', true)
   return value
 }
@@ -101,19 +105,21 @@ function configuration(options) {
   return { ...plan, mode: options.mode, model: options.model, endpoint: url.href, apiKey: options.apiKey, timeoutMs, output: resolve(options.output), python: options.python ?? process.env.KJDRAW_PYTHON ?? 'python' }
 }
 
-function toolDefinition(name) {
-  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+function toolDefinition(name, units = 'millimeter') {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units })
   const definition = new KJAgentToolSession(sdk, document).definitions.find(tool => tool.name === name)
   return { type: 'function', function: { name: definition.name, description: definition.description, parameters: definition.inputSchema } }
 }
 
 function requestBody(task, arm, config, tool) {
-  const completeDrawing = config.taskSuite === 'engineering' || config.taskSuite === 'manufacturing' || config.taskSuite === 'manufacturing-30'
-  const common = completeDrawing ? 'The drawing is empty, revision 0, units millimeter, model XY at z=0. Produce all geometry, dimensions, text and styles explicitly requested below. ' : 'Create a 2D engineering drawing from the following fully specified synthetic request. All coordinates and lengths are millimeters, model XY at z=0. The drawing is empty, revision 0. No text, dimensions, hatch, construction lines or additional geometry. '
+  const drawingTool = task.drawingTool ?? config.drawingTool, units = task.units ?? 'millimeter'
+  const completeDrawing = config.taskSuite === 'engineering' || config.taskSuite === 'manufacturing' || config.taskSuite === 'manufacturing-30' || config.taskSuite === 'release-holdout-generation'
+  const common = completeDrawing ? `The drawing is empty, revision 0, units ${units}, model XY at z=0. Produce all geometry, dimensions, text and styles explicitly requested below. ` : 'Create a 2D engineering drawing from the following fully specified synthetic request. All coordinates and lengths are millimeters, model XY at z=0. The drawing is empty, revision 0. No text, dimensions, hatch, construction lines or additional geometry. '
   const system = arm === 'kjdraw-tool'
-    ? `Use exactly one ${config.drawingTool} tool call. The current units and revision have already been supplied. Return requested editable geometry for synthetic benchmark review.`
-    : `Return only a complete valid ASCII DXF file, no markdown or commentary. Use DXF AC1027 or newer and set $INSUNITS to 4 (millimeters). ${completeDrawing ? 'Use editable LINE, CIRCLE, ARC, straight LWPOLYLINE, TEXT and native DIMENSION entities, with valid dimension graphics blocks, layer and linetype tables as requested.' : 'Use LINE, CIRCLE, ARC and/or straight LWPOLYLINE entities.'} Do not use any CAD library or tool.`
-  return { model: config.model, messages: [{ role: 'system', content: system }, { role: 'user', content: common + task.prompt }], ...config.settings, ...(arm === 'kjdraw-tool' ? { tools: [tool], tool_choice: config.toolChoiceMode === 'auto' ? 'auto' : { type: 'function', function: { name: config.drawingTool } } } : {}) }
+    ? `Use exactly one ${drawingTool} tool call. The current units and revision have already been supplied. Return requested editable geometry for synthetic benchmark review.`
+    : `Return only a complete valid ASCII DXF file, no markdown or commentary. Use DXF AC1027 or newer and set $INSUNITS to ${units === 'meter' ? 6 : 4} (${units}). ${completeDrawing ? 'Use editable native CAD entities, layers, linetypes, blocks, text and dimensions as requested.' : 'Use LINE, CIRCLE, ARC and/or straight LWPOLYLINE entities.'} Do not use any CAD library or tool.`
+  const settings = task.budget ? { ...config.settings, [config.chatTokenParameter]: Math.min(config.settings[config.chatTokenParameter], task.budget.maxOutputTokens) } : config.settings
+  return { model: config.model, messages: [{ role: 'system', content: system }, { role: 'user', content: common + task.prompt }], ...settings, ...(arm === 'kjdraw-tool' ? { tools: [tool], tool_choice: config.toolChoiceMode === 'auto' ? 'auto' : { type: 'function', function: { name: drawingTool } } } : {}) }
 }
 
 async function transport(config, body) {
@@ -158,13 +164,13 @@ export function safeResponse(response, usage, key) {
   return result
 }
 
-async function materialize(response, arm, modelName, name) {
+async function materialize(response, arm, modelName, name, units = 'millimeter') {
   const message = response.choices[0].message, finish = response.choices[0].finish_reason
   if (arm === 'direct-dxf') {
     if (finish !== 'stop' || typeof message.content !== 'string' || !message.content.trim() || message.content.includes('```') || message.tool_calls?.length) fail('INVALID_DIRECT_DXF_RESPONSE')
     return message.content
   }
-  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units })
   const session = new KJAgentToolSession(sdk, document)
   const model = createKJModelAdapter({ protocol, model: modelName, request: async () => response })
   let turn
@@ -184,18 +190,32 @@ const sumKnownFinite = values => values.length && values.every(value => typeof v
 function summary(runs) {
   return Object.fromEntries(arms.map(arm => {
     const selected = runs.filter(run => run.arm === arm)
-    return [arm, { attempted: selected.length, passed: selected.filter(run => run.validation?.passed).length, failures: selected.filter(run => run.status !== 'passed').length, humanInterventionCount: selected.reduce((total, run) => total + run.humanInterventionCount, 0), transportLatencyMs: sumKnownFinite(selected.map(run => run.transportLatencyMs)), totalMs: sumKnownFinite(selected.map(run => run.totalMs)), inputTokens: sumKnown(selected.map(run => run.usage?.inputTokens)), outputTokens: sumKnown(selected.map(run => run.usage?.outputTokens)), totalTokens: sumKnown(selected.map(run => run.usage?.totalTokens)), cacheReadInputTokens: sumKnown(selected.map(run => run.usage?.cacheReadInputTokens)), cacheMissInputTokens: sumKnown(selected.map(run => run.usage?.cacheMissInputTokens)), reasoningOutputTokens: sumKnown(selected.map(run => run.usage?.reasoningOutputTokens)), cost: null }]
+    return [arm, { attempted: selected.length, passed: selected.filter(run => run.status === 'passed').length, failures: selected.filter(run => run.status !== 'passed').length, humanInterventionCount: selected.reduce((total, run) => total + run.humanInterventionCount, 0), transportLatencyMs: sumKnownFinite(selected.map(run => run.transportLatencyMs)), totalMs: sumKnownFinite(selected.map(run => run.totalMs)), inputTokens: sumKnown(selected.map(run => run.usage?.inputTokens)), outputTokens: sumKnown(selected.map(run => run.usage?.outputTokens)), totalTokens: sumKnown(selected.map(run => run.usage?.totalTokens)), cacheReadInputTokens: sumKnown(selected.map(run => run.usage?.cacheReadInputTokens)), cacheMissInputTokens: sumKnown(selected.map(run => run.usage?.cacheMissInputTokens)), reasoningOutputTokens: sumKnown(selected.map(run => run.usage?.reasoningOutputTokens)), cost: null }]
   }))
+}
+
+export function taskBudgetCompliance(run, budget) {
+  const observed = { inputTokens: run.usage?.inputTokens ?? null, outputTokens: run.usage?.outputTokens ?? null, toolCalls: run.modelToolCallCount, wallTimeMs: run.totalMs, humanInterventions: run.humanInterventionCount }
+  const reasons = []
+  for (const [name, maximum] of [['inputTokens', budget.maxInputTokens], ['outputTokens', budget.maxOutputTokens], ['toolCalls', budget.maxToolCalls], ['wallTimeMs', budget.maxWallTimeMs], ['humanInterventions', budget.maxHumanInterventions]]) {
+    if (typeof observed[name] !== 'number' || !Number.isFinite(observed[name])) reasons.push(`${name.toUpperCase()}_UNKNOWN`)
+    else if (observed[name] > maximum) reasons.push(`${name.toUpperCase()}_EXCEEDED`)
+  }
+  return { passed: reasons.length === 0, reasons, observed }
 }
 
 export async function runPairedModelBenchmark(options) {
   const config = configuration(options)
   await mkdir(dirname(config.output), { recursive: true }); await mkdir(config.output)
-  const report = { schema: 'com.kanjie.kjdraw.benchmark.paired-model@1', mode: config.mode, exploratory: config.exploratory, publishableModelEvidence: false, publicationReviewRequired: config.mode === 'live', status: 'preparing', createdAt: new Date().toISOString(), model: config.model, protocol, endpointOrigin: new URL(config.endpoint).origin, settings: config.settings, repetitions: config.repetitions, maxRequests: config.maxRequests, plannedRequests: config.plannedRequests, attemptedRequests: 0, unexecutedRequests: config.plannedRequests, timeoutMs: config.timeoutMs, cost: null, humanInterventionCount: 0, humanInterventionDefinition: 'Manual prompt edits, CAD corrections, retries or validation overrides performed after a benchmark request starts. Synthetic proposal approval by the harness is recorded separately and is not a human intervention.', scope: config.scope, fixtureWarning: config.mode === 'fixture' ? 'LOCAL FAKE PROVIDER: transport/SDK/validator conformance only. Never use these simulated usage counters in public model rankings or savings claims.' : null, taskSuite: config.taskSuite, tasks: taskSuites[config.taskSuite].map(task => ({ ...task, fixtureSha256: hash(JSON.stringify(task.expected)), inputSha256: task.inputSha256 ?? null })), validator: null, source: {}, runs: [], summary: {} }
+  const reportTasks = taskSuites[config.taskSuite].map(task => {
+    const { referenceInput, ...record } = task
+    return { ...record, fixtureSha256: hash(JSON.stringify(task.expected)), inputSha256: task.inputSha256 ?? null }
+  })
+  const report = { schema: 'com.kanjie.kjdraw.benchmark.paired-model@1', mode: config.mode, exploratory: config.exploratory, publishableModelEvidence: false, publicationReviewRequired: config.mode === 'live', status: 'preparing', createdAt: new Date().toISOString(), model: config.model, protocol, endpointOrigin: new URL(config.endpoint).origin, settings: config.settings, repetitions: config.repetitions, maxRequests: config.maxRequests, plannedRequests: config.plannedRequests, attemptedRequests: 0, unexecutedRequests: config.plannedRequests, timeoutMs: config.timeoutMs, cost: null, humanInterventionCount: 0, humanInterventionDefinition: 'Manual prompt edits, CAD corrections, retries or validation overrides performed after a benchmark request starts. Synthetic proposal approval by the harness is recorded separately and is not a human intervention.', humanInterventionSource: { kind: 'noninteractive-harness', evidence: 'After dispatch the runner has no interactive input path; requests, materialization, approval and validation execute automatically. Harness approvals are counted separately.' }, timingDefinition: 'totalMs begins immediately before the provider request and ends after response capture, CAD materialization, DXF serialization and independent validation for either arm.', latencyDefinition: 'transportLatencyMs measures only the matching HTTP provider request for either arm.', scope: config.scope, fixtureWarning: config.mode === 'fixture' ? 'LOCAL FAKE PROVIDER: transport/SDK/validator conformance only. Never use these simulated usage counters in public model rankings or savings claims.' : null, taskSuite: config.taskSuite, tasks: reportTasks, validator: null, source: {}, runs: [], summary: {} }
   report.toolChoiceMode = config.toolChoiceMode
   report.drawingTool = config.drawingTool
   report.chatTokenParameter = config.chatTokenParameter
-  for (const name of ['paired-model-benchmark.mjs', 'paired-model-validator.py', 'model-drawing-pilot.mjs', 'deepseek-drawing-pilot.py', 'parametric-drawing-tasks.mjs', 'drawing-strategies.mjs', 'engineering-drawing-tasks.mjs', 'engineering-model-validator.py', 'manufacturing-drawing-tasks.mjs', 'manufacturing-task-suite.mjs', 'manufacturing-model-validator.py']) report.source[name] = hash(await readFile(new URL(name, import.meta.url)))
+  for (const name of ['paired-model-benchmark.mjs', 'paired-model-validator.py', 'model-drawing-pilot.mjs', 'deepseek-drawing-pilot.py', 'parametric-drawing-tasks.mjs', 'drawing-strategies.mjs', 'engineering-drawing-tasks.mjs', 'engineering-model-validator.py', 'manufacturing-drawing-tasks.mjs', 'manufacturing-task-suite.mjs', 'manufacturing-model-validator.py', 'release-holdout-task-suite.mjs', 'release-holdout-validator.py']) report.source[name] = hash(await readFile(new URL(name, import.meta.url)))
   report.source['model-usage.js'] = hash(await readFile(new URL('../../packages/kjdraw-sdk/src/model-usage.js', import.meta.url)))
   const sdkFolder = new URL('../../packages/kjdraw-sdk/src/', import.meta.url), sdkHash = createHash('sha256')
   for (const name of (await readdir(sdkFolder, { recursive: true })).map(name => name.replaceAll('\\', '/')).filter(name => name.endsWith('.js')).sort()) { sdkHash.update(name); sdkHash.update(await readFile(new URL(name, sdkFolder))) }
@@ -211,19 +231,22 @@ export async function runPairedModelBenchmark(options) {
     await writeFile(temporary, JSON.stringify(report, null, 2), { flag: 'wx' })
     await rename(temporary, resolve(config.output, 'report.json'))
   }
-  try { report.validator = independentValidation({ python: config.python, taskSuite: config.taskSuite }) }
-  catch { report.status = 'setup-failed'; report.stopReason = 'INDEPENDENT_VALIDATOR_UNAVAILABLE'; await persist(); return report }
-  const tool = toolDefinition(config.drawingTool)
   const tasks = taskSuites[config.taskSuite]
+  try {
+    const kinds = [...new Set(tasks.map(task => task.validatorKind).filter(Boolean))]
+    report.validator = kinds.length ? Object.fromEntries(kinds.map(kind => [kind, independentValidation({ python: config.python, taskSuite: config.taskSuite, validatorKind: kind })])) : independentValidation({ python: config.python, taskSuite: config.taskSuite })
+  } catch { report.status = 'setup-failed'; report.stopReason = 'INDEPENDENT_VALIDATOR_UNAVAILABLE'; await persist(); return report }
   report.status = 'running'; await persist()
   for (let repetition = 0; repetition < config.repetitions; repetition++) for (let taskIndex = 0; taskIndex < tasks.length; taskIndex++) {
     const task = tasks[taskIndex], order = (repetition + taskIndex) % 2 ? [...arms].reverse() : arms
     for (const arm of order) {
+      const drawingTool = task.drawingTool ?? config.drawingTool, units = task.units ?? 'millimeter'
+      const tool = arm === 'kjdraw-tool' ? toolDefinition(drawingTool, units) : null
       const body = requestBody(task, arm, config, tool)
       const prefix = `${task.id}-${arm}-${repetition + 1}`
       const requestText = JSON.stringify(body)
       await writeFile(resolve(config.output, `${prefix}-request.json`), requestText, { flag: 'wx' })
-      const run = { taskId: task.id, taskVersion: task.version ?? null, inputSha256: task.inputSha256 ?? null, arm, repetition: repetition + 1, order: order.indexOf(arm), status: 'requesting', requestedModel: config.model, requestBytes: byteLength(body), requestSha256: hash(requestText), validation: { passed: false }, usage: null, failure: null, humanInterventionCount: 0, harnessProposalApprovalCount: 0, cost: null, transportLatencyMs: null, totalMs: null, files: { request: `${prefix}-request.json` } }
+      const run = { taskId: task.id, taskVersion: task.version ?? null, taskCategory: task.category ?? null, inputSha256: task.inputSha256 ?? null, acceptanceSha256: task.acceptanceSha256 ?? null, budget: task.budget ? structuredClone(task.budget) : null, budgetCompliance: null, arm, repetition: repetition + 1, order: order.indexOf(arm), status: 'requesting', requestedModel: config.model, requestBytes: byteLength(body), requestSha256: hash(requestText), validation: { passed: false }, usage: null, failure: null, humanInterventionCount: 0, humanInterventionEvidence: 'noninteractive-harness', harnessProposalApprovalCount: 0, modelToolCallCount: null, cost: null, transportLatencyMs: null, totalMs: null, files: { request: `${prefix}-request.json` } }
       report.attemptedRequests++
       report.runs.push(run)
       // Persist intent before dispatch. An interrupted "requesting" record has unknown provider outcome;
@@ -236,14 +259,15 @@ export async function runPairedModelBenchmark(options) {
         try { raw = await transport(config, body) } finally { run.transportLatencyMs = performance.now() - transportStarted }
         run.usage = extractKJModelUsage(protocol, raw, { latencyMs: run.transportLatencyMs })
         const safe = safeResponse(raw, run.usage, config.apiKey)
+        run.modelToolCallCount = safe.choices[0].message.tool_calls?.length ?? 0
         run.returnedModel = safe.model
         run.finishReason = safe.choices[0].finish_reason
         const responseText = JSON.stringify(safe)
         run.files.response = `${prefix}-response.json`; run.responseSha256 = hash(responseText)
         await writeFile(resolve(config.output, run.files.response), responseText, { flag: 'wx' })
-        const dxf = await materialize(safe, arm, config.model, config.drawingTool)
+        const dxf = await materialize(safe, arm, config.model, drawingTool, units)
         if (arm === 'kjdraw-tool') run.harnessProposalApprovalCount = 1
-        run.validation = independentValidation({ python: config.python, dxf, expected: task.expected, taskSuite: config.taskSuite })
+        run.validation = independentValidation({ python: config.python, dxf, expected: task.expected, taskSuite: config.taskSuite, validatorKind: task.validatorKind })
         run.status = run.validation.passed ? 'passed' : 'geometry-failed'
         run.files.dxf = `${prefix}.dxf`; run.dxfSha256 = hash(dxf)
         await writeFile(resolve(config.output, run.files.dxf), dxf, { flag: 'wx' })
@@ -254,6 +278,10 @@ export async function runPairedModelBenchmark(options) {
         if (error instanceof BenchmarkFailure && error.stop) { stopped = true; report.status = 'stopped'; report.stopReason = run.failure }
       }
       run.totalMs = performance.now() - started
+      if (task.budget) {
+        run.budgetCompliance = taskBudgetCompliance(run, task.budget)
+        if (run.status === 'passed' && !run.budgetCompliance.passed) { run.status = 'budget-failed'; run.failure = 'TASK_BUDGET_EXCEEDED' }
+      }
       await persist()
       if (stopped) return report
     }
@@ -274,9 +302,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   if (!args.includes('--live')) console.log(JSON.stringify(pairedModelPlan({ repetitions, maxRequests, taskSuite, maxOutputTokens, exploratory, chatTokenParameter, reasoningEffort, thinkingMode: process.env.KJDRAW_BENCH_THINKING, ...(enableThinkingValue !== undefined ? { enableThinking: enableThinkingValue === 'true' } : {}) }), null, 2))
   else {
     const live = liveModelConfiguration()
-    if (taskSuite === 'manufacturing-30' && process.env.KJDRAW_BENCH_DRAWING_TOOL === undefined) delete live.drawingTool
+    if ((taskSuite === 'manufacturing-30' || taskSuite === 'release-holdout-generation') && process.env.KJDRAW_BENCH_DRAWING_TOOL === undefined) delete live.drawingTool
     const report = await runPairedModelBenchmark({ ...live, repetitions, maxRequests, taskSuite, maxOutputTokens, exploratory, chatTokenParameter, reasoningEffort, timeoutMs: Number(value('timeout-ms', 60000)), output: value('output') })
-    console.log(JSON.stringify({ mode: report.mode, status: report.status, attemptedRequests: report.attemptedRequests, unexecutedRequests: report.unexecutedRequests, passed: report.runs.filter(run => run.validation.passed).length, stopReason: report.stopReason ?? null }))
-    if (report.status !== 'complete' || report.runs.some(run => !run.validation.passed)) process.exitCode = 1
+    console.log(JSON.stringify({ mode: report.mode, status: report.status, attemptedRequests: report.attemptedRequests, unexecutedRequests: report.unexecutedRequests, passed: report.runs.filter(run => run.status === 'passed').length, stopReason: report.stopReason ?? null }))
+    if (report.status !== 'complete' || report.runs.some(run => run.status !== 'passed')) process.exitCode = 1
   }
 }
