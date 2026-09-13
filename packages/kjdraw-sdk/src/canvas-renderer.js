@@ -368,6 +368,7 @@ export class KJCanvasRenderer {
     #background;
     #selectionColor;
     #showLineweights;
+    #plotMode;
     #sceneProvider;
     #spatialScene = null;
     #boundsCache = new WeakMap();
@@ -413,6 +414,7 @@ export class KJCanvasRenderer {
         this.#background = options.background ?? null;
         this.#selectionColor = options.selectionColor ?? null;
         this.#showLineweights = options.showLineweights ?? false;
+        this.#plotMode = options.plotMode ?? false;
         this.#sceneProvider = options.sceneProvider ?? null;
         this.setDocument(options.document ?? null);
         if (typeof ResizeObserver !== 'undefined') {
@@ -876,7 +878,7 @@ export class KJCanvasRenderer {
         const unsupported = new Set();
         for (const entity of entities){
             const layer = layers.get(String(entity.payload.layerId ?? ''));
-            if (attributeHidden(entity) || entity.payload.visible === false || layer?.visible === false || layer?.frozen === true) {
+            if (attributeHidden(entity) || entity.payload.visible === false || layer?.visible === false || layer?.frozen === true || this.#plotMode && entity.type !== 'VIEWPORT' && layer?.plottable === false) {
                 hidden += 1;
                 continue;
             }
@@ -1071,7 +1073,7 @@ export class KJCanvasRenderer {
         let visible = 0;
         for (const entity of entities){
             const layer = layers.get(String(entity.payload.layerId ?? ''));
-            if (attributeHidden(entity) || entity.payload.visible === false || layer?.visible === false || layer?.frozen === true) continue;
+            if (attributeHidden(entity) || entity.payload.visible === false || layer?.visible === false || layer?.frozen === true || this.#plotMode && entity.type !== 'VIEWPORT' && layer?.plottable === false) continue;
             const bounds = this.#boundsCache.get(entity);
             if (!bounds) continue;
             const screen = this.worldToScreen([
@@ -1357,6 +1359,10 @@ export class KJCanvasRenderer {
         }
         const layer = this.#previewResources.get(String(payload.layerId ?? '')) ?? this.#document?.getObject(String(payload.layerId ?? ''));
         const layerPayload = layer && 'name' in layer && layer.name === '0' && inherited?.layer || layer?.payload;
+        if (this.#plotMode && entity.type !== 'VIEWPORT' && layerPayload?.plottable === false) {
+            if (view) view.diagnostic.hidden++;
+            return true;
+        }
         context.save();
         context.strokeStyle = color;
         context.fillStyle = color;
@@ -1753,7 +1759,7 @@ export class KJCanvasRenderer {
                     center[0] - width / 2,
                     center[1] + height / 2
                 ]);
-                context.strokeRect(screen[0], screen[1], width * this.camera.scale, height * this.camera.scale);
+                if (!this.#plotMode || layerPayload?.plottable !== false) context.strokeRect(screen[0], screen[1], width * this.camera.scale, height * this.camera.scale);
             }
         } else if (entity.type === 'TABLE') {
             const position = point2(payload.position);
@@ -2060,7 +2066,7 @@ export class KJCanvasRenderer {
                 this.#viewportWorkRemaining--;
                 if (model.ownerId !== query.spaceId || isAttachedAttribute(model)) continue;
                 const layer = document.getObject(String(model.payload.layerId ?? ''))?.payload;
-                if (model.payload.visible === false || layer?.visible === false || layer?.frozen === true || this.#viewportState.frozen.has(String(model.payload.layerId ?? ''))) {
+                if (model.payload.visible === false || layer?.visible === false || layer?.frozen === true || this.#plotMode && layer?.plottable === false || this.#viewportState.frozen.has(String(model.payload.layerId ?? ''))) {
                     diagnostic.hidden++;
                     continue;
                 }

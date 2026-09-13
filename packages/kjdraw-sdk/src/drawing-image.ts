@@ -142,7 +142,7 @@ async function captureDrawingViewInternal(drawing: KJDocument, options: KJDrawin
     if (drawing.id !== documentId || drawing.revision !== revision) throw new KJRevisionConflictError(revision, drawing.revision, { documentId, actualDocumentId: drawing.id })
   }
   const canvas = globalThis.document.createElement('canvas')
-  const renderer = new KJCanvasRenderer(canvas, { pixelRatio: renderRatio, theme, grid: false, spaceId, showLineweights: true })
+  const renderer = new KJCanvasRenderer(canvas, { pixelRatio: renderRatio, theme, grid: false, spaceId, showLineweights: true, plotMode: projection !== undefined })
   let renderReport: Readonly<KJCanvasRenderReport>
   try {
     renderer.resize(width, renderHeight)

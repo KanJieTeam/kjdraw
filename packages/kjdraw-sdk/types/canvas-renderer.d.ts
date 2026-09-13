@@ -14,6 +14,9 @@ export interface KJCanvasRendererOptions {
     background?: string;
     selectionColor?: string;
     showLineweights?: boolean;
+    /** Apply DXF layer plottable flags. VIEWPORT layers affect only the frame;
+     * model content remains governed by its own layers. */
+    plotMode?: boolean;
     sceneProvider?: KJCanvasSceneProvider | null;
 }
 export interface KJCanvasSceneQuery {

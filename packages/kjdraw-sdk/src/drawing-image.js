@@ -62,7 +62,8 @@ async function captureDrawingViewInternal(drawing, options, projection) {
         theme,
         grid: false,
         spaceId,
-        showLineweights: true
+        showLineweights: true,
+        plotMode: projection !== undefined
     });
     let renderReport;
     try {

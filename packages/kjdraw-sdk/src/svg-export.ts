@@ -235,7 +235,7 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
     if (++work > max) fail('entity traversal budget exceeded')
     try {
       const p = entity.payload, layer = layerOf(entity,inheritedLayer)!, lp = layer.payload
-      if (p.visible === false || lp.visible === false || lp.frozen === true || lp.plottable === false || frozen.has(layer.id)) { report.hidden++; return '' }
+      if (p.visible === false || lp.visible === false || lp.frozen === true || (lp.plottable === false && entity.type !== 'VIEWPORT') || frozen.has(layer.id)) { report.hidden++; return '' }
       if((entity.type==='ATTRIB'||entity.type==='ATTDEF')&&(numeric(p.flags,0)&1)!==0){report.hidden++;return ''}
       if(entity.type==='ATTDEF'&&(numeric(p.flags,0)&2)===0)fail('nonconstant attribute definition requires explicit attribute rendering')
       if(p.normal&&JSON.stringify(p.normal)!=='[0,0,1]'||p.extrusionDirection&&JSON.stringify(p.extrusionDirection)!=='[0,0,1]')fail('non-XY extrusion is unsupported')
@@ -270,17 +270,21 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
       } else if (entity.type === 'VIEWPORT') {
         if (isModel || inViewport) fail('nested/model viewport is unsupported')
         const flags=numeric(p.flags,0)
-        if(p.status===0||p.viewportId===1||(flags&0x20000)!==0){report.hidden++;return ''}
-        if(p.perspective||p.clipBoundaryId||p.clippingBoundaryId||p.nonRectangularClip||(flags&(0x1|0x2|0x4|0x10|0x10000))!==0||Array.isArray(p.unresolvedViewportReferences)&&p.unresolvedViewportReferences.length||p.viewDirection&&JSON.stringify(p.viewDirection)!=='[0,0,1]')fail('unsupported viewport projection or clip')
         const a=point(p.center),c=point(p.viewCenter),target=point(p.viewTarget??[0,0]),w=numeric(p.width),h=numeric(p.height),vh=numeric(p.viewHeight)
         if(w<=0||h<=0||vh<=0)fail('invalid viewport dimensions')
-        const ratio=h/vh,m=multiply3(translation3(a[0]-ratio*c[0],a[1]-ratio*c[1]),multiply3(scale3(ratio),multiply3(rotation3(numeric(p.twistAngle,0)),translation3(-target[0],-target[1]))))
-        const clip=`kj-viewport-${++sequence}`
-        matrix(m)
-        definitions.push(count(`<clipPath id="${clip}" clipPathUnits="userSpaceOnUse"><rect x="${a[0]-w/2}" y="${a[1]-h/2}" width="${w}" height="${h}"/></clipPath>`))
-        report.viewports.push({entityId:entity.id,millimetersPerModelUnit:scale*ratio,matrix:m})
-        const frozenLayers=new Set(Array.isArray(p.frozenLayerIds)?p.frozenLayerIds.map(String):[])
-        inner=`<g clip-path="url(#${clip})"><g transform="matrix(${matrix(m)})">${owned(source.spaces.modelSpaceId).map(child=>render(child,frozenLayers,depth+1,[],undefined,undefined,true,geometryScale*ratio)).join('')}</g></g>`
+        if(p.viewportId===1){report.hidden++;return ''}
+        const frame=lp.plottable===false?'':`<rect x="${a[0]-w/2}" y="${a[1]-h/2}" width="${w}" height="${h}"/>`
+        if(p.status===0||(flags&0x20000)!==0){report.hidden++;inner=frame}
+        else {
+          if(p.perspective||p.clipBoundaryId||p.clippingBoundaryId||p.nonRectangularClip||(flags&(0x1|0x2|0x4|0x10|0x10000))!==0||Array.isArray(p.unresolvedViewportReferences)&&p.unresolvedViewportReferences.length||p.viewDirection&&JSON.stringify(p.viewDirection)!=='[0,0,1]')fail('unsupported viewport projection or clip')
+          const ratio=h/vh,m=multiply3(translation3(a[0]-ratio*c[0],a[1]-ratio*c[1]),multiply3(scale3(ratio),multiply3(rotation3(numeric(p.twistAngle,0)),translation3(-target[0],-target[1]))))
+          const clip=`kj-viewport-${++sequence}`
+          matrix(m)
+          definitions.push(count(`<clipPath id="${clip}" clipPathUnits="userSpaceOnUse"><rect x="${a[0]-w/2}" y="${a[1]-h/2}" width="${w}" height="${h}"/></clipPath>`))
+          report.viewports.push({entityId:entity.id,millimetersPerModelUnit:scale*ratio,matrix:m})
+          const frozenLayers=new Set(Array.isArray(p.frozenLayerIds)?p.frozenLayerIds.map(String):[])
+          inner=`<g clip-path="url(#${clip})"><g transform="matrix(${matrix(m)})">${owned(source.spaces.modelSpaceId).map(child=>render(child,frozenLayers,depth+1,[],undefined,undefined,true,geometryScale*ratio)).join('')}</g></g>${frame}`
+        }
       } else { inner=count(primitive(entity)); report.rendered++ }
       return count(`<g data-entity-id="${xml(entity.id)}" data-entity-type="${xml(entity.type)}" data-layer-id="${xml(layer.id)}" data-layer-name="${xml(layer.name??'')}" color="${stroke}" stroke="currentColor" stroke-width="${width}" opacity="${entity.type==='VIEWPORT'?1:opacity}" fill="none"${pattern.length?` stroke-dasharray="${pattern.map(v=>numeric(Math.abs(v)*dashScale)).join(' ')}"`:''}>`)+inner+count('</g>')
     } catch(error) { if(error instanceof Error && /budget/.test(error.message))throw error; diagnostic(entity,error instanceof Error?error.message:'invalid geometry');return '' }

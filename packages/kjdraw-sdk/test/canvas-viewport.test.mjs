@@ -67,6 +67,25 @@ test('viewport frozen layers hide model content but leave independent paper obje
   renderer.dispose()
 })
 
+test('plot mode keeps content of a no-plot viewport while suppressing its frame and every no-plot child',async()=>{
+  const {sdk,document,model,layout,viewport,renderer}=await fixture();renderer.dispose()
+  let noPlot
+  await document.transact('no-plot viewport fixture',tx=>{
+    noPlot=tx.upsertTableRecord('layers',{name:'VP-NOPLOT',type:'LAYER',payload:{color:3,visible:true,plottable:false}})
+    tx.updateObject(viewport.id,{payload:{layerId:noPlot.id}})
+    tx.createEntity('LINE',{start:[90,105],end:[110,105],layerId:noPlot.id},{ownerId:document.spaces.modelSpaceId})
+    tx.createEntity('LINE',{start:[70,60],end:[90,60],layerId:noPlot.id},{ownerId:layout.payload.blockRecordId})
+  })
+  const {canvas,calls}=canvasFixture(), plotted=new KJCanvasRenderer(canvas,{document,spaceId:layout.payload.blockRecordId,grid:false,pixelRatio:1,padding:0,plotMode:true})
+  Object.assign(plotted.camera,{centerX:50,centerY:50,scale:4});calls.length=0
+  const report=plotted.render()
+  assert.ok(hasPoint(calls,'moveTo',180,150));assert.equal(hasPoint(calls,'moveTo',180,140),false)
+  assert.equal(calls.some(call=>call[0]==='strokeRect'),false)
+  assert.equal(report.viewportDiagnostics[0].rendered,1);assert.equal(report.viewportDiagnostics[0].hidden,1)
+  assert.equal(report.hidden,1);assert.equal(document.getObject(model.id).payload.layerId===noPlot.id,false)
+  plotted.dispose()
+})
+
 test('scaled viewport keeps native dimension values and scales annotation graphics including inside blocks',async()=>{
   const {sdk,document,renderer,calls}=await fixture()
   const dim=await sdk.executeCommand('CREATE',{type:'DIMENSION',payload:{dimensionType:'ALIGNED',definitionPoints:[[100,105],[90,100],[110,100]],textHeight:2}})

@@ -31,6 +31,9 @@ export interface KJCanvasRendererOptions {
   background?: string
   selectionColor?: string
   showLineweights?: boolean
+  /** Apply DXF layer plottable flags. VIEWPORT layers affect only the frame;
+   * model content remains governed by its own layers. */
+  plotMode?: boolean
   sceneProvider?: KJCanvasSceneProvider | null
 }
 
@@ -305,6 +308,7 @@ export class KJCanvasRenderer {
   #background: string | null
   #selectionColor: string | null
   #showLineweights: boolean
+  #plotMode: boolean
   #sceneProvider: KJCanvasSceneProvider | null
   #spatialScene: KJCanvasSpatialScene | null = null
   #boundsCache = new WeakMap<object, Bounds2 | null>()
@@ -336,6 +340,7 @@ export class KJCanvasRenderer {
     this.#background = options.background ?? null
     this.#selectionColor = options.selectionColor ?? null
     this.#showLineweights = options.showLineweights ?? false
+    this.#plotMode = options.plotMode ?? false
     this.#sceneProvider = options.sceneProvider ?? null
     this.setDocument(options.document ?? null)
     if (typeof ResizeObserver !== 'undefined') {
@@ -626,7 +631,7 @@ export class KJCanvasRenderer {
     const unsupported = new Set<string>()
     for (const entity of entities) {
       const layer = layers.get(String(entity.payload.layerId ?? ''))
-      if (attributeHidden(entity) || entity.payload.visible === false || layer?.visible === false || layer?.frozen === true) { hidden += 1; continue }
+      if (attributeHidden(entity) || entity.payload.visible === false || layer?.visible === false || layer?.frozen === true || this.#plotMode && entity.type !== 'VIEWPORT' && layer?.plottable === false) { hidden += 1; continue }
       const color = this.#selection.has(entity.id)
         ? this.#selectionColor ?? (this.#theme === 'dark' ? '#b9ff72' : '#0b67e3')
         : this.#color(entity, layer) ?? palette[colorIndex(layer?.color)]!
@@ -768,7 +773,7 @@ export class KJCanvasRenderer {
     let visible = 0
     for (const entity of entities) {
       const layer = layers.get(String(entity.payload.layerId ?? ''))
-      if (attributeHidden(entity) || entity.payload.visible === false || layer?.visible === false || layer?.frozen === true) continue
+      if (attributeHidden(entity) || entity.payload.visible === false || layer?.visible === false || layer?.frozen === true || this.#plotMode && entity.type !== 'VIEWPORT' && layer?.plottable === false) continue
       const bounds = this.#boundsCache.get(entity as object)
       if (!bounds) continue
       const screen = this.worldToScreen([(bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2])
@@ -960,6 +965,7 @@ export class KJCanvasRenderer {
     }
     const layer = this.#previewResources.get(String(payload.layerId ?? '')) ?? this.#document?.getObject(String(payload.layerId ?? ''))
     const layerPayload = (layer && 'name' in layer && layer.name === '0' && inherited?.layer) || layer?.payload
+    if (this.#plotMode && entity.type !== 'VIEWPORT' && layerPayload?.plottable === false) { if (view) view.diagnostic.hidden++; return true }
     context.save()
     context.strokeStyle = color
     context.fillStyle = color
@@ -1179,7 +1185,7 @@ export class KJCanvasRenderer {
       else {
         drawn = this.#drawViewport(entity, depth)
         const screen = this.worldToScreen([center[0] - width / 2, center[1] + height / 2])
-        context.strokeRect(screen[0], screen[1], width * this.camera.scale, height * this.camera.scale)
+        if (!this.#plotMode || layerPayload?.plottable !== false) context.strokeRect(screen[0], screen[1], width * this.camera.scale, height * this.camera.scale)
       }
     } else if (entity.type === 'TABLE') {
       const position = point2(payload.position)
@@ -1324,7 +1330,7 @@ export class KJCanvasRenderer {
         this.#viewportWorkRemaining--
         if (model.ownerId !== query.spaceId || isAttachedAttribute(model)) continue
         const layer = document.getObject(String(model.payload.layerId ?? ''))?.payload
-        if (model.payload.visible === false || layer?.visible === false || layer?.frozen === true || this.#viewportState.frozen.has(String(model.payload.layerId ?? ''))) { diagnostic.hidden++; continue }
+        if (model.payload.visible === false || layer?.visible === false || layer?.frozen === true || this.#plotMode && layer?.plottable === false || this.#viewportState.frozen.has(String(model.payload.layerId ?? ''))) { diagnostic.hidden++; continue }
         try {
           const transformed = { ...model, payload: transformEntityPayload(model.type, structuredClone(model.payload) as KJObjectPayload, matrix) }
           const identity: HatchProjectionIdentity = { payload: model.payload, instanceKey: `viewport:${entity.id};${matrix.join(',')}`, matrix, ...(model.type === 'DIMENSION' ? this.#dimensionInView(model, matrix) : {}) }
