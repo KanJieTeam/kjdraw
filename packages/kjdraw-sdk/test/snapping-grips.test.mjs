@@ -114,6 +114,27 @@ test('public nearest-point and intersection queries accept native ellipses', asy
   for (const expected of [[16, 28], [4, 12]]) assert.ok(intersections.points.some(point => Math.hypot(point[0] - expected[0], point[1] - expected[1]) < 1e-9))
 })
 
+test('ellipse intersections support circles, arc domains and tangent contact', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'ellipse-circular-intersections' })
+  const ellipse = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [0, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2,
+  } })
+  const circle = await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: [0, 0, 0], radius: 8 } })
+  let result = intersectEntityPair2(ellipse, circle)
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 4)
+  for (const point of result.points) { close(point[0] * point[0] / 100 + point[1] * point[1] / 25, 1, 1e-8); close(Math.hypot(point[0], point[1]), 8, 1e-8) }
+  let candidates = sdk.snap([Math.sqrt(52), Math.sqrt(12)], { radius: .01, modes: ['intersection'], entityIds: [ellipse.id, circle.id] })
+  assert.equal(candidates.length, 1); closePoint(candidates[0].point, [Math.sqrt(52), Math.sqrt(12)], 1e-8)
+
+  const upperArc = await sdk.executeCommand('CREATE', { type: 'ARC', payload: { center: [0, 0, 0], radius: 8, startAngle: 0, endAngle: Math.PI } })
+  result = intersectEntityPair2(ellipse, upperArc)
+  assert.equal(result.points.length, 2); assert.ok(result.points.every(point => point[1] >= -1e-9))
+  const tangentCircle = await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: [0, 0, 0], radius: 5 } })
+  result = intersectEntityPair2(ellipse, tangentCircle)
+  assert.equal(result.points.length, 2)
+  for (const expected of [[0, 5], [0, -5]]) assert.ok(result.points.some(point => Math.hypot(point[0] - expected[0], point[1] - expected[1]) < 1e-8))
+})
+
 test('ellipse tangent snaps are exact for external references and respect partial-arc domains', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'ellipse-tangent-snaps' })
   const full = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {

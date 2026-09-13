@@ -179,18 +179,9 @@ function ellipseTangentCandidates(entity, cursor, reference, payload) {
         ];
     });
 }
-function ellipseNormalParameters(payload, reference) {
-    const domain = ellipseParameters(payload), local = ellipseLocalCoordinates(payload, reference), ratioSquared = Number(payload.ratio) ** 2;
-    if (Math.abs(ratioSquared - 1) <= 1e-14 && local[0] * local[0] + local[1] * local[1] <= 1e-24) return [];
-    const evaluate = (parameter)=>{
-        const sine = Math.sin(parameter), cosine = Math.cos(parameter);
-        return (ratioSquared - 1) * sine * cosine + local[0] * sine - ratioSquared * local[1] * cosine;
-    };
-    const derivative = (parameter)=>{
-        const sine = Math.sin(parameter), cosine = Math.cos(parameter);
-        return (ratioSquared - 1) * (cosine * cosine - sine * sine) + local[0] * cosine + ratioSquared * local[1] * sine;
-    };
-    const start = domain.start, end = start + domain.span, samples = Math.max(64, Math.ceil(128 * domain.span / TURN)), roots = [];
+function ellipseParameterRoots(payload, evaluate, derivative) {
+    const domain = ellipseParameters(payload), start = domain.start, end = start + domain.span;
+    const samples = Math.max(64, Math.ceil(128 * domain.span / TURN)), roots = [];
     const normalize = (parameter)=>domain.full ? start + positiveTurn(parameter - start) : Math.max(start, Math.min(end, parameter));
     const add = (parameter)=>{
         parameter = normalize(parameter);
@@ -219,7 +210,7 @@ function ellipseNormalParameters(payload, reference) {
     }
     for(let index = 0; index < samples; index += 1){
         let parameter = start + domain.span * (index + .5) / samples;
-        for(let iteration = 0; iteration < 16; iteration += 1){
+        for(let iteration = 0; iteration < 40; iteration += 1){
             const slope = derivative(parameter);
             if (Math.abs(slope) <= 1e-14) break;
             const next = normalize(parameter - evaluate(parameter) / slope);
@@ -232,6 +223,17 @@ function ellipseNormalParameters(payload, reference) {
         add(parameter);
     }
     return roots.sort((a, b)=>a - b);
+}
+function ellipseNormalParameters(payload, reference) {
+    const local = ellipseLocalCoordinates(payload, reference), ratioSquared = Number(payload.ratio) ** 2;
+    if (Math.abs(ratioSquared - 1) <= 1e-14 && local[0] * local[0] + local[1] * local[1] <= 1e-24) return [];
+    return ellipseParameterRoots(payload, (parameter)=>{
+        const sine = Math.sin(parameter), cosine = Math.cos(parameter);
+        return (ratioSquared - 1) * sine * cosine + local[0] * sine - ratioSquared * local[1] * cosine;
+    }, (parameter)=>{
+        const sine = Math.sin(parameter), cosine = Math.cos(parameter);
+        return (ratioSquared - 1) * (cosine * cosine - sine * sine) + local[0] * cosine + ratioSquared * local[1] * sine;
+    });
 }
 function ellipsePerpendicularCandidates(entity, cursor, reference, payload) {
     return ellipseNormalParameters(payload, reference).map((parameter)=>{
@@ -685,6 +687,37 @@ function ellipseLineIntersection(ellipse, line) {
             ])
     };
 }
+function ellipseCircleIntersection(ellipse, circle) {
+    const payload = ellipse.payload, center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio);
+    const circleCenter = point3(circle.center), radius = Number(circle.radius), majorLength = Math.hypot(major[0], major[1]);
+    const scale = Math.max(1, majorLength * majorLength, radius * radius, lengthSquared2(subtract2(center, circleCenter)));
+    const tolerance = 1e-10 * Math.sqrt(scale);
+    if (Math.abs(ratio - 1) <= 1e-12 && distance2(center, circleCenter) <= tolerance && Math.abs(majorLength - radius) <= tolerance) return {
+        kind: 'overlap',
+        points: [],
+        infinite: true
+    };
+    const derivativeAt = (parameter)=>{
+        const sine = Math.sin(parameter), cosine = Math.cos(parameter);
+        return [
+            -major[0] * sine - major[1] * ratio * cosine,
+            -major[1] * sine + major[0] * ratio * cosine
+        ];
+    };
+    const evaluate = (parameter)=>{
+        const point = ellipsePointAt(payload, parameter), dx = point[0] - circleCenter[0], dy = point[1] - circleCenter[1];
+        return (dx * dx + dy * dy - radius * radius) / scale;
+    };
+    const derivative = (parameter)=>{
+        const point = ellipsePointAt(payload, parameter), tangent = derivativeAt(parameter);
+        return 2 * ((point[0] - circleCenter[0]) * tangent[0] + (point[1] - circleCenter[1]) * tangent[1]) / scale;
+    };
+    const points = ellipseParameterRoots(payload, evaluate, derivative).map((parameter)=>ellipsePointAt(payload, parameter)).filter((point)=>accepts(circle, point));
+    return {
+        kind: points.length ? 'point' : 'none',
+        points
+    };
+}
 function intersectionPrimitiveDistance(cursor, primitive) {
     return primitive.kind === 'ellipse' ? nearestOnEllipse(cursor, primitive.payload).distance : nearestOnPrimitive(cursor, primitive).distance;
 }
@@ -693,7 +726,9 @@ function primitiveIntersection(a, b) {
     if (a.kind === 'ellipse' || b.kind === 'ellipse') {
         const ellipse = a.kind === 'ellipse' ? a : b.kind === 'ellipse' ? b : null;
         const line = a.kind === 'line' ? a : b.kind === 'line' ? b : null;
-        return ellipse && line ? ellipseLineIntersection(ellipse, line) : {
+        const circle = a.kind === 'circle' || a.kind === 'arc' ? a : b.kind === 'circle' || b.kind === 'arc' ? b : null;
+        if (ellipse && line) return ellipseLineIntersection(ellipse, line);
+        return ellipse && circle ? ellipseCircleIntersection(ellipse, circle) : {
             kind: 'unsupported',
             points: []
         };
@@ -736,7 +771,7 @@ function intersectionCandidates(entities, cursor, maxPairs) {
     pairSearch: for(let left = 0; left < ordered.length; left += 1)for(let right = left + 1; right < ordered.length; right += 1){
         const a = ordered[left], b = ordered[right];
         if (a.entityId === b.entityId) continue;
-        if ((a.kind === 'ellipse' || b.kind === 'ellipse') && a.kind !== 'line' && b.kind !== 'line') continue;
+        if (a.kind === 'ellipse' && b.kind === 'ellipse') continue;
         if (pairs >= maxPairs) break pairSearch;
         pairs += 1;
         for (const point of primitiveIntersection(a, b).points)result.push({

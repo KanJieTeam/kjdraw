@@ -107,6 +107,40 @@ test('workbench pointer drawing commits exact tangent and perpendicular lines to
   expect(perpendicular.end).toEqual([...foot, 0])
 })
 
+test('workbench pointer drawing snaps to an ellipse-circle intersection', async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(async () => {
+    document.body.replaceChildren()
+    const host = document.createElement('div'); host.id = 'ellipse-intersection-host'; host.style.cssText = 'width:900px;height:650px'; document.body.append(host)
+    const [{ createKJDrawSDK }, { mountKJDrawWorkbench }] = await Promise.all([
+      import('/packages/kjdraw-sdk/src/sdk.js'), import('/packages/kjdraw-sdk/src/workbench.js'),
+    ])
+    const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'ellipse-circle-intersection', units: 'millimeter' })
+    await drawing.transact('Intersection references', tx => {
+      tx.createEntity('ELLIPSE', { center: [0, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2 }, { id: 'intersection-ellipse' })
+      tx.createEntity('CIRCLE', { center: [0, 0, 0], radius: 8 }, { id: 'intersection-circle' })
+    })
+    await sdk.executeCommand('SNAPSETTINGS', { modes: ['intersection'], radius: 14 }, { document: drawing })
+    const workbench = mountKJDrawWorkbench(host, { sdk, document: drawing, locale: 'en', grid: false, showLayers: false, showInspector: false })
+    await workbench.ready; await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    workbench.renderer.resize(); Object.assign(workbench.renderer.camera, { centerX: 0, centerY: 0, scale: 4 }); workbench.renderer.render()
+    window.ellipseIntersection = { workbench, drawing }
+  })
+
+  const start = [-15, -10], intersection = [Math.sqrt(52), Math.sqrt(12)]
+  const startScreen = await screenPoint(page, 'ellipseIntersection', start), intersectionScreen = await screenPoint(page, 'ellipseIntersection', intersection)
+  await page.locator('#ellipse-intersection-host [data-tool="line"]').click()
+  await page.mouse.click(startScreen.x, startScreen.y)
+  await page.mouse.move(intersectionScreen.x + 2, intersectionScreen.y - 1)
+  const marker = page.locator('#ellipse-intersection-host [data-snap]')
+  await expect(marker).toHaveAttribute('data-mode', 'intersection')
+  await page.mouse.click(intersectionScreen.x + 2, intersectionScreen.y - 1)
+  const line = await page.evaluate(() => window.ellipseIntersection.drawing.listEntities({ type: 'LINE' })[0].payload)
+  expect(line.start).toEqual([...start, 0])
+  expect(line.end[0]).toBeCloseTo(intersection[0], 8)
+  expect(line.end[1]).toBeCloseTo(intersection[1], 8)
+})
+
 test('playground pointer drawing exposes and applies perpendicular snap mode', async ({ page }) => {
   const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'playground-perpendicular', units: 'millimeter' })
   const locked = await sdk.executeCommand('LAYERNEW', { name: 'Locked reference' }, { document: drawing })
