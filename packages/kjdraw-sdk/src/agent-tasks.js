@@ -592,6 +592,7 @@ function geometryReceipt(value) {
     ], 'geometry receipt');
     if (row.schema !== 'com.kanjie.kjdraw.agent-task-geometry-receipt' || row.schemaVersion !== 1 || ![
         'CREATEBATCH',
+        'COMPONENTINSERT',
         'COPY',
         'OFFSET',
         'MOVE',
@@ -626,6 +627,7 @@ function geometryReceipt(value) {
         receiptDigest: row.receiptDigest
     };
     if (result.command === 'COPY' && result.sourceToolName !== 'cad_propose_copy') fail('COPY receipt source tool is invalid');
+    if (result.command === 'COMPONENTINSERT' && result.sourceToolName !== 'cad_propose_component_insert') fail('COMPONENTINSERT receipt source tool is invalid');
     if (result.command === 'OFFSET' && result.sourceToolName !== 'cad_propose_offset') fail('OFFSET receipt source tool is invalid');
     if (result.command === 'MOVE' && result.sourceToolName !== 'cad_propose_move') fail('MOVE receipt source tool is invalid');
     if (result.command === 'ROTATE' && result.sourceToolName !== 'cad_propose_rotate') fail('ROTATE receipt source tool is invalid');
@@ -672,13 +674,24 @@ async function scopeFrom(get, objects, inputIds) {
             sha256: await sha256(canonical)
         });
     }
-    const selected = new Set(ids), relations = [];
+    const selected = new Set(ids), dependencyIds = new Set(), relations = [];
+    for (const member of members){
+        const entity = get(member.id);
+        if (!entity || entity.kind !== 'entity') continue;
+        if (entity.type === 'INSERT' && typeof entity.payload.blockRecordId === 'string') dependencyIds.add(entity.payload.blockRecordId);
+        const owner = entity.ownerId ? get(entity.ownerId) : null;
+        if (owner?.kind === 'block-record' && owner.payload.isSpace !== true) dependencyIds.add(owner.id);
+    }
     for (const record of objects){
-        if (record.erased || record.kind !== 'custom' || record.type !== 'DESIGN_RELATIONS') continue;
-        const bindings = record.payload.definition?.bindings;
-        if (!Array.isArray(bindings) || !bindings.some((binding)=>binding && typeof binding === 'object' && selected.has(String(binding.entityId)))) continue;
+        if (record.erased) continue;
+        let include = dependencyIds.has(record.id);
+        if (record.kind === 'custom' && record.type === 'DESIGN_RELATIONS') {
+            const bindings = record.payload.definition?.bindings;
+            include ||= Array.isArray(bindings) && bindings.some((binding)=>binding && typeof binding === 'object' && selected.has(String(binding.entityId)));
+        }
+        if (!include) continue;
         const canonical = canonicalStringify(record);
-        if (canonical === undefined) fail(`design relation cannot be canonicalized: ${record.id}`);
+        if (canonical === undefined) fail(`scope dependency cannot be canonicalized: ${record.id}`);
         bytes += new TextEncoder().encode(canonical).length;
         if (bytes > MAX_SCOPE_BYTES) fail('scope entity snapshots exceed the 4 MiB budget');
         relations.push({
@@ -1103,7 +1116,7 @@ function geometryCheckObjectIds(check) {
     ];
 }
 async function commitAgentTaskCreationApproval(document, tx, input, command) {
-    const entityIdsField = command === 'COPY' ? 'copiedEntityIds' : command === 'OFFSET' ? 'offsetEntityIds' : 'createdEntityIds';
+    const entityIdsField = command === 'COMPONENTINSERT' ? 'definitionEntityIds' : command === 'COPY' ? 'copiedEntityIds' : command === 'OFFSET' ? 'offsetEntityIds' : 'createdEntityIds';
     const keys = [
         'id',
         'expectedRevision',
@@ -1121,7 +1134,11 @@ async function commitAgentTaskCreationApproval(document, tx, input, command) {
         entityIdsField,
         'at'
     ];
-    if (command !== 'CREATEBATCH') keys.push('sourceEntityIds');
+    if (![
+        'CREATEBATCH',
+        'COMPONENTINSERT'
+    ].includes(command)) keys.push('sourceEntityIds');
+    if (command === 'COMPONENTINSERT') keys.push('definitionId', 'insertId', 'definitionReused');
     const row = plain(input, keys, `${command} approval input`);
     const expectedRevision = inputRevision(document, tx, row.expectedRevision), id = text(row.id, 'task id', 128);
     const { record, task } = taskRecord(document, tx, id);
@@ -1129,7 +1146,7 @@ async function commitAgentTaskCreationApproval(document, tx, input, command) {
     if (row.expectedStatus !== 'running' || task.status !== 'running' || task.taskVersion !== expectedTaskVersion) fail('task version or status conflict');
     if (typeof row.expectedScopeSha256 !== 'string' || !SHA256.test(row.expectedScopeSha256) || task.scope.sha256 !== row.expectedScopeSha256) fail('task scope lock conflict');
     const sourceToolName = identifier(row.sourceToolName, 'source tool name');
-    const expectedSourceTool = command === 'COPY' ? 'cad_propose_copy' : command === 'OFFSET' ? 'cad_propose_offset' : null;
+    const expectedSourceTool = command === 'COMPONENTINSERT' ? 'cad_propose_component_insert' : command === 'COPY' ? 'cad_propose_copy' : command === 'OFFSET' ? 'cad_propose_offset' : null;
     if (expectedSourceTool && sourceToolName !== expectedSourceTool) fail(`${command} source tool is outside the task tool lock`);
     if (!task.definition.tools.names.includes(sourceToolName)) fail('source tool is outside the task tool lock');
     if (row.toolApiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION || task.definition.tools.apiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION) fail('unsupported persistent task tool API version');
@@ -1149,12 +1166,31 @@ async function commitAgentTaskCreationApproval(document, tx, input, command) {
         };
     });
     if (canonicalStringify(capabilityLocks) !== canonicalStringify(task.definition.capabilities)) fail('task capability lock conflict');
-    const createdEntityIds = array(row[entityIdsField], `${command} created entity IDs`, 1, MAX_SCOPE_ENTITIES).map((value)=>text(value, `${command} created entity ID`, 256));
+    let createdEntityIds = array(row[entityIdsField], `${command} created entity IDs`, 1, MAX_SCOPE_ENTITIES).map((value)=>text(value, `${command} created entity ID`, 256));
+    const componentDefinitionId = command === 'COMPONENTINSERT' ? text(row.definitionId, 'component definition ID', 256) : null;
+    const componentInsertId = command === 'COMPONENTINSERT' ? text(row.insertId, 'component insert ID', 256) : null;
+    const componentReused = command === 'COMPONENTINSERT' ? row.definitionReused : null;
+    if (command === 'COMPONENTINSERT') {
+        if (typeof componentReused !== 'boolean') fail('COMPONENTINSERT definitionReused must be boolean');
+        createdEntityIds = [
+            ...createdEntityIds,
+            componentInsertId
+        ];
+    }
     if (new Set(createdEntityIds).size !== createdEntityIds.length) fail(`${command} created entity IDs must be unique`);
+    const newlyCreatedEntityIds = command === 'COMPONENTINSERT' && componentReused ? [
+        componentInsertId
+    ] : createdEntityIds;
     const scopedIds = task.scope.members.map((member)=>member.id);
-    const sourceEntityIds = command !== 'CREATEBATCH' ? array(row.sourceEntityIds, `${command} source entity IDs`, 1, command === 'COPY' ? 64 : 1).map((value)=>text(value, `${command} source entity ID`, 256)) : [];
-    if (command !== 'CREATEBATCH' && (new Set(sourceEntityIds).size !== sourceEntityIds.length || sourceEntityIds.some((value)=>!scopedIds.includes(value)))) fail(`${command} source entities must be unique members of the persisted task scope`);
-    for (const entityId of createdEntityIds){
+    const sourceEntityIds = ![
+        'CREATEBATCH',
+        'COMPONENTINSERT'
+    ].includes(command) ? array(row.sourceEntityIds, `${command} source entity IDs`, 1, command === 'COPY' ? 64 : 1).map((value)=>text(value, `${command} source entity ID`, 256)) : [];
+    if (![
+        'CREATEBATCH',
+        'COMPONENTINSERT'
+    ].includes(command) && (new Set(sourceEntityIds).size !== sourceEntityIds.length || sourceEntityIds.some((value)=>!scopedIds.includes(value)))) fail(`${command} source entities must be unique members of the persisted task scope`);
+    for (const entityId of newlyCreatedEntityIds){
         if (document.getObject(entityId)) fail(`${command} result was not newly created: ${entityId}`);
         const entity = tx.getObject(entityId);
         if (!entity || entity.erased || entity.kind !== 'entity') fail(`${command} result is missing from the transaction draft: ${entityId}`);
@@ -1164,14 +1200,36 @@ async function commitAgentTaskCreationApproval(document, tx, input, command) {
     if (!currentDrift.unitsMatch || currentDrift.driftedEntityIds.length) fail(`task scope drifted${currentDrift.unitsMatch ? `: ${currentDrift.driftedEntityIds.join(', ')}` : ': drawing units changed'}`);
     if (command !== 'CREATEBATCH') {
         const beforeObjects = document.snapshot().objects;
-        for (const [objectId, before] of Object.entries(beforeObjects).filter(([, object])=>object.kind === 'entity')){
+        for (const [objectId, before] of Object.entries(beforeObjects).filter(([objectId, object])=>object.kind === 'entity' || command === 'COMPONENTINSERT' && objectId !== record.id && !(object.kind === 'block-record' && object.payload.isSpace === true))){
             const after = tx.getObject(objectId);
-            if (!after || canonicalStringify(after) !== canonicalStringify(before)) fail(`${command} must preserve every pre-existing entity: ${objectId}`);
+            if (!after || canonicalStringify(after) !== canonicalStringify(before)) fail(`${command} must preserve every pre-existing object: ${objectId}`);
         }
         const addedEntityIds = Object.values(tx._draft().objects).filter((object)=>!object.erased && object.kind === 'entity' && !beforeObjects[object.id]).map((object)=>object.id).sort();
         if (canonicalStringify(addedEntityIds) !== canonicalStringify([
-            ...createdEntityIds
+            ...newlyCreatedEntityIds
         ].sort())) fail(`${command} must create exactly the reviewed result entities`);
+        if (command === 'COMPONENTINSERT') {
+            const modelSpaceId = document.snapshot().spaces.modelSpaceId;
+            const beforeModelSpace = beforeObjects[modelSpaceId], afterModelSpace = tx.getObject(modelSpaceId);
+            const beforeModelIds = Array.isArray(beforeModelSpace.payload.entityIds) ? beforeModelSpace.payload.entityIds.map(String) : [];
+            const afterModelIds = Array.isArray(afterModelSpace.payload.entityIds) ? afterModelSpace.payload.entityIds.map(String) : [];
+            if (canonicalStringify(afterModelIds) !== canonicalStringify([
+                ...beforeModelIds,
+                componentInsertId
+            ])) fail('COMPONENTINSERT must append exactly the reviewed insert to model space');
+            const { entityIds: _beforeIds, ...beforeModelPayload } = beforeModelSpace.payload;
+            const { entityIds: _afterIds, ...afterModelPayload } = afterModelSpace.payload;
+            if (canonicalStringify(beforeModelPayload) !== canonicalStringify(afterModelPayload)) fail('COMPONENTINSERT must preserve model-space metadata');
+            const definition = tx.getObject(componentDefinitionId);
+            if (!definition || definition.erased || definition.kind !== 'block-record' || definition.payload.isSpace === true || canonicalStringify(definition.payload.entityIds) !== canonicalStringify(createdEntityIds.slice(0, -1))) fail('COMPONENTINSERT definition does not match the reviewed native members');
+            const beforeDefinition = beforeObjects[componentDefinitionId];
+            if (componentReused !== Boolean(beforeDefinition)) fail('COMPONENTINSERT definition reuse evidence conflicts with the document');
+            const addedNonEntities = Object.values(tx._draft().objects).filter((object)=>!object.erased && object.kind !== 'entity' && !beforeObjects[object.id]).map((object)=>object.id).sort();
+            const expectedNonEntities = componentReused ? [] : [
+                componentDefinitionId
+            ];
+            if (canonicalStringify(addedNonEntities) !== canonicalStringify(expectedNonEntities)) fail('COMPONENTINSERT must create exactly the reviewed block definition resource');
+        }
     }
     const requirements = task.definition.requirements.map((requirement)=>{
         if (requirement.check.toolName !== 'cad_check_geometry' || !requirement.check.geometryCheck || requirement.check.assertion.path !== 'passed' || requirement.check.assertion.operator !== 'is_true' || requirement.check.assertion.expected !== true) fail('trusted completion requires deterministic cad_check_geometry requirements with passed is_true assertions');
@@ -1279,6 +1337,9 @@ async function commitAgentTaskCreationApproval(document, tx, input, command) {
 }
 export async function commitAgentTaskCreateBatchApproval(document, tx, input) {
     return commitAgentTaskCreationApproval(document, tx, input, 'CREATEBATCH');
+}
+export async function commitAgentTaskComponentInsertApproval(document, tx, input) {
+    return commitAgentTaskCreationApproval(document, tx, input, 'COMPONENTINSERT');
 }
 export async function commitAgentTaskCopyApproval(document, tx, input) {
     return commitAgentTaskCreationApproval(document, tx, input, 'COPY');

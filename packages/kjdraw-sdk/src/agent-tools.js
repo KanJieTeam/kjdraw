@@ -15,7 +15,7 @@ import { buildAgentAnnotationEntities } from './agent-annotations.js';
 import { decodeAgentCompactDrawing } from './agent-drawing-compact.js';
 import { expandPolarDrawingPattern, expandRectangularDrawingPattern } from './agent-drawing-patterns.js';
 import { validateDrawingGeometry } from './drawing-validation.js';
-import { commitAgentTaskCopyApproval, commitAgentTaskCreateBatchApproval, commitAgentTaskLengthenApproval, commitAgentTaskMoveApproval, commitAgentTaskOffsetApproval, commitAgentTaskPolylineEditApproval, commitAgentTaskRotateApproval, commitAgentTaskScaleApproval, commitAgentTaskStretchApproval, KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
+import { commitAgentTaskComponentInsertApproval, commitAgentTaskCopyApproval, commitAgentTaskCreateBatchApproval, commitAgentTaskLengthenApproval, commitAgentTaskMoveApproval, commitAgentTaskOffsetApproval, commitAgentTaskPolylineEditApproval, commitAgentTaskRotateApproval, commitAgentTaskScaleApproval, commitAgentTaskStretchApproval, KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
 import { createAgentDesignContext } from './agent-design-relations.js';
 import { createCatalogComponentInsertIdentity, searchComponentCatalog } from './component-library.js';
 import { buildAgentManufacturingSheet } from './agent-manufacturing-sheet.js';
@@ -2654,6 +2654,7 @@ export class KJAgentToolSession {
         const pending = this.#pending.get(String(planId));
         if (!pending || ![
             'CREATEBATCH',
+            'COMPONENTINSERT',
             'COPY',
             'OFFSET',
             'MOVE',
@@ -2662,7 +2663,7 @@ export class KJAgentToolSession {
             'LENGTHEN',
             'STRETCH',
             'PEDIT'
-        ].includes(pending.envelope.command)) throw new KJValidationError('Persistent task approval supports an available CREATEBATCH, COPY, OFFSET, MOVE, ROTATE, SCALE, LENGTHEN, STRETCH or PEDIT proposal only');
+        ].includes(pending.envelope.command)) throw new KJValidationError('Persistent task approval supports an available CREATEBATCH, COMPONENTINSERT, COPY, OFFSET, MOVE, ROTATE, SCALE, LENGTHEN, STRETCH or PEDIT proposal only');
         if (pending.task) throw new KJValidationError('Proposal is already bound to a persisted task');
         if (!input || typeof input !== 'object' || input.taskStatus !== 'running' || !Number.isSafeInteger(input.taskVersion) || input.taskVersion < 1 || !Number.isSafeInteger(input.documentRevision) || input.documentRevision < 0) throw new KJValidationError('Invalid persisted task proposal binding');
         if (input.documentRevision !== this.#document.revision || pending.envelope.expectedRevision !== input.documentRevision || input.units !== this.units) throw new KJValidationError('Persistent task proposal binding revision or units changed');
@@ -2691,6 +2692,7 @@ export class KJAgentToolSession {
             const command = pending.envelope.command;
             if (![
                 'CREATEBATCH',
+                'COMPONENTINSERT',
                 'COPY',
                 'OFFSET',
                 'MOVE',
@@ -2776,6 +2778,14 @@ export class KJAgentToolSession {
                     const completed = command === 'CREATEBATCH' ? await commitAgentTaskCreateBatchApproval(this.#document, transaction, {
                         ...approval,
                         createdEntityIds: (Array.isArray(commandResult) ? commandResult : []).map((value)=>String(value.id ?? ''))
+                    }) : command === 'COMPONENTINSERT' ? await commitAgentTaskComponentInsertApproval(this.#document, transaction, {
+                        ...approval,
+                        definitionId: String(commandResult?.definitionId ?? ''),
+                        definitionEntityIds: [
+                            ...transaction.getObject(String(commandResult?.definitionId ?? ''))?.payload.entityIds ?? []
+                        ].map(String),
+                        insertId: String(commandResult?.insert?.id ?? ''),
+                        definitionReused: commandResult?.definitionReused
                     }) : command === 'COPY' ? await commitAgentTaskCopyApproval(this.#document, transaction, {
                         ...approval,
                         sourceEntityIds: execution.arguments.ids,

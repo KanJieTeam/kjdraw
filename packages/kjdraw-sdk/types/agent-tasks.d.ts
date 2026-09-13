@@ -83,7 +83,7 @@ export interface KJAgentTaskGeometryReceipt {
     planId: string;
     executionEnvelopeId: string;
     reviewerId: string;
-    command: 'CREATEBATCH' | 'COPY' | 'OFFSET' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT';
+    command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'COPY' | 'OFFSET' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT';
     sourceToolName: string;
     beforeRevision: number;
     afterRevision: number;
@@ -177,6 +177,30 @@ export interface KJAgentTaskCreateBatchApprovalInput {
     at: string;
 }
 export interface KJAgentTaskCreateBatchApprovalResult {
+    task: KJObjectRecord;
+    receipt: KJAgentTaskGeometryReceipt;
+}
+export interface KJAgentTaskComponentInsertApprovalInput {
+    id: string;
+    expectedRevision: number;
+    expectedTaskVersion: number;
+    expectedStatus: 'running';
+    expectedScopeSha256: string;
+    sourceToolName: string;
+    toolApiVersion: string;
+    toolContractHash: string;
+    argumentsDigest: string;
+    capabilityLocks: KJAgentTaskCapabilityLock[];
+    planId: string;
+    executionEnvelopeId: string;
+    reviewerId: string;
+    definitionId: string;
+    definitionEntityIds: string[];
+    insertId: string;
+    definitionReused: boolean;
+    at: string;
+}
+export interface KJAgentTaskComponentInsertApprovalResult {
     task: KJObjectRecord;
     receipt: KJAgentTaskGeometryReceipt;
 }
@@ -371,6 +395,8 @@ export declare function inspectAgentTask(document: KJDocument, id: string): Prom
 export declare function transitionAgentTask(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJObjectRecord>;
 /** Complete one reviewed CREATEBATCH and its deterministic checks in the caller's transaction draft. */
 export declare function commitAgentTaskCreateBatchApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskCreateBatchApprovalResult>;
+/** Complete one reviewed native COMPONENTINSERT and its deterministic checks in the caller's transaction draft. */
+export declare function commitAgentTaskComponentInsertApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskComponentInsertApprovalResult>;
 /** Complete one reviewed COPY and its deterministic checks in the caller's transaction draft. */
 export declare function commitAgentTaskCopyApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskCopyApprovalResult>;
 /** Complete one reviewed OFFSET and its deterministic checks in the caller's transaction draft. */
