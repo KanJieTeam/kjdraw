@@ -20,9 +20,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
 </p>
 
-<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow-zh.gif" alt="KJDraw 工作台：浏览图纸，审核预设修改，绘制安装板、阵列螺栓孔并标注尺寸" width="100%"></a></p>
+<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow-zh.gif" alt="KJDraw AI 根据一条制造需求生成并验证包含 409 个可编辑对象的夹具板工程图" width="100%"></a></p>
 
-<p align="center"><sub>真实工作台录制：浏览图纸、审核预设修改，再从空白绘制零件并标注尺寸。当前 Agent 场景使用预设流程，未连接语言模型。</sub></p>
+<p align="center"><sub>真实模型录制：1 次调用 · 3,820 total tokens · 409 个可编辑对象 · 保存并重新打开验证。</sub></p>
 
 ## 为什么选择 KJDraw？
 
