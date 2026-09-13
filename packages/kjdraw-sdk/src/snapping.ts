@@ -345,6 +345,14 @@ function splineBoxDistance(cursor: KJSnapPointInput, payload: SnapPayload): numb
 
 interface SplineIntersectionBudget { remaining: number }
 
+interface SplineBezierSegment {
+  start: number
+  end: number
+  x: number[]
+  y: number[]
+  w: number[]
+}
+
 function binomial(n: number, k: number): number {
   k = Math.min(k, n - k)
   let result = 1
@@ -619,6 +627,169 @@ function splineEllipseIntersection(spline: SplineIntersectionPrimitive, ellipse:
   }
   if (overlap) return { kind: 'overlap', points: [], infinite: true }
   return { kind: roots.length ? 'point' : 'none', points: roots.sort((a, b) => a - b).map(parameter => splinePointAt3(geometry, parameter)) }
+}
+
+function splineDefinitionsCoincide(first: ReturnType<typeof splineGeometry>, second: ReturnType<typeof splineGeometry>): boolean {
+  const left = first.definition, right = second.definition
+  if (left.degree !== right.degree || left.controlPoints.length !== right.controlPoints.length || left.knots.length !== right.knots.length) return false
+  const normalizeKnots = (definition: NormalizedSplineDefinition): number[] => {
+    const start = definition.knots[definition.degree]!, end = definition.knots[definition.controlPoints.length]!, span = end - start
+    return definition.knots.map(knot => (knot - start) / span)
+  }
+  const normalizeWeights = (definition: NormalizedSplineDefinition): number[] => {
+    const weights = definition.weights.length ? definition.weights : definition.controlPoints.map(() => 1), scale = Math.max(...weights)
+    return weights.map(weight => weight / scale)
+  }
+  const leftKnots = normalizeKnots(left), rightKnots = normalizeKnots(right), leftWeights = normalizeWeights(left), rightWeights = normalizeWeights(right)
+  const close = (a: number, b: number): boolean => Math.abs(a - b) <= Number.EPSILON * Math.max(1, Math.abs(a), Math.abs(b)) * 128
+  const samePoint = (a: readonly number[], b: readonly number[]): boolean => a[0] === b[0] && a[1] === b[1]
+  const forward = left.controlPoints.every((point, index) => samePoint(point, right.controlPoints[index]!) && close(leftWeights[index]!, rightWeights[index]!))
+    && leftKnots.every((knot, index) => close(knot, rightKnots[index]!))
+  if (forward) return true
+  const lastControl = left.controlPoints.length - 1, lastKnot = leftKnots.length - 1
+  return left.controlPoints.every((point, index) => samePoint(point, right.controlPoints[lastControl - index]!) && close(leftWeights[index]!, rightWeights[lastControl - index]!))
+    && leftKnots.every((knot, index) => close(knot, 1 - rightKnots[lastKnot - index]!))
+}
+
+function splineBezierSegments(
+  geometry: ReturnType<typeof splineGeometry>, controls: readonly KJSnapPoint[], weights: readonly number[], distanceTolerance: number,
+): SplineBezierSegment[] {
+  const largestWeight = Math.max(...weights), weightValues = weights.map(weight => weight / largestWeight)
+  const polynomial = (value: (point: KJSnapPoint) => number): NormalizedSplineDefinition => normalizeSplineDefinition({
+    degree: geometry.definition.degree,
+    knots: geometry.definition.knots,
+    controlPoints: controls.map((point, index) => [value(point) * weightValues[index]!, 0]),
+  })
+  const xNumerator = polynomial(point => point[0]), yNumerator = polynomial(point => point[1]), denominator = polynomial(() => 1)
+  const spans: SplineBezierSegment[] = [], knots = geometry.definition.knots, degree = geometry.definition.degree
+  for (let index = degree; index < geometry.definition.controlPoints.length; index += 1) {
+    const start = knots[index]!, end = knots[index + 1]!
+    if (!(end > start)) continue
+    const x = splineSpanBernstein(xNumerator, start, end), y = splineSpanBernstein(yNumerator, start, end), w = splineSpanBernstein(denominator, start, end)
+    for (const [definition, coefficients] of [[xNumerator, x], [yNumerator, y], [denominator, w]] as const) for (let sample = 0; sample <= degree + 1; sample += 1) {
+      const local = (sample + .5) / (degree + 2), parameter = start + (end - start) * local
+      const exact = normalizedSplinePoint2(definition, parameter)[0], reconstructed = bezierValue(coefficients, local)
+      if (Math.abs(exact - reconstructed) > Math.max(distanceTolerance * 1e-3, Number.EPSILON * Math.max(1, Math.abs(exact)) * 2048)) throw new KJValidationError('SPLINE/SPLINE intersection polynomial did not meet its accuracy bound')
+    }
+    if (w.some(value => !Number.isFinite(value) || value <= 0)) throw new KJValidationError('SPLINE/SPLINE intersection denominator is not strictly positive')
+    if (x.some((value, position) => !Number.isFinite(value / w[position]!) || Math.abs(value / w[position]!) > 2e12)
+      || y.some((value, position) => !Number.isFinite(value / w[position]!) || Math.abs(value / w[position]!) > 2e12)) throw new KJValidationError('SPLINE/SPLINE intersection Bezier controls exceed their accuracy bound')
+    spans.push({ start, end, x, y, w })
+  }
+  return spans
+}
+
+function splineBezierBounds(segment: SplineBezierSegment): [number, number, number, number] {
+  const xs = segment.x.map((value, index) => value / segment.w[index]!), ys = segment.y.map((value, index) => value / segment.w[index]!)
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]
+}
+
+function splineBezierFatLinesOverlap(first: SplineBezierSegment, second: SplineBezierSegment, tolerance: number): boolean {
+  const controls = (segment: SplineBezierSegment): Array<[number, number]> => segment.x.map((x, index) => [x / segment.w[index]!, segment.y[index]! / segment.w[index]!])
+  const compatible = (reference: SplineBezierSegment, candidate: SplineBezierSegment): boolean => {
+    const referenceControls = controls(reference), candidateControls = controls(candidate)
+    const start = referenceControls[0]!, end = referenceControls.at(-1)!, dx = end[0] - start[0], dy = end[1] - start[1], length = Math.hypot(dx, dy)
+    if (length <= tolerance) return true
+    const signed = (point: readonly number[]): number => ((point[0]! - start[0]) * dy - (point[1]! - start[1]) * dx) / length
+    const referenceDistances = referenceControls.map(signed), candidateDistances = candidateControls.map(signed)
+    const referenceMinimum = Math.min(...referenceDistances) - tolerance * 4, referenceMaximum = Math.max(...referenceDistances) + tolerance * 4
+    return Math.min(...candidateDistances) <= referenceMaximum && Math.max(...candidateDistances) >= referenceMinimum
+  }
+  return compatible(first, second) && compatible(second, first)
+}
+
+function splitSplineBezier(segment: SplineBezierSegment): [SplineBezierSegment, SplineBezierSegment] {
+  const [leftX, rightX] = splitBezier(segment.x), [leftY, rightY] = splitBezier(segment.y), [leftW, rightW] = splitBezier(segment.w), middle = (segment.start + segment.end) / 2
+  return [
+    { start: segment.start, end: middle, x: leftX, y: leftY, w: leftW },
+    { start: middle, end: segment.end, x: rightX, y: rightY, w: rightW },
+  ]
+}
+
+function consumeSplineIntersectionBudget(budget: SplineIntersectionBudget): void {
+  if (--budget.remaining < 0) throw new KJValidationError(`SPLINE intersection exceeds the ${MAX_SPLINE_INTERSECTION_WORK} interval work budget`)
+}
+
+function splineSplineIntersection(first: SplineIntersectionPrimitive, second: SplineIntersectionPrimitive, budget: SplineIntersectionBudget): PrimitiveIntersection {
+  const leftGeometry = splineGeometry(first.payload), rightGeometry = splineGeometry(second.payload)
+  for (const geometry of [leftGeometry, rightGeometry]) if (geometry.definition.degree > MAX_SPLINE_INTERSECTION_DEGREE) throw new KJValidationError(`SPLINE intersection degree must be an integer from 1 to ${MAX_SPLINE_INTERSECTION_DEGREE}`)
+  const leftControls = first.payload.controlPoints!.map(point3), rightControls = second.payload.controlPoints!.map(point3)
+  const leftWeights = leftGeometry.definition.weights.length ? leftGeometry.definition.weights : leftControls.map(() => 1)
+  const rightWeights = rightGeometry.definition.weights.length ? rightGeometry.definition.weights : rightControls.map(() => 1)
+  for (const weights of [leftWeights, rightWeights]) {
+    const largest = Math.max(...weights), smallest = Math.min(...weights)
+    if (!Number.isFinite(largest) || largest <= 0 || !Number.isFinite(smallest) || smallest <= 0) throw new KJValidationError('SPLINE intersection requires positive finite weights')
+    if (smallest / largest < 1e-12) throw new KJValidationError('SPLINE intersection weight ratio exceeds the 1e12 accuracy bound')
+  }
+  const allControls = [...leftControls, ...rightControls], minimumX = Math.min(...allControls.map(point => point[0])), maximumX = Math.max(...allControls.map(point => point[0]))
+  const minimumY = Math.min(...allControls.map(point => point[1])), maximumY = Math.max(...allControls.map(point => point[1]))
+  const coordinateScale = Math.max(1, maximumX - minimumX, maximumY - minimumY), absoluteScale = Math.max(1, ...allControls.flatMap(point => [Math.abs(point[0]), Math.abs(point[1])]))
+  const distanceTolerance = Math.max(1e-9 * coordinateScale, Number.EPSILON * absoluteScale * 64)
+  if (distanceTolerance > coordinateScale * 1e-6) throw new KJValidationError('SPLINE/SPLINE intersection coordinate precision exceeds its accuracy bound')
+  const refinementSize = Math.max(distanceTolerance * 2, Math.sqrt(distanceTolerance * coordinateScale) / 4)
+  const tangentNeighborhood = Math.sqrt(distanceTolerance * coordinateScale) * 8
+  const leftSpans = splineBezierSegments(leftGeometry, leftControls, leftWeights, distanceTolerance)
+  const rightSpans = splineBezierSegments(rightGeometry, rightControls, rightWeights, distanceTolerance)
+  const curveBounds = (spans: readonly SplineBezierSegment[]): [number, number, number, number] => {
+    const bounds = spans.map(splineBezierBounds)
+    return [Math.min(...bounds.map(box => box[0])), Math.min(...bounds.map(box => box[1])), Math.max(...bounds.map(box => box[2])), Math.max(...bounds.map(box => box[3]))]
+  }
+  for (const bounds of [curveBounds(leftSpans), curveBounds(rightSpans)]) if (Math.hypot(bounds[2] - bounds[0], bounds[3] - bounds[1]) <= distanceTolerance) {
+    throw new KJValidationError('SPLINE/SPLINE intersection requires nondegenerate planar curves')
+  }
+  if (splineDefinitionsCoincide(leftGeometry, rightGeometry)) return { kind: 'overlap', points: [], infinite: true }
+  const overlaps = (a: readonly number[], b: readonly number[]): boolean => a[0]! <= b[2]! + distanceTolerance && a[2]! + distanceTolerance >= b[0]!
+    && a[1]! <= b[3]! + distanceTolerance && a[3]! + distanceTolerance >= b[1]!
+  const roots: Array<{ left: number; right: number; point: KJSnapPoint; residual: number }> = []
+  const addRoot = (leftParameter: number, rightParameter: number): void => {
+    const leftPoint = splinePointAt3(leftGeometry, leftParameter), rightPoint = splinePointAt3(rightGeometry, rightParameter)
+    const residual = distance2(leftPoint, rightPoint)
+    if (residual > distanceTolerance * 8) return
+    const point = leftPoint, duplicate = roots.findIndex(root => distance2(root.point, point) <= tangentNeighborhood)
+    if (duplicate < 0) roots.push({ left: leftParameter, right: rightParameter, point, residual })
+    else if (residual < roots[duplicate]!.residual) roots[duplicate] = { left: leftParameter, right: rightParameter, point, residual }
+  }
+  const minimize = (lower: number, upper: number, distanceAt: (parameter: number) => number): number => {
+    const ratio = (Math.sqrt(5) - 1) / 2
+    let left = upper - (upper - lower) * ratio, right = lower + (upper - lower) * ratio
+    let leftDistance = distanceAt(left), rightDistance = distanceAt(right)
+    for (let iteration = 0; iteration < 24; iteration += 1) {
+      consumeSplineIntersectionBudget(budget)
+      if (leftDistance <= rightDistance) { upper = right; right = left; rightDistance = leftDistance; left = upper - (upper - lower) * ratio; leftDistance = distanceAt(left) }
+      else { lower = left; left = right; leftDistance = rightDistance; right = lower + (upper - lower) * ratio; rightDistance = distanceAt(right) }
+    }
+    const candidates = [lower, upper, (lower + upper) / 2]
+    return candidates.sort((a, b) => distanceAt(a) - distanceAt(b))[0]!
+  }
+  const refine = (left: SplineBezierSegment, right: SplineBezierSegment): void => {
+    let leftParameter = (left.start + left.end) / 2, rightParameter = (right.start + right.end) / 2
+    for (let iteration = 0; iteration < 6; iteration += 1) {
+      rightParameter = minimize(right.start, right.end, parameter => distance2(splinePointAt3(leftGeometry, leftParameter), splinePointAt3(rightGeometry, parameter)))
+      leftParameter = minimize(left.start, left.end, parameter => distance2(splinePointAt3(leftGeometry, parameter), splinePointAt3(rightGeometry, rightParameter)))
+    }
+    addRoot(leftParameter, rightParameter)
+  }
+  for (const leftSpan of leftSpans) for (const rightSpan of rightSpans) {
+    consumeSplineIntersectionBudget(budget)
+    if (!overlaps(splineBezierBounds(leftSpan), splineBezierBounds(rightSpan))) continue
+    const pending: Array<[SplineBezierSegment, SplineBezierSegment, number]> = [[leftSpan, rightSpan, 0]]
+    while (pending.length) {
+      consumeSplineIntersectionBudget(budget)
+      const [left, right, depth] = pending.pop()!, leftBounds = splineBezierBounds(left), rightBounds = splineBezierBounds(right)
+      if (!overlaps(leftBounds, rightBounds) || !splineBezierFatLinesOverlap(left, right, distanceTolerance)) continue
+      if (roots.some(root => root.point[0] >= leftBounds[0] - distanceTolerance * 8 && root.point[0] <= leftBounds[2] + distanceTolerance * 8
+        && root.point[1] >= leftBounds[1] - distanceTolerance * 8 && root.point[1] <= leftBounds[3] + distanceTolerance * 8
+        && root.point[0] >= rightBounds[0] - distanceTolerance * 8 && root.point[0] <= rightBounds[2] + distanceTolerance * 8
+        && root.point[1] >= rightBounds[1] - distanceTolerance * 8 && root.point[1] <= rightBounds[3] + distanceTolerance * 8)) continue
+      const leftSize = Math.hypot(leftBounds[2] - leftBounds[0], leftBounds[3] - leftBounds[1])
+      const rightSize = Math.hypot(rightBounds[2] - rightBounds[0], rightBounds[3] - rightBounds[1])
+      if (Math.max(leftSize, rightSize) <= refinementSize || depth >= 104) { refine(left, right); continue }
+      if (leftSize >= rightSize) for (const half of splitSplineBezier(left)) pending.push([half, right, depth + 1])
+      else for (const half of splitSplineBezier(right)) pending.push([left, half, depth + 1])
+    }
+  }
+  roots.sort((a, b) => a.left - b.left || a.right - b.right)
+  return { kind: roots.length ? 'point' : 'none', points: roots.map(root => root.point) }
 }
 
 function ellipseLocalCoordinates(payload: SnapPayload, input: KJSnapPointInput): [number, number] {
@@ -1053,6 +1224,10 @@ function finiteBoundsOverlap(first: IntersectionPrimitive, second: IntersectionP
 function primitiveIntersection(a: IntersectionPrimitive, b: IntersectionPrimitive, splineBudget: SplineIntersectionBudget = { remaining: MAX_SPLINE_INTERSECTION_WORK }): PrimitiveIntersection {
   let result: PrimitiveIntersection
   if (a.kind === 'spline' || b.kind === 'spline') {
+    if (a.kind === 'spline' && b.kind === 'spline') {
+      const [first, second] = a.entityId.localeCompare(b.entityId) <= 0 ? [a, b] : [b, a]
+      return splineSplineIntersection(first, second, splineBudget)
+    }
     const spline = a.kind === 'spline' ? a : b.kind === 'spline' ? b : null
     const line = a.kind === 'line' ? a : b.kind === 'line' ? b : null
     const circle = a.kind === 'circle' || a.kind === 'arc' ? a : b.kind === 'circle' || b.kind === 'arc' ? b : null

@@ -259,6 +259,90 @@ test('SPLINE elliptical intersections retain internal tangency, overlap and cond
   assert.throws(() => intersectEntityPair2(spline, illConditioned), /bounded nondegenerate semiaxes/)
 })
 
+test('native rational SPLINE intersects another native SPLINE symmetrically at crossings and endpoints', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-spline-crossings' })
+  const arc = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints: [[1, 0, 0], [1, 1, 0], [0, 1, 0]],
+    weights: [1, Math.SQRT1_2, 1], knots: [0, 0, 0, 1, 1, 1],
+  } })
+  const crossing = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 1, controlPoints: [[0, .5, 0], [1, .5, 0]], weights: [1, 2], knots: [0, 0, 1, 1],
+  } })
+  const expected = [Math.sqrt(3) / 2, .5]
+  let result = intersectEntityPair2(arc, crossing)
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 1); closePoint(result.points[0], expected, 2e-8)
+  assert.deepEqual(intersectEntityPair2(crossing, arc), result)
+  const candidates = sdk.snap([expected[0] + .001, expected[1] - .001], { radius: .02, modes: ['nearest', 'intersection'], entityIds: [arc.id, crossing.id] })
+  assert.equal(candidates.length, 1); assert.equal(candidates[0].mode, 'intersection'); closePoint(candidates[0].point, expected, 2e-8)
+
+  const endpoint = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 1, controlPoints: [[1, 0, 0], [2, -1, 0]], knots: [0, 0, 1, 1],
+  } })
+  result = intersectEntityPair2(arc, endpoint)
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 1); closePoint(result.points[0], [1, 0], 2e-8)
+  const away = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 1, controlPoints: [[0, 2, 0], [1, 2, 0]], weights: [2, 1], knots: [0, 0, 1, 1],
+  } })
+  assert.equal(intersectEntityPair2(arc, away).kind, 'none')
+})
+
+test('SPLINE/SPLINE returns every isolated crossing in canonical curve order', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-spline-multiple-crossings' })
+  const arch = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints: [[0, 0, 0], [.5, 2, 0], [1, 0, 0]], knots: [0, 0, 0, 1, 1, 1],
+  } })
+  const axis = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 1, controlPoints: [[0, .5, 0], [1, .5, 0]], weights: [1, 3], knots: [0, 0, 1, 1],
+  } })
+  const result = intersectEntityPair2(arch, axis), parameters = [(1 - Math.SQRT1_2) / 2, (1 + Math.SQRT1_2) / 2]
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 2)
+  for (const parameter of parameters) assert.ok(result.points.some(point => Math.hypot(point[0] - parameter, point[1] - .5) <= 2e-8))
+  assert.deepEqual(intersectEntityPair2(axis, arch), result)
+})
+
+test('SPLINE/SPLINE intersections preserve tangent contact and prove forward or reversed native overlap', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-spline-tangent-overlap' })
+  const controlPoints = [[1, 0, 0], [1, 1, 0], [0, 1, 0]], weights = [1, Math.SQRT1_2, 1]
+  const arc = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: { degree: 2, controlPoints, weights, knots: [0, 0, 0, 1, 1, 1] } })
+  const touch = [Math.SQRT1_2, Math.SQRT1_2]
+  const tangent = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 1,
+    controlPoints: [[touch[0] + .5, touch[1] - .5, 0], [touch[0] - .5, touch[1] + .5, 0]],
+    knots: [0, 0, 1, 1],
+  } })
+  let result = intersectEntityPair2(arc, tangent)
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 1); closePoint(result.points[0], touch, 2e-8)
+
+  const scaledKnots = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints, weights: weights.map(value => value * 2), knots: [5, 5, 5, 9, 9, 9],
+  } })
+  assert.deepEqual(intersectEntityPair2(arc, scaledKnots), { kind: 'overlap', points: [], infinite: true })
+  const reversed = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints: [...controlPoints].reverse(), weights: [...weights].reverse(), knots: [0, 0, 0, 1, 1, 1],
+  } })
+  assert.deepEqual(intersectEntityPair2(arc, reversed), { kind: 'overlap', points: [], infinite: true })
+})
+
+test('SPLINE/SPLINE intersection rejects degenerate curves and exhausts a deterministic span-pair budget', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-spline-bounds' })
+  const arc = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints: [[1, 0, 0], [1, 1, 0], [0, 1, 0]], weights: [1, Math.SQRT1_2, 1], knots: [0, 0, 0, 1, 1, 1],
+  } })
+  const degenerate = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 1, controlPoints: [[0, 0, 0], [0, 0, 0]], knots: [0, 0, 1, 1],
+  } })
+  assert.throws(() => intersectEntityPair2(arc, degenerate), /requires nondegenerate planar curves/)
+
+  const count = 365, knots = [0, 0, ...Array.from({ length: count - 2 }, (_, index) => index + 1), count - 1, count - 1]
+  const first = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 1, controlPoints: Array.from({ length: count }, (_, index) => [index % 2, index % 2, 0]), knots,
+  } })
+  const second = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 1, controlPoints: Array.from({ length: count }, (_, index) => [index % 2, 1 - index % 2, 0]), knots,
+  } })
+  assert.throws(() => intersectEntityPair2(first, second), /exceeds the 131072 interval work budget/)
+})
+
 test('ellipse intersections support circles, arc domains and tangent contact', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'ellipse-circular-intersections' })
   const ellipse = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
