@@ -585,11 +585,12 @@ export function createKJModelAdapter(options) {
                             body: outgoing,
                             signal
                         });
-                        const rawResponse = chatStreaming ? await assembleChatStream(responseSource, responseBytes, signal, (delta)=>{
-                                notifyText(onTextDelta, delta);
-                                notifyText(adapterText, delta);
-                            }) : responseSource;
-                        if (!chatStreaming && isAsyncIterable(rawResponse)) invalid('Non-streaming model transport returned an async iterable');
+                        const streamedResponse = isAsyncIterable(responseSource);
+                        const rawResponse = chatStreaming && streamedResponse ? await assembleChatStream(responseSource, responseBytes, signal, (delta)=>{
+                            notifyText(onTextDelta, delta);
+                            notifyText(adapterText, delta);
+                        }) : responseSource;
+                        if (!chatStreaming && streamedResponse) invalid('Non-streaming model transport returned an async iterable');
                         const usage = extractKJModelUsage(protocol, rawResponse, {
                             latencyMs: Math.max(0, performance.now() - startedAt)
                         });
@@ -686,6 +687,10 @@ export function createKJModelAdapter(options) {
                         }
                         if (calls.length > 16 || new Set(calls.map((call)=>call.id)).size !== calls.length) invalid('Too many calls or duplicate call IDs in one model turn');
                         if (!calls.length && !text.trim()) invalid('Model returned neither tool calls nor user-visible text');
+                        if (chatStreaming && !streamedResponse) {
+                            notifyText(onTextDelta, text);
+                            notifyText(adapterText, text);
+                        }
                         pending = calls;
                         ended = !calls.length;
                         return deepFreeze({
