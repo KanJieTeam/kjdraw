@@ -423,6 +423,11 @@ function multiplyBernstein(first: readonly number[], second: readonly number[]):
   })
 }
 
+function derivativeBernstein(values: readonly number[]): number[] {
+  const degree = values.length - 1
+  return Array.from({ length: degree }, (_, index) => degree * (values[index + 1]! - values[index]!))
+}
+
 function isolateSplinePolynomial(
   coefficients: readonly number[], start: number, end: number, tolerance: number,
   budget: SplineIntersectionBudget, addRoot: (parameter: number) => void,
@@ -875,6 +880,77 @@ function ellipsePerpendicularCandidates(entity: KJReadonlyObjectRecord, cursor: 
   })
 }
 
+function splineRelationCandidates(
+  entity: KJReadonlyObjectRecord, cursor: KJSnapPointInput, referenceInput: KJSnapPointInput, payload: SnapPayload,
+  mode: 'perpendicular' | 'tangent',
+): MutableSnapCandidate[] {
+  const geometry = splineGeometry(payload), degree = geometry.definition.degree
+  if (degree > MAX_SPLINE_INTERSECTION_DEGREE) throw new KJValidationError(`SPLINE ${mode} degree must be an integer from 1 to ${MAX_SPLINE_INTERSECTION_DEGREE}`)
+  const controls = payload.controlPoints!.map(point3), reference = point3(referenceInput)
+  if (reference.some(value => !Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError(`SPLINE ${mode} reference must be finite within ±1e12`)
+  const weights = geometry.definition.weights.length ? geometry.definition.weights : controls.map(() => 1), largestWeight = Math.max(...weights), smallestWeight = Math.min(...weights)
+  if (!Number.isFinite(largestWeight) || largestWeight <= 0 || !Number.isFinite(smallestWeight) || smallestWeight <= 0) throw new KJValidationError(`SPLINE ${mode} requires positive finite weights`)
+  if (smallestWeight / largestWeight < 1e-12) throw new KJValidationError(`SPLINE ${mode} weight ratio exceeds the 1e12 accuracy bound`)
+  const minimumX = Math.min(...controls.map(point => point[0])), maximumX = Math.max(...controls.map(point => point[0]))
+  const minimumY = Math.min(...controls.map(point => point[1])), maximumY = Math.max(...controls.map(point => point[1]))
+  const coordinateScale = Math.max(1, maximumX - minimumX, maximumY - minimumY, ...controls.map(point => distance2(point, reference)))
+  const absoluteScale = Math.max(1, Math.abs(reference[0]), Math.abs(reference[1]), ...controls.flatMap(point => [Math.abs(point[0]), Math.abs(point[1])]))
+  const distanceTolerance = Math.max(1e-9 * coordinateScale, Number.EPSILON * absoluteScale * 64)
+  if (distanceTolerance > coordinateScale * 1e-6) throw new KJValidationError(`SPLINE ${mode} coordinate precision exceeds its accuracy bound`)
+  if (Math.hypot(maximumX - minimumX, maximumY - minimumY) <= distanceTolerance) return []
+  const normalizedWeights = weights.map(weight => weight / largestWeight)
+  const polynomial = (value: (point: KJSnapPoint) => number): NormalizedSplineDefinition => normalizeSplineDefinition({
+    degree,
+    knots: geometry.definition.knots,
+    controlPoints: controls.map((point, index) => [value(point) * normalizedWeights[index]!, 0]),
+  })
+  const aNumerator = polynomial(point => (point[0] - reference[0]) / coordinateScale)
+  const bNumerator = polynomial(point => (point[1] - reference[1]) / coordinateScale)
+  const denominator = polynomial(() => 1), roots: Array<{ parameter: number; point: KJSnapPoint }> = []
+  const budget: SplineIntersectionBudget = { remaining: MAX_SPLINE_INTERSECTION_WORK }
+  let indeterminate = false
+  const knots = geometry.definition.knots
+  for (let index = degree; index < geometry.definition.controlPoints.length; index += 1) {
+    const start = knots[index]!, end = knots[index + 1]!
+    if (!(end > start)) continue
+    const a = splineSpanBernstein(aNumerator, start, end), b = splineSpanBernstein(bNumerator, start, end), w = splineSpanBernstein(denominator, start, end)
+    for (const [definition, coefficients] of [[aNumerator, a], [bNumerator, b], [denominator, w]] as const) for (let sample = 0; sample <= degree + 1; sample += 1) {
+      const local = (sample + .5) / (degree + 2), parameter = start + (end - start) * local
+      const exact = normalizedSplinePoint2(definition, parameter)[0], reconstructed = bezierValue(coefficients, local)
+      if (Math.abs(exact - reconstructed) > Math.max(1e-12, Number.EPSILON * Math.max(1, Math.abs(exact)) * 2048)) throw new KJValidationError(`SPLINE ${mode} polynomial did not meet its accuracy bound`)
+    }
+    if (w.some(value => !Number.isFinite(value) || value <= 0)) throw new KJValidationError(`SPLINE ${mode} denominator is not strictly positive`)
+    const da = derivativeBernstein(a), db = derivativeBernstein(b), dw = derivativeBernstein(w)
+    let equation: number[]
+    if (mode === 'tangent') {
+      const first = multiplyBernstein(a, db), second = multiplyBernstein(b, da)
+      equation = first.map((value, position) => value - second[position]!)
+    } else {
+      const aa = multiplyBernstein(a, a), bb = multiplyBernstein(b, b), squared = aa.map((value, position) => value + bb[position]!)
+      const derivative = derivativeBernstein(squared), first = multiplyBernstein(derivative, w), second = multiplyBernstein(squared, dw)
+      equation = first.map((value, position) => value - 2 * second[position]!)
+    }
+    const equationScale = Math.max(1, ...equation.map(Math.abs)), minimumWeight = Math.min(...w)
+    const equationTolerance = Math.max(1e-12 * minimumWeight ** (mode === 'tangent' ? 2 : 3), Number.EPSILON * equationScale * 4096)
+    const addRoot = (parameter: number): void => {
+      parameter = Math.max(start, Math.min(end, parameter))
+      const local = (parameter - start) / (end - start), av = bezierValue(a, local), bv = bezierValue(b, local), weight = bezierValue(w, local)
+      const dav = bezierValue(da, local), dbv = bezierValue(db, local), dwv = bezierValue(dw, local)
+      const tx = dav * weight - av * dwv, ty = dbv * weight - bv * dwv
+      const scale = Math.hypot(av, bv) * Math.hypot(tx, ty)
+      if (!Number.isFinite(scale) || scale <= 1e-20 || distance2(splinePointAt3(geometry, parameter), reference) <= distanceTolerance) return
+      const residual = Math.abs(mode === 'tangent' ? av * ty - bv * tx : av * tx + bv * ty) / scale
+      if (!Number.isFinite(residual) || residual > 1e-7) return
+      const point = splinePointAt3(geometry, parameter)
+      if (!roots.some(root => Math.abs(root.parameter - parameter) <= 1e-9 * Math.max(1, Math.abs(parameter), Math.abs(root.parameter)) || distance2(root.point, point) <= distanceTolerance * 4)) roots.push({ parameter, point })
+    }
+    isolateSplinePolynomial(equation, start, end, equationTolerance, budget, addRoot, () => { indeterminate = true })
+  }
+  if (indeterminate) return []
+  roots.sort((a, b) => a.parameter - b.parameter)
+  return roots.map(root => ({ mode, point: root.point, entityIds: [entity.id], distance: distance2(cursor, root.point), parameter: root.parameter }))
+}
+
 function positiveTurn(value: number): number {
   value %= TURN
   return value < 0 ? value + TURN : value
@@ -1059,12 +1135,16 @@ function baseCandidates(entity: KJReadonlyObjectRecord, modes: ReadonlySet<KJSna
   if (modes.has('insertion') && ['INSERT', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'IMAGE', 'TABLE'].includes(entity.type)) add('insertion', payload.position)
   if (modes.has('node') && entity.type === 'POINT') add('node', payload.position)
   if (reference && modes.has('perpendicular')) {
-    if (entity.type === 'ELLIPSE') {
+    if (entity.type === 'SPLINE') {
+      if (splineBoxDistance(cursor, payload) <= radius) result.push(...splineRelationCandidates(entity, cursor, reference, payload, 'perpendicular'))
+    } else if (entity.type === 'ELLIPSE') {
       if (ellipseBoxDistance(cursor, payload) <= radius) result.push(...ellipsePerpendicularCandidates(entity, cursor, reference, payload))
     } else result.push(...perpendicularCandidates(entity, cursor, reference))
   }
   if (reference && modes.has('tangent')) {
-    if (entity.type === 'ELLIPSE') {
+    if (entity.type === 'SPLINE') {
+      if (splineBoxDistance(cursor, payload) <= radius) result.push(...splineRelationCandidates(entity, cursor, reference, payload, 'tangent'))
+    } else if (entity.type === 'ELLIPSE') {
       if (ellipseBoxDistance(cursor, payload) <= radius) result.push(...ellipseTangentCandidates(entity, cursor, reference, payload))
     } else result.push(...tangentCandidates(entity, cursor, reference))
   }

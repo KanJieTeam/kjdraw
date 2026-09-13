@@ -448,6 +448,64 @@ test('ellipse perpendicular snaps solve rotated normal points and respect partia
   assert.equal(sdk.snap([65, 0], { radius: 10, modes: ['perpendicular'], entityIds: [circular.id], referencePoint: [60, 0] }).length, 0)
 })
 
+test('native rational SPLINE exposes exact tangent and perpendicular snaps from a construction reference', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-relation-snaps' })
+  const spline = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints: [[1, 0, 0], [1, 1, 0], [0, 1, 0]],
+    weights: [1, Math.SQRT1_2, 1], knots: [0, 0, 0, 1, 1, 1],
+  } })
+  const tangentPoint = [.5, Math.sqrt(3) / 2]
+  let candidates = sdk.snap([tangentPoint[0] + .001, tangentPoint[1] - .001], {
+    radius: .02, modes: ['tangent', 'nearest'], entityIds: [spline.id], referencePoint: [2, 0],
+  })
+  assert.equal(candidates.length, 1); assert.equal(candidates[0].mode, 'tangent'); closePoint(candidates[0].point, tangentPoint, 2e-8)
+  const tangent = [-Math.sin(Math.PI / 3), Math.cos(Math.PI / 3)], connector = [2 - candidates[0].point[0], -candidates[0].point[1]]
+  close(tangent[0] * connector[1] - tangent[1] * connector[0], 0, 2e-8)
+
+  candidates = sdk.snap([1, 0], { radius: .01, modes: ['perpendicular', 'nearest'], entityIds: [spline.id], referencePoint: [2, 0] })
+  assert.equal(candidates.length, 1); assert.equal(candidates[0].mode, 'perpendicular'); closePoint(candidates[0].point, [1, 0]); close(candidates[0].parameter, 0)
+})
+
+test('SPLINE relation roots retain multiple normals, multiple tangents and repeated tangent contact', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-relation-root-coverage' })
+  const parabola = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints: [[-1, 1, 0], [0, -1, 0], [1, 1, 0]], knots: [0, 0, 0, 1, 1, 1],
+  } })
+  let candidates = sdk.snap([0, 0], { radius: 10, modes: ['perpendicular'], entityIds: [parabola.id], referencePoint: [0, 1] })
+  assert.equal(candidates.length, 3)
+  for (const x of [-Math.SQRT1_2, 0, Math.SQRT1_2]) assert.ok(candidates.some(candidate => Math.hypot(candidate.point[0] - x, candidate.point[1] - x * x) <= 2e-8))
+  candidates = sdk.snap([0, 0], { radius: 10, modes: ['tangent'], entityIds: [parabola.id], referencePoint: [0, -.5] })
+  assert.equal(candidates.length, 2)
+  for (const x of [-Math.SQRT1_2, Math.SQRT1_2]) assert.ok(candidates.some(candidate => Math.hypot(candidate.point[0] - x, candidate.point[1] - .5) <= 2e-8))
+
+  const cubic = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 3, controlPoints: [[-1, -1, 0], [-1 / 3, 1, 0], [1 / 3, -1, 0], [1, 1, 0]], knots: [0, 0, 0, 0, 1, 1, 1, 1],
+  } })
+  candidates = sdk.snap([0, 0], { radius: .01, modes: ['tangent'], entityIds: [cubic.id], referencePoint: [-1, 0] })
+  assert.equal(candidates.length, 1); closePoint(candidates[0].point, [0, 0], 2e-8); close(candidates[0].parameter, .5, 2e-8)
+})
+
+test('SPLINE relation snapping fails closed for indeterminate, degenerate, unstable and over-budget geometry', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-relation-bounds' })
+  const line = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: { degree: 1, controlPoints: [[-1, 0, 0], [1, 0, 0]], knots: [0, 0, 1, 1] } })
+  assert.equal(sdk.snap([0, 0], { radius: 10, modes: ['tangent'], entityIds: [line.id], referencePoint: [-2, 0] }).length, 0)
+  const degenerate = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: { degree: 1, controlPoints: [[0, 0, 0], [0, 0, 0]], knots: [0, 0, 1, 1] } })
+  assert.equal(sdk.snap([0, 0], { radius: 10, modes: ['perpendicular', 'tangent'], entityIds: [degenerate.id], referencePoint: [2, 0] }).length, 0)
+  const unstable = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints: [[0, 0, 0], [1, 1, 0], [2, 0, 0]], weights: [1, 1e-13, 1], knots: [0, 0, 0, 1, 1, 1],
+  } })
+  assert.throws(() => sdk.snap([1, 0], { radius: 10, modes: ['perpendicular'], entityIds: [unstable.id], referencePoint: [1, 2] }), /weight ratio exceeds the 1e12 accuracy bound/)
+  assert.throws(() => sdk.snap([0, 0], { radius: 10, modes: ['tangent'], entityIds: [line.id], referencePoint: [1e13, 0] }), /reference must be finite within ±1e12/)
+
+  const spans = 1500, controls = [[-1, 1, 0], [0, -1, 0], [1, 1, 0]]
+  for (let span = 1; span < spans; span += 1) controls.push([0, -1, 0], [span % 2 ? -1 : 1, 1, 0])
+  const knots = [0, 0, 0]
+  for (let span = 1; span < spans; span += 1) knots.push(span, span)
+  knots.push(spans, spans, spans)
+  const oversized = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: { degree: 2, controlPoints: controls, knots } })
+  assert.throws(() => sdk.snap([0, 0], { radius: 10, modes: ['perpendicular'], entityIds: [oversized.id], referencePoint: [0, 1] }), /exceeds the 131072 interval work budget/)
+})
+
 test('native spline endpoint, midpoint and nearest snaps follow the evaluated curve', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-object-snaps' })
   const spline = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
