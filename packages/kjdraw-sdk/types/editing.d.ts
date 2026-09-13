@@ -110,7 +110,7 @@ export declare function trimLinePayload(target: KJEditingEntity | null | undefin
 export declare function extendLinePayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;
 /** Remove the picked interval from a line, polyline, circular curve or native ellipse. */
 export declare function trimEntityPayloads(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJDerivedEntityPayload[];
-/** Extend the picked end of a line, arc or open polyline to the nearest continuation boundary. */
+/** Extend the picked end of a line, circular/elliptical arc or open polyline to its nearest continuation boundary. */
 export declare function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload;
 /** Change one endpoint while preserving a LINE direction or ARC radius and orientation. */
 export declare function lengthenEntityPayload(target: KJEditingEntity | null | undefined, options?: KJLengthenOptions): KJObjectPayload;

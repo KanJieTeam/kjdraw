@@ -298,11 +298,12 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         id: 'extend',
         command: 'EXTEND',
         label: text('Extend', '延伸'),
-        description: text('Select the line, arc or open polyline first, then Shift-select the limiting boundaries.', '先选择待延伸的直线、圆弧或开放多段线，再按住 Shift 选择延伸边界。'),
+        description: text('Select the line, circular or elliptical arc, or open polyline first, then Shift-select the limiting boundaries.', '先选择待延伸的直线、圆弧、椭圆弧或开放多段线，再按住 Shift 选择延伸边界。'),
         minSelection: 2,
         targetEntityTypes: [
             'LINE',
             'ARC',
+            'ELLIPSE',
             'LWPOLYLINE',
             'POLYLINE'
         ],

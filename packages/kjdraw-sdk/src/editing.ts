@@ -847,7 +847,7 @@ function ellipsePickOffset(geometry: EllipseEditGeometry, pickPoint: unknown): n
 function ellipseBoundaryOffsets(target: EllipseEditGeometry, boundary: KJEditingEntity): number[] {
   const payload = payloadOf(boundary), type = boundary.type
   if (type !== 'LINE' && type !== 'RAY' && type !== 'XLINE') {
-    throw new KJValidationError(`ELLIPSE trim boundaries support LINE, RAY or XLINE, not ${String(type)}`)
+    throw new KJValidationError(`ELLIPSE editing boundaries support LINE, RAY or XLINE, not ${String(type)}`)
   }
   const start = finiteEditPoint(type === 'LINE' ? payload.start : payload.origin)
   const direction = type === 'LINE' ? null : finiteEditPoint(payload.direction)
@@ -894,6 +894,18 @@ function trimEllipsePayloads(target: KJEditingEntity, boundaries: readonly KJEdi
   if (lower > EDIT_ANGLE_EPSILON) pieces.push({ type: 'ELLIPSE', payload: ellipseResultPayload(geometry, 0, lower) })
   if (upper < geometry.span - EDIT_ANGLE_EPSILON) pieces.push({ type: 'ELLIPSE', payload: ellipseResultPayload(geometry, upper, geometry.span) })
   return pieces
+}
+
+function extendEllipsePayload(target: KJEditingEntity, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload {
+  const geometry=ellipseEditGeometry(target)
+  if(geometry.full)throw new KJValidationError('A full ellipse has no endpoint to extend')
+  const pick=ellipsePickOffset(geometry,pickPoint)
+  if(Math.abs(pick-geometry.span/2)<=EDIT_ANGLE_EPSILON)throw new KJValidationError('Pick closer to the elliptical arc end to extend, not its midpoint')
+  const cuts=ellipseCutOffsets(geometry,boundaries)
+  rejectExactCircularCut(pick,cuts)
+  const outside=cuts.filter(value=>value>geometry.span+EDIT_ANGLE_EPSILON&&value<TURN-EDIT_ANGLE_EPSILON)
+  if(!outside.length)throw new KJValidationError('No boundary is available before the elliptical arc reaches its opposite end')
+  return pick<geometry.span/2?ellipseResultPayload(geometry,outside.at(-1)!-TURN,geometry.span):ellipseResultPayload(geometry,0,outside[0]!)
 }
 
 function rejectAmbiguousLineBoundaries(target: KJEditingEntity, boundaries: readonly KJEditingEntity[], mode: LineDomain): void {
@@ -949,14 +961,15 @@ export function trimEntityPayloads(target: KJEditingEntity | null | undefined, b
   return pieces
 }
 
-/** Extend the picked end of a line, arc or open polyline to the nearest continuation boundary. */
+/** Extend the picked end of a line, circular/elliptical arc or open polyline to its nearest continuation boundary. */
 export function extendEntityPayload(target: KJEditingEntity | null | undefined, boundaries: readonly KJEditingEntity[], pickPoint: unknown): KJObjectPayload {
   if (target?.type === 'LINE') {
     rejectAmbiguousLineBoundaries(target, boundaries, 'line')
     return extendLinePayload(target, boundaries, pickPoint)
   }
   if (target?.type === 'LWPOLYLINE' || target?.type === 'POLYLINE') return extendPolylinePayload(target, boundaries, pickPoint)
-  if (target?.type !== 'ARC') throw new KJValidationError('Extend requires a LINE or ARC target, or an open LWPOLYLINE/POLYLINE target')
+  if (target?.type === 'ELLIPSE') return extendEllipsePayload(target,boundaries,pickPoint)
+  if (target?.type !== 'ARC') throw new KJValidationError('Extend requires a LINE, ARC, elliptical arc or open LWPOLYLINE/POLYLINE target')
   const geometry = circularEditGeometry(target), pick = circularPickOffset(geometry, pickPoint)
   if (Math.abs(pick - geometry.span / 2) <= EDIT_ANGLE_EPSILON) throw new KJValidationError('Pick closer to the arc end to extend, not its midpoint')
   const cuts = circularCutOffsets(geometry, boundaries)

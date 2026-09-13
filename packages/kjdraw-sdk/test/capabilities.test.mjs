@@ -17,7 +17,7 @@ test('capability manifest only advertises registered executable contracts', () =
   assert.equal(manifest.commands.every(command => sdk.commands.resolve(command.id)), true)
   assert.deepEqual(manifest.commands.find(command => command.id === 'OFFSET').capabilities.supportedEntityTypes, ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'])
   assert.deepEqual(manifest.commands.find(command => command.id === 'TRIM').capabilities.targetEntityTypes, ['LINE', 'ARC', 'CIRCLE', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'])
-  assert.deepEqual(manifest.commands.find(command => command.id === 'EXTEND').capabilities.targetEntityTypes, ['LINE', 'ARC', 'LWPOLYLINE', 'POLYLINE'])
+  assert.deepEqual(manifest.commands.find(command => command.id === 'EXTEND').capabilities.targetEntityTypes, ['LINE', 'ARC', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'])
   for (const id of ['TRIM', 'EXTEND']) {
     assert.deepEqual(manifest.commands.find(command => command.id === id).capabilities.boundaryEntityTypes, ['LINE', 'RAY', 'XLINE', 'CIRCLE', 'ARC'])
   }

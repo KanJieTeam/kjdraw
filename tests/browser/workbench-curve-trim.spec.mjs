@@ -21,7 +21,7 @@ async function mountCurveFixture(page, type, extend = false) {
     const target = await sdk.executeCommand('CREATE', { type, options: { name: 'Elevated curve' }, payload: {
       layerId: layer.id, center: [0, 0, 6], radius: 10, color: 2, lineweight: 35, linetypeScale: 1.5,
       ...(type === 'ARC' ? { startAngle: 0, endAngle: extend ? Math.PI / 2 : Math.PI, clockwise: false } : {}),
-      ...(type === 'ELLIPSE' ? { majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI } : {}),
+      ...(type === 'ELLIPSE' ? { majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: extend?Math.PI/2:Math.PI } : {}),
       ...(['LWPOLYLINE','POLYLINE'].includes(type)?{vertices:[[-10,5,6],[10,5,6],[20,5,6]],closed:false,elevation:6}:{}),
     } }, { document: drawing })
     const definitions = type === 'CIRCLE'
@@ -250,4 +250,27 @@ test('embedded toolbar extends a picked ARC end to its boundary with unchanged i
   expectArcPoint(arc.payload, 0, [10, 0])
   expectArcPoint(arc.payload, 1, [-5, Math.sqrt(75)])
   await verifyUndoRedoAndReopen(page, before, extended)
+})
+
+for(const endpoint of ['start','end'])test(`embedded toolbar extends the native elliptical ${endpoint} without changing its axes or identity`,async({page})=>{
+  await mountCurveFixture(page,'ELLIPSE',true)
+  const parameter=endpoint==='start'?.1:1.45
+  const before=await state(page), pick=[10*Math.cos(parameter),5*Math.sin(parameter)]
+  await clickWorld(page,pick)
+  await expect.poll(async()=>(await state(page)).selectedIds).toEqual([before.original.id])
+  await page.keyboard.down('Shift');await clickWorld(page,[-5,13]);await page.keyboard.up('Shift')
+  await expect.poll(async()=>(await state(page)).selectedIds).toEqual([before.original.id,before.boundaries[0].id])
+  await page.locator('#curve-trim-editor [data-action="modify"]').click()
+  await page.locator('#curve-trim-editor [data-modification]').selectOption('extend')
+  await page.locator('#curve-trim-editor [data-action="start-modification"]').click()
+  await expect(page.locator('#curve-trim-editor [data-modification-dialog]')).not.toBeVisible()
+  expect((await state(page)).objects).toEqual(before.objects)
+  await clickWorld(page,pick)
+  await expect.poll(async()=>(await state(page)).revision).toBe(before.revision+1)
+  const extended=await state(page), ellipse=extended.currentTarget
+  expect(ellipse.id).toBe(before.original.id);expect(ellipse.handle).toBe(before.original.handle)
+  expect(ellipse.payload).toMatchObject({center:[0,0,6],majorAxis:[10,0,0],ratio:.5,color:2,lineweight:35})
+  expect(ellipse.payload.startParameter).toBeCloseTo(endpoint==='start'?-4*Math.PI/3:0,9)
+  expect(ellipse.payload.endParameter).toBeCloseTo(endpoint==='end'?2*Math.PI/3:Math.PI/2,9)
+  await verifyUndoRedoAndReopen(page,before,extended)
 })

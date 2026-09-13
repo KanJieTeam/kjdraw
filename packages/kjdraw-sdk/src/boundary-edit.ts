@@ -134,7 +134,7 @@ export class KJBoundaryEditSession {
     this.#requirePhase('targets')
     const target = this.#entity(targetId)
     if (this.#boundaryIds.includes(targetId)) this.#fail('boundary-as-target', 'A cutting boundary cannot also be the target', '不能把已选边界同时作为修改目标')
-    const supported = this.#operation === 'trim' ? ['LINE', 'ARC', 'CIRCLE', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'] : ['LINE', 'ARC', 'LWPOLYLINE', 'POLYLINE']
+    const supported = this.#operation === 'trim' ? ['LINE', 'ARC', 'CIRCLE', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'] : ['LINE', 'ARC', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE']
     if (!supported.includes(target.type)) this.#fail('target-type', `${this.#operation.toUpperCase()} supports ${supported.join(', ')}`, `${this.#operation === 'trim' ? '修剪' : '延伸'}支持 ${supported.join('、')}`)
     const layer = target.payload.layerId ? this.#document.getObject(String(target.payload.layerId)) : null
     if (target.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true || layer?.payload.visible === false) {

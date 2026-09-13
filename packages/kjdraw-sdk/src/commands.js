@@ -214,6 +214,7 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         targetEntityTypes: [
             'LINE',
             'ARC',
+            'ELLIPSE',
             'LWPOLYLINE',
             'POLYLINE'
         ],
