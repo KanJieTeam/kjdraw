@@ -174,13 +174,14 @@ test('Playground BREAK command chooses the two-point circle flow, previews two a
   const command = async () => { await page.locator('#command-input').fill('BREAK'); await page.locator('#command-input').press('Enter'); await expect(page.locator('#app-dialog')).toBeVisible() }
   await command(); await expect(page.locator('#modification-tool')).toHaveValue('break-two-point')
   await page.locator('#dialog-fields input[name="tolerance"]').fill('0.2'); await page.locator('#dialog-submit').click()
+  await expect(page.locator('.workbench')).toHaveAttribute('aria-busy', 'false')
   const top = await playgroundPoint(page, 0, 10), bottom = await playgroundPoint(page, 0, -10)
   await page.mouse.click(top.x, top.y); await page.mouse.move(bottom.x, bottom.y)
   await expect(page.locator('.workbench')).toHaveAttribute('data-modification-preview-count', '2')
   await expect(page.locator('#revision')).toHaveText(`REV ${revision}`)
   await page.keyboard.press('Escape'); await expect(page.locator('#revision')).toHaveText(`REV ${revision}`)
 
-  await command(); await page.locator('#dialog-submit').click(); await page.mouse.click(top.x, top.y); await page.mouse.move(bottom.x, bottom.y)
+  await command(); await page.locator('#dialog-submit').click(); await expect(page.locator('.workbench')).toHaveAttribute('aria-busy', 'false'); await page.mouse.click(top.x, top.y); await page.mouse.move(bottom.x, bottom.y)
   await expect(page.locator('.workbench')).toHaveAttribute('data-modification-preview-count', '2'); await page.mouse.click(bottom.x, bottom.y)
   await expect(page.locator('#revision')).toHaveText(`REV ${revision + 1}`); await expect(page.locator('#entity-count')).toHaveText('4 entities')
   await page.locator('#undo').click(); await expect(page.locator('#entity-count')).toHaveText('3 entities')
