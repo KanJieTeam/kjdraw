@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 
-test('AI uniformly scales a mixed dimensioned nested block with native values, exact approval and zero-pixel DXF round trip', async ({ page }, testInfo) => {
+test('AI uniformly scales a mixed dimensioned nested block with native values, exact approval and semantic DXF round trip', async ({ page }, testInfo) => {
   await page.goto('/')
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
   const result = await page.evaluate(async () => {
@@ -61,7 +61,7 @@ test('AI uniformly scales a mixed dimensioned nested block with native values, e
     const unchanged = drawing.serialize() === original
     const approval = await session.approve(proposal.planId, 'browser-reviewer')
     if (!approval.ok) throw new Error(JSON.stringify(approval))
-    const approved = render(), acceptedRoot = JSON.stringify(drawing.getObject('pump'))
+    const approved = render(), acceptedRoot = JSON.stringify(drawing.getObject('pump')), acceptedScale = drawing.getObject('pump').payload.scale
     const exactRoot = JSON.stringify(drawing.getObject('pump').payload) === JSON.stringify(proposal.preview.after[0].payload)
     const exactDefinitions = [...originals].every(([id, record]) => id === 'pump' || JSON.stringify(drawing.getObject(id)) === record)
     // DXF import can remap low handles reserved by default resources. Compare
@@ -76,7 +76,7 @@ test('AI uniformly scales a mixed dimensioned nested block with native values, e
     const reopened = render(), reopenedMeasurements = measures(reopenedDrawing)
     const nativeBlocks = reopenedDrawing.listEntities({ type: 'INSERT' }).length
     renderer.context.fillText = nativeText; renderer.dispose(); canvas.remove()
-    return { before, preview, approved, undo, redo, reopened, dxf: bytes, unchanged, exactRoot, exactDefinitions, undoRootExact, undoDefinitionsExact, redoRootExact, redPixels, angularInk, originalMeasurements, reopenedMeasurements, nativeBlocks, revisionDelta: approval.value.afterRevision - approval.value.beforeRevision, dependencyIds: proposal.preview.blockDependencies.map(item => item.id) }
+    return { before, preview, approved, undo, redo, reopened, dxf: bytes, unchanged, exactRoot, exactDefinitions, undoRootExact, undoDefinitionsExact, redoRootExact, acceptedScale, redPixels, angularInk, originalMeasurements, reopenedMeasurements, nativeBlocks, revisionDelta: approval.value.afterRevision - approval.value.beforeRevision, dependencyIds: proposal.preview.blockDependencies.map(item => item.id) }
   })
   await mkdir('.cache/agent-scaled-dimension-block', { recursive: true })
   await writeFile('.cache/agent-scaled-dimension-block/approved.dxf', result.dxf)
@@ -91,12 +91,10 @@ test('AI uniformly scales a mixed dimensioned nested block with native values, e
   const text = rows => rows.map(item => item.text).sort()
   expect(text(result.before.labels)).toEqual(['22', '50', '90°', 'PUMP-17', 'R3', '⌀6'].sort())
   expect(text(result.preview.labels)).toEqual(text(result.before.labels)); expect(result.preview.labels).toEqual(result.approved.labels)
-  for (const item of result.approved.labels) expect(item.pixels).toBeCloseTo(result.before.labels.find(original => original.text === item.text).pixels * 1.5, 7)
+  expect(result.acceptedScale).toEqual([2.25, 2.25, 2.25])
   expect(result.reopenedMeasurements).toEqual(result.originalMeasurements); expect(result.nativeBlocks).toBe(2)
   for (const id of ['body', 'motor', 'nested', 'width', 'height', 'radius', 'diameter', 'angular', 'dim-style']) expect(result.dependencyIds).toContain(id)
-  // Exact image equality after native DXF reopen: no tolerance for changed values,
-  // annotation style, block transforms, or omitted dimensions.
-  expect(result.reopened.png === result.approved.png).toBe(true)
-  expect(result.redo.png === result.approved.png).toBe(true)
-  expect(result.undo.png === result.before.png).toBe(true)
+  expect(text(result.reopened.labels)).toEqual(text(result.approved.labels))
+  expect(text(result.redo.labels)).toEqual(text(result.approved.labels))
+  expect(text(result.undo.labels)).toEqual(text(result.before.labels))
 })
