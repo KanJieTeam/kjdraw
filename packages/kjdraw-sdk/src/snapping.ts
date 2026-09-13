@@ -551,6 +551,76 @@ function splineCircleIntersection(spline: SplineIntersectionPrimitive, circle: C
   return { kind: roots.length ? 'point' : 'none', points: roots.sort((a, b) => a - b).map(parameter => splinePointAt3(geometry, parameter)) }
 }
 
+function splineEllipseIntersection(spline: SplineIntersectionPrimitive, ellipse: EllipseIntersectionPrimitive, budget: SplineIntersectionBudget): PrimitiveIntersection {
+  const geometry = splineGeometry(spline.payload)
+  if (geometry.definition.degree > MAX_SPLINE_INTERSECTION_DEGREE) throw new KJValidationError(`SPLINE intersection degree must be an integer from 1 to ${MAX_SPLINE_INTERSECTION_DEGREE}`)
+  const payload = ellipse.payload, center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio)
+  const majorLength = Math.hypot(major[0], major[1]), minorLength = majorLength * ratio
+  if (![...center, ...major, ratio, majorLength, minorLength].every(Number.isFinite) || Math.max(...center.map(Math.abs), ...major.map(Math.abs)) > 1e12 || majorLength <= 1e-12 || majorLength > 1e12 || minorLength <= 1e-12 || ratio > 1) {
+    throw new KJValidationError('SPLINE elliptical intersection requires finite axes within ±1e12 and bounded nondegenerate semiaxes')
+  }
+  const ellipseDomain = ellipseParameters(payload), controls = spline.payload.controlPoints!.map(point3)
+  const weights = geometry.definition.weights.length ? geometry.definition.weights : controls.map(() => 1), largestWeight = Math.max(...weights)
+  if (!Number.isFinite(largestWeight) || largestWeight <= 0) throw new KJValidationError('SPLINE intersection requires positive finite weights')
+  if (Math.min(...weights) / largestWeight < 1e-12) throw new KJValidationError('SPLINE intersection weight ratio exceeds the 1e12 accuracy bound')
+  const weightValues = weights.map(weight => weight / largestWeight)
+  const polynomial = (value: (point: KJSnapPoint) => number): NormalizedSplineDefinition => normalizeSplineDefinition({
+    degree: geometry.definition.degree,
+    knots: geometry.definition.knots,
+    controlPoints: controls.map((point, index) => [value(point) * weightValues[index]!, 0]),
+  })
+  const localControls = controls.map(point => ellipseLocalCoordinates(payload, point))
+  const uNumerator = polynomial(point => ellipseLocalCoordinates(payload, point)[0])
+  const vNumerator = polynomial(point => ellipseLocalCoordinates(payload, point)[1])
+  const denominator = polynomial(() => 1)
+  const absoluteScale = Math.max(1, ...center.map(Math.abs), ...major.map(Math.abs), ...controls.flatMap(point => point.map(Math.abs)))
+  const roundoffTolerance = Number.EPSILON * absoluteScale / minorLength * 64
+  if (!Number.isFinite(roundoffTolerance) || roundoffTolerance > 1e-6) throw new KJValidationError('SPLINE elliptical intersection coordinate precision exceeds its accuracy bound')
+  const localTolerance = Math.max(1e-9, roundoffTolerance)
+  const localScale = Math.max(1, ...localControls.flatMap(point => point.map(Math.abs)))
+  const localError = (point: KJSnapPointInput): number => {
+    const local = ellipseLocalCoordinates(payload, point)
+    return Math.abs(Math.hypot(local[0], local[1]) - 1)
+  }
+  const accepted = (point: KJSnapPointInput): boolean => {
+    const local = ellipseLocalCoordinates(payload, point)
+    return ellipseDomain.full || parameterOnEllipse(Math.atan2(local[1], local[0]), ellipseDomain.start, ellipseDomain.span)
+  }
+  const roots: number[] = []
+  let overlap = false
+  const addRoot = (parameter: number): void => {
+    parameter = Math.max(geometry.start, Math.min(geometry.end, parameter))
+    const point = splinePointAt3(geometry, parameter)
+    if (localError(point) > localTolerance * 4 || !accepted(point)) return
+    if (!roots.some(value => Math.abs(value - parameter) <= 1e-9 * Math.max(1, Math.abs(parameter), Math.abs(value)))) roots.push(parameter)
+  }
+  const knots = geometry.definition.knots, degree = geometry.definition.degree
+  for (let index = degree; index < geometry.definition.controlPoints.length; index += 1) {
+    const start = knots[index]!, end = knots[index + 1]!
+    if (!(end > start)) continue
+    const u = splineSpanBernstein(uNumerator, start, end), v = splineSpanBernstein(vNumerator, start, end), w = splineSpanBernstein(denominator, start, end)
+    for (const [definition, coefficients] of [[uNumerator, u], [vNumerator, v], [denominator, w]] as const) for (let sample = 0; sample <= degree + 1; sample += 1) {
+      const local = (sample + .5) / (degree + 2), parameter = start + (end - start) * local
+      const exact = normalizedSplinePoint2(definition, parameter)[0], reconstructed = bezierValue(coefficients, local)
+      if (Math.abs(exact - reconstructed) > Math.max(localTolerance * 1e-3, Number.EPSILON * Math.max(1, Math.abs(exact)) * 2048)) throw new KJValidationError('SPLINE elliptical intersection polynomial did not meet its accuracy bound')
+    }
+    const uu = multiplyBernstein(u, u), vv = multiplyBernstein(v, v), ww = multiplyBernstein(w, w)
+    const equation = uu.map((value, position) => value + vv[position]! - ww[position]!)
+    const equationScale = Math.max(1, ...equation.map(Math.abs)), minimumWeight = Math.min(...w)
+    if (!(minimumWeight > 0)) throw new KJValidationError('SPLINE elliptical intersection denominator is not strictly positive')
+    const equationTolerance = Math.max(localTolerance * 2 * localScale * minimumWeight * minimumWeight, Number.EPSILON * equationScale * 4096)
+    isolateSplinePolynomial(equation, start, end, equationTolerance, budget, addRoot, (overlapStart, overlapEnd) => {
+      const count = Math.max(3, (degree + 1) * 2)
+      for (let sample = 0; sample < count; sample += 1) {
+        const point = splinePointAt3(geometry, overlapStart + (overlapEnd - overlapStart) * sample / (count - 1))
+        if (accepted(point) && localError(point) <= localTolerance * 4) { overlap = true; break }
+      }
+    })
+  }
+  if (overlap) return { kind: 'overlap', points: [], infinite: true }
+  return { kind: roots.length ? 'point' : 'none', points: roots.sort((a, b) => a - b).map(parameter => splinePointAt3(geometry, parameter)) }
+}
+
 function ellipseLocalCoordinates(payload: SnapPayload, input: KJSnapPointInput): [number, number] {
   const center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio)
   const minor: KJSnapPoint = [-major[1] * ratio, major[0] * ratio, 0], determinant = major[0] * minor[1] - major[1] * minor[0]
@@ -986,8 +1056,10 @@ function primitiveIntersection(a: IntersectionPrimitive, b: IntersectionPrimitiv
     const spline = a.kind === 'spline' ? a : b.kind === 'spline' ? b : null
     const line = a.kind === 'line' ? a : b.kind === 'line' ? b : null
     const circle = a.kind === 'circle' || a.kind === 'arc' ? a : b.kind === 'circle' || b.kind === 'arc' ? b : null
+    const ellipse = a.kind === 'ellipse' ? a : b.kind === 'ellipse' ? b : null
     if (spline && line) return splineLineIntersection(spline, line, splineBudget)
-    return spline && circle ? splineCircleIntersection(spline, circle, splineBudget) : { kind: 'unsupported', points: [] }
+    if (spline && circle) return splineCircleIntersection(spline, circle, splineBudget)
+    return spline && ellipse ? splineEllipseIntersection(spline, ellipse, splineBudget) : { kind: 'unsupported', points: [] }
   } else if (a.kind === 'ellipse' || b.kind === 'ellipse') {
     const ellipse = (a.kind === 'ellipse' ? a : b.kind === 'ellipse' ? b : null)
     const line = (a.kind === 'line' ? a : b.kind === 'line' ? b : null)

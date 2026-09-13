@@ -209,6 +209,56 @@ test('SPLINE circular intersections retain tangent contact, overlap and weight a
   assert.throws(() => intersectEntityPair2(unstable, sameCircle), /weight ratio exceeds the 1e12 accuracy bound/)
 })
 
+test('native rational SPLINE intersects rotated ELLIPSE geometry and filters its elliptical-arc domain', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-ellipse-intersections' })
+  const angle = Math.PI / 6, cosine = Math.cos(angle), sine = Math.sin(angle), center = [4, -3, 0]
+  const transform = ([x, y]) => [center[0] + cosine * x - sine * y, center[1] + sine * x + cosine * y, 0]
+  const spline = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints: [[1, 0], [1, 1], [0, 1]].map(transform),
+    weights: [1, Math.SQRT1_2, 1], knots: [0, 0, 0, 1, 1, 1],
+  } })
+  const x = 9 / Math.sqrt(125), y = Math.sqrt(44 / 125), expected = transform([x, y])
+  const ellipsePayload = { center, majorAxis: [1.2 * cosine, 1.2 * sine, 0], ratio: 2 / 3 }
+  const ellipse = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: { ...ellipsePayload, startParameter: 0, endParameter: Math.PI * 2 } })
+  let result = intersectEntityPair2(spline, ellipse)
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 1); closePoint(result.points[0], expected, 2e-8)
+  assert.deepEqual(intersectEntityPair2(ellipse, spline), result)
+
+  const upper = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: { ...ellipsePayload, startParameter: 0, endParameter: Math.PI / 2 } })
+  result = intersectEntityPair2(spline, upper)
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 1); closePoint(result.points[0], expected, 2e-8)
+  const excluded = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: { ...ellipsePayload, startParameter: Math.PI, endParameter: Math.PI * 2 } })
+  assert.equal(intersectEntityPair2(spline, excluded).kind, 'none')
+
+  const candidates = sdk.snap([expected[0] + .001, expected[1] - .001], { radius: .02, modes: ['nearest', 'intersection'], entityIds: [spline.id, ellipse.id] })
+  assert.equal(candidates.length, 1); assert.equal(candidates[0].mode, 'intersection'); closePoint(candidates[0].point, expected, 2e-8)
+})
+
+test('SPLINE elliptical intersections retain internal tangency, overlap and conditioning boundaries', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-ellipse-boundaries' })
+  const spline = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints: [[1, 0, 0], [1, 1, 0], [0, 1, 0]],
+    weights: [1, Math.SQRT1_2, 1], knots: [0, 0, 0, 1, 1, 1],
+  } })
+  const tangent = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [.8 * Math.SQRT1_2, .8 * Math.SQRT1_2, 0], majorAxis: [-.3 * Math.SQRT1_2, .3 * Math.SQRT1_2, 0], ratio: 2 / 3,
+    startParameter: 0, endParameter: Math.PI * 2,
+  } })
+  let result = intersectEntityPair2(spline, tangent)
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 1); closePoint(result.points[0], [Math.SQRT1_2, Math.SQRT1_2], 2e-8)
+
+  const coincident = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [0, 0, 0], majorAxis: [1, 0, 0], ratio: 1, startParameter: 0, endParameter: Math.PI / 4,
+  } })
+  result = intersectEntityPair2(spline, coincident)
+  assert.deepEqual(result, { kind: 'overlap', points: [], infinite: true })
+
+  const illConditioned = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [0, 0, 0], majorAxis: [1, 0, 0], ratio: 1e-13, startParameter: 0, endParameter: Math.PI * 2,
+  } })
+  assert.throws(() => intersectEntityPair2(spline, illConditioned), /bounded nondegenerate semiaxes/)
+})
+
 test('ellipse intersections support circles, arc domains and tangent contact', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'ellipse-circular-intersections' })
   const ellipse = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
