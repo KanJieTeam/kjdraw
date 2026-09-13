@@ -93,9 +93,28 @@ test('package candidate CLI writes reviewable evidence for the checked-out candi
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
   const evidence = JSON.parse(await readFile(outputPath, 'utf8'))
   assert.equal(isPackageInstallCandidateEvidence(evidence, identity), true)
+  const readiness = spawnSync(process.execPath, ['scripts/audits/release-readiness.mjs'], {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env, KJDRAW_PACKAGE_INSTALL_CANDIDATE_EVIDENCE: outputPath },
+  })
+  assert.equal(JSON.parse(readiness.stdout).packageInstallCandidate.valid, true)
   const before = await readFile(outputPath)
   const duplicate = spawnSync(process.execPath, ['scripts/audits/verify-package-install-candidate.mjs', '--input', inputPath, '--output', outputPath], { cwd: root, encoding: 'utf8' })
   assert.notEqual(duplicate.status, 0)
   assert.match(duplicate.stderr, /EEXIST/)
   assert.deepEqual(await readFile(outputPath), before)
+})
+
+test('release readiness requires exact package install candidate evidence', () => {
+  const missing = join(tmpdir(), `kjdraw-missing-package-install-${process.pid}.json`)
+  const result = spawnSync(process.execPath, ['scripts/audits/release-readiness.mjs', '--require-ready'], {
+    cwd: root,
+    encoding: 'utf8',
+    env: { ...process.env, KJDRAW_PACKAGE_INSTALL_CANDIDATE_EVIDENCE: missing },
+  })
+  assert.equal(result.status, 1)
+  const report = JSON.parse(result.stdout)
+  assert.equal(report.findings.some(finding => finding.code === 'PACKAGE_INSTALL_CANDIDATE_EVIDENCE_REQUIRED'), true)
+  assert.equal(report.packageInstallCandidate.valid, false)
 })
