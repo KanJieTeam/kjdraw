@@ -595,6 +595,7 @@ const annotatedDrawingSchemaBase = objectWithOptional({
             },
             sources: {
                 ...collection(text),
+                minItems: 0,
                 maxItems: 512
             },
             pattern: {
@@ -913,7 +914,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_drawing_annotated',
         effect: 'propose',
-        description: 'Compose editable engineering geometry, open native NURBS, polygonal native HATCH, TEXT/MTEXT leader notes and measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. Leaders create a native LEADER plus its owned editable MTEXT. Hatch loop 0 is the outer boundary and later loops are islands; built-in SOLID/ANSI31/ANSI37/CROSS patterns remain editable. Arrays use group-local curve seed refs. Styles apply named editable layers to geometry, annotations and array copies. No edit occurs before host approval; approval creates one undoable transaction.',
+        description: 'Compose editable engineering geometry, open native NURBS, polygonal native HATCH, TEXT/MTEXT leader notes and measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. Preserve requested native primitives: use circles for circular features, arcs for curved segments and lines or straight polylines for straight edges. Leaders create a native LEADER plus its owned editable MTEXT. Hatch loop 0 is the outer boundary and later loops are islands; built-in SOLID/ANSI31/ANSI37/CROSS patterns remain editable. Arrays use group-local curve seed refs. Styles apply named editable layers to geometry, annotations and array copies; sources may be empty when the drawing requires an unused layer. A continuous style uses pattern=[]; every nonempty dash pattern strictly alternates positive dash and negative gap values. No edit occurs before host approval; approval creates one undoable transaction.',
         inputSchema: annotatedDrawingSchema
     },
     {
@@ -1319,6 +1320,28 @@ function xy(value) {
         0
     ];
 }
+const AGENT_GROUP_ALIASES = Object.freeze({
+    line: 'lines',
+    circle: 'circles',
+    arc: 'arcs',
+    ellipse: 'ellipses',
+    spline: 'splines',
+    polyline: 'polylines',
+    hatch: 'hatches',
+    text: 'texts',
+    leader: 'leaders',
+    alignedDimension: 'alignedDimensions',
+    rotatedDimension: 'rotatedDimensions',
+    radiusDimension: 'radiusDimensions',
+    diameterDimension: 'diameterDimensions',
+    angularDimension: 'angularDimensions'
+});
+function canonicalAgentGroupReference(value) {
+    const separator = value.lastIndexOf(':');
+    if (separator < 1) return value;
+    const group = value.slice(0, separator), canonical = AGENT_GROUP_ALIASES[group];
+    return canonical ? `${canonical}${value.slice(separator)}` : value;
+}
 function buildPatternEntities(input, drawing, ownerId) {
     const baseCount = drawing.lines.length + drawing.circles.length + drawing.arcs.length + (drawing.ellipses?.length ?? 0) + (drawing.splines?.length ?? 0) + drawing.polylines.length + (drawing.hatches?.length ?? 0);
     if (baseCount < 1 || baseCount > 64) throw new KJValidationError('A drawing pattern requires 1–64 total base entities');
@@ -1338,12 +1361,13 @@ function buildPatternEntities(input, drawing, ownerId) {
     const resolveSources = (sources)=>{
         const indices = [];
         for (const source of sources){
-            const match = /^(lines|circles|arcs|ellipses|splines|polylines):(0|[1-9]\d?)(?![\s\S])/.exec(source);
+            const canonicalSource = canonicalAgentGroupReference(source);
+            const match = /^(lines|circles|arcs|ellipses|splines|polylines):(0|[1-9]\d?)(?![\s\S])/.exec(canonicalSource);
             if (!match) throw new KJValidationError('Pattern sources must be group-local references such as circles:0');
             const group = match[1], index = Number(match[2]);
             if (index > 63 || index >= (drawing[group]?.length ?? 0)) throw new KJValidationError('Pattern source index is outside its group');
-            if (used.has(source)) throw new KJValidationError('Pattern sources must be unique within and across arrays');
-            used.add(source);
+            if (used.has(canonicalSource)) throw new KJValidationError('Pattern sources must be unique within and across arrays');
+            used.add(canonicalSource);
             indices.push(offsets[group] + index);
         }
         return indices;
@@ -1514,7 +1538,8 @@ function styleAnnotatedDrawing(document, input, source) {
                 lineweight: style.lineweight
             });
         }
-        for (const key of style.sources){
+        for (const suppliedKey of style.sources){
+            const key = canonicalAgentGroupReference(suppliedKey);
             if (!keys.includes(key) || used.has(key)) throw new KJValidationError('Style sources must exist and cannot be assigned twice');
             used.add(key);
             keys.forEach((sourceKey, index)=>{
@@ -1854,25 +1879,52 @@ export class KJAgentToolSession {
                                     offset++;
                                 }
                             }
+                            const canonicalReference = (reference)=>{
+                                if (reference.source !== 'proposal') return reference;
+                                const referenceId = canonicalAgentGroupReference(reference.id);
+                                const polyline = /^polylines:(0|[1-9]\d*)$/.exec(referenceId);
+                                if (polyline && (reference.feature === 'start' || reference.feature === 'end')) {
+                                    const vertices = drawing.polylines[Number(polyline[1])]?.vertices;
+                                    if (vertices?.length) return {
+                                        ...reference,
+                                        id: referenceId,
+                                        feature: 'vertex',
+                                        vertexIndex: reference.feature === 'start' ? 0 : vertices.length - 1
+                                    };
+                                }
+                                return {
+                                    ...reference,
+                                    id: referenceId
+                                };
+                            };
                             const dimensions = [
                                 ...input.alignedDimensions.map((item)=>({
                                         ...item,
+                                        from: canonicalReference(item.from),
+                                        to: canonicalReference(item.to),
                                         type: 'ALIGNED'
                                     })),
                                 ...input.rotatedDimensions.map((item)=>({
                                         ...item,
+                                        from: canonicalReference(item.from),
+                                        to: canonicalReference(item.to),
                                         type: 'ROTATED'
                                     })),
                                 ...input.radiusDimensions.map((item)=>({
                                         ...item,
+                                        source: canonicalReference(item.source),
                                         type: 'RADIUS'
                                     })),
                                 ...input.diameterDimensions.map((item)=>({
                                         ...item,
+                                        source: canonicalReference(item.source),
                                         type: 'DIAMETER'
                                     })),
                                 ...(input.angularDimensions ?? []).map((item)=>({
                                         ...item,
+                                        center: canonicalReference(item.center),
+                                        first: canonicalReference(item.first),
+                                        second: canonicalReference(item.second),
                                         type: 'ANGULAR_3_POINT'
                                     }))
                             ];

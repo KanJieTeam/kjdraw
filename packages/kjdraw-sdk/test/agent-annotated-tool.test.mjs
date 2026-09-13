@@ -48,6 +48,31 @@ test('annotations can reference existing geometry with no new geometry and canno
   assert.equal((await session.call(tool,input)).ok,false)
 })
 
+test('annotated drawings may create a requested empty continuous layer without fake geometry', async () => {
+  const { document, session } = fixture()
+  const proposal = value(await session.call(tool, {
+    ...empty(), texts: [note()],
+    styles: [{ name: 'RESERVED', sources: [], pattern: [], color: 7, lineweight: 25 }],
+  }))
+  assert.deepEqual(proposal.preview.after.map(entity => entity.type), ['TEXT'])
+  assert.deepEqual(proposal.preview.resources.map(resource => resource.name), ['RESERVED'])
+  value(await session.approve(proposal.planId, 'reviewer'))
+  assert.equal(document.getTable('layers').records.some(layer => layer.name === 'RESERVED'), true)
+})
+
+test('annotated drawings accept unambiguous singular proposal-group references from models', async () => {
+  const { document, session } = fixture()
+  const proposal = value(await session.call(tool, {
+    ...empty(), circles: [[20, 20, 3.3]], polylines: [{ points: [[0, 0], [40, 0], [40, 20]], closed: false }],
+    alignedDimensions: [{ from: ref('polyline:0', 'start'), to: ref('polyline:0', 'end'), position: { x: 20, y: -8 }, height: 2.5 }],
+    diameterDimensions: [{ source: { source: 'proposal', id: 'circle:0' }, directionDegrees: 0, position: { x: 30, y: 20 }, height: 2.5 }],
+    styles: [{ name: 'MODEL-GEOMETRY', sources: ['circle:0', 'polyline:0'], pattern: [], color: 7, lineweight: 25 }],
+  }))
+  assert.deepEqual(proposal.preview.after.map(entity => entity.type), ['CIRCLE', 'LWPOLYLINE', 'DIMENSION', 'DIMENSION'])
+  value(await session.approve(proposal.planId, 'reviewer'))
+  assert.equal(new Set(document.listEntities().slice(0, 2).map(entity => entity.payload.layerId)).size, 1)
+})
+
 test('annotated drawings retain native elliptical arcs and style their array copies', async () => {
   const { document, session } = fixture()
   const input = {
