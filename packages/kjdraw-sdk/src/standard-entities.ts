@@ -240,9 +240,11 @@ function normalizeHatch(payload: EntityPayloadShape): KJObjectPayload {
   if (!Array.isArray(payload.boundaryLoops) || !payload.boundaryLoops.length) throw new KJValidationError('Hatch requires at least one boundary loop')
   const loops = payload.boundaryLoops.map((loop, loopIndex) => {
     const value: HatchLoopInput = { ...clone(loop), external: loop.external !== false }
-    if (loop.vertices) value.vertices = loop.vertices.map((vertex, index) => normalizeVertex(vertex, `${loopIndex}.${index}`))
-    if (Array.isArray(loop.edges)) value.edges = loop.edges.map((edge, edgeIndex) => normalizeHatchEdge(edge, loopIndex, edgeIndex))
-    if (!value.vertices?.length && !Array.isArray(value.edges)) throw new KJValidationError(`Hatch loop ${loopIndex} requires vertices or edges`)
+    const hasVertices = Array.isArray(loop.vertices) && loop.vertices.length > 0
+    const hasEdges = Array.isArray(loop.edges) && loop.edges.length > 0
+    if (hasVertices === hasEdges) throw new KJValidationError(`Hatch loop ${loopIndex} requires exactly one non-empty vertices or edges boundary`)
+    if (hasVertices) value.vertices = loop.vertices!.map((vertex, index) => normalizeVertex(vertex, `${loopIndex}.${index}`))
+    if (hasEdges) value.edges = loop.edges!.map((edge, edgeIndex) => normalizeHatchEdge(edge, loopIndex, edgeIndex))
     return value
   })
   const patternName = String(payload.patternName ?? 'SOLID')

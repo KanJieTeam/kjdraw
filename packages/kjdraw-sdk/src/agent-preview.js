@@ -243,18 +243,23 @@ function validateTransformGeometry(document, entity) {
         for (const value of loops){
             if (!value || typeof value !== 'object' || Array.isArray(value)) throw new KJValidationError('Transform preview requires canonical hatch loops');
             const loop = value;
-            if (Array.isArray(loop.vertices)) {
-                boundaryCount += loop.vertices.length;
-                for (const value of loop.vertices){
+            const vertices = Array.isArray(loop.vertices) ? loop.vertices : [];
+            const edges = Array.isArray(loop.edges) ? loop.edges : [];
+            const hasVertices = vertices.length > 0;
+            const hasEdges = edges.length > 0;
+            if (hasVertices === hasEdges) throw new KJValidationError('Transform preview requires exactly one non-empty hatch boundary representation per loop');
+            if (hasVertices) {
+                boundaryCount += vertices.length;
+                for (const value of vertices){
                     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new KJValidationError('Transform preview requires canonical hatch vertices');
                     const vertex = value;
                     if (!bounded(vertex.bulge ?? 0)) throw new KJValidationError('Transform preview requires bounded hatch bulges');
                     points.push(vertex.point);
                 }
-            } else if (Array.isArray(loop.edges)) {
-                boundaryCount += loop.edges.length;
-                if (loop.edges.some((value)=>value && typeof value === 'object' && !Array.isArray(value) && String(value.type).toUpperCase() === 'SPLINE') && loop.edges.length !== 1) throw new KJValidationError('Transform preview requires a verified SPLINE to be the only edge in its closed hatch loop');
-                for (const value of loop.edges){
+            } else if (hasEdges) {
+                boundaryCount += edges.length;
+                if (edges.some((value)=>value && typeof value === 'object' && !Array.isArray(value) && String(value.type).toUpperCase() === 'SPLINE') && edges.length !== 1) throw new KJValidationError('Transform preview requires a verified SPLINE to be the only edge in its closed hatch loop');
+                for (const value of edges){
                     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new KJValidationError('Transform preview requires canonical hatch edges');
                     const edge = value, type = String(edge.type).toUpperCase();
                     if (type === 'LINE') {
@@ -271,7 +276,7 @@ function validateTransformGeometry(document, entity) {
                         points.push(...edge.controlPoints);
                     } else throw new KJValidationError(`Transform preview does not support hatch edge ${type || 'UNKNOWN'}`);
                 }
-            } else throw new KJValidationError('Transform preview requires hatch vertices or edges');
+            }
         }
         if (boundaryCount < 1 || boundaryCount > 4096) throw new KJValidationError('Transform preview hatch boundary budget is 1–4096 elements');
     } else if (entity.type === 'LWPOLYLINE') {

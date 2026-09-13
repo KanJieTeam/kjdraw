@@ -56,6 +56,18 @@ test('omitting hatch pattern settings creates a real SOLID hatch that exports an
   assert.equal(restored.payload.patternName,'SOLID');assert.equal(restored.payload.solid,true)
 })
 
+test('ambiguous and empty hatch loop representations reject before creating geometry',async()=>{
+  const drawing=KJDocument.create({documentId:'invalid-hatch-loop'}),before=drawing.serialize()
+  for(const loop of [
+    {vertices:[[0,0],[8,0],[0,6]],edges:[{type:'LINE',start:[0,0],end:[8,0]}]},
+    {vertices:[],edges:[]},
+    {},
+  ]){
+    await assert.rejects(drawing.transact('Invalid hatch',tx=>tx.createEntity('HATCH',{boundaryLoops:[loop]})),/exactly one non-empty vertices or edges boundary/)
+    assert.equal(drawing.serialize(),before)
+  }
+})
+
 test('native pattern export reopens with pattern settings and outer/hole boundary roles intact',async()=>{
   const {adapter,artifact}=await nativeHatch('ANSI31',{patternAngle:-Math.PI/8,patternScale:1.5})
   const reopened=await adapter.read(artifact),hatch=reopened.listEntities({type:'HATCH'})[0]
