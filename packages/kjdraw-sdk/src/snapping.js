@@ -541,9 +541,57 @@ function accepts(primitive, point) {
     const center = point3(primitive.center), value = point3(point);
     return angleOnArc(Math.atan2(value[1] - center[1], value[0] - center[0]), primitive);
 }
+function ellipseLineIntersection(ellipse, line) {
+    const payload = ellipse.payload, center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio);
+    const minor = [
+        -major[1] * ratio,
+        major[0] * ratio,
+        0
+    ], determinant = major[0] * minor[1] - major[1] * minor[0];
+    if (!Number.isFinite(determinant) || Math.abs(determinant) <= 1e-20) return {
+        kind: 'none',
+        points: []
+    };
+    const local = (input)=>{
+        const value = point3(input), dx = value[0] - center[0], dy = value[1] - center[1];
+        return [
+            (dx * minor[1] - dy * minor[0]) / determinant,
+            (major[0] * dy - major[1] * dx) / determinant
+        ];
+    };
+    const start = local(line.start), end = local(line.end);
+    const result = intersectLineCircle2(start, end, [
+        0,
+        0
+    ], 1, {
+        mode: line.mode
+    });
+    const parameters = ellipseParameters(payload);
+    return {
+        ...result,
+        points: result.points.filter((unit)=>{
+            const parameter = Math.atan2(Number(unit[1]), Number(unit[0]));
+            return parameters.full || parameterOnEllipse(parameter, parameters.start, parameters.span);
+        }).map((unit)=>[
+                center[0] + major[0] * Number(unit[0]) + minor[0] * Number(unit[1]),
+                center[1] + major[1] * Number(unit[0]) + minor[1] * Number(unit[1]),
+                center[2]
+            ])
+    };
+}
+function intersectionPrimitiveDistance(cursor, primitive) {
+    return primitive.kind === 'ellipse' ? nearestOnEllipse(cursor, primitive.payload).distance : nearestOnPrimitive(cursor, primitive).distance;
+}
 function primitiveIntersection(a, b) {
     let result;
-    if (a.kind === 'line' && b.kind === 'line') result = intersectLineLine2(a.start, a.end, b.start, b.end, {
+    if (a.kind === 'ellipse' || b.kind === 'ellipse') {
+        const ellipse = a.kind === 'ellipse' ? a : b.kind === 'ellipse' ? b : null;
+        const line = a.kind === 'line' ? a : b.kind === 'line' ? b : null;
+        return ellipse && line ? ellipseLineIntersection(ellipse, line) : {
+            kind: 'unsupported',
+            points: []
+        };
+    } else if (a.kind === 'line' && b.kind === 'line') result = intersectLineLine2(a.start, a.end, b.start, b.end, {
         modeA: a.mode,
         modeB: b.mode
     });
@@ -563,16 +611,26 @@ function primitiveIntersection(a, b) {
     };
 }
 function intersectionCandidates(entities, cursor, maxPairs) {
-    const primitives = entities.flatMap(primitiveSegments).map((primitive, order)=>({
+    const primitives = [];
+    for (const entity of entities){
+        if (entity.type === 'ELLIPSE') primitives.push({
+            kind: 'ellipse',
+            payload: entity.payload,
+            entityId: entity.id
+        });
+        else primitives.push(...primitiveSegments(entity));
+    }
+    const ordered = primitives.map((primitive, order)=>({
             primitive,
             order,
-            distance: nearestOnPrimitive(cursor, primitive).distance
+            distance: intersectionPrimitiveDistance(cursor, primitive)
         })).sort((a, b)=>a.distance - b.distance || a.order - b.order).map((value)=>value.primitive);
     const result = [];
     let pairs = 0;
-    pairSearch: for(let left = 0; left < primitives.length; left += 1)for(let right = left + 1; right < primitives.length; right += 1){
-        const a = primitives[left], b = primitives[right];
+    pairSearch: for(let left = 0; left < ordered.length; left += 1)for(let right = left + 1; right < ordered.length; right += 1){
+        const a = ordered[left], b = ordered[right];
         if (a.entityId === b.entityId) continue;
+        if ((a.kind === 'ellipse' || b.kind === 'ellipse') && a.kind !== 'line' && b.kind !== 'line') continue;
         if (pairs >= maxPairs) break pairSearch;
         pairs += 1;
         for (const point of primitiveIntersection(a, b).points)result.push({

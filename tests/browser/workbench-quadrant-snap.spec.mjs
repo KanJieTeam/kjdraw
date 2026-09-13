@@ -77,6 +77,17 @@ test('workbench uses document snap settings for quadrant and intersection withou
   await page.locator('#snap-host [data-action="undo"]').click()
   await expect.poll(() => page.evaluate(() => window.snapWorkbench.drawing.listEntities({ type: 'LINE' }).length)).toBe(3)
 
+  await page.evaluate(async () => {
+    const { sdk, drawing } = window.snapWorkbench
+    await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [-46, -12, 0], end: [-14, 12, 0] } }, { document: drawing })
+    await sdk.executeCommand('SNAPSETTINGS', { modes: ['intersection'], radius: 12 }, { document: drawing })
+  })
+  await page.locator('#snap-host [data-tool="line"]').click(); await page.mouse.move(ellipseQuadrant.x + 2, ellipseQuadrant.y - 2)
+  await expect(marker).toHaveAttribute('data-mode', 'intersection'); await page.mouse.click(ellipseQuadrant.x + 2, ellipseQuadrant.y - 2); await page.mouse.click(target.x, target.y)
+  const ellipseIntersectionLine = await page.evaluate(() => window.snapWorkbench.drawing.listEntities({ type: 'LINE' }).at(-1).payload)
+  expect(ellipseIntersectionLine.start).toEqual([-22, 6, 0])
+  await page.locator('#snap-host [data-action="undo"]').click()
+
   await page.evaluate(() => window.snapWorkbench.sdk.executeCommand('SNAPSETTINGS', { modes: ['intersection', 'nearest'], radius: 12 }, { document: window.snapWorkbench.drawing }))
   const crossing = await workbenchPoint(page, [0, 0])
   await page.locator('#snap-host [data-tool="line"]').click()

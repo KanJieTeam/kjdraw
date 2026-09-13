@@ -132,6 +132,14 @@ interface ArcPrimitive {
 
 type SnapPrimitive = LinePrimitive | CirclePrimitive | ArcPrimitive
 
+interface EllipseIntersectionPrimitive {
+  kind: 'ellipse'
+  payload: SnapPayload
+  entityId: string
+}
+
+type IntersectionPrimitive = SnapPrimitive | EllipseIntersectionPrimitive
+
 interface NearestPoint {
   point: KJSnapPointInput
   distance: number
@@ -420,9 +428,37 @@ function accepts(primitive: SnapPrimitive, point: KJSnapPointInput): boolean {
   return angleOnArc(Math.atan2(value[1] - center[1], value[0] - center[0]), primitive)
 }
 
-function primitiveIntersection(a: SnapPrimitive, b: SnapPrimitive): PrimitiveIntersection {
+function ellipseLineIntersection(ellipse: EllipseIntersectionPrimitive, line: LinePrimitive): PrimitiveIntersection {
+  const payload = ellipse.payload, center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio)
+  const minor: KJSnapPoint = [-major[1] * ratio, major[0] * ratio, 0], determinant = major[0] * minor[1] - major[1] * minor[0]
+  if (!Number.isFinite(determinant) || Math.abs(determinant) <= 1e-20) return { kind: 'none', points: [] }
+  const local = (input: KJSnapPointInput): [number, number] => {
+    const value = point3(input), dx = value[0] - center[0], dy = value[1] - center[1]
+    return [(dx * minor[1] - dy * minor[0]) / determinant, (major[0] * dy - major[1] * dx) / determinant]
+  }
+  const start = local(line.start), end = local(line.end)
+  const result = intersectLineCircle2(start, end, [0, 0], 1, { mode: line.mode })
+  const parameters = ellipseParameters(payload)
+  return {
+    ...result,
+    points: result.points.filter(unit => {
+      const parameter = Math.atan2(Number(unit[1]), Number(unit[0]))
+      return parameters.full || parameterOnEllipse(parameter, parameters.start, parameters.span)
+    }).map(unit => [center[0] + major[0] * Number(unit[0]) + minor[0] * Number(unit[1]), center[1] + major[1] * Number(unit[0]) + minor[1] * Number(unit[1]), center[2]]),
+  }
+}
+
+function intersectionPrimitiveDistance(cursor: KJSnapPointInput, primitive: IntersectionPrimitive): number {
+  return primitive.kind === 'ellipse' ? nearestOnEllipse(cursor, primitive.payload).distance : nearestOnPrimitive(cursor, primitive).distance
+}
+
+function primitiveIntersection(a: IntersectionPrimitive, b: IntersectionPrimitive): PrimitiveIntersection {
   let result: PrimitiveIntersection
-  if (a.kind === 'line' && b.kind === 'line') result = intersectLineLine2(a.start, a.end, b.start, b.end, { modeA: a.mode, modeB: b.mode })
+  if (a.kind === 'ellipse' || b.kind === 'ellipse') {
+    const ellipse = (a.kind === 'ellipse' ? a : b.kind === 'ellipse' ? b : null)
+    const line = (a.kind === 'line' ? a : b.kind === 'line' ? b : null)
+    return ellipse && line ? ellipseLineIntersection(ellipse, line) : { kind: 'unsupported', points: [] }
+  } else if (a.kind === 'line' && b.kind === 'line') result = intersectLineLine2(a.start, a.end, b.start, b.end, { modeA: a.mode, modeB: b.mode })
   else if (a.kind === 'line' && (b.kind === 'circle' || b.kind === 'arc')) result = intersectLineCircle2(a.start, a.end, b.center, b.radius, { mode: a.mode })
   else if (b.kind === 'line' && (a.kind === 'circle' || a.kind === 'arc')) result = intersectLineCircle2(b.start, b.end, a.center, a.radius, { mode: b.mode })
   else {
@@ -438,15 +474,21 @@ function primitiveIntersection(a: SnapPrimitive, b: SnapPrimitive): PrimitiveInt
 function intersectionCandidates(entities: ReadonlyArray<KJReadonlyObjectRecord>, cursor: KJSnapPointInput, maxPairs: number): MutableSnapCandidate[] {
   // Search geometry closest to the aperture first, so a finite pair budget cannot be
   // consumed by distant drawing content before reaching the local intersection.
-  const primitives = entities.flatMap(primitiveSegments)
-    .map((primitive, order) => ({ primitive, order, distance: nearestOnPrimitive(cursor, primitive).distance }))
+  const primitives: IntersectionPrimitive[] = []
+  for (const entity of entities) {
+    if (entity.type === 'ELLIPSE') primitives.push({ kind: 'ellipse', payload: entity.payload as unknown as SnapPayload, entityId: entity.id })
+    else primitives.push(...primitiveSegments(entity))
+  }
+  const ordered = primitives
+    .map((primitive, order) => ({ primitive, order, distance: intersectionPrimitiveDistance(cursor, primitive) }))
     .sort((a, b) => a.distance - b.distance || a.order - b.order)
     .map(value => value.primitive)
   const result: MutableSnapCandidate[] = []
   let pairs = 0
-  pairSearch: for (let left = 0; left < primitives.length; left += 1) for (let right = left + 1; right < primitives.length; right += 1) {
-    const a = primitives[left]!, b = primitives[right]!
+  pairSearch: for (let left = 0; left < ordered.length; left += 1) for (let right = left + 1; right < ordered.length; right += 1) {
+    const a = ordered[left]!, b = ordered[right]!
     if (a.entityId === b.entityId) continue
+    if ((a.kind === 'ellipse' || b.kind === 'ellipse') && a.kind !== 'line' && b.kind !== 'line') continue
     if (pairs >= maxPairs) break pairSearch
     pairs += 1
     for (const point of primitiveIntersection(a, b).points) result.push({ mode: 'intersection', point: point3(point), entityIds: [a.entityId, b.entityId], distance: distance2(cursor, point) })
