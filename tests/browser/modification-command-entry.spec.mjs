@@ -35,6 +35,14 @@ async function workbenchPoint(page, value) {
   }, value)
 }
 
+async function moveWorkbenchPointer(page, value) {
+  const location = await workbenchPoint(page, value)
+  // A move to the current coordinates is not required to dispatch pointermove.
+  // Cross the target first so every preview receives a fresh pointer event.
+  await page.mouse.move(location.x + 12, location.y + 12)
+  await page.mouse.move(location.x, location.y)
+}
+
 async function mountWorkbench(page) {
   await page.goto('/')
   await page.evaluate(async () => {
@@ -81,8 +89,7 @@ test('workbench aliases prefill six modification workflows and OFFSET requires a
     await enterWorkbench(page, operation.command)
     await root.locator('[data-action="start-modification"]').click()
     if (operation.first) await enterWorkbench(page, operation.first)
-    const location = await workbenchPoint(page, operation.cursor)
-    await page.mouse.move(location.x, location.y)
+    await moveWorkbenchPointer(page, operation.cursor)
     await expect(root.locator('[data-overlay]')).toHaveAttribute('data-modification-preview-count', operation.count)
     expect(await page.evaluate(() => window.__modifyEntry.drawing.revision)).toBe(previewRevision)
     await page.keyboard.press('Escape')
@@ -100,8 +107,7 @@ test('workbench aliases prefill six modification workflows and OFFSET requires a
     await enterWorkbench(page, command)
     await root.locator('[data-action="start-modification"]').click()
     await enterWorkbench(page, '8,0')
-    const location = await workbenchPoint(page, [0, 8])
-    await page.mouse.move(location.x, location.y)
+    await moveWorkbenchPointer(page, [0, 8])
     await expect(root.locator('[data-overlay]')).toHaveAttribute('data-modification-preview-count', '3')
     expect(await page.evaluate(() => window.__modifyEntry.drawing.revision)).toBe(pairRevision)
     await page.keyboard.press('Escape')
