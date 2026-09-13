@@ -135,6 +135,47 @@ test('ellipse intersections support circles, arc domains and tangent contact', a
   for (const expected of [[0, 5], [0, -5]]) assert.ok(result.points.some(point => Math.hypot(point[0] - expected[0], point[1] - expected[1]) < 1e-8))
 })
 
+test('ellipse intersections support translated profiles, partial domains and coincident arcs', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'ellipse-ellipse-intersections' })
+  const first = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [0, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2,
+  } })
+  const translated = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [6, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2,
+  } })
+  let result = intersectEntityPair2(first, translated)
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 2)
+  for (const expected of [[3, 5 * Math.sqrt(.91)], [3, -5 * Math.sqrt(.91)]]) assert.ok(result.points.some(point => Math.hypot(point[0] - expected[0], point[1] - expected[1]) < 1e-8))
+  const upper = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [6, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI,
+  } })
+  result = intersectEntityPair2(first, upper)
+  assert.equal(result.points.length, 1); closePoint(result.points[0], [3, 5 * Math.sqrt(.91)], 1e-8)
+  const tangent = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [20, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2,
+  } })
+  result = intersectEntityPair2(first, tangent)
+  assert.equal(result.points.length, 1); closePoint(result.points[0], [10, 0], 1e-8)
+
+  const same = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [0, 0, 0], majorAxis: [-10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2,
+  } })
+  result = intersectEntityPair2(first, same)
+  assert.equal(result.kind, 'overlap'); assert.equal(result.infinite, true)
+  const quarterA = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [40, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI / 2,
+  } })
+  const quarterB = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [40, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: Math.PI / 2, endParameter: Math.PI,
+  } })
+  result = intersectEntityPair2(quarterA, quarterB)
+  assert.equal(result.kind, 'point'); assert.equal(result.points.length, 1); closePoint(result.points[0], [40, 5])
+  const disjoint = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [40, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: Math.PI, endParameter: Math.PI * 1.5,
+  } })
+  assert.equal(intersectEntityPair2(quarterA, disjoint).kind, 'none')
+})
+
 test('ellipse tangent snaps are exact for external references and respect partial-arc domains', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'ellipse-tangent-snaps' })
   const full = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {

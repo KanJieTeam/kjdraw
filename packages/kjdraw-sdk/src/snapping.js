@@ -188,10 +188,20 @@ function ellipseParameterRoots(payload, evaluate, derivative) {
         if (Math.abs(evaluate(parameter)) > 1e-9) return;
         if (!roots.some((value)=>Math.min(positiveTurn(value - parameter), positiveTurn(parameter - value)) <= 1e-7)) roots.push(parameter);
     };
-    let previousParameter = start, previousValue = evaluate(start);
+    const sampled = [
+        {
+            parameter: start,
+            value: evaluate(start)
+        }
+    ];
+    let previousParameter = start, previousValue = sampled[0].value;
     add(start);
     for(let index = 1; index <= samples; index += 1){
         const parameter = start + domain.span * index / samples, value = evaluate(parameter);
+        sampled.push({
+            parameter,
+            value
+        });
         if (value === 0) add(parameter);
         else if (previousValue !== 0 && value * previousValue < 0) {
             let lower = previousParameter, upper = parameter, lowerValue = previousValue;
@@ -208,8 +218,12 @@ function ellipseParameterRoots(payload, evaluate, derivative) {
         previousParameter = parameter;
         previousValue = value;
     }
-    for(let index = 0; index < samples; index += 1){
-        let parameter = start + domain.span * (index + .5) / samples;
+    const lastIndex = domain.full ? samples - 1 : samples;
+    for(let index = 0; index <= lastIndex; index += 1){
+        const current = sampled[index], previous = index > 0 ? sampled[index - 1] : domain.full ? sampled[samples - 1] : null;
+        const next = index < samples ? sampled[index + 1] : null;
+        if (previous && Math.abs(current.value) > Math.abs(previous.value) || next && Math.abs(current.value) > Math.abs(next.value)) continue;
+        let parameter = current.parameter;
         for(let iteration = 0; iteration < 40; iteration += 1){
             const slope = derivative(parameter);
             if (Math.abs(slope) <= 1e-14) break;
@@ -718,8 +732,144 @@ function ellipseCircleIntersection(ellipse, circle) {
         points
     };
 }
+function ellipseBasis(payload) {
+    const center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio);
+    return {
+        center,
+        major,
+        minor: [
+            -major[1] * ratio,
+            major[0] * ratio,
+            0
+        ]
+    };
+}
+function coincidentEllipseOffset(first, second) {
+    const left = ellipseBasis(first), right = ellipseBasis(second);
+    const scale = Math.max(1, Math.hypot(left.major[0], left.major[1]), Math.hypot(right.major[0], right.major[1]));
+    if (distance2(left.center, right.center) > 1e-10 * scale) return null;
+    const localMajor = ellipseLocalCoordinates(first, add2(left.center, right.major)), cosine = localMajor[0], sine = localMajor[1];
+    if (Math.abs(cosine * cosine + sine * sine - 1) > 1e-9) return null;
+    const predictedMajor = add2(multiply2(left.major, cosine), multiply2(left.minor, sine));
+    const predictedMinor = add2(multiply2(left.major, -sine), multiply2(left.minor, cosine));
+    if (distance2(predictedMajor, right.major) > 1e-9 * scale || distance2(predictedMinor, right.minor) > 1e-9 * scale) return null;
+    return Math.atan2(sine, cosine);
+}
+function circularIntervals(start, span) {
+    if (span >= TURN - 1e-10) return [
+        [
+            0,
+            TURN
+        ]
+    ];
+    start = positiveTurn(start);
+    const end = start + span;
+    return end <= TURN ? [
+        [
+            start,
+            end
+        ]
+    ] : [
+        [
+            start,
+            TURN
+        ],
+        [
+            0,
+            end - TURN
+        ]
+    ];
+}
+function coincidentEllipseIntersection(first, second, offset) {
+    const left = ellipseParameters(first), right = ellipseParameters(second), rightStart = right.start + offset;
+    const leftIntervals = circularIntervals(left.start, left.span), rightIntervals = circularIntervals(rightStart, right.span);
+    for (const a of leftIntervals)for (const b of rightIntervals)if (Math.min(a[1], b[1]) - Math.max(a[0], b[0]) > 1e-10) return {
+        kind: 'overlap',
+        points: [],
+        infinite: true
+    };
+    const points = [];
+    for (const parameter of [
+        left.start,
+        left.start + left.span,
+        rightStart,
+        rightStart + right.span
+    ]){
+        if (!(left.full || parameterOnEllipse(parameter, left.start, left.span)) || !(right.full || parameterOnEllipse(parameter, rightStart, right.span))) continue;
+        const point = ellipsePointAt(first, parameter);
+        if (!points.some((value)=>distance2(value, point) <= 1e-9)) points.push(point);
+    }
+    return {
+        kind: points.length ? 'point' : 'none',
+        points
+    };
+}
+function ellipseEllipseIntersection(first, second) {
+    const coincidentOffset = coincidentEllipseOffset(first.payload, second.payload);
+    if (coincidentOffset !== null) return coincidentEllipseIntersection(first.payload, second.payload, coincidentOffset);
+    const secondDomain = ellipseParameters(second.payload), secondCenter = point3(second.payload.center);
+    const derivativeAt = (parameter)=>{
+        const basis = ellipseBasis(first.payload), sine = Math.sin(parameter), cosine = Math.cos(parameter);
+        return [
+            -basis.major[0] * sine + basis.minor[0] * cosine,
+            -basis.major[1] * sine + basis.minor[1] * cosine
+        ];
+    };
+    const evaluate = (parameter)=>{
+        const local = ellipseLocalCoordinates(second.payload, ellipsePointAt(first.payload, parameter));
+        return local[0] * local[0] + local[1] * local[1] - 1;
+    };
+    const derivative = (parameter)=>{
+        const point = ellipsePointAt(first.payload, parameter), local = ellipseLocalCoordinates(second.payload, point);
+        const tangent = derivativeAt(parameter), localTangent = ellipseLocalCoordinates(second.payload, add2(secondCenter, tangent));
+        return 2 * (local[0] * localTangent[0] + local[1] * localTangent[1]);
+    };
+    const points = ellipseParameterRoots(first.payload, evaluate, derivative).flatMap((parameter)=>{
+        const point = ellipsePointAt(first.payload, parameter), local = ellipseLocalCoordinates(second.payload, point), secondParameter = Math.atan2(local[1], local[0]);
+        return secondDomain.full || parameterOnEllipse(secondParameter, secondDomain.start, secondDomain.span) ? [
+            point
+        ] : [];
+    });
+    return {
+        kind: points.length ? 'point' : 'none',
+        points
+    };
+}
 function intersectionPrimitiveDistance(cursor, primitive) {
     return primitive.kind === 'ellipse' ? nearestOnEllipse(cursor, primitive.payload).distance : nearestOnPrimitive(cursor, primitive).distance;
+}
+function intersectionPrimitiveBounds(primitive) {
+    if (primitive.kind === 'ellipse') {
+        const payload = primitive.payload, center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio);
+        const extentX = Math.hypot(major[0], major[1] * ratio), extentY = Math.hypot(major[1], major[0] * ratio);
+        return [
+            center[0] - extentX,
+            center[1] - extentY,
+            center[0] + extentX,
+            center[1] + extentY
+        ];
+    }
+    if (primitive.kind === 'circle' || primitive.kind === 'arc') {
+        const center = point3(primitive.center);
+        return [
+            center[0] - primitive.radius,
+            center[1] - primitive.radius,
+            center[0] + primitive.radius,
+            center[1] + primitive.radius
+        ];
+    }
+    if (primitive.mode !== 'segment') return null;
+    const start = point3(primitive.start), end = point3(primitive.end);
+    return [
+        Math.min(start[0], end[0]),
+        Math.min(start[1], end[1]),
+        Math.max(start[0], end[0]),
+        Math.max(start[1], end[1])
+    ];
+}
+function finiteBoundsOverlap(first, second) {
+    const a = intersectionPrimitiveBounds(first), b = intersectionPrimitiveBounds(second);
+    return !a || !b || a[0] <= b[2] + 1e-10 && a[2] + 1e-10 >= b[0] && a[1] <= b[3] + 1e-10 && a[3] + 1e-10 >= b[1];
 }
 function primitiveIntersection(a, b) {
     let result;
@@ -728,7 +878,8 @@ function primitiveIntersection(a, b) {
         const line = a.kind === 'line' ? a : b.kind === 'line' ? b : null;
         const circle = a.kind === 'circle' || a.kind === 'arc' ? a : b.kind === 'circle' || b.kind === 'arc' ? b : null;
         if (ellipse && line) return ellipseLineIntersection(ellipse, line);
-        return ellipse && circle ? ellipseCircleIntersection(ellipse, circle) : {
+        if (ellipse && circle) return ellipseCircleIntersection(ellipse, circle);
+        return a.kind === 'ellipse' && b.kind === 'ellipse' ? ellipseEllipseIntersection(a, b) : {
             kind: 'unsupported',
             points: []
         };
@@ -771,7 +922,7 @@ function intersectionCandidates(entities, cursor, maxPairs) {
     pairSearch: for(let left = 0; left < ordered.length; left += 1)for(let right = left + 1; right < ordered.length; right += 1){
         const a = ordered[left], b = ordered[right];
         if (a.entityId === b.entityId) continue;
-        if (a.kind === 'ellipse' && b.kind === 'ellipse') continue;
+        if (!finiteBoundsOverlap(a, b)) continue;
         if (pairs >= maxPairs) break pairSearch;
         pairs += 1;
         for (const point of primitiveIntersection(a, b).points)result.push({
