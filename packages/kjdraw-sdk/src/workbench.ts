@@ -221,7 +221,7 @@ const draftToolText: Readonly<Record<KJDraftTool, KJLocalizedControlText>> = Obj
 const draftPointText: Readonly<Record<KJDraftPointRole, KJLocalizedControlText>> = Object.freeze({
   start: { en: 'Specify the start point', zh: '指定起点' }, end: { en: 'Specify the end point', zh: '指定终点' }, vertex: { en: 'Specify the next vertex', zh: '指定下一顶点' }, position: { en: 'Specify the position', zh: '指定位置' },
   origin: { en: 'Specify the origin', zh: '指定原点' }, directionPoint: { en: 'Specify a point on the direction', zh: '指定方向上的一点' }, center: { en: 'Specify the center', zh: '指定中心' }, radiusPoint: { en: 'Specify a point on the radius', zh: '指定半径点' },
-  diameterPoint1: { en: 'Specify the first diameter point', zh: '指定直径第一点' }, diameterPoint2: { en: 'Specify the second diameter point', zh: '指定直径第二点' }, throughPoint: { en: 'Specify a point on the arc', zh: '指定圆弧经过点' }, majorAxisPoint: { en: 'Specify the major-axis endpoint', zh: '指定长轴端点' },
+  diameterPoint1: { en: 'Specify the first diameter point', zh: '指定直径第一点' }, diameterPoint2: { en: 'Specify the second diameter point', zh: '指定直径第二点' }, throughPoint: { en: 'Specify a point on the arc', zh: '指定圆弧经过点' }, solutionPoint: { en: 'Pick near the required tangent-circle solution', zh: '在所需相切圆解附近指定一点' }, majorAxisPoint: { en: 'Specify the major-axis endpoint', zh: '指定长轴端点' },
   minorAxisPoint: { en: 'Specify the minor-axis endpoint', zh: '指定短轴端点' }, firstCorner: { en: 'Specify the first corner', zh: '指定第一个角点' }, oppositeCorner: { en: 'Specify the opposite corner', zh: '指定对角点' }, controlPoint: { en: 'Specify the next control point', zh: '指定下一控制点' },
   ellipseArcStart: { en: 'Specify the elliptical-arc start direction', zh: '指定椭圆弧起点方向' }, ellipseArcEnd: { en: 'Specify the elliptical-arc end direction (counter-clockwise)', zh: '指定椭圆弧终点方向（逆时针）' },
   polygonVertex: { en: 'Specify a vertex on the circumscribed circle', zh: '指定外接圆上的顶点' }, polygonSideMidpoint: { en: 'Specify a side midpoint on the inscribed circle', zh: '指定内切圆上的边中点' },
@@ -1252,6 +1252,12 @@ export class KJDrawWorkbench {
         await this.execute('CREATE', { type: 'LINE', payload: { start: [x1, y1, 0], end: [x2, y2, 0], ...this.#activeLayerPayload() } })
         return
       }
+      if (command === 'CIRCLETTR') {
+        const [radius] = finiteValues(1)
+        this.#draftOptions.set('circle', this.#circleTangentOptions(radius!))
+        this.setTool('circle')
+        return
+      }
       if (command === 'CIRCLE2P' || command === 'CIRCLE3P') {
         if (tokens.length) throw new Error(`${command} accepts canvas or command-line coordinates after activation`)
         this.#draftOptions.set('circle', { circleMode: command === 'CIRCLE2P' ? '2-point' : '3-point' })
@@ -1536,7 +1542,9 @@ export class KJDrawWorkbench {
       { value: 'center-radius', label: { en: 'Center + radius', zh: '圆心 + 半径点' } },
       { value: '2-point', label: { en: 'Two-point diameter', zh: '两点直径' } },
       { value: '3-point', label: { en: 'Three points', zh: '三点圆' } },
+      { value: 'tangent-tangent-radius', label: { en: 'Tangent, tangent, radius (2 selected lines)', zh: '相切、相切、半径（先选两条直线）' } },
     ], configured.circleMode ?? 'center-radius')
+    if (tool === 'circle') this.#draftField(host, 'circleRadius', { en: 'TTR radius', zh: '相切圆半径' }, { value: String(configured.circleRadius ?? 10), min: Number.EPSILON, step: 'any' })
     if (tool === 'arc') this.#draftSelect(host, 'arcMode', { en: 'Construction', zh: '构造方式' }, [
       { value: 'center-start-end', label: { en: 'Center, start, end', zh: '圆心、起点、终点' } },
       { value: '3-point', label: { en: 'Start, through, end', zh: '起点、经过点、终点' } },
@@ -1607,7 +1615,10 @@ export class KJDrawWorkbench {
     const value = (key: string): string => query<HTMLInputElement | HTMLSelectElement>(form, `[data-draft-option="${key}"]`).value
     const checked = (key: string): boolean => query<HTMLInputElement>(form, `[data-draft-option="${key}"]`).checked
     let options: KJDraftingOptions = {}
-    if (tool === 'circle') options = { circleMode: value('circleMode') as NonNullable<KJDraftingOptions['circleMode']> }
+    if (tool === 'circle') {
+      const circleMode = value('circleMode') as NonNullable<KJDraftingOptions['circleMode']>
+      options = circleMode === 'tangent-tangent-radius' ? this.#circleTangentOptions(Number(value('circleRadius'))) : { circleMode }
+    }
     if (tool === 'arc') options = { arcMode: value('arcMode') as NonNullable<KJDraftingOptions['arcMode']> }
     if (tool === 'ellipse') options = { ellipseMode: value('ellipseMode') as NonNullable<KJDraftingOptions['ellipseMode']> }
     if (tool === 'polygon') options = { sides: Number(value('sides')), polygonMode: value('polygonMode') as NonNullable<KJDraftingOptions['polygonMode']> }
@@ -1634,6 +1645,20 @@ export class KJDrawWorkbench {
 
   #localizedControlText(value: KJLocalizedControlText): string {
     return this.#locale === 'zh-CN' ? value.zh : value.en
+  }
+
+  #circleTangentOptions(radius: number): KJDraftingOptions {
+    const drawing = this.document, ids = [...(this.#selection?.ids ?? [])]
+    if (!drawing || ids.length !== 2) throw new Error(this.#locale === 'zh-CN' ? '相切圆需要先选择两条普通可编辑直线' : 'TTR circle requires exactly two selected editable LINE entities')
+    const lines = ids.map(id => drawing.getObject(id))
+    for (const entity of lines) {
+      const layer = entity?.payload.layerId ? drawing.getObject(String(entity.payload.layerId)) : null
+      if (!entity || entity.kind !== 'entity' || entity.type !== 'LINE' || entity.ownerId !== drawing.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new Error(this.#locale === 'zh-CN' ? '相切圆仅支持模型空间中两条普通可编辑直线' : 'TTR circle supports two ordinary editable model-space LINE entities')
+    }
+    const input = lines.map(entity => ({ start: (entity!.payload.start as readonly number[]).slice(0, 2) as [number, number], end: (entity!.payload.end as readonly number[]).slice(0, 2) as [number, number] })) as [
+      { start: [number, number]; end: [number, number] }, { start: [number, number]; end: [number, number] },
+    ]
+    return { circleMode: 'tangent-tangent-radius', circleTangentLines: input, circleRadius: radius }
   }
 
   #openTextStyles(): void {

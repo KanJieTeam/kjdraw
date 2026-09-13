@@ -124,7 +124,13 @@ function setTool(value) {
 }
 function isDraftTool(value){return ['line','polyline','circle','arc','ellipse','rectangle','polygon','point','ray','xline','spline','hatch','dimension','leader'].includes(value)}
 function drawingOptions(value){
-  if(value==='circle')return {circleMode:$('circle-mode').value}
+  if(value==='circle'){
+    const circleMode=$('circle-mode').value
+    if(circleMode!=='tangent-tangent-radius')return {circleMode}
+    const lines=selectedIds().map(id=>doc().getObject(id))
+    if(lines.length!==2||lines.some(entity=>entity?.type!=='LINE'||entity.ownerId!==doc().spaces.modelSpaceId))throw new Error(i18n.locale==='zh'?'相切圆需要先选择模型空间中的两条普通可编辑直线':'TTR circle requires exactly two selected editable model-space LINE entities')
+    return {circleMode,circleRadius:Number($('circle-radius').value),circleTangentLines:lines.map(entity=>({start:entity.payload.start.slice(0,2),end:entity.payload.end.slice(0,2)}))}
+  }
   if(value==='arc')return {arcMode:$('arc-mode').value}
   if(value==='ellipse')return {ellipseMode:$('ellipse-mode').value}
   if(value==='polygon')return {sides:Number($('polygon-sides').value),polygonMode:$('polygon-mode').value}
@@ -148,7 +154,7 @@ function updateDraftControls(){
 }
 function updateDraftHint(){
   if(!drafting)return
-  const roles={start:['Start point','起点'],end:['Endpoint','终点'],vertex:['Next vertex','下一顶点'],position:['Position','位置'],origin:['Origin','原点'],directionPoint:['Direction point','方向点'],center:['Center','圆心 / 中心'],radiusPoint:['Radius point (or enter radius)','半径点（也可输入半径）'],diameterPoint1:['First diameter endpoint','直径起点'],diameterPoint2:['Opposite diameter endpoint','直径终点'],throughPoint:['Point on curve','曲线上一点'],majorAxisPoint:['Major-axis endpoint','长轴端点'],minorAxisPoint:['Minor-axis distance','短轴距离'],ellipseArcStart:['Elliptical-arc start direction','椭圆弧起点方向'],ellipseArcEnd:['Elliptical-arc end direction (counter-clockwise)','椭圆弧终点方向（逆时针）'],polygonVertex:['Vertex on circumcircle','外接圆上的顶点'],polygonSideMidpoint:['Side midpoint on incircle','内切圆上的边中点'],edgeStart:['First edge endpoint','边的第一端点'],edgeEnd:['Second edge endpoint','边的第二端点'],firstCorner:['First corner','第一角点'],oppositeCorner:['Opposite corner','对角点'],controlPoint:['Next control point','下一控制点'],boundaryPoint:['Boundary vertex','填充边界顶点'],extensionOrigin1:['First measured point','第一测量点'],extensionOrigin2:['Second measured point','第二测量点'],placement:['Dimension line position','尺寸线位置'],oppositePoint:['Opposite diameter point','直径对侧点'],pointOnCircle:['Point on circle','圆上一点'],angleVertex:['Three-point angle 1/4: vertex → first ray → second ray → arc position','三点角度 1/4：顶点 → 第一射线点 → 第二射线点 → 弧位置'],firstRayPoint:['2/4: point on first ray','2/4：第一条射线上的点'],secondRayPoint:['3/4: point on second ray','3/4：第二条射线上的点'],angularPlacement:['4/4: place angle arc; opposite sector gives reflex angle','4/4：指定角度弧位置；另一角域可标注反角'],arrowPoint:['Arrow point','箭头点'],leaderVertex:['Next bend or annotation position','下一转折点或文字位置']}
+  const roles={start:['Start point','起点'],end:['Endpoint','终点'],vertex:['Next vertex','下一顶点'],position:['Position','位置'],origin:['Origin','原点'],directionPoint:['Direction point','方向点'],center:['Center','圆心 / 中心'],radiusPoint:['Radius point (or enter radius)','半径点（也可输入半径）'],diameterPoint1:['First diameter endpoint','直径起点'],diameterPoint2:['Opposite diameter endpoint','直径终点'],throughPoint:['Point on curve','曲线上一点'],solutionPoint:['Pick near the required tangent-circle solution','在所需相切圆解附近指定一点'],majorAxisPoint:['Major-axis endpoint','长轴端点'],minorAxisPoint:['Minor-axis distance','短轴距离'],ellipseArcStart:['Elliptical-arc start direction','椭圆弧起点方向'],ellipseArcEnd:['Elliptical-arc end direction (counter-clockwise)','椭圆弧终点方向（逆时针）'],polygonVertex:['Vertex on circumcircle','外接圆上的顶点'],polygonSideMidpoint:['Side midpoint on incircle','内切圆上的边中点'],edgeStart:['First edge endpoint','边的第一端点'],edgeEnd:['Second edge endpoint','边的第二端点'],firstCorner:['First corner','第一角点'],oppositeCorner:['Opposite corner','对角点'],controlPoint:['Next control point','下一控制点'],boundaryPoint:['Boundary vertex','填充边界顶点'],extensionOrigin1:['First measured point','第一测量点'],extensionOrigin2:['Second measured point','第二测量点'],placement:['Dimension line position','尺寸线位置'],oppositePoint:['Opposite diameter point','直径对侧点'],pointOnCircle:['Point on circle','圆上一点'],angleVertex:['Three-point angle 1/4: vertex → first ray → second ray → arc position','三点角度 1/4：顶点 → 第一射线点 → 第二射线点 → 弧位置'],firstRayPoint:['2/4: point on first ray','2/4：第一条射线上的点'],secondRayPoint:['3/4: point on second ray','3/4：第二条射线上的点'],angularPlacement:['4/4: place angle arc; opposite sector gives reflex angle','4/4：指定角度弧位置；另一角域可标注反角'],arrowPoint:['Arrow point','箭头点'],leaderVertex:['Next bend or annotation position','下一转折点或文字位置']}
   const state=drafting.session.state,role=roles[state.nextPoint]??[state.nextPoint??'',state.nextPoint??'']
   $('hint').textContent=`${tool.toUpperCase()} · ${role[i18n.locale==='zh'?1:0]} · ${state.points.length} ${i18n.locale==='zh'?'点':'points'} · x,y / @dx,dy / @distance<angle / ${i18n.locale==='zh'?'距离 / 距离<角度 / <角度':'distance / distance<angle / <angle'}${state.canFinish?' · Enter / FINISH':''}${state.canClose?' · C / CLOSE':''} · U / BACK · Esc / CANCEL`
   message($('hint').textContent);updateDraftControls()
@@ -787,10 +793,10 @@ async function runTypedCommand(){
     if(!polygonMode)throw new Error(i18n.locale==='zh'?'正多边形模式必须是 INSCRIBED、CIRCUMSCRIBED 或 EDGE':'POLYGON mode must be INSCRIBED, CIRCUMSCRIBED, or EDGE')
     $('polygon-sides').value=String(sides);$('polygon-mode').value=polygonMode;$('command-input').value='';setTool('polygon');return
   }
-  const drawCommands={LINE:'line',L:'line',PLINE:'polyline',POLYLINE:'polyline',PL:'polyline',CIRCLE:'circle',CIRCLE2P:'circle',CIRCLE3P:'circle',ARC:'arc',ARC3P:'arc',ELLIPSE:'ellipse',ELLIPSEARC:'ellipse',POLYGON:'polygon',SPLINE:'spline',HATCH:'hatch',DIMALIGNED:'dimension',DIMLINEAR:'dimension',DIMRADIUS:'dimension',DIMDIAMETER:'dimension',DIMANGULAR:'dimension',DIMANGULAR3P:'dimension',LEADER:'leader',LE:'leader',RAY:'ray',XLINE:'xline',POINT:'point',RECTANGLE:'rectangle'}
+  const drawCommands={LINE:'line',L:'line',PLINE:'polyline',POLYLINE:'polyline',PL:'polyline',CIRCLE:'circle',CIRCLE2P:'circle',CIRCLE3P:'circle',CIRCLETTR:'circle',ARC:'arc',ARC3P:'arc',ELLIPSE:'ellipse',ELLIPSEARC:'ellipse',POLYGON:'polygon',SPLINE:'spline',HATCH:'hatch',DIMALIGNED:'dimension',DIMLINEAR:'dimension',DIMRADIUS:'dimension',DIMDIAMETER:'dimension',DIMANGULAR:'dimension',DIMANGULAR3P:'dimension',LEADER:'leader',LE:'leader',RAY:'ray',XLINE:'xline',POINT:'point',RECTANGLE:'rectangle'}
   const drawCommand=raw.toUpperCase()
   if(drawCommands[drawCommand]){
-    if(drawCommand.startsWith('CIRCLE'))$('circle-mode').value=drawCommand==='CIRCLE2P'?'2-point':drawCommand==='CIRCLE3P'?'3-point':'center-radius'
+    if(drawCommand.startsWith('CIRCLE'))$('circle-mode').value=drawCommand==='CIRCLE2P'?'2-point':drawCommand==='CIRCLE3P'?'3-point':drawCommand==='CIRCLETTR'?'tangent-tangent-radius':'center-radius'
     if(drawCommand.startsWith('ARC'))$('arc-mode').value=drawCommand==='ARC3P'?'3-point':'center-start-end'
     if(drawCommand.startsWith('ELLIPSE'))$('ellipse-mode').value=drawCommand==='ELLIPSEARC'?'arc':'full'
     if(drawCommand.startsWith('DIM'))$('dimension-type').value=({DIMALIGNED:'ALIGNED',DIMLINEAR:'ROTATED',DIMRADIUS:'RADIUS',DIMDIAMETER:'DIAMETER',DIMANGULAR:'ANGULAR_3_POINT',DIMANGULAR3P:'ANGULAR_3_POINT'})[drawCommand]
@@ -1188,7 +1194,8 @@ function initializeDraftingControls(){
       if(isDraftTool(tool)){setTool(tool);canvas.focus()}
     };label.append(input);options.append(label)
   }
-  add('circle-mode','Circle','画圆方式','circle',[['center-radius','Center / radius','圆心 / 半径'],['2-point','Two diameter points','直径两点'],['3-point','Three points','圆上三点']],'center-radius')
+  add('circle-mode','Circle','画圆方式','circle',[['center-radius','Center / radius','圆心 / 半径'],['2-point','Two diameter points','直径两点'],['3-point','Three points','圆上三点'],['tangent-tangent-radius','Tangent / tangent / radius (select 2 lines)','相切 / 相切 / 半径（先选两条直线）']],'center-radius')
+  add('circle-radius','TTR radius','相切圆半径','circle',null,10,{min:Number.EPSILON,step:'any'})
   add('arc-mode','Arc','圆弧方式','arc',[['center-start-end','Center / start / end','圆心 / 起点 / 终点'],['3-point','Start / through / end','起点 / 中间点 / 终点']],'center-start-end')
   add('ellipse-mode','Ellipse','椭圆方式','ellipse',[['full','Full ellipse','完整椭圆'],['arc','Elliptical arc (5 points)','椭圆弧（五点）']],'full')
   add('polygon-mode','Construction','构造方式','polygon',[['inscribed','Center / vertex (inscribed)','中心 / 顶点（内接）'],['circumscribed','Center / side midpoint (circumscribed)','中心 / 边中点（外切）'],['edge','Two edge endpoints','边的两个端点']],'inscribed')

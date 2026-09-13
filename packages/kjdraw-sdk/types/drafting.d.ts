@@ -4,20 +4,31 @@ import type { KJObjectPayload, KJObjectSpec } from './schema.js';
 export type KJDraftPoint = readonly [number, number];
 export type KJDraftPointReference = Omit<KJDimensionPointAssociation, 'definitionPointIndex'>;
 export type KJDraftTool = 'line' | 'polyline' | 'circle' | 'arc' | 'ellipse' | 'rectangle' | 'polygon' | 'point' | 'ray' | 'xline' | 'spline' | 'hatch' | 'dimension' | 'leader';
-export type KJDraftCircleMode = 'center-radius' | '2-point' | '3-point';
+export type KJDraftCircleMode = 'center-radius' | '2-point' | '3-point' | 'tangent-tangent-radius';
 export type KJDraftArcMode = 'center-start-end' | '3-point';
 export type KJDraftEllipseMode = 'full' | 'arc';
 export type KJDraftPolygonMode = 'inscribed' | 'circumscribed' | 'edge';
 export type KJDraftDimensionType = 'ALIGNED' | 'ROTATED' | 'RADIUS' | 'DIAMETER' | 'ANGULAR_3_POINT';
 export type KJDraftStatus = 'collecting' | 'complete' | 'cancelled';
-export type KJDraftPointRole = 'start' | 'end' | 'vertex' | 'position' | 'origin' | 'directionPoint' | 'center' | 'radiusPoint' | 'diameterPoint1' | 'diameterPoint2' | 'throughPoint' | 'majorAxisPoint' | 'minorAxisPoint' | 'ellipseArcStart' | 'ellipseArcEnd' | 'polygonVertex' | 'polygonSideMidpoint' | 'edgeStart' | 'edgeEnd' | 'firstCorner' | 'oppositeCorner' | 'controlPoint' | 'boundaryPoint' | 'extensionOrigin1' | 'extensionOrigin2' | 'placement' | 'oppositePoint' | 'pointOnCircle' | 'angleVertex' | 'firstRayPoint' | 'secondRayPoint' | 'angularPlacement' | 'arrowPoint' | 'leaderVertex';
+export type KJDraftPointRole = 'start' | 'end' | 'vertex' | 'position' | 'origin' | 'directionPoint' | 'center' | 'radiusPoint' | 'diameterPoint1' | 'diameterPoint2' | 'throughPoint' | 'solutionPoint' | 'majorAxisPoint' | 'minorAxisPoint' | 'ellipseArcStart' | 'ellipseArcEnd' | 'polygonVertex' | 'polygonSideMidpoint' | 'edgeStart' | 'edgeEnd' | 'firstCorner' | 'oppositeCorner' | 'controlPoint' | 'boundaryPoint' | 'extensionOrigin1' | 'extensionOrigin2' | 'placement' | 'oppositePoint' | 'pointOnCircle' | 'angleVertex' | 'firstRayPoint' | 'secondRayPoint' | 'angularPlacement' | 'arrowPoint' | 'leaderVertex';
 export interface KJDraftEntitySpec {
     type: KJStandardEntityType;
     payload: KJObjectPayload;
     options?: KJObjectSpec;
 }
+export interface KJDraftLineInput {
+    start: KJDraftPoint;
+    end: KJDraftPoint;
+}
+export interface KJDraftTangentCircle {
+    center: KJDraftPoint;
+    radius: number;
+    tangentPoints: readonly [KJDraftPoint, KJDraftPoint];
+}
 export interface KJDraftingOptions {
     circleMode?: KJDraftCircleMode;
+    circleTangentLines?: readonly [KJDraftLineInput, KJDraftLineInput];
+    circleRadius?: number;
     arcMode?: KJDraftArcMode;
     ellipseMode?: KJDraftEllipseMode;
     polygonMode?: KJDraftPolygonMode;
@@ -56,6 +67,8 @@ export interface KJDraftState {
 export declare function constrainOrthogonalDraftPoint(value: KJDraftPoint, base: KJDraftPoint): KJDraftPoint;
 /** Project a pointer-derived point onto the nearest polar tracking ray. */
 export declare function constrainPolarDraftPoint(value: KJDraftPoint, base: KJDraftPoint, angleIncrement?: number): KJDraftPoint;
+/** Solve the finite-line TTR subset. The solution point selects one unique offset-line intersection. */
+export declare function circleTangentToLines(firstValue: KJDraftLineInput, secondValue: KJDraftLineInput, radiusValue: number, solutionValue: KJDraftPoint, toleranceValue?: number): KJDraftTangentCircle;
 /** Parse CAD coordinates. Polar angles use degrees and increase counter-clockwise. */
 export declare function parseDraftCoordinate(input: string, relativeBase?: KJDraftPoint): KJDraftPoint;
 /** Return whether text is an exact coordinate or direct distance/angle draft input. */

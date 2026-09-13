@@ -759,6 +759,10 @@ const draftPointText = Object.freeze({
         en: 'Specify a point on the arc',
         zh: '指定圆弧经过点'
     },
+    solutionPoint: {
+        en: 'Pick near the required tangent-circle solution',
+        zh: '在所需相切圆解附近指定一点'
+    },
     majorAxisPoint: {
         en: 'Specify the major-axis endpoint',
         zh: '指定长轴端点'
@@ -2376,6 +2380,12 @@ export class KJDrawWorkbench {
                 });
                 return;
             }
+            if (command === 'CIRCLETTR') {
+                const [radius] = finiteValues(1);
+                this.#draftOptions.set('circle', this.#circleTangentOptions(radius));
+                this.setTool('circle');
+                return;
+            }
             if (command === 'CIRCLE2P' || command === 'CIRCLE3P') {
                 if (tokens.length) throw new Error(`${command} accepts canvas or command-line coordinates after activation`);
                 this.#draftOptions.set('circle', {
@@ -2831,8 +2841,23 @@ export class KJDrawWorkbench {
                     en: 'Three points',
                     zh: '三点圆'
                 }
+            },
+            {
+                value: 'tangent-tangent-radius',
+                label: {
+                    en: 'Tangent, tangent, radius (2 selected lines)',
+                    zh: '相切、相切、半径（先选两条直线）'
+                }
             }
         ], configured.circleMode ?? 'center-radius');
+        if (tool === 'circle') this.#draftField(host, 'circleRadius', {
+            en: 'TTR radius',
+            zh: '相切圆半径'
+        }, {
+            value: String(configured.circleRadius ?? 10),
+            min: Number.EPSILON,
+            step: 'any'
+        });
         if (tool === 'arc') this.#draftSelect(host, 'arcMode', {
             en: 'Construction',
             zh: '构造方式'
@@ -3100,9 +3125,12 @@ export class KJDrawWorkbench {
         const value = (key)=>query(form, `[data-draft-option="${key}"]`).value;
         const checked = (key)=>query(form, `[data-draft-option="${key}"]`).checked;
         let options = {};
-        if (tool === 'circle') options = {
-            circleMode: value('circleMode')
-        };
+        if (tool === 'circle') {
+            const circleMode = value('circleMode');
+            options = circleMode === 'tangent-tangent-radius' ? this.#circleTangentOptions(Number(value('circleRadius'))) : {
+                circleMode
+            };
+        }
         if (tool === 'arc') options = {
             arcMode: value('arcMode')
         };
@@ -3147,6 +3175,26 @@ export class KJDrawWorkbench {
     }
     #localizedControlText(value) {
         return this.#locale === 'zh-CN' ? value.zh : value.en;
+    }
+    #circleTangentOptions(radius) {
+        const drawing = this.document, ids = [
+            ...this.#selection?.ids ?? []
+        ];
+        if (!drawing || ids.length !== 2) throw new Error(this.#locale === 'zh-CN' ? '相切圆需要先选择两条普通可编辑直线' : 'TTR circle requires exactly two selected editable LINE entities');
+        const lines = ids.map((id)=>drawing.getObject(id));
+        for (const entity of lines){
+            const layer = entity?.payload.layerId ? drawing.getObject(String(entity.payload.layerId)) : null;
+            if (!entity || entity.kind !== 'entity' || entity.type !== 'LINE' || entity.ownerId !== drawing.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new Error(this.#locale === 'zh-CN' ? '相切圆仅支持模型空间中两条普通可编辑直线' : 'TTR circle supports two ordinary editable model-space LINE entities');
+        }
+        const input = lines.map((entity)=>({
+                start: entity.payload.start.slice(0, 2),
+                end: entity.payload.end.slice(0, 2)
+            }));
+        return {
+            circleMode: 'tangent-tangent-radius',
+            circleTangentLines: input,
+            circleRadius: radius
+        };
     }
     #openTextStyles() {
         const drawing = this.document;

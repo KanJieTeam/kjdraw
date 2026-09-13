@@ -23,7 +23,7 @@ export type KJDraftTool =
   | 'dimension'
   | 'leader'
 
-export type KJDraftCircleMode = 'center-radius' | '2-point' | '3-point'
+export type KJDraftCircleMode = 'center-radius' | '2-point' | '3-point' | 'tangent-tangent-radius'
 export type KJDraftArcMode = 'center-start-end' | '3-point'
 export type KJDraftEllipseMode = 'full' | 'arc'
 export type KJDraftPolygonMode = 'inscribed' | 'circumscribed' | 'edge'
@@ -41,6 +41,7 @@ export type KJDraftPointRole =
   | 'diameterPoint1'
   | 'diameterPoint2'
   | 'throughPoint'
+  | 'solutionPoint'
   | 'majorAxisPoint'
   | 'minorAxisPoint'
   | 'ellipseArcStart'
@@ -71,8 +72,21 @@ export interface KJDraftEntitySpec {
   options?: KJObjectSpec
 }
 
+export interface KJDraftLineInput {
+  start: KJDraftPoint
+  end: KJDraftPoint
+}
+
+export interface KJDraftTangentCircle {
+  center: KJDraftPoint
+  radius: number
+  tangentPoints: readonly [KJDraftPoint, KJDraftPoint]
+}
+
 export interface KJDraftingOptions {
   circleMode?: KJDraftCircleMode
+  circleTangentLines?: readonly [KJDraftLineInput, KJDraftLineInput]
+  circleRadius?: number
   arcMode?: KJDraftArcMode
   ellipseMode?: KJDraftEllipseMode
   polygonMode?: KJDraftPolygonMode
@@ -111,6 +125,8 @@ export interface KJDraftState {
 
 interface NormalizedOptions {
   circleMode: KJDraftCircleMode
+  circleTangentLines: readonly [KJDraftLineInput, KJDraftLineInput] | null
+  circleRadius: number | null
   arcMode: KJDraftArcMode
   ellipseMode: KJDraftEllipseMode
   polygonMode: KJDraftPolygonMode
@@ -137,12 +153,13 @@ interface NormalizedOptions {
 }
 
 const TOOLS = new Set<KJDraftTool>(['line', 'polyline', 'circle', 'arc', 'ellipse', 'rectangle', 'polygon', 'point', 'ray', 'xline', 'spline', 'hatch', 'dimension', 'leader'])
-const CIRCLE_MODES = new Set<KJDraftCircleMode>(['center-radius', '2-point', '3-point'])
+const CIRCLE_MODES = new Set<KJDraftCircleMode>(['center-radius', '2-point', '3-point', 'tangent-tangent-radius'])
 const ARC_MODES = new Set<KJDraftArcMode>(['center-start-end', '3-point'])
 const ELLIPSE_MODES = new Set<KJDraftEllipseMode>(['full', 'arc'])
 const POLYGON_MODES = new Set<KJDraftPolygonMode>(['inscribed', 'circumscribed', 'edge'])
 const DIMENSION_TYPES = new Set<KJDraftDimensionType>(['ALIGNED', 'ROTATED', 'RADIUS', 'DIAMETER', 'ANGULAR_3_POINT'])
 const TAU = Math.PI * 2
+const MAX_DRAFT_COORDINATE = 1e12
 
 function finite(value: unknown, label: string): number {
   const number = Number(value)
@@ -249,6 +266,66 @@ function circumcircle(points: readonly [KJDraftPoint, KJDraftPoint, KJDraftPoint
   return { center, radius: distance(center, a) }
 }
 
+function boundedDraftPoint(value: unknown, label: string): KJDraftPoint {
+  const point = point2(value, label)
+  if (Math.abs(point[0]) > MAX_DRAFT_COORDINATE || Math.abs(point[1]) > MAX_DRAFT_COORDINATE) throw new KJValidationError(`${label} exceeds the drafting coordinate limit`)
+  return point
+}
+
+function normalizedDraftLine(value: unknown, label: string, tolerance: number): KJDraftLineInput {
+  if (!value || typeof value !== 'object') throw new KJValidationError(`${label} must be a 2D line`)
+  const source = value as Partial<KJDraftLineInput>
+  const start = boundedDraftPoint(source.start, `${label}.start`), end = boundedDraftPoint(source.end, `${label}.end`)
+  requireDistinct(start, end, tolerance, label)
+  return { start, end }
+}
+
+/** Solve the finite-line TTR subset. The solution point selects one unique offset-line intersection. */
+export function circleTangentToLines(
+  firstValue: KJDraftLineInput,
+  secondValue: KJDraftLineInput,
+  radiusValue: number,
+  solutionValue: KJDraftPoint,
+  toleranceValue = 1e-9,
+): KJDraftTangentCircle {
+  const tolerance = positive(toleranceValue, 'tolerance')
+  const radius = positive(radiusValue, 'circleRadius')
+  if (radius > MAX_DRAFT_COORDINATE) throw new KJValidationError('circleRadius exceeds the drafting coordinate limit')
+  const first = normalizedDraftLine(firstValue, 'circleTangentLines[0]', tolerance)
+  const second = normalizedDraftLine(secondValue, 'circleTangentLines[1]', tolerance)
+  const solution = boundedDraftPoint(solutionValue, 'solutionPoint')
+  const dx1 = first.end[0] - first.start[0], dy1 = first.end[1] - first.start[1], length1 = Math.hypot(dx1, dy1)
+  const dx2 = second.end[0] - second.start[0], dy2 = second.end[1] - second.start[1], length2 = Math.hypot(dx2, dy2)
+  const ux1 = dx1 / length1, uy1 = dy1 / length1, ux2 = dx2 / length2, uy2 = dy2 / length2
+  const determinant = ux1 * uy2 - uy1 * ux2
+  if (Math.abs(determinant) <= tolerance) throw new KJValidationError('TTR lines must have one stable non-parallel intersection')
+  const candidates: KJDraftTangentCircle[] = []
+  for (const side1 of [-1, 1] as const) for (const side2 of [-1, 1] as const) {
+    const offset1: KJDraftPoint = [first.start[0] - uy1 * radius * side1, first.start[1] + ux1 * radius * side1]
+    const offset2: KJDraftPoint = [second.start[0] - uy2 * radius * side2, second.start[1] + ux2 * radius * side2]
+    const qx = offset2[0] - offset1[0], qy = offset2[1] - offset1[1]
+    const line1Parameter = (qx * uy2 - qy * ux2) / determinant
+    const center: KJDraftPoint = [offset1[0] + ux1 * line1Parameter, offset1[1] + uy1 * line1Parameter]
+    if (!center.every(Number.isFinite) || center.some(value => Math.abs(value) > MAX_DRAFT_COORDINATE)) continue
+    const project = (line: KJDraftLineInput, dx: number, dy: number): { point: KJDraftPoint; parameter: number } => {
+      const lengthSquared = dx * dx + dy * dy
+      const parameter = ((center[0] - line.start[0]) * dx + (center[1] - line.start[1]) * dy) / lengthSquared
+      return { point: [line.start[0] + dx * parameter, line.start[1] + dy * parameter], parameter }
+    }
+    const tangent1 = project(first, dx1, dy1), tangent2 = project(second, dx2, dy2)
+    const parameterTolerance1 = tolerance / Math.max(1, length1), parameterTolerance2 = tolerance / Math.max(1, length2)
+    if (tangent1.parameter < -parameterTolerance1 || tangent1.parameter > 1 + parameterTolerance1 || tangent2.parameter < -parameterTolerance2 || tangent2.parameter > 1 + parameterTolerance2) continue
+    candidates.push({ center, radius, tangentPoints: [tangent1.point, tangent2.point] })
+  }
+  if (!candidates.length) throw new KJValidationError('No TTR circle is tangent within both finite line segments')
+  candidates.sort((a, b) => distance(a.center, solution) - distance(b.center, solution) || a.center[0] - b.center[0] || a.center[1] - b.center[1])
+  if (candidates.length > 1) {
+    const firstDistance = distance(candidates[0]!.center, solution), secondDistance = distance(candidates[1]!.center, solution)
+    if (Math.abs(secondDistance - firstDistance) <= tolerance * Math.max(1, firstDistance, secondDistance)) throw new KJValidationError('TTR solution point is ambiguous')
+  }
+  return candidates[0]!
+}
+
 function withoutClosingDuplicate(points: readonly KJDraftPoint[], tolerance: number): KJDraftPoint[] {
   const output = points.map(value => point2(value))
   if (output.length > 1 && near(output[0]!, output.at(-1)!, tolerance)) output.pop()
@@ -287,6 +364,17 @@ function normalizeOptions(options: KJDraftingOptions): NormalizedOptions {
   const splineDegree = Number(options.splineDegree ?? 3)
   if (!Number.isInteger(splineDegree) || splineDegree < 1 || splineDegree > 10) throw new KJValidationError('Spline degree must be an integer from 1 to 10')
   const tolerance = positive(options.tolerance ?? 1e-9, 'tolerance')
+  let circleTangentLines: readonly [KJDraftLineInput, KJDraftLineInput] | null = null
+  let circleRadius: number | null = null
+  if (circleMode === 'tangent-tangent-radius') {
+    if (!Array.isArray(options.circleTangentLines) || options.circleTangentLines.length !== 2) throw new KJValidationError('TTR circle requires exactly two finite 2D lines')
+    circleTangentLines = [
+      normalizedDraftLine(options.circleTangentLines[0], 'circleTangentLines[0]', tolerance),
+      normalizedDraftLine(options.circleTangentLines[1], 'circleTangentLines[1]', tolerance),
+    ]
+    circleRadius = positive(options.circleRadius, 'circleRadius')
+    if (circleRadius > MAX_DRAFT_COORDINATE) throw new KJValidationError('circleRadius exceeds the drafting coordinate limit')
+  }
   const rotation = finite(options.rotation ?? 0, 'rotation')
   const textHeight = options.textHeight == null ? null : positive(options.textHeight, 'textHeight')
   const styleId = options.styleId == null ? null : String(options.styleId).trim()
@@ -304,6 +392,8 @@ function normalizeOptions(options: KJDraftingOptions): NormalizedOptions {
   if (!leaderText.trim() || leaderText.length > 16384 || /\u0000/.test(leaderText)) throw new KJValidationError('Leader text must be nonempty bounded Unicode text')
   return {
     circleMode,
+    circleTangentLines,
+    circleRadius,
     arcMode,
     ellipseMode,
     polygonMode,
@@ -336,7 +426,7 @@ function pointCounts(tool: KJDraftTool, options: NormalizedOptions): { minimum: 
   if (tool === 'spline') return { minimum: options.splineDegree + 1, maximum: null }
   if (tool === 'hatch') return { minimum: 3, maximum: null }
   if (tool === 'leader') return { minimum: 2, maximum: null }
-  if (tool === 'circle') { const count = options.circleMode === '3-point' ? 3 : 2; return { minimum: count, maximum: count } }
+  if (tool === 'circle') { const count = options.circleMode === 'tangent-tangent-radius' ? 1 : options.circleMode === '3-point' ? 3 : 2; return { minimum: count, maximum: count } }
   if (tool === 'arc') return { minimum: 3, maximum: 3 }
   if (tool === 'ellipse') { const count = options.ellipseMode === 'arc' ? 5 : 3; return { minimum: count, maximum: count } }
   if (tool === 'dimension') { const count = options.dimensionType === 'ANGULAR_3_POINT' ? 4 : ['ALIGNED', 'ROTATED'].includes(options.dimensionType) ? 3 : 2; return { minimum: count, maximum: count } }
@@ -363,6 +453,7 @@ function nextPointRole(tool: KJDraftTool, count: number, options: NormalizedOpti
     ? (['start', 'throughPoint', 'end'] as const)[Math.min(count, 2)]!
     : (['center', 'start', 'end'] as const)[Math.min(count, 2)]!
   if (tool === 'circle') {
+    if (options.circleMode === 'tangent-tangent-radius') return 'solutionPoint'
     if (options.circleMode === 'center-radius') return count === 0 ? 'center' : 'radiusPoint'
     if (options.circleMode === '2-point') return count === 0 ? 'diameterPoint1' : 'diameterPoint2'
     return (['start', 'throughPoint', 'end'] as const)[Math.min(count, 2)]!
@@ -721,8 +812,12 @@ export class KJDraftingSession {
       return this.#polyline(vertices, true)
     }
     if (this.tool === 'circle') {
-      const required = this.#options.circleMode === '3-point' ? 3 : 2
+      const required = this.#options.circleMode === 'tangent-tangent-radius' ? 1 : this.#options.circleMode === '3-point' ? 3 : 2
       requirePoints(points, required, 'Circle')
+      if (this.#options.circleMode === 'tangent-tangent-radius') {
+        const circle = circleTangentToLines(this.#options.circleTangentLines![0], this.#options.circleTangentLines![1], this.#options.circleRadius!, points[0]!, tolerance)
+        return this.#spec('CIRCLE', { center: point3(circle.center), radius: circle.radius })
+      }
       if (this.#options.circleMode === 'center-radius') {
         requireDistinct(points[0]!, points[1]!, tolerance, 'Circle radius')
         return this.#spec('CIRCLE', { center: point3(points[0]!), radius: distance(points[0]!, points[1]!) })

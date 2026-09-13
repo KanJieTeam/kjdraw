@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate, parseDraftPointInput } from '../src/drafting.js'
+import { circleTangentToLines, constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate, parseDraftPointInput } from '../src/drafting.js'
 import { createKJDrawSDK } from '../src/index.js'
 import { projectDimension } from '../src/geometry/annotation.js'
 
@@ -123,6 +123,37 @@ test('fixed point tools create native CREATE-ready entity specifications',()=>{
     const draft=createDraftingSession(tool),spec=tool==='point'?draft.addPoint([2,3]):(draft.addPoint([2,3]),draft.addPoint([5,7]))
     assert.equal(spec?.type,type)
   }
+})
+
+test('TTR circle solves one finite-segment tangent result selected by a solution point', async () => {
+  const horizontal = { start: [-100, 0], end: [100, 0] }, vertical = { start: [0, -100], end: [0, 100] }
+  const solved = circleTangentToLines(horizontal, vertical, 10, [20, 30])
+  assert.deepEqual(solved.center, [10, 10]); assert.equal(solved.radius, 10)
+  closeTo(solved.tangentPoints[0][0], 10); closeTo(solved.tangentPoints[0][1], 0)
+  closeTo(solved.tangentPoints[1][0], 0); closeTo(solved.tangentPoints[1][1], 10)
+  const draft = createDraftingSession('circle', { circleMode: 'tangent-tangent-radius', circleTangentLines: [horizontal, vertical], circleRadius: 10 })
+  assert.equal(draft.state.nextPoint, 'solutionPoint'); assert.equal(draft.state.minimumPoints, 1); assert.equal(draft.state.maximumPoints, 1)
+  const preview = draft.preview([-30, -25]); assert.deepEqual(preview.payload.center, [-10, -10, 0])
+  const result = draft.addPoint([-30, -25]); assert.deepEqual(result, { type: 'CIRCLE', payload: { center: [-10, -10, 0], radius: 10 } })
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'ttr-roundtrip', units: 'millimeter' })
+  await sdk.executeCommand('CREATE', result, { document: drawing })
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(drawing, { format }), { format })
+    const circle = reopened.listEntities({ type: 'CIRCLE' })[0]
+    assert.deepEqual(circle.payload.center, [-10,-10,0]); assert.equal(circle.payload.radius, 10)
+  }
+})
+
+test('TTR circle fails closed for parallel, segment-exterior, ambiguous and invalid inputs', () => {
+  const horizontal = { start: [-100, 0], end: [100, 0] }, vertical = { start: [0, -100], end: [0, 100] }
+  assert.throws(() => circleTangentToLines(horizontal, { start: [-100, 20], end: [100, 20] }, 5, [0, 0]), /parallel/)
+  assert.throws(() => circleTangentToLines({ start: [0,0], end: [5,0] }, { start: [0,0], end: [0,5] }, 10, [10,10]), /finite line segments/)
+  assert.throws(() => circleTangentToLines(horizontal, vertical, 10, [0, 0]), /ambiguous/)
+  for (const options of [
+    { circleMode: 'tangent-tangent-radius', circleTangentLines: [horizontal], circleRadius: 10 },
+    { circleMode: 'tangent-tangent-radius', circleTangentLines: [horizontal, vertical], circleRadius: 0 },
+    { circleMode: 'tangent-tangent-radius', circleTangentLines: [horizontal, vertical], circleRadius: 1e12 + 1 },
+  ]) assert.throws(() => createDraftingSession('circle', options))
 })
 
 test('variable drafts preview, undo, finish, close and cancel without hidden mutation',()=>{
