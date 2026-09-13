@@ -293,15 +293,57 @@ function joinDrawingProperties(payload: ReadonlyDeep<KJObjectPayload>): KJObject
   return result
 }
 
-/** Join connected open linear/arc paths into one editable planar polyline. */
+function joinEllipsePayloads(entities: readonly KJJoinEntity[], primaryIndex: number, tolerance: number): KJJoinResult {
+  const paths = entities.map((entity, index) => ({ id: String(entity.id ?? `join-source-${index}`), geometry: ellipseEditGeometry(entity) }))
+  if (paths.some(path => path.geometry.full)) throw new KJValidationError('JOIN ELLIPSE requires open elliptical arcs')
+  const primary = paths[primaryIndex]!, reference = primary.geometry
+  const parameterTolerance = Math.max(1e-10, tolerance / Math.max(reference.majorLength * reference.ratio, 1e-12))
+  const parameterDistance = (first: number, second: number): number => {
+    const delta = Math.abs(positiveTurn(first - second))
+    return Math.min(delta, TURN - delta)
+  }
+  for (const path of paths) {
+    const geometry = path.geometry
+    if (distance3(geometry.center, reference.center) > tolerance || distance3(geometry.majorAxis, reference.majorAxis) > tolerance
+      || Math.abs(geometry.ratio - reference.ratio) * reference.majorLength > tolerance) {
+      throw new KJValidationError('JOIN elliptical arcs must share the same center, axes and ratio')
+    }
+  }
+  const predecessorCount = paths.map(path => paths.filter(other => other !== path && parameterDistance(other.geometry.start + other.geometry.span, path.geometry.start) <= parameterTolerance).length)
+  if (predecessorCount.some(count => count > 1)) throw new KJValidationError('JOIN elliptical arcs overlap or branch')
+  const starts = predecessorCount.flatMap((count, index) => count === 0 ? [index] : [])
+  if (starts.length > 1) throw new KJValidationError('JOIN elliptical arcs are disconnected')
+  let current = starts[0] ?? primaryIndex
+  const used = new Set<number>(), ordered: typeof paths = []
+  while (!used.has(current)) {
+    used.add(current); ordered.push(paths[current]!)
+    const end = paths[current]!.geometry.start + paths[current]!.geometry.span
+    const next = paths.flatMap((path, index) => !used.has(index) && parameterDistance(path.geometry.start, end) <= parameterTolerance ? [index] : [])
+    if (next.length > 1) throw new KJValidationError('JOIN elliptical arcs overlap or branch')
+    if (!next.length) break
+    current = next[0]!
+  }
+  if (used.size !== paths.length) throw new KJValidationError('JOIN elliptical arcs are disconnected')
+  const span = ordered.reduce((sum, path) => sum + path.geometry.span, 0), closed = starts.length === 0
+  if (span > TURN + parameterTolerance || closed && Math.abs(span - TURN) > parameterTolerance) throw new KJValidationError('JOIN elliptical arcs overlap or exceed one turn')
+  const first = ordered[0]!.geometry, startParameter = closed ? 0 : first.start, endParameter = startParameter + (closed ? TURN : span)
+  const primaryPayload = entities[primaryIndex]!.payload ?? {}, payload = joinDrawingProperties(primaryPayload)
+  if (Object.hasOwn(primaryPayload, 'normal')) payload.normal = clone(primaryPayload.normal)
+  Object.assign(payload, { center: [...reference.center], majorAxis: [...reference.majorAxis], ratio: reference.ratio, startParameter, endParameter })
+  return { type: 'ELLIPSE', payload, sourceIds: ordered.map(path => path.id), closed }
+}
+
+/** Join connected planar paths as one editable polyline or native ellipse. */
 export function joinEntityPayloads(entities: readonly KJJoinEntity[], options: KJJoinOptions = {}): KJJoinResult {
   if (!Array.isArray(entities) || entities.length < 2) throw new KJValidationError('JOIN requires at least two entities')
   if (entities.length > 4096) throw new KJValidationError('JOIN supports at most 4096 entities per operation')
-  const paths = entities.map(joinPath), ids = paths.map(path => path.id)
+  const ids = entities.map((entity, index) => String(entity.id ?? `join-source-${index}`))
   if (new Set(ids).size !== ids.length) throw new KJValidationError('JOIN entity ids must be unique')
   const primaryId = String(options.primaryId ?? ids[0]), primaryIndex = ids.indexOf(primaryId)
   if (primaryIndex < 0) throw new KJValidationError('JOIN primary entity must be included in the input')
-  const tolerance = joinTolerance(options.tolerance), nodes = clusterJoinEndpoints(paths, tolerance)
+  const tolerance = joinTolerance(options.tolerance)
+  if (entities.every(entity => normalizeName(entity.type) === 'ELLIPSE')) return joinEllipsePayloads(entities, primaryIndex, tolerance)
+  const paths = entities.map(joinPath), nodes = clusterJoinEndpoints(paths, tolerance)
   const incident = nodes.map(() => [] as number[])
   for (let index = 0; index < paths.length; index += 1) {
     const path = paths[index]!

@@ -93,6 +93,49 @@ test('Workbench BREAK selects one-point elliptical-arc and two-point full-ellips
   expect(result[1].start).toBeCloseTo(Math.PI / 2, 6); expect(result[1].end).toBeCloseTo(Math.PI * 2, 6)
 })
 
+test('Workbench JOIN applies two selected elliptical arcs as one native ellipse with history, hit testing and KJD reopen', async ({ page }) => {
+  await mountWorkbench(page)
+  const source = await page.evaluate(async () => {
+    const { sdk, editor } = window.__breakWorkbench, drawing = editor.document
+    const first = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: { center: [60, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI, color: 4 } })
+    const second = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: { center: [60, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: Math.PI, endParameter: Math.PI * 2, color: 4 } })
+    await sdk.executeCommand('SELECT', { ids: [first.id, second.id], operation: 'replace' }, { document: drawing })
+    editor.fit(); return { firstId: first.id, beforeCount: drawing.listEntities().length, revision: drawing.revision }
+  })
+  const root = '#break-host', input = page.locator(`${root} [data-command]`)
+  await input.fill('JOIN'); await input.press('Enter')
+  await expect(page.locator(`${root} [data-modification-dialog]`)).toBeVisible()
+  await expect(page.locator(`${root} [data-modification]`)).toHaveValue('join')
+  await page.locator(`${root} [data-action="start-modification"]`).click()
+  await expect.poll(() => page.evaluate(() => window.__breakWorkbench.editor.document.revision)).toBe(source.revision + 1)
+  let joined = await page.evaluate(() => window.__breakWorkbench.editor.document.listEntities({ type: 'ELLIPSE' }).map(entity => ({ id: entity.id, start: entity.payload.startParameter, end: entity.payload.endParameter })))
+  expect(joined).toHaveLength(1); expect(joined[0].id).toBe(source.firstId); expect(joined[0].start).toBe(0); expect(joined[0].end).toBeCloseTo(Math.PI * 2, 10)
+  expect(await page.evaluate(() => window.__breakWorkbench.editor.document.listEntities().length)).toBe(source.beforeCount - 1)
+
+  await page.evaluate(() => window.__breakWorkbench.sdk.executeCommand('UNDO'))
+  await expect.poll(() => page.evaluate(() => window.__breakWorkbench.editor.document.listEntities({ type: 'ELLIPSE' }).length)).toBe(2)
+  await page.evaluate(() => window.__breakWorkbench.sdk.executeCommand('REDO'))
+  await expect.poll(() => page.evaluate(() => window.__breakWorkbench.editor.document.listEntities({ type: 'ELLIPSE' }).length)).toBe(1)
+  const reopen = await page.evaluate(async () => {
+    const { sdk, editor } = window.__breakWorkbench
+    const bytes = await sdk.writeDocument(editor.document, { format: 'KJD' })
+    const reopened = await sdk.readDocument(bytes, { format: 'KJD' }), ellipse = reopened.listEntities({ type: 'ELLIPSE' })[0]
+    return { count: reopened.listEntities({ type: 'ELLIPSE' }).length, id: ellipse.id, span: ellipse.payload.endParameter - ellipse.payload.startParameter }
+  })
+  expect(reopen).toEqual({ count: 1, id: source.firstId, span: Math.PI * 2 })
+
+  await page.evaluate(async () => {
+    const { sdk, editor } = window.__breakWorkbench
+    await sdk.executeCommand('SELECT', { ids: [], operation: 'replace' }, { document: editor.document }); editor.fit()
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+  })
+  const directHit = await page.evaluate(() => {
+    const renderer = window.__breakWorkbench.editor.workbench.renderer
+    return renderer.hitTest(renderer.worldToScreen([70, 0]), 9)?.entity.id ?? null
+  })
+  expect(directHit).toBe(source.firstId)
+})
+
 async function circleDrawing() {
   const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'break-playground', units: 'millimeter' })
   await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: [0, 0, 0], radius: 10, color: 2 } }, { document: drawing })

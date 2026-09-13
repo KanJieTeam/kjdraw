@@ -98,7 +98,7 @@ export interface KJPolylineEditLocation {
     readonly segmentIndex?: number;
     readonly vertexIndex?: number;
 }
-/** Join connected open linear/arc paths into one editable planar polyline. */
+/** Join connected planar paths as one editable polyline or native ellipse. */
 export declare function joinEntityPayloads(entities: readonly KJJoinEntity[], options?: KJJoinOptions): KJJoinResult;
 export declare function offsetEntityPayload(entity: KJEditingEntity | null | undefined, distance: unknown, options?: KJOffsetOptions): KJObjectPayload;
 export declare function breakEntityPayloads(entity: KJEditingEntity | null | undefined, options?: KJBreakOptions): KJDerivedEntityPayload[];

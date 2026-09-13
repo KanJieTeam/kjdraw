@@ -94,6 +94,7 @@ const commandModificationIds = Object.freeze({
   ARRAYRECT: 'array-rect', ARRAYRECTANGULAR: 'array-rect',
   ARRAYPOLAR: 'array-polar', POLARARRAY: 'array-polar',
   OFFSET: 'offset', O: 'offset',
+  JOIN: 'join', J: 'join',
   CHAMFER: 'chamfer', CHA: 'chamfer',
   FILLET: 'fillet', F: 'fillet',
 } satisfies Readonly<Record<string, KJModificationId>>)
@@ -199,10 +200,10 @@ export const KJ_MODIFICATION_DEFINITIONS: readonly KJModificationDefinition[] = 
   },
   {
     id: 'join', command: 'JOIN', label: text('Join', '合并'),
-    description: text('Join connected lines, arcs and open polylines into one editable path.', '将相连的直线、圆弧和开放多段线合并为一条可编辑路径。'),
+    description: text('Join connected lines/arcs/polylines, or co-elliptical arcs, into one editable path.', '将相连的直线、圆弧、多段线或同椭圆弧合并为一条可编辑路径。'),
     minSelection: 2, maxSelection: 4096,
-    supportedEntityTypes: ['LINE', 'ARC', 'LWPOLYLINE', 'POLYLINE'],
-    fields: [number('tolerance', 'Endpoint tolerance', '端点容差', 1e-9, { min: 0, step: 0.001 })],
+    supportedEntityTypes: ['LINE', 'ARC', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'],
+    fields: [number('tolerance', 'Endpoint tolerance', '端点容差', 1e-9, { min: 0, step: 1e-9 })],
     pointKeys: [],
   },
   {

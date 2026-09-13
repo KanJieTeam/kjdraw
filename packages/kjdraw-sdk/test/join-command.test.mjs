@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { KJDocument, KJValidationError, createKJDrawSDK, entityLength2 } from '../src/index.js'
+import { joinEntityPayloads } from '../src/editing.js'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 
 const close = (actual, expected, epsilon = 1e-8) => assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`)
 const activeRecords = drawing => Object.fromEntries(drawing.listObjects().map(record => [record.id, record]))
@@ -90,6 +92,79 @@ test('JOIN tolerance closes only explicit small endpoint gaps', async () => {
   assert.deepEqual(joined.payload.vertices.map(vertex => vertex.point), [[0, 0, 0], [5, 0, 0], [10, 0, 0]])
 })
 
+test('JOIN combines unordered co-elliptical arcs as one native editable ellipse and preserves primary identity', async () => {
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'join-ellipse', units: 'millimeter' })
+  const make = (startParameter, endParameter, properties = {}) => sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [10, 20, 0], majorAxis: [12, 0, 0], ratio: .5, startParameter, endParameter, ...properties,
+  } })
+  const first = await make(0, Math.PI / 2)
+  const primary = await make(Math.PI / 2, Math.PI, { color: 4, lineweight: 35 })
+  const last = await make(Math.PI, Math.PI * 3 / 2)
+  const marker = await sdk.executeCommand('CREATE', { type: 'POINT', payload: { position: [50, 50, 0] } })
+  const group = await sdk.executeCommand('GROUP', { name: 'Elliptical assembly', ids: [last.id, marker.id, first.id, primary.id] })
+  sdk.activeSelection.replace([last.id, marker.id, primary.id, first.id])
+  const saved = await sdk.getSelectionManager().saveNamed('Elliptical selection')
+  const before = activeRecords(drawing), revision = drawing.revision
+
+  const preview = joinEntityPayloads([last, primary, first], { primaryId: primary.id })
+  assert.equal(preview.type, 'ELLIPSE'); assert.equal(preview.closed, false)
+  assert.deepEqual(preview.sourceIds, [first.id, primary.id, last.id])
+  close(preview.payload.startParameter, 0); close(preview.payload.endParameter, Math.PI * 3 / 2)
+  assert.equal(drawing.revision, revision); assert.deepEqual(activeRecords(drawing), before)
+
+  const joined = await sdk.executeCommand('JOIN', { id: primary.id, ids: [last.id, primary.id, first.id] })
+  assert.equal(joined.id, primary.id); assert.equal(joined.handle, primary.handle); assert.equal(joined.type, 'ELLIPSE')
+  assert.deepEqual(joined.payload.center, [10, 20, 0]); assert.deepEqual(joined.payload.majorAxis, [12, 0, 0])
+  close(joined.payload.ratio, .5); close(joined.payload.startParameter, 0); close(joined.payload.endParameter, Math.PI * 3 / 2)
+  assert.equal(joined.payload.color, 4); assert.equal(joined.payload.lineweight, 35)
+  assert.equal(drawing.getObject(first.id), null); assert.equal(drawing.getObject(last.id), null)
+  assert.deepEqual(drawing.getObject(group.id).payload.memberIds, [joined.id, marker.id])
+  assert.deepEqual(drawing.getObject(saved.id).payload.memberIds, [joined.id, marker.id])
+  assert.equal(drawing.validate().valid, true)
+
+  const committed = activeRecords(drawing)
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(drawing, { format, ...(format === 'DXF' ? { version: '2018' } : {}) }), { format })
+    const ellipse = reopened.listEntities({ type: 'ELLIPSE' })[0]
+    assert.ok(ellipse); close(ellipse.payload.startParameter, 0); close(ellipse.payload.endParameter, Math.PI * 3 / 2)
+  }
+  const dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' }), python = process.env.KJDRAW_PYTHON || 'python'
+  const result = spawnSyncWithFileStdin(python, ['-c', 'import io,json,ezdxf,sys,os; p=os.environ.get("KJDRAW_FILE_STDIN_PATH"); s=open(p,encoding="utf-8").read() if p else sys.stdin.read(); d=ezdxf.read(io.StringIO(s)); a=d.audit(); es=list(d.modelspace().query("ELLIPSE")); print(json.dumps({"ellipses":len(es),"start":es[0].dxf.start_param,"end":es[0].dxf.end_param,"errors":len(a.errors),"fixes":len(a.fixes)}))'], dxf, { encoding: 'utf8', windowsHide: true })
+  assert.equal(result.status, 0, result.stderr)
+  const audited = JSON.parse(result.stdout.trim()); assert.equal(audited.ellipses, 1); close(audited.start, 0); close(audited.end, Math.PI * 3 / 2); assert.equal(audited.errors + audited.fixes, 0)
+  await sdk.executeCommand('UNDO'); assert.deepEqual(activeRecords(drawing), before)
+  await sdk.executeCommand('REDO'); assert.deepEqual(activeRecords(drawing), committed)
+})
+
+test('JOIN closes a complete ellipse and rejects incompatible, disconnected, overlapping and already closed inputs atomically', async () => {
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'join-ellipse-validation' })
+  const make = (startParameter, endParameter, patch = {}) => sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [0, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter, endParameter, ...patch,
+  } })
+  const top = await make(0, Math.PI), bottom = await make(Math.PI, Math.PI * 2)
+  const full = await sdk.executeCommand('JOIN', { ids: [bottom.id, top.id] })
+  assert.equal(full.type, 'ELLIPSE'); close(full.payload.startParameter, 0); close(full.payload.endParameter, Math.PI * 2)
+  const dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
+  const reopened = await createKJDrawSDK().readDocument(dxf, { format: 'DXF' })
+  const native = reopened.listEntities({ type: 'ELLIPSE' })[0]; assert.ok(native); close(native.payload.endParameter - native.payload.startParameter, Math.PI * 2)
+
+  const rejectUnchanged = async (ids, pattern) => {
+    const before = drawing.serialize(), revision = drawing.revision, history = drawing.history
+    await assert.rejects(sdk.executeCommand('JOIN', { ids }), pattern)
+    assert.equal(drawing.serialize(), before); assert.equal(drawing.revision, revision); assert.deepEqual(drawing.history, history)
+  }
+  const closed = await make(0, Math.PI * 2, { center: [30, 0, 0] })
+  const incompatible = await make(0, Math.PI / 2, { center: [40, 0, 0] })
+  const gap = await make(Math.PI, Math.PI * 3 / 2, { center: [40, 0, 0] })
+  await rejectUnchanged([closed.id, incompatible.id], /open elliptical arcs/)
+  await rejectUnchanged([incompatible.id, gap.id], /disconnected/)
+  const overlapA = await make(0, Math.PI, { center: [60, 0, 0] })
+  const overlapB = await make(Math.PI / 2, Math.PI * 3 / 2, { center: [60, 0, 0] })
+  await rejectUnchanged([overlapA.id, overlapB.id], /disconnected|overlap/)
+  const line = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [40, 0], end: [45, 0] } })
+  await rejectUnchanged([incompatible.id, line.id], /not implemented/)
+})
+
 test('JOIN rejects branches, duplicate ids, cross-space, non-coplanar and protected sources atomically', async () => {
   const rejectUnchanged = async (drawing, work, predicate = error => error instanceof KJValidationError) => {
     const before = drawing.serialize(), history = drawing.history, revision = drawing.revision
@@ -137,6 +212,6 @@ test('JOIN is declared as an exact bounded topology capability', () => {
   const sdk = createKJDrawSDK()
   const capability = sdk.capabilities().commands.find(command => command.id === 'JOIN')
   assert.deepEqual(capability.capabilities, {
-    domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC', 'LWPOLYLINE', 'POLYLINE'], maximumEntities: 4096,
+    domain: 'topology', precision: 'exact', supportedEntityTypes: ['LINE', 'ARC', 'ELLIPSE', 'LWPOLYLINE', 'POLYLINE'], maximumEntities: 4096,
   })
 })
