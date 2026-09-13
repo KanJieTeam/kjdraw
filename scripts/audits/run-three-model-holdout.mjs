@@ -139,7 +139,7 @@ function reportMatches(report, phase, model, repetitions, runtime) {
   const common = report?.mode === 'live' && report.fixtureWarning === null && report.model === model.requestedModel && report.repetitions === repetitions && nodeMatches && report.runtime?.platform === runtime.platform && report.runtime?.architecture === runtime.architecture && report.consistentReturnedModel === true && report.returnedModels?.length === 1
   if (!common) return false
   if (phase === 'generation') return report.schema === 'com.kanjie.kjdraw.benchmark.paired-model@1' && report.taskSuite === 'release-holdout-generation' && report.status === 'complete' && report.plannedRequests === GENERATION_REQUESTS_PER_REPETITION * repetitions && report.attemptedRequests === report.plannedRequests && report.unexecutedRequests === 0
-  return report.schema === 'com.kanjie.kjdraw.benchmark.behavioral-suite@2' && report.status === 'complete' && report.plannedRuns === BEHAVIORAL_RUNS_PER_REPETITION * repetitions && report.attemptedRuns === report.plannedRuns && report.unexecutedRuns === 0
+  return report.schema === 'com.kanjie.kjdraw.benchmark.behavioral-suite@2' && ['complete', 'failed'].includes(report.status) && report.plannedRuns === BEHAVIORAL_RUNS_PER_REPETITION * repetitions && report.attemptedRuns === report.plannedRuns && report.unexecutedRuns === 0
 }
 
 async function completedPhase(parent, phase, model, repetitions, runtime) {

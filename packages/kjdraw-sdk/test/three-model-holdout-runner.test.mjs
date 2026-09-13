@@ -14,7 +14,7 @@ const configuration = () => ({
 })
 const identity = structuredClone(candidate)
 
-async function fakeReports(secretLog, failFirstGeneration = false) {
+async function fakeReports(secretLog, failFirstGeneration = false, behavioralStatus = 'complete') {
   let failed = false
   const generation = async options => {
     secretLog.push(options.apiKey)
@@ -31,7 +31,7 @@ async function fakeReports(secretLog, failFirstGeneration = false) {
     secretLog.push(options.env.KJDRAW_BENCH_API_KEY)
     const modelName = options.env.KJDRAW_BENCH_MODEL, runtime = modelName === 'model-cn-a' ? { node: 'v22.19.0', platform: 'win32', architecture: 'x64' } : { node: 'v22.20.0', platform: 'linux', architecture: 'x64' }
     await import('node:fs/promises').then(({ mkdir }) => mkdir(options.output, { recursive: true }))
-    await writeFile(resolve(options.output, 'report.json'), JSON.stringify({ schema: 'com.kanjie.kjdraw.benchmark.behavioral-suite@2', mode: 'live', fixtureWarning: null, model: modelName, status: 'complete', repetitions: options.repetitions, plannedRuns: options.maxRuns, attemptedRuns: options.maxRuns, unexecutedRuns: 0, runtime, consistentReturnedModel: true, returnedModels: [`${modelName}-returned`] }))
+    await writeFile(resolve(options.output, 'report.json'), JSON.stringify({ schema: 'com.kanjie.kjdraw.benchmark.behavioral-suite@2', mode: 'live', fixtureWarning: null, model: modelName, status: behavioralStatus, repetitions: options.repetitions, plannedRuns: options.maxRuns, attemptedRuns: options.maxRuns, unexecutedRuns: 0, runtime, consistentReturnedModel: true, returnedModels: [`${modelName}-returned`] }))
   }
   return { generation, behavioral }
 }
@@ -83,4 +83,15 @@ test('orchestrator rejects configuration for another candidate and another assig
   const workspace = await mkdtemp(resolve(tmpdir(), 'kjdraw-three-model-identity-')); t.after(() => rm(workspace, { recursive: true, force: true }))
   await assert.rejects(runThreeModelHoldout(configuration(), { workspace, candidateIdentity: { ...identity, commit: 'b'.repeat(40) } }), /exact checkout candidate/)
   await assert.rejects(runThreeModelHoldout(configuration(), { workspace, candidateIdentity: identity, runtime: { node: 'v22.19.0', platform: 'linux', architecture: 'x64' }, modelId: 'cn-a', env: { MODEL_CN_A_KEY: 'secret-a' } }), /different runtime platform/)
+})
+
+test('orchestrator preserves complete failed behavioral reports for the 95 percent evidence decision', async t => {
+  const workspace = await mkdtemp(resolve(tmpdir(), 'kjdraw-three-model-threshold-')); t.after(() => rm(workspace, { recursive: true, force: true }))
+  const secrets = [], runners = await fakeReports(secrets, false, 'failed'), env = { MODEL_CN_A_KEY: 'secret-a', MODEL_CN_B_KEY: 'secret-b', MODEL_GLOBAL_C_KEY: 'secret-c' }
+  await runThreeModelHoldout(configuration(), { workspace, candidateIdentity: identity, runtime: { node: 'v22.19.0', platform: 'win32', architecture: 'x64' }, env, runGeneration: runners.generation, runBehavioral: runners.behavioral })
+  let built = false
+  const result = await runThreeModelHoldout(configuration(), { workspace, candidateIdentity: identity, runtime: { node: 'v22.20.0', platform: 'linux', architecture: 'x64' }, env, runGeneration: runners.generation, runBehavioral: runners.behavioral, buildEvidence: async () => { built = true; return { valid: true } } })
+  assert.equal(result.status, 'complete')
+  assert.equal(built, true)
+  assert.equal((await readdir(resolve(workspace, 'models/cn-a'))).filter(name => name.startsWith('behavioral-attempt-')).length, 1)
 })
