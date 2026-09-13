@@ -102,6 +102,9 @@ export interface KJDraftingOptions {
   precision?: number | null
   overallScale?: number | null
   leaderText?: string
+  leaderWidth?: number | null
+  leaderRotation?: number
+  leaderAttachmentPoint?: number
   arrowEnabled?: boolean
   patternName?: string
   patternScale?: number
@@ -142,6 +145,9 @@ interface NormalizedOptions {
   precision: number | null
   overallScale: number | null
   leaderText: string
+  leaderWidth: number | null
+  leaderRotation: number
+  leaderAttachmentPoint: number
   arrowEnabled: boolean
   patternName: string
   patternScale: number
@@ -390,6 +396,10 @@ function normalizeOptions(options: KJDraftingOptions): NormalizedOptions {
   if (!styleName) throw new KJValidationError('styleName cannot be empty')
   const leaderText = String(options.leaderText ?? 'Note')
   if (!leaderText.trim() || leaderText.length > 16384 || /\u0000/.test(leaderText)) throw new KJValidationError('Leader text must be nonempty bounded Unicode text')
+  const leaderWidth = options.leaderWidth == null ? null : positive(options.leaderWidth, 'leaderWidth')
+  const leaderRotation = finite(options.leaderRotation ?? 0, 'leaderRotation')
+  const leaderAttachmentPoint = finite(options.leaderAttachmentPoint ?? 7, 'leaderAttachmentPoint')
+  if (!Number.isInteger(leaderAttachmentPoint) || leaderAttachmentPoint < 1 || leaderAttachmentPoint > 9) throw new KJValidationError('leaderAttachmentPoint must be an integer from 1 to 9')
   return {
     circleMode,
     circleTangentLines,
@@ -409,6 +419,9 @@ function normalizeOptions(options: KJDraftingOptions): NormalizedOptions {
     precision,
     overallScale,
     leaderText,
+    leaderWidth,
+    leaderRotation,
+    leaderAttachmentPoint,
     arrowEnabled: options.arrowEnabled !== false,
     patternName,
     patternScale,
@@ -711,7 +724,9 @@ export class KJDraftingSession {
     for (let index = 1; index < points.length; index += 1) requireDistinct(points[index - 1]!, points[index]!, this.#options.tolerance, 'Leader segment')
     return this.#spec('LEADER', {
       vertices: points.map(point3), textPosition: point3(points.at(-1)!), text: this.#options.leaderText,
-      textHeight: this.#options.textHeight ?? 2.5, ...(this.#options.styleId ? { styleId: this.#options.styleId } : {}), arrowEnabled: this.#options.arrowEnabled,
+      textHeight: this.#options.textHeight ?? 2.5, ...(this.#options.leaderWidth === null ? {} : { width: this.#options.leaderWidth }),
+      rotation: this.#options.leaderRotation, attachmentPoint: this.#options.leaderAttachmentPoint,
+      ...(this.#options.styleId ? { styleId: this.#options.styleId } : {}), arrowEnabled: this.#options.arrowEnabled,
     })
   }
 

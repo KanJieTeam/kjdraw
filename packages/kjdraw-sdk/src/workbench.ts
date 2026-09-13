@@ -1483,19 +1483,21 @@ export class KJDrawWorkbench {
     this.#drawOverlay()
   }
 
-  #draftField(host: HTMLElement, key: string, labelText: KJLocalizedControlText, options: { type?: 'number' | 'text'; value: string; min?: number; max?: number; step?: number | 'any'; required?: boolean }): void {
+  #draftField(host: HTMLElement, key: string, labelText: KJLocalizedControlText, options: { type?: 'number' | 'text' | 'textarea'; value: string; min?: number; max?: number; step?: number | 'any'; required?: boolean }): void {
     const label = document.createElement('label')
     label.className = 'field'
     const text = document.createElement('span')
     text.textContent = this.#localizedControlText(labelText)
-    const input = document.createElement('input')
-    input.type = options.type ?? 'number'
+    const input = options.type === 'textarea' ? document.createElement('textarea') : document.createElement('input')
+    if (input instanceof HTMLInputElement) input.type = options.type ?? 'number'
     input.value = options.value
     input.required = options.required ?? true
     input.dataset.draftOption = key
-    if (options.min !== undefined) input.min = String(options.min)
-    if (options.max !== undefined) input.max = String(options.max)
-    if (options.step !== undefined) input.step = String(options.step)
+    if (input instanceof HTMLInputElement) {
+      if (options.min !== undefined) input.min = String(options.min)
+      if (options.max !== undefined) input.max = String(options.max)
+      if (options.step !== undefined) input.step = String(options.step)
+    }
     label.append(text, input)
     host.append(label)
   }
@@ -1586,9 +1588,16 @@ export class KJDrawWorkbench {
     }
     if (tool === 'leader') {
       const styleTable = this.document?.getTable('textStyles'), styleId = configured.styleId ?? styleTable?.currentId ?? styleTable?.records[0]?.id ?? ''
-      this.#draftField(host, 'leaderText', { en: 'Annotation text', zh: '引线文字' }, { type: 'text', value: String(configured.leaderText ?? 'Note') })
+      this.#draftField(host, 'leaderText', { en: 'Annotation text', zh: '引线文字' }, { type: 'textarea', value: String(configured.leaderText ?? 'Note') })
       this.#draftSelect(host, 'styleId', { en: 'Text style', zh: '文字样式' }, (styleTable?.records ?? []).map(record => ({ value: record.id, label: { en: record.name ?? 'STANDARD', zh: record.name ?? 'STANDARD' } })), styleId)
       this.#draftField(host, 'textHeight', { en: 'Text height', zh: '文字高度' }, { value: String(configured.textHeight ?? 2.5), min: Number.EPSILON, step: 'any' })
+      this.#draftField(host, 'leaderWidth', { en: 'Text width (blank = auto)', zh: '文字宽度（留空自动）' }, { value: configured.leaderWidth == null ? '' : String(configured.leaderWidth), min: Number.EPSILON, step: 'any', required: false })
+      this.#draftField(host, 'leaderRotationDegrees', { en: 'Rotation (°)', zh: '旋转角度（°）' }, { value: String(Number(configured.leaderRotation ?? 0) * 180 / Math.PI), step: 'any' })
+      this.#draftSelect(host, 'leaderAttachmentPoint', { en: 'Text attachment', zh: '文字对齐' }, [
+        { value: '1', label: { en: 'Top left', zh: '左上' } }, { value: '2', label: { en: 'Top center', zh: '中上' } }, { value: '3', label: { en: 'Top right', zh: '右上' } },
+        { value: '4', label: { en: 'Middle left', zh: '左中' } }, { value: '5', label: { en: 'Middle center', zh: '居中' } }, { value: '6', label: { en: 'Middle right', zh: '右中' } },
+        { value: '7', label: { en: 'Bottom left', zh: '左下' } }, { value: '8', label: { en: 'Bottom center', zh: '中下' } }, { value: '9', label: { en: 'Bottom right', zh: '右下' } },
+      ], String(configured.leaderAttachmentPoint ?? 7))
       this.#draftCheck(host, 'arrowEnabled', { en: 'Arrowhead', zh: '显示箭头' }, configured.arrowEnabled !== false)
     }
   }
@@ -1609,10 +1618,10 @@ export class KJDrawWorkbench {
 
   #startDraftFromDialog(): void {
     const form = query<HTMLElement>(this.root, '[data-draft-form]')
-    const invalid = form.querySelector<HTMLInputElement | HTMLSelectElement>('input:invalid,select:invalid')
+    const invalid = form.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input:invalid,select:invalid,textarea:invalid')
     if (invalid) { invalid.reportValidity(); return }
     const tool = query<HTMLSelectElement>(form, '[data-draft-tool]').value as KJDraftTool
-    const value = (key: string): string => query<HTMLInputElement | HTMLSelectElement>(form, `[data-draft-option="${key}"]`).value
+    const value = (key: string): string => query<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(form, `[data-draft-option="${key}"]`).value
     const checked = (key: string): boolean => query<HTMLInputElement>(form, `[data-draft-option="${key}"]`).checked
     let options: KJDraftingOptions = {}
     if (tool === 'circle') {
@@ -1637,7 +1646,12 @@ export class KJDrawWorkbench {
         textOverride: value('textOverride') || null,
       }
     }
-    if (tool === 'leader') options = { leaderText: value('leaderText'), styleId: value('styleId'), textHeight: Number(value('textHeight')), arrowEnabled: checked('arrowEnabled') }
+    if (tool === 'leader') options = {
+      leaderText: value('leaderText'), styleId: value('styleId'), textHeight: Number(value('textHeight')),
+      leaderWidth: value('leaderWidth') ? Number(value('leaderWidth')) : null,
+      leaderRotation: Number(value('leaderRotationDegrees')) * Math.PI / 180,
+      leaderAttachmentPoint: Number(value('leaderAttachmentPoint')), arrowEnabled: checked('arrowEnabled'),
+    }
     this.#draftOptions.set(tool, options)
     query<HTMLDialogElement>(this.root, '[data-draft-dialog]').close()
     this.setTool(tool)

@@ -1,10 +1,28 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createKJDrawSDK } from '../src/sdk.js'
+import { createDraftingSession } from '../src/drafting.js'
 import { KJValidationError } from '../src/errors.js'
 import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 
 const execute = (sdk, drawing, command, args = {}, options = {}) => sdk.executeCommand(command, args, { document: drawing, ...options })
+
+test('leader drafting preserves multiline layout controls in the native command payload', () => {
+  const draft = createDraftingSession('leader', {
+    leaderText: '泵出口 P-101\n设计压力 1.6 MPa', textHeight: 4, leaderWidth: 28,
+    leaderRotation: Math.PI / 12, leaderAttachmentPoint: 5, arrowEnabled: false,
+  })
+  draft.addPoint([0, 0]); draft.addPoint([20, 10]); draft.addPoint([35, 10])
+  assert.deepEqual(draft.finish()?.payload, {
+    vertices: [[0, 0, 0], [20, 10, 0], [35, 10, 0]], textPosition: [35, 10, 0],
+    text: '泵出口 P-101\n设计压力 1.6 MPa', textHeight: 4, width: 28,
+    rotation: Math.PI / 12, attachmentPoint: 5, arrowEnabled: false,
+  })
+  for (const options of [
+    { leaderWidth: 0 }, { leaderWidth: Infinity }, { leaderRotation: Infinity },
+    { leaderAttachmentPoint: 0 }, { leaderAttachmentPoint: 10 }, { leaderAttachmentPoint: 1.5 },
+  ]) assert.throws(() => createDraftingSession('leader', options), KJValidationError)
+})
 
 test('native LEADER owns editable MTEXT and round-trips through KJD and DXF', async t => {
   const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'native-leader', units: 'millimeter' })

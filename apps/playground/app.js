@@ -139,7 +139,7 @@ function drawingOptions(value){
     const style=doc().getObject($('dimension-style').value)
     return {dimensionType:$('dimension-type').value,rotation:$('dimension-direction').value==='vertical'?Math.PI/2:0,styleId:style?.id??null,styleName:style?.name??'STANDARD',precision:Number($('dimension-precision').value),overallScale:Number($('dimension-scale').value),textHeight:Number($('dimension-height').value),textOverride:$('dimension-text-override').value||null}
   }
-  if(value==='leader')return {leaderText:$('leader-text').value,textHeight:Number($('leader-height').value),styleId:$('leader-style').value,arrowEnabled:$('leader-arrow').checked}
+  if(value==='leader')return {leaderText:$('leader-text').value,textHeight:Number($('leader-height').value),styleId:$('leader-style').value,leaderWidth:$('leader-width').value?Number($('leader-width').value):null,leaderRotation:Number($('leader-rotation').value)*Math.PI/180,leaderAttachmentPoint:Number($('leader-attachment').value),arrowEnabled:$('leader-arrow').checked}
   if(value==='hatch')return {patternName:$('hatch-pattern').value,patternScale:Number($('hatch-scale').value),solid:$('hatch-pattern').value==='SOLID'}
   return {}
 }
@@ -149,7 +149,7 @@ function updateDraftControls(){
   if(isDraftTool(tool))$('drawing-tool').value=tool
   for(const field of container.querySelectorAll('[data-draft-tools]'))field.hidden=!field.dataset.draftTools.split(' ').includes(tool)
   const state=drafting?.session.state
-  for(const input of container.querySelectorAll('input,select'))input.dataset.previousValue=input.type==='checkbox'?String(input.checked):input.value
+  for(const input of container.querySelectorAll('input,select,textarea'))input.dataset.previousValue=input.type==='checkbox'?String(input.checked):input.value
   $('finish-draft').disabled=!state?.canFinish;$('close-draft').disabled=!state?.canClose;$('undo-draft-point').disabled=!state?.points.length
 }
 function updateDraftHint(){
@@ -1186,7 +1186,7 @@ function initializeDraftingControls(){
   const add=(id,en,zh,tools,values,defaultValue,limits={})=>{
     const label=document.createElement('label');label.dataset.draftTools=tools;label.append(bilingual(document.createElement('span'),en,zh));let input
     if(values){input=document.createElement('select');for(const [value,labelEn,labelZh] of values){const option=bilingual(document.createElement('option'),labelEn,labelZh);option.value=value;input.append(option)}}
-    else {input=document.createElement('input');input.type=limits.type??'number';for(const [key,value]of Object.entries(limits))if(key!=='type')input[key]=String(value)}
+    else {input=document.createElement(limits.type==='textarea'?'textarea':'input');if(input.tagName==='INPUT')input.type=limits.type??'number';for(const [key,value]of Object.entries(limits))if(key!=='type')input[key]=String(value)}
     input.id=id;if(input.type==='checkbox')input.checked=Boolean(defaultValue);else input.value=String(defaultValue);input.dataset.previousValue=input.type==='checkbox'?String(input.checked):input.value;input.setAttribute('aria-label',i18n.locale==='zh'?zh:en)
     input.onchange=()=>{
       if(busy||drafting?.session.points.length){if(input.type==='checkbox')input.checked=input.dataset.previousValue==='true';else input.value=input.dataset.previousValue;if(busy)busyNotice();else message(i18n.locale==='zh'?'请先完成或按 Esc 取消当前图形，再更改构造参数。':'Finish the current shape or press Esc before changing construction options.');return}
@@ -1208,9 +1208,12 @@ function initializeDraftingControls(){
   add('dimension-scale','Overall scale','标注整体比例','dimension',null,1,{min:.000001,step:'any'})
   add('dimension-height','Text height','字高','dimension',null,2.5,{min:.001,step:'any'})
   add('dimension-text-override','Text override','文字替代','dimension',null,'',{type:'text'})
-  add('leader-text','Annotation text','引线文字','leader',null,'Note',{type:'text'})
+  add('leader-text','Annotation text','引线文字','leader',null,'Note',{type:'textarea',required:true})
   add('leader-style','Text style','文字样式','leader',[['','STANDARD','STANDARD']],'')
   add('leader-height','Text height','文字高度','leader',null,2.5,{min:.001,step:'any'})
+  add('leader-width','Text width (auto)','文字宽度（自动）','leader',null,'',{min:.001,step:'any'})
+  add('leader-rotation','Rotation (°)','旋转角度（°）','leader',null,0,{step:'any'})
+  add('leader-attachment','Text attachment','文字对齐','leader',[['1','Top left','左上'],['2','Top center','中上'],['3','Top right','右上'],['4','Middle left','左中'],['5','Middle center','居中'],['6','Middle right','右中'],['7','Bottom left','左下'],['8','Bottom center','中下'],['9','Bottom right','右下']],'7')
   add('leader-arrow','Arrowhead','显示箭头','leader',null,true,{type:'checkbox'})
   add('hatch-pattern','Pattern','图案','hatch',[['ANSI31','Diagonal','斜线'],['ANSI37','Cross','交叉'],['SOLID','Solid fill','实心']],'ANSI31')
   add('hatch-scale','Scale','比例','hatch',null,1,{min:.001,step:.1})
@@ -1222,5 +1225,5 @@ function initializeDraftingControls(){
   const modifySelect=document.createElement('select');modifySelect.id='modification-tool';const placeholder=bilingual(document.createElement('option'),'More editing tools…','更多修改工具…');placeholder.value='';modifySelect.append(placeholder)
   for(const definition of KJ_MODIFICATION_DEFINITIONS){const option=bilingual(document.createElement('option'),definition.label.en,definition.label.zh);option.value=definition.id;modifySelect.append(option)}
   modifySelect.setAttribute('aria-label',i18n.locale==='zh'?'修改工具':'Modification tool');modifySelect.onchange=()=>{const value=modifySelect.value;modifySelect.value='';if(value)run(()=>beginModification(value))};modify.append(modifySelect);document.querySelector('.ribbon-groups').append(modify)
-  document.addEventListener('kjdraw:language',()=>{for(const node of document.querySelectorAll('[data-label-en]'))node.textContent=i18n.locale==='zh'?node.dataset.labelZh:node.dataset.labelEn;for(const label of options.querySelectorAll('label'))label.querySelector('input,select')?.setAttribute('aria-label',label.querySelector('span').textContent);picker.setAttribute('aria-label',i18n.locale==='zh'?'绘图工具':'Drawing tool');modifySelect.setAttribute('aria-label',i18n.locale==='zh'?'修改工具':'Modification tool');options.setAttribute('aria-label',i18n.locale==='zh'?'绘图参数':'Drawing options');if(drafting)updateDraftHint()})
+  document.addEventListener('kjdraw:language',()=>{for(const node of document.querySelectorAll('[data-label-en]'))node.textContent=i18n.locale==='zh'?node.dataset.labelZh:node.dataset.labelEn;for(const label of options.querySelectorAll('label'))label.querySelector('input,select,textarea')?.setAttribute('aria-label',label.querySelector('span').textContent);picker.setAttribute('aria-label',i18n.locale==='zh'?'绘图工具':'Drawing tool');modifySelect.setAttribute('aria-label',i18n.locale==='zh'?'修改工具':'Modification tool');options.setAttribute('aria-label',i18n.locale==='zh'?'绘图参数':'Drawing options');if(drafting)updateDraftHint()})
 }

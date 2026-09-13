@@ -44,6 +44,9 @@ export interface KJDraftingOptions {
     precision?: number | null;
     overallScale?: number | null;
     leaderText?: string;
+    leaderWidth?: number | null;
+    leaderRotation?: number;
+    leaderAttachmentPoint?: number;
     arrowEnabled?: boolean;
     patternName?: string;
     patternScale?: number;

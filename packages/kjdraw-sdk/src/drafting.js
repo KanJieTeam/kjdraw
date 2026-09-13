@@ -323,6 +323,10 @@ function normalizeOptions(options) {
     if (!styleName) throw new KJValidationError('styleName cannot be empty');
     const leaderText = String(options.leaderText ?? 'Note');
     if (!leaderText.trim() || leaderText.length > 16384 || /\u0000/.test(leaderText)) throw new KJValidationError('Leader text must be nonempty bounded Unicode text');
+    const leaderWidth = options.leaderWidth == null ? null : positive(options.leaderWidth, 'leaderWidth');
+    const leaderRotation = finite(options.leaderRotation ?? 0, 'leaderRotation');
+    const leaderAttachmentPoint = finite(options.leaderAttachmentPoint ?? 7, 'leaderAttachmentPoint');
+    if (!Number.isInteger(leaderAttachmentPoint) || leaderAttachmentPoint < 1 || leaderAttachmentPoint > 9) throw new KJValidationError('leaderAttachmentPoint must be an integer from 1 to 9');
     return {
         circleMode,
         circleTangentLines,
@@ -342,6 +346,9 @@ function normalizeOptions(options) {
         precision,
         overallScale,
         leaderText,
+        leaderWidth,
+        leaderRotation,
+        leaderAttachmentPoint,
         arrowEnabled: options.arrowEnabled !== false,
         patternName,
         patternScale,
@@ -765,6 +772,11 @@ export class KJDraftingSession {
             textPosition: point3(points.at(-1)),
             text: this.#options.leaderText,
             textHeight: this.#options.textHeight ?? 2.5,
+            ...this.#options.leaderWidth === null ? {} : {
+                width: this.#options.leaderWidth
+            },
+            rotation: this.#options.leaderRotation,
+            attachmentPoint: this.#options.leaderAttachmentPoint,
             ...this.#options.styleId ? {
                 styleId: this.#options.styleId
             } : {},
