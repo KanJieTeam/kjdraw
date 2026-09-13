@@ -12,9 +12,11 @@ export const KJDRAW_CHAT_TOOL_NAMES = Object.freeze([
 ])
 const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES, 'cad_propose_road_drawing'])
 const roadRevisionToolNames = Object.freeze([...meterToolNames, 'cad_propose_road_revision'])
+const selectionToolNames = new Map([KJDRAW_CHAT_TOOL_NAMES,meterToolNames,roadRevisionToolNames].map(names=>[names,Object.freeze([...names,'cad_read_selection_sets'])]))
 /** Host policy only: SDK defaults and explicitly selected/locked tools remain unchanged. */
 export function getKJDrawChatToolNames(document,roadDrawingIds=[]) {
-  return document.snapshot().header.units === 'meter' ? roadDrawingIds.length?roadRevisionToolNames:meterToolNames : KJDRAW_CHAT_TOOL_NAMES
+  const names=document.snapshot().header.units === 'meter' ? roadDrawingIds.length?roadRevisionToolNames:meterToolNames : KJDRAW_CHAT_TOOL_NAMES
+  return document.listObjects({kind:'group',type:'SELECTION_SET'}).length?selectionToolNames.get(names):names
 }
 
 const copy = {
@@ -51,6 +53,7 @@ const copy = {
   limit: ['This run reached its limit. No changes were applied; narrow the request and continue.', '本次运行达到预算上限，未应用修改。请缩小需求范围后继续。'],
   review: ['Review proposed changes', '检查绘图方案'], preview: ['Preview on drawing', '在图中预览'], approve: ['Apply changes', '应用修改'], reject: ['Discard', '放弃方案'],
   pending: ['Your drawing is unchanged. Review before applying.', '当前图纸尚未修改，请检查后再应用。'],
+  selectionSet: ['Selection set', '选择集'], selectionMembers: ['Target objects', '目标对象'],
   parameters: ['Parameter changes', '参数修改'],
   newParameter: ['New', '新增'], relations: ['Geometry bindings', '几何关联'], requirements: ['Requirements', '要求'],
   applied: ['Changes applied', '修改已应用'], rejected: ['Proposal discarded. Drawing unchanged.', '已放弃方案，图纸未改变。'],
@@ -196,6 +199,13 @@ export function createAgentChat(container, options) {
     const state=element('p','chat-proposal-state',L('pending')), actions=element('div','chat-card-actions')
     const preview=button('preview'), approve=button('approve','chat-primary'), reject=button('reject')
     actions.append(preview,approve,reject); card.append(summary,state,actions)
+    if(proposal.selectionSet){
+      const selection=proposal.selectionSet, details=element('details','chat-selection-target'), heading=element('summary')
+      heading.append(label(element('b'),'selectionSet'),element('span','',` · ${selection.name} · ${selection.memberIds.length}`))
+      details.append(heading,label(element('p'),'selectionMembers'))
+      for(const id of selection.memberIds)details.append(element('p','chat-selection-member',id))
+      card.insertBefore(details,state)
+    }
     const designChange=proposal.preview.designChange
     if(designChange){
       const details=element('div','chat-design-parameters'), previous=new Map(designChange.before.parameters.map(parameter=>[parameter.name,parameter.value]))

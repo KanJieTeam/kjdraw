@@ -44,6 +44,32 @@ test('workbench policy rejects unexposed legacy creation before dispatch', async
   }
 })
 
+test('chat discovers selection sets only in drawings containing them and keeps each run policy fixed', async () => {
+  const sdk=createKJDrawSDK(), document=sdk.createDocument({units:'millimeter'}), session=new KJAgentToolSession(sdk,document)
+  const emptyPolicy=getKJDrawChatToolNames(document)
+  assert.equal(emptyPolicy.includes('cad_read_selection_sets'),false)
+  await document.transact('Create a named detail',tx=>tx.createEntity('LINE',{start:[0,0,0],end:[20,0,0]},{id:'detail-edge'}))
+  await sdk.getSelectionManager(document.id).saveNamed('Detail',{ids:['detail-edge']})
+  const names=getKJDrawChatToolNames(document)
+  assert.ok(Object.isFrozen(names)); assert.equal(names.length,emptyPolicy.length+1)
+  assert.equal(emptyPolicy.includes('cad_read_selection_sets'),false)
+  const result=await runKJAgentTask({session,prompt:'Inspect the named detail.',toolNames:names,model:{createConversation({tools}){
+    assert.ok(tools.some(tool=>tool.name==='cad_read_selection_sets'))
+    let turn=0
+    return {next:async()=>++turn===1?{text:'',calls:[{id:'sets',name:'cad_read_selection_sets',arguments:{expectedRevision:document.revision,offset:0,limit:20,maxBytes:65536}}]}:{text:'Read only.',calls:[]}}
+  }}})
+  assert.equal(result.outputs[0].result.value.selectionSets[0].name,'Detail')
+  assert.equal(document.revision,2)
+  for(const units of ['meter','inch']){
+    await document.transact('Change units',tx=>tx.setHeader('units',units))
+    const policy=getKJDrawChatToolNames(document,['road-fixture'])
+    assert.ok(policy.includes('cad_read_selection_sets'))
+    assert.equal(policy.includes('cad_propose_road_revision'),units==='meter')
+  }
+  const denied=await runKJAgentTask({session,prompt:'Inspect.',toolNames:emptyPolicy,model:modelCall('cad_read_selection_sets',{})})
+  assert.equal(denied.error.code,'KJAGENT_TOOL_NOT_ALLOWED'); assert.equal(denied.toolCalls,0)
+})
+
 test('SDK omitted and explicit tool policies still support legacy callers independently of workbench defaults', async () => {
   for (const toolNames of [undefined, ['cad_propose_circles']]) {
     const { session } = fixture()

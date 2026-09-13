@@ -133,6 +133,68 @@ async function openChat(page) {
   await page.locator('#agent-tab').click()
   await expect(page.locator('#chat-input')).toBeVisible()
 }
+
+for(const kind of ['move','rotate','scale'])test(`chat discovers and reviews an exact named selection for ${kind}`,async({page})=>{
+  const sdk=createKJDrawSDK(), drawing=sdk.createDocument({documentId:`chat-selection-${kind}`,units:'millimeter'})
+  await drawing.transact('Named assembly fixture',tx=>{
+    tx.createEntity('LINE',{start:[10,10,0],end:[30,10,0]},{id:'assembly-edge'})
+    tx.createEntity('CIRCLE',{center:[20,20,0],radius:3},{id:'assembly-hole'})
+    tx.createEntity('LINE',{start:[100,100,0],end:[130,100,0]},{id:'outside'})
+  })
+  const name='<img src=x onerror=alert(1)>', group=await sdk.getSelectionManager(drawing.id).saveNamed(name,{ids:['assembly-edge','assembly-hole']})
+  const errors=[],requests=[];page.on('pageerror',error=>errors.push(error.message))
+  await openChat(page)
+  await page.locator('#file-input').setInputFiles({name:'selection.kjd',mimeType:'application/json',buffer:Buffer.from(await sdk.writeDocument(drawing,{format:'KJD'}))})
+  await expect(page.locator('#revision')).toHaveText(`REV ${drawing.revision}`)
+  await page.locator('#agent-tab').click()
+  await page.evaluate(async()=>{
+    const {KJCanvasRenderer}=await import('/packages/kjdraw-sdk/src/canvas-renderer.js'), original=KJCanvasRenderer.prototype.drawPreview
+    window.selectionPreviews=[]
+    KJCanvasRenderer.prototype.drawPreview=function(entities,...rest){
+      if(entities.some(entity=>entity.id==='assembly-edge'))window.selectionPreviews.push({entities,source:this.document.serialize()})
+      return original.call(this,entities,...rest)
+    }
+  })
+  await page.route('**/api/model',route=>{
+    const body=route.request().postDataJSON();requests.push(body)
+    expect(body.tools.some(tool=>tool.function.name==='cad_read_selection_sets')).toBe(true)
+    if(requests.length%2===1)return route.fulfill({json:wire([['sets','cad_read_selection_sets',{expectedRevision:drawing.revision,offset:0,limit:20,maxBytes:65536}]])})
+    const read=JSON.parse(body.messages.at(-1).content)
+    expect(read.ok).toBe(true);expect(read.value.selectionSets[0].memberIds).toEqual(['assembly-edge','assembly-hole'])
+    const args={expectedRevision:read.value.revision,units:read.value.units,selectionSetName:read.value.selectionSets[0].name,...(kind==='move'?{dx:5,dy:-2}:kind==='rotate'?{center:{x:0,y:0},angleDegrees:90}:{center:{x:0,y:0},factor:2})}
+    return route.fulfill({json:wire([['change',`cad_propose_${kind}`,args]])})
+  })
+  await connect(page)
+  const save=async()=>{const event=page.waitForEvent('download');await page.locator('#save').click();return(await openKjpPackage(await readFile(await(await event).path()))).activeDocument}
+  await send(page,`Protocol fixture: ${kind} the named assembly.`)
+  const target=page.locator('.chat-selection-target').last()
+  await expect(target.locator('summary')).toContainText(`Selection set · ${name} · 2`)
+  await target.locator('summary').click()
+  await expect(target.locator('.chat-selection-member')).toHaveText(['assembly-edge','assembly-hole'])
+  expect(await target.locator('img').count()).toBe(0)
+  await page.getByRole('button',{name:'Preview on drawing',exact:true}).click()
+  await expect.poll(()=>page.evaluate(()=>window.selectionPreviews.length)).toBeGreaterThan(0)
+  const preview=await page.evaluate(()=>window.selectionPreviews.at(-1))
+  expect(preview.source).toBe(drawing.serialize())
+  expect(preview.entities.map(entity=>entity.id).sort()).toEqual(['assembly-edge','assembly-hole'])
+  await page.getByRole('button',{name:'Discard',exact:true}).click()
+  expect((await save()).serialize()).toBe(drawing.serialize())
+  await send(page,`Protocol fixture: ${kind} the same named assembly again.`)
+  await page.getByRole('button',{name:'Apply changes',exact:true}).last().click()
+  await expect(page.locator('.chat-proposal-state').last()).toContainText('Changes applied')
+  const applied=await save(), edge=applied.getObject('assembly-edge')
+  expect(edge.payload.start).toEqual(kind==='move'?[15,8,0]:kind==='rotate'?[-10,10,0]:[20,20,0])
+  expect(applied.getObject('outside')).toEqual(drawing.getObject('outside'))
+  expect(applied.getObject(group.id)).toEqual(drawing.getObject(group.id))
+  await page.getByRole('button',{name:'Undo this change',exact:true}).click()
+  await expect(page.locator('.chat-proposal-state').last()).toContainText('Change undone')
+  const undone=await save()
+  for(const object of drawing.listObjects())expect(undone.getObject(object.id)).toEqual(object)
+  await page.locator('#redo').click()
+  const redone=await save()
+  for(const object of applied.listObjects())expect(redone.getObject(object.id)).toEqual(object)
+  expect(requests).toHaveLength(4);expect(errors).toEqual([])
+})
 async function connect(page) {
   await page.getByRole('button', { name: 'Connect model', exact: true }).click()
   await page.locator('#chat-endpoint').fill('/api/model')
