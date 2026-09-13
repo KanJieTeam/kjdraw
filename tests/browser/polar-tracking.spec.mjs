@@ -28,7 +28,10 @@ test('workbench Polar tracks pointer input while exact snaps and typed coordinat
 
   const polar = page.locator('#polar-host [data-action="polar"]'), ortho = page.locator('#polar-host [data-action="ortho"]')
   await expect(polar).toHaveAttribute('aria-pressed', 'false')
-  await polar.click(); await expect(polar).toHaveAttribute('aria-pressed', 'true'); await expect(polar).toHaveAttribute('data-angle', '45')
+  const command = page.locator('#polar-host [data-command]')
+  await command.fill('POLAR 30'); await command.press('Enter'); await expect(polar).toHaveAttribute('aria-pressed', 'true'); await expect(polar).toHaveAttribute('data-angle', '30')
+  await command.fill('POLAR OFF'); await command.press('Enter'); await expect(polar).toHaveAttribute('aria-pressed', 'false'); await expect(polar).toHaveAttribute('data-angle', '30')
+  await command.fill('POLAR ON 45'); await command.press('Enter'); await expect(polar).toHaveAttribute('aria-pressed', 'true'); await expect(polar).toHaveAttribute('data-angle', '45')
   await expect(polar).toHaveAttribute('aria-label', /Polar tracking on.*45°.*F10/)
 
   await page.locator('#polar-host [data-tool="line"]').click()
@@ -75,6 +78,9 @@ test('playground restores Polar from KJD and applies it through the real pointer
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
   await page.locator('#file-input').setInputFiles({ name: 'playground-polar.kjd', mimeType: 'application/json', buffer: Buffer.from(data) })
   await expect(page.locator('#polar')).toHaveAttribute('aria-pressed', 'true'); await expect(page.locator('#polar')).toHaveAttribute('data-angle', '45')
+  await page.locator('#command-input').fill('POLAR 30'); await page.locator('#run-command').click(); await expect(page.locator('#polar')).toHaveAttribute('data-angle', '30')
+  await page.locator('#command-input').fill('POLAR OFF'); await page.locator('#run-command').click(); await expect(page.locator('#polar')).toHaveAttribute('aria-pressed', 'false')
+  await page.locator('#command-input').fill('POLAR ON 45'); await page.locator('#run-command').click(); await expect(page.locator('#polar')).toHaveAttribute('aria-pressed', 'true'); await expect(page.locator('#polar')).toHaveAttribute('data-angle', '45')
   await page.locator('#snap').click()
   await page.evaluate(async () => {
     const { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js'), original = KJCanvasRenderer.prototype.screenToWorld

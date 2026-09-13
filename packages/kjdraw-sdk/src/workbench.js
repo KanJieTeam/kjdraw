@@ -2279,6 +2279,25 @@ export class KJDrawWorkbench {
                 });
                 return;
             }
+            if (command === 'POLAR') {
+                const mode = String(tokens[0] ?? '').toUpperCase();
+                let enabled = !this.#polarEnabled(), angle = this.#polarAngle();
+                if (mode === 'ON' || mode === 'OFF') {
+                    if (tokens.length > 2) throw new Error('POLAR expects ON|OFF and an optional angle from 0 to 180 degrees');
+                    enabled = mode === 'ON';
+                    if (tokens[1] !== undefined) angle = Number(tokens[1]);
+                } else if (tokens.length) {
+                    if (tokens.length !== 1) throw new Error('POLAR expects an angle, or ON|OFF followed by an optional angle');
+                    enabled = true;
+                    angle = Number(tokens[0]);
+                }
+                if (!Number.isFinite(angle) || angle <= 0 || angle > 180) throw new Error('POLAR angle must be greater than 0 and at most 180 degrees');
+                await this.execute('POLAR', {
+                    enabled,
+                    angleIncrement: angle
+                });
+                return;
+            }
             if (remainder.startsWith('{')) {
                 if (this.#readOnly && ![
                     'SELECT',

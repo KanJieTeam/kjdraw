@@ -815,6 +815,13 @@ async function runTypedCommand(){
   if((command==='MOVE'||command==='COPY')&&!values.length){setTool(command.toLowerCase());canvas.focus();return}
   if(command==='FIT'){fit();message('View fitted');return}if(command==='UNDO'||command==='REDO'){await execute(command);return}
   if(command==='LTSCALE'){if(values.length!==1||!Number.isFinite(Number(values[0]))||Number(values[0])<=0)throw new Error('LTSCALE expects one positive number');await execute('SETVAR',{name:'LTSCALE',value:Number(values[0])});return}
+  if(command==='POLAR'){
+    const mode=String(values[0]??'').toUpperCase();let enabled=!polarEnabled,angle=polarAngle
+    if(mode==='ON'||mode==='OFF'){if(values.length>2)throw new Error('POLAR expects ON|OFF and an optional angle from 0 to 180 degrees');enabled=mode==='ON';if(values[1]!==undefined)angle=Number(values[1])}
+    else if(values.length){if(values.length!==1)throw new Error('POLAR expects an angle, or ON|OFF followed by an optional angle');enabled=true;angle=Number(values[0])}
+    if(!Number.isFinite(angle)||angle<=0||angle>180)throw new Error('POLAR angle must be greater than 0 and at most 180 degrees')
+    await execute('POLAR',{enabled,angleIncrement:angle});return
+  }
   if(command==='MOVE'||command==='COPY'){requireSelection();if(values.length!==2||values.some(value=>!Number.isFinite(Number(value))))throw new Error(t('translationNumbers'));const [dx,dy]=values.map(Number);const result=(await execute(command,{ids:selectedIds(),dx,dy})).result;if(command==='COPY'&&Array.isArray(result))replaceSelection(result.map(row=>row.id).filter(Boolean));setTool('select');refresh();return}
   if(command==='ROTATE'){requireSelection();await execute(command,{ids:selectedIds(),angle:Number(values[0]??0)*Math.PI/180,center:[0,0]});return}
   if(command==='ERASE'||command==='DELETE'){requireSelection();await execute('ERASE',{ids:selectedIds()});return}
