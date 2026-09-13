@@ -5,6 +5,7 @@ import { KJRevisionConflictError, KJValidationError } from './errors.js'
 import { deepFreeze } from './utils.js'
 import { projectDimension } from './geometry/annotation.js'
 import { ellipseRadii, splineLength2, type EllipseDefinition, type SplineDefinition } from './geometry/curves.js'
+import { closedHatchSplineConic } from './geometry/hatch-boundary.js'
 
 export type KJDrawingValidationFeature = 'start' | 'end' | 'center' | 'origin' | 'vertex'
 export interface KJDrawingValidationPointReference { objectId: string; feature: KJDrawingValidationFeature; vertexIndex?: number }
@@ -157,21 +158,29 @@ function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDra
         loopArea = Math.abs(signed / 2)
       } else {
         const edges = Array.isArray(loop.edges) ? loop.edges : fail('hatch-area requires a supported native boundary loop')
-        if (edges.length !== 1 || !edges[0] || typeof edges[0] !== 'object' || Array.isArray(edges[0])) fail('hatch-area curved loops require one full native ARC or ELLIPSE edge')
-        const edge = edges[0] as Record<string, unknown>, start = Number(edge.startAngle), end = Number(edge.endAngle)
-        if (!Number.isFinite(start) || !Number.isFinite(end) || Math.abs(Math.abs(end - start) - Math.PI * 2) > 1e-10) fail('hatch-area curved loops require a complete native curve')
-        const center = point(edge.center)
-        if (center[2] !== 0) fail('hatch-area requires native XY boundaries at z=0')
-        if (edge.type === 'ARC') {
+        if (edges.length !== 1 || !edges[0] || typeof edges[0] !== 'object' || Array.isArray(edges[0])) fail('hatch-area curved loops require one full native ARC, ELLIPSE or verified conic SPLINE edge')
+        const edge = edges[0] as Record<string, unknown>
+        if (edge.type === 'SPLINE') {
+          const conic = closedHatchSplineConic(edge) ?? fail('hatch-area SPLINE loops require a verified closed rational conic boundary')
+          const major = Math.hypot(conic.majorAxis[0], conic.majorAxis[1])
+          if (!(major > 0) || !(conic.ratio > 0) || conic.ratio > 1) fail('Hatch SPLINE conic requires a positive planar major axis and ratio in (0,1]')
+          loopArea = Math.PI * major * major * conic.ratio
+        } else {
+          const start = Number(edge.startAngle), end = Number(edge.endAngle)
+          if (!Number.isFinite(start) || !Number.isFinite(end) || Math.abs(Math.abs(end - start) - Math.PI * 2) > 1e-10) fail('hatch-area curved loops require a complete native curve')
+          const center = point(edge.center)
+          if (center[2] !== 0) fail('hatch-area requires native XY boundaries at z=0')
+          if (edge.type === 'ARC') {
           const radius = boundedNumber(edge.radius, 'Hatch arc radius')
           if (!(radius > 0)) fail('Hatch arc radius must be positive')
           loopArea = Math.PI * radius * radius
-        } else if (edge.type === 'ELLIPSE') {
-          const majorAxis = point(edge.majorAxis), ratio = boundedNumber(edge.ratio, 'Hatch ellipse ratio')
-          const major = Math.hypot(majorAxis[0], majorAxis[1])
-          if (majorAxis[2] !== 0 || !(major > 0) || !(ratio > 0) || ratio > 1) fail('Hatch ellipse requires a positive planar major axis and ratio in (0,1]')
-          loopArea = Math.PI * major * major * ratio
-        } else fail('hatch-area curved loops require one full native ARC or ELLIPSE edge')
+          } else if (edge.type === 'ELLIPSE') {
+            const majorAxis = point(edge.majorAxis), ratio = boundedNumber(edge.ratio, 'Hatch ellipse ratio')
+            const major = Math.hypot(majorAxis[0], majorAxis[1])
+            if (majorAxis[2] !== 0 || !(major > 0) || !(ratio > 0) || ratio > 1) fail('Hatch ellipse requires a positive planar major axis and ratio in (0,1]')
+            loopArea = Math.PI * major * major * ratio
+          } else fail('hatch-area curved loops require one full native ARC, ELLIPSE or verified conic SPLINE edge')
+        }
       }
       if (!(loopArea > 0)) fail(`hatch-area boundary loop ${loopIndex} has zero area`)
       area += loop.external === false ? -loopArea : loopArea

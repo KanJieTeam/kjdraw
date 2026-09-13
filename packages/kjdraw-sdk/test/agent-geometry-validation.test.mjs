@@ -99,6 +99,31 @@ test('hatch area exactly measures full native ellipse and circular island loops'
   assert.ok(Math.abs(result.value.checks[0].actual - 17 * Math.PI) < 1e-12)
 })
 
+test('hatch area exactly measures a verified rational conic SPLINE loop', async () => {
+  const { document, sdk, session } = await fixture()
+  const c = [10, 20], u = [6, 0], v = [0, 3], cp = [
+    [c[0]+u[0],c[1]+u[1],0],[c[0]+u[0]+v[0],c[1]+u[1]+v[1],0],[c[0]+v[0],c[1]+v[1],0],
+    [c[0]-u[0]+v[0],c[1]-u[1]+v[1],0],[c[0]-u[0],c[1]-u[1],0],[c[0]-u[0]-v[0],c[1]-u[1]-v[1],0],
+    [c[0]-v[0],c[1]-v[1],0],[c[0]+u[0]-v[0],c[1]+u[1]-v[1],0],[c[0]+u[0],c[1]+u[1],0],
+  ]
+  await document.transact('spline conic hatch', tx => tx.createEntity('HATCH', { solid: true, patternName: 'SOLID', boundaryLoops: [
+    { external: true, edges: [{ type: 'SPLINE', degree: 2, controlPoints: cp, knots: [0,0,0,.25,.25,.5,.5,.75,.75,1,1,1], weights: [1,Math.SQRT1_2,1,Math.SQRT1_2,1,Math.SQRT1_2,1,Math.SQRT1_2,1], fitPoints: [], periodic: false }] },
+    { external: false, edges: [{ type: 'ARC', center: [10,20,0], radius: 1, startAngle: 0, endAngle: Math.PI * 2, counterClockwise: false }] },
+  ] }, { id: 'spline-conic-hatch' }))
+  const result = await session.call('cad_check_geometry', { expectedRevision: document.revision, units: 'millimeter', lineLengths: [], circleRadii: [], pointDistances: [], polylineClosures: [], hatchAreas: [{ id: 'spline-conic-area', objectId: 'spline-conic-hatch', expected: 17 * Math.PI, tolerance: 1e-12 }] })
+  assert.equal(result.ok, true, JSON.stringify(result))
+  assert.equal(result.value.passed, true)
+  assert.ok(Math.abs(result.value.checks[0].actual - 17 * Math.PI) < 1e-12)
+  for (const format of ['KJD', 'DXF']) {
+    const reopenedSdk = createKJDrawSDK(), reopened = await reopenedSdk.readDocument(await sdk.writeDocument(document, { format }), { format })
+    const hatch = reopened.listEntities({ type: 'HATCH' }).find(entity => entity.payload.boundaryLoops?.[0]?.edges?.[0]?.type === 'SPLINE')
+    assert.ok(hatch, `${format} must retain the native SPLINE hatch boundary`)
+    const check = await new KJAgentToolSession(reopenedSdk, reopened).call('cad_check_geometry', { expectedRevision: reopened.revision, units: 'millimeter', lineLengths: [], circleRadii: [], pointDistances: [], polylineClosures: [], hatchAreas: [{ id: `${format}-area`, objectId: hatch.id, expected: 17 * Math.PI, tolerance: 1e-12 }] })
+    assert.equal(check.ok, true, JSON.stringify(check))
+    assert.equal(check.value.passed, true)
+  }
+})
+
 test('a failed requirement is a successful read, not a tool exception or an applied edit', async () => {
   const { document, session } = await fixture(), before = document.serialize()
   const args = input(document)
