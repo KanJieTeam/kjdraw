@@ -20,6 +20,21 @@ export interface KJDraftLineInput {
     start: KJDraftPoint;
     end: KJDraftPoint;
 }
+export type KJDraftTangentReference = {
+    type: 'LINE';
+    start: KJDraftPoint;
+    end: KJDraftPoint;
+} | {
+    type: 'CIRCLE';
+    center: KJDraftPoint;
+    radius: number;
+} | {
+    type: 'ARC';
+    center: KJDraftPoint;
+    radius: number;
+    startAngle: number;
+    endAngle: number;
+};
 export interface KJDraftTangentCircle {
     center: KJDraftPoint;
     radius: number;
@@ -27,6 +42,8 @@ export interface KJDraftTangentCircle {
 }
 export interface KJDraftingOptions {
     circleMode?: KJDraftCircleMode;
+    circleTangentReferences?: readonly [KJDraftTangentReference, KJDraftTangentReference];
+    /** @deprecated Use circleTangentReferences. */
     circleTangentLines?: readonly [KJDraftLineInput, KJDraftLineInput];
     circleRadius?: number;
     arcMode?: KJDraftArcMode;
@@ -72,6 +89,8 @@ export declare function constrainOrthogonalDraftPoint(value: KJDraftPoint, base:
 export declare function constrainPolarDraftPoint(value: KJDraftPoint, base: KJDraftPoint, angleIncrement?: number): KJDraftPoint;
 /** Solve the finite-line TTR subset. The solution point selects one unique offset-line intersection. */
 export declare function circleTangentToLines(firstValue: KJDraftLineInput, secondValue: KJDraftLineInput, radiusValue: number, solutionValue: KJDraftPoint, toleranceValue?: number): KJDraftTangentCircle;
+/** Solve a TTR circle against finite LINE, CIRCLE, or ARC references. */
+export declare function circleTangentToReferences(firstValue: KJDraftTangentReference, secondValue: KJDraftTangentReference, radiusValue: number, solutionValue: KJDraftPoint, toleranceValue?: number): KJDraftTangentCircle;
 /** Parse CAD coordinates. Polar angles use degrees and increase counter-clockwise. */
 export declare function parseDraftCoordinate(input: string, relativeBase?: KJDraftPoint): KJDraftPoint;
 /** Return whether text is an exact coordinate or direct distance/angle draft input. */

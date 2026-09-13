@@ -127,9 +127,9 @@ function drawingOptions(value){
   if(value==='circle'){
     const circleMode=$('circle-mode').value
     if(circleMode!=='tangent-tangent-radius')return {circleMode}
-    const lines=selectedIds().map(id=>doc().getObject(id))
-    if(lines.length!==2||lines.some(entity=>entity?.type!=='LINE'||entity.ownerId!==doc().spaces.modelSpaceId))throw new Error(i18n.locale==='zh'?'相切圆需要先选择模型空间中的两条普通可编辑直线':'TTR circle requires exactly two selected editable model-space LINE entities')
-    return {circleMode,circleRadius:Number($('circle-radius').value),circleTangentLines:lines.map(entity=>({start:entity.payload.start.slice(0,2),end:entity.payload.end.slice(0,2)}))}
+    const entities=selectedIds().map(id=>doc().getObject(id))
+    if(entities.length!==2||entities.some(entity=>{const layer=entity?.payload.layerId?doc().getObject(entity.payload.layerId):null;return !entity||!['LINE','CIRCLE','ARC'].includes(entity.type)||entity.ownerId!==doc().spaces.modelSpaceId||entity.payload.visible===false||entity.payload.locked===true||entity.payload.frozen===true||layer?.payload.visible===false||layer?.payload.locked===true||layer?.payload.frozen===true}))throw new Error(i18n.locale==='zh'?'相切圆需要先选择模型空间中的两个可编辑直线、圆或圆弧':'TTR circle requires exactly two selected editable model-space LINE, CIRCLE, or ARC entities')
+    return {circleMode,circleRadius:Number($('circle-radius').value),circleTangentReferences:entities.map(entity=>entity.type==='LINE'?{type:'LINE',start:entity.payload.start.slice(0,2),end:entity.payload.end.slice(0,2)}:{type:entity.type,center:entity.payload.center.slice(0,2),radius:entity.payload.radius,...(entity.type==='ARC'?{startAngle:entity.payload.startAngle,endAngle:entity.payload.endAngle}:{})})}
   }
   if(value==='arc')return {arcMode:$('arc-mode').value}
   if(value==='ellipse')return {ellipseMode:$('ellipse-mode').value}
@@ -1201,7 +1201,7 @@ function initializeDraftingControls(){
       if(isDraftTool(tool)){setTool(tool);canvas.focus()}
     };label.append(input);options.append(label)
   }
-  add('circle-mode','Circle','画圆方式','circle',[['center-radius','Center / radius','圆心 / 半径'],['2-point','Two diameter points','直径两点'],['3-point','Three points','圆上三点'],['tangent-tangent-radius','Tangent / tangent / radius (select 2 lines)','相切 / 相切 / 半径（先选两条直线）']],'center-radius')
+  add('circle-mode','Circle','画圆方式','circle',[['center-radius','Center / radius','圆心 / 半径'],['2-point','Two diameter points','直径两点'],['3-point','Three points','圆上三点'],['tangent-tangent-radius','Tangent / tangent / radius (select 2 lines/circles/arcs)','相切 / 相切 / 半径（先选两条直线/圆/圆弧）']],'center-radius')
   add('circle-radius','TTR radius','相切圆半径','circle',null,10,{min:Number.EPSILON,step:'any'})
   add('arc-mode','Arc','圆弧方式','arc',[['center-start-end','Center / start / end','圆心 / 起点 / 终点'],['3-point','Start / through / end','起点 / 中间点 / 终点']],'center-start-end')
   add('ellipse-mode','Ellipse','椭圆方式','ellipse',[['full','Full ellipse','完整椭圆'],['arc','Elliptical arc (5 points)','椭圆弧（五点）']],'full')

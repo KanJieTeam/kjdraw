@@ -69,7 +69,7 @@ async function expectLineStartsWithinPixels(page, expected, tolerancePixels) {
   }, { expected, tolerancePixels })).toEqual({ count: expected.length, zIsExact: true, withinPixelTolerance: true })
 }
 
-test('TTR command uses two selected finite lines, previews a unique solution, and creates one exact circle', async ({ page }) => {
+test('TTR command uses selected finite lines or circles, previews a unique solution, and creates one exact circle', async ({ page }) => {
   await mountWorkbench(page)
   await page.evaluate(async () => {
     const { workbench, sdk, drawing, line } = window.__workbenchTest
@@ -89,6 +89,14 @@ test('TTR command uses two selected finite lines, previews a unique solution, an
   })).toEqual({ center: [10,10,0], radius: 10 })
   await input.fill('UNDO'); await input.press('Enter')
   await expect.poll(() => page.evaluate(() => window.__workbenchTest.drawing.listEntities({ type: 'CIRCLE' }).length)).toBe(0)
+  await page.evaluate(async () => {
+    const { workbench, sdk, drawing } = window.__workbenchTest
+    const horizontal = drawing.listEntities({ type: 'LINE' }).find(entity => entity.payload.start[1] === 0)
+    const reference = await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: [0,15,0], radius: 5 } }, { document: drawing })
+    sdk.getSelectionManager(drawing.id).active.replace([horizontal.id, reference.id]); workbench.renderer.setSelection([horizontal.id, reference.id])
+  })
+  await input.fill('CIRCLETTR 5'); await input.press('Enter'); await input.fill('0,5'); await input.press('Enter')
+  await expect.poll(() => page.evaluate(() => window.__workbenchTest.drawing.listEntities({ type: 'CIRCLE' }).map(entity => entity.payload.center))).toContainEqual([0,5,0])
 })
 
 test('page settings click and Enter never submit or validate the surrounding host form', async ({ page }) => {

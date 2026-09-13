@@ -40,6 +40,7 @@ import {
   type KJDraftingSession,
   type KJDraftPointReference,
   type KJDraftPointRole,
+  type KJDraftTangentReference,
   type KJDraftTool,
 } from './drafting.js'
 
@@ -1558,7 +1559,7 @@ export class KJDrawWorkbench {
       { value: 'center-radius', label: { en: 'Center + radius', zh: '圆心 + 半径点' } },
       { value: '2-point', label: { en: 'Two-point diameter', zh: '两点直径' } },
       { value: '3-point', label: { en: 'Three points', zh: '三点圆' } },
-      { value: 'tangent-tangent-radius', label: { en: 'Tangent, tangent, radius (2 selected lines)', zh: '相切、相切、半径（先选两条直线）' } },
+      { value: 'tangent-tangent-radius', label: { en: 'Tangent, tangent, radius (2 selected lines/circles/arcs)', zh: '相切、相切、半径（先选两条直线/圆/圆弧）' } },
     ], configured.circleMode ?? 'center-radius')
     if (tool === 'circle') this.#draftField(host, 'circleRadius', { en: 'TTR radius', zh: '相切圆半径' }, { value: String(configured.circleRadius ?? 10), min: Number.EPSILON, step: 'any' })
     if (tool === 'arc') this.#draftSelect(host, 'arcMode', { en: 'Construction', zh: '构造方式' }, [
@@ -1677,16 +1678,19 @@ export class KJDrawWorkbench {
 
   #circleTangentOptions(radius: number): KJDraftingOptions {
     const drawing = this.document, ids = [...(this.#selection?.ids ?? [])]
-    if (!drawing || ids.length !== 2) throw new Error(this.#locale === 'zh-CN' ? '相切圆需要先选择两条普通可编辑直线' : 'TTR circle requires exactly two selected editable LINE entities')
-    const lines = ids.map(id => drawing.getObject(id))
-    for (const entity of lines) {
+    if (!drawing || ids.length !== 2) throw new Error(this.#locale === 'zh-CN' ? '相切圆需要先选择两个可编辑的直线、圆或圆弧' : 'TTR circle requires exactly two selected editable LINE, CIRCLE, or ARC entities')
+    const entities = ids.map(id => drawing.getObject(id))
+    for (const entity of entities) {
       const layer = entity?.payload.layerId ? drawing.getObject(String(entity.payload.layerId)) : null
-      if (!entity || entity.kind !== 'entity' || entity.type !== 'LINE' || entity.ownerId !== drawing.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new Error(this.#locale === 'zh-CN' ? '相切圆仅支持模型空间中两条普通可编辑直线' : 'TTR circle supports two ordinary editable model-space LINE entities')
+      if (!entity || entity.kind !== 'entity' || !['LINE', 'CIRCLE', 'ARC'].includes(entity.type) || entity.ownerId !== drawing.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new Error(this.#locale === 'zh-CN' ? '相切圆仅支持模型空间中两个可编辑的直线、圆或圆弧' : 'TTR circle supports two editable model-space LINE, CIRCLE, or ARC entities')
     }
-    const input = lines.map(entity => ({ start: (entity!.payload.start as readonly number[]).slice(0, 2) as [number, number], end: (entity!.payload.end as readonly number[]).slice(0, 2) as [number, number] })) as [
-      { start: [number, number]; end: [number, number] }, { start: [number, number]; end: [number, number] },
-    ]
-    return { circleMode: 'tangent-tangent-radius', circleTangentLines: input, circleRadius: radius }
+    const reference = (entity: KJReadonlyObjectRecord): KJDraftTangentReference => entity.type === 'LINE'
+      ? { type: 'LINE', start: (entity.payload.start as readonly number[]).slice(0, 2) as [number, number], end: (entity.payload.end as readonly number[]).slice(0, 2) as [number, number] }
+      : entity.type === 'ARC'
+        ? { type: 'ARC', center: (entity.payload.center as readonly number[]).slice(0, 2) as [number, number], radius: Number(entity.payload.radius), startAngle: Number(entity.payload.startAngle), endAngle: Number(entity.payload.endAngle) }
+        : { type: 'CIRCLE', center: (entity.payload.center as readonly number[]).slice(0, 2) as [number, number], radius: Number(entity.payload.radius) }
+    const references: [KJDraftTangentReference, KJDraftTangentReference] = [reference(entities[0]!), reference(entities[1]!)]
+    return { circleMode: 'tangent-tangent-radius', circleTangentReferences: references, circleRadius: radius }
   }
 
   #openTextStyles(): void {

@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { circleTangentToLines, constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate, parseDraftPointInput } from '../src/drafting.js'
+import { circleTangentToLines, circleTangentToReferences, constrainOrthogonalDraftPoint, constrainPolarDraftPoint, createDraftingSession, isDraftPointInput, parseDraftCoordinate, parseDraftPointInput } from '../src/drafting.js'
 import { createKJDrawSDK } from '../src/index.js'
 import { projectDimension } from '../src/geometry/annotation.js'
 
@@ -142,6 +142,24 @@ test('TTR circle solves one finite-segment tangent result selected by a solution
     const circle = reopened.listEntities({ type: 'CIRCLE' })[0]
     assert.deepEqual(circle.payload.center, [-10,-10,0]); assert.equal(circle.payload.radius, 10)
   }
+})
+
+test('TTR circle solves line-circle, circle-circle and bounded arc references', () => {
+  const line = { type: 'LINE', start: [-100, 0], end: [100, 0] }, circle = { type: 'CIRCLE', center: [0, 15], radius: 5 }
+  let solved = circleTangentToReferences(line, circle, 5, [0, 5])
+  closeTo(solved.center[0], 0); closeTo(solved.center[1], 5)
+  closeTo(solved.tangentPoints[0][1], 0); closeTo(solved.tangentPoints[1][1], 10)
+
+  solved = circleTangentToReferences({ type: 'CIRCLE', center: [-12, 0], radius: 4 }, { type: 'CIRCLE', center: [12, 0], radius: 4 }, 8, [0, 0])
+  closeTo(solved.center[0], 0); closeTo(solved.center[1], 0); closeTo(solved.tangentPoints[0][0], -8); closeTo(solved.tangentPoints[1][0], 8)
+
+  const upperArc = { type: 'ARC', center: [0, 15], radius: 5, startAngle: 0, endAngle: Math.PI }
+  assert.throws(() => circleTangentToReferences(line, upperArc, 5, [0, 5]), /reference domains/)
+  const lowerArc = { ...upperArc, startAngle: Math.PI, endAngle: Math.PI * 2 }
+  solved = circleTangentToReferences(line, lowerArc, 5, [0, 5]); closeTo(solved.center[1], 5)
+
+  const draft = createDraftingSession('circle', { circleMode: 'tangent-tangent-radius', circleTangentReferences: [line, circle], circleRadius: 5 })
+  assert.deepEqual(draft.addPoint([0, 5])?.payload, { center: [0, 5, 0], radius: 5 })
 })
 
 test('TTR circle fails closed for parallel, segment-exterior, ambiguous and invalid inputs', () => {

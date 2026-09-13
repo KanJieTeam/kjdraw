@@ -2866,8 +2866,8 @@ export class KJDrawWorkbench {
             {
                 value: 'tangent-tangent-radius',
                 label: {
-                    en: 'Tangent, tangent, radius (2 selected lines)',
-                    zh: '相切、相切、半径（先选两条直线）'
+                    en: 'Tangent, tangent, radius (2 selected lines/circles/arcs)',
+                    zh: '相切、相切、半径（先选两条直线/圆/圆弧）'
                 }
             }
         ], configured.circleMode ?? 'center-radius');
@@ -3288,19 +3288,38 @@ export class KJDrawWorkbench {
         const drawing = this.document, ids = [
             ...this.#selection?.ids ?? []
         ];
-        if (!drawing || ids.length !== 2) throw new Error(this.#locale === 'zh-CN' ? '相切圆需要先选择两条普通可编辑直线' : 'TTR circle requires exactly two selected editable LINE entities');
-        const lines = ids.map((id)=>drawing.getObject(id));
-        for (const entity of lines){
+        if (!drawing || ids.length !== 2) throw new Error(this.#locale === 'zh-CN' ? '相切圆需要先选择两个可编辑的直线、圆或圆弧' : 'TTR circle requires exactly two selected editable LINE, CIRCLE, or ARC entities');
+        const entities = ids.map((id)=>drawing.getObject(id));
+        for (const entity of entities){
             const layer = entity?.payload.layerId ? drawing.getObject(String(entity.payload.layerId)) : null;
-            if (!entity || entity.kind !== 'entity' || entity.type !== 'LINE' || entity.ownerId !== drawing.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new Error(this.#locale === 'zh-CN' ? '相切圆仅支持模型空间中两条普通可编辑直线' : 'TTR circle supports two ordinary editable model-space LINE entities');
+            if (!entity || entity.kind !== 'entity' || ![
+                'LINE',
+                'CIRCLE',
+                'ARC'
+            ].includes(entity.type) || entity.ownerId !== drawing.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new Error(this.#locale === 'zh-CN' ? '相切圆仅支持模型空间中两个可编辑的直线、圆或圆弧' : 'TTR circle supports two editable model-space LINE, CIRCLE, or ARC entities');
         }
-        const input = lines.map((entity)=>({
+        const reference = (entity)=>entity.type === 'LINE' ? {
+                type: 'LINE',
                 start: entity.payload.start.slice(0, 2),
                 end: entity.payload.end.slice(0, 2)
-            }));
+            } : entity.type === 'ARC' ? {
+                type: 'ARC',
+                center: entity.payload.center.slice(0, 2),
+                radius: Number(entity.payload.radius),
+                startAngle: Number(entity.payload.startAngle),
+                endAngle: Number(entity.payload.endAngle)
+            } : {
+                type: 'CIRCLE',
+                center: entity.payload.center.slice(0, 2),
+                radius: Number(entity.payload.radius)
+            };
+        const references = [
+            reference(entities[0]),
+            reference(entities[1])
+        ];
         return {
             circleMode: 'tangent-tangent-radius',
-            circleTangentLines: input,
+            circleTangentReferences: references,
             circleRadius: radius
         };
     }
