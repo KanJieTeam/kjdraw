@@ -80,6 +80,18 @@ test('A3 vector SVG has physical millimeters and exact 1:100 viewport geometry, 
   assert.deepEqual(parsed.metadata,JSON.parse(JSON.stringify(result.report)))
 })
 
+test('SVG emits editable multiline Unicode MTEXT with shared attachment, wrapping and rotation',async()=>{
+  const {document,layoutId,create}=await fixture()
+  const entity=await create('MTEXT',{position:[100,80],text:'总装说明\\P第二行 Δ 😀',height:4,width:40,attachmentPoint:5,rotation:Math.PI/6})
+  const before=document.serialize(),result=exportDrawingSvg(document,{layoutId})
+  assert.equal(document.serialize(),before);assert.equal(result.report.rendered,1);assert.equal(result.report.diagnostics.length,0)
+  assert.ok(result.report.approximations.some(row=>row.entityId===entity.id&&row.type==='MTEXT'))
+  assert.match(result.svg,new RegExp(`data-entity-id="${entity.id}"[\\s\\S]*<text transform="matrix\\(`))
+  assert.match(result.svg,/<tspan[^>]*>总装说明<\/tspan>/);assert.match(result.svg,/<tspan[^>]*>第二行 Δ 😀<\/tspan>/)
+  assert.doesNotMatch(result.svg,/总装说明\\P/)
+  parseSvg(result.svg)
+})
+
 test('twisted DCS viewport uses independent target and center math, while model-window custom scales stay exact',async()=>{
   const {sdk,document,layoutId,create}=await fixture(),model=document.snapshot().spaces.modelSpaceId
   const line=await create('LINE',{start:[30,40],end:[40,40]},model)

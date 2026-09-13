@@ -2,7 +2,7 @@
 import { KJRevisionConflictError, KJValidationError } from './errors.js';
 import { validatePlotSettings } from './plot-settings.js';
 import { insertAttributes, isAttachedAttribute } from './attribute-display.js';
-import { textFontFamily } from './geometry/text-layout.js';
+import { layoutCadMText, textFontFamily } from './geometry/text-layout.js';
 import { aciColor } from './canvas-renderer.js';
 import { projectDimension } from './geometry/annotation.js';
 import { multiply3, rotation3, scale3, translation3 } from './geometry/matrix3.js';
@@ -189,6 +189,21 @@ export function exportDrawingSvg(document, options) {
         }
         return `<text transform="translate(${pos(position)}) rotate(${angle * 180 / Math.PI}) matrix(${stretch[0]} 0 ${-stretch[2] * stretch[1]} ${-stretch[1]} 0 0)" font-family="${xml(family)}" font-size="${textHeight}" text-anchor="${anchor}" dominant-baseline="${baseline}" fill="currentColor" stroke="none" xml:space="preserve">${xml(value)}</text>`;
     };
+    const multilineText = (entity)=>{
+        const style = document.getObject(String(entity.payload.styleId ?? ''))?.payload ?? {};
+        const layout = layoutCadMText(entity.payload, style);
+        if (!fontIds.has(entity.id)) {
+            fontIds.add(entity.id);
+            report.approximations.push({
+                entityId: entity.id,
+                type: entity.type,
+                reason: 'Editable text uses unembedded sans-serif font metrics'
+            });
+        }
+        const m = layout.matrix;
+        const spans = layout.lines.map((line)=>`<tspan x="${numeric(line.left)}" y="${numeric(-line.baseline)}">${xml(line.text)}</tspan>`).join('');
+        return `<text transform="matrix(${m[0]} ${m[1]} ${-m[2]} ${-m[3]} ${m[4]} ${m[5]})" font-family="${xml(layout.family)}" font-size="${layout.height}" text-anchor="start" fill="currentColor" stroke="none" xml:space="preserve">${spans}</text>`;
+    };
     const primitive = (entity)=>{
         const p = entity.payload;
         if (numeric(p.thickness, 0) !== 0 || p.normal && JSON.stringify(p.normal) !== '[0,0,1]' || p.extrusionDirection && JSON.stringify(p.extrusionDirection) !== '[0,0,1]') fail('thickness or non-XY extrusion is unsupported');
@@ -254,6 +269,7 @@ export function exportDrawingSvg(document, options) {
                 'text-before-edge'
             ][vertical], stretch, textFontFamily(style, 'Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif'));
         }
+        if (entity.type === 'MTEXT') return multilineText(entity);
         if (entity.type === 'DIMENSION') {
             const projection = projectDimension(p, document.getObject(String(p.styleId ?? ''))?.payload);
             if (!projection) fail('dimension subtype or definition is unsupported');

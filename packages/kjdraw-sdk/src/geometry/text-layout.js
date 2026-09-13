@@ -107,3 +107,114 @@ export function layoutCadText(payload, style = {}, measure) {
         ].map((p)=>transform(p))
     };
 }
+function plainMText(value) {
+    if (value.length > 65_536) throw new KJValidationError('MTEXT exceeds the 65536 character layout budget');
+    if (/[{}]/.test(value)) throw new KJValidationError('Rich MTEXT formatting is not supported');
+    const escaped = '\u0000';
+    const plain = value.replaceAll('\\\\', escaped).replace(/\\P/gi, '\n');
+    if (/\\[A-Za-z~]/.test(plain)) throw new KJValidationError('Rich MTEXT formatting is not supported');
+    return plain.replaceAll(escaped, '\\').replace(/\r\n?/g, '\n');
+}
+export function layoutCadMText(payload, style = {}, measure) {
+    const family = textFontFamily(style), fixedHeight = number(style.fixedHeight);
+    const height = fixedHeight > 0 ? fixedHeight : number(payload.height, 2.5);
+    const widthFactor = number(payload.widthFactor, number(style.widthFactor, 1)), rotation = number(payload.rotation);
+    const oblique = number(payload.obliqueAngle, number(style.obliqueAngle)), attachment = number(payload.attachmentPoint, 1);
+    const spacing = number(payload.lineSpacingFactor, number(payload.lineSpacing, 1.2)), position = point(payload.position);
+    const referenceWidth = payload.width == null ? null : number(payload.width);
+    if (!position || ![
+        height,
+        widthFactor,
+        rotation,
+        oblique,
+        attachment,
+        spacing,
+        referenceWidth ?? 1
+    ].every(Number.isFinite) || height <= 0 || widthFactor <= 0 || !Number.isInteger(attachment) || attachment < 1 || attachment > 9 || spacing < .25 || spacing > 4 || referenceWidth != null && referenceWidth <= 0) throw new KJValidationError('Unsupported CAD multiline text placement');
+    const shear = Math.tan(oblique);
+    if (!Number.isFinite(shear)) throw new KJValidationError('Invalid text oblique angle');
+    const metric = (value)=>{
+        const result = measure ? measure(value, height, family) : Math.max(value ? height * .4 : 0, [
+            ...value
+        ].reduce((sum, char)=>sum + (char.codePointAt(0) > 255 ? 1 : .6), 0) * height);
+        if (!Number.isFinite(result) || result < 0) throw new KJValidationError('Invalid CAD text metrics');
+        return result;
+    };
+    const limit = referenceWidth == null ? Infinity : referenceWidth / widthFactor;
+    const rows = [];
+    for (const paragraph of plainMText(String(payload.text ?? '')).split('\n')){
+        if (!paragraph || limit === Infinity) {
+            rows.push(paragraph);
+            continue;
+        }
+        let line = '', lineWidth = 0;
+        for (const char of paragraph){
+            const charWidth = metric(char);
+            if (line && lineWidth + charWidth > limit) {
+                rows.push(line);
+                line = char === ' ' ? '' : char;
+                lineWidth = char === ' ' ? 0 : charWidth;
+            } else {
+                line += char;
+                lineWidth += charWidth;
+            }
+        }
+        rows.push(line);
+    }
+    if (!rows.length) rows.push('');
+    if (rows.length > 4096) throw new KJValidationError('MTEXT exceeds the 4096 line layout budget');
+    const widths = rows.map(metric), contentWidth = Math.max(0, ...widths), boxWidth = referenceWidth == null ? contentWidth : limit;
+    const advance = height * spacing, boxHeight = height + (rows.length - 1) * advance;
+    const column = (attachment - 1) % 3, band = Math.floor((attachment - 1) / 3);
+    const left = column === 0 ? 0 : column === 1 ? -boxWidth / 2 : -boxWidth;
+    const top = band === 0 ? 0 : band === 1 ? boxHeight / 2 : boxHeight;
+    const lines = rows.map((text, index)=>({
+            text,
+            width: widths[index],
+            left: column === 0 ? left : column === 1 ? -widths[index] / 2 : -widths[index],
+            baseline: top - height - index * advance
+        }));
+    const flags = number(payload.generationFlags), xScale = widthFactor * ((flags & 2) !== 0 || payload.mirrored === true ? -1 : 1), yScale = (flags & 4) !== 0 ? -1 : 1;
+    const c = Math.cos(rotation), s = Math.sin(rotation);
+    const matrix = [
+        c * xScale,
+        s * xScale,
+        (c * shear - s) * yScale,
+        (s * shear + c) * yScale,
+        position[0],
+        position[1]
+    ];
+    const transform = (p)=>[
+            matrix[0] * p[0] + matrix[2] * p[1] + matrix[4],
+            matrix[1] * p[0] + matrix[3] * p[1] + matrix[5]
+        ];
+    const bottom = top - boxHeight;
+    const corners = [
+        [
+            left,
+            bottom
+        ],
+        [
+            left + boxWidth,
+            bottom
+        ],
+        [
+            left + boxWidth,
+            top
+        ],
+        [
+            left,
+            top
+        ]
+    ];
+    return {
+        text: String(payload.text ?? ''),
+        family,
+        height,
+        width: boxWidth,
+        lineAdvance: advance,
+        lines,
+        matrix,
+        corners: corners.map(transform)
+    };
+}

@@ -3,7 +3,7 @@ import { arcSweep, multiply3, rotation3, scale3, transformEntityPayload, transla
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js';
 import { projectDimension } from './geometry/annotation.js';
 import { attributeHidden, insertAttributes, isAttachedAttribute, visibleAttribute } from './attribute-display.js';
-import { layoutCadText } from './geometry/text-layout.js';
+import { layoutCadMText, layoutCadText } from './geometry/text-layout.js';
 import { hatchPatternLines } from './geometry/hatch.js';
 const TAU = Math.PI * 2;
 const point = (value)=>Array.isArray(value) && value.length >= 2 && value.slice(0, 2).every((v)=>Number.isFinite(Number(v))) ? [
@@ -321,7 +321,8 @@ function project(entity, document, depth = 0, inheritedMatrix) {
         case 'ATTDEF':
         case 'ATTRIB':
             {
-                path(layoutCadText(payload, document.getObject(String(payload.styleId ?? ''))?.payload).corners, true, true);
+                const style = document.getObject(String(payload.styleId ?? ''))?.payload;
+                path((entity.type === 'MTEXT' ? layoutCadMText(payload, style) : layoutCadText(payload, style)).corners, true, true);
                 break;
             }
         case 'INSERT':

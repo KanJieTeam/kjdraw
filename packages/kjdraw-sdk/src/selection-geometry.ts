@@ -2,7 +2,7 @@ import { arcSweep, multiply3, rotation3, scale3, transformEntityPayload, transla
 import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js'
 import { projectDimension } from './geometry/annotation.js'
 import { attributeHidden, insertAttributes, isAttachedAttribute, visibleAttribute } from './attribute-display.js'
-import { layoutCadText } from './geometry/text-layout.js'
+import { layoutCadMText, layoutCadText } from './geometry/text-layout.js'
 import { hatchPatternLines } from './geometry/hatch.js'
 import type { KJDocument } from './document.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
@@ -161,7 +161,8 @@ function project(entity: KJReadonlyObjectRecord, document: KJDocument, depth = 0
       break
     }
     case 'TEXT': case 'MTEXT': case 'ATTDEF': case 'ATTRIB': {
-      path(layoutCadText(payload, document.getObject(String(payload.styleId ?? ''))?.payload).corners, true, true)
+      const style = document.getObject(String(payload.styleId ?? ''))?.payload
+      path((entity.type === 'MTEXT' ? layoutCadMText(payload, style) : layoutCadText(payload, style)).corners, true, true)
       break
     }
     case 'INSERT': {

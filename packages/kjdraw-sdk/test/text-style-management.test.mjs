@@ -2,10 +2,29 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJValidationError } from '../src/errors.js'
-import { layoutCadText, textFontFamily } from '../src/geometry/text-layout.js'
+import { layoutCadMText, layoutCadText, textFontFamily } from '../src/geometry/text-layout.js'
 import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 
 const textPayload = (text, y = 0) => ({ position: [0, y, 0], text, height: 2.5, rotation: Math.PI / 12 })
+
+test('plain MTEXT layout uses its insertion attachment, wraps bounded Unicode lines and rejects rich controls',()=>{
+  const measure=value=>[...value].length*2
+  const topLeft=layoutCadMText({position:[100,50],text:'ABCD\\P中文😀',height:2,width:6,attachmentPoint:1},{},measure)
+  assert.deepEqual(topLeft.lines.map(line=>line.text),['ABC','D','中文😀'])
+  assert.deepEqual(topLeft.corners,[[100,43.2],[106,43.2],[106,50],[100,50]])
+  const centered=layoutCadMText({position:[100,50],text:'ABCD\\P中文😀',height:2,width:6,attachmentPoint:5},{},measure)
+  assert.deepEqual(centered.corners,[[97,46.6],[103,46.6],[103,53.4],[97,53.4]])
+  assert.deepEqual(centered.lines.map(line=>line.left),[-3,-1,-3])
+  const bottomRight=layoutCadMText({position:[100,50],text:'A\nB',height:2,attachmentPoint:9},{},measure)
+  assert.deepEqual(bottomRight.corners,[[98,50],[100,50],[100,54.4],[98,54.4]])
+  for(let attachment=1;attachment<=9;attachment++){
+    const corners=layoutCadMText({position:[100,50],text:'ABC',height:2,width:6,attachmentPoint:attachment},{},measure).corners
+    const xs=corners.map(point=>point[0]),ys=corners.map(point=>point[1]),column=(attachment-1)%3,band=Math.floor((attachment-1)/3)
+    assert.equal(column===0?Math.min(...xs):column===1?(Math.min(...xs)+Math.max(...xs))/2:Math.max(...xs),100)
+    assert.equal(band===0?Math.max(...ys):band===1?(Math.min(...ys)+Math.max(...ys))/2:Math.min(...ys),50)
+  }
+  assert.throws(()=>layoutCadMText({position:[0,0],text:'{\\H2x;rich}',height:2,attachmentPoint:1}),/Rich MTEXT/)
+})
 
 test('TEXTSTYLE records keep stable bindings while current style drives all text entity creation paths', async () => {
   const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'text-style-management', units: 'millimeter' })

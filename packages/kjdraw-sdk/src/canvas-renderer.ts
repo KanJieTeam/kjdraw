@@ -12,7 +12,7 @@ import { hatchPatternLines, hatchStrokes, type KJHatchPatternLine } from './geom
 import { createHatchStrokeCoverage, type KJHatchCoverageReason } from './geometry/hatch-coverage.js'
 import { getEntityGrips, type KJEntityGrip } from './grips.js'
 import { attributeHidden, insertAttributes, isAttachedAttribute, visibleAttribute } from './attribute-display.js'
-import { layoutCadText } from './geometry/text-layout.js'
+import { layoutCadMText, layoutCadText } from './geometry/text-layout.js'
 import { effectiveLinetypeScale } from './linetype-scale.js'
 import { displayedEntityBounds, hitTestDisplayedEntity, isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence, type KJBoxSelectionMode } from './selection-geometry.js'
 import type { KJDocument } from './document.js'
@@ -710,8 +710,11 @@ export class KJCanvasRenderer {
       return []
     }
     if (attributeHidden(entity)) return []
-    if (['TEXT','ATTRIB','ATTDEF'].includes(entity.type)) {
-      try { return layoutCadText(entity.payload, this.#document?.getObject(String(entity.payload.styleId ?? ''))?.payload).corners } catch { return [] }
+    if (['TEXT','MTEXT','ATTRIB','ATTDEF'].includes(entity.type)) {
+      try {
+        const style = this.#document?.getObject(String(entity.payload.styleId ?? ''))?.payload
+        return (entity.type === 'MTEXT' ? layoutCadMText(entity.payload, style) : layoutCadText(entity.payload, style)).corners
+      } catch { return [] }
     }
     if (entity.type !== 'INSERT' || depth > 12) return entityPoints(entity)
     const payload = entity.payload
@@ -1047,13 +1050,15 @@ export class KJCanvasRenderer {
           const cap = context.measureText('H').actualBoundingBoxAscent
           context.font = (cap > 0 ? desired * desired / cap : desired) + 'px ' + family
         }
-        const layout = layoutCadText(source, style, (value, height, family) => { font(height, family); return context.measureText(value).width / this.camera.scale })
+        const measure = (value: string, height: number, family: string) => { font(height, family); return context.measureText(value).width / this.camera.scale }
+        const layout = entity.type === 'MTEXT' ? layoutCadMText(source, style, measure) : layoutCadText(source, style, measure)
         font(layout.height, layout.family)
         const m = projection?.matrix ? multiply3(projection.matrix, layout.matrix) : layout.matrix
         const origin = this.worldToScreen([m[4]!,m[5]!])
         context.transform(m[0]!, -m[1]!, -m[2]!, m[3]!, origin[0], origin[1])
         context.textBaseline = 'alphabetic'; context.textAlign = 'left'
-        context.fillText(layout.text, layout.left*this.camera.scale, -layout.bottom*this.camera.scale)
+        if ('lines' in layout) for (const line of layout.lines) context.fillText(line.text, line.left*this.camera.scale, -line.baseline*this.camera.scale)
+        else context.fillText(layout.text, layout.left*this.camera.scale, -layout.bottom*this.camera.scale)
         this.#textDrawCount++; this.#drawnTextTypes.add(entity.type)
       } catch { drawn = false }
     } else if (entity.type === 'HATCH') {

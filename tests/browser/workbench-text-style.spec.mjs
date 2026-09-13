@@ -100,6 +100,13 @@ test('workbench manages text style records and edits multiline placement control
 
   const command = root.locator('[data-command]'); await command.fill('MTEXT 30 30 设备说明\\P第二行 😀'); await command.press('Enter')
   const created = await page.evaluate(() => window.__textStyleUI.drawing.listEntities({ type: 'MTEXT' })[0])
+  const painted = await page.evaluate(() => {
+    const renderer=window.__textStyleUI.workbench.renderer,labels=[],native=renderer.context.fillText
+    renderer.context.fillText=function(value,...rest){labels.push(String(value));return native.call(this,value,...rest)}
+    renderer.fit();const report=renderer.render();renderer.context.fillText=native
+    return {labels,unsupported:report.unsupported}
+  })
+  expect(painted.labels).toEqual(expect.arrayContaining(['设备说明','第二行 😀']));expect(painted.unsupported).toBe(0)
   expect(created.payload).toMatchObject({ styleId: style.id, text: '设备说明\\P第二行 😀', attachmentPoint: 1 })
   await page.evaluate(async id => { const { sdk, drawing } = window.__textStyleUI; await sdk.executeCommand('SELECT', { ids: [id], operation: 'replace' }, { document: drawing }) }, created.id)
   const inspector = root.locator('[data-inspector]')

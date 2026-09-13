@@ -7,7 +7,7 @@ import { hatchPatternLines, hatchStrokes } from './geometry/hatch.js';
 import { createHatchStrokeCoverage } from './geometry/hatch-coverage.js';
 import { getEntityGrips } from './grips.js';
 import { attributeHidden, insertAttributes, isAttachedAttribute, visibleAttribute } from './attribute-display.js';
-import { layoutCadText } from './geometry/text-layout.js';
+import { layoutCadMText, layoutCadText } from './geometry/text-layout.js';
 import { effectiveLinetypeScale } from './linetype-scale.js';
 import { displayedEntityBounds, hitTestDisplayedEntity, isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence } from './selection-geometry.js';
 const HATCH_RASTER_PIXEL_LIMIT = 1048576;
@@ -980,11 +980,13 @@ export class KJCanvasRenderer {
         if (attributeHidden(entity)) return [];
         if ([
             'TEXT',
+            'MTEXT',
             'ATTRIB',
             'ATTDEF'
         ].includes(entity.type)) {
             try {
-                return layoutCadText(entity.payload, this.#document?.getObject(String(entity.payload.styleId ?? ''))?.payload).corners;
+                const style = this.#document?.getObject(String(entity.payload.styleId ?? ''))?.payload;
+                return (entity.type === 'MTEXT' ? layoutCadMText(entity.payload, style) : layoutCadText(entity.payload, style)).corners;
             } catch  {
                 return [];
             }
@@ -1480,10 +1482,11 @@ export class KJCanvasRenderer {
                     const cap = context.measureText('H').actualBoundingBoxAscent;
                     context.font = (cap > 0 ? desired * desired / cap : desired) + 'px ' + family;
                 };
-                const layout = layoutCadText(source, style, (value, height, family)=>{
+                const measure = (value, height, family)=>{
                     font(height, family);
                     return context.measureText(value).width / this.camera.scale;
-                });
+                };
+                const layout = entity.type === 'MTEXT' ? layoutCadMText(source, style, measure) : layoutCadText(source, style, measure);
                 font(layout.height, layout.family);
                 const m = projection?.matrix ? multiply3(projection.matrix, layout.matrix) : layout.matrix;
                 const origin = this.worldToScreen([
@@ -1493,7 +1496,8 @@ export class KJCanvasRenderer {
                 context.transform(m[0], -m[1], -m[2], m[3], origin[0], origin[1]);
                 context.textBaseline = 'alphabetic';
                 context.textAlign = 'left';
-                context.fillText(layout.text, layout.left * this.camera.scale, -layout.bottom * this.camera.scale);
+                if ('lines' in layout) for (const line of layout.lines)context.fillText(line.text, line.left * this.camera.scale, -line.baseline * this.camera.scale);
+                else context.fillText(layout.text, layout.left * this.camera.scale, -layout.bottom * this.camera.scale);
                 this.#textDrawCount++;
                 this.#drawnTextTypes.add(entity.type);
             } catch  {

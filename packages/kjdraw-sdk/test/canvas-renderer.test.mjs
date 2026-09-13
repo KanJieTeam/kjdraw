@@ -203,6 +203,18 @@ test('Canvas renderer preserves model text height below one screen pixel', async
   renderer.dispose()
 })
 
+test('Canvas renderer paints and selects plain Unicode MTEXT as independently positioned lines', async () => {
+  const sdk=createKJDrawSDK(),document=sdk.createDocument({documentId:'canvas-mtext'})
+  const mtext=await sdk.executeCommand('CREATE',{type:'MTEXT',payload:{position:[10,20],text:'设备说明\\P第二行 😀',height:3,width:30,attachmentPoint:5,rotation:Math.PI/12}})
+  const {canvas,context}=mockCanvas(),renderer=new KJCanvasRenderer(canvas,{document,pixelRatio:1,grid:false})
+  context.calls.length=0;renderer.fit()
+  const labels=context.calls.filter(call=>call[0]==='fillText').map(call=>call[1])
+  assert.deepEqual(labels,['设备说明','第二行 😀'])
+  assert.equal(renderer.report.unsupported,0);assert.ok(renderer.report.approximateTypes.includes('MTEXT'))
+  assert.equal(renderer.hitTest(renderer.worldToScreen([10,20]))?.entity.id,mtext.id)
+  renderer.dispose()
+})
+
 test('Canvas renderer refits responsive viewports until the user navigates manually', async () => {
   const sdk = createKJDrawSDK()
   const document = sdk.createDocument({ documentId: 'canvas-responsive-fit' })
