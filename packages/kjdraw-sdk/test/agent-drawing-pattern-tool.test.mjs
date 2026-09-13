@@ -7,6 +7,7 @@ import { createAgentGeometryPreview } from '../src/agent-preview.js'
 const tool = 'cad_propose_drawing_pattern'
 const empty = () => ({ expectedRevision: 0, units: 'millimeter', lines: [], circles: [], arcs: [], polylines: [], arrays: [] })
 const array = (changes = {}) => ({ sources: ['circles:0'], rows: 2, columns: 2, dx: 10, dy: 20, ...changes })
+const polar = (changes = {}) => ({ sources: ['circles:0'], center: { x: 0, y: 0 }, count: 8, angleDegrees: 360, ...changes })
 function fixture() {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   return { sdk, document, session: new KJAgentToolSession(sdk, document) }
@@ -64,6 +65,31 @@ test('one circle seed produces a 209-entity native hole plate with full preview,
   assert.equal(document.listEntities().length, 0)
   await sdk.executeCommand('REDO')
   assert.deepEqual(geometry(document.listEntities()), committed)
+})
+
+test('one bolt and spoke seed produces a reviewed native full-circle array and survives reopening', async () => {
+  const { sdk, document, session } = fixture()
+  const input = { ...empty(), lines: [[12, 0, 28, 0]], circles: [[20, 0, 2]], polarArrays: [polar({ sources: ['circles:0', 'lines:0'] })] }
+  const source = document.serialize(), proposed = value(await session.call(tool, input))
+  assert.equal(document.serialize(), source)
+  assert.equal(proposed.preview.after.length, 16)
+  const circles = proposed.preview.after.filter(item => item.type === 'CIRCLE')
+  const lines = proposed.preview.after.filter(item => item.type === 'LINE')
+  assert.equal(circles.length, 8)
+  assert.equal(lines.length, 8)
+  for (let index = 0; index < 8; index++) {
+    const radians = index * Math.PI / 4
+    assert.ok(Math.abs(circles[index].payload.center[0] - 20 * Math.cos(radians)) < 1e-9)
+    assert.ok(Math.abs(circles[index].payload.center[1] - 20 * Math.sin(radians)) < 1e-9)
+  }
+  value(await session.approve(proposed.planId, 'reviewer'))
+  assert.equal(document.revision, 1)
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format }), { format })
+    assert.deepEqual(geometry(reopened.listEntities()), geometry(document.listEntities()))
+  }
+  await sdk.executeCommand('UNDO')
+  assert.equal(document.listEntities().length, 0)
 })
 
 test('pattern references address all four groups and disjoint negative arrays retain each original exactly once', async () => {
@@ -164,6 +190,27 @@ test('invalid group references, duplicate seeds, counts, spacing and original dr
   value(await session.call(tool, { ...good, arrays: [] }))
 })
 
+test('polar arrays enforce combined array, source and entity budgets atomically', async () => {
+  const { document, session } = fixture(), source = document.serialize()
+  const base = { ...empty(), circles: [[20, 0, 1]] }
+  const invalid = [
+    { ...base, polarArrays: [polar({ angleDegrees: 0 })] },
+    { ...base, polarArrays: [polar({ count: 1 })] },
+    { ...base, polarArrays: [polar({ count: 513 })] },
+    { ...base, polarArrays: [polar({ center: { x: 1e13, y: 0 } })] },
+    { ...base, arrays: [array()], polarArrays: [polar()] },
+    { ...base, arrays: Array.from({ length: 16 }, () => array({ sources: ['circles:0'], rows: 1, columns: 1 })), polarArrays: [polar({ sources: ['circles:0'] })] },
+    { ...base, circles: [[20, 0, 1], [30, 0, 1]], polarArrays: [polar({ sources: ['circles:0', 'circles:1'], count: 257 })] },
+  ]
+  for (const input of invalid) {
+    assert.equal((await session.call(tool, input)).ok, false, JSON.stringify(input))
+    assert.equal(document.serialize(), source)
+  }
+  const exact = { ...base, circles: [[20, 0, 1], [30, 0, 1]], polarArrays: [polar({ sources: ['circles:0', 'circles:1'], count: 256 })] }
+  assert.equal(value(await session.call(tool, exact)).preview.after.length, 512)
+  assert.equal(document.serialize(), source)
+})
+
 test('preview creation budget is opt-in and bounded, does not widen MOVE, and preserves byte budgets', async () => {
   const { sdk, document } = fixture(), source = document.serialize()
   const entities = Array.from({ length: 65 }, (_, i) => ({ type: 'CIRCLE', payload: { center: [i * 3, 0, 0], radius: 1 }, options: { id: `hole-${i}` } }))
@@ -212,6 +259,12 @@ test('pattern schema advertises bounded group-local references and accepts the l
   assert.equal('sourceIndices' in arraySchema.properties, false)
   assert.equal(arraySchema.properties.sources.items.type, 'string')
   assert.equal(arraySchema.properties.sources.items.maxLength, 12)
+  const polarSchema = definition.inputSchema.properties.polarArrays.items
+  assert.ok(definition.inputSchema.required.includes('arrays'))
+  assert.ok(definition.inputSchema.required.includes('polarArrays') === false)
+  assert.deepEqual(polarSchema.required, ['sources', 'center', 'count', 'angleDegrees'])
+  assert.equal(polarSchema.properties.count.maximum, 512)
+  assert.equal(polarSchema.properties.angleDegrees.minimum, -360)
   assert.match(definition.description, /group-local zero-based/)
   assert.match(definition.description, /circles:0/)
   assert.doesNotMatch(definition.description, /flattened/)

@@ -23,6 +23,15 @@ export interface KJAgentPatternDrawingInput extends KJAgentCompactDrawingInput {
     arrays: (KJRectangularDrawingPattern & {
         sources: string[];
     })[];
+    polarArrays?: {
+        sources: string[];
+        center: {
+            x: number;
+            y: number;
+        };
+        count: number;
+        angleDegrees: number;
+    }[];
 }
 /** One reviewed batch of geometry, notes and kernel-measured native dimensions. */
 export interface KJAgentAnnotatedDrawingInput extends KJAgentPatternDrawingInput {

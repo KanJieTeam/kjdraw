@@ -52,6 +52,11 @@ export interface KJRectangularDrawingPattern {
     dx: number;
     dy: number;
 }
+export interface KJPolarDrawingPattern {
+    center: KJPatternPoint;
+    count: number;
+    angleDegrees: number;
+}
 export interface KJDrawingPatternBudget {
     maxEntities?: number;
     maxPoints?: number;
@@ -63,3 +68,8 @@ export interface KJDrawingPatternBudget {
  * radians. All cardinality, point-work and translated-coordinate checks precede expansion.
  */
 export declare function expandRectangularDrawingPattern(entities: readonly KJPatternEntity[], pattern: KJRectangularDrawingPattern, budget?: KJDrawingPatternBudget): KJPatternEntity[];
+/** Pure rigid rotation of native XY geometry around one center. The source position is
+ * emitted first. A full ±360° array divides the circle by count so the final item does
+ * not duplicate the source; a partial array includes both angular endpoints.
+ */
+export declare function expandPolarDrawingPattern(entities: readonly KJPatternEntity[], pattern: KJPolarDrawingPattern, budget?: KJDrawingPatternBudget): KJPatternEntity[];

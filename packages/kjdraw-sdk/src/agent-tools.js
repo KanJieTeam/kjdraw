@@ -13,7 +13,7 @@ import { createAgentInputAsset } from './input-assets.js';
 export { KJDRAW_ROAD_INPUT_ASSET_SCHEMA } from './input-assets.js';
 import { buildAgentAnnotationEntities } from './agent-annotations.js';
 import { decodeAgentCompactDrawing } from './agent-drawing-compact.js';
-import { expandRectangularDrawingPattern } from './agent-drawing-patterns.js';
+import { expandPolarDrawingPattern, expandRectangularDrawingPattern } from './agent-drawing-patterns.js';
 import { validateDrawingGeometry } from './drawing-validation.js';
 import { commitAgentTaskCreateBatchApproval, commitAgentTaskLengthenApproval, commitAgentTaskMoveApproval, commitAgentTaskPolylineEditApproval, commitAgentTaskRotateApproval, commitAgentTaskScaleApproval, commitAgentTaskStretchApproval, KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
 import { createAgentDesignContext } from './agent-design-relations.js';
@@ -472,6 +472,29 @@ const arraySchema = {
         dy: number
     })
 };
+const polarArraySchema = {
+    type: 'array',
+    minItems: 0,
+    maxItems: 16,
+    items: object({
+        sources: collection({
+            type: 'string',
+            minLength: 6,
+            maxLength: 12
+        }),
+        center: point,
+        count: {
+            type: 'integer',
+            minimum: 2,
+            maximum: 512
+        },
+        angleDegrees: {
+            type: 'number',
+            minimum: -360,
+            maximum: 360
+        }
+    })
+};
 const annotationSource = object({
     source: {
         type: 'string',
@@ -550,6 +573,7 @@ const leaderAnnotation = object({
 const annotatedDrawingSchemaBase = objectWithOptional({
     ...compactDrawingProperties,
     arrays: arraySchema,
+    polarArrays: polarArraySchema,
     styles: {
         type: 'array',
         minItems: 0,
@@ -601,7 +625,8 @@ const annotatedDrawingSchemaBase = objectWithOptional({
     'ellipses',
     'splines',
     'hatches',
-    'leaders'
+    'leaders',
+    'polarArrays'
 ]);
 const annotatedDrawingSchema = {
     ...annotatedDrawingSchemaBase,
@@ -1078,29 +1103,16 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_drawing_pattern',
         effect: 'propose',
-        description: 'Propose 1–64 base entities and up to 16 rectangular curve arrays, at most 512 total native entities. Optional open NURBS and polygonal hatches remain native; array sources are group-local zero-based curve references such as circles:0, ellipses:0 or splines:0. Hatches can coexist but are not array seeds. Full preview, no edit before host approval, one undoable edit.',
+        description: 'Propose 1–64 base entities and up to 16 total rectangular or polar curve arrays, at most 512 total native entities. Polar count includes the source; ±360° distributes unique copies around the full circle, while partial angles include both endpoints. Optional open NURBS and polygonal hatches remain native; array sources are group-local zero-based curve references such as circles:0, ellipses:0 or splines:0. Hatches can coexist but are not array seeds. Full preview, no edit before host approval, one undoable edit.',
         inputSchema: objectWithOptional({
             ...compactDrawingProperties,
-            arrays: {
-                type: 'array',
-                minItems: 0,
-                maxItems: 16,
-                items: object({
-                    sources: collection({
-                        type: 'string',
-                        minLength: 6,
-                        maxLength: 12
-                    }),
-                    rows: patternCount,
-                    columns: patternCount,
-                    dx: number,
-                    dy: number
-                })
-            }
+            arrays: arraySchema,
+            polarArrays: polarArraySchema
         }, [
             'ellipses',
             'splines',
-            'hatches'
+            'hatches',
+            'polarArrays'
         ])
     },
     {
@@ -1304,10 +1316,12 @@ function buildPatternEntities(input, drawing, ownerId) {
     };
     const used = new Set();
     const resolved = [];
+    const resolvedPolar = [];
     let total = baseCount;
-    for (const array of input.arrays){
+    if (input.arrays.length + (input.polarArrays?.length ?? 0) > 16) throw new KJValidationError('A drawing pattern supports at most 16 total arrays');
+    const resolveSources = (sources)=>{
         const indices = [];
-        for (const source of array.sources){
+        for (const source of sources){
             const match = /^(lines|circles|arcs|ellipses|splines|polylines):(0|[1-9]\d?)(?![\s\S])/.exec(source);
             if (!match) throw new KJValidationError('Pattern sources must be group-local references such as circles:0');
             const group = match[1], index = Number(match[2]);
@@ -1316,6 +1330,10 @@ function buildPatternEntities(input, drawing, ownerId) {
             used.add(source);
             indices.push(offsets[group] + index);
         }
+        return indices;
+    };
+    for (const array of input.arrays){
+        const indices = resolveSources(array.sources);
         total += array.sources.length * (array.rows * array.columns - 1);
         if (total > 512) throw new KJValidationError('Drawing pattern exceeds the 512 entity budget');
         resolved.push({
@@ -1324,6 +1342,17 @@ function buildPatternEntities(input, drawing, ownerId) {
             columns: array.columns,
             dx: array.dx,
             dy: array.dy
+        });
+    }
+    for (const array of input.polarArrays ?? []){
+        const indices = resolveSources(array.sources);
+        total += array.sources.length * (array.count - 1);
+        if (total > 512) throw new KJValidationError('Drawing pattern exceeds the 512 entity budget');
+        resolvedPolar.push({
+            indices,
+            center: xy(array.center),
+            count: array.count,
+            angleDegrees: array.angleDegrees
         });
     }
     const base = buildAgentDrawingEntities(drawing, ownerId);
@@ -1340,6 +1369,26 @@ function buildPatternEntities(input, drawing, ownerId) {
             columns,
             dx,
             dy
+        }, {
+            maxEntities: 512
+        });
+        for (const entity of expanded.slice(seeds.length))entities.push({
+            ...entity,
+            options: {
+                id: createId('entity'),
+                ownerId
+            }
+        });
+    }
+    for (const { indices, center, count, angleDegrees } of resolvedPolar){
+        const seeds = indices.map((index)=>({
+                type: base[index].type,
+                payload: base[index].payload
+            }));
+        const expanded = expandPolarDrawingPattern(seeds, {
+            center,
+            count,
+            angleDegrees
         }, {
             maxEntities: 512
         });
@@ -1371,6 +1420,7 @@ function styleAnnotatedDrawing(document, input, source) {
         'hatches'
     ])for(let index = 0; index < (input[group]?.length ?? 0); index++)keys.push(`${group}:${index}`);
     for (const array of input.arrays)for(let row = 0; row < array.rows; row++)for(let column = 0; column < array.columns; column++)if (row || column) keys.push(...array.sources);
+    for (const array of input.polarArrays ?? [])for(let copy = 1; copy < array.count; copy++)keys.push(...array.sources);
     for (const group of [
         'texts',
         'alignedDimensions',

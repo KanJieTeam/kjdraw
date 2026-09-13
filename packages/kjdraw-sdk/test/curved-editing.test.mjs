@@ -171,7 +171,7 @@ test('ARC extension cannot cross the opposite end, wrap a full turn or choose an
   expectArc(extendEntityPayload(target, [ray(315)], onCircle(260)), 0, 315, 315)
   assert.throws(() => extendEntityPayload(arc(0, 90), [ray(180)], onCircle(45)), /midpoint/)
   assert.throws(() => extendEntityPayload(arc(0, 90), [ray(20), ray(180)], onCircle(20)), /exactly/)
-  assert.throws(() => extendEntityPayload(circle(), [ray(180)], onCircle(20)), /LINE or ARC/)
+  assert.throws(() => extendEntityPayload(circle(), [ray(180)], onCircle(20)), /LINE, ARC/)
 })
 
 test('circular editing rejects coincident boundaries, center picks, out-of-sweep picks and invalid geometry without mutation', () => {

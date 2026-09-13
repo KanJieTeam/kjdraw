@@ -68,6 +68,24 @@ test('annotated drawings retain native elliptical arcs and style their array cop
   assert.deepEqual(document.getObject(layer.payload.linetypeId).payload.pattern, [4, -1])
 })
 
+test('annotated drawings apply one style source to every polar-array copy', async () => {
+  const { document, session } = fixture()
+  const proposal = value(await session.call(tool, {
+    ...empty(), circles: [[20, 0, 2]], polarArrays: [{ sources: ['circles:0'], center: { x: 0, y: 0 }, count: 6, angleDegrees: 360 }],
+    texts: [note()],
+    styles: [{ name: 'BOLT-CIRCLE', sources: ['circles:0'], pattern: [6, -2], color: 1, lineweight: 25 }],
+  }))
+  assert.equal(proposal.preview.after.length, 7)
+  const previewCircles = proposal.preview.after.filter(item => item.type === 'CIRCLE')
+  assert.equal(previewCircles.length, 6)
+  assert.equal(new Set(previewCircles.map(item => item.payload.layerId)).size, 1)
+  value(await session.approve(proposal.planId, 'reviewer'))
+  const circles = document.listEntities({ type: 'CIRCLE' })
+  assert.equal(circles.length, 6)
+  assert.ok(circles.every(item => item.payload.layerId === circles[0].payload.layerId))
+  assert.deepEqual(document.getObject(document.getObject(circles[0].payload.layerId).payload.linetypeId).payload.pattern, [6, -2])
+})
+
 test('annotated drawings combine styled rational splines, arrays and notes in one approval', async () => {
   const { document, session } = fixture()
   const spline = { degree: 2, controlPoints: [{ x: 0, y: 0 }, { x: 10, y: 12 }, { x: 20, y: 0 }], knots: [0, 0, 0, 1, 1, 1], weights: [1, 0.7, 1] }

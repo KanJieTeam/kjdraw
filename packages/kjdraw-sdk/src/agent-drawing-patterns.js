@@ -258,3 +258,151 @@ export function expandRectangularDrawingPattern(entities, pattern, budget = {}) 
     }
     return expanded;
 }
+export function expandPolarDrawingPattern(entities, pattern, budget = {}) {
+    const maxEntities = budget.maxEntities ?? 64, maxPoints = budget.maxPoints ?? POINT_LIMIT;
+    limit(maxEntities, ENTITY_LIMIT);
+    limit(maxPoints, POINT_LIMIT);
+    keys(pattern, [
+        'center',
+        'count',
+        'angleDegrees'
+    ]);
+    const { center, count, angleDegrees } = pattern;
+    if (!Number.isSafeInteger(count) || count < 2) reject('Polar pattern count must be a safe integer of at least 2');
+    if (typeof angleDegrees !== 'number' || !Number.isFinite(angleDegrees) || angleDegrees === 0 || Math.abs(angleDegrees) > 360) reject('Polar pattern angle must be nonzero and within ±360 degrees');
+    if (!Array.isArray(entities) || !entities.length || entities.length > maxEntities) reject('Pattern requires a nonempty bounded entity array');
+    if (count > Math.floor(maxEntities / entities.length)) reject('Pattern exceeds the entity budget');
+    if (!Array.isArray(center) || center.length !== 3 || !coordinate(center[0]) || !coordinate(center[1]) || center[2] !== 0) reject('Polar pattern center must be a finite native XY triple within the coordinate range');
+    const source = expandRectangularDrawingPattern(entities, {
+        rows: 1,
+        columns: 1,
+        dx: 0,
+        dy: 0
+    }, {
+        maxEntities,
+        maxPoints
+    });
+    let pointsPerCopy = 0;
+    for (const entity of source){
+        if (entity.type === 'LINE') pointsPerCopy += 2;
+        else if (entity.type === 'ELLIPSE') pointsPerCopy += 2;
+        else if (entity.type === 'SPLINE') pointsPerCopy += entity.payload.controlPoints.length;
+        else if (entity.type === 'LWPOLYLINE') pointsPerCopy += entity.payload.vertices.length;
+        else pointsPerCopy++;
+    }
+    if (pointsPerCopy > Math.floor(maxPoints / count)) reject('Pattern exceeds the point-work budget');
+    const full = Math.abs(angleDegrees) === 360;
+    const step = angleDegrees * Math.PI / 180 / (full ? count : count - 1);
+    const rotatePoint = (point, radians)=>{
+        const cosine = Math.cos(radians), sine = Math.sin(radians);
+        const dx = point[0] - center[0], dy = point[1] - center[1];
+        const result = [
+            center[0] + dx * cosine - dy * sine,
+            center[1] + dx * sine + dy * cosine,
+            0
+        ];
+        if (!coordinate(result[0]) || !coordinate(result[1])) reject('Expanded pattern exceeds the coordinate range');
+        return result;
+    };
+    const rotateVector = (vector, radians)=>{
+        const cosine = Math.cos(radians), sine = Math.sin(radians);
+        const result = [
+            vector[0] * cosine - vector[1] * sine,
+            vector[0] * sine + vector[1] * cosine,
+            0
+        ];
+        if (!coordinate(result[0]) || !coordinate(result[1]) || result[0] === 0 && result[1] === 0) reject('Expanded pattern loses ellipse-axis precision');
+        return result;
+    };
+    const normalize = (radians)=>{
+        const turn = Math.PI * 2, value = radians % turn;
+        return value < 0 ? value + turn : value;
+    };
+    const expanded = [];
+    for(let copy = 0; copy < count; copy++){
+        const radians = copy * step;
+        if (copy === 0) {
+            expanded.push(...source);
+            continue;
+        }
+        for (const entity of source){
+            switch(entity.type){
+                case 'LINE':
+                    {
+                        const start = rotatePoint(entity.payload.start, radians), end = rotatePoint(entity.payload.end, radians);
+                        if (same(start, end)) reject('Pattern rotation loses segment precision');
+                        expanded.push({
+                            type: 'LINE',
+                            payload: {
+                                start,
+                                end
+                            }
+                        });
+                        break;
+                    }
+                case 'CIRCLE':
+                    expanded.push({
+                        type: 'CIRCLE',
+                        payload: {
+                            center: rotatePoint(entity.payload.center, radians),
+                            radius: entity.payload.radius
+                        }
+                    });
+                    break;
+                case 'ARC':
+                    expanded.push({
+                        type: 'ARC',
+                        payload: {
+                            ...entity.payload,
+                            center: rotatePoint(entity.payload.center, radians),
+                            startAngle: normalize(entity.payload.startAngle + radians),
+                            endAngle: normalize(entity.payload.endAngle + radians)
+                        }
+                    });
+                    break;
+                case 'ELLIPSE':
+                    expanded.push({
+                        type: 'ELLIPSE',
+                        payload: {
+                            ...entity.payload,
+                            center: rotatePoint(entity.payload.center, radians),
+                            majorAxis: rotateVector(entity.payload.majorAxis, radians)
+                        }
+                    });
+                    break;
+                case 'SPLINE':
+                    expanded.push({
+                        type: 'SPLINE',
+                        payload: {
+                            ...entity.payload,
+                            controlPoints: entity.payload.controlPoints.map((point)=>rotatePoint(point, radians)),
+                            knots: [
+                                ...entity.payload.knots
+                            ],
+                            ...entity.payload.weights ? {
+                                weights: [
+                                    ...entity.payload.weights
+                                ]
+                            } : {}
+                        }
+                    });
+                    break;
+                case 'LWPOLYLINE':
+                    {
+                        const vertices = entity.payload.vertices.map((point)=>rotatePoint(point, radians));
+                        for(let index = 1; index < vertices.length; index++)if (same(vertices[index - 1], vertices[index])) reject('Pattern rotation loses segment precision');
+                        if (entity.payload.closed && same(vertices.at(-1), vertices[0])) reject('Pattern rotation loses segment precision');
+                        expanded.push({
+                            type: 'LWPOLYLINE',
+                            payload: {
+                                vertices,
+                                closed: entity.payload.closed
+                            }
+                        });
+                        break;
+                    }
+            }
+        }
+    }
+    return expanded;
+}

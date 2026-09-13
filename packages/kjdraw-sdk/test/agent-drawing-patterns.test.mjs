@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { expandRectangularDrawingPattern as expand } from '../src/agent-drawing-patterns.js'
+import { expandPolarDrawingPattern as expandPolar, expandRectangularDrawingPattern as expand } from '../src/agent-drawing-patterns.js'
 import { createKJDrawSDK } from '../src/sdk.js'
 
 const pattern = { rows: 1, columns: 1, dx: 0, dy: 0 }
@@ -12,6 +12,7 @@ const mixed = () => [
   { type: 'LWPOLYLINE', payload: { vertices: [[1, 1, 0], [3, 1, 0], [3, 2, 0]], closed: true } },
 ]
 function freeze(value) { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value) } return value }
+const near = (actual, expected, tolerance = 1e-9) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} != ${expected}`)
 
 test('rectangular patterns preserve exact native geometry and deterministic row-column-source order', () => {
   const source = mixed(), output = expand(source, { rows: 2, columns: 3, dx: 10, dy: 20 })
@@ -118,4 +119,43 @@ test('expanded definitions create editable native entities through existing CREA
   const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
   assert.equal(reopened.listEntities().length, document.listEntities().length)
   for (const entity of document.listEntities()) assert.deepEqual(reopened.getObject(entity.id).payload, entity.payload)
+})
+
+test('polar patterns rotate native geometry in deterministic copy-source order without duplicating a full-circle endpoint', () => {
+  const source = [
+    { type: 'LINE', payload: { start: [5, 0, 0], end: [10, 0, 0] } },
+    { type: 'CIRCLE', payload: { center: [10, 0, 0], radius: 1 } },
+    { type: 'ARC', payload: { center: [8, 0, 0], radius: 2, startAngle: 0, endAngle: Math.PI / 2, clockwise: false } },
+    ellipse(),
+  ]
+  const output = expandPolar(source, { center: [0, 0, 0], count: 4, angleDegrees: 360 })
+  assert.equal(output.length, 16)
+  assert.deepEqual(output.slice(0, 4), source)
+  for (let copy = 0; copy < 4; copy++) assert.deepEqual(output.slice(copy * 4, copy * 4 + 4).map(item => item.type), source.map(item => item.type))
+  const centers = [0, 1, 2, 3].map(copy => output[copy * 4 + 1].payload.center)
+  ;[[10, 0], [0, 10], [-10, 0], [0, -10]].forEach(([x, y], index) => { near(centers[index][0], x); near(centers[index][1], y) })
+  near(output[6].payload.startAngle, Math.PI / 2)
+  near(output[6].payload.endAngle, Math.PI)
+  near(output[7].payload.majorAxis[0], -3)
+  near(output[7].payload.majorAxis[1], 4)
+  assert.notDeepEqual(output.at(-4).payload.start, source[0].payload.start)
+})
+
+test('partial signed polar patterns include both endpoints and reject unsafe definitions before expansion', () => {
+  const output = expandPolar([circle()], { center: [2, 3, 0], count: 3, angleDegrees: -180 })
+  assert.equal(output.length, 3)
+  assert.deepEqual(output.map(item => item.payload.center), [[2, 3, 0], [2, 3, 0], [2, 3, 0]])
+  const offset = { type: 'CIRCLE', payload: { center: [12, 3, 0], radius: 1 } }
+  const rotated = expandPolar([offset], { center: [2, 3, 0], count: 3, angleDegrees: -180 })
+  ;[[12, 3], [2, -7], [-8, 3]].forEach(([x, y], index) => { near(rotated[index].payload.center[0], x); near(rotated[index].payload.center[1], y) })
+  for (const pattern of [
+    { center: [0, 0, 0], count: 1, angleDegrees: 360 },
+    { center: [0, 0, 0], count: 2, angleDegrees: 0 },
+    { center: [0, 0, 0], count: 2, angleDegrees: 361 },
+    { center: [0, 0, 1], count: 2, angleDegrees: 90 },
+    { center: [0, 0, 0], count: 2.5, angleDegrees: 90 },
+  ]) assert.throws(() => expandPolar([circle()], pattern))
+  const unreadable = { get type() { assert.fail('Oversized polar source must not be inspected') } }
+  assert.throws(() => expandPolar([unreadable], { center: [0, 0, 0], count: 65, angleDegrees: 360 }), /entity budget/)
+  assert.throws(() => expandPolar([circle()], { center: [0, 0, 0], count: 3, angleDegrees: 180 }, { maxEntities: 3, maxPoints: 2 }), /point-work/)
 })
