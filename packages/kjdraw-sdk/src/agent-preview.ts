@@ -38,7 +38,7 @@ export interface KJAgentGeometryPreview {
 const project = (entity: KJReadonlyObjectRecord): KJAgentPreviewEntity => ({ id: entity.id, type: entity.type, payload: entity.payload })
 const supported = ['LINE', 'CIRCLE', 'ARC', 'LWPOLYLINE']
 export const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[] = Object.freeze([...supported, 'ELLIPSE', 'SPLINE', 'HATCH', 'XLINE', 'RAY', 'TEXT', 'MTEXT', 'LEADER', 'DIMENSION', 'INSERT'])
-const creatable = [...supported, 'ELLIPSE', 'SPLINE', 'HATCH', 'TEXT', 'MTEXT', 'LEADER', 'DIMENSION']
+const creatable = [...supported, 'ELLIPSE', 'SPLINE', 'HATCH', 'TEXT', 'MTEXT', 'LEADER', 'DIMENSION', 'INSERT']
 const stretchable = ['LINE', 'LWPOLYLINE', 'POLYLINE']
 
 function effectiveLayerId(document: KJDocument, entity: KJReadonlyObjectRecord): string | null {

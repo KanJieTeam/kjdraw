@@ -73,6 +73,12 @@ export interface KJEntityBatchResources {
         linetypeId: string;
         lineweight: number;
     }[];
+    blocks?: {
+        id: string;
+        name: string;
+        basePoint: KJPointInput;
+        entities: KJEntityBatchSpec[];
+    }[];
 }
 export interface KJBlockAttributeDefinitionInput {
     readonly tag: string;

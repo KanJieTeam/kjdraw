@@ -97,6 +97,16 @@
       "import": "./src/agent-manufacturing-sheet.js",
       "default": "./src/agent-manufacturing-sheet.js"
     },
+    "./agent-architecture-plan": {
+      "types": "./types/agent-architecture-plan.d.ts",
+      "import": "./src/agent-architecture-plan.js",
+      "default": "./src/agent-architecture-plan.js"
+    },
+    "./agent-site-plan": {
+      "types": "./types/agent-site-plan.d.ts",
+      "import": "./src/agent-site-plan.js",
+      "default": "./src/agent-site-plan.js"
+    },
     "./drawing-context": {
       "types": "./types/drawing-context.d.ts",
       "import": "./src/drawing-context.js",

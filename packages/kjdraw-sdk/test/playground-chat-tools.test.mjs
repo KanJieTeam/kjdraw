@@ -15,14 +15,15 @@ function fixture() {
 const circle = { expectedRevision: 0, units: 'millimeter', circles: [{ center: { x: 3, y: 4 }, radius: 2 }] }
 const modelCall = (name, args, inspect = () => {}) => ({ createConversation({ tools, instructions }) {
   inspect(tools, instructions)
-  return { next: async () => ({ text: '', calls: [{ id: 'call-1', name, arguments: args }] }) }
+  let sent=false
+  return { next: async () => sent ? { text: 'Done.', calls: [] } : (sent=true, { text: '', calls: [{ id: 'call-1', name, arguments: args }] }) }
 } })
 
 test('workbench exposes useful tools and creates ordinary geometry through pattern arrays=[]', async () => {
   const { session, document } = fixture()
   assert.ok(Object.isFrozen(KJDRAW_CHAT_TOOL_NAMES))
-  assert.equal(KJDRAW_CHAT_TOOL_NAMES.length, 22)
-  assert.deepEqual(KJDRAW_CHAT_TOOL_NAMES.filter(name => name.startsWith('cad_propose_')), ['cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update', 'cad_propose_move', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet'])
+  assert.equal(KJDRAW_CHAT_TOOL_NAMES.length, 23)
+  assert.deepEqual(KJDRAW_CHAT_TOOL_NAMES.filter(name => name.startsWith('cad_propose_')), ['cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update', 'cad_propose_move', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet', 'cad_propose_architecture_plan'])
   const args = { expectedRevision: 0, units: 'millimeter', lines: [[0, 0, 20, 0]], circles: [[3, 4, 2]], arcs: [], polylines: [], arrays: [] }
   const result = await runKJAgentTask({ session, prompt: 'Draw a line and circle.', toolNames: KJDRAW_CHAT_TOOL_NAMES,
     model: modelCall('cad_propose_drawing_pattern', args, tools => assert.deepEqual(tools.map(item => item.name).sort(), [...KJDRAW_CHAT_TOOL_NAMES].sort())) })
@@ -31,6 +32,45 @@ test('workbench exposes useful tools and creates ordinary geometry through patte
   assert.equal(result.outputs[0].result.value.preview.after.length, 2)
   assert.equal((await session.approve(result.proposalIds[0], 'reviewer')).ok, true)
   assert.deepEqual(document.listEntities({ type: 'CIRCLE' })[0].payload.center, [3, 4, 0])
+})
+
+test('explicit architecture requests compile a blank drawing through the single semantic schema', async () => {
+  for (const prompt of ['Create an architectural floor plan with rooms, walls, doors and windows.', '绘制办公室建筑平面图，包含房间布局和门窗。']) {
+    const { document, session } = fixture(), toolNames=getKJDrawChatToolNamesForRequest(document,prompt)
+    assert.deepEqual(toolNames,['cad_propose_architecture_plan'])
+    const input={version:'1.0.0',expectedRevision:0,units:'millimeter',drawingId:'ARCH-101',title:'TWO ROOM OFFICE',width:10000,depth:8000,wallThickness:200,
+      exteriorOpenings:[{wall:'south',offset:1200,width:900,kind:'door'},{wall:'north',offset:3000,width:1500,kind:'window'}],
+      partitions:[{id:'P1',axis:'vertical',position:5000,start:200,end:7800,openings:[{offset:3100,width:900,kind:'door'}]}],
+      rooms:[{id:'R1',name:'MEETING',bounds:[200,200,4700,7600]},{id:'R2',name:'STUDIO',bounds:[5100,200,4700,7600]}],textHeight:250}
+    const result=await runKJAgentTask({session,prompt,toolNames,model:modelCall('cad_propose_architecture_plan',input,tools=>assert.deepEqual(tools.map(tool=>tool.name),toolNames))})
+    assert.equal(result.status,'awaiting-approval',JSON.stringify({error:result.error,outputs:result.outputs}))
+    const proposal=result.outputs[0].result.value
+    assert.equal(proposal.engineeringEvidence.skillId,'architecture-plan')
+    assert.equal(document.listEntities().length,0)
+    assert.equal((await session.approve(proposal.planId,'architecture-reviewer')).ok,true)
+    assert.ok(document.listEntities({type:'INSERT'}).length>=3)
+    assert.ok(document.getTable('blockRecords').records.some(record=>record.name.startsWith('KJ_ARCH_DOOR_')))
+  }
+})
+
+test('explicit site requests compile a blank meter drawing through the single semantic schema', async () => {
+  const sdk=createKJDrawSDK(), document=sdk.createDocument({units:'meter'}), session=new KJAgentToolSession(sdk,document)
+  const prompt='Create a general site plan with a site boundary, roads, buildings and utilities.'
+  const toolNames=getKJDrawChatToolNamesForRequest(document,prompt)
+  assert.deepEqual(toolNames,['cad_propose_site_plan'])
+  const input={version:'1.0.0',expectedRevision:0,units:'meter',drawingId:'SITE-101',title:'CAMPUS GENERAL SITE PLAN',revision:'A',
+    boundary:[[1000,2000],[1260,2000],[1270,2120],[1220,2220],[1000,2200]],roads:[{name:'MAIN ROAD',width:8,centerline:[[990,2020],[1080,2020],[1160,2060],[1280,2060]]}],
+    buildings:[{name:'ADMIN',floors:4,footprint:[[1025,2040],[1080,2040],[1080,2080],[1025,2080]]}],
+    utilities:[{kind:'water',name:'WATER',diameterMm:200,path:[[1005,2028],[1090,2028],[1240,2070]],nodeIndices:[0,1,2]},{kind:'drainage',name:'STORM',diameterMm:600,path:[[1010,2190],[1080,2160],[1250,2120]],nodeIndices:[0,1,2]}],
+    coordinateReference:{position:[1010,2010],easting:385000.125,northing:3452000.75,crs:'EPSG:32650'},northAngleDegrees:-8,scale:500}
+  const result=await runKJAgentTask({session,prompt,toolNames,model:modelCall('cad_propose_site_plan',input,tools=>assert.deepEqual(tools.map(tool=>tool.name),toolNames))})
+  assert.equal(result.status,'awaiting-approval')
+  const proposal=result.outputs[0].result.value
+  assert.equal(proposal.engineeringEvidence.skillId,'site-plan')
+  assert.equal(document.listEntities().length,0)
+  assert.equal((await session.approve(proposal.planId,'site-reviewer')).ok,true)
+  assert.ok(document.getTable('layers').records.some(record=>record.name==='SITE_BOUNDARY'))
+  assert.ok(document.listEntities().length>20)
 })
 
 test('explicit manufacturing requests on an empty millimeter drawing send only the semantic compiler schema', async () => {
@@ -120,7 +160,7 @@ test('locked legacy capability tools are not replaced by workbench defaults and 
 test('meter workbench exposes the road tool and retains the complete native proposal and all resources', async () => {
   const sdk=createKJDrawSDK(), document=sdk.createDocument({units:'meter'}), session=new KJAgentToolSession(sdk,document)
   const toolNames=getKJDrawChatToolNames(document), input={...createRoadDesignFixture(),...roadDrawingFixtureOptions,expectedRevision:0}
-  assert.ok(Object.isFrozen(toolNames)); assert.deepEqual(toolNames,[...KJDRAW_CHAT_TOOL_NAMES.filter(name=>name!=='cad_propose_manufacturing_sheet'),'cad_propose_road_drawing'])
+  assert.ok(Object.isFrozen(toolNames)); assert.deepEqual(toolNames,[...KJDRAW_CHAT_TOOL_NAMES.filter(name=>!['cad_propose_manufacturing_sheet','cad_propose_architecture_plan'].includes(name)),'cad_propose_site_plan','cad_propose_road_drawing'])
   const expected=buildRoadDrawing(createRoadDesignFixture(),roadDrawingFixtureOptions), before=document.serialize()
   assert.ok(expected.entities.length>64)
   const result=await runKJAgentTask({session,prompt:'Compile this fully supplied road study for host review.',toolNames,

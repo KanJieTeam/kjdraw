@@ -9,24 +9,35 @@ import { prepareChatRoadAsset } from './chat-road-asset.js'
 export const KJDRAW_CHAT_TOOL_NAMES = Object.freeze([
   'cad_read_drawing', 'cad_read_page', 'cad_query_drawing', 'cad_read_layouts', 'cad_read_designs', 'cad_read_components', 'cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update',
   'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet',
+  'cad_propose_architecture_plan',
 ])
-const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES.filter(name=>name!=='cad_propose_manufacturing_sheet'), 'cad_propose_road_drawing'])
+const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES.filter(name=>!['cad_propose_manufacturing_sheet','cad_propose_architecture_plan'].includes(name)), 'cad_propose_site_plan', 'cad_propose_road_drawing'])
 const roadRevisionToolNames = Object.freeze([...meterToolNames, 'cad_propose_road_revision'])
 const selectionToolNames = new Map([KJDRAW_CHAT_TOOL_NAMES,meterToolNames,roadRevisionToolNames].map(names=>[names,Object.freeze([...names,'cad_read_selection_sets'])]))
 const manufacturingToolNames = Object.freeze(['cad_propose_manufacturing_sheet'])
+const architectureToolNames = Object.freeze(['cad_propose_architecture_plan'])
+const siteToolNames = Object.freeze(['cad_propose_site_plan'])
 /** Host policy only: SDK defaults and explicitly selected/locked tools remain unchanged. */
 export function getKJDrawChatToolNames(document,roadDrawingIds=[]) {
   const names=document.snapshot().header.units === 'meter' ? roadDrawingIds.length?roadRevisionToolNames:meterToolNames : KJDRAW_CHAT_TOOL_NAMES
   return document.listObjects({kind:'group',type:'SELECTION_SET'}).length?selectionToolNames.get(names):names
 }
 
-/** Narrow an empty millimeter drawing to the semantic manufacturing compiler when the request is explicit. */
+/** Narrow an empty drawing to one explicit semantic compiler so the model returns parameters instead of entity streams. */
 export function getKJDrawChatToolNamesForRequest(document,request,roadDrawingIds=[]) {
   const names=getKJDrawChatToolNames(document,roadDrawingIds)
-  if(document.snapshot().header.units!=='millimeter'||document.listEntities().length||typeof request!=='string')return names
+  if(document.listEntities().length||typeof request!=='string')return names
   const normalized=request.normalize('NFKC').toLowerCase()
+  const units=document.snapshot().header.units
+  if(units==='meter'){
+    const siteIntent=/\b(?:general site plan|site plan|campus plan|site boundary|utility plan|utilities plan)\b|总平面图|总图|园区平面|场地边界|综合管线/.test(normalized)
+    return siteIntent?siteToolNames:names
+  }
+  if(units!=='millimeter')return names
   const manufacturingIntent=/\b(?:manufacturing drawing|fixture plate|counterbore|machining notes?|through holes?)\b|制造工程图|夹具板|沉孔|加工说明|通孔/.test(normalized)
-  return manufacturingIntent?manufacturingToolNames:names
+  if(manufacturingIntent)return manufacturingToolNames
+  const architectureIntent=/\b(?:architectural plan|floor plan|office plan|room layout|walls? with (?:doors?|windows?))\b|建筑平面图|户型图|办公室平面|房间布局|墙体.*门窗/.test(normalized)
+  return architectureIntent?architectureToolNames:names
 }
 
 const copy = {

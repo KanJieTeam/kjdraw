@@ -19,6 +19,8 @@ import { commitAgentTaskCreateBatchApproval, commitAgentTaskLengthenApproval, co
 import { createAgentDesignContext } from './agent-design-relations.js';
 import { createCatalogComponentInsertIdentity, searchComponentCatalog } from './component-library.js';
 import { buildAgentManufacturingSheet } from './agent-manufacturing-sheet.js';
+import { buildAgentArchitecturePlan } from './agent-architecture-plan.js';
+import { buildAgentSitePlan } from './agent-site-plan.js';
 const number = {
     type: 'number',
     minimum: -1e12,
@@ -832,6 +834,243 @@ const manufacturingSheetSchema = objectWithOptional({
     'holePatterns',
     'slots'
 ]);
+const architectureOpening = object({
+    wall: {
+        type: 'string',
+        enum: [
+            'north',
+            'south',
+            'east',
+            'west'
+        ]
+    },
+    offset: nonnegative,
+    width: radius,
+    kind: {
+        type: 'string',
+        enum: [
+            'door',
+            'window'
+        ]
+    }
+});
+const architecturePartitionOpening = object({
+    offset: nonnegative,
+    width: radius,
+    kind: {
+        type: 'string',
+        enum: [
+            'door',
+            'window'
+        ]
+    }
+});
+const architecturePartition = objectWithOptional({
+    id: {
+        ...text,
+        maxLength: 64
+    },
+    axis: {
+        type: 'string',
+        enum: [
+            'horizontal',
+            'vertical'
+        ]
+    },
+    position: number,
+    start: number,
+    end: number,
+    openings: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 8,
+        items: architecturePartitionOpening
+    }
+}, [
+    'openings'
+]);
+const architecturePlanSchema = objectWithOptional({
+    version: {
+        type: 'string',
+        enum: [
+            '1.0.0'
+        ]
+    },
+    expectedRevision: revision,
+    units: {
+        type: 'string',
+        enum: [
+            'millimeter'
+        ]
+    },
+    drawingId: {
+        ...text,
+        maxLength: 64
+    },
+    title: {
+        ...text,
+        maxLength: 160
+    },
+    width: radius,
+    depth: radius,
+    wallThickness: radius,
+    exteriorOpenings: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 32,
+        items: architectureOpening
+    },
+    partitions: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 24,
+        items: architecturePartition
+    },
+    rooms: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 64,
+        items: object({
+            id: {
+                ...text,
+                maxLength: 64
+            },
+            name: {
+                ...text,
+                maxLength: 96
+            },
+            bounds: numericTuple(4)
+        })
+    },
+    textHeight: radius
+}, [
+    'exteriorOpenings',
+    'partitions',
+    'textHeight'
+]);
+const sitePointList = (minimum, maximum)=>({
+        type: 'array',
+        minItems: minimum,
+        maxItems: maximum,
+        items: numericTuple(2)
+    });
+const sitePlanSchema = objectWithOptional({
+    version: {
+        type: 'string',
+        enum: [
+            '1.0.0'
+        ]
+    },
+    expectedRevision: revision,
+    units: {
+        type: 'string',
+        enum: [
+            'meter'
+        ]
+    },
+    drawingId: {
+        ...text,
+        maxLength: 64
+    },
+    title: {
+        ...text,
+        maxLength: 160
+    },
+    revision: {
+        ...text,
+        maxLength: 32
+    },
+    boundary: sitePointList(3, 128),
+    roads: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 16,
+        items: object({
+            name: {
+                ...text,
+                maxLength: 96
+            },
+            width: radius,
+            centerline: sitePointList(2, 64)
+        })
+    },
+    buildings: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 64,
+        items: objectWithOptional({
+            name: {
+                ...text,
+                maxLength: 96
+            },
+            floors: {
+                type: 'integer',
+                minimum: 1,
+                maximum: 200
+            },
+            footprint: sitePointList(3, 128)
+        }, [
+            'floors'
+        ])
+    },
+    utilities: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 32,
+        items: objectWithOptional({
+            kind: {
+                type: 'string',
+                enum: [
+                    'water',
+                    'drainage',
+                    'power',
+                    'gas',
+                    'telecom'
+                ]
+            },
+            name: {
+                ...text,
+                maxLength: 96
+            },
+            path: sitePointList(2, 128),
+            diameterMm: radius,
+            nodeIndices: {
+                type: 'array',
+                minItems: 0,
+                maxItems: 128,
+                items: {
+                    type: 'integer',
+                    minimum: 0,
+                    maximum: 127
+                }
+            }
+        }, [
+            'diameterMm',
+            'nodeIndices'
+        ])
+    },
+    coordinateReference: object({
+        position: numericTuple(2),
+        easting: number,
+        northing: number,
+        crs: {
+            ...text,
+            maxLength: 64
+        }
+    }),
+    northAngleDegrees: {
+        type: 'number',
+        minimum: -360,
+        maximum: 360
+    },
+    scale: {
+        type: 'integer',
+        minimum: 500,
+        maximum: 500
+    }
+}, [
+    'northAngleDegrees'
+]);
 const componentSearchSchemaBase = object({
     expectedRevision: revision,
     query: {
@@ -1015,6 +1254,18 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         effect: 'propose',
         description: 'Compile a complete editable millimeter manufacturing drawing from a compact versioned intent instead of emitting every CAD entity. Version 1.0.0 supports a rectangular plate, bounded rectangular through-hole patterns with optional counterbores, horizontal or vertical through slots, aligned top/front views, center marks, native measured dimensions, named engineering layers, sheet border, title block and machining notes. KJDraw validates all feature relationships, generates deterministic native geometry locally and returns the full preview. The model supplies design parameters only; host approval applies one atomic CREATEBATCH transaction.',
         inputSchema: manufacturingSheetSchema
+    },
+    {
+        name: 'cad_propose_architecture_plan',
+        effect: 'propose',
+        description: 'Compile a complete editable millimeter architectural floor plan from compact versioned intent. Version 1.0.0 supports one rectangular exterior envelope, straight horizontal or vertical partitions, explicit door and window openings, reusable native block definitions and instances, non-overlapping room boundaries, room names and areas, native dimensions, named layers, and an A3 1:100 equivalent model-space frame. Supply exact dimensions and room bounds; KJDraw validates wall material, openings, room bounds and partition intersections, then generates deterministic native geometry locally. Requires a blank drawing. Host approval applies the full reviewed result as one atomic CREATEBATCH transaction.',
+        inputSchema: architecturePlanSchema
+    },
+    {
+        name: 'cad_propose_site_plan',
+        effect: 'propose',
+        description: 'Compile a complete editable meter general site plan from compact versioned intent. Version 1.0.0 supports a bounded site polygon, one or more road centerlines with generated edges, building footprints and labels, water/drainage/power/gas/telecom paths and declared nodes, coordinate reference annotation, north arrow, native dimensions, named layers, and a model-space view sized for ISO A1 landscape at 1:500. Supply actual project coordinates and geometry; KJDraw validates polygon topology, extents, utility requirements and output fit, then expands the result locally. Requires a blank drawing. Host approval applies one atomic CREATEBATCH transaction.',
+        inputSchema: sitePlanSchema
     },
     {
         name: 'cad_check_geometry',
@@ -1677,7 +1928,10 @@ export class KJAgentToolSession {
     }
     get definitions() {
         const units = this.#document.snapshot().header.units;
-        return deepFreeze(KJDRAW_AGENT_TOOLS.filter((tool)=>tool.name !== 'cad_propose_manufacturing_sheet' || units === 'millimeter').map((tool)=>{
+        return deepFreeze(KJDRAW_AGENT_TOOLS.filter((tool)=>![
+                'cad_propose_manufacturing_sheet',
+                'cad_propose_architecture_plan'
+            ].includes(tool.name) || units === 'millimeter').filter((tool)=>tool.name !== 'cad_propose_site_plan' || units === 'meter').map((tool)=>{
             if (!tool.inputSchema.properties?.units) return tool;
             return {
                 ...tool,
@@ -1940,6 +2194,14 @@ export class KJAgentToolSession {
                             };
                         } else if (name === 'cad_propose_manufacturing_sheet') {
                             const compiled = buildAgentManufacturingSheet(document, args);
+                            commandArgs = structuredClone(compiled.commandArgs);
+                            engineeringEvidence = compiled.evidence;
+                        } else if (name === 'cad_propose_architecture_plan') {
+                            const compiled = buildAgentArchitecturePlan(document, args);
+                            commandArgs = structuredClone(compiled.commandArgs);
+                            engineeringEvidence = compiled.evidence;
+                        } else if (name === 'cad_propose_site_plan') {
+                            const compiled = buildAgentSitePlan(document, args);
                             commandArgs = structuredClone(compiled.commandArgs);
                             engineeringEvidence = compiled.evidence;
                         } else if (name === 'cad_propose_road_drawing' || name === 'cad_propose_road_drawing_from_asset') {
@@ -2320,6 +2582,8 @@ export class KJAgentToolSession {
                             'cad_propose_drawing_pattern',
                             'cad_propose_drawing_annotated',
                             'cad_propose_manufacturing_sheet',
+                            'cad_propose_architecture_plan',
+                            'cad_propose_site_plan',
                             'cad_propose_road_drawing',
                             'cad_propose_road_drawing_from_asset'
                         ].includes(name) ? {

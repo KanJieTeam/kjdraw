@@ -40,7 +40,8 @@ const creatable = [
     'TEXT',
     'MTEXT',
     'LEADER',
-    'DIMENSION'
+    'DIMENSION',
+    'INSERT'
 ];
 const stretchable = [
     'LINE',
