@@ -115,7 +115,7 @@ test('embedded multi-selection applies one atomic layer property change with und
   })
   const inspector = page.locator('[data-inspector]')
   await expect(inspector.locator('.entity-title')).toContainText('2 selected')
-  await inspector.locator('select').selectOption(state.layerId)
+  await inspector.locator('select[data-property="layer"]').selectOption(state.layerId)
   await inspector.locator('button.apply').click()
   await expect.poll(() => page.evaluate(() => window.__selectionGrips.drawing.revision)).toBe(state.beforeRevision + 1)
   expect(await page.evaluate(() => window.__selectionGrips.entities.slice(0, 2).map(item => window.__selectionGrips.drawing.getObject(item.id).payload.layerId))).toEqual([state.layerId, state.layerId])

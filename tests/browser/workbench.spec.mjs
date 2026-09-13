@@ -142,17 +142,19 @@ test('embeddable workbench isolates its UI and keeps document, locale, selection
         state.workbench.root.querySelector('.statusbar').offsetHeight,
       ],
       svgTools: state.workbench.root.querySelectorAll('.ribbon .kj-icon').length,
+      toolCount: state.workbench.root.querySelectorAll('.ribbon .tool').length,
       iconFill: getComputedStyle(state.workbench.root.querySelector('.ribbon .kj-icon')).fill,
       toolDisplay: getComputedStyle(state.workbench.root.querySelector('.ribbon .tool')).display,
     }
   })
-  expect(initial).toEqual({
+  expect(initial.svgTools).toBe(initial.toolCount)
+  expect(initial.toolCount).toBeGreaterThan(0)
+  expect(initial).toMatchObject({
     count: 1,
     allButtonsAreSafe: true,
     outsideDisplay: 'inline-block',
     chrome: 'rgb(246, 247, 249)',
     rowHeights: [44, 92, 32],
-    svgTools: 22,
     iconFill: 'none',
     toolDisplay: 'grid',
   })
