@@ -38,8 +38,12 @@ test('workbench pointer drawing commits exact perpendicular and tangent points f
   await expect(marker).toHaveAttribute('data-mode', 'perpendicular')
   await expect(marker).toHaveAttribute('aria-label', 'Perpendicular')
   await page.evaluate(() => window.relationSnap.workbench.setLocale('zh-CN'))
+  const localizedBase = await screenPoint(page, 'relationSnap', [5, 20]), localizedFoot = await screenPoint(page, 'relationSnap', [5, 0])
+  await page.locator('#relation-snap-host [data-tool="line"]').click()
+  await page.mouse.click(localizedBase.x, localizedBase.y)
+  await page.mouse.move(localizedFoot.x + 2, localizedFoot.y + 1)
   await expect(marker).toHaveAttribute('aria-label', '垂足')
-  await page.mouse.click(foot.x + 2, foot.y + 1)
+  await page.mouse.click(localizedFoot.x + 2, localizedFoot.y + 1)
   const perpendicular = await page.evaluate(() => window.relationSnap.drawing.listEntities({ type: 'LINE' }).at(-1).payload)
   expect(perpendicular.start).toEqual([5, 20, 0])
   expect(perpendicular.end).toEqual([5, 0, 0])
@@ -56,6 +60,41 @@ test('workbench pointer drawing commits exact perpendicular and tangent points f
   expect(tangent.start).toEqual([50, 0, 0])
   expect(tangent.end[0]).toBeCloseTo(35, 9)
   expect(tangent.end[1]).toBeCloseTo(Math.sqrt(75), 9)
+
+})
+
+test('workbench pointer drawing commits an exact tangent to a rotated ellipse', async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(async () => {
+    document.body.replaceChildren()
+    const host = document.createElement('div'); host.id = 'ellipse-tangent-host'; host.style.cssText = 'width:1100px;height:720px'; document.body.append(host)
+    const [{ createKJDrawSDK }, { mountKJDrawWorkbench }] = await Promise.all([
+      import('/packages/kjdraw-sdk/src/sdk.js'), import('/packages/kjdraw-sdk/src/workbench.js'),
+    ])
+    const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'ellipse-tangent-workbench', units: 'millimeter' })
+    const locked = await sdk.executeCommand('LAYERNEW', { name: 'Locked references', locked: true }, { document: drawing })
+    await drawing.transact('Reference ellipse', tx => tx.createEntity('ELLIPSE', {
+      center: [-30, 20, 0], majorAxis: [8, 6, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2, layerId: locked.id,
+    }, { id: 'reference-ellipse' }))
+    await sdk.executeCommand('SNAPSETTINGS', { modes: ['tangent'], radius: 18 }, { document: drawing })
+    const workbench = mountKJDrawWorkbench(host, { sdk, document: drawing, locale: 'en', grid: false, showLayers: false, showInspector: false })
+    await workbench.ready; await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    workbench.renderer.resize(); Object.assign(workbench.renderer.camera, { centerX: -20, centerY: 20, scale: 6 }); workbench.renderer.render()
+    window.ellipseTangent = { sdk, workbench, drawing }
+  })
+
+  const base = [-14, 32], point = [-26 - 3 * Math.sqrt(3) / 2, 23 + 2 * Math.sqrt(3)]
+  const baseScreen = await screenPoint(page, 'ellipseTangent', base), pointScreen = await screenPoint(page, 'ellipseTangent', point)
+  await page.locator('#ellipse-tangent-host [data-tool="line"]').click()
+  await page.mouse.click(baseScreen.x, baseScreen.y)
+  await page.mouse.move(pointScreen.x + 1, pointScreen.y - 1)
+  const marker = page.locator('#ellipse-tangent-host [data-snap]')
+  await expect(marker).toHaveAttribute('data-mode', 'tangent')
+  await page.mouse.click(pointScreen.x + 1, pointScreen.y - 1)
+  const tangent = await page.evaluate(() => window.ellipseTangent.drawing.listEntities({ type: 'LINE' }).at(-1).payload)
+  expect(tangent.start).toEqual([...base, 0])
+  expect(tangent.end[0]).toBeCloseTo(point[0], 9)
+  expect(tangent.end[1]).toBeCloseTo(point[1], 9)
 })
 
 test('playground pointer drawing exposes and applies perpendicular snap mode', async ({ page }) => {

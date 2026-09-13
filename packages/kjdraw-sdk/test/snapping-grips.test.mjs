@@ -101,6 +101,25 @@ test('ellipse intersection snaps transform line, ray and xline domains into the 
   assert.equal(sdk.snap([16, 28], { radius: 100, modes: ['intersection'], entityIds: [rotated.id, away.id] }).length, 0)
 })
 
+test('ellipse tangent snaps are exact for external references and respect partial-arc domains', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'ellipse-tangent-snaps' })
+  const full = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [0, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2,
+  } })
+  const upper = [5, 5 * Math.sqrt(3) / 2]
+  let tangents = sdk.snap(upper, { radius: .01, modes: ['tangent'], entityIds: [full.id], referencePoint: [20, 0] })
+  assert.equal(tangents.length, 1); closePoint(tangents[0].point, upper); close(tangents[0].parameter, Math.PI / 3)
+  const tangentVector = [-10 * Math.sin(tangents[0].parameter), 5 * Math.cos(tangents[0].parameter)]
+  close((tangents[0].point[0] - 20) * tangentVector[1] - tangents[0].point[1] * tangentVector[0], 0)
+  assert.equal(sdk.snap([5, 0], { radius: 20, modes: ['tangent'], entityIds: [full.id], referencePoint: [0, 0] }).length, 0)
+
+  const partial = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: {
+    center: [30, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI,
+  } })
+  tangents = sdk.snap([35, 4.3], { radius: 1, modes: ['tangent'], entityIds: [partial.id], referencePoint: [50, 0] })
+  assert.equal(tangents.length, 1); closePoint(tangents[0].point, [35, 5 * Math.sqrt(3) / 2]); close(tangents[0].parameter, Math.PI / 3)
+})
+
 test('exact snaps outrank nearest while nearest remains an explicit fallback', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'snap-priority' })
   const circle = await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: [0, 0], radius: 10 } })

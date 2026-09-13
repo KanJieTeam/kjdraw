@@ -142,6 +142,43 @@ function ellipseBoxDistance(cursor, payload) {
     const extentX = Math.hypot(major[0], major[1] * ratio), extentY = Math.hypot(major[1], major[0] * ratio);
     return Math.hypot(Math.max(0, Math.abs(point[0] - center[0]) - extentX), Math.max(0, Math.abs(point[1] - center[1]) - extentY));
 }
+function ellipseLocalCoordinates(payload, input) {
+    const center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio);
+    const minor = [
+        -major[1] * ratio,
+        major[0] * ratio,
+        0
+    ], determinant = major[0] * minor[1] - major[1] * minor[0];
+    if (!Number.isFinite(determinant) || Math.abs(determinant) <= 1e-20) throw new KJValidationError('ELLIPSE snap geometry is invalid');
+    const value = point3(input), dx = value[0] - center[0], dy = value[1] - center[1];
+    return [
+        (dx * minor[1] - dy * minor[0]) / determinant,
+        (major[0] * dy - major[1] * dx) / determinant
+    ];
+}
+function ellipseTangentCandidates(entity, cursor, reference, payload) {
+    const local = ellipseLocalCoordinates(payload, reference), squared = local[0] * local[0] + local[1] * local[1];
+    if (squared <= 1 + 1e-12 * Math.max(1, squared)) return [];
+    const parameters = ellipseParameters(payload), centerAngle = Math.atan2(local[1], local[0]), offset = Math.acos(1 / Math.sqrt(squared));
+    return [
+        centerAngle + offset,
+        centerAngle - offset
+    ].flatMap((parameter)=>{
+        if (!parameters.full && !parameterOnEllipse(parameter, parameters.start, parameters.span)) return [];
+        const point = ellipsePointAt(payload, parameter);
+        return [
+            {
+                mode: 'tangent',
+                point,
+                entityIds: [
+                    entity.id
+                ],
+                distance: distance2(cursor, point),
+                parameter
+            }
+        ];
+    });
+}
 function positiveTurn(value) {
     value %= TURN;
     return value < 0 ? value + TURN : value;
@@ -516,7 +553,11 @@ function baseCandidates(entity, modes, cursor, reference, radius) {
     ].includes(entity.type)) add('insertion', payload.position);
     if (modes.has('node') && entity.type === 'POINT') add('node', payload.position);
     if (reference && modes.has('perpendicular')) result.push(...perpendicularCandidates(entity, cursor, reference));
-    if (reference && modes.has('tangent')) result.push(...tangentCandidates(entity, cursor, reference));
+    if (reference && modes.has('tangent')) {
+        if (entity.type === 'ELLIPSE') {
+            if (ellipseBoxDistance(cursor, payload) <= radius) result.push(...ellipseTangentCandidates(entity, cursor, reference, payload));
+        } else result.push(...tangentCandidates(entity, cursor, reference));
+    }
     if (modes.has('nearest')) {
         if (entity.type === 'ELLIPSE') {
             const nearest = nearestOnEllipse(cursor, payload);
@@ -552,14 +593,7 @@ function ellipseLineIntersection(ellipse, line) {
         kind: 'none',
         points: []
     };
-    const local = (input)=>{
-        const value = point3(input), dx = value[0] - center[0], dy = value[1] - center[1];
-        return [
-            (dx * minor[1] - dy * minor[0]) / determinant,
-            (major[0] * dy - major[1] * dx) / determinant
-        ];
-    };
-    const start = local(line.start), end = local(line.end);
+    const start = ellipseLocalCoordinates(payload, line.start), end = ellipseLocalCoordinates(payload, line.end);
     const result = intersectLineCircle2(start, end, [
         0,
         0
