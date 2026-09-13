@@ -553,9 +553,24 @@ test('streaming Chat keeps endpoint parameter choices explicit and isolates text
   assert.equal(result.status, 'responded'); assert.equal(result.text, 'runner ready'); assert.deepEqual(runnerDeltas, ['runner ', 'ready'])
 })
 
-test('streaming Chat rejects truncated or ambiguous tool deltas before dispatch', async () => {
+test('streaming Chat accepts a complete-JSON fallback and rejects truncated or ambiguous tool deltas before dispatch', async () => {
+  const fallbackDeltas = []
+  const fallback = await runKJAgentTask({
+    session: fixture().session,
+    prompt: 'inspect',
+    model: createKJModelAdapter({
+      protocol: 'chat-completions',
+      model: 'complete-json-fallback',
+      chatStreaming: true,
+      onTextDelta: delta => fallbackDeltas.push(delta),
+      request: async () => wire('chat-completions', [], 'fallback ready'),
+    }),
+  })
+  assert.equal(fallback.status, 'responded')
+  assert.equal(fallback.text, 'fallback ready')
+  assert.deepEqual(fallbackDeltas, ['fallback ready'])
+
   const cases = [
-    ['not iterable', async () => wire('chat-completions', [call('read', 'cad_read_drawing')])],
     ['truncated', async () => streamed([streamChoice({ tool_calls: [{ index: 0, id: 'read', type: 'function', function: { name: 'cad_read_drawing', arguments: '{}' } }] })])],
     ['index gap', async () => streamed([streamChoice({ tool_calls: [{ index: 1, id: 'read', type: 'function', function: { name: 'cad_read_drawing', arguments: '{}' } }] }), streamChoice({}, 'tool_calls')])],
     ['changed id', async () => streamed([streamChoice({ tool_calls: [{ index: 0, id: 'read-a', function: { name: 'cad_read_drawing', arguments: '{}' } }] }), streamChoice({ tool_calls: [{ index: 0, id: 'read-b' }] }), streamChoice({}, 'tool_calls')])],
