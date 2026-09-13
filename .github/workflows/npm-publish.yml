@@ -53,6 +53,7 @@ jobs:
           sha="$(git rev-list -n 1 "$RELEASE_TAG")"
           test "$(git rev-parse HEAD)" = "$sha"
           git merge-base --is-ancestor "$sha" origin/main
+          test "$(git rev-parse refs/remotes/origin/main)" = "$sha"
           test "$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft')" = "false"
           ci_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"
           pages_conclusion="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/pages.yml/runs?head_sha=$sha&event=push&per_page=20" --jq '[.workflow_runs[] | select(.head_branch == "main")][0].conclusion // ""')"

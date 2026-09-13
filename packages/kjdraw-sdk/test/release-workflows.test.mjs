@@ -4,6 +4,11 @@ import test from 'node:test'
 
 const repositoryRoot = new URL('../../../', import.meta.url)
 const read = path => readFile(new URL(path, repositoryRoot), 'utf8')
+const exactMainBinding = /test "\$\(git rev-parse refs\/remotes\/origin\/main\)" = "\$sha"/
+
+function requireExactMainBinding(workflow) {
+  assert.match(workflow, exactMainBinding, 'release publication must require the tagged SHA to equal current origin/main')
+}
 
 test('npm publishing pins an OIDC-capable runtime and preserves dist-tag intent', async () => {
   const workflow = await read('.github/workflows/npm-publish.yml')
@@ -25,6 +30,7 @@ test('release gates the exact main SHA on CI and Pages without publishing drafts
   ])
 
   for (const workflow of [release, npmPublish]) {
+    requireExactMainBinding(workflow)
     assert.match(workflow, /workflows\/ci\.yml\/runs\?head_sha=\$sha&event=push/)
     assert.match(workflow, /workflows\/pages\.yml\/runs\?head_sha=\$sha&event=push/)
     assert.match(workflow, /head_branch == "main"/)
@@ -33,6 +39,14 @@ test('release gates the exact main SHA on CI and Pages without publishing drafts
   assert.match(release, /already exists as a draft/)
   assert.match(release, /publish or delete that draft manually/)
   assert.doesNotMatch(release, /gh release edit[^\n]*--draft=false/)
+})
+
+test('release exact-main gate rejects an ancestor-only publication workflow', () => {
+  const ancestorOnly = `sha="$(git rev-list -n 1 "$RELEASE_TAG")"
+test "$(git rev-parse HEAD)" = "$sha"
+git merge-base --is-ancestor "$sha" origin/main`
+
+  assert.throws(() => requireExactMainBinding(ancestorOnly), /must require the tagged SHA to equal current origin\/main/)
 })
 
 test('Pages uses the release runtime for every main commit', async () => {

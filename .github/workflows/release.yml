@@ -42,6 +42,7 @@ jobs:
           sha="$(git rev-list -n 1 "$RELEASE_TAG")"
           test "$(git rev-parse HEAD)" = "$sha"
           git merge-base --is-ancestor "$sha" origin/main
+          test "$(git rev-parse refs/remotes/origin/main)" = "$sha"
 
           ci_conclusion=""
           pages_conclusion=""
