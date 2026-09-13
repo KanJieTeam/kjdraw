@@ -17,6 +17,7 @@ import {
   subtract2,
   vec2,
 } from './geometry/index.js'
+import { normalizeSplineDefinition, splinePoint2 } from './geometry/curves.js'
 import type { KJDocument } from './document.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 
@@ -99,6 +100,7 @@ interface SnapPayload extends KJObjectPayload {
   closed?: boolean
   fitPoints?: KJSnapPointInput[]
   controlPoints?: KJSnapPointInput[]
+  periodic?: boolean
 }
 
 type LineMode = 'segment' | 'ray' | 'line'
@@ -228,6 +230,67 @@ function ellipseBoxDistance(cursor: KJSnapPointInput, payload: SnapPayload): num
   const point = point3(cursor), center = point3(payload.center), major = point3(payload.majorAxis), ratio = Number(payload.ratio)
   const extentX = Math.hypot(major[0], major[1] * ratio), extentY = Math.hypot(major[1], major[0] * ratio)
   return Math.hypot(Math.max(0, Math.abs(point[0] - center[0]) - extentX), Math.max(0, Math.abs(point[1] - center[1]) - extentY))
+}
+
+function splineGeometry(payload: SnapPayload) {
+  const definition = normalizeSplineDefinition(payload), controls = payload.controlPoints ?? []
+  const zDefinition = normalizeSplineDefinition({
+    degree: definition.degree,
+    knots: definition.knots,
+    weights: definition.weights,
+    controlPoints: controls.map(point => [point3(point)[2], 0]),
+  })
+  return { definition, zDefinition, start: definition.knots[definition.degree]!, end: definition.knots[definition.controlPoints.length]! }
+}
+
+function splinePointAt3(geometry: ReturnType<typeof splineGeometry>, parameter: number): KJSnapPoint {
+  const point = splinePoint2(geometry.definition, parameter), z = splinePoint2(geometry.zDefinition, parameter)[0]
+  return [point[0], point[1], z]
+}
+
+function nearestOnSpline(cursor: KJSnapPointInput, payload: SnapPayload): NearestPoint {
+  const geometry = splineGeometry(payload), knots = [...new Set(geometry.definition.knots.filter(value => value >= geometry.start && value <= geometry.end))]
+  const distanceAt = (parameter: number): number => distance2(cursor, splinePointAt3(geometry, parameter))
+  const candidates: Array<{ parameter: number; distance: number }> = []
+  const add = (parameter: number): void => { candidates.push({ parameter, distance: distanceAt(parameter) }) }
+  for (let span = 1; span < knots.length; span += 1) {
+    const start = knots[span - 1]!, end = knots[span]!
+    if (!(end > start)) continue
+    const samples = 8, values = Array.from({ length: samples + 1 }, (_, index) => {
+      const parameter = start + (end - start) * index / samples
+      return { parameter, distance: distanceAt(parameter) }
+    })
+    add(start); add(end)
+    for (let index = 0; index <= samples; index += 1) {
+      const current = values[index]!, previous = values[index - 1], next = values[index + 1]
+      if (previous && current.distance > previous.distance || next && current.distance > next.distance) continue
+      let lower = values[Math.max(0, index - 1)]!.parameter, upper = values[Math.min(samples, index + 1)]!.parameter
+      const ratio = (Math.sqrt(5) - 1) / 2
+      let left = upper - (upper - lower) * ratio, right = lower + (upper - lower) * ratio
+      let leftDistance = distanceAt(left), rightDistance = distanceAt(right)
+      for (let iteration = 0; iteration < 40; iteration += 1) {
+        if (leftDistance <= rightDistance) {
+          upper = right; right = left; rightDistance = leftDistance
+          left = upper - (upper - lower) * ratio; leftDistance = distanceAt(left)
+        } else {
+          lower = left; left = right; leftDistance = rightDistance
+          right = lower + (upper - lower) * ratio; rightDistance = distanceAt(right)
+        }
+      }
+      add((lower + upper) / 2)
+    }
+  }
+  const best = candidates.sort((a, b) => a.distance - b.distance)[0]
+  if (!best) throw new KJValidationError('SPLINE snap domain is empty')
+  return { point: splinePointAt3(geometry, best.parameter), distance: best.distance, parameter: best.parameter }
+}
+
+function splineBoxDistance(cursor: KJSnapPointInput, payload: SnapPayload): number {
+  const point = point3(cursor), controls = (payload.controlPoints ?? []).map(point3)
+  if (!controls.length) return Infinity
+  const minimumX = Math.min(...controls.map(value => value[0])), maximumX = Math.max(...controls.map(value => value[0]))
+  const minimumY = Math.min(...controls.map(value => value[1])), maximumY = Math.max(...controls.map(value => value[1]))
+  return Math.hypot(Math.max(0, minimumX - point[0], point[0] - maximumX), Math.max(0, minimumY - point[1], point[1] - maximumY))
 }
 
 function ellipseLocalCoordinates(payload: SnapPayload, input: KJSnapPointInput): [number, number] {
@@ -465,9 +528,10 @@ function baseCandidates(entity: KJReadonlyObjectRecord, modes: ReadonlySet<KJSna
     }
     if (['LWPOLYLINE', 'POLYLINE'].includes(entity.type)) for (const [index, vertex] of (payload.vertices ?? []).entries()) add('endpoint', vertexPoint(vertex), { vertexIndex: index })
     if (['SOLID', 'TRACE'].includes(entity.type)) for (const [index, point] of (payload.vertices ?? []).entries()) add('endpoint', vertexPoint(point), { vertexIndex: index })
-    if (entity.type === 'SPLINE') {
-      const points = payload.fitPoints?.length ? payload.fitPoints : payload.controlPoints
-      if (points?.length) { add('endpoint', points[0]!, { role: 'start' }); add('endpoint', points.at(-1)!, { role: 'end' }) }
+    if (entity.type === 'SPLINE' && payload.closed !== true && payload.periodic !== true && splineBoxDistance(cursor, payload) <= radius) {
+      const geometry = splineGeometry(payload)
+      add('endpoint', splinePointAt3(geometry, geometry.start), { role: 'start', parameter: geometry.start })
+      add('endpoint', splinePointAt3(geometry, geometry.end), { role: 'end', parameter: geometry.end })
     }
   }
   if (modes.has('midpoint')) for (const primitive of primitives.filter(value => value.kind !== 'circle')) {
@@ -477,6 +541,10 @@ function baseCandidates(entity: KJReadonlyObjectRecord, modes: ReadonlySet<KJSna
   if (modes.has('midpoint') && entity.type === 'ELLIPSE') {
     const ellipse = ellipseParameters(payload)
     if (!ellipse.full) add('midpoint', ellipsePointAt(payload, ellipse.start + ellipse.span / 2), { parameter: ellipse.start + ellipse.span / 2 })
+  }
+  if (modes.has('midpoint') && entity.type === 'SPLINE' && splineBoxDistance(cursor, payload) <= radius) {
+    const geometry = splineGeometry(payload), parameter = (geometry.start + geometry.end) / 2
+    add('midpoint', splinePointAt3(geometry, parameter), { parameter })
   }
   if (modes.has('center') && ['CIRCLE', 'ARC', 'ELLIPSE'].includes(entity.type)) add('center', payload.center)
   if (modes.has('quadrant') && ['CIRCLE', 'ARC'].includes(entity.type)) for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
@@ -505,6 +573,11 @@ function baseCandidates(entity: KJReadonlyObjectRecord, modes: ReadonlySet<KJSna
     if (entity.type === 'ELLIPSE') {
       const nearest = nearestOnEllipse(cursor, payload)
       add('nearest', nearest.point, { parameter: nearest.parameter })
+    } else if (entity.type === 'SPLINE') {
+      if (splineBoxDistance(cursor, payload) <= radius) {
+        const nearest = nearestOnSpline(cursor, payload)
+        add('nearest', nearest.point, { parameter: nearest.parameter })
+      }
     } else {
       const nearest = primitives.map(primitive => ({ ...nearestOnPrimitive(cursor, primitive), primitive })).sort((a, b) => a.distance - b.distance)[0]
       if (nearest) add('nearest', nearest.point, { segmentIndex: nearest.primitive.segmentIndex, parameter: nearest.parameter })
@@ -743,6 +816,10 @@ export function nearestPointOnEntity2(entity: KJReadonlyObjectRecord, pointInput
       parameter: nearest.parameter ?? null,
       segmentIndex: null,
     })
+  }
+  if (entity?.type === 'SPLINE') {
+    const nearest = nearestOnSpline(point, entity.payload as unknown as SnapPayload)
+    return Object.freeze({ point: Object.freeze(point3(nearest.point)), distance: nearest.distance, parameter: nearest.parameter ?? null, segmentIndex: null })
   }
   const candidates = primitiveSegments(entity).map(primitive => ({ ...nearestOnPrimitive(point, primitive), primitive }))
   candidates.sort((a, b) => a.distance - b.distance)

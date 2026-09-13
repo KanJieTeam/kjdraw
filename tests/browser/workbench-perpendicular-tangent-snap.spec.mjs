@@ -175,6 +175,39 @@ test('workbench pointer drawing snaps to an ellipse-ellipse intersection', async
   expect(line.end[1]).toBeCloseTo(intersection[1], 8)
 })
 
+test('workbench pointer drawing snaps to the evaluated spline instead of its control polygon', async ({ page }) => {
+  await page.goto('/')
+  await page.evaluate(async () => {
+    document.body.replaceChildren()
+    const host = document.createElement('div'); host.id = 'spline-nearest-host'; host.style.cssText = 'width:900px;height:650px'; document.body.append(host)
+    const [{ createKJDrawSDK }, { mountKJDrawWorkbench }] = await Promise.all([
+      import('/packages/kjdraw-sdk/src/sdk.js'), import('/packages/kjdraw-sdk/src/workbench.js'),
+    ])
+    const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'spline-nearest-workbench', units: 'millimeter' })
+    await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+      degree: 2, controlPoints: [[0, 0, 0], [5, 10, 0], [10, 0, 0]], knots: [0, 0, 0, 1, 1, 1],
+    } }, { document: drawing })
+    await sdk.executeCommand('SNAPSETTINGS', { modes: ['nearest'], radius: 14 }, { document: drawing })
+    const workbench = mountKJDrawWorkbench(host, { sdk, document: drawing, locale: 'en', grid: false, showLayers: false, showInspector: false })
+    await workbench.ready; await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    workbench.renderer.resize(); Object.assign(workbench.renderer.camera, { centerX: 0, centerY: 0, scale: 4 }); workbench.renderer.render()
+    window.splineNearest = { workbench, drawing }
+  })
+
+  const start = [-10, -10], hover = [5, 6], nearest = [5, 5]
+  const startScreen = await screenPoint(page, 'splineNearest', start), hoverScreen = await screenPoint(page, 'splineNearest', hover)
+  await page.locator('#spline-nearest-host [data-tool="line"]').click()
+  await page.mouse.click(startScreen.x, startScreen.y)
+  await page.mouse.move(hoverScreen.x, hoverScreen.y)
+  const marker = page.locator('#spline-nearest-host [data-snap]')
+  await expect(marker).toHaveAttribute('data-mode', 'nearest')
+  await page.mouse.click(hoverScreen.x, hoverScreen.y)
+  const line = await page.evaluate(() => window.splineNearest.drawing.listEntities({ type: 'LINE' })[0].payload)
+  expect(line.start).toEqual([...start, 0])
+  expect(line.end[0]).toBeCloseTo(nearest[0], 7)
+  expect(line.end[1]).toBeCloseTo(nearest[1], 7)
+})
+
 test('playground pointer drawing exposes and applies perpendicular snap mode', async ({ page }) => {
   const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'playground-perpendicular', units: 'millimeter' })
   const locked = await sdk.executeCommand('LAYERNEW', { name: 'Locked reference' }, { document: drawing })

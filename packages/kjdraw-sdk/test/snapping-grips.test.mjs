@@ -219,6 +219,27 @@ test('ellipse perpendicular snaps solve rotated normal points and respect partia
   assert.equal(sdk.snap([65, 0], { radius: 10, modes: ['perpendicular'], entityIds: [circular.id], referencePoint: [60, 0] }).length, 0)
 })
 
+test('native spline endpoint, midpoint and nearest snaps follow the evaluated curve', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'spline-object-snaps' })
+  const spline = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints: [[0, 0, 2], [5, 10, 4], [10, 0, 6]], knots: [0, 0, 0, 1, 1, 1],
+  } })
+  const endpoints = sdk.snap([5, 0], { radius: 20, modes: ['endpoint'], entityIds: [spline.id] })
+  assert.equal(endpoints.length, 2); assert.deepEqual(endpoints.map(value => value.role), ['start', 'end'])
+  assert.deepEqual(endpoints[0].point, [0, 0, 2]); assert.deepEqual(endpoints[1].point, [10, 0, 6])
+  const midpoint = sdk.snap([5, 5], { radius: .01, modes: ['midpoint'], entityIds: [spline.id] })
+  assert.equal(midpoint.length, 1); closePoint(midpoint[0].point, [5, 5]); close(midpoint[0].point[2], 4); close(midpoint[0].parameter, .5)
+  const nearest = sdk.snap([5, 6], { radius: 2, modes: ['nearest'], entityIds: [spline.id] })
+  assert.equal(nearest.length, 1); closePoint(nearest[0].point, [5, 5], 1e-7); close(nearest[0].parameter, .5, 1e-7)
+  const queried = nearestPointOnEntity2(spline, [5, 6])
+  closePoint(queried.point, [5, 5], 1e-7); close(queried.point[2], 4, 1e-7); assert.equal(queried.segmentIndex, null)
+
+  const closed = await sdk.executeCommand('CREATE', { type: 'SPLINE', payload: {
+    degree: 2, controlPoints: [[20, 0], [25, 10], [30, 0]], knots: [0, 0, 0, 1, 1, 1], closed: true,
+  } })
+  assert.equal(sdk.snap([25, 0], { radius: 20, modes: ['endpoint'], entityIds: [closed.id] }).length, 0)
+})
+
 test('exact snaps outrank nearest while nearest remains an explicit fallback', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'snap-priority' })
   const circle = await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: [0, 0], radius: 10 } })
