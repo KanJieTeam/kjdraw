@@ -15,7 +15,7 @@ import { buildAgentAnnotationEntities } from './agent-annotations.js';
 import { decodeAgentCompactDrawing } from './agent-drawing-compact.js';
 import { expandPolarDrawingPattern, expandRectangularDrawingPattern } from './agent-drawing-patterns.js';
 import { validateDrawingGeometry } from './drawing-validation.js';
-import { commitAgentTaskCopyApproval, commitAgentTaskCreateBatchApproval, commitAgentTaskLengthenApproval, commitAgentTaskMoveApproval, commitAgentTaskPolylineEditApproval, commitAgentTaskRotateApproval, commitAgentTaskScaleApproval, commitAgentTaskStretchApproval, KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
+import { commitAgentTaskCopyApproval, commitAgentTaskCreateBatchApproval, commitAgentTaskLengthenApproval, commitAgentTaskMoveApproval, commitAgentTaskOffsetApproval, commitAgentTaskPolylineEditApproval, commitAgentTaskRotateApproval, commitAgentTaskScaleApproval, commitAgentTaskStretchApproval, KJDRAW_AGENT_TASK_TOOL_API_VERSION } from './agent-tasks.js';
 import { createAgentDesignContext } from './agent-design-relations.js';
 import { createCatalogComponentInsertIdentity, searchComponentCatalog } from './component-library.js';
 import { buildAgentManufacturingSheet } from './agent-manufacturing-sheet.js';
@@ -2655,13 +2655,14 @@ export class KJAgentToolSession {
         if (!pending || ![
             'CREATEBATCH',
             'COPY',
+            'OFFSET',
             'MOVE',
             'ROTATE',
             'SCALE',
             'LENGTHEN',
             'STRETCH',
             'PEDIT'
-        ].includes(pending.envelope.command)) throw new KJValidationError('Persistent task approval supports an available CREATEBATCH, COPY, MOVE, ROTATE, SCALE, LENGTHEN, STRETCH or PEDIT proposal only');
+        ].includes(pending.envelope.command)) throw new KJValidationError('Persistent task approval supports an available CREATEBATCH, COPY, OFFSET, MOVE, ROTATE, SCALE, LENGTHEN, STRETCH or PEDIT proposal only');
         if (pending.task) throw new KJValidationError('Proposal is already bound to a persisted task');
         if (!input || typeof input !== 'object' || input.taskStatus !== 'running' || !Number.isSafeInteger(input.taskVersion) || input.taskVersion < 1 || !Number.isSafeInteger(input.documentRevision) || input.documentRevision < 0) throw new KJValidationError('Invalid persisted task proposal binding');
         if (input.documentRevision !== this.#document.revision || pending.envelope.expectedRevision !== input.documentRevision || input.units !== this.units) throw new KJValidationError('Persistent task proposal binding revision or units changed');
@@ -2691,6 +2692,7 @@ export class KJAgentToolSession {
             if (![
                 'CREATEBATCH',
                 'COPY',
+                'OFFSET',
                 'MOVE',
                 'ROTATE',
                 'SCALE',
@@ -2778,6 +2780,14 @@ export class KJAgentToolSession {
                         ...approval,
                         sourceEntityIds: execution.arguments.ids,
                         copiedEntityIds: (Array.isArray(commandResult) ? commandResult : []).map((value)=>String(value.id ?? ''))
+                    }) : command === 'OFFSET' ? await commitAgentTaskOffsetApproval(this.#document, transaction, {
+                        ...approval,
+                        sourceEntityIds: [
+                            execution.arguments.id
+                        ],
+                        offsetEntityIds: [
+                            String(commandResult?.id ?? '')
+                        ]
                     }) : command === 'MOVE' ? await commitAgentTaskMoveApproval(this.#document, transaction, {
                         ...approval,
                         movedEntityIds: execution.arguments.ids

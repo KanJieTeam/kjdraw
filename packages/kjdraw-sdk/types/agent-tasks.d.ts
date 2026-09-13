@@ -83,7 +83,7 @@ export interface KJAgentTaskGeometryReceipt {
     planId: string;
     executionEnvelopeId: string;
     reviewerId: string;
-    command: 'CREATEBATCH' | 'COPY' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT';
+    command: 'CREATEBATCH' | 'COPY' | 'OFFSET' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT';
     sourceToolName: string;
     beforeRevision: number;
     afterRevision: number;
@@ -199,6 +199,28 @@ export interface KJAgentTaskCopyApprovalInput {
     at: string;
 }
 export interface KJAgentTaskCopyApprovalResult {
+    task: KJObjectRecord;
+    receipt: KJAgentTaskGeometryReceipt;
+}
+export interface KJAgentTaskOffsetApprovalInput {
+    id: string;
+    expectedRevision: number;
+    expectedTaskVersion: number;
+    expectedStatus: 'running';
+    expectedScopeSha256: string;
+    sourceToolName: string;
+    toolApiVersion: string;
+    toolContractHash: string;
+    argumentsDigest: string;
+    capabilityLocks: KJAgentTaskCapabilityLock[];
+    planId: string;
+    executionEnvelopeId: string;
+    reviewerId: string;
+    sourceEntityIds: string[];
+    offsetEntityIds: string[];
+    at: string;
+}
+export interface KJAgentTaskOffsetApprovalResult {
     task: KJObjectRecord;
     receipt: KJAgentTaskGeometryReceipt;
 }
@@ -351,6 +373,8 @@ export declare function transitionAgentTask(document: KJDocument, tx: KJTransact
 export declare function commitAgentTaskCreateBatchApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskCreateBatchApprovalResult>;
 /** Complete one reviewed COPY and its deterministic checks in the caller's transaction draft. */
 export declare function commitAgentTaskCopyApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskCopyApprovalResult>;
+/** Complete one reviewed OFFSET and its deterministic checks in the caller's transaction draft. */
+export declare function commitAgentTaskOffsetApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskOffsetApprovalResult>;
 /** Complete one reviewed MOVE and its deterministic checks in the caller's transaction draft. */
 export declare function commitAgentTaskMoveApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskMoveApprovalResult>;
 /** Complete one reviewed ROTATE and its deterministic checks in the caller's transaction draft. */

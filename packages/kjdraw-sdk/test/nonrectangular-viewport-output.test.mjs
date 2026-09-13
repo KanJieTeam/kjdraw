@@ -53,13 +53,47 @@ test('closed polyline viewport clips editable model geometry in SVG and survives
   }
 })
 
+test('circular viewport clips, scales and survives print plus KJD/DXF reopen with its native reference', async () => {
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ units: 'millimeter' }), model = drawing.spaces.modelSpaceId
+  let layout, boundary, viewport, line
+  await drawing.transact('circular detail viewport', tx => {
+    line = tx.createEntity('LINE', { start: [-30, 0, 0], end: [30, 0, 0], trueColor: 0x0000ff }, { ownerId: model })
+    layout = tx.createLayout({ name: 'Circular detail' })
+    boundary = tx.createEntity('CIRCLE', { center: [50, 50, 0], radius: 15 }, { ownerId: layout.payload.blockRecordId })
+    viewport = tx.createEntity('VIEWPORT', { center: [50, 50, 0], width: 30, height: 30, viewCenter: [0, 0, 0], viewHeight: 30, viewTarget: [0, 0, 0], viewDirection: [0, 0, 1], flags: 65536, clippingBoundaryId: boundary.id }, { ownerId: layout.payload.blockRecordId })
+    tx.updateObject(layout.id, { payload: { viewportIds: [viewport.id] } })
+  })
+  await sdk.executeCommand('PAGESETUP', { layoutId: layout.id, dxf: { paperWidth: 100, paperHeight: 100, paperUnits: 1, plotType: 5, flags: 0, scaleNumerator: 1, scaleDenominator: 1, marginLeft: 0, marginRight: 0, marginTop: 0, marginBottom: 0, originX: 0, originY: 0, printerName: '', styleSheet: '', shadeMode: 0 } }, { document: drawing })
+  const assertCircle = (document, layoutId, radius) => {
+    const output = exportDrawingSvg(document, { layoutId: layoutId })
+    assert.equal(output.report.status, 'complete'); assert.equal(output.report.viewports.length, 1)
+    assert.match(output.svg, new RegExp(`<clipPath id="kj-viewport-\\d+"[^>]*><circle cx="50" cy="50" r="${radius}"\\/><\\/clipPath>`))
+    assert.match(output.svg, new RegExp(`data-entity-id="${line.id}"`))
+    assert.match(createDrawingPrintHtml(document, { layoutId }).html, /<clipPath id="kj-viewport-\d+"[^>]*><circle/)
+  }
+  assertCircle(drawing, layout.id, 15)
+  await sdk.executeCommand('SCALE', { id: boundary.id, center: [50, 50], factor: 2 }, { document: drawing })
+  assertCircle(drawing, layout.id, 30)
+  await sdk.executeCommand('UNDO', {}, { document: drawing }); assertCircle(drawing, layout.id, 15)
+  await sdk.executeCommand('REDO', {}, { document: drawing }); assertCircle(drawing, layout.id, 30)
+  await sdk.executeCommand('UNDO', {}, { document: drawing })
+  for (const format of ['KJD', 'DXF']) {
+    const artifact = await sdk.writeDocument(drawing, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await createKJDrawSDK().readDocument(artifact, { format }), reopenedLayout = reopened.listObjects({ kind: 'layout' }).find(item => item.name === 'Circular detail')
+    const reopenedViewport = reopened.listEntities({ ownerId: reopenedLayout.payload.blockRecordId, type: 'VIEWPORT' }).find(item => item.payload.viewportId !== 1)
+    const reopenedBoundary = reopened.getObject(reopenedViewport.payload.clippingBoundaryId)
+    assert.equal(reopenedBoundary.type, 'CIRCLE'); assert.equal(reopenedBoundary.payload.radius, 15)
+    assert.equal(exportDrawingSvg(reopened, { layoutId: reopenedLayout.id }).report.status, 'complete')
+  }
+})
+
 test('unsupported, open, degenerate and cross-space viewport clips fail closed without exposing model content', async () => {
-  for (const mode of ['circle', 'open', 'degenerate', 'cross-space']) {
+  for (const mode of ['ellipse', 'open', 'degenerate', 'cross-space']) {
     const f = await fixture(), ownerId = mode === 'cross-space' ? f.drawing.spaces.modelSpaceId : f.layout.payload.blockRecordId
     let replacement
     await f.drawing.transact(`invalid ${mode} clip`, tx => {
-      replacement = mode === 'circle'
-        ? tx.createEntity('CIRCLE', { center: [50, 50, 0], radius: 15 }, { ownerId })
+      replacement = mode === 'ellipse'
+        ? tx.createEntity('ELLIPSE', { center: [50, 50, 0], majorAxis: [15, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2 }, { ownerId })
         : tx.createEntity('LWPOLYLINE', { vertices: mode === 'degenerate' ? [[10, 10, 0], [20, 20, 0], [30, 30, 0]] : [[30, 30, 0], [70, 30, 0], [50, 70, 0]], closed: mode !== 'open' }, { ownerId })
       tx.updateObject(f.viewport.id, { payload: { clippingBoundaryId: replacement.id, flags: 65536 } })
     })

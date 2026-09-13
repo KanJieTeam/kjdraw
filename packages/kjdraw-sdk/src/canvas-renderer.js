@@ -241,27 +241,40 @@ function polylineSamples(payload) {
     }
     return output;
 }
-function viewportPolylineClip(document, viewport) {
+function viewportClip(document, viewport) {
     const id = viewport.payload.clippingBoundaryId;
     if (id == null) return null;
-    if (typeof id !== 'string' || !id) return [];
+    if (typeof id !== 'string' || !id) return 'invalid';
     const boundary = document.getObject(id), payload = boundary?.payload;
-    if (!boundary || boundary.erased || boundary.kind !== 'entity' || boundary.ownerId !== viewport.ownerId || boundary.type !== 'LWPOLYLINE' && boundary.type !== 'POLYLINE' || !payload) return [];
-    if (payload.closed !== true || finite(payload.elevation) !== 0 || finite(payload.constantWidth) !== 0 || boundary.type === 'POLYLINE' && (finite(payload.dxfFlags) & (8 | 16 | 64)) !== 0) return [];
-    if (!Array.isArray(payload.vertices) || payload.vertices.length < 3 || payload.vertices.length > 4096) return [];
+    if (!boundary || boundary.erased || boundary.kind !== 'entity' || boundary.ownerId !== viewport.ownerId || !payload) return 'invalid';
+    if (boundary.type === 'CIRCLE') {
+        const center = point2(payload.center), radius = Number(payload.radius);
+        if (!center || !Number.isFinite(radius) || radius <= 0 || Number(payload.center?.[2] ?? 0) !== 0 || finite(payload.thickness) !== 0 || payload.normal && JSON.stringify(payload.normal) !== '[0,0,1]' || payload.extrusionDirection && JSON.stringify(payload.extrusionDirection) !== '[0,0,1]') return 'invalid';
+        return {
+            kind: 'circle',
+            center,
+            radius
+        };
+    }
+    if (boundary.type !== 'LWPOLYLINE' && boundary.type !== 'POLYLINE') return 'invalid';
+    if (payload.closed !== true || finite(payload.elevation) !== 0 || finite(payload.constantWidth) !== 0 || boundary.type === 'POLYLINE' && (finite(payload.dxfFlags) & (8 | 16 | 64)) !== 0) return 'invalid';
+    if (!Array.isArray(payload.vertices) || payload.vertices.length < 3 || payload.vertices.length > 4096) return 'invalid';
     for (const value of payload.vertices){
         const row = value && typeof value === 'object' && !Array.isArray(value) ? value : null;
         const point = row?.point ?? value;
-        if (!Array.isArray(point) || point.length < 2 || !Number.isFinite(Number(point[0])) || !Number.isFinite(Number(point[1])) || Number(point[2] ?? 0) !== 0 || !Number.isFinite(Number(row?.bulge ?? 0)) || Number(row?.startWidth ?? 0) !== 0 || Number(row?.endWidth ?? 0) !== 0) return [];
+        if (!Array.isArray(point) || point.length < 2 || !Number.isFinite(Number(point[0])) || !Number.isFinite(Number(point[1])) || Number(point[2] ?? 0) !== 0 || !Number.isFinite(Number(row?.bulge ?? 0)) || Number(row?.startWidth ?? 0) !== 0 || Number(row?.endWidth ?? 0) !== 0) return 'invalid';
     }
     const samples = polylineSamples(payload);
-    if (samples.length < 3 || samples.length > 65536) return [];
+    if (samples.length < 3 || samples.length > 65536) return 'invalid';
     let area = 0;
     for(let index = 0; index < samples.length; index++){
         const a = samples[index], b = samples[(index + 1) % samples.length];
         area += a[0] * b[1] - b[0] * a[1];
     }
-    return Math.abs(area) > 1e-12 ? samples : [];
+    return Math.abs(area) > 1e-12 ? {
+        kind: 'polyline',
+        points: samples
+    } : 'invalid';
 }
 function entityPoints(entity) {
     const payload = entity.payload;
@@ -2049,8 +2062,8 @@ export class KJCanvasRenderer {
             diagnostic.hidden++;
             return true;
         }
-        const clipping = viewportPolylineClip(document, entity), nonRectangular = clipping !== null;
-        if (clipping?.length === 0 || p.perspective === true || p.clipBoundaryId || p.nonRectangularClip === true && !nonRectangular || !target || !topView || (flags & (0x1 | 0x2 | 0x4 | 0x10)) !== 0 || (flags & 0x10000) !== 0 && !nonRectangular || Array.isArray(p.unresolvedViewportReferences) && p.unresolvedViewportReferences.length > 0) {
+        const clipping = viewportClip(document, entity), nonRectangular = clipping !== null && clipping !== 'invalid';
+        if (clipping === 'invalid' || p.perspective === true || p.clipBoundaryId || p.nonRectangularClip === true && !nonRectangular || !target || !topView || (flags & (0x1 | 0x2 | 0x4 | 0x10)) !== 0 || (flags & 0x10000) !== 0 && !nonRectangular || Array.isArray(p.unresolvedViewportReferences) && p.unresolvedViewportReferences.length > 0) {
             diagnostic.reason = 'unsupported-view';
             return false;
         }
@@ -2060,7 +2073,7 @@ export class KJCanvasRenderer {
             diagnostic.reason = 'invalid-view';
             return false;
         }
-        const context = this.context, corners = clipping ?? [
+        const context = this.context, corners = clipping?.kind === 'polyline' ? clipping.points : [
             [
                 center[0] - width / 2,
                 center[1] - height / 2
@@ -2088,7 +2101,10 @@ export class KJCanvasRenderer {
         let complete = true;
         try {
             context.beginPath();
-            corners.forEach((point, i)=>{
+            if (clipping?.kind === 'circle') {
+                const screen = this.worldToScreen(clipping.center);
+                context.arc(screen[0], screen[1], clipping.radius * this.camera.scale, 0, Math.PI * 2);
+            } else corners.forEach((point, i)=>{
                 const screen = this.worldToScreen(point);
                 i ? context.lineTo(...screen) : context.moveTo(...screen);
             });

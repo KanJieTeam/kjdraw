@@ -234,27 +234,34 @@ function polylineSamples(payload: Readonly<Record<string, unknown>>): Point2[] {
   return output
 }
 
-function viewportPolylineClip(document: KJDocument, viewport: KJReadonlyObjectRecord): Point2[] | null {
+type ViewportClip = { kind: 'polyline'; points: Point2[] } | { kind: 'circle'; center: Point2; radius: number }
+function viewportClip(document: KJDocument, viewport: KJReadonlyObjectRecord): ViewportClip | null | 'invalid' {
   const id = viewport.payload.clippingBoundaryId
   if (id == null) return null
-  if (typeof id !== 'string' || !id) return []
+  if (typeof id !== 'string' || !id) return 'invalid'
   const boundary = document.getObject(id), payload = boundary?.payload
-  if (!boundary || boundary.erased || boundary.kind !== 'entity' || boundary.ownerId !== viewport.ownerId || boundary.type !== 'LWPOLYLINE' && boundary.type !== 'POLYLINE' || !payload) return []
-  if (payload.closed !== true || finite(payload.elevation) !== 0 || finite(payload.constantWidth) !== 0 || boundary.type === 'POLYLINE' && (finite(payload.dxfFlags) & (8 | 16 | 64)) !== 0) return []
-  if (!Array.isArray(payload.vertices) || payload.vertices.length < 3 || payload.vertices.length > 4096) return []
+  if (!boundary || boundary.erased || boundary.kind !== 'entity' || boundary.ownerId !== viewport.ownerId || !payload) return 'invalid'
+  if (boundary.type === 'CIRCLE') {
+    const center = point2(payload.center), radius = Number(payload.radius)
+    if (!center || !Number.isFinite(radius) || radius <= 0 || Number((payload.center as readonly unknown[] | undefined)?.[2] ?? 0) !== 0 || finite(payload.thickness) !== 0 || payload.normal && JSON.stringify(payload.normal) !== '[0,0,1]' || payload.extrusionDirection && JSON.stringify(payload.extrusionDirection) !== '[0,0,1]') return 'invalid'
+    return { kind: 'circle', center, radius }
+  }
+  if (boundary.type !== 'LWPOLYLINE' && boundary.type !== 'POLYLINE') return 'invalid'
+  if (payload.closed !== true || finite(payload.elevation) !== 0 || finite(payload.constantWidth) !== 0 || boundary.type === 'POLYLINE' && (finite(payload.dxfFlags) & (8 | 16 | 64)) !== 0) return 'invalid'
+  if (!Array.isArray(payload.vertices) || payload.vertices.length < 3 || payload.vertices.length > 4096) return 'invalid'
   for (const value of payload.vertices) {
     const row = value && typeof value === 'object' && !Array.isArray(value) ? value as Readonly<Record<string, unknown>> : null
     const point = row?.point ?? value
-    if (!Array.isArray(point) || point.length < 2 || !Number.isFinite(Number(point[0])) || !Number.isFinite(Number(point[1])) || Number(point[2] ?? 0) !== 0 || !Number.isFinite(Number(row?.bulge ?? 0)) || Number(row?.startWidth ?? 0) !== 0 || Number(row?.endWidth ?? 0) !== 0) return []
+    if (!Array.isArray(point) || point.length < 2 || !Number.isFinite(Number(point[0])) || !Number.isFinite(Number(point[1])) || Number(point[2] ?? 0) !== 0 || !Number.isFinite(Number(row?.bulge ?? 0)) || Number(row?.startWidth ?? 0) !== 0 || Number(row?.endWidth ?? 0) !== 0) return 'invalid'
   }
   const samples = polylineSamples(payload)
-  if (samples.length < 3 || samples.length > 65536) return []
+  if (samples.length < 3 || samples.length > 65536) return 'invalid'
   let area = 0
   for (let index = 0; index < samples.length; index++) {
     const a = samples[index]!, b = samples[(index + 1) % samples.length]!
     area += a[0] * b[1] - b[0] * a[1]
   }
-  return Math.abs(area) > 1e-12 ? samples : []
+  return Math.abs(area) > 1e-12 ? { kind: 'polyline', points: samples } : 'invalid'
 }
 
 function entityPoints(entity: KJReadonlyObjectRecord): Point2[] {
@@ -1342,22 +1349,25 @@ export class KJCanvasRenderer {
     // Native status -1 is ON but off-screen or beyond the saved host's MAXACTVP.
     // A new paper camera must be able to reveal it after fit/pan.
     if (p.status === 0 || (flags & 0x20000) !== 0 || p.viewportId === 1) { diagnostic.hidden++; return true }
-    const clipping = viewportPolylineClip(document, entity), nonRectangular = clipping !== null
-    if (clipping?.length === 0 || p.perspective === true || p.clipBoundaryId || p.nonRectangularClip === true && !nonRectangular || !target || !topView || (flags & (0x1 | 0x2 | 0x4 | 0x10)) !== 0 || (flags & 0x10000) !== 0 && !nonRectangular || Array.isArray(p.unresolvedViewportReferences) && p.unresolvedViewportReferences.length > 0) { diagnostic.reason = 'unsupported-view'; return false }
+    const clipping = viewportClip(document, entity), nonRectangular = clipping !== null && clipping !== 'invalid'
+    if (clipping === 'invalid' || p.perspective === true || p.clipBoundaryId || p.nonRectangularClip === true && !nonRectangular || !target || !topView || (flags & (0x1 | 0x2 | 0x4 | 0x10)) !== 0 || (flags & 0x10000) !== 0 && !nonRectangular || Array.isArray(p.unresolvedViewportReferences) && p.unresolvedViewportReferences.length > 0) { diagnostic.reason = 'unsupported-view'; return false }
     const scale = height / viewHeight
     // DXF viewCenter is in display coordinates, after twist, not a WCS pivot.
     // This matches the native top-view model-to-paper transformation independently
     // checked against ezdxf: P - scale*DCScenter + scale*R(twist)*(WCS-target).
     const matrix = multiply3(translation3(center[0] - scale * viewCenter[0], center[1] - scale * viewCenter[1]), multiply3(scale3(scale), multiply3(rotation3(twist), translation3(-target[0]!, -target[1]!))))
     if (!matrix.every(Number.isFinite)) { diagnostic.reason = 'invalid-view'; return false }
-    const context = this.context, corners: Point2[] = clipping ?? [[center[0] - width / 2, center[1] - height / 2], [center[0] + width / 2, center[1] - height / 2], [center[0] + width / 2, center[1] + height / 2], [center[0] - width / 2, center[1] + height / 2]]
+    const context = this.context, corners: Point2[] = clipping?.kind === 'polyline' ? clipping.points : [[center[0] - width / 2, center[1] - height / 2], [center[0] + width / 2, center[1] - height / 2], [center[0] + width / 2, center[1] + height / 2], [center[0] - width / 2, center[1] + height / 2]]
     context.save()
     const previous = this.#viewportState
     this.#viewportState = { frozen: new Set(Array.isArray(p.frozenLayerIds) ? p.frozenLayerIds.map(String) : []), scale, diagnostic }
     let complete = true
     try {
       context.beginPath()
-      corners.forEach((point, i) => { const screen = this.worldToScreen(point); i ? context.lineTo(...screen) : context.moveTo(...screen) })
+      if (clipping?.kind === 'circle') {
+        const screen = this.worldToScreen(clipping.center)
+        context.arc(screen[0], screen[1], clipping.radius * this.camera.scale, 0, Math.PI * 2)
+      } else corners.forEach((point, i) => { const screen = this.worldToScreen(point); i ? context.lineTo(...screen) : context.moveTo(...screen) })
       context.closePath(); context.clip()
       const query = { document, spaceId: document.spaces.modelSpaceId }
       for (const model of this.#sceneProvider?.listEntities(query) ?? document.listEntities({ ownerId: query.spaceId })) {

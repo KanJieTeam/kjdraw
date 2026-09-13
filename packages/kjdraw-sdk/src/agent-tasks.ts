@@ -38,7 +38,7 @@ export interface KJAgentTaskGeometryReceipt {
   planId: string
   executionEnvelopeId: string
   reviewerId: string
-  command: 'CREATEBATCH' | 'COPY' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT'
+  command: 'CREATEBATCH' | 'COPY' | 'OFFSET' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT'
   sourceToolName: string
   beforeRevision: number
   afterRevision: number
@@ -149,6 +149,25 @@ export interface KJAgentTaskCopyApprovalInput {
   at: string
 }
 export interface KJAgentTaskCopyApprovalResult { task: KJObjectRecord; receipt: KJAgentTaskGeometryReceipt }
+export interface KJAgentTaskOffsetApprovalInput {
+  id: string
+  expectedRevision: number
+  expectedTaskVersion: number
+  expectedStatus: 'running'
+  expectedScopeSha256: string
+  sourceToolName: string
+  toolApiVersion: string
+  toolContractHash: string
+  argumentsDigest: string
+  capabilityLocks: KJAgentTaskCapabilityLock[]
+  planId: string
+  executionEnvelopeId: string
+  reviewerId: string
+  sourceEntityIds: string[]
+  offsetEntityIds: string[]
+  at: string
+}
+export interface KJAgentTaskOffsetApprovalResult { task: KJObjectRecord; receipt: KJAgentTaskGeometryReceipt }
 export interface KJAgentTaskMoveApprovalInput {
   id: string
   expectedRevision: number
@@ -488,16 +507,17 @@ function receiptCheck(value: unknown): KJDrawingValidationCheckResult {
 }
 function geometryReceipt(value: unknown): KJAgentTaskGeometryReceipt {
   const row = plain(value, ['schema', 'schemaVersion', 'receiptId', 'taskId', 'taskVersion', 'planId', 'executionEnvelopeId', 'reviewerId', 'command', 'sourceToolName', 'beforeRevision', 'afterRevision', 'at', 'units', 'toolContractHash', 'argumentsDigest', 'scopeSha256', 'checks', 'receiptDigest'], 'geometry receipt')
-  if (row.schema !== 'com.kanjie.kjdraw.agent-task-geometry-receipt' || row.schemaVersion !== 1 || !['CREATEBATCH', 'COPY', 'MOVE', 'ROTATE', 'SCALE', 'LENGTHEN', 'STRETCH', 'PEDIT'].includes(String(row.command))) fail('geometry receipt contract is invalid')
+  if (row.schema !== 'com.kanjie.kjdraw.agent-task-geometry-receipt' || row.schemaVersion !== 1 || !['CREATEBATCH', 'COPY', 'OFFSET', 'MOVE', 'ROTATE', 'SCALE', 'LENGTHEN', 'STRETCH', 'PEDIT'].includes(String(row.command))) fail('geometry receipt contract is invalid')
   if (typeof row.toolContractHash !== 'string' || !CONTENT_HASH.test(row.toolContractHash) || typeof row.argumentsDigest !== 'string' || !CONTENT_HASH.test(row.argumentsDigest) || typeof row.scopeSha256 !== 'string' || !SHA256.test(row.scopeSha256) || typeof row.receiptDigest !== 'string' || !CONTENT_HASH.test(row.receiptDigest)) fail('geometry receipt hashes are invalid')
   const checks = array(row.checks, 'receipt checks', 1, 64).map(receiptCheck)
   if (new Set(checks.map(check => check.id)).size !== checks.length || checks.some(check => !check.passed)) fail('geometry receipt requires unique passing checks')
   const result: KJAgentTaskGeometryReceipt = {
     schema: row.schema, schemaVersion: 1, receiptId: identifier(row.receiptId, 'receipt id'), taskId: text(row.taskId, 'receipt task id', 128), taskVersion: integer(row.taskVersion, 'receipt task version', 1),
-    planId: text(row.planId, 'receipt plan id', 256), executionEnvelopeId: text(row.executionEnvelopeId, 'receipt execution envelope id', 256), reviewerId: text(row.reviewerId, 'receipt reviewer id', 256), command: row.command as 'CREATEBATCH' | 'COPY' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT', sourceToolName: identifier(row.sourceToolName, 'receipt source tool'),
+    planId: text(row.planId, 'receipt plan id', 256), executionEnvelopeId: text(row.executionEnvelopeId, 'receipt execution envelope id', 256), reviewerId: text(row.reviewerId, 'receipt reviewer id', 256), command: row.command as 'CREATEBATCH' | 'COPY' | 'OFFSET' | 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT', sourceToolName: identifier(row.sourceToolName, 'receipt source tool'),
     beforeRevision: integer(row.beforeRevision, 'receipt before revision'), afterRevision: integer(row.afterRevision, 'receipt after revision', 1), at: timestamp(row.at, 'receipt timestamp'), units: text(row.units, 'receipt units', 64), toolContractHash: row.toolContractHash, argumentsDigest: row.argumentsDigest, scopeSha256: row.scopeSha256, checks, receiptDigest: row.receiptDigest,
   }
   if (result.command === 'COPY' && result.sourceToolName !== 'cad_propose_copy') fail('COPY receipt source tool is invalid')
+  if (result.command === 'OFFSET' && result.sourceToolName !== 'cad_propose_offset') fail('OFFSET receipt source tool is invalid')
   if (result.command === 'MOVE' && result.sourceToolName !== 'cad_propose_move') fail('MOVE receipt source tool is invalid')
   if (result.command === 'ROTATE' && result.sourceToolName !== 'cad_propose_rotate') fail('ROTATE receipt source tool is invalid')
   if (result.command === 'SCALE' && result.sourceToolName !== 'cad_propose_scale') fail('SCALE receipt source tool is invalid')
@@ -737,10 +757,10 @@ function geometryCheckObjectIds(check: KJDrawingValidationCheck): string[] {
   return check.kind === 'point-distance' ? [check.from.objectId, check.to.objectId] : [check.objectId]
 }
 
-async function commitAgentTaskCreationApproval(document: KJDocument, tx: KJTransaction, input: unknown, command: 'CREATEBATCH' | 'COPY'): Promise<KJAgentTaskCreateBatchApprovalResult> {
-  const entityIdsField = command === 'COPY' ? 'copiedEntityIds' : 'createdEntityIds'
+async function commitAgentTaskCreationApproval(document: KJDocument, tx: KJTransaction, input: unknown, command: 'CREATEBATCH' | 'COPY' | 'OFFSET'): Promise<KJAgentTaskCreateBatchApprovalResult> {
+  const entityIdsField = command === 'COPY' ? 'copiedEntityIds' : command === 'OFFSET' ? 'offsetEntityIds' : 'createdEntityIds'
   const keys = ['id', 'expectedRevision', 'expectedTaskVersion', 'expectedStatus', 'expectedScopeSha256', 'sourceToolName', 'toolApiVersion', 'toolContractHash', 'argumentsDigest', 'capabilityLocks', 'planId', 'executionEnvelopeId', 'reviewerId', entityIdsField, 'at']
-  if (command === 'COPY') keys.push('sourceEntityIds')
+  if (command !== 'CREATEBATCH') keys.push('sourceEntityIds')
   const row = plain(input, keys, `${command} approval input`)
   const expectedRevision = inputRevision(document, tx, row.expectedRevision), id = text(row.id, 'task id', 128)
   const { record, task } = taskRecord(document, tx, id)
@@ -748,7 +768,8 @@ async function commitAgentTaskCreationApproval(document: KJDocument, tx: KJTrans
   if (row.expectedStatus !== 'running' || task.status !== 'running' || task.taskVersion !== expectedTaskVersion) fail('task version or status conflict')
   if (typeof row.expectedScopeSha256 !== 'string' || !SHA256.test(row.expectedScopeSha256) || task.scope.sha256 !== row.expectedScopeSha256) fail('task scope lock conflict')
   const sourceToolName = identifier(row.sourceToolName, 'source tool name')
-  if (command === 'COPY' && sourceToolName !== 'cad_propose_copy') fail('COPY source tool is outside the task tool lock')
+  const expectedSourceTool = command === 'COPY' ? 'cad_propose_copy' : command === 'OFFSET' ? 'cad_propose_offset' : null
+  if (expectedSourceTool && sourceToolName !== expectedSourceTool) fail(`${command} source tool is outside the task tool lock`)
   if (!task.definition.tools.names.includes(sourceToolName)) fail('source tool is outside the task tool lock')
   if (row.toolApiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION || task.definition.tools.apiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION) fail('unsupported persistent task tool API version')
   if (typeof row.toolContractHash !== 'string' || row.toolContractHash !== task.definition.tools.contractHash) fail('task tool contract conflict')
@@ -762,10 +783,10 @@ async function commitAgentTaskCreationApproval(document: KJDocument, tx: KJTrans
   const createdEntityIds = array(row[entityIdsField], `${command} created entity IDs`, 1, MAX_SCOPE_ENTITIES).map(value => text(value, `${command} created entity ID`, 256))
   if (new Set(createdEntityIds).size !== createdEntityIds.length) fail(`${command} created entity IDs must be unique`)
   const scopedIds = task.scope.members.map(member => member.id)
-  const sourceEntityIds = command === 'COPY'
-    ? array(row.sourceEntityIds, 'COPY source entity IDs', 1, 64).map(value => text(value, 'COPY source entity ID', 256))
+  const sourceEntityIds = command !== 'CREATEBATCH'
+    ? array(row.sourceEntityIds, `${command} source entity IDs`, 1, command === 'COPY' ? 64 : 1).map(value => text(value, `${command} source entity ID`, 256))
     : []
-  if (command === 'COPY' && (new Set(sourceEntityIds).size !== sourceEntityIds.length || sourceEntityIds.some(value => !scopedIds.includes(value)))) fail('COPY source entities must be unique members of the persisted task scope')
+  if (command !== 'CREATEBATCH' && (new Set(sourceEntityIds).size !== sourceEntityIds.length || sourceEntityIds.some(value => !scopedIds.includes(value)))) fail(`${command} source entities must be unique members of the persisted task scope`)
   for (const entityId of createdEntityIds) {
     if (document.getObject(entityId)) fail(`${command} result was not newly created: ${entityId}`)
     const entity = tx.getObject(entityId)
@@ -774,19 +795,19 @@ async function commitAgentTaskCreationApproval(document: KJDocument, tx: KJTrans
   if (tx._draft().header.units !== task.units) fail('drawing units changed during task approval')
   const currentDrift = await drift(document, task, tx)
   if (!currentDrift.unitsMatch || currentDrift.driftedEntityIds.length) fail(`task scope drifted${currentDrift.unitsMatch ? `: ${currentDrift.driftedEntityIds.join(', ')}` : ': drawing units changed'}`)
-  if (command === 'COPY') {
+  if (command !== 'CREATEBATCH') {
     const beforeObjects = document.snapshot().objects
     for (const [objectId, before] of Object.entries(beforeObjects).filter(([, object]) => object.kind === 'entity')) {
       const after = tx.getObject(objectId)
-      if (!after || canonicalStringify(after) !== canonicalStringify(before)) fail(`COPY must preserve every pre-existing entity: ${objectId}`)
+      if (!after || canonicalStringify(after) !== canonicalStringify(before)) fail(`${command} must preserve every pre-existing entity: ${objectId}`)
     }
     const addedEntityIds = Object.values(tx._draft().objects).filter(object => !object.erased && object.kind === 'entity' && !beforeObjects[object.id]).map(object => object.id).sort()
-    if (canonicalStringify(addedEntityIds) !== canonicalStringify([...createdEntityIds].sort())) fail('COPY must create exactly the reviewed result entities')
+    if (canonicalStringify(addedEntityIds) !== canonicalStringify([...createdEntityIds].sort())) fail(`${command} must create exactly the reviewed result entities`)
   }
   const requirements = task.definition.requirements.map(requirement => {
     if (requirement.check.toolName !== 'cad_check_geometry' || !requirement.check.geometryCheck || requirement.check.assertion.path !== 'passed' || requirement.check.assertion.operator !== 'is_true' || requirement.check.assertion.expected !== true) fail('trusted completion requires deterministic cad_check_geometry requirements with passed is_true assertions')
     const check = resolveGeometryCheck(requirement.check.geometryCheck, createdEntityIds)
-    if (command === 'COPY' && geometryCheckObjectIds(check).some(value => !scopedIds.includes(value) && !createdEntityIds.includes(value))) fail('COPY geometry checks must reference only persisted scope or reviewed copies')
+    if (command !== 'CREATEBATCH' && geometryCheckObjectIds(check).some(value => !scopedIds.includes(value) && !createdEntityIds.includes(value))) fail(`${command} geometry checks must reference only persisted scope or reviewed results`)
     return check
   })
   const afterRevision = expectedRevision + 1
@@ -846,6 +867,11 @@ export async function commitAgentTaskCreateBatchApproval(document: KJDocument, t
 /** Complete one reviewed COPY and its deterministic checks in the caller's transaction draft. */
 export async function commitAgentTaskCopyApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskCopyApprovalResult> {
   return commitAgentTaskCreationApproval(document, tx, input, 'COPY')
+}
+
+/** Complete one reviewed OFFSET and its deterministic checks in the caller's transaction draft. */
+export async function commitAgentTaskOffsetApproval(document: KJDocument, tx: KJTransaction, input: unknown): Promise<KJAgentTaskOffsetApprovalResult> {
+  return commitAgentTaskCreationApproval(document, tx, input, 'OFFSET')
 }
 
 async function commitAgentTaskTransformApproval(document: KJDocument, tx: KJTransaction, input: unknown, command: 'MOVE' | 'ROTATE' | 'SCALE' | 'LENGTHEN' | 'STRETCH' | 'PEDIT'): Promise<KJAgentTaskMoveApprovalResult> {

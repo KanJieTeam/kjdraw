@@ -593,6 +593,7 @@ function geometryReceipt(value) {
     if (row.schema !== 'com.kanjie.kjdraw.agent-task-geometry-receipt' || row.schemaVersion !== 1 || ![
         'CREATEBATCH',
         'COPY',
+        'OFFSET',
         'MOVE',
         'ROTATE',
         'SCALE',
@@ -625,6 +626,7 @@ function geometryReceipt(value) {
         receiptDigest: row.receiptDigest
     };
     if (result.command === 'COPY' && result.sourceToolName !== 'cad_propose_copy') fail('COPY receipt source tool is invalid');
+    if (result.command === 'OFFSET' && result.sourceToolName !== 'cad_propose_offset') fail('OFFSET receipt source tool is invalid');
     if (result.command === 'MOVE' && result.sourceToolName !== 'cad_propose_move') fail('MOVE receipt source tool is invalid');
     if (result.command === 'ROTATE' && result.sourceToolName !== 'cad_propose_rotate') fail('ROTATE receipt source tool is invalid');
     if (result.command === 'SCALE' && result.sourceToolName !== 'cad_propose_scale') fail('SCALE receipt source tool is invalid');
@@ -1101,7 +1103,7 @@ function geometryCheckObjectIds(check) {
     ];
 }
 async function commitAgentTaskCreationApproval(document, tx, input, command) {
-    const entityIdsField = command === 'COPY' ? 'copiedEntityIds' : 'createdEntityIds';
+    const entityIdsField = command === 'COPY' ? 'copiedEntityIds' : command === 'OFFSET' ? 'offsetEntityIds' : 'createdEntityIds';
     const keys = [
         'id',
         'expectedRevision',
@@ -1119,7 +1121,7 @@ async function commitAgentTaskCreationApproval(document, tx, input, command) {
         entityIdsField,
         'at'
     ];
-    if (command === 'COPY') keys.push('sourceEntityIds');
+    if (command !== 'CREATEBATCH') keys.push('sourceEntityIds');
     const row = plain(input, keys, `${command} approval input`);
     const expectedRevision = inputRevision(document, tx, row.expectedRevision), id = text(row.id, 'task id', 128);
     const { record, task } = taskRecord(document, tx, id);
@@ -1127,7 +1129,8 @@ async function commitAgentTaskCreationApproval(document, tx, input, command) {
     if (row.expectedStatus !== 'running' || task.status !== 'running' || task.taskVersion !== expectedTaskVersion) fail('task version or status conflict');
     if (typeof row.expectedScopeSha256 !== 'string' || !SHA256.test(row.expectedScopeSha256) || task.scope.sha256 !== row.expectedScopeSha256) fail('task scope lock conflict');
     const sourceToolName = identifier(row.sourceToolName, 'source tool name');
-    if (command === 'COPY' && sourceToolName !== 'cad_propose_copy') fail('COPY source tool is outside the task tool lock');
+    const expectedSourceTool = command === 'COPY' ? 'cad_propose_copy' : command === 'OFFSET' ? 'cad_propose_offset' : null;
+    if (expectedSourceTool && sourceToolName !== expectedSourceTool) fail(`${command} source tool is outside the task tool lock`);
     if (!task.definition.tools.names.includes(sourceToolName)) fail('source tool is outside the task tool lock');
     if (row.toolApiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION || task.definition.tools.apiVersion !== KJDRAW_AGENT_TASK_TOOL_API_VERSION) fail('unsupported persistent task tool API version');
     if (typeof row.toolContractHash !== 'string' || row.toolContractHash !== task.definition.tools.contractHash) fail('task tool contract conflict');
@@ -1149,8 +1152,8 @@ async function commitAgentTaskCreationApproval(document, tx, input, command) {
     const createdEntityIds = array(row[entityIdsField], `${command} created entity IDs`, 1, MAX_SCOPE_ENTITIES).map((value)=>text(value, `${command} created entity ID`, 256));
     if (new Set(createdEntityIds).size !== createdEntityIds.length) fail(`${command} created entity IDs must be unique`);
     const scopedIds = task.scope.members.map((member)=>member.id);
-    const sourceEntityIds = command === 'COPY' ? array(row.sourceEntityIds, 'COPY source entity IDs', 1, 64).map((value)=>text(value, 'COPY source entity ID', 256)) : [];
-    if (command === 'COPY' && (new Set(sourceEntityIds).size !== sourceEntityIds.length || sourceEntityIds.some((value)=>!scopedIds.includes(value)))) fail('COPY source entities must be unique members of the persisted task scope');
+    const sourceEntityIds = command !== 'CREATEBATCH' ? array(row.sourceEntityIds, `${command} source entity IDs`, 1, command === 'COPY' ? 64 : 1).map((value)=>text(value, `${command} source entity ID`, 256)) : [];
+    if (command !== 'CREATEBATCH' && (new Set(sourceEntityIds).size !== sourceEntityIds.length || sourceEntityIds.some((value)=>!scopedIds.includes(value)))) fail(`${command} source entities must be unique members of the persisted task scope`);
     for (const entityId of createdEntityIds){
         if (document.getObject(entityId)) fail(`${command} result was not newly created: ${entityId}`);
         const entity = tx.getObject(entityId);
@@ -1159,21 +1162,21 @@ async function commitAgentTaskCreationApproval(document, tx, input, command) {
     if (tx._draft().header.units !== task.units) fail('drawing units changed during task approval');
     const currentDrift = await drift(document, task, tx);
     if (!currentDrift.unitsMatch || currentDrift.driftedEntityIds.length) fail(`task scope drifted${currentDrift.unitsMatch ? `: ${currentDrift.driftedEntityIds.join(', ')}` : ': drawing units changed'}`);
-    if (command === 'COPY') {
+    if (command !== 'CREATEBATCH') {
         const beforeObjects = document.snapshot().objects;
         for (const [objectId, before] of Object.entries(beforeObjects).filter(([, object])=>object.kind === 'entity')){
             const after = tx.getObject(objectId);
-            if (!after || canonicalStringify(after) !== canonicalStringify(before)) fail(`COPY must preserve every pre-existing entity: ${objectId}`);
+            if (!after || canonicalStringify(after) !== canonicalStringify(before)) fail(`${command} must preserve every pre-existing entity: ${objectId}`);
         }
         const addedEntityIds = Object.values(tx._draft().objects).filter((object)=>!object.erased && object.kind === 'entity' && !beforeObjects[object.id]).map((object)=>object.id).sort();
         if (canonicalStringify(addedEntityIds) !== canonicalStringify([
             ...createdEntityIds
-        ].sort())) fail('COPY must create exactly the reviewed result entities');
+        ].sort())) fail(`${command} must create exactly the reviewed result entities`);
     }
     const requirements = task.definition.requirements.map((requirement)=>{
         if (requirement.check.toolName !== 'cad_check_geometry' || !requirement.check.geometryCheck || requirement.check.assertion.path !== 'passed' || requirement.check.assertion.operator !== 'is_true' || requirement.check.assertion.expected !== true) fail('trusted completion requires deterministic cad_check_geometry requirements with passed is_true assertions');
         const check = resolveGeometryCheck(requirement.check.geometryCheck, createdEntityIds);
-        if (command === 'COPY' && geometryCheckObjectIds(check).some((value)=>!scopedIds.includes(value) && !createdEntityIds.includes(value))) fail('COPY geometry checks must reference only persisted scope or reviewed copies');
+        if (command !== 'CREATEBATCH' && geometryCheckObjectIds(check).some((value)=>!scopedIds.includes(value) && !createdEntityIds.includes(value))) fail(`${command} geometry checks must reference only persisted scope or reviewed results`);
         return check;
     });
     const afterRevision = expectedRevision + 1;
@@ -1279,6 +1282,9 @@ export async function commitAgentTaskCreateBatchApproval(document, tx, input) {
 }
 export async function commitAgentTaskCopyApproval(document, tx, input) {
     return commitAgentTaskCreationApproval(document, tx, input, 'COPY');
+}
+export async function commitAgentTaskOffsetApproval(document, tx, input) {
+    return commitAgentTaskCreationApproval(document, tx, input, 'OFFSET');
 }
 async function commitAgentTaskTransformApproval(document, tx, input, command) {
     const entityIdsField = command === 'MOVE' ? 'movedEntityIds' : command === 'ROTATE' ? 'rotatedEntityIds' : command === 'SCALE' ? 'scaledEntityIds' : command === 'LENGTHEN' ? 'lengthenedEntityIds' : command === 'STRETCH' ? 'stretchedEntityIds' : 'editedEntityIds';

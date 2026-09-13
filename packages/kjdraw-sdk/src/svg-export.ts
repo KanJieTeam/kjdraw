@@ -80,14 +80,19 @@ function polyPath(vertices: unknown, closed: boolean): string {
   return path + (closed ? ' Z' : '')
 }
 
-function viewportPolylineClip(document: KJDocument, viewport: KJReadonlyObjectRecord): { boundary: KJReadonlyObjectRecord; path: string } | null {
+function viewportClip(document: KJDocument, viewport: KJReadonlyObjectRecord): string | null {
   const id = viewport.payload.clippingBoundaryId
   if (id == null) return null
   if (typeof id !== 'string' || !id) fail('viewport clipping boundary reference is invalid')
   const boundary = document.getObject(id)
   if (!boundary || boundary.erased || boundary.kind !== 'entity' || boundary.ownerId !== viewport.ownerId) fail('viewport clipping boundary must be an existing paper-space entity')
-  if (boundary.type !== 'LWPOLYLINE' && boundary.type !== 'POLYLINE') fail('viewport clipping boundary must be a closed 2D polyline')
   const payload = boundary.payload
+  if (boundary.type === 'CIRCLE') {
+    const center = point(payload.center), radius = numeric(payload.radius)
+    if (!(radius > 0) || numeric(payload.thickness, 0) !== 0 || payload.normal && JSON.stringify(payload.normal) !== '[0,0,1]' || payload.extrusionDirection && JSON.stringify(payload.extrusionDirection) !== '[0,0,1]') fail('viewport clipping circle must be positive and lie in the XY plane')
+    return `<circle cx="${center[0]}" cy="${center[1]}" r="${radius}"/>`
+  }
+  if (boundary.type !== 'LWPOLYLINE' && boundary.type !== 'POLYLINE') fail('viewport clipping boundary must be a circle or closed 2D polyline')
   if (payload.closed !== true || numeric(payload.elevation, 0) !== 0 || numeric(payload.constantWidth, 0) !== 0 || boundary.type === 'POLYLINE' && (numeric(payload.dxfFlags, 0) & (8 | 16 | 64)) !== 0) fail('viewport clipping boundary must be a closed zero-width 2D polyline')
   if (!Array.isArray(payload.vertices) || payload.vertices.length < 3 || payload.vertices.length > 4096) fail('viewport clipping boundary requires 3–4096 vertices')
   const rows = payload.vertices.map(value => ({ point: point(Array.isArray(value) ? value : data(value).point), bulge: numeric(data(value).bulge, 0) }))
@@ -102,7 +107,7 @@ function viewportPolylineClip(document: KJDocument, viewport: KJReadonlyObjectRe
     }
   }
   if (Math.abs(twiceArea) <= 1e-12) fail('viewport clipping boundary must enclose a nonzero area')
-  return { boundary, path: polyPath(payload.vertices, true) }
+  return `<path d="${polyPath(payload.vertices, true)}"/>`
 }
 function hatchEdgePath(value: unknown): string {
   const loop=data(value),edges=loop.edges
@@ -302,13 +307,13 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
         const frame=lp.plottable===false||hasClipping?'':`<rect x="${a[0]-w/2}" y="${a[1]-h/2}" width="${w}" height="${h}"/>`
         if(p.status===0||(flags&0x20000)!==0){report.hidden++;inner=frame}
         else {
-          const clipping = viewportPolylineClip(document, entity)
+          const clipping = viewportClip(document, entity)
           const nonRectangular = clipping !== null
           if(p.perspective||p.clipBoundaryId||p.nonRectangularClip&&!nonRectangular||(flags&(0x1|0x2|0x4|0x10))!==0||(flags&0x10000)!==0&&!nonRectangular||Array.isArray(p.unresolvedViewportReferences)&&p.unresolvedViewportReferences.length||p.viewDirection&&JSON.stringify(p.viewDirection)!=='[0,0,1]')fail('unsupported viewport projection or clip')
           const ratio=h/vh,m=multiply3(translation3(a[0]-ratio*c[0],a[1]-ratio*c[1]),multiply3(scale3(ratio),multiply3(rotation3(numeric(p.twistAngle,0)),translation3(-target[0],-target[1]))))
           const clip=`kj-viewport-${++sequence}`
           matrix(m)
-          definitions.push(count(`<clipPath id="${clip}" clipPathUnits="userSpaceOnUse">${clipping?`<path d="${clipping.path}"/>`:`<rect x="${a[0]-w/2}" y="${a[1]-h/2}" width="${w}" height="${h}"/>`}</clipPath>`))
+          definitions.push(count(`<clipPath id="${clip}" clipPathUnits="userSpaceOnUse">${clipping??`<rect x="${a[0]-w/2}" y="${a[1]-h/2}" width="${w}" height="${h}"/>`}</clipPath>`))
           report.viewports.push({entityId:entity.id,millimetersPerModelUnit:scale*ratio,matrix:m})
           const frozenLayers=new Set(Array.isArray(p.frozenLayerIds)?p.frozenLayerIds.map(String):[])
           inner=`<g clip-path="url(#${clip})"><g transform="matrix(${matrix(m)})">${owned(source.spaces.modelSpaceId).map(child=>render(child,frozenLayers,depth+1,[],undefined,undefined,true,geometryScale*ratio)).join('')}</g></g>${frame}`
