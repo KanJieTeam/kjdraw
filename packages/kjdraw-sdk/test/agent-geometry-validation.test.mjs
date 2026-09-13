@@ -74,7 +74,7 @@ test('geometry tool validates native curves and polygonal hatch topology through
 test('hatch geometry checks fail closed for curved, nonplanar and invalid island boundaries', async () => {
   const { document, session } = await fixture()
   for (const payload of [
-    { boundaryLoops: [{ edges: [{ type: 'ARC', center: [0, 0, 0], radius: 5, startAngle: 0, endAngle: Math.PI * 2 }] }] },
+    { boundaryLoops: [{ edges: [{ type: 'SPLINE', degree: 2, controlPoints: [[0, 0, 0], [1, 2, 0], [0, 0, 0]] }] }] },
     { boundaryLoops: [{ vertices: [[0, 0, 1], [4, 0, 1], [0, 4, 1]] }] },
     { boundaryLoops: [{ external: true, vertices: [[0, 0], [2, 0], [0, 2]] }, { external: false, vertices: [[0, 0], [4, 0], [0, 4]] }] },
   ]) {
@@ -85,6 +85,18 @@ test('hatch geometry checks fail closed for curved, nonplanar and invalid island
     assert.equal(result.ok, false)
     assert.equal(document.serialize(), beforeCheck)
   }
+})
+
+test('hatch area exactly measures full native ellipse and circular island loops', async () => {
+  const { document, session } = await fixture()
+  await document.transact('curved hatch', tx => tx.createEntity('HATCH', { boundaryLoops: [
+    { external: true, edges: [{ type: 'ELLIPSE', center: [10, 20, 0], majorAxis: [6, 0, 0], ratio: 0.5, startAngle: 0, endAngle: Math.PI * 2, counterClockwise: true }] },
+    { external: false, edges: [{ type: 'ARC', center: [10, 20, 0], radius: 1, startAngle: 0, endAngle: Math.PI * 2, counterClockwise: false }] },
+  ] }, { id: 'curved-hatch' }))
+  const result = await session.call('cad_check_geometry', { expectedRevision: document.revision, units: 'millimeter', lineLengths: [], circleRadii: [], pointDistances: [], polylineClosures: [], hatchAreas: [{ id: 'curved-area', objectId: 'curved-hatch', expected: 17 * Math.PI, tolerance: 1e-12 }], hatchLoopCounts: [{ id: 'curved-loops', objectId: 'curved-hatch', expected: 2 }] })
+  assert.equal(result.ok, true, JSON.stringify(result))
+  assert.equal(result.value.passed, true)
+  assert.ok(Math.abs(result.value.checks[0].actual - 17 * Math.PI) < 1e-12)
 })
 
 test('a failed requirement is a successful read, not a tool exception or an applied edit', async () => {

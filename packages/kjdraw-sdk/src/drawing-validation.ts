@@ -137,22 +137,42 @@ function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDra
   const hatchArea = (object: KJReadonlyObjectRecord): number => {
     let area = 0
     for (const [loopIndex, loop] of hatchLoops(object).entries()) {
-      const vertices = Array.isArray(loop.vertices) ? loop.vertices : fail('hatch-area currently requires polygonal vertex boundary loops')
-      if (vertices.length < 3) fail('hatch-area currently requires polygonal vertex boundary loops')
-      verticesInspected += vertices.length
-      if (verticesInspected > 20000) fail('Hatch checks exceed the 20000-vertex budget')
-      const points = vertices.map((value: unknown) => {
-        if (!value || typeof value !== 'object' || Array.isArray(value)) fail('hatch-area requires canonical vertices')
-        const vertex = value as Record<string, unknown>, p = point(vertex.point)
-        if (p[2] !== 0 || vertex.bulge !== 0) fail('hatch-area requires straight polygonal XY loops without bulges')
-        return p
-      })
-      let signed = 0
-      for (let index = 0; index < points.length; index++) {
-        const current = points[index]!, next = points[(index + 1) % points.length]!
-        signed += current[0] * next[1] - next[0] * current[1]
+      let loopArea = 0
+      if (Array.isArray(loop.vertices)) {
+        const vertices = loop.vertices
+        if (vertices.length < 3) fail('hatch-area polygon loops require at least three vertices')
+        verticesInspected += vertices.length
+        if (verticesInspected > 20000) fail('Hatch checks exceed the 20000-vertex budget')
+        const points = vertices.map((value: unknown) => {
+          if (!value || typeof value !== 'object' || Array.isArray(value)) fail('hatch-area requires canonical vertices')
+          const vertex = value as Record<string, unknown>, p = point(vertex.point)
+          if (p[2] !== 0 || vertex.bulge !== 0) fail('hatch-area requires straight polygonal XY loops without bulges')
+          return p
+        })
+        let signed = 0
+        for (let index = 0; index < points.length; index++) {
+          const current = points[index]!, next = points[(index + 1) % points.length]!
+          signed += current[0] * next[1] - next[0] * current[1]
+        }
+        loopArea = Math.abs(signed / 2)
+      } else {
+        const edges = Array.isArray(loop.edges) ? loop.edges : fail('hatch-area requires a supported native boundary loop')
+        if (edges.length !== 1 || !edges[0] || typeof edges[0] !== 'object' || Array.isArray(edges[0])) fail('hatch-area curved loops require one full native ARC or ELLIPSE edge')
+        const edge = edges[0] as Record<string, unknown>, start = Number(edge.startAngle), end = Number(edge.endAngle)
+        if (!Number.isFinite(start) || !Number.isFinite(end) || Math.abs(Math.abs(end - start) - Math.PI * 2) > 1e-10) fail('hatch-area curved loops require a complete native curve')
+        const center = point(edge.center)
+        if (center[2] !== 0) fail('hatch-area requires native XY boundaries at z=0')
+        if (edge.type === 'ARC') {
+          const radius = boundedNumber(edge.radius, 'Hatch arc radius')
+          if (!(radius > 0)) fail('Hatch arc radius must be positive')
+          loopArea = Math.PI * radius * radius
+        } else if (edge.type === 'ELLIPSE') {
+          const majorAxis = point(edge.majorAxis), ratio = boundedNumber(edge.ratio, 'Hatch ellipse ratio')
+          const major = Math.hypot(majorAxis[0], majorAxis[1])
+          if (majorAxis[2] !== 0 || !(major > 0) || !(ratio > 0) || ratio > 1) fail('Hatch ellipse requires a positive planar major axis and ratio in (0,1]')
+          loopArea = Math.PI * major * major * ratio
+        } else fail('hatch-area curved loops require one full native ARC or ELLIPSE edge')
       }
-      const loopArea = Math.abs(signed / 2)
       if (!(loopArea > 0)) fail(`hatch-area boundary loop ${loopIndex} has zero area`)
       area += loop.external === false ? -loopArea : loopArea
     }
