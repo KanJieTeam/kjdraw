@@ -27,6 +27,8 @@ export const KJDRAW_AGENT_MOVABLE_TYPES = Object.freeze([
     'XLINE',
     'RAY',
     'TEXT',
+    'MTEXT',
+    'LEADER',
     'DIMENSION',
     'INSERT'
 ]);
@@ -45,12 +47,73 @@ const stretchable = [
     'LWPOLYLINE',
     'POLYLINE'
 ];
+function effectiveLayerId(document, entity) {
+    if (entity.payload.layerId != null) return String(entity.payload.layerId);
+    return document.getTable('layers')?.records.find((record)=>record.name === '0')?.id ?? null;
+}
+function requireEditableAgentMember(document, entity, label) {
+    const layer = effectiveLayerId(document, entity), layerRecord = layer ? document.getObject(layer) : null;
+    if (entity.ownerId !== document.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layerRecord?.payload.visible === false || layerRecord?.payload.locked === true || layerRecord?.payload.frozen === true) throw new KJValidationError(`${label} must be visible and editable in model space`);
+}
+export function resolveAgentTransformEntityIds(document, sourceIds) {
+    if (!Array.isArray(sourceIds) || !sourceIds.length || sourceIds.length > 64 || sourceIds.some((id)=>typeof id !== 'string' || !id) || new Set(sourceIds).size !== sourceIds.length) throw new KJValidationError('Transform object IDs must be 1–64 unique strings');
+    const result = [], added = new Set(), leaders = document.listEntities({
+        type: 'LEADER'
+    });
+    const add = (id)=>{
+        if (!added.has(id)) {
+            added.add(id);
+            result.push(id);
+        }
+    };
+    const pair = (member)=>{
+        const matches = member.type === 'LEADER' ? [
+            member
+        ] : leaders.filter((leader)=>leader.payload.annotationId === member.id);
+        if (matches.length !== 1) throw new KJValidationError('AI MTEXT transform requires one unambiguous owning LEADER');
+        const leader = matches[0], annotationId = leader.payload.annotationId;
+        if (leader.payload.ownsAnnotation !== true || leader.payload.unresolvedLeaderAnnotation != null || leader.payload.annotationType !== 0 || typeof annotationId !== 'string' || !annotationId) throw new KJValidationError('AI LEADER transform requires an owned native MTEXT association');
+        const annotation = document.getObject(annotationId);
+        if (!annotation || annotation.kind !== 'entity' || annotation.erased || annotation.type !== 'MTEXT') throw new KJValidationError('AI LEADER transform association is broken');
+        const references = leaders.filter((candidate)=>candidate.payload.annotationId === annotation.id);
+        if (references.length !== 1 || references[0].id !== leader.id) throw new KJValidationError('AI LEADER transform association is ambiguous');
+        if (leader.ownerId !== annotation.ownerId || effectiveLayerId(document, leader) !== effectiveLayerId(document, annotation)) throw new KJValidationError('AI LEADER and MTEXT must share one owner and layer');
+        const leaderTextPosition = leader.payload.textPosition, annotationPosition = annotation.payload.position;
+        if (!Array.isArray(leaderTextPosition) || !Array.isArray(annotationPosition) || leaderTextPosition.length !== 3 || annotationPosition.length !== 3 || leaderTextPosition.some((coordinate, index)=>coordinate !== annotationPosition[index])) throw new KJValidationError('AI LEADER and MTEXT annotation positions have drifted');
+        requireEditableAgentMember(document, leader, 'AI LEADER');
+        requireEditableAgentMember(document, annotation, 'AI MTEXT');
+        return [
+            leader,
+            annotation
+        ];
+    };
+    for (const id of sourceIds){
+        const member = document.getObject(id);
+        if (!member || member.kind !== 'entity' || member.erased) {
+            add(id);
+            continue;
+        }
+        if (member.type !== 'LEADER' && member.type !== 'MTEXT') {
+            add(id);
+            continue;
+        }
+        const [leader, annotation] = pair(member);
+        add(leader.id);
+        add(annotation.id);
+    }
+    if (result.length > 64) throw new KJValidationError('Expanded LEADER annotation transform exceeds 64 entities');
+    return result;
+}
 function validateMovableAnnotation(document, entity) {
     if ([
         'ELLIPSE',
         'SPLINE',
         'HATCH'
     ].includes(entity.type)) {
+        validateTransformGeometry(document, entity);
+        return;
+    }
+    if (entity.type === 'LEADER' || entity.type === 'MTEXT') {
         validateTransformGeometry(document, entity);
         return;
     }
@@ -134,7 +197,7 @@ function validateTransformGeometry(document, entity) {
             payload.direction
         ];
         if (!Array.isArray(payload.direction) || Math.hypot(Number(payload.direction[0]), Number(payload.direction[1])) <= 1e-12) throw new KJValidationError('Transform preview requires a nonzero XY guide direction');
-    } else if (entity.type === 'TEXT' || entity.type === 'INSERT') {
+    } else if (entity.type === 'TEXT' || entity.type === 'MTEXT' || entity.type === 'INSERT') {
         points = [
             payload.position,
             ...payload.alignmentPoint ? [
@@ -142,7 +205,21 @@ function validateTransformGeometry(document, entity) {
             ] : []
         ];
         if (!bounded(payload.rotation)) throw new KJValidationError('Transform preview requires finite rotation');
-        if (entity.type === 'TEXT' && (typeof payload.text !== 'string' || !payload.text.trim() || !bounded(payload.height) || payload.height <= 1e-12)) throw new KJValidationError('Transform preview requires visible bounded text');
+        if ((entity.type === 'TEXT' || entity.type === 'MTEXT') && (typeof payload.text !== 'string' || !payload.text.trim() || !bounded(payload.height) || payload.height <= 1e-12 || payload.width != null && (!bounded(payload.width) || payload.width <= 1e-12))) throw new KJValidationError('Transform preview requires visible bounded text');
+        if (entity.type === 'MTEXT' && (!Number.isSafeInteger(payload.attachmentPoint) || Number(payload.attachmentPoint) < 1 || Number(payload.attachmentPoint) > 9)) throw new KJValidationError('Transform preview requires a native MTEXT attachment point');
+    } else if (entity.type === 'LEADER') {
+        const vertices = Array.isArray(payload.vertices) ? payload.vertices : [];
+        if (vertices.length < 2 || vertices.length > 4096 || typeof payload.annotationId !== 'string' || payload.ownsAnnotation !== true || payload.annotationType !== 0) throw new KJValidationError('Transform preview requires an owned native LEADER association');
+        points = [
+            ...vertices,
+            payload.textPosition
+        ];
+        for (const field of [
+            'horizontalDirection',
+            'blockOffset',
+            'annotationOffset'
+        ])if (payload[field] != null) points.push(payload[field]);
+        if (vertices.some((value, index)=>index > 0 && Array.isArray(value) && Array.isArray(vertices[index - 1]) && Math.hypot(Number(value[0]) - Number(vertices[index - 1][0]), Number(value[1]) - Number(vertices[index - 1][1]), Number(value[2]) - Number(vertices[index - 1][2])) <= 1e-12)) throw new KJValidationError('Transform preview requires distinct LEADER vertices');
     } else if (entity.type === 'DIMENSION') {
         points = [
             ...Array.isArray(payload.definitionPoints) ? payload.definitionPoints : [],
@@ -346,6 +423,14 @@ export async function createAgentGeometryPreview(document, command, args, option
         'DESIGNCREATE',
         'DESIGNUPDATE'
     ].includes(command)) throw new KJValidationError('Unsupported core preview command');
+    if ([
+        'MOVE',
+        'ROTATE',
+        'SCALE'
+    ].includes(command) && Array.isArray(args.ids)) args = {
+        ...args,
+        ids: resolveAgentTransformEntityIds(document, args.ids)
+    };
     let bindingIds;
     if (command === 'DESIGNCREATE') {
         if (typeof args.id !== 'string' || !args.id.trim() || Object.keys(args).some((key)=>![

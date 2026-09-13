@@ -193,6 +193,7 @@ export function transformEntityPayload(
         alignmentPoint: payload.alignmentPoint
           && transformPoint3(matrix, payload.alignmentPoint as Point2Input),
         height: payload.height == null ? undefined : Number(payload.height) * scale(),
+        ...(normalizedType === 'MTEXT' && payload.width != null ? { width: Number(payload.width) * scale() } : {}),
         rotation: transformAngle(matrix, payload.rotation ?? 0),
         mirrored: mirrored ? !payload.mirrored : payload.mirrored,
       }
@@ -229,7 +230,21 @@ export function transformEntityPayload(
         ...(patternLines ? { patternLines, patternDefinitionScale: patternScale, patternDefinitionAngle: patternAngle } : {}),
       }
     }
-    case 'LEADER':
+    case 'LEADER': {
+      const direction = transformVector3(matrix, (payload.horizontalDirection ?? [1, 0, 0]) as Point2Input)
+      const directionZ = Number(direction[2] ?? 0), length = Math.hypot(direction[0], direction[1], directionZ)
+      if (!(length > 1e-15)) throw new KJValidationError('LEADER horizontal direction became degenerate')
+      return {
+        ...payload,
+        vertices: ((payload.vertices ?? []) as readonly unknown[])
+          .map(point => transformPoint3(matrix, point as Point2Input)),
+        textPosition: payload.textPosition
+          && transformPoint3(matrix, payload.textPosition as Point2Input),
+        horizontalDirection: [direction[0] / length, direction[1] / length, directionZ / length],
+        blockOffset: payload.blockOffset && transformVector3(matrix, payload.blockOffset as Point2Input),
+        annotationOffset: payload.annotationOffset && transformVector3(matrix, payload.annotationOffset as Point2Input),
+      }
+    }
     case 'MLEADER':
       return {
         ...payload,

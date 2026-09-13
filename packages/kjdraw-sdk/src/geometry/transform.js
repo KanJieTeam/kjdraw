@@ -160,6 +160,9 @@ export function transformEntityPayload(type, source, matrix) {
                 position: transformPoint3(matrix, payload.position),
                 alignmentPoint: payload.alignmentPoint && transformPoint3(matrix, payload.alignmentPoint),
                 height: payload.height == null ? undefined : Number(payload.height) * scale(),
+                ...normalizedType === 'MTEXT' && payload.width != null ? {
+                    width: Number(payload.width) * scale()
+                } : {},
                 rotation: transformAngle(matrix, payload.rotation ?? 0),
                 mirrored: mirrored ? !payload.mirrored : payload.mirrored
             };
@@ -213,6 +216,27 @@ export function transformEntityPayload(type, source, matrix) {
                 };
             }
         case 'LEADER':
+            {
+                const direction = transformVector3(matrix, payload.horizontalDirection ?? [
+                    1,
+                    0,
+                    0
+                ]);
+                const directionZ = Number(direction[2] ?? 0), length = Math.hypot(direction[0], direction[1], directionZ);
+                if (!(length > 1e-15)) throw new KJValidationError('LEADER horizontal direction became degenerate');
+                return {
+                    ...payload,
+                    vertices: (payload.vertices ?? []).map((point)=>transformPoint3(matrix, point)),
+                    textPosition: payload.textPosition && transformPoint3(matrix, payload.textPosition),
+                    horizontalDirection: [
+                        direction[0] / length,
+                        direction[1] / length,
+                        directionZ / length
+                    ],
+                    blockOffset: payload.blockOffset && transformVector3(matrix, payload.blockOffset),
+                    annotationOffset: payload.annotationOffset && transformVector3(matrix, payload.annotationOffset)
+                };
+            }
         case 'MLEADER':
             return {
                 ...payload,

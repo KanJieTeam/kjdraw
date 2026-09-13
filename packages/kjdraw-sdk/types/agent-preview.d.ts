@@ -39,6 +39,8 @@ export interface KJAgentGeometryPreview {
     readonly after: readonly KJAgentPreviewEntity[];
 }
 export declare const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[];
+/** Resolve a selected member of an owned native LEADER/MTEXT pair to both members. */
+export declare function resolveAgentTransformEntityIds(document: KJDocument, sourceIds: readonly string[]): string[];
 export interface KJAgentGeometryPreviewOptions {
     /** Trusted host creation budget; defaults to 64, hard maximum 512. Transforms remain limited to 64. */
     maxCreatedEntities?: number;
