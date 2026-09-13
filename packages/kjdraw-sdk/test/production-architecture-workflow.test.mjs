@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { exportDrawingSvg } from '../src/svg-export.js'
+import { independentlyInspectProductionDxf } from './production-workflow-independent.mjs'
 
 const near = (actual, expected, tolerance = 1e-9) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} != ${expected}`)
 const point = (matrix, value) => [
@@ -27,7 +28,7 @@ const rectangle = (name, layerId, x1, y1, x2, y2) => ({
   options: { name },
 })
 
-test('cad.production-workflows completes an editable architectural drawing from blank document through scaled delivery', async () => {
+test('cad.production-workflows completes an editable architectural drawing from blank document through scaled delivery', async t => {
   const sdk = createKJDrawSDK()
   const drawing = sdk.createDocument({ documentId: 'architecture-production-chain', title: 'Two-room architectural plan', units: 'millimeter' })
   assert.equal(drawing.revision, 0)
@@ -166,6 +167,14 @@ test('cad.production-workflows completes an editable architectural drawing from 
   near(exportDrawingSvg(reopenedKjd, { layoutId: reopenedKjdLayout.id }).report.viewports[0].millimetersPerModelUnit, 0.01)
 
   const dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' })
+  const external = independentlyInspectProductionDxf('architecture', dxf)
+  if (external) {
+    assert.equal(external.units, 4); assert.equal(external.doors, 2); assert.equal(external.windows, 2)
+    assert.equal(external.doorMembers, 2); assert.equal(external.windowMembers, 3)
+    for (const name of ['A-WALL', 'A-ROOM', 'A-DOOR', 'A-WINDOW', 'A-OPENING']) assert.ok(external.layers.includes(name))
+    near(external.paper[0], 420); near(external.paper[1], 297)
+    assert.equal(external.errors, 0); assert.equal(external.fixes, 0)
+  } else t.diagnostic('Independent ezdxf unavailable; candidate CI must provide KJDRAW_PYTHON')
   const reopenedDxf = await createKJDrawSDK().readDocument(dxf, { format: 'DXF', version: '2018' })
   const dxfLayout = reopenedDxf.snapshot().spaces.layoutIds.map(id => reopenedDxf.getObject(id)).find(candidate => candidate.name === 'A3 ARCH 1-100')
   const dxfDoor = reopenedDxf.getTable('blockRecords').records.find(record => record.name === 'A-DOOR-0900')

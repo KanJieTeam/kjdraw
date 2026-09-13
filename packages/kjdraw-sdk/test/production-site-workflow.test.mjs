@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import { createKJDrawSDK } from '../src/sdk.js'
 import { exportDrawingSvg } from '../src/svg-export.js'
+import { independentlyInspectProductionDxf } from './production-workflow-independent.mjs'
 
 const near = (actual, expected, epsilon = 1e-9) => assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} != ${expected}`)
 const distance = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1])
@@ -86,7 +87,7 @@ function verifyPlot(document) {
   return output
 }
 
-test('blank meter site plan completes layered editing, history, persistence and independently measured 1:500 output', async () => {
+test('blank meter site plan completes layered editing, history, persistence and independently measured 1:500 output', async t => {
   const sdk = createKJDrawSDK()
   const document = sdk.createDocument({ documentId: 'production-site-workflow', units: 'meter' })
   assert.equal(document.snapshot().header.units, 'meter')
@@ -158,13 +159,20 @@ test('blank meter site plan completes layered editing, history, persistence and 
   const kjdSdk = createKJDrawSDK()
   const kjdReopened = await kjdSdk.readDocument(kjd, { format: 'KJD' })
   verifySiteModel(kjdReopened)
-  assert.deepEqual(kjdReopened.listObjects({ kind: 'group' }).map(record => [record.type, record.name, record.payload.memberIds]), [
-    ['SELECTION_SET', 'Road property selection', selectedRoadIds],
+  assert.deepEqual(kjdReopened.listObjects({ kind: 'group' }).map(record => [record.type, record.name, record.payload.memberIds]).sort((a, b) => a[0].localeCompare(b[0])), [
     ['GROUP', 'Road work set', selectedRoadIds],
+    ['SELECTION_SET', 'Road property selection', selectedRoadIds],
   ])
   assert.deepEqual(verifyPlot(kjdReopened).paper, originalPlot.paper)
 
   const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const external = independentlyInspectProductionDxf('site', dxf)
+  if (external) {
+    assert.equal(external.units, 6); assert.equal(external.roads, 3); assert.equal(external.water, 3)
+    assert.deepEqual(external.roadPoints, [[500_015, 3_000_038], [500_115, 3_000_038]])
+    near(external.paper[0], 841); near(external.paper[1], 594)
+    assert.equal(external.errors, 0); assert.equal(external.fixes, 0)
+  } else t.diagnostic('Independent ezdxf unavailable; candidate CI must provide KJDRAW_PYTHON')
   const dxfSdk = createKJDrawSDK()
   const dxfReopened = await dxfSdk.readDocument(dxf, { format: 'DXF' })
   verifySiteModel(dxfReopened)

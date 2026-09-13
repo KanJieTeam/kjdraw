@@ -8,6 +8,7 @@ import {
   multiply3,
   transformPoint3,
 } from '../src/index.js'
+import { independentlyInspectProductionDxf } from './production-workflow-independent.mjs'
 
 const near = (actual, expected, tolerance = 1e-9) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} != ${expected}`)
 const xy = point => point.slice(0, 2)
@@ -86,7 +87,7 @@ function findMovedHorizontalSlot(document) {
   return center
 }
 
-test('blank-document mechanical workflow builds, edits, verifies, reopens and plots a measured A3 viewport', async () => {
+test('blank-document mechanical workflow builds, edits, verifies, reopens and plots a measured A3 viewport', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'production-mechanical-workflow', units: 'millimeter' })
   assert.equal(document.listEntities().length, 0)
 
@@ -149,6 +150,16 @@ test('blank-document mechanical workflow builds, edits, verifies, reopens and pl
   near(kjdOutput.report.viewports[0].millimetersPerModelUnit, 0.5)
 
   const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const external = independentlyInspectProductionDxf('mechanical', dxf)
+  if (external) {
+    assert.equal(external.units, 4)
+    assert.equal(external.circles >= 14, true); assert.equal(external.r5, 6); assert.equal(external.r9, 6)
+    assert.equal(external.r6arcs, 2)
+    assert.equal(external.dimensions, document.listEntities({ type: 'DIMENSION' }).length)
+    assert.equal(external.dimensions >= 8, true)
+    near(external.paper[0], 420); near(external.paper[1], 297)
+    assert.equal(external.errors, 0); assert.equal(external.fixes, 0)
+  } else t.diagnostic('Independent ezdxf unavailable; candidate CI must provide KJDRAW_PYTHON')
   const reopenedDxf = await createKJDrawSDK().readDocument(dxf, { format: 'DXF', version: '2018' })
   assert.equal(reopenedDxf.validate().valid, true)
   assert.equal(reopenedDxf.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
