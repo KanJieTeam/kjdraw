@@ -17,6 +17,7 @@ function geometry(entities) {
     if (type === 'LINE') return { type, start: p.start, end: p.end }
     if (type === 'CIRCLE') return { type, center: p.center, radius: p.radius }
     if (type === 'ARC') return { type, center: p.center, radius: p.radius, start: p.startAngle, end: p.endAngle }
+    if (type === 'ELLIPSE') return {type,center:p.center,majorAxis:p.majorAxis,ratio:p.ratio,start:p.startParameter,end:p.endParameter}
     return { type, points: p.vertices.map(vertex => vertex.point), closed: p.closed }
   }).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
 }
@@ -84,6 +85,15 @@ test('pattern references address all four groups and disjoint negative arrays re
   assert.deepEqual(after[6].payload.vertices.map(vertex => vertex.point), [[-9, 1, 0], [-7, 1, 0], [-7, 2, 0]])
   assert.deepEqual(after[7].payload.center, [2, -17, 0])
   assert.equal(document.revision, 0)
+})
+
+test('native elliptical arcs can seed compact rectangular arrays without tessellation',async()=>{
+  const {document,session}=fixture(),input={...empty(),ellipses:[[10,20,8,6,.4,15,300]],arrays:[array({sources:['ellipses:0'],rows:2,columns:2,dx:30,dy:40})]}
+  const proposal=value(await session.call(tool,input)),items=proposal.preview.after
+  assert.equal(items.length,4);assert.ok(items.every(item=>item.type==='ELLIPSE'))
+  assert.deepEqual(items.map(item=>item.payload.center),[[10,20,0],[40,20,0],[10,60,0],[40,60,0]])
+  for(const item of items){assert.deepEqual(item.payload.majorAxis,[8,6,0]);assert.equal(item.payload.ratio,.4);assert.equal(item.payload.startParameter,15*Math.PI/180);assert.equal(item.payload.endParameter,300*Math.PI/180)}
+  assert.equal(document.revision,0);value(await session.approve(proposal.planId,'reviewer'));assert.equal(document.listEntities({type:'ELLIPSE'}).length,4)
 })
 
 test('pattern total budget accepts exactly 512 and rejects 513 across all arrays before geometry expansion', async () => {

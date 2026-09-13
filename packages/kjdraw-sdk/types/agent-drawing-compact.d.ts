@@ -6,6 +6,8 @@ export interface KJAgentCompactDrawingInput {
     circles: [number, number, number][];
     /** Center XY, positive radius, then counterclockwise start/end angles in degrees. */
     arcs: [number, number, number, number, number][];
+    /** Center XY, major-axis vector XY, ratio, then start/end parameters in degrees. */
+    ellipses?: [number, number, number, number, number, number, number][];
     polylines: {
         points: [number, number][];
         closed: boolean;

@@ -9,6 +9,7 @@ const empty = () => ({ expectedRevision: 0, units: 'millimeter', lines: [], circ
 const drawing = () => ({
   ...empty(), lines: [[-12.5, 7, 43.75, -8]], circles: [[5.5, -9, 2.25]],
   arcs: [[14, 19, 6, 270, 90]],
+  ellipses: [[20, 15, 8, 6, .4, 15, 300]],
   polylines: [{ points: [[-20, -10], [30, -10], [25, 40], [-20, 35]], closed: true }],
 })
 function fixture() {
@@ -18,7 +19,7 @@ function fixture() {
 function value(result) { assert.equal(result.ok, true, JSON.stringify(result)); return result.value }
 function geometry(entities) { return entities.map(({ type, payload }) => ({ type, payload })).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))) }
 
-test('compact four-type drawing matches the original tool, previews without mutation and saves as one undoable edit', async () => {
+test('compact native drawing matches the original tool, previews without mutation and saves as one undoable edit', async () => {
   const { sdk, document, session } = fixture(), reference = fixture()
   await sdk.executeCommand('CREATE', { type: 'POINT', payload: { position: [777, 888, 0] } })
   const retained = geometry(document.listEntities()), before = document.serialize()
@@ -28,6 +29,7 @@ test('compact four-type drawing matches the original tool, previews without muta
     lines: [{ start: { x: -12.5, y: 7 }, end: { x: 43.75, y: -8 } }],
     circles: [{ center: { x: 5.5, y: -9 }, radius: 2.25 }],
     arcs: [{ center: { x: 14, y: 19 }, radius: 6, startDegrees: 270, endDegrees: 90 }],
+    ellipses: [{ center: { x: 20, y: 15 }, majorAxis: { x: 8, y: 6 }, ratio: .4, startDegrees: 15, endDegrees: 300 }],
     polylines: [{ vertices: [{ x: -20, y: -10 }, { x: 30, y: -10 }, { x: 25, y: 40 }, { x: -20, y: 35 }], closed: true }],
   }))
   assert.equal(document.serialize(), before)
@@ -39,6 +41,16 @@ test('compact four-type drawing matches the original tool, previews without muta
   value(await session.approve(proposed.planId, 'reviewer'))
   assert.equal(document.revision, 2)
   for (const expected of proposed.preview.after) assert.deepEqual(document.getObject(expected.id).payload, expected.payload)
+  for (const format of ['KJD', 'DXF']) {
+    const artifact = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopenedDocument = await createKJDrawSDK().readDocument(artifact, { format })
+    const ellipse = reopenedDocument.listEntities({ type: 'ELLIPSE' })[0]
+    assert.deepEqual(ellipse.payload.center, [20, 15, 0])
+    assert.deepEqual(ellipse.payload.majorAxis, [8, 6, 0])
+    assert.equal(ellipse.payload.ratio, .4)
+    assert.ok(Math.abs(ellipse.payload.startParameter - 15 * Math.PI / 180) < 1e-12)
+    assert.ok(Math.abs(ellipse.payload.endParameter - 300 * Math.PI / 180) < 1e-12)
+  }
   const saved = await createKjpPackage({ projectId: 'compact-edit', title: 'Compact geometry', drawings: { [document.id]: document }, activeDrawing: document.id })
   const reopened = await openKjpPackage(saved)
   assert.deepEqual(geometry(reopened.activeDocument.listEntities()), geometry(document.listEntities()))
@@ -78,6 +90,11 @@ test('malformed tuples and invalid decoded geometry are rejected atomically', as
     { ...empty(), arcs: [[0, 0, 1, 0, 361]] },
     { ...empty(), arcs: [[0, 0, 1, 0, 360]] },
     { ...empty(), arcs: [[0, 0, 1, 90, 90]] },
+    { ...empty(), ellipses: [[0, 0, 0, 0, .5, 0, 360]] },
+    { ...empty(), ellipses: [[0, 0, 5, 0, 0, 0, 360]] },
+    { ...empty(), ellipses: [[0, 0, 5, 0, 1.1, 0, 360]] },
+    { ...empty(), ellipses: [[0, 0, 5, 0, .5, 90, 90]] },
+    { ...empty(), ellipses: [[0, 0, 5, 0, .5, 0]] },
     { ...empty(), polylines: [{ points: [[0, 0, 0], [1, 1]], closed: false }] },
     { ...empty(), polylines: [{ points: [[0, 0], [1, 1]], closed: true }] },
     { ...empty(), polylines: [{ points: [[0, 0], [0, 0]], closed: false }] },

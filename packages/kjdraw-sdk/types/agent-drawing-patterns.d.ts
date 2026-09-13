@@ -21,6 +21,15 @@ export type KJPatternEntity = {
         clockwise: boolean;
     };
 } | {
+    type: 'ELLIPSE';
+    payload: {
+        center: KJPatternPoint;
+        majorAxis: KJPatternPoint;
+        ratio: number;
+        startParameter: number;
+        endParameter: number;
+    };
+} | {
     type: 'LWPOLYLINE';
     payload: {
         vertices: readonly KJPatternPoint[];

@@ -116,6 +116,7 @@ export function buildAgentAnnotationEntities(document, input, options = {}) {
             'LINE',
             'CIRCLE',
             'ARC',
+            'ELLIPSE',
             'LWPOLYLINE'
         ].includes(spec.type)) fail('Unsupported proposal base entity type');
         if (id(settings.ownerId) !== ownerId) fail('Annotation base entities must belong to model space');

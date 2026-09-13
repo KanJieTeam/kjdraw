@@ -47,6 +47,12 @@ export function expandRectangularDrawingPattern(entities, pattern, budget = {}) 
         pointsPerCopy++;
         if (pointsPerCopy > Math.floor(maxPoints / copies)) reject('Pattern exceeds the point-work budget');
     };
+    const checkVector = (vector)=>{
+        if (!Array.isArray(vector) || vector.length !== 3 || !coordinate(vector[0]) || !coordinate(vector[1]) || vector[2] !== 0) reject('Pattern vectors must be finite native XY triples within the coordinate range');
+        if (vector[0] === 0 && vector[1] === 0) reject('Pattern ellipse major axis must be nonzero');
+        pointsPerCopy++;
+        if (pointsPerCopy > Math.floor(maxPoints / copies)) reject('Pattern exceeds the point-work budget');
+    };
     for (const entity of entities){
         keys(entity, [
             'type',
@@ -88,6 +94,25 @@ export function expandRectangularDrawingPattern(entities, pattern, budget = {}) 
                             endAngle
                         ].every((angle)=>Number.isFinite(angle) && angle >= 0 && angle <= Math.PI * 2) || typeof clockwise !== 'boolean' || (endAngle - startAngle) % (Math.PI * 2) === 0) reject('Pattern arcs require bounded radian angles and a nonzero partial sweep');
                     }
+                    break;
+                }
+            case 'ELLIPSE':
+                {
+                    keys(payload, [
+                        'center',
+                        'majorAxis',
+                        'ratio',
+                        'startParameter',
+                        'endParameter'
+                    ]);
+                    const { center, majorAxis, ratio, startParameter, endParameter } = entity.payload;
+                    checkPoint(center);
+                    checkVector(majorAxis);
+                    if (!coordinate(ratio) || ratio <= 0 || ratio > 1) reject('Pattern ellipse ratio must be greater than 0 and at most 1');
+                    if (![
+                        startParameter,
+                        endParameter
+                    ].every((parameter)=>Number.isFinite(parameter) && parameter >= 0 && parameter <= Math.PI * 2) || startParameter === endParameter) reject('Pattern ellipses require bounded radian parameters and a nonzero sweep');
                     break;
                 }
             case 'LWPOLYLINE':
@@ -157,6 +182,18 @@ export function expandRectangularDrawingPattern(entities, pattern, budget = {}) 
                         payload: {
                             ...entity.payload,
                             center: translate(entity.payload.center)
+                        }
+                    });
+                    break;
+                case 'ELLIPSE':
+                    expanded.push({
+                        type: 'ELLIPSE',
+                        payload: {
+                            ...entity.payload,
+                            center: translate(entity.payload.center),
+                            majorAxis: [
+                                ...entity.payload.majorAxis
+                            ]
                         }
                     });
                     break;

@@ -104,7 +104,7 @@ export function buildAgentAnnotationEntities(document: KJDocument, input: KJAgen
     const entityId = id(settings.id)
     if (allocated.has(entityId) || document.getObject(entityId)) fail('Proposal base IDs must be new and unique')
     allocated.add(entityId)
-    if (!['LINE', 'CIRCLE', 'ARC', 'LWPOLYLINE'].includes(spec.type as string)) fail('Unsupported proposal base entity type')
+    if (!['LINE', 'CIRCLE', 'ARC', 'ELLIPSE', 'LWPOLYLINE'].includes(spec.type as string)) fail('Unsupported proposal base entity type')
     if (id(settings.ownerId) !== ownerId) fail('Annotation base entities must belong to model space')
     if (!spec.payload || typeof spec.payload !== 'object' || Array.isArray(spec.payload)) fail('Proposal base payload must be an object')
     staged.set(name, { id: entityId, type: spec.type as string, payload: normalizeStandardEntityPayload(spec.type, spec.payload as Record<string, unknown>), ownerId })

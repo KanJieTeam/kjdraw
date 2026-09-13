@@ -8,7 +8,8 @@ const xyz = (point)=>[
     ];
 const same = (a, b)=>a.x === b.x && a.y === b.y;
 export function buildAgentDrawingEntities(input, ownerId) {
-    const total = input.lines.length + input.circles.length + input.arcs.length + input.polylines.length;
+    const ellipses = input.ellipses ?? [];
+    const total = input.lines.length + input.circles.length + input.arcs.length + ellipses.length + input.polylines.length;
     if (total < 1 || total > 64) throw new KJValidationError('A drawing proposal requires 1–64 total entities across all groups');
     const entity = (type, payload)=>({
             type,
@@ -38,6 +39,20 @@ export function buildAgentDrawingEntities(input, ownerId) {
                 startAngle: arc.startDegrees * Math.PI / 180,
                 endAngle: arc.endDegrees * Math.PI / 180,
                 clockwise: false
+            });
+        }),
+        ...ellipses.map((ellipse)=>{
+            if (same(ellipse.majorAxis, {
+                x: 0,
+                y: 0
+            }) || ellipse.ratio <= 0 || ellipse.ratio > 1) throw new KJValidationError('An ellipse requires a nonzero major axis and a ratio greater than 0 and at most 1');
+            if (ellipse.startDegrees === ellipse.endDegrees) throw new KJValidationError('An elliptical arc requires a nonzero sweep; use 0 and 360 for a full ellipse');
+            return entity('ELLIPSE', {
+                center: xyz(ellipse.center),
+                majorAxis: xyz(ellipse.majorAxis),
+                ratio: ellipse.ratio,
+                startParameter: ellipse.startDegrees * Math.PI / 180,
+                endParameter: ellipse.endDegrees * Math.PI / 180
             });
         }),
         ...input.polylines.map((polyline)=>{

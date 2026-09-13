@@ -61,6 +61,38 @@ test('reviewed AI move, rotate and scale keep a native ellipse selectable and ed
   expect(result).toEqual({sourceUnchangedBeforeApproval:true,types:['ELLIPSE','ELLIPSE','ELLIPSE'],center:[-10,30,0],axis:[0,16,0],ratio:.5,parameters:[.2,5.8],selected:'ellipse',unsupported:0,undoCenter:[-5,15,0],saved:{center:[-10,30,0],axis:[0,16,0],ratio:.5}})
 })
 
+test('compact AI ellipse is reviewed, rendered, selectable and editable through reopen', async ({ page }) => {
+  await page.goto('/')
+  const result = await page.evaluate(async () => {
+    const [{ createKJDrawSDK }, { KJAgentToolSession }, { KJCanvasRenderer }] = await Promise.all([
+      import('/packages/kjdraw-sdk/src/sdk.js'), import('/packages/kjdraw-sdk/src/agent-tools.js'), import('/packages/kjdraw-sdk/src/canvas-renderer.js'),
+    ])
+    const canvas = document.createElement('canvas'); canvas.style.cssText = 'width:640px;height:480px'; document.body.replaceChildren(canvas)
+    const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ units: 'millimeter' }), session = new KJAgentToolSession(sdk, drawing)
+    const renderer = new KJCanvasRenderer(canvas, { document: drawing, grid: false, pixelRatio: 1 })
+    renderer.resize(640, 480); Object.assign(renderer.camera, { centerX: 0, centerY: 0, scale: 5 }); renderer.render()
+    const before = drawing.serialize()
+    const called = await session.call('cad_propose_drawing_compact', {
+      expectedRevision: 0, units: 'millimeter', lines: [], circles: [], arcs: [], polylines: [], ellipses: [[0, 0, 30, 10, .4, 0, 360]],
+    })
+    if (!called.ok) throw new Error(JSON.stringify(called))
+    const proposal = called.value
+    renderer.drawPreview(proposal.preview.after)
+    const previewHit = canvas.getContext('2d').getImageData(...renderer.worldToScreen([30, 10]).map(value => Math.floor(value) - 2), 5, 5).data.some(Boolean)
+    const readOnly = drawing.serialize() === before
+    renderer.render()
+    const approved = await session.approve(proposal.planId, 'browser-reviewer')
+    renderer.fit(); const rendered = renderer.render(), hit = renderer.hitTest(renderer.worldToScreen([30, 10]))?.entity
+    await sdk.executeCommand('UNDO'); const undone = drawing.listEntities().length
+    await sdk.executeCommand('REDO')
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(drawing, { format: 'KJD' }), { format: 'KJD' })
+    const saved = reopened.listEntities({ type: 'ELLIPSE' })[0]
+    renderer.dispose()
+    return { previewHit, readOnly, approved: approved.ok, rendered: rendered.rendered, unsupported: rendered.unsupported, hitType: hit?.type, undone, saved: { type: saved.type, center: saved.payload.center, axis: saved.payload.majorAxis, ratio: saved.payload.ratio } }
+  })
+  expect(result).toEqual({ previewHit: true, readOnly: true, approved: true, rendered: 1, unsupported: 0, hitType: 'ELLIPSE', undone: 0, saved: { type: 'ELLIPSE', center: [0, 0, 0], axis: [30, 10, 0], ratio: .4 } })
+})
+
 test('mixed agent geometry opens in the packaged editor and remains selectable after undo and redo', async ({ page }) => {
   await page.goto('/')
   const result = await page.evaluate(async input => {

@@ -5,6 +5,7 @@ import { createKJDrawSDK } from '../src/sdk.js'
 
 const pattern = { rows: 1, columns: 1, dx: 0, dy: 0 }
 const circle = () => ({ type: 'CIRCLE', payload: { center: [2, 3, 0], radius: 1 } })
+const ellipse = () => ({ type: 'ELLIPSE', payload: { center: [7, 8, 0], majorAxis: [4, 3, 0], ratio: .4, startParameter: Math.PI / 6, endParameter: Math.PI * 1.5 } })
 const mixed = () => [
   { type: 'LINE', payload: { start: [0, 0, 0], end: [4, 2, 0] } }, circle(),
   { type: 'ARC', payload: { center: [5, 6, 0], radius: 2, startAngle: Math.PI / 2, endAngle: Math.PI, clockwise: false } },
@@ -31,6 +32,19 @@ test('single and negative spacings are supported while zero spacing in a repeate
   assert.deepEqual(expand([circle()], { rows: 2, columns: 2, dx: -4, dy: -5 }).map(item => item.payload.center), [[2, 3, 0], [-2, 3, 0], [2, -2, 0], [-2, -2, 0]])
   assert.throws(() => expand([circle()], { ...pattern, columns: 3 }), /nonzero spacing/)
   assert.throws(() => expand([circle()], { ...pattern, rows: 3 }), /nonzero spacing/)
+})
+
+test('native elliptical arcs translate centers while preserving axes, ratios and parameters', () => {
+  const output = expand([ellipse()], { rows: 2, columns: 2, dx: 10, dy: -20 })
+  assert.deepEqual(output.map(item => item.payload.center), [[7, 8, 0], [17, 8, 0], [7, -12, 0], [17, -12, 0]])
+  for (const item of output) {
+    assert.deepEqual(item.payload.majorAxis, [4, 3, 0])
+    assert.equal(item.payload.ratio, .4)
+    assert.equal(item.payload.startParameter, Math.PI / 6)
+    assert.equal(item.payload.endParameter, Math.PI * 1.5)
+  }
+  output[0].payload.majorAxis[0] = 99
+  assert.equal(output[1].payload.majorAxis[0], 4)
 })
 
 test('frozen input stays unchanged and all output payloads and points are independently owned', () => {
@@ -88,6 +102,9 @@ test('unsupported payloads and degenerate geometry cannot pass the native defini
     { type: 'LWPOLYLINE', payload: { vertices: [[0, 0, 0], [1, 0, 0]], closed: true } },
     { type: 'LWPOLYLINE', payload: { vertices: [[0, 0, 0], [0, 0, 0]], closed: false } },
     { ...mixed()[3], payload: { ...mixed()[3].payload, width: 3 } },
+    { ...ellipse(), payload: { ...ellipse().payload, majorAxis: [0, 0, 0] } },
+    { ...ellipse(), payload: { ...ellipse().payload, ratio: 0 } },
+    { ...ellipse(), payload: { ...ellipse().payload, startParameter: 1, endParameter: 1 } },
   ]
   for (const entity of bad) assert.throws(() => expand([entity], pattern))
 })

@@ -5,6 +5,7 @@ export type KJPatternEntity =
   | { type: 'LINE'; payload: { start: KJPatternPoint; end: KJPatternPoint } }
   | { type: 'CIRCLE'; payload: { center: KJPatternPoint; radius: number } }
   | { type: 'ARC'; payload: { center: KJPatternPoint; radius: number; startAngle: number; endAngle: number; clockwise: boolean } }
+  | { type: 'ELLIPSE'; payload: { center: KJPatternPoint; majorAxis: KJPatternPoint; ratio: number; startParameter: number; endParameter: number } }
   | { type: 'LWPOLYLINE'; payload: { vertices: readonly KJPatternPoint[]; closed: boolean } }
 export interface KJRectangularDrawingPattern { rows: number; columns: number; dx: number; dy: number }
 export interface KJDrawingPatternBudget { maxEntities?: number; maxPoints?: number }
@@ -54,6 +55,12 @@ export function expandRectangularDrawingPattern(
     pointsPerCopy++
     if (pointsPerCopy > Math.floor(maxPoints / copies)) reject('Pattern exceeds the point-work budget')
   }
+  const checkVector = (vector: KJPatternPoint): void => {
+    if (!Array.isArray(vector) || vector.length !== 3 || !coordinate(vector[0]) || !coordinate(vector[1]) || vector[2] !== 0) reject('Pattern vectors must be finite native XY triples within the coordinate range')
+    if (vector[0] === 0 && vector[1] === 0) reject('Pattern ellipse major axis must be nonzero')
+    pointsPerCopy++
+    if (pointsPerCopy > Math.floor(maxPoints / copies)) reject('Pattern exceeds the point-work budget')
+  }
   for (const entity of entities) {
     keys(entity, ['type', 'payload'])
     const payload = entity.payload
@@ -73,6 +80,14 @@ export function expandRectangularDrawingPattern(
           const { startAngle, endAngle, clockwise } = entity.payload
           if (![startAngle, endAngle].every(angle => Number.isFinite(angle) && angle >= 0 && angle <= Math.PI * 2) || typeof clockwise !== 'boolean' || (endAngle - startAngle) % (Math.PI * 2) === 0) reject('Pattern arcs require bounded radian angles and a nonzero partial sweep')
         }
+        break
+      }
+      case 'ELLIPSE': {
+        keys(payload, ['center', 'majorAxis', 'ratio', 'startParameter', 'endParameter'])
+        const { center, majorAxis, ratio, startParameter, endParameter } = entity.payload
+        checkPoint(center); checkVector(majorAxis)
+        if (!coordinate(ratio) || ratio <= 0 || ratio > 1) reject('Pattern ellipse ratio must be greater than 0 and at most 1')
+        if (![startParameter, endParameter].every(parameter => Number.isFinite(parameter) && parameter >= 0 && parameter <= Math.PI * 2) || startParameter === endParameter) reject('Pattern ellipses require bounded radian parameters and a nonzero sweep')
         break
       }
       case 'LWPOLYLINE': {
@@ -115,6 +130,7 @@ export function expandRectangularDrawingPattern(
         case 'LINE': expanded.push({ type: 'LINE', payload: { start: translate(entity.payload.start), end: translate(entity.payload.end) } }); break
         case 'CIRCLE': expanded.push({ type: 'CIRCLE', payload: { center: translate(entity.payload.center), radius: entity.payload.radius } }); break
         case 'ARC': expanded.push({ type: 'ARC', payload: { ...entity.payload, center: translate(entity.payload.center) } }); break
+        case 'ELLIPSE': expanded.push({ type: 'ELLIPSE', payload: { ...entity.payload, center: translate(entity.payload.center), majorAxis: [...entity.payload.majorAxis] } }); break
         case 'LWPOLYLINE': expanded.push({ type: 'LWPOLYLINE', payload: { vertices: entity.payload.vertices.map(translate), closed: entity.payload.closed } }); break
       }
     }

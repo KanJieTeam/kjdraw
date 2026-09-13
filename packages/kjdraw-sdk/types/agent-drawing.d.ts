@@ -21,6 +21,14 @@ export interface KJAgentDrawingInput {
         startDegrees: number;
         endDegrees: number;
     }[];
+    /** Native ellipses/elliptical arcs. majorAxis is a center-relative vector. */
+    ellipses?: {
+        center: KJAgentPoint;
+        majorAxis: KJAgentPoint;
+        ratio: number;
+        startDegrees: number;
+        endDegrees: number;
+    }[];
     /** Straight-segment polylines. Do not repeat the first vertex to close. */
     polylines: {
         vertices: KJAgentPoint[];

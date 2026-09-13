@@ -7,6 +7,8 @@ export interface KJAgentCompactDrawingInput {
   circles: [number, number, number][]
   /** Center XY, positive radius, then counterclockwise start/end angles in degrees. */
   arcs: [number, number, number, number, number][]
+  /** Center XY, major-axis vector XY, ratio, then start/end parameters in degrees. */
+  ellipses?: [number, number, number, number, number, number, number][]
   polylines: { points: [number, number][]; closed: boolean }[]
 }
 
@@ -19,6 +21,9 @@ export function decodeAgentCompactDrawing(input: KJAgentCompactDrawingInput): KJ
     lines: input.lines.map(([x1, y1, x2, y2]) => ({ start: point(x1, y1), end: point(x2, y2) })),
     circles: input.circles.map(([x, y, radius]) => ({ center: point(x, y), radius })),
     arcs: input.arcs.map(([x, y, radius, startDegrees, endDegrees]) => ({ center: point(x, y), radius, startDegrees, endDegrees })),
+    ellipses: (input.ellipses ?? []).map(([x, y, majorX, majorY, ratio, startDegrees, endDegrees]) => ({
+      center: point(x, y), majorAxis: point(majorX, majorY), ratio, startDegrees, endDegrees,
+    })),
     polylines: input.polylines.map(({ points, closed }) => ({ vertices: points.map(([x, y]) => point(x, y)), closed })),
   }
 }

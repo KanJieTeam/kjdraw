@@ -45,7 +45,27 @@ test('annotations can reference existing geometry with no new geometry and canno
  }
  value(await session.approve(plan.planId,'reviewer'))
  assert.equal(document.listEntities().length,2)
- assert.equal((await session.call(tool,input)).ok,false)
+  assert.equal((await session.call(tool,input)).ok,false)
+})
+
+test('annotated drawings retain native elliptical arcs and style their array copies', async () => {
+  const { document, session } = fixture()
+  const input = {
+    ...empty(), ellipses: [[10, 20, 8, 6, .4, 15, 300]],
+    arrays: [{ sources: ['ellipses:0'], rows: 1, columns: 2, dx: 30, dy: 0 }],
+    styles: [{ name: 'ELLIPSE-CENTERLINE', sources: ['ellipses:0'], pattern: [4, -1], color: 4, lineweight: 18 }],
+    texts: [note()],
+  }
+  const proposal = value(await session.call(tool, input))
+  assert.equal(document.revision, 0)
+  assert.deepEqual(proposal.preview.after.map(item => item.type), ['ELLIPSE', 'ELLIPSE', 'TEXT'])
+  assert.deepEqual(proposal.preview.after.filter(item => item.type === 'ELLIPSE').map(item => item.payload.center), [[10, 20, 0], [40, 20, 0]])
+  value(await session.approve(proposal.planId, 'reviewer'))
+  const ellipses = document.listEntities({ type: 'ELLIPSE' })
+  assert.equal(ellipses.length, 2)
+  assert.ok(ellipses.every(item => item.payload.layerId === ellipses[0].payload.layerId))
+  const layer = document.getObject(ellipses[0].payload.layerId)
+  assert.deepEqual(document.getObject(layer.payload.linetypeId).payload.pattern, [4, -1])
 })
 
 test('invalid references, degenerate projected dimensions and total annotation budgets leave the drawing unchanged',async()=>{

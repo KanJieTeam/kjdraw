@@ -36,7 +36,7 @@ export interface KJAgentGeometryPreview {
 const project = (entity: KJReadonlyObjectRecord): KJAgentPreviewEntity => ({ id: entity.id, type: entity.type, payload: entity.payload })
 const supported = ['LINE', 'CIRCLE', 'ARC', 'LWPOLYLINE']
 export const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[] = Object.freeze([...supported, 'ELLIPSE', 'XLINE', 'RAY', 'TEXT', 'DIMENSION', 'INSERT'])
-const creatable = [...supported, 'TEXT', 'DIMENSION']
+const creatable = [...supported, 'ELLIPSE', 'TEXT', 'DIMENSION']
 const stretchable = ['LINE', 'LWPOLYLINE', 'POLYLINE']
 
 function validateMovableAnnotation(document: KJDocument, entity: KJReadonlyObjectRecord): void {
@@ -195,7 +195,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   const maxCreatedEntities = options.maxCreatedEntities ?? 64
   if (!Number.isSafeInteger(maxCreatedEntities) || maxCreatedEntities < 1 || maxCreatedEntities > 512) throw new KJValidationError('Preview creation budget must be an integer from 1 to 512')
   if (command === 'CREATEBATCH') {
-    if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some(spec => !spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} LINE/CIRCLE/ARC/LWPOLYLINE/TEXT/DIMENSION entities`)
+    if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some(spec => !spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} LINE/CIRCLE/ARC/ELLIPSE/LWPOLYLINE/TEXT/DIMENSION entities`)
   } else if (command !== 'COMPONENTINSERT') {
     const ids = bindingIds ?? (design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' ? [args.id] : args.ids)
     if (!Array.isArray(ids) || !ids.length || ids.length > 64) throw new KJValidationError('Preview requires 1–64 existing entity IDs')

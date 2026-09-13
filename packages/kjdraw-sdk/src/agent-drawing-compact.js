@@ -21,6 +21,13 @@ export function decodeAgentCompactDrawing(input) {
                 startDegrees,
                 endDegrees
             })),
+        ellipses: (input.ellipses ?? []).map(([x, y, majorX, majorY, ratio, startDegrees, endDegrees])=>({
+                center: point(x, y),
+                majorAxis: point(majorX, majorY),
+                ratio,
+                startDegrees,
+                endDegrees
+            })),
         polylines: input.polylines.map(({ points, closed })=>({
                 vertices: points.map(([x, y])=>point(x, y)),
                 closed

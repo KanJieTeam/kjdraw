@@ -39,6 +39,10 @@ const object = (properties)=>({
         required: Object.keys(properties),
         additionalProperties: false
     });
+const objectWithOptional = (properties, optional)=>({
+        ...object(properties),
+        required: Object.keys(properties).filter((key)=>!optional.includes(key))
+    });
 const point = object({
     x: number,
     y: number
@@ -167,7 +171,7 @@ const pointReference = {
         'feature'
     ]
 };
-const drawingInputSchema = object({
+const drawingInputSchema = objectWithOptional({
     expectedRevision: revision,
     units: text,
     lines: drawingGroup(object({
@@ -184,6 +188,17 @@ const drawingInputSchema = object({
         startDegrees: angle,
         endDegrees: angle
     })),
+    ellipses: drawingGroup(object({
+        center: point,
+        majorAxis: point,
+        ratio: {
+            ...number,
+            exclusiveMinimum: 0,
+            maximum: 1
+        },
+        startDegrees: angle,
+        endDegrees: angle
+    })),
     polylines: drawingGroup(object({
         vertices: {
             ...collection(point),
@@ -193,7 +208,9 @@ const drawingInputSchema = object({
             type: 'boolean'
         }
     }))
-});
+}, [
+    'ellipses'
+]);
 const numericTuple = (length)=>({
         type: 'array',
         items: number,
@@ -206,6 +223,7 @@ const compactDrawingProperties = {
     lines: drawingGroup(numericTuple(4)),
     circles: drawingGroup(numericTuple(3)),
     arcs: drawingGroup(numericTuple(5)),
+    ellipses: drawingGroup(numericTuple(7)),
     polylines: drawingGroup(object({
         points: {
             ...collection(numericTuple(2)),
@@ -216,6 +234,9 @@ const compactDrawingProperties = {
         }
     }))
 };
+const compactDrawingSchema = objectWithOptional(compactDrawingProperties, [
+    'ellipses'
+]);
 const patternCount = {
     type: 'integer',
     minimum: 1,
@@ -438,7 +459,7 @@ const radialAnnotation = {
     directionDegrees: angle,
     ...annotationPlacement
 };
-const annotatedDrawingSchemaBase = object({
+const annotatedDrawingSchemaBase = objectWithOptional({
     ...compactDrawingProperties,
     arrays: arraySchema,
     styles: {
@@ -487,7 +508,9 @@ const annotatedDrawingSchemaBase = object({
     })),
     radiusDimensions: drawingGroup(object(radialAnnotation)),
     diameterDimensions: drawingGroup(object(radialAnnotation))
-});
+}, [
+    'ellipses'
+]);
 const annotatedDrawingSchema = {
     ...annotatedDrawingSchemaBase,
     properties: {
@@ -763,7 +786,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_drawing_annotated',
         effect: 'propose',
-        description: 'Compose editable engineering geometry, TEXT notes and native measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. Geometry/arrays follow cad_propose_drawing_pattern: lines=[x1,y1,x2,y2], circles=[cx,cy,r], arcs=[cx,cy,r,startDegrees,endDegrees], polylines={points:[[x,y],...],closed}; all existing groups required, unused=[]. At most 64 base entities; arrays={sources:["circles:0"],rows,columns,dx,dy}, unique seed refs, counts include original. Texts={text,position:{x,y},height,rotationDegrees}. Linear dimensions use from/to={source:"proposal" or "document",id,feature:"start"/"end"/"center"/"vertex",vertexIndex only for vertex}, position and height; rotated also rotationDegrees. Radial dimensions use source={source,id}, directionDegrees, position and height. Optional angularDimensions (omit or [] when unused) creates native three-point angles: {center,first,second,position,height}. All three anchors use the same point reference schema; first/second are points on rays from center. position is the angular arc location, selecting the sector containing it: center=(0,0), first=(10,0), second=(0,10), position=(4,4) measures 90 degrees, position=(-4,-4) measures 270 degrees. The arc location must differ from center and lie off both rays. Native kernel measurements are derived from actual geometry; do not supply angle numbers or text labels. Proposal IDs reference base geometry groups such as polylines:0, not array copies. Document IDs must be visible editable model-XY entities; hidden, frozen or locked entities/layers cannot be referenced. Circle/arc point features also support left/right/top/bottom; an arc point must lie on its sweep. styles (use [] if unused) =[{name,sources:["lines:0","texts:0","alignedDimensions:0"],pattern:[],color:7,lineweight:18}]; style sources use group-local indices, geometry seeds also style all their array copies. Empty pattern is continuous; dashed patterns alternate positive dash/negative gap, e.g. [3,-1]; lineweight is hundredths of mm. Existing named layers must match and be editable. All angles degrees 0–360; units and revision exact. Kernel measures dimensions from referenced geometry; no numeric text overrides. Notes are free text, not verified engineering facts. No edit before host approval; one undo. References resolve at creation, not persistent associative constraints.',
+        description: 'Compose editable engineering geometry, TEXT notes and native measured DIMENSION in one reviewed batch, at most 512 total entities and 64 annotations. Geometry/arrays follow cad_propose_drawing_pattern, including optional native ellipses. At most 64 base entities; arrays use unique group-local seed refs and include each original. Text and dimension values are derived and checked against native geometry; styles apply named editable layers to group-local sources and array copies. No edit occurs before host approval; approval creates one undoable transaction.',
         inputSchema: annotatedDrawingSchema
     },
     {
@@ -929,20 +952,20 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_drawing',
         effect: 'propose',
-        description: 'Compose 1–64 total LINE, CIRCLE, ARC and straight-segment LWPOLYLINE entities as one drawing proposal and one undoable edit. Supply all four groups; unused groups are empty arrays. Model XY, z=0, drawing units. Arc angles are degrees 0–360, counterclockwise from +X; a full circle belongs in circles. Closed polylines close automatically: do not repeat the first vertex. Returns before/after geometry without modifying the drawing. Host review and approval are required. No dimensions or design constraints are inferred.',
+        description: 'Compose 1–64 native LINE, CIRCLE, ARC, ELLIPSE and straight-segment LWPOLYLINE entities as one reviewed, undoable edit. Supply lines/circles/arcs/polylines; optional ellipses contain center, center-relative majorAxis, 0<ratio<=1 and start/end degrees. Model XY, z=0, drawing units. Returns exact before/after geometry without modifying the drawing until host approval.',
         inputSchema: drawingInputSchema
     },
     {
         name: 'cad_propose_drawing_compact',
         effect: 'propose',
-        description: 'Propose 1–64 total entities in model XY, z=0, drawing units. Supply all four groups; unused groups are []. lines=[x1,y1,x2,y2], circles=[cx,cy,r], arcs=[cx,cy,r,startDegrees,endDegrees], polyline points=[x,y]. Radii >0; arc angles 0–360, counterclockwise from +X, no full circles. Straight polylines close automatically; do not repeat the first point. Returns geometry without editing; host approval applies one undoable edit. No design constraints are inferred.',
-        inputSchema: object(compactDrawingProperties)
+        description: 'Propose 1–64 native entities in model XY, z=0, drawing units. Required groups lines/circles/arcs/polylines use compact tuples; optional ellipses=[cx,cy,majorX,majorY,ratio,startDegrees,endDegrees], with a nonzero major-axis vector and 0<ratio<=1. Returns geometry without editing; host approval applies one undoable edit.',
+        inputSchema: compactDrawingSchema
     },
     {
         name: 'cad_propose_drawing_pattern',
         effect: 'propose',
-        description: 'Propose 1–64 base entities and up to 16 rectangular arrays, at most 512 total entities. Model XY, z=0, drawing units. Required groups: lines=[x1,y1,x2,y2], circles=[cx,cy,r], arcs=[cx,cy,r,startDegrees,endDegrees], polylines={points:[[x,y],...],closed}; unused groups/arrays=[]. Radius >0; arcs CCW from +X, angles 0–360, no full circles. Straight polylines close automatically, no repeated first point. Define seeds in their groups first. sources are group-local zero-based references, e.g. ["circles:0"]; groups are lines,circles,arcs,polylines. References must exist and be unique within/across arrays. Each base occurs once; rows/columns include its original position. Copies add column*dx,row*dy; repeated axes need nonzero spacing. Full geometry preview, no edit before host approval, one undoable edit. No design constraints inferred.',
-        inputSchema: object({
+        description: 'Propose 1–64 base entities and up to 16 rectangular arrays, at most 512 total native entities. Uses compact drawing groups including optional ellipses; array sources are group-local zero-based references such as circles:0 or ellipses:0. Full preview, no edit before host approval, one undoable edit.',
+        inputSchema: objectWithOptional({
             ...compactDrawingProperties,
             arrays: {
                 type: 'array',
@@ -960,7 +983,9 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
                     dy: number
                 })
             }
-        })
+        }, [
+            'ellipses'
+        ])
     },
     {
         name: 'cad_query_drawing',
@@ -1151,13 +1176,14 @@ function xy(value) {
     ];
 }
 function buildPatternEntities(input, drawing, ownerId) {
-    const baseCount = drawing.lines.length + drawing.circles.length + drawing.arcs.length + drawing.polylines.length;
+    const baseCount = drawing.lines.length + drawing.circles.length + drawing.arcs.length + (drawing.ellipses?.length ?? 0) + drawing.polylines.length;
     if (baseCount < 1 || baseCount > 64) throw new KJValidationError('A drawing pattern requires 1–64 total base entities');
     const offsets = {
         lines: 0,
         circles: drawing.lines.length,
         arcs: drawing.lines.length + drawing.circles.length,
-        polylines: drawing.lines.length + drawing.circles.length + drawing.arcs.length
+        ellipses: drawing.lines.length + drawing.circles.length + drawing.arcs.length,
+        polylines: drawing.lines.length + drawing.circles.length + drawing.arcs.length + (drawing.ellipses?.length ?? 0)
     };
     const used = new Set();
     const resolved = [];
@@ -1165,10 +1191,10 @@ function buildPatternEntities(input, drawing, ownerId) {
     for (const array of input.arrays){
         const indices = [];
         for (const source of array.sources){
-            const match = /^(lines|circles|arcs|polylines):(0|[1-9]\d?)(?![\s\S])/.exec(source);
+            const match = /^(lines|circles|arcs|ellipses|polylines):(0|[1-9]\d?)(?![\s\S])/.exec(source);
             if (!match) throw new KJValidationError('Pattern sources must be group-local references such as circles:0');
             const group = match[1], index = Number(match[2]);
-            if (index > 63 || index >= drawing[group].length) throw new KJValidationError('Pattern source index is outside its group');
+            if (index > 63 || index >= (drawing[group]?.length ?? 0)) throw new KJValidationError('Pattern source index is outside its group');
             if (used.has(source)) throw new KJValidationError('Pattern sources must be unique within and across arrays');
             used.add(source);
             indices.push(offsets[group] + index);
@@ -1222,8 +1248,9 @@ function styleAnnotatedDrawing(document, input, source) {
         'lines',
         'circles',
         'arcs',
+        'ellipses',
         'polylines'
-    ])for(let index = 0; index < input[group].length; index++)keys.push(`${group}:${index}`);
+    ])for(let index = 0; index < (input[group]?.length ?? 0); index++)keys.push(`${group}:${index}`);
     for (const array of input.arrays)for(let row = 0; row < array.rows; row++)for(let column = 0; column < array.columns; column++)if (row || column) keys.push(...array.sources);
     for (const group of [
         'texts',
@@ -1601,7 +1628,7 @@ export class KJAgentToolSession {
                             const drawing = decodeAgentCompactDrawing(input);
                             validate(drawingInputSchema, drawing);
                             const ownerId = document.spaces.modelSpaceId;
-                            const count = drawing.lines.length + drawing.circles.length + drawing.arcs.length + drawing.polylines.length;
+                            const count = drawing.lines.length + drawing.circles.length + drawing.arcs.length + (drawing.ellipses?.length ?? 0) + drawing.polylines.length;
                             if (!count && input.arrays.length) throw new KJValidationError('Arrays require base geometry');
                             const entities = count ? buildPatternEntities(input, drawing, ownerId) : [];
                             const baseEntities = {};
@@ -1610,9 +1637,10 @@ export class KJAgentToolSession {
                                 'lines',
                                 'circles',
                                 'arcs',
+                                'ellipses',
                                 'polylines'
                             ]){
-                                for(let index = 0; index < drawing[group].length; index++)baseEntities[`${group}:${index}`] = entities[offset++];
+                                for(let index = 0; index < (drawing[group]?.length ?? 0); index++)baseEntities[`${group}:${index}`] = entities[offset++];
                             }
                             const dimensions = [
                                 ...input.alignedDimensions.map((item)=>({
