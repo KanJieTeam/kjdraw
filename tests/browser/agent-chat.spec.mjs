@@ -437,7 +437,7 @@ test('chat sends only the MOVE schema for an exact selected translation', async 
       onPreview(){},onBeforeRun(){},runMutation:operation=>operation(),onApplied(){},onSave(){}})
     chat.setModel({createConversation({tools}){
       window.moveRouteTools=tools.map(tool=>tool.name)
-      return {next:async()=>({text:'',calls:[{id:'move',name:'cad_propose_move',arguments:{expectedRevision:document.revision,units:'millimeter',ids:['selected-edge'],dx:5,dy:-2}}]})}
+      return {next:async(input)=>{window.moveRoutePrompt=input.text;return {text:'',calls:[{id:'move',name:'cad_propose_move',arguments:{expectedRevision:document.revision,units:'millimeter',ids:['selected-edge'],dx:5,dy:-2}}]}}}
     }})
   })
   const chat=page.locator('#move-route-chat')
@@ -445,6 +445,7 @@ test('chat sends only the MOVE schema for an exact selected translation', async 
   await chat.locator('#chat-send').click()
   await expect(chat.getByRole('button',{name:'Apply changes',exact:true})).toBeEnabled()
   expect(await page.evaluate(()=>window.moveRouteTools)).toEqual(['cad_propose_move'])
+  expect(await page.evaluate(()=>window.moveRoutePrompt)).toContain('current revision 1; units millimeter; selected object IDs ["selected-edge"]')
   await chat.getByRole('button',{name:'Apply changes',exact:true}).click()
   expect(await page.evaluate(()=>window.moveRouteContext.document.getObject('selected-edge').payload)).toMatchObject({start:[5,-2,0],end:[25,-2,0]})
 })

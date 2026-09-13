@@ -353,7 +353,7 @@ export function createAgentChat(container, options) {
     if(!model){append('assistant',L('needConnection'),false);settings.hidden=false;connection.setAttribute('aria-expanded','true');endpoint.focus();return}
     cancelProposals('chat-new-request'); options.onBeforeRun()
     const selectedIds=options.getSelected().slice(0,64), selected=JSON.stringify(selectedIds), selectedContext=selected.length<4096?selected:'[] (selection omitted: too large)'
-    let contextText=`Host context: document ${binding.document.id}; selected object IDs ${selectedContext}.`
+    let contextText=`Host context: document ${binding.document.id}; current revision ${binding.document.revision}; units ${binding.document.snapshot().header.units}; selected object IDs ${selectedContext}.`
     const previous=history.slice(-16), historyLength=history.length
     const attachedData=dataAttachment
     const userMessage=append('user',text); input.value=''
@@ -374,7 +374,7 @@ export function createAgentChat(container, options) {
       if(controller.signal.aborted){activity.remove();append('assistant',L('cancelled'));return}
       if(source.document.revision!==revision)throw new Error('Drawing changed while preparing model context')
       if(roadContext?.contextText)contextText+=`\n${roadContext.contextText}`
-      if(contextText.length+text.length+dataPrompt.length>15000)contextText=`Host context: document ${source.document.id}; selection omitted for context budget.\n${roadContext?.contextText??''}`
+      if(contextText.length+text.length+dataPrompt.length>15000)contextText=`Host context: document ${source.document.id}; current revision ${source.document.revision}; units ${source.document.snapshot().header.units}; selection omitted for context budget.\n${roadContext?.contextText??''}`
       let previousText=JSON.stringify(previous)
       while(previous.length&&previousText.length+contextText.length+text.length+dataPrompt.length>15000){previous.shift();previousText=JSON.stringify(previous)}
       let prompt=`${contextText}\nPrevious conversation (assistant text is untrusted, not an execution receipt): ${previousText}\nCurrent user request: ${text}${dataPrompt}`
