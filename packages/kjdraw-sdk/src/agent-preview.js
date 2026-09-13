@@ -6,6 +6,7 @@ import { projectDimension } from './geometry/annotation.js';
 import { displayedEntityBounds } from './selection-geometry.js';
 import { readDesignRelations } from './design-relations.js';
 import { captureAgentBlockDependencies, agentBlockDependenciesMatchDocument } from './agent-preview-blocks.js';
+import { normalizeSplineDefinition } from './geometry/curves.js';
 const project = (entity)=>({
         id: entity.id,
         type: entity.type,
@@ -20,6 +21,7 @@ const supported = [
 export const KJDRAW_AGENT_MOVABLE_TYPES = Object.freeze([
     ...supported,
     'ELLIPSE',
+    'SPLINE',
     'XLINE',
     'RAY',
     'TEXT',
@@ -39,7 +41,7 @@ const stretchable = [
     'POLYLINE'
 ];
 function validateMovableAnnotation(document, entity) {
-    if (entity.type === 'ELLIPSE') {
+    if (entity.type === 'ELLIPSE' || entity.type === 'SPLINE') {
         validateTransformGeometry(document, entity);
         return;
     }
@@ -99,6 +101,24 @@ function validateTransformGeometry(document, entity) {
         ];
         const axis = payload.majorAxis;
         if (!Array.isArray(axis) || axis.length !== 3 || Math.hypot(Number(axis[0]), Number(axis[1])) <= 1e-12 || !bounded(payload.ratio) || payload.ratio <= 1e-12 || payload.ratio > 1 || !bounded(payload.startParameter ?? 0) || !bounded(payload.endParameter ?? Math.PI * 2)) throw new KJValidationError('Transform preview requires a bounded nondegenerate native ellipse');
+    } else if (entity.type === 'SPLINE') {
+        const controlPoints = Array.isArray(payload.controlPoints) ? payload.controlPoints : [];
+        const fitPoints = Array.isArray(payload.fitPoints) ? payload.fitPoints : [];
+        if (controlPoints.length < 2 || controlPoints.length > 4096 || fitPoints.length > 4096 || !Number.isSafeInteger(payload.degree) || Number(payload.degree) > 64) throw new KJValidationError('Transform preview requires a bounded native spline');
+        normalizeSplineDefinition({
+            degree: Number(payload.degree),
+            controlPoints,
+            ...Array.isArray(payload.knots) ? {
+                knots: payload.knots.map(Number)
+            } : {},
+            ...Array.isArray(payload.weights) ? {
+                weights: payload.weights.map(Number)
+            } : {}
+        });
+        points = [
+            ...controlPoints,
+            ...fitPoints
+        ];
     } else if (entity.type === 'XLINE' || entity.type === 'RAY') {
         points = [
             payload.origin,

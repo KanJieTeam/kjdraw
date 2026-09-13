@@ -22,6 +22,7 @@ async function fixture() {
     tx.createEntity('CIRCLE', { center: [40, 45, 0], radius: 5 }, { id: 'hole' })
     tx.createEntity('ARC', { center: [55, 45, 0], radius: 7, startAngle: .2, endAngle: 2.1 }, { id: 'arc' })
     tx.createEntity('ELLIPSE', { center: [35, 55, 0], majorAxis: [8, 6, 0], ratio: .35, startParameter: .2, endParameter: 5.8, color: 4 }, { id: 'ellipse' })
+    tx.createEntity('SPLINE', { degree: 2, controlPoints: [[20, 60, 0], [35, 75, 0], [50, 60, 0]], knots: [0, 0, 0, 1, 1, 1], weights: [1, .6, 1] }, { id: 'spline' })
     tx.createEntity('LWPOLYLINE', { vertices: [{ point: [20, 30, 0], bulge: .4 }, { point: [40, 50, 0] }, { point: [60, 30, 0] }], closed: true }, { id: 'outline' })
     tx.createEntity('XLINE', { origin: [20, 30, 0], direction: [1, 2, 0] }, { id: 'guide' })
     tx.createEntity('RAY', { origin: [20, 30, 0], direction: [-2, 1, 0] }, { id: 'ray' })
@@ -43,7 +44,7 @@ async function fixture() {
     tx.createEntity('INSERT', { blockRecordId: block.id, position: [70, 40, 0], scale: [1, 1, 1], rotation: .2 }, { id: 'pump' })
     tx.createEntity('INSERT', { blockRecordId: block.id, position: [200, 200, 0] }, { id: 'unrelated' })
   })
-  return { sdk, document, session: new KJAgentToolSession(sdk, document), ids: ['edge', 'hole', 'arc', 'ellipse', 'outline', 'guide', 'ray', 'note', 'aligned', 'rotated', 'radius', 'diameter', 'angular', 'pump'] }
+  return { sdk, document, session: new KJAgentToolSession(sdk, document), ids: ['edge', 'hole', 'arc', 'ellipse', 'spline', 'outline', 'guide', 'ray', 'note', 'aligned', 'rotated', 'radius', 'diameter', 'angular', 'pump'] }
 }
 
 test('MOVE keeps a native elliptical arc editable while preserving its axes, parameters, identity and files',async()=>{
@@ -62,6 +63,27 @@ test('MOVE keeps a native elliptical arc editable while preserving its axes, par
   await document.redo();assert.deepEqual(document.getObject('ellipse'),moved)
 })
 
+test('MOVE preserves a rational native spline, its identity, files and history', async () => {
+  const { sdk, document, session } = await fixture(), before = document.getObject('spline'), source = document.serialize()
+  const proposal = value(await session.call('cad_propose_move', { expectedRevision: document.revision, units: 'millimeter', ids: ['spline'], dx: 3, dy: -4 }))
+  assert.equal(document.serialize(), source)
+  assert.deepEqual(proposal.preview.after[0].payload.controlPoints, [[23, 56, 0], [38, 71, 0], [53, 56, 0]])
+  value(await session.approve(proposal.planId, 'reviewer'))
+  const moved = document.getObject('spline')
+  for (const field of ['id', 'handle', 'ownerId']) assert.equal(moved[field], before[field])
+  assert.deepEqual(moved.payload.knots, before.payload.knots)
+  assert.deepEqual(moved.payload.weights, before.payload.weights)
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) }), { format })
+    const spline = reopened.listEntities({ type: 'SPLINE' })[0]
+    assert.deepEqual(spline.payload.controlPoints, moved.payload.controlPoints)
+    assert.deepEqual(spline.payload.knots, moved.payload.knots)
+    assert.deepEqual(spline.payload.weights, moved.payload.weights)
+  }
+  await document.undo(); assert.deepEqual(document.getObject('spline'), before)
+  await document.redo(); assert.deepEqual(document.getObject('spline'), moved)
+})
+
 for (const type of ['ROTATE', 'SCALE']) test(`${type} previews native geometry, block hierarchy and measured annotations; approval, files and history retain identity`, async () => {
   const { sdk, document, session, ids } = await fixture()
   const source = document.serialize(), history = document.history, before = new Map(document.listObjects().map(item => [item.id, item]))
@@ -75,6 +97,7 @@ for (const type of ['ROTATE', 'SCALE']) test(`${type} previews native geometry, 
     for (const field of ['start', 'end', 'center', 'origin', 'position', 'alignmentPoint', 'textPosition']) if (Array.isArray(original[field])) nearPoint(after.payload[field], transformedPoint(original[field], type))
     if (original.direction) nearPoint(after.payload.direction, transformedPoint(original.direction, type, true))
     if (original.majorAxis) { nearPoint(after.payload.majorAxis, transformedPoint(original.majorAxis, type, true));near(after.payload.ratio,original.ratio);near(after.payload.startParameter,original.startParameter);near(after.payload.endParameter,original.endParameter) }
+    if (original.controlPoints) original.controlPoints.forEach((point, index) => nearPoint(after.payload.controlPoints[index], transformedPoint(point, type)))
     if (original.radius) near(after.payload.radius, original.radius * (type === 'SCALE' ? 2 : 1))
     if (after.type === 'ARC') for (const field of ['startAngle', 'endAngle']) {
       const expected = original[field] + (type === 'ROTATE' ? Math.PI / 2 : 0)
@@ -114,6 +137,11 @@ for (const type of ['ROTATE', 'SCALE']) test(`${type} previews native geometry, 
       if (expected.type === 'DIMENSION') near(projectDimension(actual.payload).measurement, projectDimension(expected.payload).measurement)
       if (expected.payload.radius) near(actual.payload.radius, expected.payload.radius)
       if (expected.type === 'ELLIPSE') { near(actual.payload.ratio,expected.payload.ratio);near(actual.payload.startParameter,expected.payload.startParameter);near(actual.payload.endParameter,expected.payload.endParameter) }
+      if (expected.type === 'SPLINE') {
+        expected.payload.controlPoints.forEach((point, index) => nearPoint(actual.payload.controlPoints[index], point))
+        assert.deepEqual(actual.payload.knots, expected.payload.knots)
+        assert.deepEqual(actual.payload.weights, expected.payload.weights)
+      }
       if (expected.payload.direction) {
         const divisor = format === 'DXF' ? Math.hypot(...expected.payload.direction) : 1
         nearPoint(actual.payload.direction, expected.payload.direction.map(n => n / divisor))
@@ -150,12 +178,13 @@ for (const type of ['ROTATE', 'SCALE']) test(`${type} rejects malformed, protect
     ]) tx.createEntity('LINE', { start: [20, 30, 0], end: [60, 30, 0], ...patch }, { id, ...options })
     tx.createEntity('LWPOLYLINE', { vertices: [[0, 0], [10, 0]], constantWidth: 5 }, { id: 'wide' })
     tx.createEntity('DIMENSION', { dimensionType: 'ORDINATE', definitionPoints: [[0, 0], [10, 20]] }, { id: 'ordinate' })
+    tx.createEntity('SPLINE', { degree: 1, controlPoints: [[0, 0, 0], [10, 10, 2]], knots: [0, 0, 1, 1] }, { id: 'raised-spline' })
   })
   const source = document.serialize(), history = document.history
   const invalid = [
     { units: 'meter' }, { expectedRevision: document.revision - 1 }, { center: undefined }, { center: { x: 0 } }, { center: { x: Infinity, y: 0 } }, { center: { x: 1e13, y: 0 } },
     { ids: [] }, { ids: ['edge', 'edge'] }, { ids: ['missing'] }, { ids: Array(65).fill('edge') }, { confirmation: { status: 'confirmed' } },
-    ...['locked', 'hidden', 'frozen', 'raised', 'tilted', 'thick', 'paper', 'wide', 'ordinate'].map(id => ({ ids: ['edge', id] })),
+    ...['locked', 'hidden', 'frozen', 'raised', 'tilted', 'thick', 'paper', 'wide', 'ordinate', 'raised-spline'].map(id => ({ ids: ['edge', id] })),
     ...(type === 'ROTATE' ? [0, 360, -360, 361, NaN, '90'].map(angleDegrees => ({ angleDegrees })) : [0, -1, 1, 1e-7, 1e7, Infinity, '2'].map(factor => ({ factor }))),
     { ids: ['overflow'], center: { x: -1e12, y: -1e12 } },
   ]

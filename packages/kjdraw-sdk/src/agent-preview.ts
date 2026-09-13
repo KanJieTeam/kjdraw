@@ -7,6 +7,7 @@ import { projectDimension } from './geometry/annotation.js'
 import { displayedEntityBounds } from './selection-geometry.js'
 import { readDesignRelations, type KJDesignDefinition } from './design-relations.js'
 import { captureAgentBlockDependencies, agentBlockDependenciesMatchDocument, type KJAgentBlockPreviewDependency } from './agent-preview-blocks.js'
+import { normalizeSplineDefinition } from './geometry/curves.js'
 export type { KJAgentBlockPreviewDependency } from './agent-preview-blocks.js'
 
 export interface KJAgentPreviewEntity {
@@ -35,12 +36,12 @@ export interface KJAgentGeometryPreview {
 }
 const project = (entity: KJReadonlyObjectRecord): KJAgentPreviewEntity => ({ id: entity.id, type: entity.type, payload: entity.payload })
 const supported = ['LINE', 'CIRCLE', 'ARC', 'LWPOLYLINE']
-export const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[] = Object.freeze([...supported, 'ELLIPSE', 'XLINE', 'RAY', 'TEXT', 'DIMENSION', 'INSERT'])
+export const KJDRAW_AGENT_MOVABLE_TYPES: readonly string[] = Object.freeze([...supported, 'ELLIPSE', 'SPLINE', 'XLINE', 'RAY', 'TEXT', 'DIMENSION', 'INSERT'])
 const creatable = [...supported, 'ELLIPSE', 'SPLINE', 'TEXT', 'DIMENSION']
 const stretchable = ['LINE', 'LWPOLYLINE', 'POLYLINE']
 
 function validateMovableAnnotation(document: KJDocument, entity: KJReadonlyObjectRecord): void {
-  if (entity.type === 'ELLIPSE') { validateTransformGeometry(document, entity); return }
+  if (entity.type === 'ELLIPSE' || entity.type === 'SPLINE') { validateTransformGeometry(document, entity); return }
   if (entity.type !== 'TEXT' && entity.type !== 'DIMENSION') return
   const payload = entity.payload
   for (const field of ['normal', 'extrusionDirection']) {
@@ -72,6 +73,12 @@ function validateTransformGeometry(document: KJDocument, entity: KJReadonlyObjec
     points = [payload.center, payload.majorAxis]
     const axis = payload.majorAxis
     if (!Array.isArray(axis) || axis.length !== 3 || Math.hypot(Number(axis[0]), Number(axis[1])) <= 1e-12 || !bounded(payload.ratio) || payload.ratio <= 1e-12 || payload.ratio > 1 || !bounded(payload.startParameter ?? 0) || !bounded(payload.endParameter ?? Math.PI * 2)) throw new KJValidationError('Transform preview requires a bounded nondegenerate native ellipse')
+  } else if (entity.type === 'SPLINE') {
+    const controlPoints = Array.isArray(payload.controlPoints) ? payload.controlPoints : []
+    const fitPoints = Array.isArray(payload.fitPoints) ? payload.fitPoints : []
+    if (controlPoints.length < 2 || controlPoints.length > 4096 || fitPoints.length > 4096 || !Number.isSafeInteger(payload.degree) || Number(payload.degree) > 64) throw new KJValidationError('Transform preview requires a bounded native spline')
+    normalizeSplineDefinition({ degree: Number(payload.degree), controlPoints, ...(Array.isArray(payload.knots) ? { knots: payload.knots.map(Number) } : {}), ...(Array.isArray(payload.weights) ? { weights: payload.weights.map(Number) } : {}) })
+    points = [...controlPoints, ...fitPoints]
   } else if (entity.type === 'XLINE' || entity.type === 'RAY') {
     points = [payload.origin, payload.direction]
     if (!Array.isArray(payload.direction) || Math.hypot(Number(payload.direction[0]), Number(payload.direction[1])) <= 1e-12) throw new KJValidationError('Transform preview requires a nonzero XY guide direction')
