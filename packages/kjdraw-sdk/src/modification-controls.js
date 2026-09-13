@@ -272,13 +272,15 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         id: 'trim',
         command: 'TRIM',
         label: text('Trim', '修剪'),
-        description: text('Select the line, arc, circle or ellipse first, then Shift-select the cutting boundaries.', '先选择待修剪的直线、圆弧、圆或椭圆，再按住 Shift 选择切割边界。'),
+        description: text('Select the line, arc, circle, ellipse or open polyline first, then Shift-select the cutting boundaries.', '先选择待修剪的直线、圆弧、圆、椭圆或开放多段线，再按住 Shift 选择切割边界。'),
         minSelection: 2,
         targetEntityTypes: [
             'LINE',
             'ARC',
             'CIRCLE',
-            'ELLIPSE'
+            'ELLIPSE',
+            'LWPOLYLINE',
+            'POLYLINE'
         ],
         boundaryEntityTypes: [
             'LINE',
@@ -296,11 +298,13 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         id: 'extend',
         command: 'EXTEND',
         label: text('Extend', '延伸'),
-        description: text('Select the line or arc first, then Shift-select the limiting boundaries.', '先选择待延伸的直线或圆弧，再按住 Shift 选择延伸边界。'),
+        description: text('Select the line, arc or open polyline first, then Shift-select the limiting boundaries.', '先选择待延伸的直线、圆弧或开放多段线，再按住 Shift 选择延伸边界。'),
         minSelection: 2,
         targetEntityTypes: [
             'LINE',
-            'ARC'
+            'ARC',
+            'LWPOLYLINE',
+            'POLYLINE'
         ],
         boundaryEntityTypes: [
             'LINE',

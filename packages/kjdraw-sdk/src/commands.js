@@ -196,7 +196,9 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'LINE',
             'ARC',
             'CIRCLE',
-            'ELLIPSE'
+            'ELLIPSE',
+            'LWPOLYLINE',
+            'POLYLINE'
         ],
         boundaryEntityTypes: [
             'LINE',
@@ -211,7 +213,9 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         precision: 'exact',
         targetEntityTypes: [
             'LINE',
-            'ARC'
+            'ARC',
+            'LWPOLYLINE',
+            'POLYLINE'
         ],
         boundaryEntityTypes: [
             'LINE',

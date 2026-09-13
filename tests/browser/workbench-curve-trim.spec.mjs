@@ -22,10 +22,11 @@ async function mountCurveFixture(page, type, extend = false) {
       layerId: layer.id, center: [0, 0, 6], radius: 10, color: 2, lineweight: 35, linetypeScale: 1.5,
       ...(type === 'ARC' ? { startAngle: 0, endAngle: extend ? Math.PI / 2 : Math.PI, clockwise: false } : {}),
       ...(type === 'ELLIPSE' ? { majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI } : {}),
+      ...(['LWPOLYLINE','POLYLINE'].includes(type)?{vertices:[[-10,5,6],[10,5,6],[20,5,6]],closed:false,elevation:6}:{}),
     } }, { document: drawing })
     const definitions = type === 'CIRCLE'
       ? [{ start: [-15, 0, 6], end: [15, 0, 6] }]
-      : (extend ? [-5] : [5, -5]).map(x => ({ start: [x, 0, 6], end: [x, 15, 6] }))
+      : (extend ? [['LWPOLYLINE','POLYLINE'].includes(type)?25:-5] : [5, -5]).map(x => ({ start: [x, 0, 6], end: [x, 15, 6] }))
     const boundaries = []
     for (const payload of definitions) {
       boundaries.push(await sdk.executeCommand('CREATE', { type: 'LINE', payload }, { document: drawing }))
@@ -63,7 +64,7 @@ async function state(page) {
     return {
       revision: drawing.revision, objects: drawing.snapshot().objects, count: drawing.listEntities().length,
       pieces: drawing.listEntities().filter(entity => entity.payload.layerId === layer.id)
-        .sort((a, b) => Number(a.payload.startParameter ?? a.payload.startAngle ?? 0) - Number(b.payload.startParameter ?? b.payload.startAngle ?? 0)),
+        .sort((a, b) => Number(a.payload.startParameter ?? a.payload.startAngle ?? a.payload.vertices?.[0]?.point?.[0] ?? 0) - Number(b.payload.startParameter ?? b.payload.startAngle ?? b.payload.vertices?.[0]?.point?.[0] ?? 0)),
       boundaries: boundaries.map(entity => drawing.getObject(entity.id)),
       original: target, currentTarget: drawing.getObject(target.id), layerId: layer.id,
       groupMembers: drawing.getObject(group.id).payload.memberIds,
@@ -198,6 +199,30 @@ test('embedded toolbar trims a native elliptical arc and preserves parameters th
   expect(pieces[1].payload.startParameter).toBeCloseTo(2 * Math.PI / 3, 9)
   for (const piece of pieces) expect(piece.payload).toMatchObject({ center: [0, 0, 6], majorAxis: [10, 0, 0], ratio: .5, color: 2, lineweight: 35 })
   await verifyUndoRedoAndReopen(page, before, trimmed)
+})
+
+for(const type of ['LWPOLYLINE','POLYLINE'])for(const operation of ['trim','extend'])test(`embedded toolbar ${operation} accepts an open ${type} profile and retains memberships`,async({page})=>{
+  await mountCurveFixture(page,type,operation==='extend')
+  const before=await state(page)
+  if(operation==='trim')await selectAndTrim(page,before,[[5,13],[-5,13]],[0,5])
+  else{
+    await clickWorld(page,[19,5])
+    await expect.poll(async()=>(await state(page)).selectedIds).toEqual([before.original.id])
+    await page.keyboard.down('Shift');await clickWorld(page,[25,13]);await page.keyboard.up('Shift')
+    await expect.poll(async()=>(await state(page)).selectedIds).toEqual([before.original.id,before.boundaries[0].id])
+    await page.locator('#curve-trim-editor [data-action="modify"]').click()
+    await page.locator('#curve-trim-editor [data-modification]').selectOption('extend')
+    await page.locator('#curve-trim-editor [data-action="start-modification"]').click()
+    await expect(page.locator('#curve-trim-editor [data-modification-dialog]')).not.toBeVisible()
+    expect((await state(page)).objects).toEqual(before.objects)
+    await clickWorld(page,[19,5])
+    await expect.poll(async()=>(await state(page)).revision).toBe(before.revision+1)
+  }
+  const after=await state(page)
+  const paths=after.pieces.map(piece=>piece.payload.vertices.map(vertex=>vertex.point)).sort((a,b)=>a[0][0]-b[0][0])
+  expect(paths).toEqual(operation==='trim'?[[[-10,5,6],[-5,5,6]],[[5,5,6],[10,5,6],[20,5,6]]]:[[[-10,5,6],[10,5,6],[25,5,6]]])
+  for(const piece of after.pieces){expect(piece.type).toBe(type);expect(piece.payload).toMatchObject({elevation:6,color:2,lineweight:35,linetypeScale:1.5})}
+  await verifyUndoRedoAndReopen(page,before,after)
 })
 
 test('embedded toolbar extends a picked ARC end to its boundary with unchanged identity and public save/reopen', async ({ page }) => {

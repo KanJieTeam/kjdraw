@@ -20,6 +20,16 @@ const closePoint = (actual, expected, epsilon = 1e-9) => {
   close(actual[1], expected[1], epsilon)
 }
 
+test('boundary controls expose executable polyline targets consistently with SDK discovery',()=>{
+  const commands=createKJDrawSDK().capabilities().commands
+  for(const id of ['trim','extend']){
+    const definition=getKJModificationDefinition(id), capability=commands.find(command=>command.id===definition.command).capabilities
+    assert.deepEqual(definition.targetEntityTypes,capability.targetEntityTypes)
+    for(const type of ['LWPOLYLINE','POLYLINE'])assert.doesNotThrow(()=>validateKJModificationSelection(definition,[{id:'target',type},{id:'boundary',type:'LINE'}]))
+    assert.throws(()=>validateKJModificationSelection(definition,[{id:'target',type:'SPLINE'},{id:'boundary',type:'LINE'}]),/target first/)
+  }
+})
+
 async function drawingFixture(name) {
   const sdk = createKJDrawSDK()
   const drawing = sdk.createDocument({ documentId: `modification-controls-${name}`, units: 'millimeter' })
