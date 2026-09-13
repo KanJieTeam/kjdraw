@@ -4,11 +4,12 @@ import type { KJReadonlyObjectRecord } from './schema.js'
 import { KJRevisionConflictError, KJValidationError } from './errors.js'
 import { deepFreeze } from './utils.js'
 import { projectDimension } from './geometry/annotation.js'
+import { ellipseRadii, splineLength2, type EllipseDefinition, type SplineDefinition } from './geometry/curves.js'
 
 export type KJDrawingValidationFeature = 'start' | 'end' | 'center' | 'origin' | 'vertex'
 export interface KJDrawingValidationPointReference { objectId: string; feature: KJDrawingValidationFeature; vertexIndex?: number }
 export type KJDrawingValidationCheck =
-  | { id: string; kind: 'line-length' | 'circle-radius' | 'dimension-measurement'; objectId: string; expected: number; tolerance: number }
+  | { id: string; kind: 'line-length' | 'circle-radius' | 'ellipse-major-radius' | 'ellipse-minor-radius' | 'spline-length' | 'dimension-measurement'; objectId: string; expected: number; tolerance: number }
   | { id: string; kind: 'point-distance'; from: KJDrawingValidationPointReference; to: KJDrawingValidationPointReference; expected: number; tolerance: number }
   | { id: string; kind: 'polyline-closed'; objectId: string; expected: boolean; tolerance: 0 }
   | { id: string; kind: 'polyline-vertex-count'; objectId: string; expected: number; tolerance: 0 }
@@ -134,9 +135,9 @@ function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDra
       return point(vertices[vertexIndex]!.point)
     }
     if (ref.vertexIndex !== undefined) fail('vertexIndex is valid only for a polyline vertex reference')
-    if ((feature === 'start' || feature === 'end') && object.type !== 'LINE' || feature === 'origin' && !['XLINE', 'RAY'].includes(object.type) || feature === 'center' && !['CIRCLE', 'ARC'].includes(object.type)) return fail('Point feature is unsupported for this entity type')
+    if ((feature === 'start' || feature === 'end') && object.type !== 'LINE' || feature === 'origin' && !['XLINE', 'RAY'].includes(object.type) || feature === 'center' && !['CIRCLE', 'ARC', 'ELLIPSE'].includes(object.type)) return fail('Point feature is unsupported for this entity type')
     if (feature === 'center') {
-      const normal = point(object.payload.normal)
+      const normal = object.payload.normal == null ? [0, 0, 1] as const : point(object.payload.normal)
       if (normal[0] !== 0 || normal[1] !== 0 || normal[2] <= 0) fail('Point-distance center requires the default +Z plane; OCS transformation is not inferred')
     }
     return point(object.payload[feature])
@@ -146,7 +147,7 @@ function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDra
     const id = text(item.id, 'Check id')
     if (ids.has(id)) fail('Check ids must be unique')
     ids.add(id)
-    if (!['line-length', 'circle-radius', 'dimension-measurement', 'point-distance', 'polyline-closed', 'polyline-vertex-count', 'polyline-segment-bulge'].includes(item.kind as string)) return fail('Unsupported geometry check kind')
+    if (!['line-length', 'circle-radius', 'ellipse-major-radius', 'ellipse-minor-radius', 'spline-length', 'dimension-measurement', 'point-distance', 'polyline-closed', 'polyline-vertex-count', 'polyline-segment-bulge'].includes(item.kind as string)) return fail('Unsupported geometry check kind')
     const kind = item.kind as KJDrawingValidationCheck['kind'], refs: KJDrawingValidationReference[] = []
     const tolerance = boundedNumber(item.tolerance, 'tolerance')
     let actual: number | boolean, expected: number | boolean
@@ -167,6 +168,15 @@ function validateDrawingGeometryView(view: KJDrawingValidationView, input: KJDra
         if (object.type !== 'CIRCLE') fail('circle-radius requires a native CIRCLE entity')
         actual = boundedNumber(object.payload.radius, 'Circle radius')
         if (actual === 0) fail('Circle radius must be positive')
+        expected = boundedNumber(item.expected, 'expected')
+      } else if (kind === 'ellipse-major-radius' || kind === 'ellipse-minor-radius') {
+        if (object.type !== 'ELLIPSE') fail(`${kind} requires a native ELLIPSE entity`)
+        const radii = ellipseRadii(object.payload as EllipseDefinition)
+        actual = boundedNumber(kind === 'ellipse-major-radius' ? radii.major : radii.minor, 'Ellipse radius')
+        expected = boundedNumber(item.expected, 'expected')
+      } else if (kind === 'spline-length') {
+        if (object.type !== 'SPLINE') fail('spline-length requires a native SPLINE entity')
+        actual = boundedNumber(splineLength2(object.payload as SplineDefinition), 'Spline length')
         expected = boundedNumber(item.expected, 'expected')
       } else if (kind === 'dimension-measurement') {
         if (object.type !== 'DIMENSION') fail('dimension-measurement requires a native DIMENSION entity')

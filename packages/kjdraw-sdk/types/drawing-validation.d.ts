@@ -8,7 +8,7 @@ export interface KJDrawingValidationPointReference {
 }
 export type KJDrawingValidationCheck = {
     id: string;
-    kind: 'line-length' | 'circle-radius' | 'dimension-measurement';
+    kind: 'line-length' | 'circle-radius' | 'ellipse-major-radius' | 'ellipse-minor-radius' | 'spline-length' | 'dimension-measurement';
     objectId: string;
     expected: number;
     tolerance: number;

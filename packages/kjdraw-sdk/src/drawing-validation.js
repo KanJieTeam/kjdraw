@@ -2,6 +2,7 @@
 import { KJRevisionConflictError, KJValidationError } from './errors.js';
 import { deepFreeze } from './utils.js';
 import { projectDimension } from './geometry/annotation.js';
+import { ellipseRadii, splineLength2 } from './geometry/curves.js';
 const fail = (message)=>{
     throw new KJValidationError(message);
 };
@@ -135,10 +136,15 @@ function validateDrawingGeometryView(view, input) {
             'RAY'
         ].includes(object.type) || feature === 'center' && ![
             'CIRCLE',
-            'ARC'
+            'ARC',
+            'ELLIPSE'
         ].includes(object.type)) return fail('Point feature is unsupported for this entity type');
         if (feature === 'center') {
-            const normal = point(object.payload.normal);
+            const normal = object.payload.normal == null ? [
+                0,
+                0,
+                1
+            ] : point(object.payload.normal);
             if (normal[0] !== 0 || normal[1] !== 0 || normal[2] <= 0) fail('Point-distance center requires the default +Z plane; OCS transformation is not inferred');
         }
         return point(object.payload[feature]);
@@ -160,6 +166,9 @@ function validateDrawingGeometryView(view, input) {
         if (![
             'line-length',
             'circle-radius',
+            'ellipse-major-radius',
+            'ellipse-minor-radius',
+            'spline-length',
             'dimension-measurement',
             'point-distance',
             'polyline-closed',
@@ -186,6 +195,15 @@ function validateDrawingGeometryView(view, input) {
                 if (object.type !== 'CIRCLE') fail('circle-radius requires a native CIRCLE entity');
                 actual = boundedNumber(object.payload.radius, 'Circle radius');
                 if (actual === 0) fail('Circle radius must be positive');
+                expected = boundedNumber(item.expected, 'expected');
+            } else if (kind === 'ellipse-major-radius' || kind === 'ellipse-minor-radius') {
+                if (object.type !== 'ELLIPSE') fail(`${kind} requires a native ELLIPSE entity`);
+                const radii = ellipseRadii(object.payload);
+                actual = boundedNumber(kind === 'ellipse-major-radius' ? radii.major : radii.minor, 'Ellipse radius');
+                expected = boundedNumber(item.expected, 'expected');
+            } else if (kind === 'spline-length') {
+                if (object.type !== 'SPLINE') fail('spline-length requires a native SPLINE entity');
+                actual = boundedNumber(splineLength2(object.payload), 'Spline length');
                 expected = boundedNumber(item.expected, 'expected');
             } else if (kind === 'dimension-measurement') {
                 if (object.type !== 'DIMENSION') fail('dimension-measurement requires a native DIMENSION entity');

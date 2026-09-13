@@ -81,6 +81,24 @@ export interface KJAgentGeometryValidationInput {
         expected: number;
         tolerance: number;
     }[];
+    ellipseMajorRadii?: {
+        id: string;
+        objectId: string;
+        expected: number;
+        tolerance: number;
+    }[];
+    ellipseMinorRadii?: {
+        id: string;
+        objectId: string;
+        expected: number;
+        tolerance: number;
+    }[];
+    splineLengths?: {
+        id: string;
+        objectId: string;
+        expected: number;
+        tolerance: number;
+    }[];
     dimensionMeasurements?: {
         id: string;
         objectId: string;

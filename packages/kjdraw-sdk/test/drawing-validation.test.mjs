@@ -8,6 +8,8 @@ async function fixture() {
   await document.transact('Original geometry', tx => {
     tx.createEntity('LINE', { start: [0, 0, 0], end: [3, 4, 12] }, { id: 'line' })
     tx.createEntity('CIRCLE', { center: [3, 4, 0], radius: 2 }, { id: 'circle' })
+    tx.createEntity('ELLIPSE', { center: [6, 8, 0], majorAxis: [6, 8, 0], ratio: 0.4, startParameter: 0, endParameter: Math.PI * 2 }, { id: 'ellipse' })
+    tx.createEntity('SPLINE', { degree: 1, controlPoints: [[0, 0, 0], [3, 4, 0]], knots: [0, 0, 1, 1] }, { id: 'spline' })
     tx.createEntity('DIMENSION', { dimensionType: 'ALIGNED', definitionPoints: [[0, 2, 0], [0, 0, 0], [3, 4, 0]] }, { id: 'aligned-dimension' })
     tx.createEntity('DIMENSION', { dimensionType: 'ANGULAR_3_POINT', definitionPoints: [[4, 4, 0], [10, 0, 0], [0, 10, 0], [0, 0, 0]] }, { id: 'angular-dimension' })
     tx.createEntity('LWPOLYLINE', { vertices: [[0, 0], [10, 0], [10, 10]], closed: true }, { id: 'closed' })
@@ -36,6 +38,23 @@ test('native 3D length, radius, object feature distance and canonical closure pr
   assert.equal(result.checks[2].references[0].feature, 'start')
   assert.ok(Object.isFrozen(result.checks[2].references[0]))
   assert.throws(() => { result.checks[0].passed = false }, TypeError)
+  assert.equal(document.serialize(), before)
+})
+
+test('native ellipse radii, spline length and ellipse center expose deterministic curved-geometry evidence', async () => {
+  const { document } = await fixture(), before = document.serialize()
+  const centerGap = { id: 'ellipse-center-gap', kind: 'point-distance', from: { objectId: 'line', feature: 'start' }, to: { objectId: 'ellipse', feature: 'center' }, expected: 10, tolerance: 0 }
+  const result = check(document, [
+    numeric('ellipse', 'ellipse-major-radius', 10),
+    numeric('ellipse', 'ellipse-minor-radius', 4),
+    numeric('spline', 'spline-length', 5, 1e-12),
+    centerGap,
+  ])
+  assert.equal(result.passed, true)
+  assert.deepEqual(result.checks.map(item => item.actual), [10, 4, 5, 10])
+  assert.equal(result.checks[3].references[1].feature, 'center')
+  assert.throws(() => check(document, [numeric('circle', 'ellipse-major-radius', 2)]), /native ELLIPSE/)
+  assert.throws(() => check(document, [numeric('line', 'spline-length', 13)]), /native SPLINE/)
   assert.equal(document.serialize(), before)
 })
 

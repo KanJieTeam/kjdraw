@@ -8,6 +8,8 @@ async function fixture() {
   await document.transact('Inspection geometry', tx => {
     tx.createEntity('LINE', { start: [0, 0, 0], end: [-3, -4, -12] }, { id: 'line' })
     tx.createEntity('CIRCLE', { center: [3, 4, 0], radius: 2 }, { id: 'circle' })
+    tx.createEntity('ELLIPSE', { center: [6, 8, 0], majorAxis: [6, 8, 0], ratio: 0.4, startParameter: 0, endParameter: Math.PI * 2 }, { id: 'ellipse' })
+    tx.createEntity('SPLINE', { degree: 1, controlPoints: [[0, 0, 0], [3, 4, 0]], knots: [0, 0, 1, 1] }, { id: 'spline' })
     tx.createEntity('DIMENSION', { dimensionType: 'ALIGNED', definitionPoints: [[0, 2, 0], [0, 0, 0], [3, 4, 0]], textOverride: 'untrusted label' }, { id: 'dimension' })
     tx.createEntity('LWPOLYLINE', { vertices: [[0, 0], [10, 0], [10, 10]], closed: true }, { id: 'closed' })
     tx.createEntity('LINE', { start: [0, 0, 0], end: [3, 4, 0] }, { id: 'paper', ownerId: document.snapshot().spaces.paperSpaceIds[0] })
@@ -35,6 +37,29 @@ test('geometry tool returns exact immutable evidence including native dimensions
   assert.ok(errors[2] < 1e-12)
   assert.equal(result.value.checks[0].references[0].ownerId, document.getObject('line').ownerId)
   assert.ok(Object.isFrozen(result.value.checks[0].references[0]))
+  assert.equal(document.serialize(), before)
+})
+
+test('geometry tool validates native ellipse radii and spline length through explicit optional groups', async () => {
+  const { document, session } = await fixture(), before = document.serialize()
+  const definition = session.definitions.find(tool => tool.name === 'cad_check_geometry')
+  assert.ok(definition.inputSchema.properties.ellipseMajorRadii)
+  assert.ok(definition.inputSchema.properties.ellipseMinorRadii)
+  assert.ok(definition.inputSchema.properties.splineLengths)
+  assert.equal(definition.inputSchema.required.includes('ellipseMajorRadii'), false)
+  assert.equal(definition.inputSchema.required.includes('splineLengths'), false)
+  const result = await session.call('cad_check_geometry', {
+    expectedRevision: document.revision,
+    units: 'millimeter',
+    lineLengths: [], circleRadii: [], pointDistances: [], polylineClosures: [],
+    ellipseMajorRadii: [{ id: 'major', objectId: 'ellipse', expected: 10, tolerance: 0 }],
+    ellipseMinorRadii: [{ id: 'minor', objectId: 'ellipse', expected: 4, tolerance: 0 }],
+    splineLengths: [{ id: 'spline', objectId: 'spline', expected: 5, tolerance: 1e-12 }],
+  })
+  assert.equal(result.ok, true, JSON.stringify(result))
+  assert.equal(result.value.passed, true)
+  assert.deepEqual(result.value.checks.map(item => item.kind), ['ellipse-major-radius', 'ellipse-minor-radius', 'spline-length'])
+  assert.deepEqual(result.value.checks.map(item => item.actual), [10, 4, 5])
   assert.equal(document.serialize(), before)
 })
 

@@ -792,13 +792,16 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_check_geometry',
         effect: 'read',
-        description: 'Check 1–64 explicit requirements against actual drawing objects at expectedRevision. Supply lineLengths, circleRadii, pointDistances and polylineClosures; dimensionMeasurements, polylineVertexCounts and polylineSegmentBulges are optional additive groups. LINE lengths and point distances use native owner coordinates in 3D; point references may address a native polyline vertex with feature=vertex and vertexIndex. CIRCLE radius is intrinsic. Native DIMENSION measurements use drawing units for linear/radius/diameter and degrees for angular dimensions. Polyline checks inspect the stored closed flag, vertex count or signed segment bulge; they do not infer topology. Returns actual values, deviations, tolerances and pass/fail for supplied requirements only. Does not infer user intent, certify a design, modify or approve a drawing.',
+        description: 'Check 1–64 explicit requirements against actual drawing objects at expectedRevision. Supply lineLengths, circleRadii, pointDistances and polylineClosures; ellipseMajorRadii, ellipseMinorRadii, splineLengths, dimensionMeasurements, polylineVertexCounts and polylineSegmentBulges are optional additive groups. LINE lengths and point distances use native owner coordinates in 3D; point references may address a native polyline vertex with feature=vertex and vertexIndex. Circle and ellipse radii are intrinsic; spline length follows the native rational B-spline. Native DIMENSION measurements use drawing units for linear/radius/diameter and degrees for angular dimensions. Polyline checks inspect the stored closed flag, vertex count or signed segment bulge; they do not infer topology. Returns actual values, deviations, tolerances and pass/fail for supplied requirements only. Does not infer user intent, certify a design, modify or approve a drawing.',
         inputSchema: (()=>{
             const schema = object({
                 expectedRevision: revision,
                 units: text,
                 lineLengths: drawingGroup(measuredObject),
                 circleRadii: drawingGroup(measuredObject),
+                ellipseMajorRadii: drawingGroup(measuredObject),
+                ellipseMinorRadii: drawingGroup(measuredObject),
+                splineLengths: drawingGroup(measuredObject),
                 dimensionMeasurements: drawingGroup(measuredObject),
                 pointDistances: drawingGroup(object({
                     id: text,
@@ -841,10 +844,13 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
             });
             return {
                 ...schema,
-                required: schema.required.filter((name)=>![
-                        'dimensionMeasurements',
-                        'polylineVertexCounts',
-                        'polylineSegmentBulges'
+                required: schema.required.filter((name)=>[
+                        'expectedRevision',
+                        'units',
+                        'lineLengths',
+                        'circleRadii',
+                        'pointDistances',
+                        'polylineClosures'
                     ].includes(name))
             };
         })()
@@ -1543,6 +1549,18 @@ export class KJAgentToolSession {
                                 ...input.circleRadii.map((item)=>({
                                         ...item,
                                         kind: 'circle-radius'
+                                    })),
+                                ...(input.ellipseMajorRadii ?? []).map((item)=>({
+                                        ...item,
+                                        kind: 'ellipse-major-radius'
+                                    })),
+                                ...(input.ellipseMinorRadii ?? []).map((item)=>({
+                                        ...item,
+                                        kind: 'ellipse-minor-radius'
+                                    })),
+                                ...(input.splineLengths ?? []).map((item)=>({
+                                        ...item,
+                                        kind: 'spline-length'
                                     })),
                                 ...(input.dimensionMeasurements ?? []).map((item)=>({
                                         ...item,

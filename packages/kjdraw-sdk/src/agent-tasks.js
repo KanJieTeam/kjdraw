@@ -280,9 +280,16 @@ function geometryCheck(value, requirementId) {
         tolerance
     };
     const objectId = text(row.objectId, 'geometry object ID', 256);
-    if (kind === 'line-length' || kind === 'circle-radius' || kind === 'dimension-measurement') return {
+    if ([
+        'line-length',
+        'circle-radius',
+        'ellipse-major-radius',
+        'ellipse-minor-radius',
+        'spline-length',
+        'dimension-measurement'
+    ].includes(kind)) return {
         id: requirementId,
-        kind,
+        kind: kind,
         objectId,
         expected: geometryNumber(row.expected, 'geometry expected value'),
         tolerance
@@ -480,6 +487,9 @@ function receiptCheck(value) {
     if (![
         'line-length',
         'circle-radius',
+        'ellipse-major-radius',
+        'ellipse-minor-radius',
+        'spline-length',
         'dimension-measurement',
         'point-distance',
         'polyline-closed',
