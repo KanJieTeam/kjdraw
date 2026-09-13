@@ -474,7 +474,7 @@ const arraySchema = {
     items: object({
         sources: collection({
             type: 'string',
-            minLength: 6,
+            minLength: 5,
             maxLength: 12
         }),
         rows: patternCount,
@@ -490,7 +490,7 @@ const polarArraySchema = {
     items: object({
         sources: collection({
             type: 'string',
-            minLength: 6,
+            minLength: 5,
             maxLength: 12
         }),
         center: point,

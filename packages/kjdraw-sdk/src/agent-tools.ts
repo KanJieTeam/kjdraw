@@ -181,8 +181,8 @@ const scaleSchemaBase = object({ expectedRevision: revision, units: text, ids: c
 const scaleSchema: KJAgentToolSchema = { ...scaleSchemaBase, required: scaleSchemaBase.required!.filter(name => !['ids', 'selectionSetName'].includes(name)) }
 const offsetSchema = object({ expectedRevision: revision, units: text, id: text, distance: { ...number, exclusiveMinimum: 0 }, sidePoint: point })
 
-const arraySchema: KJAgentToolSchema = { type: 'array', minItems: 0, maxItems: 16, items: object({ sources: collection({ type: 'string', minLength: 6, maxLength: 12 }), rows: patternCount, columns: patternCount, dx: number, dy: number }) }
-const polarArraySchema: KJAgentToolSchema = { type: 'array', minItems: 0, maxItems: 16, items: object({ sources: collection({ type: 'string', minLength: 6, maxLength: 12 }), center: point, count: { type: 'integer', minimum: 2, maximum: 512 }, angleDegrees: { type: 'number', minimum: -360, maximum: 360 } }) }
+const arraySchema: KJAgentToolSchema = { type: 'array', minItems: 0, maxItems: 16, items: object({ sources: collection({ type: 'string', minLength: 5, maxLength: 12 }), rows: patternCount, columns: patternCount, dx: number, dy: number }) }
+const polarArraySchema: KJAgentToolSchema = { type: 'array', minItems: 0, maxItems: 16, items: object({ sources: collection({ type: 'string', minLength: 5, maxLength: 12 }), center: point, count: { type: 'integer', minimum: 2, maximum: 512 }, angleDegrees: { type: 'number', minimum: -360, maximum: 360 } }) }
 const annotationSource = object({ source: { type: 'string', enum: ['document', 'proposal'] }, id: text })
 const annotationPoint: KJAgentToolSchema = { ...object({ ...annotationSource.properties, feature: { type: 'string', enum: ['start', 'end', 'center', 'vertex', 'left', 'right', 'top', 'bottom'] }, vertexIndex: { type: 'integer', minimum: 0, maximum: 63 } }), required: ['source', 'id', 'feature'] }
 const annotationPlacement = { position: point, height: radius }

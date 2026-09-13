@@ -97,7 +97,7 @@ test('pattern references address all four groups and disjoint negative arrays re
   const input = { ...empty(),
     lines: [[0, 0, 4, 2]], circles: [[2, 3, 1]], arcs: [[5, 6, 2, 90, 180]],
     polylines: [{ points: [[1, 1], [3, 1], [3, 2]], closed: true }],
-    arrays: [array({ sources: ['lines:0', 'arcs:0', 'polylines:0'], rows: 1, columns: 2, dx: -10, dy: 0 }), array({ sources: ['circles:0'], rows: 2, columns: 1, dx: 0, dy: -20 })],
+    arrays: [array({ sources: ['line:0', 'arc:0', 'polyline:0'], rows: 1, columns: 2, dx: -10, dy: 0 }), array({ sources: ['circle:0'], rows: 2, columns: 1, dx: 0, dy: -20 })],
   }
   const proposed = value(await session.call(tool, input))
   assert.equal(proposed.preview.after.length, 8)
@@ -157,7 +157,7 @@ test('invalid group references, duplicate seeds, counts, spacing and original dr
   const { document, session } = fixture(), source = document.serialize()
   const good = { ...empty(), circles: [[0, 0, 1]], arrays: [array()] }
   const badArrays = [
-    ...['circles:-1', 'circles:1', 'circles:64', 'circles:0.5', 'circles:00', 'circles:01', 'circles:0\n', 'circles:0 ', 'lines:0', 'circle:0', 'Circles:0', '__proto__:0', 'circles:1e0', 'circles:0;DELETE'].map(source => [array({ sources: [source] })]),
+    ...['circles:-1', 'circles:1', 'circles:64', 'circles:0.5', 'circles:00', 'circles:01', 'circles:0\n', 'circles:0 ', 'lines:0', 'Circle:0', 'Circles:0', '__proto__:0', 'circles:1e0', 'circles:0;DELETE'].map(source => [array({ sources: [source] })]),
     [array({ sources: [0] })], [array({ sources: [] })], [array({ sources: ['circles:0', 'circles:0'] })],
     [array({ sourceIndices: [0] })],
     [array(), array()], [array({ rows: 0 })], [array({ columns: 1.5 })], [array({ rows: 513 })],
