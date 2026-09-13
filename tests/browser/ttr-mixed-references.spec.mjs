@@ -25,6 +25,7 @@ test('playground constructs a tangent circle from a selected line and circle', a
   await page.mouse.click(points.line.x, points.line.y)
   await page.keyboard.down('Shift'); await page.mouse.click(points.circle.x, points.circle.y); await page.keyboard.up('Shift')
   await expect(page.locator('#selection-count')).toContainText('2')
+  await page.locator('.ribbon-tabs [data-i18n="draw"]').click()
   await page.locator('#drawing-tool').selectOption('circle')
   await page.locator('#circle-mode').selectOption('tangent-tangent-radius')
   await page.locator('#circle-radius').fill('5'); await page.locator('#circle-radius').press('Enter')

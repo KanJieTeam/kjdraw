@@ -79,7 +79,7 @@ test('Playground multi-selection applies the same atomic batch layer property co
   const editor=page.locator('#inspector .property-editor')
   await expect(page.locator('#inspector h3')).toContainText('2')
   const beforeRevision=Number((await page.locator('#revision').textContent()).replace(/\D/g,''))
-  await editor.locator('select').selectOption(targetLayer.id)
+  await editor.locator('select[data-property="layer"]').selectOption(targetLayer.id)
   await editor.getByRole('button',{name:/Apply|应用/}).click()
   await expect(page.locator('#revision')).toHaveText(`REV ${beforeRevision+1}`)
   const changed=await save(page)

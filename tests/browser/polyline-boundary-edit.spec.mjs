@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { createKJDrawSDK } from '../../packages/kjdraw-sdk/src/index.js'
+import { createKJDrawSDK, KJProjectSession } from '../../packages/kjdraw-sdk/src/index.js'
 
 test.use({ bypassCSP: true, viewport: { width: 1400, height: 920 } })
 
@@ -181,10 +181,12 @@ test('Playground PEDIT edits one segment taper through the real modification wor
   await page.locator('#dialog-submit').click()
   const target = await playgroundPoint(page, 10, 0); await page.mouse.click(target.x, target.y)
   await expect(page.locator('#revision')).toHaveText(`REV ${revision + 1}`)
-  const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#save-kjd').click()])
+  await page.locator('.ribbon-tabs [data-i18n="home"]').click()
+  const [download] = await Promise.all([page.waitForEvent('download'), page.locator('#save').click()])
   const { readFile } = await import('node:fs/promises'), path = await download.path()
-  const reopened = await createKJDrawSDK().readDocument(await readFile(path, 'utf8'), { format: 'KJD' })
-  const widths = reopened.listEntities({ type: 'POLYLINE' })[0].payload.vertices.map(vertex => [vertex.startWidth, vertex.endWidth])
+  const reopened = await KJProjectSession.open(await readFile(path), { sdk: createKJDrawSDK() })
+  const widths = reopened.activeDocument.listEntities({ type: 'POLYLINE' })[0].payload.vertices.map(vertex => [vertex.startWidth, vertex.endWidth])
   expect(widths.some(pair => pair[0] === 2.5 && pair[1] === 7.5)).toBe(true)
+  reopened.destroy()
   await page.locator('#undo').click(); await expect(page.locator('#revision')).toHaveText(`REV ${revision + 2}`)
 })
