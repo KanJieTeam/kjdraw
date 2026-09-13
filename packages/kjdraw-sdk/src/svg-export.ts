@@ -1,7 +1,7 @@
 import type { KJDocument } from './document.js'
 import type { KJReadonlyObjectRecord } from './schema.js'
 import { KJRevisionConflictError, KJValidationError } from './errors.js'
-import { resolvePhysicalPlotPaper, validatePlotSettings } from './plot-settings.js'
+import { resolvePhysicalPlotPaper, resolvePlotScale, validatePlotSettings } from './plot-settings.js'
 import { insertAttributes, isAttachedAttribute } from './attribute-display.js'
 import { layoutCadMText, textFontFamily } from './geometry/text-layout.js'
 import { aciColor } from './canvas-renderer.js'
@@ -122,29 +122,33 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
   validatePlotSettings(settings)
   const rawWidth = numeric(settings.paperWidth), rawHeight = numeric(settings.paperHeight)
   if (rawWidth <= 0 || rawHeight <= 0 || rawWidth > 10000 || rawHeight > 10000) fail('paper dimensions must be positive millimeters, at most 10000')
-  if ((numeric(settings.flags, 0) & 16) !== 0) fail('standard/fit plotting is unsupported; select an explicit custom ratio')
-  if (numeric(settings.flags, 0) !== 0) fail('nonzero plot flags are unsupported; use explicit origin, margins and custom ratio')
   if (settings.styleSheet || settings.printerName || numeric(settings.shadeMode, 0) !== 0) fail('external plot styles, printer-specific configuration and shaded plotting are unsupported')
   const paperUnits = numeric(settings.paperUnits, 1)
   if (paperUnits !== 0 && paperUnits !== 1) fail('pixel paper units have no supported physical scale')
-  const scale = numeric(settings.scaleNumerator, 1) / numeric(settings.scaleDenominator, 1) * (paperUnits === 0 ? 25.4 : 1)
-  if (!(scale > 0) || !Number.isFinite(scale)) fail('invalid custom plot ratio')
   const physical = resolvePhysicalPlotPaper(settings)
   const { width, height, left, right, top, bottom } = physical
   if (left + right >= width || top + bottom >= height) fail('margins leave no printable area')
   const printableWidth = width - left - right, printableHeight = height - top - bottom
   const plotType = numeric(settings.plotType, isModel ? -1 : 5)
   if (plotType !== 4 && !(plotType === 5 && !isModel)) fail('select a paper layout or an explicit model plot window')
-  const originX = numeric(settings.originX, 0), originY = numeric(settings.originY, 0)
-  let x = 0, y = 0, sourceMinimumX = originX === 0 ? 0 : -originX / scale, sourceMinimumY = originY === 0 ? 0 : -originY / scale, maximumX = printableWidth / scale - originX / scale, maximumY = printableHeight / scale - originY / scale, windowClip = ''
+  let x = 0, y = 0, sourceMinimumX = 0, sourceMinimumY = 0, maximumX = 0, maximumY = 0, windowClip = ''
+  let plotWidth: number | undefined, plotHeight: number | undefined
   if (plotType === 4) {
     x = numeric(settings.windowMinX); y = numeric(settings.windowMinY)
     maximumX = numeric(settings.windowMaxX); maximumY = numeric(settings.windowMaxY)
     sourceMinimumX = x; sourceMinimumY = y
     const w = maximumX - x, h = maximumY - y
     if (w <= 0 || h <= 0) fail('plot window must have positive dimensions')
-    if (originX < 0 || originY < 0 || originX + w * scale > printableWidth + 1e-9 || originY + h * scale > printableHeight + 1e-9) fail('plot window does not fit the printable area at the explicit scale and origin')
+    plotWidth = w; plotHeight = h
     windowClip = `<clipPath id="kj-window" clipPathUnits="userSpaceOnUse"><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath>`
+  }
+  let resolved
+  try { resolved = resolvePlotScale(settings, { printableWidth, printableHeight, sourceWidth: plotWidth, sourceHeight: plotHeight, isModel }) }
+  catch (error) { fail(error instanceof Error ? error.message : 'invalid plot scale') }
+  const scale = resolved.millimetersPerDrawingUnit, originX = resolved.originX, originY = resolved.originY
+  if (plotType === 5) {
+    sourceMinimumX = originX === 0 ? 0 : -originX / scale; sourceMinimumY = originY === 0 ? 0 : -originY / scale
+    maximumX = printableWidth / scale - originX / scale; maximumY = printableHeight / scale - originY / scale
   }
   const pageMatrix = multiply3(translation3(left + originX, height - bottom - originY), multiply3(scale3(scale, -scale), translation3(-x, -y)))
   matrix(pageMatrix)

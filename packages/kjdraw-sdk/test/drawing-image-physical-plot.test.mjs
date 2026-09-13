@@ -37,7 +37,7 @@ test('configured A3 raster exposes exact source-to-pixel scale, margins and orig
 
 test('physical raster planning refuses silent scale clipping without mutating the drawing', async () => {
   const { sdk, drawing, layoutId } = await fixture()
-  for (const patch of [{ windowMaxX:900 }, { originX:-1 }, { flags:16 }, { paperUnits:2 }]) {
+  for (const patch of [{ windowMaxX:900 }, { originX:-1 }, { flags:32 }, { paperUnits:2 }]) {
     await sdk.executeCommand('PAGESETUP', { layoutId, dxf:patch })
     const before = drawing.serialize()
     assert.throws(() => resolveDrawingPngPlot(drawing, { layoutId }), /Drawing image:/)

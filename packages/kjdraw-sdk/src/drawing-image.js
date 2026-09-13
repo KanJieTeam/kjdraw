@@ -1,7 +1,7 @@
 // Generated from drawing-image.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJCanvasRenderer } from './canvas-renderer.js';
 import { KJRevisionConflictError, KJValidationError } from './errors.js';
-import { resolvePhysicalPlotPaper, validatePlotSettings } from './plot-settings.js';
+import { resolvePhysicalPlotPaper, resolvePlotScale, validatePlotSettings } from './plot-settings.js';
 import { deepFreeze } from './utils.js';
 const MAX_DATA_URL_BYTES = 1024 * 1024;
 function invalid(message) {
@@ -143,19 +143,15 @@ export function resolveDrawingPngPlot(drawing, options) {
     validatePlotSettings(settings);
     const rawPaperWidth = Number(settings.paperWidth), rawPaperHeight = Number(settings.paperHeight);
     if (!(rawPaperWidth > 0) || !(rawPaperHeight > 0) || rawPaperWidth > 10000 || rawPaperHeight > 10000) invalid('paper dimensions must be positive millimeters, at most 10000');
-    if (Number(settings.flags ?? 0) !== 0) invalid('fit or nonzero plot flags are unsupported; use an explicit custom ratio');
     if (settings.styleSheet || settings.printerName || Number(settings.shadeMode ?? 0) !== 0) invalid('external plot styles, printer configuration and shaded plotting are unsupported');
     const paperUnits = Number(settings.paperUnits ?? 1);
     if (paperUnits !== 0 && paperUnits !== 1) invalid('pixel paper units have no physical raster scale');
-    const scale = Number(settings.scaleNumerator ?? 1) / Number(settings.scaleDenominator ?? 1) * (paperUnits === 0 ? 25.4 : 1);
-    if (!(scale > 0) || !Number.isFinite(scale)) invalid('custom plot ratio must be positive and finite');
     const physical = resolvePhysicalPlotPaper(settings);
     const { width: paperWidth, height: paperHeight, left, right, top, bottom } = physical;
     const printableWidth = paperWidth - left - right, printableHeight = paperHeight - top - bottom;
     if (!(printableWidth > 0) || !(printableHeight > 0)) invalid('margins leave no printable area');
-    const originX = Number(settings.originX ?? 0), originY = Number(settings.originY ?? 0);
-    let x = 0, y = 0, maximumX = printableWidth / scale - originX / scale, maximumY = printableHeight / scale - originY / scale;
-    let minimumX = originX === 0 ? 0 : -originX / scale, minimumY = originY === 0 ? 0 : -originY / scale;
+    let x = 0, y = 0, maximumX = 0, maximumY = 0, minimumX = 0, minimumY = 0;
+    let plotWidth, plotHeight;
     if (model) {
         if (settings.plotType !== 4) invalid('model PNG export requires an explicit plot window');
         x = Number(settings.windowMinX);
@@ -164,15 +160,34 @@ export function resolveDrawingPngPlot(drawing, options) {
         minimumY = y;
         maximumX = Number(settings.windowMaxX);
         maximumY = Number(settings.windowMaxY);
-        const plotWidth = maximumX - x, plotHeight = maximumY - y;
+        plotWidth = maximumX - x;
+        plotHeight = maximumY - y;
         if (!(plotWidth > 0) || !(plotHeight > 0) || ![
             x,
             y,
             maximumX,
             maximumY
         ].every(Number.isFinite)) invalid('configured plot window must have finite positive extents');
-        if (originX < 0 || originY < 0 || originX + plotWidth * scale > printableWidth + 1e-9 || originY + plotHeight * scale > printableHeight + 1e-9) invalid('plot window does not fit the printable area at the explicit scale and origin');
     } else if (settings.plotType !== 5) invalid('paper PNG export requires the layout plot area');
+    let resolved;
+    try {
+        resolved = resolvePlotScale(settings, {
+            printableWidth,
+            printableHeight,
+            sourceWidth: plotWidth,
+            sourceHeight: plotHeight,
+            isModel: model
+        });
+    } catch (error) {
+        invalid(error instanceof Error ? error.message : 'invalid plot scale');
+    }
+    const scale = resolved.millimetersPerDrawingUnit, originX = resolved.originX, originY = resolved.originY;
+    if (!model) {
+        minimumX = originX === 0 ? 0 : -originX / scale;
+        minimumY = originY === 0 ? 0 : -originY / scale;
+        maximumX = printableWidth / scale - originX / scale;
+        maximumY = printableHeight / scale - originY / scale;
+    }
     const paperAspect = paperWidth / paperHeight;
     const width = Math.max(1, Math.round(paperAspect >= 1 ? maxEdge : maxEdge * paperAspect));
     const height = Math.max(1, Math.round(paperAspect >= 1 ? maxEdge / paperAspect : maxEdge));

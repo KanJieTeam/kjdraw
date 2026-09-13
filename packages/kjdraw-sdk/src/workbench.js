@@ -3704,9 +3704,9 @@ export class KJDrawWorkbench {
             }
             const scale = query(dialog, '[data-page-scale-mode]');
             if (scale.value === 'fit' && scale.value !== scale.dataset.initial) {
-                patch.flags = (binding.settings.flags ?? 688) | 16;
+                patch.flags = (binding.settings.flags ?? 0) & 1024 | 20;
                 patch.standardScaleType = 0;
-            } else if (scale.value === 'custom' && scale.value !== scale.dataset.initial || patch.scaleNumerator !== undefined || patch.scaleDenominator !== undefined) patch.flags = (binding.settings.flags ?? 688) & ~16;
+            } else if (scale.value === 'custom' && scale.value !== scale.dataset.initial || patch.scaleNumerator !== undefined || patch.scaleDenominator !== undefined) patch.flags = (binding.settings.flags ?? 0) & (4 | 1024);
             if (Object.keys(patch).length) await this.execute('PAGESETUP', {
                 layoutId: binding.layoutId,
                 dxf: patch

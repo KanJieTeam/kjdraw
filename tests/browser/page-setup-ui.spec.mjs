@@ -43,7 +43,7 @@ test('page setup edits selected paper settings through real controls, history an
   await dialog(page).getByRole('button', { name: 'Apply', exact: true }).click()
   await expect(dialog(page)).not.toBeVisible()
   const after = await values(page), actual = after.pages.find(p => p[0] === 'Custom sheet')[1]
-  expect(actual).toEqual({ paperWidth: 594, paperHeight: 841, marginLeft: 7.5, marginTop: 14, paperUnits: 1, rotation: 1, flags: 164, scaleNumerator: 1, scaleDenominator: 100, styleSheet: 'original.ctb' })
+  expect(actual).toEqual({ paperWidth: 594, paperHeight: 841, marginLeft: 7.5, marginTop: 14, paperUnits: 1, rotation: 1, flags: 4, scaleNumerator: 1, scaleDenominator: 100, styleSheet: 'original.ctb' })
   expect(after.line).toEqual(before.line); expect(after.pages.find(p => p[0] === 'Empty sheet')).toEqual(before.pages.find(p => p[0] === 'Empty sheet'))
   await page.evaluate(() => window.pageEditor.undo()); expect((await values(page)).pages).toEqual(before.pages)
   await page.evaluate(() => window.pageEditor.redo()); expect((await values(page)).pages).toEqual(after.pages)
@@ -115,7 +115,7 @@ test('window plotting, physical offsets and fit/custom scale survive UI edits, h
   await dialog(page).getByRole('button', { name: 'Apply', exact: true }).click()
   await expect(dialog(page)).not.toBeVisible()
   const after = await values(page), settings = after.pages.find(p => p[0] === 'Custom sheet')[1]
-  expect(settings).toEqual({ ...before.pages.find(p => p[0] === 'Custom sheet')[1], plotType: 4, windowMinX: -20, windowMinY: -30, windowMaxX: 125, windowMaxY: 250, originX: -2.5, originY: 3.5, standardScaleType: 0 })
+  expect(settings).toEqual({ ...before.pages.find(p => p[0] === 'Custom sheet')[1], plotType: 4, windowMinX: -20, windowMinY: -30, windowMaxX: 125, windowMaxY: 250, originX: -2.5, originY: 3.5, flags: 20, standardScaleType: 0 })
   expect(after.line).toEqual(before.line)
   expect(after.pages.filter(p => p[0] !== 'Custom sheet')).toEqual(before.pages.filter(p => p[0] !== 'Custom sheet'))
   await page.evaluate(() => window.pageEditor.undo()); expect((await values(page)).pages).toEqual(before.pages)
@@ -131,14 +131,39 @@ test('window plotting, physical offsets and fit/custom scale survive UI edits, h
     return session.call('cad_read_layouts', { expectedRevision: editor.document.revision, offset: 0, limit: 20, maxBytes: 4096 })
   })
   expect(read.ok).toBe(true)
-  expect(read.value.layouts.find(l => l.name === 'Custom sheet').pageSettings).toMatchObject({ plotType: 4, windowMinX: -20, windowMaxY: 250, flags: 180, standardScaleType: 0 })
+  expect(read.value.layouts.find(l => l.name === 'Custom sheet').pageSettings).toMatchObject({ plotType: 4, windowMinX: -20, windowMaxY: 250, flags: 20, standardScaleType: 0 })
   await open(page); await expect(page.locator('[data-page-scale-mode]')).toHaveValue('fit')
   const noOp = await values(page)
   await dialog(page).getByRole('button', { name: 'Apply', exact: true }).click(); expect(await values(page)).toEqual(noOp)
   await open(page); await page.locator('[data-page-scale-mode]').selectOption('custom')
   await field(page, 'scaleDenominator').fill('200')
   await dialog(page).getByRole('button', { name: 'Apply', exact: true }).click()
-  expect((await values(page)).pages.find(p => p[0] === 'Custom sheet')[1]).toEqual({ ...settings, flags: 164, scaleDenominator: 200 })
+  expect((await values(page)).pages.find(p => p[0] === 'Custom sheet')[1]).toEqual({ ...settings, flags: 4, scaleDenominator: 200 })
+})
+
+test('Workbench fit mode produces a centered physical model-window SVG and survives history', async ({ page }) => {
+  await mount(page)
+  const modelName = (await values(page)).pages[0][0]
+  await open(page, modelName)
+  await field(page, 'plotType').selectOption('4')
+  for (const [key, value] of Object.entries({ paperWidth:210, paperHeight:100, marginLeft:10, marginRight:10, marginTop:10, marginBottom:10, windowMinX:100, windowMinY:200, windowMaxX:200, windowMaxY:250, originX:0, originY:0 })) await field(page, key).fill(String(value))
+  await field(page, 'paperUnits').selectOption('1')
+  await page.locator('[data-page-scale-mode]').selectOption('fit')
+  await dialog(page).getByRole('button', { name: 'Apply', exact: true }).click()
+  await expect(dialog(page)).not.toBeVisible()
+  const output = async () => page.evaluate(async () => {
+    const { exportDrawingSvg } = await import('/packages/kjdraw-sdk/src/svg-export.js')
+    const drawing = window.pageEditor.document, layoutId = drawing.snapshot().spaces.layoutIds[0]
+    const result = exportDrawingSvg(drawing, { layoutId })
+    return { settings:drawing.getObject(layoutId).payload.dxfPlotSettings, scale:result.paper.millimetersPerDrawingUnit, origin:result.plot.plotOriginMm, matrix:result.plot.drawingToPaperMatrix }
+  })
+  const fitted = await output()
+  expect(fitted.settings).toMatchObject({ flags:20, standardScaleType:0, plotType:4 })
+  expect(fitted.scale).toBeCloseTo(1.6, 12); expect(fitted.origin).toEqual([25,10]); expect(fitted.matrix[0]).toBeCloseTo(1.6, 12)
+  await page.evaluate(() => window.pageEditor.undo())
+  expect((await values(page)).pages[0][1]).toBeUndefined()
+  await page.evaluate(() => window.pageEditor.redo())
+  expect((await output()).origin).toEqual([25,10])
 })
 
 test('plot windows reject missing and reversed coordinates; named views require a name', async ({ page }) => {
