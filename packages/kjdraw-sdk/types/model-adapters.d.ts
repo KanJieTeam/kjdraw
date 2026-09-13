@@ -42,7 +42,9 @@ export interface KJAgentModel {
 export interface KJModelConversationOptions {
     readonly instructions: string;
     readonly tools: readonly KJAgentToolDefinition[];
-    /** One observation per received transport response, even when response parsing later fails. Exceptions are isolated. */
+    /** Visible text fragments from a configured streaming Chat Completions response. Observer failures are isolated. */
+    readonly onTextDelta?: (delta: string) => void;
+    /** One observation per completed model turn, even when response parsing later fails. Exceptions are isolated. */
     readonly onUsage?: (usage: KJModelUsage) => void;
 }
 export interface KJModelRequest {
@@ -55,11 +57,17 @@ export interface KJModelRequest {
 export interface KJModelAdapterOptions {
     protocol: KJModelProtocol;
     model: string;
-    /** Trusted host transport owns credentials, endpoint allowlisting and HTTP errors; return parsed, non-streaming JSON. */
-    request: (request: KJModelRequest) => Promise<unknown>;
+    /** Trusted host transport owns credentials, endpoint allowlisting and HTTP errors; return parsed JSON or parsed JSON chunks for configured Chat streaming. */
+    request: (request: KJModelRequest) => Promise<unknown | AsyncIterable<unknown>>;
     maxOutputTokens?: number;
     /** Compatible endpoints differ; choose the field accepted by the selected model. */
     chatTokenParameter?: 'max_tokens' | 'max_completion_tokens';
+    /** Request and strictly assemble Chat Completions deltas. The transport parses SSE and yields each JSON data object. */
+    chatStreaming?: boolean;
+    /** Ask compatible endpoints for a final usage chunk; keep disabled for endpoints that reject stream_options. */
+    chatStreamIncludeUsage?: boolean;
+    /** Send tool_stream=true for compatible endpoints that require it for incremental tool arguments. */
+    chatStreamToolCalls?: boolean;
     maxResponseBytes?: number;
     maxHistoryBytes?: number;
     /** Host-only observer; contains counters and timing, never response text or credentials. Exceptions are isolated. */

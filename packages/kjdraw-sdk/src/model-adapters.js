@@ -230,6 +230,130 @@ function notifyUsage(observer, usage) {
         void Promise.resolve(observer?.(usage)).catch(()=>{});
     } catch  {}
 }
+function notifyText(observer, delta) {
+    if (!delta) return;
+    try {
+        void Promise.resolve(observer?.(delta)).catch(()=>{});
+    } catch  {}
+}
+function isAsyncIterable(value) {
+    return !!value && typeof value === 'object' && typeof value[Symbol.asyncIterator] === 'function';
+}
+async function assembleChatStream(source, maximumBytes, signal, onTextDelta) {
+    if (!isAsyncIterable(source)) invalid('Streaming Chat transport must return an async iterable of parsed JSON chunks');
+    const tools = new Map();
+    let bytes = 0, text = '', reasoning = '', finishReason = null, usage, chunks = 0;
+    for await (const rawChunk of source){
+        signal.throwIfAborted();
+        const serialized = JSON.stringify(rawChunk);
+        if (!serialized) invalid('Streaming Chat chunk must be JSON serializable');
+        bytes += new TextEncoder().encode(serialized).length;
+        if (bytes > maximumBytes) throw new KJModelError('KJMODEL_SIZE_LIMIT', 'Model response or conversation exceeds its configured JSON byte limit');
+        const chunk = record(JSON.parse(serialized));
+        chunks++;
+        if (Object.prototype.hasOwnProperty.call(chunk, 'usage') && chunk.usage !== null) {
+            if (usage !== undefined) invalid('Streaming Chat response contains duplicate usage chunks');
+            usage = chunk.usage;
+        }
+        const choices = array(chunk.choices);
+        if (!choices.length) {
+            if (chunk.usage === undefined || chunk.usage === null) invalid('Empty Streaming Chat choices require a usage observation');
+            continue;
+        }
+        if (choices.length !== 1) invalid('Expected exactly one streaming model choice');
+        if (finishReason !== null) invalid('Streaming Chat emitted model deltas after its finish reason');
+        const choice = record(choices[0]);
+        if (choice.index !== 0) invalid('Streaming Chat choice index must be zero');
+        const delta = record(choice.delta);
+        if (delta.role !== undefined && delta.role !== null && delta.role !== 'assistant') invalid('Expected streaming assistant deltas');
+        if (delta.refusal !== undefined && delta.refusal !== null) {
+            if (typeof delta.refusal !== 'string') invalid('Invalid streaming refusal');
+            if (delta.refusal) throw new KJModelError('KJMODEL_REFUSED', 'The model refused this request');
+        }
+        if (delta.content !== undefined && delta.content !== null) {
+            if (typeof delta.content !== 'string') invalid('Only streaming text and function-call deltas are supported');
+            text += delta.content;
+            notifyText(onTextDelta, delta.content);
+        }
+        if (delta.reasoning_content !== undefined && delta.reasoning_content !== null) {
+            if (typeof delta.reasoning_content !== 'string') invalid('Invalid streaming reasoning content');
+            reasoning += delta.reasoning_content;
+        }
+        if (delta.tool_calls !== undefined && delta.tool_calls !== null) {
+            for (const rawTool of array(delta.tool_calls)){
+                const tool = record(rawTool);
+                if (!Number.isSafeInteger(tool.index) || tool.index < 0 || tool.index > 15) invalid('Invalid streaming tool-call index');
+                const index = tool.index;
+                const current = tools.get(index) ?? {
+                    name: '',
+                    arguments: ''
+                };
+                if (tool.id !== undefined && tool.id !== null) {
+                    const id = identifier(tool.id);
+                    if (current.id !== undefined && current.id !== id) invalid('Streaming tool-call ID changed between chunks');
+                    current.id = id;
+                }
+                if (tool.type !== undefined && tool.type !== null) {
+                    if (tool.type !== 'function' || current.type !== undefined && current.type !== tool.type) invalid('Unsupported streaming chat tool type');
+                    current.type = tool.type;
+                }
+                if (tool.function !== undefined && tool.function !== null) {
+                    const fn = record(tool.function);
+                    if (fn.name !== undefined && fn.name !== null) {
+                        if (typeof fn.name !== 'string') invalid('Invalid streaming tool name fragment');
+                        current.name += fn.name;
+                    }
+                    if (fn.arguments !== undefined && fn.arguments !== null) {
+                        if (typeof fn.arguments !== 'string') invalid('Invalid streaming tool arguments fragment');
+                        current.arguments += fn.arguments;
+                    }
+                }
+                tools.set(index, current);
+            }
+        }
+        if (choice.finish_reason !== undefined && choice.finish_reason !== null) finishReason = choice.finish_reason;
+    }
+    signal.throwIfAborted();
+    if (!chunks || ![
+        'stop',
+        'tool_calls'
+    ].includes(String(finishReason))) throw new KJModelError('KJMODEL_INCOMPLETE', 'Streaming Chat response is truncated, blocked or incomplete');
+    const indexes = [
+        ...tools.keys()
+    ].sort((left, right)=>left - right);
+    if (indexes.some((value, index)=>value !== index)) invalid('Streaming tool-call indexes must be contiguous');
+    const toolCalls = indexes.map((index)=>{
+        const tool = tools.get(index);
+        if (!tool.id || !tool.name) invalid('Streaming tool call is missing its ID or name');
+        return {
+            id: tool.id,
+            type: tool.type ?? 'function',
+            function: {
+                name: identifier(tool.name),
+                arguments: tool.arguments
+            }
+        };
+    });
+    if (finishReason === 'tool_calls' && !toolCalls.length) invalid('Chat finish reason requires tool calls');
+    const message = {
+        role: 'assistant',
+        content: text || null,
+        tool_calls: toolCalls
+    };
+    if (reasoning) message.reasoning_content = reasoning;
+    return {
+        choices: [
+            {
+                index: 0,
+                finish_reason: finishReason,
+                message
+            }
+        ],
+        ...usage === undefined ? {} : {
+            usage
+        }
+    };
+}
 export function createKJModelAdapter(options) {
     const { protocol, request, onUsage: adapterUsage } = options;
     if (![
@@ -246,10 +370,15 @@ export function createKJModelAdapter(options) {
         'max_tokens',
         'max_completion_tokens'
     ].includes(chatTokenParameter)) invalid('Unsupported chat token-limit field');
+    const chatStreaming = options.chatStreaming ?? false;
+    const chatStreamIncludeUsage = options.chatStreamIncludeUsage ?? false;
+    const chatStreamToolCalls = options.chatStreamToolCalls ?? false;
+    if (typeof chatStreaming !== 'boolean' || typeof chatStreamIncludeUsage !== 'boolean' || typeof chatStreamToolCalls !== 'boolean' || (chatStreaming || chatStreamIncludeUsage || chatStreamToolCalls) && protocol !== 'chat-completions' || (chatStreamIncludeUsage || chatStreamToolCalls) && !chatStreaming) invalid('Chat streaming options require the Chat Completions protocol');
     const responseBytes = limit(options.maxResponseBytes, 1048576, 16777216);
     const historyBytes = limit(options.maxHistoryBytes, 2097152, 16777216);
     return Object.freeze({
-        createConversation ({ instructions, tools, onUsage }) {
+        createConversation ({ instructions, tools, onTextDelta, onUsage }) {
+            if (onTextDelta !== undefined && typeof onTextDelta !== 'function') invalid('onTextDelta must be a function');
             if (onUsage !== undefined && typeof onUsage !== 'function') invalid('onUsage must be a function');
             const definitions = tools.map((tool)=>({
                     name: tool.name,
@@ -402,7 +531,15 @@ export function createKJModelAdapter(options) {
                                     function: tool
                                 })),
                             [chatTokenParameter]: outputTokens,
-                            stream: false
+                            stream: chatStreaming,
+                            ...chatStreamIncludeUsage ? {
+                                stream_options: {
+                                    include_usage: true
+                                }
+                            } : {},
+                            ...chatStreamToolCalls ? {
+                                tool_stream: true
+                            } : {}
                         };
                         else if (protocol === 'anthropic-messages') body = {
                             model,
@@ -441,12 +578,14 @@ export function createKJModelAdapter(options) {
                         };
                         const outgoing = deepFreeze(jsonCopy(body, historyBytes));
                         const startedAt = performance.now();
-                        const rawResponse = await request({
+                        const responseSource = await request({
                             protocol,
                             model,
                             body: outgoing,
                             signal
                         });
+                        const rawResponse = chatStreaming ? await assembleChatStream(responseSource, responseBytes, signal, onTextDelta) : responseSource;
+                        if (!chatStreaming && isAsyncIterable(rawResponse)) invalid('Non-streaming model transport returned an async iterable');
                         const usage = extractKJModelUsage(protocol, rawResponse, {
                             latencyMs: Math.max(0, performance.now() - startedAt)
                         });

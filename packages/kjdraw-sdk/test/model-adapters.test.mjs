@@ -491,3 +491,88 @@ test('Chat stop compatibility does not accept incomplete, refused, empty or stru
   assert.equal(result.status, 'limit-reached'); assert.equal(result.outputs[0].result.ok, false)
   assert.equal(result.proposalIds.length, 0); assert.equal(document.revision, 0)
 })
+
+const streamed = chunks => (async function * () { for (const chunk of chunks) yield chunk })()
+const streamChoice = (delta, finish_reason = null) => ({ choices: [{ index: 0, delta, finish_reason }], usage: null })
+
+test('streaming Chat assembles fragmented OpenAI-compatible tool calls, visible text and reported usage', async () => {
+  const { session } = fixture()
+  const definition = session.definitions.find(tool => tool.name === 'cad_read_drawing')
+  const deltas = [], observed = []
+  let requestNumber = 0
+  const model = createKJModelAdapter({
+    protocol: 'chat-completions', model: 'domestic-compatible-stream', chatStreaming: true, chatStreamIncludeUsage: true, chatStreamToolCalls: true,
+    request: async ({ body }) => {
+      assert.equal(body.stream, true)
+      assert.deepEqual(body.stream_options, { include_usage: true })
+      assert.equal(body.tool_stream, true)
+      assert.equal(body.max_tokens, 4096)
+      if (requestNumber++ === 0) return streamed([
+        streamChoice({ role: 'assistant', reasoning_content: 'private-', tool_calls: [{ index: 0, id: 'read', type: 'function', function: { name: 'cad_read_', arguments: '{' } }] }),
+        streamChoice({ role: null, content: null, reasoning_content: 'reasoning', tool_calls: [{ index: 0, id: null, type: null, function: { name: 'drawing', arguments: '}' } }] }),
+        { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 90, completion_tokens: 10, total_tokens: 100, prompt_cache_hit_tokens: 60, prompt_cache_miss_tokens: 30 } },
+      ])
+      assert.equal(body.messages.at(-2).reasoning_content, 'private-reasoning')
+      assert.equal(body.messages.at(-2).tool_calls[0].function.name, 'cad_read_drawing')
+      assert.equal(body.messages.at(-1).tool_call_id, 'read')
+      return streamed([
+        streamChoice({ role: 'assistant', content: 'Drawing ', reasoning_content: null, tool_calls: null }),
+        streamChoice({ content: 'ready.' }),
+        streamChoice({}, 'stop'),
+        { choices: [], usage: { prompt_tokens: 120, completion_tokens: 5, total_tokens: 125, prompt_cache_hit_tokens: 100, prompt_cache_miss_tokens: 20 } },
+      ])
+    },
+  })
+  const conversation = model.createConversation({ instructions: 'Read safely.', tools: [definition], onTextDelta: delta => deltas.push(delta), onUsage: usage => observed.push(usage) })
+  const first = await conversation.next({ kind: 'prompt', text: 'Inspect this drawing.' }, new AbortController().signal)
+  assert.equal(first.text, '')
+  assert.deepEqual(first.calls, [{ id: 'read', name: 'cad_read_drawing', arguments: {} }])
+  assert.equal(first.usage.totalTokens, 100); assert.equal(first.usage.cacheReadInputTokens, 60); assert.equal(first.usage.cacheMissInputTokens, 30)
+  const result = await session.call(first.calls[0].name, first.calls[0].arguments)
+  const second = await conversation.next({ kind: 'tool-results', results: [{ id: 'read', name: 'cad_read_drawing', result }] }, new AbortController().signal)
+  assert.equal(second.text, 'Drawing ready.'); assert.deepEqual(second.calls, [])
+  assert.deepEqual(deltas, ['Drawing ', 'ready.'])
+  assert.deepEqual(observed.map(item => item.totalTokens), [100, 125])
+})
+
+test('streaming Chat keeps endpoint parameter choices explicit and isolates text observers', async () => {
+  let seen
+  const model = createKJModelAdapter({ protocol: 'chat-completions', model: 'openai-compatible-stream', chatTokenParameter: 'max_completion_tokens', chatStreaming: true, request: async ({ body }) => {
+    seen = body
+    return streamed([streamChoice({ role: 'assistant', content: 'ok' }), streamChoice({}, 'stop')])
+  } })
+  const conversation = model.createConversation({ instructions: 'Answer.', tools: [], onTextDelta() { throw new Error('observer failure') } })
+  const turn = await conversation.next({ kind: 'prompt', text: 'status' }, new AbortController().signal)
+  assert.equal(turn.text, 'ok')
+  assert.equal(seen.stream, true); assert.equal(seen.max_completion_tokens, 4096); assert.equal('max_tokens' in seen, false); assert.equal('stream_options' in seen, false); assert.equal('tool_stream' in seen, false)
+})
+
+test('streaming Chat rejects truncated or ambiguous tool deltas before dispatch', async () => {
+  const cases = [
+    ['not iterable', async () => wire('chat-completions', [call('read', 'cad_read_drawing')])],
+    ['truncated', async () => streamed([streamChoice({ tool_calls: [{ index: 0, id: 'read', type: 'function', function: { name: 'cad_read_drawing', arguments: '{}' } }] })])],
+    ['index gap', async () => streamed([streamChoice({ tool_calls: [{ index: 1, id: 'read', type: 'function', function: { name: 'cad_read_drawing', arguments: '{}' } }] }), streamChoice({}, 'tool_calls')])],
+    ['changed id', async () => streamed([streamChoice({ tool_calls: [{ index: 0, id: 'read-a', function: { name: 'cad_read_drawing', arguments: '{}' } }] }), streamChoice({ tool_calls: [{ index: 0, id: 'read-b' }] }), streamChoice({}, 'tool_calls')])],
+    ['delta after finish', async () => streamed([streamChoice({}, 'stop'), streamChoice({ content: 'late' })])],
+    ['empty final usage', async () => streamed([streamChoice({ content: 'ok' }), streamChoice({}, 'stop'), { choices: [], usage: null }])],
+  ]
+  for (const [name, request] of cases) {
+    const { session, document } = fixture(), before = document.serialize()
+    const result = await runKJAgentTask({ session, prompt: 'inspect', model: createKJModelAdapter({ protocol: 'chat-completions', model: 'invalid-stream', chatStreaming: true, request }) })
+    assert.equal(result.status, 'failed', name); assert.equal(result.toolCalls, 0, name); assert.equal(document.serialize(), before, name)
+  }
+  const nonStreaming = createKJModelAdapter({ protocol: 'chat-completions', model: 'wrong-transport', request: async () => streamed([streamChoice({ content: 'ok' }, 'stop')]) })
+  assert.equal((await runKJAgentTask({ session: fixture().session, prompt: 'inspect', model: nonStreaming })).status, 'failed')
+})
+
+test('streaming options are protocol-bound and response byte limits cover all chunks', async () => {
+  for (const options of [
+    { protocol: 'responses', chatStreaming: true },
+    { protocol: 'chat-completions', chatStreamIncludeUsage: true },
+    { protocol: 'chat-completions', chatStreamToolCalls: true },
+    { protocol: 'chat-completions', chatStreaming: 'yes' },
+  ]) assert.throws(() => createKJModelAdapter({ ...options, model: 'invalid-stream-config', request: async () => ({}) }), /Chat streaming/)
+  const model = createKJModelAdapter({ protocol: 'chat-completions', model: 'bounded-stream', chatStreaming: true, maxResponseBytes: 100, request: async () => streamed([streamChoice({ content: 'x'.repeat(200) }, 'stop')]) })
+  const result = await runKJAgentTask({ session: fixture().session, prompt: 'inspect', model })
+  assert.equal(result.status, 'failed'); assert.equal(result.error.code, 'KJMODEL_SIZE_LIMIT'); assert.equal(result.toolCalls, 0)
+})
