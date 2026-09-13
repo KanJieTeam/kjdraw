@@ -351,6 +351,27 @@ function validateStretchArguments(args) {
     if (args.crossingStart[0] === args.crossingEnd[0] || args.crossingStart[1] === args.crossingEnd[1]) throw new KJValidationError('STRETCH crossing window must have positive width and height');
     if (typeof args.dx !== 'number' || typeof args.dy !== 'number' || !Number.isFinite(args.dx) || !Number.isFinite(args.dy) || Math.abs(args.dx) > 1e12 || Math.abs(args.dy) > 1e12 || args.dx === 0 && args.dy === 0) throw new KJValidationError('STRETCH preview requires a bounded nonzero XY displacement');
 }
+function validateOffsetPreview(document, args) {
+    if (Object.keys(args).some((key)=>![
+            'id',
+            'distance',
+            'sidePoint',
+            'resultId'
+        ].includes(key))) throw new KJValidationError('Unexpected OFFSET preview argument');
+    if (typeof args.id !== 'string' || !args.id) throw new KJValidationError('OFFSET preview requires one entity ID');
+    if (typeof args.resultId !== 'string' || !args.resultId || args.resultId === args.id || document.getObject(args.resultId)) throw new KJValidationError('OFFSET preview requires one unique new result ID');
+    if (typeof args.distance !== 'number' || !Number.isFinite(args.distance) || args.distance <= 0 || args.distance > 1e12) throw new KJValidationError('OFFSET distance must be positive and at most 1000000000000');
+    if (!Array.isArray(args.sidePoint) || args.sidePoint.length !== 2 || args.sidePoint.some((value)=>typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError('OFFSET preview requires one bounded XY side point');
+    const entity = document.getObject(args.id);
+    if (!entity || entity.kind !== 'entity' || ![
+        'LINE',
+        'RAY',
+        'XLINE',
+        'CIRCLE',
+        'ARC'
+    ].includes(entity.type)) throw new KJValidationError('OFFSET preview requires one LINE, RAY, XLINE, CIRCLE or ARC');
+    requireEditableAgentMember(document, entity, 'OFFSET source');
+}
 function validateStretchGeometry(document, entity) {
     const layer = document.getObject(String(entity.payload.layerId ?? ''));
     if (entity.ownerId !== document.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new KJValidationError('STRETCH preview requires visible editable model-space geometry');
@@ -423,6 +444,7 @@ export async function createAgentGeometryPreview(document, command, args, option
         'COPY',
         'ROTATE',
         'SCALE',
+        'OFFSET',
         'STRETCH',
         'LENGTHEN',
         'PEDIT',
@@ -471,6 +493,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     if (command === 'DESIGNUPDATE' && !design) throw new KJValidationError('DESIGNUPDATE requires an existing design');
     const affine = command === 'ROTATE' || command === 'SCALE';
     if (affine) validateTransformArguments(command, args);
+    if (command === 'OFFSET') validateOffsetPreview(document, args);
     if (command === 'STRETCH') validateStretchArguments(args);
     if (command === 'LENGTHEN') validateLengthenPreview(document, args);
     const maxCreatedEntities = options.maxCreatedEntities ?? 64;
@@ -478,7 +501,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     if (command === 'CREATEBATCH') {
         if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some((spec)=>!spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} supported drawing and annotation entities`);
     } else if (command !== 'COMPONENTINSERT') {
-        const ids = bindingIds ?? (design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' ? [
+        const ids = bindingIds ?? (design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' || command === 'OFFSET' ? [
             args.id
         ] : args.ids);
         if (!Array.isArray(ids) || !ids.length || ids.length > 64) throw new KJValidationError('Preview requires 1–64 existing entity IDs');
@@ -494,7 +517,7 @@ export async function createAgentGeometryPreview(document, command, args, option
             if (ids.some((id)=>typeof id !== 'string') || new Set(ids).size !== ids.length) throw new KJValidationError('STRETCH object IDs must be unique strings');
             if (ids.some((id)=>!stretchable.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`STRETCH preview requires 1–64 ${stretchable.join('/')} entities`);
             for (const id of ids)validateStretchGeometry(document, document.getObject(String(id)));
-        } else if (command !== 'LENGTHEN' && command !== 'DESIGNUPDATE' && command !== 'DESIGNCREATE') {
+        } else if (command !== 'LENGTHEN' && command !== 'OFFSET' && command !== 'DESIGNUPDATE' && command !== 'DESIGNCREATE') {
             if (ids.some((id)=>!KJDRAW_AGENT_MOVABLE_TYPES.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`Preview movement requires 1–64 ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} entities`);
             for (const id of ids)validateMovableAnnotation(document, document.getObject(String(id)));
         }
@@ -510,7 +533,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     }
     const source = document.snapshot(), revision = document.revision;
     if (Object.keys(source.objects).length > 250000) throw new KJValidationError('Agent preview exceeds the 250000 object document limit');
-    const ids = bindingIds ?? (design ? design.entityIds : command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? [] : command === 'PEDIT' || command === 'LENGTHEN' ? [
+    const ids = bindingIds ?? (design ? design.entityIds : command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? [] : command === 'PEDIT' || command === 'LENGTHEN' || command === 'OFFSET' ? [
         String(args.id)
     ] : args.ids);
     const blockDependencies = [
@@ -548,7 +571,7 @@ export async function createAgentGeometryPreview(document, command, args, option
             if (command === 'MOVE' || command === 'COPY') validateMovableAnnotation(draft, entity);
             if (affine) validateTransformGeometry(draft, entity);
             if (command === 'LENGTHEN') validateLengthenPreview(draft, args);
-            if (command === 'PEDIT' || command === 'STRETCH' || command === 'LENGTHEN') {
+            if (command === 'PEDIT' || command === 'STRETCH' || command === 'LENGTHEN' || command === 'OFFSET') {
                 const bounds = displayedEntityBounds(draft, entity);
                 if (!bounds || bounds.some((value)=>!Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError(`${command} preview result exceeds the finite ±1e12 display budget`);
             }

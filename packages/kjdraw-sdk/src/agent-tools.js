@@ -456,6 +456,16 @@ const scaleSchema = {
             'selectionSetName'
         ].includes(name))
 };
+const offsetSchema = object({
+    expectedRevision: revision,
+    units: text,
+    id: text,
+    distance: {
+        ...number,
+        exclusiveMinimum: 0
+    },
+    sidePoint: point
+});
 const arraySchema = {
     type: 'array',
     minItems: 0,
@@ -1067,6 +1077,12 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         effect: 'propose',
         description: `Propose positive uniform scaling of one exact target: either 1–64 visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs, or one persistent named selectionSetName discovered with cad_read_selection_sets. Never supply both. The selection set is resolved at the requested revision and retains its membership. HATCH accepts bounded canonical polygon loops and LINE/ARC/ELLIPSE edge loops; a SPLINE loop must contain exactly one semantic closed rational-quadratic circle or ellipse edge, while raw tags and free-form splines are rejected. Selecting either member of one owned native LEADER + MTEXT annotation expands to that exact pair; broken, ambiguous, unowned, cross-space, cross-layer or protected pairs are rejected before a plan exists. Scale around explicit center={x,y}; factor is dimensionless, 0.000001–1000000 excluding 1, with no reflection or nonuniform scaling. Geometry must be default +Z, z=0, within ±1e12; wide polylines and unsupported annotation projections are rejected. Include geometry and annotations together. TEXT height and native linear measurements scale; angular measurements remain unchanged. INSERT keeps definitions unchanged and returns bounded complete blockDependencies. Attributes, reflection, nonuniform scales and external/cyclic/protected block graphs are rejected. Returns exact before/after geometry, resolved selection-set identity and dependencies without editing; host approval applies one undoable transaction.`,
         inputSchema: scaleSchema
+    },
+    {
+        name: 'cad_propose_offset',
+        effect: 'propose',
+        description: 'Propose one exact parallel or concentric copy of a visible editable model-space LINE, RAY, XLINE, CIRCLE or ARC. Supply its exact ID, a positive distance in drawing units and sidePoint={x,y}; the point chooses left/right for linear geometry or inward/outward for circular geometry. The source remains unchanged and the result preserves its native type and editable properties. Degenerate, protected, hidden, paper-space, stale and out-of-range results are rejected. Returns exact source-derived geometry without editing; host approval creates one new entity in one undoable transaction.',
+        inputSchema: offsetSchema
     },
     {
         name: 'cad_propose_stretch',
@@ -2056,6 +2072,28 @@ export class KJAgentToolSession {
                                     }
                                 };
                             }
+                        } else if (name === 'cad_propose_offset') {
+                            const id = String(args.id), context = createDrawingContext(document, {
+                                ids: [
+                                    id
+                                ],
+                                limit: 1,
+                                maxBytes: 262144
+                            });
+                            if (context.entities.length !== 1 || !context.entities[0].editable || ![
+                                'LINE',
+                                'RAY',
+                                'XLINE',
+                                'CIRCLE',
+                                'ARC'
+                            ].includes(context.entities[0].type)) throw new KJValidationError('OFFSET requires one visible editable model-space LINE, RAY, XLINE, CIRCLE or ARC');
+                            command = 'OFFSET';
+                            commandArgs = {
+                                id,
+                                distance: args.distance,
+                                sidePoint: xy(args.sidePoint).slice(0, 2),
+                                resultId: createId('entity')
+                            };
                         } else if (name === 'cad_propose_stretch') {
                             const ids = args.ids;
                             if (new Set(ids).size !== ids.length) throw new KJValidationError('Object IDs must be unique');

@@ -1891,10 +1891,11 @@ export function registerCoreCommands(registry) {
         title: 'Offset entity',
         execute: ({ document, transaction }, args)=>{
             const entity = requiredEntity(document, args.id);
+            if (args.resultId != null && (typeof args.resultId !== 'string' || !args.resultId || document.getObject(args.resultId))) throw new KJValidationError('OFFSET resultId must be one new nonempty entity ID');
             return createDerived(transaction, entity, entity.type, {
                 ...offsetEntityPayload(entity, args.distance, args),
                 ...clone(args.payloadPatch ?? {})
-            });
+            }, args.resultId);
         }
     }, {
         owner: '@kanjieteam/kjdraw'
@@ -3814,8 +3815,11 @@ function rejectAttachedReorganization(document, args, command) {
         if (entity.payload.parentInsertId || entity.type === 'INSERT' && (entity.payload.attributeIds?.length || entity.payload.sequenceEndId)) throw new KJValidationError(`${command} does not yet support attached attribute sequences`);
     }
 }
-function createDerived(transaction, source, type, payload) {
+function createDerived(transaction, source, type, payload, id) {
     return transaction.createEntity(type, payload, {
+        ...id ? {
+            id
+        } : {},
         ownerId: source.ownerId,
         name: source.name,
         extension: source.extension,

@@ -1064,7 +1064,8 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
     id: 'OFFSET', aliases: ['O'], title: 'Offset entity',
     execute: ({ document, transaction }, args) => {
       const entity = requiredEntity(document, args.id)
-      return createDerived(transaction, entity, entity.type, { ...offsetEntityPayload(entity, args.distance, args), ...clone(args.payloadPatch ?? {}) })
+      if (args.resultId != null && (typeof args.resultId !== 'string' || !args.resultId || document.getObject(args.resultId))) throw new KJValidationError('OFFSET resultId must be one new nonempty entity ID')
+      return createDerived(transaction, entity, entity.type, { ...offsetEntityPayload(entity, args.distance, args), ...clone(args.payloadPatch ?? {}) }, args.resultId as string | undefined)
     },
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
@@ -2210,8 +2211,9 @@ function rejectAttachedReorganization(document: KJDocument, args: KJCommandArgum
   }
 }
 
-function createDerived(transaction: KJTransaction, source: KJReadonlyObjectRecord, type: string, payload: KJObjectPayload): KJObjectRecord {
+function createDerived(transaction: KJTransaction, source: KJReadonlyObjectRecord, type: string, payload: KJObjectPayload, id?: string): KJObjectRecord {
   return transaction.createEntity(type, payload, {
+    ...(id ? { id } : {}),
     ownerId: source.ownerId, name: source.name,
     extension: source.extension as unknown as NonNullable<KJObjectSpec['extension']>, source: { derivedFromId: source.id, derivedFromHandle: source.handle },
   })
