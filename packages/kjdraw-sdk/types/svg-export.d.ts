@@ -45,7 +45,7 @@ export interface KJSvgDrawingExport {
         plotOriginMm: readonly [number, number];
         /** Exact source coordinates admitted by the physical page and selected plot range. */
         sourceRange: {
-            kind: 'layout' | 'window';
+            kind: 'layout' | 'window' | 'view';
             minimum: readonly [number, number];
             maximum: readonly [number, number];
         };

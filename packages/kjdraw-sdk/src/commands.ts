@@ -947,7 +947,12 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
           const { windowMinX: x0, windowMinY: y0, windowMaxX: x1, windowMaxY: y1 } = settings
           if (![x0, y0, x1, y1].every(value => typeof value === 'number' && Number.isFinite(value)) || !(x1! > x0! && y1! > y0!)) throw new KJValidationError('Plot window requires four finite coordinates and positive width and height')
         }
-        if (settings.plotType === 3 && changed.some(key => key === 'plotType' || key === 'viewName') && !settings.viewName?.trim()) throw new KJValidationError('Named-view plotting requires a view name')
+        if (settings.plotType === 3 && changed.some(key => key === 'plotType' || key === 'viewName')) {
+          const viewName = settings.viewName?.trim()
+          if (!viewName) throw new KJValidationError('Named-view plotting requires a view name')
+          const views = document.getTable('views')?.records.filter(record => normalizeName(record.name) === normalizeName(viewName)) ?? []
+          if (views.length !== 1) throw new KJValidationError(views.length ? `Named view is ambiguous: ${viewName}` : `Named view does not exist: ${viewName}`)
+        }
         return transaction.updateObject(layout.id, { payload: { dxfPlotSettings: settings } })
       }
       const settings = normalizePlotSettings(args.settings ?? args)

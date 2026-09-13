@@ -2,6 +2,7 @@ import type { KJDocument } from './document.js'
 import type { KJReadonlyObjectRecord } from './schema.js'
 import { KJRevisionConflictError, KJValidationError } from './errors.js'
 import { resolvePhysicalPlotPaper, resolvePlotScale, validatePlotSettings } from './plot-settings.js'
+import { resolveDxfPlotSource } from './plot-range.js'
 import { insertAttributes, isAttachedAttribute } from './attribute-display.js'
 import { layoutCadMText, textFontFamily } from './geometry/text-layout.js'
 import { aciColor } from './canvas-renderer.js'
@@ -28,7 +29,7 @@ export interface KJSvgDrawingExport {
     /** Drawing origin measured from the lower-left paper edge. */
     plotOriginMm: readonly [number, number]
     /** Exact source coordinates admitted by the physical page and selected plot range. */
-    sourceRange: { kind: 'layout' | 'window'; minimum: readonly [number, number]; maximum: readonly [number, number] }
+    sourceRange: { kind: 'layout' | 'window' | 'view'; minimum: readonly [number, number]; maximum: readonly [number, number] }
     /** Drawing XY to SVG paper millimeters, whose origin is the page's upper-left corner. */
     drawingToPaperMatrix: AffineMatrix3
   }
@@ -135,24 +136,23 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
   const { width, height, left, right, top, bottom } = physical
   if (left + right >= width || top + bottom >= height) fail('margins leave no printable area')
   const printableWidth = width - left - right, printableHeight = height - top - bottom
-  const plotType = numeric(settings.plotType, isModel ? -1 : 5)
-  if (plotType !== 4 && !(plotType === 5 && !isModel)) fail('select a paper layout or an explicit model plot window')
-  let x = 0, y = 0, sourceMinimumX = 0, sourceMinimumY = 0, maximumX = 0, maximumY = 0, windowClip = ''
+  let plotSource
+  try { plotSource = resolveDxfPlotSource(document, settings, isModel) }
+  catch (error) { fail(error instanceof Error ? error.message : 'invalid plot source') }
+  let x = 0, y = 0, sourceMinimumX = 0, sourceMinimumY = 0, maximumX = 0, maximumY = 0, plotClip = ''
   let plotWidth: number | undefined, plotHeight: number | undefined
-  if (plotType === 4) {
-    x = numeric(settings.windowMinX); y = numeric(settings.windowMinY)
-    maximumX = numeric(settings.windowMaxX); maximumY = numeric(settings.windowMaxY)
+  if (plotSource.kind !== 'layout') {
+    x = plotSource.minimum[0]; y = plotSource.minimum[1]
+    maximumX = plotSource.maximum[0]; maximumY = plotSource.maximum[1]
     sourceMinimumX = x; sourceMinimumY = y
-    const w = maximumX - x, h = maximumY - y
-    if (w <= 0 || h <= 0) fail('plot window must have positive dimensions')
-    plotWidth = w; plotHeight = h
-    windowClip = `<clipPath id="kj-window" clipPathUnits="userSpaceOnUse"><rect x="${x}" y="${y}" width="${w}" height="${h}"/></clipPath>`
+    plotWidth = plotSource.width; plotHeight = plotSource.height
+    plotClip = `<clipPath id="kj-plot-range" clipPathUnits="userSpaceOnUse"><rect x="${x}" y="${y}" width="${plotWidth}" height="${plotHeight}"/></clipPath>`
   }
   let resolved
   try { resolved = resolvePlotScale(settings, { printableWidth, printableHeight, sourceWidth: plotWidth, sourceHeight: plotHeight, isModel }) }
   catch (error) { fail(error instanceof Error ? error.message : 'invalid plot scale') }
   const scale = resolved.millimetersPerDrawingUnit, originX = resolved.originX, originY = resolved.originY
-  if (plotType === 5) {
+  if (plotSource.kind === 'layout') {
     sourceMinimumX = originX === 0 ? 0 : -originX / scale; sourceMinimumY = originY === 0 ? 0 : -originY / scale
     maximumX = printableWidth / scale - originX / scale; maximumY = printableHeight / scale - originY / scale
   }
@@ -163,7 +163,7 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
   if(allEntities.length>50000)fail('source entity traversal budget exceeded')
   for(const entity of allEntities){const id=String(entity.ownerId);const list=byOwner.get(id)??[];list.push(entity);byOwner.set(id,list)}
   const owned=(id:string)=>(byOwner.get(id)??[]).filter(entity=>!isAttachedAttribute(entity))
-  const definitions = [windowClip], fontIds = new Set<string>()
+  const definitions = [plotClip], fontIds = new Set<string>()
   let work = 0, characters = 0, sequence = 0
   const count = (value: string): string => { characters += value.length; if (characters > 8_388_608) fail('SVG output exceeds the 8 MiB budget'); return value }
   const diagnostic = (entity: KJReadonlyObjectRecord, reason: string) => { report.diagnostics.push({ entityId: entity.id, type: entity.type, reason }) }
@@ -289,7 +289,7 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
   report.status=report.diagnostics.length?'partial':report.approximations.length?'approximate':'complete'
   if(document.snapshot()!==source||document.revision!==revision)throw new KJRevisionConflictError(revision,document.revision)
   if(report.diagnostics.length&&!options.allowPartial)throw new KJValidationError('SVG export refused because visible geometry could not be represented',deepFreeze(report))
-  const svg=`<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${width}mm" height="${height}mm" viewBox="0 0 ${width} ${height}" data-kjdraw-status="${report.status}"><title>${xml(layout.name??'Drawing')}</title><desc>${xml(`KJDraw vector drawing. ${report.status}; ${report.diagnostics.length} omitted objects; ${report.approximations.length} font or marker approximations.`)}</desc><metadata>${xml(JSON.stringify(report))}</metadata><defs><clipPath id="kj-paper" clipPathUnits="userSpaceOnUse"><rect x="${left}" y="${top}" width="${width-left-right}" height="${height-top-bottom}"/></clipPath>${definitions.join('')}</defs><g clip-path="url(#kj-paper)"><g data-space-id="${xml(spaceId)}" transform="matrix(${matrix(pageMatrix)})"${windowClip?' clip-path="url(#kj-window)"':''}>${content}</g></g></svg>`
+  const svg=`<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${width}mm" height="${height}mm" viewBox="0 0 ${width} ${height}" data-kjdraw-status="${report.status}"><title>${xml(layout.name??'Drawing')}</title><desc>${xml(`KJDraw vector drawing. ${report.status}; ${report.diagnostics.length} omitted objects; ${report.approximations.length} font or marker approximations.`)}</desc><metadata>${xml(JSON.stringify(report))}</metadata><defs><clipPath id="kj-paper" clipPathUnits="userSpaceOnUse"><rect x="${left}" y="${top}" width="${width-left-right}" height="${height-top-bottom}"/></clipPath>${definitions.join('')}</defs><g clip-path="url(#kj-paper)"><g data-space-id="${xml(spaceId)}" transform="matrix(${matrix(pageMatrix)})"${plotClip?' clip-path="url(#kj-plot-range)"':''}>${content}</g></g></svg>`
   if(new TextEncoder().encode(svg).length>8_388_608)fail('SVG output exceeds the 8 MiB budget')
-  return deepFreeze({svg,mimeType:'image/svg+xml' as const,documentId:document.id,revision,layoutId:layout.id,paper:{widthMm:width,heightMm:height,millimetersPerDrawingUnit:scale},plot:{printableAreaMm:{minimum:[left,bottom],maximum:[width-right,height-top],width:printableWidth,height:printableHeight},plotOriginMm:[left+originX,bottom+originY],sourceRange:{kind:plotType===4?'window':'layout',minimum:[sourceMinimumX,sourceMinimumY],maximum:[maximumX,maximumY]},drawingToPaperMatrix:pageMatrix},report}) as KJSvgDrawingExport
+  return deepFreeze({svg,mimeType:'image/svg+xml' as const,documentId:document.id,revision,layoutId:layout.id,paper:{widthMm:width,heightMm:height,millimetersPerDrawingUnit:scale},plot:{printableAreaMm:{minimum:[left,bottom],maximum:[width-right,height-top],width:printableWidth,height:printableHeight},plotOriginMm:[left+originX,bottom+originY],sourceRange:{kind:plotSource.kind,minimum:[sourceMinimumX,sourceMinimumY],maximum:[maximumX,maximumY]},drawingToPaperMatrix:pageMatrix},report}) as KJSvgDrawingExport
 }

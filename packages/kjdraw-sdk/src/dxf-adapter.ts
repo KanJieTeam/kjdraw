@@ -245,6 +245,9 @@ interface DxfPayload extends KJObjectPayload {
   yAxis?: Point3
   direction?: Point3
   target?: Point3
+  viewMode?: number
+  renderMode?: number
+  ucsAssociated?: number
   color?: number
   trueColor?: number
   linetypeScale?: number
@@ -884,7 +887,7 @@ function importResourceTables(transaction: KJTransaction, tableRecords: readonly
   }
   for (const record of tableRecords.filter(value => value.type === 'VIEW')) {
     const name = String(first(record, 2, '')).trim()
-    if (name) transaction.upsertTableRecord('views', { name, type: 'VIEW', payload: { center: point(record), height: number(record, 40, 1), width: number(record, 41, 1), direction: point(record, 11, 21, 31), target: point(record, 12, 22, 32), twistAngle: number(record, 50, 0) * Math.PI / 180, dxfFlags: number(record, 70, 0) } })
+    if (name) transaction.upsertTableRecord('views', { name, type: 'VIEW', payload: { center: point(record), height: number(record, 40, 1), width: number(record, 41, 1), direction: point(record, 11, 21, 31), target: point(record, 12, 22, 32), twistAngle: number(record, 50, 0) * Math.PI / 180, viewMode: number(record, 71, 0), renderMode: number(record, 281, 0), ucsAssociated: number(record, 72, 0), dxfFlags: number(record, 70, 0) } })
   }
   return { linetypeIds, textStyleIds, dimensionStyleIds }
 }
@@ -1696,7 +1699,8 @@ function emitViewTable(output: string[], records: readonly DxfNamedRecord[], con
   emitTable(output, 'VIEW', records, context, tableHandle, (record, ownerHandle, version) => {
     const payload = record.payload ?? {}
     emitSymbolTableRecordHeader(output, 'VIEW', record, ownerHandle, version, 'AcDbViewTableRecord')
-    emit(output, 2, record.name); emit(output, 70, payload.dxfFlags ?? 0); emitPoint(output, payload.center ?? [0, 0, 0]); emit(output, 40, payload.height ?? 1); emit(output, 41, payload.width ?? 1); emitPoint(output, payload.direction ?? [0, 0, 1], 11); emitPoint(output, payload.target ?? [0, 0, 0], 12); emit(output, 50, (payload.twistAngle ?? 0) * 180 / Math.PI)
+    emit(output, 2, record.name); emit(output, 70, payload.dxfFlags ?? 0); emitPoint(output, payload.center ?? [0, 0, 0]); emit(output, 40, payload.height ?? 1); emit(output, 41, payload.width ?? 1); emitPoint(output, payload.direction ?? [0, 0, 1], 11); emitPoint(output, payload.target ?? [0, 0, 0], 12); emit(output, 50, (payload.twistAngle ?? 0) * 180 / Math.PI); emit(output, 71, payload.viewMode ?? 0)
+    if (VERSION_RANK[version] >= VERSION_RANK['2000']) { emit(output, 281, payload.renderMode ?? 0); emit(output, 72, payload.ucsAssociated ?? 0) }
   })
 }
 

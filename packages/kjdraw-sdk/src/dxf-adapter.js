@@ -1456,6 +1456,9 @@ function importResourceTables(transaction, tableRecords, document) {
                 direction: point(record, 11, 21, 31),
                 target: point(record, 12, 22, 32),
                 twistAngle: number(record, 50, 0) * Math.PI / 180,
+                viewMode: number(record, 71, 0),
+                renderMode: number(record, 281, 0),
+                ucsAssociated: number(record, 72, 0),
                 dxfFlags: number(record, 70, 0)
             }
         });
@@ -2784,6 +2787,11 @@ function emitViewTable(output, records, context, tableHandle) {
             0
         ], 12);
         emit(output, 50, (payload.twistAngle ?? 0) * 180 / Math.PI);
+        emit(output, 71, payload.viewMode ?? 0);
+        if (VERSION_RANK[version] >= VERSION_RANK['2000']) {
+            emit(output, 281, payload.renderMode ?? 0);
+            emit(output, 72, payload.ucsAssociated ?? 0);
+        }
     });
 }
 function emitBlockRecordTable(output, records, context, tableHandle, layoutHandles) {

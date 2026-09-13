@@ -77,6 +77,7 @@ test('window and named-view page edits reject incomplete or reversed configurati
   await sdk.executeCommand('PAGESETUP', { layoutId: paper.id, dxf: { windowMaxX: 150 } })
   assert.equal(doc.getObject(paper.id).payload.dxfPlotSettings.windowMaxX, 150)
   await sdk.executeCommand('UNDO'); assert.deepEqual(doc.getObject(paper.id).payload.dxfPlotSettings, window)
+  await doc.transact('named plot view', tx => tx.upsertTableRecord('views', { name:'Original View', type:'VIEW', payload:{ center:[0,0,0], width:100, height:100, direction:[0,0,1], target:[0,0,0] } }))
   await sdk.executeCommand('PAGESETUP', { layoutId: paper.id, dxf: { plotType: 3, viewName: 'Original View' } })
   assert.equal(doc.getObject(paper.id).payload.dxfPlotSettings.viewName, 'Original View')
 })

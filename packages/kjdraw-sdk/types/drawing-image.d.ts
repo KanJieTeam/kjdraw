@@ -64,7 +64,7 @@ export interface KJDrawingPngPlan {
         };
         readonly plotOriginPixels: readonly [number, number];
         readonly sourceRange: {
-            readonly kind: 'layout' | 'window';
+            readonly kind: 'layout' | 'window' | 'view';
             readonly minimum: readonly [number, number];
             readonly maximum: readonly [number, number];
         };

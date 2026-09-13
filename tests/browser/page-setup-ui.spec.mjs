@@ -11,6 +11,7 @@ async function mount(page, locale = 'en', theme = 'light') {
     const { createKJDrawSDK, createKJDrawEditor } = await import('/packages/kjdraw-sdk/src/index.js')
     const sdk = createKJDrawSDK(), drawing = sdk.createDocument()
     await drawing.transact('two page configurations', tx => {
+      tx.upsertTableRecord('views', { name:'Original view', type:'VIEW', payload:{ center:[0,0,0], width:100, height:100, direction:[0,0,1], target:[0,0,0] } })
       tx.createLayout({ name: 'Custom sheet', dxfPlotSettings: { paperWidth: 610, paperHeight: 914, marginLeft: 11, marginTop: 14, paperUnits: 0, rotation: 3, flags: 180, scaleNumerator: 1, scaleDenominator: 50, styleSheet: 'original.ctb' } })
       tx.createLayout({ name: 'Empty sheet', dxfPlotSettings: { paperWidth: 148, paperHeight: 210 } })
       tx.createEntity('LINE', { start: [0, 0], end: [100, 200] }, { id: 'unrelated-line' })
@@ -164,6 +165,32 @@ test('Workbench fit mode produces a centered physical model-window SVG and survi
   expect((await values(page)).pages[0][1]).toBeUndefined()
   await page.evaluate(() => window.pageEditor.redo())
   expect((await output()).origin).toEqual([25,10])
+})
+
+test('Workbench named view provides a persisted fit range for a paper layout', async ({ page }) => {
+  await mount(page)
+  await open(page, 'Empty sheet')
+  await field(page, 'plotType').selectOption('3')
+  for (const [key, value] of Object.entries({ paperWidth:210, paperHeight:100, marginLeft:10, marginRight:10, marginTop:10, marginBottom:10, originX:0, originY:0 })) await field(page, key).fill(String(value))
+  await field(page, 'paperUnits').selectOption('1')
+  await field(page, 'viewName').fill('Original view')
+  await page.locator('[data-page-scale-mode]').selectOption('fit')
+  await dialog(page).getByRole('button', { name: 'Apply', exact: true }).click()
+  await expect(dialog(page)).not.toBeVisible()
+  const output = async () => page.evaluate(async () => {
+    const { exportDrawingSvg } = await import('/packages/kjdraw-sdk/src/svg-export.js')
+    const drawing = window.pageEditor.document, layoutId = drawing.snapshot().spaces.layoutIds.find(id => drawing.getObject(id).name === 'Empty sheet')
+    const result = exportDrawingSvg(drawing, { layoutId })
+    return { settings:drawing.getObject(layoutId).payload.dxfPlotSettings, scale:result.paper.millimetersPerDrawingUnit, origin:result.plot.plotOriginMm, source:result.plot.sourceRange }
+  })
+  const fitted = await output()
+  expect(fitted.settings).toMatchObject({ flags:20, standardScaleType:0, plotType:3, viewName:'Original view' })
+  expect(fitted.scale).toBeCloseTo(.8, 12); expect(fitted.origin).toEqual([65,10])
+  expect(fitted.source).toEqual({ kind:'view', minimum:[-50,-50], maximum:[50,50] })
+  await page.evaluate(() => window.pageEditor.undo())
+  expect((await values(page)).pages.find(row => row[0] === 'Empty sheet')[1]).toEqual({ paperWidth:148, paperHeight:210 })
+  await page.evaluate(() => window.pageEditor.redo())
+  expect((await output()).source.kind).toBe('view')
 })
 
 test('plot windows reject missing and reversed coordinates; named views require a name', async ({ page }) => {

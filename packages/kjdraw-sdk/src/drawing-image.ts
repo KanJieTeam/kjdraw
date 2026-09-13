@@ -3,6 +3,7 @@ import type { KJCanvasRenderReport, KJCanvasTheme } from './canvas-renderer.js'
 import type { KJDocument } from './document.js'
 import { KJRevisionConflictError, KJValidationError } from './errors.js'
 import { resolvePhysicalPlotPaper, resolvePlotScale, validatePlotSettings } from './plot-settings.js'
+import { resolveDxfPlotSource } from './plot-range.js'
 import { deepFreeze } from './utils.js'
 
 export interface KJDrawingViewOptions {
@@ -72,7 +73,7 @@ export interface KJDrawingPngPlan {
     }
     readonly plotOriginPixels: readonly [number, number]
     readonly sourceRange: {
-      readonly kind: 'layout' | 'window'
+      readonly kind: 'layout' | 'window' | 'view'
       readonly minimum: readonly [number, number]
       readonly maximum: readonly [number, number]
     }
@@ -209,20 +210,21 @@ export function resolveDrawingPngPlot(drawing: KJDocument, options: Pick<KJDrawi
   const { width: paperWidth, height: paperHeight, left, right, top, bottom } = physical
   const printableWidth = paperWidth - left - right, printableHeight = paperHeight - top - bottom
   if (!(printableWidth > 0) || !(printableHeight > 0)) invalid('margins leave no printable area')
+  let plotSource
+  try { plotSource = resolveDxfPlotSource(drawing, settings, model) }
+  catch (error) { invalid(error instanceof Error ? error.message : 'invalid plot source') }
   let x = 0, y = 0, maximumX = 0, maximumY = 0, minimumX = 0, minimumY = 0
   let plotWidth: number | undefined, plotHeight: number | undefined
-  if (model) {
-    if (settings.plotType !== 4) invalid('model PNG export requires an explicit plot window')
-    x = Number(settings.windowMinX); y = Number(settings.windowMinY)
-    minimumX = x; minimumY = y; maximumX = Number(settings.windowMaxX); maximumY = Number(settings.windowMaxY)
-    plotWidth = maximumX - x; plotHeight = maximumY - y
-    if (!(plotWidth > 0) || !(plotHeight > 0) || ![x, y, maximumX, maximumY].every(Number.isFinite)) invalid('configured plot window must have finite positive extents')
-  } else if (settings.plotType !== 5) invalid('paper PNG export requires the layout plot area')
+  if (plotSource.kind !== 'layout') {
+    x = plotSource.minimum[0]; y = plotSource.minimum[1]
+    minimumX = x; minimumY = y; maximumX = plotSource.maximum[0]; maximumY = plotSource.maximum[1]
+    plotWidth = plotSource.width; plotHeight = plotSource.height
+  }
   let resolved
   try { resolved = resolvePlotScale(settings, { printableWidth, printableHeight, sourceWidth: plotWidth, sourceHeight: plotHeight, isModel: model }) }
   catch (error) { invalid(error instanceof Error ? error.message : 'invalid plot scale') }
   const scale = resolved.millimetersPerDrawingUnit, originX = resolved.originX, originY = resolved.originY
-  if (!model) {
+  if (plotSource.kind === 'layout') {
     minimumX = originX === 0 ? 0 : -originX / scale; minimumY = originY === 0 ? 0 : -originY / scale
     maximumX = printableWidth / scale - originX / scale; maximumY = printableHeight / scale - originY / scale
   }
@@ -251,7 +253,7 @@ export function resolveDrawingPngPlot(drawing: KJDocument, options: Pick<KJDrawi
     plot: {
       printableAreaPixels,
       plotOriginPixels: [matrix[4] + a * x, matrix[5] - a * y] as const,
-      sourceRange: { kind: model ? 'window' as const : 'layout' as const, minimum: [minimumX, minimumY] as const, maximum: [maximumX, maximumY] as const },
+      sourceRange: { kind: plotSource.kind, minimum: [minimumX, minimumY] as const, maximum: [maximumX, maximumY] as const },
       drawingToPixelMatrix: matrix,
     },
   }) as KJDrawingPngPlan
@@ -266,7 +268,7 @@ export async function exportDrawingPng(drawing: KJDocument, options: KJDrawingPn
   const point = (x: number, y: number): [number, number] => [matrix[0] * x + matrix[2] * y + matrix[4], matrix[1] * x + matrix[3] * y + matrix[5]]
   const [minimumX, minimumY] = plan.plot.sourceRange.minimum
   const [maximumX, maximumY] = plan.plot.sourceRange.maximum
-  const clipPixels = plan.coordinateSystem === 'modelXY'
+  const clipPixels = plan.plot.sourceRange.kind !== 'layout'
     ? [...point(minimumX, maximumY), ...point(maximumX, minimumY)] as [number, number, number, number]
     : [...plan.plot.printableAreaPixels.minimum, ...plan.plot.printableAreaPixels.maximum] as [number, number, number, number]
   const projection: KJCaptureProjection = {
