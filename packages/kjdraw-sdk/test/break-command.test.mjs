@@ -109,6 +109,39 @@ test('BREAK CIRCLE creates two ordered native arcs and migrates only uniquely ow
   assert.equal(result.status, 0, result.stderr); assert.deepEqual(JSON.parse(result.stdout.trim()), { arcs: 2, circles: 0, errors: 0, fixes: 0 })
 })
 
+test('BREAK preserves native partial and full ellipses through membership, history and independent DXF reopen', async () => {
+  const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'break-ellipse', units: 'millimeter' })
+  const partial = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: { center: [0, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI, color: 3 } })
+  const full = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: { center: [30, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2, lineweight: 35 } })
+  const group = await sdk.executeCommand('GROUP', { name: 'Elliptical profiles', ids: [partial.id, full.id] })
+  sdk.activeSelection.replace([partial.id, full.id]); const saved = await sdk.getSelectionManager().saveNamed('Elliptical break set')
+  const source = records(drawing)
+  const preview = breakEntityPayloads(partial, { point: [0, 5], tolerance: 1e-9 })
+  assert.deepEqual(preview.map(piece => [piece.type, piece.payload.startParameter, piece.payload.endParameter]), [
+    ['ELLIPSE', 0, Math.PI / 2], ['ELLIPSE', Math.PI / 2, Math.PI],
+  ])
+  const partialPieces = await sdk.executeCommand('BREAK', { id: partial.id, point: [0, 5], tolerance: 1e-9 })
+  const fullPieces = await sdk.executeCommand('BREAK', { id: full.id, firstPoint: [40, 0], secondPoint: [30, 5], tolerance: 1e-9 })
+  assert.equal(partialPieces[0].id, partial.id); assert.equal(fullPieces[0].id, full.id)
+  assert.deepEqual(fullPieces.map(piece => [piece.payload.startParameter, piece.payload.endParameter]), [[0, Math.PI / 2], [Math.PI / 2, Math.PI * 2]])
+  for (const pieces of [partialPieces, fullPieces]) assert.ok(pieces.every(piece => piece.type === 'ELLIPSE' && piece.payload.majorAxis[0] === 10 && piece.payload.ratio === .5))
+  const ids = [...partialPieces, ...fullPieces].map(piece => piece.id)
+  assert.deepEqual(drawing.getObject(group.id).payload.memberIds, ids)
+  assert.deepEqual(drawing.getObject(saved.id).payload.memberIds, ids)
+  const committed = records(drawing)
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(drawing, { format, ...(format === 'DXF' ? { version: '2018' } : {}) }), { format })
+    assert.equal(reopened.listEntities({ type: 'ELLIPSE' }).length, 4)
+  }
+  const dxf = await sdk.writeDocument(drawing, { format: 'DXF', version: '2018' }), python = process.env.KJDRAW_PYTHON || 'python'
+  const result = spawnSyncWithFileStdin(python, ['-c', 'import io,json,ezdxf,sys,os; p=os.environ.get("KJDRAW_FILE_STDIN_PATH"); s=open(p,encoding="utf-8").read() if p else sys.stdin.read(); d=ezdxf.read(io.StringIO(s)); a=d.audit(); es=list(d.modelspace().query("ELLIPSE")); print(json.dumps({"ellipses":len(es),"spans":[e.dxf.end_param-e.dxf.start_param for e in es],"errors":len(a.errors),"fixes":len(a.fixes)}))'], dxf, { encoding: 'utf8', windowsHide: true })
+  assert.equal(result.status, 0, result.stderr)
+  const audited = JSON.parse(result.stdout.trim()); assert.equal(audited.ellipses, 4); assert.equal(audited.errors, 0); assert.equal(audited.fixes, 0)
+  assert.ok(audited.spans.every(span => span > 0 && span < Math.PI * 2))
+  await sdk.executeCommand('UNDO'); await sdk.executeCommand('UNDO'); assert.deepEqual(records(drawing), source)
+  await sdk.executeCommand('REDO'); await sdk.executeCommand('REDO'); assert.deepEqual(records(drawing), committed)
+})
+
 test('BREAK rejects ambiguous seams, invalid topology and protected entities without revision or history changes', async t => {
   await t.test('circle seam association', async () => {
     const sdk = createKJDrawSDK(), drawing = sdk.createDocument()
@@ -146,6 +179,19 @@ test('BREAK rejects ambiguous seams, invalid topology and protected entities wit
       const target = await sdk.executeCommand('CREATE', { type: 'POLYLINE', payload: { vertices, dxfFlags: 0 } })
       const before = drawing.serialize(), revision = drawing.revision
       await assert.rejects(sdk.executeCommand('BREAK', { id: target.id, point: [5, 0], tolerance: 0.1 }), KJValidationError)
+      assert.equal(drawing.serialize(), before); assert.equal(drawing.revision, revision)
+    }
+  })
+  await t.test('invalid elliptical points and planes', async () => {
+    const sdk = createKJDrawSDK(), drawing = sdk.createDocument()
+    const partial = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: { center: [0, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI } })
+    const full = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: { center: [30, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2 } })
+    for (const [id, args] of [
+      [partial.id, { point: [0, 4] }], [partial.id, { point: [10, 0] }], [full.id, { point: [40, 0] }],
+      [full.id, { firstPoint: [40, 0], secondPoint: [40, 0] }],
+    ]) {
+      const before = drawing.serialize(), revision = drawing.revision
+      await assert.rejects(sdk.executeCommand('BREAK', { id, ...args, tolerance: 1e-9 }), KJValidationError)
       assert.equal(drawing.serialize(), before); assert.equal(drawing.revision, revision)
     }
   })

@@ -2547,7 +2547,8 @@ export class KJDrawWorkbench {
                 const ids = selectedIds();
                 if (ids.length !== 1) throw new Error('BREAK requires exactly one selected entity');
                 const target = this.document?.getObject(ids[0]);
-                const twoPoint = target?.type === 'CIRCLE' || [
+                const ellipseSpan = target?.type === 'ELLIPSE' ? Number(target.payload.endParameter ?? Math.PI * 2) - Number(target.payload.startParameter ?? 0) : 0;
+                const twoPoint = target?.type === 'CIRCLE' || target?.type === 'ELLIPSE' && Math.abs(ellipseSpan - Math.PI * 2) <= 1e-10 || [
                     'LWPOLYLINE',
                     'POLYLINE'
                 ].includes(target?.type ?? '') && target?.payload.closed === true;

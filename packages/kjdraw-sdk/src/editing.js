@@ -555,6 +555,72 @@ export function breakEntityPayloads(entity, options = {}) {
             }
         ];
     }
+    if (type === 'ELLIPSE') {
+        const geometry = ellipseEditGeometry(entity), tolerance = polylineEditTolerance(options.tolerance);
+        if (geometry.full ? points.length !== 2 : points.length < 1 || points.length > 2) {
+            throw new KJValidationError(geometry.full ? 'BREAK full ELLIPSE requires two points' : 'BREAK elliptical arc requires one or two points');
+        }
+        const offsets = points.map((point)=>{
+            const value = finiteEditPoint(point);
+            assertSameEditPlane(value, geometry.center[2]);
+            const offset = ellipsePickOffset(geometry, value), parameter = geometry.start + offset;
+            const cosine = Math.cos(parameter), sine = Math.sin(parameter);
+            const projected = [
+                geometry.center[0] + geometry.majorAxis[0] * cosine - geometry.majorAxis[1] * geometry.ratio * sine,
+                geometry.center[1] + geometry.majorAxis[1] * cosine + geometry.majorAxis[0] * geometry.ratio * sine,
+                geometry.center[2]
+            ];
+            if (distance2(value, projected) > tolerance) throw new KJValidationError('BREAK point must lie on the ellipse within tolerance');
+            if (geometry.full) {
+                const startCosine = Math.cos(geometry.start), startSine = Math.sin(geometry.start);
+                const startPoint = [
+                    geometry.center[0] + geometry.majorAxis[0] * startCosine - geometry.majorAxis[1] * geometry.ratio * startSine,
+                    geometry.center[1] + geometry.majorAxis[1] * startCosine + geometry.majorAxis[0] * geometry.ratio * startSine,
+                    geometry.center[2]
+                ];
+                if (distance2(value, startPoint) <= tolerance) return 0;
+            }
+            return offset;
+        });
+        if (geometry.full) {
+            const sweep = positiveTurn(offsets[1] - offsets[0]);
+            if (sweep <= EDIT_ANGLE_EPSILON || TURN - sweep <= EDIT_ANGLE_EPSILON) throw new KJValidationError('BREAK full ELLIPSE points must be distinct');
+            return [
+                {
+                    type: 'ELLIPSE',
+                    payload: ellipseResultPayload(geometry, offsets[0], offsets[0] + sweep)
+                },
+                {
+                    type: 'ELLIPSE',
+                    payload: ellipseResultPayload(geometry, offsets[1], offsets[1] + TURN - sweep)
+                }
+            ];
+        }
+        const parameters = splitParameters(offsets.map((offset)=>offset / geometry.span));
+        if (parameters.length === 1) {
+            const offset = parameters[0] * geometry.span;
+            return [
+                {
+                    type: 'ELLIPSE',
+                    payload: ellipseResultPayload(geometry, 0, offset)
+                },
+                {
+                    type: 'ELLIPSE',
+                    payload: ellipseResultPayload(geometry, offset, geometry.span)
+                }
+            ];
+        }
+        return [
+            {
+                type: 'ELLIPSE',
+                payload: ellipseResultPayload(geometry, 0, parameters[0] * geometry.span)
+            },
+            {
+                type: 'ELLIPSE',
+                payload: ellipseResultPayload(geometry, parameters.at(-1) * geometry.span, geometry.span)
+            }
+        ];
+    }
     if (type === 'LWPOLYLINE' || type === 'POLYLINE') {
         const vertices = editablePolylineVertices(payload);
         assertEditablePolylineTopology(type, payload, vertices);

@@ -163,6 +163,7 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
             'LINE',
             'ARC',
             'CIRCLE',
+            'ELLIPSE',
             'LWPOLYLINE',
             'POLYLINE'
         ],

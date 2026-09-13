@@ -189,12 +189,13 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         id: 'break',
         command: 'BREAK',
         label: text('Break', '打断'),
-        description: text('Split one line, arc or open polyline at an exact point.', '在精确点打断直线、圆弧或开放多段线。'),
+        description: text('Split one line, circular/elliptical arc or open polyline at an exact point.', '在精确点打断直线、圆弧、椭圆弧或开放多段线。'),
         minSelection: 1,
         maxSelection: 1,
         supportedEntityTypes: [
             'LINE',
             'ARC',
+            'ELLIPSE',
             'LWPOLYLINE',
             'POLYLINE'
         ],
@@ -212,11 +213,12 @@ export const KJ_MODIFICATION_DEFINITIONS = Object.freeze([
         id: 'break-two-point',
         command: 'BREAK',
         label: text('Two-point break', '两点打断'),
-        description: text('Split one circle or closed polyline at two exact points.', '在两个精确点拆分圆或闭合多段线。'),
+        description: text('Split one circle, full ellipse or closed polyline at two exact points.', '在两个精确点拆分圆、完整椭圆或闭合多段线。'),
         minSelection: 1,
         maxSelection: 1,
         supportedEntityTypes: [
             'CIRCLE',
+            'ELLIPSE',
             'LWPOLYLINE',
             'POLYLINE'
         ],

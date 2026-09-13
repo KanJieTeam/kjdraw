@@ -56,6 +56,43 @@ test('Workbench BREAK command retries an invalid pick and commits an exact non-m
   expect(result.map(piece => piece.points)).toEqual([[[0, 0, 0], [5, 0, 0]], [[5, 0, 0], [10, 0, 0], [20, 10, 0]]])
 })
 
+test('Workbench BREAK selects one-point elliptical-arc and two-point full-ellipse flows', async ({ page }) => {
+  await mountWorkbench(page)
+  await page.evaluate(async () => {
+    const { sdk, editor } = window.__breakWorkbench, drawing = editor.document
+    const partial = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: { center: [50, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI } })
+    const full = await sdk.executeCommand('CREATE', { type: 'ELLIPSE', payload: { center: [80, 0, 0], majorAxis: [10, 0, 0], ratio: .5, startParameter: 0, endParameter: Math.PI * 2 } })
+    await sdk.executeCommand('SELECT', { ids: [partial.id], operation: 'replace' }, { document: drawing })
+    editor.fit(); window.__breakWorkbench.ellipses = { partial, full }
+  })
+  const root = '#break-host', command = page.locator(`${root} [data-command]`)
+  await command.fill('BREAK'); await command.press('Enter')
+  await expect(page.locator(`${root} [data-modification]`)).toHaveValue('break')
+  await page.locator(`${root} [data-modification-dialog]`).press('Escape')
+  await page.evaluate(async () => {
+    const { sdk, editor, ellipses } = window.__breakWorkbench
+    await sdk.executeCommand('SELECT', { ids: [ellipses.full.id], operation: 'replace' }, { document: editor.document })
+  })
+  await command.fill('BREAK'); await command.press('Enter')
+  await expect(page.locator(`${root} [data-modification]`)).toHaveValue('break-two-point')
+  await page.locator(`${root} [data-modification-field="tolerance"]`).fill('0.01')
+  await page.locator(`${root} [data-action="start-modification"]`).click()
+  const right = await workbenchPoint(page, [90, 0]), top = await workbenchPoint(page, [80, 5])
+  await page.mouse.click(right.x, right.y); await page.mouse.move(top.x, top.y)
+  await expect(page.locator(`${root} [data-overlay]`)).toHaveAttribute('data-modification-preview-count', '2')
+  const revision = await page.evaluate(() => window.__breakWorkbench.editor.document.revision)
+  await page.mouse.click(top.x, top.y)
+  await expect.poll(() => page.evaluate(() => window.__breakWorkbench.editor.document.revision)).toBe(revision + 1)
+  const result = await page.evaluate(() => {
+    const { editor, ellipses } = window.__breakWorkbench
+    return editor.document.listEntities({ type: 'ELLIPSE' }).filter(item => item.id === ellipses.full.id || item.source?.derivedFromId === ellipses.full.id).map(item => ({ id: item.id, start: item.payload.startParameter, end: item.payload.endParameter }))
+  })
+  expect(result).toHaveLength(2)
+  expect(result[0].id).toBe(await page.evaluate(() => window.__breakWorkbench.ellipses.full.id))
+  expect(result[0].start).toBe(0); expect(result[0].end).toBeCloseTo(Math.PI / 2, 6)
+  expect(result[1].start).toBeCloseTo(Math.PI / 2, 6); expect(result[1].end).toBeCloseTo(Math.PI * 2, 6)
+})
+
 async function circleDrawing() {
   const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'break-playground', units: 'millimeter' })
   await sdk.executeCommand('CREATE', { type: 'CIRCLE', payload: { center: [0, 0, 0], radius: 10, color: 2 } }, { document: drawing })
