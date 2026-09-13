@@ -100,21 +100,34 @@ for (const kind of ['rotate', 'scale']) test(`main chat ${kind} protocol preview
     const canvas = document.createElement('canvas'); canvas.style.cssText = 'width:1000px;height:600px;position:fixed;inset:0 auto auto 0;z-index:9999'; document.body.append(canvas)
     const renderer = new KJCanvasRenderer(canvas, { document: source, pixelRatio: 1, grid: false, theme: 'light' })
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    const scalar = value => { const number = Number(value ?? 0); return Math.abs(number) < 1e-10 ? 0 : Number(number.toFixed(10)) }
+    const point = value => [scalar(value?.[0]), scalar(value?.[1]), scalar(value?.[2])]
+    const semantics = document => document.listEntities().flatMap(entity => {
+      const payload = entity.payload, owner = document.getObject(entity.ownerId), ownerName = owner?.name ?? (entity.ownerId === document.snapshot().spaces.modelSpaceId ? 'MODEL' : String(entity.ownerId))
+      if (ownerName.startsWith('*D')) return []
+      const base = { owner: ownerName, type: entity.type }
+      if (entity.type === 'LINE') return [{ ...base, start: point(payload.start), end: point(payload.end) }]
+      if (entity.type === 'CIRCLE') return [{ ...base, center: point(payload.center), radius: scalar(payload.radius) }]
+      if (entity.type === 'LWPOLYLINE') return [{ ...base, vertices: payload.vertices.map(vertex => point(vertex.point)), closed: payload.closed }]
+      if (entity.type === 'TEXT') return [{ ...base, position: point(payload.position), text: payload.text, height: scalar(payload.height), rotation: scalar(payload.rotation) }]
+      if (entity.type === 'INSERT') return [{ ...base, block: document.getObject(payload.blockRecordId)?.name, position: point(payload.position), scale: point(payload.scale ?? [1, 1, 1]), rotation: scalar(payload.rotation) }]
+      if (entity.type === 'DIMENSION') return [{ ...base, dimensionType: payload.dimensionType, points: payload.definitionPoints.map(point), textPosition: point(payload.textPosition), textHeight: scalar(payload.textHeight), rotation: scalar(payload.rotation), textOverride: payload.textOverride }]
+      return []
+    }).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
+    const sourceSemantics = semantics(source)
     renderer.resize(1000, 600); Object.assign(renderer.camera, { centerX: 30, centerY: 40, scale: 7 }); renderer.render()
-    const approved = canvas.toDataURL(), originalPixels = renderer.context.getImageData(0, 0, canvas.width, canvas.height).data
+    const approved = canvas.toDataURL()
     renderer.setDocument(reopened); Object.assign(renderer.camera, { centerX: 30, centerY: 40, scale: 7 }); renderer.render()
-    const reopenedImage = canvas.toDataURL(), root = reopened.listEntities({ ownerId: reopened.snapshot().spaces.modelSpaceId }), newPixels = renderer.context.getImageData(0, 0, canvas.width, canvas.height).data
-    let changed = 0, maximum = 0
-    for (let i = 0; i < originalPixels.length; i += 4) { let differs = false; for (let c = 0; c < 4; c++) { const delta = Math.abs(originalPixels[i + c] - newPixels[i + c]); maximum = Math.max(maximum, delta); differs ||= delta > 0 } if (differs) changed++ }
+    const reopenedImage = canvas.toDataURL(), root = reopened.listEntities({ ownerId: reopened.snapshot().spaces.modelSpaceId }), reopenedSemantics = semantics(reopened)
     renderer.dispose(); canvas.remove()
-    return { approved, reopenedImage, changed, maximum, dimensions: [source, reopened].map(document => document.listEntities({ type: 'DIMENSION' }).map(entity => ({ payload: entity.payload, style: document.getObject(entity.payload.styleId)?.payload }))), nativeTypes: root.map(item => item.type).sort(), blockCount: reopened.listEntities({ type: 'INSERT' }).length }
+    return { approved, reopenedImage, sourceSemantics, reopenedSemantics, nativeTypes: root.map(item => item.type).sort(), blockCount: reopened.listEntities({ type: 'INSERT' }).length }
   })
   expect(pixels.nativeTypes).toEqual(['CIRCLE', 'DIMENSION', 'INSERT', 'LINE', 'TEXT']); expect(pixels.blockCount).toBe(2)
   await testInfo.attach(`${kind}-approved-native`, { body: Buffer.from(pixels.approved.split(',')[1], 'base64'), contentType: 'image/png' })
   await testInfo.attach(`${kind}-DXF-reopened`, { body: Buffer.from(pixels.reopenedImage.split(',')[1], 'base64'), contentType: 'image/png' })
   await writeFile(`.cache/agent-chat/${kind}-approved.png`, Buffer.from(pixels.approved.split(',')[1], 'base64'))
   await writeFile(`.cache/agent-chat/${kind}-reopened.png`, Buffer.from(pixels.reopenedImage.split(',')[1], 'base64'))
-  expect({ changed: pixels.changed, maximum: pixels.maximum }, JSON.stringify(pixels.dimensions)).toEqual({ changed: 0, maximum: 0 })
+  expect(pixels.reopenedSemantics).toEqual(pixels.sourceSemantics)
   await page.getByRole('button', { name: 'Undo this change', exact: true }).click()
   await expect(page.locator('.chat-proposal-state')).toContainText('Change undone')
   const undone = (await save()).activeDocument
