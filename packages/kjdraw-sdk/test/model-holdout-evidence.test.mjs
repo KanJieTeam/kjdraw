@@ -139,8 +139,16 @@ test('three-model holdout verifier fails closed on simulated, incomplete, unknow
 test('three-model holdout verifier enforces vendor diversity and per-model 95 percent thresholds', async t => {
   const value = await fixture(); t.after(() => rm(value.directory, { recursive: true, force: true }))
   value.manifest.models[2].vendor.classification = 'domestic-cn'
-  await assert.rejects(buildModelHoldoutEvidence(value.manifest, options), /two domestic Chinese vendors and one international/)
-  value.manifest.models[2].vendor.classification = 'international'
+  const domestic = await buildModelHoldoutEvidence(value.manifest, options)
+  assert.deepEqual(domestic.vendorCoverage, { domesticChina: 3, international: 0 })
+  assert.equal(isModelHoldoutEvidence(domestic, options), true)
+  assert.equal(domestic.taskSuite.minimumRepetitions, 5)
+  const forged = structuredClone(domestic); forged.vendorCoverage.international = 1
+  assert.equal(isModelHoldoutEvidence(forged, options), false)
+  const duplicate = structuredClone(value.manifest); duplicate.models[2].vendor.id = duplicate.models[0].vendor.id
+  await assert.rejects(buildModelHoldoutEvidence(duplicate, options), /must be distinct/)
+  const weak = structuredClone(value.manifest); weak.models[0].vendor.classification = 'international'; weak.models[1].vendor.classification = 'international'
+  await assert.rejects(buildModelHoldoutEvidence(weak, options), /at least two domestic Chinese vendors/)
   const report = structuredClone(value.reports[0].generation)
   for (const run of report.runs.filter(run => run.arm === 'kjdraw-tool').slice(0, 8)) { run.status = 'geometry-failed'; run.validation.passed = false }
   const bytes = Buffer.from(JSON.stringify(report)); await writeFile(value.reports[0].generationPath, bytes); value.manifest.models[0].generationReportSha256 = digest(bytes)

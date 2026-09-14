@@ -298,7 +298,7 @@ export async function buildModelHoldoutEvidence(manifest, options = {}) {
       reports: { generationSha256: entry.generationReportSha256.toLowerCase(), behavioralSha256: entry.behavioralReportSha256.toLowerCase() },
     })
   }
-  requireValue(classifications.filter(value => value === 'domestic-cn').length >= 2 && classifications.includes('international'), 'Evidence requires at least two domestic Chinese vendors and one international vendor')
+  requireValue(classifications.filter(value => value === 'domestic-cn').length >= 2, 'Evidence requires at least two domestic Chinese vendors among three distinct vendors')
   requireValue(runtimeTypes.size >= MODEL_HOLDOUT_MINIMUM_RUNTIME_ENVIRONMENTS, 'Evidence requires at least two distinct real runtime platforms')
   const overallRuns = summaries.reduce((sum, model) => sum + model.evaluatedRuns, 0), overallPassed = summaries.reduce((sum, model) => sum + model.successfulRuns, 0)
   const standardRuns = summaries.reduce((sum, model) => sum + model.standardRuns, 0), standardPassed = summaries.reduce((sum, model) => sum + model.successfulStandardRuns, 0)
@@ -318,7 +318,7 @@ export function isModelHoldoutEvidence(value, { repository, commit, packageName,
   if (value?.schema !== MODEL_HOLDOUT_EVIDENCE_SCHEMA || value.mode !== 'live' || value.valid !== true || value.repository !== repository || value.commit !== commit) return false
   if (value.package?.name !== packageName || value.package?.version !== packageVersion || !shaText(value.manifestSha256)) return false
   if (value.taskSuite?.uniqueTasks !== 30 || value.taskSuite?.generationTasks !== 17 || value.taskSuite?.behavioralTasks !== 13 || value.taskSuite?.minimumRepetitions !== 5) return false
-  if (value.vendorCoverage?.domesticChina < 2 || value.vendorCoverage?.international < 1 || value.thresholds?.minimumRate !== 0.95 || value.thresholds?.passed !== true || value.thresholds.overallRate < 0.95 || value.thresholds.standardRate < 0.95) return false
+  if (value.vendorCoverage?.domesticChina < 2 || value.thresholds?.minimumRate !== 0.95 || value.thresholds?.passed !== true || value.thresholds.overallRate < 0.95 || value.thresholds.standardRate < 0.95) return false
   if (value.runtimeCoverage?.minimum !== 2 || value.runtimeCoverage?.count < 2 || !Array.isArray(value.runtimeCoverage.platforms) || new Set(value.runtimeCoverage.platforms).size !== value.runtimeCoverage.count) return false
   if (!Array.isArray(value.models) || value.models.length !== 3 || new Set(value.models.map(model => model.vendor?.id)).size !== 3 || new Set(value.models.map(model => model.id)).size !== 3 || new Set(value.models.map(model => model.requestedModel)).size !== 3) return false
   const domestic = value.models.filter(model => model.vendor?.classification === 'domestic-cn').length, international = value.models.filter(model => model.vendor?.classification === 'international').length

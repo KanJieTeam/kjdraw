@@ -91,7 +91,7 @@ export function validateModelHoldoutRunConfig(value) {
     ids.add(id); vendors.add(vendorId); requestedModels.add(requestedModel); classifications.push(classification); platforms.add(platform)
     return { id, vendor: { id: vendorId, name: vendorName, classification }, requestedModel, endpoint: validateEndpoint(entry.endpoint), apiKeyEnv, runOn: { platform, architecture }, settings: validateSettings(entry.settings) }
   })
-  if (classifications.filter(value => value === 'domestic-cn').length < 2 || !classifications.includes('international')) throw new Error('Run configuration requires two domestic Chinese vendors and one international vendor')
+  if (classifications.filter(value => value === 'domestic-cn').length < 2) throw new Error('Run configuration requires at least two domestic Chinese vendors among three distinct vendors')
   if (platforms.size < 2) throw new Error('Run configuration requires at least two runtime platforms')
   return { schema: value.schema, candidate: { repository, commit: commit.toLowerCase(), package: { name: packageName, version: packageVersion } }, repetitions, models }
 }

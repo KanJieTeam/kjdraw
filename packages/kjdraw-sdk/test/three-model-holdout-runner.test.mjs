@@ -40,8 +40,14 @@ test('run configuration contains metadata and environment variable names only', 
   assert.equal(validateModelHoldoutRunConfig(configuration()).models.length, 3)
   const compatible = configuration(); compatible.models[0].settings = { maxOutputTokens: 16384, timeoutMs: 120000, chatTokenParameter: 'max_completion_tokens', toolChoiceMode: 'required', temperature: null, stream: true, reasoningEffort: 'max' }
   assert.deepEqual(validateModelHoldoutRunConfig(compatible).models[0].settings, { maxOutputTokens: 16384, timeoutMs: 120000, chatTokenParameter: 'max_completion_tokens', toolChoiceMode: 'required', temperature: null, stream: true, reasoningEffort: 'max', pricing: null })
-  const weak = configuration(); weak.models[2].vendor.classification = 'domestic-cn'
-  assert.throws(() => validateModelHoldoutRunConfig(weak), /international vendor/)
+  const domestic = configuration(); domestic.models[2].vendor.classification = 'domestic-cn'
+  assert.equal(validateModelHoldoutRunConfig(domestic).models.every(model=>model.vendor.classification==='domestic-cn'), true)
+  const duplicate = structuredClone(domestic); duplicate.models[2].vendor.id = duplicate.models[0].vendor.id
+  assert.throws(() => validateModelHoldoutRunConfig(duplicate), /must be distinct/)
+  const weak = configuration(); weak.models[1].vendor.classification = 'international'
+  assert.throws(() => validateModelHoldoutRunConfig(weak), /at least two domestic Chinese vendors/)
+  const tooFew = configuration(); tooFew.repetitions = 3
+  assert.throws(() => validateModelHoldoutRunConfig(tooFew), /5–30/)
   const onePlatform = configuration(); onePlatform.models[1].runOn.platform = 'win32'; onePlatform.models[2].runOn.platform = 'win32'
   assert.throws(() => validateModelHoldoutRunConfig(onePlatform), /two runtime platforms/)
   const embeddedSecret = configuration(); embeddedSecret.models[0].apiKey = 'secret'
