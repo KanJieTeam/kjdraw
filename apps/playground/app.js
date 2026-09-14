@@ -44,6 +44,7 @@ let selectionBox = null, gripDrag = null, fence = null, hoveredGrip = null, disp
 let boundaryEdit = null
 let snapHit = null
 let agentChat = null
+let viewportRenderFrame = 0
 let outputControls = null
 let projectFileBinding = null
 const doc = () => sdk.activeDocument
@@ -244,6 +245,7 @@ function modificationPreviewObjects(task){
   return objects
 }
 function render() {
+  if(viewportRenderFrame){cancelAnimationFrame(viewportRenderFrame);viewportRenderFrame=0}
   if(!sdk?.activeDocument)return
   if(boundaryEdit&&boundaryEdit.session.state.phase!=='applying'&&!boundaryEdit.session.isCurrent())cancelBoundaryEdit({announce:true})
   let rendered=false
@@ -318,6 +320,7 @@ function render() {
     ctx.save();ctx.strokeStyle='#bdf878';ctx.fillStyle='#bdf878';ctx.lineWidth=2;ctx.strokeRect(x-5,y-5,10,10);ctx.font='12px system-ui, sans-serif';ctx.fillText(label,x+10,y-8);ctx.restore()
   }
 }
+function scheduleViewportRender(){if(!viewportRenderFrame)viewportRenderFrame=requestAnimationFrame(()=>{viewportRenderFrame=0;render()})}
 function resize() {
   const rect = canvas.getBoundingClientRect();width=rect.width;height=rect.height
   if([selectionBox,gripDrag,dragMove,fence].some(binding=>binding&&!pointerBindingValid(binding)))cancelSelectionGestures()
@@ -1081,7 +1084,11 @@ function snap(p,excludeIds=[],referencePoint=null){
   let settings
   try{settings=getDocumentSnapSettings(doc())}catch{return p}
   if(!settings.modes.length)return p
-  const hit=sdk.snap(p,{entityIds:modelEntities().filter(entity=>isVisible(entity)&&!excludeIds.includes(entity.id)).map(entity=>entity.id),radius:settings.aperture/camera.scale,modes:settings.modes,spaceId:doc().snapshot().spaces.modelSpaceId,...(referencePoint?{referencePoint}:{})})[0]
+  const options={radius:settings.aperture/camera.scale,modes:settings.modes,spaceId:doc().snapshot().spaces.modelSpaceId,...(referencePoint?{referencePoint}:{})}
+  // The core already filters model-space and hidden/frozen entities. Avoid
+  // materializing every visible id on the common pointer-move path.
+  if(excludeIds.length)options.entityIds=modelEntities().filter(entity=>isVisible(entity)&&!excludeIds.includes(entity.id)).map(entity=>entity.id)
+  const hit=sdk.snap(p,options)[0]
   if(hit){snapHit=hit;workbench.dataset.snapMode=hit.mode}
   return hit?.point??p
 }
@@ -1192,7 +1199,11 @@ canvas.ondblclick=e=>{
 canvas.onpointercancel=e=>{if(!unrelatedPointer(e))setTool('select')}
 canvas.onpointerleave=e=>{if(!unrelatedPointer(e)&&boundaryEdit?.preview){boundaryEdit.preview=null;render()}}
 canvas.onlostpointercapture=e=>{if(pan?.pointerId===e.pointerId)pan=null;if([dragMove,selectionBox,gripDrag].some(binding=>binding?.pointerId===e.pointerId)){cancelSelectionGestures();render()}}
-canvas.addEventListener('wheel',e=>{e.preventDefault();cancelSelectionGestures();canvasRenderer.zoomAt(Math.exp(-e.deltaY*.001),pointer(e));render()},{passive:false})
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();cancelSelectionGestures()
+  canvasRenderer.zoomAt(Math.exp(-e.deltaY*.001),pointer(e),{render:false})
+  scheduleViewportRender()
+},{passive:false})
 window.addEventListener('keydown',e=>{
   if($('app-dialog').open||$('hotkey-settings-dialog')?.open)return
   if(e.key==='Escape'){e.preventDefault();setTool('select');invalidatePlan();render();return}

@@ -580,14 +580,14 @@ export class KJCanvasRenderer {
     zoomAt(factor, screenPoint = [
         this.#width / 2,
         this.#height / 2
-    ]) {
+    ], options = {}) {
         this.#fittedCamera = null;
         const before = this.screenToWorld(screenPoint);
         this.camera.scale = Math.min(1e7, Math.max(1e-7, this.camera.scale * Math.max(0.01, finite(factor, 1))));
         const after = this.screenToWorld(screenPoint);
         this.camera.centerX += before[0] - after[0];
         this.camera.centerY += before[1] - after[1];
-        this.render();
+        if (options.render !== false) this.render();
         return this;
     }
     fit() {

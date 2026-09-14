@@ -168,7 +168,7 @@ test('Canvas renderer keeps world/screen transforms, navigation and hit testing 
   const sdk = createKJDrawSDK()
   const document = sdk.createDocument({ documentId: 'canvas-navigation' })
   const line = await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0, 0], end: [100, 0] } })
-  const { canvas } = mockCanvas(800, 500)
+  const { canvas, context } = mockCanvas(800, 500)
   const renderer = new KJCanvasRenderer(canvas, { document, pixelRatio: 1, grid: false }).fit()
   const world = [25, 0]
   const screen = renderer.worldToScreen(world)
@@ -178,6 +178,12 @@ test('Canvas renderer keeps world/screen transforms, navigation and hit testing 
   const before = renderer.screenToWorld([100, 100])
   renderer.zoomAt(2, [100, 100])
   assert.deepEqual(renderer.screenToWorld([100, 100]).map(value => Number(value.toFixed(10))), before.map(value => Number(value.toFixed(10))))
+  const callsBeforeDeferredZoom = context.calls.length
+  renderer.zoomAt(0.5, [100, 100], { render: false })
+  assert.equal(context.calls.length, callsBeforeDeferredZoom, 'deferred navigation updates the camera without painting an intermediate frame')
+  assert.deepEqual(renderer.screenToWorld([100, 100]).map(value => Number(value.toFixed(10))), before.map(value => Number(value.toFixed(10))))
+  renderer.render()
+  assert.equal(context.calls.slice(callsBeforeDeferredZoom).filter(call => call[0] === 'clearRect').length, 1, 'the caller can paint the deferred camera exactly once')
   const priorCenter = { ...renderer.camera }
   renderer.panBy(40, -20)
   assert.notEqual(renderer.camera.centerX, priorCenter.centerX)
