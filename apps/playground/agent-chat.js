@@ -133,7 +133,7 @@ export function createAgentChat(container, options) {
   const legacy = element('details', 'chat-examples'); legacy.id = 'agent-examples'
   legacy.append(label(element('summary'), 'examples'))
   const legacyBody = element('div', 'chat-example-content')
-  legacyBody.append(...container.childNodes); legacy.append(legacyBody)
+  legacyBody.append(...container.childNodes);legacy.hidden=!legacyBody.childNodes.length;legacy.append(legacyBody)
   container.classList.add('chat-panel')
   const header = element('header', 'chat-header'), title = label(element('strong'), 'title')
   const connection = button('connect', 'chat-connection'), reset = button('newChat', 'chat-new')
@@ -183,6 +183,7 @@ export function createAgentChat(container, options) {
   name.oninput=()=>{const item=getChatModelProviderPreset(provider.value),previous=automaticEndpoint;commonModel.value=item.models.includes(name.value.trim())?name.value.trim():'';automaticEndpoint=formatChatModelUpstreamEndpoint(item,name.value);if(endpoint.value===previous)endpoint.value=automaticEndpoint;syncProviderTarget()}
   protocol.onchange=()=>{const item=getChatModelProviderPreset(provider.value);if(item.id!=='custom'&&protocol.value!==item.protocol){provider.value='custom';automaticEndpoint='';populateCommonModels()}else syncProviderTarget()}
   const configure = button('saveConnection'), cancelSettings=button('cancelSettings'), disconnect = button('disconnect'), connectionError = element('p','chat-error'), connectionActions = element('div','chat-settings-actions')
+  cancelSettings.id='chat-settings-cancel'
   connectionError.setAttribute('role','alert')
   connectionActions.append(configure,cancelSettings,disconnect)
   settings.append(providerTarget,label(element('p'),'outputTokenHelp'),label(element('p'), 'connectionHelp'), connectionActions, connectionError)

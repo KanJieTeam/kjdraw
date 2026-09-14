@@ -24,10 +24,10 @@ small { font-size: 12px; }
 .top-document b { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #file-state { color: var(--kj-muted); font-size: 12px; white-space: nowrap; }
 .site-header nav { display: flex; gap: 20px; align-items: center; flex-shrink: 0; color: var(--kj-muted); font-size: 12px; }
-#language { border: 0; background: transparent; padding: 5px; }
+#language, #settings { border: 0; background: transparent; padding: 5px; }
 #layout-select { width: 110px; flex-shrink: 0; font-size: 12px; }
 main { height: calc(100dvh - 44px); }
-.workbench { height: 100%; display: grid; grid-template-rows: 122px minmax(0, 1fr) 34px 32px; grid-template-areas: 'ribbon' 'workspace' 'documents' 'status'; --left-width: 248px; --right-width: 300px; }
+.workbench { position: relative; height: 100%; display: grid; grid-template-rows: 122px minmax(0, 1fr) 34px 32px; grid-template-areas: 'ribbon' 'workspace' 'documents' 'status'; --left-width: 248px; --right-width: 300px; }
 .cad-ribbon { grid-area: ribbon; min-width: 0; background: var(--kj-surface); border-bottom: 1px solid var(--kj-border); z-index: 3; }
 .ribbon-tabs { height: 30px; display: flex; align-items: stretch; gap: 4px; padding: 0 10px; border-bottom: 1px solid var(--kj-border); background: var(--kj-chrome); }
 .ribbon-tabs button { min-height: 0; border: 0; border-radius: 0; padding: 3px 20px; color: var(--kj-muted); background: transparent; font-size: 12px; }
@@ -49,8 +49,11 @@ main { height: calc(100dvh - 44px); }
 .sample-ribbon { width: 254px; flex-shrink: 0; position: relative; }
 .sample-ribbon > small, .sample-ribbon label > span, .sample-ribbon em { display: none; }
 .sample-ribbon select { width: 254px; padding-right: 20px; background: var(--kj-surface); }
-.drawing-library,.modification-library { align-items:center; }
-.drawing-library select,.modification-library select { width:156px; font-size:12px; }
+.measure-ribbon { align-items: center; }
+.measure-ribbon > label { display: flex; flex-direction: column; justify-content: center; gap: 3px; min-width: 116px; padding: 2px 4px; color: var(--kj-muted); font-size: 10px; }
+.measure-ribbon > label > select { width: 116px; min-height: 30px; color: var(--kj-text); font-size: 12px; }
+.drawing-library,.annotation-library,.fill-library,.modification-library { align-items:center; }
+.drawing-library select,.annotation-library select,.fill-library select,.modification-library select { width:156px; font-size:12px; }
 .draft-options { position:absolute; z-index:5; top:38px; left:12px; max-width:calc(100% - 24px); display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--kj-border); border-radius:6px; background:#fffffff5; box-shadow:0 5px 16px #17233a18; overflow-x:auto; }
 .draft-options label { display:flex; align-items:center; gap:6px; flex-shrink:0; font-size:12px; }
 .draft-options label span { color:var(--kj-muted); }
@@ -182,6 +185,12 @@ summary { cursor: pointer; color: var(--kj-muted); }
 .statusbar > div > span { font-size: 12px; font-variant-numeric: tabular-nums; }
 .statusbar button { min-height: 25px; padding: 2px 7px; font-size: 12px; border-color: transparent; background: transparent; border-radius: 3px; }
 .statusbar button[aria-pressed="true"] { color: var(--kj-action); background: var(--kj-action-soft); }
+.app-error { position: absolute; z-index: 12; top: 132px; left: 50%; width: min(640px, calc(100% - 24px)); transform: translateX(-50%); display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 12px 14px; border: 1px solid #d7929b; border-radius: 8px; background: #fff5f6; color: #7e1f2b; box-shadow: 0 8px 28px #55101c24; }
+.app-error[hidden] { display: none; }
+.app-error strong { display: block; font-size: 13px; }
+.app-error p { margin: 3px 0 0; font-size: 12px; line-height: 1.5; }
+.app-error-actions { display: flex; flex-shrink: 0; gap: 6px; }
+.app-error-actions button { min-height: 32px; border-color: #d7929b; background: #fff; color: #7e1f2b; }
 .app-dialog { width: min(450px, calc(100vw - 32px)); padding: 26px; border: 1px solid var(--kj-border); border-radius: 10px; background: var(--kj-surface); color: var(--kj-text); box-shadow: 0 20px 80px #10223c35; }
 .app-dialog::backdrop { background: #15203166; }
 .dialog-kicker { font-size: 12px; color: var(--kj-muted); }
@@ -190,15 +199,18 @@ summary { cursor: pointer; color: var(--kj-muted); }
 .dialog-fields { display: grid; gap: 14px; }
 .dialog-fields label { display: grid; gap: 6px; font-size: 12px; color: var(--kj-muted); }
 .dialog-fields input { font-size: 13px; color: var(--kj-text); }
+.dialog-error { margin: 12px 0 0; color: #b42318; font-size: 12px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 .dialog-primary { background: var(--kj-action); color: white; border-color: var(--kj-action); }
 .workbench[data-layout="compact"] { grid-template-rows: 86px minmax(0, 1fr) 34px 32px; }
+.workbench[data-layout="compact"] .app-error { top: 96px; }
 .workbench[data-layout="compact"] .ribbon-groups { height: 56px; padding: 6px; }
 .workbench[data-layout="compact"] .ribbon-group { display: flex; padding: 0 8px; align-items: center; gap: 3px; }
 .workbench[data-layout="compact"] .ribbon-group > small { display: none; }
 .workbench[data-layout="compact"] .ribbon-group > button { flex-direction: row; min-height: 32px; height: 32px; min-width: 32px; padding: 5px 7px; gap: 5px; }
 .workbench[data-layout="compact"] .ribbon-group > button .kj-icon { width: 18px; height: 18px; }
 .workbench[data-layout="focus"] { grid-template-rows: 0 minmax(0, 1fr) 34px 32px; }
+.workbench[data-layout="focus"] .app-error { top: 10px; }
 .workbench[data-layout="focus"] .cad-ribbon, .workbench[data-layout="focus"] .left-panel, .workbench[data-layout="focus"] .right-panel { display: none; }
 .workbench[data-layout="focus"] .workspace { grid-template-columns: 0 minmax(0, 1fr) 0; }
 @media (max-width: 1180px) {
@@ -242,3 +254,27 @@ summary { cursor: pointer; color: var(--kj-muted); }
 /* Keep explicit paper setup usable on short screens and in the compact ribbon. */
 .output-ribbon select { max-width: 125px; font-size: 12px; padding: 3px 6px; }
 .app-dialog { max-height: calc(100dvh - 32px); overflow-y: auto; }
+.hotkey-settings-dialog { width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: 1px solid var(--kj-border); border-radius: 10px; background: var(--kj-surface); color: var(--kj-text); box-shadow: 0 20px 80px #10223c35; }
+.hotkey-settings-dialog::backdrop { background: #15203166; }
+.hotkey-settings-dialog form { display: flex; max-height: calc(100dvh - 34px); flex-direction: column; }
+.hotkey-settings-dialog header { padding: 22px 24px 10px; }
+.hotkey-settings-dialog h2 { margin: 0 0 8px; font-size: 20px; }
+.hotkey-settings-dialog header p { margin: 0; color: var(--kj-muted); font-size: 13px; line-height: 1.6; }
+.hotkey-settings-dialog form > label { display: grid; gap: 5px; padding: 0 24px 12px; color: var(--kj-muted); font-size: 12px; }
+.hotkey-settings-notice { margin: 0 24px 10px; padding: 8px 10px; border-radius: 5px; background: var(--kj-action-soft); color: var(--kj-action); font-size: 12px; }
+.hotkey-settings-list { min-height: 0; overflow-y: auto; border-block: 1px solid var(--kj-border); }
+.hotkey-setting-row { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(220px, 1fr); align-items: center; gap: 5px 16px; padding: 10px 24px; border-bottom: 1px solid var(--kj-border); }
+.hotkey-setting-row:last-child { border-bottom: 0; }
+.hotkey-setting-row > span { min-width: 0; }
+.hotkey-setting-row b { display: block; font-size: 13px; }
+.hotkey-setting-row code { color: var(--kj-muted); font-size: 11px; }
+.hotkey-setting-row input { width: 100%; }
+.hotkey-setting-row.invalid input { border-color: #c54859; box-shadow: 0 0 0 2px #c5485918; }
+.hotkey-row-error { grid-column: 2; color: #a82a37; font-size: 11px; line-height: 1.4; }
+.hotkey-settings-dialog footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 24px 18px; }
+.hotkey-settings-dialog footer #hotkey-restore { margin-right: auto; }
+@media (max-width: 600px) {
+  .hotkey-setting-row { grid-template-columns: 1fr; padding-inline: 16px; }
+  .hotkey-row-error { grid-column: 1; }
+  .hotkey-settings-dialog footer { padding-inline: 16px; }
+}

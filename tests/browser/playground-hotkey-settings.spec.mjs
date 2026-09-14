@@ -1,0 +1,73 @@
+import { expect, test } from '@playwright/test'
+
+if (process.env.KJDRAW_TEST_BASE_URL) test.use({ baseURL: process.env.KJDRAW_TEST_BASE_URL })
+
+test.use({ viewport: { width: 1024, height: 768 } })
+
+test('shortcut settings apply immediately, reject conflicts, persist, and restore defaults', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+
+  await page.locator('#settings').click()
+  const dialog=page.locator('#hotkey-settings-dialog')
+  await expect(dialog).toBeVisible()
+  await page.locator('#hotkey-search').fill('line')
+  await expect(dialog.locator('[data-command="LINE"]')).toBeVisible()
+  await expect(dialog.locator('[data-command="CIRCLE"]')).toBeHidden()
+  await dialog.locator('[data-hotkey-command="LINE"]').fill('LINE, Q')
+  await page.locator('#hotkey-apply').click()
+  await expect(dialog).toBeHidden()
+
+  await page.locator('#canvas').focus()
+  await page.keyboard.press('q')
+  await expect(page.locator('#drawing-tool')).toHaveValue('line')
+  await page.keyboard.press('Escape')
+  await page.locator('#command-input').fill('q')
+  await page.locator('#command-input').press('Enter')
+  await expect(page.locator('#drawing-tool')).toHaveValue('line')
+  await page.keyboard.press('Escape')
+
+  await page.locator('#settings').click()
+  await dialog.locator('[data-hotkey-command="LINE"]').fill('LINE, C')
+  await page.locator('#hotkey-apply').click()
+  await expect(dialog).toBeVisible()
+  await expect(dialog.locator('[data-hotkey-command="LINE"]')).toHaveAttribute('aria-invalid', 'true')
+  await expect(dialog.locator('[data-hotkey-command="CIRCLE"]')).toHaveAttribute('aria-invalid', 'true')
+  await page.locator('#hotkey-cancel').click()
+
+  await page.reload()
+  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  await page.locator('#canvas').focus()
+  await page.keyboard.press('q')
+  await expect(page.locator('#drawing-tool')).toHaveValue('line')
+  await page.keyboard.press('Escape')
+
+  const orthoBefore=await page.locator('#ortho').getAttribute('aria-pressed')
+  await page.keyboard.press('F8')
+  await expect(page.locator('#ortho')).not.toHaveAttribute('aria-pressed', orthoBefore)
+
+  await page.locator('#settings').click()
+  await page.locator('#hotkey-restore').click()
+  await expect(dialog.locator('.hotkey-settings-notice')).toBeVisible()
+  await page.locator('#hotkey-cancel').click()
+  await page.locator('#canvas').focus()
+  await page.keyboard.press('q')
+  await expect(page.locator('#drawing-tool')).toHaveValue('line')
+  await page.keyboard.press('Escape')
+
+  await page.locator('#settings').click()
+  await page.locator('#hotkey-restore').click()
+  await page.locator('#hotkey-apply').click()
+  await page.locator('#canvas').focus()
+  await page.keyboard.press('l')
+  await expect(page.locator('#drawing-tool')).toHaveValue('line')
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('q')
+  await expect(page.locator('#drawing-tool')).toHaveValue('point')
+
+  await page.reload()
+  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  await page.locator('#canvas').focus()
+  await page.keyboard.press('l')
+  await expect(page.locator('#drawing-tool')).toHaveValue('line')
+})

@@ -4,7 +4,7 @@ const base=()=>process.env.KJDRAW_PRESET_BASE_URL??'/'
 const openSettings=async page=>{
   await page.goto(base())
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
-  await page.locator('#agent-tab').click()
+  await page.locator('#ai-assistant-launcher').click()
   await page.getByRole('button',{name:'Connect model',exact:true}).click()
 }
 
@@ -32,7 +32,7 @@ test('direct provider preset persists locally, authenticates the request and dis
 
   await page.reload()
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
-  await page.locator('#agent-tab').click()
+  await expect(page.locator('#ai-chat-window')).toBeVisible()
   await expect(page.getByRole('button',{name:'Model configured · gpt-5.6-terra',exact:true})).toBeVisible()
   await page.locator('#chat-input').fill('Use the restored direct connection.')
   await page.locator('#chat-send').click()

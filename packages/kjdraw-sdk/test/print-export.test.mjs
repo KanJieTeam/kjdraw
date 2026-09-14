@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {createKJDrawSDK} from '../src/sdk.js'
-import {createDrawingPrintHtml,openDrawingPrintWindow} from '../src/print-export.js'
+import {createDrawingPrintHtml,openDrawingPrintPreview,openDrawingPrintWindow} from '../src/print-export.js'
 import {exportDrawingSvg} from '../src/svg-export.js'
 
 async function fixture(){
@@ -46,13 +46,15 @@ test('print rejects visible unsupported objects, partial escape hatches and mali
   assert.equal(document.serialize(),before)
 })
 
-test('browser print requires a real host and refuses blocked or stale requests before touching the source',async()=>{
+test('browser print and preview require a real host and refuse blocked or stale requests before touching the source',async()=>{
   const {document,layoutId}=await fixture(),source=document.serialize()
-  await assert.rejects(openDrawingPrintWindow(document,{layoutId}),/browser window/)
-  let opened=0
-  const ownerWindow={open(){opened++;return null}}
-  await assert.rejects(openDrawingPrintWindow(document,{layoutId,ownerWindow,isCurrent:()=>false}),/drawing changed/)
-  assert.equal(opened,0)
-  await assert.rejects(openDrawingPrintWindow(document,{layoutId,ownerWindow}),/blocked/)
-  assert.equal(opened,1);assert.equal(document.serialize(),source)
+  for(const open of [openDrawingPrintWindow,openDrawingPrintPreview]){
+    await assert.rejects(open(document,{layoutId}),/browser window/)
+    let opened=0
+    const ownerWindow={open(){opened++;return null}}
+    await assert.rejects(open(document,{layoutId,ownerWindow,isCurrent:()=>false}),/drawing changed/)
+    assert.equal(opened,0)
+    await assert.rejects(open(document,{layoutId,ownerWindow}),/blocked/)
+    assert.equal(opened,1);assert.equal(document.serialize(),source)
+  }
 })

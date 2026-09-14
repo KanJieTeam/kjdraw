@@ -2,7 +2,29 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { exportDrawingSvg } from '../src/svg-export.js'
-import { buildOutputPageSettings } from '../../../apps/playground/output-controls.js'
+import {
+  OUTPUT_PAPER_PRESETS,
+  buildOutputPageSettings,
+  detectOutputPaper,
+  outputPaperSize,
+} from '../../../apps/playground/output-controls.js'
+
+test('ISO paper presets resolve both orientations and leave unmatched dimensions custom', () => {
+  const expected = {
+    A0: [841, 1189], A1: [594, 841], A2: [420, 594], A3: [297, 420], A4: [210, 297],
+  }
+  assert.deepEqual(Object.fromEntries(Object.entries(OUTPUT_PAPER_PRESETS).map(([name, size]) => [name, [...size]])), expected)
+  for (const [preset, [width, height]] of Object.entries(expected)) {
+    assert.deepEqual(outputPaperSize(preset, 'portrait'), { width, height })
+    assert.deepEqual(outputPaperSize(preset.toLowerCase(), 'landscape'), { width: height, height: width })
+    assert.deepEqual(detectOutputPaper(width, height), { preset, orientation: 'portrait' })
+    assert.deepEqual(detectOutputPaper(height, width), { preset, orientation: 'landscape' })
+  }
+  assert.equal(outputPaperSize('custom', 'portrait'), null)
+  assert.deepEqual(detectOutputPaper(333, 222), { preset: 'custom', orientation: 'landscape' })
+  assert.deepEqual(detectOutputPaper(222, 333), { preset: 'custom', orientation: 'portrait' })
+  assert.throws(() => outputPaperSize('A4', 'diagonal'), /portrait or landscape/)
+})
 
 test('model page setup converts real units to explicit physical scale and persists as one undoable edit', async () => {
   for (const [units, length] of [['meter', 1], ['millimeter', 1000], ['inch', 1000 / 25.4]]) {
