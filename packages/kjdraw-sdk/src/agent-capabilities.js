@@ -43,6 +43,7 @@ const EVIDENCE_PATHS = new Set([
     'entities[].ownerId',
     'entities[].layer.id',
     'entities[].nativeReferences.hatch.loops[].boundarySources',
+    'entities[].nativeReferences.insert.blockRecordId',
     'entities[].nativeReferences.insert.typeCountSignature',
     'entities[].nativeReferences.insert.repeat.sameDefinitionInstanceCount',
     'entities[].nativeReferences.displayExtent.bounds'
@@ -56,6 +57,9 @@ const PATH_FACTS = {
     ],
     'entities[].nativeReferences.hatch.loops[].boundarySources': [
         'native-reference'
+    ],
+    'entities[].nativeReferences.insert.blockRecordId': [
+        'property'
     ],
     'entities[].nativeReferences.insert.typeCountSignature': [
         'property'
@@ -273,7 +277,7 @@ function candidateRules(value, requiredToolNames) {
         if (predicates.some((predicate)=>predicate.fact === 'repeat-group')) {
             const scopedBy = (path)=>predicates.some((predicate)=>predicate.operator === 'same_as' && predicate.source.path === path);
             const contained = predicates.some((predicate)=>predicate.operator === 'within' && predicate.source.path === 'entities[].nativeReferences.displayExtent.bounds');
-            if (!scopedBy('entities[].ownerId') || !scopedBy('entities[].layer.id') || !contained) return fail('Repeated candidates must bind owner, layer and related spatial containment');
+            if (!scopedBy('entities[].ownerId') || !scopedBy('entities[].layer.id') || !scopedBy('entities[].nativeReferences.insert.blockRecordId') || !contained) return fail('Repeated candidates must bind exact block record, owner, layer and related spatial containment');
         }
         if (!Array.isArray(item.evidenceCodes) || !item.evidenceCodes.length || item.evidenceCodes.length > 16) return fail('Capability candidate evidenceCodes must contain 1 to 16 entries');
         const evidenceCodes = item.evidenceCodes.map((value)=>identifier(value, 'Capability evidence code'));

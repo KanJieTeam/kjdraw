@@ -36,7 +36,7 @@ export interface KJAgentCapabilityCandidatePredicate {
 export interface KJAgentCapabilityEvidenceSource {
     toolName: 'cad_query_topology';
     scope: 'seed' | 'related';
-    path: 'entities[].ownerId' | 'entities[].layer.id' | 'entities[].nativeReferences.hatch.loops[].boundarySources' | 'entities[].nativeReferences.insert.typeCountSignature' | 'entities[].nativeReferences.insert.repeat.sameDefinitionInstanceCount' | 'entities[].nativeReferences.displayExtent.bounds';
+    path: 'entities[].ownerId' | 'entities[].layer.id' | 'entities[].nativeReferences.hatch.loops[].boundarySources' | 'entities[].nativeReferences.insert.blockRecordId' | 'entities[].nativeReferences.insert.typeCountSignature' | 'entities[].nativeReferences.insert.repeat.sameDefinitionInstanceCount' | 'entities[].nativeReferences.displayExtent.bounds';
 }
 export interface KJAgentCapabilityCandidateRule {
     id: string;

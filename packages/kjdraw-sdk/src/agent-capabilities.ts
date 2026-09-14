@@ -36,7 +36,7 @@ export interface KJAgentCapabilityCandidatePredicate {
 export interface KJAgentCapabilityEvidenceSource {
   toolName: 'cad_query_topology'
   scope: 'seed' | 'related'
-  path: 'entities[].ownerId' | 'entities[].layer.id' | 'entities[].nativeReferences.hatch.loops[].boundarySources' | 'entities[].nativeReferences.insert.typeCountSignature' | 'entities[].nativeReferences.insert.repeat.sameDefinitionInstanceCount' | 'entities[].nativeReferences.displayExtent.bounds'
+  path: 'entities[].ownerId' | 'entities[].layer.id' | 'entities[].nativeReferences.hatch.loops[].boundarySources' | 'entities[].nativeReferences.insert.blockRecordId' | 'entities[].nativeReferences.insert.typeCountSignature' | 'entities[].nativeReferences.insert.repeat.sameDefinitionInstanceCount' | 'entities[].nativeReferences.displayExtent.bounds'
 }
 export interface KJAgentCapabilityCandidateRule {
   id: string
@@ -95,10 +95,11 @@ const FACTS = new Set(['native-reference', 'geometry-relation', 'repeat-group', 
 const PREDICATE_OPERATORS = new Set(['exists', 'equals', 'at_least', 'at_most', 'all_resolved', 'same_as', 'within'])
 const ASSERTION_OPERATORS = new Set(['equals', 'at_least', 'at_most', 'is_true'])
 const PLACEHOLDERS = new Set(['$candidate.seedIds', '$candidate.relatedIds', '$candidate.nonMatchingIds', '$document.revision', '$document.units'])
-const EVIDENCE_PATHS = new Set(['entities[].ownerId', 'entities[].layer.id', 'entities[].nativeReferences.hatch.loops[].boundarySources', 'entities[].nativeReferences.insert.typeCountSignature', 'entities[].nativeReferences.insert.repeat.sameDefinitionInstanceCount', 'entities[].nativeReferences.displayExtent.bounds'])
+const EVIDENCE_PATHS = new Set(['entities[].ownerId', 'entities[].layer.id', 'entities[].nativeReferences.hatch.loops[].boundarySources', 'entities[].nativeReferences.insert.blockRecordId', 'entities[].nativeReferences.insert.typeCountSignature', 'entities[].nativeReferences.insert.repeat.sameDefinitionInstanceCount', 'entities[].nativeReferences.displayExtent.bounds'])
 const PATH_FACTS: Readonly<Record<KJAgentCapabilityEvidenceSource['path'], readonly KJAgentCapabilityCandidatePredicate['fact'][]>> = {
   'entities[].ownerId': ['property'], 'entities[].layer.id': ['property'],
   'entities[].nativeReferences.hatch.loops[].boundarySources': ['native-reference'],
+  'entities[].nativeReferences.insert.blockRecordId': ['property'],
   'entities[].nativeReferences.insert.typeCountSignature': ['property'],
   'entities[].nativeReferences.insert.repeat.sameDefinitionInstanceCount': ['repeat-group'],
   'entities[].nativeReferences.displayExtent.bounds': ['property', 'geometry-relation', 'spatial-cluster'],
@@ -227,7 +228,7 @@ function candidateRules(value: unknown, requiredToolNames: readonly string[]): K
     if (predicates.some(predicate => predicate.fact === 'repeat-group')) {
       const scopedBy = (path: KJAgentCapabilityEvidenceSource['path']) => predicates.some(predicate => predicate.operator === 'same_as' && predicate.source.path === path)
       const contained = predicates.some(predicate => predicate.operator === 'within' && predicate.source.path === 'entities[].nativeReferences.displayExtent.bounds')
-      if (!scopedBy('entities[].ownerId') || !scopedBy('entities[].layer.id') || !contained) return fail('Repeated candidates must bind owner, layer and related spatial containment')
+      if (!scopedBy('entities[].ownerId') || !scopedBy('entities[].layer.id') || !scopedBy('entities[].nativeReferences.insert.blockRecordId') || !contained) return fail('Repeated candidates must bind exact block record, owner, layer and related spatial containment')
     }
     if (!Array.isArray(item.evidenceCodes) || !item.evidenceCodes.length || item.evidenceCodes.length > 16) return fail('Capability candidate evidenceCodes must contain 1 to 16 entries')
     const evidenceCodes = item.evidenceCodes.map(value => identifier(value, 'Capability evidence code'))

@@ -31,6 +31,7 @@ const v2Manifest = (patch = {}) => ({
     id: 'repeated-instance', candidateKind: 'bounded-region', seed: { entityTypes: ['INSERT'] },
     predicates: [
       { fact: 'property', source: topologySource('seed', 'entities[].nativeReferences.insert.typeCountSignature'), operator: 'exists', relation: 'block-signature' },
+      { fact: 'property', source: topologySource('seed', 'entities[].nativeReferences.insert.blockRecordId'), operator: 'same_as', compareTo: topologySource('related', 'entities[].nativeReferences.insert.blockRecordId'), relation: 'same-block-record' },
       { fact: 'repeat-group', source: topologySource('seed', 'entities[].nativeReferences.insert.repeat.sameDefinitionInstanceCount'), operator: 'at_least', relation: 'same-block-definition', value: 3 },
       { fact: 'property', source: topologySource('seed', 'entities[].nativeReferences.displayExtent.bounds'), operator: 'exists', relation: 'extent' },
       { fact: 'property', source: topologySource('seed', 'entities[].ownerId'), operator: 'same_as', compareTo: topologySource('related', 'entities[].ownerId'), relation: 'same-owner' },
@@ -79,6 +80,8 @@ test('schema v2 rejects unknown executable fields and unsupported declarative vo
     v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], predicates: [{ fact: 'property', operator: 'eval', value: 'x' }] }] }),
     v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], predicates: [{ fact: 'native-reference', source: topologySource('seed', 'entities[].nativeReferences.hatch.boundarySources'), operator: 'all_resolved' }] }] }),
     v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[1], predicates: [{ fact: 'property', source: topologySource('seed', 'entities[].nativeReferences.insert.structuralSignature'), operator: 'exists' }] }] }),
+    v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[1], predicates: v2Manifest().candidateRules[1].predicates.filter(predicate => predicate.source.path !== 'entities[].nativeReferences.insert.blockRecordId') }] }),
+    v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[1], predicates: [{ fact: 'property', source: topologySource('seed', 'entities[].nativeReferences.insert.__proto__.blockRecordId'), operator: 'exists' }] }] }),
     v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], predicates: [{ fact: 'property', source: topologySource('seed', 'entities[].nativeReferences.hatch.loops[].boundarySources'), operator: 'exists' }] }] }),
     v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], predicates: [{ fact: 'property', source: { ...topologySource('seed', 'entities[].ownerId'), toolName: 'cad_read_drawing' }, operator: 'exists' }] }] }),
     v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], predicates: [{ fact: 'geometry-relation', source: topologySource('seed', 'entities[].nativeReferences.displayExtent.bounds'), operator: 'within', compareTo: topologySource('seed', 'entities[].nativeReferences.displayExtent.bounds') }] }] }),
