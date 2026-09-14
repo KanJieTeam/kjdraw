@@ -23,6 +23,7 @@ import { createCatalogComponentInsertIdentity, searchComponentCatalog } from './
 import { buildAgentManufacturingSheet } from './agent-manufacturing-sheet.js';
 import { buildAgentArchitecturePlan } from './agent-architecture-plan.js';
 import { buildAgentSitePlan } from './agent-site-plan.js';
+import { buildAgentCartesianChart } from './agent-cartesian-chart.js';
 const number = {
     type: 'number',
     minimum: -1e12,
@@ -1156,6 +1157,102 @@ const sitePlanSchema = objectWithOptional({
 }, [
     'northAngleDegrees'
 ]);
+const cartesianChartSchema = objectWithOptional({
+    version: {
+        type: 'string',
+        enum: [
+            '1.0.0'
+        ]
+    },
+    expectedRevision: revision,
+    units: {
+        type: 'string',
+        enum: [
+            'millimeter'
+        ]
+    },
+    drawingId: {
+        ...text,
+        maxLength: 96
+    },
+    title: {
+        ...text,
+        maxLength: 160
+    },
+    categories: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 32,
+        items: {
+            ...text,
+            maxLength: 32
+        }
+    },
+    series: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 8,
+        items: objectWithOptional({
+            id: {
+                ...text,
+                maxLength: 64
+            },
+            name: {
+                ...text,
+                maxLength: 64
+            },
+            kind: {
+                type: 'string',
+                enum: [
+                    'line',
+                    'bar'
+                ]
+            },
+            values: {
+                type: 'array',
+                minItems: 2,
+                maxItems: 32,
+                items: number
+            },
+            color: {
+                type: 'integer',
+                minimum: 1,
+                maximum: 255
+            }
+        }, [
+            'color'
+        ])
+    },
+    origin: numericTuple(2),
+    width: radius,
+    height: radius,
+    textHeight: radius,
+    xLabel: {
+        ...text,
+        maxLength: 64
+    },
+    yLabel: {
+        ...text,
+        maxLength: 64
+    },
+    showValues: {
+        type: 'boolean'
+    },
+    yAxis: object({
+        minimum: number,
+        maximum: number,
+        tick: radius
+    })
+}, [
+    'origin',
+    'width',
+    'height',
+    'textHeight',
+    'xLabel',
+    'yLabel',
+    'showValues',
+    'yAxis'
+]);
 const componentSearchSchemaBase = object({
     expectedRevision: revision,
     query: {
@@ -1351,6 +1448,12 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         effect: 'propose',
         description: 'Compile a complete editable meter general site plan from compact versioned intent. Version 1.0.0 supports a bounded site polygon, one or more road centerlines with generated edges, building footprints and labels, water/drainage/power/gas/telecom paths and declared nodes, coordinate reference annotation, north arrow, native dimensions, named layers, and a model-space view sized for ISO A1 landscape at 1:500. Supply actual project coordinates and geometry; KJDraw validates polygon topology, extents, utility requirements and output fit, then expands the result locally. Requires a blank drawing. Host approval applies one atomic CREATEBATCH transaction.',
         inputSchema: sitePlanSchema
+    },
+    {
+        name: 'cad_propose_cartesian_chart',
+        effect: 'propose',
+        description: 'Compile a complete editable millimeter Cartesian category chart from compact versioned data intent. Version 1.0.0 supports line, grouped bar and mixed line/bar series with deterministic axes, nice automatic scales, grids, legends, labels, data marks and named layers. Supply 2-32 categories and 1-8 series with at most 160 values; KJDraw validates data/range relationships and generates native LINE/LWPOLYLINE/CIRCLE/TEXT geometry locally. Requires a blank drawing. Host approval applies the full reviewed chart as one atomic CREATEBATCH transaction.',
+        inputSchema: cartesianChartSchema
     },
     {
         name: 'cad_check_geometry',
@@ -2053,7 +2156,8 @@ export class KJAgentToolSession {
         const units = this.#document.snapshot().header.units;
         return deepFreeze(KJDRAW_AGENT_TOOLS.filter((tool)=>![
                 'cad_propose_manufacturing_sheet',
-                'cad_propose_architecture_plan'
+                'cad_propose_architecture_plan',
+                'cad_propose_cartesian_chart'
             ].includes(tool.name) || units === 'millimeter').filter((tool)=>tool.name !== 'cad_propose_site_plan' || units === 'meter').map((tool)=>{
             if (!tool.inputSchema.properties?.units) return tool;
             return {
@@ -2330,6 +2434,10 @@ export class KJAgentToolSession {
                             engineeringEvidence = compiled.evidence;
                         } else if (name === 'cad_propose_site_plan') {
                             const compiled = buildAgentSitePlan(document, args);
+                            commandArgs = structuredClone(compiled.commandArgs);
+                            engineeringEvidence = compiled.evidence;
+                        } else if (name === 'cad_propose_cartesian_chart') {
+                            const compiled = buildAgentCartesianChart(document, args);
                             commandArgs = structuredClone(compiled.commandArgs);
                             engineeringEvidence = compiled.evidence;
                         } else if (name === 'cad_propose_road_drawing' || name === 'cad_propose_road_drawing_from_asset') {
@@ -2813,6 +2921,7 @@ export class KJAgentToolSession {
                             'cad_propose_manufacturing_sheet',
                             'cad_propose_architecture_plan',
                             'cad_propose_site_plan',
+                            'cad_propose_cartesian_chart',
                             'cad_propose_road_drawing',
                             'cad_propose_road_drawing_from_asset'
                         ].includes(name) ? {

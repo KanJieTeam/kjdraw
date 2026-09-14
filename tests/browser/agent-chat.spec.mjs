@@ -470,6 +470,36 @@ test('chat preview belongs to the current document identity even before the host
   expect(previewAfterSwitch).toBeNull()
 })
 
+test('chat routes a Chinese mixed chart request through one editable Cartesian compiler', async ({page})=>{
+  await page.goto('/')
+  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
+  await page.evaluate(async()=>{
+    const {createAgentChat}=await import('/apps/playground/agent-chat.js')
+    const {createKJDrawSDK}=await import('/packages/kjdraw-sdk/src/index.js')
+    const sdk=createKJDrawSDK(),document=sdk.createDocument({documentId:'chart-route',units:'millimeter'})
+    const container=window.document.createElement('section');container.id='chart-route-chat'
+    container.style.cssText='position:fixed;inset:0 auto auto 0;width:440px;height:650px;z-index:10000;background:white;display:flex;flex-direction:column'
+    window.document.body.append(container);window.chartRoute={sdk,document,tools:[]}
+    const chat=createAgentChat(container,{locale:()=> 'zh',getContext:()=>({sdk,document}),getSelected:()=>[],onPreview(){},onBeforeRun(){},runMutation:operation=>operation(),onApplied(){},onSave(){}})
+    chat.setModel({createConversation({tools}){
+      window.chartRoute.tools=tools.map(tool=>tool.name)
+      return {next:async()=>({text:'已生成可编辑组合图，请检查后应用。',calls:[{id:'chart',name:'cad_propose_cartesian_chart',arguments:{version:'1.0.0',expectedRevision:0,units:'millimeter',drawingId:'CHART-UI',title:'季度产量与目标',categories:['一季度','二季度','三季度','四季度'],series:[{id:'actual',name:'实际',kind:'bar',values:[82,96,91,108]},{id:'target',name:'目标',kind:'line',values:[90,90,100,100]}],showValues:true}}]})}
+    }})
+  })
+  const chat=page.locator('#chart-route-chat')
+  await chat.locator('#chat-input').fill('绘制季度产量柱状图和目标折线图。')
+  await chat.locator('#chat-send').click()
+  await expect(chat.getByRole('button',{name:'应用修改',exact:true})).toBeEnabled()
+  expect(await page.evaluate(()=>window.chartRoute.tools)).toEqual(['cad_propose_cartesian_chart'])
+  expect(await page.evaluate(()=>window.chartRoute.document.listEntities().length)).toBe(0)
+  await chat.getByRole('button',{name:'应用修改',exact:true}).click()
+  await expect(chat.locator('.chat-proposal-state')).toContainText('修改已应用')
+  const result=await page.evaluate(()=>({revision:window.chartRoute.document.revision,count:window.chartRoute.document.listEntities().length,types:[...new Set(window.chartRoute.document.listEntities().map(entity=>entity.type))].sort(),layers:window.chartRoute.document.getTable('layers').records.map(layer=>layer.name)}))
+  expect(result.revision).toBe(1);expect(result.count).toBeGreaterThan(20)
+  expect(result.types).toEqual(['CIRCLE','LINE','LWPOLYLINE','TEXT'])
+  expect(result.layers).toEqual(expect.arrayContaining(['CHART_AXIS','CHART_GRID','CHART_TEXT','CHART_ACTUAL','CHART_TARGET']))
+})
+
 test('chat sends only the MOVE schema for an exact selected translation', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
