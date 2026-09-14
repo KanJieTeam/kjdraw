@@ -28,9 +28,13 @@ async function setup(page, mode = 'valid') {
     harness.chat=chat
     chat.setModel({createConversation:options=>{
       harness.context=options
-      return {next:async()=>{
+      return {next:async input=>{
         harness.requests++
-        return {text:'供用户审阅。',calls:[{id:'move',name:'cad_propose_move',arguments:{expectedRevision:document.revision,units:'millimeter',ids:[mode==='outside'?'outside':'edge'],dx:mode==='bad-check'?6:5,dy:0}}]}
+        // The fixture receives identities/revision through the public model
+        // boundary, not by inspecting the host document behind the model's back.
+        const task=JSON.parse(input.text.slice(input.text.indexOf('\n')+1))
+        harness.promptSnapshot=task
+        return {text:'供用户审阅。',calls:[{id:'move',name:'cad_propose_move',arguments:{expectedRevision:task.revision,units:task.units,ids:[mode==='outside'?'outside':task.scope.members.find(member=>member.id==='edge').id],dx:mode==='bad-check'?6:5,dy:0}}]}
       }}
     }})
   },mode)
@@ -52,6 +56,7 @@ test('explicit saved task executes, verifies atomically, saves/reopens and undoe
   await expect(apply).toBeVisible()
   const before=await page.evaluate(()=>{const h=window.taskHarness;return {revision:h.document.revision,start:h.document.getObject('edge').payload.start,status:h.readAgentTasks(h.document)[0].status,requests:h.requests}})
   expect(before).toEqual({revision:4,start:[0,0,0],status:'running',requests:1})
+  expect(await page.evaluate(()=>window.taskHarness.promptSnapshot.scope.members.map(member=>member.id))).toEqual(['edge','anchor'])
   await apply.click()
   await expect(chat.locator('.chat-task-receipt')).toContainText('task-edge')
   await expect(chat.locator('.chat-validation')).toHaveAttribute('data-passed','true')

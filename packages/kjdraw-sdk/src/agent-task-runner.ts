@@ -73,14 +73,20 @@ function assertSessionBinding(document: KJDocument, session: KJAgentToolSession,
   if (session.units !== document.snapshot().header.units) fail('tool session units do not match the drawing')
 }
 
-function taskPrompt(task: Awaited<ReturnType<typeof inspectAgentTask>>['task']): string {
+function taskPrompt(task: Awaited<ReturnType<typeof inspectAgentTask>>['task'], revision: number): string {
   const data = {
     kind: 'kjdraw-persisted-task',
     taskId: task.taskId,
     taskVersion: task.taskVersion,
+    documentId: task.documentId,
+    revision,
     title: task.title,
     goal: task.goal,
     units: task.units,
+    scope: {
+      members: task.scope.members.map(({ id, handle }) => ({ id, handle })),
+      relationIds: task.scope.relations.map(({ id }) => id),
+    },
     requirements: task.definition.requirements,
     steps: task.definition.steps,
   }
@@ -132,7 +138,7 @@ export async function runPersistedKJAgentTask(options: KJPersistedAgentTaskRunOp
     capabilities = { registry, lock: task.definition.capabilities }
   }
 
-  const prompt = taskPrompt(task)
+  const prompt = taskPrompt(task, expectedRevision)
   assertSessionBinding(options.document, options.session, expectedRevision)
   const result = await runKJAgentTask({
     session: options.session,
