@@ -553,6 +553,11 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         stableIdentity: boolean;
         requiresUnmodifiedGeometry: boolean;
     };
+    readonly DESIGNDELETE: {
+        domain: string;
+        atomic: boolean;
+        preservesGeometry: boolean;
+    };
     readonly HATCH: {
         readonly domain: string;
         readonly entityType: string;

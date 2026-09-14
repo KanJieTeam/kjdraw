@@ -411,6 +411,17 @@ export function updateDesignRelations(document, tx, id, changes) {
         }
     });
 }
+/** Remove one persisted relation while keeping its current native geometry unchanged. */
+export function deleteDesignRelations(document, tx, id) {
+    const record = tx.getObject(id);
+    if (!record || record.erased || record.kind !== 'custom' || record.type !== TYPE || record.payload.contractVersion !== 1) fail('live version-1 design does not exist');
+    const dictionaryId = document.snapshot().namedObjectsDictionaryId;
+    const entries = tx.getObject(dictionaryId)?.payload.entries ?? {};
+    const keys = Object.entries(entries).filter(([, value])=>value === record.id).map(([key])=>key);
+    if (keys.length !== 1 || !keys[0].startsWith('KJDRAW_DESIGN:')) fail('design dictionary binding is missing or ambiguous');
+    tx.removeDictionaryEntry(dictionaryId, keys[0]);
+    return tx.eraseObject(record.id);
+}
 export function readDesignRelations(document, ids) {
     return records(document).filter((record)=>ids == null || ids.includes(record.id)).map((record)=>{
         if (record.payload.contractVersion !== 1) fail('unsupported design contract version');

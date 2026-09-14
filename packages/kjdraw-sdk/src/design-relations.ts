@@ -249,6 +249,18 @@ export function updateDesignRelations(document: KJDocument, tx: KJTransaction, i
   for (const entity of entities) tx.updateObject(entity.id, { payload: entity.payload })
   return tx.updateObject(record!.id, { payload: { definition: model, geometry: Object.fromEntries(entities.map(entity => [entity.id, geometry(entity)])) } })
 }
+
+/** Remove one persisted relation while keeping its current native geometry unchanged. */
+export function deleteDesignRelations(document: KJDocument, tx: KJTransaction, id: string): KJObjectRecord {
+  const record = tx.getObject(id)
+  if (!record || record.erased || record.kind !== 'custom' || record.type !== TYPE || record.payload.contractVersion !== 1) fail('live version-1 design does not exist')
+  const dictionaryId = document.snapshot().namedObjectsDictionaryId
+  const entries = tx.getObject(dictionaryId)?.payload.entries ?? {}
+  const keys = Object.entries(entries).filter(([, value]) => value === record.id).map(([key]) => key)
+  if (keys.length !== 1 || !keys[0]!.startsWith('KJDRAW_DESIGN:')) fail('design dictionary binding is missing or ambiguous')
+  tx.removeDictionaryEntry(dictionaryId, keys[0]!)
+  return tx.eraseObject(record.id)!
+}
 /** Read persisted design parameters, evaluated dependencies and explicit geometry conflict IDs. */
 export function readDesignRelations(document: KJDocument, ids?: readonly string[]): KJDesignRelationView[] {
   return records(document).filter(record => ids == null || ids.includes(record.id)).map(record => {

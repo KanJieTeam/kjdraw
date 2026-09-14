@@ -49,5 +49,7 @@ export interface KJDesignRelationView {
 export declare function createDesignRelations(document: KJDocument, tx: KJTransaction, name: string, input: unknown, id?: string): KJObjectRecord;
 /** Atomically update parameters and all bound geometry. Manual geometry drift is a conflict. */
 export declare function updateDesignRelations(document: KJDocument, tx: KJTransaction, id: string, changes: unknown): KJObjectRecord;
+/** Remove one persisted relation while keeping its current native geometry unchanged. */
+export declare function deleteDesignRelations(document: KJDocument, tx: KJTransaction, id: string): KJObjectRecord;
 /** Read persisted design parameters, evaluated dependencies and explicit geometry conflict IDs. */
 export declare function readDesignRelations(document: KJDocument, ids?: readonly string[]): KJDesignRelationView[];

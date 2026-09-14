@@ -5,7 +5,7 @@ import { paperLimitsFromPlotSettings } from './layout-geometry.js'
 import type { KJDxfLayoutGeometry } from './layout-geometry.js'
 import { createCommandEditScope } from './edit-policy.js'
 import { applyRoadDrawingRevision } from './road-drawing-update.js'
-import { createDesignRelations, updateDesignRelations } from './design-relations.js'
+import { createDesignRelations, deleteDesignRelations, readDesignRelations, updateDesignRelations } from './design-relations.js'
 import { editHatch } from './hatch-edit.js'
 import { insertCatalogComponent, searchComponentCatalog } from './component-library.js'
 import type { KJRoadDrawingResult } from './road-drawing.js'
@@ -393,6 +393,7 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   GROUP: { domain: 'group', persistence: 'document-dictionary' },
   DESIGNCREATE: { domain: 'design-relations', persistence: 'document-dictionary', atomic: true, maximumEntities: 64 },
   DESIGNUPDATE: { domain: 'design-relations', atomic: true, stableIdentity: true, requiresUnmodifiedGeometry: true },
+  DESIGNDELETE: { domain: 'design-relations', atomic: true, preservesGeometry: true },
   HATCH: { domain: 'entity', entityType: 'HATCH', boundaryModes: ['polyline', 'line-arc-edges', 'full-ellipse-edge', 'verified-closed-spline-edge'] },
   HATCHEDIT: { domain: 'entity', entityType: 'HATCH', operations: ['update-pattern', 'add-island', 'replace-island', 'remove-island'], exactSourceTypes: ['CIRCLE', 'ELLIPSE', 'SPLINE', 'LINE', 'ARC'], openEllipseArcBoundary: false, splineBoundaryContract: 'closed-rational-quadratic-conic', stableIdentity: true },
   LEADER: { domain: 'annotation', entityType: 'LEADER', annotationType: 'MTEXT', atomic: true, maximumVertices: 4096 },
@@ -782,6 +783,10 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   disposers.push(registry.register({
     id: 'DESIGNUPDATE', title: 'Update design parameters and dependent geometry',
     execute: ({ document, transaction }, args) => updateDesignRelations(document, transaction, args.id!, args.parameters),
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'DESIGNDELETE', title: 'Remove design parameters and keep current geometry',
+    execute: ({ document, transaction }, args) => deleteDesignRelations(document, transaction, args.id!),
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'GROUP', aliases: ['G'], title: 'Create object group',
@@ -1520,6 +1525,9 @@ function eraseEntities({ document, transaction }: KJCommandContext, args: KJComm
   const selected = resolveOwnedLeaderPairSelection(document, entityIds(args), 'ERASE')
   const roots = compoundRootIds(document, selected.ids)
   requireSelectedAssociativeDimensions(document, roots, 'ERASE')
+  const rootIds = new Set(roots)
+  const design = readDesignRelations(document).find(item => item.entityIds.some(id => rootIds.has(id)))
+  if (design) throw new KJValidationError(`ERASE must remove design relation ${design.id} before erasing one of its bound entities`)
   const erased = roots.map(id => transaction.eraseObject(id)).filter((object): object is KJObjectRecord => object !== null)
   if (selected.pairIds.size) replaceEntityMemberships(transaction, [...selected.pairIds], [])
   return erased
