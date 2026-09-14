@@ -268,15 +268,22 @@ test('explicit provider settings reject invalid values and conflicting thinking 
   const env = { KJDRAW_BENCH_PROTOCOL: 'chat-completions', KJDRAW_BENCH_MODEL: 'fixture-model', KJDRAW_BENCH_ENDPOINT: 'https://provider.example/chat', KJDRAW_BENCH_API_KEY: fixtureKey }
   assert.equal(liveModelConfiguration(env).toolChoiceMode, 'forced')
   assert.equal(liveModelConfiguration(env).enableThinking, undefined)
-  for (const value of ['auto', 'forced']) assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_TOOL_CHOICE: value }).toolChoiceMode, value)
+  assert.equal(liveModelConfiguration(env).temperature, 0)
+  assert.equal(liveModelConfiguration(env).stream, false)
+  assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_STREAM: 'true' }).stream, true)
+  assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_TEMPERATURE: 'omit' }).temperature, null)
+  assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_TEMPERATURE: '1' }).temperature, 1)
+  for (const value of ['auto', 'forced', 'required']) assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_TOOL_CHOICE: value }).toolChoiceMode, value)
   for (const value of ['true', 'false']) assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_ENABLE_THINKING: value }).enableThinking, value === 'true')
-  for (const value of ['', 'required', 'AUTO']) assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_TOOL_CHOICE: value }), /TOOL_CHOICE/)
+  for (const value of ['', 'named', 'AUTO']) assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_TOOL_CHOICE: value }), /TOOL_CHOICE/)
   for (const value of ['', '0', 'False', false]) assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_ENABLE_THINKING: value }), /ENABLE_THINKING/)
+  for (const value of ['', '-1', '2.1', 'NaN']) assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_TEMPERATURE: value }), /temperature/i)
+  for (const value of ['', 'TRUE', true]) assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_STREAM: value }), /STREAM/)
   assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_THINKING: 'disabled', KJDRAW_BENCH_ENABLE_THINKING: 'false' }), /only one thinking/)
   const folder = await directory(t)
   let requests = 0
   const endpoint = await server(t, (req, res) => { requests++; req.resume(); res.end('{}') })
-  for (const extra of [{ toolChoiceMode: 'required' }, { enableThinking: 'false' }, { enableThinking: null }, { thinkingMode: 'disabled', enableThinking: false }, { thinkingMode: 'enabled', enableThinking: true }]) {
+  for (const extra of [{ toolChoiceMode: 'named' }, { temperature: -0.1 }, { temperature: 2.1 }, { temperature: 'omit' }, { enableThinking: 'false' }, { enableThinking: null }, { thinkingMode: 'disabled', enableThinking: false }, { thinkingMode: 'enabled', enableThinking: true }]) {
     await assert.rejects(runPairedModelBenchmark({ ...baseOptions, endpoint, output: join(folder, 'never-started'), ...extra }))
   }
   assert.equal(requests, 0)
@@ -310,6 +317,34 @@ test('explicit auto tool choice and boolean thinking reach both HTTP arms withou
   assert.equal(report.runs[1].validation.passed, true)
   assert.equal(report.mode, 'fixture')
   assert.equal(report.publishableModelEvidence, false)
+})
+
+test('provider-compatible required tool choice can omit temperature and use max completion tokens with max reasoning', async t => {
+  if (!requireValidator(t)) return
+  const folder = await directory(t), requests = [], task = pilotTasks[0], dxf = await fixtureDxf(task)
+  const endpoint = await server(t, async (req, res) => {
+    const chunks = []; for await (const chunk of req) chunks.push(chunk)
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf8')); requests.push(body)
+    if (requests.length === 3) { res.writeHead(503).end(); return }
+    const tool = Boolean(body.tools)
+    const event = value => res.write(`data: ${JSON.stringify(value)}\n\n`)
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+    if (tool) {
+      const args = JSON.stringify(task.expected), middle = Math.floor(args.length / 2)
+      event({ model: 'fixture-model', choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{ index: 0, id: 'fixture-required-call', type: 'function', function: { name: 'cad_propose_', arguments: args.slice(0, middle) } }] }, finish_reason: null }] })
+      event({ model: 'fixture-model', choices: [{ index: 0, delta: { role: null, content: null, tool_calls: [{ index: 0, id: null, type: null, function: { name: 'drawing', arguments: args.slice(middle) } }] }, finish_reason: 'tool_calls' }] })
+    } else event({ model: 'fixture-model', choices: [{ index: 0, delta: { role: 'assistant', content: dxf }, finish_reason: 'stop' }] })
+    event({ model: 'fixture-model', choices: [], usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 } })
+    res.end('data: [DONE]\n\n')
+  })
+  const output = join(folder, 'provider-compatible')
+  const report = await runPairedModelBenchmark({ ...baseOptions, endpoint, output, exploratory: true, repetitions: 1, maxRequests: 6, toolChoiceMode: 'required', temperature: null, stream: true, chatTokenParameter: 'max_completion_tokens', maxOutputTokens: 8192, reasoningEffort: 'max' })
+  assert.equal(report.status, 'stopped'); assert.equal(report.attemptedRequests, 3)
+  assert.equal(report.toolChoiceMode, 'required')
+  assert.deepEqual(report.settings, { max_completion_tokens: 8192, stream: true, stream_options: { include_usage: true }, reasoning_effort: 'max' })
+  assert.equal(requests[0].tool_choice, 'required'); assert.equal(requests[1].tool_choice, undefined)
+  for (const body of requests) { assert.equal(Object.hasOwn(body, 'temperature'), false); assert.equal(body.stream, true); assert.deepEqual(body.stream_options, { include_usage: true }); assert.equal(body.max_completion_tokens, 8192); assert.equal(body.reasoning_effort, 'max') }
+  assert.equal(report.runs[0].validation.passed, true); assert.equal(report.runs[1].validation.passed, true)
 })
 
 
@@ -382,7 +417,7 @@ test('chat output cap and reasoning effort configuration rejects contradictory o
     assert.deepEqual(plan.settings, { temperature: 0, [parameter]: 8192, stream: false })
     assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_CHAT_TOKEN_PARAMETER: parameter }).chatTokenParameter, parameter)
   }
-  for (const effort of ['low', 'medium', 'high', 'xhigh']) {
+  for (const effort of ['low', 'medium', 'high', 'xhigh', 'max']) {
     assert.equal(liveModelConfiguration({ ...env, KJDRAW_BENCH_REASONING_EFFORT: effort, KJDRAW_BENCH_ENABLE_THINKING: 'true' }).reasoningEffort, effort)
     assert.equal(pairedModelPlan({ thinkingMode: 'enabled', reasoningEffort: effort }).settings.reasoning_effort, effort)
   }
@@ -391,14 +426,14 @@ test('chat output cap and reasoning effort configuration rejects contradictory o
     // Environment variables are strings; absent null is not a configured value.
     if (value !== null) assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_CHAT_TOKEN_PARAMETER: value }), /chatTokenParameter/)
   }
-  for (const value of ['', null, false, 'none', 'max', 'LOW']) {
+  for (const value of ['', null, false, 'none', 'ultra', 'LOW']) {
     assert.throws(() => pairedModelPlan({ reasoningEffort: value }), /reasoningEffort/)
     assert.throws(() => liveModelConfiguration({ ...env, KJDRAW_BENCH_REASONING_EFFORT: value }), /reasoningEffort/)
   }
   const folder = await directory(t)
   let requests = 0
   const endpoint = await server(t, (req, res) => { requests++; req.resume(); res.end('{}') })
-  for (const extra of [{ chatTokenParameter: 'other' }, { reasoningEffort: 'none' }, ...['low', 'medium', 'high', 'xhigh'].flatMap(reasoningEffort => [{ enableThinking: false, reasoningEffort }, { thinkingMode: 'disabled', reasoningEffort }])]) {
+  for (const extra of [{ chatTokenParameter: 'other' }, { reasoningEffort: 'none' }, ...['low', 'medium', 'high', 'xhigh', 'max'].flatMap(reasoningEffort => [{ enableThinking: false, reasoningEffort }, { thinkingMode: 'disabled', reasoningEffort }])]) {
     await assert.rejects(runPairedModelBenchmark({ ...baseOptions, endpoint, output: join(folder, 'never-started'), ...extra }), /chatTokenParameter|reasoningEffort/)
   }
   for (const disabled of [{ KJDRAW_BENCH_ENABLE_THINKING: 'false' }, { KJDRAW_BENCH_THINKING: 'disabled' }]) assert.throws(() => liveModelConfiguration({ ...env, ...disabled, KJDRAW_BENCH_REASONING_EFFORT: 'low' }), /conflicts/)

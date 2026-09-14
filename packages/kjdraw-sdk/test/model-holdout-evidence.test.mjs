@@ -18,6 +18,7 @@ const usage = (inputTokens = 100, outputTokens = 20) => ({ inputTokens, outputTo
 async function sources() {
   const values = {}
   for (const name of ['paired-model-benchmark.mjs', 'release-holdout-behavioral-runner.mjs', 'release-holdout-task-suite.mjs', 'release-holdout-validator.py']) values[name] = digest(await readFile(resolve(root, 'scripts/benchmarks', name)))
+  values['chat-model-settings.js'] = digest(await readFile(resolve(root, 'apps/playground/chat-model-settings.js')))
   values['model-usage.js'] = digest(await readFile(resolve(root, 'packages/kjdraw-sdk/src/model-usage.js')))
   const folder = resolve(root, 'packages/kjdraw-sdk/src'), sdk = createHash('sha256')
   for (const name of (await readdir(folder, { recursive: true })).map(name => name.replaceAll('\\', '/')).filter(name => name.endsWith('.js')).sort()) { sdk.update(name); sdk.update(await readFile(resolve(folder, name))) }

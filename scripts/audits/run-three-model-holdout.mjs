@@ -42,19 +42,23 @@ function validateEndpoint(value) {
 }
 
 function validateSettings(value = {}) {
-  exactKeys(value, ['maxOutputTokens', 'timeoutMs', 'chatTokenParameter', 'toolChoiceMode', 'thinkingMode', 'enableThinking', 'reasoningEffort', 'pricing'], 'Model settings')
+  exactKeys(value, ['maxOutputTokens', 'timeoutMs', 'chatTokenParameter', 'toolChoiceMode', 'temperature', 'stream', 'thinkingMode', 'enableThinking', 'reasoningEffort', 'pricing'], 'Model settings')
   const maxOutputTokens = value.maxOutputTokens ?? 4096, timeoutMs = value.timeoutMs ?? 60000
   if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens < 4096 || maxOutputTokens > 32768) throw new Error('maxOutputTokens must be 4096–32768')
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 10 || timeoutMs > 120000) throw new Error('timeoutMs must be 10–120000')
   const chatTokenParameter = value.chatTokenParameter ?? 'max_tokens', toolChoiceMode = value.toolChoiceMode ?? 'forced'
   if (!['max_tokens', 'max_completion_tokens'].includes(chatTokenParameter)) throw new Error('Unsupported chat token parameter')
-  if (!['auto', 'forced'].includes(toolChoiceMode)) throw new Error('Unsupported tool choice mode')
+  if (!['auto', 'forced', 'required'].includes(toolChoiceMode)) throw new Error('Unsupported tool choice mode')
+  const temperature = value.temperature === undefined ? 0 : value.temperature
+  if (temperature !== null && (typeof temperature !== 'number' || !Number.isFinite(temperature) || temperature < 0 || temperature > 2)) throw new Error('temperature must be null (omit) or 0–2')
+  const stream = value.stream ?? false
+  if (typeof stream !== 'boolean') throw new Error('stream must be boolean')
   if (value.thinkingMode !== undefined && !['disabled', 'enabled'].includes(value.thinkingMode)) throw new Error('Unsupported thinking mode')
   if (value.enableThinking !== undefined && typeof value.enableThinking !== 'boolean') throw new Error('enableThinking must be boolean')
   if (value.thinkingMode !== undefined && value.enableThinking !== undefined) throw new Error('Choose only one thinking format')
-  if (value.reasoningEffort !== undefined && !['low', 'medium', 'high', 'xhigh'].includes(value.reasoningEffort)) throw new Error('Unsupported reasoning effort')
+  if (value.reasoningEffort !== undefined && !['low', 'medium', 'high', 'xhigh', 'max'].includes(value.reasoningEffort)) throw new Error('Unsupported reasoning effort')
   const pricing = benchmarkPricing(value.pricing)
-  return { maxOutputTokens, timeoutMs, chatTokenParameter, toolChoiceMode, pricing, ...(value.thinkingMode !== undefined ? { thinkingMode: value.thinkingMode } : {}), ...(value.enableThinking !== undefined ? { enableThinking: value.enableThinking } : {}), ...(value.reasoningEffort !== undefined ? { reasoningEffort: value.reasoningEffort } : {}) }
+  return { maxOutputTokens, timeoutMs, chatTokenParameter, toolChoiceMode, temperature, stream, pricing, ...(value.thinkingMode !== undefined ? { thinkingMode: value.thinkingMode } : {}), ...(value.enableThinking !== undefined ? { enableThinking: value.enableThinking } : {}), ...(value.reasoningEffort !== undefined ? { reasoningEffort: value.reasoningEffort } : {}) }
 }
 
 export function validateModelHoldoutRunConfig(value) {
@@ -156,7 +160,7 @@ function runnerEnvironment(model, secret) {
   const settings = model.settings
   return {
     KJDRAW_BENCH_PROTOCOL: 'chat-completions', KJDRAW_BENCH_MODEL: model.requestedModel, KJDRAW_BENCH_ENDPOINT: model.endpoint, KJDRAW_BENCH_API_KEY: secret,
-    KJDRAW_BENCH_CHAT_TOKEN_PARAMETER: settings.chatTokenParameter, KJDRAW_BENCH_MAX_OUTPUT_TOKENS: String(settings.maxOutputTokens), KJDRAW_BENCH_TIMEOUT_MS: String(settings.timeoutMs), KJDRAW_BENCH_TOOL_CHOICE: settings.toolChoiceMode,
+    KJDRAW_BENCH_CHAT_TOKEN_PARAMETER: settings.chatTokenParameter, KJDRAW_BENCH_MAX_OUTPUT_TOKENS: String(settings.maxOutputTokens), KJDRAW_BENCH_TIMEOUT_MS: String(settings.timeoutMs), KJDRAW_BENCH_TOOL_CHOICE: settings.toolChoiceMode, KJDRAW_BENCH_TEMPERATURE: settings.temperature === null ? 'omit' : String(settings.temperature), KJDRAW_BENCH_STREAM: String(settings.stream),
     ...(settings.thinkingMode !== undefined ? { KJDRAW_BENCH_THINKING: settings.thinkingMode } : {}), ...(settings.enableThinking !== undefined ? { KJDRAW_BENCH_ENABLE_THINKING: String(settings.enableThinking) } : {}), ...(settings.reasoningEffort !== undefined ? { KJDRAW_BENCH_REASONING_EFFORT: settings.reasoningEffort } : {}), ...(settings.pricing ? { KJDRAW_BENCH_PRICING_JSON: JSON.stringify(settings.pricing) } : {}),
   }
 }
@@ -173,7 +177,7 @@ async function runPhase({ phase, parent, model, repetitions, runtime, secret, re
   if (found.incomplete && !retryIncomplete) throw new Error(`Incomplete ${phase} attempt for ${model.id}; rerun with explicit retryIncomplete`)
   const output = await nextAttempt(parent, phase), env = runnerEnvironment(model, secret)
   if (phase === 'generation') {
-    await runners.generation({ mode: 'live', protocol: 'chat-completions', model: model.requestedModel, endpoint: model.endpoint, apiKey: secret, repetitions, maxRequests: GENERATION_REQUESTS_PER_REPETITION * repetitions, taskSuite: 'release-holdout-generation', maxOutputTokens: model.settings.maxOutputTokens, exploratory: false, chatTokenParameter: model.settings.chatTokenParameter, toolChoiceMode: model.settings.toolChoiceMode, timeoutMs: model.settings.timeoutMs, output, pricing: model.settings.pricing, ...(model.settings.thinkingMode !== undefined ? { thinkingMode: model.settings.thinkingMode } : {}), ...(model.settings.enableThinking !== undefined ? { enableThinking: model.settings.enableThinking } : {}), ...(model.settings.reasoningEffort !== undefined ? { reasoningEffort: model.settings.reasoningEffort } : {}) })
+    await runners.generation({ mode: 'live', protocol: 'chat-completions', model: model.requestedModel, endpoint: model.endpoint, apiKey: secret, repetitions, maxRequests: GENERATION_REQUESTS_PER_REPETITION * repetitions, taskSuite: 'release-holdout-generation', maxOutputTokens: model.settings.maxOutputTokens, exploratory: false, chatTokenParameter: model.settings.chatTokenParameter, toolChoiceMode: model.settings.toolChoiceMode, temperature: model.settings.temperature, stream: model.settings.stream, timeoutMs: model.settings.timeoutMs, output, pricing: model.settings.pricing, ...(model.settings.thinkingMode !== undefined ? { thinkingMode: model.settings.thinkingMode } : {}), ...(model.settings.enableThinking !== undefined ? { enableThinking: model.settings.enableThinking } : {}), ...(model.settings.reasoningEffort !== undefined ? { reasoningEffort: model.settings.reasoningEffort } : {}) })
   } else await runners.behavioral({ repetitions, maxRuns: BEHAVIORAL_RUNS_PER_REPETITION * repetitions, output, humanInterventionLedgerPath: ledgerPath, env })
   const report = await readJson(resolve(output, 'report.json'))
   if (!reportMatches(report, phase, model, repetitions, runtime)) throw new Error(`${phase} runner did not produce a complete report for ${model.id}`)

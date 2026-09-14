@@ -53,6 +53,7 @@ async function expectedSources() {
     'release-holdout-behavioral-runner.mjs': new URL('../benchmarks/release-holdout-behavioral-runner.mjs', import.meta.url),
     'release-holdout-task-suite.mjs': new URL('../benchmarks/release-holdout-task-suite.mjs', import.meta.url),
     'release-holdout-validator.py': new URL('../benchmarks/release-holdout-validator.py', import.meta.url),
+    'chat-model-settings.js': new URL('../../apps/playground/chat-model-settings.js', import.meta.url),
     'model-usage.js': new URL('../../packages/kjdraw-sdk/src/model-usage.js', import.meta.url),
   }
   const result = Object.fromEntries(await Promise.all(Object.entries(files).map(async ([name, url]) => [name, sha(await readFile(url))])))
@@ -129,7 +130,7 @@ async function validateGeneration(report, directory, model, expected) {
   validateEndpoint(report, 'Generation report')
   requireValue(typeof report.timingDefinition === 'string' && report.timingDefinition && typeof report.latencyDefinition === 'string' && report.latencyDefinition, 'Generation timing definitions are missing')
   validateTaskRows(report.tasks, releaseHoldoutGenerationTasks, 'Generation report')
-  validateSource(report, ['paired-model-benchmark.mjs', 'release-holdout-task-suite.mjs', 'release-holdout-validator.py'], expected, 'Generation report')
+  validateSource(report, ['paired-model-benchmark.mjs', 'release-holdout-task-suite.mjs', 'release-holdout-validator.py', 'chat-model-settings.js'], expected, 'Generation report')
   for (const [kind, validatorName] of [['manufacturing', 'ezdxf-manufacturing'], ['release-holdout', 'ezdxf-release-holdout']]) requireValue(report.validator?.[kind]?.validator === validatorName && typeof report.validator[kind].version === 'string', `Generation independent ${kind} validator is missing`)
   const tasks = expectedTaskMap(releaseHoldoutGenerationTasks), seen = new Set(), successful = []
   let interventionTotal = 0, kjdrawInterventionTotal = 0, totalMs = 0, transportMs = 0
@@ -187,7 +188,7 @@ async function validateBehavioral(report, directory, model, expected) {
   validateEndpoint(report, 'Behavioral report')
   requireValue(typeof report.timingDefinition === 'string' && report.timingDefinition && typeof report.latencyDefinition === 'string' && report.latencyDefinition, 'Behavioral timing definitions are missing')
   validateTaskRows(report.tasks, releaseHoldoutBehavioralTasks, 'Behavioral report')
-  validateSource(report, ['release-holdout-behavioral-runner.mjs', 'release-holdout-task-suite.mjs', 'paired-model-benchmark.mjs'], expected, 'Behavioral report')
+  validateSource(report, ['release-holdout-behavioral-runner.mjs', 'release-holdout-task-suite.mjs', 'paired-model-benchmark.mjs', 'chat-model-settings.js'], expected, 'Behavioral report')
   const tasks = expectedTaskMap(releaseHoldoutBehavioralTasks), seen = new Set(), successful = []
   let interventionTotal = 0, totalMs = 0, providerLatencyMs = 0
   for (const run of report.runs) {

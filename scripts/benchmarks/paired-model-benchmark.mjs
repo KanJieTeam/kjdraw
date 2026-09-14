@@ -14,6 +14,7 @@ import { manufacturingTaskSuite, manufacturingTaskSuiteScope } from './manufactu
 import { releaseHoldoutDrawingTool, releaseHoldoutGenerationTasks, releaseHoldoutTaskSuiteScope } from './release-holdout-task-suite.mjs'
 import { parametricDrawingTasks } from './parametric-drawing-tasks.mjs'
 import { spawnSyncWithFileStdin } from '../spawn-file-stdin.mjs'
+import { readChatModelResponse } from '../../apps/playground/chat-model-settings.js'
 
 const protocol = 'chat-completions'
 const arms = ['kjdraw-tool', 'direct-dxf']
@@ -27,14 +28,16 @@ class BenchmarkFailure extends Error {
 }
 const fail = (code, stop = false, status = null) => { throw new BenchmarkFailure(code, stop, status) }
 
-export function benchmarkProviderSettings({ chatTokenParameter = 'max_tokens', maxOutputTokens = 4096, thinkingMode, enableThinking, reasoningEffort } = {}) {
+export function benchmarkProviderSettings({ chatTokenParameter = 'max_tokens', maxOutputTokens = 4096, temperature = 0, stream = false, thinkingMode, enableThinking, reasoningEffort } = {}) {
   if (!['max_tokens', 'max_completion_tokens'].includes(chatTokenParameter)) throw new Error('chatTokenParameter must be max_tokens or max_completion_tokens')
+  if (temperature !== null && (typeof temperature !== 'number' || !Number.isFinite(temperature) || temperature < 0 || temperature > 2)) throw new Error('temperature must be null (omit) or a finite number from 0 to 2')
+  if (typeof stream !== 'boolean') throw new Error('stream must be boolean')
   if (thinkingMode !== undefined && !['disabled', 'enabled'].includes(thinkingMode)) throw new Error('thinkingMode must be disabled or enabled')
   if (enableThinking !== undefined && typeof enableThinking !== 'boolean') throw new Error('enableThinking must be boolean')
   if (thinkingMode !== undefined && enableThinking !== undefined) throw new Error('Configure only one thinking format')
-  if (reasoningEffort !== undefined && !['low', 'medium', 'high', 'xhigh'].includes(reasoningEffort)) throw new Error('reasoningEffort must be low, medium, high or xhigh')
+  if (reasoningEffort !== undefined && !['low', 'medium', 'high', 'xhigh', 'max'].includes(reasoningEffort)) throw new Error('reasoningEffort must be low, medium, high, xhigh or max')
   if (reasoningEffort !== undefined && (thinkingMode === 'disabled' || enableThinking === false)) throw new Error('reasoningEffort conflicts with disabled thinking')
-  return { temperature: 0, [chatTokenParameter]: maxOutputTokens, stream: false, ...(thinkingMode !== undefined ? { thinking: { type: thinkingMode } } : {}), ...(enableThinking !== undefined ? { enable_thinking: enableThinking } : {}), ...(reasoningEffort !== undefined ? { reasoning_effort: reasoningEffort } : {}) }
+  return { ...(temperature === null ? {} : { temperature }), [chatTokenParameter]: maxOutputTokens, stream, ...(stream ? { stream_options: { include_usage: true } } : {}), ...(thinkingMode !== undefined ? { thinking: { type: thinkingMode } } : {}), ...(enableThinking !== undefined ? { enable_thinking: enableThinking } : {}), ...(reasoningEffort !== undefined ? { reasoning_effort: reasoningEffort } : {}) }
 }
 
 export function benchmarkPricing(value) {
@@ -59,7 +62,7 @@ export function benchmarkRunCost(usage, pricing) {
   return { currency: normalized.currency, amount: Number(amount.toFixed(12)), uncachedInputTokens: uncached, cachedInputTokens: cached, outputTokens, ratesPerMillion: normalized }
 }
 
-export function pairedModelPlan({ repetitions = 5, maxRequests = 30, taskSuite = 'pilot', drawingTool, maxOutputTokens = 4096, exploratory = false, chatTokenParameter = 'max_tokens', thinkingMode, enableThinking, reasoningEffort } = {}) {
+export function pairedModelPlan({ repetitions = 5, maxRequests = 30, taskSuite = 'pilot', drawingTool, maxOutputTokens = 4096, exploratory = false, chatTokenParameter = 'max_tokens', temperature = 0, stream = false, thinkingMode, enableThinking, reasoningEffort } = {}) {
   if (typeof exploratory !== 'boolean') throw new Error('Exploratory mode must be explicit boolean')
   if (!Object.hasOwn(taskSuites, taskSuite)) throw new Error('Choose an explicit supported task suite')
   const perTaskTools = taskSuite === 'release-holdout-generation'
@@ -73,7 +76,7 @@ export function pairedModelPlan({ repetitions = 5, maxRequests = 30, taskSuite =
   if (!Number.isSafeInteger(repetitions) || repetitions < (exploratory ? 1 : 5) || repetitions > 30) throw new Error('Choose 5–30 repetitions, or explicitly exploratory 1–30')
   const plannedRequests = tasks.length * arms.length * repetitions
   if (!Number.isSafeInteger(maxRequests) || maxRequests < plannedRequests || maxRequests > 1800) throw new Error('Explicit request budget must cover the complete paired plan and be at most 1800')
-  return { mode: 'dry-run', exploratory, protocol, repetitions, maxRequests, plannedRequests, actualRequests: 0, tasks: tasks.map(task => ({ id: task.id, prompt: task.prompt, ...(task.version ? { version: task.version } : {}), ...(task.category ? { category: task.category } : {}), ...(task.drawingTool ? { drawingTool: task.drawingTool } : {}), ...(task.units ? { units: task.units } : {}), ...(task.inputSha256 ? { inputSha256: task.inputSha256 } : {}), ...(task.referenceInputSha256 ? { referenceInputSha256: task.referenceInputSha256 } : {}), ...(task.acceptanceSha256 ? { acceptanceSha256: task.acceptanceSha256 } : {}), ...(task.budget ? { budget: structuredClone(task.budget) } : {}) })), taskSuite, drawingTool: perTaskTools ? releaseHoldoutDrawingTool : selectedDrawingTool, arms, chatTokenParameter, settings: benchmarkProviderSettings({ chatTokenParameter, maxOutputTokens, thinkingMode, enableThinking, reasoningEffort }), scope: taskSuite === 'engineering' ? engineeringDrawingScope : taskSuite === 'manufacturing' ? manufacturingDrawingScope : taskSuite === 'manufacturing-30' ? manufacturingTaskSuiteScope : taskSuite === 'release-holdout-generation' ? releaseHoldoutTaskSuiteScope : taskSuite === 'pilot' ? 'Three simple fully specified synthetic tasks, repeated one-shot generation. This is not a complex autonomous CAD evaluation.' : 'Three fully specified synthetic 2D geometry tasks with repeated patterns, repeated one-shot generation. No dimensions, annotations, complete drawing sheets or autonomous design are evaluated.' }
+  return { mode: 'dry-run', exploratory, protocol, repetitions, maxRequests, plannedRequests, actualRequests: 0, tasks: tasks.map(task => ({ id: task.id, prompt: task.prompt, ...(task.version ? { version: task.version } : {}), ...(task.category ? { category: task.category } : {}), ...(task.drawingTool ? { drawingTool: task.drawingTool } : {}), ...(task.units ? { units: task.units } : {}), ...(task.inputSha256 ? { inputSha256: task.inputSha256 } : {}), ...(task.referenceInputSha256 ? { referenceInputSha256: task.referenceInputSha256 } : {}), ...(task.acceptanceSha256 ? { acceptanceSha256: task.acceptanceSha256 } : {}), ...(task.budget ? { budget: structuredClone(task.budget) } : {}) })), taskSuite, drawingTool: perTaskTools ? releaseHoldoutDrawingTool : selectedDrawingTool, arms, chatTokenParameter, settings: benchmarkProviderSettings({ chatTokenParameter, maxOutputTokens, temperature, stream, thinkingMode, enableThinking, reasoningEffort }), scope: taskSuite === 'engineering' ? engineeringDrawingScope : taskSuite === 'manufacturing' ? manufacturingDrawingScope : taskSuite === 'manufacturing-30' ? manufacturingTaskSuiteScope : taskSuite === 'release-holdout-generation' ? releaseHoldoutTaskSuiteScope : taskSuite === 'pilot' ? 'Three simple fully specified synthetic tasks, repeated one-shot generation. This is not a complex autonomous CAD evaluation.' : 'Three fully specified synthetic 2D geometry tasks with repeated patterns, repeated one-shot generation. No dimensions, annotations, complete drawing sheets or autonomous design are evaluated.' }
 }
 
 export function liveModelConfiguration(env = process.env) {
@@ -83,13 +86,18 @@ export function liveModelConfiguration(env = process.env) {
   const thinkingMode = env.KJDRAW_BENCH_THINKING
   if (thinkingMode !== undefined && !['disabled', 'enabled'].includes(thinkingMode)) throw new Error('KJDRAW_BENCH_THINKING must be disabled or enabled when configured')
   const toolChoiceMode = env.KJDRAW_BENCH_TOOL_CHOICE ?? 'forced'
-  if (!['auto', 'forced'].includes(toolChoiceMode)) throw new Error('KJDRAW_BENCH_TOOL_CHOICE must be auto or forced')
+  if (!['auto', 'forced', 'required'].includes(toolChoiceMode)) throw new Error('KJDRAW_BENCH_TOOL_CHOICE must be auto, forced or required')
   const enableThinking = env.KJDRAW_BENCH_ENABLE_THINKING
   if (enableThinking !== undefined && !['true', 'false'].includes(enableThinking)) throw new Error('KJDRAW_BENCH_ENABLE_THINKING must be true or false when configured')
   if (thinkingMode !== undefined && enableThinking !== undefined) throw new Error('Configure only one thinking format')
   const chatTokenParameter = env.KJDRAW_BENCH_CHAT_TOKEN_PARAMETER ?? 'max_tokens'
   const reasoningEffort = env.KJDRAW_BENCH_REASONING_EFFORT
-  const explicit = { chatTokenParameter, ...(thinkingMode !== undefined ? { thinkingMode } : {}), ...(enableThinking !== undefined ? { enableThinking: enableThinking === 'true' } : {}), ...(reasoningEffort !== undefined ? { reasoningEffort } : {}) }
+  const temperatureValue = env.KJDRAW_BENCH_TEMPERATURE
+  if (temperatureValue !== undefined && temperatureValue !== 'omit' && (typeof temperatureValue !== 'string' || !temperatureValue.trim())) throw new Error('KJDRAW_BENCH_TEMPERATURE must be omit or a number from 0 to 2')
+  const temperature = temperatureValue === 'omit' ? null : temperatureValue === undefined ? 0 : Number(temperatureValue)
+  const streamValue = env.KJDRAW_BENCH_STREAM ?? 'false'
+  if (!['true', 'false'].includes(streamValue)) throw new Error('KJDRAW_BENCH_STREAM must be true or false')
+  const explicit = { chatTokenParameter, temperature, stream: streamValue === 'true', ...(thinkingMode !== undefined ? { thinkingMode } : {}), ...(enableThinking !== undefined ? { enableThinking: enableThinking === 'true' } : {}), ...(reasoningEffort !== undefined ? { reasoningEffort } : {}) }
   benchmarkProviderSettings(explicit)
   let pricing = null
   if (env.KJDRAW_BENCH_PRICING_JSON !== undefined) {
@@ -115,7 +123,7 @@ function configuration(options) {
   const drawingTool = plan.drawingTool
   plan.drawingTool = drawingTool
   const toolChoiceMode = options.toolChoiceMode ?? 'forced'
-  if (!['auto', 'forced'].includes(toolChoiceMode)) throw new Error('toolChoiceMode must be auto or forced')
+  if (!['auto', 'forced', 'required'].includes(toolChoiceMode)) throw new Error('toolChoiceMode must be auto, forced or required')
   plan.toolChoiceMode = toolChoiceMode
   if (!['live', 'fixture'].includes(options.mode) || options.protocol !== protocol || typeof options.model !== 'string' || !options.model.trim() || options.model.length > 256) throw new Error('Select an explicit live or fixture chat-completions configuration')
   let url
@@ -145,7 +153,71 @@ function requestBody(task, arm, config, tool) {
     ? `Use exactly one ${drawingTool} tool call. The current units and revision have already been supplied. Return requested editable geometry for synthetic benchmark review.`
     : `Return only a complete valid ASCII DXF file, no markdown or commentary. Use DXF AC1027 or newer and set $INSUNITS to ${units === 'meter' ? 6 : 4} (${units}). ${completeDrawing ? 'Use editable native CAD entities, layers, linetypes, blocks, text and dimensions as requested.' : 'Use LINE, CIRCLE, ARC and/or straight LWPOLYLINE entities.'} Do not use any CAD library or tool.`
   const settings = task.budget ? { ...config.settings, [config.chatTokenParameter]: Math.min(config.settings[config.chatTokenParameter], task.budget.maxOutputTokens) } : config.settings
-  return { model: config.model, messages: [{ role: 'system', content: system }, { role: 'user', content: common + task.prompt }], ...settings, ...(arm === 'kjdraw-tool' ? { tools: [tool], tool_choice: config.toolChoiceMode === 'auto' ? 'auto' : { type: 'function', function: { name: drawingTool } } } : {}) }
+  const toolChoice = config.toolChoiceMode === 'auto' ? 'auto' : config.toolChoiceMode === 'required' ? 'required' : { type: 'function', function: { name: drawingTool } }
+  return { model: config.model, messages: [{ role: 'system', content: system }, { role: 'user', content: common + task.prompt }], ...settings, ...(arm === 'kjdraw-tool' ? { tools: [tool], tool_choice: toolChoice } : {}) }
+}
+
+function streamedChatCompletion(source) {
+  return (async () => {
+    const tools = new Map()
+    let model = null, usage = null, content = '', finishReason = null, events = 0
+    for await (const chunk of source) {
+      if (++events > 65536 || !chunk || typeof chunk !== 'object' || Array.isArray(chunk)) fail('PROVIDER_INVALID_STREAM', true)
+      if (chunk.model !== undefined) {
+        if (typeof chunk.model !== 'string' || (model !== null && model !== chunk.model)) fail('PROVIDER_INVALID_STREAM', true)
+        model = chunk.model
+      }
+      if (chunk.usage !== undefined && chunk.usage !== null) usage = chunk.usage
+      if (!Array.isArray(chunk.choices)) fail('PROVIDER_INVALID_STREAM', true)
+      if (!chunk.choices.length) continue
+      if (chunk.choices.length !== 1 || finishReason !== null) fail('PROVIDER_INVALID_STREAM', true)
+      const choice = chunk.choices[0], delta = choice?.delta
+      if (choice?.index !== 0 || !delta || typeof delta !== 'object' || Array.isArray(delta)) fail('PROVIDER_INVALID_STREAM', true)
+      if (choice.usage !== undefined && choice.usage !== null) usage = choice.usage
+      if (delta.role !== undefined && delta.role !== null && delta.role !== 'assistant') fail('PROVIDER_INVALID_STREAM', true)
+      if (delta.content !== undefined && delta.content !== null) {
+        if (typeof delta.content !== 'string') fail('PROVIDER_INVALID_STREAM', true)
+        content += delta.content
+      }
+      if (delta.refusal !== undefined && delta.refusal !== null && delta.refusal !== '') fail('MODEL_REFUSED')
+      if (delta.tool_calls !== undefined && delta.tool_calls !== null) {
+        if (!Array.isArray(delta.tool_calls)) fail('PROVIDER_INVALID_STREAM', true)
+        for (const fragment of delta.tool_calls) {
+          if (!Number.isSafeInteger(fragment?.index) || fragment.index < 0 || fragment.index > 15) fail('PROVIDER_INVALID_STREAM', true)
+          const current = tools.get(fragment.index) ?? { id: '', type: 'function', name: '', arguments: '' }
+          if (fragment.id !== undefined && fragment.id !== null) {
+            if (typeof fragment.id !== 'string' || !fragment.id || (current.id && current.id !== fragment.id)) fail('PROVIDER_INVALID_STREAM', true)
+            current.id = fragment.id
+          }
+          if (fragment.type !== undefined && fragment.type !== null && fragment.type !== 'function') fail('PROVIDER_INVALID_STREAM', true)
+          if (fragment.function !== undefined && fragment.function !== null) {
+            if (!fragment.function || typeof fragment.function !== 'object' || Array.isArray(fragment.function)) fail('PROVIDER_INVALID_STREAM', true)
+            if (fragment.function.name !== undefined && fragment.function.name !== null) current.name += typeof fragment.function.name === 'string' ? fragment.function.name : fail('PROVIDER_INVALID_STREAM', true)
+            if (fragment.function.arguments !== undefined && fragment.function.arguments !== null) current.arguments += typeof fragment.function.arguments === 'string' ? fragment.function.arguments : fail('PROVIDER_INVALID_STREAM', true)
+          }
+          tools.set(fragment.index, current)
+        }
+      }
+      if (choice.finish_reason !== undefined && choice.finish_reason !== null) {
+        if (typeof choice.finish_reason !== 'string' || !choice.finish_reason) fail('PROVIDER_INVALID_STREAM', true)
+        finishReason = choice.finish_reason
+      }
+    }
+    const indexes = [...tools.keys()].sort((left, right) => left - right)
+    if (!events || finishReason === null || indexes.some((value, index) => value !== index)) fail('PROVIDER_INVALID_STREAM', true)
+    const toolCalls = indexes.map(index => {
+      const value = tools.get(index)
+      if (!value.id || !value.name) fail('PROVIDER_INVALID_STREAM', true)
+      return { id: value.id, type: 'function', function: { name: value.name, arguments: value.arguments } }
+    })
+    if (finishReason === 'tool_calls' && !toolCalls.length) fail('PROVIDER_INVALID_STREAM', true)
+    return { model, usage, choices: [{ finish_reason: finishReason, message: { role: 'assistant', content: content || null, ...(toolCalls.length ? { tool_calls: toolCalls } : {}) } }] }
+  })()
+}
+
+export async function readBenchmarkChatResponse(response) {
+  const value = await readChatModelResponse(response, { maxBytes: 2097152 })
+  return value && typeof value[Symbol.asyncIterator] === 'function' ? streamedChatCompletion(value) : value
 }
 
 async function transport(config, body) {
@@ -154,19 +226,11 @@ async function transport(config, body) {
     const response = await fetch(config.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {}) }, body: JSON.stringify(body), signal, redirect: 'error' })
     if (!response.ok) { await response.body?.cancel(); fail('PROVIDER_HTTP_FAILURE', true, response.status) }
     if (!response.body) fail('PROVIDER_EMPTY_RESPONSE', true)
-    const reader = response.body.getReader(), chunks = []
-    let size = 0
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        size += value.byteLength
-        if (size > 2097152) fail('PROVIDER_RESPONSE_LIMIT', true)
-        chunks.push(value)
-      }
-    } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
     let value
-    try { value = JSON.parse(Buffer.concat(chunks, size).toString('utf8')) } catch { fail('PROVIDER_INVALID_JSON', true) }
+    try { value = await readBenchmarkChatResponse(response) } catch (error) {
+      if (error instanceof BenchmarkFailure) throw error
+      fail(config.settings.stream ? 'PROVIDER_INVALID_STREAM' : 'PROVIDER_INVALID_JSON', true)
+    }
     if (!value || typeof value !== 'object' || Array.isArray(value)) fail('PROVIDER_INVALID_RESPONSE', true)
     return value
   } catch (error) {
@@ -247,6 +311,7 @@ export async function runPairedModelBenchmark(options) {
   report.drawingTool = config.drawingTool
   report.chatTokenParameter = config.chatTokenParameter
   for (const name of ['paired-model-benchmark.mjs', 'paired-model-validator.py', 'model-drawing-pilot.mjs', 'deepseek-drawing-pilot.py', 'parametric-drawing-tasks.mjs', 'drawing-strategies.mjs', 'engineering-drawing-tasks.mjs', 'engineering-model-validator.py', 'manufacturing-drawing-tasks.mjs', 'manufacturing-task-suite.mjs', 'manufacturing-model-validator.py', 'release-holdout-task-suite.mjs', 'release-holdout-validator.py']) report.source[name] = hash(await readFile(new URL(name, import.meta.url)))
+  report.source['chat-model-settings.js'] = hash(await readFile(new URL('../../apps/playground/chat-model-settings.js', import.meta.url)))
   report.source['model-usage.js'] = hash(await readFile(new URL('../../packages/kjdraw-sdk/src/model-usage.js', import.meta.url)))
   const sdkFolder = new URL('../../packages/kjdraw-sdk/src/', import.meta.url), sdkHash = createHash('sha256')
   for (const name of (await readdir(sdkFolder, { recursive: true })).map(name => name.replaceAll('\\', '/')).filter(name => name.endsWith('.js')).sort()) { sdkHash.update(name); sdkHash.update(await readFile(new URL(name, sdkFolder))) }
@@ -325,18 +390,23 @@ export async function runPairedModelBenchmark(options) {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2)
-  if (args.some(argument => argument !== '--live' && argument !== '--explore' && !/^--(?:output|repetitions|max-requests|timeout-ms|task-suite|max-output-tokens|chat-token-parameter|reasoning-effort)=.+$/.test(argument))) throw new Error('Use --live only with explicit configuration; options: --output, --repetitions, --max-requests, --timeout-ms, --task-suite, --max-output-tokens, --chat-token-parameter, --reasoning-effort')
+  if (args.some(argument => argument !== '--live' && argument !== '--explore' && !/^--(?:output|repetitions|max-requests|timeout-ms|task-suite|max-output-tokens|chat-token-parameter|temperature|stream|reasoning-effort)=.+$/.test(argument))) throw new Error('Use --live only with explicit configuration; options: --output, --repetitions, --max-requests, --timeout-ms, --task-suite, --max-output-tokens, --chat-token-parameter, --temperature, --stream, --reasoning-effort')
   const value = (name, fallback) => args.find(argument => argument.startsWith(`--${name}=`))?.slice(name.length + 3) ?? fallback
   const exploratory = args.includes('--explore')
   const repetitions = Number(value('repetitions', 5)), maxRequests = Number(value('max-requests', 30)), taskSuite = value('task-suite', 'pilot'), maxOutputTokens = Number(value('max-output-tokens', 4096))
   const chatTokenParameter = value('chat-token-parameter', process.env.KJDRAW_BENCH_CHAT_TOKEN_PARAMETER ?? 'max_tokens'), reasoningEffort = value('reasoning-effort', process.env.KJDRAW_BENCH_REASONING_EFFORT)
+  const temperatureValue = value('temperature', process.env.KJDRAW_BENCH_TEMPERATURE)
+  const temperature = temperatureValue === 'omit' ? null : temperatureValue === undefined ? 0 : Number(temperatureValue)
+  const streamValue = value('stream', process.env.KJDRAW_BENCH_STREAM ?? 'false')
+  if (!['true', 'false'].includes(streamValue)) throw new Error('stream must be true or false')
+  const stream = streamValue === 'true'
   const enableThinkingValue = process.env.KJDRAW_BENCH_ENABLE_THINKING
   if (enableThinkingValue !== undefined && !['true', 'false'].includes(enableThinkingValue)) throw new Error('KJDRAW_BENCH_ENABLE_THINKING must be true or false when configured')
-  if (!args.includes('--live')) console.log(JSON.stringify(pairedModelPlan({ repetitions, maxRequests, taskSuite, maxOutputTokens, exploratory, chatTokenParameter, reasoningEffort, thinkingMode: process.env.KJDRAW_BENCH_THINKING, ...(enableThinkingValue !== undefined ? { enableThinking: enableThinkingValue === 'true' } : {}) }), null, 2))
+  if (!args.includes('--live')) console.log(JSON.stringify(pairedModelPlan({ repetitions, maxRequests, taskSuite, maxOutputTokens, exploratory, chatTokenParameter, temperature, stream, reasoningEffort, thinkingMode: process.env.KJDRAW_BENCH_THINKING, ...(enableThinkingValue !== undefined ? { enableThinking: enableThinkingValue === 'true' } : {}) }), null, 2))
   else {
     const live = liveModelConfiguration()
     if ((taskSuite === 'manufacturing-30' || taskSuite === 'release-holdout-generation') && process.env.KJDRAW_BENCH_DRAWING_TOOL === undefined) delete live.drawingTool
-    const report = await runPairedModelBenchmark({ ...live, repetitions, maxRequests, taskSuite, maxOutputTokens, exploratory, chatTokenParameter, reasoningEffort, timeoutMs: Number(value('timeout-ms', 60000)), output: value('output') })
+    const report = await runPairedModelBenchmark({ ...live, repetitions, maxRequests, taskSuite, maxOutputTokens, exploratory, chatTokenParameter, temperature, stream, reasoningEffort, timeoutMs: Number(value('timeout-ms', 60000)), output: value('output') })
     console.log(JSON.stringify({ mode: report.mode, status: report.status, attemptedRequests: report.attemptedRequests, unexecutedRequests: report.unexecutedRequests, passed: report.runs.filter(run => run.status === 'passed').length, stopReason: report.stopReason ?? null }))
     if (report.status !== 'complete' || report.runs.some(run => run.status !== 'passed')) process.exitCode = 1
   }

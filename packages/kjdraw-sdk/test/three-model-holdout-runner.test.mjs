@@ -38,6 +38,8 @@ async function fakeReports(secretLog, failFirstGeneration = false, behavioralSta
 
 test('run configuration contains metadata and environment variable names only', () => {
   assert.equal(validateModelHoldoutRunConfig(configuration()).models.length, 3)
+  const compatible = configuration(); compatible.models[0].settings = { maxOutputTokens: 16384, timeoutMs: 120000, chatTokenParameter: 'max_completion_tokens', toolChoiceMode: 'required', temperature: null, stream: true, reasoningEffort: 'max' }
+  assert.deepEqual(validateModelHoldoutRunConfig(compatible).models[0].settings, { maxOutputTokens: 16384, timeoutMs: 120000, chatTokenParameter: 'max_completion_tokens', toolChoiceMode: 'required', temperature: null, stream: true, reasoningEffort: 'max', pricing: null })
   const weak = configuration(); weak.models[2].vendor.classification = 'domestic-cn'
   assert.throws(() => validateModelHoldoutRunConfig(weak), /international vendor/)
   const onePlatform = configuration(); onePlatform.models[1].runOn.platform = 'win32'; onePlatform.models[2].runOn.platform = 'win32'
