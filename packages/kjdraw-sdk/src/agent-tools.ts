@@ -785,7 +785,7 @@ export class KJAgentToolSession {
               for (const id of ids) {
                 const entity = document.getObject(id)
                 if (!entity || entity.erased || entity.kind !== 'entity') throw new KJValidationError(`Relayer entity does not exist: ${id}`)
-                const sourceLayerId = String(entity.payload.layerId ?? document.getTable('layers')?.records.find(layer => !layer.erased && layer.kind === 'table-record' && layer.type === 'LAYER' && layer.name === '0')?.id ?? '')
+                const sourceLayerId = String(entity.payload.layerId ?? document.getTable('layers')?.currentId ?? '')
                 const sourceLayer = document.getTable('layers')?.records.find(layer => !layer.erased && layer.kind === 'table-record' && layer.type === 'LAYER' && layer.id === sourceLayerId)
                 if (entity.ownerId !== document.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.frozen === true || entity.payload.locked === true || !sourceLayer || sourceLayer.payload.visible === false || sourceLayer.payload.frozen === true || sourceLayer.payload.locked === true) throw new KJValidationError(`Relayer entity must be visible and editable in model space: ${id}`)
                 currentLayers.set(sourceLayer.id, { id: sourceLayer.id, name: sourceLayer.name })

@@ -109,11 +109,13 @@ test('relayer resolves exact ids, filters no-op members and rejects malformed ta
     tx.createEntity('LINE', { start: [40, 0, 0], end: [45, 0, 0] }, { id: 'implicit-zero' })
     tx.updateObject('implicit-zero', { payload: { layerId: null } })
   })
-  await sdk.executeCommand('LAYERCURRENT', { id: 'geology-layer' }, { document })
+  await sdk.executeCommand('LAYERCURRENT', { id: 'source-layer' }, { document })
   const implicit = value(await session.call('cad_propose_relayer', args(document, { selectionSetName: undefined, ids: ['implicit-zero'] })))
   assert.deepEqual(implicit.arguments.ids, ['implicit-zero'])
-  assert.equal(implicit.layerChange.sourceLayers[0].name, '0')
+  assert.equal(implicit.layerChange.sourceLayers[0].name, 'SOURCE')
   value(session.reject(implicit.planId, 'reviewer'))
+  await sdk.executeCommand('LAYERCURRENT', { id: 'geology-layer' }, { document })
+  assert.equal((await session.call('cad_propose_relayer', args(document, { selectionSetName: undefined, ids: ['implicit-zero'] }))).ok, false)
   const source = document.serialize()
   for (const change of [
     { layerId: 'GEOLOGY' }, { layerId: 'missing' }, { layerId: 'symbol-block' }, { ids: ['boundary'] }, { selectionSetName: undefined },
