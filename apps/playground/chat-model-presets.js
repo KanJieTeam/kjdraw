@@ -30,6 +30,15 @@ export function getChatModelProviderPreset(id) {
   return presets.get(id) ?? presets.get('custom')
 }
 
+/** Provider/model wire settings kept separate from drawing behavior. */
+export function getChatModelAdapterOptions(providerId, model = '') {
+  const provider = getChatModelProviderPreset(providerId)
+  const modelName = String(model).trim().toLowerCase()
+  if (provider.id === 'kimi' && /^kimi-k3(?:$|-)/.test(modelName)) return Object.freeze({ chatTokenParameter: 'max_completion_tokens' })
+  if (['deepseek', 'kimi', 'qwen'].includes(provider.id)) return Object.freeze({ chatTokenParameter: 'max_tokens' })
+  return Object.freeze({})
+}
+
 export function formatChatModelUpstreamEndpoint(provider, model = '') {
   if (!provider?.upstreamEndpoint) return ''
   return provider.upstreamEndpoint.replace('{model}', encodeURIComponent(String(model).trim()))

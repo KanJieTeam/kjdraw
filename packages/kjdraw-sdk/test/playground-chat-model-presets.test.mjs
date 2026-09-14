@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { CHAT_MODEL_PROVIDER_PRESETS, formatChatModelUpstreamEndpoint, getChatModelProviderPreset } from '../../../apps/playground/chat-model-presets.js'
+import { CHAT_MODEL_PROVIDER_PRESETS, formatChatModelUpstreamEndpoint, getChatModelAdapterOptions, getChatModelProviderPreset } from '../../../apps/playground/chat-model-presets.js'
 
 const protocols=new Set(['responses','chat-completions','anthropic-messages','gemini-generate-content'])
 
@@ -24,4 +24,14 @@ test('provider lookup falls back safely and Gemini substitutes its selected mode
   assert.equal(getChatModelProviderPreset('missing').id,'custom')
   assert.equal(formatChatModelUpstreamEndpoint(getChatModelProviderPreset('gemini'),'gemini-3.8-flash'),'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent')
   assert.equal(formatChatModelUpstreamEndpoint(getChatModelProviderPreset('custom'),'anything'),'')
+})
+
+test('domestic provider presets select their real chat token-limit field',()=>{
+  assert.deepEqual(getChatModelAdapterOptions('deepseek','deepseek-v4-flash'),{chatTokenParameter:'max_tokens'})
+  assert.deepEqual(getChatModelAdapterOptions('qwen','qwen3.8-max'),{chatTokenParameter:'max_tokens'})
+  assert.deepEqual(getChatModelAdapterOptions('kimi','kimi-k2.6'),{chatTokenParameter:'max_tokens'})
+  assert.deepEqual(getChatModelAdapterOptions('kimi','kimi-k3'),{chatTokenParameter:'max_completion_tokens'})
+  assert.deepEqual(getChatModelAdapterOptions('kimi','kimi-k3-preview'),{chatTokenParameter:'max_completion_tokens'})
+  assert.deepEqual(getChatModelAdapterOptions('custom','kimi-k3'),{})
+  assert.throws(()=>{getChatModelAdapterOptions('kimi','kimi-k3').chatTokenParameter='max_tokens'},TypeError)
 })

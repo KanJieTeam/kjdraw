@@ -94,6 +94,26 @@ test('direct provider protocols use their required authentication headers and ex
   await expect(page.locator('.chat-message-body').last()).toHaveText('Direct model request failed. Check the endpoint, API key, network access and provider CORS policy.')
 })
 
+test('Kimi K3 uses its completion-token field without leaking the legacy field',async({page})=>{
+  await page.setViewportSize({width:1024,height:768})
+  await openSettings(page)
+  await page.locator('#chat-provider').selectOption('kimi')
+  await expect(page.locator('#chat-model')).toHaveValue('kimi-k3')
+  await page.locator('#chat-api-key').fill('kimi-browser-fixture')
+  let request
+  await page.route('https://api.moonshot.cn/v1/chat/completions',route=>{
+    request=route.request().postDataJSON()
+    return route.fulfill({json:{choices:[{finish_reason:'stop',message:{role:'assistant',content:'kimi ready'}}]}})
+  },{times:1})
+  await page.getByRole('button',{name:'Use this connection',exact:true}).click()
+  await page.locator('#chat-input').fill('Verify the Kimi wire contract.')
+  await page.locator('#chat-send').click()
+  await expect(page.locator('.chat-message-body').last()).toHaveText('kimi ready')
+  expect(request.model).toBe('kimi-k3')
+  expect(request.max_completion_tokens).toBe(4096)
+  expect(request).not.toHaveProperty('max_tokens')
+})
+
 for(const viewport of [{width:1440,height:900},{width:1024,height:768}])test(`connection settings actions remain reachable and close safely at ${viewport.width}x${viewport.height}`,async({page})=>{
   await page.setViewportSize(viewport)
   await openSettings(page)
