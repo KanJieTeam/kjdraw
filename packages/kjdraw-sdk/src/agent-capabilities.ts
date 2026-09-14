@@ -109,6 +109,7 @@ const INPUT_KEY = /^[A-Za-z][A-Za-z0-9_]{0,63}$/
 const ASSERTION_PATH = /^[A-Za-z][A-Za-z0-9_.\[\]-]{0,255}$/
 const UNSAFE_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor'])
 const fail = (message: string): never => { throw new KJValidationError(message) }
+const classifiesPatternAsNoiseOrBoundary = (candidateKind: string): boolean => candidateKind.toLowerCase().split(/[._-]+/).some(token => token === 'noise' || token === 'boundary')
 
 // Inspect descriptors before reading values: neither getters nor toJSON are invoked.
 // Callers load JSON themselves; this API never evaluates scripts or imports modules.
@@ -235,8 +236,10 @@ function candidateRules(value: unknown, requiredToolNames: readonly string[]): K
     if (new Set(evidenceCodes).size !== evidenceCodes.length) return fail('Capability evidence codes must be unique')
     if (item.nonMatchPolicy !== undefined && item.nonMatchPolicy !== 'preserve') return fail('Capability candidate nonMatchPolicy is unsupported')
     if (!['always', 'when-ambiguous'].includes(String(item.confirmation))) return fail('Capability candidate confirmation is unsupported')
+    const candidateKind = identifier(item.candidateKind, 'Capability candidate kind')
     if (entityTypes.some(type => type === 'HATCH' || type === 'INSERT') && item.confirmation !== 'always') return fail('HATCH and INSERT semantic candidates require explicit confirmation')
-    return { id: identifier(item.id, 'Capability candidate rule id'), candidateKind: identifier(item.candidateKind, 'Capability candidate kind'), seed: { entityTypes }, predicates, evidenceCodes,
+    if (entityTypes.some(type => type === 'HATCH' || type === 'INSERT') && classifiesPatternAsNoiseOrBoundary(candidateKind)) return fail('Capability rules cannot classify HATCH or INSERT candidates as noise or boundary')
+    return { id: identifier(item.id, 'Capability candidate rule id'), candidateKind, seed: { entityTypes }, predicates, evidenceCodes,
       ...(item.nonMatchPolicy === undefined ? {} : { nonMatchPolicy: item.nonMatchPolicy as 'preserve' }), confirmation: item.confirmation as KJAgentCapabilityCandidateRule['confirmation'] }
   })
   if (new Set(rules.map(rule => rule.id)).size !== rules.length) return fail('Capability candidate rule ids must be unique')

@@ -86,6 +86,8 @@ test('schema v2 rejects unknown executable fields and unsupported declarative vo
     v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], predicates: [{ fact: 'property', source: { ...topologySource('seed', 'entities[].ownerId'), toolName: 'cad_read_drawing' }, operator: 'exists' }] }] }),
     v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], predicates: [{ fact: 'geometry-relation', source: topologySource('seed', 'entities[].nativeReferences.displayExtent.bounds'), operator: 'within', compareTo: topologySource('seed', 'entities[].nativeReferences.displayExtent.bounds') }] }] }),
     v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], confirmation: 'when-ambiguous' }] }),
+    v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], candidateKind: 'stratum-boundary' }] }),
+    v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[1], candidateKind: 'noise' }] }),
     v2Manifest({ candidateRules: [{ id: 'global-repeat', candidateKind: 'geometry', seed: { entityTypes: ['INSERT'] }, predicates: [{ fact: 'repeat-group', source: topologySource('seed', 'entities[].nativeReferences.insert.repeat.sameDefinitionInstanceCount'), operator: 'at_least', value: 2 }], evidenceCodes: ['repeat'], nonMatchPolicy: 'preserve', confirmation: 'always' }] }),
     v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], nonMatchPolicy: 'delete' }] }),
     v2Manifest({ acceptanceTemplates: [{ ...v2Manifest().acceptanceTemplates[0], endpoint: 'https://example.invalid' }] }),

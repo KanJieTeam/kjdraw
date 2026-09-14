@@ -7,6 +7,7 @@ export * from './agent-manufacturing-sheet.js';
 export * from './agent-architecture-plan.js';
 export * from './agent-site-plan.js';
 export * from './agent-capabilities.js';
+export * from './agent-capability-candidates.js';
 export * from './drawing-validation.js';
 export * from './model-usage.js';
 export * from './model-adapters.js';

@@ -84,6 +84,7 @@ const UNSAFE_PATH_SEGMENTS = new Set([
 const fail = (message)=>{
     throw new KJValidationError(message);
 };
+const classifiesPatternAsNoiseOrBoundary = (candidateKind)=>candidateKind.toLowerCase().split(/[._-]+/).some((token)=>token === 'noise' || token === 'boundary');
 function jsonSnapshot(input) {
     let nodes = 0, characters = 0;
     const active = new Set();
@@ -287,10 +288,12 @@ function candidateRules(value, requiredToolNames) {
             'always',
             'when-ambiguous'
         ].includes(String(item.confirmation))) return fail('Capability candidate confirmation is unsupported');
+        const candidateKind = identifier(item.candidateKind, 'Capability candidate kind');
         if (entityTypes.some((type)=>type === 'HATCH' || type === 'INSERT') && item.confirmation !== 'always') return fail('HATCH and INSERT semantic candidates require explicit confirmation');
+        if (entityTypes.some((type)=>type === 'HATCH' || type === 'INSERT') && classifiesPatternAsNoiseOrBoundary(candidateKind)) return fail('Capability rules cannot classify HATCH or INSERT candidates as noise or boundary');
         return {
             id: identifier(item.id, 'Capability candidate rule id'),
-            candidateKind: identifier(item.candidateKind, 'Capability candidate kind'),
+            candidateKind,
             seed: {
                 entityTypes
             },
