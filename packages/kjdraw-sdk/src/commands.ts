@@ -1519,6 +1519,7 @@ function resolveOwnedLeaderPairSelection(document: KJDocument, inputIds: readonl
 function eraseEntities({ document, transaction }: KJCommandContext, args: KJCommandArguments): KJObjectRecord[] {
   const selected = resolveOwnedLeaderPairSelection(document, entityIds(args), 'ERASE')
   const roots = compoundRootIds(document, selected.ids)
+  requireSelectedAssociativeDimensions(document, roots, 'ERASE')
   const erased = roots.map(id => transaction.eraseObject(id)).filter((object): object is KJObjectRecord => object !== null)
   if (selected.pairIds.size) replaceEntityMemberships(transaction, [...selected.pairIds], [])
   return erased

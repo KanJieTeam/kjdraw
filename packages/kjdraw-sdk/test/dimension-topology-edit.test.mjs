@@ -78,6 +78,22 @@ test('BREAK migrates unique endpoint references while JOIN and EXPLODE reject am
   assert.equal(drawing.serialize(), polylineBefore); assert.equal(drawing.revision, polylineRevision)
 })
 
+test('ERASE refuses to leave associative dimensions dangling unless the same edit removes them', async () => {
+  const { sdk, drawing, polyline, dimension } = await polylineFixture('dimension-topology-erase')
+  const before = drawing.serialize(), revision = drawing.revision
+  await assert.rejects(
+    sdk.executeCommand('ERASE', { ids: [polyline.id] }, { document: drawing }),
+    error => error instanceof KJValidationError && error.message === `ERASE must include dimension ${dimension.id} when erasing one of its referenced sources`,
+  )
+  assert.equal(drawing.serialize(), before); assert.equal(drawing.revision, revision)
+
+  await sdk.executeCommand('ERASE', { ids: [polyline.id, dimension.id] }, { document: drawing })
+  assert.equal(drawing.getObject(polyline.id), null)
+  assert.equal(drawing.getObject(dimension.id), null)
+  await sdk.executeCommand('UNDO', {}, { document: drawing })
+  assert.ok(drawing.getObject(polyline.id)); assert.ok(drawing.getObject(dimension.id))
+})
+
 test('protected associated dimensions roll back PEDIT index migration', async t => {
   for (const [name, patch] of [['locked', { locked: true }], ['hidden', { visible: false }], ['frozen', { frozen: true }]]) {
     await t.test(name, async () => {

@@ -2648,6 +2648,7 @@ function resolveOwnedLeaderPairSelection(document, inputIds, command) {
 function eraseEntities({ document, transaction }, args) {
     const selected = resolveOwnedLeaderPairSelection(document, entityIds(args), 'ERASE');
     const roots = compoundRootIds(document, selected.ids);
+    requireSelectedAssociativeDimensions(document, roots, 'ERASE');
     const erased = roots.map((id)=>transaction.eraseObject(id)).filter((object)=>object !== null);
     if (selected.pairIds.size) replaceEntityMemberships(transaction, [
         ...selected.pairIds
