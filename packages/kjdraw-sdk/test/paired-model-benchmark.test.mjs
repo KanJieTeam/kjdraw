@@ -187,6 +187,19 @@ test('provider timeout aborts the HTTP request without retrying or spending the 
   await closed
 })
 
+test('provider SSE error stops immediately without retaining private error content', async t => {
+  if (!requireValidator(t)) return
+  const folder = await directory(t), output = join(folder, 'stream-error')
+  const endpoint = await server(t, (req, res) => {
+    req.resume(); res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+    res.end(`data: ${JSON.stringify({ error: { message: `private-${fixtureKey}` } })}\n\ndata: [DONE]\n\n`)
+  })
+  const report = await runPairedModelBenchmark({ ...baseOptions, endpoint, output, stream: true })
+  assert.equal(report.status, 'stopped'); assert.equal(report.stopReason, 'PROVIDER_STREAM_ERROR')
+  assert.equal(report.attemptedRequests, 1); assert.equal(report.unexecutedRequests, 29)
+  for (const file of await readdir(output)) assert.equal((await readFile(join(output, file), 'utf8')).includes(`private-${fixtureKey}`), false)
+})
+
 test('strict paired validator rejects non-XY, OCS, width, thickness, old-version and extra geometry counterexamples', async t => {
   if (!requireValidator(t)) return
   const task = pilotTasks[0], original = await fixtureDxf(task)

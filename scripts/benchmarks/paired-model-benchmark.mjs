@@ -163,6 +163,7 @@ function streamedChatCompletion(source) {
     let model = null, usage = null, content = '', finishReason = null, events = 0
     for await (const chunk of source) {
       if (++events > 65536 || !chunk || typeof chunk !== 'object' || Array.isArray(chunk)) fail('PROVIDER_INVALID_STREAM', true)
+      if (chunk.error !== undefined && chunk.error !== null) fail('PROVIDER_STREAM_ERROR', true)
       if (chunk.model !== undefined) {
         if (typeof chunk.model !== 'string' || (model !== null && model !== chunk.model)) fail('PROVIDER_INVALID_STREAM', true)
         model = chunk.model
