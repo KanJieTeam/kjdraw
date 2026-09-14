@@ -5,6 +5,7 @@ import { KJCommandRegistry } from './commands.js';
 import type { KJCommandArguments, KJCommandDefinition, KJRegisteredCommand } from './commands.js';
 import { KJDocument } from './document.js';
 import type { KJDocumentAuthority, KJDocumentConstructorOptions } from './document.js';
+import type { KJDwgConversionProvider } from './dwg-conversion.js';
 import { KJEventBus } from './events.js';
 import { KJExtensionRegistry } from './extensions.js';
 import type { KJExtensionDefinition, KJExtensionPoint } from './extensions.js';
@@ -29,6 +30,8 @@ export interface KJDrawSDKOptions {
     agentPlans?: KJAgentPlanRegistry;
     agentPlanOptions?: KJAgentPlanRegistryOptions;
     registerDefaultAdapters?: boolean;
+    /** Optional host-owned DWG converter. KJDraw stores neither endpoints nor credentials. */
+    dwgConversionProvider?: KJDwgConversionProvider | null;
 }
 export interface KJExecuteCommandOptions {
     document?: KJDocument | null;

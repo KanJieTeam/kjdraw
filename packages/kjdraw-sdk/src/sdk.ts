@@ -6,6 +6,8 @@ import type { KJCommandArguments, KJCommandDefinition, KJCommandInputContext, KJ
 import { KJDocument } from './document.js'
 import type { KJDocumentAuthority, KJDocumentConstructorOptions } from './document.js'
 import { createDXFFileAdapter } from './dxf-adapter.js'
+import { createDwgConversionFileAdapter } from './dwg-conversion.js'
+import type { KJDwgConversionProvider } from './dwg-conversion.js'
 import { createSVGFileAdapter } from './svg-adapter.js'
 import { KJValidationError } from './errors.js'
 import { KJEventBus } from './events.js'
@@ -56,6 +58,8 @@ export interface KJDrawSDKOptions {
   agentPlans?: KJAgentPlanRegistry
   agentPlanOptions?: KJAgentPlanRegistryOptions
   registerDefaultAdapters?: boolean
+  /** Optional host-owned DWG converter. KJDraw stores neither endpoints nor credentials. */
+  dwgConversionProvider?: KJDwgConversionProvider | null
 }
 
 export interface KJExecuteCommandOptions {
@@ -208,6 +212,7 @@ export class KJDrawSDK {
       this.fileAdapters.register(createDXFFileAdapter())
       this.fileAdapters.register(createSVGFileAdapter())
     }
+    if (options.dwgConversionProvider) this.fileAdapters.register(createDwgConversionFileAdapter({ provider: options.dwgConversionProvider }))
   }
 
   createDocument(options: KJDocumentOptions & KJDocumentConstructorOptions = {}): KJDocument {

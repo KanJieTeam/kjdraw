@@ -36,10 +36,10 @@ export interface KJFileAdapterOptions extends Record<string, unknown> {
 }
 
 export interface KJFileReadProgress {
-  phase: 'source' | 'parse' | 'import'
+  phase: 'validate' | 'upload' | 'convert' | 'download' | 'source' | 'parse' | 'import'
   completed: number
   total?: number
-  unit: 'bytes' | 'tags' | 'entities'
+  unit: 'bytes' | 'percent' | 'steps' | 'tags' | 'entities'
 }
 
 export interface KJFileAdapter<TRead = unknown, TWrite = unknown> {

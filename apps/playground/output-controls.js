@@ -34,7 +34,7 @@ function outputPageSettingsError(error, chinese) {
   if (!chinese) return text
   if (text.includes('leave no printable area')) return '纸张尺寸和页边距没有留下可打印区域。'
   if (text.includes('positive width and height')) return '出图窗口必须具有正的宽度和高度。'
-  if (text.includes('does not fit at this scale')) return '出图窗口在当前比例下放不进可打印区域。请增大纸张尺寸或比例分母。'
+  if (text.includes('does not fit at this scale')) return '固定比例下放不进可打印区域。可直接选择“适合纸张并居中”出图。'
   if (text.includes('must be positive')) return '纸张尺寸和比例分母必须大于 0。'
   if (text.includes('must be finite')) return '页面设置必须填写有效数字。'
   return text
@@ -50,13 +50,19 @@ export function buildOutputPageSettings(drawing, layoutId, values) {
   if (model) {
     const unit = MILLIMETERS[source.header.units]
     if (!unit) throw Error('Set a supported drawing unit (mm, cm, m, in or ft) before configuring a physical model scale')
-    settings.scaleNumerator = unit
-    settings.scaleDenominator = positive(values.denominator, 'Scale denominator')
     settings.windowMinX = finite(values.x0, 'Window minimum X'); settings.windowMinY = finite(values.y0, 'Window minimum Y')
     settings.windowMaxX = finite(values.x1, 'Window maximum X'); settings.windowMaxY = finite(values.y1, 'Window maximum Y')
-    const w = values.x1 - values.x0, h = values.y1 - values.y0, scale = unit / settings.scaleDenominator
+    const w = values.x1 - values.x0, h = values.y1 - values.y0
     if (!(w > 0 && h > 0)) throw Error('Plot window must have positive width and height')
-    if (w * scale > width - 2 * margin + 1e-8 || h * scale > height - 2 * margin + 1e-8) throw Error('Plot window does not fit at this scale. Increase paper size or the scale denominator; the scale will not be changed automatically.')
+    if (values.scaleMode === 'fit') {
+      settings.flags = 20
+      settings.standardScaleType = 0
+    } else {
+      settings.scaleNumerator = unit
+      settings.scaleDenominator = positive(values.denominator, 'Scale denominator')
+      const scale = unit / settings.scaleDenominator
+      if (w * scale > width - 2 * margin + 1e-8 || h * scale > height - 2 * margin + 1e-8) throw Error('Plot window does not fit at this scale. Increase paper size or the scale denominator, or choose Fit to paper.')
+    }
   }
   return settings
 }
@@ -112,10 +118,22 @@ export function createOutputControls({ getContext, locale, select, request, run,
       const unit = MILLIMETERS[drawing.snapshot().header.units]
       if (!unit) throw Error(zh() ? '请先使用 mm、cm、m、in 或 ft 单位的图纸。' : 'Use a drawing with mm, cm, m, in or ft units first.')
       const currentScale = settings.scaleNumerator && settings.scaleDenominator ? settings.scaleNumerator / settings.scaleDenominator * (settings.paperUnits === 0 ? 25.4 : 1) : null
-      fields.push(f('denominator', zh() ? '比例 1 : N（输入 N）' : 'Scale 1 : N (enter N)', currentScale ? unit / currentScale : 100, { min: 0.000001 }))
+      let initialScaleMode = (settings.flags & 16) !== 0 && settings.standardScaleType === 0 ? 'fit' : settings.flags === undefined ? 'fit' : 'custom'
+      if (initialScaleMode === 'custom') {
+        try {
+          buildOutputPageSettings(drawing, context.layoutId, {
+            width: initialWidth, height: initialHeight, margin: settings.marginLeft ?? 10,
+            scaleMode: 'custom', denominator: currentScale ? unit / currentScale : 100,
+            x0: settings.windowMinX ?? bounds[0], y0: settings.windowMinY ?? bounds[1],
+            x1: settings.windowMaxX ?? bounds[2], y1: settings.windowMaxY ?? bounds[3],
+          })
+        } catch { initialScaleMode = 'fit' }
+      }
+      fields.push({ name: 'scaleMode', label: zh() ? '缩放方式' : 'Scale mode', value: initialScaleMode, options: [['fit', zh() ? '适合纸张并居中（推荐）' : 'Fit to paper and center (recommended)'], ['custom', zh() ? '固定比例 1 : N' : 'Fixed scale 1 : N']], onChange: ({ get, setDisabled }) => setDisabled('denominator', get('scaleMode') === 'fit') })
+      fields.push(f('denominator', zh() ? '固定比例分母 N' : 'Fixed-scale denominator N', currentScale ? unit / currentScale : 100, { min: 0.000001, disabled: initialScaleMode === 'fit' }))
       for (const [name, key, label, fallback] of [['x0', 'windowMinX', 'X min', bounds[0]], ['y0', 'windowMinY', 'Y min', bounds[1]], ['x1', 'windowMaxX', 'X max', bounds[2]], ['y1', 'windowMaxY', 'Y max', bounds[3]]]) fields.push(f(name, `${label} (${drawing.snapshot().header.units})`, settings[key] ?? Number(fallback.toPrecision(8))))
     }
-    const values = await request({ title: zh() ? '页面设置' : 'Page setup', description: model ? (zh() ? '设置真实比例和出图窗口。窗口外的对象将被裁剪；不会自动缩放。' : 'Set the physical scale and plot window. Objects outside this window are clipped; no automatic scaling.') : (zh() ? '纸空间按 1:1 输出；模型比例由各视口决定。原有打印机、旋转和外部打印样式设置将替换。' : 'Paper space prints at 1:1; each viewport sets its model scale. Existing printer, rotation and external plot-style settings are replaced.'), fields, validate: candidate => { try { buildOutputPageSettings(drawing, context.layoutId, candidate); return '' } catch (error) { return outputPageSettingsError(error, zh()) } } })
+    const values = await request({ title: zh() ? '页面设置' : 'Page setup', description: model ? (zh() ? '默认适合纸张并居中，可直接出图。只有必须按工程比例出图时才选择固定比例。' : 'Fit to paper and center is the default. Choose a fixed engineering scale only when the deliverable requires it.') : (zh() ? '纸空间按 1:1 输出；模型比例由各视口决定。原有打印机、旋转和外部打印样式设置将替换。' : 'Paper space prints at 1:1; each viewport sets its model scale. Existing printer, rotation and external plot-style settings are replaced.'), fields, validate: candidate => { try { buildOutputPageSettings(drawing, context.layoutId, candidate); return '' } catch (error) { return outputPageSettingsError(error, zh()) } } })
     if (!values) return
     const current = getContext()
     if (current.document !== drawing || current.sdk !== context.sdk || drawing.revision !== revision) throw Error(zh() ? '图纸已改变，请重新设置页面' : 'The drawing changed. Open page setup again.')
@@ -126,10 +144,12 @@ export function createOutputControls({ getContext, locale, select, request, run,
     return true
   }
   const setup = () => run(() => configure(selected()))
-  const ready = async (context, action) => {
+  const ready = async context => {
     if (context.document.getObject(context.layoutId)?.payload.dxfPlotSettings) return true
-    await configure(context, action)
-    return false
+    const bounds = currentBounds(), paper = { width: 420, height: 297, margin: 10 }
+    await execute('PAGESETUP', { layoutId: context.layoutId, dxf: buildOutputPageSettings(context.document, context.layoutId, { ...paper, scaleMode: 'fit', denominator: 100, x0: bounds[0], y0: bounds[1], x1: bounds[2], y1: bounds[3] }) })
+    message(zh() ? '已自动适合 A3 横向纸张并居中，可在页面设置中改为固定比例。' : 'Automatically fitted and centered on A3 landscape. Use Page setup for a fixed scale.')
+    return true
   }
   const svg = () => run(async () => {
     const context = selected()

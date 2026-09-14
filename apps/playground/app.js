@@ -1,5 +1,5 @@
 import { captureDrawingView } from '../../packages/kjdraw-sdk/src/drawing-image.js'
-import { BrowserKjpFileBinding, createKJDrawSDK, getDocumentSnapSettings, KJProjectSession, instantiateKJCoreWasm, createWasmGeometryBackend, registerGeometryBackend, createKJCoreDocumentAuthority, createKJCoreSolidBackend } from '../../packages/kjdraw-sdk/src/index.js'
+import { BrowserKjpFileBinding, createKJDrawSDK, getDocumentSnapSettings, getDwgConversionProvenance, KJProjectSession, instantiateKJCoreWasm, createWasmGeometryBackend, registerGeometryBackend, createKJCoreDocumentAuthority, createKJCoreSolidBackend } from '../../packages/kjdraw-sdk/src/index.js'
 import { KJCanvasRenderer, aciColor } from '../../packages/kjdraw-sdk/src/canvas-renderer.js'
 import { kjdrawIcon } from '../../packages/kjdraw-sdk/src/theme.js'
 import { KJDRAW_LAYOUTS, normalizeWorkbenchLayout } from '../../packages/kjdraw-sdk/src/layout.js'
@@ -17,9 +17,12 @@ import { createAgentChat } from './agent-chat.js'
 import { persistApprovedRoadRecipe, prepareRoadDrawingContext } from './road-recipes.js'
 import { KJDRAW_ALLOWED_HOTKEY_COMMANDS, loadHotkeySettings, resolveHotkey } from './hotkey-settings.js'
 import { createHotkeySettingsUI } from './hotkey-settings-ui.js'
+import { createPlaygroundDwgProvider } from './dwg-conversion.js'
+import { createDwgSettingsUI } from './dwg-settings-ui.js'
 
 const $ = id => document.getElementById(id)
 const i18n = createI18n(), t = key => i18n.t(key)
+const dwgSettingsUI=createDwgSettingsUI({locale:()=>i18n.locale})
 let hotkeySettings=loadHotkeySettings()
 const hotkeyCommands=new Set(KJDRAW_ALLOWED_HOTKEY_COMMANDS)
 const LAYER_LINEWEIGHTS=[-1,0,5,9,13,15,18,20,25,30,35,40,50,53,60,70,80,90,100,106,120,140,158,200,211]
@@ -702,14 +705,15 @@ function requestLocalCommand({title,description='',submitLabel,fields=[],validat
     const label=document.createElement('label');label.textContent=field.label;const input=document.createElement(field.options?'select':field.type==='textarea'?'textarea':'input');input.name=field.name
     if(field.options){for(const [value,text] of field.options){const option=document.createElement('option');option.value=value;option.textContent=text;input.append(option)}}else if(input.tagName==='INPUT')input.type=field.type??'text'
     input.value=field.value??'';if(input.type==='checkbox')input.checked=Boolean(field.value);if(field.min!=null)input.min=String(field.min);if(field.max!=null)input.max=String(field.max);if(field.step!=null)input.step=String(field.step);input.required=field.required!==false;input.autocomplete='off';label.append(input);fieldRoot.append(label);controls.push(input)
+    input.disabled=field.disabled===true
   }
   const controlByName=new Map(controls.map(input=>[input.name,input]))
   const read=input=>input.type==='checkbox'?input.checked:input.type==='number'?Number(input.value):input.value
   const values=()=>Object.fromEntries(controls.map(input=>[input.name,read(input)]))
-  for(const [index,field] of fields.entries())if(field.onChange)controls[index].addEventListener('change',()=>field.onChange({get:name=>read(controlByName.get(name)),set:(name,value)=>{controlByName.get(name).value=String(value)}}))
+  for(const [index,field] of fields.entries())if(field.onChange)controls[index].addEventListener('change',()=>field.onChange({get:name=>read(controlByName.get(name)),set:(name,value)=>{controlByName.get(name).value=String(value)},setDisabled:(name,value)=>{controlByName.get(name).disabled=Boolean(value)}}))
   for(const input of controls)input.addEventListener('input',()=>{error.textContent='';error.hidden=true})
   return new Promise(resolve=>{
-    form.onsubmit=event=>{if(!validate)return;let issue='';try{issue=validate(values())??''}catch(failure){issue=failure?.message??String(failure)}if(issue){event.preventDefault();error.textContent=issue;error.hidden=false;error.focus()}}
+    form.onsubmit=event=>{if(event.submitter!==$('dialog-submit')||!validate)return;let issue='';try{issue=validate(values())??''}catch(failure){issue=failure?.message??String(failure)}if(issue){event.preventDefault();error.textContent=issue;error.hidden=false;error.focus()}}
     const close=()=>{dialog.removeEventListener('close',close);form.onsubmit=null;if(dialog.returnValue!=='default'){resolve(null);return}resolve(values())}
     dialog.addEventListener('close',close);dialog.returnValue='cancel';dialog.showModal();queueMicrotask(()=>controls[0]?.focus())
   })
@@ -887,6 +891,19 @@ async function runTypedCommand(){
 async function run(work){if(busy)return busyNotice();busy=true;workbench.setAttribute('aria-busy','true');try{await work();return true}catch(e){const text=e.cause?.message??e.message;message(text);$('hint').textContent=text;workbench.dataset.lastError=text;return false}finally{busy=false;workbench.setAttribute('aria-busy','false')}}
 async function freshSample(){projectFileBinding=null;setTool('select');rejectPendingPlan();workbench.dataset.demoState='loading';workbench.setAttribute('aria-busy','true');message(i18n.locale==='zh'?'正在生成五套原创行业图纸…':'Building five original industry drawings…');const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const showcase=await createSample(next),industry=await createIndustrySamples(next);session?.destroy();sdk=next;session=KJProjectSession.create({sdk,id:'kjdraw-industry-samples',title:'KJDraw industry sample library',documents:[showcase,...industry],activeDocumentId:'sample-site-plan',metadata:{synthetic:true,industries:['energy','civil','architecture','transportation','mechanical']}});replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();$('file-state').textContent=t('memory');populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';workbench.setAttribute('aria-busy','false');message(i18n.locale==='zh'?`五套原创行业图纸已就绪 · 当前 ${modelEntities().length.toLocaleString()} 个可编辑对象`:`Five original industry drawings ready · ${modelEntities().length.toLocaleString()} editable objects in view`)}
 function download(content,name,type){const url=URL.createObjectURL(new Blob([content],{type}));const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
+function applyOpenedProject(project,next,fileName,{converted=false}={}){
+  const previous={sdk,session,projectFileBinding,selection:selectedIds(),measurement,fileState:$('file-state').textContent,demoState:workbench.dataset.demoState,topFileName:$('top-file-name').textContent,drawingTitle:$('drawing-title').textContent}
+  sdk=next;session=project;projectFileBinding=null
+  try{
+    replaceSelection();measurement=null;setCanonicalIntent();setTool('select');$('file-state').textContent=converted?(i18n.locale==='zh'?'已由服务转换':'Converted by provider'):(i18n.locale==='zh'?'已在本地打开':'Opened locally');populateSampleSelector();refresh();fit();$('top-file-name').textContent=fileName;$('drawing-title').textContent=converted?fileName:documentTitle(project.activeDocument);workbench.dataset.demoState='ready';invalidatePlan()
+  }catch(error){
+    sdk=previous.sdk;session=previous.session;projectFileBinding=previous.projectFileBinding;measurement=previous.measurement;$('file-state').textContent=previous.fileState;workbench.dataset.demoState=previous.demoState;$('top-file-name').textContent=previous.topFileName;$('drawing-title').textContent=previous.drawingTitle
+    try{replaceSelection(previous.selection);populateSampleSelector();refresh();fit()}catch{}
+    try{project.destroy()}catch{}
+    throw error
+  }
+  try{previous.session?.destroy()}catch{}
+}
 async function openFile(file){
   if(!file)return
   setTool('select')
@@ -894,7 +911,40 @@ async function openFile(file){
   rejectPendingPlan();const next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);let project
   if(file.name.toLowerCase().endsWith('.kjp'))project=await KJProjectSession.open(new Uint8Array(await file.arrayBuffer()),{sdk:next})
   else {const format=file.name.toLowerCase().endsWith('.dxf')?'DXF':'KJD';const drawing=await next.readDocument(format==='DXF'?new Uint8Array(await file.arrayBuffer()):await file.text(),{format});project=KJProjectSession.create({sdk:next,title:file.name,documents:[drawing]})}
-  session?.destroy();sdk=next;session=project;projectFileBinding=null;replaceSelection();measurement=null;invalidatePlan();setCanonicalIntent();setTool('select');$('top-file-name').textContent=file.name;$('drawing-title').textContent=documentTitle(project.activeDocument);$('file-state').textContent=i18n.locale==='zh'?'已在本地打开':'Opened locally';populateSampleSelector();refresh();fit();workbench.dataset.demoState='ready';message(i18n.locale==='zh'?'文件已在当前工作区打开':'File opened in the current workspace')
+  applyOpenedProject(project,next,file.name);message(i18n.locale==='zh'?'文件已在当前工作区打开':'File opened in the current workspace')
+}
+async function openDwgFile(file){
+  if(!file)return
+  let endpoint=dwgSettingsUI.getEndpoint()
+  if(!endpoint)endpoint=await dwgSettingsUI.openSettings({fileName:file.name,requireEndpoint:true})
+  if(!endpoint){message(i18n.locale==='zh'?'尚未配置 DWG 转换服务，当前图纸未更改':'No DWG conversion service is configured. The current drawing was not changed.');return}
+  const controller=new AbortController(),retry=()=>run(()=>openDwgFile(file))
+  dwgSettingsUI.begin(file.name,controller,retry)
+  try{
+    dwgSettingsUI.phase('validate')
+    const provider=createPlaygroundDwgProvider({endpoint,onTransportPhase:phase=>dwgSettingsUI.phase(phase)})
+    if(!Number.isFinite(file.size)||file.size<1)throw new Error(i18n.locale==='zh'?'DWG 文件为空。':'The DWG file is empty.')
+    if(file.size>provider.limits.maxSourceBytes)throw new Error(i18n.locale==='zh'?`Playground 的 DWG 上限为 ${Math.round(provider.limits.maxSourceBytes/1024/1024)} MiB。`:`The Playground DWG limit is ${Math.round(provider.limits.maxSourceBytes/1024/1024)} MiB.`)
+    const sourceBytes=new Uint8Array(await file.arrayBuffer())
+    const next=createKJDrawSDK({documentAuthority:authority,solidAuthority,dwgConversionProvider:provider});registerShowcaseCommand(next)
+    const drawing=await next.readDocument(sourceBytes,{format:'DWG',targetFormat:'DXF',fileName:file.name,signal:controller.signal,onConversionProgress:()=>dwgSettingsUI.phase('convert')})
+    dwgSettingsUI.phase('import')
+    const provenance=getDwgConversionProvenance(drawing)
+    if(!provenance)throw new Error('DWG conversion provenance is missing.')
+    const warnings=[...provenance.warnings,...provenance.approximations],assetPath=`imports/${provenance.sourceSha256}.dwg`
+    const report={schema:'com.kanjie.kjdraw.dwg-import@1',importedAt:new Date().toISOString(),source:{name:provenance.sourceName,sha256:provenance.sourceSha256,bytes:provenance.sourceBytes,dwgVersion:provenance.sourceVersion,assetPath},provider:{id:provenance.provider.id,locality:provenance.provider.locality,...(provenance.provider.version?{version:provenance.provider.version}:{})},output:{format:provenance.target,sha256:provenance.targetSha256,bytes:provenance.targetBytes,editable:true,entities:drawing.listEntities().length},warnings:[...provenance.warnings],approximations:[...provenance.approximations],diagnostics:provider.lastDiagnostics.diagnostics,potentialApproximation:true}
+    const {diagnostics:_diagnostics,...summary}=report
+    const project=KJProjectSession.create({sdk:next,title:file.name,documents:[drawing],metadata:{imports:[summary]}})
+    project.assets.set(assetPath,sourceBytes)
+    project.diagnostics.set(`imports/${provenance.sourceSha256}.json`,JSON.stringify(report))
+    applyOpenedProject(project,next,file.name,{converted:true});dwgSettingsUI.complete();hideFileOpenError()
+    const warningText=i18n.locale==='zh'?'图纸经所配置的 provider 转换，部分 DWG 对象可能为近似结果。':'The drawing was converted by the configured provider; some DWG objects may be approximated.'
+    message(`${i18n.locale==='zh'?'DWG 已导入为可编辑图形':'DWG imported as editable geometry'} · ${drawing.listEntities().length.toLocaleString()} ${i18n.locale==='zh'?'个对象':'entities'} · ${warningText}${warnings.length?` ${i18n.locale==='zh'?'服务警告':'Provider warnings'}: ${warnings.length}`:''}`)
+  }catch(error){
+    if(controller.signal.aborted||error?.name==='AbortError'){dwgSettingsUI.complete();message(dwgSettingsUI.cancelledMessage());return}
+    const detail=error?.cause?.cause?.message??error?.cause?.message??error?.message??String(error)
+    dwgSettingsUI.fail(new Error(detail));message(`${i18n.locale==='zh'?'DWG 转换失败，当前图纸未更改。':'DWG conversion failed. The current drawing was not changed.'} ${detail}`)
+  }
 }
 let failedFileName=''
 function fileOpenFailure(name){return i18n.locale==='zh'?`无法打开“${name}”。文件内容无效或不受支持；当前图纸未更改。请检查文件后重试。`:`Could not open “${name}”. Its contents are invalid or unsupported. The current drawing was not changed. Check the file and try again.`}
@@ -902,11 +952,13 @@ function hideFileOpenError(){$('file-open-error').hidden=true;failedFileName=''}
 function showFileOpenError(file){failedFileName=file?.name||'';const text=fileOpenFailure(failedFileName||(i18n.locale==='zh'?'所选文件':'the selected file'));$('file-open-error-message').textContent=text;$('file-open-error').hidden=false;return text}
 async function openFileWithFeedback(file){
   if(!file)return
+  if(file.name.toLowerCase().endsWith('.dwg'))return openDwgFile(file)
   try{await openFile(file);hideFileOpenError()}
   catch{throw new Error(showFileOpenError(file))}
 }
 function chooseFile(){if(busy)return busyNotice();setTool('select');$('file-input').click()}
 $('open').onclick=chooseFile
+$('dwg-provider-settings').onclick=()=>{if(busy)return busyNotice();void dwgSettingsUI.openSettings()}
 $('file-open-retry').onclick=()=>{hideFileOpenError();$('open').focus();chooseFile()}
 $('file-open-dismiss').onclick=()=>{hideFileOpenError();$('open').focus()}
 function setPanelOpen(name,open){const className=name==='layers'?'layers-open':'inspector-open',button=$(name==='layers'?'toggle-layers':'toggle-inspector');workbench.classList.toggle(className,open);button.classList.toggle('active',open);button.setAttribute('aria-pressed',String(open))}
@@ -957,11 +1009,12 @@ for(const eventName of ['dragleave','drop'])$('drop-zone').addEventListener(even
 $('drop-zone').addEventListener('drop',e=>run(()=>openFileWithFeedback(e.dataTransfer?.files?.[0])))
 $('snapshot').onclick=()=>{const record=session.createSnapshot(`Snapshot ${session.snapshotLedger.length+1}`);$('file-state').textContent=i18n.locale==='zh'?'内存中已修改':'Modified in memory';message(i18n.locale==='zh'?`工程快照已创建 · ${record.documents.length} 张图纸`:`Project snapshot created · ${record.documents.length} drawing${record.documents.length===1?'':'s'}`)}
 const formatBytes=value=>value<1024?`${value} B`:value<1024*1024?`${(value/1024).toFixed(1)} KiB`:`${(value/1024/1024).toFixed(1)} MiB`
-async function saveProject(){const bytes=await session.package();download(bytes,'kjdraw-project.kjp','application/zip');message(i18n.locale==='zh'?`KJP 已生成（${formatBytes(bytes.length)}）· 包含工程内全部图纸`:`KJP generated (${formatBytes(bytes.length)}) · includes every project drawing`);return bytes}
+async function packageProject(){return session.package()}
+async function saveProject(){const bytes=await packageProject();download(bytes,'kjdraw-project.kjp','application/zip');message(i18n.locale==='zh'?`KJP 已生成（${formatBytes(bytes.length)}）· 包含工程内全部图纸`:`KJP generated (${formatBytes(bytes.length)}) · includes every project drawing`);return bytes}
 $('save').onclick=()=>run(saveProject)
 function localProjectName(){const base=String(session?.title||'kjdraw-project').trim().replace(/[<>:"/\\|?*\u0000-\u001f]+/g,'-').replace(/[. ]+$/g,'').slice(0,120)||'kjdraw-project';return base.toLowerCase().endsWith('.kjp')?base:base+'.kjp'}
 async function saveLocalProject(){
-  const bytes=await session.package()
+  const bytes=await packageProject()
   try{
     const binding=projectFileBinding??await BrowserKjpFileBinding.chooseSave(localProjectName())
     const saved=await binding.write(bytes);projectFileBinding=binding;session.markSaved();$('top-file-name').textContent=saved.name;$('file-state').textContent=i18n.locale==='zh'?'已保存到本地':'Saved locally'
@@ -1082,7 +1135,7 @@ $('clear-plan').onclick=()=>{invalidatePlan();render();message(i18n.locale==='zh
 $('confirm').onclick=()=>run(commitAgentPlan)
 $('receipt-undo').onclick=()=>run(async()=>{await execute('UNDO',{}, {preserveReceipt:true});$('receipt-undo').disabled=true;$('plan-state').dataset.state='verified';$('plan-state').textContent=i18n.locale==='zh'?'撤销已验证 · 原始几何已恢复，可用 Redo 重做':'Undo verified · original geometry restored; Redo remains available';timeline(i18n.locale==='zh'?`撤销完成 · 当前 REV ${doc().revision}`:`Undo complete · current REV ${doc().revision}`);workbench.dataset.demoState='undone'})
 $('receipt-save').onclick=()=>run(async()=>{const bytes=await saveProject();timeline(i18n.locale==='zh'?`KJP 下载已请求 · ${formatBytes(bytes.length)}`:`KJP download requested · ${formatBytes(bytes.length)}`)})
-$('receipt-reopen').onclick=()=>run(async()=>{const bytes=await session.package(),fingerprint=doc().fingerprint(),next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const reopened=await KJProjectSession.open(bytes,{sdk:next}),match=reopened.activeDocument.fingerprint()===fingerprint,count=reopened.activeDocument.listEntities().length;reopened.destroy();if(!match)throw new Error('KJP reopen fingerprint mismatch.');$('plan-state').dataset.state='verified';$('plan-state').textContent=i18n.locale==='zh'?`KJP 重开验证通过 · ${count.toLocaleString()} 个对象 · 指纹一致`:`KJP reopen verified · ${count.toLocaleString()} entities · fingerprint match`;timeline(i18n.locale==='zh'?`保存 / 重开验证通过 · ${formatBytes(bytes.length)} · 指纹一致`:`Save / reopen verified · ${formatBytes(bytes.length)} · fingerprint match`);workbench.dataset.demoState='verified';message(i18n.locale==='zh'?'KJP 往返验证通过 · 当前工作区未被替换':'KJP round-trip verified · current workspace was not replaced')})
+$('receipt-reopen').onclick=()=>run(async()=>{const bytes=await packageProject(),fingerprint=doc().fingerprint(),next=createKJDrawSDK({documentAuthority:authority,solidAuthority});registerShowcaseCommand(next);const reopened=await KJProjectSession.open(bytes,{sdk:next}),match=reopened.activeDocument.fingerprint()===fingerprint,count=reopened.activeDocument.listEntities().length;reopened.destroy();if(!match)throw new Error('KJP reopen fingerprint mismatch.');$('plan-state').dataset.state='verified';$('plan-state').textContent=i18n.locale==='zh'?`KJP 重开验证通过 · ${count.toLocaleString()} 个对象 · 指纹一致`:`KJP reopen verified · ${count.toLocaleString()} entities · fingerprint match`;timeline(i18n.locale==='zh'?`保存 / 重开验证通过 · ${formatBytes(bytes.length)} · 指纹一致`:`Save / reopen verified · ${formatBytes(bytes.length)} · fingerprint match`);workbench.dataset.demoState='verified';message(i18n.locale==='zh'?'KJP 往返验证通过 · 当前工作区未被替换':'KJP round-trip verified · current workspace was not replaced')})
 function pointer(e){const r=canvas.getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top]}
 function snap(p,excludeIds=[],referencePoint=null){
   snapHit=null;delete workbench.dataset.snapMode
@@ -1211,7 +1264,7 @@ canvas.addEventListener('wheel',e=>{
   scheduleViewportRender()
 },{passive:false})
 window.addEventListener('keydown',e=>{
-  if($('app-dialog').open||$('hotkey-settings-dialog')?.open)return
+  if(document.querySelector('dialog[open]'))return
   if(e.key==='Escape'){e.preventDefault();setTool('select');invalidatePlan();render();return}
   if(e.key==='F8'){e.preventDefault();$('ortho').click();return}
   if(e.key==='F10'){e.preventDefault();$('polar').click();return}

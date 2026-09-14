@@ -49,9 +49,12 @@ main { height: calc(100dvh - 44px); }
 .sample-ribbon { width: 254px; flex-shrink: 0; position: relative; }
 .sample-ribbon > small, .sample-ribbon label > span, .sample-ribbon em { display: none; }
 .sample-ribbon select { width: 254px; padding-right: 20px; background: var(--kj-surface); }
-.measure-ribbon { align-items: center; }
-.measure-ribbon > label { display: flex; flex-direction: column; justify-content: center; gap: 3px; min-width: 116px; padding: 2px 4px; color: var(--kj-muted); font-size: 10px; }
-.measure-ribbon > label > select { width: 116px; min-height: 30px; color: var(--kj-text); font-size: 12px; }
+.measure-ribbon { display: grid; grid-template-columns: 126px max-content; grid-template-rows: repeat(2,30px); align-content: start; align-items: stretch; gap: 4px; }
+.measure-ribbon > label { grid-row: 1 / 3; display: flex; align-items: center; min-width: 126px; padding: 2px 4px; }
+.measure-ribbon > label > span { display: none; }
+.measure-ribbon > label > select { width: 118px; min-height: 32px; color: var(--kj-text); font-size: 12px; }
+.measure-ribbon > button { min-height: 30px; min-width: 68px; flex-direction: row; justify-content: flex-start; gap: 5px; padding: 3px 7px; }
+.measure-ribbon > button .kj-icon { width: 18px; height: 18px; }
 .drawing-library,.annotation-library,.fill-library,.modification-library { align-items:center; }
 .drawing-library select,.annotation-library select,.fill-library select,.modification-library select { width:156px; font-size:12px; }
 .draft-options { position:absolute; z-index:5; top:38px; left:12px; max-width:calc(100% - 24px); display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--kj-border); border-radius:6px; background:#fffffff5; box-shadow:0 5px 16px #17233a18; overflow-x:auto; }
@@ -202,6 +205,20 @@ summary { cursor: pointer; color: var(--kj-muted); }
 .dialog-error { margin: 12px 0 0; color: #b42318; font-size: 12px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
 .dialog-primary { background: var(--kj-action); color: white; border-color: var(--kj-action); }
+.dwg-provider-dialog,.dwg-conversion-dialog { width:min(540px,calc(100vw - 32px));padding:26px;border:1px solid var(--kj-border);border-radius:10px;background:var(--kj-surface);color:var(--kj-text);box-shadow:0 20px 80px #10223c35; }
+.dwg-provider-dialog::backdrop,.dwg-conversion-dialog::backdrop { background:#15203166; }
+.dwg-provider-dialog h2,.dwg-conversion-dialog h2 { margin:8px 0 10px;font-size:20px; }
+.dwg-provider-dialog p,.dwg-conversion-dialog p { margin:8px 0;color:var(--kj-muted);font-size:13px;line-height:1.55; }
+.dwg-provider-dialog label { display:grid;gap:6px;margin-top:18px;color:var(--kj-text);font-size:12px;font-weight:700; }
+.dwg-provider-dialog input { width:100%;font-size:13px; }
+.dwg-provider-dialog input[aria-invalid="true"] { border-color:#c54859;box-shadow:0 0 0 2px #c5485918; }
+.dwg-provider-dialog .dwg-privacy { padding:9px 11px;border-radius:6px;background:var(--kj-action-soft);color:var(--kj-action); }
+.dwg-progress { display:grid;gap:7px;margin:18px 0;padding:0;list-style:none; }
+.dwg-progress li { display:grid;grid-template-columns:22px 1fr auto;align-items:center;gap:8px;min-height:40px;padding:7px 10px;border:1px solid var(--kj-border);border-radius:6px;background:var(--kj-surface-subtle); }
+.dwg-progress li[data-state="working"] { border-color:var(--kj-action);background:var(--kj-action-soft); }
+.dwg-progress li[data-state="done"] span,.dwg-progress li[data-state="working"] span { color:var(--kj-action); }
+.dwg-progress b { font-size:13px; }.dwg-progress small { color:var(--kj-muted);font-size:11px; }
+.dwg-conversion-error { padding:9px 11px;border:1px solid #d7929b;border-radius:6px;background:#fff5f6;color:#7e1f2b!important; }
 .workbench[data-layout="compact"] { grid-template-rows: 86px minmax(0, 1fr) 34px 32px; }
 .workbench[data-layout="compact"] .app-error { top: 96px; }
 .workbench[data-layout="compact"] .ribbon-groups { height: 56px; padding: 6px; }

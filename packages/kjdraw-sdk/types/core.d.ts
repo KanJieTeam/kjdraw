@@ -6,6 +6,7 @@ export * from './constants.js';
 export * from './document.js';
 export * from './deployment.js';
 export * from './dxf-adapter.js';
+export * from './dwg-conversion.js';
 export * from './editing.js';
 export * from './errors.js';
 export * from './events.js';

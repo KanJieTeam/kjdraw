@@ -16,6 +16,9 @@ function entryMap(entries, prefix) {
     for (const [path, value] of entries ?? [])if (path.startsWith(prefix)) result.set(path.slice(prefix.length), value);
     return result;
 }
+function optionalEntryMap(entries) {
+    return new Map(entries instanceof Map ? entries : Object.entries(entries ?? {}));
+}
 function documentRows(input) {
     if (input instanceof Map) return [
         ...input
@@ -45,12 +48,13 @@ export class KJProjectSession {
     activeDocumentId = null;
     commands = [];
     assets = new Map();
+    diagnostics = new Map();
     snapshots = new Map();
     snapshotLedger = [];
     dirty = false;
     state = 'unbound';
     lastError = null;
-    constructor({ sdk, id, title = '未命名工程', createdAt, metadata = {}, migrations = [] } = {}){
+    constructor({ sdk, id, title = '未命名工程', createdAt, metadata = {}, migrations = [], diagnostics } = {}){
         if (!sdk?.attachDocument || !sdk?.events) throw new KJValidationError('KJProjectSession 需要 KJDrawSDK');
         this.sdk = sdk;
         this.id = projectId(id ?? createId('project'));
@@ -61,6 +65,7 @@ export class KJProjectSession {
         this.migrations = clone([
             ...migrations
         ]);
+        this.diagnostics = optionalEntryMap(diagnostics);
         this.#sdkOff.push(sdk.events.on('command:committed', (value)=>this.#recordCommand(value)));
     }
     static create(options) {
@@ -90,6 +95,7 @@ export class KJProjectSession {
         session.modifiedAt = opened.manifest.modifiedAt;
         session.commands = clone(opened.commands);
         session.assets = entryMap(opened.entries, 'assets/');
+        session.diagnostics = entryMap(opened.entries, 'diagnostics/');
         session.snapshots = entryMap(opened.entries, 'snapshots/');
         const snapshots = opened.manifest.metadata.snapshots;
         session.snapshotLedger = Array.isArray(snapshots) ? clone(snapshots) : [];
@@ -231,9 +237,7 @@ export class KJProjectSession {
             ...options.recovery === undefined ? {} : {
                 recovery: options.recovery
             },
-            ...options.diagnostics === undefined ? {} : {
-                diagnostics: options.diagnostics
-            }
+            diagnostics: options.diagnostics ?? this.diagnostics
         });
     }
     beginSave() {

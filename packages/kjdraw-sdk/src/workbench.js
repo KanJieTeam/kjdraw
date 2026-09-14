@@ -80,7 +80,7 @@ const copy = {
         pageCustom: 'Custom ratio',
         open: 'Open',
         openSource: 'Reading file',
-        openParse: 'Parsing DXF',
+        openParse: 'Parsing drawing',
         openImport: 'Building drawing',
         openCancelHint: 'Esc cancels',
         openCancelled: 'Open cancelled',
@@ -337,7 +337,7 @@ const copy = {
         pageCustom: '自定义比例',
         open: '打开',
         openSource: '正在读取文件',
-        openParse: '正在解析 DXF',
+        openParse: '正在解析图纸',
         openImport: '正在构建图纸',
         openCancelHint: 'Esc 取消',
         openCancelled: '已取消打开',
@@ -954,10 +954,35 @@ function point(event, canvas) {
         event.clientY - rect.top
     ];
 }
-function formatFromName(fileName) {
+function readableFileFormats(sdk) {
+    const formats = new Set();
+    for (const adapter of sdk.fileAdapters.list()){
+        if (typeof adapter.read !== 'function') continue;
+        for (const [format, descriptor] of Object.entries(adapter.formats)){
+            if (descriptor.read.length && /^[A-Z0-9]+$/i.test(format)) formats.add(format.toUpperCase());
+        }
+    }
+    const builtInOrder = new Map([
+        [
+            'DXF',
+            0
+        ],
+        [
+            'KJD',
+            1
+        ]
+    ]);
+    return [
+        ...formats
+    ].sort((left, right)=>(builtInOrder.get(left) ?? 2) - (builtInOrder.get(right) ?? 2) || left.localeCompare(right));
+}
+function readableFileAccept(sdk) {
+    return readableFileFormats(sdk).map((format)=>`.${format.toLowerCase()}`).join(',');
+}
+function formatFromName(fileName, sdk) {
     const match = /\.([a-z0-9]+)$/i.exec(fileName);
     const extension = match?.[1]?.toUpperCase();
-    return extension === 'KJD' || extension === 'DXF' ? extension : undefined;
+    return extension && readableFileFormats(sdk).includes(extension) ? extension : undefined;
 }
 function sourceByteLength(source) {
     if (source instanceof ArrayBuffer || ArrayBuffer.isView(source)) return source.byteLength;
@@ -1481,13 +1506,15 @@ export class KJDrawWorkbench {
         if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed');
         const byteLength = sourceByteLength(source);
         if (byteLength != null && byteLength > this.#maxFileBytes) throw new RangeError(`${this.#t('fileTooLarge')}: ${byteLength.toLocaleString()} > ${this.#maxFileBytes.toLocaleString()} bytes`);
-        const format = options.format ?? formatFromName(options.fileName ?? '');
+        if (options.signal?.aborted) throw new Error('Open aborted');
+        const format = options.format ?? formatFromName(options.fileName ?? '', this.sdk);
         const result = await this.sdk.fileAdapters.read(source, {
             ...options,
             ...format === undefined ? {} : {
                 format
             }
         });
+        if (options.signal?.aborted) throw new Error('Open aborted');
         if (this.#abort.signal.aborted) throw new Error('KJDraw workbench has been disposed');
         if (!(result instanceof KJDocument) && (!result || typeof result !== 'object' || Array.isArray(result))) throw new Error('File adapter did not return a drawing');
         const drawing = result instanceof KJDocument ? result : KJDocument.open(result);
@@ -1657,7 +1684,7 @@ export class KJDrawWorkbench {
             focus: 'layoutFocus'
         };
         return `<header class="appbar"><span class="mark" aria-hidden="true">${icon('logo')}</span><span class="brand">KJDraw</span><span class="docname" data-document-name>${t('sample')}</span><span class="spacer"></span>
-        <input class="file-input" type="file" accept=".dxf,.kjd" aria-label="${t('open')}" data-file>
+        <input class="file-input" type="file" accept="${readableFileAccept(this.sdk)}" aria-label="${t('open')}" data-file>
         <select class="layout-select" data-layout aria-label="${t('layout')}" title="${t('layout')}">${KJDRAW_LAYOUTS.map((layout)=>`<option value="${layout}" data-copy="${layoutCopy[layout]}"${layout === this.#layout ? ' selected' : ''}>${t(layoutCopy[layout])}</option>`).join('')}</select>
         <button type="button" class="panel-toggle hide-small ${showLayers ? 'active' : ''}" data-action="toggle-layers" aria-pressed="${showLayers}">${icon('layers')}<span data-copy="layers">${t('layers')}</span></button>
         <button type="button" class="panel-toggle hide-small ${showInspector ? 'active' : ''}" data-action="toggle-inspector" aria-pressed="${showInspector}">${icon('panel')}<span data-copy="properties">${t('properties')}</span></button>
@@ -1863,10 +1890,14 @@ export class KJDrawWorkbench {
         }, {
             signal
         });
-        query(this.root, '[data-action="open"]').addEventListener('click', ()=>query(this.root, '[data-file]').click(), {
+        const fileInput = query(this.root, '[data-file]');
+        query(this.root, '[data-action="open"]').addEventListener('click', ()=>{
+            this.#syncReadableFileFormats();
+            fileInput.click();
+        }, {
             signal
         });
-        query(this.root, '[data-file]').addEventListener('change', (event)=>{
+        fileInput.addEventListener('change', (event)=>{
             const input = event.currentTarget;
             const file = input.files?.[0];
             if (!file) return;
@@ -7175,7 +7206,10 @@ export class KJDrawWorkbench {
             if (draftToolText[tool]) element.textContent = this.#localizedControlText(draftToolText[tool]);
         }
         const file = this.root.querySelector('[data-file]');
-        if (file) file.setAttribute('aria-label', this.#t('open'));
+        if (file) {
+            file.setAttribute('aria-label', this.#t('open'));
+            this.#syncReadableFileFormats();
+        }
         const layout = this.root.querySelector('[data-layout]');
         if (layout) {
             layout.setAttribute('aria-label', this.#t('layout'));
@@ -7201,6 +7235,10 @@ export class KJDrawWorkbench {
     }
     #t(key) {
         return String(copy[this.#locale][key]);
+    }
+    #syncReadableFileFormats() {
+        const file = this.root.querySelector('[data-file]');
+        if (file) file.accept = readableFileAccept(this.sdk);
     }
     #showFileProgress(progress) {
         const label = this.#t(progress.phase === 'source' ? 'openSource' : progress.phase === 'parse' ? 'openParse' : 'openImport');

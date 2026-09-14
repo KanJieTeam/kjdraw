@@ -23,6 +23,7 @@ export * from './modification-controls.js';
 export * from './boundary-edit.js';
 export * from './deployment.js';
 export * from './dxf-adapter.js';
+export * from './dwg-conversion.js';
 export * from './svg-export.js';
 export * from './svg-adapter.js';
 export * from './print-export.js';

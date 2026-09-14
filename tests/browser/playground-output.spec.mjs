@@ -3,18 +3,25 @@ import { readFile } from 'node:fs/promises'
 import { createKJDrawSDK } from '../../packages/kjdraw-sdk/src/sdk.js'
 import { KJProjectSession } from '../../packages/kjdraw-sdk/src/project-session.js'
 
+if (process.env.KJDRAW_TEST_BASE_URL) test.use({ baseURL: process.env.KJDRAW_TEST_BASE_URL })
+
 async function openFixture(page) {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ title: '道路详图 / output', units: 'meter' })
   await sdk.executeCommand('CREATE', { type: 'LINE', payload: { start: [0,0], end: [2,0] } })
   await sdk.executeCommand('CREATE', { type: 'TEXT', payload: { position: [0,1], text: '道路工程图 / Road detail', height: .1 } })
   await page.goto('/'); await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
   await page.locator('#file-input').setInputFiles({ name: 'road-detail.kjd', mimeType: 'application/json', buffer: Buffer.from(await sdk.writeDocument(document, { format: 'KJD' })) })
+  await expect(page.locator('#top-file-name')).toHaveText('road-detail.kjd')
+  await expect(page.locator('#drawing-title')).toHaveText('道路详图 / output')
   await expect(page.locator('#entity-count')).toContainText('2 ')
   return { document, layoutId: document.snapshot().spaces.layoutIds[0] }
 }
 async function setup(page, overrides = {}, { expectClose = true } = {}) {
   await page.locator('#page-setup').click()
-  for (const [name,value] of Object.entries({ width:420,height:297,margin:10,denominator:100,x0:-1,y0:-1,x1:10,y1:10,...overrides })) await page.locator(`#dialog-fields [name="${name}"]`).fill(String(value))
+  for (const [name,value] of Object.entries({ width:420,height:297,margin:10,scaleMode:'custom',denominator:100,x0:-1,y0:-1,x1:10,y1:10,...overrides })) {
+    const control=page.locator(`#dialog-fields [name="${name}"]`)
+    if(await control.evaluate(element=>element.tagName==='SELECT'))await control.selectOption(String(value));else await control.fill(String(value))
+  }
   await page.locator('#dialog-submit').click()
   if (expectClose) await expect(page.locator('#app-dialog')).not.toBeVisible()
 }
@@ -30,6 +37,10 @@ test('main editor configures a real 1:100 model page, downloads SVG and PNG, and
   await expect(page.locator('#toggle-layers')).toBeVisible(); await expect(page.locator('#export-svg')).not.toBeVisible()
   await page.locator('.ribbon-tabs [data-i18n="inspect"]').click()
   await expect(page.locator('#measure-entity')).toBeVisible(); await expect(page.locator('#move-selection')).not.toBeVisible()
+  const measureLayout=await page.evaluate(()=>Object.fromEntries(['measure-mode','measure-entity','fit-ribbon'].map(id=>{const box=document.getElementById(id).getBoundingClientRect();return[id,{x:box.x,y:box.y,width:box.width,height:box.height}]})))
+  expect(measureLayout['measure-entity'].x).toBeGreaterThan(measureLayout['measure-mode'].x+measureLayout['measure-mode'].width)
+  expect(measureLayout['fit-ribbon'].x).toBeCloseTo(measureLayout['measure-entity'].x,0)
+  expect(measureLayout['fit-ribbon'].y).toBeGreaterThan(measureLayout['measure-entity'].y)
   await page.locator('.ribbon-tabs [data-i18n="home"]').click()
   await page.locator('#page-setup').click(); await page.keyboard.press('Escape')
   await expect(page.locator('#revision')).toHaveText(`REV ${document.revision}`)
@@ -118,18 +129,31 @@ test('main editor opens a vector print preview and prints only from its explicit
   await expect.poll(()=>popup.isClosed()).toBe(true)
 })
 
-test('unconfigured output actions open page setup instead of failing in the status bar', async ({ page }) => {
+test('unconfigured output actions fit A3 automatically while page setup keeps fixed scale optional and cancellable', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
   await page.locator('#language').click()
+  const svgDownload=page.waitForEvent('download')
+  await page.locator('#export-svg').click()
+  expect((await svgDownload).suggestedFilename()).toBe('drawing.svg')
+  await expect(page.locator('#app-dialog')).not.toBeVisible()
 
-  for (const action of ['#export-svg', '#export-png', '#print-drawing']) {
-    await page.locator(action).click()
-    await expect(page.locator('#app-dialog')).toBeVisible({ timeout: 2000 }).catch(async () => {
-      throw new Error(`${action}: ${await page.locator('#status').textContent()}`)
-    })
-    await expect(page.locator('#dialog-title')).toHaveText('页面设置')
-    await page.keyboard.press('Escape')
-    await expect(page.locator('#app-dialog')).not.toBeVisible()
-  }
+  await page.locator('#page-setup').click()
+  await expect(page.locator('#dialog-fields [name="scaleMode"]')).toHaveValue('fit')
+  await expect(page.locator('#dialog-fields [name="denominator"]')).toBeDisabled()
+  await page.locator('#dialog-fields [name="scaleMode"]').selectOption('custom')
+  const x0=await page.locator('#dialog-fields [name="x0"]').inputValue()
+  await page.locator('#dialog-fields [name="x1"]').fill(x0)
+  await page.locator('#dialog-submit').click()
+  await expect(page.locator('#dialog-error')).toBeVisible()
+  await page.locator('#dialog-form button[value="cancel"]').click()
+  await expect(page.locator('#app-dialog')).not.toBeVisible()
+
+  await page.reload()
+  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  const popupEvent=page.waitForEvent('popup')
+  await page.locator('#print-drawing').click()
+  const popup=await popupEvent
+  await expect(popup.locator('#kj-print-action')).toBeEnabled()
+  await popup.locator('#kj-print-close').click()
 })
