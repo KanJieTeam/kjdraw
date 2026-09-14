@@ -1,6 +1,9 @@
 import { type ReadonlyDeep } from './utils.js';
+import type { KJAgentToolDefinition } from './agent-tools.js';
 export declare const KJDRAW_AGENT_CAPABILITY_SCHEMA = "com.kanjie.kjdraw.agent-capability";
+/** Version 1 remains the default constant for source compatibility. */
 export declare const KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION = 1;
+export declare const KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION_V2 = 2;
 export declare const KJDRAW_AGENT_CAPABILITY_TOOL_API_VERSION = 1;
 export interface KJAgentCapabilityRequirement {
     id: string;
@@ -11,9 +14,8 @@ export interface KJAgentCapabilityRequirement {
         assertion: string;
     };
 }
-export interface KJAgentCapabilityManifest {
+export interface KJAgentCapabilityManifestBase {
     schema: typeof KJDRAW_AGENT_CAPABILITY_SCHEMA;
-    schemaVersion: typeof KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION;
     id: string;
     name: string;
     version: string;
@@ -23,6 +25,55 @@ export interface KJAgentCapabilityManifest {
     requiredToolNames: string[];
     requirements: KJAgentCapabilityRequirement[];
 }
+export interface KJAgentCapabilityCandidatePredicate {
+    fact: 'native-reference' | 'geometry-relation' | 'repeat-group' | 'spatial-cluster' | 'property';
+    source: KJAgentCapabilityEvidenceSource;
+    operator: 'exists' | 'equals' | 'at_least' | 'at_most' | 'all_resolved' | 'same_as' | 'within';
+    compareTo?: KJAgentCapabilityEvidenceSource;
+    relation?: string;
+    value?: string | number | boolean | null;
+}
+export interface KJAgentCapabilityEvidenceSource {
+    toolName: 'cad_query_topology';
+    scope: 'seed' | 'related';
+    path: 'entities[].ownerId' | 'entities[].layer.id' | 'entities[].nativeReferences.hatch.loops[].boundarySources' | 'entities[].nativeReferences.insert.typeCountSignature' | 'entities[].nativeReferences.insert.repeat.sameDefinitionInstanceCount' | 'entities[].nativeReferences.displayExtent.bounds';
+}
+export interface KJAgentCapabilityCandidateRule {
+    id: string;
+    candidateKind: string;
+    seed: {
+        entityTypes: string[];
+    };
+    predicates: KJAgentCapabilityCandidatePredicate[];
+    evidenceCodes: string[];
+    /** A declaration for downstream proposal/acceptance logic; it grants no mutation permission. */
+    nonMatchPolicy?: 'preserve';
+    confirmation: 'always' | 'when-ambiguous';
+}
+export type KJAgentCapabilityTemplatePlaceholder = '$candidate.seedIds' | '$candidate.relatedIds' | '$candidate.nonMatchingIds' | '$document.revision' | '$document.units';
+/** JSON template data validated recursively against the selected tool schema at registration. */
+export type KJAgentCapabilityTemplateValue = string | number | boolean | null | readonly unknown[] | Readonly<Record<string, unknown>>;
+export interface KJAgentCapabilityAcceptanceAssertion {
+    path: string;
+    operator: 'equals' | 'at_least' | 'at_most' | 'is_true';
+    expected: string | number | boolean | null;
+}
+export interface KJAgentCapabilityAcceptanceTemplate {
+    id: string;
+    description: string;
+    toolName: string;
+    input: Record<string, KJAgentCapabilityTemplateValue>;
+    assertions: KJAgentCapabilityAcceptanceAssertion[];
+}
+export interface KJAgentCapabilityManifestV1 extends KJAgentCapabilityManifestBase {
+    schemaVersion: typeof KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION;
+}
+export interface KJAgentCapabilityManifestV2 extends KJAgentCapabilityManifestBase {
+    schemaVersion: typeof KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION_V2;
+    candidateRules: KJAgentCapabilityCandidateRule[];
+    acceptanceTemplates: KJAgentCapabilityAcceptanceTemplate[];
+}
+export type KJAgentCapabilityManifest = KJAgentCapabilityManifestV1 | KJAgentCapabilityManifestV2;
 export interface KJAgentCapabilityReference {
     readonly id: string;
     readonly version: string;
@@ -39,14 +90,25 @@ export interface KJResolvedAgentCapabilities {
         readonly capabilityId: string;
         readonly capabilityVersion: string;
     })[];
+    readonly candidateRules: readonly (ReadonlyDeep<KJAgentCapabilityCandidateRule> & {
+        readonly capabilityId: string;
+        readonly capabilityVersion: string;
+    })[];
+    readonly acceptanceTemplates: readonly (ReadonlyDeep<KJAgentCapabilityAcceptanceTemplate> & {
+        readonly capabilityId: string;
+        readonly capabilityVersion: string;
+    })[];
 }
 /** Validate and detach untrusted JSON data. Hosts must separately decide whether to trust its guidance. */
-export declare function validateAgentCapabilityManifest(input: unknown): ReadonlyDeep<KJAgentCapabilityManifest>;
+export declare function validateAgentCapabilityManifest(input: unknown, { toolDefinitions }?: {
+    toolDefinitions?: readonly KJAgentToolDefinition[];
+}): ReadonlyDeep<KJAgentCapabilityManifest>;
 /** An in-memory data registry. Version selection and project-lock persistence belong to the host. */
 export declare class KJAgentCapabilityRegistry {
     #private;
-    constructor({ toolApiVersion }?: {
+    constructor({ toolApiVersion, toolDefinitions }?: {
         toolApiVersion?: number;
+        toolDefinitions?: readonly KJAgentToolDefinition[];
     });
     get toolApiVersion(): number;
     register(input: unknown): ReadonlyDeep<KJAgentCapabilityManifest>;

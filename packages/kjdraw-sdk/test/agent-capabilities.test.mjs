@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { KJAgentCapabilityRegistry, validateAgentCapabilityManifest } from '../src/agent-capabilities.js'
+import { KJAgentCapabilityRegistry, KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION_V2, validateAgentCapabilityManifest } from '../src/agent-capabilities.js'
 import { KJDRAW_AGENT_TOOLS } from '../src/agent-tools.js'
 
 const manifest = (patch = {}) => ({
@@ -13,6 +13,116 @@ const manifest = (patch = {}) => ({
 })
 const allowedToolNames = manifest().requiredToolNames
 const reference = (version = '1.0.0') => [{ id: 'example.precision-plate', version }]
+const topologySource = (scope, path) => ({ toolName: 'cad_query_topology', scope, path })
+const validateV2 = value => validateAgentCapabilityManifest(value, { toolDefinitions: KJDRAW_AGENT_TOOLS })
+const v2Manifest = (patch = {}) => ({
+  ...manifest({ id: 'example.structure-candidates', name: 'Structure candidates', requirements: [], requiredToolNames: ['cad_read_drawing', 'cad_query_topology'] }),
+  schemaVersion: KJDRAW_AGENT_CAPABILITY_SCHEMA_VERSION_V2,
+  candidateRules: [{
+    id: 'linked-boundary', candidateKind: 'bounded-region', seed: { entityTypes: ['HATCH'] },
+    predicates: [
+      { fact: 'native-reference', source: topologySource('seed', 'entities[].nativeReferences.hatch.loops[].boundarySources'), operator: 'all_resolved', relation: 'hatch-source' },
+      { fact: 'property', source: topologySource('seed', 'entities[].ownerId'), operator: 'same_as', compareTo: topologySource('related', 'entities[].ownerId'), relation: 'same-owner' },
+      { fact: 'property', source: topologySource('seed', 'entities[].layer.id'), operator: 'same_as', compareTo: topologySource('related', 'entities[].layer.id'), relation: 'same-layer' },
+      { fact: 'geometry-relation', source: topologySource('seed', 'entities[].nativeReferences.displayExtent.bounds'), operator: 'within', compareTo: topologySource('related', 'entities[].nativeReferences.displayExtent.bounds'), relation: 'within-target-envelope' },
+    ],
+    evidenceCodes: ['native-source-complete', 'extent-in-envelope'], nonMatchPolicy: 'preserve', confirmation: 'always',
+  }, {
+    id: 'repeated-instance', candidateKind: 'bounded-region', seed: { entityTypes: ['INSERT'] },
+    predicates: [
+      { fact: 'property', source: topologySource('seed', 'entities[].nativeReferences.insert.typeCountSignature'), operator: 'exists', relation: 'block-signature' },
+      { fact: 'repeat-group', source: topologySource('seed', 'entities[].nativeReferences.insert.repeat.sameDefinitionInstanceCount'), operator: 'at_least', relation: 'same-block-definition', value: 3 },
+      { fact: 'property', source: topologySource('seed', 'entities[].nativeReferences.displayExtent.bounds'), operator: 'exists', relation: 'extent' },
+      { fact: 'property', source: topologySource('seed', 'entities[].ownerId'), operator: 'same_as', compareTo: topologySource('related', 'entities[].ownerId'), relation: 'same-owner' },
+      { fact: 'property', source: topologySource('seed', 'entities[].layer.id'), operator: 'same_as', compareTo: topologySource('related', 'entities[].layer.id'), relation: 'same-layer' },
+      { fact: 'geometry-relation', source: topologySource('seed', 'entities[].nativeReferences.displayExtent.bounds'), operator: 'within', compareTo: topologySource('related', 'entities[].nativeReferences.displayExtent.bounds'), relation: 'within-target-envelope' },
+    ],
+    evidenceCodes: ['definition-repeat', 'extent-in-envelope'], nonMatchPolicy: 'preserve', confirmation: 'always',
+  }],
+  acceptanceTemplates: [{
+    id: 'references-resolve', description: 'Check the candidate references without modifying the drawing.', toolName: 'cad_query_topology',
+    input: { expectedRevision: '$document.revision', units: '$document.units', ids: '$candidate.seedIds', tolerance: 0.001, maxBytes: 65536 },
+    assertions: [{ path: 'omitted.length', operator: 'equals', expected: 0 }],
+  }],
+  ...patch,
+})
+
+test('schema v1 remains compatible while schema v2 resolves frozen declarative data', () => {
+  const legacy = validateAgentCapabilityManifest(manifest())
+  assert.equal(legacy.schemaVersion, 1)
+  assert.equal('candidateRules' in legacy, false)
+  assert.throws(() => validateAgentCapabilityManifest(v2Manifest()), /registered KJDraw tool schema/)
+  const next = validateV2(v2Manifest())
+  assert.equal(next.schemaVersion, 2)
+  const repeated = next.candidateRules.find(rule => rule.id === 'repeated-instance')
+  assert.equal(repeated.predicates.find(predicate => predicate.fact === 'repeat-group').value, 3)
+  assert.equal(next.candidateRules[0].nonMatchPolicy, 'preserve')
+  assert.equal(next.candidateRules[0].confirmation, 'always')
+  assert.equal(next.acceptanceTemplates[0].input.ids, '$candidate.seedIds')
+  assert.ok(Object.isFrozen(next)); assert.ok(Object.isFrozen(next.candidateRules[0].predicates)); assert.ok(Object.isFrozen(next.acceptanceTemplates[0].input))
+  assert.throws(() => { next.candidateRules[0].confirmation = 'always' }, TypeError)
+  const registry = new KJAgentCapabilityRegistry({ toolDefinitions: KJDRAW_AGENT_TOOLS })
+  registry.register(manifest())
+  registry.register(v2Manifest())
+  const resolved = registry.resolve({ lock: registry.createLock([{ id: 'example.precision-plate', version: '1.0.0' }, { id: 'example.structure-candidates', version: '1.0.0' }]), allowedToolNames: ['cad_read_drawing', 'cad_measure_distance', 'cad_propose_drawing', 'cad_query_topology'] })
+  assert.equal(resolved.candidateRules.length, 2)
+  assert.equal(resolved.candidateRules[0].capabilityId, 'example.structure-candidates')
+  assert.equal(resolved.acceptanceTemplates[0].capabilityVersion, '1.0.0')
+  assert.ok(Object.isFrozen(resolved.candidateRules)); assert.ok(Object.isFrozen(resolved.acceptanceTemplates[0].assertions))
+})
+
+test('schema v2 rejects unknown executable fields and unsupported declarative vocabulary', () => {
+  const invalid = [
+    v2Manifest({ execute: 'run' }),
+    v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], script: 'return true' }] }),
+    v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], predicates: [{ fact: 'industry-assumption', operator: 'exists' }] }] }),
+    v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], predicates: [{ fact: 'property', operator: 'eval', value: 'x' }] }] }),
+    v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], predicates: [{ fact: 'native-reference', source: topologySource('seed', 'entities[].nativeReferences.hatch.boundarySources'), operator: 'all_resolved' }] }] }),
+    v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[1], predicates: [{ fact: 'property', source: topologySource('seed', 'entities[].nativeReferences.insert.structuralSignature'), operator: 'exists' }] }] }),
+    v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], predicates: [{ fact: 'property', source: topologySource('seed', 'entities[].nativeReferences.hatch.loops[].boundarySources'), operator: 'exists' }] }] }),
+    v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], predicates: [{ fact: 'property', source: { ...topologySource('seed', 'entities[].ownerId'), toolName: 'cad_read_drawing' }, operator: 'exists' }] }] }),
+    v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], predicates: [{ fact: 'geometry-relation', source: topologySource('seed', 'entities[].nativeReferences.displayExtent.bounds'), operator: 'within', compareTo: topologySource('seed', 'entities[].nativeReferences.displayExtent.bounds') }] }] }),
+    v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], confirmation: 'when-ambiguous' }] }),
+    v2Manifest({ candidateRules: [{ id: 'global-repeat', candidateKind: 'geometry', seed: { entityTypes: ['INSERT'] }, predicates: [{ fact: 'repeat-group', source: topologySource('seed', 'entities[].nativeReferences.insert.repeat.sameDefinitionInstanceCount'), operator: 'at_least', value: 2 }], evidenceCodes: ['repeat'], nonMatchPolicy: 'preserve', confirmation: 'always' }] }),
+    v2Manifest({ candidateRules: [{ ...v2Manifest().candidateRules[0], nonMatchPolicy: 'delete' }] }),
+    v2Manifest({ acceptanceTemplates: [{ ...v2Manifest().acceptanceTemplates[0], endpoint: 'https://example.invalid' }] }),
+    v2Manifest({ acceptanceTemplates: [{ ...v2Manifest().acceptanceTemplates[0], input: { ...v2Manifest().acceptanceTemplates[0].input, ids: '$untrusted.value' } }] }),
+    v2Manifest({ acceptanceTemplates: [{ ...v2Manifest().acceptanceTemplates[0], input: { ids: '$candidate.seedIds' } }] }),
+    v2Manifest({ acceptanceTemplates: [{ ...v2Manifest().acceptanceTemplates[0], input: { ...v2Manifest().acceptanceTemplates[0].input, unexpected: true } }] }),
+    v2Manifest({ acceptanceTemplates: [{ ...v2Manifest().acceptanceTemplates[0], input: { ...v2Manifest().acceptanceTemplates[0].input, tolerance: '$document.units' } }] }),
+    v2Manifest({ acceptanceTemplates: [{ ...v2Manifest().acceptanceTemplates[0], input: { ...v2Manifest().acceptanceTemplates[0].input, maxBytes: 999 } }] }),
+    v2Manifest({ acceptanceTemplates: [{ ...v2Manifest().acceptanceTemplates[0], assertions: [{ path: '__proto__.passed', operator: 'is_true', expected: true }] }] }),
+    v2Manifest({ acceptanceTemplates: [{ ...v2Manifest().acceptanceTemplates[0], toolName: 'cad_propose_drawing' }] }),
+  ]
+  for (const value of invalid) assert.throws(() => validateV2(value))
+})
+
+test('schema v2 enforces rule, predicate, template, assertion and input budgets', () => {
+  const rule = { id: 'bounded', candidateKind: 'geometry', seed: { entityTypes: ['LINE'] }, predicates: [{ fact: 'property', source: topologySource('seed', 'entities[].ownerId'), operator: 'exists' }], evidenceCodes: ['owner-known'], confirmation: 'when-ambiguous' }
+  const template = v2Manifest().acceptanceTemplates[0]
+  for (const patch of [
+    { candidateRules: Array.from({ length: 33 }, (_, index) => ({ ...rule, id: `rule-${index}` })) },
+    { candidateRules: [{ ...rule, predicates: Array.from({ length: 17 }, () => rule.predicates[0]) }] },
+    { candidateRules: [{ ...rule, evidenceCodes: Array.from({ length: 17 }, (_, index) => `evidence-${index}`) }] },
+    { acceptanceTemplates: Array.from({ length: 33 }, (_, index) => ({ ...template, id: `template-${index}` })) },
+    { acceptanceTemplates: [{ ...template, assertions: Array.from({ length: 17 }, () => template.assertions[0]) }] },
+  ]) assert.throws(() => validateV2(v2Manifest(patch)), /32|16/)
+  assert.throws(() => validateV2(v2Manifest({ instructions: '图'.repeat(12000) })), /byte budget/)
+})
+
+test('schema v2 upgrade and rollback require exact locks and never widen host tools', () => {
+  const registry = new KJAgentCapabilityRegistry({ toolDefinitions: KJDRAW_AGENT_TOOLS })
+  registry.register(v2Manifest())
+  registry.register(v2Manifest({ version: '1.1.0', candidateRules: [{ ...v2Manifest().candidateRules[0], evidenceCodes: [...v2Manifest().candidateRules[0].evidenceCodes, 'second-pass'] }] }))
+  const v1Lock = registry.createLock([{ id: 'example.structure-candidates', version: '1.0.0' }])
+  const v11Lock = registry.createLock([{ id: 'example.structure-candidates', version: '1.1.0' }])
+  assert.equal(registry.resolve({ lock: v1Lock, allowedToolNames: ['cad_read_drawing', 'cad_query_topology'] }).candidateRules[0].evidenceCodes.includes('second-pass'), false)
+  assert.equal(registry.resolve({ lock: v11Lock, allowedToolNames: ['cad_read_drawing', 'cad_query_topology'] }).candidateRules[0].evidenceCodes.includes('second-pass'), true)
+  assert.equal(registry.resolve({ lock: v1Lock, allowedToolNames: ['cad_read_drawing', 'cad_query_topology'] }).lock[0].version, '1.0.0')
+  assert.notEqual(v1Lock[0].contentHash, v11Lock[0].contentHash)
+  assert.throws(() => registry.resolve({ lock: v1Lock, allowedToolNames: ['cad_read_drawing'] }), /outside the host allowlist/)
+  assert.deepEqual(registry.resolve({ lock: v1Lock, allowedToolNames: ['cad_read_drawing', 'cad_query_topology', 'host_approve'] }).toolNames, ['cad_read_drawing', 'cad_query_topology'])
+})
 
 test('a project lock keeps the original instructions after an explicit new version is installed', () => {
   const registry = new KJAgentCapabilityRegistry()
