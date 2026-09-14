@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { KJDRAW_CHAT_TOOL_NAMES, getKJDrawChatToolNames, getKJDrawChatToolNamesForRequest } from '../../../apps/playground/agent-chat.js'
+import { KJDRAW_CHAT_TOOL_NAMES, getKJDrawChatCapabilityForRequest, getKJDrawChatToolNames, getKJDrawChatToolNamesForRequest } from '../../../apps/playground/agent-chat.js'
 import { createRoadDesignFixture, roadDrawingFixtureOptions } from '../examples/fixtures/road-design.mjs'
 import { buildRoadDrawing } from '../src/road-drawing.js'
 import { createKJDrawSDK } from '../src/sdk.js'
@@ -93,8 +93,10 @@ test('explicit chart requests use one high-level compiler instead of per-entity 
   for (const prompt of ['Create a grouped bar chart with a target line.', '绘制季度产量柱状图和目标折线图。']) {
     const {document,session}=fixture(), toolNames=getKJDrawChatToolNamesForRequest(document,prompt)
     assert.deepEqual(toolNames,['cad_propose_cartesian_chart'])
+    const capability=getKJDrawChatCapabilityForRequest(document,prompt)
+    assert.equal(capability.descriptor.id,'builtin.cartesian-chart')
     const input={version:'1.0.0',expectedRevision:0,units:'millimeter',drawingId:'CHART-ROUTED',title:'QUARTERLY OUTPUT',categories:['Q1','Q2','Q3','Q4'],series:[{id:'actual',name:'Actual',kind:'bar',values:[82,96,91,108]},{id:'target',name:'Target',kind:'line',values:[90,90,100,100]}],showValues:true}
-    const result=await runKJAgentTask({session,prompt,toolNames,model:modelCall('cad_propose_cartesian_chart',input,tools=>assert.deepEqual(tools.map(tool=>tool.name),toolNames))})
+    const result=await runKJAgentTask({session,prompt,toolNames,capabilities:{registry:capability.registry,lock:capability.lock},model:modelCall('cad_propose_cartesian_chart',input,(tools,instructions)=>{assert.deepEqual(tools.map(tool=>tool.name),toolNames);assert.match(instructions,/Capability builtin\.cartesian-chart@1\.0\.0/);assert.match(instructions,/Do not emit axes, bars, points or text individually/)})})
     assert.equal(result.status,'awaiting-approval')
     const proposal=result.outputs[0].result.value
     assert.equal(proposal.engineeringEvidence.skillId,'cartesian-chart')

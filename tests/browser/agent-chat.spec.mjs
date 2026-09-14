@@ -481,8 +481,8 @@ test('chat routes a Chinese mixed chart request through one editable Cartesian c
     container.style.cssText='position:fixed;inset:0 auto auto 0;width:440px;height:650px;z-index:10000;background:white;display:flex;flex-direction:column'
     window.document.body.append(container);window.chartRoute={sdk,document,tools:[]}
     const chat=createAgentChat(container,{locale:()=> 'zh',getContext:()=>({sdk,document}),getSelected:()=>[],onPreview(){},onBeforeRun(){},runMutation:operation=>operation(),onApplied(){},onSave(){}})
-    chat.setModel({createConversation({tools}){
-      window.chartRoute.tools=tools.map(tool=>tool.name)
+    chat.setModel({createConversation({tools,instructions}){
+      window.chartRoute.tools=tools.map(tool=>tool.name);window.chartRoute.instructions=instructions
       return {next:async()=>({text:'已生成可编辑组合图，请检查后应用。',calls:[{id:'chart',name:'cad_propose_cartesian_chart',arguments:{version:'1.0.0',expectedRevision:0,units:'millimeter',drawingId:'CHART-UI',title:'季度产量与目标',categories:['一季度','二季度','三季度','四季度'],series:[{id:'actual',name:'实际',kind:'bar',values:[82,96,91,108]},{id:'target',name:'目标',kind:'line',values:[90,90,100,100]}],showValues:true}}]})}
     }})
   })
@@ -491,6 +491,7 @@ test('chat routes a Chinese mixed chart request through one editable Cartesian c
   await chat.locator('#chat-send').click()
   await expect(chat.getByRole('button',{name:'应用修改',exact:true})).toBeEnabled()
   expect(await page.evaluate(()=>window.chartRoute.tools)).toEqual(['cad_propose_cartesian_chart'])
+  expect(await page.evaluate(()=>window.chartRoute.instructions)).toContain('Capability builtin.cartesian-chart@1.0.0')
   expect(await page.evaluate(()=>window.chartRoute.document.listEntities().length)).toBe(0)
   await chat.getByRole('button',{name:'应用修改',exact:true}).click()
   await expect(chat.locator('.chat-proposal-state')).toContainText('修改已应用')
@@ -498,6 +499,39 @@ test('chat routes a Chinese mixed chart request through one editable Cartesian c
   expect(result.revision).toBe(1);expect(result.count).toBeGreaterThan(20)
   expect(result.types).toEqual(['CIRCLE','LINE','LWPOLYLINE','TEXT'])
   expect(result.layers).toEqual(expect.arrayContaining(['CHART_AXIS','CHART_GRID','CHART_TEXT','CHART_ACTUAL','CHART_TARGET']))
+})
+
+test('chat keeps general tools for geological, negated and mixed drawing requests', async ({page}) => {
+  await page.goto('/')
+  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
+  await page.evaluate(async()=>{
+    const {createAgentChat}=await import('/apps/playground/agent-chat.js')
+    const {createKJDrawSDK}=await import('/packages/kjdraw-sdk/src/index.js')
+    const sdk=createKJDrawSDK(),document=sdk.createDocument({units:'millimeter'})
+    const container=window.document.createElement('section');container.id='ambiguous-chat'
+    container.style.cssText='position:fixed;inset:0 auto auto 0;width:440px;height:650px;z-index:10000;background:white;display:flex;flex-direction:column'
+    window.document.body.append(container);window.ambiguousChat={document,requests:[]}
+    const chat=createAgentChat(container,{locale:()=> 'zh',getContext:()=>({sdk,document}),getSelected:()=>[],onPreview(){},onBeforeRun(){},runMutation:operation=>operation(),onApplied(){},onSave(){}})
+    chat.setModel({createConversation({tools,instructions}){
+      window.ambiguousChat.requests.push({tools:tools.map(tool=>tool.name),instructions})
+      return {next:async()=>({text:'需要先明确绘图要求。',calls:[]})}
+    }})
+  })
+  const chat=page.locator('#ambiguous-chat')
+  const prompts=['绘制钻孔地质柱状图。','不要绘制柱状图。','绘制建筑平面图和季度产量柱状图。']
+  for(let i=0;i<prompts.length;i++){
+    await chat.locator('#chat-input').fill(prompts[i])
+    await chat.locator('#chat-send').click()
+    await expect.poll(()=>page.evaluate(()=>window.ambiguousChat.requests.length)).toBe(i+1)
+    await expect(chat.locator('#chat-send')).toBeEnabled()
+  }
+  const result=await page.evaluate(()=>({requests:window.ambiguousChat.requests,revision:window.ambiguousChat.document.revision,count:window.ambiguousChat.document.listEntities().length}))
+  for(const request of result.requests){
+    expect([...request.tools].sort()).toEqual([...KJDRAW_CHAT_TOOL_NAMES].sort())
+    expect(request.instructions??'').not.toContain('Capability builtin.')
+  }
+  expect(result.revision).toBe(0);expect(result.count).toBe(0)
+  await expect(chat.getByRole('button',{name:'应用修改',exact:true})).toHaveCount(0)
 })
 
 test('chat sends only the MOVE schema for an exact selected translation', async ({ page }) => {

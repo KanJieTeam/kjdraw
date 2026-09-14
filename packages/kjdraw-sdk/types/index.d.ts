@@ -6,6 +6,8 @@ export * from './agent-tools.js';
 export * from './agent-manufacturing-sheet.js';
 export * from './agent-architecture-plan.js';
 export * from './agent-site-plan.js';
+export * from './agent-cartesian-chart.js';
+export * from './agent-builtin-capabilities.js';
 export * from './agent-capabilities.js';
 export * from './agent-capability-candidates.js';
 export * from './erase-impact.js';
