@@ -67,7 +67,21 @@
       <div class="statusbar"><span id="status" role="status" aria-live="polite" data-i18n="loading">Loading local SDK…</span><div><span id="selection-count">0 selected</span><span id="entity-count">0 entities</span><span id="revision">REV 0</span><span id="coordinates">X 0.00 · Y 0.00</span><button id="grid" aria-pressed="true" data-i18n="gridOn">GRID ON</button><button id="ortho" aria-pressed="false" data-i18n="orthoOff">ORTHO OFF</button><button id="polar" aria-pressed="false" data-i18n="polarOff">POLAR OFF</button><button id="snap" aria-pressed="true" data-i18n="snapOn">SNAP ON</button></div></div>
     </section>
   </main>
-  <button id="ai-assistant-launcher" class="ai-assistant-launcher" type="button" aria-controls="ai-chat-window" aria-expanded="false" data-i18n-label="toggleAiAssistant" data-i18n-title="toggleAiAssistant"><b>KJ</b><span>AI</span></button>
+  <button id="ai-assistant-launcher" class="ai-assistant-launcher" type="button" aria-controls="ai-chat-window" aria-expanded="false" data-i18n-label="toggleAiAssistant" data-i18n-title="toggleAiAssistant">
+    <span class="ai-pet-shell" aria-hidden="true">
+      <svg class="ai-pet" viewBox="0 0 72 76" focusable="false" aria-hidden="true">
+        <path class="ai-pet-antenna" d="M36 15V9m0 0 5-4m-5 4-5-4"/>
+        <path class="ai-pet-ear" d="M13 35 7 30v20l6-5m46-10 6-5v20l-6-5"/>
+        <rect class="ai-pet-head" x="12" y="16" width="48" height="43" rx="15"/>
+        <path class="ai-pet-screen" d="M21 27c8-5 22-5 30 0v17c-8 7-22 7-30 0Z"/>
+        <circle class="ai-pet-eye" cx="29" cy="35" r="3"/><circle class="ai-pet-eye" cx="43" cy="35" r="3"/>
+        <path class="ai-pet-smile" d="M30 44c4 3 8 3 12 0"/>
+        <path class="ai-pet-body" d="M22 59h28l4 10c-10 4-26 4-36 0Z"/>
+        <path class="ai-pet-k" d="M31 61v8m0-4 5-4m-5 4 5 4"/>
+      </svg>
+      <span class="ai-pet-badge">AI</span><span class="ai-pet-status"></span>
+    </span>
+  </button>
   <section id="ai-chat-window" class="ai-chat-window" role="dialog" aria-modal="false" aria-labelledby="ai-chat-window-title" hidden>
     <header id="ai-chat-drag-handle" class="ai-chat-drag-handle" tabindex="0" role="group" data-i18n-label="moveAiAssistant" data-i18n-title="moveAiAssistant">
       <strong id="ai-chat-window-title" data-i18n="aiAssistant">KJDraw AI assistant</strong>

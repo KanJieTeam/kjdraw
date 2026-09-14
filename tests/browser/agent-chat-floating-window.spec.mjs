@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { mkdir } from 'node:fs/promises'
 
 const base=()=>process.env.KJDRAW_PRESET_BASE_URL??'/'
 
@@ -9,11 +10,18 @@ for(const viewport of [{width:1440,height:900},{width:1024,height:768}])test(`AI
   const launcher=page.locator('#ai-assistant-launcher'),panel=page.locator('#ai-chat-window'),handle=page.locator('#ai-chat-drag-handle')
   await expect(launcher).toBeVisible()
   await expect(launcher).toHaveAttribute('aria-label','Show or hide KJDraw AI assistant')
+  await expect(launcher.locator('.ai-pet-shell')).toBeVisible()
+  await expect(launcher.locator('svg.ai-pet')).toHaveAttribute('aria-hidden','true')
+  const petBounds=await launcher.boundingBox()
+  expect(petBounds.width).toBeGreaterThanOrEqual(58)
+  expect(petBounds.width).toBeLessThanOrEqual(70)
   await expect(panel).toBeHidden()
+  if(viewport.width===1440){await mkdir('.cache/ai-pet',{recursive:true});await page.screenshot({path:'.cache/ai-pet/launcher-1440x900.png'})}
 
   await launcher.click()
   await expect(panel).toBeVisible()
   await expect(launcher).toHaveAttribute('aria-expanded','true')
+  if(viewport.width===1440)await page.screenshot({path:'.cache/ai-pet/open-1440x900.png'})
   await page.locator('#settings').click()
   await expect(page.locator('#hotkey-settings-dialog')).toBeVisible()
   await page.keyboard.press('Escape')
@@ -69,4 +77,22 @@ for(const viewport of [{width:1440,height:900},{width:1024,height:768}])test(`AI
   await expect(page.locator('#agent-title')).toHaveText('Review drawing changes')
   if(await page.locator('#open-agent-sample').isVisible())await page.locator('#open-agent-sample').click()
   await expect(page.locator('#plan')).toBeVisible()
+})
+
+test('AI pet remains reachable on a narrow screen and the composer omits the redundant attachment paragraph',async({page})=>{
+  await page.setViewportSize({width:360,height:640})
+  await page.goto(base())
+  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
+  const launcher=page.locator('#ai-assistant-launcher'),bounds=await launcher.boundingBox()
+  expect(bounds.x).toBeGreaterThanOrEqual(0);expect(bounds.x+bounds.width).toBeLessThanOrEqual(360)
+  expect(bounds.y).toBeGreaterThanOrEqual(0);expect(bounds.y+bounds.height).toBeLessThanOrEqual(640)
+  await mkdir('.cache/ai-pet',{recursive:true});await page.screenshot({path:'.cache/ai-pet/launcher-360x640.png'})
+  await launcher.focus();await page.keyboard.press('Enter')
+  await expect(page.locator('#ai-chat-window')).toBeVisible()
+  await expect(launcher).toHaveAttribute('aria-expanded','true')
+  await expect(page.locator('.chat-data-attachment')).not.toContainText('UTF-8')
+  await expect(page.locator('.chat-data-attachment')).not.toContainText('8 KiB')
+  await page.screenshot({path:'.cache/ai-pet/open-360x640.png'})
+  await page.locator('#ai-chat-hide').click()
+  await expect(launcher).toBeFocused()
 })

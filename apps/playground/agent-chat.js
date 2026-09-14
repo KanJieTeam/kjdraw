@@ -74,7 +74,6 @@ const copy = {
   input: ['Describe what you need…', '描述你的绘图需求…'], send: ['Send message', '发送消息'], stop: ['Stop', '停止'],
   attachView: ['Attach current view', '附上当前视图'], attachedView: ['Current drawing view sent to the model', '发送给模型的当前图纸视图'],
   attachData: ['Attach CSV / JSON', '附加 CSV / JSON'], removeData: ['Remove attachment', '移除附件'],
-  dataScope: ['One UTF-8 CSV / JSON file, up to 8 KiB, for the next message only. Road data packages stay local; the model receives a summary and reference. Other attachments are sent in full.', '单个 UTF-8 CSV / JSON 文件，最多 8 KiB，仅用于下一条消息。道路数据包保留在本地，模型只接收摘要和引用；其他附件发送完整内容。'],
   dataInvalid: ['Cannot attach this file. Use valid UTF-8 JSON or rectangular CSV, at most 8 KiB and 4096 lines.', '无法附加此文件。请使用有效 UTF-8 JSON 或列数一致的 CSV，最多 8 KiB、4096 行。'],
   dataLoading: ['Reading attachment…', '正在读取附件…'], dataContents: ['Full attachment content', '附件完整内容'],
   dataBudget: ['The request and attachment exceed the context limit. Shorten the request or use a smaller file; no data was truncated.', '需求与附件超过上下文上限，请缩短需求或减少文件内容；未截断数据。'],
@@ -203,7 +202,7 @@ export function createAgentChat(container, options) {
   dataFile.id='chat-data-file';dataFile.type='file';dataFile.accept='.csv,.json,text/csv,application/json';dataFile.hidden=true
   dataPick.id='chat-attach-data';dataRemove.id='chat-remove-data';dataRemove.hidden=true;dataDetails.hidden=true;dataError.setAttribute('role','alert')
   dataDetails.append(label(element('summary'),'dataContents'),dataText)
-  dataBox.append(dataPick,dataFile,dataRemove,dataStatus,dataDetails,dataError,label(element('small'),'dataScope'))
+  dataBox.append(dataPick,dataFile,dataRemove,dataStatus,dataDetails,dataError)
   function clearData(){dataGeneration++;dataAttachment=null;dataLoading=false;dataFile.value='';dataStatus.textContent='';dataText.textContent='';dataError.textContent='';dataRemove.hidden=true;dataDetails.hidden=true;send.disabled=false}
   function attachmentView(value){const details=element('details','chat-sent-data');details.append(element('summary','',`${value.name} · ${value.byteLength} B · ${value.lineCount} ${options.locale()==='zh'?'行':'lines'}`),element('pre','',value.text));return details}
   dataPick.onclick=()=>dataFile.click();dataRemove.onclick=clearData
