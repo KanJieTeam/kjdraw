@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { createKJDrawSDK } from '../../packages/kjdraw-sdk/src/sdk.js'
+import { resolveDrawingPngPlot } from '../../packages/kjdraw-sdk/src/drawing-image.js'
+import { exportDrawingSvg } from '../../packages/kjdraw-sdk/src/svg-export.js'
 import { KJProjectSession } from '../../packages/kjdraw-sdk/src/project-session.js'
 
 if (process.env.KJDRAW_TEST_BASE_URL) test.use({ baseURL: process.env.KJDRAW_TEST_BASE_URL })
@@ -156,6 +158,43 @@ test('unconfigured output actions fit A3 automatically while page setup keeps fi
   const popup=await popupEvent
   await expect(popup.locator('#kj-print-action')).toBeEnabled()
   await popup.locator('#kj-print-close').click()
+})
+
+test('first output centers the resilient campus from drawing geometry after the viewport is panned', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'One Chromium check covers the shared SVG, PNG and print placement')
+  await page.goto('/')
+  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  await page.locator('#sample-select').selectOption('sample-resilient-campus')
+  await expect(page.locator('#sample-select')).toHaveValue('sample-resilient-campus')
+
+  const canvas = page.locator('#canvas'), box = await canvas.boundingBox()
+  await page.mouse.move(box.x + box.width/2, box.y + box.height/2)
+  await page.mouse.down({ button:'middle' })
+  await page.mouse.move(box.x + box.width/2 + 260, box.y + box.height/2 - 150, { steps:4 })
+  await page.mouse.up({ button:'middle' })
+
+  const svgPending = page.waitForEvent('download')
+  await page.locator('#export-svg').click()
+  const downloadedSvg = await readFile(await (await svgPending).path(), 'utf8')
+  const downloadedMatrix = downloadedSvg.match(/data-space-id="[^"]+" transform="matrix\(([^)]+)\)"/)?.[1]
+  expect(downloadedMatrix).toBeTruthy()
+
+  const project = await saved(page), drawing = project.activeDocument, layoutId = drawing.snapshot().spaces.layoutIds[0]
+  const svg = exportDrawingSvg(drawing, { layoutId }), png = resolveDrawingPngPlot(drawing, { layoutId })
+  expect(svg.plot.sourceRange).toEqual({ kind:'window', minimum:[-8,-14], maximum:[268,160] })
+  const center = [130,73], transform = (matrix, point) => [matrix[0]*point[0]+matrix[2]*point[1]+matrix[4], matrix[1]*point[0]+matrix[3]*point[1]+matrix[5]]
+  expect(transform(svg.plot.drawingToPaperMatrix, center)[0]).toBeCloseTo(210, 10)
+  expect(transform(svg.plot.drawingToPaperMatrix, center)[1]).toBeCloseTo(148.5, 10)
+  const pngCenter = transform(png.plot.drawingToPixelMatrix, center)
+  expect(pngCenter[0]).toBeCloseTo(png.width/2, 8)
+  expect(pngCenter[1]).toBeCloseTo(png.height/2, 8)
+  expect(downloadedMatrix).toBe(svg.plot.drawingToPaperMatrix.join(' '))
+
+  const pngPending = page.waitForEvent('download'); await page.locator('#export-png').click()
+  expect((await pngPending).suggestedFilename()).toBe('drawing.png')
+  const popupEvent = page.waitForEvent('popup'); await page.locator('#print-drawing').click(); const popup = await popupEvent
+  await expect(popup.locator('[data-space-id]')).toHaveAttribute('transform', `matrix(${downloadedMatrix})`)
+  await popup.locator('#kj-print-close').click(); project.destroy()
 })
 
 test('Chinese desktop page setup keeps cancel and continue visible while fields scroll', async ({ page }, testInfo) => {

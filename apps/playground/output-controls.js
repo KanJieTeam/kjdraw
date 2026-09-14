@@ -1,6 +1,7 @@
 import { openDrawingPrintPreview } from '../../packages/kjdraw-sdk/src/print-export.js'
 import { exportDrawingSvg } from '../../packages/kjdraw-sdk/src/svg-export.js'
 import { exportDrawingPng } from '../../packages/kjdraw-sdk/src/drawing-image.js'
+import { displayedEntityBounds } from '../../packages/kjdraw-sdk/src/selection-geometry.js'
 
 const MILLIMETERS = Object.freeze({ millimeter: 1, centimeter: 10, meter: 1000, inch: 25.4, foot: 304.8 })
 export const OUTPUT_PAPER_PRESETS = Object.freeze({
@@ -12,6 +13,30 @@ export const OUTPUT_PAPER_PRESETS = Object.freeze({
 })
 const positive = (value, name) => { if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw Error(`${name} must be positive`); return value }
 const finite = (value, name) => { if (typeof value !== 'number' || !Number.isFinite(value)) throw Error(`${name} must be finite`); return value }
+
+/** Resolve the bounded geometry that strict model-space output will actually
+ * plot. Camera bounds are intentionally excluded: zooming and panning are view
+ * operations and must not move a first-time SVG, PNG or print output. */
+export function resolveOutputModelBounds(drawing, layoutId) {
+  const source = drawing.snapshot(), layout = drawing.getObject(layoutId)
+  if (!layout || !source.spaces.layoutIds.includes(layoutId) || layout.payload.blockRecordId !== source.spaces.modelSpaceId) throw Error('Output bounds require a model layout')
+  const layers = new Map(drawing.getTable('layers')?.records.map(layer => [layer.id, layer.payload]) ?? [])
+  const cache = new WeakMap()
+  let minimumX = Infinity, minimumY = Infinity, maximumX = -Infinity, maximumY = -Infinity
+  for (const entity of drawing.listEntities({ ownerId: source.spaces.modelSpaceId })) {
+    const layer = layers.get(String(entity.payload.layerId ?? ''))
+    if (entity.payload.visible === false || layer?.visible === false || layer?.frozen === true || layer?.plottable === false) continue
+    const bounds = displayedEntityBounds(drawing, entity, cache)
+    if (!bounds) continue
+    minimumX = Math.min(minimumX, bounds[0]); minimumY = Math.min(minimumY, bounds[1])
+    maximumX = Math.max(maximumX, bounds[2]); maximumY = Math.max(maximumY, bounds[3])
+  }
+  if (![minimumX, minimumY, maximumX, maximumY].every(Number.isFinite)) throw Error('No bounded visible model geometry is available for automatic output')
+  const reference = Math.max(maximumX - minimumX, maximumY - minimumY, 1), epsilon = reference * 1e-6
+  if (!(maximumX > minimumX)) { minimumX -= epsilon; maximumX += epsilon }
+  if (!(maximumY > minimumY)) { minimumY -= epsilon; maximumY += epsilon }
+  return Object.freeze([minimumX, minimumY, maximumX, maximumY])
+}
 
 export function outputPaperSize(preset, orientation = 'portrait') {
   const size = OUTPUT_PAPER_PRESETS[String(preset).toUpperCase()]
@@ -90,7 +115,8 @@ export function createOutputControls({ getContext, locale, select, request, run,
   }
   const configure = async (context, nextAction = null) => {
     const drawing = context.document, revision = drawing.revision, layout = drawing.getObject(context.layoutId)
-    const model = layout.payload.blockRecordId === drawing.snapshot().spaces.modelSpaceId, settings = layout.payload.dxfPlotSettings ?? {}, bounds = currentBounds()
+    const model = layout.payload.blockRecordId === drawing.snapshot().spaces.modelSpaceId, settings = layout.payload.dxfPlotSettings ?? {}
+    const bounds = model ? (() => { try { return resolveOutputModelBounds(drawing, context.layoutId) } catch { return currentBounds() } })() : currentBounds()
     const f = (name, label, value, extra = {}) => ({ name, label, value, type: 'number', step: 'any', ...extra })
     const initialWidth = settings.paperWidth ?? 420, initialHeight = settings.paperHeight ?? 297
     const detectedPaper = detectOutputPaper(initialWidth, initialHeight)
@@ -146,7 +172,9 @@ export function createOutputControls({ getContext, locale, select, request, run,
   const setup = () => run(() => configure(selected()))
   const ready = async context => {
     if (context.document.getObject(context.layoutId)?.payload.dxfPlotSettings) return true
-    const bounds = currentBounds(), paper = { width: 420, height: 297, margin: 10 }
+    const layout = context.document.getObject(context.layoutId), model = layout?.payload.blockRecordId === context.document.snapshot().spaces.modelSpaceId
+    const bounds = model ? (() => { try { return resolveOutputModelBounds(context.document, context.layoutId) } catch { return currentBounds() } })() : currentBounds()
+    const paper = { width: 420, height: 297, margin: 10 }
     await execute('PAGESETUP', { layoutId: context.layoutId, dxf: buildOutputPageSettings(context.document, context.layoutId, { ...paper, scaleMode: 'fit', denominator: 100, x0: bounds[0], y0: bounds[1], x1: bounds[2], y1: bounds[3] }) })
     message(zh() ? '已自动适合 A3 横向纸张并居中，可在页面设置中改为固定比例。' : 'Automatically fitted and centered on A3 landscape. Use Page setup for a fixed scale.')
     return true

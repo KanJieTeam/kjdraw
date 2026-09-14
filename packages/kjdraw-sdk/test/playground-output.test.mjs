@@ -1,12 +1,15 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createKJDrawSDK } from '../src/sdk.js'
+import { resolveDrawingPngPlot } from '../src/drawing-image.js'
+import { createDrawingPrintHtml } from '../src/print-export.js'
 import { exportDrawingSvg } from '../src/svg-export.js'
 import {
   OUTPUT_PAPER_PRESETS,
   buildOutputPageSettings,
   detectOutputPaper,
   outputPaperSize,
+  resolveOutputModelBounds,
 } from '../../../apps/playground/output-controls.js'
 
 test('ISO paper presets resolve both orientations and leave unmatched dimensions custom', () => {
@@ -54,4 +57,30 @@ test('page setup rejects implicit fitting, ambiguous units, invalid windows and 
     }
     assert.equal(document.serialize(), original)
   }
+})
+
+test('automatic model output centers nonzero negative geometry identically in landscape SVG, PNG and print', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units:'meter' }), layoutId = document.snapshot().spaces.layoutIds[0]
+  await sdk.executeCommand('CREATE', { type:'LINE', payload:{ start:[-80,-40], end:[220,110] } })
+  const bounds = resolveOutputModelBounds(document, layoutId)
+  assert.deepEqual(bounds, [-80,-40,220,110])
+  await sdk.executeCommand('PAGESETUP', { layoutId, dxf:{
+    paperWidth:420, paperHeight:297, paperUnits:1, rotation:0,
+    marginLeft:11, marginRight:19, marginTop:17, marginBottom:7,
+    flags:20, standardScaleType:0, plotType:4,
+    windowMinX:bounds[0], windowMinY:bounds[1], windowMaxX:bounds[2], windowMaxY:bounds[3],
+    originX:0, originY:0, printerName:'', styleSheet:'', shadeMode:0,
+  } })
+  const svg = exportDrawingSvg(document, { layoutId }), png = resolveDrawingPngPlot(document, { layoutId }), print = createDrawingPrintHtml(document, { layoutId })
+  const sourceCenter = [(bounds[0]+bounds[2])/2, (bounds[1]+bounds[3])/2]
+  const transform = (matrix, point) => [matrix[0]*point[0]+matrix[2]*point[1]+matrix[4], matrix[1]*point[0]+matrix[3]*point[1]+matrix[5]]
+  const paperCenter = transform(svg.plot.drawingToPaperMatrix, sourceCenter)
+  assert.ok(Math.abs(paperCenter[0] - (11 + (420-19))/2) < 1e-9)
+  assert.ok(Math.abs(paperCenter[1] - (17 + (297-7))/2) < 1e-9)
+  const ppm = png.paper.pixelsPerMillimeter, pngCenter = transform(png.plot.drawingToPixelMatrix, sourceCenter)
+  assert.ok(Math.abs(pngCenter[0]/ppm - paperCenter[0]) < 1e-9)
+  assert.ok(Math.abs(pngCenter[1]/ppm - paperCenter[1]) < 1e-9)
+  assert.deepEqual(svg.plot.sourceRange, { kind:'window', minimum:[-80,-40], maximum:[220,110] })
+  assert.deepEqual(print.plot, svg.plot)
+  assert.match(print.html, new RegExp(`matrix\\(${svg.plot.drawingToPaperMatrix.join(' ')}\\)`))
 })
