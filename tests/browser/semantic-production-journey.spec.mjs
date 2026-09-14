@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { openAiChat } from './ai-chat-ui.mjs'
 import { readFile } from 'node:fs/promises'
 import {
   KJProjectSession,
@@ -53,7 +54,7 @@ async function openBlankAndConnect(page, source) {
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
   await page.locator('#file-input').setInputFiles({ name: `blank-${source.intent.units}.kjd`, mimeType: 'application/json', buffer: Buffer.from(source.blank) })
   await expect(page.locator('#entity-count')).toHaveText('0 entities')
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await page.getByRole('button', { name: 'Connect model', exact: true }).click()
   await page.locator('#chat-endpoint').fill('/api/model')
   await page.locator('#chat-model').fill('deterministic-protocol-fixture-not-a-real-model')

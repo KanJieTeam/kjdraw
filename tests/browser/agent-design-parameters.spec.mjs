@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { openAiChat } from './ai-chat-ui.mjs'
 import { readFile } from 'node:fs/promises'
 import { createKJDrawSDK, openKjpPackage, readDesignRelations } from '../../packages/kjdraw-sdk/src/index.js'
 
@@ -13,7 +14,7 @@ test('chat parameter review shows exact changes even without geometry changes an
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
   await page.locator('#file-input').setInputFiles({name:'parameters.kjd',mimeType:'application/json',buffer:Buffer.from(document.serialize())})
   await expect(page.locator('#entity-count')).toHaveText('1 entities')
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await page.getByRole('button',{name:'Connect model',exact:true}).click()
   await page.locator('#chat-endpoint').fill('/api/model')
   await page.locator('#chat-model').fill('browser-fixture')
@@ -56,7 +57,7 @@ test('chat binds original native geometry and keeps the new design editable thro
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
   await page.locator('#file-input').setInputFiles({name:'unbound.kjd',mimeType:'application/json',buffer:Buffer.from(document.serialize())})
   await expect(page.locator('#entity-count')).toHaveText('2 entities')
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await page.getByRole('button',{name:'Connect model',exact:true}).click()
   await page.locator('#chat-endpoint').fill('/api/model');await page.locator('#chat-model').fill('browser-fixture')
   await page.locator('#chat-protocol').selectOption('chat-completions')
@@ -91,7 +92,7 @@ test('chat returns concrete under-defined relation feedback to the model without
   await document.transact('Original plate edge',tx=>tx.createEntity('LINE',{start:[0,0,0],end:[100,0,0]},{id:'edge'}))
   await page.goto('/');await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready')
   await page.locator('#file-input').setInputFiles({name:'under-defined.kjd',mimeType:'application/json',buffer:Buffer.from(document.serialize())})
-  await page.locator('#agent-tab').click();await page.getByRole('button',{name:'Connect model',exact:true}).click()
+  await openAiChat(page);await page.getByRole('button',{name:'Connect model',exact:true}).click()
   await page.locator('#chat-endpoint').fill('/api/model');await page.locator('#chat-model').fill('browser-fixture');await page.locator('#chat-protocol').selectOption('chat-completions')
   await page.getByRole('button',{name:'Use this connection',exact:true}).click()
   const requests=[]

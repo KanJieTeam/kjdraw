@@ -1,5 +1,6 @@
 import { referenceAnnotatedInput } from '../../scripts/benchmarks/engineering-drawing-tasks.mjs'
 import { test, expect } from '@playwright/test'
+import { openAiChat } from './ai-chat-ui.mjs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createKJDrawSDK, openKjpPackage } from '../../packages/kjdraw-sdk/src/index.js'
 import { mountingProfile } from '../../packages/kjdraw-sdk/examples/fixtures/mounting-profile.mjs'
@@ -46,7 +47,7 @@ for (const kind of ['rotate', 'scale']) test(`main chat ${kind} protocol preview
   await openChat(page)
   await page.locator('#file-input').setInputFiles({ name: `${kind}.kjd`, mimeType: 'application/json', buffer: Buffer.from(await sdk.writeDocument(drawing, { format: 'KJD' })) })
   await expect(page.locator('#revision')).toHaveText(`REV ${drawing.revision}`)
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await page.evaluate(async () => {
     const { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js'), original = KJCanvasRenderer.prototype.drawPreview
     window.transformPreviews = []
@@ -145,7 +146,7 @@ async function openChat(page) {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'chat-ui-drawing', units: 'millimeter' })
   await page.locator('#file-input').setInputFiles({ name: 'chat.kjd', mimeType: 'application/json', buffer: Buffer.from(await sdk.writeDocument(document, { format: 'KJD' })) })
   await expect(page.locator('#entity-count')).toHaveText('0 entities')
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await expect(page.locator('#chat-input')).toBeVisible()
 }
 
@@ -161,7 +162,7 @@ for(const kind of ['move','rotate','scale'])test(`chat discovers and reviews an 
   await openChat(page)
   await page.locator('#file-input').setInputFiles({name:'selection.kjd',mimeType:'application/json',buffer:Buffer.from(await sdk.writeDocument(drawing,{format:'KJD'}))})
   await expect(page.locator('#revision')).toHaveText(`REV ${drawing.revision}`)
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await page.evaluate(async()=>{
     const {KJCanvasRenderer}=await import('/packages/kjdraw-sdk/src/canvas-renderer.js'), original=KJCanvasRenderer.prototype.drawPreview
     window.selectionPreviews=[]
@@ -316,18 +317,23 @@ test('chat refuses unadvertised legacy creation tools without applying a proposa
   await expect(page.getByRole('button', { name: 'Apply changes', exact: true })).toHaveCount(0)
 })
 
-test('disconnected chat and invalid external connections never send drawing data', async ({ page }) => {
+test('disconnected chat and configuring an external endpoint never send drawing data before a request', async ({ page }) => {
   const requests = []
   await openChat(page)
   await page.route('**/api/model', route => { requests.push(route.request()); return route.fulfill({ json: wire([], 'Unexpected') }) })
   await send(page, 'Inspect this private drawing')
   await expect(page.locator('#chat-messages')).toContainText('Connect a model')
   await expect(page.locator('#chat-input')).toHaveValue('Inspect this private drawing')
-  await page.locator('#chat-endpoint').fill('https://example.com/api/model')
+  await page.locator('#chat-endpoint').fill('ftp://example.com/api/model')
   await page.locator('#chat-model').fill('fixture')
   await page.getByRole('button', { name: 'Use this connection', exact: true }).click()
-  await expect(page.locator('.chat-error')).toContainText('same-origin')
+  await expect(page.locator('.chat-error')).toContainText('HTTP(S)')
   expect(requests).toHaveLength(0)
+  await page.locator('#chat-endpoint').fill('https://example.com/api/model')
+  await page.getByRole('button', { name: 'Use this connection', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Model configured · fixture', exact: true })).toBeVisible()
+  expect(requests).toHaveLength(0)
+  await page.getByRole('button', { name: 'Model configured · fixture', exact: true }).click()
   await page.locator('#chat-endpoint').fill('/api/model')
   await page.getByRole('button', { name: 'Use this connection', exact: true }).click()
   await page.getByRole('button', { name: 'Model configured · fixture', exact: true }).click()
@@ -379,7 +385,7 @@ test('Chinese IME, newlines and long untrusted text remain usable at 390 pixels'
   await expect(page.locator('.workbench')).not.toHaveClass(/inspector-open/)
   await page.locator('#toggle-inspector').click()
   await expect(page.locator('#agent-tab')).toBeVisible()
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await page.locator('#chat-input').fill('设计一个安装支架')
   await page.locator('#chat-input').dispatchEvent('keydown', { key: 'Enter', code: 'Enter', isComposing: true, bubbles: true })
   expect(requests).toBe(0)
@@ -507,6 +513,7 @@ test('an old chat undo cannot erase a later manual edit', async ({ page }) => {
   await page.locator('#command-input').press('Escape')
   await expect(page.locator('#entity-count')).toHaveText('10 entities')
   const revision = await page.locator('#revision').textContent()
+  await openAiChat(page)
   await page.getByRole('button', { name: 'Undo this change', exact: true }).click()
   await expect(page.locator('#chat-messages')).toContainText('The drawing changed.')
   await expect(page.locator('#entity-count')).toHaveText('10 entities')
@@ -776,7 +783,7 @@ test('reopened road project revises the same drawing in chat, preserves external
   await openChat(page)
   await page.locator('#file-input').setInputFiles({name:'saved-road.kjp',mimeType:'application/octet-stream',buffer:Buffer.from(packageBytes)})
   await expect(page.locator('#entity-count')).toHaveText(`${original.entities.length+1} entities`)
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await page.evaluate(async()=>{
     const {KJCanvasRenderer}=await import('/packages/kjdraw-sdk/src/canvas-renderer.js'),draw=KJCanvasRenderer.prototype.drawPreview
     window.roadRevisionPreviews=[]
@@ -861,7 +868,7 @@ test('reopened road project revises the same drawing in chat, preserves external
   await page.locator('#file-input').setInputFiles({name:'undone-road.kjp',mimeType:'application/octet-stream',buffer:undoneBytes})
   await expect(page.locator('#revision')).toHaveText(`REV ${undone.activeDocument.revision}`)
   await expect(page.locator('#entity-count')).toHaveText(`${original.entities.length+1} entities`)
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await send(page,`Continue editing ${roadDrawingFixtureOptions.drawingId} from this saved Undo state: widen each side by 0.25 m without shifting elevations.`)
   await expect(page.getByRole('button',{name:'Apply changes',exact:true})).toBeEnabled()
   await expect(page.locator('.chat-proposal-state')).toContainText('Your drawing is unchanged')

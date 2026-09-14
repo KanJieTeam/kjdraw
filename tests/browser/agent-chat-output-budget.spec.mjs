@@ -1,10 +1,11 @@
 import {test,expect} from '@playwright/test'
+import {openAiChat} from './ai-chat-ui.mjs'
 const protocols=['chat-completions','responses','anthropic-messages','gemini-generate-content']
 const truncated=protocol=>protocol==='chat-completions'?{choices:[{finish_reason:'length',message:{role:'assistant',content:null}}],usage:{prompt_tokens:20,completion_tokens:32768,total_tokens:32788,completion_tokens_details:{reasoning_tokens:32768}}}
  :protocol==='responses'?{status:'incomplete',incomplete_details:{reason:'max_output_tokens'},output:[]}
  :protocol==='anthropic-messages'?{role:'assistant',stop_reason:'max_tokens',content:[]}
  :{candidates:[{finishReason:'MAX_TOKENS',content:{role:'model',parts:[]}}]}
-async function open(page){await page.goto('/');await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready');if((await page.locator('#language').textContent()).trim()==='EN')await page.locator('#language').click();await page.locator('#new-drawing').click();await page.locator('#dialog-fields [name=name]').fill('Output budget test');await page.locator('#dialog-submit').click();await expect(page.locator('#entity-count')).toHaveText('0 entities');if(!(await page.locator('#agent-tab').isVisible()))await page.locator('#toggle-inspector').click();await page.locator('#agent-tab').click()}
+async function open(page){await page.goto('/');await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state','ready');if((await page.locator('#language').textContent()).trim()==='EN')await page.locator('#language').click();await page.locator('#new-drawing').click();await page.locator('#dialog-fields [name=name]').fill('Output budget test');await page.locator('#dialog-submit').click();await expect(page.locator('#entity-count')).toHaveText('0 entities');await openAiChat(page)}
 async function configure(page,protocol){await page.locator('.chat-connection').click();await page.locator('#chat-endpoint').fill('/api/model');await page.locator('#chat-model').fill('output-budget-protocol-fixture');await page.locator('#chat-protocol').selectOption(protocol);await page.locator('#chat-max-output-tokens').selectOption('32768');await page.getByRole('button',{name:'Use this connection',exact:true}).click()}
 test('connection output limit reaches all four protocols and truncated output reports budget without automatic retry',async({page})=>{
  await open(page);const requests=[],revision=await page.locator('#revision').textContent();let protocol=protocols[0]

@@ -6,6 +6,7 @@ import { buildRoadDrawing } from '../../packages/kjdraw-sdk/src/road-drawing.js'
 import { restoreRoadDrawingRecipe } from '../../packages/kjdraw-sdk/src/road-drawing-recipe.js'
 import { createAgentInputAsset, KJDRAW_ROAD_INPUT_ASSET_SCHEMA } from '../../packages/kjdraw-sdk/src/input-assets.js'
 import { CHAT_ROAD_ASSET_TOOL_NAMES } from '../../apps/playground/chat-road-asset.js'
+import { openAiChat } from './ai-chat-ui.mjs'
 
 // Deterministic transport conformance only; this does not measure a real model.
 const wire = (calls = [], text = '') => ({ choices: [{ finish_reason: calls.length ? 'tool_calls' : 'stop', message: {
@@ -25,7 +26,7 @@ test('explicit typed data stays local while chat previews, approves, saves and r
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
   await page.locator('#file-input').setInputFiles({ name: 'empty.kjd', mimeType: 'application/json', buffer: Buffer.from(await sdk.writeDocument(document, { format: 'KJD' })) })
   await expect(page.locator('#entity-count')).toHaveText('0 entities')
-  await page.locator('#agent-tab').click()
+  await openAiChat(page)
   await expect(page.locator('#chat-input')).toBeVisible()
   await page.evaluate(async () => {
     const { KJCanvasRenderer } = await import('/packages/kjdraw-sdk/src/canvas-renderer.js'), original = KJCanvasRenderer.prototype.drawPreview

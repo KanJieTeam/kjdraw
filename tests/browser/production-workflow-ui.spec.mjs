@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { openAiChat } from './ai-chat-ui.mjs'
 import { readFile } from 'node:fs/promises'
 import {
   KJDRAW_MANUFACTURING_SHEET_VERSION,
@@ -144,8 +145,7 @@ async function openBlankChat(page, bytes) {
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
   await page.locator('#file-input').setInputFiles({ name: 'blank-millimeter-drawing.kjd', mimeType: 'application/json', buffer: Buffer.from(bytes) })
   await expect(page.locator('#entity-count')).toHaveText('0 entities')
-  await page.locator('#agent-tab').click()
-  await expect(page.locator('#chat-input')).toBeVisible()
+  await openAiChat(page)
 }
 
 async function connectFixtureTransport(page) {
@@ -212,6 +212,7 @@ test('public Playground builds a dense manufacturing sheet from one visible AI r
   await expect(page.locator('#entity-count')).toHaveText(`${source.count} entities`)
 
   await page.locator('#page-setup').click()
+  await page.locator('#dialog-fields [name="scaleMode"]').selectOption('custom')
   for (const [name, value] of Object.entries({ width: 420, height: 297, margin: 10, denominator: 2, x0: 0, y0: 0, x1: 594, y1: 420 })) {
     await page.locator(`#dialog-fields [name="${name}"]`).fill(String(value))
   }
