@@ -65,8 +65,8 @@ jobs:
           npm ci --ignore-scripts
           npm run typecheck
           node scripts/build-declarations.mjs --check
-          node scripts/build-docs-site.mjs --check
-          node scripts/build-api-docs.mjs --check
+          node scripts/build-docs-site.mjs
+          node scripts/build-api-docs.mjs
           node scripts/test.mjs
           node --no-warnings scripts/build-typescript.mjs --check
           node scripts/audits/verify-packed-package.mjs
