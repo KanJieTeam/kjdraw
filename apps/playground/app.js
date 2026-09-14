@@ -979,7 +979,7 @@ function initializeAgentWindow(){
   launcher.onclick=()=>setOpen(panel.hidden)
   hide.onclick=()=>setOpen(false)
   handle.onpointerdown=event=>{if(event.button!==0||event.target.closest('button'))return;event.preventDefault();const position=current();drag={pointerId:event.pointerId,x:event.clientX,y:event.clientY,left:position.left,top:position.top};handle.setPointerCapture(event.pointerId)}
-  handle.onpointermove=event=>{if(drag?.pointerId!==event.pointerId)return;place(drag.left+event.clientX-drag.x,drag.top+event.clientY-drag.y)}
+  handle.onpointermove=event=>{if(drag?.pointerId!==event.pointerId)return;place(drag.left+event.clientX-drag.x,drag.top+event.clientY-drag.y);persist(true)}
   const finishDrag=event=>{if(drag?.pointerId!==event.pointerId)return;drag=null;persist(true)}
   handle.onpointerup=finishDrag;handle.onpointercancel=finishDrag;handle.onlostpointercapture=()=>{if(drag){drag=null;persist(true)}}
   handle.onkeydown=event=>{const movement={ArrowLeft:[-16,0],ArrowRight:[16,0],ArrowUp:[0,-16],ArrowDown:[0,16]}[event.key];if(!movement)return;event.preventDefault();const position=current(),step=event.shiftKey?0.25:1;place(position.left+movement[0]*step,position.top+movement[1]*step);persist(true)}
@@ -1264,6 +1264,7 @@ canvas.addEventListener('wheel',e=>{
   scheduleViewportRender()
 },{passive:false})
 window.addEventListener('keydown',e=>{
+  if(e.target instanceof Element&&e.target.closest('.kjwb'))return
   if(document.querySelector('dialog[open]'))return
   if(e.key==='Escape'){e.preventDefault();setTool('select');invalidatePlan();render();return}
   if(e.key==='F8'){e.preventDefault();$('ortho').click();return}

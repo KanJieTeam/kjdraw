@@ -1,5 +1,10 @@
 import { test, expect } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
+
+async function closePrintPreview(popup) {
+  await popup.locator('#kj-print-close').click().catch(error => { if (!popup.isClosed()) throw error })
+  await expect.poll(() => popup.isClosed()).toBe(true)
+}
 import { createKJDrawSDK } from '../../packages/kjdraw-sdk/src/sdk.js'
 import { resolveDrawingPngPlot } from '../../packages/kjdraw-sdk/src/drawing-image.js'
 import { exportDrawingSvg } from '../../packages/kjdraw-sdk/src/svg-export.js'
@@ -127,7 +132,7 @@ test('main editor opens a vector print preview and prints only from its explicit
   await expect.poll(()=>page.evaluate(()=>window.previewPrints)).toBe(1)
   const bytes = await popup.pdf({ preferCSSPageSize:true, printBackground:true })
   expect(bytes.subarray(0,4).toString()).toBe('%PDF')
-  await popup.locator('#kj-print-close').click()
+  await closePrintPreview(popup)
   await expect.poll(()=>popup.isClosed()).toBe(true)
 })
 
@@ -157,7 +162,7 @@ test('unconfigured output actions fit A3 automatically while page setup keeps fi
   await page.locator('#print-drawing').click()
   const popup=await popupEvent
   await expect(popup.locator('#kj-print-action')).toBeEnabled()
-  await popup.locator('#kj-print-close').click()
+  await closePrintPreview(popup)
 })
 
 test('first output centers the resilient campus from drawing geometry after the viewport is panned', async ({ page }, testInfo) => {
@@ -194,7 +199,7 @@ test('first output centers the resilient campus from drawing geometry after the 
   expect((await pngPending).suggestedFilename()).toBe('drawing.png')
   const popupEvent = page.waitForEvent('popup'); await page.locator('#print-drawing').click(); const popup = await popupEvent
   await expect(popup.locator('[data-space-id]')).toHaveAttribute('transform', `matrix(${downloadedMatrix})`)
-  await popup.locator('#kj-print-close').click(); project.destroy()
+  await closePrintPreview(popup); project.destroy()
 })
 
 test('Chinese desktop page setup keeps cancel and continue visible while fields scroll', async ({ page }, testInfo) => {
