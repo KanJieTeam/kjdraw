@@ -62,6 +62,14 @@ function responseModel(capture = {}) {
   } }
 }
 
+test('persisted task runner preserves the host zero-repair limit without changing task state',async()=>{
+  const value=await fixture(), before=value.document.serialize();let calls=0
+  const result=await runPersistedKJAgentTask(runOptions(value,{createConversation:()=>({next:async()=>({text:'',calls:[{id:`bad-read-${++calls}`,name:'cad_read_drawing',arguments:{unexpected:true}}]})})},{maxRepairAttempts:0}))
+  assert.equal(result.status,'limit-reached');assert.equal(result.error.code,'KJAGENT_REPAIR_LIMIT')
+  assert.equal(calls,1);assert.equal(result.repairAttempts,0);assert.equal(result.failedToolCalls,1)
+  assert.equal(value.document.serialize(),before)
+})
+
 test('the canonical task tool binding hashes every model-visible definition field', () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), session = new KJAgentToolSession(sdk, document)
   const binding = createAgentTaskToolBinding(session.definitions, [...selectedTools].reverse())

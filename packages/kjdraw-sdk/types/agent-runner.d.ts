@@ -18,6 +18,8 @@ export interface KJAgentRunOptions {
     };
     maxTurns?: number;
     maxToolCalls?: number;
+    /** Model turns following failed tool batches; default 2, range 0–32. Does not retry transport or approvals. */
+    maxRepairAttempts?: number;
     timeoutMs?: number;
     signal?: AbortSignal;
     /** Host UI progress; contains no drawing payload or model reasoning. */
@@ -36,6 +38,9 @@ export interface KJAgentRunResult {
     readonly text: string;
     readonly turns: number;
     readonly toolCalls: number;
+    readonly repairAttempts: number;
+    /** Tool errors and explicit cad_check_geometry failures, including ok:true/passed:false. */
+    readonly failedToolCalls: number;
     readonly outputs: readonly KJModelToolOutput[];
     readonly proposalIds: readonly string[];
     readonly measurements: KJAgentRunMeasurements;

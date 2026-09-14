@@ -146,6 +146,9 @@ export async function runPersistedKJAgentTask(options) {
         ...options.maxToolCalls === undefined ? {} : {
             maxToolCalls: options.maxToolCalls
         },
+        ...options.maxRepairAttempts === undefined ? {} : {
+            maxRepairAttempts: options.maxRepairAttempts
+        },
         ...options.timeoutMs === undefined ? {} : {
             timeoutMs: options.timeoutMs
         },

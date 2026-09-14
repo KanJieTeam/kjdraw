@@ -18,6 +18,8 @@ export interface KJAgentRunOptions {
   capabilities?: { registry: KJAgentCapabilityRegistry; lock: readonly KJAgentCapabilityLockEntry[] }
   maxTurns?: number
   maxToolCalls?: number
+  /** Model turns following failed tool batches; default 2, range 0–32. Does not retry transport or approvals. */
+  maxRepairAttempts?: number
   timeoutMs?: number
   signal?: AbortSignal
   /** Host UI progress; contains no drawing payload or model reasoning. */
@@ -36,6 +38,9 @@ export interface KJAgentRunResult {
   readonly text: string
   readonly turns: number
   readonly toolCalls: number
+  readonly repairAttempts: number
+  /** Tool errors and explicit cad_check_geometry failures, including ok:true/passed:false. */
+  readonly failedToolCalls: number
   readonly outputs: readonly KJModelToolOutput[]
   readonly proposalIds: readonly string[]
   readonly measurements: KJAgentRunMeasurements
@@ -108,6 +113,8 @@ export async function runKJAgentTask(options: KJAgentRunOptions): Promise<KJAgen
   const runStartedAt = performance.now()
   const { session, model, prompt } = options
   const maxTurns = integer(options.maxTurns, 8, 32), maxToolCalls = integer(options.maxToolCalls, 32, 128)
+  const maxRepairAttempts = options.maxRepairAttempts === undefined ? 2 : options.maxRepairAttempts
+  if (!Number.isSafeInteger(maxRepairAttempts) || maxRepairAttempts < 0 || maxRepairAttempts > 32) throw new KJModelError('KJAGENT_OPTIONS', 'Repair attempt limit must be an integer from 0 to 32')
   if (options.onProgress !== undefined && typeof options.onProgress !== 'function') throw new KJModelError('KJAGENT_OPTIONS', 'onProgress must be a function')
   const timeoutMs = integer(options.timeoutMs, 120000, 300000)
   if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 16000) throw new KJModelError('KJAGENT_OPTIONS', 'Supply a nonempty prompt of at most 16000 characters')
@@ -136,6 +143,7 @@ export async function runKJAgentTask(options: KJAgentRunOptions): Promise<KJAgen
   if (options.signal?.aborted) cancel()
   const timer = setTimeout(cancel, timeoutMs)
   let turns = 0, toolCalls = 0, text = ''
+  let repairAttempts = 0, failedToolCalls = 0, repairPending = false
   let finished = false
   const turnUsage: { turn: number; status: KJAgentTurnUsage['status']; usage: KJModelUsage | null }[] = []
   const outputs: KJModelToolOutput[] = [], proposalIds: string[] = []
@@ -167,13 +175,14 @@ export async function runKJAgentTask(options: KJAgentRunOptions): Promise<KJAgen
     const totals = Object.fromEntries(usageTotals.map(key => [key, sum(key)])) as KJAgentRunMeasurements['totals']
     const measurements: KJAgentRunMeasurements = { turns: turnUsage, totals, transportWallMs: sum('latencyMs'), runWallMs: Math.max(0, performance.now() - runStartedAt),
       complete: turnUsage.length > 0 && turnUsage.every(row => row.status === 'reported' && row.usage?.invalidFields.length === 0) && ['inputTokens', 'outputTokens', 'totalTokens'].every(key => totals[key as keyof typeof totals] !== null) }
-    return deepFreeze({ status, text, turns, toolCalls, outputs, proposalIds, measurements, ...(error ? { error } : {}) }) as KJAgentRunResult
+    return deepFreeze({ status, text, turns, toolCalls, repairAttempts, failedToolCalls, outputs, proposalIds, measurements, ...(error ? { error } : {}) }) as KJAgentRunResult
   }
   try {
     if (controller.signal.aborted) return finish('cancelled')
     const conversation = model.createConversation({ instructions, tools, onUsage: observe })
     let input: KJModelInput = { kind: 'prompt', text: prompt, ...(options.images !== undefined ? { images: options.images } : {}) }
     for (; turns < maxTurns;) {
+      if (repairPending) repairAttempts++
       turns++
       turnUsage.push({ turn: turns, status: 'missing', usage: null })
       progress('model')
@@ -200,6 +209,7 @@ export async function runKJAgentTask(options: KJAgentRunOptions): Promise<KJAgen
       }
       if (toolCalls + turn.calls.length > maxToolCalls) return finish('limit-reached')
       const results: KJModelToolOutput[] = []
+      let batchFailed = false
       for (const call of turn.calls) {
         controller.signal.throwIfAborted()
         seen.add(call.id)
@@ -207,14 +217,23 @@ export async function runKJAgentTask(options: KJAgentRunOptions): Promise<KJAgen
         progress('tool-start', call.name)
         controller.signal.throwIfAborted()
         const result: KJAgentToolResult = await session.call(call.name, call.arguments)
+        if (!result.ok || (call.name === 'cad_check_geometry' && result.value && typeof result.value === 'object' && 'passed' in result.value && result.value.passed === false)) {
+          failedToolCalls++
+          batchFailed = true
+        }
         const output = { id: call.id, name: call.name, result }
         outputs.push(output); results.push(output)
         if (result.ok && result.value && typeof result.value === 'object' && 'status' in result.value && result.value.status === 'awaiting-host-approval' && 'planId' in result.value && typeof result.value.planId === 'string') proposalIds.push(result.value.planId)
         progress('tool-complete', call.name, result.ok)
       }
       if (controller.signal.aborted) throw new KJModelError('KJAGENT_ABORTED', 'Agent run was cancelled')
+      // A partially successful model batch is not a complete reviewable plan.
+      // The catch path rejects every proposal, regardless of call ordering.
+      if (batchFailed && proposalIds.length) throw new KJModelError('KJAGENT_INCOMPLETE_BATCH', 'A tool or geometry check failed in the proposal batch; all proposals were rejected. Clarify or correct the complete request before retrying')
       // Stop before any further model request: only the host can review/apply these proposals.
       if (proposalIds.length) return finish('awaiting-approval')
+      if (batchFailed && repairAttempts >= maxRepairAttempts) return finish('limit-reached', { code: 'KJAGENT_REPAIR_LIMIT', message: 'CAD tool repair budget exhausted; no further model request was sent and no changes were applied' })
+      repairPending = batchFailed
       input = { kind: 'tool-results', results }
     }
     return finish('limit-reached')

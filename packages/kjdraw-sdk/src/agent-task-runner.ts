@@ -143,6 +143,7 @@ export async function runPersistedKJAgentTask(options: KJPersistedAgentTaskRunOp
     ...(options.images === undefined ? {} : { images: options.images }),
     ...(options.maxTurns === undefined ? {} : { maxTurns: options.maxTurns }),
     ...(options.maxToolCalls === undefined ? {} : { maxToolCalls: options.maxToolCalls }),
+    ...(options.maxRepairAttempts === undefined ? {} : { maxRepairAttempts: options.maxRepairAttempts }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),

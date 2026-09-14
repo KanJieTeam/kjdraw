@@ -139,6 +139,8 @@ export async function runKJAgentTask(options) {
     const runStartedAt = performance.now();
     const { session, model, prompt } = options;
     const maxTurns = integer(options.maxTurns, 8, 32), maxToolCalls = integer(options.maxToolCalls, 32, 128);
+    const maxRepairAttempts = options.maxRepairAttempts === undefined ? 2 : options.maxRepairAttempts;
+    if (!Number.isSafeInteger(maxRepairAttempts) || maxRepairAttempts < 0 || maxRepairAttempts > 32) throw new KJModelError('KJAGENT_OPTIONS', 'Repair attempt limit must be an integer from 0 to 32');
     if (options.onProgress !== undefined && typeof options.onProgress !== 'function') throw new KJModelError('KJAGENT_OPTIONS', 'onProgress must be a function');
     const timeoutMs = integer(options.timeoutMs, 120000, 300000);
     if (typeof prompt !== 'string' || !prompt.trim() || prompt.length > 16000) throw new KJModelError('KJAGENT_OPTIONS', 'Supply a nonempty prompt of at most 16000 characters');
@@ -175,6 +177,7 @@ export async function runKJAgentTask(options) {
     if (options.signal?.aborted) cancel();
     const timer = setTimeout(cancel, timeoutMs);
     let turns = 0, toolCalls = 0, text = '';
+    let repairAttempts = 0, failedToolCalls = 0, repairPending = false;
     let finished = false;
     const turnUsage = [];
     const outputs = [], proposalIds = [];
@@ -241,6 +244,8 @@ export async function runKJAgentTask(options) {
             text,
             turns,
             toolCalls,
+            repairAttempts,
+            failedToolCalls,
             outputs,
             proposalIds,
             measurements,
@@ -264,6 +269,7 @@ export async function runKJAgentTask(options) {
             } : {}
         };
         for(; turns < maxTurns;){
+            if (repairPending) repairAttempts++;
             turns++;
             turnUsage.push({
                 turn: turns,
@@ -293,6 +299,7 @@ export async function runKJAgentTask(options) {
             }
             if (toolCalls + turn.calls.length > maxToolCalls) return finish('limit-reached');
             const results = [];
+            let batchFailed = false;
             for (const call of turn.calls){
                 controller.signal.throwIfAborted();
                 seen.add(call.id);
@@ -300,6 +307,10 @@ export async function runKJAgentTask(options) {
                 progress('tool-start', call.name);
                 controller.signal.throwIfAborted();
                 const result = await session.call(call.name, call.arguments);
+                if (!result.ok || call.name === 'cad_check_geometry' && result.value && typeof result.value === 'object' && 'passed' in result.value && result.value.passed === false) {
+                    failedToolCalls++;
+                    batchFailed = true;
+                }
                 const output = {
                     id: call.id,
                     name: call.name,
@@ -311,7 +322,13 @@ export async function runKJAgentTask(options) {
                 progress('tool-complete', call.name, result.ok);
             }
             if (controller.signal.aborted) throw new KJModelError('KJAGENT_ABORTED', 'Agent run was cancelled');
+            if (batchFailed && proposalIds.length) throw new KJModelError('KJAGENT_INCOMPLETE_BATCH', 'A tool or geometry check failed in the proposal batch; all proposals were rejected. Clarify or correct the complete request before retrying');
             if (proposalIds.length) return finish('awaiting-approval');
+            if (batchFailed && repairAttempts >= maxRepairAttempts) return finish('limit-reached', {
+                code: 'KJAGENT_REPAIR_LIMIT',
+                message: 'CAD tool repair budget exhausted; no further model request was sent and no changes were applied'
+            });
+            repairPending = batchFailed;
             input = {
                 kind: 'tool-results',
                 results

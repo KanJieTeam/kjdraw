@@ -86,6 +86,8 @@ const copy = {
   outputLimit: ['The model exhausted its output-token budget, including reasoning. Increase “Max output tokens” in the connection settings or simplify the request, then send again. No automatic retry was made.', '模型耗尽了输出 token 额度（包含推理）。请在连接设置中提高“最大输出 token”或简化需求后重新发送。未自动重试。'],
   serverTokenLimit: ['The server rejected the requested output-token limit. Lower “Max output tokens” or ask the host to raise its server limit. No automatic retry was made.', '服务端拒绝了请求的输出 token 上限。请降低“最大输出 token”，或由部署者提高服务端上限。未自动重试。'],
   incompleteModel: ['The model response was incomplete or blocked. No proposed changes were applied. Review the request or provider settings before sending again.', '模型回复未完整结束或被服务方阻止，未应用提案修改。请检查需求或模型设置后重新发送。'],
+  repairLimit: ['CAD tool repair limit reached. No changes were applied. Clarify the requirements or correct the inputs before sending again.', '已达到 CAD 工具纠错上限，未应用任何修改。请补充要求或修正输入后重新发送。'],
+  incompleteBatch: ['A tool or geometry check failed in this batch. All pending proposals were rejected; no changes were applied.', '本批次存在工具或几何检查失败，所有待批提案已拒绝，未应用任何修改。'],
   connectionHelp: ['This browser stores the provider, endpoint, model, protocol and API key in local storage on this site. Requests and queried drawing data go directly to that endpoint. The provider must allow browser CORS requests.', '本浏览器会将服务商、地址、模型、协议和 API 密钥保存在本站本地存储中。请求和查询到的图纸数据会直接发往该地址；服务商必须允许浏览器跨域请求。'],
   missingApiKey: ['Enter an API key for this direct provider connection.', '请输入用于直连该服务商的 API 密钥。'],
   directRequestFailed: ['Direct model request failed. Check the endpoint, API key, network access and provider CORS policy.', '模型直连失败。请检查 API 地址、API 密钥、网络连接以及服务商的跨域策略。'],
@@ -443,8 +445,8 @@ export function createAgentChat(container, options) {
       activity.remove()
       for(const output of result.outputs)if(output.name==='cad_check_geometry'&&output.result.ok)showValidation(output.result.value)
       if(result.status==='cancelled')append('assistant',L('cancelled'))
-      else if(result.status==='failed')append('assistant',L(result.error?.code==='KJMODEL_OUTPUT_LIMIT'?'outputLimit':result.error?.code==='KJMODEL_SERVER_TOKEN_LIMIT'?'serverTokenLimit':result.error?.code==='KJMODEL_INCOMPLETE'?'incompleteModel':result.error?.code==='KJMODEL_DIRECT_CONNECTION'?'directRequestFailed':'failed'))
-      else if(result.status==='limit-reached')append('assistant',L('limit'))
+      else if(result.status==='failed')append('assistant',L(result.error?.code==='KJAGENT_INCOMPLETE_BATCH'?'incompleteBatch':result.error?.code==='KJMODEL_OUTPUT_LIMIT'?'outputLimit':result.error?.code==='KJMODEL_SERVER_TOKEN_LIMIT'?'serverTokenLimit':result.error?.code==='KJMODEL_INCOMPLETE'?'incompleteModel':result.error?.code==='KJMODEL_DIRECT_CONNECTION'?'directRequestFailed':'failed'))
+      else if(result.status==='limit-reached')append('assistant',L(result.error?.code==='KJAGENT_REPAIR_LIMIT'?'repairLimit':'limit'))
       else {
         if(result.text)append('assistant',result.text.slice(0,16000))
         for(const output of result.outputs)if(output.result.ok&&output.result.value?.status==='awaiting-host-approval')showProposal(output.result.value)
