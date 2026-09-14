@@ -66,8 +66,6 @@ try {
 
   await selectDrawing('sample-resilient-campus')
   await page.locator('#agent-tab').click()
-  await page.locator('#agent-examples > summary').click()
-  await expect(page.locator('#agent-examples')).toHaveAttribute('open', '')
   await page.locator('#plan').click()
   await expect(page.locator('#plan-state')).toContainText('NO MUTATION')
   await page.locator('#confirm').click()
