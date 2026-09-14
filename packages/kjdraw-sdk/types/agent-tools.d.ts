@@ -16,6 +16,7 @@ import { type KJRectangularDrawingPattern } from './agent-drawing-patterns.js';
 import { type KJDrawingValidationPointReference } from './drawing-validation.js';
 import { type KJAgentTaskCapabilityLock } from './agent-tasks.js';
 import type { KJAgentCapabilityRegistry } from './agent-capabilities.js';
+export type { KJAgentTopologyQuery } from './agent-topology-context.js';
 export type { KJAgentDrawingInput, KJAgentPoint } from './agent-drawing.js';
 export type { KJAgentCompactDrawingInput } from './agent-drawing-compact.js';
 export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from './agent-preview.js';
