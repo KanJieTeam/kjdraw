@@ -5,6 +5,7 @@ import { paperLimitsFromPlotSettings } from './layout-geometry.js';
 import { createCommandEditScope } from './edit-policy.js';
 import { applyRoadDrawingRevision } from './road-drawing-update.js';
 import { createDesignRelations, deleteDesignRelations, readDesignRelations, updateDesignRelations } from './design-relations.js';
+import { createEraseImpact } from './erase-impact.js';
 import { editHatch } from './hatch-edit.js';
 import { insertCatalogComponent, searchComponentCatalog } from './component-library.js';
 import { entityArea2, entityLength2, distance2, dot2, invert3, multiply3, reflectionAcrossLine3, rotationAround3, scaleAround3, transformEntityPayload, transformPoint3, translation3, vec2, subtract2 } from './geometry/index.js';
@@ -2658,16 +2659,33 @@ function resolveOwnedLeaderPairSelection(document, inputIds, command) {
     };
 }
 function eraseEntities({ document, transaction }, args) {
-    const selected = resolveOwnedLeaderPairSelection(document, entityIds(args), 'ERASE');
-    const roots = compoundRootIds(document, selected.ids);
-    requireSelectedAssociativeDimensions(document, roots, 'ERASE');
-    const rootIds = new Set(roots);
-    const design = readDesignRelations(document).find((item)=>item.entityIds.some((id)=>rootIds.has(id)));
-    if (design) throw new KJValidationError(`ERASE must remove design relation ${design.id} before erasing one of its bound entities`);
-    const erased = roots.map((id)=>transaction.eraseObject(id)).filter((object)=>object !== null);
-    if (selected.pairIds.size) replaceEntityMemberships(transaction, [
-        ...selected.pairIds
-    ], []);
+    const state = document.snapshot();
+    const impact = createEraseImpact(document, {
+        expectedRevision: document.revision,
+        units: state.header.units,
+        operation: 'erase',
+        ids: entityIds(args),
+        tolerance: 1e-9,
+        maxBytes: 1024
+    }, {
+        maxIds: 4096,
+        maxObjectsLimit: Math.max(1, Object.keys(state.objects).length),
+        allowCompoundRecords: true,
+        analyzeConnectivity: false,
+        mode: 'decision'
+    });
+    if (!impact.canErase) {
+        const blocker = impact.blockers[0];
+        if (blocker.kind === 'protected-entity') throw new KJValidationError(blocker.message, {
+            policy: 'layer-editability',
+            commandId: 'ERASE',
+            entityId: blocker.sourceId,
+            reason: blocker.reason
+        });
+        throw new KJValidationError(blocker.message);
+    }
+    const erased = impact.eraseRootIds.map((id)=>transaction.eraseObject(id)).filter((object)=>object !== null);
+    replaceEntityMemberships(transaction, impact.effectiveEraseIds, []);
     return erased;
 }
 function leaderPoints(value) {

@@ -6,6 +6,11 @@ const ENTITY_WRITES = new Set<PropertyKey>([
   'eraseObject', 'restoreObject', 'reparentObject', 'transformEntity', 'setXData', 'putOpaquePayload',
 ])
 
+/** Resolve the layer used by command edit policy when an entity omits layerId. */
+export function resolveCommandLayerId(layerId: unknown, currentLayerId: unknown): string {
+  return String(layerId ?? currentLayerId ?? '')
+}
+
 /**
  * User-facing commands honor layer editing state. The underlying document
  * transaction API deliberately remains available to importers and migrations,
@@ -20,7 +25,7 @@ export function createCommandEditScope(transaction: KJTransaction, commandId: st
   const methods = new Map<PropertyKey, unknown>()
 
   const assertLayerWritable = (layerId: unknown, entityId: string | null): void => {
-    const effectiveLayerId = String(layerId ?? transaction._draft().tables.layers.currentId ?? '')
+    const effectiveLayerId = resolveCommandLayerId(layerId, transaction._draft().tables.layers.currentId)
     const layer = transaction.getObject(effectiveLayerId)
     // Referential integrity and malformed layer records remain the document
     // validator's responsibility; do not invent an alternative layer here.
