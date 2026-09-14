@@ -308,6 +308,17 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         atomic: boolean;
         maximumEntities: number;
     };
+    readonly STRUCTURALEDIT: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly operations: readonly string[];
+        readonly atomic: boolean;
+        readonly stableIdentity: boolean;
+        readonly maximumChangedEntities: number;
+        readonly maximumReconnections: number;
+        readonly reconnectEntityTypes: readonly string[];
+        readonly semanticInference: string;
+    };
     readonly ROAD_DRAWING_UPDATE: {
         domain: string;
         atomic: boolean;

@@ -345,6 +345,7 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
   SELECTIONRESTORE: { domain: 'selection', persistence: 'document-dictionary' },
   CREATE: { domain: 'entity', supportedEntityTypes: '*' },
   CREATEBATCH: { domain: 'entity', supportedEntityTypes: '*', atomic: true, maximumEntities: 100000 },
+  STRUCTURALEDIT: { domain: 'topology', precision: 'exact', operations: ['erase', 'reconnect', 'relayer'], atomic: true, stableIdentity: true, maximumChangedEntities: 64, maximumReconnections: 16, reconnectEntityTypes: ['LINE', 'LWPOLYLINE'], semanticInference: 'none' },
   ROAD_DRAWING_UPDATE: { domain: 'road-drawing', atomic: true, stableIds: true, requiresUnmodifiedPrevious: true },
   ERASE: { domain: 'object', supportedObjectKinds: '*' },
   RESTORE: { domain: 'object', supportedObjectKinds: '*' },
@@ -469,6 +470,7 @@ export class KJCommandRegistry {
     // Explicit resource batches are a strict data boundary. Check before clone can
     // invoke accessors or normalize unusual object/array properties away.
     if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && (Object.hasOwn(args, 'resources') || Object.hasOwn(args, 'layout'))) validateCommandData(args)
+    if (command.id === 'STRUCTURALEDIT' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'STRUCTURALEDIT')
     if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE')
     if (command.transactional === false) {
       if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`)
@@ -502,6 +504,7 @@ export class KJCommandRegistry {
     if (command.transactional === false) throw new KJValidationError(`Command cannot be composed transactionally: ${command.id}`)
     if (!context.document || !context.transaction) throw new KJValidationError(`Command ${command.id} requires a document transaction`)
     if (command.id === 'CREATEBATCH' && command.owner === '@kanjieteam/kjdraw' && (Object.hasOwn(args, 'resources') || Object.hasOwn(args, 'layout'))) validateCommandData(args)
+    if (command.id === 'STRUCTURALEDIT' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'STRUCTURALEDIT')
     if (command.id === 'ROAD_DRAWING_UPDATE' && command.owner === '@kanjieteam/kjdraw') validateCommandData(args, 'ROAD_DRAWING_UPDATE')
     if (command.canExecute && !await command.canExecute(context, clone(args))) throw new KJValidationError(`Command is not available: ${command.id}`)
     const scope = createCommandEditScope(context.transaction, command.id)
@@ -596,6 +599,10 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
   disposers.push(registry.register({
     id: 'CREATEBATCH', title: 'Create entity batch',
     execute: (context, args) => createEntityBatch(context, args),
+  }, { owner: '@kanjieteam/kjdraw' }))
+  disposers.push(registry.register({
+    id: 'STRUCTURALEDIT', title: 'Apply exact structural edit',
+    execute: (context, args) => applyStructuralEdit(context, args),
   }, { owner: '@kanjieteam/kjdraw' }))
   disposers.push(registry.register({
     id: 'ERASE', aliases: ['DELETE'], title: 'Erase objects',
@@ -1535,6 +1542,136 @@ function eraseEntities({ document, transaction }: KJCommandContext, args: KJComm
   const erased = impact.eraseRootIds.map(id => transaction.eraseObject(id)).filter((object): object is KJObjectRecord => object !== null)
   replaceEntityMemberships(transaction, impact.effectiveEraseIds, [])
   return erased
+}
+
+interface KJStructuralReconnection {
+  readonly id: string
+  readonly type: 'LINE' | 'LWPOLYLINE'
+  readonly points: readonly Point3[]
+  readonly layerId: string
+}
+
+interface KJPreparedStructuralEdit {
+  readonly eraseIds: readonly string[]
+  readonly effectiveEraseIds: readonly string[]
+  readonly reconnections: readonly KJStructuralReconnection[]
+  readonly relayer: Readonly<{ ids: readonly string[]; layerId: string }> | null
+}
+
+function structuralRecord(value: unknown, allowed: readonly string[], required: readonly string[], label: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || ![Object.prototype, null].includes(Object.getPrototypeOf(value))) throw new KJValidationError(`${label} must be a plain object`)
+  const keys = Object.keys(value)
+  if (keys.some(key => !allowed.includes(key)) || required.some(key => !Object.hasOwn(value, key))) throw new KJValidationError(`${label} fields do not match the declared format`)
+  return value as Record<string, unknown>
+}
+
+function structuralId(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !value.trim() || value !== value.trim() || value.length > 256 || /[\u0000-\u001f\u007f]/.test(value) || ['__proto__', 'constructor', 'prototype'].includes(value)) throw new KJValidationError(`${label} must be a bounded nonempty exact object ID`)
+  return value
+}
+
+function structuralIds(value: unknown, label: string): string[] {
+  if (!Array.isArray(value) || !value.length || value.length > 64) throw new KJValidationError(`${label} must contain 1 to 64 exact object IDs`)
+  const ids = value.map((id, index) => structuralId(id, `${label}[${index}]`))
+  if (new Set(ids).size !== ids.length) throw new KJValidationError(`${label} must not contain duplicate object IDs`)
+  return ids
+}
+
+function structuralLayer(document: KJDocument, value: unknown, label: string): KJReadonlyObjectRecord {
+  const id = structuralId(value, label), layer = document.getObject(id)
+  if (!layer || layer.kind !== 'table-record' || layer.type !== 'LAYER') throw new KJValidationError(`${label} does not identify a live layer record: ${id}`)
+  const reason = layer.payload.locked === true ? 'locked' : layer.payload.frozen === true ? 'frozen' : layer.payload.visible === false ? 'hidden' : null
+  if (reason) throw new KJValidationError(`STRUCTURALEDIT: layer "${layer.name ?? id}" is ${reason}; unlock, thaw or show it before editing`, { policy: 'layer-editability', commandId: 'STRUCTURALEDIT', layerId: id, layerName: layer.name, entityId: null, reason })
+  return layer
+}
+
+function structuralEntity(document: KJDocument, id: string): KJReadonlyObjectRecord {
+  const entity = document.getObject(id)
+  if (!entity || entity.kind !== 'entity') throw new KJValidationError(`STRUCTURALEDIT relayer entity does not exist: ${id}`)
+  if (entity.ownerId !== document.spaces.modelSpaceId) throw new KJValidationError(`STRUCTURALEDIT relayer entity must be in model space: ${id}`)
+  const layer = structuralLayer(document, effectiveEntityLayerId(document, entity), `STRUCTURALEDIT source layer for ${id}`)
+  const reason = entity.payload.locked === true ? 'locked' : entity.payload.frozen === true ? 'frozen' : entity.payload.visible === false ? 'hidden' : null
+  if (reason) throw new KJValidationError(`STRUCTURALEDIT: entity ${id} is ${reason}; unlock, thaw or show it before editing`, { policy: 'layer-editability', commandId: 'STRUCTURALEDIT', layerId: layer.id, layerName: layer.name, entityId: id, reason })
+  return entity
+}
+
+function structuralPoint(value: unknown, label: string): Point3 {
+  if (!Array.isArray(value) || value.length !== 3 || value.some(coordinate => typeof coordinate !== 'number' || !Number.isFinite(coordinate) || Math.abs(coordinate) > 1e12) || value[2] !== 0) throw new KJValidationError(`${label} must be an exact finite [x,y,0] point within ±1e12`)
+  return [value[0] as number, value[1] as number, 0]
+}
+
+function requireStructuralEraseScope(document: KJDocument, ids: readonly string[], includedIds: ReadonlySet<string>): void {
+  for (const id of ids) {
+    const record = document.getObject(id)
+    if (!record) throw new KJValidationError(`STRUCTURALEDIT erase entity does not exist: ${id}`)
+    if (record.kind === 'entity' && record.ownerId === document.spaces.modelSpaceId) continue
+    if (record.type === 'SEQEND' && typeof record.ownerId === 'string' && includedIds.has(record.ownerId)) {
+      const insert = document.getObject(record.ownerId)
+      if (insert?.kind === 'entity' && insert.type === 'INSERT' && insert.ownerId === document.spaces.modelSpaceId) continue
+    }
+    throw new KJValidationError(`STRUCTURALEDIT erase is limited to model-space entities and their owned INSERT sequence records: ${id}`)
+  }
+}
+
+function prepareStructuralEdit(document: KJDocument, args: KJCommandArguments): KJPreparedStructuralEdit {
+  const input = structuralRecord(args, ['eraseIds', 'reconnections', 'relayer'], ['eraseIds', 'reconnections'], 'STRUCTURALEDIT')
+  const eraseIds = structuralIds(input.eraseIds, 'STRUCTURALEDIT eraseIds'), state = document.snapshot()
+  requireStructuralEraseScope(document, eraseIds, new Set(eraseIds))
+  const impact = createEraseImpact(document, {
+    expectedRevision: document.revision, units: state.header.units, operation: 'erase', ids: eraseIds, tolerance: 1e-9, maxBytes: 1024,
+  }, { maxIds: 64, maxObjectsLimit: Math.max(1, Object.keys(state.objects).length), allowCompoundRecords: true, analyzeConnectivity: false, mode: 'decision' })
+  if (!impact.canErase) {
+    const blocker = impact.blockers[0]!
+    if (blocker.kind === 'protected-entity') throw new KJValidationError(blocker.message, { policy: 'layer-editability', commandId: 'STRUCTURALEDIT', entityId: blocker.sourceId, reason: blocker.reason })
+    throw new KJValidationError(blocker.message)
+  }
+  requireStructuralEraseScope(document, impact.effectiveEraseIds, new Set(impact.effectiveEraseIds))
+
+  if (!Array.isArray(input.reconnections) || input.reconnections.length > 16) throw new KJValidationError('STRUCTURALEDIT reconnections must contain 0 to 16 exact entities')
+  const reconnectionIds = new Set<string>(), reconnections = input.reconnections.map((value, index): KJStructuralReconnection => {
+    const item = structuralRecord(value, ['id', 'type', 'points', 'layerId'], ['id', 'type', 'points', 'layerId'], `STRUCTURALEDIT reconnections[${index}]`)
+    const id = structuralId(item.id, `STRUCTURALEDIT reconnections[${index}].id`)
+    if (reconnectionIds.has(id)) throw new KJValidationError('STRUCTURALEDIT reconnection IDs must be unique')
+    reconnectionIds.add(id)
+    if (Object.hasOwn(state.objects, id)) throw new KJValidationError(`STRUCTURALEDIT reconnection ID already exists: ${id}`)
+    const type = String(item.type)
+    if (type !== 'LINE' && type !== 'LWPOLYLINE') throw new KJValidationError('STRUCTURALEDIT reconnects only exact LINE or LWPOLYLINE geometry')
+    if (!Array.isArray(item.points) || item.points.length < 2 || item.points.length > 64 || type === 'LINE' && item.points.length !== 2) throw new KJValidationError(`STRUCTURALEDIT ${type} requires ${type === 'LINE' ? 'exactly 2' : '2 to 64'} points`)
+    const points = item.points.map((point, pointIndex) => structuralPoint(point, `STRUCTURALEDIT reconnections[${index}].points[${pointIndex}]`))
+    if (points.some((point, pointIndex) => pointIndex > 0 && Math.hypot(point[0] - points[pointIndex - 1]![0], point[1] - points[pointIndex - 1]![1]) <= 1e-12)) throw new KJValidationError(`STRUCTURALEDIT reconnection ${id} has duplicate consecutive points`)
+    const layer = structuralLayer(document, item.layerId, `STRUCTURALEDIT reconnection layer for ${id}`)
+    return { id, type, points, layerId: layer.id }
+  })
+
+  let relayer: KJPreparedStructuralEdit['relayer'] = null
+  if (input.relayer !== undefined) {
+    const relayerInput = structuralRecord(input.relayer, ['ids', 'layerId'], ['ids', 'layerId'], 'STRUCTURALEDIT relayer')
+    const requestedIds = structuralIds(relayerInput.ids, 'STRUCTURALEDIT relayer.ids')
+    const resolved = resolveOwnedLeaderPairSelection(document, requestedIds, 'STRUCTURALEDIT')
+    if (resolved.ids.length !== requestedIds.length || resolved.ids.some(id => !requestedIds.includes(id))) throw new KJValidationError('STRUCTURALEDIT relayer must explicitly include both members of every owned LEADER + MTEXT pair')
+    const erased = new Set(impact.effectiveEraseIds)
+    if (requestedIds.some(id => erased.has(id))) throw new KJValidationError('STRUCTURALEDIT eraseIds and relayer.ids must not overlap, including owned or attached erase records')
+    const targetLayer = structuralLayer(document, relayerInput.layerId, 'STRUCTURALEDIT target layer')
+    for (const id of requestedIds) {
+      const entity = structuralEntity(document, id)
+      if (effectiveEntityLayerId(document, entity) === targetLayer.id) throw new KJValidationError(`STRUCTURALEDIT relayer contains an unchanged entity: ${id}`)
+    }
+    relayer = { ids: requestedIds, layerId: targetLayer.id }
+  }
+
+  const changedIds = new Set([...impact.effectiveEraseIds, ...(relayer?.ids ?? []), ...reconnectionIds])
+  if (changedIds.size > 64) throw new KJValidationError('STRUCTURALEDIT supports at most 64 total erased, relayered and reconnected entities')
+  return { eraseIds, effectiveEraseIds: impact.effectiveEraseIds, reconnections, relayer }
+}
+
+function applyStructuralEdit(context: KJCommandContext, args: KJCommandArguments): Readonly<Record<string, unknown>> {
+  const prepared = prepareStructuralEdit(context.document, args)
+  const erased = eraseEntities(context, { ids: prepared.eraseIds })
+  const relayered = prepared.relayer?.ids.map(id => context.transaction.updateObject(id, { payload: { layerId: prepared.relayer!.layerId } })) ?? []
+  const reconnected = prepared.reconnections.map(spec => context.transaction.createEntity(spec.type, spec.type === 'LINE'
+    ? { start: spec.points[0], end: spec.points[1], layerId: spec.layerId }
+    : { vertices: spec.points, closed: false, layerId: spec.layerId }, { id: spec.id, ownerId: context.document.spaces.modelSpaceId }))
+  return deepFreeze({ semanticInference: 'none', effectiveEraseIds: [...prepared.effectiveEraseIds], erased, relayered, reconnected })
 }
 
 function leaderPoints(value: unknown): Point3[] {

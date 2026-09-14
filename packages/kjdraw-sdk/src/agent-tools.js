@@ -501,6 +501,49 @@ const impactSchema = object({
         maximum: 262144
     }
 });
+const structuralEditSchema = objectWithOptional({
+    expectedRevision: revision,
+    units: text,
+    eraseIds: collection(text),
+    reconnections: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 16,
+        items: object({
+            type: {
+                type: 'string',
+                enum: [
+                    'LINE',
+                    'LWPOLYLINE'
+                ]
+            },
+            points: {
+                type: 'array',
+                minItems: 2,
+                maxItems: 64,
+                items: point
+            },
+            layerId: text
+        })
+    },
+    relayer: object({
+        ids: collection(text),
+        layerId: text
+    }),
+    tolerance: {
+        type: 'number',
+        exclusiveMinimum: 0,
+        maximum: 1
+    },
+    maxBytes: {
+        type: 'integer',
+        minimum: 1024,
+        maximum: 262144
+    }
+}, [
+    'reconnections',
+    'relayer'
+]);
 const offsetSchema = object({
     expectedRevision: revision,
     units: text,
@@ -1460,6 +1503,12 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         inputSchema: relayerSchema
     },
     {
+        name: 'cad_propose_structural_edit',
+        effect: 'propose',
+        description: 'Propose one deterministic atomic structural edit over exact model-space IDs: erase 1–64 entities, optionally create up to 16 explicit open LINE/LWPOLYLINE reconnections from supplied XY points, and optionally assign retained exact IDs to one exact editable layer. This tool does not infer which objects are holes, strata, boundaries or noise; the caller supplies confirmed IDs, coordinates and layer. Erase impact is checked first. Design-bound geometry is rejected; dimensions and native HATCH sources must be included when needed or the whole proposal fails. HATCH and INSERT are never exploded or interpreted; when explicitly erased they remain native candidates requiring host review. Returns complete changed geometry and record effects without editing. Host approval commits one transaction and one undo step; maxBytes fails closed without truncation.',
+        inputSchema: structuralEditSchema
+    },
+    {
         name: 'cad_propose_copy',
         effect: 'propose',
         description: `Propose one exact nonzero XY copy of either 1–64 visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs or one persistent named selectionSetName. Never supply both. KJDraw allocates stable result IDs before preview so the reviewed entities are exactly the entities committed on approval. Owned LEADER + MTEXT pairs expand and copy together; associative DIMENSION requires every referenced source in the same copy. INSERT must be a bounded local block graph without attached attributes or external references. Unsupported, protected, incomplete, ambiguous or out-of-budget geometry is rejected before a plan exists. The model supplies source identity and dx/dy only. Returns complete new native geometry and dependencies without editing; host approval applies one undoable COPY transaction.`,
@@ -2246,6 +2295,7 @@ export class KJAgentToolSession {
                         let selectionSet;
                         let unchangedIds;
                         let layerChange;
+                        let structuralEdit;
                         if (name === 'cad_propose_component_insert') {
                             const parameters = args.parameters;
                             if (new Set(parameters.map((parameter)=>parameter.name)).size !== parameters.length) throw new KJValidationError('Component parameter names must be unique');
@@ -2446,6 +2496,56 @@ export class KJAgentToolSession {
                                         change.name,
                                         change.value
                                     ]))
+                            };
+                        } else if (name === 'cad_propose_structural_edit') {
+                            const impact = createEraseImpact(document, {
+                                expectedRevision: Number(args.expectedRevision),
+                                units: String(args.units),
+                                operation: 'erase',
+                                ids: args.eraseIds,
+                                tolerance: Number(args.tolerance),
+                                maxBytes: Number(args.maxBytes)
+                            });
+                            if (!impact.canErase) throw new KJValidationError(impact.blockers[0]?.message ?? 'Structural erase impact is not safe');
+                            const reconnections = (args.reconnections ?? []).map((item)=>({
+                                    id: createId('entity'),
+                                    type: item.type,
+                                    points: item.points.map(xy),
+                                    layerId: item.layerId
+                                }));
+                            const relayerInput = args.relayer;
+                            const relayer = relayerInput ? {
+                                ids: resolveAgentTransformEntityIds(document, relayerInput.ids),
+                                layerId: relayerInput.layerId
+                            } : undefined;
+                            if (relayer && new Set(relayer.ids).size !== relayer.ids.length) throw new KJValidationError('Structural relayer IDs must be unique after owned annotation expansion');
+                            if (relayer?.ids.some((id)=>impact.effectiveEraseIds.includes(id))) throw new KJValidationError('Structural erase and relayer IDs must be disjoint');
+                            command = 'STRUCTURALEDIT';
+                            commandArgs = {
+                                eraseIds: [
+                                    ...impact.requestedIds
+                                ],
+                                reconnections,
+                                ...relayer ? {
+                                    relayer
+                                } : {}
+                            };
+                            structuralEdit = {
+                                semanticInference: 'none',
+                                requestedEraseIds: [
+                                    ...impact.requestedIds
+                                ],
+                                effectiveEraseIds: [
+                                    ...impact.effectiveEraseIds
+                                ],
+                                reconnectionIds: reconnections.map((item)=>item.id),
+                                groups: impact.groups,
+                                selectionSets: impact.selectionSets,
+                                insertAttachments: impact.insertAttachments,
+                                nativeCandidates: impact.nativeCandidates.map((candidate)=>({
+                                        ...candidate,
+                                        confirmationRequired: true
+                                    }))
                             };
                         } else if (name === 'cad_propose_relayer') {
                             const byIds = Object.hasOwn(args, 'ids'), bySelectionSet = Object.hasOwn(args, 'selectionSetName');
@@ -2750,6 +2850,9 @@ export class KJAgentToolSession {
                             } : {},
                             ...layerChange ? {
                                 layerChange: structuredClone(layerChange)
+                            } : {},
+                            ...structuralEdit ? {
+                                structuralEdit
                             } : {}
                         };
                         if ([
@@ -2763,6 +2866,10 @@ export class KJAgentToolSession {
                             ok: true,
                             value
                         })).length > Number(args.maxBytes)) throw new KJValidationError('Relayer proposal exceeds maxBytes; increase the exact response budget');
+                        if (name === 'cad_propose_structural_edit' && new TextEncoder().encode(JSON.stringify({
+                            ok: true,
+                            value
+                        })).length > Number(args.maxBytes)) throw new KJValidationError('Structural edit proposal exceeds maxBytes; increase the exact response budget');
                         await this.#sdk.executeCommandEnvelope(envelope, {
                             document
                         });

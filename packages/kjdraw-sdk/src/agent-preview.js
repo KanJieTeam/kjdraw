@@ -8,6 +8,7 @@ import { readDesignRelations } from './design-relations.js';
 import { captureAgentBlockDependencies, agentBlockDependenciesMatchDocument } from './agent-preview-blocks.js';
 import { normalizeSplineDefinition } from './geometry/curves.js';
 import { closedHatchSplineConic } from './geometry/hatch-boundary.js';
+import { resolveCommandLayerId } from './edit-policy.js';
 const project = (entity)=>({
         id: entity.id,
         type: entity.type,
@@ -49,8 +50,8 @@ const stretchable = [
     'POLYLINE'
 ];
 function effectiveLayerId(document, entity) {
-    if (entity.payload.layerId != null) return String(entity.payload.layerId);
-    return document.getTable('layers')?.records.find((record)=>record.name === '0')?.id ?? null;
+    const id = resolveCommandLayerId(entity.payload.layerId, document.getTable('layers')?.currentId);
+    return id || null;
 }
 function requireEditableAgentMember(document, entity, label) {
     const layer = effectiveLayerId(document, entity), layerRecord = layer ? document.getObject(layer) : null;
@@ -374,7 +375,7 @@ function validateOffsetPreview(document, args) {
     requireEditableAgentMember(document, entity, 'OFFSET source');
 }
 function validateStretchGeometry(document, entity) {
-    const layer = document.getObject(String(entity.payload.layerId ?? ''));
+    const layer = document.getObject(String(effectiveLayerId(document, entity) ?? ''));
     if (entity.ownerId !== document.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new KJValidationError('STRETCH preview requires visible editable model-space geometry');
     for (const key of [
         'normal',
@@ -421,7 +422,7 @@ function validateLengthenPreview(document, args) {
         validateStretchGeometry(document, entity);
         return;
     }
-    const layer = document.getObject(String(entity.payload.layerId ?? ''));
+    const layer = document.getObject(String(effectiveLayerId(document, entity) ?? ''));
     if (entity.ownerId !== document.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new KJValidationError('LENGTHEN preview requires visible editable model-space geometry');
     for (const key of [
         'normal',
@@ -437,6 +438,50 @@ function validateLengthenPreview(document, args) {
         payload.endAngle
     ].some((value)=>typeof value !== 'number' || !Number.isFinite(value))) throw new KJValidationError('LENGTHEN preview requires bounded nondegenerate native arc geometry');
 }
+function validateStructuralEditPreview(document, args) {
+    if (Object.keys(args).some((key)=>![
+            'eraseIds',
+            'reconnections',
+            'relayer'
+        ].includes(key))) throw new KJValidationError('STRUCTURALEDIT preview contains unsupported fields');
+    const ids = (value, label)=>{
+        if (!Array.isArray(value) || !value.length || value.length > 64 || value.some((id)=>typeof id !== 'string' || !id || id.length > 256) || new Set(value).size !== value.length) throw new KJValidationError(`${label} requires 1–64 unique bounded entity IDs`);
+        return value;
+    };
+    const eraseIds = ids(args.eraseIds, 'STRUCTURALEDIT eraseIds');
+    const relayer = args.relayer;
+    let relayerIds = [];
+    if (relayer !== undefined) {
+        if (!relayer || typeof relayer !== 'object' || Array.isArray(relayer) || Object.keys(relayer).length !== 2 || !Object.hasOwn(relayer, 'ids') || !Object.hasOwn(relayer, 'layerId') || typeof relayer.layerId !== 'string') throw new KJValidationError('STRUCTURALEDIT relayer requires exactly ids and layerId');
+        relayerIds = ids(relayer.ids, 'STRUCTURALEDIT relayer ids');
+    }
+    if (relayerIds.some((id)=>eraseIds.includes(id))) throw new KJValidationError('STRUCTURALEDIT erase and relayer IDs must be disjoint');
+    const reconnections = args.reconnections;
+    if (!Array.isArray(reconnections) || reconnections.length > 16) throw new KJValidationError('STRUCTURALEDIT reconnections must contain 0–16 entries');
+    const createdIds = new Set();
+    for (const raw of reconnections){
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).length !== 4 || !Object.hasOwn(raw, 'id') || !Object.hasOwn(raw, 'type') || !Object.hasOwn(raw, 'points') || !Object.hasOwn(raw, 'layerId')) throw new KJValidationError('STRUCTURALEDIT reconnection requires exactly id, type, points and layerId');
+        const item = raw;
+        if (typeof item.id !== 'string' || !item.id || item.id.length > 256 || createdIds.has(item.id) || document.getObject(item.id, {
+            includeErased: true
+        })) throw new KJValidationError('STRUCTURALEDIT reconnection IDs must be unique new bounded IDs');
+        if (![
+            'LINE',
+            'LWPOLYLINE'
+        ].includes(String(item.type))) throw new KJValidationError('STRUCTURALEDIT reconnection type must be LINE or LWPOLYLINE');
+        if (typeof item.layerId !== 'string' || !item.layerId) throw new KJValidationError('STRUCTURALEDIT reconnection layerId must be an exact layer record ID');
+        if (!Array.isArray(item.points) || item.points.length < 2 || item.points.length > 64 || item.type === 'LINE' && item.points.length !== 2 || item.points.some((point)=>!Array.isArray(point) || point.length !== 3 || point[2] !== 0 || point.some((value)=>typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 1e12))) throw new KJValidationError('STRUCTURALEDIT reconnection points must be bounded model XY points');
+        createdIds.add(item.id);
+    }
+    const existingIds = [
+        ...new Set([
+            ...eraseIds,
+            ...relayerIds
+        ])
+    ];
+    if (existingIds.length + createdIds.size > 64) throw new KJValidationError('STRUCTURALEDIT preview exceeds 64 changed entities');
+    return existingIds;
+}
 export async function createAgentGeometryPreview(document, command, args, options = {}) {
     if (![
         'CREATEBATCH',
@@ -451,7 +496,8 @@ export async function createAgentGeometryPreview(document, command, args, option
         'PEDIT',
         'PROPERTIES',
         'DESIGNCREATE',
-        'DESIGNUPDATE'
+        'DESIGNUPDATE',
+        'STRUCTURALEDIT'
     ].includes(command)) throw new KJValidationError('Unsupported core preview command');
     if ([
         'MOVE',
@@ -498,11 +544,12 @@ export async function createAgentGeometryPreview(document, command, args, option
     if (command === 'OFFSET') validateOffsetPreview(document, args);
     if (command === 'STRETCH') validateStretchArguments(args);
     if (command === 'LENGTHEN') validateLengthenPreview(document, args);
+    const structuralIds = command === 'STRUCTURALEDIT' ? validateStructuralEditPreview(document, args) : undefined;
     const maxCreatedEntities = options.maxCreatedEntities ?? 64;
     if (!Number.isSafeInteger(maxCreatedEntities) || maxCreatedEntities < 1 || maxCreatedEntities > 512) throw new KJValidationError('Preview creation budget must be an integer from 1 to 512');
     if (command === 'CREATEBATCH') {
         if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some((spec)=>!spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} supported drawing and annotation entities`);
-    } else if (command !== 'COMPONENTINSERT') {
+    } else if (command !== 'COMPONENTINSERT' && command !== 'STRUCTURALEDIT') {
         const ids = bindingIds ?? (design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' || command === 'OFFSET' ? [
             args.id
         ] : args.ids);
@@ -512,7 +559,7 @@ export async function createAgentGeometryPreview(document, command, args, option
                 'LWPOLYLINE',
                 'POLYLINE'
             ].includes(document.getObject(args.id)?.type ?? '')) throw new KJValidationError('PEDIT preview requires one LWPOLYLINE or POLYLINE ID');
-            const entity = document.getObject(args.id), layer = document.getObject(String(entity.payload.layerId ?? ''));
+            const entity = document.getObject(args.id), layer = document.getObject(String(effectiveLayerId(document, entity) ?? ''));
             if (entity.ownerId !== document.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new KJValidationError('PEDIT preview requires one visible editable model-space polyline');
             validatePolylineEditArguments(document, args);
         } else if (command === 'STRETCH') {
@@ -555,7 +602,7 @@ export async function createAgentGeometryPreview(document, command, args, option
             if (ids.some((id)=>typeof id !== 'string') || new Set(ids).size !== ids.length) throw new KJValidationError('Object IDs must be unique strings');
             for (const id of ids){
                 const entity = document.getObject(String(id));
-                const layer = document.getObject(String(entity.payload.layerId ?? ''));
+                const layer = document.getObject(String(effectiveLayerId(document, entity) ?? ''));
                 if (entity.ownerId !== document.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.locked === true || entity.payload.frozen === true || layer?.payload.visible === false || layer?.payload.locked === true || layer?.payload.frozen === true) throw new KJValidationError('Transform preview requires visible editable model-space entities');
                 validateTransformGeometry(document, entity);
             }
@@ -563,7 +610,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     }
     const source = document.snapshot(), revision = document.revision;
     if (Object.keys(source.objects).length > 250000) throw new KJValidationError('Agent preview exceeds the 250000 object document limit');
-    const ids = bindingIds ?? (design ? design.entityIds : command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? [] : command === 'PEDIT' || command === 'LENGTHEN' || command === 'OFFSET' ? [
+    const ids = structuralIds ?? bindingIds ?? (design ? design.entityIds : command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? [] : command === 'PEDIT' || command === 'LENGTHEN' || command === 'OFFSET' ? [
         String(args.id)
     ] : args.ids);
     const blockDependencies = [
@@ -572,7 +619,10 @@ export async function createAgentGeometryPreview(document, command, args, option
         'ROTATE',
         'SCALE'
     ].includes(command) ? captureAgentBlockDependencies(document, ids) : undefined;
-    const workingSet = command === 'CREATEBATCH' ? args.entities : command === 'COMPONENTINSERT' ? args : ids.map((id)=>document.getObject(id));
+    const workingSet = command === 'CREATEBATCH' ? args.entities : command === 'COMPONENTINSERT' ? args : command === 'STRUCTURALEDIT' ? {
+        existing: ids.map((id)=>document.getObject(id)),
+        reconnections: args.reconnections
+    } : ids.map((id)=>document.getObject(id));
     if (new TextEncoder().encode(JSON.stringify({
         args,
         workingSet,
@@ -605,6 +655,11 @@ export async function createAgentGeometryPreview(document, command, args, option
                 const bounds = displayedEntityBounds(draft, entity);
                 if (!bounds || bounds.some((value)=>!Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError(`${command} preview result exceeds the finite ±1e12 display budget`);
             }
+            if (command === 'STRUCTURALEDIT' && !previous) {
+                validateTransformGeometry(draft, entity);
+                const bounds = displayedEntityBounds(draft, entity);
+                if (!bounds || bounds.some((value)=>!Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError('STRUCTURALEDIT preview result exceeds the finite ±1e12 display budget');
+            }
             after.push(project(entity));
         }
         old.delete(entity.id);
@@ -616,6 +671,19 @@ export async function createAgentGeometryPreview(document, command, args, option
     if (command === 'PEDIT' && !after.length) throw new KJValidationError('Polyline edit would leave the selected geometry unchanged');
     if (command === 'PROPERTIES' && (before.length !== ids.length || after.length !== ids.length)) throw new KJValidationError('Relayer preview must include complete before and after payloads for every changed entity');
     if (before.length > 64 || after.length > (command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? maxCreatedEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit');
+    const draftState = draft.snapshot();
+    const recordChanges = command === 'STRUCTURALEDIT' ? Object.values(source.objects).filter((record)=>record.kind === 'group' || record.type === 'SEQEND').flatMap((beforeRecord)=>{
+        const rawAfter = draftState.objects[beforeRecord.id];
+        const afterRecord = !rawAfter || rawAfter.erased ? null : rawAfter;
+        return canonicalStringify(beforeRecord) === canonicalStringify(afterRecord) ? [] : [
+            {
+                id: beforeRecord.id,
+                before: beforeRecord,
+                after: afterRecord
+            }
+        ];
+    }) : [];
+    if (recordChanges.length > 64) throw new KJValidationError('STRUCTURALEDIT preview exceeds the 64 changed-record limit');
     const resources = draft.listObjects().filter((item)=>(item.kind === 'table-record' || item.kind === 'block-record') && !document.getObject(item.id)).map((item)=>({
             id: item.id,
             type: item.type,
@@ -654,6 +722,9 @@ export async function createAgentGeometryPreview(document, command, args, option
         command,
         before,
         after,
+        ...recordChanges.length ? {
+            recordChanges
+        } : {},
         ...resources.length ? {
             resources
         } : {},
@@ -675,7 +746,7 @@ export function agentPreviewMatchesDocument(document, preview) {
     })()) && (!preview.designChange || preview.designChange.members.every((expected)=>canonicalStringify(document.getObject(expected.id)) === canonicalStringify(expected))) && (!preview.designChange || (()=>{
         const dictionary = document.getObject(preview.designChange.dictionary.id);
         return dictionary?.kind === 'dictionary' && dictionary.payload.entries?.[preview.designChange.dictionary.key] === preview.designChange.id;
-    })()) && agentBlockDependenciesMatchDocument(document, preview.blockDependencies) && (preview.resources ?? []).every((expected)=>{
+    })()) && agentBlockDependenciesMatchDocument(document, preview.blockDependencies) && (preview.recordChanges ?? []).every((expected)=>expected.after === null ? !document.getObject(expected.id) : canonicalStringify(document.getObject(expected.id)) === canonicalStringify(expected.after)) && (preview.resources ?? []).every((expected)=>{
         const actual = document.getObject(expected.id);
         return actual?.kind === (expected.kind ?? 'table-record') && actual.type === expected.type && actual.name === expected.name && canonicalStringify(actual.payload) === canonicalStringify(expected.payload);
     }) && preview.after.every((expected)=>{

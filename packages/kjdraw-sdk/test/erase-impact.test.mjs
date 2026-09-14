@@ -31,6 +31,7 @@ async function fixture() {
     tx.updateObject(attributed.id, { payload: { attributeIds: ['symbol-code'], sequenceEndId: 'symbol-end' } })
     tx.createEntity('MTEXT', { position: [60, 5, 0], text: 'NOTE', height: 2, width: 10, rotation: 0, attachmentPoint: 7 }, { id: 'leader-note' })
     tx.createEntity('LEADER', { vertices: [[55, 0, 0], [58, 5, 0]], textPosition: [60, 5, 0], horizontalDirection: [1, 0, 0], annotationId: 'leader-note', ownsAnnotation: true, annotationType: 0 }, { id: 'leader' })
+    tx.createObject({ id: 'bridge-group', kind: 'group', type: 'GROUP', ownerId: document.snapshot().namedObjectsDictionaryId, name: 'Bridge group', payload: { memberIds: ['left', 'bridge', 'right'] } })
   })
   const design = await sdk.executeCommand('DESIGNCREATE', { name: 'Bridge length', definition: {
     parameters: [{ name: 'length', value: 20, min: 1, max: 100 }], derived: [], bindings: [{ entityId: 'bridge', path: 'end.0', expression: { constant: 0, terms: [{ parameter: 'length', coefficient: 1 }] } }], requirements: [],
@@ -49,6 +50,7 @@ test('cad_query_impact reports exact dangling relations and a non-prescriptive c
   assert.equal(impact.designRelations[0].id, design.id); assert.equal(impact.designRelations[0].condition, 'would-dangle-design-binding')
   assert.deepEqual(impact.dimensions[0].affectedSourceIds, ['bridge']); assert.equal(impact.dimensions[0].resolvedBySameErase, false)
   assert.equal(impact.hatchSourceReferences[0].reference, 'raw-97-330'); assert.equal(impact.hatchSourceReferences[0].resolvedBySameErase, false)
+  assert.deepEqual(impact.groups[0].affectedMemberIds, ['bridge'])
   assert.deepEqual(impact.selectionSets[0].affectedMemberIds, ['bridge'])
   assert.deepEqual(impact.connectivity.before.affectedComponents, [['bridge', 'left', 'right']])
   assert.deepEqual(impact.connectivity.after.retainedComponents, [['left'], ['right']])

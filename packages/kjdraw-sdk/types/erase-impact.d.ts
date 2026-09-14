@@ -28,6 +28,7 @@ export interface KJEraseImpact {
     dimensions: readonly Readonly<Record<string, unknown>>[];
     leaderPairs: readonly Readonly<Record<string, unknown>>[];
     hatchSourceReferences: readonly Readonly<Record<string, unknown>>[];
+    groups: readonly Readonly<Record<string, unknown>>[];
     selectionSets: readonly Readonly<Record<string, unknown>>[];
     insertAttachments: readonly Readonly<Record<string, unknown>>[];
     blockDefinitionInstances: readonly Readonly<Record<string, unknown>>[];

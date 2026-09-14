@@ -37,6 +37,7 @@ export interface KJEraseImpact {
   dimensions: readonly Readonly<Record<string, unknown>>[]
   leaderPairs: readonly Readonly<Record<string, unknown>>[]
   hatchSourceReferences: readonly Readonly<Record<string, unknown>>[]
+  groups: readonly Readonly<Record<string, unknown>>[]
   selectionSets: readonly Readonly<Record<string, unknown>>[]
   insertAttachments: readonly Readonly<Record<string, unknown>>[]
   blockDefinitionInstances: readonly Readonly<Record<string, unknown>>[]
@@ -201,14 +202,15 @@ export function createEraseImpact(document: KJDocument, query: KJEraseImpactQuer
   const block = (value: KJEraseImpactBlocker): void => { const key = `${value.kind}\0${value.sourceId}\0${value.dependentId ?? ''}`; if (!blockerKeys.has(key)) { blockerKeys.add(key); blockers.push(value) } }
   const rootIds = new Set(requestedIds), effectiveIds = new Set(requestedIds), leaderPairs: Record<string, unknown>[] = []
   const leadersByAnnotation = new Map<string, KJReadonlyObjectRecord[]>(), attributesByInsert = new Map<string, string[]>(), sequenceEndsByInsert = new Map<string, string[]>(), instancesByDefinition = new Map<string, string[]>()
-  const designRecords: KJReadonlyObjectRecord[] = [], dimensionsByAssociation: KJReadonlyObjectRecord[] = [], hatches: KJReadonlyObjectRecord[] = [], selectionRecords: KJReadonlyObjectRecord[] = [], handleToEntity = new Map<string, KJReadonlyObjectRecord>()
+  const designRecords: KJReadonlyObjectRecord[] = [], dimensionsByAssociation: KJReadonlyObjectRecord[] = [], hatches: KJReadonlyObjectRecord[] = [], groupRecords: KJReadonlyObjectRecord[] = [], selectionRecords: KJReadonlyObjectRecord[] = [], handleToEntity = new Map<string, KJReadonlyObjectRecord>()
   for (const object of objects) {
     if (object.type === 'DESIGN_RELATIONS') designRecords.push(object)
     if (object.kind === 'entity') {
       handleToEntity.set(object.handle.toUpperCase(), object)
       if (object.type === 'DIMENSION') dimensionsByAssociation.push(object)
       if (object.type === 'HATCH') hatches.push(object)
-    } else if (object.kind === 'group' && object.type === 'SELECTION_SET') selectionRecords.push(object)
+    } else if (object.kind === 'group' && object.type === 'GROUP') groupRecords.push(object)
+    else if (object.kind === 'group' && object.type === 'SELECTION_SET') selectionRecords.push(object)
     if (object.kind === 'entity' && object.type === 'LEADER' && object.payload.annotationId != null) {
       const annotationId = String(object.payload.annotationId), values = leadersByAnnotation.get(annotationId) ?? []
       values.push(object); leadersByAnnotation.set(annotationId, values); count()
@@ -228,7 +230,7 @@ export function createEraseImpact(document: KJDocument, query: KJEraseImpactQuer
   for (const values of attributesByInsert.values()) values.sort(compareText)
   for (const values of sequenceEndsByInsert.values()) values.sort(compareText)
   for (const values of instancesByDefinition.values()) values.sort(compareText)
-  designRecords.sort((a, b) => compareText(a.id, b.id)); dimensionsByAssociation.sort((a, b) => compareText(a.id, b.id)); hatches.sort((a, b) => compareText(a.id, b.id)); selectionRecords.sort((a, b) => compareText(a.id, b.id))
+  designRecords.sort((a, b) => compareText(a.id, b.id)); dimensionsByAssociation.sort((a, b) => compareText(a.id, b.id)); hatches.sort((a, b) => compareText(a.id, b.id)); groupRecords.sort((a, b) => compareText(a.id, b.id)); selectionRecords.sort((a, b) => compareText(a.id, b.id))
   for (const member of requested) {
     const candidates = member.type === 'LEADER' ? [member] : member.type === 'MTEXT' ? leadersByAnnotation.get(member.id) ?? [] : []
     if (!candidates.length && member.type !== 'LEADER') continue
@@ -306,14 +308,20 @@ export function createEraseImpact(document: KJDocument, query: KJEraseImpactQuer
     hatchSourceReferences.push({ hatchId: hatch.id, sourceId: entity.id, sourceHandle: source.handle, reference: source.reference, condition: 'would-dangle-native-hatch-source', requiresCapabilityConfirmation: true, resolvedBySameErase: resolved })
     if (!resolved) block({ kind: 'hatch-source', sourceId: entity.id, dependentId: hatch.id, message: `ERASE must include HATCH ${hatch.id} when erasing native boundary source ${entity.id}` })
   }
-  const selectionSets: Record<string, unknown>[] = []
-  if (diagnostic) for (const selection of selectionRecords) {
-    const members = selection.payload.memberIds
-    if (!Array.isArray(members)) continue
-    count(members.length)
-    const affected = [...new Set(members.filter(id => typeof id === 'string' && effectiveIds.has(id)))].sort()
-    if (affected.length) selectionSets.push({ id: selection.id, name: selection.name, affectedMemberIds: affected, condition: 'memberships-removed-by-same-erase', requiresCapabilityConfirmation: false, resolvedBySameErase: true })
+  const membershipEffects = (records: readonly KJReadonlyObjectRecord[], condition: string): Record<string, unknown>[] => {
+    const effects: Record<string, unknown>[] = []
+    if (!diagnostic) return effects
+    for (const record of records) {
+      const members = record.payload.memberIds
+      if (!Array.isArray(members)) continue
+      count(members.length)
+      const affected = [...new Set(members.filter(id => typeof id === 'string' && effectiveIds.has(id)))].sort()
+      if (affected.length) effects.push({ id: record.id, name: record.name, affectedMemberIds: affected, condition, requiresCapabilityConfirmation: false, resolvedBySameErase: true })
+    }
+    return effects
   }
+  const groups = membershipEffects(groupRecords, 'group-memberships-removed-by-same-erase')
+  const selectionSets = membershipEffects(selectionRecords, 'memberships-removed-by-same-erase')
   const blockDefinitionInstances: Record<string, unknown>[] = []
   const definitionMembers = new Map<string, string[]>()
   for (const id of effectiveIds) {
@@ -330,7 +338,7 @@ export function createEraseImpact(document: KJDocument, query: KJEraseImpactQuer
   blockers.sort((a, b) => compareText(a.kind, b.kind) || compareText(a.sourceId, b.sourceId) || compareText(a.dependentId ?? '', b.dependentId ?? ''))
   const result: KJEraseImpact = {
     documentId: state.documentId, revision: state.revision, units: state.header.units, operation: 'erase', requestedIds, eraseRootIds: [...rootIds].sort(), effectiveEraseIds: [...effectiveIds].sort(), canErase: blockers.length === 0, blockers,
-    designRelations, dimensions, leaderPairs: leaderPairs.sort((a, b) => compareText(String(a.leaderId), String(b.leaderId))), hatchSourceReferences, selectionSets, insertAttachments, blockDefinitionInstances, nativeCandidates,
+    designRelations, dimensions, leaderPairs: leaderPairs.sort((a, b) => compareText(String(a.leaderId), String(b.leaderId))), hatchSourceReferences, groups, selectionSets, insertAttachments, blockDefinitionInstances, nativeCandidates,
     connectivity: options.analyzeConnectivity === false || !diagnostic
       ? { semanticInference: 'none', status: 'skipped-for-core-reference-validation', before: { affectedComponents: [] }, after: { retainedComponents: [] }, disconnectCandidates: [], comparisons: 0, omittedNativeTypes: ['HATCH', 'INSERT'] }
       : connectivityImpact(objects, effectiveIds, query.tolerance),

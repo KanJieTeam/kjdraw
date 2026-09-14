@@ -279,14 +279,15 @@ export function createEraseImpact(document, query, options = {}) {
     };
     const rootIds = new Set(requestedIds), effectiveIds = new Set(requestedIds), leaderPairs = [];
     const leadersByAnnotation = new Map(), attributesByInsert = new Map(), sequenceEndsByInsert = new Map(), instancesByDefinition = new Map();
-    const designRecords = [], dimensionsByAssociation = [], hatches = [], selectionRecords = [], handleToEntity = new Map();
+    const designRecords = [], dimensionsByAssociation = [], hatches = [], groupRecords = [], selectionRecords = [], handleToEntity = new Map();
     for (const object of objects){
         if (object.type === 'DESIGN_RELATIONS') designRecords.push(object);
         if (object.kind === 'entity') {
             handleToEntity.set(object.handle.toUpperCase(), object);
             if (object.type === 'DIMENSION') dimensionsByAssociation.push(object);
             if (object.type === 'HATCH') hatches.push(object);
-        } else if (object.kind === 'group' && object.type === 'SELECTION_SET') selectionRecords.push(object);
+        } else if (object.kind === 'group' && object.type === 'GROUP') groupRecords.push(object);
+        else if (object.kind === 'group' && object.type === 'SELECTION_SET') selectionRecords.push(object);
         if (object.kind === 'entity' && object.type === 'LEADER' && object.payload.annotationId != null) {
             const annotationId = String(object.payload.annotationId), values = leadersByAnnotation.get(annotationId) ?? [];
             values.push(object);
@@ -317,6 +318,7 @@ export function createEraseImpact(document, query, options = {}) {
     designRecords.sort((a, b)=>compareText(a.id, b.id));
     dimensionsByAssociation.sort((a, b)=>compareText(a.id, b.id));
     hatches.sort((a, b)=>compareText(a.id, b.id));
+    groupRecords.sort((a, b)=>compareText(a.id, b.id));
     selectionRecords.sort((a, b)=>compareText(a.id, b.id));
     for (const member of requested){
         const candidates = member.type === 'LEADER' ? [
@@ -499,23 +501,29 @@ export function createEraseImpact(document, query, options = {}) {
             message: `ERASE must include HATCH ${hatch.id} when erasing native boundary source ${entity.id}`
         });
     }
-    const selectionSets = [];
-    if (diagnostic) for (const selection of selectionRecords){
-        const members = selection.payload.memberIds;
-        if (!Array.isArray(members)) continue;
-        count(members.length);
-        const affected = [
-            ...new Set(members.filter((id)=>typeof id === 'string' && effectiveIds.has(id)))
-        ].sort();
-        if (affected.length) selectionSets.push({
-            id: selection.id,
-            name: selection.name,
-            affectedMemberIds: affected,
-            condition: 'memberships-removed-by-same-erase',
-            requiresCapabilityConfirmation: false,
-            resolvedBySameErase: true
-        });
-    }
+    const membershipEffects = (records, condition)=>{
+        const effects = [];
+        if (!diagnostic) return effects;
+        for (const record of records){
+            const members = record.payload.memberIds;
+            if (!Array.isArray(members)) continue;
+            count(members.length);
+            const affected = [
+                ...new Set(members.filter((id)=>typeof id === 'string' && effectiveIds.has(id)))
+            ].sort();
+            if (affected.length) effects.push({
+                id: record.id,
+                name: record.name,
+                affectedMemberIds: affected,
+                condition,
+                requiresCapabilityConfirmation: false,
+                resolvedBySameErase: true
+            });
+        }
+        return effects;
+    };
+    const groups = membershipEffects(groupRecords, 'group-memberships-removed-by-same-erase');
+    const selectionSets = membershipEffects(selectionRecords, 'memberships-removed-by-same-erase');
     const blockDefinitionInstances = [];
     const definitionMembers = new Map();
     for (const id of effectiveIds){
@@ -571,6 +579,7 @@ export function createEraseImpact(document, query, options = {}) {
         dimensions,
         leaderPairs: leaderPairs.sort((a, b)=>compareText(String(a.leaderId), String(b.leaderId))),
         hatchSourceReferences,
+        groups,
         selectionSets,
         insertAttachments,
         blockDefinitionInstances,
