@@ -38,10 +38,11 @@
 .chat-composer-actions .chat-connection { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0; padding: 5px 0; text-align: left; background: transparent; font-size: 11px; color: var(--kj-muted); }
 .chat-composer-actions .chat-send { border-radius: 9px; background: var(--kj-text); color: white; border-color: var(--kj-text); font-size: 12px; padding: 7px 10px; }
 .chat-composer small { display: block; color: var(--kj-muted); font-size: 9px; margin-top: 9px; }
-.chat-settings { flex-shrink: 0; max-height: 55%; overflow: auto; padding: 4px 18px 14px; border-bottom: 1px solid var(--kj-border); background: var(--kj-chrome); }
+.chat-settings { flex: 0 1 auto; min-height: 0; max-height: calc(100% - 72px); overflow: auto; overscroll-behavior: contain; padding: 4px 18px 14px; border-bottom: 1px solid var(--kj-border); background: var(--kj-chrome); }
 .chat-settings label { display: grid; gap: 5px; font-size: 11px; color: var(--kj-muted); margin: 10px 0; }
 .chat-settings input, .chat-settings select { width: 100%; min-width: 0; }
 .chat-panel .chat-settings p { font-size: 11px; margin: 8px 0; }
+.chat-provider-target { overflow-wrap: anywhere; color: var(--kj-muted); }
 .chat-settings button { margin: 2px 6px 2px 0; font-size: 12px; }
 .chat-settings-actions { position: sticky; bottom: -14px; z-index: 1; margin: 0 -18px; padding: 8px 18px 12px; border-top: 1px solid var(--kj-border); background: var(--kj-chrome); }
 .chat-settings .chat-error, .chat-settings .chat-data-error { color: #a82a37; }
