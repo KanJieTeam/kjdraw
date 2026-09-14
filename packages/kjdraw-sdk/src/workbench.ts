@@ -5,7 +5,7 @@ import { KJDocument } from './document.js'
 import type { KJCommandArguments } from './commands.js'
 import { editEntityGrip, type KJEntityGrip, type KJPointInput } from './grips.js'
 import type { KJReadonlyObjectRecord } from './schema.js'
-import { getDocumentSnapSettings, type KJSnapCandidate, type KJSnapMode } from './snapping.js'
+import { getDocumentSnapSettings, KJ_SNAP_MODES, type KJSnapCandidate, type KJSnapMode } from './snapping.js'
 import type { KJDxfPlotSettings } from './plot-settings.js'
 import type { KJFileAdapterOptions, KJFileReadProgress } from './file-adapters.js'
 import { openDrawingPrintWindow, type KJDrawingPrintHtml, type KJDrawingPrintOptions } from './print-export.js'
@@ -159,7 +159,7 @@ interface KJWorkbenchFenceSelection {
 const copy = {
   en: {
     drawingSpace: 'Drawing space', modelSpace: 'Model', paperPreview: 'Paper preview · return to Model to edit',
-    pageSetup: 'Page setup', dimensionStyles: 'Dimension styles', dimensionStylesDescription: 'Create, edit, or activate native dimension styles.', newDimensionStyle: 'New style', setCurrentStyle: 'Set current', currentStyle: 'Current', styleName: 'Style name', dimensionArrowSize: 'Arrow size', dimensionExtensionOffset: 'Extension-line offset', dimensionExtensionBeyond: 'Extension beyond dimension line', textStyles: 'Text styles', textStylesDescription: 'Manage local font references and native CAD text metrics. Font files are referenced, not embedded.', newTextStyle: 'New style', fontFamily: 'Font family / fallback name', fontFile: 'Local font file reference', bigFontFile: 'Big-font file reference', fixedTextHeight: 'Fixed height (0 = per object)', textWidthFactor: 'Width factor', textObliqueAngle: 'Oblique angle (degrees)', pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.', pageSheet: 'Sheet', pageStale: 'The drawing changed. Close and reopen the dialog before applying.', pageWidth: 'Paper width (mm)', pageHeight: 'Paper height (mm)', pageLeft: 'Left margin (mm)', pageRight: 'Right margin (mm)', pageTop: 'Top margin (mm)', pageBottom: 'Bottom margin (mm)', pageUnits: 'Plot units', pageRotation: 'Rotation (counterclockwise)', pageNumerator: 'Custom scale: paper units', pageDenominator: 'Custom scale: drawing units', pageScaleNote: 'Choose Fit to paper or edit the custom ratio. Window coordinates use drawing units; physical offsets use millimeters.', pageUnchanged: 'Keep existing', pageInches: 'Inches', pageMm: 'Millimeters', pagePixels: 'Pixels', pageArea: 'Plot area', pageDisplay: 'Last display', pageExtents: 'Drawing extents', pageLimits: 'Drawing limits', pageView: 'Named view', pageWindow: 'Window', pageLayout: 'Layout', pageViewName: 'View name', pageMinX: 'Window minimum X', pageMinY: 'Window minimum Y', pageMaxX: 'Window maximum X', pageMaxY: 'Window maximum Y', pageOriginX: 'Origin X (mm)', pageOriginY: 'Origin Y (mm)', pageScaleMode: 'Scale mode', pageFit: 'Fit to paper', pageCustom: 'Custom ratio',
+    pageSetup: 'Page setup', dimensionStyles: 'Dimension styles', dimensionStylesDescription: 'Create, edit, or activate native dimension styles.', newDimensionStyle: 'New style', setCurrentStyle: 'Set current', currentStyle: 'Current', styleName: 'Style name', dimensionArrowSize: 'Arrow size', dimensionExtensionOffset: 'Extension-line offset', dimensionExtensionBeyond: 'Extension beyond dimension line', textStyles: 'Text styles', textStylesDescription: 'Manage local font references and native CAD text metrics. Font files are referenced, not embedded.', newTextStyle: 'New style', fontFamily: 'Font family / fallback name', fontFile: 'Local font file reference', bigFontFile: 'Big-font file reference', fixedTextHeight: 'Fixed height (0 = per object)', textWidthFactor: 'Width factor', textObliqueAngle: 'Oblique angle (degrees)', snapSettings: 'Object snap settings', snapSettingsDescription: 'Choose which native object snaps are active and the screen-pixel capture aperture.', snapModes: 'Object snap modes', snapAperture: 'Capture aperture (pixels)', snapApertureError: 'Capture aperture must be a positive number.', snapSettingsApplied: 'Object snap settings applied', pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.', pageSheet: 'Sheet', pageStale: 'The drawing changed. Close and reopen the dialog before applying.', pageWidth: 'Paper width (mm)', pageHeight: 'Paper height (mm)', pageLeft: 'Left margin (mm)', pageRight: 'Right margin (mm)', pageTop: 'Top margin (mm)', pageBottom: 'Bottom margin (mm)', pageUnits: 'Plot units', pageRotation: 'Rotation (counterclockwise)', pageNumerator: 'Custom scale: paper units', pageDenominator: 'Custom scale: drawing units', pageScaleNote: 'Choose Fit to paper or edit the custom ratio. Window coordinates use drawing units; physical offsets use millimeters.', pageUnchanged: 'Keep existing', pageInches: 'Inches', pageMm: 'Millimeters', pagePixels: 'Pixels', pageArea: 'Plot area', pageDisplay: 'Last display', pageExtents: 'Drawing extents', pageLimits: 'Drawing limits', pageView: 'Named view', pageWindow: 'Window', pageLayout: 'Layout', pageViewName: 'View name', pageMinX: 'Window minimum X', pageMinY: 'Window minimum Y', pageMaxX: 'Window maximum X', pageMaxY: 'Window maximum Y', pageOriginX: 'Origin X (mm)', pageOriginY: 'Origin Y (mm)', pageScaleMode: 'Scale mode', pageFit: 'Fit to paper', pageCustom: 'Custom ratio',
     open: 'Open', openSource: 'Reading file', openParse: 'Parsing DXF', openImport: 'Building drawing', openCancelHint: 'Esc cancels', openCancelled: 'Open cancelled', saveKjd: 'Save KJD', exportDxf: 'Export DXF', exportSvg: 'Export SVG', exportPng: 'Export PNG', print: 'Print / PDF', printOpened: 'Print dialog opened · choose Save as PDF for vector output', draw: 'Draw', modify: 'Modify', view: 'View',
     select: 'Select', pan: 'Pan', line: 'Line', polyline: 'Polyline', circle: 'Circle', arc: 'Arc', rectangle: 'Rectangle', text: 'Text', measure: 'Measure',
     undo: 'Undo', redo: 'Redo', erase: 'Delete', move: 'Move', copy: 'Copy', rotate: 'Rotate', offset: 'Offset', fit: 'Fit', grid: 'Grid', ortho: 'Ortho', orthoOn: 'Orthogonal drafting on', orthoOff: 'Orthogonal drafting off', orthoBusy: 'Finish or cancel the current operation before changing Ortho', polar: 'Polar', polarOn: 'Polar tracking on', polarOff: 'Polar tracking off', polarBusy: 'Finish or cancel the current operation before changing Polar tracking', layers: 'Layers', properties: 'Properties',
@@ -179,7 +179,7 @@ const copy = {
   },
   'zh-CN': {
     drawingSpace: '图纸空间', modelSpace: '模型', paperPreview: '纸空间只读预览 · 返回模型后编辑',
-    pageSetup: '页面设置', dimensionStyles: '标注样式', dimensionStylesDescription: '创建、编辑或启用原生标注样式。', newDimensionStyle: '新建样式', setCurrentStyle: '设为当前', currentStyle: '当前', styleName: '样式名称', dimensionArrowSize: '箭头大小', dimensionExtensionOffset: '尺寸界线偏移', dimensionExtensionBeyond: '尺寸界线超出量', textStyles: '文字样式', textStylesDescription: '管理本地字体引用和原生 CAD 文字参数。字体文件仅引用，不会嵌入。', newTextStyle: '新建样式', fontFamily: '字体族 / 回退名称', fontFile: '本地字体文件引用', bigFontFile: '大字体文件引用', fixedTextHeight: '固定高度（0 表示按对象）', textWidthFactor: '宽度系数', textObliqueAngle: '倾斜角（度）', pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。', pageSheet: '图纸布局', pageStale: '图档已变更，请关闭并重新打开对话框后再应用。', pageWidth: '纸张宽度（毫米）', pageHeight: '纸张高度（毫米）', pageLeft: '左边距（毫米）', pageRight: '右边距（毫米）', pageTop: '上边距（毫米）', pageBottom: '下边距（毫米）', pageUnits: '打印单位', pageRotation: '旋转（逆时针）', pageNumerator: '自定义比例：纸张单位', pageDenominator: '自定义比例：绘图单位', pageScaleNote: '可选适合纸张或编辑自定义比例。窗口坐标使用绘图单位，物理偏移使用毫米。', pageUnchanged: '保留已有值', pageInches: '英寸', pageMm: '毫米', pagePixels: '像素', pageArea: '打印范围', pageDisplay: '上次显示范围', pageExtents: '图形范围', pageLimits: '图形界限', pageView: '命名视图', pageWindow: '窗口', pageLayout: '布局', pageViewName: '视图名称', pageMinX: '窗口最小 X', pageMinY: '窗口最小 Y', pageMaxX: '窗口最大 X', pageMaxY: '窗口最大 Y', pageOriginX: '原点 X（毫米）', pageOriginY: '原点 Y（毫米）', pageScaleMode: '比例模式', pageFit: '适合纸张', pageCustom: '自定义比例',
+    pageSetup: '页面设置', dimensionStyles: '标注样式', dimensionStylesDescription: '创建、编辑或启用原生标注样式。', newDimensionStyle: '新建样式', setCurrentStyle: '设为当前', currentStyle: '当前', styleName: '样式名称', dimensionArrowSize: '箭头大小', dimensionExtensionOffset: '尺寸界线偏移', dimensionExtensionBeyond: '尺寸界线超出量', textStyles: '文字样式', textStylesDescription: '管理本地字体引用和原生 CAD 文字参数。字体文件仅引用，不会嵌入。', newTextStyle: '新建样式', fontFamily: '字体族 / 回退名称', fontFile: '本地字体文件引用', bigFontFile: '大字体文件引用', fixedTextHeight: '固定高度（0 表示按对象）', textWidthFactor: '宽度系数', textObliqueAngle: '倾斜角（度）', snapSettings: '对象捕捉设置', snapSettingsDescription: '选择启用的原生对象捕捉模式，并设置屏幕像素捕捉范围。', snapModes: '对象捕捉模式', snapAperture: '捕捉范围（像素）', snapApertureError: '捕捉范围必须是大于 0 的数字。', snapSettingsApplied: '对象捕捉设置已应用', pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。', pageSheet: '图纸布局', pageStale: '图档已变更，请关闭并重新打开对话框后再应用。', pageWidth: '纸张宽度（毫米）', pageHeight: '纸张高度（毫米）', pageLeft: '左边距（毫米）', pageRight: '右边距（毫米）', pageTop: '上边距（毫米）', pageBottom: '下边距（毫米）', pageUnits: '打印单位', pageRotation: '旋转（逆时针）', pageNumerator: '自定义比例：纸张单位', pageDenominator: '自定义比例：绘图单位', pageScaleNote: '可选适合纸张或编辑自定义比例。窗口坐标使用绘图单位，物理偏移使用毫米。', pageUnchanged: '保留已有值', pageInches: '英寸', pageMm: '毫米', pagePixels: '像素', pageArea: '打印范围', pageDisplay: '上次显示范围', pageExtents: '图形范围', pageLimits: '图形界限', pageView: '命名视图', pageWindow: '窗口', pageLayout: '布局', pageViewName: '视图名称', pageMinX: '窗口最小 X', pageMinY: '窗口最小 Y', pageMaxX: '窗口最大 X', pageMaxY: '窗口最大 Y', pageOriginX: '原点 X（毫米）', pageOriginY: '原点 Y（毫米）', pageScaleMode: '比例模式', pageFit: '适合纸张', pageCustom: '自定义比例',
     open: '打开', openSource: '正在读取文件', openParse: '正在解析 DXF', openImport: '正在构建图纸', openCancelHint: 'Esc 取消', openCancelled: '已取消打开', saveKjd: '保存 KJD', exportDxf: '导出 DXF', exportSvg: '导出 SVG', exportPng: '导出 PNG', print: '打印 / PDF', printOpened: '已打开打印对话框 · 选择另存为 PDF 可保留矢量', draw: '绘图', modify: '修改', view: '视图',
     select: '选择', pan: '平移', line: '直线', polyline: '多段线', circle: '圆', arc: '圆弧', rectangle: '矩形', text: '文字', measure: '测距',
     undo: '撤销', redo: '重做', erase: '删除', move: '移动', copy: '复制', rotate: '旋转', offset: '偏移', fit: '全图', grid: '栅格', ortho: '正交', orthoOn: '正交绘图已开启', orthoOff: '正交绘图已关闭', orthoBusy: '请先完成或取消当前操作，再切换正交模式', polar: '极轴', polarOn: '极轴跟踪已开启', polarOff: '极轴跟踪已关闭', polarBusy: '请先完成或取消当前操作，再切换极轴跟踪', layers: '图层', properties: '特性',
@@ -201,6 +201,10 @@ const copy = {
 
 const DRAFT_TOOLS = Object.freeze(['line', 'polyline', 'circle', 'arc', 'ellipse', 'rectangle', 'polygon', 'point', 'ray', 'xline', 'spline', 'hatch', 'dimension', 'leader'] as const satisfies readonly KJDraftTool[])
 const LAYER_LINEWEIGHTS = Object.freeze([-1, 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211])
+const SNAP_MODE_COPY: Readonly<Record<KJSnapMode, keyof typeof copy.en>> = Object.freeze({
+  endpoint: 'snapEndpoint', midpoint: 'snapMidpoint', center: 'snapCenter', quadrant: 'snapQuadrant', intersection: 'snapIntersection',
+  perpendicular: 'snapPerpendicular', tangent: 'snapTangent', insertion: 'snapInsertion', node: 'snapNode', nearest: 'snapNearest',
+})
 
 const DRAFT_COMMAND_TO_TOOL = new Map<string, KJDraftTool>([
   ['P', 'point'], ['POINT', 'point'], ['RAY', 'ray'], ['XL', 'xline'], ['XLINE', 'xline'],
@@ -448,6 +452,7 @@ export class KJDrawWorkbench {
   #transformGesture: { document: KJDocument; revision: number; ids: readonly string[]; operation: 'MOVE' | 'COPY'; base: Point2 | null } | null = null
   #modificationGesture: KJModificationGesture | null = null
   #pageBinding: { document: KJDocument; revision: number; layoutId: string; settings: KJDxfPlotSettings } | null = null
+  #snapSettingsBinding: { document: KJDocument; revision: number } | null = null
   #dimensionStyleBinding: { document: KJDocument; revision: number; recordId: string | null } | null = null
   #textStyleBinding: { document: KJDocument; revision: number; recordId: string | null } | null = null
   #boundarySession: KJBoundaryEditSession | null = null
@@ -910,7 +915,7 @@ export class KJDrawWorkbench {
         <div class="group"><button type="button" class="tool active" data-tool="select">${icon('select')}<small data-copy="select">${t('select')}</small></button><button type="button" class="tool" data-tool="pan">${icon('pan')}<small data-copy="pan">${t('pan')}</small></button><span data-copy="view">${t('view')}</span></div>
         <div class="group"><button type="button" class="tool" data-tool="point" ${readonly ? 'disabled' : ''}>${icon('point')}<small data-draft-label="point">${this.#localizedControlText(draftToolText.point)}</small></button><button type="button" class="tool" data-tool="line" ${readonly ? 'disabled' : ''}>${icon('line')}<small data-copy="line">${t('line')}</small></button><button type="button" class="tool" data-tool="polyline" ${readonly ? 'disabled' : ''}>${icon('polyline')}<small data-copy="polyline">${t('polyline')}</small></button><button type="button" class="tool" data-tool="circle" ${readonly ? 'disabled' : ''}>${icon('circle')}<small data-copy="circle">${t('circle')}</small></button><button type="button" class="tool" data-tool="arc" ${readonly ? 'disabled' : ''}>${icon('arc')}<small data-copy="arc">${t('arc')}</small></button><button type="button" class="tool" data-tool="ellipse" ${readonly ? 'disabled' : ''}>${icon('ellipse')}<small data-draft-label="ellipse">${this.#localizedControlText(draftToolText.ellipse)}</small></button><button type="button" class="tool" data-tool="rectangle" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-copy="rectangle">${t('rectangle')}</small></button><button type="button" class="tool" data-tool="polygon" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-draft-label="polygon">${this.#localizedControlText(draftToolText.polygon)}</small></button><button type="button" class="tool" data-tool="dimension" ${readonly ? 'disabled' : ''}>${icon('measure')}<small data-draft-label="dimension">${this.#localizedControlText(draftToolText.dimension)}</small></button><button type="button" class="tool" data-tool="leader" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-draft-label="leader">${this.#localizedControlText(draftToolText.leader)}</small></button><button type="button" class="tool" data-tool="text" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-copy="text">${t('text')}</small></button><button type="button" class="tool" data-action="block-create" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="blockCreate">${t('blockCreate')}</small></button><button type="button" class="tool" data-action="component-library" ${readonly ? 'disabled' : ''}>${icon('layers')}<small data-copy="componentLibrary">${t('componentLibrary')}</small></button><button type="button" class="tool" data-action="draft" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="moreDraw">${t('moreDraw')}</small></button><span data-copy="draw">${t('draw')}</span></div>
         <div class="group"><button type="button" class="tool" data-tool="move" ${readonly ? 'disabled' : ''}>${icon('move')}<small data-copy="move">${t('move')}</small></button><button type="button" class="tool" data-tool="copy" ${readonly ? 'disabled' : ''}>${icon('copy')}<small data-copy="copy">${t('copy')}</small></button><button type="button" class="tool" data-action="modify" ${readonly ? 'disabled' : ''}>${icon('rotate')}<small data-copy="modifyTools">${t('modifyTools')}</small></button><button type="button" class="tool" data-action="undo" ${readonly ? 'disabled' : ''}>${icon('undo')}<small data-copy="undo">${t('undo')}</small></button><button type="button" class="tool" data-action="redo" ${readonly ? 'disabled' : ''}>${icon('redo')}<small data-copy="redo">${t('redo')}</small></button><button type="button" class="tool" data-action="erase" ${readonly ? 'disabled' : ''}>${icon('delete')}<small data-copy="erase">${t('erase')}</small></button><span data-copy="modify">${t('modify')}</span></div>
-        <div class="group"><button type="button" class="tool" data-action="fit">${icon('fit')}<small data-copy="fit">${t('fit')}</small></button><button type="button" class="tool" data-action="grid">${icon('grid')}<small data-copy="grid">${t('grid')}</small></button><button type="button" class="tool" data-tool="measure">${icon('measure')}<small data-copy="measure">${t('measure')}</small></button><span data-copy="view">${t('view')}</span></div>
+        <div class="group"><button type="button" class="tool" data-action="fit">${icon('fit')}<small data-copy="fit">${t('fit')}</small></button><button type="button" class="tool" data-action="grid">${icon('grid')}<small data-copy="grid">${t('grid')}</small></button><button type="button" class="tool" data-action="snap-settings" ${readonly ? 'disabled' : ''}>${icon('point')}<small data-copy="snapSettings">${t('snapSettings')}</small></button><button type="button" class="tool" data-tool="measure">${icon('measure')}<small data-copy="measure">${t('measure')}</small></button><span data-copy="view">${t('view')}</span></div>
       </nav>
       <div class="workspace ${this.#options.showLayers === false ? 'no-layers' : ''} ${this.#options.showInspector === false ? 'no-inspector' : ''}">
         <aside class="side layers" ${this.#options.showLayers === false ? 'hidden' : ''}><h2 data-copy="layers">${t('layers')}</h2><div data-layers></div></aside>
@@ -939,6 +944,13 @@ export class KJDrawWorkbench {
           <footer class="modify-actions"><button type="button" data-action="cancel-page" data-copy="cancel">${t('cancel')}</button><button type="button" data-action="apply-page" class="confirm" data-copy="apply">${t('apply')}</button></footer>
         </div>
       </dialog>
+      <dialog class="modify-dialog" data-snap-settings-dialog aria-label="${t('snapSettings')}">
+        <div class="modify-form">
+          <header class="modify-head"><h2 data-copy="snapSettings">${t('snapSettings')}</h2><p data-copy="snapSettingsDescription">${t('snapSettingsDescription')}</p></header>
+          <div class="modify-body"><p class="modify-description" data-copy="snapModes">${t('snapModes')}</p><div class="modify-fields" data-snap-modes>${KJ_SNAP_MODES.map(mode => `<label class="check"><input type="checkbox" data-snap-mode="${mode}"><span data-copy="${SNAP_MODE_COPY[mode]}">${t(SNAP_MODE_COPY[mode])}</span></label>`).join('')}</div><label class="field"><span data-copy="snapAperture">${t('snapAperture')}</span><input type="number" min="0.000001" step="any" required data-snap-aperture></label><p role="alert" data-snap-settings-error></p></div>
+          <footer class="modify-actions"><button type="button" data-action="cancel-snap-settings" data-copy="cancel">${t('cancel')}</button><button type="button" class="confirm" data-action="apply-snap-settings" data-copy="apply">${t('apply')}</button></footer>
+        </div>
+      </dialog>
       <dialog class="modify-dialog" data-dimension-style-dialog aria-label="${t('dimensionStyles')}">
         <div class="modify-form" data-dimension-style-form>
           <header class="modify-head"><h2 data-copy="dimensionStyles">${t('dimensionStyles')}</h2><p data-copy="dimensionStylesDescription">${t('dimensionStylesDescription')}</p></header>
@@ -959,6 +971,18 @@ export class KJDrawWorkbench {
     const signal = this.#abort.signal
     query<HTMLSelectElement>(this.root, '[data-drawing-layout]').addEventListener('change', event => {
       void this.#run(() => this.setDrawingLayout((event.currentTarget as HTMLSelectElement).value || null))
+    }, { signal })
+    const snapSettingsDialog = query<HTMLDialogElement>(this.root, '[data-snap-settings-dialog]')
+    const snapSettingsButton = query<HTMLButtonElement>(this.root, '[data-action="snap-settings"]')
+    snapSettingsButton.addEventListener('click', () => void this.#run(() => this.#openSnapSettings()), { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="cancel-snap-settings"]').addEventListener('click', () => snapSettingsDialog.close(), { signal })
+    query<HTMLButtonElement>(this.root, '[data-action="apply-snap-settings"]').addEventListener('click', () => void this.#applySnapSettings(), { signal })
+    snapSettingsDialog.addEventListener('close', () => {
+      this.#snapSettingsBinding = null
+      queueMicrotask(() => { if (!this.#abort.signal.aborted && snapSettingsButton.isConnected) snapSettingsButton.focus() })
+    }, { signal })
+    snapSettingsDialog.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && event.target === query<HTMLInputElement>(snapSettingsDialog, '[data-snap-aperture]')) { event.preventDefault(); event.stopPropagation(); if (!event.repeat && !event.isComposing) void this.#applySnapSettings() }
     }, { signal })
     const pageDialog = query<HTMLDialogElement>(this.root, '[data-page-dialog]')
     query<HTMLButtonElement>(this.root, '[data-action="page-setup"]').addEventListener('click', () => this.#openPageSetup(), { signal })
@@ -1933,6 +1957,43 @@ export class KJDrawWorkbench {
       dialog.close()
     } catch (error) {
       query<HTMLElement>(dialog, '[data-dimension-style-error]').textContent = error instanceof Error ? error.message : String(error)
+    } finally { button.disabled = false }
+  }
+
+  #openSnapSettings(): void {
+    const drawing = this.document
+    if (!drawing || this.#readOnly || this.#abort.signal.aborted) return
+    this.#cancelGesture()
+    const settings = getDocumentSnapSettings(drawing)
+    this.#snapSettingsBinding = { document: drawing, revision: drawing.revision }
+    const dialog = query<HTMLDialogElement>(this.root, '[data-snap-settings-dialog]')
+    for (const input of dialog.querySelectorAll<HTMLInputElement>('[data-snap-mode]')) input.checked = settings.modes.includes(input.dataset.snapMode as KJSnapMode)
+    query<HTMLInputElement>(dialog, '[data-snap-aperture]').value = String(settings.aperture)
+    query<HTMLElement>(dialog, '[data-snap-settings-error]').textContent = ''
+    dialog.showModal()
+    queueMicrotask(() => dialog.querySelector<HTMLInputElement>('[data-snap-mode]')?.focus())
+  }
+
+  async #applySnapSettings(): Promise<void> {
+    const binding = this.#snapSettingsBinding, dialog = query<HTMLDialogElement>(this.root, '[data-snap-settings-dialog]')
+    if (!binding || !dialog.open) return
+    const button = query<HTMLButtonElement>(dialog, '[data-action="apply-snap-settings"]')
+    if (button.disabled) return
+    const aperture = query<HTMLInputElement>(dialog, '[data-snap-aperture]'), error = query<HTMLElement>(dialog, '[data-snap-settings-error]')
+    error.textContent = ''
+    if (!aperture.checkValidity() || !(Number(aperture.value) > 0)) { error.textContent = this.#t('snapApertureError'); aperture.reportValidity(); return }
+    button.disabled = true
+    try {
+      if (this.#readOnly) throw new Error(this.#t('readonly'))
+      if (this.document !== binding.document || binding.document.revision !== binding.revision) throw new Error(this.#t('pageStale'))
+      const modes = [...dialog.querySelectorAll<HTMLInputElement>('[data-snap-mode]:checked')].map(input => input.dataset.snapMode as KJSnapMode)
+      await this.execute('SNAPSETTINGS', { modes, radius: Number(aperture.value) }, { expectedRevision: binding.revision })
+      dialog.close()
+      this.#setMessage(this.#t('snapSettingsApplied'))
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason)
+      error.textContent = message
+      this.#setMessage(message)
     } finally { button.disabled = false }
   }
 
@@ -2967,6 +3028,9 @@ export class KJDrawWorkbench {
     const pageDialog = this.root.querySelector<HTMLDialogElement>('[data-page-dialog]')
     if (pageDialog?.open) pageDialog.close()
     this.#pageBinding = null
+    const snapSettingsDialog = this.root.querySelector<HTMLDialogElement>('[data-snap-settings-dialog]')
+    if (snapSettingsDialog?.open) snapSettingsDialog.close()
+    this.#snapSettingsBinding = null
     const dimensionStyleDialog = this.root.querySelector<HTMLDialogElement>('[data-dimension-style-dialog]')
     if (dimensionStyleDialog?.open) dimensionStyleDialog.close()
     this.#dimensionStyleBinding = null
@@ -3766,6 +3830,8 @@ export class KJDrawWorkbench {
     if (draftDialog) draftDialog.setAttribute('aria-label', this.#t('drawTitle'))
     const pageDialog = this.root.querySelector<HTMLDialogElement>('[data-page-dialog]')
     if (pageDialog) pageDialog.setAttribute('aria-label', this.#t('pageSetup'))
+    const snapSettingsDialog = this.root.querySelector<HTMLDialogElement>('[data-snap-settings-dialog]')
+    if (snapSettingsDialog) snapSettingsDialog.setAttribute('aria-label', this.#t('snapSettings'))
     this.#syncDraftActions()
     this.#canvas.setAttribute('aria-label', `${this.#t('drawing')} · KJDraw CAD`)
   }

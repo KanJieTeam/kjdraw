@@ -7,8 +7,9 @@ test.use({ viewport: { width: 1024, height: 768 } })
 test('shortcut settings apply immediately, reject conflicts, persist, and restore defaults', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  const openHotkeys=async()=>{await page.locator('#settings').click();await page.locator('#settings-tab-hotkeys').click()}
 
-  await page.locator('#settings').click()
+  await openHotkeys()
   const dialog=page.locator('#hotkey-settings-dialog')
   await expect(dialog).toBeVisible()
   await page.locator('#hotkey-search').fill('line')
@@ -27,7 +28,7 @@ test('shortcut settings apply immediately, reject conflicts, persist, and restor
   await expect(page.locator('#drawing-tool')).toHaveValue('line')
   await page.keyboard.press('Escape')
 
-  await page.locator('#settings').click()
+  await openHotkeys()
   await dialog.locator('[data-hotkey-command="LINE"]').fill('LINE, C')
   await page.locator('#hotkey-apply').click()
   await expect(dialog).toBeVisible()
@@ -46,7 +47,7 @@ test('shortcut settings apply immediately, reject conflicts, persist, and restor
   await page.keyboard.press('F8')
   await expect(page.locator('#ortho')).not.toHaveAttribute('aria-pressed', orthoBefore)
 
-  await page.locator('#settings').click()
+  await openHotkeys()
   await page.locator('#hotkey-restore').click()
   await expect(dialog.locator('.hotkey-settings-notice')).toBeVisible()
   await page.locator('#hotkey-cancel').click()
@@ -55,7 +56,7 @@ test('shortcut settings apply immediately, reject conflicts, persist, and restor
   await expect(page.locator('#drawing-tool')).toHaveValue('line')
   await page.keyboard.press('Escape')
 
-  await page.locator('#settings').click()
+  await openHotkeys()
   await page.locator('#hotkey-restore').click()
   await page.locator('#hotkey-apply').click()
   await page.locator('#canvas').focus()

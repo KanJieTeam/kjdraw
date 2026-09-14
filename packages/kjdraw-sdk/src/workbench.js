@@ -3,7 +3,7 @@ import { aciColor, KJCanvasRenderer } from './canvas-renderer.js';
 import { createKJDrawSDK } from './sdk.js';
 import { KJDocument } from './document.js';
 import { editEntityGrip } from './grips.js';
-import { getDocumentSnapSettings } from './snapping.js';
+import { getDocumentSnapSettings, KJ_SNAP_MODES } from './snapping.js';
 import { openDrawingPrintWindow } from './print-export.js';
 import { exportDrawingPng } from './drawing-image.js';
 import { createIndustrySample } from './samples.js';
@@ -37,6 +37,12 @@ const copy = {
         fixedTextHeight: 'Fixed height (0 = per object)',
         textWidthFactor: 'Width factor',
         textObliqueAngle: 'Oblique angle (degrees)',
+        snapSettings: 'Object snap settings',
+        snapSettingsDescription: 'Choose which native object snaps are active and the screen-pixel capture aperture.',
+        snapModes: 'Object snap modes',
+        snapAperture: 'Capture aperture (pixels)',
+        snapApertureError: 'Capture aperture must be a positive number.',
+        snapSettingsApplied: 'Object snap settings applied',
         pageDescription: 'Configure the selected sheet for DXF export. Blank fields keep existing values. This does not print the drawing.',
         pageSheet: 'Sheet',
         pageStale: 'The drawing changed. Close and reopen the dialog before applying.',
@@ -288,6 +294,12 @@ const copy = {
         fixedTextHeight: '固定高度（0 表示按对象）',
         textWidthFactor: '宽度系数',
         textObliqueAngle: '倾斜角（度）',
+        snapSettings: '对象捕捉设置',
+        snapSettingsDescription: '选择启用的原生对象捕捉模式，并设置屏幕像素捕捉范围。',
+        snapModes: '对象捕捉模式',
+        snapAperture: '捕捉范围（像素）',
+        snapApertureError: '捕捉范围必须是大于 0 的数字。',
+        snapSettingsApplied: '对象捕捉设置已应用',
         pageDescription: '配置选定图纸的 DXF 导出参数。空字段保留已有值；本操作不执行打印。',
         pageSheet: '图纸布局',
         pageStale: '图档已变更，请关闭并重新打开对话框后再应用。',
@@ -560,6 +572,18 @@ const LAYER_LINEWEIGHTS = Object.freeze([
     200,
     211
 ]);
+const SNAP_MODE_COPY = Object.freeze({
+    endpoint: 'snapEndpoint',
+    midpoint: 'snapMidpoint',
+    center: 'snapCenter',
+    quadrant: 'snapQuadrant',
+    intersection: 'snapIntersection',
+    perpendicular: 'snapPerpendicular',
+    tangent: 'snapTangent',
+    insertion: 'snapInsertion',
+    node: 'snapNode',
+    nearest: 'snapNearest'
+});
 const DRAFT_COMMAND_TO_TOOL = new Map([
     [
         'P',
@@ -1064,6 +1088,7 @@ export class KJDrawWorkbench {
     #transformGesture = null;
     #modificationGesture = null;
     #pageBinding = null;
+    #snapSettingsBinding = null;
     #dimensionStyleBinding = null;
     #textStyleBinding = null;
     #boundarySession = null;
@@ -1648,7 +1673,7 @@ export class KJDrawWorkbench {
         <div class="group"><button type="button" class="tool active" data-tool="select">${icon('select')}<small data-copy="select">${t('select')}</small></button><button type="button" class="tool" data-tool="pan">${icon('pan')}<small data-copy="pan">${t('pan')}</small></button><span data-copy="view">${t('view')}</span></div>
         <div class="group"><button type="button" class="tool" data-tool="point" ${readonly ? 'disabled' : ''}>${icon('point')}<small data-draft-label="point">${this.#localizedControlText(draftToolText.point)}</small></button><button type="button" class="tool" data-tool="line" ${readonly ? 'disabled' : ''}>${icon('line')}<small data-copy="line">${t('line')}</small></button><button type="button" class="tool" data-tool="polyline" ${readonly ? 'disabled' : ''}>${icon('polyline')}<small data-copy="polyline">${t('polyline')}</small></button><button type="button" class="tool" data-tool="circle" ${readonly ? 'disabled' : ''}>${icon('circle')}<small data-copy="circle">${t('circle')}</small></button><button type="button" class="tool" data-tool="arc" ${readonly ? 'disabled' : ''}>${icon('arc')}<small data-copy="arc">${t('arc')}</small></button><button type="button" class="tool" data-tool="ellipse" ${readonly ? 'disabled' : ''}>${icon('ellipse')}<small data-draft-label="ellipse">${this.#localizedControlText(draftToolText.ellipse)}</small></button><button type="button" class="tool" data-tool="rectangle" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-copy="rectangle">${t('rectangle')}</small></button><button type="button" class="tool" data-tool="polygon" ${readonly ? 'disabled' : ''}>${icon('rectangle')}<small data-draft-label="polygon">${this.#localizedControlText(draftToolText.polygon)}</small></button><button type="button" class="tool" data-tool="dimension" ${readonly ? 'disabled' : ''}>${icon('measure')}<small data-draft-label="dimension">${this.#localizedControlText(draftToolText.dimension)}</small></button><button type="button" class="tool" data-tool="leader" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-draft-label="leader">${this.#localizedControlText(draftToolText.leader)}</small></button><button type="button" class="tool" data-tool="text" ${readonly ? 'disabled' : ''}>${icon('text')}<small data-copy="text">${t('text')}</small></button><button type="button" class="tool" data-action="block-create" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="blockCreate">${t('blockCreate')}</small></button><button type="button" class="tool" data-action="component-library" ${readonly ? 'disabled' : ''}>${icon('layers')}<small data-copy="componentLibrary">${t('componentLibrary')}</small></button><button type="button" class="tool" data-action="draft" ${readonly ? 'disabled' : ''}>${icon('plus')}<small data-copy="moreDraw">${t('moreDraw')}</small></button><span data-copy="draw">${t('draw')}</span></div>
         <div class="group"><button type="button" class="tool" data-tool="move" ${readonly ? 'disabled' : ''}>${icon('move')}<small data-copy="move">${t('move')}</small></button><button type="button" class="tool" data-tool="copy" ${readonly ? 'disabled' : ''}>${icon('copy')}<small data-copy="copy">${t('copy')}</small></button><button type="button" class="tool" data-action="modify" ${readonly ? 'disabled' : ''}>${icon('rotate')}<small data-copy="modifyTools">${t('modifyTools')}</small></button><button type="button" class="tool" data-action="undo" ${readonly ? 'disabled' : ''}>${icon('undo')}<small data-copy="undo">${t('undo')}</small></button><button type="button" class="tool" data-action="redo" ${readonly ? 'disabled' : ''}>${icon('redo')}<small data-copy="redo">${t('redo')}</small></button><button type="button" class="tool" data-action="erase" ${readonly ? 'disabled' : ''}>${icon('delete')}<small data-copy="erase">${t('erase')}</small></button><span data-copy="modify">${t('modify')}</span></div>
-        <div class="group"><button type="button" class="tool" data-action="fit">${icon('fit')}<small data-copy="fit">${t('fit')}</small></button><button type="button" class="tool" data-action="grid">${icon('grid')}<small data-copy="grid">${t('grid')}</small></button><button type="button" class="tool" data-tool="measure">${icon('measure')}<small data-copy="measure">${t('measure')}</small></button><span data-copy="view">${t('view')}</span></div>
+        <div class="group"><button type="button" class="tool" data-action="fit">${icon('fit')}<small data-copy="fit">${t('fit')}</small></button><button type="button" class="tool" data-action="grid">${icon('grid')}<small data-copy="grid">${t('grid')}</small></button><button type="button" class="tool" data-action="snap-settings" ${readonly ? 'disabled' : ''}>${icon('point')}<small data-copy="snapSettings">${t('snapSettings')}</small></button><button type="button" class="tool" data-tool="measure">${icon('measure')}<small data-copy="measure">${t('measure')}</small></button><span data-copy="view">${t('view')}</span></div>
       </nav>
       <div class="workspace ${this.#options.showLayers === false ? 'no-layers' : ''} ${this.#options.showInspector === false ? 'no-inspector' : ''}">
         <aside class="side layers" ${this.#options.showLayers === false ? 'hidden' : ''}><h2 data-copy="layers">${t('layers')}</h2><div data-layers></div></aside>
@@ -1677,6 +1702,13 @@ export class KJDrawWorkbench {
           <footer class="modify-actions"><button type="button" data-action="cancel-page" data-copy="cancel">${t('cancel')}</button><button type="button" data-action="apply-page" class="confirm" data-copy="apply">${t('apply')}</button></footer>
         </div>
       </dialog>
+      <dialog class="modify-dialog" data-snap-settings-dialog aria-label="${t('snapSettings')}">
+        <div class="modify-form">
+          <header class="modify-head"><h2 data-copy="snapSettings">${t('snapSettings')}</h2><p data-copy="snapSettingsDescription">${t('snapSettingsDescription')}</p></header>
+          <div class="modify-body"><p class="modify-description" data-copy="snapModes">${t('snapModes')}</p><div class="modify-fields" data-snap-modes>${KJ_SNAP_MODES.map((mode)=>`<label class="check"><input type="checkbox" data-snap-mode="${mode}"><span data-copy="${SNAP_MODE_COPY[mode]}">${t(SNAP_MODE_COPY[mode])}</span></label>`).join('')}</div><label class="field"><span data-copy="snapAperture">${t('snapAperture')}</span><input type="number" min="0.000001" step="any" required data-snap-aperture></label><p role="alert" data-snap-settings-error></p></div>
+          <footer class="modify-actions"><button type="button" data-action="cancel-snap-settings" data-copy="cancel">${t('cancel')}</button><button type="button" class="confirm" data-action="apply-snap-settings" data-copy="apply">${t('apply')}</button></footer>
+        </div>
+      </dialog>
       <dialog class="modify-dialog" data-dimension-style-dialog aria-label="${t('dimensionStyles')}">
         <div class="modify-form" data-dimension-style-form>
           <header class="modify-head"><h2 data-copy="dimensionStyles">${t('dimensionStyles')}</h2><p data-copy="dimensionStylesDescription">${t('dimensionStylesDescription')}</p></header>
@@ -1696,6 +1728,34 @@ export class KJDrawWorkbench {
         const signal = this.#abort.signal;
         query(this.root, '[data-drawing-layout]').addEventListener('change', (event)=>{
             void this.#run(()=>this.setDrawingLayout(event.currentTarget.value || null));
+        }, {
+            signal
+        });
+        const snapSettingsDialog = query(this.root, '[data-snap-settings-dialog]');
+        const snapSettingsButton = query(this.root, '[data-action="snap-settings"]');
+        snapSettingsButton.addEventListener('click', ()=>void this.#run(()=>this.#openSnapSettings()), {
+            signal
+        });
+        query(this.root, '[data-action="cancel-snap-settings"]').addEventListener('click', ()=>snapSettingsDialog.close(), {
+            signal
+        });
+        query(this.root, '[data-action="apply-snap-settings"]').addEventListener('click', ()=>void this.#applySnapSettings(), {
+            signal
+        });
+        snapSettingsDialog.addEventListener('close', ()=>{
+            this.#snapSettingsBinding = null;
+            queueMicrotask(()=>{
+                if (!this.#abort.signal.aborted && snapSettingsButton.isConnected) snapSettingsButton.focus();
+            });
+        }, {
+            signal
+        });
+        snapSettingsDialog.addEventListener('keydown', (event)=>{
+            if (event.key === 'Enter' && event.target === query(snapSettingsDialog, '[data-snap-aperture]')) {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!event.repeat && !event.isComposing) void this.#applySnapSettings();
+            }
         }, {
             signal
         });
@@ -3703,6 +3763,57 @@ export class KJDrawWorkbench {
             button.disabled = false;
         }
     }
+    #openSnapSettings() {
+        const drawing = this.document;
+        if (!drawing || this.#readOnly || this.#abort.signal.aborted) return;
+        this.#cancelGesture();
+        const settings = getDocumentSnapSettings(drawing);
+        this.#snapSettingsBinding = {
+            document: drawing,
+            revision: drawing.revision
+        };
+        const dialog = query(this.root, '[data-snap-settings-dialog]');
+        for (const input of dialog.querySelectorAll('[data-snap-mode]'))input.checked = settings.modes.includes(input.dataset.snapMode);
+        query(dialog, '[data-snap-aperture]').value = String(settings.aperture);
+        query(dialog, '[data-snap-settings-error]').textContent = '';
+        dialog.showModal();
+        queueMicrotask(()=>dialog.querySelector('[data-snap-mode]')?.focus());
+    }
+    async #applySnapSettings() {
+        const binding = this.#snapSettingsBinding, dialog = query(this.root, '[data-snap-settings-dialog]');
+        if (!binding || !dialog.open) return;
+        const button = query(dialog, '[data-action="apply-snap-settings"]');
+        if (button.disabled) return;
+        const aperture = query(dialog, '[data-snap-aperture]'), error = query(dialog, '[data-snap-settings-error]');
+        error.textContent = '';
+        if (!aperture.checkValidity() || !(Number(aperture.value) > 0)) {
+            error.textContent = this.#t('snapApertureError');
+            aperture.reportValidity();
+            return;
+        }
+        button.disabled = true;
+        try {
+            if (this.#readOnly) throw new Error(this.#t('readonly'));
+            if (this.document !== binding.document || binding.document.revision !== binding.revision) throw new Error(this.#t('pageStale'));
+            const modes = [
+                ...dialog.querySelectorAll('[data-snap-mode]:checked')
+            ].map((input)=>input.dataset.snapMode);
+            await this.execute('SNAPSETTINGS', {
+                modes,
+                radius: Number(aperture.value)
+            }, {
+                expectedRevision: binding.revision
+            });
+            dialog.close();
+            this.#setMessage(this.#t('snapSettingsApplied'));
+        } catch (reason) {
+            const message = reason instanceof Error ? reason.message : String(reason);
+            error.textContent = message;
+            this.#setMessage(message);
+        } finally{
+            button.disabled = false;
+        }
+    }
     #openPageSetup() {
         const drawing = this.document;
         if (!drawing || this.#readOnly || this.#abort.signal.aborted) return;
@@ -5280,6 +5391,9 @@ export class KJDrawWorkbench {
         const pageDialog = this.root.querySelector('[data-page-dialog]');
         if (pageDialog?.open) pageDialog.close();
         this.#pageBinding = null;
+        const snapSettingsDialog = this.root.querySelector('[data-snap-settings-dialog]');
+        if (snapSettingsDialog?.open) snapSettingsDialog.close();
+        this.#snapSettingsBinding = null;
         const dimensionStyleDialog = this.root.querySelector('[data-dimension-style-dialog]');
         if (dimensionStyleDialog?.open) dimensionStyleDialog.close();
         this.#dimensionStyleBinding = null;
@@ -7080,6 +7194,8 @@ export class KJDrawWorkbench {
         if (draftDialog) draftDialog.setAttribute('aria-label', this.#t('drawTitle'));
         const pageDialog = this.root.querySelector('[data-page-dialog]');
         if (pageDialog) pageDialog.setAttribute('aria-label', this.#t('pageSetup'));
+        const snapSettingsDialog = this.root.querySelector('[data-snap-settings-dialog]');
+        if (snapSettingsDialog) snapSettingsDialog.setAttribute('aria-label', this.#t('snapSettings'));
         this.#syncDraftActions();
         this.#canvas.setAttribute('aria-label', `${this.#t('drawing')} · KJDraw CAD`);
     }

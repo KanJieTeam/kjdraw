@@ -974,7 +974,13 @@ async function saveLocalProject(){
 }
 const localSave=$('save-local');localSave.hidden=!BrowserKjpFileBinding.supported();localSave.onclick=()=>run(saveLocalProject)
 outputControls=createOutputControls({getContext:()=>({sdk,document:doc()}),locale:()=>i18n.locale,select:$('output-layout'),request:requestLocalCommand,run,execute,download,message,currentBounds:()=>{const a=world([0,height]),b=world([width,0]);return [a[0],a[1],b[0],b[1]]},title:documentTitle})
-const hotkeySettingsUI=createHotkeySettingsUI({locale:()=>i18n.locale,getSettings:()=>hotkeySettings,onApply:settings=>{hotkeySettings=settings;message(i18n.locale==='zh'?'快捷键设置已生效':'Keyboard shortcuts updated')}})
+const hotkeySettingsUI=createHotkeySettingsUI({
+  locale:()=>i18n.locale,
+  getSettings:()=>hotkeySettings,
+  onApply:settings=>{hotkeySettings=settings;message(i18n.locale==='zh'?'快捷键设置已生效':'Keyboard shortcuts updated')},
+  getSnapSettings:()=>getDocumentSnapSettings(doc()),
+  onApplySnap:async settings=>{await execute('SNAPSETTINGS',{modes:settings.modes,radius:settings.aperture});message(i18n.locale==='zh'?'对象捕捉设置已生效':'Object snap settings updated')},
+})
 $('settings').onclick=()=>hotkeySettingsUI.open()
 $('page-setup').onclick=outputControls.setup
 $('dimension-styles').onclick=()=>run(manageDimensionStyles)

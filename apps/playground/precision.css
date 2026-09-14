@@ -260,9 +260,24 @@ summary { cursor: pointer; color: var(--kj-muted); }
 .hotkey-settings-dialog header { padding: 22px 24px 10px; }
 .hotkey-settings-dialog h2 { margin: 0 0 8px; font-size: 20px; }
 .hotkey-settings-dialog header p { margin: 0; color: var(--kj-muted); font-size: 13px; line-height: 1.6; }
-.hotkey-settings-dialog form > label { display: grid; gap: 5px; padding: 0 24px 12px; color: var(--kj-muted); font-size: 12px; }
+.settings-tabs { display: flex; gap: 4px; padding: 0 24px 12px; border-bottom: 1px solid var(--kj-border); }
+.settings-tabs button { flex: 1; min-height: 36px; border: 1px solid var(--kj-border); background: var(--kj-surface-subtle); color: var(--kj-muted); }
+.settings-tabs button[aria-selected="true"] { border-color: var(--kj-action); background: var(--kj-action-soft); color: var(--kj-action); font-weight: 700; }
 .hotkey-settings-notice { margin: 0 24px 10px; padding: 8px 10px; border-radius: 5px; background: var(--kj-action-soft); color: var(--kj-action); font-size: 12px; }
+.hotkey-settings-panel { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+.hotkey-settings-panel[hidden], .snap-settings-panel[hidden] { display: none; }
+.hotkey-settings-panel > label { display: grid; gap: 5px; padding: 12px 24px; color: var(--kj-muted); font-size: 12px; }
 .hotkey-settings-list { min-height: 0; overflow-y: auto; border-block: 1px solid var(--kj-border); }
+.snap-settings-panel { min-height: 0; overflow-y: auto; padding: 18px 24px; }
+.snap-settings-panel fieldset { margin: 0; padding: 0; border: 0; }
+.snap-settings-panel legend { margin-bottom: 10px; font-size: 13px; font-weight: 700; color: var(--kj-text); }
+.snap-mode-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.snap-mode-grid label { display: flex; align-items: center; gap: 9px; min-height: 38px; padding: 7px 10px; border: 1px solid var(--kj-border); border-radius: 6px; background: var(--kj-surface-subtle); }
+.snap-mode-grid input { width: 16px; height: 16px; accent-color: var(--kj-action); }
+.snap-settings-panel > label { display: grid; gap: 6px; max-width: 280px; margin-top: 18px; color: var(--kj-text); font-size: 13px; font-weight: 700; }
+.snap-settings-panel > label small { color: var(--kj-muted); font-size: 11px; font-weight: 400; }
+.snap-settings-panel > label input { width: 100%; }
+.snap-settings-panel > label input[aria-invalid="true"] { border-color: #c54859; box-shadow: 0 0 0 2px #c5485918; }
 .hotkey-setting-row { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(220px, 1fr); align-items: center; gap: 5px 16px; padding: 10px 24px; border-bottom: 1px solid var(--kj-border); }
 .hotkey-setting-row:last-child { border-bottom: 0; }
 .hotkey-setting-row > span { min-width: 0; }
@@ -274,6 +289,9 @@ summary { cursor: pointer; color: var(--kj-muted); }
 .hotkey-settings-dialog footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 24px 18px; }
 .hotkey-settings-dialog footer #hotkey-restore { margin-right: auto; }
 @media (max-width: 600px) {
+  .settings-tabs { padding-inline: 16px; }
+  .snap-settings-panel { padding-inline: 16px; }
+  .snap-mode-grid { grid-template-columns: 1fr; }
   .hotkey-setting-row { grid-template-columns: 1fr; padding-inline: 16px; }
   .hotkey-row-error { grid-column: 1; }
   .hotkey-settings-dialog footer { padding-inline: 16px; }
