@@ -9,7 +9,7 @@ import { prepareChatRoadAsset } from './chat-road-asset.js'
 // This workbench exposes general geometry and annotated creation tools; SDK callers and locked capability packs keep their own policies.
 export const KJDRAW_CHAT_TOOL_NAMES = Object.freeze([
   'cad_read_drawing', 'cad_read_page', 'cad_query_drawing', 'cad_query_topology', 'cad_read_layouts', 'cad_read_designs', 'cad_read_components', 'cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update',
-  'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet',
+  'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet',
   'cad_propose_architecture_plan',
 ])
 const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES.filter(name=>!['cad_propose_manufacturing_sheet','cad_propose_architecture_plan'].includes(name)), 'cad_propose_site_plan', 'cad_propose_road_drawing'])
@@ -102,6 +102,7 @@ const copy = {
   review: ['Review proposed changes', '检查绘图方案'], preview: ['Preview on drawing', '在图中预览'], approve: ['Apply changes', '应用修改'], reject: ['Discard', '放弃方案'],
   pending: ['Your drawing is unchanged. Review before applying.', '当前图纸尚未修改，请检查后再应用。'],
   selectionSet: ['Selection set', '选择集'], selectionMembers: ['Target objects', '目标对象'],
+  layerChange: ['Layer assignment', '图层调整'], unchangedObjects: ['already assigned', '已在目标层'],
   parameters: ['Parameter changes', '参数修改'],
   newParameter: ['New', '新增'], relations: ['Geometry bindings', '几何关联'], requirements: ['Requirements', '要求'],
   applied: ['Changes applied', '修改已应用'], rejected: ['Proposal discarded. Drawing unchanged.', '已放弃方案，图纸未改变。'],
@@ -285,6 +286,13 @@ export function createAgentChat(container, options) {
       heading.append(label(element('b'),'selectionSet'),element('span','',` · ${selection.name} · ${selection.memberIds.length}`))
       details.append(heading,label(element('p'),'selectionMembers'))
       for(const id of selection.memberIds)details.append(element('p','chat-selection-member',id))
+      card.insertBefore(details,state)
+    }
+    if(proposal.layerChange){
+      const change=proposal.layerChange, details=element('div','chat-layer-change')
+      const source=change.sourceLayers.map(layer=>layer.name||layer.id).join(', '), target=change.targetLayer.name||change.targetLayer.id
+      details.append(element('p','',`${L('layerChange')} · ${source} → ${target}`))
+      if(change.unchangedIds.length)details.append(element('p','',`${change.unchangedIds.length} ${L('unchangedObjects')}`))
       card.insertBefore(details,state)
     }
     const designChange=proposal.preview.designChange

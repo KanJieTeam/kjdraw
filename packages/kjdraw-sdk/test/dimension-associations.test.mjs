@@ -47,6 +47,20 @@ test('associative linear dimensions update atomically across every 1.0 geometry 
   assert.deepEqual(drawing.getObject(dimension.id).payload.definitionPoints, scaled)
 })
 
+test('PROPERTIES preserves associative dimension caches for layer/style metadata and still refreshes geometry patches', async () => {
+  const { sdk, drawing, line, dimension } = await lineFixture()
+  const target = await sdk.executeCommand('LAYERNEW', { name: 'DETAIL' }, { document: drawing })
+  await drawing.transact('Retain an imported dimension cache', tx => tx.updateObject(dimension.id, { payload: { measurement: 10, blockName: '*D-CACHE' } }))
+  const cached = structuredClone(drawing.getObject(dimension.id).payload)
+  await sdk.executeCommand('PROPERTIES', { id: line.id, patch: { payload: { layerId: target.id, color: 2, lineweight: 35, linetypeScale: 1.25 } } }, { document: drawing })
+  assert.deepEqual(drawing.getObject(dimension.id).payload, cached)
+  await sdk.executeCommand('PROPERTIES', { id: line.id, patch: { payload: { end: [20, 0, 0] } } }, { document: drawing })
+  assert.deepEqual(drawing.getObject(dimension.id).payload.definitionPoints.slice(1, 3), [[0, 0, 0], [20, 0, 0]])
+  assert.equal(drawing.getObject(dimension.id).payload.measurement, null)
+  assert.equal(drawing.getObject(dimension.id).payload.blockName, null)
+  assert.equal(measurement(drawing, dimension.id), 20)
+})
+
 test('radius, diameter and angular associations survive KJD and export updated native DXF geometry', async () => {
   const sdk = createKJDrawSDK(), drawing = sdk.createDocument({ documentId: 'associative-native-types', units: 'millimeter' })
   await drawing.transact('Referenced geometry', tx => {

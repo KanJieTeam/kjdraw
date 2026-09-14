@@ -449,6 +449,7 @@ export async function createAgentGeometryPreview(document, command, args, option
         'STRETCH',
         'LENGTHEN',
         'PEDIT',
+        'PROPERTIES',
         'DESIGNCREATE',
         'DESIGNUPDATE'
     ].includes(command)) throw new KJValidationError('Unsupported core preview command');
@@ -518,6 +519,34 @@ export async function createAgentGeometryPreview(document, command, args, option
             if (ids.some((id)=>typeof id !== 'string') || new Set(ids).size !== ids.length) throw new KJValidationError('STRETCH object IDs must be unique strings');
             if (ids.some((id)=>!stretchable.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`STRETCH preview requires 1–64 ${stretchable.join('/')} entities`);
             for (const id of ids)validateStretchGeometry(document, document.getObject(String(id)));
+        } else if (command === 'PROPERTIES') {
+            if (Object.keys(args).some((key)=>![
+                    'ids',
+                    'patch'
+                ].includes(key)) || ids.some((id)=>typeof id !== 'string') || new Set(ids).size !== ids.length) throw new KJValidationError('Relayer preview requires only 1–64 unique entity IDs and one layer patch');
+            const patch = args.patch;
+            if (!patch || typeof patch !== 'object' || Array.isArray(patch) || ![
+                Object.prototype,
+                null
+            ].includes(Object.getPrototypeOf(patch)) || Object.keys(patch).length !== 1 || !Object.hasOwn(patch, 'payload')) throw new KJValidationError('Relayer preview requires exactly patch.payload.layerId');
+            const payload = patch.payload;
+            if (!payload || typeof payload !== 'object' || Array.isArray(payload) || ![
+                Object.prototype,
+                null
+            ].includes(Object.getPrototypeOf(payload)) || Object.keys(payload).length !== 1 || !Object.hasOwn(payload, 'layerId') || typeof payload.layerId !== 'string') throw new KJValidationError('Relayer preview requires exactly patch.payload.layerId');
+            const layerId = payload.layerId;
+            const targetLayer = document.getTable('layers')?.records.find((layer)=>!layer.erased && layer.id === layerId);
+            if (!targetLayer || targetLayer.kind !== 'table-record' || targetLayer.type !== 'LAYER') throw new KJValidationError(`Relayer target layer ID does not exist: ${layerId}`);
+            if (targetLayer.payload.visible === false || targetLayer.payload.frozen === true || targetLayer.payload.locked === true) throw new KJValidationError('Relayer target layer must be visible, thawed and unlocked');
+            for (const id of ids){
+                const entity = document.getObject(String(id));
+                if (!entity || entity.erased || entity.kind !== 'entity') throw new KJValidationError(`Relayer entity does not exist: ${String(id)}`);
+                const sourceLayerId = effectiveLayerId(document, entity);
+                const sourceLayer = document.getTable('layers')?.records.find((layer)=>!layer.erased && layer.kind === 'table-record' && layer.type === 'LAYER' && layer.id === sourceLayerId);
+                if (!sourceLayer) throw new KJValidationError(`Relayer source layer does not exist: ${String(sourceLayerId)}`);
+                requireEditableAgentMember(document, entity, 'Relayer entity');
+                if (sourceLayer.id === layerId) throw new KJValidationError(`Relayer command contains an unchanged entity: ${entity.id}`);
+            }
         } else if (command !== 'LENGTHEN' && command !== 'OFFSET' && command !== 'DESIGNUPDATE' && command !== 'DESIGNCREATE') {
             if (ids.some((id)=>!KJDRAW_AGENT_MOVABLE_TYPES.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`Preview movement requires 1–64 ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} entities`);
             for (const id of ids)validateMovableAnnotation(document, document.getObject(String(id)));
@@ -585,6 +614,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     if (command === 'STRETCH' && !after.length) throw new KJValidationError('STRETCH would leave the selected geometry unchanged');
     if (command === 'LENGTHEN' && !after.length) throw new KJValidationError('LENGTHEN would leave the selected geometry unchanged');
     if (command === 'PEDIT' && !after.length) throw new KJValidationError('Polyline edit would leave the selected geometry unchanged');
+    if (command === 'PROPERTIES' && (before.length !== ids.length || after.length !== ids.length)) throw new KJValidationError('Relayer preview must include complete before and after payloads for every changed entity');
     if (before.length > 64 || after.length > (command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? maxCreatedEntities : 64)) throw new KJValidationError('Preview exceeds the changed-entity limit');
     const resources = draft.listObjects().filter((item)=>(item.kind === 'table-record' || item.kind === 'block-record') && !document.getObject(item.id)).map((item)=>({
             id: item.id,

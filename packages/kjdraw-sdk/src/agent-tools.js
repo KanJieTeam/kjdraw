@@ -460,6 +460,25 @@ const scaleSchema = {
             'selectionSetName'
         ].includes(name))
 };
+const relayerSchemaBase = object({
+    expectedRevision: revision,
+    units: text,
+    ids: collection(text),
+    selectionSetName,
+    layerId: text,
+    maxBytes: {
+        type: 'integer',
+        minimum: 1024,
+        maximum: 262144
+    }
+});
+const relayerSchema = {
+    ...relayerSchemaBase,
+    required: relayerSchemaBase.required.filter((name)=>![
+            'ids',
+            'selectionSetName'
+        ].includes(name))
+};
 const offsetSchema = object({
     expectedRevision: revision,
     units: text,
@@ -1413,6 +1432,12 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         inputSchema: moveSchema
     },
     {
+        name: 'cad_propose_relayer',
+        effect: 'propose',
+        description: 'Propose assigning one exact target to an existing layer: either 1–64 exact editable model-space entity IDs, or one persistent named selectionSetName discovered with cad_read_selection_sets. Never supply both. layerId is an exact layer record ID, not a layer name; the target layer and every source layer must be visible, thawed and unlocked. Owned native LEADER + MTEXT annotations expand to their exact pair. HATCH boundaries/associations, INSERT block and attribute references, dimensions, design relations and selection memberships remain unchanged because only layerId is patched; blocks and hatches are not exploded or inferred. Entities already on the target layer are returned as unchangedIds and are excluded from the command; an entirely unchanged request is rejected. maxBytes bounds the complete proposal response and never permits truncation. Returns complete before/after native payloads without editing; host approval applies one undoable PROPERTIES transaction.',
+        inputSchema: relayerSchema
+    },
+    {
         name: 'cad_propose_copy',
         effect: 'propose',
         description: `Propose one exact nonzero XY copy of either 1–64 visible editable model-space ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} IDs or one persistent named selectionSetName. Never supply both. KJDraw allocates stable result IDs before preview so the reviewed entities are exactly the entities committed on approval. Owned LEADER + MTEXT pairs expand and copy together; associative DIMENSION requires every referenced source in the same copy. INSERT must be a bounded local block graph without attached attributes or external references. Unsupported, protected, incomplete, ambiguous or out-of-budget geometry is rejected before a plan exists. The model supplies source identity and dx/dy only. Returns complete new native geometry and dependencies without editing; host approval applies one undoable COPY transaction.`,
@@ -2190,6 +2215,8 @@ export class KJAgentToolSession {
                         let engineeringEvidence;
                         let sourceAsset;
                         let selectionSet;
+                        let unchangedIds;
+                        let layerChange;
                         if (name === 'cad_propose_component_insert') {
                             const parameters = args.parameters;
                             if (new Set(parameters.map((parameter)=>parameter.name)).size !== parameters.length) throw new KJValidationError('Component parameter names must be unique');
@@ -2390,6 +2417,57 @@ export class KJAgentToolSession {
                                         change.name,
                                         change.value
                                     ]))
+                            };
+                        } else if (name === 'cad_propose_relayer') {
+                            const byIds = Object.hasOwn(args, 'ids'), bySelectionSet = Object.hasOwn(args, 'selectionSetName');
+                            if (byIds === bySelectionSet) throw new KJValidationError('Relayer requires exactly one of ids or selectionSetName');
+                            selectionSet = bySelectionSet ? selectionSetRecord(document, args.selectionSetName) : undefined;
+                            const requestedIds = selectionSet?.memberIds ?? args.ids;
+                            const ids = resolveAgentTransformEntityIds(document, requestedIds);
+                            if (new Set(ids).size !== ids.length) throw new KJValidationError('Relayer object IDs must be unique');
+                            const targetLayer = document.getTable('layers')?.records.find((layer)=>!layer.erased && layer.id === args.layerId);
+                            if (!targetLayer || targetLayer.kind !== 'table-record' || targetLayer.type !== 'LAYER') throw new KJValidationError(`Relayer target layer ID does not exist: ${String(args.layerId)}`);
+                            if (targetLayer.payload.visible === false || targetLayer.payload.frozen === true || targetLayer.payload.locked === true) throw new KJValidationError('Relayer target layer must be visible, thawed and unlocked');
+                            const currentLayers = new Map();
+                            const changedIds = [];
+                            unchangedIds = [];
+                            for (const id of ids){
+                                const entity = document.getObject(id);
+                                if (!entity || entity.erased || entity.kind !== 'entity') throw new KJValidationError(`Relayer entity does not exist: ${id}`);
+                                const sourceLayerId = String(entity.payload.layerId ?? document.getTable('layers')?.records.find((layer)=>!layer.erased && layer.kind === 'table-record' && layer.type === 'LAYER' && layer.name === '0')?.id ?? '');
+                                const sourceLayer = document.getTable('layers')?.records.find((layer)=>!layer.erased && layer.kind === 'table-record' && layer.type === 'LAYER' && layer.id === sourceLayerId);
+                                if (entity.ownerId !== document.spaces.modelSpaceId || entity.payload.visible === false || entity.payload.frozen === true || entity.payload.locked === true || !sourceLayer || sourceLayer.payload.visible === false || sourceLayer.payload.frozen === true || sourceLayer.payload.locked === true) throw new KJValidationError(`Relayer entity must be visible and editable in model space: ${id}`);
+                                currentLayers.set(sourceLayer.id, {
+                                    id: sourceLayer.id,
+                                    name: sourceLayer.name
+                                });
+                                if (sourceLayer.id === targetLayer.id) unchangedIds.push(id);
+                                else changedIds.push(id);
+                            }
+                            if (!changedIds.length) throw new KJValidationError('Relayer target is already assigned to the requested layer');
+                            command = 'PROPERTIES';
+                            commandArgs = {
+                                ids: changedIds,
+                                patch: {
+                                    payload: {
+                                        layerId: targetLayer.id
+                                    }
+                                }
+                            };
+                            layerChange = {
+                                targetLayer: {
+                                    id: targetLayer.id,
+                                    name: targetLayer.name
+                                },
+                                sourceLayers: [
+                                    ...currentLayers.values()
+                                ],
+                                changedIds: [
+                                    ...changedIds
+                                ],
+                                unchangedIds: [
+                                    ...unchangedIds
+                                ]
                             };
                         } else if (name === 'cad_propose_lengthen') {
                             const dynamic = args.mode === 'DYNAMIC';
@@ -2635,6 +2713,14 @@ export class KJAgentToolSession {
                             } : {},
                             ...selectionSet ? {
                                 selectionSet: structuredClone(selectionSet)
+                            } : {},
+                            ...unchangedIds ? {
+                                unchangedIds: [
+                                    ...unchangedIds
+                                ]
+                            } : {},
+                            ...layerChange ? {
+                                layerChange: structuredClone(layerChange)
                             } : {}
                         };
                         if ([
@@ -2644,6 +2730,10 @@ export class KJAgentToolSession {
                             ok: true,
                             value
                         })).length > 1048576) throw new KJValidationError('Road tool proposal exceeds the 1 MiB output limit');
+                        if (name === 'cad_propose_relayer' && new TextEncoder().encode(JSON.stringify({
+                            ok: true,
+                            value
+                        })).length > Number(args.maxBytes)) throw new KJValidationError('Relayer proposal exceeds maxBytes; increase the exact response budget');
                         await this.#sdk.executeCommandEnvelope(envelope, {
                             document
                         });

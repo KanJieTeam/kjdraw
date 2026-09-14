@@ -611,7 +611,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
       if (args.ids == null) {
         assertGenericPropertyBoundary(document, args.id, args.patch)
         const updated = transaction.updateObject(args.id!, args.patch)
-        refreshAssociativeDimensions(transaction, [updated.id])
+        if (propertyPatchMayChangeGeometry(args.patch)) refreshAssociativeDimensions(transaction, [updated.id])
         return updated
       }
       if (args.id != null) throw new KJValidationError('PROPERTIES accepts either id or ids, not both')
@@ -625,7 +625,7 @@ export function registerCoreCommands(registry: KJCommandRegistry): () => void {
         assertGenericPropertyBoundary(document, id, args.patch)
       }
       const updated = ids.map(id => transaction.updateObject(id, args.patch))
-      refreshAssociativeDimensions(transaction, ids)
+      if (propertyPatchMayChangeGeometry(args.patch)) refreshAssociativeDimensions(transaction, ids)
       return updated
     },
   }, { owner: '@kanjieteam/kjdraw' }))
@@ -1998,6 +1998,19 @@ function validateDrawingPropertiesPatch(document: KJDocument, patch: KJObjectPat
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw new KJValidationError('linetypeScale must be positive and finite')
   }
   if (Object.hasOwn(payload, 'linetypeId') && payload.linetypeId != null) resolveTableRecord(document, 'linetypes', payload.linetypeId)
+}
+
+// These fields change only display/edit metadata. Treat every other payload
+// field as geometry-affecting so new entity geometry cannot bypass associative
+// dimension refresh when PROPERTIES grows additional editable fields.
+const KJ_NON_GEOMETRY_PROPERTY_FIELDS = new Set([
+  'layerId', 'color', 'trueColor', 'lineweight', 'linetypeId', 'linetypeName',
+  'linetypeScale', 'visible', 'locked', 'frozen', 'plottable',
+])
+
+function propertyPatchMayChangeGeometry(patch: KJObjectPatch | undefined): boolean {
+  const payload = patch?.payload
+  return Boolean(payload && Object.keys(payload).some(field => !KJ_NON_GEOMETRY_PROPERTY_FIELDS.has(field)))
 }
 
 function resolveTableRecord(document: KJDocument, tableName: KJTableName, value: unknown): KJReadonlyObjectRecord {

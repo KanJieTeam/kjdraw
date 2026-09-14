@@ -931,7 +931,7 @@ export function registerCoreCommands(registry) {
             if (args.ids == null) {
                 assertGenericPropertyBoundary(document, args.id, args.patch);
                 const updated = transaction.updateObject(args.id, args.patch);
-                refreshAssociativeDimensions(transaction, [
+                if (propertyPatchMayChangeGeometry(args.patch)) refreshAssociativeDimensions(transaction, [
                     updated.id
                 ]);
                 return updated;
@@ -949,7 +949,7 @@ export function registerCoreCommands(registry) {
                 assertGenericPropertyBoundary(document, id, args.patch);
             }
             const updated = ids.map((id)=>transaction.updateObject(id, args.patch));
-            refreshAssociativeDimensions(transaction, ids);
+            if (propertyPatchMayChangeGeometry(args.patch)) refreshAssociativeDimensions(transaction, ids);
             return updated;
         }
     }, {
@@ -3407,6 +3407,23 @@ function validateDrawingPropertiesPatch(document, patch) {
         if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw new KJValidationError('linetypeScale must be positive and finite');
     }
     if (Object.hasOwn(payload, 'linetypeId') && payload.linetypeId != null) resolveTableRecord(document, 'linetypes', payload.linetypeId);
+}
+const KJ_NON_GEOMETRY_PROPERTY_FIELDS = new Set([
+    'layerId',
+    'color',
+    'trueColor',
+    'lineweight',
+    'linetypeId',
+    'linetypeName',
+    'linetypeScale',
+    'visible',
+    'locked',
+    'frozen',
+    'plottable'
+]);
+function propertyPatchMayChangeGeometry(patch) {
+    const payload = patch?.payload;
+    return Boolean(payload && Object.keys(payload).some((field)=>!KJ_NON_GEOMETRY_PROPERTY_FIELDS.has(field)));
 }
 function resolveTableRecord(document, tableName, value) {
     const table = document?.getTable(tableName);
