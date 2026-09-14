@@ -92,3 +92,10 @@
 .chat-data-attachment details, .chat-sent-data { min-width: 0; max-width: 100%; }
 .chat-data-attachment summary, .chat-sent-data summary { cursor: pointer; overflow-wrap: anywhere; font-size: 11px; }
 .chat-data-attachment pre, .chat-sent-data pre { max-height: 160px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.5 var(--kj-mono); }
+.chat-persisted-tasks { min-width: 0; max-height: 220px; overflow: auto; margin: 6px 0 10px; font-size: 11px; border-bottom: 1px solid var(--kj-border); }
+.chat-persisted-tasks summary { cursor: pointer; padding: 5px 0; overflow-wrap: anywhere; }
+.chat-persisted-tasks select { width: 100%; min-width: 0; margin: 5px 0; }
+.chat-persisted-tasks pre { max-height: 130px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.4 var(--kj-mono); }
+.chat-task-details p, .chat-task-receipt { overflow-wrap: anywhere; }
+.chat-persisted-tasks .chat-task-error { color: #a82a37; }
+.chat-persisted-tasks .chat-task-error:empty { display: none; }

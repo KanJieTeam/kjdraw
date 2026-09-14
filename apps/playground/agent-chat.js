@@ -3,6 +3,9 @@ import { KJModelError } from '../../packages/kjdraw-sdk/src/model-adapters.js'
 import { createChatModelAdapter, CHAT_OUTPUT_TOKEN_LIMITS, readChatModelResponse } from './chat-model-settings.js'
 import { CHAT_MODEL_PROVIDER_PRESETS, formatChatModelUpstreamEndpoint, getChatModelAdapterOptions, getChatModelProviderPreset } from './chat-model-presets.js'
 import { runKJAgentTask } from '../../packages/kjdraw-sdk/src/agent-runner.js'
+import { runPersistedKJAgentTask } from '../../packages/kjdraw-sdk/src/agent-task-runner.js'
+import { readAgentTasks } from '../../packages/kjdraw-sdk/src/agent-tasks.js'
+import { selectChatPersistedTask, startChatPersistedTask } from './chat-persisted-task.js'
 import { parseChatDataAttachment, chatDataAttachmentPrompt } from './chat-data-attachment.js'
 import { prepareChatRoadAsset } from './chat-road-asset.js'
 import { capabilityReference, createKJDrawBuiltinCapabilityRegistry, matchKJDrawBuiltinCapability } from '../../packages/kjdraw-sdk/src/agent-builtin-capabilities.js'
@@ -61,6 +64,13 @@ export function getKJDrawChatCapabilityForRequest(document,request) {
 const copy = {
   title: ['KJDraw AI', 'KJDraw AI'], newChat: ['New conversation', '新对话'], connect: ['Connect model', '连接模型'],
   geometryChecks: ['Geometry checks', '几何检查'], passed: ['Passed', '通过'], checkFailed: ['Failed', '未通过'],
+  savedTasks: ['Saved drawing tasks', '图纸中的持久任务'], chooseTask: ['Select a task to review…', '选择任务并审阅…'],
+  runTask: ['Execute reviewed task', '执行已审阅任务'], taskScope: ['Locked object scope', '锁定对象范围'], taskTools: ['Locked tools', '锁定工具'],
+  taskNotice: ['Review the goal, exact checks, scope and tools before executing. Starting records task status; geometry still requires a separate approval. Imported tasks never run automatically.', '执行前请审阅目标、精确验收条件、对象范围与工具。启动会记录任务状态；图形仍须另行审批。导入任务不会自动执行。'],
+  taskSeparate: ['Send or clear the new message and attachments before executing a saved task. They do not replace its saved requirements.', '执行持久任务前，请先发送或清空新消息及附件；它们不会替换已保存的任务要求。'],
+  taskUnavailable: ['This task cannot run here. Check its status, drawing revision, scoped objects, tool contract and deterministic acceptance checks. No model request was made.', '该任务无法在此执行。请检查状态、图纸版本、对象范围、工具契约及确定性验收条件。未发送模型请求。'],
+  taskApprovalFailed: ['Task approval did not complete. No completion receipt is shown; inspect the drawing and task before retrying.', '任务审批未完成，不显示完成回执；请检查图纸和任务后再重试。'],
+  taskReceipt: ['Committed task receipt', '任务提交回执'],
   actual: ['Actual', '实测'], expected: ['Expected', '目标'], tolerance: ['Tolerance', '容差'], check: ['Check', '检查项'],
   checkScope: ['Checks the supplied requirements at this revision; does not certify the complete design.', '仅检查该版本中提供的要求，不代表整张图纸已完成验收。'],
   offline: ['No model connected', '尚未连接模型'], configured: ['Model configured', '模型已配置'],
@@ -125,6 +135,7 @@ export function createAgentChat(container, options) {
   let binding = null, tools = null, model = null, modelLabel = '', controller = null, epoch = 0, pending = [], overlay = null, applying = false
   let streamTarget = null, streamText = ''
   let dataAttachment = null, dataGeneration = 0, dataLoading = false
+  let taskSelection = null, taskListDocument = null, taskListRevision = -1
   const history = [], translated = []
   const label = (node, key, property = 'textContent') => { translated.push([node,key,property]); node[property] = L(key); return node }
   const button = (key, className = '') => { const node = label(element('button', className), key); node.type = 'button'; return node }
@@ -192,6 +203,9 @@ export function createAgentChat(container, options) {
   for (const key of ['inspect','draft']) { const chip = button(key); chip.onclick = () => { input.value=L(`${key}Prompt`); input.focus() }; chips.append(chip) }
   welcome.append(chips); log.append(welcome)
   const composer = element('div','chat-composer'), context = element('div','chat-context')
+  const taskPanel=element('details','chat-persisted-tasks'), taskSelect=element('select'), taskDetails=element('div','chat-task-details'), taskRun=button('runTask'), taskError=element('p','chat-task-error')
+  taskSelect.id='chat-task-select';label(taskSelect,'savedTasks','ariaLabel');taskRun.id='chat-task-run';taskRun.disabled=true;taskError.setAttribute('role','alert')
+  taskPanel.append(label(element('summary'),'savedTasks'),taskSelect,taskDetails,taskRun,taskError)
   const input = element('textarea'); input.id='chat-input'; input.rows=3; input.maxLength=4000
   label(input,'input','placeholder'); label(input,'input','ariaLabel')
   const footer = element('div','chat-composer-actions'), send = button('send','chat-send'), stop = button('stop','chat-stop')
@@ -220,7 +234,7 @@ export function createAgentChat(container, options) {
     finally{if(generation===dataGeneration&&binding===source){dataLoading=false;send.disabled=false}}
   }
   const hint = label(element('small'),'help'); footer.append(connection,stop,send)
-  composer.append(context,input,attachLabel,dataBox,footer,hint)
+  composer.append(context,taskPanel,input,attachLabel,dataBox,footer,hint)
   container.append(header,settings,log,legacy,composer)
 
   function append(role, text, record = true) {
@@ -231,7 +245,40 @@ export function createAgentChat(container, options) {
     if (record) { history.push({ role: role==='user'?'user':'assistant', text: text.slice(0,12000) }); if(history.length>100)history.shift() }
     return item
   }
-  function busy(value) { attach.disabled=value; dataPick.disabled=value; dataRemove.disabled=value; input.disabled=value; send.hidden=value; stop.hidden=!value; connection.disabled=value; configure.disabled=value; disconnect.disabled=value }
+  function busy(value) { taskSelect.disabled=value;taskRun.disabled=value||!taskSelection;attach.disabled=value; dataPick.disabled=value; dataRemove.disabled=value; input.disabled=value; send.hidden=value; stop.hidden=!value; connection.disabled=value; configure.disabled=value; disconnect.disabled=value }
+  function renderTask(task) {
+    taskDetails.replaceChildren()
+    if(!task)return
+    taskDetails.append(element('p','',`${task.title} · ${task.status} · v${task.taskVersion} · ${task.units}`),element('p','chat-task-goal',task.goal),element('p','',L('taskNotice')))
+    for(const requirement of task.definition.requirements){
+      const details=element('details','chat-task-requirement')
+      details.append(element('summary','',`${requirement.id}: ${requirement.description}`),element('pre','',JSON.stringify(requirement.check,null,2)));taskDetails.append(details)
+    }
+    for(const [key,value]of [['taskScope',task.scope],['taskTools',task.definition.tools],['requirements',task.definition.steps]]){
+      const details=element('details');details.append(element('summary','',L(key)),element('pre','',JSON.stringify(value,null,2)));taskDetails.append(details)
+    }
+    if(task.definition.capabilities.length)taskDetails.append(element('pre','',JSON.stringify(task.definition.capabilities,null,2)))
+    for(const receipt of task.receipts){const details=element('details');details.append(element('summary','',`${L('taskReceipt')} · REV ${receipt.afterRevision}`),element('pre','',JSON.stringify(receipt,null,2)));taskDetails.append(details)}
+  }
+  function syncTasks(force=false) {
+    const source=binding.document
+    if(!force&&taskListDocument===source&&taskListRevision===source.revision)return
+    taskListDocument=source;taskListRevision=source.revision;taskSelection=null;taskRun.disabled=true;taskError.textContent='';renderTask(null)
+    const placeholder=element('option','',L('chooseTask'));placeholder.value='';taskSelect.replaceChildren(placeholder)
+    try{
+      const tasks=readAgentTasks(source);taskPanel.hidden=!tasks.length
+      for(const task of tasks){const option=element('option','',`${task.title} · ${task.status} · v${task.taskVersion}`);option.value=task.id;taskSelect.append(option)}
+    }catch{taskPanel.hidden=false;taskError.textContent=L('taskUnavailable')}
+  }
+  taskSelect.onchange=()=>{
+    taskSelection=null;taskRun.disabled=true;taskError.textContent='';renderTask(null)
+    if(controller||applying||!taskSelect.value)return
+    try{
+      const selection=selectChatPersistedTask(binding.document,taskSelect.value),task=readAgentTasks(binding.document,[selection.taskId])[0]
+      renderTask(task)
+      if(['ready','running'].includes(task.status)){taskSelection=selection;taskRun.disabled=false}
+    }catch{taskError.textContent=L('taskUnavailable')}
+  }
   function cancelProposals(reason = 'chat-discard') {
     for (const item of pending) { tools?.reject(item.proposal.planId,reason); item.actions.querySelectorAll('button').forEach(button=>button.disabled=true) }
     pending=[]; overlay=null; options.onPreview()
@@ -246,6 +293,7 @@ export function createAgentChat(container, options) {
       cancelProposals('chat-stale'); append('assistant',L('stale'))
     }
     context.textContent=`${L('context')} · ${next.document.snapshot().header.units} · REV ${next.document.revision}`
+    syncTasks()
   }
   function setConnection(next, text='') {
     model=next; modelLabel=text
@@ -272,13 +320,14 @@ export function createAgentChat(container, options) {
   const settingsEscape=event=>{if(event.key==='Escape'&&!settings.hidden){event.preventDefault();closeSettings()}}
   document.addEventListener('keydown',settingsEscape)
   connection.setAttribute('aria-expanded','false')
-  function showProposal(proposal) {
+  function showProposal(proposal, persistedTask = null) {
     const card=append('assistant',L('review'),false), summary=element('p','chat-proposal-summary')
     const types=[...new Set(proposal.preview.after.map(item=>item.type))].join(', ')
     summary.textContent=`${proposal.preview.before.length} → ${proposal.preview.after.length} · ${types}`
     const state=element('p','chat-proposal-state',L('pending')), actions=element('div','chat-card-actions')
     const preview=button('preview'), approve=button('approve','chat-primary'), reject=button('reject')
     actions.append(preview,approve,reject); card.append(summary,state,actions)
+    if(persistedTask)card.insertBefore(element('p','chat-task-proposal',`${L('savedTasks')} · ${persistedTask.id} · v${persistedTask.version}`),state)
     if(proposal.selectionSet){
       const selection=proposal.selectionSet, details=element('details','chat-selection-target'), heading=element('summary')
       heading.append(label(element('b'),'selectionSet'),element('span','',` · ${selection.name} · ${selection.memberIds.length}`))
@@ -341,25 +390,30 @@ export function createAgentChat(container, options) {
     preview.onclick=()=>{syncContext();if(!pending.includes(item))return;overlay=proposal.preview;options.onPreview(evidence?.bounds?{bounds:evidence.bounds}:undefined)}
     reject.onclick=()=>{tools.reject(proposal.planId,'chat-user');pending=pending.filter(p=>p!==item);if(overlay===proposal.preview)overlay=null;actions.querySelectorAll('button').forEach(b=>b.disabled=true);state.textContent=L('rejected');options.onPreview()}
     approve.onclick=async()=>{
-      syncContext(); if(!pending.includes(item)||controller)return
+      syncContext(); if(!pending.includes(item)||controller||applying)return
       const source=binding, session=tools, approvalEpoch=epoch
       actions.querySelectorAll('button').forEach(b=>b.disabled=true)
       applying=true
       let result, parametersFailed=false
       try { result=await options.runMutation(async()=>{
-        const result=await session.approve(proposal.planId,'playground-chat-user')
+        const result=persistedTask?await session.approveTask(proposal.planId,'playground-chat-user',new Date().toISOString()):await session.approve(proposal.planId,'playground-chat-user')
         if(result.ok&&typeof options.onProposalApplied==='function'){
           try{await options.onProposalApplied({context:source,proposal,receipt:result.value})}
           catch{parametersFailed=true}
         }
         return result
-      }) }
+      }) } catch { state.textContent=L(persistedTask?'taskApprovalFailed':'failed');cancelProposals('chat-approval-failed');options.onApplied();return }
       finally { applying=false }
       if(binding!==source)return
       if(epoch!==approvalEpoch){options.onApplied();return}
       if(!result){state.textContent=L('failed');return}
       cancelProposals('chat-applied-other-plan')
-      if(!result.ok){state.textContent=L('stale');return}
+      if(!result.ok){state.textContent=L(persistedTask?'taskApprovalFailed':'stale');return}
+      if(persistedTask&&result.value.taskReceipt){
+        const receipt=result.value.taskReceipt
+        card.append(element('p','chat-task-receipt',`${L('taskReceipt')} · ${receipt.taskId} · ${receipt.receiptDigest}`))
+        showValidation({revision:receipt.afterRevision,units:receipt.units,passed:receipt.checks.every(check=>check.passed),checks:receipt.checks})
+      }
       state.textContent=`${L('applied')} · REV ${result.value.afterRevision}${parametersFailed?` · ${L('parametersNotSaved')}`:''}`
       history.push({role:'assistant',text:state.textContent})
       const revision=result.value.afterRevision, undo=button('undo'), save=button('save')
@@ -389,6 +443,50 @@ export function createAgentChat(container, options) {
     }
     table.append(head,body);scroll.append(table);card.append(scroll,element('p','chat-validation-scope',L('checkScope')))
     log.scrollTop=log.scrollHeight
+  }
+  function renderRunResult(result) {
+    for(const output of result.outputs)if(output.name==='cad_check_geometry'&&output.result.ok)showValidation(output.result.value)
+    if(result.status==='cancelled')append('assistant',L('cancelled'))
+    else if(result.status==='failed')append('assistant',L(result.error?.code==='KJAGENT_INCOMPLETE_BATCH'?'incompleteBatch':result.error?.code==='KJMODEL_OUTPUT_LIMIT'?'outputLimit':result.error?.code==='KJMODEL_SERVER_TOKEN_LIMIT'?'serverTokenLimit':result.error?.code==='KJMODEL_INCOMPLETE'?'incompleteModel':result.error?.code==='KJMODEL_DIRECT_CONNECTION'?'directRequestFailed':'failed'))
+    else if(result.status==='limit-reached')append('assistant',L(result.error?.code==='KJAGENT_REPAIR_LIMIT'?'repairLimit':'limit'))
+    else {
+      if(result.text)append('assistant',result.text.slice(0,16000))
+      for(const output of result.outputs)if(output.result.ok&&output.result.value?.status==='awaiting-host-approval')showProposal(output.result.value,result.task??null)
+    }
+  }
+  taskRun.onclick=async()=>{
+    if(controller||applying||dataLoading||!taskSelection)return
+    const selection=taskSelection
+    syncContext()
+    if(input.value.trim()||dataAttachment||attach.checked){taskError.textContent=L('taskSeparate');return}
+    if(!model){append('assistant',L('needConnection'),false);settings.hidden=false;return}
+    cancelProposals('chat-start-persisted-task');options.onBeforeRun()
+    const source=binding,current=++epoch,abort=new AbortController()
+    controller=abort;busy(true);taskError.textContent=''
+    const activity=append('assistant',L('working'),false)
+    let started=false
+    try{
+      tools=new KJAgentToolSession(source.sdk,source.document)
+      const session=tools
+      // Only the explicit run click authorizes a status checkpoint. Imported
+      // definitions must pass the same host policy before any model contact.
+      applying=true
+      let task
+      try{task=await options.runMutation(()=>startChatPersistedTask({document:source.document,session,selection,allowedToolNames:getKJDrawChatToolNames(source.document),capabilityRegistry:builtinCapabilityRegistry,signal:abort.signal,isCurrent:()=>current===epoch&&options.getContext().document===source.document}))}
+      finally{applying=false}
+      if(!task)throw new Error('Task start was not committed')
+      if(current!==epoch||binding!==source)return
+      if(abort.signal.aborted){activity.remove();append('assistant',L('cancelled'));return}
+      started=true;options.onApplied()
+      append('user',`${task.title}\n${task.goal}`,false)
+      const result=await runPersistedKJAgentTask({document:source.document,session,model,taskId:task.id,expectedRevision:source.document.revision,expectedTaskVersion:task.taskVersion,expectedStatus:'running',toolNames:task.definition.tools.names,capabilityRegistry:builtinCapabilityRegistry,signal:abort.signal,onProgress:event=>{
+        if(current!==epoch)return
+        activity.querySelector('.chat-message-body').textContent=L(event.phase==='model'?'working':event.toolName?.startsWith('cad_propose_')?'proposing':event.toolName==='cad_check_geometry'?'measuring':'reading')
+      }})
+      if(current!==epoch||binding!==source)return
+      activity.remove();renderRunResult(result)
+    }catch{if(current===epoch){activity.remove();append('assistant',L(started?'failed':'taskUnavailable'),false)}}
+    finally{if(current===epoch){controller=null;busy(false);syncContext()}}
   }
   async function submit() {
     const text=input.value.trim(); if(!text||controller||applying||dataLoading)return
@@ -443,14 +541,7 @@ export function createAgentChat(container, options) {
       }})
       if(current!==epoch||binding!==source)return
       activity.remove()
-      for(const output of result.outputs)if(output.name==='cad_check_geometry'&&output.result.ok)showValidation(output.result.value)
-      if(result.status==='cancelled')append('assistant',L('cancelled'))
-      else if(result.status==='failed')append('assistant',L(result.error?.code==='KJAGENT_INCOMPLETE_BATCH'?'incompleteBatch':result.error?.code==='KJMODEL_OUTPUT_LIMIT'?'outputLimit':result.error?.code==='KJMODEL_SERVER_TOKEN_LIMIT'?'serverTokenLimit':result.error?.code==='KJMODEL_INCOMPLETE'?'incompleteModel':result.error?.code==='KJMODEL_DIRECT_CONNECTION'?'directRequestFailed':'failed'))
-      else if(result.status==='limit-reached')append('assistant',L(result.error?.code==='KJAGENT_REPAIR_LIMIT'?'repairLimit':'limit'))
-      else {
-        if(result.text)append('assistant',result.text.slice(0,16000))
-        for(const output of result.outputs)if(output.result.ok&&output.result.value?.status==='awaiting-host-approval')showProposal(output.result.value)
-      }
+      renderRunResult(result)
     } catch{if(current===epoch){activity.remove();append('assistant',L('failed'))}}
     finally {if(current===epoch){streamTarget=null;streamText='';controller=null;busy(false);input.focus();syncContext()}}
   }
@@ -458,7 +549,7 @@ export function createAgentChat(container, options) {
   input.onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();submit()}}
   stop.onclick=()=>controller?.abort()
   reset.onclick=()=>{epoch++;controller?.abort();controller=null;streamTarget=null;streamText='';cancelProposals();clearData();history.length=0;log.replaceChildren(welcome);welcome.hidden=false;tools=new KJAgentToolSession(binding.sdk,binding.document);input.value='';busy(false);input.focus()}
-  const relabel=()=>{for(const [node,key,property]of translated)node[property]=L(key);relabelProviders();populateCommonModels();reset.textContent='＋';setConnection(model,modelLabel);syncContext()}
+  const relabel=()=>{for(const [node,key,property]of translated)node[property]=L(key);relabelProviders();populateCommonModels();reset.textContent='＋';setConnection(model,modelLabel);syncContext();syncTasks(true)}
   document.addEventListener('kjdraw:language',relabel)
   syncContext();setConnection(null)
   try{
