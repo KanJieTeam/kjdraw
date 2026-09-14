@@ -157,3 +157,34 @@ test('unconfigured output actions fit A3 automatically while page setup keeps fi
   await expect(popup.locator('#kj-print-action')).toBeEnabled()
   await popup.locator('#kj-print-close').click()
 })
+
+test('Chinese desktop page setup keeps cancel and continue visible while fields scroll', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'One Chromium desktop layout check covers the page setup action row')
+  await page.setViewportSize({ width: 1366, height: 768 })
+  await page.addInitScript(() => localStorage.setItem('kjdraw.language', 'zh'))
+  await page.goto('/')
+  await expect(page.locator('.workbench')).toHaveAttribute('data-demo-state', 'ready')
+  await page.locator('#page-setup').click()
+
+  const layout = await page.evaluate(() => {
+    const dialog = document.querySelector('#app-dialog')
+    const fields = document.querySelector('#dialog-fields')
+    const cancel = document.querySelector('#dialog-form button[value="cancel"]')
+    const submit = document.querySelector('#dialog-submit')
+    const rect = element => element.getBoundingClientRect()
+    return {
+      dialogBottom: rect(dialog).bottom,
+      fieldsScrollable: fields.scrollHeight > fields.clientHeight,
+      cancelBottom: rect(cancel).bottom,
+      submitBottom: rect(submit).bottom,
+      viewportHeight: innerHeight,
+    }
+  })
+  expect(layout.dialogBottom).toBeLessThanOrEqual(layout.viewportHeight)
+  expect(layout.fieldsScrollable).toBe(true)
+  expect(layout.cancelBottom).toBeLessThanOrEqual(layout.viewportHeight)
+  expect(layout.submitBottom).toBeLessThanOrEqual(layout.viewportHeight)
+  await expect(page.locator('#dialog-form button[value="cancel"]')).toHaveText('取消')
+  await page.locator('#dialog-form button[value="cancel"]').click()
+  await expect(page.locator('#app-dialog')).not.toBeVisible()
+})

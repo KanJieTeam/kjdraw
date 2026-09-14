@@ -270,7 +270,10 @@ summary { cursor: pointer; color: var(--kj-muted); }
 
 /* Keep explicit paper setup usable on short screens and in the compact ribbon. */
 .output-ribbon select { max-width: 125px; font-size: 12px; padding: 3px 6px; }
-.app-dialog { max-height: calc(100dvh - 32px); overflow-y: auto; }
+.app-dialog { max-height: calc(100dvh - 32px); overflow: hidden; }
+.app-dialog > form { display: flex; max-height: calc(100dvh - 86px); min-height: 0; flex-direction: column; }
+.app-dialog .dialog-fields { min-height: 0; flex: 1 1 auto; overflow-y: auto; padding-right: 4px; }
+.app-dialog .dialog-actions { flex: 0 0 auto; }
 .hotkey-settings-dialog { width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: 1px solid var(--kj-border); border-radius: 10px; background: var(--kj-surface); color: var(--kj-text); box-shadow: 0 20px 80px #10223c35; }
 .hotkey-settings-dialog::backdrop { background: #15203166; }
 .hotkey-settings-dialog form { display: flex; max-height: calc(100dvh - 34px); flex-direction: column; }
