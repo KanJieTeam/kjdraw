@@ -411,7 +411,6 @@ export function updateDesignRelations(document, tx, id, changes) {
         }
     });
 }
-/** Remove one persisted relation while keeping its current native geometry unchanged. */
 export function deleteDesignRelations(document, tx, id) {
     const record = tx.getObject(id);
     if (!record || record.erased || record.kind !== 'custom' || record.type !== TYPE || record.payload.contractVersion !== 1) fail('live version-1 design does not exist');
