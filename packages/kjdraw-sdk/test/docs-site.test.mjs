@@ -76,6 +76,39 @@ test('generated documentation portal covers the complete bilingual learning path
   assert.doesNotMatch(app, /Guides and 784/)
 })
 
+test('model integration source documents the packaged host-controlled MCP boundary', async () => {
+  const source = await readFile(new URL('docs/site/pages/models.md', repositoryRoot), 'utf8')
+  const command = 'npx --package @kanjieteam/kjdraw kjdraw-mcp --workspace ./project --input drawing.kjd --proposals pending.json'
+  assert.equal(source.split(command).length - 1, 2)
+  assert.doesNotMatch(source, /built-in MCP server|内置 MCP 服务/u)
+  assert.match(source, /never approves a proposal or writes the input drawing/u)
+  assert.match(source, /existing file is rejected instead of overwritten/u)
+  assert.match(source, /不会批准提案，也不会写入输入图纸/u)
+  assert.match(source, /文件已存在时会拒绝启动，不会覆盖原数据/u)
+})
+
+test('public guides describe package contracts instead of repository development state', async () => {
+  const pages = [
+    'agent', 'architecture', 'capabilities', 'commands', 'deployment', 'files', 'installation',
+    'introduction', 'models', 'plugins', 'quickstart', 'react', 'vue', 'workbench',
+  ]
+  const forbidden = [
+    /current source checkout/iu,
+    /check source\/package availability/iu,
+    /check the installed package version before using/iu,
+    /当前源码/iu,
+    /目前源码/iu,
+    /使用前(?:请)?(?:核对|确认).*安装包/iu,
+    /尚未完成复杂图纸的全自动交付/iu,
+    /(?:during|in) release checks/iu,
+    /发布检查/iu,
+  ]
+  for (const page of pages) {
+    const source = await readFile(new URL(`docs/site/pages/${page}.md`, repositoryRoot), 'utf8')
+    for (const pattern of forbidden) assert.doesNotMatch(source, pattern, `${page}.md contains internal development-state wording`)
+  }
+})
+
 test('generated documentation portal has no source or navigation drift', () => {
   const result = spawnSync(process.execPath, ['scripts/build-docs-site.mjs', '--check'], {
     cwd: new URL('.', repositoryRoot),

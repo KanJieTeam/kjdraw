@@ -18,11 +18,11 @@ KJDraw does not require a particular AI vendor. Choose a protocol adapter, suppl
 | Gemini GenerateContent | `gemini-generate-content` | GenerateContent REST endpoint, with model in the URL |
 | Your framework, gateway or local model | Custom `KJAgentModel` | Your own conversation bridge |
 
-These adapters are implemented and tested against protocol fixtures and real CAD operations. That is not a claim that every model, vendor extension or live endpoint has been tested. Native function calling must be supported by the selected model. For text-only models, a custom bridge can parse and validate a structured response; never execute model-generated JavaScript.
+The built-in adapters support the protocols listed above. Compatibility with a particular model or vendor extension depends on that endpoint's function-calling behavior. For text-only models, a custom bridge can parse and validate a structured response; never execute model-generated JavaScript.
 
 ## Wire the model once {#quickstart}
 
-Available in the current source checkout. Check that your installed package contains `model-adapters` and `agent-runner` before using these entries.
+Install KJDraw, then import the model adapter and bounded task runner from their public package entries:
 
 ```ts
 import { createKJDrawSDK } from '@kanjieteam/kjdraw'
@@ -70,7 +70,15 @@ Every adapter and custom bridge receives the same selected definitions. If a res
 
 The runner stops when it has proposals. It never calls `approve()`. After an authenticated user reviews the exact arguments, your host calls `session.approve(planId, user.id)` or `session.reject(planId, user.id)` and checks the result. Model text must be displayed as untrusted text, not unsanitized HTML.
 
-Each run starts a fresh model conversation. After applying a proposal, start a new run with the next user request and let it read the current drawing. This version does not provide durable conversation resume, automatic file saving, rendered previews for every tool or a built-in MCP server. See [Agent workflows](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) for the available CAD tools and geometric review API.
+Each run starts from the drawing's current revision. After applying a proposal, submit the next request as a new run so the model reads the updated geometry. Your application owns conversation persistence and save policy. See [Agent workflows](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) for CAD tools, proposal previews and geometry checks.
+
+To expose the same tool registry to an MCP client, run the packaged local stdio host with paths chosen by your application:
+
+```sh
+npx --package @kanjieteam/kjdraw kjdraw-mcp --workspace ./project --input drawing.kjd --proposals pending.json
+```
+
+The host reads the selected KJD or DXF and exposes drawing queries and proposals. It never approves a proposal or writes the input drawing; your application reviews and applies accepted work. The pending-proposal file is created exclusively, so an existing file is rejected instead of overwritten.
 
 ## Measure tokens and time {#usage}
 
@@ -90,13 +98,13 @@ Adapters also accept `onUsage: usage => hostMetrics.record(usage)` for response 
 node node_modules/@kanjieteam/kjdraw/examples/model-agent.mjs
 ```
 
-The default is offline: it tests all four wire formats, simulated host approval, saved geometry and undo. It makes no model calls.
+By default, the example runs offline and demonstrates all four wire formats, host approval, saved geometry and undo without contacting a model.
 
-For a live proposal-only check, configure `KJDRAW_MODEL_PROTOCOL`, `KJDRAW_MODEL_NAME`, `KJDRAW_MODEL_ENDPOINT` and `KJDRAW_MODEL_API_KEY` in a trusted server/CLI environment, then add `--live`. The endpoint is the complete trusted REST URL. The example rejects redirects and URL credentials, limits response bytes and never applies live proposals automatically. It uses a synthetic circle request, at most four model requests and eight tools; live calls can incur provider charges. DeepSeek may be used for low-cost evaluation; it is not a dependency or default model.
+To connect an online model, configure `KJDRAW_MODEL_PROTOCOL`, `KJDRAW_MODEL_NAME`, `KJDRAW_MODEL_ENDPOINT` and `KJDRAW_MODEL_API_KEY` in a trusted server or CLI environment, then add `--live`. The endpoint is the complete trusted REST URL. The example rejects redirects and URL credentials, limits response bytes and never applies live proposals automatically. It sends at most four model requests and eight tool calls; provider charges may apply.
 
 ## Extend and validate {#extend}
 
-Implement `KJAgentModel.createConversation({ instructions, tools })` and return `next(input, signal)`. A turn returns `text` plus `calls` containing `id`, `name` and `arguments`. Inputs are either the initial prompt or ordered tool results. Keep vendor continuation data private to that conversation and preserve call/result IDs. Existing harnesses can also use `KJAgentToolSession` directly and retain their own loop.
+Implement `KJAgentModel.createConversation({ instructions, tools })` and return `next(input, signal)`. A turn returns `text` plus `calls` containing `id`, `name` and `arguments`. Inputs are either the initial prompt or ordered tool results. Keep vendor continuation data private to that conversation and preserve call/result IDs. Existing Agent runtimes can also use `KJAgentToolSession` directly and manage their own execution loop.
 
 Adapters retain Responses reasoning items, chat reasoning fields, Claude signed thinking blocks and Gemini thought signatures in their original conversation. They do not place those fields in the public answer. Truncated, blocked, malformed or unsupported responses stop before tool dispatch. Tool validation errors can be returned to the model for bounded correction. Timeouts cannot stop a transport that ignores its signal from consuming remote resources; the host must enforce its own network and billing limits.
 
@@ -115,11 +123,11 @@ KJDraw 不依赖特定 AI 厂商。选择协议适配器，传入模型和宿主
 | Gemini GenerateContent | `gemini-generate-content` | GenerateContent REST 接口，模型名放在 URL 中 |
 | 自有框架、网关、本地模型 | 自定义 `KJAgentModel` | 你的会话桥接实现 |
 
-这些适配器已通过协议样例与真实 CAD 操作测试，但不代表所有模型、扩展字段和在线服务都已实测。所选模型需要支持工具调用；纯文本模型可通过自定义桥接解析并校验结构化结果，不能执行模型输出的 JavaScript。
+内置适配器支持上表所列协议；具体模型和厂商扩展字段的兼容性取决于对应接口的工具调用行为。纯文本模型可通过自定义桥接解析并校验结构化结果，但不能执行模型输出的 JavaScript。
 
 ## 配置一次模型连接 {#quickstart}
 
-以下入口已加入当前源码；使用前确认安装包包含 `model-adapters` 与 `agent-runner`。
+安装 KJDraw 后，从公开子路径导入模型适配器和有界任务运行器：
 
 ```ts
 import { createKJDrawSDK } from '@kanjieteam/kjdraw'
@@ -167,7 +175,15 @@ const result = await runKJAgentTask({
 
 一旦得到提案，运行器就停止，不会调用 `approve()`。经过认证的用户审核后，宿主再调用 `session.approve(planId, user.id)` 或 `session.reject(planId, user.id)`，并核对结果。模型回复应当作为不可信文字展示，不能直接当作 HTML 渲染。
 
-每次运行新建模型会话。应用修改后，用用户的新需求再次运行，让模型重新读取当前图纸。这一版不包含持久会话恢复、自动保存、全部工具的几何预览或内置 MCP 服务。可用绘图工具与几何审核接口见 [Agent 工作流](https://kanjieteam.github.io/kjdraw/docs/latest/agent/)。
+每次运行都从图纸的当前修订版本开始。应用方案后，把后续需求作为新任务运行，让模型读取更新后的几何。对话持久化与保存策略由应用负责。CAD 工具、方案预览和几何检查见 [Agent 工作流](https://kanjieteam.github.io/kjdraw/docs/latest/agent/)。
+
+若要向 MCP 客户端提供同一套工具注册表，可用应用指定的路径启动包内本地 stdio host：
+
+```sh
+npx --package @kanjieteam/kjdraw kjdraw-mcp --workspace ./project --input drawing.kjd --proposals pending.json
+```
+
+host 读取选定的 KJD 或 DXF，并提供图纸查询与修改提案。它不会批准提案，也不会写入输入图纸；应用负责审核并执行接受的修改。待审批文件采用独占创建；文件已存在时会拒绝启动，不会覆盖原数据。
 
 ## 测量 token 与耗时 {#usage}
 
@@ -187,13 +203,13 @@ console.log({ totals, transportWallMs, runWallMs, complete })
 node node_modules/@kanjieteam/kjdraw/examples/model-agent.mjs
 ```
 
-默认离线运行，检查四种消息格式、模拟宿主批准、保存后的图元与撤销，不调用模型。
+默认离线运行，演示四种消息格式、宿主批准、保存后的图元与撤销，不连接模型。
 
-要执行在线提案测试，在可信服务端或命令行环境配置 `KJDRAW_MODEL_PROTOCOL`、`KJDRAW_MODEL_NAME`、`KJDRAW_MODEL_ENDPOINT` 与 `KJDRAW_MODEL_API_KEY`，再加 `--live`。地址填写完整的可信 REST 接口。示例拒绝重定向和 URL 凭据、限制响应大小，不会自动应用在线提案。测试使用合成圆形需求，最多四次模型请求、八次工具调用；在线请求可能产生费用。DeepSeek 可用于低成本测试，但不是架构依赖或默认模型。
+要连接在线模型，在可信服务端或命令行环境配置 `KJDRAW_MODEL_PROTOCOL`、`KJDRAW_MODEL_NAME`、`KJDRAW_MODEL_ENDPOINT` 与 `KJDRAW_MODEL_API_KEY`，再加 `--live`。地址填写完整的可信 REST 接口。示例拒绝重定向和 URL 凭据、限制响应大小，也不会自动应用在线提案。每次运行最多发送四次模型请求和八次工具调用；在线请求可能产生费用。
 
 ## 扩展与验证 {#extend}
 
-实现 `KJAgentModel.createConversation({ instructions, tools })`，返回 `next(input, signal)`。每轮返回 `text` 和 `calls`；调用包含 `id`、`name`、`arguments`。输入是初始需求或有序工具结果。厂商会话数据留在自己的会话对象中，保留调用与结果的 ID。已有 harness 也可以直接使用 `KJAgentToolSession`，继续管理自己的循环。
+实现 `KJAgentModel.createConversation({ instructions, tools })`，返回 `next(input, signal)`。每轮返回 `text` 和 `calls`；调用包含 `id`、`name`、`arguments`。输入是初始需求或有序工具结果。厂商会话数据留在自己的会话对象中，保留调用与结果的 ID。已有 Agent 运行时也可以直接使用 `KJAgentToolSession`，自行管理执行循环。
 
 适配器保留 Responses 推理条目、Chat 推理字段、Claude 签名思考块和 Gemini 思考签名，不会将这些字段放进公开回复。截断、拦截、结构损坏或尚未支持的响应会在工具执行前停止；参数校验错误可以反馈给模型，在预算内修正。超时不能强制停止忽略取消信号的远端请求，宿主仍须限制网络资源和费用。
 

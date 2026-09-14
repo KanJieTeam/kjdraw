@@ -41,7 +41,7 @@ export function DrawingEditor() {
 }
 ```
 
-`KJDraw` mounts the complete editor and gives the ref a `KJDrawEditor`. Use the ref for `open()`, `save()`, `execute()`, selection and view methods. Since `1.0.0-rc.3`, `layout="classic"` provides the full CAD ribbon and panels, `compact` shortens the ribbon, and `focus` prioritizes the canvas. Changing `layout` updates the existing editor in place, so its drawing, selection and undo history stay intact. React unmount disposes the editor. See the [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/) for every prop and method.
+`KJDraw` mounts the complete editor and gives the ref a `KJDrawEditor`. Use the ref for `open()`, `save()`, `execute()`, selection and view methods. `layout="classic"` provides the full CAD ribbon and panels, `compact` shortens the ribbon, and `focus` prioritizes the canvas. Changing `layout` updates the existing editor in place, so its drawing, selection and undo history stay intact. React unmount disposes the editor. See the [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/) for every prop and method.
 
 ## A minimal hook {#minimal-hook}
 
@@ -91,7 +91,7 @@ export function useKJDraw() {
 
 The `/core` headless entry does not impose a React renderer or state library. A custom canvas component can redraw after committed events, while property panels select typed records from the active document. For large drawings, derive viewport-specific display data instead of copying the entire object graph into React state.
 
-Use `KJDraw` when you need a working CAD surface immediately, or the headless hook when your product owns every interface layer. The maintained examples are [compiled against the npm package](https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples) during release checks.
+Use `KJDraw` when you need a working CAD surface immediately, or the headless hook when your product owns every interface layer. See the [maintained examples](https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples) for complete applications that use the same public package exports.
 :::
 :::zh
 ## 渲染编辑器组件 {#editor-component}
@@ -129,7 +129,7 @@ export function DrawingEditor() {
 }
 ```
 
-`KJDraw` 会挂载完整编辑器，并把 `KJDrawEditor` 暴露给 ref。可通过 ref 调用 `open()`、`save()`、`execute()`、选择与视图方法。自 `1.0.0-rc.3` 起，`layout="classic"` 提供完整 CAD Ribbon 与面板，`compact` 使用较矮的 Ribbon，`focus` 让画布优先。修改 `layout` 会原位更新同一个编辑器，因此图档、选择集与撤销历史都保持不变；React 卸载组件时会自动释放编辑器。全部属性与方法见 [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/)。
+`KJDraw` 会挂载完整编辑器，并把 `KJDrawEditor` 暴露给 ref。可通过 ref 调用 `open()`、`save()`、`execute()`、选择与视图方法。`layout="classic"` 提供完整 CAD Ribbon 与面板，`compact` 使用较矮的 Ribbon，`focus` 让画布优先。修改 `layout` 会原位更新同一个编辑器，因此图档、选择集与撤销历史都保持不变；React 卸载组件时会自动释放编辑器。全部属性与方法见 [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/)。
 
 ## 最小 Hook {#minimal-hook}
 
@@ -179,5 +179,5 @@ export function useKJDraw() {
 
 `/core` 无界面入口不强制 React 渲染器或状态库。自定义 Canvas 组件可以在命令提交后重绘，属性面板则从活动图档读取类型化记录。面对大型图纸，应按视口派生显示数据，不要把完整对象图复制进 React state。
 
-需要立即可用的 CAD 界面时使用 `KJDraw`，产品希望完全掌控每层界面时使用无界面 Hook。[持续维护的示例](https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples)会在发布检查中针对实际 npm 包编译。
+需要立即可用的 CAD 界面时使用 `KJDraw`，产品希望完全掌控每层界面时使用无界面 Hook。[持续维护的示例](https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples)提供使用相同公开包入口的完整应用。
 :::

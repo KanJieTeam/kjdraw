@@ -2,146 +2,123 @@
 slug: agent
 title.en: Agent workflows
 title.zh: Agent 工作流
-summary.en: Give your agent focused drawing context, review its proposed edits, and let a person keep working on the result.
-summary.zh: 让 Agent 按需读取图纸，检查它提出的修改，再由人接手继续编辑。
+summary.en: Let an AI read an authorized drawing, propose exact CAD changes, and hand the final decision to a trusted host.
+summary.zh: 让 AI 读取获准访问的图纸、提出明确的 CAD 修改方案，并由可信宿主决定是否应用。
 ---
 :::en
-## Model-neutral CAD tools {#agent-tools}
+## Build a reviewed CAD workflow {#agent-tools}
 
-The current source checkout adds `KJAgentToolSession` from `@kanjieteam/kjdraw/agent-tools`. Check source/package availability before using this new entry. The session binds one host-authorized document and provides serializable tool definitions plus a `call(name, arguments)` dispatcher. Pass `session.definitions` to models: unit parameters are restricted to the current drawing's canonical unit name, such as `millimeter`, rather than relying on the model to guess an abbreviation.
+The `@kanjieteam/kjdraw/agent-tools` entry point exports `KJAgentToolSession`, which gives any tool-calling model a controlled way to work with a KJDraw document. It exposes JSON-serializable tool definitions for reading, querying, measuring, checking and proposing CAD changes. Proposal tools return exact geometry for review and do not edit the document.
 
-| Tool | Result |
-| --- | --- |
-| `cad_read_drawing` | First page of visible model-space objects, layers and drawing units |
-| `cad_read_page` | Revision-bound continuation with independent entity/layer offsets |
-| `cad_read_layouts` | Discover layout IDs, owner spaces and numeric page settings with bounded pagination |
-| `cad_query_drawing` | Filtered, revision-bound pages by ID, type, layer, owner space and XY region |
-| `cad_measure_distance` | Planar point-to-point distance in the supplied drawing units |
-| `cad_check_geometry` | Revision-bound evidence for explicit native object lengths, radii, feature distances and polyline closure |
-| `cad_propose_lines` | Proposed batch of up to 64 XY lines |
-| `cad_propose_circles` | Proposed batch of up to 64 XY circles |
-| `cad_propose_move` | Proposed XY move of up to 64 visible editable model-space LINE/CIRCLE/ARC/LWPOLYLINE/XLINE/RAY objects; preserves guide directions |
-| `cad_propose_drawing` | One mixed drawing proposal with lines, circles, arcs and polylines; up to 64 objects total |
+The host creates the session for one authorized `KJDocument`, sends selected tool definitions to the model, dispatches model calls through `session.call(name, arguments)`, and keeps approval in its own trusted user interface. The same API works with different model providers; provider connection examples are covered in [Models and harnesses](https://kanjieteam.github.io/kjdraw/docs/latest/models/).
 
-Expose **only the definitions and dispatcher** to your model adapter. `approve(planId, reviewerId)` and `reject(planId, reviewerId)` are trusted-host methods: the host authenticates the user, checks permissions and collects review of the exact proposed arguments. A reviewer string by itself is not authentication. There is no model-callable approval, arbitrary command, file or network tool.
+### Capabilities {#capabilities}
 
-All drawing and move proposals return **before/after geometry** in `value.preview`. KJDraw runs the core operation on a detached copy, checking geometry and editing rules without changing the original drawing or its undo history. Creation IDs are allocated once and bound to the proposal, so approval uses the same objects that were previewed. Approval checks the drawing revision and the resulting geometry. Failed or uncertain approval attempts are never retried automatically.
+- Read the current revision, units, layers, layouts and bounded drawing geometry.
+- Query a user selection, object types, layers, owner space or an XY region without sending the entire file.
+- Measure explicit points and check stated geometric requirements against native CAD objects.
+- Propose editable native geometry and common edits with a before/after preview.
+- Apply an approved proposal as one undoable transaction, with revision and argument checks before commit.
+- Add project-specific guidance through host-trusted `KJAgentCapabilityRegistry` manifests without adding executable code to the model tool path.
 
-Paint the preview using your editor's renderer (clear and redraw the overlay after a camera change). `before` is the old geometry and `after` is the proposed result:
+KJDraw enforces the published input schemas again when `call()` runs. Tool descriptions guide the model, while the CAD core remains responsible for geometry, document revisions, limits and commit behavior.
 
-```ts
-import type { KJAgentGeometryPreview } from '@kanjieteam/kjdraw/agent-tools'
+## Install and import {#install}
 
-function showProposal(preview: KJAgentGeometryPreview) {
-  renderer.render()
-  renderer.drawPreview(preview.before, '#e87979')
-  renderer.drawPreview(preview.after, '#52c99b')
-}
-// Clear the overlay with renderer.render() when rejected or applied.
+Install the package in the application that owns the drawing and review UI:
+
+```sh
+npm install @kanjieteam/kjdraw@next
 ```
 
-Preview preparation uses a detached copy-on-write document branch: unrelated drawing data no longer has to fit a 4 MiB serialized-source limit. The current limits are 250,000 document objects, 4 MiB of combined command arguments and touched input records, 64 changed objects and 256 KiB of returned geometry. Full-document validation and change inspection still run; this is not a constant-time or isolated-memory guarantee. It uses built-in core commands, not host replacements. A preview is not a mechanical-design or manufacturing validation. For model connections and the bounded execution loop, see [Models and harnesses](https://kanjieteam.github.io/kjdraw/docs/latest/models/).
+Import the SDK from the package root and Agent tools from the `agent-tools` entry point:
 
-For custom host-side experiments, `document.fork()` creates a branch at the current revision with independent edits and undo history. It retains the document ID but does not inherit authority, listeners, queued edits or earlier undo entries. Do not attach both branches to the same SDK document map under that ID. A fork does not approve or merge changes; apply reviewed commands through the original document's normal host approval flow.
+```ts
+import { createKJDrawSDK } from '@kanjieteam/kjdraw'
+import { KJAgentToolSession } from '@kanjieteam/kjdraw/agent-tools'
 
-Creation uses the core batch command's default layer and explicitly targets model XY at z=0. Read results retain native coordinates and omission notices; they do not expand blocks or promise world-coordinate geometry. Each session accepts at most 128 proposals and permits one in-flight operation. The host still owns total session limits, model budgets, isolation, model-data disclosure and persistence. Provider-specific schema conversion must not remove the session's runtime validation.
+const sdk = createKJDrawSDK()
+const drawing = sdk.createDocument({ units: 'millimeter' })
+const session = new KJAgentToolSession(sdk, drawing)
+```
 
-Run the installed [tool-session example](https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/agent-tools.mjs):
+`session.definitions` contains the tools available to that session. Definitions include each tool's `name`, `description`, `effect` and `inputSchema`; unit fields are restricted to the document's canonical unit name, such as `millimeter`. Preserve these schema constraints when adapting them to a provider.
+
+The package requires Node.js 22 or later for its Node examples. To verify the installed tool-session path without a model or API key, run:
 
 ```sh
 node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs
 ```
 
-It exercises proposal, simulated host approval, duplicate rejection, native-file reopen and undo without a model or API key. This verifies tool plumbing, not natural-language design success.
+The example proposes a circle, simulates the host approval step, rejects a duplicate approval, reopens the native file and verifies Undo. It checks integration behavior rather than natural-language drawing quality.
 
-## Check the actual drawing geometry {#check-geometry}
+## Shortest working flow {#quickstart}
 
-Use `cad_check_geometry` after reading the actual object IDs. Supply all four arrays, with 1–64 checks in total. Numeric expectations and tolerances must be explicit, finite and nonnegative. An unmet requirement returns `ok: true` with `value.passed: false`: the read succeeded and the geometry failed the requested check.
-
-```ts
-import type { KJAgentGeometryValidationInput } from '@kanjieteam/kjdraw/agent-tools'
-
-const checks: KJAgentGeometryValidationInput = {
-  expectedRevision: drawing.revision, units: 'millimeter',
-  lineLengths: [{ id: 'required-length', objectId: lineId, expected: 20, tolerance: 0.001 }],
-  circleRadii: [], pointDistances: [], polylineClosures: [],
-}
-const result = await session.call('cad_check_geometry', checks)
-// Display result.value.checks (actual, expected, error, tolerance and passed) when result.ok.
-```
-
-Lengths and feature distances measure native owner coordinates in 3D. Point pairs must have the same owner; supported features are LINE start/end, CIRCLE/ARC center in the default +Z plane, and XLINE/RAY origin. Block instances are not expanded. Circle radius is intrinsic. Polyline checks inspect the canonical closed flag and valid vertices, including curved two-vertex loops; they do not certify self-intersection, area or general topology. Up to 20,000 total polyline vertices may be inspected. Wrong types, absent objects, stale revisions or mismatched units are rejected. The same read-only implementation is public as `validateDrawingGeometry` from `@kanjieteam/kjdraw/drawing-validation`.
-
-Each result binds actual evidence to a document revision and reports reference IDs and owners. It only proves the supplied checks: the host must preserve user-approved expectations and tolerances instead of allowing a model to relax them and call the entire design correct. Capability-package check descriptions remain guidance; a model's success text is not this execution evidence.
-
-## Keep domain capabilities with the project {#domain-capabilities}
-
-`KJAgentCapabilityRegistry` adds versioned domain guidance above the shared CAD tools. Hosts explicitly trust and register JSON manifests containing instructions, required tool names and requested evidence checks. These manifests contain no executable code. The core retains geometry, schema, budget and approval enforcement; a check description is not a validator or a passing result.
-
-```ts
-import { KJAgentCapabilityRegistry } from '@kanjieteam/kjdraw/agent-capabilities'
-import { runKJAgentTask } from '@kanjieteam/kjdraw/agent-runner'
-
-const registry = new KJAgentCapabilityRegistry()
-registry.register({
-  schema: 'com.kanjie.kjdraw.agent-capability', schemaVersion: 1, toolApiVersion: 1,
-  id: 'example.inspection', name: 'Inspection', version: '1.0.0',
-  instructions: 'Read drawing units and ask for missing inspection dimensions.',
-  requiredToolNames: ['cad_read_drawing'], requirements: [],
-})
-const lock = registry.createLock([{ id: 'example.inspection', version: '1.0.0' }])
-const result = await runKJAgentTask({ session, model, prompt: 'Inspect this drawing.',
-  capabilities: { registry, lock } })
-```
-
-Persist `lock` using KJD document custom metadata or KJP project metadata. Reopen it with `registry.resolve({ lock, allowedToolNames })`, or pass it to the runner as above. The runner exposes only the selected capability tools and rejects a capability that exceeds the host's `toolNames` policy. Registering a newer package preserves existing locks; upgrading a project requires explicitly creating a new lock. Locks detect changed content at the same version, but the content hash is not a publisher signature. The host owns source trust, distribution and project persistence; KJDraw does not download packages or learn from user drawings automatically.
-
-Run the included offline integration example:
-
-```sh
-node node_modules/@kanjieteam/kjdraw/examples/agent-capabilities.mjs
-```
-
-It exercises registration, an exact lock, narrowed tools, a pending proposal and KJD reopen without network requests. It uses a deterministic model fixture, leaves approval to the host, and provides no evidence of natural-language drawing success or passed design requirements.
-
-## Draw a profile and holes in one proposal {#compose-drawing}
-
-Use `cad_propose_drawing` when one request describes multiple kinds of geometry. The groups share a total limit of 64 objects. All four arrays are required; leave unused ones empty. Polyline vertices form straight segments (2–64 vertices, at least 3 when closed). Arc angles use degrees from positive X, counterclockwise; for example, 270 → 90 wraps through 0 degrees. Use a circle for a full revolution.
+This runnable example creates a session and asks for a circle proposal. The document remains unchanged while the proposal is waiting for review:
 
 ```ts
 import { createKJDrawSDK } from '@kanjieteam/kjdraw'
-import { KJAgentToolSession, type KJAgentDrawingInput } from '@kanjieteam/kjdraw/agent-tools'
+import {
+  KJAgentToolSession,
+  type KJAgentGeometryPreview,
+} from '@kanjieteam/kjdraw/agent-tools'
 
 const sdk = createKJDrawSDK()
 const drawing = sdk.createDocument({ units: 'millimeter' })
 const session = new KJAgentToolSession(sdk, drawing)
-const input: KJAgentDrawingInput = {
-  expectedRevision: drawing.revision, units: 'millimeter',
-  lines: [], arcs: [],
+
+const result = await session.call('cad_propose_circles', {
+  expectedRevision: drawing.revision,
+  units: 'millimeter',
   circles: [{ center: { x: 20, y: 20 }, radius: 3 }],
-  polylines: [{
-    vertices: [{ x: 0, y: 0 }, { x: 80, y: 0 }, { x: 80, y: 40 }, { x: 0, y: 40 }],
-    closed: true,
-  }],
+})
+if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`)
+
+const proposal = result.value as {
+  status: 'awaiting-host-approval'
+  preview: KJAgentGeometryPreview
 }
-const proposal = await session.call('cad_propose_drawing', input)
-// Show proposal.value.preview when proposal.ok is true.
-// Apply only after host review. No model approval tool is provided.
+console.log(proposal.status, proposal.preview)
+if (drawing.revision !== 0) throw new Error('A proposal must not edit the drawing')
 ```
 
-The installed example builds a 120 × 60 mm profile with four holes and a rounded slot, then checks preview, test-only approval, KJD/DXF reopen, undo and redo:
+Connect it to a model in four steps:
 
-```sh
-node node_modules/@kanjieteam/kjdraw/examples/agent-drawing.mjs
-```
+1. Give the provider adapter the selected entries from `session.definitions`.
+2. Forward each model tool call to `session.call(name, arguments)` and return the result to the same model conversation.
+3. When a proposal succeeds, show its exact arguments and `value.preview` to the reviewer.
+4. After the host authenticates the reviewer and checks permission, call `session.approve(planId, reviewerId)` or `session.reject(planId, reviewerId)` from the host action.
 
-The example is deterministic and needs no API key. To connect a model, expose this same tool through [Models and harnesses](https://kanjieteam.github.io/kjdraw/docs/latest/models/). These shapes remain regular editable CAD entities. The tool does not infer dimensions, manufacturing tolerances, constraints or whether a design is fit for use.
+Do not include `approve` or `reject` in the model's tool list. A reviewer ID string identifies the decision in KJDraw; authentication and authorization happen in the host application.
 
-## Give the agent the drawing it needs {#drawing-context}
+## Choose the right tool {#tool-selection}
 
-Your host connects the model and decides which drawing data it may receive. KJDraw provides the editing tools and a read-only context query. Query only the objects relevant to the task instead of sending the entire drawing file.
+Start with the narrowest tool that matches the task. The table lists the common entry points; inspect `session.definitions` for the complete tool set and its current schemas.
 
-Available in the current source checkout; check the installed package version before using this new entry point.
+| Tool | Use it for |
+| --- | --- |
+| `cad_read_drawing` | Read the first bounded page of visible model-space objects, layers, units and revision |
+| `cad_read_page` | Continue the unfiltered read with the returned entity and layer offsets |
+| `cad_read_layouts` | Discover model and paper layouts, exact owner-space IDs and numeric page settings |
+| `cad_query_drawing` | Read a revision-bound page filtered by ID, type, layer, owner space or XY bounds |
+| `cad_measure_distance` | Calculate an exact planar distance between two supplied points in drawing units |
+| `cad_check_geometry` | Compare explicit lengths, radii, feature distances or topology checks with native objects |
+| `cad_propose_lines` | Propose 1–64 model-space XY lines |
+| `cad_propose_circles` | Propose 1–64 model-space XY circles |
+| `cad_propose_move` | Propose one XY move for supported visible, editable objects or a named selection set |
+| `cad_propose_drawing` | Propose a mixed batch of native lines, circles, arcs, ellipses, splines, polylines and hatches |
+
+Use `cad_read_drawing` when the model needs an initial overview. Use `cad_query_drawing` for a user selection or a known region, and continue with identical filters plus the returned `nextOffset` and `nextLayerOffset`. Call `cad_read_layouts` first when paper space is involved, then pass its exact `spaceId` to `cad_query_drawing`. `cad_read_page` continues only an unfiltered read and does not remember query filters.
+
+Use `cad_check_geometry` only after reading the real object IDs. An unmet requirement returns `ok: true` with `value.passed: false`: the tool executed successfully and the geometry failed the requested check. The result proves only the expectations and tolerances supplied by the host; it does not certify a complete design.
+
+Choose a specific proposal tool for a focused edit. Use `cad_propose_drawing` for a mixed batch; the installed `examples/agent-drawing.mjs` builds a profile with holes and a slot, then verifies preview, approval, file reopen and history. More specialized proposal tools in `session.definitions` cover transforms, compact patterns, annotations and packaged engineering workflows.
+
+Native coordinates can be object-local or block-local. Read tools do not expand block definitions or promise world coordinates, and XY bounds are drawing coordinates rather than screen pixels or paper viewport projections. Treat `spatialMatch: 'unclassified'` as requiring inspection, never as proof that an object intersects the requested region.
+
+### Direct host-side drawing context {#drawing-context}
+
+If the host needs drawing data outside a model tool loop, use the same bounded query implementation directly. `createLayoutContext(document, options)` provides the corresponding immutable layout catalog.
 
 ```ts
 import { createKJDrawSDK } from '@kanjieteam/kjdraw'
@@ -164,84 +141,17 @@ const context = createDrawingContext(drawing, {
 // Reading context does not change the drawing or contact a model.
 ```
 
-Use `ids` for a user selection, `types` for object kinds, or `layerIds` to focus on particular layers. These filters combine. Hidden and frozen objects are excluded by default; locked objects remain readable with `editable: false`. Editing eligibility is not authorization or a promise that every command supports the object.
+## Review and apply proposals {#review-and-apply}
 
-For another entity page, use `offset: context.nextOffset` and the same filters, with `expectedRevision: context.revision` and `maxLayers: 0`. Stop when `nextOffset === null`. Query the layer catalog separately with `limit: 0`, then use `layerOffset` / `nextLayerOffset`; zero is a valid continuation value. Keep the same revision for every page, including offset zero, and start over if the drawing changes.
+Every successful proposal contains the document ID, expected revision, normalized arguments, a `planId` and exact before/after geometry in `value.preview`. Render that preview over the current drawing and show the proposed parameters. If the camera changes, redraw the overlay from the stored preview.
 
-The response reports `truncated`, `truncationReasons` and `geometryOmittedReason`. An oversized or unsupported geometry is omitted as a whole, never shortened into a different shape. Native coordinates may be object-coordinate or block-local coordinates; orientation fields are retained, and INSERT definitions are not expanded. The response is a focused read result, not a replacement drawing file.
+Approval is a one-shot host operation. KJDraw checks that the plan is still pending, the bound document and revision are unchanged, and the committed geometry matches the reviewed proposal. A successful commit becomes one normal Undo step. Rejecting a proposal consumes it without changing the drawing.
 
-`maxBytes` caps the UTF-8 size of the JSON response, not model tokens, snapshot memory or query time. Raw source tags, custom metadata, history and resource bytes are not included. Drawing text remains untrusted data; your host controls permissions and any transfer to an external model.
+For lower-level SDK commands, the equivalent protocol uses `sdk.createCommandEnvelope(..., { mode: 'plan', origin: 'ai' })`, followed by a confirmed execution envelope after review. Keep the plan ID, command arguments and document revision unchanged between these steps.
 
-Run the packaged [drawing context example](https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/drawing-context.mjs) for independent entity and layer pagination.
+### Preview and apply a trim {#geometric-preview}
 
-## Query a region or selected objects {#query-region}
-
-To discover paper space before querying its contents, call `cad_read_layouts` with `expectedRevision`, `offset: 0`, `limit` (1–100), and `maxBytes` (1024–262144). Use the returned layout's exact `spaceId` in `cad_query_drawing.filters.spaceId`. The public `createLayoutContext(document, options)` API returns the same immutable catalog; its default page is 20 layouts and 16 KiB. Continuations require the same revision and `nextOffset`; restart after a revision conflict.
-
-Each row includes layout identity/name, model/active flags, tab order, and numeric `pageSettings` from `dxfPlotSettings`. Paper dimensions, margins and origin offsets remain millimeters even when `paperUnits` is 0 (inches) or 2 (pixels). Rotation is a 0–3 quarter-turn index; window coordinates use drawing units. Printer, paper, setup, view and style resource names, native output preferences and custom payloads are excluded. `null` page settings mean unavailable unless `omitted` contains `page-settings`; over-budget names/settings are explicitly omitted and identities are never shortened. `truncated` covers both continuation and omitted fields. Layout names are untrusted drawing data. Byte limits cover the context JSON, excluding tool/protocol wrappers, and do not bound snapshot allocation or scan time. This reads owner-space geometry; viewport projection and page-edit proposals remain outside this tool.
-
-Use `cad_query_drawing` with a revision from `cad_read_drawing` or the trusted editor. `filters` may contain `ids`, `types`, `layerIds`, `spaceId`, `includeHidden` and `bounds`; all filters intersect. Omitted filters are unrestricted; empty arrays match nothing. The default owner is model space. Hidden/frozen objects are excluded unless requested; locked objects remain readable and are marked noneditable.
-
-```ts
-import type { KJAgentDrawingQuery } from '@kanjieteam/kjdraw/agent-tools'
-const query: KJAgentDrawingQuery = {
-  expectedRevision: drawing.revision,
-  filters: { types: ['LINE', 'ARC'], bounds: [0, 0, 120, 60] },
-  offset: 0, layerOffset: 0, limit: 50, maxLayers: 20, maxBytes: 16384,
-}
-const page = await session.call('cad_query_drawing', query)
-```
-
-Continue with **this same tool and identical filters**, replacing offsets with `nextOffset` / `nextLayerOffset`. Set `limit: 0` or `maxLayers: 0` for a completed collection. A null next offset means that collection ended. `cad_read_page` is the older unfiltered query and does not remember filters. A revision mismatch requires a fresh query. Limits are 200 entities, 100 layers and 1–256 KiB for the JSON context (excluding the tool wrapper); geometry omissions and byte-budget continuation remain explicit. Scanning time is not bounded by the output byte cap.
-
-`bounds` is an ordered `[minX,minY,maxX,maxY]` crossing rectangle in the selected owner's XY coordinates. A host can derive it from `renderer.screenToWorld()` at opposite canvas corners. It is not a paper viewport projection or a screen pixel rectangle. Lines, rays, construction lines, points, circles, arcs and polyline segments/bulges use the shared CAD intersection geometry. A circle surrounding the rectangle without touching it is outside. Text, blocks, other unsupported types, tilted normals and polylines exceeding 4,096 vertices are conservatively retained as `spatialMatch: 'unclassified'`; they are not proof of intersection. Other results are marked `intersects`. `spatialQuery` echoes the coordinate semantics and bounds. No block contents are expanded or converted to world coordinates, and geometry stays in its original native coordinates. Inspect unclassified results before acting; never infer that unsupported geometry is absent.
-
-HATCH regions with polygon/bulge or LINE/ARC boundaries support the even-odd rule: holes are excluded and nested solid islands included. Circular arcs use analytic intersections and ray crossings rather than display chords, including clockwise arcs and two-bulge circles. Queries concern the filled geometric region, not individual pattern ink or gaps. Ellipse/spline HATCH boundaries, unknown patterns, more than 128 loops or more than 4,096 boundary edges remain `unclassified`; dense drawing budgets do not change the stored region. Canvas may still approximate curved fills for display; a sub-pixel query can resolve geometry that the display approximation does not show.
-
-## Review before mutation {#review-before-mutation}
-
-```text
-Intent → plan envelope → exact preview → human approval
-       → verified one-shot execution → receipt → undo
-```
-
-An AI-origin command cannot mutate a document unless its exact proposal has first been registered, reviewed and confirmed. The SDK binds the plan to command arguments, document identity, full document digest, fingerprint, expected revision and expiry.
-
-## Plan and execute {#plan-and-execute}
-
-```ts
-const plan = sdk.createCommandEnvelope('MOVE', {
-  ids: selectedIds,
-  dx: 5,
-  dy: 0,
-}, {
-  mode: 'plan',
-  origin: 'ai',
-  expectedRevision: drawing.revision,
-})
-
-const registeredPlan = await sdk.executeCommandEnvelope(plan)
-// This result is plan metadata, not a rendered geometric diff.
-// Show the proposed MOVE and collect explicit approval in your UI.
-
-const execution = sdk.createCommandEnvelope(plan.command, plan.arguments, {
-  origin: 'ai',
-  expectedRevision: plan.expectedRevision,
-  confirmation: {
-    status: 'confirmed',
-    planId: plan.id,
-    confirmedBy: currentUser.id,
-  },
-})
-
-const receipt = await sdk.executeCommandEnvelope(execution)
-```
-
-## Preview and apply a trim {#geometric-preview}
-
-Give a reviewer the actual geometry before changing the drawing. The public boundary-editing API computes the same retained lines and arcs used by the Trim/Extend tools in the workbench. It works without a model provider, network service or API key.
-
-This example creates a circle and a cutting line. Picking the upper half proposes keeping the lower semicircle as an editable ARC:
+The boundary-editing API can preview the exact retained geometry used by the workbench Trim/Extend tools. The example below creates a circle and cutting line, then proposes keeping the lower semicircle as an editable ARC:
 
 ```ts
 import { createKJDrawSDK } from '@kanjieteam/kjdraw'
@@ -270,7 +180,7 @@ const plan = sdk.createCommandEnvelope(
 await sdk.executeCommandEnvelope(plan, { document: drawing })
 ```
 
-Present `geometry.pieces` alongside the original drawing. Only call the following function from your host's approval action, with the authenticated reviewer's identity:
+Present `geometry.pieces` with the original drawing. Call the following function only from the host's approval action, using the authenticated reviewer's identity:
 
 ```ts
 async function applyApprovedTrim(confirmedBy: string) {
@@ -287,172 +197,148 @@ async function applyApprovedTrim(confirmedBy: string) {
 }
 ```
 
-For a rejected proposal, call `sdk.agentPlans.reject(plan.id, reviewerId)` and `edit.cancel()`. Clear the preview overlay when the review ends. A committed edit is one ordinary Undo step.
+Reject with `sdk.agentPlans.reject(plan.id, reviewerId)` and `edit.cancel()`. Keep the original in-process preview object until review ends; create a new preview after any document change.
 
-For a person-operated tool, use the same `edit.apply` callback with `origin: 'ui'` and no AI confirmation. Leave the session open to preview and edit another target against the same boundaries; create a fresh preview after each commit.
+## Handle errors and enforce boundaries {#errors-and-boundaries}
 
-| API | What your application does |
+`session.call()` resolves to a discriminated result. Read `value` only when `ok` is `true`; otherwise log the stable `error.code` and show an action-oriented message to the user.
+
+| Result | Host response |
 | --- | --- |
-| `setBoundaries(ids)` → `confirmBoundaries()` | Choose the cutting boundaries once; confirm when the user is ready |
-| `preview(targetId, pickPoint)` | Read immutable `pieces` and `command`; render a temporary overlay |
-| `apply(preview, execute)` | Execute the supplied command through the SDK and return its envelope receipt |
-| `state` / `prompt` / `setLocale('zh')` | Display the phase, completed-edit count and localized instruction |
-| `finish()` / `cancel()` | End the session; already committed edits remain undoable |
+| `KJDOCUMENT_REVISION_CONFLICT` | Re-read the drawing and ask the model to produce a new proposal against the new revision |
+| `KJDOCUMENT_INVALID` | Correct the tool name or arguments using this session's definition; do not retry unchanged input |
+| `KJAGENT_TOOL_FAILED` | Stop automatic retries and let the host inspect the underlying failure |
+| Successful read with `value.passed: false` | Report the failed geometric checks; do not convert it into a successful design result |
 
-Changing the drawing revision, reusing a consumed preview or changing the command arguments prevents the session from reporting success. `apply` checks the actual commit and retained geometry as well as the SDK receipt. If a faulty host executor commits something else, the session ends with `boundary-edit.unexpected-commit`; it does not automatically undo that host mutation. Inspect the drawing and use the normal history controls.
+The session permits one operation at a time and at most 128 proposals. Individual definitions set their own object, byte and pagination limits. Start a new session only when the host intentionally begins a new authorized work period; do not use session replacement to bypass a rejected or stale plan.
 
-The preview is an in-process object: keep the original instance instead of serializing and reconstructing it. For a service-backed agent, send validated intent into the host, generate the preview there, then use the existing reviewed-plan flow. Bind `isDocumentCurrent` to the mounted document object and your readonly state when an editor can switch documents.
+These boundaries always remain with the host application:
 
-## Fail-closed cases {#fail-closed-cases}
+- Authorize which document and drawing data the model may access.
+- Authenticate reviewers and enforce project or organization permissions.
+- Keep `approve`, `reject`, file access, network access and arbitrary command execution out of the model tool list.
+- Preserve user-approved dimensions, tolerances and requirements; model text is not execution evidence.
+- Set model budgets, timeouts, data-retention rules and provider-specific disclosure controls.
+- Store receipts or approval records when a durable audit trail is required.
 
-- Missing, rejected, expired or already consumed plan.
-- Changed arguments, target document or expected revision.
-- Document drift after the preview was created.
-- Missing reviewer identity or replay of a successful execution envelope.
+KJDraw validates tool inputs and reviewed CAD mutations inside one SDK host process. It does not sandbox a model, authenticate users, enforce policy across services or certify engineering fitness. Failed or uncertain approval attempts must be inspected and must not be retried automatically.
 
-## Security boundary {#security-boundary}
-
-This is an application protocol inside one SDK host process. It does not authenticate users, sandbox a model, enforce organization policy across services or persist a durable approval ledger. The host owns those controls and may store the returned receipt as audit evidence.
-
-Start with the stable [Agent integration contract](https://github.com/KanJieTeam/kjdraw/blob/main/docs/agent.md), then use the maintained [Agent protocol](https://github.com/KanJieTeam/kjdraw/blob/main/docs/agent-protocol.md) for the complete lifecycle and boundary.
+For the lifecycle and trust model, read the [Agent integration contract](https://github.com/KanJieTeam/kjdraw/blob/main/docs/agent.md) and [Agent protocol](https://github.com/KanJieTeam/kjdraw/blob/main/docs/agent-protocol.md).
 :::
 :::zh
-## 模型无关的 CAD 工具 {#agent-tools}
+## 构建可审核的 CAD 工作流 {#agent-tools}
 
-当前源码新增 `@kanjieteam/kjdraw/agent-tools` 中的 `KJAgentToolSession`。使用前核对源码与安装包的发布状态。一个会话绑定一份由宿主授权的图纸，提供可序列化的工具定义和 `call(name, arguments)` 调用入口。向模型传递 `session.definitions`：单位参数会限定为当前图纸的规范名称，例如 `millimeter`，不再让模型猜测缩写。
+`@kanjieteam/kjdraw/agent-tools` 入口导出的 `KJAgentToolSession` 为支持工具调用的模型提供受控的 KJDraw 图纸操作入口。它以可序列化的 JSON 定义提供读取、查询、测量、校核和修改提案能力。提案工具返回可供审核的准确几何，不会直接修改图纸。
 
-| 工具 | 返回结果 |
-| --- | --- |
-| `cad_read_drawing` | 可见模型空间对象、图层和单位的第一页 |
-| `cad_read_page` | 绑定图纸版本、分别按对象和图层偏移继续读取 |
-| `cad_read_layouts` | 有界分页发现布局 ID、归属空间和数值页面参数 |
-| `cad_query_drawing` | 按 ID、类型、图层、归属空间和 XY 范围筛选并绑定版本分页 |
-| `cad_measure_distance` | 使用图纸单位计算同一坐标系中两点的平面距离 |
-| `cad_check_geometry` | 绑定修订，按明确要求检查真实对象的长度、半径、特征点距离和多段线闭合 |
-| `cad_propose_lines` | 最多 64 条 XY 直线的创建方案 |
-| `cad_propose_circles` | 最多 64 个 XY 圆的创建方案 |
-| `cad_propose_move` | 最多 64 个可见且可编辑的模型空间直线、圆、圆弧、轻量多段线、构造线或射线的 XY 移动方案；保留辅助线方向 |
-| `cad_propose_drawing` | 将直线、圆、圆弧和多段线组成同一个绘图方案，总计最多 64 个对象 |
+宿主为一份获准访问的 `KJDocument` 创建会话，把选定的工具定义交给模型，通过 `session.call(name, arguments)` 分派模型调用，并在自己的可信界面中保留批准权。这套 API 不绑定模型厂商；厂商接入示例见[模型与执行框架](https://kanjieteam.github.io/kjdraw/docs/latest/models/)。
 
-向模型适配器**只提供工具定义和调用入口**。`approve(planId, reviewerId)` 与 `reject(planId, reviewerId)` 仅供可信宿主使用：宿主验证身份、检查权限，并让用户审核确切的修改参数。填写审核人字符串不等于完成身份验证。工具列表没有批准、任意命令、文件或网络执行入口。
+### 能力 {#capabilities}
 
-所有绘图和移动方案在 `value.preview` 中返回**修改前后的真实几何**。KJDraw 在图纸副本上执行核心操作，检查几何及编辑规则，不改动原图或撤销记录。新对象 ID 在提案时固定，批准时使用预览中的同一批对象，并核对图纸修订和实际修改结果。批准失败或结果不确定时不会自动重试。
+- 读取当前修订号、单位、图层、布局和有界的图纸几何。
+- 按用户选择、对象类型、图层、归属空间或 XY 范围查询，无需发送整个文件。
+- 测量明确的点，并依据指定要求校核原生 CAD 对象。
+- 提出可编辑的原生几何和常用修改，同时返回修改前后预览。
+- 将批准后的提案作为一次可撤销事务应用，提交前核对修订号和参数。
+- 通过宿主信任的 `KJAgentCapabilityRegistry` 清单添加项目能力说明，不向模型工具路径注入可执行代码。
 
-使用编辑器的渲染器叠加显示预览；相机变化后需清除并重绘。`before` 是修改前图形，`after` 是拟应用结果：
+`call()` 执行时，KJDraw 会再次按公开输入结构校验参数。工具描述用于指导模型，几何、图纸修订、用量限制和提交行为仍由 CAD 核心负责。
 
-```ts
-import type { KJAgentGeometryPreview } from '@kanjieteam/kjdraw/agent-tools'
+## 安装与导入 {#install}
 
-function showProposal(preview: KJAgentGeometryPreview) {
-  renderer.render()
-  renderer.drawPreview(preview.before, '#e87979')
-  renderer.drawPreview(preview.after, '#52c99b')
-}
-// 拒绝或应用后调用 renderer.render() 清除叠加预览。
+在持有图纸和审核界面的应用中安装软件包：
+
+```sh
+npm install @kanjieteam/kjdraw@next
 ```
 
-预览改用隔离的写时复制图档分支，不再要求整张图序列化后小于 4 MiB。当前限制为图档最多 250,000 个对象、命令参数与待修改输入记录合计最多 4 MiB、最多 64 个修改对象和 256 KiB 返回几何。仍会执行完整图档校验和变化检查，不保证恒定耗时或独立内存上限。预演使用内置核心命令，不执行宿主替换命令；图形预览不等于机械设计或制造校核。模型接入与有预算限制的执行循环见[模型与执行框架](https://kanjieteam.github.io/kjdraw/docs/latest/models/)。
+从包根目录导入 SDK，从 `agent-tools` 入口导入 Agent 工具：
 
-宿主需要自行试算时，可调用 `document.fork()`：分支从当前修订开始，修改和撤销记录彼此独立，保留图档 ID，但不继承权威后端、监听器、排队任务或已有撤销记录。不要把同 ID 的原图和分支同时注册到同一个 SDK 图档表。分支不会批准或合并修改；正式应用仍须通过原图的正常宿主审核流程。
+```ts
+import { createKJDrawSDK } from '@kanjieteam/kjdraw'
+import { KJAgentToolSession } from '@kanjieteam/kjdraw/agent-tools'
 
-创建操作使用核心批量命令的默认图层，明确在模型 XY 平面 z=0 上创建。读取保留原生坐标和省略说明，不展开图块或保证世界坐标。每个会话最多接受 128 个方案，同时只允许一个正在执行的操作。会话总量、模型费用、隔离、向模型发送数据的权限和持久化仍由宿主管理。厂家参数格式转换不能取消会话中的运行时验证。
+const sdk = createKJDrawSDK()
+const drawing = sdk.createDocument({ units: 'millimeter' })
+const session = new KJAgentToolSession(sdk, drawing)
+```
 
-运行安装包中的[工具会话示例](https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/agent-tools.mjs)：
+`session.definitions` 是该会话可以使用的工具清单。每项定义都包含 `name`、`description`、`effect` 和 `inputSchema`；单位字段会限定为图纸使用的规范名称，例如 `millimeter`。转换为模型厂商格式时，必须保留这些结构约束。
+
+Node.js 示例要求 Node.js 22 或更高版本。无需模型或 API Key，即可验证安装包中的工具会话入口：
 
 ```sh
 node node_modules/@kanjieteam/kjdraw/examples/agent-tools.mjs
 ```
 
-示例不调用模型或使用密钥，验证提案、模拟宿主批准、重复执行拒绝、原生文件重开和撤销。这是工具链验证，不是自然语言设计成功率的证明。
+该示例会提出圆形绘制方案、模拟宿主批准、拒绝重复批准、重新打开原生文件并验证撤销。它验证接入行为，不代表自然语言绘图质量。
 
-## 检查图纸中的实际几何 {#check-geometry}
+## 最短工作流 {#quickstart}
 
-先读取真实对象 ID，再调用 `cad_check_geometry`。四组数组均须提供，总计 1–64 项检查；数值期望与容差须明确、有限且非负。不满足要求时返回 `ok: true`、`value.passed: false`，表示读取成功，但几何未满足指定检查。
-
-```ts
-import type { KJAgentGeometryValidationInput } from '@kanjieteam/kjdraw/agent-tools'
-
-const checks: KJAgentGeometryValidationInput = {
-  expectedRevision: drawing.revision, units: 'millimeter',
-  lineLengths: [{ id: 'required-length', objectId: lineId, expected: 20, tolerance: 0.001 }],
-  circleRadii: [], pointDistances: [], polylineClosures: [],
-}
-const result = await session.call('cad_check_geometry', checks)
-// result.ok 时展示 result.value.checks 的实际值、期望值、偏差、容差及通过状态。
-```
-
-长度和特征点距离使用对象原生归属坐标系中的三维坐标。点对必须属于同一 owner；支持 LINE 的 start/end、默认 +Z 平面 CIRCLE/ARC 的 center，以及 XLINE/RAY 的 origin；不展开块实例。圆半径为原生半径。多段线检查规范 closed 标志与有效顶点，支持两顶点圆弧闭合，但不证明无自交、面积或完整拓扑正确；每次最多检查 20,000 个多段线顶点。对象类型错误、对象缺失、修订过期或单位不一致会被拒绝。同一只读实现通过 `@kanjieteam/kjdraw/drawing-validation` 的 `validateDrawingGeometry` 提供给开发者。
-
-结果绑定文档修订，并包含引用对象 ID 与 owner，只证明传入的这些检查。宿主需要保存用户认可的期望与容差，不能让模型自行放宽后宣称整张图纸正确。能力包中的检查说明仍是指导信息；模型口头成功也不能替代实际执行证据。
-
-## 让行业能力随项目保持版本 {#domain-capabilities}
-
-`KJAgentCapabilityRegistry` 在共享 CAD 工具之上提供可版本化的行业说明。宿主明确选择可信来源，并注册包含指导说明、必需工具和待检查证据的 JSON 清单；清单不包含可执行代码。几何、参数校验、预算和审批仍由核心负责，检查说明本身不是验证器，也不代表已经通过。
-
-```ts
-import { KJAgentCapabilityRegistry } from '@kanjieteam/kjdraw/agent-capabilities'
-import { runKJAgentTask } from '@kanjieteam/kjdraw/agent-runner'
-
-const registry = new KJAgentCapabilityRegistry()
-registry.register({
-  schema: 'com.kanjie.kjdraw.agent-capability', schemaVersion: 1, toolApiVersion: 1,
-  id: 'example.inspection', name: '图纸检查', version: '1.0.0',
-  instructions: '先读取图纸单位，缺少检查尺寸时向用户询问。',
-  requiredToolNames: ['cad_read_drawing'], requirements: [],
-})
-const lock = registry.createLock([{ id: 'example.inspection', version: '1.0.0' }])
-const result = await runKJAgentTask({ session, model, prompt: '检查这张图纸。',
-  capabilities: { registry, lock } })
-```
-
-用 KJD 图档自定义 metadata 或 KJP 项目 metadata 保存 `lock`。重开后调用 `registry.resolve({ lock, allowedToolNames })`，或如上直接交给 runner。runner 只开放所选能力需要的工具；超过宿主 `toolNames` 权限范围的能力会被拒绝。注册新版本不会改变旧项目锁；项目升级须明确创建新锁。同一版本内容变化会被检测，但内容指纹不是发布者签名。可信来源、分发和项目保存由宿主负责；KJDraw 不会自动下载能力包，也不会自动从用户图纸中学习。
-
-运行随包提供的离线接入示例：
-
-```sh
-node node_modules/@kanjieteam/kjdraw/examples/agent-capabilities.mjs
-```
-
-示例实际执行注册、精确版本锁、工具选择、待审核绘图方案及 KJD 重开，不发起网络请求。它使用确定的模型测试桩，把审批留给宿主；不能作为自然语言绘图成功率或设计要求已通过的证明。
-
-## 一次提出轮廓和孔位的组合绘图方案 {#compose-drawing}
-
-一个需求包含多种图形时，使用 `cad_propose_drawing`。四组图形合计最多 64 个对象；四个数组都必须提供，不使用的组填空数组。多段线由直线段组成，允许 2–64 个顶点，闭合时至少 3 个；无需重复首点。圆弧从 X 正方向逆时针计角，单位是度，例如 270 → 90 会跨过 0 度。整圆请放在 circles 中。
+下面的可运行示例创建会话并提出一个圆形方案。方案等待审核时，图纸保持不变：
 
 ```ts
 import { createKJDrawSDK } from '@kanjieteam/kjdraw'
-import { KJAgentToolSession, type KJAgentDrawingInput } from '@kanjieteam/kjdraw/agent-tools'
+import {
+  KJAgentToolSession,
+  type KJAgentGeometryPreview,
+} from '@kanjieteam/kjdraw/agent-tools'
 
 const sdk = createKJDrawSDK()
 const drawing = sdk.createDocument({ units: 'millimeter' })
 const session = new KJAgentToolSession(sdk, drawing)
-const input: KJAgentDrawingInput = {
-  expectedRevision: drawing.revision, units: 'millimeter',
-  lines: [], arcs: [],
+
+const result = await session.call('cad_propose_circles', {
+  expectedRevision: drawing.revision,
+  units: 'millimeter',
   circles: [{ center: { x: 20, y: 20 }, radius: 3 }],
-  polylines: [{
-    vertices: [{ x: 0, y: 0 }, { x: 80, y: 0 }, { x: 80, y: 40 }, { x: 0, y: 40 }],
-    closed: true,
-  }],
+})
+if (!result.ok) throw new Error(`${result.error.code}: ${result.error.message}`)
+
+const proposal = result.value as {
+  status: 'awaiting-host-approval'
+  preview: KJAgentGeometryPreview
 }
-const proposal = await session.call('cad_propose_drawing', input)
-// proposal.ok 为 true 时展示 proposal.value.preview。
-// 用户审核后才由宿主批准；不要向模型暴露批准入口。
+console.log(proposal.status, proposal.preview)
+if (drawing.revision !== 0) throw new Error('提案不得直接修改图纸')
 ```
 
-安装包示例绘制 120 × 60 mm 轮廓、四个孔和一个长圆槽，并验证预览、模拟批准、KJD/DXF 重开、撤销和重做：
+接入模型需要四步：
 
-```sh
-node node_modules/@kanjieteam/kjdraw/examples/agent-drawing.mjs
-```
+1. 把 `session.definitions` 中经过宿主选择的工具交给模型厂商适配器。
+2. 将模型的每次工具调用转发到 `session.call(name, arguments)`，再把结果返回同一个模型会话。
+3. 提案成功后，向审核者展示准确参数和 `value.preview`。
+4. 宿主完成审核人认证和权限检查后，在宿主操作中调用 `session.approve(planId, reviewerId)` 或 `session.reject(planId, reviewerId)`。
 
-示例无需 API Key，使用确定性输入。真实模型接入复用同一个工具，见[模型与执行框架](https://kanjieteam.github.io/kjdraw/docs/latest/models/)。结果是可继续编辑的常规 CAD 对象；工具不自动推断标注、制造公差、约束或设计适用性。
+不要把 `approve` 或 `reject` 放进模型工具清单。审核人 ID 字符串只用于在 KJDraw 中标记决策，身份认证和权限判断由宿主应用完成。
 
-## 先让 Agent 读到任务需要的图纸内容 {#drawing-context}
+## 选择合适的工具 {#tool-selection}
 
-宿主应用负责连接模型，并决定它可以读取哪些图纸数据。KJDraw 提供编辑工具和只读查询接口，让你按任务选取对象，不必把整份图纸文件发送出去。
+优先选择刚好满足任务的最小工具。下表列出常用入口；完整工具集和当前参数结构以 `session.definitions` 为准。
 
-该接口已加入当前源码；使用前请确认安装的 npm 版本已包含这个新入口。
+| 工具 | 适用场景 |
+| --- | --- |
+| `cad_read_drawing` | 读取可见模型空间对象、图层、单位和修订号的首个有界页面 |
+| `cad_read_page` | 使用返回的对象和图层偏移继续未筛选读取 |
+| `cad_read_layouts` | 发现模型/图纸布局、准确归属空间 ID 和数值页面设置 |
+| `cad_query_drawing` | 按 ID、类型、图层、归属空间或 XY 范围读取绑定修订的分页结果 |
+| `cad_measure_distance` | 用图纸单位计算两个给定点之间的准确平面距离 |
+| `cad_check_geometry` | 将明确的长度、半径、特征点距离或拓扑检查与原生对象对比 |
+| `cad_propose_lines` | 提出 1–64 条模型空间 XY 直线 |
+| `cad_propose_circles` | 提出 1–64 个模型空间 XY 圆 |
+| `cad_propose_move` | 对受支持的可见可编辑对象或命名选择集提出一次 XY 移动 |
+| `cad_propose_drawing` | 成批提出原生直线、圆、圆弧、椭圆、样条、多段线和填充 |
+
+模型首次了解图纸时使用 `cad_read_drawing`；目标是用户选择或已知范围时使用 `cad_query_drawing`，并保持筛选条件不变，以返回的 `nextOffset` 和 `nextLayerOffset` 继续分页。涉及图纸空间时，先调用 `cad_read_layouts`，再把返回的准确 `spaceId` 传给 `cad_query_drawing`。`cad_read_page` 只继续未筛选读取，不保存查询条件。
+
+读取真实对象 ID 后再调用 `cad_check_geometry`。要求未满足时会返回 `ok: true` 和 `value.passed: false`：工具执行成功，但几何未通过指定检查。结果只证明宿主给出的期望和容差，不代表整套设计已经合格。
+
+单一修改使用对应的专用提案工具；混合图形批量创建使用 `cad_propose_drawing`。安装包中的 `examples/agent-drawing.mjs` 会生成带孔和槽的轮廓，并验证预览、批准、文件重开和历史记录。`session.definitions` 中还有变换、紧凑阵列、标注和成套工程制图等专用提案工具。
+
+原生坐标可能属于对象局部坐标或块内坐标。读取工具不会展开块定义，也不保证返回世界坐标；XY 范围使用图纸坐标，不是屏幕像素或图纸视口投影。`spatialMatch: 'unclassified'` 表示需要人工检查，不能作为对象与查询范围相交的证明。
+
+### 宿主直接读取图纸上下文 {#drawing-context}
+
+宿主需要在模型工具循环之外读取数据时，可以直接使用同一套有界查询实现。`createLayoutContext(document, options)` 提供对应的不可变布局目录。
 
 ```ts
 import { createKJDrawSDK } from '@kanjieteam/kjdraw'
@@ -475,84 +361,17 @@ const context = createDrawingContext(drawing, {
 // 读取不会修改图纸，也不会连接模型。
 ```
 
-用 `ids` 查询用户选中的对象，用 `types` 筛选图元类型，用 `layerIds` 筛选图层；多个条件同时生效。默认排除隐藏和冻结对象；锁定对象仍可读取，但标记为 `editable: false`。这个标记不代表访问权限，也不代表所有命令都支持该对象。
+## 审核并应用提案 {#review-and-apply}
 
-查询下一页对象时，使用 `offset: context.nextOffset`、相同筛选条件、`expectedRevision: context.revision` 和 `maxLayers: 0`；`nextOffset === null` 表示结束。图层目录单独设置 `limit: 0` 查询，再使用 `layerOffset` / `nextLayerOffset` 翻页，零也是有效的续页位置。所有分页都保留同一修订号，包括位置为零的续页；图纸变化后重新开始。
+每个成功提案都包含图档 ID、预期修订号、规范化参数、`planId`，以及 `value.preview` 中准确的修改前后几何。把预览叠加到当前图纸，并展示提案参数；相机改变后，应根据保存的预览重新绘制覆盖层。
 
-返回值通过 `truncated`、`truncationReasons` 和 `geometryOmittedReason` 明示省略内容。过大或尚不支持的几何会整体省略，不会截短坐标数组而变成另一种图形。原生坐标可能属于对象坐标系或块内局部坐标；接口保留方向字段，不展开 INSERT 块定义。查询结果只供任务读取，不能当作完整图纸覆盖原文件。
+批准是一次性的宿主操作。KJDraw 会检查方案仍在等待处理、绑定图纸和修订号没有变化，且提交几何与已审核提案一致。成功提交后可用一次普通撤销恢复；拒绝会消费该提案，但不修改图纸。
 
-`maxBytes` 限制 JSON 响应的 UTF-8 字节数，不限制模型 token、快照内存或查询耗时。结果不包含原始文件标签、自定义元数据、历史和资源字节。图纸文字仍是不可信数据；权限和发送到外部模型的决定由宿主负责。
+直接使用底层 SDK 命令时，对应流程先调用 `sdk.createCommandEnvelope(..., { mode: 'plan', origin: 'ai' })`，审核后再执行带确认信息的命令信封。两步之间必须保持方案 ID、命令参数和图纸修订号不变。
 
-可运行包内的[图纸查询示例](https://github.com/KanJieTeam/kjdraw/blob/main/packages/kjdraw-sdk/examples/drawing-context.mjs)，查看对象和图层分别分页的完整做法。
+### 先预览，再应用修剪 {#geometric-preview}
 
-## 查询局部范围或指定对象 {#query-region}
-
-查询纸空间内容前，先以 `expectedRevision`、`offset: 0`、`limit`（1–100）和 `maxBytes`（1024–262144）调用 `cad_read_layouts`，将目标布局返回的准确 `spaceId` 传给 `cad_query_drawing.filters.spaceId`。公开 API `createLayoutContext(document, options)` 返回同一不可变目录，默认每页 20 布局、16 KiB；继续分页使用相同修订和 `nextOffset`，版本冲突后重新读取。
-
-每行包含布局标识/名称、模型/活动状态、页签顺序和 `dxfPlotSettings` 的数值 `pageSettings`。纸张、边距和原点偏移仍以毫米计，即使 `paperUnits` 为 0（英寸）或 2（像素）；旋转为 0–3 的四分之一圈索引，窗口坐标为绘图单位。不输出打印机、纸型、设置、视图或样式资源名称，也不输出原生输出偏好和自定义负载。页面参数为 `null` 表示未提供，若因预算省略则 `omitted` 明确包含 `page-settings`；名称和页面参数可省略，身份字符串绝不截短。`truncated` 同时标记未读完与字段省略。布局名称是非可信图纸数据。字节上限只涵盖上下文 JSON（不含工具和协议包装），不限制快照分配或扫描时间。本工具读取对象归属空间，不执行视口投影或页面编辑提案。
-
-`cad_query_drawing` 使用 `cad_read_drawing` 或可信编辑器提供的修订号。`filters` 可包含 `ids`、`types`、`layerIds`、`spaceId`、`includeHidden` 和 `bounds`，各过滤条件取交集。省略条件表示不限制，空数组表示不匹配任何对象。默认查询模型空间；隐藏/冻结对象默认排除，锁定对象可读且标为不可编辑。
-
-```ts
-import type { KJAgentDrawingQuery } from '@kanjieteam/kjdraw/agent-tools'
-const query: KJAgentDrawingQuery = {
-  expectedRevision: drawing.revision,
-  filters: { types: ['LINE', 'ARC'], bounds: [0, 0, 120, 60] },
-  offset: 0, layerOffset: 0, limit: 50, maxLayers: 20, maxBytes: 16384,
-}
-const page = await session.call('cad_query_drawing', query)
-```
-
-继续分页时必须使用**相同工具和相同过滤条件**，将偏移替换为 `nextOffset` / `nextLayerOffset`。某个集合读完后将 `limit` 或 `maxLayers` 设为 0；下一偏移为 null 表示该集合结束。旧的 `cad_read_page` 不保存过滤条件。修订冲突必须重新查询。上限为 200 个对象、100 个图层和 1–256 KiB 的上下文 JSON（不含工具外层包装）；几何遗漏和字节预算分页都有明确字段。输出字节上限不是扫描耗时上限。
-
-`bounds` 是选定归属空间 XY 坐标下的有序交叉矩形 `[minX,minY,maxX,maxY]`，宿主可用画布对角的 `renderer.screenToWorld()` 得出；它不是屏幕像素或图纸视口投影。直线、射线、构造线、点、圆、圆弧和多段线直线/凸度段复用 CAD 的几何相交判断。完全包围矩形但圆周不接触的圆不算相交。文字、图块、其他不支持类型、倾斜法向量和超过 4096 顶点的多段线保守保留为 `spatialMatch: 'unclassified'`，不能把它当成已证明相交；其他返回对象标为 `intersects`。`spatialQuery` 返回坐标语义及范围。图块不展开，坐标不转世界坐标，返回几何保留原生坐标。操作前应检查未分类对象，不能推断不支持的图形不存在。
-
-HATCH 的多边形/凸度段和 LINE/ARC 边界环支持奇偶填充规则：排除孔洞，包含嵌套实心区域。圆弧用解析相交和射线穿越判断，不使用显示折线；支持顺时针圆弧和两个凸度半圆组成的圆。查询的是填充几何区域，不是某条虚线的墨迹或间隙。椭圆/样条填充边界、未知图案、超过 128 个边界环或 4096 条边仍返回 `unclassified`；密集绘制预算不改变图档中的区域。Canvas 曲面填充仍可能近似显示，亚像素查询可分辨显示近似未画出的几何。
-
-## 修改前先审核 {#review-before-mutation}
-
-```text
-意图 → 计划信封 → 精确预览 → 人工批准
-     → 校验后一次性执行 → 回执 → 撤销
-```
-
-AI 来源命令必须先完成精确提案的注册、审核和确认，才能修改图档。SDK 会把计划绑定到命令参数、图档身份、完整内容摘要、指纹、预期修订号和有效期。
-
-## 计划与执行 {#plan-and-execute}
-
-```ts
-const plan = sdk.createCommandEnvelope('MOVE', {
-  ids: selectedIds,
-  dx: 5,
-  dy: 0,
-}, {
-  mode: 'plan',
-  origin: 'ai',
-  expectedRevision: drawing.revision,
-})
-
-const registeredPlan = await sdk.executeCommandEnvelope(plan)
-// 返回值是计划元数据，不是图形差异。
-// 在界面展示 MOVE 的修改内容，并等待用户明确批准。
-
-const execution = sdk.createCommandEnvelope(plan.command, plan.arguments, {
-  origin: 'ai',
-  expectedRevision: plan.expectedRevision,
-  confirmation: {
-    status: 'confirmed',
-    planId: plan.id,
-    confirmedBy: currentUser.id,
-  },
-})
-
-const receipt = await sdk.executeCommandEnvelope(execution)
-```
-
-## 先预览，再应用修剪 {#geometric-preview}
-
-让审核者先看到实际的图形变化。公开的连续边界编辑 API 与工作台的修剪、延伸工具使用同一套剩余线段和圆弧计算，不依赖模型服务、网络请求或 API Key。
-
-以下示例创建一个圆和一条切割线。点选上半圆后，预览结果是一条仍可继续编辑的下半圆弧：
+边界编辑 API 可以预览工作台修剪/延伸工具使用的准确保留几何。以下示例创建一个圆和一条切割线，随后提出保留下半圆弧的方案：
 
 ```ts
 import { createKJDrawSDK } from '@kanjieteam/kjdraw'
@@ -581,7 +400,7 @@ const plan = sdk.createCommandEnvelope(
 await sdk.executeCommandEnvelope(plan, { document: drawing })
 ```
 
-把 `geometry.pieces` 与原图同时展示。仅在宿主的批准操作中调用下列函数，传入经过认证的审核者身份：
+把 `geometry.pieces` 与原图同时展示。仅在宿主的批准操作中调用以下函数，并传入经过认证的审核者身份：
 
 ```ts
 async function applyApprovedTrim(confirmedBy: string) {
@@ -598,32 +417,31 @@ async function applyApprovedTrim(confirmedBy: string) {
 }
 ```
 
-用户拒绝时，调用 `sdk.agentPlans.reject(plan.id, reviewerId)` 和 `edit.cancel()`；审核结束后清除预览覆盖层。成功提交后，一次普通撤销即可恢复图形。
+拒绝时调用 `sdk.agentPlans.reject(plan.id, reviewerId)` 和 `edit.cancel()`。审核结束前保留原始的进程内预览对象；图纸发生任何变化后都应重新生成预览。
 
-人工工具同样使用 `edit.apply`，但执行回调选择 `origin: 'ui'`，不填写 AI 确认信息。保持会话开启，即可继续使用同一组边界修改其他目标；每次提交后重新生成预览。
+## 处理错误与守住边界 {#errors-and-boundaries}
 
-| API | 宿主应用的操作 |
+`session.call()` 返回可区分的结果。仅当 `ok` 为 `true` 时读取 `value`；失败时记录稳定的 `error.code`，并向用户说明下一步操作。
+
+| 结果 | 宿主处理方式 |
 | --- | --- |
-| `setBoundaries(ids)` → `confirmBoundaries()` | 选择一次切割边界，在用户准备好时确认 |
-| `preview(targetId, pickPoint)` | 读取不可变的 `pieces` 与 `command`，绘制临时覆盖层 |
-| `apply(preview, execute)` | 通过 SDK 执行收到的命令，并返回命令信封回执 |
-| `state` / `prompt` / `setLocale('zh')` | 展示当前阶段、完成次数和本地化提示 |
-| `finish()` / `cancel()` | 结束会话；已经提交的修改仍可逐次撤销 |
+| `KJDOCUMENT_REVISION_CONFLICT` | 重新读取图纸，让模型基于新修订号生成新的提案 |
+| `KJDOCUMENT_INVALID` | 按当前会话的工具定义修正工具名或参数，不要原样重试 |
+| `KJAGENT_TOOL_FAILED` | 停止自动重试，由宿主检查底层失败原因 |
+| 读取成功但 `value.passed: false` | 报告未通过的几何检查，不得把结果改写为设计成功 |
 
-修订变化、重复使用预览或执行参数改变时，会话不会误报成功。`apply` 除了核对 SDK 回执，还会核对实际提交与保留图形。宿主执行器错误地提交其他修改时，会话以 `boundary-edit.unexpected-commit` 结束，不会自动撤销宿主提交；请检查图纸并通过正常历史操作处理。
+同一会话每次只允许一个操作，最多接受 128 个提案。每项工具定义还规定对象数量、字节数和分页上限。只有宿主明确开始新的授权工作阶段时才创建新会话；不能通过更换会话绕过被拒绝或已经过期的方案。
 
-预览是进程内对象，请保留原实例，不要序列化后重新拼装。接入服务端 Agent 时，由宿主接收并校验意图、生成预览，再进入既有的计划审核流程。宿主允许切换图纸时，应把 `isDocumentCurrent` 绑定到当前图档对象及只读状态。
+以下边界始终由宿主应用负责：
 
-## 关闭执行的情况 {#fail-closed-cases}
+- 决定模型可以访问哪份图纸以及哪些图纸数据。
+- 认证审核者，并执行项目或组织权限规则。
+- 不向模型开放 `approve`、`reject`、文件访问、网络访问或任意命令执行。
+- 保存用户批准的尺寸、容差和要求；模型文字不能代替执行证据。
+- 设置模型预算、超时、数据保留规则和厂商数据披露范围。
+- 需要持久审计轨迹时保存回执或批准记录。
 
-- 计划缺失、被拒绝、已过期或已消费。
-- 参数、目标图档或预期修订号发生变化。
-- 生成预览后图档又发生漂移。
-- 缺少审核人身份，或重放已经成功的执行信封。
+KJDraw 在单个 SDK 宿主进程内校验工具参数和已审核的 CAD 修改。它不负责隔离模型、认证用户、跨服务执行策略或证明工程适用性。批准失败或结果不确定时，应先检查原因，不得自动重试。
 
-## 安全边界 {#security-boundary}
-
-这是单个 SDK 宿主进程内的应用协议。它不负责认证用户、隔离模型、跨服务执行组织策略，也不会替代持久批准账本。宿主负责这些控制，并可以保存返回回执作为审计证据。
-
-Agent 开发者先阅读稳定的 [Agent 集成契约](https://github.com/KanJieTeam/kjdraw/blob/main/docs/agent.md)，完整生命周期和边界见持续维护的 [Agent 协议](https://github.com/KanJieTeam/kjdraw/blob/main/docs/agent-protocol.md)。
+完整生命周期和信任边界见 [Agent 集成契约](https://github.com/KanJieTeam/kjdraw/blob/main/docs/agent.md)与 [Agent 协议](https://github.com/KanJieTeam/kjdraw/blob/main/docs/agent-protocol.md)。
 :::

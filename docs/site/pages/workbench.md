@@ -10,9 +10,9 @@ summary.zh: 打开图纸，用精确坐标创建和修改图形，再保存结�
 
 Open **AI Chat** in the side panel to describe a drawing or ask for changes. The conversation keeps a bounded recent history in memory. **Enter** sends, **Shift+Enter** adds a line, and **Stop** cancels the current request. Starting a new conversation or opening another drawing clears the current conversation and cancels pending proposals.
 
-Use **Connect model** to choose the protocol, model name and your application's same-origin server endpoint. Keys stay on that server. Sending a message shares your request and queried drawing data with the configured model. For local setup, follow [model proxy setup](https://github.com/KanJieTeam/kjdraw/blob/main/docs/deployment.md#connect-the-local-editor-to-a-model). The public static demo does not include a model service; its three offline scenarios are under **Local examples**.
+Use **Connect model** to choose the protocol, model name and your application's same-origin server endpoint. Keys stay on that server. Sending a message shares your request and queried drawing data with the configured model. For local setup, follow [model proxy setup](https://github.com/KanJieTeam/kjdraw/blob/main/docs/deployment.md#connect-the-local-editor-to-a-model). The public static demo does not connect to a model; choose **Local examples** to explore preset workflows without one.
 
-The chat displays real reading, measurement and proposal activity. A proposed edit appears as a review card: **Preview on drawing**, **Apply changes**, or **Discard**. Applied changes can be undone or saved as a KJP project. The current tools support bounded creation and movement; this is not yet autonomous delivery of a complete complex drawing. Model text is displayed as text and is not treated as an execution receipt. A changed drawing requires a fresh proposal.
+The chat displays drawing reads, measurements and proposal activity. A proposed edit appears as a review card: **Preview on drawing**, **Apply changes**, or **Discard**. Applied changes can be undone or saved as a KJP project. Every model operation runs through a bounded CAD tool and produces structured results; model text alone is never treated as an execution receipt. Request a fresh proposal after the drawing changes.
 
 ## Open a drawing {#open}
 
@@ -87,7 +87,7 @@ For a **Spline**, choose the degree first. Pick at least `degree + 1` control po
 
 For a **Hatch**, choose **SOLID**, **ANSI31** or **ANSI37** and set the scale before drawing the boundary. Pick at least three boundary vertices, then press **Enter** or **C**. KJDraw closes the boundary when it creates the hatch. ANSI31 is a single diagonal pattern; ANSI37 is a crossed diagonal pattern. In the embedded drawing dialog, clear **Solid fill** when choosing a line pattern.
 
-Hatch creation currently uses one polygon boundary per operation. Draw separate hatches for separate regions.
+Each hatch operation accepts one polygon boundary. Draw separate hatches for separate regions.
 
 Imported DXF hatches use their actual line definitions, including custom names, dashed lines, dots and staggered row origins. Polygon/bulge and LINE/ARC boundaries use even-odd hole clipping. Moving, rotating, uniformly scaling or mirroring a hatch transforms its pattern with its boundary; saving DXF retains the transformed definition. Ellipse/spline hatch boundaries and nonstandard collinear dash offsets remain unsupported. Very dense patterns draw partially within a bounded work budget; the editor prompts you to zoom in. A partial pattern is not complete plotting output.
 
@@ -184,7 +184,7 @@ In the Demo, **Save KJP** downloads the whole project and **DXF** exports the ac
 
 ## Choose a layout {#layouts}
 
-Available from **1.0.0-rc.3**:
+Choose the layout that matches the task:
 
 | Layout | Best for |
 | --- | --- |
@@ -214,9 +214,9 @@ editor.setLayout('compact')
 
 在侧栏打开 **AI 对话**，描述图纸或提出修改。对话在内存中保留有预算限制的近期上下文。**Enter** 发送，**Shift+Enter** 换行，**停止** 取消本次请求。开启新对话或打开另一张图，会清除当前对话并取消待处理方案。
 
-通过 **连接模型** 选择协议、模型名称和应用同源的服务端地址，密钥留在服务端。发送消息会将需求和查询到的图纸数据交给所选模型。本地接入步骤见[模型代理配置](https://github.com/KanJieTeam/kjdraw/blob/main/docs/deployment.md#connect-the-local-editor-to-a-model)。公开静态演示站不提供模型服务，原有三个离线场景收在 **本地示例** 中。
+通过 **连接模型** 选择协议、模型名称和应用同源的服务端地址，密钥留在服务端。发送消息会将需求和查询到的图纸数据交给所选模型。本地接入步骤见[模型代理配置](https://github.com/KanJieTeam/kjdraw/blob/main/docs/deployment.md#connect-the-local-editor-to-a-model)。公开静态演示站不连接模型；可在 **本地示例** 中直接体验预设流程。
 
-对话显示实际的读图、测量和方案生成状态。绘图方案以卡片呈现，可选择 **在图中预览**、**应用修改** 或 **放弃方案**；应用后可撤销或保存为 KJP 工程。当前工具支持有范围限制的创建和移动，尚未完成复杂图纸的全自动交付。模型文字按普通文本显示，不作为执行成功的回执。图纸发生变化后需要重新提出方案。
+对话显示读图、测量和方案生成状态。绘图方案以卡片呈现，可选择 **在图中预览**、**应用修改** 或 **放弃方案**；应用后可撤销或保存为 KJP 工程。每次模型操作都通过有界 CAD 工具执行并返回结构化结果；模型文字本身不作为执行成功的回执。图纸发生变化后需要重新提出方案。
 
 ## 打开图纸 {#open}
 
@@ -295,7 +295,7 @@ editor.setLayout('compact')
 
 绘制**填充**前，选择 **SOLID**、**ANSI31** 或 **ANSI37**，并设置比例。依次指定至少三个边界顶点，再按 **Enter** 或 **C**；KJDraw 创建填充时会自动闭合边界。ANSI31 为单向斜线，ANSI37 为交叉斜线。在嵌入式绘图对话框中使用线图案时，需要取消勾选**实体填充**。
 
-目前每次填充操作创建一个多边形边界；互相分离的区域请分别创建填充。
+每次填充操作接受一个多边形边界；互相分离的区域请分别创建填充。
 
 ## 添加尺寸标注 {#dimensions}
 
@@ -388,7 +388,7 @@ Demo 中的**保存 KJP**会下载整个工程，**导出 DXF**只导出当前�
 
 ## 选择工作台布局 {#layouts}
 
-以下布局从 **1.0.0-rc.3** 开始提供：
+根据任务选择合适的布局：
 
 | 布局 | 适用情况 |
 | --- | --- |

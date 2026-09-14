@@ -58,7 +58,7 @@ The 1.0 contract includes commands, entity definitions/renderers, file adapters,
 
 ## Security boundary {#security-boundary}
 
-Plugin permissions are cooperative declarations, not hostile-code isolation. Run untrusted third-party code in a host-owned Worker, process or sandbox. Start from the tested [TypeScript plugin starter](https://github.com/KanJieTeam/kjdraw/tree/main/examples/plugin-starter).
+Plugin permissions are cooperative declarations, not hostile-code isolation. Run untrusted third-party code in a host-owned Worker, process or sandbox. Start from the official [TypeScript plugin starter](https://github.com/KanJieTeam/kjdraw/tree/main/examples/plugin-starter).
 :::
 :::zh
 ## 声明插件契约 {#declare-the-contract}
@@ -113,5 +113,5 @@ export function activate(sdk: KJDrawSDK, manifest: KJPluginManifest) {
 
 ## 安全边界 {#security-boundary}
 
-插件权限是协作式声明，不是恶意代码隔离。第三方不可信代码应运行在宿主控制的 Worker、进程或沙箱中。建议从已测试的 [TypeScript 插件起步工程](https://github.com/KanJieTeam/kjdraw/tree/main/examples/plugin-starter)开始。
+插件权限是协作式声明，不是恶意代码隔离。第三方不可信代码应运行在宿主控制的 Worker、进程或沙箱中。建议从官方 [TypeScript 插件起步工程](https://github.com/KanJieTeam/kjdraw/tree/main/examples/plugin-starter)开始。
 :::

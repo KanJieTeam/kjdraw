@@ -38,7 +38,7 @@ async function moveSelection() {
 </template>
 ```
 
-This is the shortest path to a functional CAD surface. The exposed ref provides `ready`, `open()`, `save()`, `execute()`, selection, view and lifecycle methods. Since `1.0.0-rc.3`, `layout="classic"` provides the full CAD ribbon and panels, `compact` shortens the ribbon, and `focus` prioritizes the canvas. Layout prop changes update the existing editor in place, preserving its drawing, selection and undo history. Vue disposes it when the component unmounts. See the [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/) for every option and method.
+This is the shortest path to a functional CAD surface. The exposed ref provides `ready`, `open()`, `save()`, `execute()`, selection, view and lifecycle methods. `layout="classic"` provides the full CAD ribbon and panels, `compact` shortens the ribbon, and `focus` prioritizes the canvas. Layout prop changes update the existing editor in place, preserving its drawing, selection and undo history. Vue disposes it when the component unmounts. See the [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/) for every option and method.
 
 ## A minimal composable {#minimal-composable}
 
@@ -79,7 +79,7 @@ export function useKJDraw() {
 
 For one editor, create the composable once in a provider component and expose it with Vue dependency injection or your state store. Create separate SDK instances only when documents need separate command registries, plugin scopes or lifecycle boundaries.
 
-Use `KJDraw` for an immediately usable CAD surface or the composable for a product-owned interface. The [maintained examples](https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples) are compiled against the packed package in release checks.
+Use `KJDraw` for an immediately usable CAD surface or the composable for a product-owned interface. See the [maintained examples](https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples) for complete applications that use the same public package exports.
 :::
 :::zh
 ## 渲染编辑器组件 {#editor-component}
@@ -114,7 +114,7 @@ async function moveSelection() {
 </template>
 ```
 
-这是得到可用 CAD 界面的最短路径。暴露的 ref 提供 `ready`、`open()`、`save()`、`execute()`、选择、视图与生命周期方法。自 `1.0.0-rc.3` 起，`layout="classic"` 提供完整 CAD Ribbon 与面板，`compact` 使用较矮的 Ribbon，`focus` 让画布优先。布局 prop 变化会原位更新同一个编辑器，图档、选择集与撤销历史都保持不变；Vue 卸载组件时会自动释放资源。全部选项与方法见 [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/)。
+这是得到可用 CAD 界面的最短路径。暴露的 ref 提供 `ready`、`open()`、`save()`、`execute()`、选择、视图与生命周期方法。`layout="classic"` 提供完整 CAD Ribbon 与面板，`compact` 使用较矮的 Ribbon，`focus` 让画布优先。布局 prop 变化会原位更新同一个编辑器，图档、选择集与撤销历史都保持不变；Vue 卸载组件时会自动释放资源。全部选项与方法见 [Editor API](https://kanjieteam.github.io/kjdraw/docs/latest/api/)。
 
 ## 最小 Composable {#minimal-composable}
 
@@ -155,5 +155,5 @@ export function useKJDraw() {
 
 同一个编辑器应在 Provider 组件中只创建一次 Composable，再通过 Vue 依赖注入或状态库暴露。只有当图档需要独立命令注册表、插件作用域或生命周期边界时，才创建不同 SDK 实例。
 
-需要立即可用的 CAD 界面时使用 `KJDraw`，产品自建全部界面时使用 Composable。[持续维护的示例](https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples)会在发布检查中针对打包后的 npm 包编译。
+需要立即可用的 CAD 界面时使用 `KJDraw`，产品自建全部界面时使用 Composable。[持续维护的示例](https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples)提供使用相同公开包入口的完整应用。
 :::

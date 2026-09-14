@@ -42,13 +42,30 @@ In the embedded editor, open **Page setup** from the top bar, choose a sheet and
 
 ```ts
 await sdk.executeCommand('PAGESETUP', {
-  layoutName: 'Layout1',
+  layoutName: 'Model',
   dxf: { paperWidth: 594, paperHeight: 841, paperUnits: 1, rotation: 1,
+    plotType: 4, windowMinX: 0, windowMinY: 0, windowMaxX: 400, windowMaxY: 277,
     scaleNumerator: 1, scaleDenominator: 100 },
 })
 ```
 
 `dxf` patches only supplied fields and supports undo/redo. Physical paper dimensions, margins and origin offsets always use millimeters; `paperUnits` is 0/inches, 1/mm or 2/pixels. `rotation` is the DXF index 0/1/2/3 for 0/90/180/270 degrees counterclockwise. This explicit mode preserves the existing native `PLOTSETUP` settings contract (degree rotation, nested scale, output device). Native `plotSettings` and the legacy `paper` envelope are not silently converted to DXF configuration; use `dxf` for interchange. R12/R14 exports reject populated DXF page settings. Invalid settings fail atomically.
+
+Use the configured layout for strict vector or print output:
+
+```ts
+import { createDrawingPrintHtml, exportDrawingSvg } from '@kanjieteam/kjdraw'
+
+const layout = drawing.getActiveLayout()
+if (!layout) throw new Error('No active layout')
+const svg = exportDrawingSvg(drawing, { layoutId: layout.id })
+const print = createDrawingPrintHtml(drawing, { layoutId: layout.id, title: 'Drawing' })
+
+console.log(svg.report.status, svg.paper.millimetersPerDrawingUnit)
+// svg.svg and print.html are complete document strings.
+```
+
+Model-space output requires an explicit window (`plotType: 4`) or named view (`plotType: 3`). A paper layout uses its layout range. Strict export rejects geometry it cannot represent; inspect `report` before delivering the file.
 
 This is configuration preservation, not physical printing or a page preview. Layout limits/extents, viewport projection, named page-setup dictionaries, shade-object handles, transparency XDATA and referenced printer/style files remain outside this guarantee. KJDraw does not execute resource names or load local printer configuration.
 
@@ -95,19 +112,40 @@ DXF 2000 及更新版本导出保留命名布局、空布局、标签顺序和�
 
 导入布局的 `payload.dxfPlotSettings` 保留 30 个 `AcDbPlotSettings` 标量字段，包括纸张尺寸、边距、偏移、窗口、单位、旋转、比例及资源名称。包导出 `KJDxfPlotSettings` 类型，`transaction.createLayout({ name, dxfPlotSettings })` 也可设置。字段保存在 KJD 和 DXF 2000+ 中。
 
-在嵌入式编辑器顶部打开**页面设置**，选择图纸布局，编辑物理纸张尺寸、边距、打印单位、旋转或自定义比例。空字段保留已有值；应用只修改选定布局，取消/Escape及未修改表单不会改变图档或新增历史。修改任一比例值会清除标准比例标志，其余标志保持不变。打开表单后若图档变更，需要关闭重开才能应用；只读模式禁用入口。该表单配置导出，尚不提供打印预览或实际打印。 可选显示范围、图形范围、图形界限、命名视图、窗口或布局；命名视图需要填写名称，窗口需要填写四个绘图单位坐标且宽高为正。原点偏移以毫米计。“适合纸张”设置标准比例标志与比例类型 0，自定义比例清除该标志；其他标志和当前未使用的窗口/视图配置保留。命名视图仅保存给定引用，尚不校验或渲染该视图。
+在嵌入式编辑器顶部打开**页面设置**，选择图纸布局，编辑物理纸张尺寸、边距、打印单位、旋转或自定义比例。空字段保留已有值；应用只修改选定布局，取消、按 Esc 或提交未修改的表单都不会改变图档或新增历史。打开表单后若图档发生变化，请关闭后重新打开；只读模式不提供此入口。
+
+页面设置用于配置导出，不执行打印或生成打印预览。可选范围包括显示、图形范围、图形界限、命名视图、窗口或布局。命名视图需要名称；窗口需要四个绘图单位坐标，且宽高必须为正。原点偏移以毫米计。
+
+修改任一自定义比例值会清除标准比例标志。“适合纸张”设置标准比例标志和比例类型 0；其他标志以及未使用的窗口、视图配置保持不变。命名视图只保存给定引用，不校验或渲染该视图。
 
 ```ts
 await sdk.executeCommand('PAGESETUP', {
-  layoutName: 'Layout1',
+  layoutName: 'Model',
   dxf: { paperWidth: 594, paperHeight: 841, paperUnits: 1, rotation: 1,
+    plotType: 4, windowMinX: 0, windowMinY: 0, windowMaxX: 400, windowMaxY: 277,
     scaleNumerator: 1, scaleDenominator: 100 },
 })
 ```
 
 `dxf` 仅修改提供的字段，支持撤销/重做。物理纸张、边距和原点偏移始终以毫米表示；`paperUnits` 的 0/1/2 分别表示英寸/毫米/像素。`rotation` 使用 DXF 索引 0/1/2/3，对应逆时针 0/90/180/270 度。显式模式兼容现有原生 `PLOTSETUP` 契约（角度旋转、嵌套比例、输出设备）；原生 `plotSettings` 与旧 `paper` 信息不会静默转换为 DXF 配置，交换页面参数请使用 `dxf`。R12/R14 导出会拒绝丢失已设置的 DXF 页面参数；非法修改完整回滚。
 
-本项保留配置，尚不等于实际打印或页面预览。布局范围、视口投影、命名页面设置字典、着色对象句柄、透明度 XDATA 及引用的打印机/样式文件仍不在保证内。资源名称不会被执行，也不会自动加载本地打印机配置。
+使用配置好的布局生成严格的矢量图或打印文档：
+
+```ts
+import { createDrawingPrintHtml, exportDrawingSvg } from '@kanjieteam/kjdraw'
+
+const layout = drawing.getActiveLayout()
+if (!layout) throw new Error('没有活动布局')
+const svg = exportDrawingSvg(drawing, { layoutId: layout.id })
+const print = createDrawingPrintHtml(drawing, { layoutId: layout.id, title: '图纸' })
+
+console.log(svg.report.status, svg.paper.millimetersPerDrawingUnit)
+// svg.svg 与 print.html 都是完整文档字符串。
+```
+
+模型空间输出需要明确窗口（`plotType: 4`）或命名视图（`plotType: 3`）；图纸布局使用自身范围。严格导出会拒绝无法表达的几何，交付前应检查 `report`。
+
+该接口只保留页面配置，不执行打印或生成页面预览。它不处理布局范围、视口投影、命名页面设置字典、着色对象句柄、透明度 XDATA 以及引用的打印机或样式文件。资源名称不会被执行，也不会自动加载本地打印机配置。
 
 ## 打包工程 {#package-a-project}
 

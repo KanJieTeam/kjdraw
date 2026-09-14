@@ -12,7 +12,7 @@ summary.zh: 安装 KJDraw，几分钟内挂载完整编辑器，并打开一张�
 npm install @kanjieteam/kjdraw@next
 ```
 
-Use version **1.0.0-rc.3 or newer** for interactive moves and switchable layouts. Check with `npm list @kanjieteam/kjdraw`; `next` is the release-candidate channel.
+The `next` tag follows the release-candidate channel. Pin an exact version when you need reproducible builds.
 
 ## Mount a complete editor {#mount-editor}
 
@@ -77,7 +77,7 @@ Continue to **React** or **Vue** for framework components, **Files** for KJD/KJP
 npm install @kanjieteam/kjdraw@next
 ```
 
-交互移动与布局切换需要 **1.0.0-rc.3 或更新版本**。可用 `npm list @kanjieteam/kjdraw` 核对，`next` 为候选版渠道。
+`next` 指向候选版渠道；需要可复现构建时请锁定确切版本。
 
 ## 挂载完整编辑器 {#mount-editor}
 

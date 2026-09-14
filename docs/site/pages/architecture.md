@@ -28,7 +28,7 @@ A `KJDocument` owns stable IDs and handles, object ownership, tables, blocks, mo
 
 ## TypeScript and Rust authority {#typescript-and-rust-authority}
 
-Every public runtime module is authored in strict TypeScript. Browser/Node ESM and declarations are generated and checked for drift. The TypeScript path provides the portable reference implementation.
+Every public runtime module is authored in strict TypeScript. The package provides browser and Node.js ESM together with type declarations. The TypeScript path is the portable reference implementation.
 
 Rust/WebAssembly can provide document authority, geometry predicates and explicitly bounded solid-mesh operations. Backend identity is observable. Missing WASM is never silently described as Rust-authoritative output.
 
@@ -61,7 +61,7 @@ Remote activity begins when the host invokes a configured remote provider, keepi
 
 ## TypeScript 与 Rust 权威 {#typescript-and-rust-authority}
 
-每个公共运行时模块都以严格 TypeScript 为权威源。浏览器/Node ESM 与类型声明自动生成，并检查漂移。TypeScript 路径提供可移植的参考实现。
+每个公共运行时模块都以严格 TypeScript 为权威源。安装包同时提供浏览器与 Node.js ESM 以及类型声明；TypeScript 路径是可移植的参考实现。
 
 Rust/WebAssembly 可以承担图档权威、几何判定和边界明确的实体网格运算。后端身份可观察；WASM 缺失时，系统绝不会把参考结果伪装成 Rust 权威结果。
 
