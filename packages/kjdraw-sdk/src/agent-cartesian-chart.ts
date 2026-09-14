@@ -97,13 +97,15 @@ function niceStep(span: number): number {
 }
 
 function decimalPlaces(value: number): number {
-  if (value >= 1 || value === 0) return 0
-  return Math.min(6, Math.max(0, Math.ceil(-Math.log10(value)) + 1))
+  const [coefficient, exponent = '0'] = String(value).toLowerCase().split('e')
+  return Math.max(0, (coefficient!.split('.')[1]?.length ?? 0) - Number(exponent))
 }
 
-function formatValue(value: number, step: number): string {
-  const rounded = Math.abs(value) < Math.abs(step) * 1e-9 ? 0 : value
-  return rounded.toFixed(decimalPlaces(Math.abs(step))).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')
+function formatTick(value: number, minimum: number, step: number): string {
+  // Tick arithmetic can introduce binary tails; use the precision of the axis
+  // origin AND interval. Source data labels must never be rounded to this scale.
+  const precision = Math.max(decimalPlaces(minimum), decimalPlaces(step))
+  return String(Number(precision <= 100 ? value.toFixed(precision) : value.toPrecision(15)))
 }
 
 function validateInput(document: ChartDocument, source: KJAgentCartesianChartInput) {
@@ -118,6 +120,7 @@ function validateInput(document: ChartDocument, source: KJAgentCartesianChartInp
   const expectedRevision = boundedInteger(input.expectedRevision, 'input.expectedRevision', 0, Number.MAX_SAFE_INTEGER)
   if (expectedRevision !== document.revision) throw new KJValidationError(`input.expectedRevision ${expectedRevision} does not match document revision ${document.revision}`)
   if (document.snapshot()?.header?.units !== 'millimeter') throw new KJValidationError('Cartesian chart compiler requires a millimeter document')
+  if (input.showValues !== undefined && typeof input.showValues !== 'boolean') throw new KJValidationError('input.showValues must be boolean')
 
   if (!Array.isArray(input.categories) || input.categories.length < 2 || input.categories.length > 32) throw new KJValidationError('input.categories must contain 2-32 labels')
   const categories = input.categories.map((value, index) => boundedString(value, `input.categories[${index}]`, 32))
@@ -128,6 +131,7 @@ function validateInput(document: ChartDocument, source: KJAgentCartesianChartInp
     const item = plain(source, `input.series[${index}]`)
     exactKeys(item, SERIES_KEYS, `input.series[${index}]`)
     const id = identifier(item.id, `input.series[${index}].id`)
+    if (['AXIS', 'GRID', 'TEXT'].includes(id.toUpperCase())) throw new KJValidationError(`input.series[${index}].id is reserved for a chart layer`)
     if (ids.has(id.toUpperCase())) throw new KJValidationError(`input.series contains duplicate id: ${id}`)
     ids.add(id.toUpperCase())
     if (item.kind !== 'line' && item.kind !== 'bar') throw new KJValidationError(`input.series[${index}].kind must be line or bar`)
@@ -146,6 +150,7 @@ function validateInput(document: ChartDocument, source: KJAgentCartesianChartInp
     maximum = boundedNumber(axis.maximum, 'input.yAxis.maximum', -1e12, 1e12)
     tick = boundedNumber(axis.tick, 'input.yAxis.tick', Number.MIN_VALUE, 1e12)
     if (maximum <= minimum) throw new KJValidationError('input.yAxis.maximum must exceed minimum')
+    if (tick > maximum - minimum || minimum + tick === minimum) throw new KJValidationError('input.yAxis.tick must be representable within the axis range')
     if ((maximum - minimum) / tick > 12 + EPSILON) throw new KJValidationError('input.yAxis must contain at most 12 tick intervals')
     if (values.some(value => value < minimum - EPSILON || value > maximum + EPSILON)) throw new KJValidationError('input.yAxis must contain every data value')
     if (hasBars && (minimum > 0 || maximum < 0)) throw new KJValidationError('A bar chart yAxis must contain zero')
@@ -222,7 +227,7 @@ export function buildAgentCartesianChart(document: ChartDocument, source: KJAgen
     const y = mapY(value)
     line(plotX, y, plotX + plotWidth, y, layers.grid.id)
     line(plotX - input.textHeight, y, plotX, y)
-    text(plotX - input.textHeight * 7.5, y - input.textHeight * 0.35, formatValue(value, axis.tick), input.textHeight * 0.8)
+    text(plotX - input.textHeight * 7.5, y - input.textHeight * 0.35, formatTick(value, axis.minimum, axis.tick), input.textHeight * 0.8)
   }
   const xAxisY = axis.minimum <= 0 && axis.maximum >= 0 ? mapY(0) : plotY
   line(plotX, plotY, plotX, plotY + plotHeight)
@@ -247,14 +252,14 @@ export function buildAgentCartesianChart(document: ChartDocument, source: KJAgen
         const y = mapY(value), base = mapY(0)
         if (Math.abs(y - base) <= EPSILON) line(x, base, x + barWidth * 0.84, base, layerId)
         else rectangle(x, Math.min(y, base), barWidth * 0.84, Math.abs(y - base), layerId)
-        if (input.showValues) text(x, (value >= 0 ? y + input.textHeight * 0.5 : y - input.textHeight * 1.2), formatValue(value, axis.tick), input.textHeight * 0.72)
+        if (input.showValues) text(x, (value >= 0 ? y + input.textHeight * 0.5 : y - input.textHeight * 1.2), String(value), input.textHeight * 0.72)
       })
     } else {
       const points = series.values.map((value, index) => p3(categoryX(index), mapY(value)))
       add('LWPOLYLINE', layerId, { vertices: points, closed: false })
       points.forEach((point, index) => {
         add('CIRCLE', layerId, { center: point, radius: input.textHeight * 0.42 })
-        if (input.showValues) text(point[0] + input.textHeight * 0.6, point[1] + input.textHeight * 0.6, formatValue(series.values[index]!, axis.tick), input.textHeight * 0.72)
+        if (input.showValues) text(point[0] + input.textHeight * 0.6, point[1] + input.textHeight * 0.6, String(series.values[index]!), input.textHeight * 0.72)
       })
     }
   })

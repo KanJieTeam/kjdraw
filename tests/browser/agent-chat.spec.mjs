@@ -483,7 +483,7 @@ test('chat routes a Chinese mixed chart request through one editable Cartesian c
     const chat=createAgentChat(container,{locale:()=> 'zh',getContext:()=>({sdk,document}),getSelected:()=>[],onPreview(){},onBeforeRun(){},runMutation:operation=>operation(),onApplied(){},onSave(){}})
     chat.setModel({createConversation({tools,instructions}){
       window.chartRoute.tools=tools.map(tool=>tool.name);window.chartRoute.instructions=instructions
-      return {next:async()=>({text:'已生成可编辑组合图，请检查后应用。',calls:[{id:'chart',name:'cad_propose_cartesian_chart',arguments:{version:'1.0.0',expectedRevision:0,units:'millimeter',drawingId:'CHART-UI',title:'季度产量与目标',categories:['一季度','二季度','三季度','四季度'],series:[{id:'actual',name:'实际',kind:'bar',values:[82,96,91,108]},{id:'target',name:'目标',kind:'line',values:[90,90,100,100]}],showValues:true}}]})}
+      return {next:async()=>({text:'已生成可编辑组合图，请检查后应用。',calls:[{id:'chart',name:'cad_propose_cartesian_chart',arguments:{version:'1.0.0',expectedRevision:0,units:'millimeter',drawingId:'CHART-UI',title:'季度产量与目标',categories:['一季度','二季度','三季度','四季度'],series:[{id:'actual',name:'实际',kind:'bar',values:[82.5,96.125,91.75,108.0625]},{id:'target',name:'目标',kind:'line',values:[90,90,100,100]}],showValues:true}}]})}
     }})
   })
   const chat=page.locator('#chart-route-chat')
@@ -499,6 +499,8 @@ test('chat routes a Chinese mixed chart request through one editable Cartesian c
   expect(result.revision).toBe(1);expect(result.count).toBeGreaterThan(20)
   expect(result.types).toEqual(['CIRCLE','LINE','LWPOLYLINE','TEXT'])
   expect(result.layers).toEqual(expect.arrayContaining(['CHART_AXIS','CHART_GRID','CHART_TEXT','CHART_ACTUAL','CHART_TARGET']))
+  const labels=await page.evaluate(()=>window.chartRoute.document.listEntities({type:'TEXT'}).map(entity=>entity.payload.text))
+  expect(labels).toEqual(expect.arrayContaining(['82.5','96.125','91.75','108.0625']))
 })
 
 test('chat keeps general tools for geological, negated and mixed drawing requests', async ({page}) => {
