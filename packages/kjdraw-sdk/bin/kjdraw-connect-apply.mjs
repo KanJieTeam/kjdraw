@@ -6,6 +6,7 @@ import { delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep }
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
 import { createKJDrawSDK } from '../src/sdk.js'
+import { validateKnowledgePack } from '../src/knowledge-pack.js'
 import { KJDRAW_VERSION } from '../src/version.js'
 
 const CLIENTS = Object.freeze([
@@ -18,9 +19,10 @@ const CLIENTS = Object.freeze([
 ])
 const MAX_CONFIG_BYTES = 1024 * 1024
 const MAX_DRAWING_BYTES = 64 * 1024 * 1024
+const MAX_KNOWLEDGE_PACK_BYTES = 1024 * 1024
 
 function usage() {
-  return `Usage: kjdraw-connect --all --workspace <project> (--input <existing.kjd|drawing.dxf> | --blank <new.kjd> --units millimeter|meter) [--proposal-dir .kjdraw/proposals] [--apply]\n\nWithout --apply this is a read-only preview. Only project-level Kimi Code, WorkBuddy, ZCode and TraeCode MCP entries named kjdraw are managed. Host review is required for every pending proposal.`
+  return `Usage: kjdraw-connect --all --workspace <project> (--input <existing.kjd|drawing.dxf> | --blank <new.kjd> --units millimeter|meter) [--proposal-dir .kjdraw/proposals] [--geology-column-pack <relative.json> --geology-column-pack-sha256 <sha256>] [--apply]\n\nWithout --apply this is a read-only preview. Only project-level Kimi Code, WorkBuddy, ZCode and TraeCode MCP entries named kjdraw are managed. Host review is required for every pending proposal.`
 }
 
 function parseArgs(argv) {
@@ -32,13 +34,15 @@ function parseArgs(argv) {
     if (seen.has(key)) throw new Error(`Duplicate option: ${key}`)
     seen.add(key)
     if (key === '--all' || key === '--apply') { options[key.slice(2)] = true; continue }
-    if (!['--workspace', '--input', '--blank', '--units', '--proposal-dir'].includes(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('Unknown or incomplete option')
+    if (!['--workspace', '--input', '--blank', '--units', '--proposal-dir', '--geology-column-pack', '--geology-column-pack-sha256'].includes(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('Unknown or incomplete option')
     options[key === '--proposal-dir' ? 'proposalDir' : key.slice(2)] = argv[++i]
   }
   if (!options.all || !options.workspace) throw new Error('--all and --workspace are required')
   if (Boolean(options.input) === Boolean(options.blank)) throw new Error('Choose exactly one of --input or --blank')
   if (options.blank && !['millimeter', 'meter'].includes(options.units)) throw new Error('--blank requires --units millimeter|meter')
   if (options.input && options.units) throw new Error('--units is only for --blank')
+  if (Boolean(options['geology-column-pack']) !== Boolean(options['geology-column-pack-sha256'])) throw new Error('Geology column pack path and SHA-256 must be supplied together')
+  if (options['geology-column-pack-sha256'] && !/^[a-f0-9]{64}$/u.test(options['geology-column-pack-sha256'])) throw new Error('Geology column pack SHA-256 must be lowercase hexadecimal')
   return options
 }
 
@@ -191,6 +195,20 @@ export async function connectWorkspace(options, hooks = {}) {
   const root = await realpath(rawRoot)
   const drawing = await prepareDrawing(root, options)
   const proposals = await checkedPath(root, options.proposalDir ?? '.kjdraw/proposals', '--proposal-dir', 'directory')
+  let geologyColumnKnowledge
+  if (options['geology-column-pack']) {
+    const path = await checkedPath(root, options['geology-column-pack'], '--geology-column-pack', 'file')
+    const info = await item(path)
+    if (!info?.isFile() || info.isSymbolicLink() || info.size > MAX_KNOWLEDGE_PACK_BYTES) throw new Error('Geology column pack must be an existing regular JSON file no larger than 1 MiB')
+    const bytes = await readFile(path)
+    if (sha(bytes) !== options['geology-column-pack-sha256']) throw new Error('Geology column pack bytes do not match the host-supplied SHA-256')
+    let source
+    try { source = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) }
+    catch { throw new Error('Geology column pack must be strict UTF-8 JSON') }
+    const pack = validateKnowledgePack(source)
+    if (pack.domain !== 'geology' || !pack.rules?.['geology-column-layout']) throw new Error('Geology column pack must declare the geology domain and geology-column-layout rule')
+    geologyColumnKnowledge = { id: pack.id, version: pack.version, sha256: sha(bytes), path: relative(root, path).split(sep).join('/') }
+  }
   const mcpPath = fileURLToPath(new URL('./kjdraw-mcp.mjs', import.meta.url))
   if (/[\\/]_npx[\\/]/iu.test(mcpPath) && options.apply) throw new Error('Refusing an ephemeral npm npx cache as a persistent MCP target; install the package locally or globally first')
   const mcpInfo = await item(mcpPath)
@@ -198,7 +216,8 @@ export async function connectWorkspace(options, hooks = {}) {
   const sourceSha256 = sha(await readFile(mcpPath))
   const nodeEvidence = await nodePathEvidence(root)
   // 'node' avoids an ephemeral desktop runtime path and TraeCode's no-spaces command rule.
-  const entry = { command: 'node', args: [mcpPath, '--workspace', root, '--input', drawing.name, '--proposal-dir', relative(root, proposals).split(sep).join('/')] }
+  const entry = { command: 'node', args: [mcpPath, '--workspace', root, '--input', drawing.name, '--proposal-dir', relative(root, proposals).split(sep).join('/'),
+    ...(geologyColumnKnowledge ? ['--geology-column-pack', geologyColumnKnowledge.path, '--geology-column-pack-sha256', geologyColumnKnowledge.sha256] : [])] }
   const plans = []
   for (const client of CLIENTS) {
     const path = await checkedPath(root, client.path, client.name, 'file')
@@ -212,7 +231,8 @@ export async function connectWorkspace(options, hooks = {}) {
     plans.push({ ...client, path, original: original.bytes, beforeSha: original.bytes ? sha(original.bytes) : null, content })
   }
   const changed = plans.filter(plan => plan.content)
-  const configurationEvidence = { guiVerified: false, engineInvoked: false, approvalRoute: 'trusted-host-only', serverEntryName: 'kjdraw', workBuddyGuide: CLIENTS[1].guide, node: nodeEvidence }
+  const configurationEvidence = { guiVerified: false, engineInvoked: false, approvalRoute: 'trusted-host-only', serverEntryName: 'kjdraw', workBuddyGuide: CLIENTS[1].guide, node: nodeEvidence,
+    ...(geologyColumnKnowledge ? { geologyColumnKnowledge } : {}) }
   if (!options.apply) return { applied: false, clients: plans.map(plan => ({ client: plan.name, action: plan.content ? 'add' : 'unchanged', status: 'project-config-candidate-not-GUI-verified' })), drawing: drawing.serialized ? 'create blank' : 'existing', proposalDirectory: 'verified or create', sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256, configurationEvidence }
   const created = []
   const staged = []

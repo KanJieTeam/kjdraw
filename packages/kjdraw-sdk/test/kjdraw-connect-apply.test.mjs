@@ -78,6 +78,45 @@ test('preview changes no files; apply initializes a validated blank host drawing
   }
 })
 
+test('one connect transaction binds a host-hashed geology pack into all four clients without exposing style input to the model', async t => {
+  const root = await fixture(t)
+  const fields = [
+    { start: 5, role: 'layerNumber', label: '层号' }, { start: 20, role: 'layerName', label: '地层名' },
+    { start: 59, role: 'baseElevation', label: '底标高' }, { start: 74, role: 'thickness', label: '厚度' },
+    { start: 89, role: 'depth', label: '层底深度' }, { start: 101, role: 'pattern', label: '花纹' },
+    { start: 119, role: 'description', label: '描述' }, { start: 189, role: 'sample', label: '取样' },
+    { start: 209, role: 'spt', label: '标贯' },
+  ]
+  const pack = { schema: 'kjdraw.knowledge-pack.v1', id: 'connect-geology-test', version: '1.0.0', title: 'MIT synthetic connect layout', domain: 'geology',
+    license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'synthetic-grid', title: 'MIT-authored test grid', license: 'MIT', contentHash: hash('connect-geology-test-grid') }],
+    ontology: { objectKinds: ['borehole-log'], relationKinds: [] },
+    rules: { 'geology-column-layout': { paperWidth: 300, paperHeight: 340, left: 5, right: 295, fieldGrid: fields, legendMode: 'none' } } }
+  const saved = await seeded(root, 'knowledge/geology-column.json', pack)
+  const result = await connectWorkspace({ ...options(root), 'geology-column-pack': 'knowledge/geology-column.json', 'geology-column-pack-sha256': saved.sha256 })
+  assert.deepEqual(result.configurationEvidence.geologyColumnKnowledge, { id: pack.id, version: pack.version, sha256: saved.sha256, path: 'knowledge/geology-column.json' })
+  let entry
+  for (const relative of configPaths) {
+    const config = JSON.parse(await readFile(join(root, relative), 'utf8'))
+    const current = relative.startsWith('.zcode/') ? config.mcp.servers.kjdraw : config.mcpServers.kjdraw
+    entry ??= current
+    assert.deepEqual(current.args.slice(-4), ['--geology-column-pack', 'knowledge/geology-column.json', '--geology-column-pack-sha256', saved.sha256])
+  }
+  const drawing = join(root, '.kjdraw/active.kjd'), before = await readFile(drawing)
+  const request = (id, method, params) => JSON.stringify({ jsonrpc: '2.0', id, method, ...(params ? { params } : {}) })
+  const child = spawnSync(process.execPath, entry.args, { encoding: 'utf8', input: `${request(1, 'initialize', { protocolVersion: '2025-11-25' })}\n${request(2, 'tools/call', { name: 'cad_propose_geology_column', arguments: {
+    version: '1.0.0', expectedRevision: 0, units: 'millimeter', verticalScaleDenominator: 125,
+    hole: { id: 'ZK-TEST', collarElevation: 105, depth: 10,
+      strata: [{ code: '1', name: '灰黄含砾粉质黏土夹层细砂', top: 0, bottom: 10, lithology: 'clay' }] }
+  } })}\n`, maxBuffer: 16 * 1024 * 1024 })
+  assert.equal(child.status, 0, child.stderr)
+  const responses = child.stdout.trim().split('\n').map(line => JSON.parse(line))
+  assert.equal(responses[1].result.structuredContent.value.status, 'awaiting-host-approval')
+  assert.deepEqual(responses[1].result.structuredContent.value.engineeringEvidence.knowledgePack, { id: pack.id, version: pack.version, sha256: saved.sha256 })
+  assert.deepEqual(await readFile(drawing), before)
+  assert.equal(hash(await readFile(saved.path)), saved.sha256)
+})
+
 test('official WorkBuddy command/args shape is configured, while a matching legacy type:stdio entry is preserved byte-for-byte', async t => {
   const root = await fixture(t)
   await connectWorkspace(options(root))

@@ -240,7 +240,7 @@ async function main() {
   }
   const args = parseArgs(argv)
   if (args.help) {
-    process.stdout.write('KJDraw connect (project-scoped MCP installer, read-only preview and fixture smoke)\nUsage: node kjdraw-connect.mjs --all --apply --workspace <project> (--input <existing.kjd|.dxf> | --blank <new.kjd> --units millimeter|meter)\n       node kjdraw-connect.mjs --all --dry-run --workspace <absolute-dir> --input <relative.kjd|.dxf> [--proposals <relative.json>]\n       node kjdraw-connect.mjs --smoke-circle --workspace <explicit-dir>\nWithout --apply, no real configuration is written. Smoke artifacts are local fixtures, not real-model evidence. Static proposal ledgers are one-start-only.\n')
+    process.stdout.write('KJDraw connect (project-scoped MCP installer, read-only preview and fixture smoke)\nUsage: node kjdraw-connect.mjs --all --apply --workspace <project> (--input <existing.kjd|.dxf> | --blank <new.kjd> --units millimeter|meter) [--geology-column-pack <relative.json> --geology-column-pack-sha256 <sha256>]\n       node kjdraw-connect.mjs --all --dry-run --workspace <absolute-dir> --input <relative.kjd|.dxf> [--proposals <relative.json>]\n       node kjdraw-connect.mjs --smoke-circle --workspace <explicit-dir>\nWithout --apply, no real configuration is written. Smoke artifacts are local fixtures, not real-model evidence. Static proposal ledgers are one-start-only.\n')
     return
   }
   process.stdout.write(`${JSON.stringify(args.smokeCircle ? await smokeCircle(args) : await dryRun(args), null, 2)}\n`)
