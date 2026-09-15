@@ -25,7 +25,8 @@
   "bin": {
     "kjdraw": "./bin/kjdraw.mjs",
     "kjdraw-mcp": "./bin/kjdraw-mcp.mjs",
-    "kjdraw-connect": "./bin/kjdraw-connect.mjs"
+    "kjdraw-connect": "./bin/kjdraw-connect.mjs",
+    "kjdraw-review": "./bin/kjdraw-review.mjs"
   },
   "publishConfig": {
     "access": "public",

@@ -255,6 +255,7 @@ async function openHost(options) {
       path: relative(workspace, input).split(sep).join('/'),
       format,
       byteLength: sourceBytes.byteLength,
+      sha256: createHash('sha256').update(sourceBytes).digest('hex'),
       documentId: document.id,
       revision: document.revision,
       units: document.snapshot().header.units,
