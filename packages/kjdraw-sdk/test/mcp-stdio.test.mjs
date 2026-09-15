@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -31,6 +31,143 @@ function run(directory, inputName, messages, proposals = 'pending.json') {
   assert.equal(child.stderr, '')
   return child.stdout.trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
 }
+
+function invoke(args, messages = []) {
+  return spawnSync(process.execPath, [executable, ...args], {
+    input: messages.length ? `${messages.join('\n')}\n` : '', encoding: 'utf8', maxBuffer: 16 * 1024 * 1024
+  })
+}
+
+function blankArgs(directory, blank = 'blank.kjd', proposals = 'pending.json', units = 'meter') {
+  return ['--workspace', directory, '--blank', blank, '--units', units, '--proposals', proposals]
+}
+
+test('MCP host creates and reopens a host-selected blank KJD, while model calls remain proposal-only', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'kjdraw-mcp-blank-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const messages = [
+    request(1, 'initialize', { protocolVersion: '2025-11-25' }),
+    request(2, 'tools/list', {}),
+    request(3, 'tools/call', { name: 'cad_read_drawing', arguments: {} }),
+    request(4, 'tools/call', { name: 'cad_propose_lines', arguments: {
+      expectedRevision: 0, units: 'meter', lines: [{ start: { x: 0, y: 0 }, end: { x: 10, y: 0 } }]
+    } }),
+    request(5, 'tools/call', { name: 'cad_approve', arguments: { planId: 'forbidden' } }),
+    request(6, 'tools/call', { name: 'cad_save', arguments: { path: 'model-chosen.kjd' } })
+  ]
+  const child = invoke(blankArgs(directory), messages)
+  assert.equal(child.status, 0, child.stderr)
+  const responses = child.stdout.trim().split('\n').map(line => JSON.parse(line))
+  assert.deepEqual(responses.map(row => row.id), [1, 2, 3, 4, 5, 6])
+  const listed = responses[1].result.tools.map(tool => tool.name)
+  assert.ok(listed.includes('cad_propose_lines'))
+  assert.equal(listed.some(name => /approve|save|open|blank/u.test(name)), false)
+  assert.equal(responses[2].result.structuredContent.value.revision, 0)
+  assert.deepEqual(responses[2].result.structuredContent.value.entities, [])
+  assert.equal(responses[3].result.structuredContent.value.status, 'awaiting-host-approval')
+  assert.equal(responses[4].error.code, -32602)
+  assert.equal(responses[5].error.code, -32602)
+
+  const drawingPath = join(directory, 'blank.kjd')
+  const original = await readFile(drawingPath)
+  const sdk = createKJDrawSDK()
+  const reopened = await sdk.readDocument(original.toString('utf8'), { format: 'KJD' })
+  assert.equal(reopened.validate().valid, true)
+  assert.equal(reopened.revision, 0)
+  assert.equal(reopened.snapshot().header.units, 'meter')
+  assert.equal(reopened.listEntities().length, 0)
+  assert.deepEqual(await readFile(drawingPath), original)
+  await assert.rejects(readFile(join(directory, 'model-chosen.kjd')), /ENOENT/u)
+  const ledger = JSON.parse(await readFile(join(directory, 'pending.json'), 'utf8'))
+  assert.equal(ledger.source.createdBlank, true)
+  assert.equal(ledger.source.path, 'blank.kjd')
+  assert.equal(ledger.source.documentId, reopened.id)
+  assert.equal(ledger.source.revision, 0)
+  assert.equal(ledger.source.units, 'meter')
+  assert.equal(ledger.proposals.length, 1)
+})
+
+test('MCP blank and existing input modes are mutually exclusive and units are host-only', async t => {
+  const fixture = await drawingFixture('KJD')
+  t.after(() => rm(fixture.directory, { recursive: true, force: true }))
+  const cases = [
+    ['--workspace', fixture.directory, '--blank', 'new.kjd', '--proposals', 'pending.json'],
+    ['--workspace', fixture.directory, '--input', fixture.inputName, '--blank', 'new.kjd', '--units', 'meter', '--proposals', 'pending.json'],
+    ['--workspace', fixture.directory, '--input', fixture.inputName, '--units', 'meter', '--proposals', 'pending.json'],
+    ['--workspace', fixture.directory, '--blank', 'new.kjd', '--units', 'feet', '--proposals', 'pending.json'],
+    ['--workspace', fixture.directory, '--blank', 'new.kjd', '--blank', 'other.kjd', '--units', 'meter', '--proposals', 'pending.json'],
+  ]
+  for (const args of cases) {
+    const child = invoke(args)
+    assert.equal(child.status, 2, child.stderr)
+    assert.equal(child.stdout, '')
+  }
+  await assert.rejects(readFile(join(fixture.directory, 'new.kjd')), /ENOENT/u)
+  await assert.rejects(readFile(join(fixture.directory, 'pending.json')), /ENOENT/u)
+})
+
+test('MCP blank path and ledger path cannot escape, alias, or overwrite existing files', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'kjdraw-mcp-blank-paths-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const existing = Buffer.from('host-owned drawing must remain unchanged')
+  await writeFile(join(directory, 'existing.kjd'), existing)
+  await writeFile(join(directory, 'pending-existing.json'), existing)
+  const cases = [
+    { args: blankArgs(directory, '../escape.kjd'), error: /inside --workspace/u },
+    { args: blankArgs(directory, join(directory, 'absolute.kjd')), error: /inside --workspace/u },
+    { args: blankArgs(directory, 'existing.kjd'), error: /already exists/u },
+    { args: blankArgs(directory, 'same.kjd', 'same.kjd'), error: /must not overwrite/u },
+    { args: blankArgs(directory, 'unused.kjd', 'pending-existing.json'), error: /already exists/u },
+    { args: blankArgs(directory, 'not-a-drawing.dxf'), error: /new \.kjd drawing/u },
+  ]
+  for (const { args, error } of cases) {
+    const child = invoke(args)
+    assert.equal(child.status, 1, child.stderr)
+    assert.match(child.stderr, error)
+    assert.equal(child.stdout, '')
+  }
+  assert.deepEqual(await readFile(join(directory, 'existing.kjd')), existing)
+  assert.deepEqual(await readFile(join(directory, 'pending-existing.json')), existing)
+  await assert.rejects(readFile(join(directory, 'unused.kjd')), /ENOENT/u)
+  await assert.rejects(readFile(join(directory, 'same.kjd')), /ENOENT/u)
+})
+
+test('MCP blank path refuses symbolic-link directories and existing symbolic-link targets', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'kjdraw-mcp-blank-link-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await mkdir(join(directory, 'real'))
+  const alias = join(directory, 'alias'), real = join(directory, 'real')
+  try {
+    await symlink(real, alias, process.platform === 'win32' ? 'junction' : 'dir')
+  } catch (error) {
+    if (!['EPERM', 'EACCES', 'ENOTSUP'].includes(error?.code)) throw error
+    if (process.platform !== 'win32') { t.skip(`Symlink creation unavailable: ${error.code}`); return }
+    // Windows directory junctions do not require Developer Mode. The paths
+    // are resolved fixture children; cmd is used only to create this link.
+    const junction = spawnSync('cmd.exe', ['/d', '/s', '/c', `mklink /J "${alias}" "${real}"`], { encoding: 'utf8' })
+    if (junction.status !== 0) { t.skip(`Junction creation unavailable: ${junction.stderr || junction.stdout}`); return }
+  }
+  let hasFileLink = true
+  try { await symlink(join(real, 'hidden.kjd'), join(directory, 'dangling.kjd'), 'file') }
+  catch (error) {
+    if (!['EPERM', 'EACCES', 'ENOTSUP'].includes(error?.code)) throw error
+    hasFileLink = false
+    t.diagnostic(`File symlink creation unavailable: ${error.code}; directory junction rejection is still exercised`)
+  }
+  const cases = [
+    { args: blankArgs(directory, 'alias/created.kjd'), error: /symbolic link/u },
+    { args: blankArgs(directory, 'real/unused.kjd', 'alias/pending.json'), error: /symbolic link/u },
+    { args: blankArgs(join(directory, 'alias'), 'root.kjd'), error: /symbolic link/u },
+    ...(hasFileLink ? [{ args: blankArgs(directory, 'dangling.kjd'), error: /already exists/u }] : []),
+  ]
+  for (const { args, error } of cases) {
+    const child = invoke(args)
+    assert.equal(child.status, 1, child.stderr)
+    assert.match(child.stderr, error)
+  }
+  await assert.rejects(readFile(join(directory, 'real', 'created.kjd')), /ENOENT/u)
+  await assert.rejects(readFile(join(directory, 'real', 'unused.kjd')), /ENOENT/u)
+})
 
 test('MCP stdio exposes the attached Agent registry and persists proposals without changing KJD', async t => {
   const fixture = await drawingFixture('KJD')

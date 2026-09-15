@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 import { createHash, randomUUID } from 'node:crypto'
-import { link, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises'
-import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { link, lstat, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises'
+import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
 import { KJDRAW_VERSION } from '../src/version.js'
@@ -14,7 +14,7 @@ const MAX_DRAWING_BYTES = 64 * 1024 * 1024
 const MAX_MESSAGE_BYTES = 4 * 1024 * 1024
 
 function usage() {
-  return `Usage: kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json>\n\nThe host, not the model, chooses all paths. Tool calls can inspect the drawing or create pending proposals; this process never approves a proposal or saves a CAD file.`
+  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json>\n\nThe host, not the model, chooses all paths and blank drawing units. Tool calls can inspect the drawing or create pending proposals; this process never approves a proposal or saves a CAD file.`
 }
 
 function parseArgs(argv) {
@@ -23,10 +23,13 @@ function parseArgs(argv) {
   const values = {}
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index], value = argv[index + 1]
-    if (!['--workspace', '--input', '--proposals'].includes(key) || !value) throw new Error(`Unknown or incomplete argument: ${key ?? ''}`)
+    if (!['--workspace', '--input', '--blank', '--units', '--proposals'].includes(key) || !value || Object.hasOwn(values, key.slice(2))) throw new Error(`Unknown, duplicate or incomplete argument: ${key ?? ''}`)
     values[key.slice(2)] = value
   }
-  for (const key of ['workspace', 'input', 'proposals']) if (!values[key]) throw new Error(`Missing required --${key}`)
+  for (const key of ['workspace', 'proposals']) if (!values[key]) throw new Error(`Missing required --${key}`)
+  if (Boolean(values.input) === Boolean(values.blank)) throw new Error('Supply exactly one of --input or --blank')
+  if (values.blank && !['millimeter', 'meter'].includes(values.units)) throw new Error('--blank requires --units millimeter or meter')
+  if (values.input && values.units) throw new Error('--units is only allowed with --blank')
   return values
 }
 
@@ -54,6 +57,32 @@ async function resolveOutputInside(root, value) {
   return resolve(parent, basename(candidate))
 }
 
+function samePath(left, right) {
+  return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right
+}
+
+async function resolveVacantFileInside(root, value, label) {
+  assertRelativePath(value, label)
+  const parts = value.split(/[\\/]+/u)
+  if (!parts.length || parts.some(part => !part || part === '.')) throw new Error(`${label} must be an unambiguous relative file path`)
+  let parent = root
+  for (const part of parts.slice(0, -1)) {
+    parent = join(parent, part)
+    const entry = await lstat(parent)
+    if (entry.isSymbolicLink()) throw new Error(`${label} must not traverse a symbolic link`)
+    if (!entry.isDirectory()) throw new Error(`${label} parent must be a directory`)
+  }
+  const candidate = resolve(parent, parts.at(-1))
+  if (!isInside(root, candidate)) throw new Error(`${label} resolves outside --workspace`)
+  try {
+    await lstat(candidate)
+    throw new Error(`${label} target already exists`)
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error
+  }
+  return candidate
+}
+
 function fingerprint(document) {
   return createHash('sha256').update(JSON.stringify(document.serialize())).digest('hex')
 }
@@ -73,6 +102,16 @@ async function exclusiveAtomicJsonCreate(path, value) {
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`
   try {
     await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' })
+    await link(temporary, path)
+  } finally {
+    await unlink(temporary).catch(() => {})
+  }
+}
+
+async function exclusiveAtomicFileCreate(path, value) {
+  const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`
+  try {
+    await writeFile(temporary, value, { flag: 'wx' })
     await link(temporary, path)
   } finally {
     await unlink(temporary).catch(() => {})
@@ -130,19 +169,43 @@ function toolResponse(id, result, isError = false) {
 }
 
 async function openHost(options) {
+  if (options.blank) {
+    const workspaceEntry = await lstat(options.workspace)
+    if (workspaceEntry.isSymbolicLink()) throw new Error('--workspace must not be a symbolic link')
+  }
   const workspace = await realpath(options.workspace)
   if (!(await stat(workspace)).isDirectory()) throw new Error('--workspace must be a directory')
-  const input = await resolveExistingInside(workspace, options.input, '--input')
-  const proposals = await resolveOutputInside(workspace, options.proposals)
-  if (input === proposals) throw new Error('--proposals must not overwrite --input')
-  const format = extname(input).toLowerCase() === '.kjd' ? 'KJD' : extname(input).toLowerCase() === '.dxf' ? 'DXF' : null
-  if (!format) throw new Error('--input must be a .kjd or .dxf drawing')
-  const metadata = await stat(input)
-  if (!metadata.isFile() || metadata.size > MAX_DRAWING_BYTES) throw new Error(`Drawing must be a file no larger than ${MAX_DRAWING_BYTES} bytes`)
-  const sourceBytes = await readFile(input)
-  const source = new TextDecoder('utf-8', { fatal: true }).decode(sourceBytes)
-  const sdk = createKJDrawSDK()
-  const document = await sdk.readDocument(source, { format })
+  const input = options.blank
+    ? await resolveVacantFileInside(workspace, options.blank, '--blank')
+    : await resolveExistingInside(workspace, options.input, '--input')
+  const proposals = options.blank
+    ? await resolveVacantFileInside(workspace, options.proposals, '--proposals')
+    : await resolveOutputInside(workspace, options.proposals)
+  if (samePath(input, proposals)) throw new Error('--proposals must not overwrite the drawing')
+  const format = options.blank ? 'KJD' : extname(input).toLowerCase() === '.kjd' ? 'KJD' : extname(input).toLowerCase() === '.dxf' ? 'DXF' : null
+  if (!format || options.blank && extname(input).toLowerCase() !== '.kjd') throw new Error(options.blank ? '--blank must name a new .kjd drawing' : '--input must be a .kjd or .dxf drawing')
+  let sourceBytes, sdk, document
+  if (options.blank) {
+    const builder = createKJDrawSDK()
+    const blank = builder.createDocument({ documentId: `mcp-blank-${randomUUID()}`, units: options.units })
+    if (!blank.validate().valid) throw new Error('Blank drawing failed CAD validation before creation')
+    const content = await builder.writeDocument(blank, { format: 'KJD' })
+    const probeSdk = createKJDrawSDK()
+    const probe = await probeSdk.readDocument(content, { format: 'KJD' })
+    if (!probe.validate().valid || probe.id !== blank.id || probe.revision !== blank.revision || probe.snapshot().header.units !== options.units || fingerprint(probe) !== fingerprint(blank)) throw new Error('Blank KJD did not round-trip before creation')
+    await exclusiveAtomicFileCreate(input, content)
+    sourceBytes = await readFile(input)
+    sdk = createKJDrawSDK()
+    document = await sdk.readDocument(new TextDecoder('utf-8', { fatal: true }).decode(sourceBytes), { format: 'KJD' })
+    if (!document.validate().valid || document.id !== probe.id || document.revision !== probe.revision || document.snapshot().header.units !== options.units || fingerprint(document) !== fingerprint(probe)) throw new Error('Created blank KJD failed reopen validation')
+  } else {
+    const metadata = await stat(input)
+    if (!metadata.isFile() || metadata.size > MAX_DRAWING_BYTES) throw new Error(`Drawing must be a file no larger than ${MAX_DRAWING_BYTES} bytes`)
+    sourceBytes = await readFile(input)
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(sourceBytes)
+    sdk = createKJDrawSDK()
+    document = await sdk.readDocument(source, { format })
+  }
   const session = new KJAgentToolSession(sdk, document)
   const sourceFingerprint = fingerprint(document)
   const ledger = {
@@ -154,7 +217,8 @@ async function openHost(options) {
       documentId: document.id,
       revision: document.revision,
       units: document.snapshot().header.units,
-      fingerprint: sourceFingerprint
+      fingerprint: sourceFingerprint,
+      ...(options.blank ? { createdBlank: true } : {})
     },
     proposals: []
   }
