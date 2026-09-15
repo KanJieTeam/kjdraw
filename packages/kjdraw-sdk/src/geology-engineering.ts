@@ -3,6 +3,7 @@ import { stableHash, deepFreeze, type ReadonlyDeep } from './utils.js'
 import type { KJKnowledgeCompileResult } from './knowledge-compiler.js'
 import { validateKnowledgePack, type KJKnowledgePack } from './knowledge-pack.js'
 import { hatchPatternFromKnowledgePack } from './hatch-pattern-catalog.js'
+import { layoutCadMText } from './geometry/text-layout.js'
 
 /** Engineering facts, not CAD coordinates. Depths/stations/elevations are metres. */
 export interface KJGeologyStratum {
@@ -295,6 +296,9 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     position: [x, y, 0], text: value, height,
     ...(centered ? { horizontalAlignment: 1, alignmentPoint: [x, y, 0] } : {}),
   })
+  const mtext = (layer: number, x: number, y: number, value: string, height: number, width: number) => add('MTEXT', layer, {
+    position: [x, y, 0], text: value, height, width, attachmentPoint: 1,
+  })
   const poly = (layer: number, points: [number, number][], closed = false) => add('LWPOLYLINE', layer, { vertices: points.map(([x, y]) => [x, y, 0]), closed })
   const rect = (layer: number, x1: number, y1: number, x2: number, y2: number) => poly(layer, [[x1, y1], [x2, y1], [x2, y2], [x1, y2]], true)
   const hatch = (points: [number, number][], layer: Pick<KJGeologyStratum, 'lithology' | 'patternKey'>) => add('HATCH', 2, {
@@ -306,7 +310,7 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     commandArgs: { entities, resources: { linetypes: [{ id: linetypeId, name: `GEO_${stableHash(prefix).toUpperCase()}_CONT`, pattern: [] }], layers } },
     evidence: { packId: 'geology.core', packVersion: '1.0.0', packHash: stableHash({ pattern, hatches }), intentHash: stableHash(input), templateId, rootObjectId: prefix, expectedRevision, entityCount: entities.length },
   })
-  return { line, text, poly, rect, hatch, finish }
+  return { line, text, mtext, poly, rect, hatch, finish }
 }
 
 export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<KJKnowledgeCompileResult> {
@@ -330,6 +334,19 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const sampleX = observationColumns?.[0] ?? descriptionX
   const sptX = observationColumns?.[1] ?? descriptionX + 22
   const descriptionRight = observationColumns?.[0] ?? right
+  const writeDescription = (description: string, yTop: number, bandHeight: number, identity: string): void => {
+    const width = descriptionRight - descriptionX - 4
+    for (const height of [2.5, 2.3, 2.1, 1.9, 1.7, 1.5]) {
+      const layout = layoutCadMText({ position: [descriptionX + 2, yTop - 0.3, 0],
+        text: description.trim(), height, width, attachmentPoint: 1 })
+      const occupied = height + (layout.lines.length - 1) * layout.lineAdvance
+      if (occupied <= bandHeight - 0.6) {
+        g.mtext(3, descriptionX + 2, yTop - 0.3, description.trim(), height, width)
+        return
+      }
+    }
+    throw new KJValidationError(`Geology: ${identity} description does not fit readably in its declared band`)
+  }
   const definitionAnchors = new Map<string, KJGeologyStratum>()
   for (const layer of strata) if (layer.descriptionSource === 'layer-definition' && layer.description) {
     const identity = `${layer.code}\u0000${layer.description}`
@@ -430,13 +447,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     g.text(3, elevationX + 2, (yTop + yBottom) / 2, displayAliases?.codes[layer.code] ?? layer.code, labelHeight)
     g.text(3, hatchX + 2, (yTop + yBottom) / 2, displayAliases?.names[layer.name] ?? layer.name, labelHeight)
     if (layer.description && (layer.descriptionSource !== 'layer-definition' || definitionAnchors.get(`${layer.code}\u0000${layer.description}`) === layer)) {
-      const description = layer.description.trim()
-      const initialHeight = Math.min(2.2, labelHeight)
-      const maxCharacters = Math.max(1, Math.floor((descriptionRight - descriptionX - 4) / (initialHeight * 1.05)))
-      const lines = [...description.matchAll(new RegExp(`.{1,${maxCharacters}}`, 'gu'))].map(match => match[0])
-      const height = Math.min(initialHeight, (bandHeight - 0.5) / (lines.length * 1.3))
-      if (height < 1.5) throw new KJValidationError(`Geology: layer ${layer.code} description does not fit readably in its declared band`)
-      for (const [index, line] of lines.entries()) g.text(3, descriptionX + 2, yTop - (index + 1) * height * 1.3, line, height)
+      writeDescription(layer.description, yTop, bandHeight, `layer ${layer.code}`)
     }
   }
   if (grouped) for (const group of groups) {
@@ -449,13 +460,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     g.text(3, (thicknessX ?? depthX) + 2, labelY, metres(hole.collarElevation - group.bottom), labelHeight)
     g.text(3, elevationX + 2, labelY, displayAliases?.codes[principal.code] ?? group.id, labelHeight)
     g.text(3, hatchX + 2, labelY, displayAliases?.names[principal.name] ?? principal.name, labelHeight)
-    if (principal.description) {
-      const maxCharacters = Math.max(1, Math.floor((descriptionRight - descriptionX - 4) / (2.2 * 1.05)))
-      const lines = [...principal.description.trim().matchAll(new RegExp(`.{1,${maxCharacters}}`, 'gu'))].map(match => match[0])
-      const height = Math.min(2.2, (bandHeight - 0.5) / (lines.length * 1.3))
-      if (height < 1.5) throw new KJValidationError(`Geology: major group ${group.id} description does not fit readably in its declared band`)
-      for (const [index, line] of lines.entries()) g.text(3, descriptionX + 2, yTop - (index + 1) * height * 1.3, line, height)
-    }
+    if (principal.description) writeDescription(principal.description, yTop, bandHeight, `major group ${group.id}`)
   }
   for (const item of observations) {
     const y = top - item.depth * scale

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import crypto from 'node:crypto'
 import { buildHatchPatternKnowledgePack, compileGeologyColumn, compileGeologySection, createKJDrawSDK, exportDrawingSvg, validateKnowledgePack } from '../src/index.js'
+import { layoutCadMText } from '../src/geometry/text-layout.js'
 
 const hole = (id, station, collarElevation, depths = [3, 9, 16]) => ({
   id, station, collarElevation, depth: depths.at(-1),
@@ -258,12 +259,13 @@ test('declared layout separates project descriptions from measured samples and S
   const labels = result.commandArgs.entities.filter(entity => entity.type === 'TEXT')
   assert.ok(labels.some(entity => entity.payload.text === '1(2.00)' && entity.payload.position[0] === 247))
   assert.ok(labels.some(entity => entity.payload.text === 'N=50' && entity.payload.position[0] === 272))
-  assert.ok(labels.some(entity => entity.payload.text.includes('Silty clay') && entity.payload.position[0] === 132))
+  assert.ok(result.commandArgs.entities.some(entity => entity.type === 'MTEXT' && entity.payload.text.includes('Silty clay') && entity.payload.position[0] === 132 && entity.payload.width > 0))
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   await sdk.executeCommand('CREATEBATCH', result.commandArgs, { document })
   const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
   const reopened = await sdk.readDocument(dxf, { format: 'DXF', version: '2018' })
   assert.equal(reopened.listEntities().length, result.evidence.entityCount)
+  assert.equal(reopened.listEntities({ type: 'MTEXT' }).length, 1)
   const wide = structuredClone(input); wide.hole.observations[0].displayLabel = 'too-wide-sample-label'
   assert.throws(() => compileGeologyColumn(wide), /label does not fit/)
 })
@@ -279,13 +281,35 @@ test('repeated project-definition descriptions anchor once, while interval descr
   const input = { hole: { id: '18', collarElevation: 409.68, depth: 10, strata },
     verticalScaleDenominator: 200, expectedRevision: 0 }
   const project = compileGeologyColumn(input)
-  assert.equal(project.commandArgs.entities.filter(entity => entity.type === 'TEXT' && entity.payload.text === '项目地层定义描述').length, 1)
+  assert.equal(project.commandArgs.entities.filter(entity => entity.type === 'MTEXT' && entity.payload.text === '项目地层定义描述').length, 1)
   const interval = structuredClone(input)
   interval.hole.strata[0].descriptionSource = 'interval'
   interval.hole.strata[2].descriptionSource = 'interval'
-  assert.equal(compileGeologyColumn(interval).commandArgs.entities.filter(entity => entity.type === 'TEXT' && entity.payload.text === '项目地层定义描述').length, 2)
+  assert.equal(compileGeologyColumn(interval).commandArgs.entities.filter(entity => entity.type === 'MTEXT' && entity.payload.text === '项目地层定义描述').length, 2)
   const unproven = structuredClone(input); unproven.hole.strata[0].description = undefined
   assert.throws(() => compileGeologyColumn(unproven), /description source requires/)
+})
+
+test('long unspaced Chinese geology descriptions remain native bounded MTEXT through DXF reopen', async () => {
+  const style = validateKnowledgePack({ schema: 'kjdraw.knowledge-pack.v1', id: 'geo-cjk-mtext-test', version: '1.0.0',
+    title: 'Original synthetic CJK role layout', domain: 'geology', license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'text-layout', title: 'Test-authored CJK MTEXT cell', license: 'MIT', contentHash: crypto.createHash('sha256').update('native CJK description').digest('hex') }],
+    ontology: { objectKinds: ['borehole-log'], relationKinds: [] },
+    rules: { 'geology-column-layout': { paperWidth: 260, paperHeight: 340, left: 5, right: 255,
+      columns: [20, 40, 60, 82, 100, 145], observationColumns: [205, 228], footerReserve: 30 } } })
+  const source = hole('CJK-1', 0, 1111.04, [6.8, 15.4, 60])
+  const paragraph = '黄褐色中密细砂含少量云母碎片'.repeat(5)
+  source.strata[1].description = paragraph
+  const compiled = compileGeologyColumn({ hole: source, verticalScaleDenominator: 250, expectedRevision: 0, columnStylePack: style })
+  const text = compiled.commandArgs.entities.find(entity => entity.type === 'MTEXT' && entity.payload.text === paragraph)
+  assert.ok(text)
+  assert.equal(text.payload.width, 56)
+  assert.ok(layoutCadMText(text.payload).lines.length > 1, 'CJK without spaces must wrap inside the declared CAD width')
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
+  const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const reopened = await sdk.readDocument(dxf, { format: 'DXF', version: '2018' })
+  assert.ok(reopened.listEntities({ type: 'MTEXT' }).some(entity => entity.payload.text === paragraph && entity.payload.width === 56))
 })
 
 test('section targets repeated layer codes by exact interval identity, never an arbitrary first match', () => {
