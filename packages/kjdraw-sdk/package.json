@@ -83,6 +83,11 @@
       "import": "./src/knowledge-compiler.js",
       "default": "./src/knowledge-compiler.js"
     },
+    "./hatch-pattern-catalog": {
+      "types": "./types/hatch-pattern-catalog.d.ts",
+      "import": "./src/hatch-pattern-catalog.js",
+      "default": "./src/hatch-pattern-catalog.js"
+    },
     "./model-adapters": {
       "types": "./types/model-adapters.d.ts",
       "import": "./src/model-adapters.js",
