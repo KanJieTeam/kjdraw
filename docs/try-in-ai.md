@@ -14,7 +14,7 @@ macOS / Linux:
 curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
 ```
 
-Requirements: Git and Node.js 22 or newer. The bootstrap installs a pinned public source candidate in a persistent user-data directory, then writes project configuration for Kimi Code, WorkBuddy, ZCode, and TraeCode in one transaction. If an existing KJDraw entry or Skill has different content, installation stops instead of overwriting it.
+Requirements: Node.js 22 or newer; macOS/Linux also need `curl` and `tar`. The bootstrap downloads a pinned public source archive into a persistent user-data directory, then writes project configuration for Kimi Code, WorkBuddy, ZCode, and TraeCode in one transaction. It does not need Git credentials. If an existing KJDraw entry or Skill has different content, installation stops instead of overwriting it.
 
 ## What changes in your project
 

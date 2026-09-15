@@ -14,7 +14,7 @@ macOS / Linux：
 curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
 ```
 
-安装器要求 Git 与 Node.js 22 或更新版本。它会下载固定的公开候选提交，在一次事务中配置 Kimi Code、WorkBuddy、ZCode 和 TraeCode，并在项目中建立 `.kjdraw/host.kjd`。发现同名配置或 Skill 内容冲突时会拒绝写入，不会强制覆盖。
+安装器要求 Node.js 22 或更新版本；macOS/Linux 还需要 `curl` 与 `tar`。它会下载固定提交的公开源码归档，不依赖 Git 凭据；随后在一次事务中配置 Kimi Code、WorkBuddy、ZCode 和 TraeCode，并在项目中建立 `.kjdraw/host.kjd`。发现同名配置或 Skill 内容冲突时会拒绝写入，不会强制覆盖。
 
 安装完成后重启客户端，用它打开同一项目并输入：`使用 KJDraw 读取当前图纸，然后画一个半径 5 mm 的圆；只生成待审核提案。` 看到 `kjdraw` 工具调用、待审核状态与本地 KJDraw 标识，才算实际调用了 KJDraw。
 

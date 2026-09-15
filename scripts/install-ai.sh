@@ -12,18 +12,36 @@ case "$KJDRAW_PROJECT" in
 esac
 [ -d "$KJDRAW_PROJECT" ] || { echo 'KJDraw project directory was not found.' >&2; exit 1; }
 command -v node >/dev/null 2>&1 || { echo 'KJDraw requires Node.js 22 or newer.' >&2; exit 1; }
-command -v git >/dev/null 2>&1 || { echo 'KJDraw requires Git.' >&2; exit 1; }
+command -v curl >/dev/null 2>&1 || { echo 'KJDraw requires curl.' >&2; exit 1; }
+command -v tar >/dev/null 2>&1 || { echo 'KJDraw requires tar.' >&2; exit 1; }
 node -e 'if (+process.versions.node.split(".")[0] < 22) process.exit(1)'
 
 if [ -e "$KJDRAW_INSTALL" ]; then
-  [ -d "$KJDRAW_INSTALL/.git" ] || { echo 'Existing KJDraw install is not a source checkout.' >&2; exit 1; }
-  [ "$(git -C "$KJDRAW_INSTALL" rev-parse HEAD)" = "$KJDRAW_SOURCE_SHA" ] || {
+  if [ -f "$KJDRAW_INSTALL/.kjdraw-source-sha" ]; then
+    KJDRAW_ACTUAL=$(cat "$KJDRAW_INSTALL/.kjdraw-source-sha")
+  elif [ -d "$KJDRAW_INSTALL/.git" ] && command -v git >/dev/null 2>&1; then
+    KJDRAW_ACTUAL=$(git -C "$KJDRAW_INSTALL" rev-parse HEAD)
+  else
+    KJDRAW_ACTUAL=''
+  fi
+  [ "$KJDRAW_ACTUAL" = "$KJDRAW_SOURCE_SHA" ] || {
     echo 'Existing KJDraw install is not the pinned candidate.' >&2; exit 1;
   }
 else
   mkdir -p "$(dirname "$KJDRAW_INSTALL")"
-  git clone --filter=blob:none --no-checkout https://github.com/KanJieTeam/kjdraw.git "$KJDRAW_INSTALL"
-  git -C "$KJDRAW_INSTALL" checkout --detach "$KJDRAW_SOURCE_SHA"
+  KJDRAW_STAGE="$KJDRAW_INSTALL.stage.$$"
+  KJDRAW_ARCHIVE="$KJDRAW_STAGE.tar.gz"
+  [ ! -e "$KJDRAW_STAGE" ] && [ ! -e "$KJDRAW_ARCHIVE" ] || {
+    echo 'A KJDraw installer staging path already exists; refusing overwrite.' >&2; exit 1;
+  }
+  trap 'rm -f "$KJDRAW_ARCHIVE"; rm -rf "$KJDRAW_STAGE"' 0 HUP INT TERM
+  curl -fsSL "https://codeload.github.com/KanJieTeam/kjdraw/tar.gz/$KJDRAW_SOURCE_SHA" -o "$KJDRAW_ARCHIVE"
+  mkdir "$KJDRAW_STAGE"
+  tar -xzf "$KJDRAW_ARCHIVE" -C "$KJDRAW_STAGE" --strip-components=1
+  printf '%s' "$KJDRAW_SOURCE_SHA" > "$KJDRAW_STAGE/.kjdraw-source-sha"
+  mv "$KJDRAW_STAGE" "$KJDRAW_INSTALL"
+  rm -f "$KJDRAW_ARCHIVE"
+  trap - 0 HUP INT TERM
 fi
 
 KJDRAW_CONNECT="$KJDRAW_INSTALL/packages/kjdraw-sdk/bin/kjdraw-connect.mjs"

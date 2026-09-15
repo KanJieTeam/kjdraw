@@ -7,21 +7,42 @@ $KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-466d8be'
 if (-not [IO.Path]::IsPathFullyQualified($KJDrawProject) -or -not (Test-Path -LiteralPath $KJDrawProject -PathType Container)) {
   throw 'Run this command inside an existing project, or set KJDRAW_PROJECT to its absolute path.'
 }
-Get-Command node, git -CommandType Application -ErrorAction Stop | Out-Null
+Get-Command node -CommandType Application -ErrorAction Stop | Out-Null
 node -e "if (+process.versions.node.split('.')[0] < 22) process.exit(1)"
 if ($LASTEXITCODE -ne 0) { throw 'KJDraw requires Node.js 22 or newer.' }
 
 if (Test-Path -LiteralPath $KJDrawInstall) {
-  $KJDrawActual = (git -C $KJDrawInstall rev-parse HEAD).Trim()
-  if ($LASTEXITCODE -ne 0 -or $KJDrawActual -ne $KJDrawSourceSha) {
+  $KJDrawMarker = Join-Path $KJDrawInstall '.kjdraw-source-sha'
+  if (Test-Path -LiteralPath $KJDrawMarker -PathType Leaf) {
+    $KJDrawActual = (Get-Content -Raw -LiteralPath $KJDrawMarker).Trim()
+  } elseif (Test-Path -LiteralPath (Join-Path $KJDrawInstall '.git')) {
+    Get-Command git -CommandType Application -ErrorAction Stop | Out-Null
+    $KJDrawActual = (git -C $KJDrawInstall rev-parse HEAD).Trim()
+  } else {
+    $KJDrawActual = ''
+  }
+  if ($KJDrawActual -ne $KJDrawSourceSha) {
     throw "The existing KJDraw install is not the pinned candidate: $KJDrawInstall"
   }
 } else {
-  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $KJDrawInstall) | Out-Null
-  git clone --filter=blob:none --no-checkout https://github.com/KanJieTeam/kjdraw.git $KJDrawInstall
-  if ($LASTEXITCODE -ne 0) { throw 'Unable to clone the public KJDraw source candidate.' }
-  git -C $KJDrawInstall checkout --detach $KJDrawSourceSha
-  if ($LASTEXITCODE -ne 0) { throw 'Unable to check out the pinned KJDraw source candidate.' }
+  $KJDrawParent = Split-Path -Parent $KJDrawInstall
+  $KJDrawStage = "$KJDrawInstall.stage-$PID"
+  $KJDrawArchive = "$KJDrawStage.zip"
+  if ((Test-Path -LiteralPath $KJDrawStage) -or (Test-Path -LiteralPath $KJDrawArchive)) {
+    throw 'A KJDraw installer staging path already exists; inspect it instead of overwriting it.'
+  }
+  New-Item -ItemType Directory -Force -Path $KJDrawParent | Out-Null
+  try {
+    Invoke-WebRequest -Uri "https://codeload.github.com/KanJieTeam/kjdraw/zip/$KJDrawSourceSha" -OutFile $KJDrawArchive
+    Expand-Archive -LiteralPath $KJDrawArchive -DestinationPath $KJDrawStage
+    $KJDrawExpanded = @(Get-ChildItem -LiteralPath $KJDrawStage -Directory)
+    if ($KJDrawExpanded.Count -ne 1) { throw 'The KJDraw source archive has an unexpected layout.' }
+    Set-Content -LiteralPath (Join-Path $KJDrawExpanded[0].FullName '.kjdraw-source-sha') -Value $KJDrawSourceSha -NoNewline
+    Move-Item -LiteralPath $KJDrawExpanded[0].FullName -Destination $KJDrawInstall
+  } finally {
+    if (Test-Path -LiteralPath $KJDrawArchive) { Remove-Item -LiteralPath $KJDrawArchive -Force }
+    if (Test-Path -LiteralPath $KJDrawStage) { Remove-Item -LiteralPath $KJDrawStage -Recurse -Force }
+  }
 }
 
 $KJDrawConnect = Join-Path $KJDrawInstall 'packages\kjdraw-sdk\bin\kjdraw-connect.mjs'
