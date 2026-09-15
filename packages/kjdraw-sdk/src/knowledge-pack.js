@@ -35,7 +35,7 @@ function stringList(value, label, maximum) {
 function scan(value, label, depth = 0, nodes = {
     count: 0
 }) {
-    if (++nodes.count > 20_000 || depth > 12) fail(`${label} exceeds the data budget`);
+    if (++nodes.count > 20_000 || depth > 24) fail(`${label} exceeds the data budget`);
     if (!value || typeof value !== 'object') return;
     if (Array.isArray(value)) {
         value.forEach((item, index)=>scan(item, `${label}[${index}]`, depth + 1, nodes));

@@ -28,3 +28,17 @@ test('semantic IR validates against the selected pack and forbids undeclared kin
   assert.throws(() => validateSemanticDrawingIntent({ ...intent(), objects: [{ id: 'x', kind: 'unknown', properties: {} }], relations: [] }, knowledge), /not declared/)
   assert.throws(() => validateSemanticDrawingIntent({ ...intent(), relations: [{ kind: 'contains', from: 'hole-1', to: 'missing' }] }, knowledge), /unknown object/)
 })
+
+test('knowledge pack accepts bounded declarative programs but rejects excessive nesting', () => {
+  const allowed = pack()
+  allowed.templates = { sample: { program: { op: { op: { op: { value: 1 } } } } } }
+  assert.equal(validateKnowledgePack(allowed).templates.sample.program.op.op.op.value, 1)
+
+  const excessive = pack()
+  let cursor = excessive
+  for (let index = 0; index < 30; index += 1) {
+    cursor.rules = { nested: {} }
+    cursor = cursor.rules.nested
+  }
+  assert.throws(() => validateKnowledgePack(excessive), /exceeds the data budget/)
+})

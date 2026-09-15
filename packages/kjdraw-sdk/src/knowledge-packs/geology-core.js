@@ -58,6 +58,7 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
         'borehole-column': {
             required: [
                 'borehole.depth',
+                'borehole.verticalScale',
                 'stratum.top',
                 'stratum.bottom',
                 'stratum.lithology'
@@ -74,7 +75,265 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
                 'lithology-fill',
                 'legend',
                 'labels'
-            ]
+            ],
+            program: {
+                version: '1.0.0',
+                rootKind: 'borehole',
+                layers: [
+                    {
+                        name: 'GEOLOGY_BOUNDARY',
+                        color: 7,
+                        lineweight: 35
+                    },
+                    {
+                        name: 'GEOLOGY_HATCH',
+                        color: 8,
+                        lineweight: 18
+                    },
+                    {
+                        name: 'GEOLOGY_TEXT',
+                        color: 2,
+                        lineweight: 18
+                    }
+                ],
+                steps: [
+                    {
+                        emit: [
+                            {
+                                primitive: 'line',
+                                layer: 'GEOLOGY_BOUNDARY',
+                                start: [
+                                    0,
+                                    0
+                                ],
+                                end: [
+                                    0,
+                                    {
+                                        op: 'negate',
+                                        args: [
+                                            {
+                                                op: 'multiply',
+                                                args: [
+                                                    {
+                                                        get: 'root.properties.depth'
+                                                    },
+                                                    {
+                                                        get: 'root.properties.verticalScale'
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                primitive: 'text',
+                                layer: 'GEOLOGY_TEXT',
+                                position: [
+                                    0,
+                                    1
+                                ],
+                                height: 0.6,
+                                value: {
+                                    concat: [
+                                        {
+                                            get: 'root.properties.name'
+                                        },
+                                        '  DEPTH ',
+                                        {
+                                            get: 'root.properties.depth'
+                                        },
+                                        ' m'
+                                    ]
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        select: {
+                            relationKind: 'contains-stratum',
+                            direction: 'outgoing',
+                            objectKind: 'stratum',
+                            sortBy: 'properties.top'
+                        },
+                        continuity: {
+                            startPath: 'properties.top',
+                            endPath: 'properties.bottom',
+                            first: 0,
+                            final: {
+                                get: 'root.properties.depth'
+                            },
+                            tolerance: 1e-9
+                        },
+                        emit: [
+                            {
+                                primitive: 'rectangle',
+                                layer: 'GEOLOGY_BOUNDARY',
+                                origin: [
+                                    0,
+                                    {
+                                        op: 'subtract',
+                                        args: [
+                                            0,
+                                            {
+                                                op: 'multiply',
+                                                args: [
+                                                    {
+                                                        get: 'item.properties.bottom'
+                                                    },
+                                                    {
+                                                        get: 'root.properties.verticalScale'
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ],
+                                size: [
+                                    6,
+                                    {
+                                        op: 'multiply',
+                                        args: [
+                                            {
+                                                op: 'subtract',
+                                                args: [
+                                                    {
+                                                        get: 'item.properties.bottom'
+                                                    },
+                                                    {
+                                                        get: 'item.properties.top'
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                get: 'root.properties.verticalScale'
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                primitive: 'hatch-rectangle',
+                                layer: 'GEOLOGY_HATCH',
+                                origin: [
+                                    0,
+                                    {
+                                        op: 'subtract',
+                                        args: [
+                                            0,
+                                            {
+                                                op: 'multiply',
+                                                args: [
+                                                    {
+                                                        get: 'item.properties.bottom'
+                                                    },
+                                                    {
+                                                        get: 'root.properties.verticalScale'
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ],
+                                size: [
+                                    6,
+                                    {
+                                        op: 'multiply',
+                                        args: [
+                                            {
+                                                op: 'subtract',
+                                                args: [
+                                                    {
+                                                        get: 'item.properties.bottom'
+                                                    },
+                                                    {
+                                                        get: 'item.properties.top'
+                                                    }
+                                                ]
+                                            },
+                                            {
+                                                get: 'root.properties.verticalScale'
+                                            }
+                                        ]
+                                    }
+                                ],
+                                patternName: {
+                                    lookup: {
+                                        value: {
+                                            get: 'item.properties.lithology'
+                                        },
+                                        cases: {
+                                            fill: 'CROSS',
+                                            clay: 'ANSI31',
+                                            silt: 'ANSI31',
+                                            sand: 'ANSI37',
+                                            gravel: 'CROSS',
+                                            rock: 'ANSI31',
+                                            'weathered-rock': 'CROSS'
+                                        }
+                                    }
+                                },
+                                patternScale: 0.4,
+                                patternAngleDegrees: 0
+                            },
+                            {
+                                primitive: 'text',
+                                layer: 'GEOLOGY_TEXT',
+                                position: [
+                                    8,
+                                    {
+                                        op: 'negate',
+                                        args: [
+                                            {
+                                                op: 'multiply',
+                                                args: [
+                                                    {
+                                                        op: 'divide',
+                                                        args: [
+                                                            {
+                                                                op: 'add',
+                                                                args: [
+                                                                    {
+                                                                        get: 'item.properties.top'
+                                                                    },
+                                                                    {
+                                                                        get: 'item.properties.bottom'
+                                                                    }
+                                                                ]
+                                                            },
+                                                            2
+                                                        ]
+                                                    },
+                                                    {
+                                                        get: 'root.properties.verticalScale'
+                                                    }
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                ],
+                                height: 0.45,
+                                value: {
+                                    concat: [
+                                        {
+                                            get: 'item.properties.lithology'
+                                        },
+                                        '  ',
+                                        {
+                                            get: 'item.properties.top'
+                                        },
+                                        '-',
+                                        {
+                                            get: 'item.properties.bottom'
+                                        },
+                                        ' m'
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
         },
         'geology-section': {
             required: [

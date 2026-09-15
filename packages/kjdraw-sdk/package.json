@@ -78,6 +78,11 @@
       "import": "./src/knowledge-packs/geology-core.js",
       "default": "./src/knowledge-packs/geology-core.js"
     },
+    "./knowledge-compiler": {
+      "types": "./types/knowledge-compiler.d.ts",
+      "import": "./src/knowledge-compiler.js",
+      "default": "./src/knowledge-compiler.js"
+    },
     "./model-adapters": {
       "types": "./types/model-adapters.d.ts",
       "import": "./src/model-adapters.js",

@@ -49,7 +49,7 @@ export interface KJSemanticDrawingIntent {
     }[];
 }
 export declare function validateKnowledgePack(source: unknown): ReadonlyDeep<KJKnowledgePack>;
-export declare function validateSemanticDrawingIntent(source: unknown, pack?: KJKnowledgePack): ReadonlyDeep<KJSemanticDrawingIntent>;
+export declare function validateSemanticDrawingIntent(source: unknown, pack?: ReadonlyDeep<KJKnowledgePack>): ReadonlyDeep<KJSemanticDrawingIntent>;
 export declare class KJKnowledgePackRegistry {
     #private;
     register(source: unknown): ReadonlyDeep<KJKnowledgePack>;

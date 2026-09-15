@@ -54,7 +54,7 @@ function stringList(value: unknown, label: string, maximum: number): string[] {
   return result
 }
 function scan(value: unknown, label: string, depth = 0, nodes = { count: 0 }): void {
-  if (++nodes.count > 20_000 || depth > 12) fail(`${label} exceeds the data budget`)
+  if (++nodes.count > 20_000 || depth > 24) fail(`${label} exceeds the data budget`)
   if (!value || typeof value !== 'object') return
   if (Array.isArray(value)) { value.forEach((item, index) => scan(item, `${label}[${index}]`, depth + 1, nodes)); return }
   const record = plain(value, label)
@@ -94,7 +94,7 @@ export function validateKnowledgePack(source: unknown): ReadonlyDeep<KJKnowledge
   return deepFreeze(result)
 }
 
-export function validateSemanticDrawingIntent(source: unknown, pack?: KJKnowledgePack): ReadonlyDeep<KJSemanticDrawingIntent> {
+export function validateSemanticDrawingIntent(source: unknown, pack?: ReadonlyDeep<KJKnowledgePack>): ReadonlyDeep<KJSemanticDrawingIntent> {
   const input = plain(source, 'intent')
   if (input.schema !== KJDRAW_SEMANTIC_IR_SCHEMA) fail(`intent.schema must be ${KJDRAW_SEMANTIC_IR_SCHEMA}`)
   const packId = boundedText(input.packId, 'intent.packId', 64), packVersion = boundedText(input.packVersion, 'intent.packVersion', 32)
