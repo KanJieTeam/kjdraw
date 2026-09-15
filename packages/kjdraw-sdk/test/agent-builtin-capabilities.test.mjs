@@ -86,3 +86,7 @@ test('host matcher selects only high-confidence bilingual blank-drawing intents 
   assert.equal(match('绘制柱状图。','millimeter',1),null)
   assert.equal(match('', 'millimeter'),null)
 })
+
+test('manufacturing wording does not swallow mixed chart requests',()=>{
+  assert.equal(matchKJDrawBuiltinCapability({prompt:'Create a manufacturing output bar chart with machining notes.',units:'millimeter',entityCount:0}),null)
+})
