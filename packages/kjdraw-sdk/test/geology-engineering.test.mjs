@@ -312,6 +312,112 @@ test('long unspaced Chinese geology descriptions remain native bounded MTEXT thr
   assert.ok(reopened.listEntities({ type: 'MTEXT' }).some(entity => entity.payload.text === paragraph && entity.payload.width === 56))
 })
 
+test('a versioned fourteen-field grid charts direct sample measurements without per-project drawing code', async () => {
+  const fieldGrid = [
+    { start: 5, role: 'layerNumber', label: '层号' }, { start: 21, role: 'layerName', label: '地层名称' },
+    { start: 41, role: 'baseElevation', label: '底标高' }, { start: 56, role: 'thickness', label: '厚度' },
+    { start: 71, role: 'depth', label: '层底深度' }, { start: 83, role: 'pattern', label: '岩性花纹' },
+    { start: 102, role: 'description', label: '地层描述' }, { start: 171, role: 'sample', label: '取样编号' },
+    { start: 186, role: 'measurement', key: 'moisture', decimals: 1, label: '含水率' },
+    { start: 195, role: 'measurement', key: 'voidRatio', decimals: 3, label: '孔隙比' },
+    { start: 205, role: 'measurement', key: 'liquidIndex', decimals: 2, label: '液性指数' },
+    { start: 214, role: 'measurement', key: 'plasticityIndex', decimals: 1, label: '塑性指数' },
+    { start: 223, role: 'spt', label: '标贯N' },
+    { start: 242, role: 'measurement', key: 'collapseCoefficient', decimals: 3, label: '湿陷系数' },
+  ]
+  const style = validateKnowledgePack({ schema: 'kjdraw.knowledge-pack.v1', id: 'geo-fourteen-field-test', version: '1.0.0',
+    title: 'Test-authored measurement role schema', domain: 'geology', license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'role-grid', title: 'Synthetic fourteen-field grid', license: 'MIT', contentHash: crypto.createHash('sha256').update('synthetic14fieldgrid').digest('hex') }],
+    ontology: { objectKinds: ['borehole-log'], relationKinds: [] },
+    rules: { 'geology-column-layout': { paperWidth: 260, paperHeight: 340, left: 5, right: 255,
+      fieldGrid, footerReserve: 30, sptDisplayCap: 50, legendMode: 'none', titleHeight: 9 } } })
+  const source = hole('GRID-1', 0, 1111.04, [6.8, 15.4, 60])
+  source.observations = [
+    { kind: 'sample', id: 'R1', depth: 2, displayLabel: '1(2.00)', measurements: {
+      moisture: 19.4, voidRatio: 0.715, liquidIndex: 0.43, plasticityIndex: 8.9, collapseCoefficient: 0.003 } },
+    { kind: 'spt', id: 'P2', depth: 6.8, value: 12 },
+    { kind: 'spt', id: 'P1', depth: 42.5, value: 83 },
+  ]
+  const input = { hole: source, verticalScaleDenominator: 250, expectedRevision: 0, columnStylePack: style }
+  const compiled = compileGeologyColumn(input)
+  const visible = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  for (const value of ['19.4', '0.715', '0.43', '8.9', '0.003', 'N=12', 'N=50']) assert.ok(visible.includes(value), value)
+  assert.ok(compiled.commandArgs.entities.some(entity => entity.type === 'TEXT' &&
+    entity.payload.text === 'ENGINEERING BOREHOLE LOG' && entity.payload.height === 9))
+  assert.equal(input.hole.observations[2].value, 83)
+  const boundaryY = 340 - 56 - 10 - 6.8 * 4
+  const spt = compiled.commandArgs.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === 'N=12')
+  assert.ok(!compiled.commandArgs.entities.some(entity => entity.type === 'LINE' &&
+    Math.abs(entity.payload.start[1] - boundaryY) < 1e-6 && Math.abs(entity.payload.end[1] - boundaryY) < 1e-6 &&
+    entity.payload.start[0] <= spt.payload.position[0] + 1 && entity.payload.end[0] >= spt.payload.position[0] + 1))
+  assert.ok(compiled.commandArgs.entities.some(entity => entity.type === 'HATCH' &&
+    Math.min(...entity.payload.boundaryLoops[0].vertices.map(point => point[0])) === 83 &&
+    Math.max(...entity.payload.boundaryLoops[0].vertices.map(point => point[0])) === 102))
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
+  const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  assert.equal((await sdk.readDocument(dxf, { format: 'DXF' })).listEntities().length, compiled.evidence.entityCount)
+  const missing = structuredClone(input)
+  missing.columnStylePack.rules['geology-column-layout'].fieldGrid = fieldGrid.filter(field => field.role !== 'description')
+  assert.throws(() => compileGeologyColumn(missing), /misses a core role/)
+  const unsafe = structuredClone(input)
+  unsafe.hole.observations[0].measurements.__proto__ = { untracked: 4 }
+  unsafe.hole.observations[0].measurements['not-safe!'] = 4
+  assert.throws(() => compileGeologyColumn(unsafe), /invalid sampled measurement key/)
+  const badTitle = structuredClone(input)
+  badTitle.columnStylePack.rules['geology-column-layout'].titleHeight = 30
+  assert.throws(() => compileGeologyColumn(badTitle), /title height must be 3–12/)
+})
+
+test('a declared text lane borrows space for a sourced thin first group without moving depth or hatch boundaries', async () => {
+  const grid = [
+    { start: 5, role: 'layerNumber', label: 'No' }, { start: 20, role: 'layerName', label: 'Name' },
+    { start: 40, role: 'baseElevation', label: 'Base' }, { start: 55, role: 'thickness', label: 'Thick' },
+    { start: 70, role: 'depth', label: 'Depth' }, { start: 82, role: 'pattern', label: 'Pattern' },
+    { start: 100, role: 'description', label: 'Description' }, { start: 170, role: 'sample', label: 'Sample' },
+    { start: 190, role: 'spt', label: 'SPT' },
+  ]
+  const rule = { paperWidth: 260, paperHeight: 340, left: 5, right: 255, fieldGrid: grid,
+    legendMode: 'none', textFlow: { firstGroupBorrowMm: 8, firstGroupUnruled: true,
+      firstBaselineMm: 3.4, labelPitchMm: 5, labelHeightMm: 2.7, paragraphGapMm: 1.5 } }
+  const style = validateKnowledgePack({ schema: 'kjdraw.knowledge-pack.v1', id: 'geo-thin-text-flow', version: '1.0.0',
+    title: 'Synthetic source-backed thin text lane', domain: 'geology',
+    license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'synthetic-text', title: 'Synthetic layer paragraphs', license: 'MIT',
+      contentHash: crypto.createHash('sha256').update('synthetic-thin-text-flow').digest('hex') }],
+    ontology: { objectKinds: ['borehole-log'], relationKinds: [] }, rules: { 'geology-column-layout': rule } })
+  const input = { hole: { id: 'FLOW-1', collarElevation: 1111.04, depth: 10, strata: [
+    { intervalId: 'a', groupId: '1', groupRole: 'principal', code: '1', name: 'Fill', top: 0, bottom: 0.2,
+      lithology: 'fill', description: '土'.repeat(40) },
+    { intervalId: 'b', groupId: '2', groupRole: 'principal', code: '2', name: 'Clay', top: 0.2, bottom: 5,
+      lithology: 'clay', description: '黏'.repeat(55) },
+    { intervalId: 'c', groupId: '3', groupRole: 'principal', code: '3', name: 'Sand', top: 5, bottom: 10,
+      lithology: 'sand' },
+  ] }, verticalScaleDenominator: 250, expectedRevision: 0, columnStylePack: style }
+  const compiled = compileGeologyColumn(input)
+  const firstBottom = 340 - 56 - 10 - 0.2 * 4
+  const firstName = compiled.commandArgs.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === 'Fill')
+  const secondName = compiled.commandArgs.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === 'Clay')
+  assert.ok(firstName.payload.position[1] < firstBottom)
+  assert.ok(secondName.payload.position[1] <= firstName.payload.position[1] - 5)
+  assert.equal(compiled.commandArgs.entities.filter(entity => entity.type === 'MTEXT').length, 2)
+  const firstBoundaryLines = compiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
+    Math.abs(entity.payload.start[1] - firstBottom) < 1e-6 && Math.abs(entity.payload.end[1] - firstBottom) < 1e-6)
+  assert.ok(firstBoundaryLines.some(entity => entity.payload.start[0] >= 70 && entity.payload.end[0] <= 82))
+  assert.ok(firstBoundaryLines.some(entity => entity.payload.start[0] === 82 && entity.payload.end[0] === 100))
+  assert.ok(!firstBoundaryLines.some(entity => entity.payload.start[0] <= 20 && entity.payload.end[0] >= 170))
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
+  const reopened = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  assert.equal(reopened.listEntities({ type: 'MTEXT' }).length, 2)
+  const noFlow = structuredClone(input)
+  delete noFlow.columnStylePack.rules['geology-column-layout'].textFlow
+  assert.throws(() => compileGeologyColumn(noFlow), /core labels collide with a boundary/)
+  const noBorrow = structuredClone(input)
+  noBorrow.columnStylePack.rules['geology-column-layout'].textFlow.firstGroupBorrowMm = 0
+  assert.throws(() => compileGeologyColumn(noBorrow), /core labels collide|description collides/)
+})
+
 test('section targets repeated layer codes by exact interval identity, never an arbitrary first match', () => {
   const repeated = (id, station) => ({ id, station, collarElevation: 105, depth: 10, strata: [
     { intervalId: `${id}-a`, code: '7', name: 'Clay', top: 0, bottom: 3, lithology: 'clay' },

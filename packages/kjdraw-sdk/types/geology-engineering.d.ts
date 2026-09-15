@@ -41,6 +41,8 @@ export interface KJGeologyObservation {
     value?: number;
     /** Short visible text; id remains the exact stable observation identity. */
     displayLabel?: string;
+    /** Direct numeric laboratory facts keyed by a host-selected, versioned field grid. */
+    measurements?: Record<string, number>;
 }
 export interface KJGeologyColumnInput {
     hole: KJGeologyBorehole;
