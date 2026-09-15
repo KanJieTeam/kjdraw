@@ -43,6 +43,33 @@ const headerRoles = new Set([
     'stableWaterDepth',
     'verticalScale'
 ]);
+const stableDocumentFactKey = (value, label = 'document fact key')=>{
+    if (typeof value !== 'string' || !/^[A-Za-z][A-Za-z0-9]{0,31}$/u.test(value) || [
+        'constructor',
+        'prototype'
+    ].includes(value.toLowerCase())) throw new KJValidationError(`Geology: invalid ${label}`);
+    return value;
+};
+const documentFactRecord = (value)=>{
+    if (value == null) return {};
+    if (typeof value !== 'object' || Array.isArray(value) || ![
+        Object.prototype,
+        null
+    ].includes(Object.getPrototypeOf(value))) throw new KJValidationError('Geology: document facts must be a plain record');
+    const result = Object.create(null), seen = new Set();
+    const keys = Reflect.ownKeys(value);
+    if (keys.length > 8) throw new KJValidationError('Geology: document facts allow at most 8 entries');
+    for (const rawKey of keys){
+        if (typeof rawKey !== 'string') throw new KJValidationError('Geology: invalid document fact key');
+        const descriptor = Object.getOwnPropertyDescriptor(value, rawKey);
+        if (!descriptor || !('value' in descriptor)) throw new KJValidationError('Geology: document fact accessors are not accepted');
+        const key = stableDocumentFactKey(rawKey), canonical = key.toLowerCase();
+        if (seen.has(canonical)) throw new KJValidationError('Geology: duplicate document fact key');
+        seen.add(canonical);
+        result[key] = bounded(descriptor.value, `document fact ${key}`, 96);
+    }
+    return result;
+};
 const fieldRoles = new Set([
     'layerNumber',
     'layerName',
@@ -217,14 +244,25 @@ function columnLayout(input) {
         if (!supplied || typeof supplied !== 'object' || Array.isArray(supplied) || Object.keys(supplied).join(',') !== 'rows') throw new KJValidationError('Geology: header grid must declare rows only');
         const rows = supplied.rows;
         if (!Array.isArray(rows) || rows.length < 2 || rows.length > 4 || (headerDepth - 27) / rows.length < 7) throw new KJValidationError('Geology: header grid rows do not fit the declared sheet');
-        const seen = new Set();
+        const seen = new Set(), documentKeys = new Set();
         headerGrid = {
             rows: rows.map((row, rowIndex)=>{
                 if (!Array.isArray(row) || row.length < 1 || row.length > 4 || (right - left) / row.length < 45) throw new KJValidationError(`Geology: header grid row ${rowIndex + 1} is unreadable`);
                 return row.map((raw, cellIndex)=>{
-                    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'label,role') throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a role and label`);
+                    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a role and label`);
                     const cell = raw;
-                    if (typeof cell.role !== 'string' || !headerRoles.has(cell.role)) throw new KJValidationError('Geology: undeclared header fact role');
+                    if (cell.role === 'documentFact') {
+                        if (Object.keys(cell).sort().join(',') !== 'key,label,role') throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a document fact key, role and label`);
+                        const key = stableDocumentFactKey(cell.key), canonical = key.toLowerCase();
+                        if (documentKeys.has(canonical)) throw new KJValidationError('Geology: duplicate document fact key');
+                        documentKeys.add(canonical);
+                        return {
+                            role: 'documentFact',
+                            key,
+                            label: bounded(cell.label, 'header fact label', 24)
+                        };
+                    }
+                    if (Object.keys(cell).sort().join(',') !== 'label,role' || typeof cell.role !== 'string' || !headerRoles.has(cell.role)) throw new KJValidationError('Geology: undeclared header fact role');
                     const role = cell.role;
                     if (seen.has(role)) throw new KJValidationError('Geology: duplicate header fact role');
                     seen.add(role);
@@ -599,6 +637,9 @@ export function compileGeologyColumn(input) {
     const { hole } = input, strata = checkHole(hole);
     const layout = columnLayout(input);
     const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, footerReserve, labels, displayAliases, headerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow } = layout;
+    const documentFacts = documentFactRecord(input.documentFacts);
+    const declaredDocumentFactKeys = new Set(headerGrid?.rows.flat().filter((cell)=>cell.role === 'documentFact').map((cell)=>cell.key) ?? []);
+    for (const key of Object.keys(documentFacts))if (!declaredDocumentFactKeys.has(key)) throw new KJValidationError(`Geology: document fact ${key} is not declared by the style pack`);
     const gridField = (role)=>fieldGrid?.find((field)=>field.role === role);
     const gridEnd = (field)=>fieldGrid?.[fieldGrid.indexOf(field) + 1]?.start ?? right;
     const depthX = gridField('depth')?.start ?? columns[0];
@@ -708,12 +749,13 @@ export function compileGeologyColumn(input) {
                 const cellLeft = left + cellIndex * width, valueX = cellLeft + Math.min(25, width * 0.35);
                 if (cellIndex) g.line(0, cellLeft, rowBottom, cellLeft, rowTop);
                 g.line(0, valueX, rowBottom, valueX, rowTop);
-                const value = facts[cell.role];
-                if (value == null) throw new KJValidationError(`Geology: declared header fact ${cell.role} is missing; refusing to invent a value`);
+                const identity = cell.role === 'documentFact' ? cell.key : cell.role;
+                const value = cell.role === 'documentFact' ? documentFacts[cell.key] : facts[cell.role];
+                if (value == null) throw new KJValidationError(`Geology: declared header fact ${identity} is missing; refusing to invent a value`);
                 const estimated = (text)=>[
                         ...text
                     ].reduce((sum, character)=>sum + (/^[\x20-\x7e]$/u.test(character) ? 1.15 : 2.1), 0);
-                if (estimated(cell.label) > valueX - cellLeft - 3 || estimated(value) > cellLeft + width - valueX - 3) throw new KJValidationError(`Geology: header fact ${cell.role} does not fit the declared cell`);
+                if (estimated(cell.label) > valueX - cellLeft - 3 || estimated(value) > cellLeft + width - valueX - 3) throw new KJValidationError(`Geology: header fact ${identity} does not fit the declared cell`);
                 g.text(3, cellLeft + 2, rowTop - rowHeight * 0.69, cell.label, 2.2);
                 g.text(3, valueX + 2, rowTop - rowHeight * 0.69, value, 2.2);
             }

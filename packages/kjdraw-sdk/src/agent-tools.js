@@ -1489,11 +1489,27 @@ const geologyColumnSchema = objectWithOptional({
             297,
             841
         ]
+    },
+    documentFacts: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 8,
+        items: object({
+            key: {
+                ...text,
+                maxLength: 32
+            },
+            value: {
+                ...text,
+                maxLength: 96
+            }
+        })
     }
 }, [
     'projectName',
     'title',
-    'pageHeightMillimeters'
+    'pageHeightMillimeters',
+    'documentFacts'
 ]);
 const geologySectionHoleSchema = object({
     id: geologyHoleSchema.properties.id,
@@ -1717,7 +1733,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_geology_column',
         effect: 'propose',
-        description: 'Compile one editable engineering borehole column from exact supplied strata, collar elevation, depth, measured water and sample/SPT observations. Depths and elevations in hole are metres; the CAD document and physical page are millimetres. Version 1.0.0 uses either the built-in generic style or one versioned geology column knowledge pack selected and hash-locked by the host before this session; the model cannot supply or replace style code. It does not certify raw MDB facts or match an original DWG template. Missing descriptions, water or observations remain missing, never inferred. Clarify absent or conflicting facts before calling. The model supplies engineering facts and vertical scale, not CAD entities, pattern code or approval. A blank millimetre drawing is required. Returns full native geometry and evidence as a pending CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
+        description: 'Compile one editable engineering borehole column from exact supplied strata, collar elevation, depth, measured water and sample/SPT observations. Depths and elevations in hole are metres; the CAD document and physical page are millimetres. Version 1.0.0 uses either the built-in generic style or one versioned geology column knowledge pack selected and hash-locked by the host before this session; the model cannot supply or replace style code. A bound pack may request up to eight explicit source-backed documentFacts as stable key/value pairs (for example an appendix identifier); undeclared, duplicate, missing or unsafe facts are rejected and never inferred. It does not certify raw MDB facts or match an original DWG template. Missing descriptions, water or observations remain missing, never inferred. Clarify absent or conflicting facts before calling. The model supplies engineering facts and vertical scale, not CAD entities, pattern code or approval. A blank millimetre drawing is required. Returns full native geometry and evidence as a pending CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
         inputSchema: geologyColumnSchema
     },
     {
@@ -2735,9 +2751,23 @@ export class KJAgentToolSession {
                             engineeringEvidence = compiled.evidence;
                         } else if (name === 'cad_propose_geology_column') {
                             if (document.listEntities().length !== 0) throw new KJValidationError('Geology column requires a blank drawing; existing geometry is not replaced');
-                            const { version: _version, units: _units, ...intent } = args;
+                            const { version: _version, units: _units, documentFacts: suppliedDocumentFacts, ...intent } = args;
+                            let documentFacts;
+                            if (suppliedDocumentFacts !== undefined) {
+                                documentFacts = Object.create(null);
+                                const seen = new Set();
+                                for (const fact of suppliedDocumentFacts){
+                                    const canonical = fact.key.toLowerCase();
+                                    if (seen.has(canonical)) throw new KJValidationError('Geology column document fact keys must be unique');
+                                    seen.add(canonical);
+                                    documentFacts[fact.key] = fact.value;
+                                }
+                            }
                             const compiled = compileGeologyColumn({
                                 ...intent,
+                                ...documentFacts ? {
+                                    documentFacts
+                                } : {},
                                 ...this.#geologyColumnKnowledge ? {
                                     columnStylePack: this.#geologyColumnKnowledge.pack
                                 } : {}

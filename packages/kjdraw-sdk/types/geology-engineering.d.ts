@@ -50,6 +50,8 @@ export interface KJGeologyObservation {
 export interface KJGeologyColumnInput {
     hole: KJGeologyBorehole;
     projectName?: string;
+    /** Exact source-backed document facts requested by a host-selected style pack; never inferred. */
+    documentFacts?: Record<string, string>;
     verticalScaleDenominator: number;
     /** Physical long-log sheet or ordinary A4 sheet, in millimetres. */
     pageHeightMillimeters?: 297 | 841;

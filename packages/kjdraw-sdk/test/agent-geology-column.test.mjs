@@ -69,6 +69,68 @@ test('versioned geology facts compile to a host-only CREATEBATCH proposal, then 
   }
 })
 
+test('MIT synthetic style renders an appendix document fact only when explicitly supplied and preserves atomic roundtrips', async () => {
+  const pack = {
+    schema: 'kjdraw.knowledge-pack.v1', id: 'synthetic-appendix-header', version: '1.0.0',
+    title: 'MIT synthetic appendix header', domain: 'geology',
+    license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'synthetic-layout', title: 'Original synthetic appendix header grid', license: 'MIT',
+      contentHash: sha('synthetic appendix header grid 260x340') }],
+    ontology: { objectKinds: ['borehole-log'], relationKinds: [] },
+    rules: { 'geology-column-layout': { paperWidth: 260, paperHeight: 340, left: 5, right: 255,
+      columns: [20, 40, 60, 82, 100, 145], headerDepth: 56, footerReserve: 30,
+      headerGrid: { rows: [
+        [{ role: 'projectName', label: 'PROJECT' }, { role: 'holeId', label: 'HOLE' }],
+        [{ role: 'documentFact', key: 'appendixNumber', label: 'APPENDIX' }],
+      ] } } },
+  }
+  const input = { ...intent(), documentFacts: [{ key: 'appendixNumber', value: 'APP-A-07' }] }
+  const packBefore = JSON.stringify(pack), inputBefore = JSON.stringify(input)
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const session = new KJAgentToolSession(sdk, document, { geologyColumnKnowledge: { pack, sha256: sha(JSON.stringify(pack)) } })
+  const schema = session.definitions.find(tool => tool.name === 'cad_propose_geology_column').inputSchema.properties.documentFacts
+  assert.equal(schema.maxItems, 8)
+  assert.equal(schema.items.additionalProperties, false)
+  assert.deepEqual(schema.items.required, ['key', 'value'])
+
+  const missing = await session.call('cad_propose_geology_column', intent())
+  assert.equal(missing.ok, false)
+  assert.match(missing.error.message, /declared header fact appendixNumber is missing/u)
+  assert.equal(document.listEntities().length, 0)
+  for (const documentFacts of [
+    [{ key: 'appendixNumber', value: 'A' }, { key: 'AppendixNumber', value: 'B' }],
+    [{ key: 'appendix-number', value: 'A' }],
+    [{ key: 'appendixNumber', value: 'A\nB' }],
+    [{ key: 'unrequestedFact', value: 'A' }],
+  ]) {
+    const rejected = await session.call('cad_propose_geology_column', { ...intent(), documentFacts })
+    assert.equal(rejected.ok, false)
+  }
+
+  const proposal = accepted(await session.call('cad_propose_geology_column', input))
+  assert.equal(proposal.command, 'CREATEBATCH')
+  const proposedTexts = proposal.arguments.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  assert.equal(proposedTexts.filter(value => value === 'APP-A-07').length, 1)
+  assert.equal(document.listEntities().length, 0)
+  accepted(await session.approve(proposal.planId, 'synthetic-host-reviewer'))
+  const visibleAppendix = drawing => drawing.listEntities({ type: 'TEXT' }).filter(entity => entity.payload.text === 'APP-A-07').length
+  assert.equal(visibleAppendix(document), 1)
+  await document.undo()
+  assert.equal(document.listEntities().length, 0)
+  await document.redo()
+  assert.equal(visibleAppendix(document), 1)
+
+  const kjd = await sdk.writeDocument(document, { format: 'KJD' })
+  const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  for (const [bytes, format] of [[kjd, 'KJD'], [dxf, 'DXF']]) {
+    const reopened = await createKJDrawSDK().readDocument(bytes, { format })
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(visibleAppendix(reopened), 1)
+  }
+  assert.equal(JSON.stringify(pack), packBefore)
+  assert.equal(JSON.stringify(input), inputBefore)
+})
+
 test('wrong version, unlicensed pattern request, missing engineering facts and host rejection never change the drawing', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), session = new KJAgentToolSession(sdk, document)
   const before = document.serialize()
