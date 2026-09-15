@@ -2,12 +2,12 @@
 
 <h1 align="center">KJDraw</h1>
 
-<p align="center"><strong>面向 AI 智能体的开源 CAD 引擎。</strong></p>
+<p align="center"><strong>让 AI 真正创建和修改可编辑 CAD。</strong></p>
 
-<p align="center">把工程意图确定性地转化为有结构、可编辑的图纸。<br>读取现有 CAD、生成受支持的图型、精确修改，并验证结果。</p>
+<p align="center">KJDraw 把模型意图转化为确定性几何、可编辑对象、<br>可审计事务，以及能够保存并重新打开的工程图纸。</p>
 
 <p align="center">
-  <a href="#让你的智能体使用可编辑-cad"><strong>Try with AI</strong></a> ·
+  <a href="#快速开始"><strong>快速开始</strong></a> ·
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>在线编辑器</strong></a> ·
   <a href="#接入你的应用"><strong>接入你的应用</strong></a> ·
   <a href="#给你的-agent-配上-cad-工具"><strong>构建 CAD Agent</strong></a> ·
@@ -21,9 +21,36 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
 </p>
 
-## 让你的智能体使用可编辑 CAD
+<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow-zh.gif" alt="KJDraw AI 创建、修改、保存并重开一张经过验证的 409 对象夹具板工程图" width="100%"></a></p>
 
-在项目根目录安装一次。KJDraw 会把 MCP 服务和 CAD Skill 接入支持的智能体客户端，并建立项目级图纸宿主。模型 API Key 始终留在你的 AI 客户端，不交给 KJDraw。
+<p align="center"><sub>真实模型工作流：2 次模型请求 · 5,449 total tokens · 409 个可编辑对象 · 一次精确修改 · 保存并重新打开验证。</sub></p>
+
+## 为 AI 智能体设计的 CAD 基础设施
+
+| 模型只表达意图 | 引擎确定性执行 | 图纸始终可编辑 |
+| --- | --- | --- |
+| 模型通过少量高层工具提供需求、约束和修改，不逐个堆砌基础图元。 | KJDraw 解析受支持的几何、对象身份、图层、引用和事务。 | 每次批准后的结果都是结构化 CAD，支持撤销重做、保存和重新打开。 |
+
+### 从自然语言到经过验证的修改
+
+`绘图意图 → KJDraw Skill → 高层 MCP 工具 → 确定性候选图 → 宿主审核 → 原子修改 → 验证、保存、重开`
+
+模型只表达绘图意图、已提供的工程事实、约束和修改要求。KJDraw 解析受支持的几何与对象身份；缺少必需事实或操作跨越受保护边界时直接拒绝，并把验证证据交给宿主审核。这种分工可以压缩模型输出，让不同智能体遵循同一套 CAD 契约。
+
+## 可以构建什么
+
+| 工作流 | KJDraw 提供的底层能力 |
+| --- | --- |
+| **理解现有图纸** | 分页读取图元，按空间和属性查询，稳定对象 ID，图层、引用、拓扑和修改影响检查。 |
+| **生成受支持的图型** | 机械、建筑、场地、道路、数据图表和勘察工作流的高层确定性编译器。 |
+| **通过多轮对话继续改图** | 精确选择、移动、复制、旋转、缩放、偏移、拉伸、延长、文字/图层修改，以及结构删除、重连与重新分层。 |
+| **接入自己的产品** | 同一引擎提供 JavaScript/TypeScript SDK、React、Vue、完整编辑器、CLI 和 MCP 工具。 |
+
+## 快速开始
+
+### 在 AI 智能体中使用 KJDraw
+
+在需要接入的项目根目录运行安装命令。它会为支持的客户端配置 KJDraw MCP 与 CAD Skill，并建立项目级图纸宿主。模型 API Key 始终留在你的 AI 客户端，不交给 KJDraw。
 
 **Windows PowerShell**
 
@@ -37,32 +64,11 @@ irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.
 curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
 ```
 
-重启智能体，用它打开同一项目，然后要求它使用 KJDraw。连接器当前会在一次事务中写入 Kimi Code、WorkBuddy、ZCode 和 TraeCode 的项目配置。KJDraw 与模型解耦：客户端和模型表达意图，KJDraw 负责受支持的几何、事务、结构验证和文件。[安装细节与安全边界](docs/try-in-ai.zh-CN.md)
+连接器当前会在一次事务中写入 Kimi Code、WorkBuddy、ZCode 和 TraeCode 的项目配置。[安装细节与安全边界](docs/try-in-ai.zh-CN.md)
 
 > **1.0 候选状态：** 命令行配置与真实引擎冒烟测试已经通过；四个客户端 GUI 与真实模型的独立验收仍是发布门槛。KJDraw 不收集模型 Key；源图只读打开，修改在宿主批准前始终是待审核提案。
 
-<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow-zh.gif" alt="KJDraw AI 创建、修改、保存并重开一张经过验证的 409 对象夹具板工程图" width="100%"></a></p>
-
-<p align="center"><sub>真实模型工作流：2 次模型请求 · 5,449 total tokens · 409 个可编辑对象 · 一次精确修改 · 保存并重新打开验证。</sub></p>
-
-## KJDraw 解决什么问题
-
-| 你需要的能力 | KJDraw 提供的底层能力 |
-| --- | --- |
-| **理解现有图纸** | 分页读取图元，按空间和属性查询，稳定对象 ID，图层、引用、拓扑和修改影响检查。 |
-| **生成受支持的工程图** | 机械、建筑、场地、道路、数据图表和勘察工作流的高层确定性编译器；模型不必逐个生成海量基础图元。 |
-| **通过多轮对话继续改图** | 精确选择、移动、复制、旋转、缩放、偏移、拉伸、延长、文字和图层修改，以及结构删除、重连与重新分层。 |
-| **让每次修改可验证** | 先生成提案，由宿主审核；单事务、单版本；检查几何、图层与引用；支持撤销重做、保存和重开验证。 |
-| **交付可编辑结果** | 原生 KJD/KJP 与有明确兼容范围的 DXF；会话结束后仍是有结构、可继续编辑的 CAD。 |
-| **接入任意产品** | 同一引擎提供 JavaScript/TypeScript SDK、React、Vue、完整编辑器、CLI 和 MCP 工具。 |
-
-## 从一句话到可编辑工程图
-
-`绘图意图 → KJDraw Skill → 高层 MCP 工具 → 确定性候选图 → 宿主审核 → 原子修改 → 验证、保存、重开`
-
-模型只表达绘图意图、已提供的工程事实、约束和修改要求。KJDraw 解析受支持的几何与对象身份；缺少必需事实或操作跨越受保护边界时直接拒绝，并把验证证据交给宿主审核。这种分工可以压缩模型输出，让不同智能体遵循同一套 CAD 契约。
-
-### 在线编辑器
+### 体验在线编辑器
 
 [打开在线编辑器](https://kanjieteam.github.io/kjdraw/)，无需注册或上传文件。可体验机械、建筑、场地和道路样例，检查图层、执行修改、撤销、保存并重新打开。样例仅用于产品体验，不作为施工图使用。详见[工作台操作指南](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/)。
 
