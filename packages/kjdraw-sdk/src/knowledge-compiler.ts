@@ -60,6 +60,8 @@ export interface KJKnowledgeCompileResult {
     rootObjectId: string
     expectedRevision: number
     entityCount: number
+    /** Deterministic compiler decisions derived from explicit facts and versioned rules. */
+    parameters?: Record<string, string | number | boolean>
   }
 }
 

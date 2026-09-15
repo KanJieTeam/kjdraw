@@ -1506,6 +1506,7 @@ const geologyColumnSchema = objectWithOptional({
         })
     }
 }, [
+    'verticalScaleDenominator',
     'projectName',
     'title',
     'pageHeightMillimeters',
@@ -1733,7 +1734,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_geology_column',
         effect: 'propose',
-        description: 'Compile one editable engineering borehole column from exact supplied strata, collar elevation, depth, measured water and sample/SPT observations. Depths and elevations in hole are metres; the CAD document and physical page are millimetres. Version 1.0.0 uses either the built-in generic style or one versioned geology column knowledge pack selected and hash-locked by the host before this session; the model cannot supply or replace style code. A bound pack may request up to eight explicit source-backed documentFacts as stable key/value pairs (for example an appendix identifier); undeclared, duplicate, missing or unsafe facts are rejected and never inferred. It does not certify raw MDB facts or match an original DWG template. Missing descriptions, water or observations remain missing, never inferred. Clarify absent or conflicting facts before calling. The model supplies engineering facts and vertical scale, not CAD entities, pattern code or approval. A blank millimetre drawing is required. Returns full native geometry and evidence as a pending CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
+        description: 'Compile one editable engineering borehole column from exact supplied strata, collar elevation, depth, measured water and sample/SPT observations. Depths and elevations in hole are metres; the CAD document and physical page are millimetres. Version 1.0.0 uses either the built-in generic style or one versioned geology column knowledge pack selected and hash-locked by the host before this session; the model cannot supply or replace style code. A bound pack may request up to eight explicit source-backed documentFacts as stable key/value pairs (for example an appendix identifier); undeclared, duplicate, missing or unsafe facts are rejected and never inferred. It does not certify raw MDB facts or match an original DWG template. Missing descriptions, water or observations remain missing, never inferred. Clarify absent or conflicting facts before calling. Supply verticalScaleDenominator only when it is an explicit source/template fact; otherwise KJDraw selects the smallest fitting standard denominator declared by the style. The model supplies engineering facts, not CAD entities, pattern code or approval. A blank millimetre drawing is required. Returns full native geometry and evidence as a pending CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
         inputSchema: geologyColumnSchema
     },
     {

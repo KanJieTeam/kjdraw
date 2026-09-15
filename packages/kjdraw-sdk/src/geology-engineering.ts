@@ -56,7 +56,8 @@ export interface KJGeologyColumnInput {
   projectName?: string
   /** Exact source-backed document facts requested by a host-selected style pack; never inferred. */
   documentFacts?: Record<string, string>
-  verticalScaleDenominator: number
+  /** Explicit source/template fact. Omit to select from the style pack's standard scales. */
+  verticalScaleDenominator?: number
   /** Physical long-log sheet or ordinary A4 sheet, in millimetres. */
   pageHeightMillimeters?: 297 | 841
   /** Host-selected, versioned physical table geometry; independent of model text. */
@@ -119,6 +120,7 @@ interface ColumnLayout {
   fieldGrid?: { start: number; role: FieldRole; label: string; key?: string; decimals?: number }[]
   legendMode?: 'footer' | 'none'
   textFlow?: { firstGroupBorrowMm: number; firstGroupUnruled: boolean; firstBaselineMm: number; labelPitchMm: number; labelHeightMm: number; paragraphGapMm: number }
+  verticalScaleDenominators: number[]
 }
 
 type HeaderRole = 'projectName' | 'holeId' | 'collarElevation' | 'depth' | 'x' | 'y' | 'startDate' | 'endDate' | 'stableWaterDepth' | 'verticalScale'
@@ -148,6 +150,7 @@ const documentFactRecord = (value: unknown): Record<string, string> => {
 type FieldRole = 'layerNumber' | 'layerName' | 'baseElevation' | 'thickness' | 'depth' | 'pattern' | 'description' | 'sample' | 'spt' | 'measurement'
 const fieldRoles = new Set<FieldRole>(['layerNumber', 'layerName', 'baseElevation', 'thickness', 'depth', 'pattern', 'description', 'sample', 'spt', 'measurement'])
 const requiredFieldRoles: FieldRole[] = ['layerNumber', 'layerName', 'baseElevation', 'thickness', 'depth', 'pattern', 'description', 'sample', 'spt']
+const defaultColumnVerticalScales = Object.freeze([50, 100, 200, 250, 500, 1000, 2000, 5000])
 
 const defaultColumnLabels: Record<string, string> = {
   hole: 'HOLE', collar: 'COLLAR', depth: 'DEPTH', verticalScale: 'VERTICAL SCALE', datum: 'DATUM: collar elevation',
@@ -163,7 +166,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     const height = input.pageHeightMillimeters ?? 297
     if (height !== 297 && height !== 841) throw new KJValidationError('Geology: column page height must be 297 or 841 mm')
     return { paperWidth: 210, paperHeight: height, left: 15, right: 195, columns: [32, 51, 67, 92, 147],
-      headerDepth: 56, footerReserve: 57, labels: defaultColumnLabels }
+      headerDepth: 56, footerReserve: 57, labels: defaultColumnLabels, verticalScaleDenominators: [...defaultColumnVerticalScales] }
   }
   if (input.pageHeightMillimeters != null) throw new KJValidationError('Geology: a style pack and direct page height cannot be mixed')
   const pack = validateKnowledgePack(input.columnStylePack)
@@ -173,7 +176,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'footerReserve', 'headerGrid', 'sptDisplayCap', 'legendMode', 'titleHeight', 'textFlow'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'footerReserve', 'headerGrid', 'sptDisplayCap', 'legendMode', 'titleHeight', 'textFlow', 'verticalScaleDenominators'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -294,9 +297,18 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       throw new KJValidationError('Geology: text flow lane is unreadable or unbounded')
     textFlow = { firstGroupBorrowMm, firstGroupUnruled: rule.firstGroupUnruled, firstBaselineMm, labelPitchMm, labelHeightMm, paragraphGapMm }
   }
+  let verticalScaleDenominators = [...defaultColumnVerticalScales]
+  if (value.verticalScaleDenominators != null) {
+    if (!Array.isArray(value.verticalScaleDenominators) || value.verticalScaleDenominators.length < 1 || value.verticalScaleDenominators.length > 16)
+      throw new KJValidationError('Geology: style vertical scales require 1–16 standard denominators')
+    verticalScaleDenominators = value.verticalScaleDenominators.map((item, index) => numeric(item, `vertical scale denominator ${index + 1}`))
+    if (verticalScaleDenominators.some(item => !Number.isSafeInteger(item) || item < 10 || item > 100000) ||
+      verticalScaleDenominators.some((item, index) => index > 0 && item <= verticalScaleDenominators[index - 1]!))
+      throw new KJValidationError('Geology: style vertical scale denominators must be unique increasing integers from 10 to 100000')
+  }
   const legendMode = value.legendMode == null ? 'footer' : value.legendMode
   if (legendMode !== 'footer' && legendMode !== 'none' || legendMode === 'none' && !fieldGrid) throw new KJValidationError('Geology: undeclared or inappropriate legend mode')
-  return { paperWidth, paperHeight, left, right, columns, headerDepth, footerReserve, legendMode, titleHeight, ...(sptDisplayCap == null ? {} : { sptDisplayCap }),
+  return { paperWidth, paperHeight, left, right, columns, headerDepth, footerReserve, legendMode, titleHeight, verticalScaleDenominators, ...(sptDisplayCap == null ? {} : { sptDisplayCap }),
     ...(observationColumns ? { observationColumns } : {}), labels,
     ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}) }
 }
@@ -422,9 +434,10 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     patternName: pattern[layer.lithology], solid: false, patternScale: 0.6, patternAngle: 0,
     ...(hatches[layer.patternKey ?? layer.lithology] ?? {}),
   })
-  const finish = (): ReadonlyDeep<KJKnowledgeCompileResult> => deepFreeze({
+  const finish = (parameters?: Record<string, string | number | boolean>): ReadonlyDeep<KJKnowledgeCompileResult> => deepFreeze({
     commandArgs: { entities, resources: { linetypes: [{ id: linetypeId, name: `GEO_${stableHash(prefix).toUpperCase()}_CONT`, pattern: [] }], layers } },
-    evidence: { packId: 'geology.core', packVersion: '1.0.0', packHash: stableHash({ pattern, hatches }), intentHash: stableHash(input), templateId, rootObjectId: prefix, expectedRevision, entityCount: entities.length },
+    evidence: { packId: 'geology.core', packVersion: '1.0.0', packHash: stableHash({ pattern, hatches }), intentHash: stableHash(input), templateId, rootObjectId: prefix, expectedRevision, entityCount: entities.length,
+      ...(parameters ? { parameters } : {}) },
   })
   return { line, text, mtext, poly, rect, hatch, finish }
 }
@@ -445,10 +458,22 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const codeX = columns.length === 6 ? columns[3] : columns[2]
   const hatchX = columns.length === 6 ? columns[4] : columns[3]
   const descriptionX = gridField('description')?.start ?? columns.at(-1)!
-  const scale = 1000 / positive(input.verticalScaleDenominator, 'vertical scale denominator')
-  const top = pageHeight - headerDepth - 10, bottom = top - hole.depth * scale
+  const top = pageHeight - headerDepth - 10
+  const availableBodyHeight = top - footerReserve
+  const automaticScale = input.verticalScaleDenominator == null
+    ? layout.verticalScaleDenominators.find(denominator => hole.depth * 1000 / denominator <= availableBodyHeight + 1e-9)
+    : undefined
+  if (input.verticalScaleDenominator == null && automaticScale == null)
+    throw new KJValidationError('Geology: no declared standard vertical scale fits the borehole on this sheet')
+  const verticalScaleDenominator = positive(input.verticalScaleDenominator ?? automaticScale!, 'vertical scale denominator')
+  const scale = 1000 / verticalScaleDenominator
+  const bottom = top - hole.depth * scale
   if (scale < 0.1 || scale > 100 || bottom < footerReserve) throw new KJValidationError('Geology: column does not fit the declared physical sheet at this vertical scale')
   const g = drawingBuilder(input, 'borehole-column-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, strata))
+  const finishColumn = (): ReadonlyDeep<KJKnowledgeCompileResult> => g.finish({
+    verticalScaleDenominator,
+    verticalScaleSource: input.verticalScaleDenominator == null ? 'style-standard' : 'explicit',
+  })
   const observations = hole.observations ?? []
   if (observations.length && strata.some(layer => layer.description) && !observationColumns && !fieldGrid) throw new KJValidationError('Geology: supplied descriptions and depth-aligned observations need separate declared columns')
   if (observations.length && !observationColumns && !fieldGrid && right - descriptionX < 42) throw new KJValidationError('Geology: style observation columns must have at least 42 mm total width')
@@ -484,15 +509,16 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   for (const group of groups) group.principal = group.intervals.find(layer => layer.groupRole === 'principal')!
   const depthLabelY = new Map<KJGeologyStratum, number>()
   if (grouped) {
-    let previousY = top + 1
-    for (const layer of strata) {
-      const boundaryY = top - layer.bottom * scale
-      const anchorY = boundaryY + 0.4
-      const visibleY = Math.min(anchorY, previousY - 2.3, top - 2)
-      if (anchorY - visibleY > 4.5 || visibleY < bottom + 0.4)
+    const pitch = 2.3, highest = top - 2, lowest = bottom + 0.4
+    const anchors = strata.map(layer => top - layer.bottom * scale + 0.4)
+    const visible: number[] = []
+    for (const anchor of anchors) visible.push(Math.min(anchor, visible.length ? visible.at(-1)! - pitch : highest))
+    const shift = Math.max(0, lowest - visible.at(-1)!)
+    for (const [index, layer] of strata.entries()) {
+      const value = visible[index]! + shift
+      if (value > highest + 1e-9 || Math.abs(value - anchors[index]!) > 7.6)
         throw new KJValidationError(`Geology: layer ${layer.code} depth labels cannot be separated readably at this scale`)
-      depthLabelY.set(layer, visibleY)
-      previousY = visibleY
+      depthLabelY.set(layer, value)
     }
   }
   g.rect(0, 5, 5, pageWidth - 5, pageHeight - 5)
@@ -504,7 +530,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       x: hole.x == null ? undefined : metres(hole.x), y: hole.y == null ? undefined : metres(hole.y),
       startDate: hole.startDate, endDate: hole.endDate,
       stableWaterDepth: hole.stableWaterDepth == null ? undefined : metres(hole.stableWaterDepth),
-      verticalScale: `1:${metres(input.verticalScaleDenominator)}`,
+      verticalScale: `1:${metres(verticalScaleDenominator)}`,
     }
     const headerTop = pageHeight - 24, headerBottom = pageHeight - headerDepth + 3
     const rowHeight = (headerTop - headerBottom) / headerGrid.rows.length
@@ -533,7 +559,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     const location = [hole.x != null ? `${labels.x} ${metres(hole.x)}` : '', hole.y != null ? `${labels.y} ${metres(hole.y)}` : '',
       hole.startDate ? `${labels.startDate} ${hole.startDate}` : '', hole.endDate ? `${labels.endDate} ${hole.endDate}` : ''].filter(Boolean).join('   ')
     if (location) g.text(3, left + 2, pageHeight - 43, location, 2.3)
-    g.text(3, left + 2, pageHeight - 50, `${labels.verticalScale} 1:${metres(input.verticalScaleDenominator)}   ${labels.datum}`, 2.6)
+    g.text(3, left + 2, pageHeight - 50, `${labels.verticalScale} 1:${metres(verticalScaleDenominator)}   ${labels.datum}`, 2.6)
   }
   const renderLegend = (): void => {
     const distinct = [...new Map(strata.map(layer => [layer.patternKey ?? layer.lithology, layer])).values()]
@@ -675,7 +701,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       if (line.x2 - cursor >= 0.4) g.line(1, cursor, line.y, line.x2, line.y)
     }
     if (layout.legendMode === 'footer') renderLegend()
-    return g.finish()
+    return finishColumn()
   }
   g.rect(0, left, bottom, right, pageHeight - headerDepth)
   for (const x of columns) g.line(0, x, bottom, x, pageHeight - headerDepth)
@@ -738,7 +764,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     g.text(3, (item.kind === 'sample' ? sampleX : sptX) + 2, y, label, 1.8)
   }
   renderLegend()
-  return g.finish()
+  return finishColumn()
 }
 
 export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDeep<KJKnowledgeCompileResult> {

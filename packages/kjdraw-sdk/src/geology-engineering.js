@@ -93,6 +93,16 @@ const requiredFieldRoles = [
     'sample',
     'spt'
 ];
+const defaultColumnVerticalScales = Object.freeze([
+    50,
+    100,
+    200,
+    250,
+    500,
+    1000,
+    2000,
+    5000
+]);
 const defaultColumnLabels = {
     hole: 'HOLE',
     collar: 'COLLAR',
@@ -141,7 +151,10 @@ function columnLayout(input) {
             ],
             headerDepth: 56,
             footerReserve: 57,
-            labels: defaultColumnLabels
+            labels: defaultColumnLabels,
+            verticalScaleDenominators: [
+                ...defaultColumnVerticalScales
+            ]
         };
     }
     if (input.pageHeightMillimeters != null) throw new KJValidationError('Geology: a style pack and direct page height cannot be mixed');
@@ -169,7 +182,8 @@ function columnLayout(input) {
             'sptDisplayCap',
             'legendMode',
             'titleHeight',
-            'textFlow'
+            'textFlow',
+            'verticalScaleDenominators'
         ].includes(key)) || expectedKeys.some((key)=>!keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns');
     const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height');
     const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height');
@@ -336,6 +350,14 @@ function columnLayout(input) {
             paragraphGapMm
         };
     }
+    let verticalScaleDenominators = [
+        ...defaultColumnVerticalScales
+    ];
+    if (value.verticalScaleDenominators != null) {
+        if (!Array.isArray(value.verticalScaleDenominators) || value.verticalScaleDenominators.length < 1 || value.verticalScaleDenominators.length > 16) throw new KJValidationError('Geology: style vertical scales require 1–16 standard denominators');
+        verticalScaleDenominators = value.verticalScaleDenominators.map((item, index)=>numeric(item, `vertical scale denominator ${index + 1}`));
+        if (verticalScaleDenominators.some((item)=>!Number.isSafeInteger(item) || item < 10 || item > 100000) || verticalScaleDenominators.some((item, index)=>index > 0 && item <= verticalScaleDenominators[index - 1])) throw new KJValidationError('Geology: style vertical scale denominators must be unique increasing integers from 10 to 100000');
+    }
     const legendMode = value.legendMode == null ? 'footer' : value.legendMode;
     if (legendMode !== 'footer' && legendMode !== 'none' || legendMode === 'none' && !fieldGrid) throw new KJValidationError('Geology: undeclared or inappropriate legend mode');
     return {
@@ -348,6 +370,7 @@ function columnLayout(input) {
         footerReserve,
         legendMode,
         titleHeight,
+        verticalScaleDenominators,
         ...sptDisplayCap == null ? {} : {
             sptDisplayCap
         },
@@ -595,7 +618,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
             patternAngle: 0,
             ...hatches[layer.patternKey ?? layer.lithology] ?? {}
         });
-    const finish = ()=>deepFreeze({
+    const finish = (parameters)=>deepFreeze({
             commandArgs: {
                 entities,
                 resources: {
@@ -620,7 +643,10 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
                 templateId,
                 rootObjectId: prefix,
                 expectedRevision,
-                entityCount: entities.length
+                entityCount: entities.length,
+                ...parameters ? {
+                    parameters
+                } : {}
             }
         });
     return {
@@ -648,10 +674,19 @@ export function compileGeologyColumn(input) {
     const codeX = columns.length === 6 ? columns[3] : columns[2];
     const hatchX = columns.length === 6 ? columns[4] : columns[3];
     const descriptionX = gridField('description')?.start ?? columns.at(-1);
-    const scale = 1000 / positive(input.verticalScaleDenominator, 'vertical scale denominator');
-    const top = pageHeight - headerDepth - 10, bottom = top - hole.depth * scale;
+    const top = pageHeight - headerDepth - 10;
+    const availableBodyHeight = top - footerReserve;
+    const automaticScale = input.verticalScaleDenominator == null ? layout.verticalScaleDenominators.find((denominator)=>hole.depth * 1000 / denominator <= availableBodyHeight + 1e-9) : undefined;
+    if (input.verticalScaleDenominator == null && automaticScale == null) throw new KJValidationError('Geology: no declared standard vertical scale fits the borehole on this sheet');
+    const verticalScaleDenominator = positive(input.verticalScaleDenominator ?? automaticScale, 'vertical scale denominator');
+    const scale = 1000 / verticalScaleDenominator;
+    const bottom = top - hole.depth * scale;
     if (scale < 0.1 || scale > 100 || bottom < footerReserve) throw new KJValidationError('Geology: column does not fit the declared physical sheet at this vertical scale');
     const g = drawingBuilder(input, 'borehole-column-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, strata));
+    const finishColumn = ()=>g.finish({
+            verticalScaleDenominator,
+            verticalScaleSource: input.verticalScaleDenominator == null ? 'style-standard' : 'explicit'
+        });
     const observations = hole.observations ?? [];
     if (observations.length && strata.some((layer)=>layer.description) && !observationColumns && !fieldGrid) throw new KJValidationError('Geology: supplied descriptions and depth-aligned observations need separate declared columns');
     if (observations.length && !observationColumns && !fieldGrid && right - descriptionX < 42) throw new KJValidationError('Geology: style observation columns must have at least 42 mm total width');
@@ -713,14 +748,15 @@ export function compileGeologyColumn(input) {
     for (const group of groups)group.principal = group.intervals.find((layer)=>layer.groupRole === 'principal');
     const depthLabelY = new Map();
     if (grouped) {
-        let previousY = top + 1;
-        for (const layer of strata){
-            const boundaryY = top - layer.bottom * scale;
-            const anchorY = boundaryY + 0.4;
-            const visibleY = Math.min(anchorY, previousY - 2.3, top - 2);
-            if (anchorY - visibleY > 4.5 || visibleY < bottom + 0.4) throw new KJValidationError(`Geology: layer ${layer.code} depth labels cannot be separated readably at this scale`);
-            depthLabelY.set(layer, visibleY);
-            previousY = visibleY;
+        const pitch = 2.3, highest = top - 2, lowest = bottom + 0.4;
+        const anchors = strata.map((layer)=>top - layer.bottom * scale + 0.4);
+        const visible = [];
+        for (const anchor of anchors)visible.push(Math.min(anchor, visible.length ? visible.at(-1) - pitch : highest));
+        const shift = Math.max(0, lowest - visible.at(-1));
+        for (const [index, layer] of strata.entries()){
+            const value = visible[index] + shift;
+            if (value > highest + 1e-9 || Math.abs(value - anchors[index]) > 7.6) throw new KJValidationError(`Geology: layer ${layer.code} depth labels cannot be separated readably at this scale`);
+            depthLabelY.set(layer, value);
         }
     }
     g.rect(0, 5, 5, pageWidth - 5, pageHeight - 5);
@@ -736,7 +772,7 @@ export function compileGeologyColumn(input) {
             startDate: hole.startDate,
             endDate: hole.endDate,
             stableWaterDepth: hole.stableWaterDepth == null ? undefined : metres(hole.stableWaterDepth),
-            verticalScale: `1:${metres(input.verticalScaleDenominator)}`
+            verticalScale: `1:${metres(verticalScaleDenominator)}`
         };
         const headerTop = pageHeight - 24, headerBottom = pageHeight - headerDepth + 3;
         const rowHeight = (headerTop - headerBottom) / headerGrid.rows.length;
@@ -770,7 +806,7 @@ export function compileGeologyColumn(input) {
             hole.endDate ? `${labels.endDate} ${hole.endDate}` : ''
         ].filter(Boolean).join('   ');
         if (location) g.text(3, left + 2, pageHeight - 43, location, 2.3);
-        g.text(3, left + 2, pageHeight - 50, `${labels.verticalScale} 1:${metres(input.verticalScaleDenominator)}   ${labels.datum}`, 2.6);
+        g.text(3, left + 2, pageHeight - 50, `${labels.verticalScale} 1:${metres(verticalScaleDenominator)}   ${labels.datum}`, 2.6);
     }
     const renderLegend = ()=>{
         const distinct = [
@@ -994,7 +1030,7 @@ export function compileGeologyColumn(input) {
             if (line.x2 - cursor >= 0.4) g.line(1, cursor, line.y, line.x2, line.y);
         }
         if (layout.legendMode === 'footer') renderLegend();
-        return g.finish();
+        return finishColumn();
     }
     g.rect(0, left, bottom, right, pageHeight - headerDepth);
     for (const x of columns)g.line(0, x, bottom, x, pageHeight - headerDepth);
@@ -1096,7 +1132,7 @@ export function compileGeologyColumn(input) {
         g.text(3, (item.kind === 'sample' ? sampleX : sptX) + 2, y, label, 1.8);
     }
     renderLegend();
-    return g.finish();
+    return finishColumn();
 }
 export function compileGeologySection(input) {
     if (input.surfaceRule !== 'straight-between-supplied-collars') throw new KJValidationError('Geology: an explicit surface connection rule is required');

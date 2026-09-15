@@ -45,6 +45,23 @@ test('engineering column expands stratigraphy into physical A4 frame, elevations
   assert.match(svg.svg, /LITHOLOGY LEGEND/)
 })
 
+test('column selects the smallest fitting standard vertical scale and records whether it was automatic or explicit', () => {
+  for (const [depths, expected] of [
+    [[3, 9, 15], 100],
+    [[6, 18, 30], 200],
+    [[12, 36, 60], 500],
+  ]) {
+    const compiled = compileGeologyColumn({ hole: hole(`AUTO-${depths[2]}`, 0, 105.25, depths), expectedRevision: 0 })
+    assert.equal(compiled.evidence.parameters.verticalScaleDenominator, expected)
+    assert.equal(compiled.evidence.parameters.verticalScaleSource, 'style-standard')
+    const labels = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+    assert.ok(labels.some(label => label.includes(`1:${expected}.00`)))
+  }
+  const explicit = compileGeologyColumn({ hole: hole('EXPLICIT', 0, 105.25), verticalScaleDenominator: 125, expectedRevision: 0 })
+  assert.equal(explicit.evidence.parameters.verticalScaleDenominator, 125)
+  assert.equal(explicit.evidence.parameters.verticalScaleSource, 'explicit')
+})
+
 test('real projected coordinates are accepted as metadata while unsafe magnitudes are refused', () => {
   const input = { hole: { ...hole('1', 0, 1780.5, [1.5, 3.6, 15]), x: 4017268.61, y: 641811.24 },
     verticalScaleDenominator: 100, expectedRevision: 0 }
