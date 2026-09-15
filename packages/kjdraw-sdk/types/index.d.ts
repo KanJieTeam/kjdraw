@@ -8,6 +8,7 @@ export * from './agent-architecture-plan.js';
 export * from './agent-site-plan.js';
 export * from './agent-cartesian-chart.js';
 export * from './knowledge-pack.js';
+export * from './knowledge-packs/geology-core.js';
 export * from './agent-builtin-capabilities.js';
 export * from './agent-capabilities.js';
 export * from './agent-capability-candidates.js';

@@ -73,6 +73,11 @@
       "import": "./src/agent-capabilities.js",
       "default": "./src/agent-capabilities.js"
     },
+    "./knowledge-packs/geology-core": {
+      "types": "./types/knowledge-packs/geology-core.d.ts",
+      "import": "./src/knowledge-packs/geology-core.js",
+      "default": "./src/knowledge-packs/geology-core.js"
+    },
     "./model-adapters": {
       "types": "./types/model-adapters.d.ts",
       "import": "./src/model-adapters.js",
