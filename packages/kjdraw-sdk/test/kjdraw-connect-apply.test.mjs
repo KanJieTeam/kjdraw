@@ -1,0 +1,193 @@
+import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { test } from 'node:test'
+import { connectWorkspace } from '../bin/kjdraw-connect-apply.mjs'
+import { createKJDrawSDK } from '../src/sdk.js'
+
+const script = fileURLToPath(new URL('../bin/kjdraw-connect-apply.mjs', import.meta.url))
+const publicBin = fileURLToPath(new URL('../bin/kjdraw-connect.mjs', import.meta.url))
+const configPaths = ['.kimi-code/mcp.json', '.workbuddy/mcp.json', '.zcode/config.json', '.trae/mcp.json']
+const options = root => ({ all: true, workspace: root, blank: '.kjdraw/active.kjd', units: 'millimeter', proposalDir: '.kjdraw/proposals', apply: true })
+const hash = value => createHash('sha256').update(value).digest('hex')
+
+async function fixture(t) {
+  const root = await mkdtemp(join(tmpdir(), 'kjdraw-connect-'))
+  t.after(async () => { await rm(root, { recursive: true, force: true }) })
+  return root
+}
+
+async function seeded(root, relative, value) {
+  const path = join(root, relative)
+  await mkdir(dirname(path), { recursive: true })
+  const bytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`)
+  await writeFile(path, bytes)
+  return { path, bytes, sha256: hash(bytes) }
+}
+
+test('package exposes a dedicated kjdraw-connect binary', async () => {
+  const packageJson = JSON.parse(await readFile(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'))
+  assert.equal(packageJson.bin['kjdraw-connect'], './bin/kjdraw-connect.mjs')
+})
+
+test('existing package binary delegates only --apply, retaining its zero-write preview', async t => {
+  const root = await fixture(t)
+  const apply = spawnSync(process.execPath, [publicBin, '--all', '--workspace', root, '--blank', '.kjdraw/active.kjd', '--units', 'meter', '--apply'], { encoding: 'utf8' })
+  assert.equal(apply.status, 0, apply.stderr)
+  assert.equal(JSON.parse(apply.stdout).drawing, 'created blank')
+  const preview = spawnSync(process.execPath, [publicBin, '--all', '--dry-run', '--workspace', root, '--input', '.kjdraw/active.kjd'], { encoding: 'utf8' })
+  assert.equal(preview.status, 0, preview.stderr)
+  assert.equal(JSON.parse(preview.stdout).writesPerformed, 0)
+})
+
+test('preview changes no files; apply initializes a validated blank host drawing and four scoped entries', async t => {
+  const root = await fixture(t)
+  const run = args => spawnSync(process.execPath, [script, '--all', '--workspace', root, '--blank', '.kjdraw/active.kjd', '--units', 'millimeter', ...args], { encoding: 'utf8' })
+  const preview = run([])
+  assert.equal(preview.status, 0, preview.stderr)
+  assert.equal((await readdir(root)).length, 0)
+  const applied = run(['--apply'])
+  assert.equal(applied.status, 0, applied.stderr)
+  const result = JSON.parse(applied.stdout)
+  assert.equal(result.clients.length, 4)
+  assert.equal(result.backupCount, 0)
+  assert.match(result.mcpScriptSha256, /^[a-f0-9]{64}$/)
+  const drawing = await createKJDrawSDK().readDocument(await readFile(join(root, '.kjdraw/active.kjd'), 'utf8'), { format: 'KJD' })
+  assert.equal(drawing.snapshot().header.units, 'millimeter')
+  assert.equal(drawing.listEntities().length, 0)
+  assert.deepEqual(await readdir(join(root, '.kjdraw/proposals')), [])
+  for (const rel of configPaths) {
+    const value = JSON.parse(await readFile(join(root, rel), 'utf8'))
+    const entry = rel.startsWith('.zcode/') ? value.mcp.servers.kjdraw : value.mcpServers.kjdraw
+    assert.equal(entry.command, 'node')
+    assert.equal(entry.args[entry.args.indexOf('--input') + 1], '.kjdraw/active.kjd')
+    assert.equal(entry.args[entry.args.indexOf('--proposal-dir') + 1], '.kjdraw/proposals')
+    if (rel.startsWith('.workbuddy/')) assert.equal(entry.type, 'stdio')
+  }
+})
+
+test('precise merge preserves unrelated fields; repeated apply is byte-for-byte no-op with backup only on first apply', async t => {
+  const root = await fixture(t)
+  const originals = [
+    await seeded(root, configPaths[0], { mcpServers: { memory: { command: 'existing', args: [] } }, model: 'untouched' }),
+    await seeded(root, configPaths[1], { mcpServers: { calendar: { url: 'https://example.invalid/mcp' } }, auth: { key: 'keep-local' } }),
+    await seeded(root, configPaths[2], { mcp: { servers: { browser: { command: 'existing' } } }, models: { selected: 'unchanged' } }),
+    await seeded(root, configPaths[3], { mcpServers: { files: { command: 'existing' } }, profile: 'unchanged' }),
+  ]
+  const before = originals.map(item => JSON.parse(item.bytes.toString('utf8')))
+  const first = await connectWorkspace(options(root))
+  assert.equal(first.backupCount, 4)
+  const after = []
+  for (let index = 0; index < originals.length; index += 1) {
+    const dir = dirname(originals[index].path)
+    const backups = (await readdir(dir)).filter(name => name.includes('.kjdraw-backup-'))
+    assert.equal(backups.length, 1)
+    assert.equal(hash(await readFile(join(dir, backups[0]))), originals[index].sha256)
+    const value = JSON.parse(await readFile(originals[index].path, 'utf8'))
+    const child = originals[index].path.includes('.zcode') ? value.mcp.servers : value.mcpServers
+    delete child.kjdraw
+    assert.deepEqual(value, before[index])
+    after.push(await readFile(originals[index].path))
+  }
+  const second = await connectWorkspace(options(root))
+  assert.equal(second.backupCount, 0)
+  for (let index = 0; index < originals.length; index += 1) assert.equal(hash(await readFile(originals[index].path)), hash(after[index]))
+})
+
+test('conflicting kjdraw entry rejects all changes, including blank drawing', async t => {
+  const root = await fixture(t)
+  const existing = await seeded(root, '.zcode/config.json', { mcp: { servers: { kjdraw: { command: 'user-owned' } } }, model: 'keep' })
+  await assert.rejects(connectWorkspace(options(root)), /Existing kjdraw MCP entry conflicts/)
+  assert.equal(hash(await readFile(existing.path)), existing.sha256)
+  assert.deepEqual(await readdir(root), ['.zcode'])
+})
+
+test('ZCode .agents fallback services are not silently shadowed by a new native config', async t => {
+  const root = await fixture(t)
+  const fallback = await seeded(root, '.agents/mcp.json', { mcpServers: { retained: { command: 'existing' } } })
+  await assert.rejects(connectWorkspace(options(root)), /would hide them/)
+  assert.equal(hash(await readFile(fallback.path)), fallback.sha256)
+  await assert.rejects(readFile(join(root, '.zcode/config.json')), { code: 'ENOENT' })
+})
+
+test('mid-commit failure restores original config bytes and removes newly created drawing', async t => {
+  const root = await fixture(t)
+  const original = await seeded(root, '.kimi-code/mcp.json', { mcpServers: { owner: { command: 'keep' } }, secret: 'never log this' })
+  await assert.rejects(connectWorkspace(options(root), { beforeReplace: name => { if (name === 'ZCode') throw new Error('injected commit failure') } }), /injected commit failure/)
+  assert.equal(hash(await readFile(original.path)), original.sha256)
+  for (const rel of configPaths.slice(1)) await assert.rejects(readFile(join(root, rel)), { code: 'ENOENT' })
+  await assert.rejects(readFile(join(root, '.kjdraw/active.kjd')), { code: 'ENOENT' })
+})
+
+test('rollback preserves concurrent owner edits to an installed config and host drawing', async t => {
+  const root = await fixture(t)
+  const kimi = join(root, '.kimi-code/mcp.json')
+  const drawing = join(root, '.kjdraw/active.kjd')
+  let ownerConfig, ownerDrawing
+  await assert.rejects(connectWorkspace(options(root), { beforeReplace: async name => {
+    if (name !== 'ZCode') return
+    ownerConfig = Buffer.from('{"ownerEdit":"keep"}\n')
+    ownerDrawing = Buffer.concat([await readFile(drawing), Buffer.from('\n')])
+    await writeFile(kimi, ownerConfig)
+    await writeFile(drawing, ownerDrawing)
+    throw new Error('injected concurrent owner edit')
+  } }), /rollback preserved concurrently changed files: Kimi Code, host drawing/)
+  assert.deepEqual(await readFile(kimi), ownerConfig)
+  assert.deepEqual(await readFile(drawing), ownerDrawing)
+  await assert.rejects(readFile(join(root, '.workbuddy/mcp.json')), { code: 'ENOENT' })
+})
+
+test('rejects configuration symbolic links and traversal without rewriting their targets', async t => {
+  const root = await fixture(t)
+  const outside = await fixture(t)
+  const target = await seeded(outside, 'owner.json', { mcpServers: { owner: { command: 'keep' } } })
+  await mkdir(join(root, '.kimi-code'))
+  try { await symlink(target.path, join(root, '.kimi-code/mcp.json')) } catch (error) { if (['EPERM', 'EACCES'].includes(error.code)) return; throw error }
+  await assert.rejects(connectWorkspace(options(root)), /symbolic link/)
+  assert.equal(hash(await readFile(target.path)), target.sha256)
+  await assert.rejects(connectWorkspace({ ...options(root), blank: '../escape.kjd' }), /inside --workspace/)
+})
+
+test('existing drawing input must exist; malformed JSON is not silently replaced', async t => {
+  const root = await fixture(t)
+  await assert.rejects(connectWorkspace({ all: true, apply: true, workspace: root, input: 'missing.kjd' }), /Existing drawing not found/)
+  const sdk = createKJDrawSDK()
+  await writeFile(join(root, 'existing.kjd'), await sdk.writeDocument(sdk.createDocument({ units: 'meter' }), { format: 'KJD' }))
+  await mkdir(join(root, '.workbuddy'))
+  await writeFile(join(root, '.workbuddy/mcp.json'), '{ broken JSON')
+  await assert.rejects(connectWorkspace({ all: true, apply: true, workspace: root, input: 'existing.kjd' }), /Configuration JSON is invalid/)
+  assert.equal(await readFile(join(root, '.workbuddy/mcp.json'), 'utf8'), '{ broken JSON')
+})
+
+test('generated MCP arguments initialize, list tools and get distinct session ledgers', async t => {
+  const root = await fixture(t)
+  await connectWorkspace(options(root))
+  const entry = JSON.parse(await readFile(join(root, '.kimi-code/mcp.json'), 'utf8')).mcpServers.kjdraw
+  const mcpScript = process.env.KJDRAW_MCP_TEST_BIN ?? entry.args[0]
+  const source = await readFile(mcpScript, 'utf8')
+  if (!source.includes("'--proposal-dir'")) { t.skip('MCP --proposal-dir implementation has not been merged into this worktree'); return }
+  const input = [
+    { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'kjdraw-connect-test', version: '1' } } },
+    { jsonrpc: '2.0', method: 'notifications/initialized' },
+    { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} },
+  ].map(value => JSON.stringify(value)).join('\n') + '\n'
+  const drawingPath = join(root, '.kjdraw/active.kjd')
+  const drawingSha = hash(await readFile(drawingPath))
+  const launch = () => {
+    const child = spawnSync(process.execPath, [mcpScript, ...entry.args.slice(1)], { input, encoding: 'utf8', timeout: 10000 })
+    assert.equal(child.status, 0, child.stderr)
+    const messages = child.stdout.trim().split('\n').map(line => JSON.parse(line))
+    assert.equal(messages.length, 2)
+    assert.equal(messages[0].result.protocolVersion, '2025-11-25')
+    assert.ok(messages[1].result.tools.some(tool => tool.name === 'cad_read_drawing'))
+    return messages[0].result._meta?.['com.kanjie.kjdraw/session']
+  }
+  const first = launch(), second = launch()
+  assert.ok(first && second)
+  assert.notDeepEqual(first, second)
+  assert.equal(hash(await readFile(drawingPath)), drawingSha)
+})
