@@ -942,6 +942,45 @@ function hatchBoundaryLoops(record) {
     if (!loops.length) throw new KJValidationError('DXF HATCH contains no boundary loops');
     return loops;
 }
+function importedHatchPatternLines(record) {
+    const tags = record.tags;
+    const start = tags.findIndex((tag)=>tag.code === 78);
+    if (start < 0) return undefined;
+    let cursor = start + 1;
+    const familyCount = Number(tags[start].value);
+    if (!Number.isInteger(familyCount) || familyCount < 0 || familyCount > 1024) throw new KJValidationError('DXF HATCH pattern family count is invalid');
+    const field = (code)=>{
+        const tag = tags[cursor++];
+        if (tag?.code !== code) throw new KJValidationError(`DXF HATCH pattern expected group ${code}`);
+        const value = Number(tag.value);
+        if (!Number.isFinite(value) || Math.abs(value) > 1e12) throw new KJValidationError(`DXF HATCH pattern group ${code} is invalid`);
+        return value;
+    };
+    const lines = [];
+    for(let index = 0; index < familyCount; index++){
+        const angle = field(53) * Math.PI / 180;
+        const base = [
+            field(43),
+            field(44)
+        ];
+        const offset = [
+            field(45),
+            field(46)
+        ];
+        const dashCount = field(79);
+        if (!Number.isInteger(dashCount) || dashCount < 0 || dashCount > 128) throw new KJValidationError('DXF HATCH pattern dash count is invalid');
+        const dashes = Array.from({
+            length: dashCount
+        }, ()=>field(49));
+        lines.push({
+            angle,
+            base,
+            offset,
+            dashes
+        });
+    }
+    return lines;
+}
 function entityPayload(record, blockIds, resources = {}) {
     switch(record.type){
         case 'LINE':
@@ -1104,18 +1143,24 @@ function entityPayload(record, blockIds, resources = {}) {
                 }
             };
         case 'HATCH':
-            return {
-                type: 'HATCH',
-                payload: {
-                    boundaryLoops: hatchBoundaryLoops(record),
-                    patternName: first(record, 2, 'SOLID'),
-                    solid: number(record, 70, 0) === 1,
-                    associative: number(record, 71, 0) === 1,
-                    patternAngle: number(record, 52, 0) * Math.PI / 180,
-                    patternScale: number(record, 41, 1),
-                    rawTags: record.tags
-                }
-            };
+            {
+                const patternLines = importedHatchPatternLines(record);
+                return {
+                    type: 'HATCH',
+                    payload: {
+                        boundaryLoops: hatchBoundaryLoops(record),
+                        patternName: first(record, 2, 'SOLID'),
+                        solid: number(record, 70, 0) === 1,
+                        associative: number(record, 71, 0) === 1,
+                        patternAngle: number(record, 52, 0) * Math.PI / 180,
+                        patternScale: number(record, 41, 1),
+                        ...patternLines ? {
+                            patternLines
+                        } : {},
+                        rawTags: record.tags
+                    }
+                };
+            }
         case 'LEADER':
             return {
                 type: 'LEADER',

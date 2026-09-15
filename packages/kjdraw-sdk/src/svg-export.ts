@@ -279,6 +279,59 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
     if (entity.type === 'HATCH' && p.solid !== true) {
       if (!Array.isArray(p.boundaryLoops) || !p.boundaryLoops.length || p.boundaryLoops.length > 128) fail('pattern hatch has no bounded boundaries')
       const name = String(p.patternName ?? '').toUpperCase()
+      if (Array.isArray(p.patternLines) && p.patternLines.length) {
+        if (p.patternLines.length > 32 || p.boundaryLoops.some(loop => !Array.isArray(data(loop).vertices))) fail('custom PAT preview requires bounded polygon loops and 1–32 line families')
+        const vertices = p.boundaryLoops.flatMap(loop => data(loop).vertices as unknown[]).map(value => point(Array.isArray(value) ? value : data(value).point))
+        if (vertices.length < 3 || vertices.length > 4096) fail('custom PAT boundary exceeds the preview budget')
+        const minX = Math.min(...vertices.map(v => v[0])), maxX = Math.max(...vertices.map(v => v[0]))
+        const minY = Math.min(...vertices.map(v => v[1])), maxY = Math.max(...vertices.map(v => v[1]))
+        const patternScale = numeric(p.patternScale, 1), patternAngle = numeric(p.patternAngle, 0)
+        if (!(patternScale > 0 && patternScale <= 100) || Math.abs(patternAngle) > 1000) fail('custom PAT scale or angle is outside preview bounds')
+        const clipId = `kj-pat-clip-${++sequence}`
+        const boundary = p.boundaryLoops.map(loop => polyPath(data(loop).vertices, true)).join(' ')
+        definitions.push(count(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${boundary}" fill-rule="evenodd"/></clipPath>`))
+        const corners: [number, number][] = [[minX, minY], [minX, maxY], [maxX, minY], [maxX, maxY]]
+        const center: [number, number] = [(minX + maxX) / 2, (minY + maxY) / 2]
+        const extent = Math.hypot(maxX - minX, maxY - minY) * 2 + 4
+        let strokes = 0, approximatedDashes = false
+        const marks: string[] = []
+        for (const raw of p.patternLines) {
+          const line = data(raw), angle = numeric(line.angle) + patternAngle
+          const base = point(line.base), offset = point(line.offset)
+          const u: [number, number] = [Math.cos(angle), Math.sin(angle)]
+          const normal: [number, number] = [-u[1], u[0]]
+          const origin: [number, number] = [base[0] * patternScale, base[1] * patternScale]
+          const step: [number, number] = [(u[0] * offset[0] + normal[0] * offset[1]) * patternScale,
+            (u[1] * offset[0] + normal[1] * offset[1]) * patternScale]
+          const spacing = step[0] * normal[0] + step[1] * normal[1]
+          if (!Number.isFinite(spacing) || Math.abs(spacing) < .05 || Math.abs(spacing) > 1000) fail('custom PAT family has no readable row spacing')
+          const projections = corners.map(v => v[0] * normal[0] + v[1] * normal[1])
+          const baseProjection = origin[0] * normal[0] + origin[1] * normal[1]
+          const a = (Math.min(...projections) - baseProjection) / spacing
+          const b = (Math.max(...projections) - baseProjection) / spacing
+          const first = Math.floor(Math.min(a, b)) - 1, last = Math.ceil(Math.max(a, b)) + 1
+          if (last - first > 512) fail('custom PAT family exceeds 512 preview rows')
+          let dashStyle = ''
+          if (line.dashes != null) {
+            if (!Array.isArray(line.dashes) || line.dashes.length > 128 || line.dashes.some(value => !Number.isFinite(value))) fail('custom PAT dash cycle is invalid')
+            if (line.dashes.length) {
+              approximatedDashes = true
+              const dash = line.dashes.map(value => Math.max(.07, Math.abs(value) * patternScale))
+              dashStyle = ` stroke-dasharray="${dash.join(' ')}" stroke-linecap="round"`
+            }
+          }
+          for (let row = first; row <= last; row++) {
+            if (++strokes > 4096) fail('custom PAT entity exceeds 4096 preview strokes')
+            const lineOrigin: [number, number] = [origin[0] + row * step[0], origin[1] + row * step[1]]
+            const centerProjection = (center[0] - lineOrigin[0]) * u[0] + (center[1] - lineOrigin[1]) * u[1]
+            const start: [number, number] = [lineOrigin[0] + (centerProjection - extent) * u[0], lineOrigin[1] + (centerProjection - extent) * u[1]]
+            const end: [number, number] = [lineOrigin[0] + (centerProjection + extent) * u[0], lineOrigin[1] + (centerProjection + extent) * u[1]]
+            marks.push(`<line x1="${start[0]}" y1="${start[1]}" x2="${end[0]}" y2="${end[1]}"${dashStyle}/>`)
+          }
+        }
+        if (approximatedDashes) report.approximations.push({ entityId: entity.id, type: entity.type, reason: `SVG custom PAT ${name} uses a bounded dash/dot proxy; DXF retains its exact pattern definitions` })
+        return `<g clip-path="url(#${clipId})" fill="none" stroke="currentColor" stroke-width="0.1">${marks.join('')}</g>`
+      }
       if (!['ANSI31', 'ANSI37', 'CROSS'].includes(name)) fail(`pattern hatch ${name} has no supported SVG preview`)
       const hatchScale = numeric(p.patternScale, 1), angle = numeric(p.patternAngle, 0)
       if (hatchScale < 0.01 || hatchScale > 100 || Math.abs(angle) > 1000) fail('pattern hatch scale or angle is outside the preview bounds')
