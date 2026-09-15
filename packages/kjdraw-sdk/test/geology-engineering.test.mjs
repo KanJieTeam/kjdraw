@@ -447,6 +447,63 @@ test('a declared text lane borrows space for a sourced thin first group without 
   assert.throws(() => compileGeologyColumn(noBorrow), /core labels collide|description collides/)
 })
 
+test('twelve sourced CJK layer-name characters reject a 20 mm lane and survive a 39 mm knowledge-pack lane without truncation', async () => {
+  const name = '灰黄含砾粉质黏土夹层细砂'
+  assert.equal([...name].length, 12)
+  const patSource = '*SYNTH_CLAY,synthetic test hatch\n45,0,0,0,3'
+  const hatchPack = buildHatchPatternKnowledgePack({ id: 'geo-cjk-lane-pat-test', version: '1.0.0', title: 'Synthetic clay hatch',
+    domain: 'geology', license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'synthetic-pat', title: 'MIT-authored hatch line', license: 'MIT', contentHash: crypto.createHash('sha256').update(patSource).digest('hex') }],
+    patSource, selectedPatterns: ['SYNTH_CLAY'], mappings: { clay: 'SYNTH_CLAY' } })
+  const grid = nameEnd => [
+    { start: 5, role: 'layerNumber', label: '层号' }, { start: 20, role: 'layerName', label: '地层名' },
+    { start: nameEnd, role: 'baseElevation', label: '底标高' }, { start: nameEnd + 15, role: 'thickness', label: '厚度' },
+    { start: nameEnd + 30, role: 'depth', label: '层底深度' }, { start: nameEnd + 42, role: 'pattern', label: '花纹' },
+    { start: nameEnd + 60, role: 'description', label: '描述' }, { start: nameEnd + 130, role: 'sample', label: '取样' },
+    { start: nameEnd + 150, role: 'spt', label: '标贯' },
+  ]
+  const style = (id, nameEnd) => validateKnowledgePack({ schema: 'kjdraw.knowledge-pack.v1', id, version: '1.0.0',
+    title: 'MIT synthetic CJK field lane', domain: 'geology', license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'synthetic-grid', title: 'MIT-authored CJK lane widths', license: 'MIT',
+      contentHash: crypto.createHash('sha256').update(`synthetic CJK name lane ${nameEnd - 20} mm`).digest('hex') }],
+    ontology: { objectKinds: ['borehole-log'], relationKinds: [] },
+    rules: { 'geology-column-layout': { paperWidth: 300, paperHeight: 340, left: 5, right: 295,
+      fieldGrid: grid(nameEnd), legendMode: 'none' } } })
+  const narrow = style('geo-cjk-name-lane-20-test', 40), wide = style('geo-cjk-name-lane-39-test', 59)
+  const originalNarrow = structuredClone(narrow), originalWide = structuredClone(wide), originalHatch = structuredClone(hatchPack)
+  const input = { hole: { id: 'SYN-CJK-12', collarElevation: 105, depth: 10,
+    strata: [{ code: '1', name, top: 0, bottom: 10, lithology: 'clay' }] },
+  verticalScaleDenominator: 125, expectedRevision: 0, hatchPack }
+  assert.throws(() => compileGeologyColumn({ ...input, columnStylePack: narrow }), /layerName text does not fit its declared field/u)
+  const compiled = compileGeologyColumn({ ...input, columnStylePack: wide })
+  const sourceLabels = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT' && entity.payload.text === name)
+  assert.equal(sourceLabels.length, 1)
+  assert.equal(sourceLabels[0].payload.position[0], 21.2)
+  assert.ok(compiled.commandArgs.entities.some(entity => entity.type === 'HATCH' && entity.payload.patternLines?.length === 1))
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
+  assert.equal(document.revision, 1)
+  assert.equal(document.listEntities().length, compiled.evidence.entityCount)
+  assert.equal(document.validate().valid, true)
+  await sdk.executeCommand('UNDO', {}, { document })
+  assert.equal(document.listEntities().length, 0)
+  assert.equal(document.validate().valid, true)
+  await sdk.executeCommand('REDO', {}, { document })
+  assert.equal(document.listEntities().length, compiled.evidence.entityCount)
+  assert.equal(document.validate().valid, true)
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format }), { format })
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(reopened.listEntities().length, compiled.evidence.entityCount)
+    assert.equal(reopened.listEntities({ type: 'TEXT' }).filter(entity => entity.payload.text === name).length, 1)
+    assert.ok(reopened.listEntities({ type: 'HATCH' }).some(entity => entity.payload.patternLines?.length === 1))
+  }
+  assert.equal(input.hole.strata[0].name, name)
+  assert.deepEqual(narrow, originalNarrow)
+  assert.deepEqual(wide, originalWide)
+  assert.deepEqual(hatchPack, originalHatch)
+})
+
 test('section targets repeated layer codes by exact interval identity, never an arbitrary first match', () => {
   const repeated = (id, station) => ({ id, station, collarElevation: 105, depth: 10, strata: [
     { intervalId: `${id}-a`, code: '7', name: 'Clay', top: 0, bottom: 3, lithology: 'clay' },
