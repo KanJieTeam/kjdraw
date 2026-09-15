@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash, randomUUID } from 'node:crypto'
-import { lstat, mkdir, readFile, realpath, rename, unlink, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, readdir, realpath, rename, rm, rmdir, unlink, writeFile } from 'node:fs/promises'
 import { delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
@@ -20,9 +20,15 @@ const CLIENTS = Object.freeze([
 const MAX_CONFIG_BYTES = 1024 * 1024
 const MAX_DRAWING_BYTES = 64 * 1024 * 1024
 const MAX_KNOWLEDGE_PACK_BYTES = 1024 * 1024
+const SKILL_FILES = Object.freeze(['SKILL.md', 'references/routes.json', 'references/acceptance.md'])
+const SKILL_TARGETS = Object.freeze([
+  { path: '.kimi-code/skills/kjdraw-cad', clients: ['Kimi Code CLI'], activation: 'Start a new Kimi Code CLI session and invoke /skill:kjdraw-cad.' },
+  { path: '.zcode/skills/kjdraw-cad', clients: ['ZCode'], activation: 'Open Settings > Skills, refresh, and confirm kjdraw-cad is enabled.' },
+  { path: '.trae/skills/kjdraw-cad', clients: ['TraeCode'], activation: 'Restart TraeCode after installation.' },
+])
 
 function usage() {
-  return `Usage: kjdraw-connect --all --workspace <project> (--input <existing.kjd|drawing.dxf> | --blank <new.kjd> --units millimeter|meter) [--proposal-dir .kjdraw/proposals] [--geology-column-pack <relative.json> --geology-column-pack-sha256 <sha256>] [--apply]\n\nWithout --apply this is a read-only preview. Only project-level Kimi Code, WorkBuddy, ZCode and TraeCode MCP entries named kjdraw are managed. Host review is required for every pending proposal.`
+  return `Usage: kjdraw-connect --all --workspace <project> (--input <existing.kjd|drawing.dxf> | --blank <new.kjd> --units millimeter|meter) [--proposal-dir .kjdraw/proposals] [--geology-column-pack <relative.json> --geology-column-pack-sha256 <sha256>] [--apply]\n\nWithout --apply this is a read-only preview. One transaction connects project-level Kimi Code, WorkBuddy, ZCode and TraeCode MCP entries named kjdraw and installs the canonical project Skill where the client exposes a verified local discovery path. Host review is required for every pending proposal.`
 }
 
 function parseArgs(argv) {
@@ -150,6 +156,62 @@ async function ensureProjectDirectory(root, target) {
   }
 }
 
+async function skillSource() {
+  const root = fileURLToPath(new URL('../skills/kjdraw-cad/', import.meta.url))
+  const files = []
+  for (const name of SKILL_FILES) {
+    const path = join(root, ...name.split('/'))
+    const info = await item(path)
+    if (!info?.isFile() || info.isSymbolicLink() || info.size > MAX_CONFIG_BYTES) throw new Error('Packaged KJDraw Skill is incomplete or unsafe')
+    const bytes = await readFile(path)
+    files.push({ name, bytes, sha256: sha(bytes) })
+  }
+  return { files, sha256: sha(Buffer.from(files.map(file => `${file.name}:${file.sha256}`).join('\n'))) }
+}
+
+async function directoryFiles(root, directory = root) {
+  const names = []
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name)
+    if (entry.isSymbolicLink() || (!entry.isDirectory() && !entry.isFile())) throw new Error('Existing KJDraw Skill contains an unsafe file type')
+    if (entry.isDirectory()) names.push(...await directoryFiles(root, path))
+    else names.push(relative(root, path).split(sep).join('/'))
+  }
+  return names.sort()
+}
+
+async function planSkillTargets(root, source) {
+  const plans = []
+  for (const target of SKILL_TARGETS) {
+    const path = await checkedPath(root, target.path, 'KJDraw Skill', 'directory')
+    const existing = await item(path)
+    if (!existing) { plans.push({ ...target, path, action: 'add' }); continue }
+    const names = await directoryFiles(path)
+    if (!isDeepStrictEqual(names, [...SKILL_FILES].sort())) throw new Error(`Existing KJDraw Skill conflicts at ${target.path}; refusing to overwrite it`)
+    for (const file of source.files) {
+      if (sha(await readFile(join(path, ...file.name.split('/')))) !== file.sha256) throw new Error(`Existing KJDraw Skill conflicts at ${target.path}; refusing to overwrite it`)
+    }
+    plans.push({ ...target, path, action: 'unchanged' })
+  }
+  return plans
+}
+
+async function stageSkill(root, source) {
+  const temporary = join(root, `.kjdraw-skill-stage-${randomUUID()}`)
+  await mkdir(temporary, { recursive: false })
+  try {
+    for (const file of source.files) {
+      const path = join(temporary, ...file.name.split('/'))
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, file.bytes, { flag: 'wx', mode: 0o600 })
+    }
+    return temporary
+  } catch (error) {
+    await rm(temporary, { recursive: true, force: true }).catch(() => {})
+    throw error
+  }
+}
+
 async function verifyUnchanged(plan) {
   const current = await item(plan.path)
   if (plan.original === null) {
@@ -215,6 +277,8 @@ export async function connectWorkspace(options, hooks = {}) {
   if (!mcpInfo?.isFile() || mcpInfo.isSymbolicLink()) throw new Error('KJDraw MCP script is not a regular installed file')
   const sourceSha256 = sha(await readFile(mcpPath))
   const nodeEvidence = await nodePathEvidence(root)
+  const skill = await skillSource()
+  const skillPlans = await planSkillTargets(root, skill)
   // 'node' avoids an ephemeral desktop runtime path and TraeCode's no-spaces command rule.
   const entry = { command: 'node', args: [mcpPath, '--workspace', root, '--input', drawing.name, '--proposal-dir', relative(root, proposals).split(sep).join('/'),
     ...(geologyColumnKnowledge ? ['--geology-column-pack', geologyColumnKnowledge.path, '--geology-column-pack-sha256', geologyColumnKnowledge.sha256] : [])] }
@@ -233,12 +297,15 @@ export async function connectWorkspace(options, hooks = {}) {
   const changed = plans.filter(plan => plan.content)
   const configurationEvidence = { guiVerified: false, engineInvoked: false, approvalRoute: 'trusted-host-only', serverEntryName: 'kjdraw', workBuddyGuide: CLIENTS[1].guide, node: nodeEvidence,
     ...(geologyColumnKnowledge ? { geologyColumnKnowledge } : {}) }
-  if (!options.apply) return { applied: false, clients: plans.map(plan => ({ client: plan.name, action: plan.content ? 'add' : 'unchanged', status: 'project-config-candidate-not-GUI-verified' })), drawing: drawing.serialized ? 'create blank' : 'existing', proposalDirectory: 'verified or create', sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256, configurationEvidence }
+  const skillEvidence = { canonicalSha256: skill.sha256, workBuddy: 'MCP connected; WorkBuddy only documents Marketplace Skill installation, so no unverified local Skill path is written.', targets: skillPlans.map(plan => ({ path: relative(root, plan.path).split(sep).join('/'), clients: plan.clients, action: plan.action, activation: plan.activation })) }
+  if (!options.apply) return { applied: false, clients: plans.map(plan => ({ client: plan.name, action: plan.content ? 'add' : 'unchanged', status: 'project-config-candidate-not-GUI-verified' })), skills: skillEvidence, drawing: drawing.serialized ? 'create blank' : 'existing', proposalDirectory: 'verified or create', sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256, configurationEvidence }
   const created = []
   const staged = []
   const backups = []
   const committed = []
   const retainedBackups = new Set()
+  const stagedSkills = []
+  const committedSkills = []
   try {
     await ensureProjectDirectory(root, dirname(proposals))
     if (!await item(proposals)) { await mkdir(proposals); created.push({ path: proposals, type: 'directory' }) }
@@ -259,6 +326,11 @@ export async function connectWorkspace(options, hooks = {}) {
         backups.push(plan.backup)
       }
     }
+    for (const plan of skillPlans.filter(plan => plan.action === 'add')) {
+      if (await item(plan.path)) throw new Error(`KJDraw Skill appeared during installation at ${plan.path}`)
+      plan.temp = await stageSkill(root, skill)
+      stagedSkills.push(plan.temp)
+    }
     for (const plan of changed) await verifyUnchanged(plan)
     for (const plan of changed) {
       await hooks.beforeReplace?.(plan.name)
@@ -266,9 +338,27 @@ export async function connectWorkspace(options, hooks = {}) {
       await rename(plan.temp, plan.path)
       committed.push(plan)
     }
-    return { applied: true, clients: plans.map(plan => ({ client: plan.name, action: plan.content ? 'added' : 'unchanged', status: 'project-config-candidate-not-GUI-verified' })), drawing: drawing.serialized ? 'created blank' : 'existing', backupCount: backups.length, transientBackupCount: backups.length, retainedBackupCount: 0, sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256, configurationEvidence }
+    for (const plan of skillPlans.filter(plan => plan.action === 'add')) {
+      let walk = root
+      for (const part of relative(root, dirname(plan.path)).split(sep)) {
+        walk = resolve(walk, part)
+        if (!await item(walk)) { await mkdir(walk); created.push({ path: walk, type: 'directory' }) }
+      }
+      if (await item(plan.path)) throw new Error(`KJDraw Skill appeared during installation at ${plan.path}`)
+      await rename(plan.temp, plan.path)
+      committedSkills.push(plan)
+    }
+    return { applied: true, clients: plans.map(plan => ({ client: plan.name, action: plan.content ? 'added' : 'unchanged', status: 'project-config-candidate-not-GUI-verified' })), skills: skillEvidence, drawing: drawing.serialized ? 'created blank' : 'existing', backupCount: backups.length, transientBackupCount: backups.length, retainedBackupCount: 0, sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256, configurationEvidence }
   } catch (error) {
     const rollbackConflicts = []
+    for (const plan of committedSkills.reverse()) {
+      try {
+        const names = await directoryFiles(plan.path)
+        const exact = isDeepStrictEqual(names, [...SKILL_FILES].sort()) && (await Promise.all(skill.files.map(async file => sha(await readFile(join(plan.path, ...file.name.split('/')))) === file.sha256))).every(Boolean)
+        if (exact) await rm(plan.path, { recursive: true, force: true })
+        else rollbackConflicts.push(plan.clients.join('/'))
+      } catch { rollbackConflicts.push(plan.clients.join('/')) }
+    }
     for (const plan of committed.reverse()) {
       const current = await item(plan.path)
       if (!current?.isFile() || current.isSymbolicLink() || sha(await readFile(plan.path)) !== sha(plan.content)) {
@@ -288,6 +378,9 @@ export async function connectWorkspace(options, hooks = {}) {
         await unlink(target.path).catch(() => {})
       else if (current) rollbackConflicts.push('host drawing')
     }
+    for (const target of created) if (target.type === 'directory') await rmdir(target.path).catch(error => {
+      if (!['ENOENT', 'ENOTEMPTY'].includes(error.code)) rollbackConflicts.push(relative(root, target.path).split(sep).join('/'))
+    })
     if (rollbackConflicts.length) {
       const recovery = [...retainedBackups].map(path => relative(root, path).split(sep).join('/'))
       throw new Error(`${error.message}; rollback preserved concurrently changed files: ${rollbackConflicts.join(', ')}; recovery backups retained for conflicted configurations: ${recovery.join(', ') || 'none'}`)
@@ -297,6 +390,7 @@ export async function connectWorkspace(options, hooks = {}) {
     const cleanupFailures = []
     for (const path of staged) await unlink(path).catch(error => { if (error.code !== 'ENOENT') cleanupFailures.push(path) })
     for (const path of backups) if (!retainedBackups.has(path)) await unlink(path).catch(error => { if (error.code !== 'ENOENT') cleanupFailures.push(path) })
+    for (const path of stagedSkills) await rm(path, { recursive: true, force: true }).catch(() => cleanupFailures.push(path))
     if (cleanupFailures.length) throw new Error(`Connect may have changed project files; temporary copies could not be removed: ${cleanupFailures.map(path => relative(root, path).split(sep).join('/')).join(', ')}`)
   }
 }

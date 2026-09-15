@@ -12,6 +12,8 @@ import { createKJDrawSDK } from '../src/sdk.js'
 const script = fileURLToPath(new URL('../bin/kjdraw-connect-apply.mjs', import.meta.url))
 const publicBin = fileURLToPath(new URL('../bin/kjdraw-connect.mjs', import.meta.url))
 const configPaths = ['.kimi-code/mcp.json', '.workbuddy/mcp.json', '.zcode/config.json', '.trae/mcp.json']
+const skillTargets = ['.kimi-code/skills/kjdraw-cad', '.zcode/skills/kjdraw-cad', '.trae/skills/kjdraw-cad']
+const skillFiles = ['SKILL.md', 'references/routes.json', 'references/acceptance.md']
 const options = root => ({ all: true, workspace: root, blank: '.kjdraw/active.kjd', units: 'millimeter', proposalDir: '.kjdraw/proposals', apply: true })
 const hash = value => createHash('sha256').update(value).digest('hex')
 
@@ -64,6 +66,8 @@ test('preview changes no files; apply initializes a validated blank host drawing
   assert.equal(result.transientBackupCount, 0)
   assert.equal(result.retainedBackupCount, 0)
   assert.match(result.mcpScriptSha256, /^[a-f0-9]{64}$/)
+  assert.match(result.skills.canonicalSha256, /^[a-f0-9]{64}$/)
+  assert.deepEqual(result.skills.targets.map(target => target.path), skillTargets)
   const drawing = await createKJDrawSDK().readDocument(await readFile(join(root, '.kjdraw/active.kjd'), 'utf8'), { format: 'KJD' })
   assert.equal(drawing.snapshot().header.units, 'millimeter')
   assert.equal(drawing.listEntities().length, 0)
@@ -76,6 +80,28 @@ test('preview changes no files; apply initializes a validated blank host drawing
     assert.equal(entry.args[entry.args.indexOf('--proposal-dir') + 1], '.kjdraw/proposals')
     if (rel.startsWith('.workbuddy/')) assert.equal(Object.hasOwn(entry, 'type'), false)
   }
+  const sourceSkill = fileURLToPath(new URL('../skills/kjdraw-cad/', import.meta.url))
+  for (const target of skillTargets) for (const file of skillFiles) {
+    assert.deepEqual(await readFile(join(root, target, file)), await readFile(join(sourceSkill, file)))
+  }
+})
+
+test('canonical project skills are idempotent and a conflicting copy blocks every write', async t => {
+  const root = await fixture(t)
+  const first = await connectWorkspace(options(root))
+  const before = new Map()
+  for (const target of skillTargets) for (const file of skillFiles) before.set(`${target}/${file}`, hash(await readFile(join(root, target, file))))
+  const second = await connectWorkspace(options(root))
+  assert.ok(second.skills.targets.every(target => target.action === 'unchanged'))
+  for (const [file, sha256] of before) assert.equal(hash(await readFile(join(root, file))), sha256)
+
+  const conflictRoot = await fixture(t)
+  const conflict = join(conflictRoot, '.kimi-code/skills/kjdraw-cad/SKILL.md')
+  await mkdir(dirname(conflict), { recursive: true })
+  await writeFile(conflict, 'owner-managed skill')
+  await assert.rejects(connectWorkspace(options(conflictRoot)), /Existing KJDraw Skill conflicts/)
+  assert.equal(await readFile(conflict, 'utf8'), 'owner-managed skill')
+  assert.deepEqual(await readdir(conflictRoot), ['.kimi-code'])
 })
 
 test('one connect transaction binds a host-hashed geology pack into all four clients without exposing style input to the model', async t => {
