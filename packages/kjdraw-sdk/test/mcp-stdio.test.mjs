@@ -195,6 +195,7 @@ test('MCP stdio exposes the attached Agent registry and persists proposals witho
   const listed = responses[1].result.tools
   assert.deepEqual(listed.map(tool => tool.name), expectedDefinitions.map(tool => tool.name))
   assert.deepEqual(listed.map(tool => tool.inputSchema), expectedDefinitions.map(tool => tool.inputSchema))
+  assert.ok(listed.some(tool => tool.name === 'cad_propose_geology_column' && tool.annotations.readOnlyHint === false))
   assert.equal(listed.some(tool => /approve|save|open/u.test(tool.name)), false)
   assert.equal(listed.find(tool => tool.name === 'cad_read_drawing').annotations.readOnlyHint, true)
   assert.equal(listed.find(tool => tool.name === 'cad_propose_move').annotations.readOnlyHint, false)

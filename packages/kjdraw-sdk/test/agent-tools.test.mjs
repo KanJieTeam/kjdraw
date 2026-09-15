@@ -15,7 +15,7 @@ const circleArgs = (revision = 0) => ({ expectedRevision: revision, units: 'mill
 function value(result) { assert.equal(result.ok, true, JSON.stringify(result)); return result.value }
 
 test('tool definitions are frozen serializable schemas with no approval or arbitrary execution tool', () => {
-  assert.equal(KJDRAW_AGENT_TOOLS.length, 38)
+  assert.equal(KJDRAW_AGENT_TOOLS.length, 39)
   assert.ok(KJDRAW_AGENT_TOOLS.every(tool => ['read', 'propose'].includes(tool.effect)))
   assert.deepEqual(JSON.parse(JSON.stringify(KJDRAW_AGENT_TOOLS)), KJDRAW_AGENT_TOOLS)
   for (const tool of KJDRAW_AGENT_TOOLS) {
@@ -44,6 +44,8 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
           ? ['northAngleDegrees']
         : tool.name === 'cad_propose_cartesian_chart'
           ? ['origin', 'width', 'height', 'textHeight', 'xLabel', 'yLabel', 'showValues', 'yAxis']
+        : tool.name === 'cad_propose_geology_column'
+          ? ['projectName', 'title', 'pageHeightMillimeters']
         : tool.name === 'cad_propose_structural_edit'
           ? ['reconnections', 'relayer']
         : tool.name === 'cad_check_geometry'

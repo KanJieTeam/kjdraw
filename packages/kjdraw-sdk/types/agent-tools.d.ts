@@ -166,7 +166,7 @@ export interface KJAgentToolSchema {
     readonly maxItems?: number;
     readonly minLength?: number;
     readonly maxLength?: number;
-    readonly enum?: readonly string[];
+    readonly enum?: readonly (string | number)[];
 }
 export interface KJAgentToolDefinition {
     readonly name: string;

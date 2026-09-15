@@ -24,6 +24,7 @@ import { buildAgentManufacturingSheet } from './agent-manufacturing-sheet.js';
 import { buildAgentArchitecturePlan } from './agent-architecture-plan.js';
 import { buildAgentSitePlan } from './agent-site-plan.js';
 import { buildAgentCartesianChart } from './agent-cartesian-chart.js';
+import { compileGeologyColumn } from './geology-engineering.js';
 const number = {
     type: 'number',
     minimum: -1e12,
@@ -1339,6 +1340,160 @@ const componentInsertSchema = {
         'rotationDegrees'
     ]
 };
+const geologyStratumSchema = objectWithOptional({
+    intervalId: {
+        ...text,
+        maxLength: 64
+    },
+    groupId: {
+        ...text,
+        maxLength: 24
+    },
+    groupRole: {
+        type: 'string',
+        enum: [
+            'principal',
+            'lens'
+        ]
+    },
+    code: {
+        ...text,
+        maxLength: 24
+    },
+    name: {
+        ...text,
+        maxLength: 64
+    },
+    top: nonnegative,
+    bottom: radius,
+    lithology: {
+        type: 'string',
+        enum: [
+            'fill',
+            'clay',
+            'silt',
+            'sand',
+            'gravel',
+            'rock',
+            'weathered-rock'
+        ]
+    },
+    description: {
+        ...text,
+        maxLength: 96
+    },
+    descriptionSource: {
+        type: 'string',
+        enum: [
+            'interval',
+            'layer-definition'
+        ]
+    }
+}, [
+    'intervalId',
+    'groupId',
+    'groupRole',
+    'description',
+    'descriptionSource'
+]);
+const geologyObservationSchema = objectWithOptional({
+    kind: {
+        type: 'string',
+        enum: [
+            'sample',
+            'spt'
+        ]
+    },
+    id: {
+        ...text,
+        maxLength: 24
+    },
+    depth: nonnegative,
+    value: nonnegative,
+    displayLabel: {
+        ...text,
+        maxLength: 24
+    }
+}, [
+    'value',
+    'displayLabel'
+]);
+const geologyHoleSchema = objectWithOptional({
+    id: {
+        ...text,
+        maxLength: 64
+    },
+    collarElevation: number,
+    depth: radius,
+    x: number,
+    y: number,
+    startDate: {
+        ...text,
+        maxLength: 64
+    },
+    endDate: {
+        ...text,
+        maxLength: 64
+    },
+    stableWaterDepth: nonnegative,
+    station: number,
+    strata: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 80,
+        items: geologyStratumSchema
+    },
+    observations: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 256,
+        items: geologyObservationSchema
+    }
+}, [
+    'x',
+    'y',
+    'startDate',
+    'endDate',
+    'stableWaterDepth',
+    'station',
+    'observations'
+]);
+const geologyColumnSchema = objectWithOptional({
+    version: {
+        type: 'string',
+        enum: [
+            '1.0.0'
+        ]
+    },
+    expectedRevision: revision,
+    units: {
+        type: 'string',
+        enum: [
+            'millimeter'
+        ]
+    },
+    hole: geologyHoleSchema,
+    verticalScaleDenominator: radius,
+    projectName: {
+        ...text,
+        maxLength: 64
+    },
+    title: {
+        ...text,
+        maxLength: 64
+    },
+    pageHeightMillimeters: {
+        type: 'integer',
+        enum: [
+            297,
+            841
+        ]
+    }
+}, [
+    'projectName',
+    'title',
+    'pageHeightMillimeters'
+]);
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_text_edit',
@@ -1477,6 +1632,12 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         effect: 'propose',
         description: 'Compile a complete editable millimeter Cartesian category chart from compact versioned data intent. Version 1.0.0 supports line, grouped bar and mixed line/bar series with deterministic axes, nice automatic scales, grids, legends, labels, data marks and named layers. Supply 2-32 categories and 1-8 series with at most 160 values; KJDraw validates data/range relationships and generates native LINE/LWPOLYLINE/CIRCLE/TEXT geometry locally. Requires a blank drawing. Host approval applies the full reviewed chart as one atomic CREATEBATCH transaction.',
         inputSchema: cartesianChartSchema
+    },
+    {
+        name: 'cad_propose_geology_column',
+        effect: 'propose',
+        description: 'Compile one editable engineering borehole column from exact supplied strata, collar elevation, depth, measured water and sample/SPT observations. Depths and elevations in hole are metres; the CAD document and physical page are millimetres. Version 1.0.0 uses the built-in generic column style and patterns only; it does not certify raw MDB facts or match an original DWG template. Missing descriptions, water or observations remain missing, never inferred. Clarify absent or conflicting facts before calling. The model supplies engineering facts and vertical scale, not CAD entities, pattern code or approval. A blank millimetre drawing is required. Returns full native geometry and evidence as a pending CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
+        inputSchema: geologyColumnSchema
     },
     {
         name: 'cad_check_geometry',
@@ -1909,6 +2070,7 @@ function validate(schema, value, path = 'arguments') {
         if (typeof value !== 'number' || !Number.isFinite(value) || schema.type === 'integer' && !Number.isSafeInteger(value)) fail('expected a finite number of the declared type');
         if (value < (schema.minimum ?? -Infinity) || value > (schema.maximum ?? Infinity)) fail('number outside allowed bounds');
         if (schema.exclusiveMinimum !== undefined && value <= schema.exclusiveMinimum) fail('number must exceed the exclusive minimum');
+        if (schema.enum && !schema.enum.includes(value)) fail(`expected one of: ${schema.enum.join(', ')}`);
     }
 }
 function xy(value) {
@@ -2180,7 +2342,8 @@ export class KJAgentToolSession {
         return deepFreeze(KJDRAW_AGENT_TOOLS.filter((tool)=>![
                 'cad_propose_manufacturing_sheet',
                 'cad_propose_architecture_plan',
-                'cad_propose_cartesian_chart'
+                'cad_propose_cartesian_chart',
+                'cad_propose_geology_column'
             ].includes(tool.name) || units === 'millimeter').filter((tool)=>tool.name !== 'cad_propose_site_plan' || units === 'meter').map((tool)=>{
             if (!tool.inputSchema.properties?.units) return tool;
             return {
@@ -2461,6 +2624,13 @@ export class KJAgentToolSession {
                             engineeringEvidence = compiled.evidence;
                         } else if (name === 'cad_propose_cartesian_chart') {
                             const compiled = buildAgentCartesianChart(document, args);
+                            commandArgs = structuredClone(compiled.commandArgs);
+                            engineeringEvidence = compiled.evidence;
+                        } else if (name === 'cad_propose_geology_column') {
+                            if (document.listEntities().length !== 0) throw new KJValidationError('Geology column requires a blank drawing; existing geometry is not replaced');
+                            const { version: _version, units: _units, ...intent } = args;
+                            const compiled = compileGeologyColumn(intent);
+                            if (compiled.commandArgs.entities.length > 512 || compiled.commandArgs.resources.layers.length + compiled.commandArgs.resources.linetypes.length > 32) throw new KJValidationError('Geology column exceeds the bounded Agent proposal budget');
                             commandArgs = structuredClone(compiled.commandArgs);
                             engineeringEvidence = compiled.evidence;
                         } else if (name === 'cad_propose_road_drawing' || name === 'cad_propose_road_drawing_from_asset') {
@@ -2950,6 +3120,7 @@ export class KJAgentToolSession {
                             'cad_propose_architecture_plan',
                             'cad_propose_site_plan',
                             'cad_propose_cartesian_chart',
+                            'cad_propose_geology_column',
                             'cad_propose_road_drawing',
                             'cad_propose_road_drawing_from_asset'
                         ].includes(name) ? {
@@ -2999,6 +3170,10 @@ export class KJAgentToolSession {
                             ok: true,
                             value
                         })).length > 1048576) throw new KJValidationError('Road tool proposal exceeds the 1 MiB output limit');
+                        if (name === 'cad_propose_geology_column' && new TextEncoder().encode(JSON.stringify({
+                            ok: true,
+                            value
+                        })).length > 1048576) throw new KJValidationError('Geology column proposal exceeds the 1 MiB output limit');
                         if (name === 'cad_propose_relayer' && new TextEncoder().encode(JSON.stringify({
                             ok: true,
                             value
