@@ -127,6 +127,13 @@ test('explicit single MOVE requests use only the move schema when the host suppl
   assert.equal(document.revision,1)
 })
 
+test('explicit title-block text edits on an existing drawing load only read and text-edit schemas', async () => {
+  const { document } = fixture()
+  await document.transact('existing text', tx => tx.createEntity('TEXT', { text: 'REV: A', position: [0, 0, 0], height: 3 }))
+  const names = getKJDrawChatToolNamesForRequest(document, 'Change revision A to B in the existing title-block text.')
+  assert.deepEqual(names, ['cad_read_drawing', 'cad_query_drawing', 'cad_propose_text_edit'])
+})
+
 test('MOVE routing stays conservative without exact selection, displacement, or a single edit intent', async () => {
   const {document}=fixture()
   await document.transact('Selectable geometry',tx=>tx.createEntity('LINE',{start:[0,0,0],end:[20,0,0]},{id:'selected-edge'}))
