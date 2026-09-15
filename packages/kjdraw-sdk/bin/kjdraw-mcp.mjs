@@ -186,6 +186,25 @@ function toolResponse(id, result, isError = false) {
   })
 }
 
+const COMPACT_ENGINEERING_PROPOSALS = new Set(['cad_propose_geology_column', 'cad_propose_geology_section'])
+function modelVisibleProposal(name, result, host) {
+  if (!result.ok || !COMPACT_ENGINEERING_PROPOSALS.has(name)) return result
+  const full = result.value
+  const byType = Object.create(null)
+  for (const entity of full.arguments.entities) byType[entity.type] = (byType[entity.type] ?? 0) + 1
+  return { ok: true, value: {
+    product: 'KJDraw', responseKind: 'compact-engineering-proposal@1',
+    planId: full.planId, documentId: full.documentId, expectedRevision: full.expectedRevision,
+    units: full.units, command: full.command, status: full.status,
+    engineeringEvidence: full.engineeringEvidence,
+    nativeGeometry: { entityCount: full.arguments.entities.length, entityTypes: byType,
+      resourceCount: full.arguments.resources.layers.length + full.arguments.resources.linetypes.length },
+    hostReview: { ledgerPath: host.ledger.session?.ledgerPath ?? null,
+      sourceFingerprint: host.sourceFingerprint, completeNativePlanStoredOnlyInHostLedger: true,
+      approvalAndCadSaveRequired: true },
+  } }
+}
+
 async function openHost(options) {
   if (options.blank || options['proposal-dir']) {
     const workspaceEntry = await lstat(options.workspace)
@@ -342,7 +361,7 @@ async function main() {
           })
           await atomicJsonWrite(host.proposals, host.ledger)
         }
-        toolResponse(request.id, result, !result.ok)
+        toolResponse(request.id, modelVisibleProposal(name, result, host), !result.ok)
         continue
       }
       if (!notification) rpcError(request.id, -32601, 'Method not found')

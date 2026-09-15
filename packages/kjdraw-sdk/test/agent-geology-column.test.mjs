@@ -112,6 +112,12 @@ test('MCP stdio lists and calls geology intent as a pending ledger entry without
   const proposal = accepted(replies[2].result.structuredContent)
   assert.equal(proposal.command, 'CREATEBATCH')
   assert.equal(proposal.status, 'awaiting-host-approval')
+  assert.equal(proposal.product, 'KJDraw')
+  assert.equal(proposal.responseKind, 'compact-engineering-proposal@1')
+  assert.equal(Object.hasOwn(proposal, 'arguments'), false)
+  assert.equal(Object.hasOwn(proposal, 'preview'), false)
+  assert.ok(proposal.nativeGeometry.entityCount > 35)
+  assert.ok(Buffer.byteLength(JSON.stringify(replies[2].result.structuredContent)) < 2048)
   assert.equal(replies[3].error.code, -32602)
   const ledgers = await readdir(join(root, 'pending'))
   assert.equal(ledgers.length, 1)
@@ -119,5 +125,10 @@ test('MCP stdio lists and calls geology intent as a pending ledger entry without
   assert.equal(ledger.proposals.length, 1)
   assert.equal(ledger.proposals[0].tool, 'cad_propose_geology_column')
   assert.equal(ledger.proposals[0].result.planId, proposal.planId)
+  assert.equal(ledger.proposals[0].result.arguments.entities.length, proposal.nativeGeometry.entityCount)
+  assert.equal(ledger.proposals[0].result.preview.after.length, proposal.nativeGeometry.entityCount)
+  assert.ok(Buffer.byteLength(JSON.stringify(ledger.proposals[0].result)) >
+    Buffer.byteLength(JSON.stringify(replies[2].result.structuredContent)) * 8,
+  'the host keeps the full plan while the model receives less than one eighth of its serialized bytes')
   assert.equal(sha(await readFile(inputPath)), sourceSha)
 })
