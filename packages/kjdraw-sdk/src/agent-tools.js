@@ -25,6 +25,7 @@ import { buildAgentArchitecturePlan } from './agent-architecture-plan.js';
 import { buildAgentSitePlan } from './agent-site-plan.js';
 import { buildAgentCartesianChart } from './agent-cartesian-chart.js';
 import { compileGeologyColumn, compileGeologySection } from './geology-engineering.js';
+import { validateKnowledgePack } from './knowledge-pack.js';
 const number = {
     type: 'number',
     minimum: -1e12,
@@ -1716,7 +1717,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_geology_column',
         effect: 'propose',
-        description: 'Compile one editable engineering borehole column from exact supplied strata, collar elevation, depth, measured water and sample/SPT observations. Depths and elevations in hole are metres; the CAD document and physical page are millimetres. Version 1.0.0 uses the built-in generic column style and patterns only; it does not certify raw MDB facts or match an original DWG template. Missing descriptions, water or observations remain missing, never inferred. Clarify absent or conflicting facts before calling. The model supplies engineering facts and vertical scale, not CAD entities, pattern code or approval. A blank millimetre drawing is required. Returns full native geometry and evidence as a pending CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
+        description: 'Compile one editable engineering borehole column from exact supplied strata, collar elevation, depth, measured water and sample/SPT observations. Depths and elevations in hole are metres; the CAD document and physical page are millimetres. Version 1.0.0 uses either the built-in generic style or one versioned geology column knowledge pack selected and hash-locked by the host before this session; the model cannot supply or replace style code. It does not certify raw MDB facts or match an original DWG template. Missing descriptions, water or observations remain missing, never inferred. Clarify absent or conflicting facts before calling. The model supplies engineering facts and vertical scale, not CAD entities, pattern code or approval. A blank millimetre drawing is required. Returns full native geometry and evidence as a pending CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
         inputSchema: geologyColumnSchema
     },
     {
@@ -2420,6 +2421,14 @@ export class KJAgentToolSession {
     get units() {
         return this.#document.snapshot().header.units;
     }
+    get geologyColumnKnowledge() {
+        const binding = this.#geologyColumnKnowledge;
+        return binding ? Object.freeze({
+            id: binding.pack.id,
+            version: binding.pack.version,
+            sha256: binding.sha256
+        }) : undefined;
+    }
     isBoundTo(document) {
         return document === this.#document && this.#sdk.documents.get(this.#document.id) === this.#document;
     }
@@ -2457,12 +2466,23 @@ export class KJAgentToolSession {
     #inputAssetBytes = 0;
     #roadRecipes = new Map();
     #roadPending = new Map();
+    #geologyColumnKnowledge;
     #busy = false;
     #proposals = 0;
-    constructor(sdk, document){
+    constructor(sdk, document, options = {}){
         if (sdk.documents.get(document.id) !== document) throw new KJValidationError('Agent tools require an attached document');
         this.#sdk = sdk;
         this.#document = document;
+        if (options.geologyColumnKnowledge) {
+            const { sha256, pack: source } = options.geologyColumnKnowledge;
+            if (typeof sha256 !== 'string' || !/^[a-f0-9]{64}$/u.test(sha256)) throw new KJValidationError('Host geology column knowledge requires an exact lowercase SHA-256');
+            const pack = validateKnowledgePack(source);
+            if (pack.domain !== 'geology' || !pack.rules?.['geology-column-layout']) throw new KJValidationError('Host geology column knowledge must declare the geology domain and geology-column-layout rule');
+            this.#geologyColumnKnowledge = {
+                pack,
+                sha256
+            };
+        }
     }
     async registerRoadDrawingRecipe(recipe) {
         if (this.#busy) throw new KJValidationError('Session is busy; wait before registering a road recipe');
@@ -2716,10 +2736,20 @@ export class KJAgentToolSession {
                         } else if (name === 'cad_propose_geology_column') {
                             if (document.listEntities().length !== 0) throw new KJValidationError('Geology column requires a blank drawing; existing geometry is not replaced');
                             const { version: _version, units: _units, ...intent } = args;
-                            const compiled = compileGeologyColumn(intent);
+                            const compiled = compileGeologyColumn({
+                                ...intent,
+                                ...this.#geologyColumnKnowledge ? {
+                                    columnStylePack: this.#geologyColumnKnowledge.pack
+                                } : {}
+                            });
                             if (compiled.commandArgs.entities.length > 512 || compiled.commandArgs.resources.layers.length + compiled.commandArgs.resources.linetypes.length > 32) throw new KJValidationError('Geology column exceeds the bounded Agent proposal budget');
                             commandArgs = structuredClone(compiled.commandArgs);
-                            engineeringEvidence = compiled.evidence;
+                            engineeringEvidence = {
+                                ...compiled.evidence,
+                                ...this.geologyColumnKnowledge ? {
+                                    knowledgePack: this.geologyColumnKnowledge
+                                } : {}
+                            };
                         } else if (name === 'cad_propose_geology_section') {
                             if (document.listEntities().length !== 0) throw new KJValidationError('Geology section requires a blank drawing; existing geometry is not replaced');
                             const { version: _version, units: _units, ...intent } = args;

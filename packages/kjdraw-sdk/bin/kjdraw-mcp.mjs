@@ -12,9 +12,10 @@ const PROTOCOL_VERSION = '2025-11-25'
 const SUPPORTED_PROTOCOLS = new Set([PROTOCOL_VERSION, '2025-06-18'])
 const MAX_DRAWING_BYTES = 64 * 1024 * 1024
 const MAX_MESSAGE_BYTES = 4 * 1024 * 1024
+const MAX_KNOWLEDGE_PACK_BYTES = 1024 * 1024
 
 function usage() {
-  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposal-dir <existing-relative-directory>\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposal-dir <existing-relative-directory>\n\n--proposals is the legacy one-file mode. --proposal-dir creates one exclusive ledger per stdio session and exposes its relative path in initialize metadata. The host, not the model, chooses all paths and blank drawing units. Tool calls can inspect the drawing or create pending proposals; this process never approves a proposal or saves a CAD file.`
+  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposal-dir <existing-relative-directory>\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposal-dir <existing-relative-directory>\n\nOptional host-only geology style binding:\n  --geology-column-pack <existing-relative.json> --geology-column-pack-sha256 <64-lowercase-hex>\n\n--proposals is the legacy one-file mode. --proposal-dir creates one exclusive ledger per stdio session and exposes its relative path in initialize metadata. The host, not the model, chooses all paths, blank drawing units and an optional hash-locked knowledge pack. Tool calls can inspect the drawing or create pending proposals; this process never approves a proposal or saves a CAD file.`
 }
 
 function parseArgs(argv) {
@@ -23,7 +24,7 @@ function parseArgs(argv) {
   const values = {}
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index], value = argv[index + 1]
-    if (!['--workspace', '--input', '--blank', '--units', '--proposals', '--proposal-dir'].includes(key) || !value || Object.hasOwn(values, key.slice(2))) throw new Error(`Unknown, duplicate or incomplete argument: ${key ?? ''}`)
+    if (!['--workspace', '--input', '--blank', '--units', '--proposals', '--proposal-dir', '--geology-column-pack', '--geology-column-pack-sha256'].includes(key) || !value || Object.hasOwn(values, key.slice(2))) throw new Error(`Unknown, duplicate or incomplete argument: ${key ?? ''}`)
     values[key.slice(2)] = value
   }
   if (!values.workspace) throw new Error('Missing required --workspace')
@@ -31,6 +32,8 @@ function parseArgs(argv) {
   if (Boolean(values.input) === Boolean(values.blank)) throw new Error('Supply exactly one of --input or --blank')
   if (values.blank && !['millimeter', 'meter'].includes(values.units)) throw new Error('--blank requires --units millimeter or meter')
   if (values.input && values.units) throw new Error('--units is only allowed with --blank')
+  if (Boolean(values['geology-column-pack']) !== Boolean(values['geology-column-pack-sha256'])) throw new Error('--geology-column-pack and --geology-column-pack-sha256 must be supplied together')
+  if (values['geology-column-pack-sha256'] && !/^[a-f0-9]{64}$/u.test(values['geology-column-pack-sha256'])) throw new Error('--geology-column-pack-sha256 must be 64 lowercase hexadecimal characters')
   return values
 }
 
@@ -48,6 +51,23 @@ async function resolveExistingInside(root, value, label) {
   const candidate = await realpath(resolve(root, value))
   if (!isInside(root, candidate)) throw new Error(`${label} resolves outside --workspace`)
   return candidate
+}
+
+async function resolveRegularFileWithoutLinks(root, value, label) {
+  assertRelativePath(value, label)
+  if (!value || /^[A-Za-z]:/u.test(value)) throw new Error(`${label} must be an unambiguous project-relative path`)
+  const parts = value.split(/[\\/]+/u)
+  if (!parts.length || parts.some(part => !part || part === '.')) throw new Error(`${label} must be an unambiguous project-relative path`)
+  let current = root
+  for (const [index, part] of parts.entries()) {
+    current = join(current, part)
+    const info = await lstat(current)
+    if (info.isSymbolicLink()) throw new Error(`${label} must not traverse a symbolic link`)
+    if (index === parts.length - 1 ? !info.isFile() : !info.isDirectory()) throw new Error(`${label} must name a regular file under real directories`)
+  }
+  const canonical = await realpath(current)
+  if (!isInside(root, canonical) || !samePath(canonical, current)) throw new Error(`${label} resolves outside its real workspace path`)
+  return canonical
 }
 
 async function resolveOutputInside(root, value) {
@@ -206,12 +226,25 @@ function modelVisibleProposal(name, result, host) {
 }
 
 async function openHost(options) {
-  if (options.blank || options['proposal-dir']) {
+  if (options.blank || options['proposal-dir'] || options['geology-column-pack']) {
     const workspaceEntry = await lstat(options.workspace)
     if (workspaceEntry.isSymbolicLink()) throw new Error('--workspace must not be a symbolic link')
   }
   const workspace = await realpath(options.workspace)
   if (!(await stat(workspace)).isDirectory()) throw new Error('--workspace must be a directory')
+  let geologyColumnKnowledge
+  if (options['geology-column-pack']) {
+    const packPath = await resolveRegularFileWithoutLinks(workspace, options['geology-column-pack'], '--geology-column-pack')
+    const metadata = await stat(packPath)
+    if (metadata.size > MAX_KNOWLEDGE_PACK_BYTES) throw new Error(`--geology-column-pack must be no larger than ${MAX_KNOWLEDGE_PACK_BYTES} bytes`)
+    const bytes = await readFile(packPath)
+    const sha256 = createHash('sha256').update(bytes).digest('hex')
+    if (sha256 !== options['geology-column-pack-sha256']) throw new Error('--geology-column-pack bytes do not match the host-supplied SHA-256')
+    let pack
+    try { pack = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) }
+    catch { throw new Error('--geology-column-pack must be strict UTF-8 JSON') }
+    geologyColumnKnowledge = { pack, sha256, path: relative(workspace, packPath).split(sep).join('/'), byteLength: bytes.byteLength }
+  }
   const input = options.blank
     ? await resolveVacantFileInside(workspace, options.blank, '--blank')
     : await resolveExistingInside(workspace, options.input, '--input')
@@ -247,7 +280,8 @@ async function openHost(options) {
     sdk = createKJDrawSDK()
     document = await sdk.readDocument(source, { format })
   }
-  const session = new KJAgentToolSession(sdk, document)
+  const session = new KJAgentToolSession(sdk, document, geologyColumnKnowledge ? { geologyColumnKnowledge } : {})
+  const geologyColumnKnowledgeDescriptor = session.geologyColumnKnowledge
   const sourceFingerprint = fingerprint(document)
   const ledger = {
     schema: 'com.kanjie.kjdraw.mcp-pending-proposals@1',
@@ -263,6 +297,8 @@ async function openHost(options) {
       ...(options.blank ? { createdBlank: true } : {})
     },
     proposals: [],
+    ...(geologyColumnKnowledgeDescriptor ? { knowledge: { geologyColumn: { ...geologyColumnKnowledgeDescriptor,
+      path: geologyColumnKnowledge.path, byteLength: geologyColumnKnowledge.byteLength } } } : {}),
     ...(sessionId ? { session: { id: sessionId, ledgerPath: relative(workspace, proposals).split(sep).join('/') } } : {})
   }
   if (proposalDir) {

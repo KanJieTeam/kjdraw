@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
@@ -41,6 +42,8 @@ function invoke(args, messages = []) {
 function blankArgs(directory, blank = 'blank.kjd', proposals = 'pending.json', units = 'meter') {
   return ['--workspace', directory, '--blank', blank, '--units', units, '--proposals', proposals]
 }
+
+const sha256 = bytes => createHash('sha256').update(bytes).digest('hex')
 
 test('MCP host creates and reopens a host-selected blank KJD, while model calls remain proposal-only', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'kjdraw-mcp-blank-'))
@@ -380,6 +383,87 @@ test('MCP host can create a blank KJD with a unique session ledger and host-visi
   assert.equal(reopened.validate().valid, true)
   assert.equal(reopened.revision, 0)
   assert.equal(reopened.snapshot().header.units, 'meter')
+})
+
+test('MCP host hash-locks one project geology column knowledge pack while the model sends facts only', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'kjdraw-mcp-geology-pack-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const layerName = '灰黄含砾粉质黏土夹层细砂'
+  const fields = nameEnd => [
+    { start: 5, role: 'layerNumber', label: '层号' }, { start: 20, role: 'layerName', label: '地层名' },
+    { start: nameEnd, role: 'baseElevation', label: '底标高' }, { start: nameEnd + 15, role: 'thickness', label: '厚度' },
+    { start: nameEnd + 30, role: 'depth', label: '层底深度' }, { start: nameEnd + 42, role: 'pattern', label: '花纹' },
+    { start: nameEnd + 60, role: 'description', label: '描述' }, { start: nameEnd + 130, role: 'sample', label: '取样' },
+    { start: nameEnd + 150, role: 'spt', label: '标贯' },
+  ]
+  const pack = (id, nameEnd) => ({ schema: 'kjdraw.knowledge-pack.v1', id, version: '1.0.0', title: 'MIT synthetic host column layout',
+    domain: 'geology', license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'synthetic-grid', title: 'MIT-authored field grid', license: 'MIT', contentHash: sha256(`field-grid-${nameEnd}`) }],
+    ontology: { objectKinds: ['borehole-log'], relationKinds: [] },
+    rules: { 'geology-column-layout': { paperWidth: 300, paperHeight: 340, left: 5, right: 295, fieldGrid: fields(nameEnd), legendMode: 'none' } } })
+  const narrowBytes = Buffer.from(JSON.stringify(pack('host-column-narrow-test', 40)))
+  const wideBytes = Buffer.from(JSON.stringify(pack('host-column-wide-test', 59)))
+  await writeFile(join(directory, 'narrow.json'), narrowBytes)
+  await writeFile(join(directory, 'wide.json'), wideBytes)
+  const facts = { version: '1.0.0', expectedRevision: 0, units: 'millimeter', verticalScaleDenominator: 125,
+    hole: { id: 'SYN-CJK-12', collarElevation: 105, depth: 10,
+      strata: [{ code: '1', name: layerName, top: 0, bottom: 10, lithology: 'clay' }] } }
+  const messages = [
+    request(1, 'initialize', { protocolVersion: '2025-11-25' }),
+    request(2, 'tools/list', {}),
+    request(3, 'tools/call', { name: 'cad_propose_geology_column', arguments: facts }),
+  ]
+  const runBound = (file, bytes, blank, ledger) => invoke([
+    ...blankArgs(directory, blank, ledger, 'millimeter'), '--geology-column-pack', file,
+    '--geology-column-pack-sha256', sha256(bytes)
+  ], messages)
+  const narrow = runBound('narrow.json', narrowBytes, 'narrow.kjd', 'narrow-ledger.json')
+  assert.equal(narrow.status, 0, narrow.stderr)
+  const narrowResponses = narrow.stdout.trim().split('\n').map(line => JSON.parse(line))
+  assert.equal(narrowResponses[2].result.structuredContent.ok, false)
+  assert.match(narrowResponses[2].result.structuredContent.error.message, /layerName text does not fit/u)
+  assert.equal(JSON.parse(await readFile(join(directory, 'narrow-ledger.json'), 'utf8')).proposals.length, 0)
+
+  const wide = runBound('wide.json', wideBytes, 'wide.kjd', 'wide-ledger.json')
+  assert.equal(wide.status, 0, wide.stderr)
+  const wideResponses = wide.stdout.trim().split('\n').map(line => JSON.parse(line))
+  const schema = wideResponses[1].result.tools.find(tool => tool.name === 'cad_propose_geology_column').inputSchema
+  assert.equal(Object.hasOwn(schema.properties, 'columnStylePack'), false)
+  assert.equal(Object.hasOwn(schema.properties, 'knowledgePack'), false)
+  const visible = wideResponses[2].result.structuredContent.value
+  assert.equal(visible.status, 'awaiting-host-approval')
+  assert.deepEqual(visible.engineeringEvidence.knowledgePack, { id: 'host-column-wide-test', version: '1.0.0', sha256: sha256(wideBytes) })
+  const drawingBytes = await readFile(join(directory, 'wide.kjd'))
+  const ledger = JSON.parse(await readFile(join(directory, 'wide-ledger.json'), 'utf8'))
+  assert.deepEqual(ledger.knowledge.geologyColumn, { id: 'host-column-wide-test', version: '1.0.0', sha256: sha256(wideBytes), path: 'wide.json', byteLength: wideBytes.byteLength })
+  assert.equal(ledger.proposals[0].result.engineeringEvidence.knowledgePack.sha256, sha256(wideBytes))
+  assert.ok(ledger.proposals[0].result.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === layerName))
+  assert.deepEqual(await readFile(join(directory, 'wide.kjd')), drawingBytes)
+  assert.deepEqual(await readFile(join(directory, 'wide.json')), wideBytes)
+
+  for (const args of [
+    [...blankArgs(directory, 'bad-hash.kjd', 'bad-hash-ledger.json', 'millimeter'), '--geology-column-pack', 'wide.json', '--geology-column-pack-sha256', '0'.repeat(64)],
+    [...blankArgs(directory, 'escape.kjd', 'escape-ledger.json', 'millimeter'), '--geology-column-pack', '../wide.json', '--geology-column-pack-sha256', sha256(wideBytes)],
+  ]) {
+    const rejected = invoke(args)
+    assert.equal(rejected.status, 1, rejected.stderr)
+  }
+  await assert.rejects(readFile(join(directory, 'bad-hash.kjd')), /ENOENT/u)
+  await assert.rejects(readFile(join(directory, 'escape.kjd')), /ENOENT/u)
+  await mkdir(join(directory, 'real-packs'))
+  await writeFile(join(directory, 'real-packs', 'wide.json'), wideBytes)
+  const linked = join(directory, 'linked-packs'), real = join(directory, 'real-packs')
+  try { await symlink(real, linked, process.platform === 'win32' ? 'junction' : 'dir') }
+  catch (error) {
+    if (process.platform !== 'win32' || !['EPERM', 'EACCES'].includes(error.code)) throw error
+    const junction = spawnSync('cmd.exe', ['/d', '/s', '/c', `mklink /J "${linked}" "${real}"`], { encoding: 'utf8' })
+    assert.equal(junction.status, 0, 'Controlled knowledge-pack fixture junction creation failed')
+  }
+  const linkedPack = invoke([...blankArgs(directory, 'linked.kjd', 'linked-ledger.json', 'millimeter'),
+    '--geology-column-pack', 'linked-packs/wide.json', '--geology-column-pack-sha256', sha256(wideBytes)])
+  assert.equal(linkedPack.status, 1, linkedPack.stderr)
+  assert.match(linkedPack.stderr, /symbolic link/u)
+  await assert.rejects(readFile(join(directory, 'linked.kjd')), /ENOENT/u)
 })
 
 test('MCP host bounds an oversized frame, discards it, and resumes on the next newline', async t => {
