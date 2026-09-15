@@ -2,12 +2,12 @@
 
 <h1 align="center">KJDraw</h1>
 
-<p align="center"><strong>AI 时代的开源 CAD 引擎。</strong></p>
+<p align="center"><strong>面向 AI 智能体的开源 CAD 引擎。</strong></p>
 
-<p align="center">让智能体查询、生成、精确修改和验证真正的工程图纸。<br>从自然语言到可编辑 CAD——不是截图，也不是让模型堆出成百上千个基础图元。</p>
+<p align="center">把工程意图确定性地转化为有结构、可编辑的图纸。<br>读取现有 CAD、生成受支持的图型、精确修改，并验证结果。</p>
 
 <p align="center">
-  <a href="#一条命令真正的-cad-工具"><strong>Try with AI</strong></a> ·
+  <a href="#让你的智能体使用可编辑-cad"><strong>Try with AI</strong></a> ·
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>在线编辑器</strong></a> ·
   <a href="#接入你的应用"><strong>接入你的应用</strong></a> ·
   <a href="#给你的-agent-配上-cad-工具"><strong>构建 CAD Agent</strong></a> ·
@@ -21,9 +21,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
 </p>
 
-## 一条命令，真正的 CAD 工具
+## 让你的智能体使用可编辑 CAD
 
-在项目目录中执行一条命令。KJDraw 会安装固定的公开候选源码，一次接入支持的智能体客户端，并建立项目级可编辑图纸宿主。模型 API Key 始终留在你的 AI 客户端，不交给 KJDraw。
+在项目根目录安装一次。KJDraw 会把 MCP 服务和 CAD Skill 接入支持的智能体客户端，并建立项目级图纸宿主。模型 API Key 始终留在你的 AI 客户端，不交给 KJDraw。
 
 **Windows PowerShell**
 

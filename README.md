@@ -4,10 +4,10 @@
 
 <p align="center"><strong>The open-source CAD engine for AI agents.</strong></p>
 
-<p align="center">Inspect, generate, precisely edit, and structurally validate engineering drawings.<br>From natural language to editable CAD—not a screenshot, not a pile of model-generated primitives.</p>
+<p align="center">A deterministic path from engineering intent to structured, editable drawings.<br>Inspect existing CAD, generate supported drawing types, make precise changes, and verify the result.</p>
 
 <p align="center">
-  <a href="#one-command-real-cad-tools"><strong>Try with AI</strong></a> ·
+  <a href="#bring-editable-cad-to-your-ai-agent"><strong>Try with AI</strong></a> ·
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>Live editor</strong></a> ·
   <a href="#add-cad-to-your-app"><strong>Add CAD to your app</strong></a> ·
   <a href="#give-your-agent-cad-tools"><strong>Build a CAD agent</strong></a> ·
@@ -21,9 +21,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
 </p>
 
-## One command. Real CAD tools.
+## Bring editable CAD to your AI agent
 
-Run one command inside a project. KJDraw installs a pinned public candidate, connects supported agent clients, and creates a project-local editable drawing host. Your model key stays with your AI client.
+Install KJDraw once from your project root. It adds the KJDraw MCP server and CAD Skill to supported agent clients, then creates a project-local drawing host. Your model key stays with your AI client.
 
 **Windows PowerShell**
 
