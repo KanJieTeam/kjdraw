@@ -1,9 +1,29 @@
-# 在 AI 客户端中试用 KJDraw 源码候选
+# Try with AI
 
-本页用于在另一台电脑上把 KJDraw 接入 **Kimi Code、WorkBuddy、ZCode 和 TraeCode**。当前可公开复现的是 GitHub `main` 上的源码提交：
+在你的项目目录中运行一条命令，即可把 KJDraw 接入当前支持的 AI 客户端。无需分别配置四次，也无需把模型 API Key 交给 KJDraw。
+
+Windows PowerShell：
+
+```powershell
+irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.ps1 | iex
+```
+
+macOS / Linux：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
+```
+
+安装器要求 Git 与 Node.js 22 或更新版本。它会下载固定的公开候选提交，在一次事务中配置 Kimi Code、WorkBuddy、ZCode 和 TraeCode，并在项目中建立 `.kjdraw/host.kjd`。发现同名配置或 Skill 内容冲突时会拒绝写入，不会强制覆盖。
+
+安装完成后重启客户端，用它打开同一项目并输入：`使用 KJDraw 读取当前图纸，然后画一个半径 5 mm 的圆；只生成待审核提案。` 看到 `kjdraw` 工具调用、待审核状态与本地 KJDraw 标识，才算实际调用了 KJDraw。
+
+## 当前候选状态
+
+当前可公开复现的手动固定源码候选是：
 
 ```text
-5834cfb47f09828f50949dff5dca3935b00424c3
+466d8be59e1be68dea19043427b4ec9f6295c0ee
 ```
 
 这是源码候选安装，不是 npm 发布证明。`@kanjieteam/kjdraw@1.0.0-rc.3` 尚未发布；发布前不要把 `npm install ...@1.0.0-rc.3` 或 `npx` 写成可用安装方式。下面的命令把源码固定安装到持久目录，不会把临时 `_npx` 缓存写入 MCP 配置。
@@ -17,20 +37,20 @@
 - 准备一个已存在的真实项目目录；不能使用符号链接。项目根目录不能放置会遮蔽系统 Node.js 的 `node`、`node.exe`、`node.cmd` 或类似启动文件。
 - 关闭正在修改该项目配置的客户端。安装完成后重新打开项目并建立新会话。
 
-## Windows PowerShell：一行安装并接入四个客户端
+## Windows PowerShell：手动固定 SHA 安装（可选）
 
 只替换第一段中的 `C:\REPLACE\WITH\ABSOLUTE\PROJECT`，必须填写项目的绝对路径。整行在 PowerShell 中运行：
 
 ```powershell
-$ErrorActionPreference='Stop'; $KJ_PROJECT='C:\REPLACE\WITH\ABSOLUTE\PROJECT'; $KJ_INSTALL=Join-Path $env:LOCALAPPDATA 'KJDraw-source-5834cfb'; $KJ_SHA='5834cfb47f09828f50949dff5dca3935b00424c3'; if(-not [IO.Path]::IsPathFullyQualified($KJ_PROJECT) -or -not (Test-Path -LiteralPath $KJ_PROJECT -PathType Container)){throw 'Replace KJ_PROJECT with an existing absolute project directory'}; Get-Command node,git -CommandType Application -ErrorAction Stop | Out-Null; node -e "if(+process.versions.node.split('.')[0]<22)process.exit(1)"; if($LASTEXITCODE){throw 'Node.js >=22 is required'}; if(Test-Path -LiteralPath $KJ_INSTALL){throw 'Pinned install directory already exists; inspect it instead of overwriting it'}; git clone --filter=blob:none --no-checkout https://github.com/KanJieTeam/kjdraw.git $KJ_INSTALL; if($LASTEXITCODE){throw 'git clone failed'}; git -C $KJ_INSTALL checkout --detach $KJ_SHA; if($LASTEXITCODE){throw 'git checkout failed'}; $KJ_ACTUAL=(git -C $KJ_INSTALL rev-parse HEAD).Trim(); if($KJ_ACTUAL -ne $KJ_SHA){throw 'Public source SHA verification failed'}; node (Join-Path $KJ_INSTALL 'packages/kjdraw-sdk/bin/kjdraw-connect.mjs') --all --apply --workspace $KJ_PROJECT --blank '.kjdraw/host.kjd' --units millimeter
+$ErrorActionPreference='Stop'; $KJ_PROJECT='C:\REPLACE\WITH\ABSOLUTE\PROJECT'; $KJ_INSTALL=Join-Path $env:LOCALAPPDATA 'KJDraw-source-466d8be'; $KJ_SHA='466d8be59e1be68dea19043427b4ec9f6295c0ee'; if(-not [IO.Path]::IsPathFullyQualified($KJ_PROJECT) -or -not (Test-Path -LiteralPath $KJ_PROJECT -PathType Container)){throw 'Replace KJ_PROJECT with an existing absolute project directory'}; Get-Command node,git -CommandType Application -ErrorAction Stop | Out-Null; node -e "if(+process.versions.node.split('.')[0]<22)process.exit(1)"; if($LASTEXITCODE){throw 'Node.js >=22 is required'}; if(Test-Path -LiteralPath $KJ_INSTALL){throw 'Pinned install directory already exists; inspect it instead of overwriting it'}; git clone --filter=blob:none --no-checkout https://github.com/KanJieTeam/kjdraw.git $KJ_INSTALL; if($LASTEXITCODE){throw 'git clone failed'}; git -C $KJ_INSTALL checkout --detach $KJ_SHA; if($LASTEXITCODE){throw 'git checkout failed'}; $KJ_ACTUAL=(git -C $KJ_INSTALL rev-parse HEAD).Trim(); if($KJ_ACTUAL -ne $KJ_SHA){throw 'Public source SHA verification failed'}; node (Join-Path $KJ_INSTALL 'packages/kjdraw-sdk/bin/kjdraw-connect.mjs') --all --apply --workspace $KJ_PROJECT --blank '.kjdraw/host.kjd' --units millimeter
 ```
 
-## macOS：一行安装并接入四个客户端
+## macOS：手动固定 SHA 安装（可选）
 
 只替换第一段中的 `/REPLACE/WITH/ABSOLUTE/PROJECT`，必须填写项目的绝对路径。整行在 `sh`、`bash` 或 `zsh` 中运行：
 
 ```sh
-set -eu; KJ_PROJECT='/REPLACE/WITH/ABSOLUTE/PROJECT'; KJ_INSTALL="$HOME/.kjdraw-source-5834cfb"; KJ_SHA='5834cfb47f09828f50949dff5dca3935b00424c3'; case "$KJ_PROJECT" in /*) ;; *) echo 'KJ_PROJECT must be absolute' >&2; exit 1;; esac; [ -d "$KJ_PROJECT" ] || { echo 'project directory not found' >&2; exit 1; }; command -v node >/dev/null; command -v git >/dev/null; node -e 'if(+process.versions.node.split(".")[0]<22)process.exit(1)'; [ ! -e "$KJ_INSTALL" ] || { echo 'pinned install directory exists; refusing overwrite' >&2; exit 1; }; git clone --filter=blob:none --no-checkout https://github.com/KanJieTeam/kjdraw.git "$KJ_INSTALL"; git -C "$KJ_INSTALL" checkout --detach "$KJ_SHA"; [ "$(git -C "$KJ_INSTALL" rev-parse HEAD)" = "$KJ_SHA" ]; node "$KJ_INSTALL/packages/kjdraw-sdk/bin/kjdraw-connect.mjs" --all --apply --workspace "$KJ_PROJECT" --blank '.kjdraw/host.kjd' --units millimeter
+set -eu; KJ_PROJECT='/REPLACE/WITH/ABSOLUTE/PROJECT'; KJ_INSTALL="$HOME/.kjdraw-source-466d8be"; KJ_SHA='466d8be59e1be68dea19043427b4ec9f6295c0ee'; case "$KJ_PROJECT" in /*) ;; *) echo 'KJ_PROJECT must be absolute' >&2; exit 1;; esac; [ -d "$KJ_PROJECT" ] || { echo 'project directory not found' >&2; exit 1; }; command -v node >/dev/null; command -v git >/dev/null; node -e 'if(+process.versions.node.split(".")[0]<22)process.exit(1)'; [ ! -e "$KJ_INSTALL" ] || { echo 'pinned install directory exists; refusing overwrite' >&2; exit 1; }; git clone --filter=blob:none --no-checkout https://github.com/KanJieTeam/kjdraw.git "$KJ_INSTALL"; git -C "$KJ_INSTALL" checkout --detach "$KJ_SHA"; [ "$(git -C "$KJ_INSTALL" rev-parse HEAD)" = "$KJ_SHA" ]; node "$KJ_INSTALL/packages/kjdraw-sdk/bin/kjdraw-connect.mjs" --all --apply --workspace "$KJ_PROJECT" --blank '.kjdraw/host.kjd' --units millimeter
 ```
 
 命令会新建 `.kjdraw/host.kjd`，一次性接入四家 MCP，并从包内同一个 KJDraw Skill 源安装各客户端公开支持的项目级 Skill：

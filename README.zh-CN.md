@@ -2,13 +2,13 @@
 
 <h1 align="center">KJDraw</h1>
 
-<p align="center"><strong>面向工程应用与AI智能体的CAD基础设施。</strong></p>
+<p align="center"><strong>AI 时代的开源 CAD 引擎。</strong></p>
 
-<p align="center">开源CAD引擎，以及开箱即用的编辑器。<br>创建、编辑和自动化工程图纸——用代码、用智能体，或亲手绘制。</p>
+<p align="center">让智能体查询、生成、精确修改和验证真正的工程图纸。<br>从自然语言到可编辑 CAD——不是截图，也不是让模型堆出成百上千个基础图元。</p>
 
 <p align="center">
-  <a href="https://kanjieteam.github.io/kjdraw/"><strong>在线体验</strong></a> ·
-  <a href="docs/try-in-ai.zh-CN.md"><strong>Try with AI</strong></a> ·
+  <a href="#一条命令真正的-cad-工具"><strong>Try with AI</strong></a> ·
+  <a href="https://kanjieteam.github.io/kjdraw/"><strong>在线编辑器</strong></a> ·
   <a href="#接入你的应用"><strong>接入你的应用</strong></a> ·
   <a href="#给你的-agent-配上-cad-工具"><strong>构建 CAD Agent</strong></a> ·
   <a href="README.md">English</a>
@@ -21,39 +21,50 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
 </p>
 
+## 一条命令，真正的 CAD 工具
+
+在项目目录中执行一条命令。KJDraw 会安装固定的公开候选源码，一次接入支持的智能体客户端，并建立项目级可编辑图纸宿主。模型 API Key 始终留在你的 AI 客户端，不交给 KJDraw。
+
+**Windows PowerShell**
+
+```powershell
+irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.ps1 | iex
+```
+
+**macOS / Linux**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
+```
+
+重启智能体，用它打开同一项目，然后要求它使用 KJDraw。连接器当前会在一次事务中写入 Kimi Code、WorkBuddy、ZCode 和 TraeCode 的项目配置。KJDraw 与模型解耦：客户端和模型表达意图，KJDraw 负责受支持的几何、事务、结构验证和文件。[安装细节与安全边界](docs/try-in-ai.zh-CN.md)
+
+> **1.0 候选状态：** 命令行配置与真实引擎冒烟测试已经通过；四个客户端 GUI 与真实模型的独立验收仍是发布门槛。KJDraw 不收集模型 Key；源图只读打开，修改在宿主批准前始终是待审核提案。
+
 <p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow-zh.gif" alt="KJDraw AI 创建、修改、保存并重开一张经过验证的 409 对象夹具板工程图" width="100%"></a></p>
 
 <p align="center"><sub>真实模型工作流：2 次模型请求 · 5,449 total tokens · 409 个可编辑对象 · 一次精确修改 · 保存并重新打开验证。</sub></p>
 
-## 为什么选择 KJDraw？
+## KJDraw 解决什么问题
 
-- **让 AI Agent 真正用上 CAD。** 通过接口读取图形对象、调用绘图命令，并审核拟执行的修改。
-- **接入 CAD，不必从零搭建编辑器。** 将绘图工具、图层、特性和文件操作直接接入 JavaScript、React 或 Vue 应用。
-- **直接使用编辑器，也能扩展底层能力。** 使用现成界面、调整工作区，或者基于 CAD 引擎开发自己的工具。
+| 你需要的能力 | KJDraw 提供的底层能力 |
+| --- | --- |
+| **理解现有图纸** | 分页读取图元，按空间和属性查询，稳定对象 ID，图层、引用、拓扑和修改影响检查。 |
+| **生成受支持的工程图** | 机械、建筑、场地、道路、数据图表和勘察工作流的高层确定性编译器；模型不必逐个生成海量基础图元。 |
+| **通过多轮对话继续改图** | 精确选择、移动、复制、旋转、缩放、偏移、拉伸、延长、文字和图层修改，以及结构删除、重连与重新分层。 |
+| **让每次修改可验证** | 先生成提案，由宿主审核；单事务、单版本；检查几何、图层与引用；支持撤销重做、保存和重开验证。 |
+| **交付可编辑结果** | 原生 KJD/KJP 与有明确兼容范围的 DXF；会话结束后仍是有结构、可继续编辑的 CAD。 |
+| **接入任意产品** | 同一引擎提供 JavaScript/TypeScript SDK、React、Vue、完整编辑器、CLI 和 MCP 工具。 |
 
-## 在线体验
+## 从一句话到可编辑工程图
 
-[打开在线编辑器](https://kanjieteam.github.io/kjdraw/)，无需注册或上传文件即可体验样例。
+`绘图意图 → KJDraw Skill → 高层 MCP 工具 → 确定性候选图 → 宿主审核 → 原子修改 → 验证、保存、重开`
 
-1. 选择机械详图、建筑平面、场地总图或道路纵断面。
-2. 选中并移动对象、查看图层，或者从空白开始画一个零件。
-3. 撤销一次修改，保存图纸，再打开继续编辑。
+模型只表达绘图意图、已提供的工程事实、约束和修改要求。KJDraw 解析受支持的几何与对象身份；缺少必需事实或操作跨越受保护边界时直接拒绝，并把验证证据交给宿主审核。这种分工可以压缩模型输出，让不同智能体遵循同一套 CAD 契约。
 
-内置示例用于体验，不作为施工图使用。[工作台操作指南](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/)提供绘图、选择、标注与保存说明。
+### 在线编辑器
 
-## Try with AI：一条命令接入四个国产智能体
-
-在另一台电脑只执行一次安装命令，即可为同一个项目配置 **Kimi Code、WorkBuddy、ZCode 和 TraeCode** 的 KJDraw MCP；同一事务还会为公开支持本地 Skill 的客户端安装 `kjdraw-cad`。无需分别执行四次安装，也无需把 API Key 交给 KJDraw。
-
-[复制 Windows / macOS 一行安装命令并查看验收方法](docs/try-in-ai.zh-CN.md)
-
-| 能力 | Kimi Code | WorkBuddy | ZCode | TraeCode |
-| --- | --- | --- | --- | --- |
-| 一次命令配置 KJDraw MCP | ✓ | ✓ | ✓ | ✓ |
-| 项目级 KJDraw Skill | 自动安装 | 官方仅支持市场/上传 | 自动安装 | 自动安装 |
-| 源图保护 | 只读输入、提案待审核 | 只读输入、提案待审核 | 只读输入、提案待审核 | 只读输入、提案待审核 |
-
-安装后用任一客户端打开该项目，新建会话并输入：`使用 KJDraw 读取当前图纸，然后画一个半径 5 mm 的圆；只生成待审核提案。` 看到 `kjdraw` 工具调用、待审核状态以及本地 KJDraw 标识，才算实际调用了 KJDraw。当前这是源码候选验收入口，不等于四家 GUI 和真实模型已经全部通过，也不代表稳定 1.0 已发布。
+[打开在线编辑器](https://kanjieteam.github.io/kjdraw/)，无需注册或上传文件。可体验机械、建筑、场地和道路样例，检查图层、执行修改、撤销、保存并重新打开。样例仅用于产品体验，不作为施工图使用。详见[工作台操作指南](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/)。
 
 ## 接入你的应用
 
