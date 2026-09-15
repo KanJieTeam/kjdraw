@@ -20,6 +20,7 @@ const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES.filter(name=>!['
 const roadRevisionToolNames = Object.freeze([...meterToolNames, 'cad_propose_road_revision'])
 const selectionToolNames = new Map([KJDRAW_CHAT_TOOL_NAMES,meterToolNames,roadRevisionToolNames].map(names=>[names,Object.freeze([...names,'cad_read_selection_sets'])]))
 const moveToolNames = Object.freeze(['cad_propose_move'])
+const labelMoveToolNames = Object.freeze(['cad_read_drawing', 'cad_query_drawing', 'cad_propose_move'])
 const textEditToolNames = Object.freeze(['cad_read_drawing', 'cad_query_drawing', 'cad_propose_text_edit'])
 const builtinCapabilityRegistry = createKJDrawBuiltinCapabilityRegistry()
 /** Host policy only: SDK defaults and explicitly selected/locked tools remain unchanged. */
@@ -56,6 +57,9 @@ export function getKJDrawChatToolNamesForRequest(document,request,selectedIds=[]
   const textAction=/\b(?:change|edit|update|replace|set|correct|rename)\b|修改|更改|更新|替换|改成|设为/.test(normalized)
   const geometryIntent=/\b(?:draw|create|move|translate|rotate|delete|erase|relayer|add|remove|copy|stretch|offset|fillet|chamfer)\b|绘制|创建|移动|平移|旋转|删除|擦除|调层|添加|移除|复制|拉伸|偏移|圆角|倒角/.test(normalized)
   if(document.listEntities().length>0&&textIntent&&textAction&&!geometryIntent)return textEditToolNames
+  const labelMove=/\b(?:move|translate|shift)\b[^.]{0,120}\b(?:label|text|note)s?\b|(?:移动|平移|挪动)[^。]{0,120}(?:标签|文字|注释)/.test(normalized)
+  const moveOnly=!/\b(?:rotate|delete|draw|create|copy|relayer|stretch|offset)\b|旋转|删除|绘制|创建|复制|调层|拉伸|偏移/.test(normalized)
+  if(document.listEntities().length>0&&labelMove&&moveOnly&&/[+-]?\d+(?:\.\d+)?/.test(normalized))return labelMoveToolNames
   const capability=matchKJDrawBuiltinCapability({prompt:request,units:document.snapshot().header.units,entityCount:document.listEntities().length})
   return capability?.manifest.requiredToolNames??names
 }

@@ -134,6 +134,13 @@ test('explicit title-block text edits on an existing drawing load only read and 
   assert.deepEqual(names, ['cad_read_drawing', 'cad_query_drawing', 'cad_propose_text_edit'])
 })
 
+test('single label translation loads read, query and move schemas without a host selection', async () => {
+  const { document } = fixture()
+  await document.transact('existing labels', tx => tx.createEntity('TEXT', { text: 'TOP VIEW', position: [0, 0, 0], height: 3 }))
+  const names = getKJDrawChatToolNamesForRequest(document, 'Move the existing TOP VIEW label up by exactly 2 millimeters. Keep geometry unchanged.')
+  assert.deepEqual(names, ['cad_read_drawing', 'cad_query_drawing', 'cad_propose_move'])
+})
+
 test('MOVE routing stays conservative without exact selection, displacement, or a single edit intent', async () => {
   const {document}=fixture()
   await document.transact('Selectable geometry',tx=>tx.createEntity('LINE',{start:[0,0,0],end:[20,0,0]},{id:'selected-edge'}))
