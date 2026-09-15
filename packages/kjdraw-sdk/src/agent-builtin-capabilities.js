@@ -264,7 +264,7 @@ const descriptors = [
             'KJD reopen',
             'DXF reopen'
         ],
-        manifest: manifest('builtin.manufacturing-sheet', 'Manufacturing sheet', '1.0.0', 'cad_propose_manufacturing_sheet', 'Use the manufacturing-sheet compiler exactly once. Extract only explicit plate, feature, title-block and sheet parameters from the request. Never emit individual geometry or invent missing dimensions, material, quantity or machining requirements. Ask for missing required values. The compiler owns deterministic geometry, engineering layers, native dimensions, the atomic proposal and bounded evidence.')
+        manifest: manifest('builtin.manufacturing-sheet', 'Manufacturing sheet', '1.0.0', 'cad_propose_manufacturing_sheet', 'Use the manufacturing-sheet compiler exactly once. Extract only explicit plate, feature, title-block and sheet parameters from the request. Deterministic conventions: a horizontal slot means its long axis follows +X (orientationDegrees 0); a counterbore specified from the top is the +Z face. Do not ask to confirm these standard meanings when the request already says horizontal or top. If a border lower-left is explicitly (0,0), use sheet.origin [0,0]. Never emit individual geometry or invent missing dimensions, material, quantity or machining requirements. Ask only for genuinely missing required values. The compiler owns deterministic geometry, engineering layers, native dimensions, the atomic proposal and bounded evidence.')
     },
     {
         id: 'builtin.architecture-plan',
