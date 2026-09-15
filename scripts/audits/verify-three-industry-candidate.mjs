@@ -20,7 +20,10 @@ if (!cleanCandidateSources && !process.argv.includes('--allow-dirty')) {
   process.exit(1)
 }
 
-const env = { ...process.env, KJDRAW_THREE_INDUSTRY_RESULT: resultPath }
+// Candidate evidence must execute against this checkout, never a stale local
+// server from another worktree. Playwright's default config reuses an
+// existing server outside CI, so force its isolated-server path here.
+const env = { ...process.env, CI: 'true', KJDRAW_THREE_INDUSTRY_RESULT: resultPath }
 if (!env.KJDRAW_CHROME_PATH) {
   for (const candidate of ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', 'C:/Program Files/Google/Chrome/Application/chrome.exe']) {
     try { await access(candidate, constants.X_OK); env.KJDRAW_CHROME_PATH = candidate; break } catch {}
