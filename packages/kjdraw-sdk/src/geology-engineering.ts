@@ -47,6 +47,9 @@ export interface KJGeologyObservation {
   displayLabel?: string
   /** Direct numeric laboratory facts keyed by a host-selected, versioned field grid. */
   measurements?: Record<string, number>
+  /** Exact source-supplied interval for a sampled specimen; never inferred from the point depth. */
+  rangeTop?: number
+  rangeBottom?: number
 }
 export interface KJGeologyColumnInput {
   hole: KJGeologyBorehole
@@ -330,6 +333,13 @@ function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
           numeric(value, `sampled measurement ${key}`)
         }
       }
+      if (item.rangeTop != null || item.rangeBottom != null) {
+        if (item.kind !== 'sample' || item.rangeTop == null || item.rangeBottom == null) throw new KJValidationError('Geology: sampled ranges require both measured endpoints')
+        const rangeTop = numeric(item.rangeTop, 'sample range top'), rangeBottom = numeric(item.rangeBottom, 'sample range bottom')
+        if (rangeTop < 0 || rangeBottom > hole.depth || rangeBottom <= rangeTop || rangeBottom - rangeTop > 5 ||
+          depth < rangeTop - 1e-6 || depth > rangeBottom + 1e-6)
+          throw new KJValidationError('Geology: sampled range is outside its point, hole or bounded interval')
+      }
       if (depth < 0 || depth > hole.depth) throw new KJValidationError('Geology: observation depth is outside the hole')
       if (item.kind === 'spt' && (item.value == null || numeric(item.value, 'SPT result') < 0)) throw new KJValidationError('Geology: SPT needs a nonnegative measured result')
       const identity = `${item.kind}:${id}:${depth}`
@@ -337,6 +347,11 @@ function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
       identities.add(identity)
     }
   }
+  const sampleRanges = (hole.observations ?? []).filter(item => item.kind === 'sample' && item.rangeTop != null)
+    .sort((a, b) => a.rangeTop! - b.rangeTop!)
+  for (let index = 1; index < sampleRanges.length; index++)
+    if (sampleRanges[index]!.rangeTop! < sampleRanges[index - 1]!.rangeBottom! - 1e-6)
+      throw new KJValidationError('Geology: sampled intervals overlap in one column lane')
   return strata
 }
 
@@ -504,12 +519,12 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     const estimatedWidth = (value: string, height: number) => [...value].reduce((sum, character) =>
       sum + (/^[\x20-\x7e]$/u.test(character) ? height * 0.64 : height), 0)
     const bandLines: { x1: number; x2: number; y: number }[] = []
-    const textBoxes: { left: number; right: number; bottom: number; top: number }[] = []
+    const textBoxes: { role: FieldRole; left: number; right: number; bottom: number; top: number }[] = []
     const emitFieldText = (item: typeof fieldGrid[number], y: number, value: string, height = 1.8): void => {
       const width = estimatedWidth(value, height), x = item.start + 1.2
       if (width > fieldWidth(item) - 2.4) throw new KJValidationError(`Geology: ${item.role} text does not fit its declared field`)
       g.text(3, x, y, value, height)
-      textBoxes.push({ left: x - 0.25, right: x + width + 0.25, bottom: y - 0.25, top: y + height + 0.25 })
+      textBoxes.push({ role: item.role, left: x - 0.25, right: x + width + 0.25, bottom: y - 0.25, top: y + height + 0.25 })
     }
     let previousDescriptionBottom: number | undefined, previousLabelY: number | undefined, renderedCoreCount = 0
     const firstGroupBottom = (grouped ? groups[0]!.bottom : strata[0]!.bottom)
@@ -601,6 +616,16 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         if (cell.role === 'measurement' && item.kind === 'sample' && Object.hasOwn(item.measurements ?? {}, cell.key!))
           value = item.measurements![cell.key!]!.toFixed(cell.decimals ?? 2)
         if (value != null) emitFieldText(cell, y, value, 1.5)
+        if (cell.role === 'sample' && item.kind === 'sample' && item.rangeTop != null && item.rangeBottom != null) {
+          const rangeTopY = top - item.rangeTop * scale, rangeBottomY = top - item.rangeBottom * scale
+          const rangeTextY = rangeBottomY - 2.2, rangeText = `${metres(item.rangeTop)}–${metres(item.rangeBottom)}`
+          if (rangeTextY < bottom + 0.4 || textBoxes.some(box => box.role === 'sample' &&
+            rangeTextY - 0.25 <= box.top && rangeTextY + 1.75 >= box.bottom))
+            throw new KJValidationError(`Geology: sampled range ${item.id} cannot be labelled without colliding in its source lane`)
+          emitFieldText(cell, rangeTextY, rangeText, 1.5)
+          bandLines.push({ x1: cell.start, x2: gridEnd(cell), y: rangeTopY },
+            { x1: cell.start, x2: gridEnd(cell), y: rangeBottomY })
+        }
       }
     }
     for (const line of bandLines) {

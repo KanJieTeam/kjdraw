@@ -43,6 +43,9 @@ export interface KJGeologyObservation {
     displayLabel?: string;
     /** Direct numeric laboratory facts keyed by a host-selected, versioned field grid. */
     measurements?: Record<string, number>;
+    /** Exact source-supplied interval for a sampled specimen; never inferred from the point depth. */
+    rangeTop?: number;
+    rangeBottom?: number;
 }
 export interface KJGeologyColumnInput {
     hole: KJGeologyBorehole;

@@ -367,6 +367,35 @@ test('a versioned fourteen-field grid charts direct sample measurements without 
   const badTitle = structuredClone(input)
   badTitle.columnStylePack.rules['geology-column-layout'].titleHeight = 30
   assert.throws(() => compileGeologyColumn(badTitle), /title height must be 3–12/)
+  const ranged = structuredClone(input)
+  ranged.hole.observations[0].depth = 2.075
+  ranged.hole.observations[0].rangeTop = 2
+  ranged.hole.observations[0].rangeBottom = 2.15
+  const rangedCompiled = compileGeologyColumn(ranged)
+  assert.ok(rangedCompiled.commandArgs.entities.some(entity => entity.type === 'TEXT' &&
+    entity.payload.text === '2.00–2.15'), 'only source-supplied sample endpoints may be charted')
+  for (const endpoint of [2, 2.15]) {
+    const endpointY = 340 - 56 - 10 - endpoint * 4
+    assert.ok(rangedCompiled.commandArgs.entities.some(entity => entity.type === 'LINE' &&
+      Math.abs(entity.payload.start[1] - endpointY) < 1e-6 &&
+      Math.abs(entity.payload.end[1] - endpointY) < 1e-6 &&
+      entity.payload.start[0] >= 171 && entity.payload.end[0] <= 186), `sample endpoint ${endpoint}`)
+  }
+  const rangedDocument = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', rangedCompiled.commandArgs, { document: rangedDocument })
+  const rangedDxf = await sdk.writeDocument(rangedDocument, { format: 'DXF', version: '2018' })
+  const rangedReopen = await sdk.readDocument(rangedDxf, { format: 'DXF', version: '2018' })
+  assert.ok(rangedReopen.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === '2.00–2.15'))
+  assert.ok(!visible.some(value => value.includes('–')), 'a point sample without measured endpoints has no invented interval')
+  const incomplete = structuredClone(ranged)
+  delete incomplete.hole.observations[0].rangeBottom
+  assert.throws(() => compileGeologyColumn(incomplete), /require both measured endpoints/)
+  const outside = structuredClone(ranged)
+  outside.hole.observations[0].rangeTop = 2.1
+  assert.throws(() => compileGeologyColumn(outside), /outside its point/)
+  const overlap = structuredClone(ranged)
+  overlap.hole.observations.push({ kind: 'sample', id: 'R2', depth: 2.13, rangeTop: 2.1, rangeBottom: 2.2 })
+  assert.throws(() => compileGeologyColumn(overlap), /intervals overlap/)
 })
 
 test('a declared text lane borrows space for a sourced thin first group without moving depth or hatch boundaries', async () => {

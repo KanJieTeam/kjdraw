@@ -401,6 +401,11 @@ function checkHole(hole) {
                     numeric(value, `sampled measurement ${key}`);
                 }
             }
+            if (item.rangeTop != null || item.rangeBottom != null) {
+                if (item.kind !== 'sample' || item.rangeTop == null || item.rangeBottom == null) throw new KJValidationError('Geology: sampled ranges require both measured endpoints');
+                const rangeTop = numeric(item.rangeTop, 'sample range top'), rangeBottom = numeric(item.rangeBottom, 'sample range bottom');
+                if (rangeTop < 0 || rangeBottom > hole.depth || rangeBottom <= rangeTop || rangeBottom - rangeTop > 5 || depth < rangeTop - 1e-6 || depth > rangeBottom + 1e-6) throw new KJValidationError('Geology: sampled range is outside its point, hole or bounded interval');
+            }
             if (depth < 0 || depth > hole.depth) throw new KJValidationError('Geology: observation depth is outside the hole');
             if (item.kind === 'spt' && (item.value == null || numeric(item.value, 'SPT result') < 0)) throw new KJValidationError('Geology: SPT needs a nonnegative measured result');
             const identity = `${item.kind}:${id}:${depth}`;
@@ -408,6 +413,8 @@ function checkHole(hole) {
             identities.add(identity);
         }
     }
+    const sampleRanges = (hole.observations ?? []).filter((item)=>item.kind === 'sample' && item.rangeTop != null).sort((a, b)=>a.rangeTop - b.rangeTop);
+    for(let index = 1; index < sampleRanges.length; index++)if (sampleRanges[index].rangeTop < sampleRanges[index - 1].rangeBottom - 1e-6) throw new KJValidationError('Geology: sampled intervals overlap in one column lane');
     return strata;
 }
 function patternDefinitions(pack, strata) {
@@ -771,6 +778,7 @@ export function compileGeologyColumn(input) {
             if (width > fieldWidth(item) - 2.4) throw new KJValidationError(`Geology: ${item.role} text does not fit its declared field`);
             g.text(3, x, y, value, height);
             textBoxes.push({
+                role: item.role,
                 left: x - 0.25,
                 right: x + width + 0.25,
                 bottom: y - 0.25,
@@ -914,6 +922,21 @@ export function compileGeologyColumn(input) {
                 }
                 if (cell.role === 'measurement' && item.kind === 'sample' && Object.hasOwn(item.measurements ?? {}, cell.key)) value = item.measurements[cell.key].toFixed(cell.decimals ?? 2);
                 if (value != null) emitFieldText(cell, y, value, 1.5);
+                if (cell.role === 'sample' && item.kind === 'sample' && item.rangeTop != null && item.rangeBottom != null) {
+                    const rangeTopY = top - item.rangeTop * scale, rangeBottomY = top - item.rangeBottom * scale;
+                    const rangeTextY = rangeBottomY - 2.2, rangeText = `${metres(item.rangeTop)}–${metres(item.rangeBottom)}`;
+                    if (rangeTextY < bottom + 0.4 || textBoxes.some((box)=>box.role === 'sample' && rangeTextY - 0.25 <= box.top && rangeTextY + 1.75 >= box.bottom)) throw new KJValidationError(`Geology: sampled range ${item.id} cannot be labelled without colliding in its source lane`);
+                    emitFieldText(cell, rangeTextY, rangeText, 1.5);
+                    bandLines.push({
+                        x1: cell.start,
+                        x2: gridEnd(cell),
+                        y: rangeTopY
+                    }, {
+                        x1: cell.start,
+                        x2: gridEnd(cell),
+                        y: rangeBottomY
+                    });
+                }
             }
         }
         for (const line of bandLines){
