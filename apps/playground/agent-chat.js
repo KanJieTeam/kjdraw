@@ -54,7 +54,7 @@ export function getKJDrawChatToolNamesForRequest(document,request,selectedIds=[]
   const normalized=request.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim()
   const textIntent=/\b(?:text|note|title.?block|revision|quantity|label|callout|field)\b|文字|注释|标题栏|修订|数量|标签|字段/.test(normalized)
   const textAction=/\b(?:change|edit|update|replace|set|correct|rename)\b|修改|更改|更新|替换|改成|设为/.test(normalized)
-  const geometryIntent=/\b(?:draw|create|move|rotate|delete|relayer|geometry|hole|line|circle|slot)\b|绘制|创建|移动|旋转|删除|图形|孔|直线|圆|槽/.test(normalized)
+  const geometryIntent=/\b(?:draw|create|move|translate|rotate|delete|erase|relayer|add|remove|copy|stretch|offset|fillet|chamfer)\b|绘制|创建|移动|平移|旋转|删除|擦除|调层|添加|移除|复制|拉伸|偏移|圆角|倒角/.test(normalized)
   if(document.listEntities().length>0&&textIntent&&textAction&&!geometryIntent)return textEditToolNames
   const capability=matchKJDrawBuiltinCapability({prompt:request,units:document.snapshot().header.units,entityCount:document.listEntities().length})
   return capability?.manifest.requiredToolNames??names
