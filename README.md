@@ -2,9 +2,9 @@
 
 <h1 align="center">KJDraw</h1>
 
-<p align="center"><strong>Build AI products that create and edit real CAD.</strong></p>
+<p align="center"><strong>The open-source CAD engine for the AI era.</strong></p>
 
-<p align="center">KJDraw turns model intent into deterministic geometry, editable objects,<br>auditable transactions, and drawing files you can reopen.</p>
+<p align="center">Create, understand, and edit structured engineering drawings<br>from natural language or code.</p>
 
 <p align="center">
   <a href="#quick-start"><strong>Quick start</strong></a> ·

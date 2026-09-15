@@ -2,9 +2,9 @@
 
 <h1 align="center">KJDraw</h1>
 
-<p align="center"><strong>让 AI 真正创建和修改可编辑 CAD。</strong></p>
+<p align="center"><strong>AI 时代的开源 CAD 引擎。</strong></p>
 
-<p align="center">KJDraw 把模型意图转化为确定性几何、可编辑对象、<br>可审计事务，以及能够保存并重新打开的工程图纸。</p>
+<p align="center">用自然语言或代码创建、理解和修改<br>结构化、可编辑的工程图纸。</p>
 
 <p align="center">
   <a href="#快速开始"><strong>快速开始</strong></a> ·
