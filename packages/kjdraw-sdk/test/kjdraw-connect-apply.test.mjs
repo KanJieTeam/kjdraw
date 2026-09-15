@@ -54,6 +54,13 @@ test('preview changes no files; apply initializes a validated blank host drawing
   assert.equal(applied.status, 0, applied.stderr)
   const result = JSON.parse(applied.stdout)
   assert.equal(result.clients.length, 4)
+  assert.ok(result.clients.every(client => client.status === 'project-config-candidate-not-GUI-verified'))
+  assert.equal(result.configurationEvidence.guiVerified, false)
+  assert.equal(result.configurationEvidence.engineInvoked, false)
+  assert.equal(result.configurationEvidence.serverEntryName, 'kjdraw')
+  assert.equal(result.configurationEvidence.node.clientPathVerified, false)
+  assert.match(result.configurationEvidence.node.readableInstallerCandidateSha256, /^[a-f0-9]{64}$/)
+  assert.match(result.configurationEvidence.workBuddyGuide, /^https:\/\/www\.workbuddy\.ai\/docs\//)
   assert.equal(result.transientBackupCount, 0)
   assert.equal(result.retainedBackupCount, 0)
   assert.match(result.mcpScriptSha256, /^[a-f0-9]{64}$/)
@@ -67,8 +74,58 @@ test('preview changes no files; apply initializes a validated blank host drawing
     assert.equal(entry.command, 'node')
     assert.equal(entry.args[entry.args.indexOf('--input') + 1], '.kjdraw/active.kjd')
     assert.equal(entry.args[entry.args.indexOf('--proposal-dir') + 1], '.kjdraw/proposals')
-    if (rel.startsWith('.workbuddy/')) assert.equal(entry.type, 'stdio')
+    if (rel.startsWith('.workbuddy/')) assert.equal(Object.hasOwn(entry, 'type'), false)
   }
+})
+
+test('official WorkBuddy command/args shape is configured, while a matching legacy type:stdio entry is preserved byte-for-byte', async t => {
+  const root = await fixture(t)
+  await connectWorkspace(options(root))
+  const path = join(root, '.workbuddy/mcp.json')
+  const value = JSON.parse(await readFile(path, 'utf8'))
+  const officialShape = value.mcpServers.kjdraw
+  assert.deepEqual(Object.keys(officialShape), ['command', 'args'])
+  value.mcpServers.kjdraw = { type: 'stdio', ...officialShape }
+  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`)
+  const beforeBytes = await readFile(path), beforeTime = (await stat(path)).mtimeMs
+  const result = await connectWorkspace(options(root))
+  assert.equal(result.clients.find(client => client.client === 'WorkBuddy').action, 'unchanged')
+  assert.deepEqual(await readFile(path), beforeBytes)
+  assert.equal((await stat(path)).mtimeMs, beforeTime)
+  const conflict = structuredClone(value)
+  conflict.mcpServers.kjdraw.args = ['owner-managed-other-server']
+  await writeFile(path, `${JSON.stringify(conflict)}\n`)
+  const conflictSha = hash(await readFile(path))
+  await assert.rejects(connectWorkspace(options(root)), /Existing kjdraw MCP entry conflicts/)
+  assert.equal(hash(await readFile(path)), conflictSha)
+})
+
+test('duplicate CLI options and absent Node on installer PATH refuse the transaction before any project write', async t => {
+  const root = await fixture(t)
+  const duplicate = spawnSync(process.execPath, [publicBin, '--all', '--workspace', root, '--workspace', root, '--blank', '.kjdraw/active.kjd', '--units', 'millimeter', '--apply'], { encoding: 'utf8' })
+  assert.equal(duplicate.status, 1)
+  assert.match(duplicate.stderr, /Duplicate option: --workspace/)
+  assert.deepEqual(await readdir(root), [])
+  const missingNode = spawnSync(process.execPath, [publicBin, '--all', '--workspace', root, '--blank', '.kjdraw/active.kjd', '--units', 'millimeter', '--apply'], {
+    encoding: 'utf8', env: { ...process.env, PATH: root },
+  })
+  assert.equal(missingNode.status, 1)
+  assert.match(missingNode.stderr, /Node executable is not on installer PATH/)
+  assert.deepEqual(await readdir(root), [])
+  if (process.platform === 'win32') {
+    const shadow = join(root, 'shadow')
+    await mkdir(shadow)
+    await writeFile(join(shadow, 'node.cmd'), 'fixture-only; never execute')
+    const wrapper = spawnSync(process.execPath, [publicBin, '--all', '--workspace', root, '--blank', '.kjdraw/active.kjd', '--units', 'millimeter', '--apply'], {
+      encoding: 'utf8', env: { ...process.env, PATH: `${shadow};${process.env.PATH}` },
+    })
+    assert.equal(wrapper.status, 1)
+    assert.match(wrapper.stderr, /Node on installer PATH is a wrapper/)
+    assert.deepEqual(await readdir(root), ['shadow'])
+  }
+  await writeFile(join(root, process.platform === 'win32' ? 'node.cmd' : 'node'), 'fixture-only; never execute')
+  await assert.rejects(connectWorkspace(options(root)), /Project-local node command could shadow/)
+  assert.deepEqual(await readdir(root), process.platform === 'win32' ? ['node.cmd', 'shadow'] : ['node'])
 })
 
 test('precise merge preserves unrelated fields; transient backups never leave fake keys beside configs', async t => {

@@ -2,7 +2,7 @@
 
 import { createHash, randomUUID } from 'node:crypto'
 import { lstat, mkdir, readFile, realpath, rename, unlink, writeFile } from 'node:fs/promises'
-import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { delimiter, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
 import { createKJDrawSDK } from '../src/sdk.js'
@@ -10,7 +10,9 @@ import { KJDRAW_VERSION } from '../src/version.js'
 
 const CLIENTS = Object.freeze([
   { name: 'Kimi Code', path: '.kimi-code/mcp.json', keys: ['mcpServers'] },
-  { name: 'WorkBuddy', path: '.workbuddy/mcp.json', keys: ['mcpServers'] },
+  // Official WorkBuddy MCP guide: project .workbuddy/mcp.json, mcpServers,
+  // local command/args entry. Configuration alone does not verify its GUI.
+  { name: 'WorkBuddy', path: '.workbuddy/mcp.json', keys: ['mcpServers'], guide: 'https://www.workbuddy.ai/docs/zh/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/MCP-Guide' },
   { name: 'ZCode', path: '.zcode/config.json', keys: ['mcp', 'servers'] },
   { name: 'TraeCode', path: '.trae/mcp.json', keys: ['mcpServers'] },
 ])
@@ -24,10 +26,13 @@ function usage() {
 function parseArgs(argv) {
   if (argv.includes('--help') || argv.includes('-h')) return { help: true }
   const options = { apply: false, all: false, proposalDir: '.kjdraw/proposals' }
+  const seen = new Set()
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i]
+    if (seen.has(key)) throw new Error(`Duplicate option: ${key}`)
+    seen.add(key)
     if (key === '--all' || key === '--apply') { options[key.slice(2)] = true; continue }
-    if (!['--workspace', '--input', '--blank', '--units', '--proposal-dir'].includes(key) || !argv[i + 1]) throw new Error('Unknown or incomplete option')
+    if (!['--workspace', '--input', '--blank', '--units', '--proposal-dir'].includes(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('Unknown or incomplete option')
     options[key === '--proposal-dir' ? 'proposalDir' : key.slice(2)] = argv[++i]
   }
   if (!options.all || !options.workspace) throw new Error('--all and --workspace are required')
@@ -48,6 +53,34 @@ function inside(root, candidate) {
 
 async function item(path) {
   try { return await lstat(path) } catch (error) { if (error.code === 'ENOENT') return null; throw error }
+}
+
+async function nodePathEvidence(root) {
+  // A bare "node" in a client config follows that client's PATH. We can only
+  // preflight this installer's PATH, and must not execute a project-local shim.
+  for (const name of process.platform === 'win32' ? ['node.exe', 'node.cmd', 'node.bat', 'node.com'] : ['node']) {
+    if (await item(join(root, name))) throw new Error('Project-local node command could shadow KJDraw MCP; use a project without a root node shim')
+  }
+  for (const directory of (process.env.PATH ?? '').split(delimiter)) {
+    if (!directory || !isAbsolute(directory)) continue
+    for (const name of process.platform === 'win32' ? ['node.com', 'node.exe', 'node.bat', 'node.cmd'] : ['node']) {
+      const executable = join(directory, name)
+      let info
+      try { info = await item(executable) }
+      catch (error) {
+        // The installer may be sandboxed away from a system PATH directory.
+        // It cannot attest that candidate; keep searching readable candidates.
+        if (['EPERM', 'EACCES'].includes(error.code)) continue
+        throw error
+      }
+      if (!info) continue
+      if (name !== (process.platform === 'win32' ? 'node.exe' : 'node') || !info.isFile() || info.isSymbolicLink()) throw new Error('Node on installer PATH is a wrapper or not a regular executable')
+      const canonical = await realpath(executable)
+      if (inside(root, canonical) || /[\\/]_npx[\\/]/iu.test(canonical)) throw new Error('Node on installer PATH is project-local or ephemeral; refusing a persistent MCP entry')
+      return { command: 'node', readableInstallerCandidateSha256: sha(Buffer.from(canonical)), clientPathVerified: false }
+    }
+  }
+  throw new Error('Node executable is not on installer PATH; install a persistent Node.js before connecting clients')
 }
 
 async function checkedPath(root, value, label, finalType) {
@@ -80,7 +113,7 @@ async function readConfig(path) {
   return { bytes, value }
 }
 
-function merged(original, keys, entry) {
+function merged(original, keys, entry, legacyStdio = false) {
   const value = structuredClone(original)
   let target = value
   for (const key of keys) {
@@ -89,7 +122,7 @@ function merged(original, keys, entry) {
     target = target[key]
   }
   if (Object.hasOwn(target, 'kjdraw')) {
-    if (!isDeepStrictEqual(target.kjdraw, entry)) throw new Error('Existing kjdraw MCP entry conflicts; refusing to overwrite it')
+    if (!isDeepStrictEqual(target.kjdraw, entry) && !(legacyStdio && isDeepStrictEqual(target.kjdraw, { type: 'stdio', ...entry }))) throw new Error('Existing kjdraw MCP entry conflicts; refusing to overwrite it')
     return null
   }
   target.kjdraw = entry
@@ -163,6 +196,7 @@ export async function connectWorkspace(options, hooks = {}) {
   const mcpInfo = await item(mcpPath)
   if (!mcpInfo?.isFile() || mcpInfo.isSymbolicLink()) throw new Error('KJDraw MCP script is not a regular installed file')
   const sourceSha256 = sha(await readFile(mcpPath))
+  const nodeEvidence = await nodePathEvidence(root)
   // 'node' avoids an ephemeral desktop runtime path and TraeCode's no-spaces command rule.
   const entry = { command: 'node', args: [mcpPath, '--workspace', root, '--input', drawing.name, '--proposal-dir', relative(root, proposals).split(sep).join('/')] }
   const plans = []
@@ -174,11 +208,12 @@ export async function connectWorkspace(options, hooks = {}) {
       const fallback = await readConfig(fallbackPath)
       if (Object.keys(fallback.value?.mcpServers ?? {}).length) throw new Error('ZCode .agents/mcp.json has active MCP servers; adding .zcode/config.json would hide them. Merge them in ZCode first')
     }
-    const content = merged(original.value, client.keys, client.name === 'WorkBuddy' ? { type: 'stdio', ...entry } : entry)
+    const content = merged(original.value, client.keys, entry, client.name === 'WorkBuddy')
     plans.push({ ...client, path, original: original.bytes, beforeSha: original.bytes ? sha(original.bytes) : null, content })
   }
   const changed = plans.filter(plan => plan.content)
-  if (!options.apply) return { applied: false, clients: plans.map(plan => ({ client: plan.name, action: plan.content ? 'add' : 'unchanged' })), drawing: drawing.serialized ? 'create blank' : 'existing', proposalDirectory: 'verified or create', sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256 }
+  const configurationEvidence = { guiVerified: false, engineInvoked: false, approvalRoute: 'trusted-host-only', serverEntryName: 'kjdraw', workBuddyGuide: CLIENTS[1].guide, node: nodeEvidence }
+  if (!options.apply) return { applied: false, clients: plans.map(plan => ({ client: plan.name, action: plan.content ? 'add' : 'unchanged', status: 'project-config-candidate-not-GUI-verified' })), drawing: drawing.serialized ? 'create blank' : 'existing', proposalDirectory: 'verified or create', sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256, configurationEvidence }
   const created = []
   const staged = []
   const backups = []
@@ -211,7 +246,7 @@ export async function connectWorkspace(options, hooks = {}) {
       await rename(plan.temp, plan.path)
       committed.push(plan)
     }
-    return { applied: true, clients: plans.map(plan => ({ client: plan.name, action: plan.content ? 'added' : 'unchanged' })), drawing: drawing.serialized ? 'created blank' : 'existing', backupCount: backups.length, transientBackupCount: backups.length, retainedBackupCount: 0, sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256 }
+    return { applied: true, clients: plans.map(plan => ({ client: plan.name, action: plan.content ? 'added' : 'unchanged', status: 'project-config-candidate-not-GUI-verified' })), drawing: drawing.serialized ? 'created blank' : 'existing', backupCount: backups.length, transientBackupCount: backups.length, retainedBackupCount: 0, sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256, configurationEvidence }
   } catch (error) {
     const rollbackConflicts = []
     for (const plan of committed.reverse()) {
