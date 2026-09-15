@@ -60,8 +60,8 @@ export function getKJDomesticModelProfile(provider) {
     const profile = KJDRAW_DOMESTIC_MODEL_PROFILES[provider];
     return profile;
 }
-export function createKJDomesticModelAdapter(options) {
-    const { provider, reasoning, toolChoice, parallelToolCalls, promptCacheKey, safetyIdentifier, ...adapter } = options;
+export function getKJDomesticModelAdapterSettings(provider, options = {}) {
+    const { reasoning, toolChoice, parallelToolCalls, promptCacheKey, safetyIdentifier, model } = options;
     const profile = getKJDomesticModelProfile(provider);
     const mode = reasoning?.mode ?? 'provider-default';
     const effort = reasoning?.effort;
@@ -80,6 +80,7 @@ export function createKJDomesticModelAdapter(options) {
     if (effort !== undefined && mode === 'disabled') profileError('Reasoning effort cannot be set while thinking is disabled');
     if (preserve && !profile.supports.preservedThinkingSwitch) profileError(`${provider} does not expose a preserved-thinking switch through this profile`);
     if (preserve && mode === 'disabled') profileError('Preserved thinking cannot be requested while thinking is disabled');
+    if (provider === 'kimi' && mode === 'disabled' && /^kimi-k3(?:$|-)/i.test(model?.trim() ?? '')) profileError('Kimi K3 always uses thinking; select provider-default or enabled');
     if (provider === 'qwen' && toolChoice === 'required' && mode !== 'disabled') profileError('Qwen toolChoice="required" requires explicitly disabled thinking');
     if (provider !== 'kimi' && (promptCacheKey !== undefined || safetyIdentifier !== undefined)) profileError('Prompt cache and safety identifiers are only exposed by the Kimi profile');
     const extensions = {
@@ -110,10 +111,36 @@ export function createKJDomesticModelAdapter(options) {
             safety_identifier: safetyIdentifier
         }
     };
-    return createKJModelAdapter({
-        ...adapter,
+    return {
         protocol: profile.protocol,
         chatTokenParameter: profile.chatTokenParameter,
-        chatRequestExtensions: extensions
+        ...Object.keys(extensions).length ? {
+            chatRequestExtensions: extensions
+        } : {}
+    };
+}
+export function createKJDomesticModelAdapter(options) {
+    const { provider, reasoning, toolChoice, parallelToolCalls, promptCacheKey, safetyIdentifier, ...adapter } = options;
+    const wire = getKJDomesticModelAdapterSettings(provider, {
+        model: adapter.model,
+        ...reasoning === undefined ? {} : {
+            reasoning
+        },
+        ...toolChoice === undefined ? {} : {
+            toolChoice
+        },
+        ...parallelToolCalls === undefined ? {} : {
+            parallelToolCalls
+        },
+        ...promptCacheKey === undefined ? {} : {
+            promptCacheKey
+        },
+        ...safetyIdentifier === undefined ? {} : {
+            safetyIdentifier
+        }
+    });
+    return createKJModelAdapter({
+        ...adapter,
+        ...wire
     });
 }

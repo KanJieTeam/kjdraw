@@ -114,6 +114,49 @@ test('Kimi K3 uses its completion-token field without leaking the legacy field',
   expect(request).not.toHaveProperty('max_tokens')
 })
 
+test('domestic thinking modes persist and produce provider-specific request bodies',async({page})=>{
+  await page.setViewportSize({width:1024,height:768})
+  await openSettings(page)
+  const cases=[
+    {provider:'kimi',model:'kimi-k2.6',url:'https://api.moonshot.cn/v1/chat/completions',mode:'disabled',field:'thinking',value:{type:'disabled'},tokenField:'max_completion_tokens'},
+    {provider:'qwen',model:'qwen3.8-max',url:'https://qwen-fixture.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/chat/completions',mode:'disabled',field:'enable_thinking',value:false,tokenField:'max_tokens'},
+    {provider:'deepseek',model:'deepseek-v4-flash',url:'https://api.deepseek.com/chat/completions',mode:'enabled',field:'thinking',value:{type:'enabled'},tokenField:'max_tokens'},
+  ]
+  for(const item of cases){
+    await page.locator('#chat-provider').selectOption(item.provider)
+    if(item.provider==='kimi')await page.locator('#chat-common-model').selectOption(item.model)
+    if(item.provider==='qwen')await page.locator('#chat-endpoint').fill(item.url)
+    await expect(page.locator('#chat-reasoning-mode')).toBeVisible()
+    await page.locator('#chat-reasoning-mode').selectOption(item.mode)
+    await page.locator('#chat-api-key').fill('domestic-browser-fixture')
+    let body
+    await page.route(item.url,route=>{body=route.request().postDataJSON();return route.fulfill({json:{choices:[{finish_reason:'stop',message:{role:'assistant',content:'domestic ready'}}]}})},{times:1})
+    await page.getByRole('button',{name:'Use this connection',exact:true}).click()
+    const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('kjdraw:model-connection:v1')))
+    expect(saved.reasoningMode).toBe(item.mode)
+    await page.locator('#chat-input').fill('Inspect the domestic request contract.')
+    await page.locator('#chat-send').click()
+    await expect(page.locator('.chat-message-body').last()).toHaveText('domestic ready')
+    expect(body.model).toBe(item.model)
+    expect(body[item.tokenField]).toBe(4096)
+    expect(body[item.field]).toEqual(item.value)
+    expect(body).not.toHaveProperty(item.tokenField==='max_tokens'?'max_completion_tokens':'max_tokens')
+    expect(body).not.toHaveProperty(item.field==='thinking'?'enable_thinking':'thinking')
+    await page.getByRole('button',{name:/^Model configured ·/}).click()
+    await expect(page.locator('#chat-reasoning-mode')).toHaveValue(item.mode)
+  }
+})
+
+test('Kimi K3 rejects an impossible no-thinking setting before connection persistence',async({page})=>{
+  await openSettings(page)
+  await page.locator('#chat-provider').selectOption('kimi')
+  await page.locator('#chat-api-key').fill('domestic-browser-fixture')
+  await page.locator('#chat-reasoning-mode').selectOption('disabled')
+  await page.getByRole('button',{name:'Use this connection',exact:true}).click()
+  await expect(page.locator('.chat-error')).toHaveText('This model does not support the selected thinking mode. Kimi K3 always thinks.')
+  expect(await page.evaluate(()=>localStorage.getItem('kjdraw:model-connection:v1'))).toBeNull()
+})
+
 for(const viewport of [{width:1440,height:900},{width:1024,height:768}])test(`connection settings actions remain reachable and close safely at ${viewport.width}x${viewport.height}`,async({page})=>{
   await page.setViewportSize(viewport)
   await openSettings(page)

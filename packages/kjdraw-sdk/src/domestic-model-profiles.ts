@@ -69,9 +69,11 @@ export function getKJDomesticModelProfile(provider: KJDomesticModelProvider): KJ
   return profile
 }
 
-/** Create one common CAD agent adapter with only the provider-specific Chat fields changed. Credentials remain in the host transport. */
-export function createKJDomesticModelAdapter(options: KJDomesticModelAdapterOptions): KJAgentModel {
-  const { provider, reasoning, toolChoice, parallelToolCalls, promptCacheKey, safetyIdentifier, ...adapter } = options
+export type KJDomesticModelWireOptions = Pick<KJDomesticModelAdapterOptions, 'reasoning' | 'toolChoice' | 'parallelToolCalls' | 'promptCacheKey' | 'safetyIdentifier'> & { model?: string }
+
+/** Pure wire configuration shared by SDK hosts and the browser workbench. */
+export function getKJDomesticModelAdapterSettings(provider: KJDomesticModelProvider, options: KJDomesticModelWireOptions = {}): Pick<KJModelAdapterOptions, 'protocol' | 'chatTokenParameter' | 'chatRequestExtensions'> {
+  const { reasoning, toolChoice, parallelToolCalls, promptCacheKey, safetyIdentifier, model } = options
   const profile = getKJDomesticModelProfile(provider)
   const mode = reasoning?.mode ?? 'provider-default'
   const effort = reasoning?.effort
@@ -82,6 +84,7 @@ export function createKJDomesticModelAdapter(options: KJDomesticModelAdapterOpti
   if (effort !== undefined && mode === 'disabled') profileError('Reasoning effort cannot be set while thinking is disabled')
   if (preserve && !profile.supports.preservedThinkingSwitch) profileError(`${provider} does not expose a preserved-thinking switch through this profile`)
   if (preserve && mode === 'disabled') profileError('Preserved thinking cannot be requested while thinking is disabled')
+  if (provider === 'kimi' && mode === 'disabled' && /^kimi-k3(?:$|-)/i.test(model?.trim() ?? '')) profileError('Kimi K3 always uses thinking; select provider-default or enabled')
   if (provider === 'qwen' && toolChoice === 'required' && mode !== 'disabled') profileError('Qwen toolChoice="required" requires explicitly disabled thinking')
   if (provider !== 'kimi' && (promptCacheKey !== undefined || safetyIdentifier !== undefined)) profileError('Prompt cache and safety identifiers are only exposed by the Kimi profile')
 
@@ -94,5 +97,12 @@ export function createKJDomesticModelAdapter(options: KJDomesticModelAdapterOpti
     ...(promptCacheKey === undefined ? {} : { prompt_cache_key: promptCacheKey }),
     ...(safetyIdentifier === undefined ? {} : { safety_identifier: safetyIdentifier }),
   }
-  return createKJModelAdapter({ ...adapter, protocol: profile.protocol, chatTokenParameter: profile.chatTokenParameter, chatRequestExtensions: extensions })
+  return { protocol: profile.protocol, chatTokenParameter: profile.chatTokenParameter, ...(Object.keys(extensions).length ? { chatRequestExtensions: extensions } : {}) }
+}
+
+/** Create one common CAD agent adapter with only the provider-specific Chat fields changed. Credentials remain in the host transport. */
+export function createKJDomesticModelAdapter(options: KJDomesticModelAdapterOptions): KJAgentModel {
+  const { provider, reasoning, toolChoice, parallelToolCalls, promptCacheKey, safetyIdentifier, ...adapter } = options
+  const wire = getKJDomesticModelAdapterSettings(provider, { model: adapter.model, ...(reasoning === undefined ? {} : { reasoning }), ...(toolChoice === undefined ? {} : { toolChoice }), ...(parallelToolCalls === undefined ? {} : { parallelToolCalls }), ...(promptCacheKey === undefined ? {} : { promptCacheKey }), ...(safetyIdentifier === undefined ? {} : { safetyIdentifier }) })
+  return createKJModelAdapter({ ...adapter, ...wire })
 }

@@ -35,5 +35,10 @@ export interface KJDomesticModelAdapterOptions extends Omit<KJModelAdapterOption
 }
 export declare const KJDRAW_DOMESTIC_MODEL_PROFILES: Readonly<Record<KJDomesticModelProvider, KJDomesticModelProfile>>;
 export declare function getKJDomesticModelProfile(provider: KJDomesticModelProvider): KJDomesticModelProfile;
+export type KJDomesticModelWireOptions = Pick<KJDomesticModelAdapterOptions, 'reasoning' | 'toolChoice' | 'parallelToolCalls' | 'promptCacheKey' | 'safetyIdentifier'> & {
+    model?: string;
+};
+/** Pure wire configuration shared by SDK hosts and the browser workbench. */
+export declare function getKJDomesticModelAdapterSettings(provider: KJDomesticModelProvider, options?: KJDomesticModelWireOptions): Pick<KJModelAdapterOptions, 'protocol' | 'chatTokenParameter' | 'chatRequestExtensions'>;
 /** Create one common CAD agent adapter with only the provider-specific Chat fields changed. Credentials remain in the host transport. */
 export declare function createKJDomesticModelAdapter(options: KJDomesticModelAdapterOptions): KJAgentModel;

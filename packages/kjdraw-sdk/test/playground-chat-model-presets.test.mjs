@@ -29,9 +29,17 @@ test('provider lookup falls back safely and Gemini substitutes its selected mode
 test('domestic provider presets select their real chat token-limit field',()=>{
   assert.deepEqual(getChatModelAdapterOptions('deepseek','deepseek-v4-flash'),{chatTokenParameter:'max_tokens'})
   assert.deepEqual(getChatModelAdapterOptions('qwen','qwen3.8-max'),{chatTokenParameter:'max_tokens'})
-  assert.deepEqual(getChatModelAdapterOptions('kimi','kimi-k2.6'),{chatTokenParameter:'max_tokens'})
+  assert.deepEqual(getChatModelAdapterOptions('kimi','kimi-k2.6'),{chatTokenParameter:'max_completion_tokens'})
   assert.deepEqual(getChatModelAdapterOptions('kimi','kimi-k3'),{chatTokenParameter:'max_completion_tokens'})
   assert.deepEqual(getChatModelAdapterOptions('kimi','kimi-k3-preview'),{chatTokenParameter:'max_completion_tokens'})
   assert.deepEqual(getChatModelAdapterOptions('custom','kimi-k3'),{})
   assert.throws(()=>{getChatModelAdapterOptions('kimi','kimi-k3').chatTokenParameter='max_tokens'},TypeError)
+})
+
+test('domestic workbench presets inherit the SDK thinking contract',()=>{
+  assert.deepEqual(getChatModelAdapterOptions('deepseek','deepseek-v4-flash','enabled').chatRequestExtensions,{thinking:{type:'enabled'}})
+  assert.deepEqual(getChatModelAdapterOptions('kimi','kimi-k2.6','disabled').chatRequestExtensions,{thinking:{type:'disabled'}})
+  assert.deepEqual(getChatModelAdapterOptions('qwen','qwen3.8-max','disabled').chatRequestExtensions,{enable_thinking:false})
+  assert.throws(()=>getChatModelAdapterOptions('kimi','kimi-k3','disabled'),error=>error.code==='KJMODEL_PROFILE')
+  assert.deepEqual(getChatModelAdapterOptions('custom','kimi-k3','disabled'),{})
 })

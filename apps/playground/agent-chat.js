@@ -101,6 +101,8 @@ const copy = {
   manufacturingScope: ['Compiled locally from versioned parameters. Geometry, layers and native dimensions are included in this review before one atomic edit.', '由版本化参数在本地编译；本次审阅包含几何、图层和原生尺寸，确认后一次性写入。'],
   help: ['Enter to send · Shift+Enter for a new line', 'Enter 发送 · Shift+Enter 换行'], examples: ['Local examples', '本地示例'],
   provider: ['Provider preset', '服务商预设'], commonModel: ['Common model', '常用模型'], customModel: ['Custom model…', '自定义模型…'], apiKey: ['API key', 'API 密钥'],
+  reasoningMode: ['Thinking mode', '思考模式'], reasoningDefault: ['Provider default', '服务商默认'], reasoningEnabled: ['Enabled', '开启'], reasoningDisabled: ['Disabled (faster)', '关闭（更快）'],
+  invalidReasoning: ['This model does not support the selected thinking mode. Kimi K3 always thinks.', '该模型不支持所选思考模式。Kimi K3 始终开启思考。'],
   endpoint: ['Model API endpoint', '模型 API 地址'], model: ['Model name', '模型名称'], protocol: ['API protocol', '接口协议'],
   serverUpstream: ['Direct browser endpoint', '浏览器直连地址'], customUpstream: ['Enter a model API endpoint.', '请输入模型 API 地址。'],
   maxOutputTokens: ['Max output tokens', '最大输出 token'], outputTokenHelp: ['Total output, including reasoning. Server and model limits still apply; higher limits can increase usage.', '总输出额度，包含推理 token。仍受服务端和模型上限约束；提高额度可能增加用量。'],
@@ -168,14 +170,18 @@ export function createAgentChat(container, options) {
   const commonModel=element('select');commonModel.id='chat-common-model'
   const protocol = element('select'); protocol.id = 'chat-protocol'
   const outputTokens=element('select');outputTokens.id='chat-max-output-tokens'
+  const reasoningMode=element('select');reasoningMode.id='chat-reasoning-mode'
+  for(const [value,key] of [['provider-default','reasoningDefault'],['enabled','reasoningEnabled'],['disabled','reasoningDisabled']]){const option=label(element('option'),key);option.value=value;reasoningMode.append(option)}
   for(const value of CHAT_OUTPUT_TOKEN_LIMITS){const option=element('option','',String(value));option.value=String(value);outputTokens.append(option)}
   outputTokens.value='4096'
   for (const [value,text] of [['chat-completions','OpenAI compatible'],['responses','OpenAI Responses'],['anthropic-messages','Anthropic Messages'],['gemini-generate-content','Gemini']]) {
     const option = element('option','',text); option.value = value; protocol.append(option)
   }
-  for (const [key, input] of [['provider',provider],['endpoint',endpoint],['commonModel',commonModel],['model',name],['protocol',protocol],['apiKey',apiKey],['maxOutputTokens',outputTokens]]) {
-    const field = element('label'); field.append(label(element('span'),key),input); settings.append(field)
+  let reasoningField
+  for (const [key, input] of [['provider',provider],['endpoint',endpoint],['commonModel',commonModel],['model',name],['protocol',protocol],['apiKey',apiKey],['maxOutputTokens',outputTokens],['reasoningMode',reasoningMode]]) {
+    const field = element('label'); field.append(label(element('span'),key),input); settings.append(field);if(key==='reasoningMode')reasoningField=field
   }
+  const syncReasoning=()=>{reasoningField.hidden=!['deepseek','kimi','qwen'].includes(provider.value)}
   const providerTarget=element('p','chat-provider-target');let automaticEndpoint=''
   const providerLocale=()=>options.locale() === 'zh'?1:0
   const relabelProviders=()=>CHAT_MODEL_PROVIDER_PRESETS.forEach((item,index)=>{provider.options[index].textContent=item.label[providerLocale()]})
@@ -193,15 +199,16 @@ export function createAgentChat(container, options) {
     else commonModel.value=item.models.includes(current)?current:''
     syncProviderTarget()
   }
-  relabelProviders();populateCommonModels()
+  relabelProviders();populateCommonModels();syncReasoning()
   provider.onchange=()=>{
     const item=getChatModelProviderPreset(provider.value)
     if(item.id!=='custom'){protocol.value=item.protocol;populateCommonModels({selectDefault:true});automaticEndpoint=formatChatModelUpstreamEndpoint(item,name.value);endpoint.value=automaticEndpoint}
     else {automaticEndpoint='';populateCommonModels()}
+    reasoningMode.value='provider-default';syncReasoning()
   }
   commonModel.onchange=()=>{const previous=automaticEndpoint;if(commonModel.value)name.value=commonModel.value;else name.focus();const item=getChatModelProviderPreset(provider.value);automaticEndpoint=formatChatModelUpstreamEndpoint(item,name.value);if(endpoint.value===previous)endpoint.value=automaticEndpoint;syncProviderTarget()}
   name.oninput=()=>{const item=getChatModelProviderPreset(provider.value),previous=automaticEndpoint;commonModel.value=item.models.includes(name.value.trim())?name.value.trim():'';automaticEndpoint=formatChatModelUpstreamEndpoint(item,name.value);if(endpoint.value===previous)endpoint.value=automaticEndpoint;syncProviderTarget()}
-  protocol.onchange=()=>{const item=getChatModelProviderPreset(provider.value);if(item.id!=='custom'&&protocol.value!==item.protocol){provider.value='custom';automaticEndpoint='';populateCommonModels()}else syncProviderTarget()}
+  protocol.onchange=()=>{const item=getChatModelProviderPreset(provider.value);if(item.id!=='custom'&&protocol.value!==item.protocol){provider.value='custom';automaticEndpoint='';populateCommonModels();syncReasoning()}else syncProviderTarget()}
   const configure = button('saveConnection'), cancelSettings=button('cancelSettings'), disconnect = button('disconnect'), connectionError = element('p','chat-error'), connectionActions = element('div','chat-settings-actions')
   cancelSettings.id='chat-settings-cancel'
   connectionError.setAttribute('role','alert')
@@ -320,11 +327,12 @@ export function createAgentChat(container, options) {
     const headers={'Content-Type':'application/json'}
     if(key){if(selectedProtocol==='anthropic-messages'){headers['x-api-key']=key;headers['anthropic-version']='2023-06-01';headers['anthropic-dangerous-direct-browser-access']='true'}else if(selectedProtocol==='gemini-generate-content')headers['x-goog-api-key']=key;else headers.Authorization=`Bearer ${key}`}
     const streaming=['chat-completions','responses'].includes(selectedProtocol)
-    const next=createChatModelAdapter({protocol:selectedProtocol,model:modelName,maxOutputTokens:Number(outputTokens.value),...getChatModelAdapterOptions(providerId,modelName),...(streaming?{...(selectedProtocol==='chat-completions'?{chatStreaming:true,chatStreamIncludeUsage:true}:{responsesStreaming:true}),onTextDelta:delta=>{if(!streamTarget||!streamTarget.isConnected)return;streamText=(streamText+delta).slice(-16000);streamTarget.textContent=streamText}}:{}),request:async({body,signal})=>{try{return await readChatModelResponse(await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal,credentials:'omit',redirect:'error'}))}catch(error){if(signal.aborted||error instanceof KJModelError)throw error;throw new KJModelError('KJMODEL_DIRECT_CONNECTION','Direct browser model request failed')}}})
-    if(persist)localStorage.setItem(connectionStorageKey,JSON.stringify({provider:providerId,endpoint:endpointValue,model:modelName,protocol:selectedProtocol,apiKey:key,maxOutputTokens:Number(outputTokens.value)}))
+    let wire;try{wire=getChatModelAdapterOptions(providerId,modelName,reasoningMode.value)}catch(error){if(error instanceof KJModelError&&error.code==='KJMODEL_PROFILE')throw new Error('reasoning');throw error}
+    const next=createChatModelAdapter({protocol:selectedProtocol,model:modelName,maxOutputTokens:Number(outputTokens.value),...wire,...(streaming?{...(selectedProtocol==='chat-completions'?{chatStreaming:true,chatStreamIncludeUsage:true}:{responsesStreaming:true}),onTextDelta:delta=>{if(!streamTarget||!streamTarget.isConnected)return;streamText=(streamText+delta).slice(-16000);streamTarget.textContent=streamText}}:{}),request:async({body,signal})=>{try{return await readChatModelResponse(await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal,credentials:'omit',redirect:'error'}))}catch(error){if(signal.aborted||error instanceof KJModelError)throw error;throw new KJModelError('KJMODEL_DIRECT_CONNECTION','Direct browser model request failed')}}})
+    if(persist)localStorage.setItem(connectionStorageKey,JSON.stringify({provider:providerId,endpoint:endpointValue,model:modelName,protocol:selectedProtocol,apiKey:key,maxOutputTokens:Number(outputTokens.value),reasoningMode:reasoningMode.value}))
     setConnection(next,modelName);settings.hidden=true;connection.setAttribute('aria-expanded','false');connectionError.textContent='';input.focus()
   }
-  configure.onclick=()=>{try{activateConnection()}catch(error){connectionError.textContent=L(error.message==='key'?'missingApiKey':'invalidConnection')}}
+  configure.onclick=()=>{try{activateConnection()}catch(error){connectionError.textContent=L(error.message==='key'?'missingApiKey':error.message==='reasoning'?'invalidReasoning':'invalidConnection')}}
   connection.onclick=()=>{settings.hidden=!settings.hidden;connection.setAttribute('aria-expanded',String(!settings.hidden));if(!settings.hidden)endpoint.focus()}
   cancelSettings.onclick=closeSettings
   disconnect.onclick=()=>{localStorage.removeItem(connectionStorageKey);apiKey.value='';setConnection(null);closeSettings()}
@@ -566,13 +574,13 @@ export function createAgentChat(container, options) {
   input.onkeydown=event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();submit()}}
   stop.onclick=()=>controller?.abort()
   reset.onclick=()=>{epoch++;controller?.abort();controller=null;streamTarget=null;streamText='';cancelProposals();clearData();history.length=0;log.replaceChildren(welcome);welcome.hidden=false;tools=new KJAgentToolSession(binding.sdk,binding.document);input.value='';busy(false);input.focus()}
-  const relabel=()=>{for(const [node,key,property]of translated)node[property]=L(key);relabelProviders();populateCommonModels();reset.textContent='＋';setConnection(model,modelLabel);syncContext();syncTasks(true)}
+  const relabel=()=>{for(const [node,key,property]of translated)node[property]=L(key);relabelProviders();populateCommonModels();syncReasoning();reset.textContent='＋';setConnection(model,modelLabel);syncContext();syncTasks(true)}
   document.addEventListener('kjdraw:language',relabel)
   syncContext();setConnection(null)
   try{
     const saved=JSON.parse(localStorage.getItem(connectionStorageKey)??'null')
     if(saved&&typeof saved==='object'){
-      provider.value=CHAT_MODEL_PROVIDER_PRESETS.some(item=>item.id===saved.provider)?saved.provider:'custom';endpoint.value=typeof saved.endpoint==='string'?saved.endpoint:'';name.value=typeof saved.model==='string'?saved.model:'';protocol.value=saved.protocol;apiKey.value=typeof saved.apiKey==='string'?saved.apiKey:'';outputTokens.value=String(saved.maxOutputTokens);populateCommonModels();activateConnection({persist:false})
+      provider.value=CHAT_MODEL_PROVIDER_PRESETS.some(item=>item.id===saved.provider)?saved.provider:'custom';endpoint.value=typeof saved.endpoint==='string'?saved.endpoint:'';name.value=typeof saved.model==='string'?saved.model:'';protocol.value=saved.protocol;apiKey.value=typeof saved.apiKey==='string'?saved.apiKey:'';outputTokens.value=String(saved.maxOutputTokens);reasoningMode.value=['enabled','disabled'].includes(saved.reasoningMode)?saved.reasoningMode:'provider-default';populateCommonModels();syncReasoning();activateConnection({persist:false})
     }
   }catch{localStorage.removeItem(connectionStorageKey);apiKey.value='';setConnection(null)}
   return { syncContext, cancelProposals, setModel: setConnection, get preview(){const current=options.getContext();return overlay&&binding.document===current.document&&binding.sdk===current.sdk&&binding.project===current.project&&binding.document.revision===overlay.revision?overlay:null}, destroy(){epoch++;clearData();controller?.abort();cancelProposals();document.removeEventListener('kjdraw:language',relabel);document.removeEventListener('keydown',settingsEscape)} }

@@ -31,11 +31,12 @@ export function getChatModelProviderPreset(id) {
 }
 
 /** Provider/model wire settings kept separate from drawing behavior. */
-export function getChatModelAdapterOptions(providerId, model = '') {
+export function getChatModelAdapterOptions(providerId, model = '', reasoningMode = 'provider-default') {
   const provider = getChatModelProviderPreset(providerId)
-  const modelName = String(model).trim().toLowerCase()
-  if (provider.id === 'kimi' && /^kimi-k3(?:$|-)/.test(modelName)) return Object.freeze({ chatTokenParameter: 'max_completion_tokens' })
-  if (['deepseek', 'kimi', 'qwen'].includes(provider.id)) return Object.freeze({ chatTokenParameter: 'max_tokens' })
+  if (['deepseek', 'kimi', 'qwen'].includes(provider.id)) {
+    const { protocol, ...wire } = getKJDomesticModelAdapterSettings(provider.id, { model, reasoning: { mode: reasoningMode } })
+    return Object.freeze(wire)
+  }
   return Object.freeze({})
 }
 
@@ -43,3 +44,4 @@ export function formatChatModelUpstreamEndpoint(provider, model = '') {
   if (!provider?.upstreamEndpoint) return ''
   return provider.upstreamEndpoint.replace('{model}', encodeURIComponent(String(model).trim()))
 }
+import { getKJDomesticModelAdapterSettings } from '../../packages/kjdraw-sdk/src/domestic-model-profiles.js'
