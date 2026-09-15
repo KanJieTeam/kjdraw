@@ -1,0 +1,4 @@
+interface:
+  display_name: "KJDraw CAD"
+  short_description: "自然语言读取、生成、修改并验证可编辑 CAD 图纸"
+  default_prompt: "Use $kjdraw-cad to inspect this drawing or propose the requested CAD change with host-review evidence."

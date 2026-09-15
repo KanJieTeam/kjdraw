@@ -1,0 +1,69 @@
+{
+  "schema": "com.kanjie.kjdraw.agent-skill-routes@1",
+  "routes": [
+    {
+      "id": "inspect",
+      "when": "Read, locate, count, measure, explain, or validate existing drawing content without changing it.",
+      "start": ["cad_read_drawing"],
+      "tools": [
+        "cad_read_page",
+        "cad_query_drawing",
+        "cad_query_topology",
+        "cad_query_impact",
+        "cad_read_layouts",
+        "cad_read_selection_sets",
+        "cad_measure_distance",
+        "cad_check_geometry"
+      ],
+      "rule": "Use the narrowest evidence that answers the question. Partial results cannot certify the whole drawing."
+    },
+    {
+      "id": "create",
+      "when": "Create a new editable drawing from explicit requirements and host-selected units or knowledge.",
+      "start": [],
+      "preferredCompilers": [
+        "cad_propose_geology_column",
+        "cad_propose_geology_section",
+        "cad_propose_manufacturing_sheet",
+        "cad_propose_architecture_plan",
+        "cad_propose_site_plan",
+        "cad_propose_road_drawing",
+        "cad_propose_cartesian_chart"
+      ],
+      "boundedFallbacks": [
+        "cad_propose_drawing_annotated",
+        "cad_propose_drawing_pattern",
+        "cad_propose_drawing_compact",
+        "cad_propose_drawing",
+        "cad_propose_lines",
+        "cad_propose_circles"
+      ],
+      "rule": "Call one matching high-level compiler once. Do not decompose a supported engineering object into repeated primitive calls."
+    },
+    {
+      "id": "modify",
+      "when": "Precisely change an existing drawing while preserving unrelated geometry and relationships.",
+      "start": ["cad_read_drawing", "cad_query_drawing"],
+      "relationshipChecks": ["cad_query_topology"],
+      "eraseImpactCheck": ["cad_query_impact"],
+      "tools": [
+        "cad_propose_text_edit",
+        "cad_propose_move",
+        "cad_propose_copy",
+        "cad_propose_rotate",
+        "cad_propose_scale",
+        "cad_propose_offset",
+        "cad_propose_stretch",
+        "cad_propose_lengthen",
+        "cad_propose_polyline_edit",
+        "cad_propose_relayer",
+        "cad_propose_structural_edit",
+        "cad_propose_component_insert",
+        "cad_propose_design_bind",
+        "cad_propose_design_update",
+        "cad_propose_road_revision"
+      ],
+      "rule": "Resolve exact IDs at the current revision and use one smallest matching proposal. Query topology before relationship-sensitive edits; query impact only before erase."
+    }
+  ]
+}
