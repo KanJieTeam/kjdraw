@@ -413,7 +413,7 @@ export function buildAgentManufacturingSheet(document: ManufacturingDocument, so
         holePatternCount: input.holePatterns.length, holeCount: input.holePatterns.reduce((total, pattern) => total + pattern.rows * pattern.columns, 0),
         slotCount: input.slots.length, sheet: input.sheet, textHeight: input.textHeight, viewScale: scale,
       },
-      limitations: ['Rectangular hole arrays only', 'Slot orientations are limited to 0 or 90 degrees', 'Views are orthographic and may be scaled to fit the selected sheet'],
+      limitations: ['Rectangular hole arrays only', 'Slot orientations are limited to 0 or 90 degrees', 'Views are orthographic and compiled at 1:1; the compiler refuses a sheet that cannot contain the requested geometry'],
     },
   }
 }

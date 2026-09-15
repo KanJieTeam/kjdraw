@@ -555,7 +555,7 @@ export function buildAgentManufacturingSheet(document, source) {
             limitations: [
                 'Rectangular hole arrays only',
                 'Slot orientations are limited to 0 or 90 degrees',
-                'Views are orthographic and may be scaled to fit the selected sheet'
+                'Views are orthographic and compiled at 1:1; the compiler refuses a sheet that cannot contain the requested geometry'
             ]
         }
     };

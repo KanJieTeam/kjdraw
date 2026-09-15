@@ -152,6 +152,10 @@ export function matchKJDrawBuiltinCapability(input: { prompt: string; units: str
   // This optional shortcut is not a semantic planner. Ambiguity must retain the
   // host's general tool policy instead of locking the conversation to a compiler.
   if (!/\b(?:create|draw|generate|compile|build|plot)\b|绘制|生成|画/.test(normalized)) return null
+  const manufacturing = /manufactur|machin|fixture\s+plate|counterbore|through\s+slot|hole\s+array|machined\s+feature|制造|加工|夹具板|沉孔|槽孔|孔阵列/.test(normalized)
+  if (manufacturing && !/\b(?:how|explain|compare)\b|如何|怎么|解释|比较|[?？]/.test(normalized)) {
+    return KJDRAW_BUILTIN_AGENT_CAPABILITIES.find(descriptor => descriptor.id === 'builtin.manufacturing-sheet') ?? null
+  }
   if (/\b(?:don't|do not|never|instead of|rather than|how|explain|compare)\b|不要|别画|无需|不是|如何|怎么|解释|比较|[?？]/.test(normalized)) return null
   if (/\b(?:borehole|geolog\w*|litholog\w*|stratigraph\w*|horizontal)\b|地质|钻孔|岩性|地层|条形图|水平柱/.test(normalized)) return null
   if (/\b(?:move|translate|rotate|delete|remove|relayer|modify|edit|update)\b|移动|平移|旋转|删除|重连|调层|修改|更新/.test(normalized)) return null
