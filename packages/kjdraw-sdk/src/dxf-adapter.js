@@ -1145,6 +1145,8 @@ function entityPayload(record, blockIds, resources = {}) {
         case 'HATCH':
             {
                 const patternLines = importedHatchPatternLines(record);
+                const patternAngle = number(record, 52, 0) * Math.PI / 180;
+                const patternScale = number(record, 41, 1);
                 return {
                     type: 'HATCH',
                     payload: {
@@ -1152,10 +1154,12 @@ function entityPayload(record, blockIds, resources = {}) {
                         patternName: first(record, 2, 'SOLID'),
                         solid: number(record, 70, 0) === 1,
                         associative: number(record, 71, 0) === 1,
-                        patternAngle: number(record, 52, 0) * Math.PI / 180,
-                        patternScale: number(record, 41, 1),
+                        patternAngle,
+                        patternScale,
                         ...patternLines ? {
-                            patternLines
+                            patternLines,
+                            patternDefinitionAngle: patternAngle,
+                            patternDefinitionScale: patternScale
                         } : {},
                         rawTags: record.tags
                     }

@@ -804,7 +804,9 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
     case 'INSERT': return { type: 'INSERT', payload: { blockRecordId: blockIds.get(normalizeName(first(record, 2))), position: point(record), scale: [number(record, 41, 1), number(record, 42, 1), number(record, 43, 1)], rotation: number(record, 50, 0) * Math.PI / 180 } }
     case 'HATCH': {
       const patternLines = importedHatchPatternLines(record)
-      return { type: 'HATCH', payload: { boundaryLoops: hatchBoundaryLoops(record), patternName: first(record, 2, 'SOLID'), solid: number(record, 70, 0) === 1, associative: number(record, 71, 0) === 1, patternAngle: number(record, 52, 0) * Math.PI / 180, patternScale: number(record, 41, 1), ...(patternLines ? { patternLines } : {}), rawTags: record.tags } }
+      const patternAngle = number(record, 52, 0) * Math.PI / 180
+      const patternScale = number(record, 41, 1)
+      return { type: 'HATCH', payload: { boundaryLoops: hatchBoundaryLoops(record), patternName: first(record, 2, 'SOLID'), solid: number(record, 70, 0) === 1, associative: number(record, 71, 0) === 1, patternAngle, patternScale, ...(patternLines ? { patternLines, patternDefinitionAngle: patternAngle, patternDefinitionScale: patternScale } : {}), rawTags: record.tags } }
     }
     case 'LEADER': return { type: 'LEADER', payload: {
       vertices: repeatedPoints(record), annotationHandle: first(record, 340) || null,
