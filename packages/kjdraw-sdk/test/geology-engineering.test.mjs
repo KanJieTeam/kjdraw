@@ -123,6 +123,26 @@ test('versioned header grid uses only present borehole facts and keeps a deep-lo
   assert.throws(() => compileGeologyColumn(missing), /declared header fact stableWaterDepth is missing/)
 })
 
+test('a versioned SPT chart cap affects visible text only, never the raw measured input', () => {
+  const pack = validateKnowledgePack({ schema: 'kjdraw.knowledge-pack.v1', id: 'geo-spt-chart-cap', version: '1.0.0',
+    title: 'Original synthetic display convention', domain: 'geology', license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'display-rule', title: 'Synthetic observed chart cap', license: 'MIT', contentHash: crypto.createHash('sha256').update('SPT visible cap 50').digest('hex') }],
+    ontology: { objectKinds: ['borehole-log'], relationKinds: [] },
+    rules: { 'geology-column-layout': { paperWidth: 260, paperHeight: 340, left: 5, right: 255,
+      columns: [20, 40, 60, 82, 100, 145], observationColumns: [205, 228], footerReserve: 30, sptDisplayCap: 50 } } })
+  const source = hole('QA-N', 0, 1111.04, [6.8, 15.4, 60])
+  source.observations = [{ kind: 'spt', id: 'measured-83', depth: 48.5, value: 83 }]
+  const input = { hole: source, columnStylePack: pack, verticalScaleDenominator: 250, expectedRevision: 0 }
+  const visible = compileGeologyColumn(input).commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  assert.ok(visible.includes('N=50'))
+  assert.ok(!visible.includes('N=83'))
+  assert.equal(input.hole.observations[0].value, 83)
+  const noCap = structuredClone(input); delete noCap.columnStylePack.rules['geology-column-layout'].sptDisplayCap
+  assert.ok(compileGeologyColumn(noCap).commandArgs.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === 'N=83'))
+  const bypass = structuredClone(input); bypass.hole.observations[0].displayLabel = 'N=83'
+  assert.throws(() => compileGeologyColumn(bypass), /display cap cannot coexist/)
+})
+
 test('versioned layout aliases adapt visible unit codes and names without altering source intervals', () => {
   const style = validateKnowledgePack({ schema: 'kjdraw.knowledge-pack.v1', id: 'geo-visible-aliases', version: '1.0.0',
     title: 'Test-authored display vocabulary', domain: 'geology',

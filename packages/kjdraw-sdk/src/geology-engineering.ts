@@ -103,6 +103,7 @@ interface ColumnLayout {
   observationColumns?: [number, number]
   headerDepth: number
   footerReserve: number
+  sptDisplayCap?: number
   labels: Record<string, string>
   displayAliases?: { codes: Record<string, string>; names: Record<string, string> }
   headerGrid?: { rows: { role: HeaderRole; label: string }[][] }
@@ -134,7 +135,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const value = rule as Record<string, unknown>
   const expectedKeys = ['columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'footerReserve', 'headerGrid'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'footerReserve', 'headerGrid', 'sptDisplayCap'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const left = numeric(value.left, 'style left'), right = numeric(value.right, 'style right')
   if (paperWidth < 150 || paperWidth > 500 || paperHeight < 250 || paperHeight > 1600 || left < 5 || right > paperWidth - 5 || right - left < 125) throw new KJValidationError('Geology: style paper and table margins are out of bounds')
@@ -153,6 +154,8 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const headerDepth = value.headerDepth == null ? 56 : numeric(value.headerDepth, 'style header depth')
   const footerReserve = value.footerReserve == null ? 57 : numeric(value.footerReserve, 'style footer reserve')
   if (headerDepth < 40 || headerDepth > 90 || footerReserve < 30 || footerReserve > 120) throw new KJValidationError('Geology: style header or footer reserve is unreadable')
+  const sptDisplayCap = value.sptDisplayCap == null ? undefined : numeric(value.sptDisplayCap, 'style SPT display cap')
+  if (sptDisplayCap != null && (!Number.isSafeInteger(sptDisplayCap) || sptDisplayCap < 1 || sptDisplayCap > 1000)) throw new KJValidationError('Geology: SPT display cap must be an integer from 1 to 1000')
   let labels = defaultColumnLabels
   if (value.labels != null) {
     if (!value.labels || typeof value.labels !== 'object' || Array.isArray(value.labels)) throw new KJValidationError('Geology: style labels must be a declared object')
@@ -195,7 +198,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       })
     }) }
   }
-  return { paperWidth, paperHeight, left, right, columns, headerDepth, footerReserve,
+  return { paperWidth, paperHeight, left, right, columns, headerDepth, footerReserve, ...(sptDisplayCap == null ? {} : { sptDisplayCap }),
     ...(observationColumns ? { observationColumns } : {}), labels,
     ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}) }
 }
@@ -310,7 +313,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const { hole } = input, strata = checkHole(hole)
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
-    headerDepth, footerReserve, labels, displayAliases, headerGrid } = layout
+    headerDepth, footerReserve, labels, displayAliases, headerGrid, sptDisplayCap } = layout
   const depthX = columns[0]
   const thicknessX = columns.length === 6 ? columns[1] : null
   const elevationX = columns.length === 6 ? columns[2] : columns[1]
@@ -456,8 +459,10 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   }
   for (const item of observations) {
     const y = top - item.depth * scale
+    if (item.kind === 'spt' && sptDisplayCap != null && item.displayLabel != null) throw new KJValidationError('Geology: SPT display cap cannot coexist with a caller-provided display label')
+    const shownSPT = item.kind === 'spt' && sptDisplayCap != null ? Math.min(item.value!, sptDisplayCap) : item.value
     const label = item.kind === 'sample' ? item.displayLabel ?? item.id
-      : item.displayLabel ?? `N=${Number.isInteger(item.value!) ? item.value!.toString() : metres(item.value!)}`
+      : item.displayLabel ?? `N=${Number.isInteger(shownSPT!) ? shownSPT!.toString() : metres(shownSPT!)}`
     const columnWidth = item.kind === 'sample' ? sptX - sampleX : right - sptX
     const estimatedWidth = [...label].reduce((sum, character) => sum + (/^[\x20-\x7e]$/.test(character) ? 1.62 : 1.8), 0)
     if (estimatedWidth > columnWidth - 3) throw new KJValidationError(`Geology: observation ${item.id} label does not fit its declared column`)
