@@ -93,6 +93,11 @@
       "import": "./src/model-adapters.js",
       "default": "./src/model-adapters.js"
     },
+    "./domestic-model-profiles": {
+      "types": "./types/domestic-model-profiles.d.ts",
+      "import": "./src/domestic-model-profiles.js",
+      "default": "./src/domestic-model-profiles.js"
+    },
     "./agent-runner": {
       "types": "./types/agent-runner.d.ts",
       "import": "./src/agent-runner.js",

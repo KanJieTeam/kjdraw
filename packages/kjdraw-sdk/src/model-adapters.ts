@@ -34,6 +34,16 @@ export interface KJModelRequest {
   readonly streaming: boolean
   readonly signal: AbortSignal
 }
+/** Bounded OpenAI-compatible request fields used by domestic model profiles. Reserved CAD/tool fields cannot be overridden. */
+export interface KJChatRequestExtensions {
+  readonly thinking?: { readonly type: 'enabled' | 'disabled'; readonly keep?: 'all' | null }
+  readonly reasoning_effort?: 'low' | 'high' | 'max'
+  readonly enable_thinking?: boolean
+  readonly tool_choice?: 'auto' | 'none' | 'required'
+  readonly parallel_tool_calls?: boolean
+  readonly prompt_cache_key?: string
+  readonly safety_identifier?: string
+}
 export interface KJModelAdapterOptions {
   protocol: KJModelProtocol
   model: string
@@ -42,6 +52,8 @@ export interface KJModelAdapterOptions {
   maxOutputTokens?: number
   /** Compatible endpoints differ; choose the field accepted by the selected model. */
   chatTokenParameter?: 'max_tokens' | 'max_completion_tokens'
+  /** Strictly allowlisted provider fields. Model, messages, tools, token limits and streaming remain adapter-owned. */
+  chatRequestExtensions?: KJChatRequestExtensions
   /** Request and strictly assemble Chat Completions deltas. The transport parses SSE and yields each JSON data object. */
   chatStreaming?: boolean
   /** Request and strictly assemble Responses API events. The transport parses SSE and yields each JSON data object. */
@@ -68,6 +80,23 @@ export class KJModelError extends KJDrawError {
 }
 
 function invalid(message: string): never { throw new KJModelError('KJMODEL_PROTOCOL', message) }
+const CHAT_EXTENSION_KEYS = new Set(['thinking', 'reasoning_effort', 'enable_thinking', 'tool_choice', 'parallel_tool_calls', 'prompt_cache_key', 'safety_identifier'])
+function chatExtensions(value: KJChatRequestExtensions | undefined): Readonly<Record<string, unknown>> {
+  if (value === undefined) return Object.freeze({})
+  if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Chat request extensions must be an object')
+  const input = value as Record<string, unknown>
+  if (Object.keys(input).some(key => !CHAT_EXTENSION_KEYS.has(key))) invalid('Unsupported or reserved Chat request extension')
+  if (input.thinking !== undefined) {
+    if (!input.thinking || typeof input.thinking !== 'object' || Array.isArray(input.thinking)) invalid('Invalid Chat thinking configuration')
+    const thinking = input.thinking as Record<string, unknown>
+    if (Object.keys(thinking).some(key => !['type', 'keep'].includes(key)) || !['enabled', 'disabled'].includes(String(thinking.type)) || thinking.keep !== undefined && thinking.keep !== null && thinking.keep !== 'all') invalid('Invalid Chat thinking configuration')
+  }
+  if (input.reasoning_effort !== undefined && !['low', 'high', 'max'].includes(String(input.reasoning_effort))) invalid('Invalid Chat reasoning effort')
+  for (const key of ['enable_thinking', 'parallel_tool_calls']) if (input[key] !== undefined && typeof input[key] !== 'boolean') invalid(`Invalid Chat ${key} option`)
+  if (input.tool_choice !== undefined && !['auto', 'none', 'required'].includes(String(input.tool_choice))) invalid('Invalid Chat tool choice')
+  for (const key of ['prompt_cache_key', 'safety_identifier']) if (input[key] !== undefined && (typeof input[key] !== 'string' || !(input[key] as string).trim() || (input[key] as string).length > 256)) invalid(`Invalid Chat ${key} option`)
+  return deepFreeze(jsonCopy(input, 8192))
+}
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Expected a JSON object from the model transport')
   return value as Record<string, unknown>
@@ -547,6 +576,8 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
   const outputTokens = limit(options.maxOutputTokens, 4096, 131072)
   const chatTokenParameter = options.chatTokenParameter ?? 'max_tokens'
   if (!['max_tokens', 'max_completion_tokens'].includes(chatTokenParameter)) invalid('Unsupported chat token-limit field')
+  const requestExtensions = chatExtensions(options.chatRequestExtensions)
+  if (Object.keys(requestExtensions).length && protocol !== 'chat-completions') invalid('Chat request extensions require the Chat Completions protocol')
   const chatStreaming = options.chatStreaming ?? false
   const responsesStreaming = options.responsesStreaming ?? false
   const anthropicStreaming = options.anthropicStreaming ?? false
@@ -596,7 +627,7 @@ export function createKJModelAdapter(options: KJModelAdapterOptions): KJAgentMod
             }
             let body: Record<string, unknown>
             if (protocol === 'responses') body = { model, instructions, input: history, tools: schema.map(tool => ({ type: 'function', ...tool, strict: false })), max_output_tokens: outputTokens, store: false, stream: responsesStreaming, include: ['reasoning.encrypted_content'] }
-            else if (protocol === 'chat-completions') body = { model, messages: [{ role: 'system', content: instructions }, ...history], tools: schema.map(tool => ({ type: 'function', function: tool })), [chatTokenParameter]: outputTokens, stream: chatStreaming, ...(chatStreamIncludeUsage ? { stream_options: { include_usage: true } } : {}), ...(chatStreamToolCalls ? { tool_stream: true } : {}) }
+            else if (protocol === 'chat-completions') body = { model, messages: [{ role: 'system', content: instructions }, ...history], tools: schema.map(tool => ({ type: 'function', function: tool })), [chatTokenParameter]: outputTokens, stream: chatStreaming, ...(chatStreamIncludeUsage ? { stream_options: { include_usage: true } } : {}), ...(chatStreamToolCalls ? { tool_stream: true } : {}), ...requestExtensions }
             else if (protocol === 'anthropic-messages') body = { model, system: instructions, messages: history, tools: schema.map(tool => ({ name: tool.name, description: tool.description, input_schema: tool.parameters })), max_tokens: outputTokens, stream: anthropicStreaming }
             else body = { systemInstruction: { parts: [{ text: instructions }] }, contents: history, tools: [{ functionDeclarations: schema.map(tool => ({ name: tool.name, description: tool.description, parametersJsonSchema: tool.parameters })) }], generationConfig: { maxOutputTokens: outputTokens, candidateCount: 1 } }
             // Never expose mutable internal history, or credentials, through the public result.

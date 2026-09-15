@@ -18,6 +18,7 @@ export * from './erase-impact.js';
 export * from './drawing-validation.js';
 export * from './model-usage.js';
 export * from './model-adapters.js';
+export * from './domestic-model-profiles.js';
 export * from './agent-runner.js';
 export * from './agent-task-runner.js';
 export * from './agent-tasks.js';

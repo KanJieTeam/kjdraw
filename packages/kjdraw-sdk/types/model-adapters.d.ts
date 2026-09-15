@@ -56,6 +56,19 @@ export interface KJModelRequest {
     readonly streaming: boolean;
     readonly signal: AbortSignal;
 }
+/** Bounded OpenAI-compatible request fields used by domestic model profiles. Reserved CAD/tool fields cannot be overridden. */
+export interface KJChatRequestExtensions {
+    readonly thinking?: {
+        readonly type: 'enabled' | 'disabled';
+        readonly keep?: 'all' | null;
+    };
+    readonly reasoning_effort?: 'low' | 'high' | 'max';
+    readonly enable_thinking?: boolean;
+    readonly tool_choice?: 'auto' | 'none' | 'required';
+    readonly parallel_tool_calls?: boolean;
+    readonly prompt_cache_key?: string;
+    readonly safety_identifier?: string;
+}
 export interface KJModelAdapterOptions {
     protocol: KJModelProtocol;
     model: string;
@@ -64,6 +77,8 @@ export interface KJModelAdapterOptions {
     maxOutputTokens?: number;
     /** Compatible endpoints differ; choose the field accepted by the selected model. */
     chatTokenParameter?: 'max_tokens' | 'max_completion_tokens';
+    /** Strictly allowlisted provider fields. Model, messages, tools, token limits and streaming remain adapter-owned. */
+    chatRequestExtensions?: KJChatRequestExtensions;
     /** Request and strictly assemble Chat Completions deltas. The transport parses SSE and yields each JSON data object. */
     chatStreaming?: boolean;
     /** Request and strictly assemble Responses API events. The transport parses SSE and yields each JSON data object. */

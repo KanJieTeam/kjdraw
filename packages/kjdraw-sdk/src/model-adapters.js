@@ -12,6 +12,51 @@ export class KJModelError extends KJDrawError {
 function invalid(message) {
     throw new KJModelError('KJMODEL_PROTOCOL', message);
 }
+const CHAT_EXTENSION_KEYS = new Set([
+    'thinking',
+    'reasoning_effort',
+    'enable_thinking',
+    'tool_choice',
+    'parallel_tool_calls',
+    'prompt_cache_key',
+    'safety_identifier'
+]);
+function chatExtensions(value) {
+    if (value === undefined) return Object.freeze({});
+    if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Chat request extensions must be an object');
+    const input = value;
+    if (Object.keys(input).some((key)=>!CHAT_EXTENSION_KEYS.has(key))) invalid('Unsupported or reserved Chat request extension');
+    if (input.thinking !== undefined) {
+        if (!input.thinking || typeof input.thinking !== 'object' || Array.isArray(input.thinking)) invalid('Invalid Chat thinking configuration');
+        const thinking = input.thinking;
+        if (Object.keys(thinking).some((key)=>![
+                'type',
+                'keep'
+            ].includes(key)) || ![
+            'enabled',
+            'disabled'
+        ].includes(String(thinking.type)) || thinking.keep !== undefined && thinking.keep !== null && thinking.keep !== 'all') invalid('Invalid Chat thinking configuration');
+    }
+    if (input.reasoning_effort !== undefined && ![
+        'low',
+        'high',
+        'max'
+    ].includes(String(input.reasoning_effort))) invalid('Invalid Chat reasoning effort');
+    for (const key of [
+        'enable_thinking',
+        'parallel_tool_calls'
+    ])if (input[key] !== undefined && typeof input[key] !== 'boolean') invalid(`Invalid Chat ${key} option`);
+    if (input.tool_choice !== undefined && ![
+        'auto',
+        'none',
+        'required'
+    ].includes(String(input.tool_choice))) invalid('Invalid Chat tool choice');
+    for (const key of [
+        'prompt_cache_key',
+        'safety_identifier'
+    ])if (input[key] !== undefined && (typeof input[key] !== 'string' || !input[key].trim() || input[key].length > 256)) invalid(`Invalid Chat ${key} option`);
+    return deepFreeze(jsonCopy(input, 8192));
+}
 function record(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) invalid('Expected a JSON object from the model transport');
     return value;
@@ -764,6 +809,8 @@ export function createKJModelAdapter(options) {
         'max_tokens',
         'max_completion_tokens'
     ].includes(chatTokenParameter)) invalid('Unsupported chat token-limit field');
+    const requestExtensions = chatExtensions(options.chatRequestExtensions);
+    if (Object.keys(requestExtensions).length && protocol !== 'chat-completions') invalid('Chat request extensions require the Chat Completions protocol');
     const chatStreaming = options.chatStreaming ?? false;
     const responsesStreaming = options.responsesStreaming ?? false;
     const anthropicStreaming = options.anthropicStreaming ?? false;
@@ -939,7 +986,8 @@ export function createKJModelAdapter(options) {
                             } : {},
                             ...chatStreamToolCalls ? {
                                 tool_stream: true
-                            } : {}
+                            } : {},
+                            ...requestExtensions
                         };
                         else if (protocol === 'anthropic-messages') body = {
                             model,
