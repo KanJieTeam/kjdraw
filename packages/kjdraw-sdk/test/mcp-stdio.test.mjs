@@ -277,7 +277,7 @@ test('MCP host bounds an oversized frame, discards it, and resumes on the next n
   assert.ok(responses[3].result.tools.length > 10)
 })
 
-test('published package declares both the CAD CLI and MCP host bins', async () => {
+test('published package declares CAD CLI, MCP host and connect preview bins', async () => {
   const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
-  assert.deepEqual(packageJson.bin, { kjdraw: './bin/kjdraw.mjs', 'kjdraw-mcp': './bin/kjdraw-mcp.mjs' })
+  assert.deepEqual(packageJson.bin, { kjdraw: './bin/kjdraw.mjs', 'kjdraw-mcp': './bin/kjdraw-mcp.mjs', 'kjdraw-connect': './bin/kjdraw-connect.mjs' })
 })
