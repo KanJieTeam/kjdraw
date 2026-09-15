@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -74,4 +74,18 @@ test('shell bootstrap is local-file only and gets an actual sh syntax check on U
   const ps = await readFile(powershell, 'utf8')
   assert.equal(/Invoke-WebRequest|Invoke-RestMethod|iwr\s|irm\s|SetEnvironmentVariable|npx\s/u.test(ps), false)
   assert.match(ps, /install-kjdraw\.mjs/u)
+})
+
+test('bootstrap validates an optional project geology pack before registry access or installation writes', async t => {
+  const project = await projectFixture(t)
+  const pack = Buffer.from('{"schema":"fixture-only"}\n')
+  await writeFile(join(project, 'geology.json'), pack)
+  const mismatch = spawnSync(process.execPath, [core, ...flags(project), '--geology-column-pack', 'geology.json', '--geology-column-pack-sha256', '0'.repeat(64)], { encoding: 'utf8' })
+  assert.equal(mismatch.status, 1)
+  assert.match(mismatch.stderr, /do not match the host-supplied SHA-256/u)
+  assert.deepEqual(await readdir(project), ['geology.json'])
+  const incomplete = spawnSync(process.execPath, [core, ...flags(project), '--geology-column-pack', 'geology.json'], { encoding: 'utf8' })
+  assert.equal(incomplete.status, 1)
+  assert.match(incomplete.stderr, /path and SHA-256 must be supplied together/u)
+  assert.deepEqual(await readdir(project), ['geology.json'])
 })
