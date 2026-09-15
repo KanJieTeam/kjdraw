@@ -183,6 +183,7 @@ export async function connectWorkspace(options, hooks = {}) {
   const staged = []
   const backups = []
   const committed = []
+  const retainedBackups = new Set()
   try {
     await ensureProjectDirectory(root, dirname(proposals))
     if (!await item(proposals)) { await mkdir(proposals); created.push({ path: proposals, type: 'directory' }) }
@@ -210,13 +211,14 @@ export async function connectWorkspace(options, hooks = {}) {
       await rename(plan.temp, plan.path)
       committed.push(plan)
     }
-    return { applied: true, clients: plans.map(plan => ({ client: plan.name, action: plan.content ? 'added' : 'unchanged' })), drawing: drawing.serialized ? 'created blank' : 'existing', backupCount: backups.length, sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256 }
+    return { applied: true, clients: plans.map(plan => ({ client: plan.name, action: plan.content ? 'added' : 'unchanged' })), drawing: drawing.serialized ? 'created blank' : 'existing', backupCount: backups.length, transientBackupCount: backups.length, retainedBackupCount: 0, sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256 }
   } catch (error) {
     const rollbackConflicts = []
     for (const plan of committed.reverse()) {
       const current = await item(plan.path)
       if (!current?.isFile() || current.isSymbolicLink() || sha(await readFile(plan.path)) !== sha(plan.content)) {
         rollbackConflicts.push(plan.name)
+        if (plan.backup) retainedBackups.add(plan.backup)
         continue
       }
       if (plan.original === null) await unlink(plan.path).catch(() => {})
@@ -231,10 +233,16 @@ export async function connectWorkspace(options, hooks = {}) {
         await unlink(target.path).catch(() => {})
       else if (current) rollbackConflicts.push('host drawing')
     }
-    if (rollbackConflicts.length) throw new Error(`${error.message}; rollback preserved concurrently changed files: ${rollbackConflicts.join(', ')}`)
+    if (rollbackConflicts.length) {
+      const recovery = [...retainedBackups].map(path => relative(root, path).split(sep).join('/'))
+      throw new Error(`${error.message}; rollback preserved concurrently changed files: ${rollbackConflicts.join(', ')}; recovery backups retained for conflicted configurations: ${recovery.join(', ') || 'none'}`)
+    }
     throw error
   } finally {
-    for (const path of staged) await unlink(path).catch(() => {})
+    const cleanupFailures = []
+    for (const path of staged) await unlink(path).catch(error => { if (error.code !== 'ENOENT') cleanupFailures.push(path) })
+    for (const path of backups) if (!retainedBackups.has(path)) await unlink(path).catch(error => { if (error.code !== 'ENOENT') cleanupFailures.push(path) })
+    if (cleanupFailures.length) throw new Error(`Connect may have changed project files; temporary copies could not be removed: ${cleanupFailures.map(path => relative(root, path).split(sep).join('/')).join(', ')}`)
   }
 }
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -54,7 +54,8 @@ test('preview changes no files; apply initializes a validated blank host drawing
   assert.equal(applied.status, 0, applied.stderr)
   const result = JSON.parse(applied.stdout)
   assert.equal(result.clients.length, 4)
-  assert.equal(result.backupCount, 0)
+  assert.equal(result.transientBackupCount, 0)
+  assert.equal(result.retainedBackupCount, 0)
   assert.match(result.mcpScriptSha256, /^[a-f0-9]{64}$/)
   const drawing = await createKJDrawSDK().readDocument(await readFile(join(root, '.kjdraw/active.kjd'), 'utf8'), { format: 'KJD' })
   assert.equal(drawing.snapshot().header.units, 'millimeter')
@@ -70,7 +71,7 @@ test('preview changes no files; apply initializes a validated blank host drawing
   }
 })
 
-test('precise merge preserves unrelated fields; repeated apply is byte-for-byte no-op with backup only on first apply', async t => {
+test('precise merge preserves unrelated fields; transient backups never leave fake keys beside configs', async t => {
   const root = await fixture(t)
   const originals = [
     await seeded(root, configPaths[0], { mcpServers: { memory: { command: 'existing', args: [] } }, model: 'untouched' }),
@@ -79,23 +80,53 @@ test('precise merge preserves unrelated fields; repeated apply is byte-for-byte 
     await seeded(root, configPaths[3], { mcpServers: { files: { command: 'existing' } }, profile: 'unchanged' }),
   ]
   const before = originals.map(item => JSON.parse(item.bytes.toString('utf8')))
-  const first = await connectWorkspace(options(root))
-  assert.equal(first.backupCount, 4)
+  let witnessedBackups = 0
+  const first = await connectWorkspace(options(root), { beforeReplace: async name => {
+    if (name !== 'Kimi Code') return
+    for (const original of originals) {
+      const backups = (await readdir(dirname(original.path))).filter(file => file.includes('.kjdraw-backup-'))
+      assert.equal(backups.length, 1)
+      assert.equal(hash(await readFile(join(dirname(original.path), backups[0]))), original.sha256)
+      witnessedBackups += 1
+    }
+  } })
+  assert.equal(witnessedBackups, 4)
+  assert.equal(first.transientBackupCount, 4)
+  assert.equal(first.retainedBackupCount, 0)
   const after = []
+  const afterTimes = []
   for (let index = 0; index < originals.length; index += 1) {
     const dir = dirname(originals[index].path)
     const backups = (await readdir(dir)).filter(name => name.includes('.kjdraw-backup-'))
-    assert.equal(backups.length, 1)
-    assert.equal(hash(await readFile(join(dir, backups[0]))), originals[index].sha256)
+    assert.equal(backups.length, 0)
     const value = JSON.parse(await readFile(originals[index].path, 'utf8'))
     const child = originals[index].path.includes('.zcode') ? value.mcp.servers : value.mcpServers
     delete child.kjdraw
     assert.deepEqual(value, before[index])
     after.push(await readFile(originals[index].path))
+    afterTimes.push((await stat(originals[index].path)).mtimeMs)
   }
   const second = await connectWorkspace(options(root))
-  assert.equal(second.backupCount, 0)
-  for (let index = 0; index < originals.length; index += 1) assert.equal(hash(await readFile(originals[index].path)), hash(after[index]))
+  assert.equal(second.transientBackupCount, 0)
+  for (let index = 0; index < originals.length; index += 1) {
+    assert.equal(hash(await readFile(originals[index].path)), hash(after[index]))
+    assert.equal((await stat(originals[index].path)).mtimeMs, afterTimes[index])
+    assert.equal((await readdir(dirname(originals[index].path))).filter(name => name.includes('.kjdraw-backup-')).length, 0)
+  }
+})
+
+test('installation removes only its own temporary backups and leaves historical recovery files unchanged', async t => {
+  const root = await fixture(t)
+  const existing = await seeded(root, '.kimi-code/mcp.json', { mcpServers: { owner: { command: 'keep' } }, auth: { key: 'fixture-only-key' } })
+  const historical = await seeded(root, '.kimi-code/mcp.json.kjdraw-backup-historical', { unrelated: 'owner-managed recovery' })
+  const beforeTime = (await stat(historical.path)).mtimeMs
+  const result = await connectWorkspace(options(root))
+  assert.equal(result.transientBackupCount, 1)
+  assert.equal(result.retainedBackupCount, 0)
+  assert.notEqual(hash(await readFile(existing.path)), existing.sha256)
+  assert.equal(hash(await readFile(historical.path)), historical.sha256)
+  assert.equal((await stat(historical.path)).mtimeMs, beforeTime)
+  assert.deepEqual((await readdir(dirname(existing.path))).filter(name => name.includes('.kjdraw-backup-')), ['mcp.json.kjdraw-backup-historical'])
 })
 
 test('conflicting kjdraw entry rejects all changes, including blank drawing', async t => {
@@ -121,11 +152,13 @@ test('mid-commit failure restores original config bytes and removes newly create
   assert.equal(hash(await readFile(original.path)), original.sha256)
   for (const rel of configPaths.slice(1)) await assert.rejects(readFile(join(root, rel)), { code: 'ENOENT' })
   await assert.rejects(readFile(join(root, '.kjdraw/active.kjd')), { code: 'ENOENT' })
+  assert.equal((await readdir(dirname(original.path))).filter(name => name.includes('.kjdraw-backup-')).length, 0)
 })
 
 test('rollback preserves concurrent owner edits to an installed config and host drawing', async t => {
   const root = await fixture(t)
-  const kimi = join(root, '.kimi-code/mcp.json')
+  const original = await seeded(root, '.kimi-code/mcp.json', { mcpServers: { owner: { command: 'keep' } }, auth: { key: 'fixture-only-key' } })
+  const kimi = original.path
   const drawing = join(root, '.kjdraw/active.kjd')
   let ownerConfig, ownerDrawing
   await assert.rejects(connectWorkspace(options(root), { beforeReplace: async name => {
@@ -135,9 +168,12 @@ test('rollback preserves concurrent owner edits to an installed config and host 
     await writeFile(kimi, ownerConfig)
     await writeFile(drawing, ownerDrawing)
     throw new Error('injected concurrent owner edit')
-  } }), /rollback preserved concurrently changed files: Kimi Code, host drawing/)
+  } }), /rollback preserved concurrently changed files: Kimi Code, host drawing; recovery backups retained for conflicted configurations: \.kimi-code\/mcp\.json\.kjdraw-backup-/)
   assert.deepEqual(await readFile(kimi), ownerConfig)
   assert.deepEqual(await readFile(drawing), ownerDrawing)
+  const recovery = (await readdir(dirname(kimi))).filter(name => name.includes('.kjdraw-backup-'))
+  assert.equal(recovery.length, 1)
+  assert.equal(hash(await readFile(join(dirname(kimi), recovery[0]))), original.sha256)
   await assert.rejects(readFile(join(root, '.workbuddy/mcp.json')), { code: 'ENOENT' })
 })
 
