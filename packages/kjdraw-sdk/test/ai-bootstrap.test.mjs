@@ -17,6 +17,9 @@ test('one-line AI bootstraps pin one public candidate and connect all clients wi
     assert.match(source, /--input ['"]?\.kjdraw\/host\.kjd|--blank ['"]?\.kjdraw\/host\.kjd/)
     assert.doesNotMatch(source, /\bnpx\b|git clone|push|--force|reset --hard/)
   }
+  assert.match(powerShell, /IsPathRooted/)
+  assert.doesNotMatch(powerShell, /IsPathFullyQualified/)
+  assert.match(powerShell, /^[\x00-\x7f]*$/u)
 })
 
 test('both homepages lead with the same runnable one-command AI install', async () => {

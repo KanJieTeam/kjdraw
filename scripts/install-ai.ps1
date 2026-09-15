@@ -4,7 +4,7 @@ $KJDrawSourceSha = '466d8be59e1be68dea19043427b4ec9f6295c0ee'
 $KJDrawProject = if ($env:KJDRAW_PROJECT) { $env:KJDRAW_PROJECT } else { (Get-Location).Path }
 $KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-466d8be'
 
-if (-not [IO.Path]::IsPathFullyQualified($KJDrawProject) -or -not (Test-Path -LiteralPath $KJDrawProject -PathType Container)) {
+if (-not [IO.Path]::IsPathRooted($KJDrawProject) -or -not (Test-Path -LiteralPath $KJDrawProject -PathType Container)) {
   throw 'Run this command inside an existing project, or set KJDRAW_PROJECT to its absolute path.'
 }
 Get-Command node -CommandType Application -ErrorAction Stop | Out-Null
@@ -59,5 +59,3 @@ Write-Host ''
 Write-Host 'KJDraw project configuration is installed.' -ForegroundColor Green
 Write-Host 'Restart your AI client, open this project, and verify the kjdraw tool call. Ask:'
 Write-Host 'Use KJDraw to read the current drawing, then draw a circle with a 5 mm radius. Create a pending proposal only.'
-Write-Host '或者输入：'
-Write-Host '使用 KJDraw 读取当前图纸，然后画一个半径 5 mm 的圆；只生成待审核提案。'
