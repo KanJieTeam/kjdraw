@@ -46,6 +46,21 @@ print(json.dumps({'root':dict(root.attrib),'lines':lines,'groups':groups,'texts'
 }
 const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-9,`${a} != ${b}`)
 
+test('named built-in pattern HATCH exports bounded SVG previews without silently omitting CAD fill', async () => {
+  const { document, layoutId, create } = await fixture()
+  for (const [index, name] of ['ANSI31', 'ANSI37', 'CROSS'].entries()) {
+    const x = index * 30
+    await create('HATCH', { boundaryLoops: [{ external: true, closed: true, vertices: [[x, 0], [x + 20, 0], [x + 20, 20], [x, 20]] }], patternName: name, patternScale: 0.6, patternAngle: 0 })
+  }
+  const output = exportDrawingSvg(document, { layoutId })
+  assert.equal(output.report.diagnostics.length, 0)
+  assert.equal(output.report.rendered, 3)
+  assert.equal(output.report.approximations.filter(item => item.type === 'HATCH').length, 3)
+  assert.equal((output.svg.match(/<pattern id="kj-hatch-/g) ?? []).length, 3)
+  assert.equal((output.svg.match(/fill="url\(#kj-hatch-/g) ?? []).length, 3)
+  assert.ok(output.report.approximations.every(item => /CAD hatch/.test(item.reason)))
+})
+
 test('A3 vector SVG has physical millimeters and exact 1:100 viewport geometry, clips, layer styles and native dimension values',async()=>{
   const {sdk,document,layoutId,create}=await fixture(),model=document.snapshot().spaces.modelSpaceId
   let dashed,frozen,noPlot

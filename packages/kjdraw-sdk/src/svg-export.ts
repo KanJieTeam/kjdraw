@@ -276,6 +276,20 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
       if (!Array.isArray(p.boundaryLoops) || !p.boundaryLoops.length) fail('solid hatch has no boundaries')
       return `<path d="${p.boundaryLoops.map(loop=>Array.isArray(data(loop).vertices)?polyPath(data(loop).vertices,true):hatchEdgePath(loop)).join(' ')}" fill="currentColor" fill-rule="evenodd" stroke="none"/>`
     }
+    if (entity.type === 'HATCH' && p.solid !== true) {
+      if (!Array.isArray(p.boundaryLoops) || !p.boundaryLoops.length || p.boundaryLoops.length > 128) fail('pattern hatch has no bounded boundaries')
+      const name = String(p.patternName ?? '').toUpperCase()
+      if (!['ANSI31', 'ANSI37', 'CROSS'].includes(name)) fail(`pattern hatch ${name} has no supported SVG preview`)
+      const hatchScale = numeric(p.patternScale, 1), angle = numeric(p.patternAngle, 0)
+      if (hatchScale < 0.01 || hatchScale > 100 || Math.abs(angle) > 1000) fail('pattern hatch scale or angle is outside the preview bounds')
+      const spacing = Math.max(1, 4 * hatchScale), id = `kj-hatch-${++sequence}`
+      const marks = name === 'ANSI37'
+        ? `<circle cx="${spacing * .25}" cy="${spacing * .25}" r="${Math.max(.05, spacing * .05)}" fill="currentColor"/><circle cx="${spacing * .75}" cy="${spacing * .75}" r="${Math.max(.05, spacing * .05)}" fill="currentColor"/>`
+        : `<path d="M 0 0 L ${spacing} ${spacing}${name === 'CROSS' ? ` M ${spacing} 0 L 0 ${spacing}` : ''}" stroke="currentColor" stroke-width="${Math.max(.05, spacing * .035)}" fill="none"/>`
+      definitions.push(count(`<pattern id="${id}" patternUnits="userSpaceOnUse" width="${spacing}" height="${spacing}" patternTransform="rotate(${angle * 180 / Math.PI})">${marks}</pattern>`))
+      report.approximations.push({ entityId: entity.id, type: entity.type, reason: `SVG previews ${name} as a bounded visual proxy; DXF retains its named CAD hatch` })
+      return `<path d="${p.boundaryLoops.map(loop=>Array.isArray(data(loop).vertices)?polyPath(data(loop).vertices,true):hatchEdgePath(loop)).join(' ')}" fill="url(#${id})" fill-rule="evenodd" stroke="none"/>`
+    }
     return fail(`unsupported entity ${entity.type}`)
   }
   const render = (entity: KJReadonlyObjectRecord, frozen: ReadonlySet<string>, depth = 0, ancestors: readonly string[] = [], inheritedLayer?: KJReadonlyObjectRecord, inheritedColor?: string, inViewport = false, geometryScale = scale, inheritedLineweight?: unknown, inheritedLinetypeId?: string): string => {
