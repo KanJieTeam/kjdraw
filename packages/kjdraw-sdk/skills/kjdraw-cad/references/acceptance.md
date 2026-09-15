@@ -1,14 +1,14 @@
-# Mutation acceptance
+# 变更验收
 
-A successful MCP proposal is not an accepted drawing. Report it as **waiting for host review** unless a separate host receipt proves all required stages.
+MCP 提案成功不等于图纸已经验收。除非有独立宿主回执证明全部必需阶段，否则必须报告为**等待宿主审核**。
 
-For a releasable candidate, require host evidence for:
+可发布候选必须具备以下宿主证据：
 
-1. the reviewed proposal was applied as one transaction at the expected source revision;
-2. geometry, layers, references, and requested measurements passed deterministic checks;
-3. new KJD and DXF artifacts were written without overwriting the source;
-4. both formats reopened successfully, with the relevant entity and relationship checks repeated;
-5. undo removed the accepted transaction and redo restored it;
-6. source identity, selected knowledge-pack identity, candidate hashes, tool-call count, elapsed time, and model token evidence are retained when the workflow claims them.
+1. 已审核提案在预期源 revision 上作为单个事务应用；
+2. 几何、图层、引用以及用户要求的测量通过确定性检查；
+3. 新 KJD 与 DXF 文件已经写入，且没有覆盖源图；
+4. 两种格式都成功重新打开，并重复相关对象与关系检查；
+5. 撤销移除整个已验收事务，重做完整恢复；
+6. 声称存在时，保留源身份、知识包身份、候选哈希、工具调用次数、耗时和模型 token 证据。
 
-If any item lacks evidence, name the missing item. Do not infer it from a preview, tool success flag, screenshot, or model statement. A visual comparison can supplement these checks but cannot replace native geometry and reopen evidence.
+任何一项缺少证据，都要指出具体缺项。不得从预览、工具成功标记、截图或模型陈述中推断。视觉对比可以补充这些检查，但不能替代原生几何和保存重开证据。

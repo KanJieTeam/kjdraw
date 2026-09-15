@@ -3,7 +3,7 @@
   "routes": [
     {
       "id": "inspect",
-      "when": "Read, locate, count, measure, explain, or validate existing drawing content without changing it.",
+      "when": "只读查询、定位、计数、测量、解释或验证现有图纸内容。",
       "start": ["cad_read_drawing"],
       "tools": [
         "cad_read_page",
@@ -15,11 +15,11 @@
         "cad_measure_distance",
         "cad_check_geometry"
       ],
-      "rule": "Use the narrowest evidence that answers the question. Partial results cannot certify the whole drawing."
+      "rule": "只读取足以回答问题的最窄证据。局部结果不能证明整张图纸。"
     },
     {
       "id": "create",
-      "when": "Create a new editable drawing from explicit requirements and host-selected units or knowledge.",
+      "when": "根据明确需求以及宿主选定的单位或知识创建新的可编辑图纸。",
       "start": [],
       "preferredCompilers": [
         "cad_propose_geology_column",
@@ -38,11 +38,11 @@
         "cad_propose_lines",
         "cad_propose_circles"
       ],
-      "rule": "Call one matching high-level compiler once. Do not decompose a supported engineering object into repeated primitive calls."
+      "rule": "只调用一次与需求匹配的高层编译器。不得把已支持的工程对象拆成大量重复基础图元调用。"
     },
     {
       "id": "modify",
-      "when": "Precisely change an existing drawing while preserving unrelated geometry and relationships.",
+      "when": "精确修改现有图纸，同时保留无关几何和对象关系。",
       "start": ["cad_read_drawing", "cad_query_drawing"],
       "relationshipChecks": ["cad_query_topology"],
       "eraseImpactCheck": ["cad_query_impact"],
@@ -63,7 +63,7 @@
         "cad_propose_design_update",
         "cad_propose_road_revision"
       ],
-      "rule": "Resolve exact IDs at the current revision and use one smallest matching proposal. Query topology before relationship-sensitive edits; query impact only before erase."
+      "rule": "在当前 revision 解析精确 ID，并使用一个最小匹配提案。关系敏感修改前查询拓扑；仅在删除前查询影响。"
     }
   ]
 }
