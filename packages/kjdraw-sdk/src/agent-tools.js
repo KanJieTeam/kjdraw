@@ -24,7 +24,7 @@ import { buildAgentManufacturingSheet } from './agent-manufacturing-sheet.js';
 import { buildAgentArchitecturePlan } from './agent-architecture-plan.js';
 import { buildAgentSitePlan } from './agent-site-plan.js';
 import { buildAgentCartesianChart } from './agent-cartesian-chart.js';
-import { compileGeologyColumn } from './geology-engineering.js';
+import { compileGeologyColumn, compileGeologySection } from './geology-engineering.js';
 const number = {
     type: 'number',
     minimum: -1e12,
@@ -1494,6 +1494,86 @@ const geologyColumnSchema = objectWithOptional({
     'title',
     'pageHeightMillimeters'
 ]);
+const geologySectionHoleSchema = object({
+    id: geologyHoleSchema.properties.id,
+    collarElevation: number,
+    depth: radius,
+    station: number,
+    strata: geologyHoleSchema.properties.strata
+});
+const geologyCorrelationSchema = objectWithOptional({
+    fromHoleId: {
+        ...text,
+        maxLength: 64
+    },
+    toHoleId: {
+        ...text,
+        maxLength: 64
+    },
+    fromStratumCode: {
+        ...text,
+        maxLength: 24
+    },
+    toStratumCode: {
+        ...text,
+        maxLength: 24
+    },
+    fromIntervalId: {
+        ...text,
+        maxLength: 64
+    },
+    toIntervalId: {
+        ...text,
+        maxLength: 64
+    }
+}, [
+    'fromStratumCode',
+    'toStratumCode',
+    'fromIntervalId',
+    'toIntervalId'
+]);
+const geologySectionSchema = objectWithOptional({
+    version: {
+        type: 'string',
+        enum: [
+            '1.0.0'
+        ]
+    },
+    expectedRevision: revision,
+    units: {
+        type: 'string',
+        enum: [
+            'millimeter'
+        ]
+    },
+    holes: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 24,
+        items: geologySectionHoleSchema
+    },
+    correlations: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 200,
+        items: geologyCorrelationSchema
+    },
+    horizontalScaleDenominator: radius,
+    verticalScaleDenominator: radius,
+    datumElevation: number,
+    surfaceRule: {
+        type: 'string',
+        enum: [
+            'straight-between-supplied-collars'
+        ]
+    },
+    title: {
+        ...text,
+        maxLength: 64
+    }
+}, [
+    'title'
+]);
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_text_edit',
@@ -1638,6 +1718,12 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
         effect: 'propose',
         description: 'Compile one editable engineering borehole column from exact supplied strata, collar elevation, depth, measured water and sample/SPT observations. Depths and elevations in hole are metres; the CAD document and physical page are millimetres. Version 1.0.0 uses the built-in generic column style and patterns only; it does not certify raw MDB facts or match an original DWG template. Missing descriptions, water or observations remain missing, never inferred. Clarify absent or conflicting facts before calling. The model supplies engineering facts and vertical scale, not CAD entities, pattern code or approval. A blank millimetre drawing is required. Returns full native geometry and evidence as a pending CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
         inputSchema: geologyColumnSchema
+    },
+    {
+        name: 'cad_propose_geology_section',
+        effect: 'propose',
+        description: 'Compile one editable A3 engineering geological section from 2–24 supplied boreholes with exact station, collar elevation and continuous depth intervals, plus explicit compatible interval/layer correlations. Hole facts, station, elevations, depths and datum are metres; CAD page is millimetres. Version 1.0.0 uses built-in generic patterns only and one declared straight surface rule; it does not infer unsupplied cross-hole layer continuity, water, observations or raw MDB/DWG provenance. Ambiguous, reverse, duplicate or incompatible correlations and non-fitting scales are rejected; uncorrelated space remains blank. The model supplies facts and identity links, not low-level CAD entities, private hatch assets or approval. Requires a blank millimetre drawing and at least one declared correlation. Returns a bounded native CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
+        inputSchema: geologySectionSchema
     },
     {
         name: 'cad_check_geometry',
@@ -2343,7 +2429,8 @@ export class KJAgentToolSession {
                 'cad_propose_manufacturing_sheet',
                 'cad_propose_architecture_plan',
                 'cad_propose_cartesian_chart',
-                'cad_propose_geology_column'
+                'cad_propose_geology_column',
+                'cad_propose_geology_section'
             ].includes(tool.name) || units === 'millimeter').filter((tool)=>tool.name !== 'cad_propose_site_plan' || units === 'meter').map((tool)=>{
             if (!tool.inputSchema.properties?.units) return tool;
             return {
@@ -2631,6 +2718,13 @@ export class KJAgentToolSession {
                             const { version: _version, units: _units, ...intent } = args;
                             const compiled = compileGeologyColumn(intent);
                             if (compiled.commandArgs.entities.length > 512 || compiled.commandArgs.resources.layers.length + compiled.commandArgs.resources.linetypes.length > 32) throw new KJValidationError('Geology column exceeds the bounded Agent proposal budget');
+                            commandArgs = structuredClone(compiled.commandArgs);
+                            engineeringEvidence = compiled.evidence;
+                        } else if (name === 'cad_propose_geology_section') {
+                            if (document.listEntities().length !== 0) throw new KJValidationError('Geology section requires a blank drawing; existing geometry is not replaced');
+                            const { version: _version, units: _units, ...intent } = args;
+                            const compiled = compileGeologySection(intent);
+                            if (compiled.commandArgs.entities.length > 512 || compiled.commandArgs.resources.layers.length + compiled.commandArgs.resources.linetypes.length > 32) throw new KJValidationError('Geology section exceeds the bounded Agent proposal budget');
                             commandArgs = structuredClone(compiled.commandArgs);
                             engineeringEvidence = compiled.evidence;
                         } else if (name === 'cad_propose_road_drawing' || name === 'cad_propose_road_drawing_from_asset') {
@@ -3121,6 +3215,7 @@ export class KJAgentToolSession {
                             'cad_propose_site_plan',
                             'cad_propose_cartesian_chart',
                             'cad_propose_geology_column',
+                            'cad_propose_geology_section',
                             'cad_propose_road_drawing',
                             'cad_propose_road_drawing_from_asset'
                         ].includes(name) ? {
@@ -3174,6 +3269,10 @@ export class KJAgentToolSession {
                             ok: true,
                             value
                         })).length > 1048576) throw new KJValidationError('Geology column proposal exceeds the 1 MiB output limit');
+                        if (name === 'cad_propose_geology_section' && new TextEncoder().encode(JSON.stringify({
+                            ok: true,
+                            value
+                        })).length > 1048576) throw new KJValidationError('Geology section proposal exceeds the 1 MiB output limit');
                         if (name === 'cad_propose_relayer' && new TextEncoder().encode(JSON.stringify({
                             ok: true,
                             value
