@@ -260,6 +260,126 @@ test('MCP host refuses an existing proposal ledger without changing it', async t
   assert.deepEqual(await readFile(pendingPath), existing)
 })
 
+test('MCP session-ledger directory allows repeated stdio startups on one unchanged drawing', async t => {
+  const fixture = await drawingFixture('KJD')
+  t.after(() => rm(fixture.directory, { recursive: true, force: true }))
+  await mkdir(join(fixture.directory, 'sessions'))
+  const inputPath = join(fixture.directory, fixture.inputName)
+  const originalDrawing = await readFile(inputPath)
+  const args = ['--workspace', fixture.directory, '--input', fixture.inputName, '--proposal-dir', 'sessions']
+  const first = invoke(args, [
+    request(1, 'initialize', { protocolVersion: '2025-11-25' }),
+    request(2, 'tools/list', {}),
+    request(3, 'tools/call', { name: 'cad_propose_move', arguments: {
+      expectedRevision: fixture.document.revision, units: 'millimeter', ids: ['edge'], dx: 5, dy: 0
+    } }),
+    request(4, 'tools/call', { name: 'cad_approve', arguments: { planId: 'forbidden' } })
+  ])
+  assert.equal(first.status, 0, first.stderr)
+  const firstResponses = first.stdout.trim().split('\n').map(line => JSON.parse(line))
+  const firstMeta = firstResponses[0].result._meta?.['com.kanjie.kjdraw/session']
+  assert.ok(firstMeta)
+  assert.match(firstMeta.ledgerPath, /^sessions\/mcp-pending-[0-9a-f-]+\.json$/u)
+  assert.equal(firstResponses[1].result.tools.some(tool => /approve|save|open/u.test(tool.name)), false)
+  assert.equal(firstResponses[2].result.structuredContent.value.status, 'awaiting-host-approval')
+  assert.equal(firstResponses[3].error.code, -32602)
+  const firstLedgerPath = join(fixture.directory, firstMeta.ledgerPath)
+  const firstLedgerBytes = await readFile(firstLedgerPath)
+  const firstLedger = JSON.parse(firstLedgerBytes)
+  assert.equal(firstLedger.session.id, firstMeta.sessionId)
+  assert.equal(firstLedger.session.ledgerPath, firstMeta.ledgerPath)
+  assert.equal(firstLedger.source.fingerprint, firstMeta.sourceFingerprint)
+  assert.equal(firstLedger.source.revision, firstMeta.sourceRevision)
+  assert.equal(firstLedger.source.documentId, firstMeta.sourceDocumentId)
+  assert.equal(firstLedger.proposals.length, 1)
+
+  const second = invoke(args, [
+    request(1, 'initialize', { protocolVersion: '2025-11-25' }),
+    request(2, 'tools/call', { name: 'cad_read_drawing', arguments: {} })
+  ])
+  assert.equal(second.status, 0, second.stderr)
+  const secondResponses = second.stdout.trim().split('\n').map(line => JSON.parse(line))
+  const secondMeta = secondResponses[0].result._meta?.['com.kanjie.kjdraw/session']
+  assert.ok(secondMeta)
+  assert.notEqual(secondMeta.sessionId, firstMeta.sessionId)
+  assert.notEqual(secondMeta.ledgerPath, firstMeta.ledgerPath)
+  assert.equal(secondMeta.sourceFingerprint, firstMeta.sourceFingerprint)
+  assert.equal(secondResponses[1].result.structuredContent.value.entities[0].type, 'LINE')
+  const secondLedger = JSON.parse(await readFile(join(fixture.directory, secondMeta.ledgerPath)))
+  assert.equal(secondLedger.session.id, secondMeta.sessionId)
+  assert.deepEqual(secondLedger.proposals, [])
+  assert.deepEqual(await readFile(firstLedgerPath), firstLedgerBytes)
+  assert.deepEqual(await readFile(inputPath), originalDrawing)
+})
+
+test('MCP session-ledger mode refuses missing, aliased, or model-like host directory choices', async t => {
+  const fixture = await drawingFixture('KJD')
+  t.after(() => rm(fixture.directory, { recursive: true, force: true }))
+  const originalDrawing = await readFile(join(fixture.directory, fixture.inputName))
+  const prefix = ['--workspace', fixture.directory, '--input', fixture.inputName]
+  const parseFailures = [
+    [...prefix],
+    [...prefix, '--proposals', 'pending.json', '--proposal-dir', 'sessions'],
+  ]
+  for (const args of parseFailures) {
+    const child = invoke(args)
+    assert.equal(child.status, 2, child.stderr)
+    assert.equal(child.stdout, '')
+  }
+  await mkdir(join(fixture.directory, 'real-sessions'))
+  const invalid = [
+    [...prefix, '--proposal-dir', 'missing-sessions'],
+    [...prefix, '--proposal-dir', '../elsewhere'],
+    [...prefix, '--proposal-dir', 'drawing.kjd'],
+  ]
+  for (const args of invalid) {
+    const child = invoke(args)
+    assert.equal(child.status, 1, child.stderr)
+    assert.equal(child.stdout, '')
+  }
+  const linked = join(fixture.directory, 'linked-sessions')
+  const real = join(fixture.directory, 'real-sessions')
+  try {
+    await symlink(real, linked, process.platform === 'win32' ? 'junction' : 'dir')
+  } catch (error) {
+    if (process.platform !== 'win32' || !['EPERM', 'EACCES'].includes(error.code)) throw error
+    const junction = spawnSync('cmd.exe', ['/d', '/s', '/c', `mklink /J "${linked}" "${real}"`], { encoding: 'utf8' })
+    assert.equal(junction.status, 0, 'Controlled fixture junction creation failed')
+  }
+  const linkedChild = invoke([...prefix, '--proposal-dir', 'linked-sessions'])
+  assert.equal(linkedChild.status, 1, linkedChild.stderr)
+  assert.match(linkedChild.stderr, /symbolic link/u)
+  assert.equal(linkedChild.stdout, '')
+  assert.deepEqual(await readFile(join(fixture.directory, fixture.inputName)), originalDrawing)
+})
+
+test('MCP host can create a blank KJD with a unique session ledger and host-visible source receipt', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'kjdraw-mcp-blank-session-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await mkdir(join(directory, 'sessions'))
+  const child = invoke(['--workspace', directory, '--blank', 'new.kjd', '--units', 'meter', '--proposal-dir', 'sessions'], [
+    request(1, 'initialize', { protocolVersion: '2025-11-25' }),
+    request(2, 'tools/call', { name: 'cad_read_drawing', arguments: {} })
+  ])
+  assert.equal(child.status, 0, child.stderr)
+  const responses = child.stdout.trim().split('\n').map(line => JSON.parse(line))
+  const meta = responses[0].result._meta?.['com.kanjie.kjdraw/session']
+  assert.ok(meta)
+  assert.match(meta.ledgerPath, /^sessions\/mcp-pending-[0-9a-f-]+\.json$/u)
+  assert.equal(responses[1].result.structuredContent.value.revision, 0)
+  assert.deepEqual(responses[1].result.structuredContent.value.entities, [])
+  const ledger = JSON.parse(await readFile(join(directory, meta.ledgerPath), 'utf8'))
+  assert.equal(ledger.session.id, meta.sessionId)
+  assert.equal(ledger.source.createdBlank, true)
+  assert.equal(ledger.source.path, 'new.kjd')
+  assert.equal(ledger.source.units, 'meter')
+  assert.equal(ledger.source.fingerprint, meta.sourceFingerprint)
+  const reopened = await createKJDrawSDK().readDocument(await readFile(join(directory, 'new.kjd')), { format: 'KJD' })
+  assert.equal(reopened.validate().valid, true)
+  assert.equal(reopened.revision, 0)
+  assert.equal(reopened.snapshot().header.units, 'meter')
+})
+
 test('MCP host bounds an oversized frame, discards it, and resumes on the next newline', async t => {
   const fixture = await drawingFixture('KJD')
   t.after(() => rm(fixture.directory, { recursive: true, force: true }))

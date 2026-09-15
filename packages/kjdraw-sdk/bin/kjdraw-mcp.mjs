@@ -14,7 +14,7 @@ const MAX_DRAWING_BYTES = 64 * 1024 * 1024
 const MAX_MESSAGE_BYTES = 4 * 1024 * 1024
 
 function usage() {
-  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json>\n\nThe host, not the model, chooses all paths and blank drawing units. Tool calls can inspect the drawing or create pending proposals; this process never approves a proposal or saves a CAD file.`
+  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposal-dir <existing-relative-directory>\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposal-dir <existing-relative-directory>\n\n--proposals is the legacy one-file mode. --proposal-dir creates one exclusive ledger per stdio session and exposes its relative path in initialize metadata. The host, not the model, chooses all paths and blank drawing units. Tool calls can inspect the drawing or create pending proposals; this process never approves a proposal or saves a CAD file.`
 }
 
 function parseArgs(argv) {
@@ -23,10 +23,11 @@ function parseArgs(argv) {
   const values = {}
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index], value = argv[index + 1]
-    if (!['--workspace', '--input', '--blank', '--units', '--proposals'].includes(key) || !value || Object.hasOwn(values, key.slice(2))) throw new Error(`Unknown, duplicate or incomplete argument: ${key ?? ''}`)
+    if (!['--workspace', '--input', '--blank', '--units', '--proposals', '--proposal-dir'].includes(key) || !value || Object.hasOwn(values, key.slice(2))) throw new Error(`Unknown, duplicate or incomplete argument: ${key ?? ''}`)
     values[key.slice(2)] = value
   }
-  for (const key of ['workspace', 'proposals']) if (!values[key]) throw new Error(`Missing required --${key}`)
+  if (!values.workspace) throw new Error('Missing required --workspace')
+  if (Boolean(values.proposals) === Boolean(values['proposal-dir'])) throw new Error('Supply exactly one of --proposals or --proposal-dir')
   if (Boolean(values.input) === Boolean(values.blank)) throw new Error('Supply exactly one of --input or --blank')
   if (values.blank && !['millimeter', 'meter'].includes(values.units)) throw new Error('--blank requires --units millimeter or meter')
   if (values.input && values.units) throw new Error('--units is only allowed with --blank')
@@ -81,6 +82,23 @@ async function resolveVacantFileInside(root, value, label) {
     if (error?.code !== 'ENOENT') throw error
   }
   return candidate
+}
+
+async function resolveSessionLedgerDir(root, value) {
+  assertRelativePath(value, '--proposal-dir')
+  if (!value || /^[A-Za-z]:/u.test(value)) throw new Error('--proposal-dir must be an unambiguous relative directory')
+  const parts = value.split(/[\\/]+/u)
+  if (!parts.length || parts.some(part => !part || part === '.')) throw new Error('--proposal-dir must be an unambiguous relative directory')
+  let current = root
+  for (const part of parts) {
+    current = join(current, part)
+    const entry = await lstat(current)
+    if (entry.isSymbolicLink()) throw new Error('--proposal-dir must not traverse a symbolic link')
+    if (!entry.isDirectory()) throw new Error('--proposal-dir must name an existing directory')
+  }
+  const canonical = await realpath(current)
+  if (!isInside(root, canonical) || !samePath(canonical, current)) throw new Error('--proposal-dir resolves outside its real workspace path')
+  return canonical
 }
 
 function fingerprint(document) {
@@ -169,7 +187,7 @@ function toolResponse(id, result, isError = false) {
 }
 
 async function openHost(options) {
-  if (options.blank) {
+  if (options.blank || options['proposal-dir']) {
     const workspaceEntry = await lstat(options.workspace)
     if (workspaceEntry.isSymbolicLink()) throw new Error('--workspace must not be a symbolic link')
   }
@@ -178,9 +196,13 @@ async function openHost(options) {
   const input = options.blank
     ? await resolveVacantFileInside(workspace, options.blank, '--blank')
     : await resolveExistingInside(workspace, options.input, '--input')
-  const proposals = options.blank
-    ? await resolveVacantFileInside(workspace, options.proposals, '--proposals')
-    : await resolveOutputInside(workspace, options.proposals)
+  const proposalDir = options['proposal-dir'] ? await resolveSessionLedgerDir(workspace, options['proposal-dir']) : null
+  let sessionId = proposalDir ? randomUUID() : null
+  let proposals = proposalDir
+    ? join(proposalDir, `mcp-pending-${sessionId}.json`)
+    : options.blank
+      ? await resolveVacantFileInside(workspace, options.proposals, '--proposals')
+      : await resolveOutputInside(workspace, options.proposals)
   if (samePath(input, proposals)) throw new Error('--proposals must not overwrite the drawing')
   const format = options.blank ? 'KJD' : extname(input).toLowerCase() === '.kjd' ? 'KJD' : extname(input).toLowerCase() === '.dxf' ? 'DXF' : null
   if (!format || options.blank && extname(input).toLowerCase() !== '.kjd') throw new Error(options.blank ? '--blank must name a new .kjd drawing' : '--input must be a .kjd or .dxf drawing')
@@ -220,10 +242,22 @@ async function openHost(options) {
       fingerprint: sourceFingerprint,
       ...(options.blank ? { createdBlank: true } : {})
     },
-    proposals: []
+    proposals: [],
+    ...(sessionId ? { session: { id: sessionId, ledgerPath: relative(workspace, proposals).split(sep).join('/') } } : {})
   }
-  await exclusiveAtomicJsonCreate(proposals, ledger)
-  return { document, session, sourceFingerprint, proposals, ledger }
+  if (proposalDir) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try { await exclusiveAtomicJsonCreate(proposals, ledger); break }
+      catch (error) {
+        if (error?.code !== 'EEXIST' || attempt === 4) throw error
+        sessionId = randomUUID()
+        proposals = join(proposalDir, `mcp-pending-${sessionId}.json`)
+        ledger.session = { id: sessionId, ledgerPath: relative(workspace, proposals).split(sep).join('/') }
+      }
+    }
+  } else await exclusiveAtomicJsonCreate(proposals, ledger)
+  const sessionReceipt = sessionId ? { ledgerPath: ledger.session.ledgerPath, sessionId, sourceFingerprint, sourceRevision: document.revision, sourceDocumentId: document.id } : null
+  return { document, session, sourceFingerprint, proposals, ledger, sessionReceipt }
 }
 
 async function main() {
@@ -265,6 +299,7 @@ async function main() {
           protocolVersion,
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: SERVER_NAME, version: KJDRAW_VERSION },
+          ...(host.sessionReceipt ? { _meta: { 'com.kanjie.kjdraw/session': host.sessionReceipt } } : {}),
           instructions: 'Inspect the attached drawing and create proposals for host review. No tool approves a proposal or saves a CAD file.'
         } })
         continue
