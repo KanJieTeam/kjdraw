@@ -119,3 +119,11 @@ test('manufacturing sheet compiler rejects stale, unsupported, out-of-bounds and
   const inchDocument = KJDocument.create({ documentId: 'manufacturing-inch', units: 'inch' })
   assert.throws(() => buildAgentManufacturingSheet(inchDocument, complexInput()), /millimeter document/)
 })
+
+test('manufacturing sheet uses the explicit border lower-left as the deterministic default origin', () => {
+  const document = KJDocument.create({ documentId: 'manufacturing-default-origin', units: 'millimeter' })
+  const input = complexInput({ sheet: { size: [420, 297] } })
+  const compiled = buildAgentManufacturingSheet(document, input)
+  assert.deepEqual(compiled.evidence.parameters.sheet.origin, [0, 0])
+  assert.deepEqual(compiled.evidence.bounds.min, [0, 0])
+})
