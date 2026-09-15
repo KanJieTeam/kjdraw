@@ -911,10 +911,12 @@ const manufacturingSheetSchema = objectWithOptional({
             }
         })
     },
-    sheet: object({
+    sheet: objectWithOptional({
         origin: numericTuple(2),
         size: numericTuple(2)
-    }),
+    }, [
+        'origin'
+    ]),
     textHeight: radius
 }, [
     'holePatterns',
@@ -1455,7 +1457,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_manufacturing_sheet',
         effect: 'propose',
-        description: 'Compile a complete editable millimeter manufacturing drawing from a compact versioned intent instead of emitting every CAD entity. Version 1.0.0 supports a rectangular plate, bounded rectangular through-hole patterns with optional counterbores, horizontal or vertical through slots, aligned top/front views, center marks, native measured dimensions, named engineering layers, sheet border, title block and machining notes. KJDraw validates all feature relationships, generates deterministic native geometry locally and returns the full preview. The model supplies design parameters only; host approval applies one atomic CREATEBATCH transaction.',
+        description: 'Compile a complete editable millimeter manufacturing drawing from a compact versioned intent instead of emitting every CAD entity. Version 1.0.0 supports a rectangular plate, bounded rectangular through-hole patterns with optional counterbores, horizontal or vertical through slots, aligned top/front views, center marks, native measured dimensions, named engineering layers, sheet border, title block and machining notes. If the request explicitly gives a border lower-left (0,0) and omits sheet.origin, use [0,0]; do not ask for that redundant value. Views compile at native 1:1 and the compiler deterministically rejects a sheet that cannot contain them. KJDraw validates all feature relationships, generates deterministic native geometry locally and returns the full preview. The model supplies design parameters only; host approval applies one atomic CREATEBATCH transaction.',
         inputSchema: manufacturingSheetSchema
     },
     {

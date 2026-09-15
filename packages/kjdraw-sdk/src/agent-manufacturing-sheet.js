@@ -93,7 +93,10 @@ function validateInput(document, source) {
     const textHeight = boundedNumber(input.textHeight, 'input.textHeight', 1, 20);
     const sheetSource = plain(input.sheet, 'input.sheet');
     exactKeys(sheetSource, SHEET_KEYS, 'input.sheet');
-    const sheetOrigin = point2(sheetSource.origin, 'input.sheet.origin');
+    const sheetOrigin = point2(sheetSource.origin ?? [
+        0,
+        0
+    ], 'input.sheet.origin');
     const sheetSize = point2(sheetSource.size, 'input.sheet.size', 80, 2_000);
     if (sheetSize[0] < textHeight * 20 || sheetSize[1] < textHeight * 16) throw new KJValidationError('input.sheet.size is too small for the selected textHeight');
     const holeSource = input.holePatterns ?? [];
