@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>Try the editor</strong></a> ·
+  <a href="docs/try-in-ai.zh-CN.md"><strong>Try with AI</strong></a> ·
   <a href="#add-cad-to-your-app"><strong>Add CAD to your app</strong></a> ·
   <a href="#give-your-agent-cad-tools"><strong>Build a CAD agent</strong></a> ·
   <a href="README.zh-CN.md">简体中文</a>
@@ -39,6 +40,12 @@
 3. Undo a change, save the drawing, and open it again to keep working.
 
 The included sample drawings are for exploration, not construction. The [workbench guide](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/) explains drawing, selection, dimensions and saving.
+
+## Try with AI
+
+One project-scoped command connects KJDraw MCP to Kimi Code, WorkBuddy, ZCode and TraeCode, and installs the canonical KJDraw CAD Skill where the client publishes a local Skill path. It never receives your model API key and never overwrites the source drawing.
+
+[Copy the Windows or macOS one-line source-candidate command](docs/try-in-ai.zh-CN.md). This is an installation test path, not yet evidence that all four GUIs and real models have passed the 1.0 release gate.
 
 ## Add CAD to your app
 

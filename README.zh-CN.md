@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>在线体验</strong></a> ·
+  <a href="docs/try-in-ai.zh-CN.md"><strong>Try with AI</strong></a> ·
   <a href="#接入你的应用"><strong>接入你的应用</strong></a> ·
   <a href="#给你的-agent-配上-cad-工具"><strong>构建 CAD Agent</strong></a> ·
   <a href="README.md">English</a>
@@ -39,6 +40,20 @@
 3. 撤销一次修改，保存图纸，再打开继续编辑。
 
 内置示例用于体验，不作为施工图使用。[工作台操作指南](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/)提供绘图、选择、标注与保存说明。
+
+## Try with AI：一条命令接入四个国产智能体
+
+在另一台电脑只执行一次安装命令，即可为同一个项目配置 **Kimi Code、WorkBuddy、ZCode 和 TraeCode** 的 KJDraw MCP；同一事务还会为公开支持本地 Skill 的客户端安装 `kjdraw-cad`。无需分别执行四次安装，也无需把 API Key 交给 KJDraw。
+
+[复制 Windows / macOS 一行安装命令并查看验收方法](docs/try-in-ai.zh-CN.md)
+
+| 能力 | Kimi Code | WorkBuddy | ZCode | TraeCode |
+| --- | --- | --- | --- | --- |
+| 一次命令配置 KJDraw MCP | ✓ | ✓ | ✓ | ✓ |
+| 项目级 KJDraw Skill | 自动安装 | 官方仅支持市场/上传 | 自动安装 | 自动安装 |
+| 源图保护 | 只读输入、提案待审核 | 只读输入、提案待审核 | 只读输入、提案待审核 | 只读输入、提案待审核 |
+
+安装后用任一客户端打开该项目，新建会话并输入：`使用 KJDraw 读取当前图纸，然后画一个半径 5 mm 的圆；只生成待审核提案。` 看到 `kjdraw` 工具调用、待审核状态以及本地 KJDraw 标识，才算实际调用了 KJDraw。当前这是源码候选验收入口，不等于四家 GUI 和真实模型已经全部通过，也不代表稳定 1.0 已发布。
 
 ## 接入你的应用
 

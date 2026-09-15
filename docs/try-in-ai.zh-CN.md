@@ -3,12 +3,12 @@
 本页用于在另一台电脑上把 KJDraw 接入 **Kimi Code、WorkBuddy、ZCode 和 TraeCode**。当前可公开复现的是 GitHub `main` 上的源码提交：
 
 ```text
-7cb05ca08a10f94a789afd90dbc3deb868982d9a
+744b49779abc0b901553b5483862e894614aba3d
 ```
 
 这是源码候选安装，不是 npm 发布证明。`@kanjieteam/kjdraw@1.0.0-rc.3` 尚未发布；发布前不要把 `npm install ...@1.0.0-rc.3` 或 `npx` 写成可用安装方式。下面的命令把源码固定安装到持久目录，不会把临时 `_npx` 缓存写入 MCP 配置。
 
-命令行测试已经覆盖四份配置、圆形 KJD/DXF 落盘重开和一次 `cad_read_drawing` 调用，但尚未在四个客户端 GUI 中逐一验证，也没有调用真实模型。
+命令行测试已经覆盖四份 MCP 配置、三份原生项目 Skill、圆形 KJD/DXF 落盘重开和一次 `cad_read_drawing` 调用，但尚未在四个客户端 GUI 中逐一验证，也没有调用真实模型。
 
 ## 前置条件
 
@@ -22,7 +22,7 @@
 只替换第一段中的 `C:\REPLACE\WITH\ABSOLUTE\PROJECT`，必须填写项目的绝对路径。整行在 PowerShell 中运行：
 
 ```powershell
-$ErrorActionPreference='Stop'; $KJ_PROJECT='C:\REPLACE\WITH\ABSOLUTE\PROJECT'; $KJ_INSTALL=Join-Path $env:LOCALAPPDATA 'KJDraw-source-7cb05ca'; $KJ_SHA='7cb05ca08a10f94a789afd90dbc3deb868982d9a'; if(-not [IO.Path]::IsPathFullyQualified($KJ_PROJECT) -or -not (Test-Path -LiteralPath $KJ_PROJECT -PathType Container)){throw 'Replace KJ_PROJECT with an existing absolute project directory'}; Get-Command node,git -CommandType Application -ErrorAction Stop | Out-Null; node -e "if(+process.versions.node.split('.')[0]<22)process.exit(1)"; if($LASTEXITCODE){throw 'Node.js >=22 is required'}; if(Test-Path -LiteralPath $KJ_INSTALL){throw 'Pinned install directory already exists; inspect it instead of overwriting it'}; git clone --filter=blob:none --no-checkout https://github.com/KanJieTeam/kjdraw.git $KJ_INSTALL; if($LASTEXITCODE){throw 'git clone failed'}; git -C $KJ_INSTALL checkout --detach $KJ_SHA; if($LASTEXITCODE){throw 'git checkout failed'}; $KJ_ACTUAL=(git -C $KJ_INSTALL rev-parse HEAD).Trim(); if($KJ_ACTUAL -ne $KJ_SHA){throw 'Public source SHA verification failed'}; node (Join-Path $KJ_INSTALL 'packages/kjdraw-sdk/bin/kjdraw-connect.mjs') --all --apply --workspace $KJ_PROJECT --blank '.kjdraw/host.kjd' --units millimeter
+$ErrorActionPreference='Stop'; $KJ_PROJECT='C:\REPLACE\WITH\ABSOLUTE\PROJECT'; $KJ_INSTALL=Join-Path $env:LOCALAPPDATA 'KJDraw-source-744b497'; $KJ_SHA='744b49779abc0b901553b5483862e894614aba3d'; if(-not [IO.Path]::IsPathFullyQualified($KJ_PROJECT) -or -not (Test-Path -LiteralPath $KJ_PROJECT -PathType Container)){throw 'Replace KJ_PROJECT with an existing absolute project directory'}; Get-Command node,git -CommandType Application -ErrorAction Stop | Out-Null; node -e "if(+process.versions.node.split('.')[0]<22)process.exit(1)"; if($LASTEXITCODE){throw 'Node.js >=22 is required'}; if(Test-Path -LiteralPath $KJ_INSTALL){throw 'Pinned install directory already exists; inspect it instead of overwriting it'}; git clone --filter=blob:none --no-checkout https://github.com/KanJieTeam/kjdraw.git $KJ_INSTALL; if($LASTEXITCODE){throw 'git clone failed'}; git -C $KJ_INSTALL checkout --detach $KJ_SHA; if($LASTEXITCODE){throw 'git checkout failed'}; $KJ_ACTUAL=(git -C $KJ_INSTALL rev-parse HEAD).Trim(); if($KJ_ACTUAL -ne $KJ_SHA){throw 'Public source SHA verification failed'}; node (Join-Path $KJ_INSTALL 'packages/kjdraw-sdk/bin/kjdraw-connect.mjs') --all --apply --workspace $KJ_PROJECT --blank '.kjdraw/host.kjd' --units millimeter
 ```
 
 ## macOS：一行安装并接入四个客户端
@@ -30,17 +30,19 @@ $ErrorActionPreference='Stop'; $KJ_PROJECT='C:\REPLACE\WITH\ABSOLUTE\PROJECT'; $
 只替换第一段中的 `/REPLACE/WITH/ABSOLUTE/PROJECT`，必须填写项目的绝对路径。整行在 `sh`、`bash` 或 `zsh` 中运行：
 
 ```sh
-set -eu; KJ_PROJECT='/REPLACE/WITH/ABSOLUTE/PROJECT'; KJ_INSTALL="$HOME/.kjdraw-source-7cb05ca"; KJ_SHA='7cb05ca08a10f94a789afd90dbc3deb868982d9a'; case "$KJ_PROJECT" in /*) ;; *) echo 'KJ_PROJECT must be absolute' >&2; exit 1;; esac; [ -d "$KJ_PROJECT" ] || { echo 'project directory not found' >&2; exit 1; }; command -v node >/dev/null; command -v git >/dev/null; node -e 'if(+process.versions.node.split(".")[0]<22)process.exit(1)'; [ ! -e "$KJ_INSTALL" ] || { echo 'pinned install directory exists; refusing overwrite' >&2; exit 1; }; git clone --filter=blob:none --no-checkout https://github.com/KanJieTeam/kjdraw.git "$KJ_INSTALL"; git -C "$KJ_INSTALL" checkout --detach "$KJ_SHA"; [ "$(git -C "$KJ_INSTALL" rev-parse HEAD)" = "$KJ_SHA" ]; node "$KJ_INSTALL/packages/kjdraw-sdk/bin/kjdraw-connect.mjs" --all --apply --workspace "$KJ_PROJECT" --blank '.kjdraw/host.kjd' --units millimeter
+set -eu; KJ_PROJECT='/REPLACE/WITH/ABSOLUTE/PROJECT'; KJ_INSTALL="$HOME/.kjdraw-source-744b497"; KJ_SHA='744b49779abc0b901553b5483862e894614aba3d'; case "$KJ_PROJECT" in /*) ;; *) echo 'KJ_PROJECT must be absolute' >&2; exit 1;; esac; [ -d "$KJ_PROJECT" ] || { echo 'project directory not found' >&2; exit 1; }; command -v node >/dev/null; command -v git >/dev/null; node -e 'if(+process.versions.node.split(".")[0]<22)process.exit(1)'; [ ! -e "$KJ_INSTALL" ] || { echo 'pinned install directory exists; refusing overwrite' >&2; exit 1; }; git clone --filter=blob:none --no-checkout https://github.com/KanJieTeam/kjdraw.git "$KJ_INSTALL"; git -C "$KJ_INSTALL" checkout --detach "$KJ_SHA"; [ "$(git -C "$KJ_INSTALL" rev-parse HEAD)" = "$KJ_SHA" ]; node "$KJ_INSTALL/packages/kjdraw-sdk/bin/kjdraw-connect.mjs" --all --apply --workspace "$KJ_PROJECT" --blank '.kjdraw/host.kjd' --units millimeter
 ```
 
-命令会新建 `.kjdraw/host.kjd`，并只管理名为 `kjdraw` 的下列项目级条目：
+命令会新建 `.kjdraw/host.kjd`，一次性接入四家 MCP，并从包内同一个 KJDraw Skill 源安装各客户端公开支持的项目级 Skill：
 
-| 客户端 | 项目配置 |
-| --- | --- |
-| Kimi Code | `.kimi-code/mcp.json` |
-| WorkBuddy | `.workbuddy/mcp.json` |
-| ZCode | `.zcode/config.json` |
-| TraeCode | `.trae/mcp.json` |
+| 客户端 | MCP 项目配置 | Skill 项目位置 | 安装后动作 |
+| --- | --- | --- | --- |
+| Kimi Code CLI | `.kimi-code/mcp.json` | `.kimi-code/skills/kjdraw-cad/` | 新建会话，可用 `/skill:kjdraw-cad` 核验 |
+| WorkBuddy | `.workbuddy/mcp.json` | 官方只公开市场/上传安装，没有文件发现路径 | MCP 自动接入；Skill 不伪造自动安装 |
+| ZCode | `.zcode/config.json` | `.zcode/skills/kjdraw-cad/` | 设置 → 技能 → 刷新并确认启用 |
+| TraeCode | `.trae/mcp.json` | `.trae/skills/kjdraw-cad/` | 启用项目级 MCP，重启客户端 |
+
+三份 Skill 都逐文件复制自同一个已打包源，并记录统一 SHA-256。目标不存在才创建；若同名 Skill 内容不一致，整个事务会在写入前拒绝，不覆盖用户文件。WorkBuddy 仍可通过 MCP 工具调用 KJDraw，但其官方文档没有公开可由命令安全写入的 Skill 目录，因此当前不宣称 Skill 自动注册。
 
 连接器不会替换不一致的现有 `kjdraw` 条目：发现冲突时，四份配置和空白图纸都不会写入。添加条目时会保留其它 JSON 字段和 MCP 服务，但 JSON 排版可能被规范化。若 ZCode 的 `.agents/mcp.json` 已有活动服务，连接器也会拒绝创建会遮蔽它的原生配置；请先在 ZCode 中人工合并。
 
