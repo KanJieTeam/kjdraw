@@ -1,6 +1,7 @@
 // Generated from agent-preview.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJCommandRegistry, registerCoreCommands } from './commands.js';
 import { KJValidationError } from './errors.js';
+import { validateTextEdits } from './text-edit.js';
 import { canonicalStringify, deepFreeze } from './utils.js';
 import { projectDimension } from './geometry/annotation.js';
 import { displayedEntityBounds } from './selection-geometry.js';
@@ -497,8 +498,10 @@ export async function createAgentGeometryPreview(document, command, args, option
         'PROPERTIES',
         'DESIGNCREATE',
         'DESIGNUPDATE',
-        'STRUCTURALEDIT'
+        'STRUCTURALEDIT',
+        'TEXTEDIT'
     ].includes(command)) throw new KJValidationError('Unsupported core preview command');
+    const annotationIds = command === 'TEXTEDIT' ? validateTextEdits(args).map((change)=>change.id) : undefined;
     if ([
         'MOVE',
         'COPY',
@@ -550,7 +553,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     if (command === 'CREATEBATCH') {
         if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some((spec)=>!spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} supported drawing and annotation entities`);
     } else if (command !== 'COMPONENTINSERT' && command !== 'STRUCTURALEDIT') {
-        const ids = bindingIds ?? (design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' || command === 'OFFSET' ? [
+        const ids = annotationIds ?? bindingIds ?? (design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' || command === 'OFFSET' ? [
             args.id
         ] : args.ids);
         if (!Array.isArray(ids) || !ids.length || ids.length > 64) throw new KJValidationError('Preview requires 1–64 existing entity IDs');
@@ -594,7 +597,7 @@ export async function createAgentGeometryPreview(document, command, args, option
                 requireEditableAgentMember(document, entity, 'Relayer entity');
                 if (sourceLayer.id === layerId) throw new KJValidationError(`Relayer command contains an unchanged entity: ${entity.id}`);
             }
-        } else if (command !== 'LENGTHEN' && command !== 'OFFSET' && command !== 'DESIGNUPDATE' && command !== 'DESIGNCREATE') {
+        } else if (command !== 'LENGTHEN' && command !== 'OFFSET' && command !== 'DESIGNUPDATE' && command !== 'DESIGNCREATE' && command !== 'TEXTEDIT') {
             if (ids.some((id)=>!KJDRAW_AGENT_MOVABLE_TYPES.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`Preview movement requires 1–64 ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} entities`);
             for (const id of ids)validateMovableAnnotation(document, document.getObject(String(id)));
         }
@@ -610,7 +613,7 @@ export async function createAgentGeometryPreview(document, command, args, option
     }
     const source = document.snapshot(), revision = document.revision;
     if (Object.keys(source.objects).length > 250000) throw new KJValidationError('Agent preview exceeds the 250000 object document limit');
-    const ids = structuralIds ?? bindingIds ?? (design ? design.entityIds : command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? [] : command === 'PEDIT' || command === 'LENGTHEN' || command === 'OFFSET' ? [
+    const ids = annotationIds ?? structuralIds ?? bindingIds ?? (design ? design.entityIds : command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? [] : command === 'PEDIT' || command === 'LENGTHEN' || command === 'OFFSET' ? [
         String(args.id)
     ] : args.ids);
     const blockDependencies = [
@@ -651,7 +654,7 @@ export async function createAgentGeometryPreview(document, command, args, option
             if (command === 'MOVE' || command === 'COPY') validateMovableAnnotation(draft, entity);
             if (affine) validateTransformGeometry(draft, entity);
             if (command === 'LENGTHEN') validateLengthenPreview(draft, args);
-            if (command === 'PEDIT' || command === 'STRETCH' || command === 'LENGTHEN' || command === 'OFFSET') {
+            if (command === 'PEDIT' || command === 'STRETCH' || command === 'LENGTHEN' || command === 'OFFSET' || command === 'TEXTEDIT') {
                 const bounds = displayedEntityBounds(draft, entity);
                 if (!bounds || bounds.some((value)=>!Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError(`${command} preview result exceeds the finite ±1e12 display budget`);
             }

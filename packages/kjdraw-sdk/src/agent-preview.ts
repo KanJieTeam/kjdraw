@@ -1,6 +1,7 @@
 import { KJCommandRegistry, registerCoreCommands } from './commands.js'
 import type { KJDocument } from './document.js'
 import { KJValidationError } from './errors.js'
+import { validateTextEdits } from './text-edit.js'
 import type { KJObjectPayload, KJReadonlyObjectRecord } from './schema.js'
 import { canonicalStringify, deepFreeze, type ReadonlyDeep } from './utils.js'
 import { projectDimension } from './geometry/annotation.js'
@@ -33,7 +34,7 @@ export interface KJAgentGeometryPreview {
   readonly blockDependencies?: readonly KJAgentBlockPreviewDependency[]
   readonly designChange?: { readonly id: string; readonly before: ReadonlyDeep<KJDesignDefinition>; readonly after: ReadonlyDeep<KJDesignDefinition>; readonly record: KJReadonlyObjectRecord; readonly members: readonly KJReadonlyObjectRecord[]; readonly dictionary: { readonly id: string; readonly key: string } }
   readonly recordChanges?: readonly Readonly<{ id: string; before: KJReadonlyObjectRecord; after: KJReadonlyObjectRecord | null }>[]
-  readonly command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'ROAD_DRAWING_UPDATE'
+  readonly command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT' | 'ROAD_DRAWING_UPDATE'
   readonly before: readonly KJAgentPreviewEntity[]
   readonly after: readonly KJAgentPreviewEntity[]
 }
@@ -323,8 +324,9 @@ export interface KJAgentGeometryPreviewOptions {
 }
 
 /** Run bounded core geometry on a detached document. No host plugins, authority, network or source history is invoked. */
-export async function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT', args: Record<string, unknown>, options: KJAgentGeometryPreviewOptions = {}): Promise<KJAgentGeometryPreview> {
-  if (!['CREATEBATCH', 'COMPONENTINSERT', 'MOVE', 'COPY', 'ROTATE', 'SCALE', 'OFFSET', 'STRETCH', 'LENGTHEN', 'PEDIT', 'PROPERTIES', 'DESIGNCREATE', 'DESIGNUPDATE', 'STRUCTURALEDIT'].includes(command)) throw new KJValidationError('Unsupported core preview command')
+export async function createAgentGeometryPreview(document: KJDocument, command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT', args: Record<string, unknown>, options: KJAgentGeometryPreviewOptions = {}): Promise<KJAgentGeometryPreview> {
+  if (!['CREATEBATCH', 'COMPONENTINSERT', 'MOVE', 'COPY', 'ROTATE', 'SCALE', 'OFFSET', 'STRETCH', 'LENGTHEN', 'PEDIT', 'PROPERTIES', 'DESIGNCREATE', 'DESIGNUPDATE', 'STRUCTURALEDIT', 'TEXTEDIT'].includes(command)) throw new KJValidationError('Unsupported core preview command')
+  const annotationIds = command === 'TEXTEDIT' ? validateTextEdits(args).map(change => change.id) : undefined
   if (['MOVE', 'COPY', 'ROTATE', 'SCALE'].includes(command) && Array.isArray(args.ids)) args = { ...args, ids: resolveAgentTransformEntityIds(document, args.ids as string[]) }
   if (command === 'COPY') {
     if (Object.keys(args).some(key => !['ids', 'dx', 'dy', 'resultIds'].includes(key))) throw new KJValidationError('Unexpected COPY preview argument')
@@ -352,7 +354,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   if (command === 'CREATEBATCH') {
     if (!Array.isArray(args.entities) || !args.entities.length || args.entities.length > maxCreatedEntities || args.entities.some(spec => !spec || typeof spec !== 'object' || !creatable.includes(String(spec.type)))) throw new KJValidationError(`Preview creation requires 1–${maxCreatedEntities} supported drawing and annotation entities`)
   } else if (command !== 'COMPONENTINSERT' && command !== 'STRUCTURALEDIT') {
-    const ids = bindingIds ?? (design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' || command === 'OFFSET' ? [args.id] : args.ids)
+    const ids = annotationIds ?? bindingIds ?? (design ? design.entityIds : command === 'PEDIT' || command === 'LENGTHEN' || command === 'OFFSET' ? [args.id] : args.ids)
     if (!Array.isArray(ids) || !ids.length || ids.length > 64) throw new KJValidationError('Preview requires 1–64 existing entity IDs')
     if (command === 'PEDIT') {
       if (typeof args.id !== 'string' || ids.length !== 1 || !['LWPOLYLINE', 'POLYLINE'].includes(document.getObject(args.id)?.type ?? '')) throw new KJValidationError('PEDIT preview requires one LWPOLYLINE or POLYLINE ID')
@@ -382,7 +384,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
         requireEditableAgentMember(document, entity, 'Relayer entity')
         if (sourceLayer.id === layerId) throw new KJValidationError(`Relayer command contains an unchanged entity: ${entity.id}`)
       }
-    } else if (command !== 'LENGTHEN' && command !== 'OFFSET' && command !== 'DESIGNUPDATE' && command !== 'DESIGNCREATE') {
+    } else if (command !== 'LENGTHEN' && command !== 'OFFSET' && command !== 'DESIGNUPDATE' && command !== 'DESIGNCREATE' && command !== 'TEXTEDIT') {
       if (ids.some(id => !KJDRAW_AGENT_MOVABLE_TYPES.includes(document.getObject(String(id))?.type ?? ''))) throw new KJValidationError(`Preview movement requires 1–64 ${KJDRAW_AGENT_MOVABLE_TYPES.join('/')} entities`)
       for (const id of ids) validateMovableAnnotation(document, document.getObject(String(id))!)
     }
@@ -398,7 +400,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
   }
   const source = document.snapshot(), revision = document.revision
   if (Object.keys(source.objects).length > 250000) throw new KJValidationError('Agent preview exceeds the 250000 object document limit')
-  const ids = structuralIds ?? bindingIds ?? (design ? design.entityIds : command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? [] : command === 'PEDIT' || command === 'LENGTHEN' || command === 'OFFSET' ? [String(args.id)] : args.ids as string[])
+  const ids = annotationIds ?? structuralIds ?? bindingIds ?? (design ? design.entityIds : command === 'CREATEBATCH' || command === 'COMPONENTINSERT' ? [] : command === 'PEDIT' || command === 'LENGTHEN' || command === 'OFFSET' ? [String(args.id)] : args.ids as string[])
   const blockDependencies = ['MOVE', 'COPY', 'ROTATE', 'SCALE'].includes(command) ? captureAgentBlockDependencies(document, ids) : undefined
   const workingSet = command === 'CREATEBATCH' ? args.entities : command === 'COMPONENTINSERT' ? args : command === 'STRUCTURALEDIT' ? { existing: ids.map(id => document.getObject(id)), reconnections: args.reconnections } : ids.map(id => document.getObject(id))
   if (new TextEncoder().encode(JSON.stringify({ args, workingSet, ...(design ? { design: document.getObject(design.id) } : {}) })).length > 4194304) throw new KJValidationError('Agent preview working set exceeds the 4 MiB limit')
@@ -417,7 +419,7 @@ export async function createAgentGeometryPreview(document: KJDocument, command: 
       if (command === 'MOVE' || command === 'COPY') validateMovableAnnotation(draft, entity)
       if (affine) validateTransformGeometry(draft, entity)
       if (command === 'LENGTHEN') validateLengthenPreview(draft, args)
-      if (command === 'PEDIT' || command === 'STRETCH' || command === 'LENGTHEN' || command === 'OFFSET') {
+      if (command === 'PEDIT' || command === 'STRETCH' || command === 'LENGTHEN' || command === 'OFFSET' || command === 'TEXTEDIT') {
         const bounds = displayedEntityBounds(draft, entity)
         if (!bounds || bounds.some(value => !Number.isFinite(value) || Math.abs(value) > 1e12)) throw new KJValidationError(`${command} preview result exceeds the finite ±1e12 display budget`)
       }

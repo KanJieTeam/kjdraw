@@ -13,7 +13,7 @@ import { capabilityReference, createKJDrawBuiltinCapabilityRegistry, matchKJDraw
 // This workbench exposes general geometry and annotated creation tools; SDK callers and locked capability packs keep their own policies.
 export const KJDRAW_CHAT_TOOL_NAMES = Object.freeze([
   'cad_read_drawing', 'cad_read_page', 'cad_query_drawing', 'cad_query_topology', 'cad_query_impact', 'cad_read_layouts', 'cad_read_designs', 'cad_read_components', 'cad_propose_component_insert', 'cad_propose_design_bind', 'cad_propose_design_update',
-  'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet',
+  'cad_measure_distance', 'cad_check_geometry', 'cad_propose_move', 'cad_propose_relayer', 'cad_propose_structural_edit', 'cad_propose_text_edit', 'cad_propose_copy', 'cad_propose_rotate', 'cad_propose_scale', 'cad_propose_offset', 'cad_propose_stretch', 'cad_propose_lengthen', 'cad_propose_polyline_edit', 'cad_propose_drawing_pattern', 'cad_propose_drawing_annotated', 'cad_propose_manufacturing_sheet',
   'cad_propose_architecture_plan', 'cad_propose_cartesian_chart',
 ])
 const meterToolNames = Object.freeze([...KJDRAW_CHAT_TOOL_NAMES.filter(name=>!['cad_propose_manufacturing_sheet','cad_propose_architecture_plan','cad_propose_cartesian_chart'].includes(name)), 'cad_propose_site_plan', 'cad_propose_road_drawing'])
@@ -71,6 +71,7 @@ const copy = {
   taskUnavailable: ['This task cannot run here. Check its status, drawing revision, scoped objects, tool contract and deterministic acceptance checks. No model request was made.', '该任务无法在此执行。请检查状态、图纸版本、对象范围、工具契约及确定性验收条件。未发送模型请求。'],
   taskApprovalFailed: ['Task approval did not complete. No completion receipt is shown; inspect the drawing and task before retrying.', '任务审批未完成，不显示完成回执；请检查图纸和任务后再重试。'],
   taskReceipt: ['Committed task receipt', '任务提交回执'],
+  textChanges: ['Exact text changes', '精确文字修改'],
   actual: ['Actual', '实测'], expected: ['Expected', '目标'], tolerance: ['Tolerance', '容差'], check: ['Check', '检查项'],
   checkScope: ['Checks the supplied requirements at this revision; does not certify the complete design.', '仅检查该版本中提供的要求，不代表整张图纸已完成验收。'],
   offline: ['No model connected', '尚未连接模型'], configured: ['Model configured', '模型已配置'],
@@ -327,6 +328,12 @@ export function createAgentChat(container, options) {
     const state=element('p','chat-proposal-state',L('pending')), actions=element('div','chat-card-actions')
     const preview=button('preview'), approve=button('approve','chat-primary'), reject=button('reject')
     actions.append(preview,approve,reject); card.append(summary,state,actions)
+    if(proposal.command==='TEXTEDIT'){
+      const details=element('div','chat-text-changes'),previous=new Map(proposal.preview.before.map(entity=>[entity.id,entity.payload.text]))
+      details.append(element('p','',L('textChanges')))
+      for(const entity of proposal.preview.after){const row=element('div','chat-text-change');row.dataset.entityId=entity.id;row.append(element('code','',entity.id),element('pre','chat-text-before',previous.get(entity.id)),element('span','','→'),element('pre','chat-text-after',entity.payload.text));details.append(row)}
+      card.insertBefore(details,state)
+    }
     if(persistedTask)card.insertBefore(element('p','chat-task-proposal',`${L('savedTasks')} · ${persistedTask.id} · v${persistedTask.version}`),state)
     if(proposal.selectionSet){
       const selection=proposal.selectionSet, details=element('details','chat-selection-target'), heading=element('summary')

@@ -99,3 +99,5 @@
 .chat-task-details p, .chat-task-receipt { overflow-wrap: anywhere; }
 .chat-persisted-tasks .chat-task-error { color: #a82a37; }
 .chat-persisted-tasks .chat-task-error:empty { display: none; }
+.chat-text-change { border-top: 1px solid var(--kj-border); padding: 6px 0; }
+.chat-text-change pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 120px; overflow: auto; font: 11px/1.5 var(--kj-mono); }

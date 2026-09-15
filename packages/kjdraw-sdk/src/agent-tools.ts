@@ -306,6 +306,7 @@ const componentInsertSchemaBase = object({
 const componentInsertSchema: KJAgentToolSchema = { ...componentInsertSchemaBase, required: ['expectedRevision', 'units', 'componentId', 'version', 'parameters', 'position', 'scale', 'rotationDegrees'] }
 
 export const KJDRAW_AGENT_TOOLS: readonly KJAgentToolDefinition[] = deepFreeze([
+  { name: 'cad_propose_text_edit', effect: 'propose', description: 'Propose one atomic batch of 1–64 exact native TEXT/MTEXT content replacements. Query existing object IDs and complete text first. Each change supplies id, expectedText and text; every expectedText must match exactly at expectedRevision. Preserves IDs, handles, positions, layers, styles, ownership and references. Raw MTEXT formatting is part of the text; preserve it unless explicitly asked to change it. No regex, inferred targets, blank replacement, dynamic field expressions, dimension text overrides, block attributes or paper/block-space editing. Hidden, frozen, locked or stale objects reject the whole batch. Review the complete before/after text before host approval; approval is one undoable TEXTEDIT transaction.', inputSchema: object({ expectedRevision: revision, units: text, changes: collection(object({ id: text, expectedText: { type: 'string', maxLength: 16384 }, text: { type: 'string', minLength: 1, maxLength: 16384 } })) }) },
   { name: 'cad_read_components', effect: 'read', description: 'Search the bounded versioned KJDraw component catalog. Returns exact IDs, versions, parameters and SPDX license metadata. Use the returned version with cad_propose_component_insert. This reads catalog data and does not modify the drawing.', inputSchema: componentSearchSchema },
   { name: 'cad_propose_component_insert', effect: 'propose', description: 'Propose one licensed native component as an editable INSERT with a reusable BLOCK_RECORD. Supply the exact catalog ID/version, every changed parameter as {name,value}, model-space position, positive uniform scale and rotation in degrees. The current or supplied editable layer is used. Returns the complete definition and instance preview; a trusted host must approve before one undoable commit.', inputSchema: componentInsertSchema },
   { name: 'cad_propose_design_bind', effect: 'propose', description: 'Propose a named persistent design relation over already-correct visible editable model-space native geometry, without replacing or moving it. definition has independent parameters {name,value,min,max}, derived {name,expression}, bindings {entityId,path,expression}, requirements {name,expression,min,max}. Expressions are constant + sum(coefficient*parameter); names are ASCII identifiers, dependencies must be acyclic, every bound initial value must match. LINE paths start.0/1,end.0/1; CIRCLE center.0/1,radius; LWPOLYLINE vertices.N.0/1; native linear DIMENSION definitionPoints.N.0/1. Axes 0/1 are XY; other geometry and Z are preserved. Maximum 64 entities/256 bindings, no duplicate geometry fields or existing design ownership. Requirements bound expression values, not general geometric constraint solving. Query native IDs/units/coordinates first. Returns exact parameters, bindings and full design record for host approval; one undoable relation creation, then cad_propose_design_update can modify the same geometry. Save KJD/KJP for persistence.', inputSchema: object({ expectedRevision: revision, units: text, name: { ...text, maxLength: 128 }, definition: designDefinition }) },
@@ -686,7 +687,7 @@ export class KJAgentToolSession {
             value = { documentId: document.id, revision: document.revision, units: args.units, distance: Math.hypot(b[0] - a[0], b[1] - a[1]) }
           } else {
             if (this.#proposals >= 128) throw new KJValidationError('Session proposal limit reached; ask the host to open a new session')
-            let command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' = 'CREATEBATCH'
+            let command: 'CREATEBATCH' | 'COMPONENTINSERT' | 'MOVE' | 'COPY' | 'ROTATE' | 'SCALE' | 'OFFSET' | 'STRETCH' | 'LENGTHEN' | 'PEDIT' | 'PROPERTIES' | 'DESIGNCREATE' | 'DESIGNUPDATE' | 'STRUCTURALEDIT' | 'TEXTEDIT' = 'CREATEBATCH'
             let commandArgs: Record<string, unknown>
             let engineeringEvidence: unknown
             let sourceAsset: ReadonlyDeep<KJAgentInputAssetDescriptor> | undefined
@@ -786,6 +787,9 @@ export class KJAgentToolSession {
                 if (circle.radius <= 0) throw new KJValidationError('Circle radius must be positive')
                 return { type: 'CIRCLE', payload: { center: xy(circle.center), radius: circle.radius }, options: { id: createId('entity'), ownerId: document.spaces.modelSpaceId } }
               }) }
+            } else if (name === 'cad_propose_text_edit') {
+              command = 'TEXTEDIT'
+              commandArgs = { changes: args.changes }
             } else if (name === 'cad_propose_design_bind') {
               command = 'DESIGNCREATE'
               commandArgs = { id: createId('design'), name: args.name, definition: args.definition }

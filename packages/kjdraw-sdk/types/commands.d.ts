@@ -319,6 +319,15 @@ export declare const KJ_CORE_COMMAND_CAPABILITIES: {
         readonly reconnectEntityTypes: readonly string[];
         readonly semanticInference: string;
     };
+    readonly TEXTEDIT: {
+        readonly domain: string;
+        readonly precision: string;
+        readonly supportedEntityTypes: readonly string[];
+        readonly atomic: boolean;
+        readonly stableIdentity: boolean;
+        readonly maximumChangedEntities: number;
+        readonly requiresExpectedText: boolean;
+    };
     readonly ROAD_DRAWING_UPDATE: {
         domain: string;
         atomic: boolean;

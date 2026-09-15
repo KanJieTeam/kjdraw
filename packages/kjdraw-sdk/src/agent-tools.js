@@ -1339,6 +1339,27 @@ const componentInsertSchema = {
 };
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
+        name: 'cad_propose_text_edit',
+        effect: 'propose',
+        description: 'Propose one atomic batch of 1–64 exact native TEXT/MTEXT content replacements. Query existing object IDs and complete text first. Each change supplies id, expectedText and text; every expectedText must match exactly at expectedRevision. Preserves IDs, handles, positions, layers, styles, ownership and references. Raw MTEXT formatting is part of the text; preserve it unless explicitly asked to change it. No regex, inferred targets, blank replacement, dynamic field expressions, dimension text overrides, block attributes or paper/block-space editing. Hidden, frozen, locked or stale objects reject the whole batch. Review the complete before/after text before host approval; approval is one undoable TEXTEDIT transaction.',
+        inputSchema: object({
+            expectedRevision: revision,
+            units: text,
+            changes: collection(object({
+                id: text,
+                expectedText: {
+                    type: 'string',
+                    maxLength: 16384
+                },
+                text: {
+                    type: 'string',
+                    minLength: 1,
+                    maxLength: 16384
+                }
+            }))
+        })
+    },
+    {
         name: 'cad_read_components',
         effect: 'read',
         description: 'Search the bounded versioned KJDraw component catalog. Returns exact IDs, versions, parameters and SPDX license metadata. Use the returned version with cad_propose_component_insert. This reads catalog data and does not modify the drawing.',
@@ -2586,6 +2607,11 @@ export class KJAgentToolSession {
                                         }
                                     };
                                 })
+                            };
+                        } else if (name === 'cad_propose_text_edit') {
+                            command = 'TEXTEDIT';
+                            commandArgs = {
+                                changes: args.changes
                             };
                         } else if (name === 'cad_propose_design_bind') {
                             command = 'DESIGNCREATE';
