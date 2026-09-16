@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto'
 import { lstat, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -15,8 +16,8 @@ const HELP = `KJDraw ${KJDRAW_VERSION}
 Headless CAD document tools
 
 Usage:
-  kjdraw onboard
-  kjdraw doctor
+  kjdraw onboard               Install KJDraw for the current user
+  kjdraw doctor                Inspect the current user's installation
   kjdraw inspect <drawing.kjd|drawing.dxf|project.kjp>
   kjdraw validate <drawing.kjd|drawing.dxf|project.kjp>
   kjdraw convert <input> <output.kjd|output.dxf|output.kjp> [--dxf-version 2018]
@@ -30,8 +31,7 @@ const MCP_SCRIPT = fileURLToPath(new URL('./kjdraw-mcp.mjs', import.meta.url))
 const CONFIGS = Object.freeze([
   { client: 'Kimi Code', path: '.kimi-code/mcp.json', keys: ['mcpServers'] },
   { client: 'WorkBuddy', path: '.workbuddy/mcp.json', keys: ['mcpServers'] },
-  { client: 'ZCode', path: '.zcode/config.json', keys: ['mcp', 'servers'] },
-  { client: 'TraeCode', path: '.trae/mcp.json', keys: ['mcpServers'] },
+  { client: 'ZCode', path: '.zcode/cli/config.json', keys: ['mcp', 'servers'] },
 ])
 const SKILLS = Object.freeze([
   { client: 'Kimi Code CLI', path: '.kimi-code/skills/kjdraw-cad' },
@@ -52,10 +52,10 @@ function inside(root, candidate) {
   return part === '' || (part !== '..' && !part.startsWith(`..${sep}`) && !isAbsolute(part))
 }
 
-async function workspaceRoot() {
-  const requested = resolve(process.cwd())
+async function userRoot() {
+  const requested = resolve(process.env.KJDRAW_USER_HOME || homedir())
   const info = await item(requested)
-  if (!info?.isDirectory() || info.isSymbolicLink()) throw new Error('Current project must be a real directory, not a symbolic link')
+  if (!info?.isDirectory() || info.isSymbolicLink()) throw new Error('Current user home must be a real directory, not a symbolic link')
   return realpath(requested)
 }
 
@@ -75,26 +75,34 @@ async function projectPath(root, relativePath) {
 }
 
 async function onboard(args) {
-  if (args.length) throw new Error('onboard takes no arguments; run it inside the project to connect')
-  const workspace = await workspaceRoot()
+  if (args.length) throw new Error('onboard takes no arguments')
+  const workspace = await userRoot()
   const host = join(workspace, '.kjdraw', 'host.kjd')
   const hostInfo = await item(host)
   const { connectWorkspace } = await import('./kjdraw-connect-apply.mjs')
   const result = await connectWorkspace({
     all: true,
     apply: true,
+    scope: 'user',
     workspace,
     proposalDir: '.kjdraw/proposals',
     ...(hostInfo ? { input: '.kjdraw/host.kjd' } : { blank: '.kjdraw/host.kjd', units: 'millimeter' }),
   })
+  const trae = result.clients.find(client => client.client === 'TraeCode')
+  if (trae?.installUrl) {
+    const path = join(workspace, '.kjdraw', 'trae-install-url.txt')
+    const current = await item(path)
+    if (current && (!current.isFile() || current.isSymbolicLink())) throw new Error('TraeCode import link path is unsafe')
+    if (!current || await readFile(path, 'utf8') !== trae.installUrl) await writeFile(path, trae.installUrl, { mode: 0o600 })
+  }
   return {
     command: 'onboard',
     ...result,
     verification: {
-      projectConfigurationInstalled: true,
+      userConfigurationInstalled: true,
       guiVerified: false,
       realModelVerified: false,
-      next: 'Restart each client, trust this project, enable project MCP where required, and verify kjdraw in a new session.',
+      next: 'Restart Kimi Code, WorkBuddy, or ZCode. Confirm the returned official TraeCode import link once, then verify kjdraw in a new session.',
     },
   }
 }
@@ -152,8 +160,8 @@ async function skillCheck(workspace, target, source) {
 }
 
 async function doctor(args) {
-  if (args.length) throw new Error('doctor takes no arguments; run it inside the project to inspect')
-  const workspace = await workspaceRoot()
+  if (args.length) throw new Error('doctor takes no arguments')
+  const workspace = await userRoot()
   const checks = []
   const major = Number.parseInt(process.versions.node.split('.')[0], 10)
   checks.push({ id: 'node', status: major >= 22 ? 'ok' : 'unsupported', version: process.versions.node, required: '>=22' })
@@ -184,6 +192,15 @@ async function doctor(args) {
     const checked = await projectPath(workspace, config.path)
     checks.push({ id: 'client-config', client: config.client, path: config.path, ...await readJsonCheck(checked.path, config.keys, { workspace }, checked.safe) })
   }
+  const traeImport = await projectPath(workspace, '.kjdraw/trae-install-url.txt')
+  const traeInfo = await item(traeImport.path)
+  let traeStatus = 'missing'
+  if (traeImport.safe && traeInfo?.isFile() && !traeInfo.isSymbolicLink() && traeInfo.size <= CONFIG_LIMIT) {
+    const value = await readFile(traeImport.path, 'utf8')
+    traeStatus = value.startsWith('trae-cn://trae.ai-ide/mcp-import?') ? 'confirmation-required' : 'invalid'
+  } else if (!traeImport.safe) traeStatus = 'unsafe-path'
+  else if (traeInfo) traeStatus = 'unsafe-file-type'
+  checks.push({ id: 'client-config', client: 'TraeCode', path: '.kjdraw/trae-install-url.txt', status: traeStatus })
 
   const source = new Map()
   const sourceRoot = fileURLToPath(new URL('../skills/kjdraw-cad/', import.meta.url))
@@ -194,9 +211,9 @@ async function doctor(args) {
     note: 'WorkBuddy documents Marketplace/upload installation, not a project-local Skill discovery path.',
   })
 
-  const ok = checks.every(check => check.status === 'ok' || check.status === 'manual-installation-required')
+  const ok = checks.every(check => check.status === 'ok' || check.status === 'manual-installation-required' || check.status === 'confirmation-required')
   return {
-    command: 'doctor', ok, sdkVersion: KJDRAW_VERSION, workspace, checks,
+    command: 'doctor', ok, sdkVersion: KJDRAW_VERSION, userHome: workspace, checks,
     verification: {
       filesInspected: true,
       writesPerformed: 0,

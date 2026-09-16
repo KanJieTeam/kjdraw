@@ -9,13 +9,18 @@ import { createKJDrawSDK } from '../src/sdk.js'
 import { validateKnowledgePack } from '../src/knowledge-pack.js'
 import { KJDRAW_VERSION } from '../src/version.js'
 
-const CLIENTS = Object.freeze([
+const PROJECT_CLIENTS = Object.freeze([
   { name: 'Kimi Code', path: '.kimi-code/mcp.json', keys: ['mcpServers'] },
   // Official WorkBuddy MCP guide: project .workbuddy/mcp.json, mcpServers,
   // local command/args entry. Configuration alone does not verify its GUI.
   { name: 'WorkBuddy', path: '.workbuddy/mcp.json', keys: ['mcpServers'], guide: 'https://www.workbuddy.ai/docs/zh/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/MCP-Guide' },
   { name: 'ZCode', path: '.zcode/config.json', keys: ['mcp', 'servers'] },
   { name: 'TraeCode', path: '.trae/mcp.json', keys: ['mcpServers'] },
+])
+const USER_CLIENTS = Object.freeze([
+  { name: 'Kimi Code', path: '.kimi-code/mcp.json', keys: ['mcpServers'] },
+  { name: 'WorkBuddy', path: '.workbuddy/mcp.json', keys: ['mcpServers'], guide: 'https://www.workbuddy.ai/docs/zh/workbuddy/From-Beginner-to-Expert-Guide/Function-Description/MCP-Guide' },
+  { name: 'ZCode', path: '.zcode/cli/config.json', keys: ['mcp', 'servers'] },
 ])
 const MAX_CONFIG_BYTES = 1024 * 1024
 const MAX_DRAWING_BYTES = 64 * 1024 * 1024
@@ -28,22 +33,23 @@ const SKILL_TARGETS = Object.freeze([
 ])
 
 function usage() {
-  return `Usage: kjdraw-connect --all --workspace <project> (--input <existing.kjd|drawing.dxf> | --blank <new.kjd> --units millimeter|meter) [--proposal-dir .kjdraw/proposals] [--geology-column-pack <relative.json> --geology-column-pack-sha256 <sha256>] [--apply]\n\nWithout --apply this is a read-only preview. One transaction connects project-level Kimi Code, WorkBuddy, ZCode and TraeCode MCP entries named kjdraw and installs the canonical project Skill where the client exposes a verified local discovery path. Host review is required for every pending proposal.`
+  return `Usage: kjdraw-connect --all --workspace <directory> [--scope project|user] (--input <existing.kjd|drawing.dxf> | --blank <new.kjd> --units millimeter|meter) [--proposal-dir .kjdraw/proposals] [--geology-column-pack <relative.json> --geology-column-pack-sha256 <sha256>] [--apply]\n\nWithout --apply this is a read-only preview. Project scope writes project configuration. User scope writes verified user-level Kimi Code, WorkBuddy, and ZCode configuration under the supplied user home and returns TraeCode's official confirmation link. Host review is required for every pending proposal.`
 }
 
 function parseArgs(argv) {
   if (argv.includes('--help') || argv.includes('-h')) return { help: true }
-  const options = { apply: false, all: false, proposalDir: '.kjdraw/proposals' }
+  const options = { apply: false, all: false, proposalDir: '.kjdraw/proposals', scope: 'project' }
   const seen = new Set()
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i]
     if (seen.has(key)) throw new Error(`Duplicate option: ${key}`)
     seen.add(key)
     if (key === '--all' || key === '--apply') { options[key.slice(2)] = true; continue }
-    if (!['--workspace', '--input', '--blank', '--units', '--proposal-dir', '--geology-column-pack', '--geology-column-pack-sha256'].includes(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('Unknown or incomplete option')
+    if (!['--workspace', '--scope', '--input', '--blank', '--units', '--proposal-dir', '--geology-column-pack', '--geology-column-pack-sha256'].includes(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('Unknown or incomplete option')
     options[key === '--proposal-dir' ? 'proposalDir' : key.slice(2)] = argv[++i]
   }
   if (!options.all || !options.workspace) throw new Error('--all and --workspace are required')
+  if (!['project', 'user'].includes(options.scope)) throw new Error('--scope must be project or user')
   if (Boolean(options.input) === Boolean(options.blank)) throw new Error('Choose exactly one of --input or --blank')
   if (options.blank && !['millimeter', 'meter'].includes(options.units)) throw new Error('--blank requires --units millimeter|meter')
   if (options.input && options.units) throw new Error('--units is only for --blank')
@@ -260,6 +266,8 @@ async function prepareDrawing(root, options) {
 }
 
 export async function connectWorkspace(options, hooks = {}) {
+  const scope = options.scope ?? 'project'
+  if (!['project', 'user'].includes(scope)) throw new Error('--scope must be project or user')
   const rawRoot = resolve(options.workspace)
   const rootInfo = await item(rawRoot)
   if (!rootInfo?.isDirectory() || rootInfo.isSymbolicLink()) throw new Error('--workspace must be a real directory, not a symbolic link')
@@ -291,8 +299,9 @@ export async function connectWorkspace(options, hooks = {}) {
   // 'node' avoids an ephemeral desktop runtime path and TraeCode's no-spaces command rule.
   const entry = { command: 'node', args: [mcpPath, '--workspace', root, '--input', drawing.name, '--proposal-dir', relative(root, proposals).split(sep).join('/'),
     ...(geologyColumnKnowledge ? ['--geology-column-pack', geologyColumnKnowledge.path, '--geology-column-pack-sha256', geologyColumnKnowledge.sha256] : [])] }
+  const clients = scope === 'user' ? USER_CLIENTS : PROJECT_CLIENTS
   const plans = []
-  for (const client of CLIENTS) {
+  for (const client of clients) {
     const path = await checkedPath(root, client.path, client.name, 'file')
     const original = await readConfig(path)
     if (client.name === 'ZCode' && !Object.keys(original.value?.mcp?.servers ?? {}).length) {
@@ -303,11 +312,19 @@ export async function connectWorkspace(options, hooks = {}) {
     const content = merged(original.value, client.keys, entry, client.name === 'WorkBuddy')
     plans.push({ ...client, path, original: original.bytes, beforeSha: original.bytes ? sha(original.bytes) : null, content })
   }
+  const traeInstallUrl = scope === 'user'
+    ? `trae-cn://trae.ai-ide/mcp-import?type=stdio&name=kjdraw&config=${encodeURIComponent(Buffer.from(JSON.stringify(entry)).toString('base64'))}`
+    : null
   const changed = plans.filter(plan => plan.content)
-  const configurationEvidence = { guiVerified: false, engineInvoked: false, approvalRoute: 'trusted-host-only', serverEntryName: 'kjdraw', workBuddyGuide: CLIENTS[1].guide, node: nodeEvidence,
+  const configurationEvidence = { guiVerified: false, engineInvoked: false, approvalRoute: 'trusted-host-only', serverEntryName: 'kjdraw', scope, workBuddyGuide: clients.find(client => client.name === 'WorkBuddy')?.guide, node: nodeEvidence,
+    ...(traeInstallUrl ? { traeInstallUrl, traeGuide: 'https://docs.trae.cn/ide_mcp-server-install-links' } : {}),
     ...(geologyColumnKnowledge ? { geologyColumnKnowledge } : {}) }
   const skillEvidence = { canonicalSha256: skill.sha256, workBuddy: 'MCP connected; WorkBuddy only documents Marketplace Skill installation, so no unverified local Skill path is written.', targets: skillPlans.map(plan => ({ path: relative(root, plan.path).split(sep).join('/'), clients: plan.clients, action: plan.action, activation: plan.activation })) }
-  if (!options.apply) return { applied: false, clients: plans.map(plan => ({ client: plan.name, action: plan.content ? 'add' : 'unchanged', status: 'project-config-candidate-not-GUI-verified' })), skills: skillEvidence, drawing: drawing.serialized ? 'create blank' : 'existing', proposalDirectory: 'verified or create', sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256, configurationEvidence }
+  const clientEvidence = () => [
+    ...plans.map(plan => ({ client: plan.name, action: plan.content ? (options.apply ? 'added' : 'add') : 'unchanged', status: `${scope}-config-candidate-not-GUI-verified` })),
+    ...(traeInstallUrl ? [{ client: 'TraeCode', action: 'confirm-import', status: 'user-import-confirmation-required', installUrl: traeInstallUrl }] : []),
+  ]
+  if (!options.apply) return { applied: false, clients: clientEvidence(), skills: skillEvidence, drawing: drawing.serialized ? 'create blank' : 'existing', proposalDirectory: 'verified or create', sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256, configurationEvidence }
   const created = []
   const staged = []
   const backups = []
@@ -357,7 +374,7 @@ export async function connectWorkspace(options, hooks = {}) {
       await rename(plan.temp, plan.path)
       committedSkills.push(plan)
     }
-    return { applied: true, clients: plans.map(plan => ({ client: plan.name, action: plan.content ? 'added' : 'unchanged', status: 'project-config-candidate-not-GUI-verified' })), skills: skillEvidence, drawing: drawing.serialized ? 'created blank' : 'existing', backupCount: backups.length, transientBackupCount: backups.length, retainedBackupCount: 0, sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256, configurationEvidence }
+    return { applied: true, clients: clientEvidence(), skills: skillEvidence, drawing: drawing.serialized ? 'created blank' : 'existing', backupCount: backups.length, transientBackupCount: backups.length, retainedBackupCount: 0, sdkVersion: KJDRAW_VERSION, mcpScriptSha256: sourceSha256, configurationEvidence }
   } catch (error) {
     const rollbackConflicts = []
     for (const plan of committedSkills.reverse()) {

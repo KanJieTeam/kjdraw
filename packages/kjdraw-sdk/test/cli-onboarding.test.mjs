@@ -9,11 +9,11 @@ import test from 'node:test'
 
 const cli = fileURLToPath(new URL('../bin/kjdraw.mjs', import.meta.url))
 const packageFile = fileURLToPath(new URL('../package.json', import.meta.url))
-const configs = ['.kimi-code/mcp.json', '.workbuddy/mcp.json', '.zcode/config.json', '.trae/mcp.json']
+const configs = ['.kimi-code/mcp.json', '.workbuddy/mcp.json', '.zcode/cli/config.json']
 const skills = ['.kimi-code/skills/kjdraw-cad/SKILL.md', '.zcode/skills/kjdraw-cad/SKILL.md', '.trae/skills/kjdraw-cad/SKILL.md']
 
 function run(cwd, args) {
-  return spawnSync(process.execPath, [cli, ...args], { cwd, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 })
+  return spawnSync(process.execPath, [cli, ...args], { cwd, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024, env: { ...process.env, KJDRAW_USER_HOME: cwd } })
 }
 
 async function fixture(t) {
@@ -62,7 +62,7 @@ test('kjdraw doctor is read-only and reports missing onboarding without claiming
   assert.deepEqual(await fingerprint(root), before)
 })
 
-test('kjdraw onboard connects the current project, is idempotent, and doctor verifies only local files', async t => {
+test('kjdraw onboard connects the current user home, is idempotent, and doctor verifies only local files', async t => {
   const root = await fixture(t)
   const first = run(root, ['onboard'])
   assert.equal(first.status, 0, first.stderr)
@@ -71,10 +71,11 @@ test('kjdraw onboard connects the current project, is idempotent, and doctor ver
   assert.equal(receipt.applied, true)
   assert.equal(receipt.drawing, 'created blank')
   assert.equal(receipt.clients.length, 4)
-  assert.equal(receipt.verification.projectConfigurationInstalled, true)
+  assert.equal(receipt.verification.userConfigurationInstalled, true)
   assert.equal(receipt.verification.guiVerified, false)
   assert.equal(receipt.verification.realModelVerified, false)
-  for (const path of [...configs, ...skills, '.kjdraw/host.kjd']) assert.ok((await stat(join(root, path))).isFile())
+  for (const path of [...configs, ...skills, '.kjdraw/host.kjd', '.kjdraw/trae-install-url.txt']) assert.ok((await stat(join(root, path))).isFile())
+  assert.match(await readFile(join(root, '.kjdraw/trae-install-url.txt'), 'utf8'), /^trae-cn:\/\/trae\.ai-ide\/mcp-import\?/)
 
   const afterFirst = await fingerprint(root)
   const second = run(root, ['onboard'])
@@ -89,23 +90,24 @@ test('kjdraw onboard connects the current project, is idempotent, and doctor ver
   assert.equal(report.verification.writesPerformed, 0)
   assert.equal(report.verification.guiVerified, false)
   assert.equal(report.verification.realModelVerified, false)
-  assert.ok(report.checks.filter(check => check.id === 'client-config').every(check => check.status === 'ok'))
+  assert.ok(report.checks.filter(check => check.id === 'client-config' && check.client !== 'TraeCode').every(check => check.status === 'ok'))
+  assert.equal(report.checks.find(check => check.client === 'TraeCode' && check.id === 'client-config').status, 'confirmation-required')
   assert.ok(report.checks.filter(check => check.id === 'client-skill' && check.client !== 'WorkBuddy').every(check => check.status === 'ok'))
   assert.deepEqual(await fingerprint(root), afterFirst)
 
-  const config = join(root, '.trae/mcp.json')
+  const config = join(root, '.zcode/cli/config.json')
   const value = JSON.parse(await readFile(config, 'utf8'))
-  value.mcpServers.kjdraw.args[value.mcpServers.kjdraw.args.indexOf('--input') + 1] = '.kjdraw/other.kjd'
+  value.mcp.servers.kjdraw.args[value.mcp.servers.kjdraw.args.indexOf('--input') + 1] = '.kjdraw/other.kjd'
   await writeFile(config, `${JSON.stringify(value, null, 2)}\n`)
   const beforeMismatch = await fingerprint(root)
   const mismatch = run(root, ['doctor'])
   assert.equal(mismatch.status, 1, mismatch.stderr)
   const mismatchReport = JSON.parse(mismatch.stdout)
-  assert.equal(mismatchReport.checks.find(check => check.client === 'TraeCode' && check.id === 'client-config').status, 'mismatched-kjdraw-entry')
+  assert.equal(mismatchReport.checks.find(check => check.client === 'ZCode' && check.id === 'client-config').status, 'mismatched-kjdraw-entry')
   assert.deepEqual(await fingerprint(root), beforeMismatch)
 })
 
-test('onboard and doctor reject unexpected arguments before project changes', async t => {
+test('onboard and doctor reject unexpected arguments before user-home changes', async t => {
   const root = await fixture(t)
   for (const command of ['onboard', 'doctor']) {
     const response = run(root, [command, '--workspace', root])

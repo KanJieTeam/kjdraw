@@ -13,8 +13,9 @@ test('one-line AI bootstraps pin one public candidate and connect all clients wi
     assert.match(source, new RegExp(pinned))
     assert.match(source, /kjdraw-connect\.mjs/)
     assert.match(source, /codeload\.github\.com\/KanJieTeam\/kjdraw/)
-    assert.match(source, /--all --apply --workspace/)
+    assert.match(source, /--all --apply --scope user --workspace/)
     assert.match(source, /--input ['"]?\.kjdraw\/host\.kjd|--blank ['"]?\.kjdraw\/host\.kjd/)
+    assert.doesNotMatch(source, /KJDRAW_PROJECT|Get-Location|\$PWD/)
     assert.doesNotMatch(source, /\bnpx\b|git clone|push|--force|reset --hard/)
   }
   assert.match(powerShell, /IsPathRooted/)

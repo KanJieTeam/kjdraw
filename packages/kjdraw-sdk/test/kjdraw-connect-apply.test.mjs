@@ -12,6 +12,7 @@ import { createKJDrawSDK } from '../src/sdk.js'
 const script = fileURLToPath(new URL('../bin/kjdraw-connect-apply.mjs', import.meta.url))
 const publicBin = fileURLToPath(new URL('../bin/kjdraw-connect.mjs', import.meta.url))
 const configPaths = ['.kimi-code/mcp.json', '.workbuddy/mcp.json', '.zcode/config.json', '.trae/mcp.json']
+const userConfigPaths = ['.kimi-code/mcp.json', '.workbuddy/mcp.json', '.zcode/cli/config.json']
 const skillTargets = ['.kimi-code/skills/kjdraw-cad', '.zcode/skills/kjdraw-cad', '.trae/skills/kjdraw-cad']
 const skillFiles = ['SKILL.md', 'references/routes.json', 'references/acceptance.md']
 const options = root => ({ all: true, workspace: root, blank: '.kjdraw/active.kjd', units: 'millimeter', proposalDir: '.kjdraw/proposals', apply: true })
@@ -84,6 +85,27 @@ test('preview changes no files; apply initializes a validated blank host drawing
   for (const target of skillTargets) for (const file of skillFiles) {
     assert.deepEqual(await readFile(join(root, target, file)), await readFile(join(sourceSkill, file)))
   }
+})
+
+test('user scope writes only verified global config paths and returns TraeCode official import confirmation', async t => {
+  const root = await fixture(t)
+  const result = await connectWorkspace({ ...options(root), scope: 'user' })
+  assert.equal(result.configurationEvidence.scope, 'user')
+  assert.equal(result.clients.length, 4)
+  assert.deepEqual(result.clients.slice(0, 3).map(client => client.client), ['Kimi Code', 'WorkBuddy', 'ZCode'])
+  assert.ok(result.clients.slice(0, 3).every(client => client.status === 'user-config-candidate-not-GUI-verified'))
+  const trae = result.clients[3]
+  assert.equal(trae.client, 'TraeCode')
+  assert.equal(trae.status, 'user-import-confirmation-required')
+  assert.match(trae.installUrl, /^trae-cn:\/\/trae\.ai-ide\/mcp-import\?type=stdio&name=kjdraw&config=/)
+  const encoded = new URL(trae.installUrl).searchParams.get('config')
+  const imported = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'))
+  assert.equal(imported.command, 'node')
+  assert.ok(imported.args.includes('--workspace'))
+  assert.equal(imported.args[imported.args.indexOf('--workspace') + 1], root)
+  for (const rel of userConfigPaths) assert.ok((await stat(join(root, rel))).isFile())
+  await assert.rejects(readFile(join(root, '.zcode/config.json')), { code: 'ENOENT' })
+  await assert.rejects(readFile(join(root, '.trae/mcp.json')), { code: 'ENOENT' })
 })
 
 test('canonical project skills are idempotent and a conflicting copy blocks every write', async t => {

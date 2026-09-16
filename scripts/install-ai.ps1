@@ -1,11 +1,11 @@
 $ErrorActionPreference = 'Stop'
 
 $KJDrawSourceSha = '80e29bb14d33d68aff024b7098c40116bccd224e'
-$KJDrawProject = if ($env:KJDRAW_PROJECT) { $env:KJDRAW_PROJECT } else { (Get-Location).Path }
+$KJDrawUserHome = if ($env:KJDRAW_USER_HOME) { $env:KJDRAW_USER_HOME } else { $env:USERPROFILE }
 $KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-80e29bb'
 
-if (-not [IO.Path]::IsPathRooted($KJDrawProject) -or -not (Test-Path -LiteralPath $KJDrawProject -PathType Container)) {
-  throw 'Run this command inside an existing project, or set KJDRAW_PROJECT to its absolute path.'
+if (-not $KJDrawUserHome -or -not [IO.Path]::IsPathRooted($KJDrawUserHome) -or -not (Test-Path -LiteralPath $KJDrawUserHome -PathType Container)) {
+  throw 'The current user home directory could not be resolved safely.'
 }
 Get-Command node -CommandType Application -ErrorAction Stop | Out-Null
 node -e "if (+process.versions.node.split('.')[0] < 22) process.exit(1)"
@@ -46,16 +46,26 @@ if (Test-Path -LiteralPath $KJDrawInstall) {
 }
 
 $KJDrawConnect = Join-Path $KJDrawInstall 'packages\kjdraw-sdk\bin\kjdraw-connect.mjs'
-$KJDrawHost = Join-Path $KJDrawProject '.kjdraw\host.kjd'
-Write-Host "Installing KJDraw project configuration in: $KJDrawProject"
+$KJDrawHost = Join-Path $KJDrawUserHome '.kjdraw\host.kjd'
+Write-Host "Installing KJDraw user configuration in: $KJDrawUserHome"
 if (Test-Path -LiteralPath $KJDrawHost -PathType Leaf) {
-  node $KJDrawConnect --all --apply --workspace $KJDrawProject --input '.kjdraw/host.kjd'
+  $KJDrawOutput = @(node $KJDrawConnect --all --apply --scope user --workspace $KJDrawUserHome --input '.kjdraw/host.kjd')
 } else {
-  node $KJDrawConnect --all --apply --workspace $KJDrawProject --blank '.kjdraw/host.kjd' --units millimeter
+  $KJDrawOutput = @(node $KJDrawConnect --all --apply --scope user --workspace $KJDrawUserHome --blank '.kjdraw/host.kjd' --units millimeter)
 }
-if ($LASTEXITCODE -ne 0) { throw 'KJDraw refused the project connection; no conflicting client entry was overwritten.' }
+if ($LASTEXITCODE -ne 0) { throw 'KJDraw refused the user connection; no conflicting client entry was overwritten.' }
+$KJDrawResult = ($KJDrawOutput -join [Environment]::NewLine) | ConvertFrom-Json
+$KJDrawTrae = @($KJDrawResult.clients | Where-Object { $_.client -eq 'TraeCode' })[0]
+if ($KJDrawTrae.installUrl) {
+  $KJDrawTraeFile = Join-Path $KJDrawUserHome '.kjdraw\trae-install-url.txt'
+  Set-Content -LiteralPath $KJDrawTraeFile -Value $KJDrawTrae.installUrl -NoNewline
+  if (-not $env:KJDRAW_NO_OPEN_TRAE -and (Test-Path -LiteralPath 'Registry::HKEY_CLASSES_ROOT\trae-cn')) {
+    Start-Process $KJDrawTrae.installUrl
+  }
+}
 
 Write-Host ''
-Write-Host 'KJDraw project configuration is installed.' -ForegroundColor Green
-Write-Host 'Restart your AI client, open this project, and verify the kjdraw tool call. Ask:'
+Write-Host 'KJDraw user configuration is installed.' -ForegroundColor Green
+Write-Host 'Restart Kimi Code, WorkBuddy, or ZCode and verify the kjdraw tool call in any workspace. TraeCode uses its official import confirmation.'
+Write-Host 'Ask:'
 Write-Host 'Use KJDraw to read the current drawing, then draw a circle with a 5 mm radius. Create a pending proposal only.'
