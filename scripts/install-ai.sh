@@ -55,7 +55,11 @@ if [ -f "$KJDRAW_USER_HOME/.kjdraw/host.kjd" ]; then
 else
   set -- --all --apply --scope user --workspace "$KJDRAW_USER_HOME" --blank '.kjdraw/host.kjd' --units millimeter --candidate-dir '.kjdraw/results'
 fi
-if [ "${KJDRAW_REPLACE_EXISTING:-}" = '1' ]; then set -- "$@" --replace-existing; fi
+# This is the official KJDraw installer, so an existing `kjdraw` entry is
+# managed by KJDraw and may be replaced. The connector only replaces that
+# named entry; unrelated MCP servers remain untouched. Unknown conflicts in
+# other files still fail atomically inside kjdraw-connect.
+set -- "$@" --replace-existing
 if [ -f "$KJDRAW_PREVIOUS_C526" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_C526"; fi
 if [ -f "$KJDRAW_PREVIOUS_A3C1" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_A3C1"; fi
 if [ -f "$KJDRAW_PREVIOUS_71DF" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_71DF"; fi
@@ -76,4 +80,3 @@ printf '%s\n' 'Restart Kimi Code, WorkBuddy, or ZCode and verify the kjdraw tool
 printf '%s\n' 'Ask:'
 printf '%s\n' 'Use KJDraw to draw a circle with a 5 mm radius.'
 printf '%s\n' '或者输入：用 KJDraw 画一个半径 5 毫米的圆。'
-printf '%s\n' 'To intentionally replace an existing custom kjdraw entry, rerun: curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | KJDRAW_REPLACE_EXISTING=1 sh'

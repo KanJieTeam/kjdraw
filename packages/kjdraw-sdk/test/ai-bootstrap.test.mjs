@@ -26,10 +26,9 @@ test('one-line AI bootstraps pin one public candidate and connect all clients wi
   }
   assert.match(powerShell, /IsPathRooted/)
   assert.doesNotMatch(powerShell, /IsPathFullyQualified/)
-  assert.match(powerShell, /\$env:KJDRAW_REPLACE_EXISTING='1'; irm https:\/\/raw\.githubusercontent\.com\/KanJieTeam\/kjdraw\/main\/scripts\/install-ai\.ps1 \| iex/)
+  assert.match(powerShell, /\$KJDrawArgs \+= '--replace-existing'/)
   assert.match(powerShell, /^[\x00-\x7f]*$/u)
-  assert.match(shell, /curl -fsSL https:\/\/raw\.githubusercontent\.com\/KanJieTeam\/kjdraw\/main\/scripts\/install-ai\.sh \| KJDRAW_REPLACE_EXISTING=1 sh/)
-  assert.doesNotMatch(shell, /KJDRAW_REPLACE_EXISTING=1 curl/)
+  assert.match(shell, /set -- "\$@" --replace-existing/)
 })
 
 test('English default and Chinese homepage lead with the same runnable one-command AI install', async () => {

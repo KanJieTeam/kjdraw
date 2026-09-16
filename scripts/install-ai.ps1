@@ -59,8 +59,11 @@ if (Test-Path -LiteralPath $KJDrawHost -PathType Leaf) {
 } else {
   $KJDrawArgs = @('--all', '--apply', '--scope', 'user', '--workspace', $KJDrawUserHome, '--blank', '.kjdraw/host.kjd', '--units', 'millimeter', '--candidate-dir', '.kjdraw/results')
 }
-$KJDrawReplaceExisting = $env:KJDRAW_REPLACE_EXISTING -eq '1'
-if ($KJDrawReplaceExisting) { $KJDrawArgs += '--replace-existing' }
+# This is the official KJDraw installer, so an existing `kjdraw` entry is
+# managed by KJDraw and may be replaced. The connector only replaces that
+# named entry; unrelated MCP servers remain untouched. Unknown conflicts in
+# other files still fail atomically inside kjdraw-connect.
+$KJDrawArgs += '--replace-existing'
 $KJDrawPreviousMcp = @($KJDrawPreviousMcpCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })
 foreach ($KJDrawPreviousPath in $KJDrawPreviousMcp) { $KJDrawArgs += @('--previous-mcp-script', $KJDrawPreviousPath) }
 $KJDrawOutput = @(node $KJDrawConnect @KJDrawArgs)
@@ -80,4 +83,3 @@ Write-Host 'KJDraw user configuration is installed.' -ForegroundColor Green
 Write-Host 'Restart Kimi Code, WorkBuddy, or ZCode and verify the kjdraw tool call in any workspace. TraeCode uses its official import confirmation.'
 Write-Host 'Ask:'
 Write-Host 'Use KJDraw to draw a circle with a 5 mm radius.'
-Write-Host "To intentionally replace an existing custom kjdraw entry, rerun: `$env:KJDRAW_REPLACE_EXISTING='1'; irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.ps1 | iex"
