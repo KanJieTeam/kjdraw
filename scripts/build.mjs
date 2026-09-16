@@ -6,4 +6,6 @@ for (const path of ['apps/playground', 'packages/kjdraw-sdk/src', 'web/public/kj
   await cp(new URL(path, root), new URL(path, out), { recursive: true })
 }
 await cp(new URL('apps/playground/index.html', root), new URL('index.html', out))
+await mkdir(new URL('ai/', out), { recursive: true })
+await cp(new URL('apps/playground/index.html', root), new URL('ai/index.html', out))
 console.log('Static playground built in dist/. No server, account, or runtime dependency required.')

@@ -1,0 +1,29 @@
+/* Dedicated natural-language CAD surface. It reuses the live document,
+   model adapters, deterministic tools and renderer from the full editor. */
+.ai-surface .site-header .top-document,
+.ai-surface .site-header #settings { display:none; }
+.ai-surface .site-header nav { margin-left:auto; }
+.ai-surface main { height:calc(100dvh - 44px); }
+.ai-surface .workbench { grid-template-rows:minmax(0,1fr) 30px;grid-template-areas:'workspace' 'status';padding-left:min(440px,42vw); }
+.ai-surface .cad-ribbon,
+.ai-surface .document-tabs,
+.ai-surface .left-panel,
+.ai-surface .right-panel { display:none!important; }
+.ai-surface .workspace,
+.ai-surface .layers-open .workspace,
+.ai-surface .inspector-open .workspace,
+.ai-surface .layers-open.inspector-open .workspace { grid-template-columns:minmax(0,1fr); }
+.ai-surface .stage { grid-column:1;border-left:1px solid var(--kj-border); }
+.ai-surface .stage:before { content:'LIVE CAD';position:absolute;z-index:2;top:12px;right:14px;padding:5px 9px;border:1px solid var(--kj-border);border-radius:999px;background:var(--kj-surface);color:var(--kj-muted);font:10px var(--kj-mono);letter-spacing:.08em; }
+.ai-surface .cad-command-dock { display:none; }
+.ai-surface .ai-assistant-launcher { display:none; }
+.ai-surface .ai-chat-window { top:44px!important;bottom:0!important;left:0!important;width:min(440px,42vw);height:calc(100dvh - 44px);min-height:0;border-width:0 1px 0 0;border-radius:0;box-shadow:none; }
+.ai-surface .ai-chat-drag-handle { cursor:default; }
+.ai-surface #ai-chat-hide { display:none; }
+.ai-surface .chat-log { padding-left:22px;padding-right:22px; }
+.ai-surface .chat-composer { margin:0 18px 18px; }
+@media(max-width:780px){
+  .ai-surface .workbench { padding-left:0; }
+  .ai-surface .stage { display:none; }
+  .ai-surface .ai-chat-window { width:100vw;height:calc(100dvh - 44px);border:0; }
+}

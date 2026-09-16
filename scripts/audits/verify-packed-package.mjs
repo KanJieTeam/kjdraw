@@ -194,7 +194,7 @@ async function prepareReadmeConsumers(consumerDirectory, installedPackage) {
     return ast
   }
 
-  for (const readme of ['README.md', 'README.zh-CN.md']) {
+  for (const readme of ['README.md', 'README.en.md']) {
     const markdown = (await readFile(join(repositoryRoot, readme), 'utf8')).replaceAll('\r\n', '\n')
     const snippets = [...markdown.matchAll(/^```(ts|tsx|vue|html)\s*\n([\s\S]*?)^```\s*$/gm)]
       .map((match, index) => ({ language: match[1], source: match[2], name: `${readme.replaceAll('.', '-')}-${index + 1}` }))

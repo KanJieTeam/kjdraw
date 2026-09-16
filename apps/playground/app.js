@@ -964,6 +964,8 @@ $('file-open-dismiss').onclick=()=>{hideFileOpenError();$('open').focus()}
 function setPanelOpen(name,open){const className=name==='layers'?'layers-open':'inspector-open',button=$(name==='layers'?'toggle-layers':'toggle-inspector');workbench.classList.toggle(className,open);button.classList.toggle('active',open);button.setAttribute('aria-pressed',String(open))}
 function initializeAgentWindow(){
   const launcher=$('ai-assistant-launcher'),panel=$('ai-chat-window'),handle=$('ai-chat-drag-handle'),hide=$('ai-chat-hide'),content=$('ai-chat-content'),storageKey='kjdraw.ai-window.v1'
+  const aiSurface=new URLSearchParams(location.search).get('surface')==='ai'||/\/ai\/(?:index\.html)?$/u.test(location.pathname)
+  document.body.classList.toggle('ai-surface',aiSurface)
   let saved={open:false,left:null,top:null},drag=null
   try{const value=JSON.parse(localStorage.getItem(storageKey)??'null');if(value&&typeof value==='object')saved={open:value.open===true,left:Number.isFinite(value.left)?value.left:null,top:Number.isFinite(value.top)?value.top:null}}catch{}
   const bounds=()=>{const rect=panel.getBoundingClientRect(),padding=8,topSafe=52,bottomSafe=136;return{width:rect.width,height:rect.height,minLeft:padding,maxLeft:Math.max(padding,innerWidth-rect.width-padding),minTop:topSafe,maxTop:Math.max(topSafe,innerHeight-bottomSafe-rect.height)}}
@@ -991,7 +993,7 @@ function initializeAgentWindow(){
     event.preventDefault();event.stopImmediatePropagation()
   },true)
   window.addEventListener('resize',()=>{if(!panel.hidden){const position=current();saved={open:true,...place(position.left,position.top)};persist(true)}})
-  panel.hidden=false;saved={...saved,...place(saved.left,saved.top)};panel.hidden=true;setOpen(saved.open,{focus:false})
+  panel.hidden=false;saved={...saved,...place(saved.left,saved.top)};panel.hidden=true;setOpen(aiSurface||saved.open,{focus:false})
   return{setOpen}
 }
 $('open-agent-sample').onclick=()=>activateDrawing(SHOWCASE_DOCUMENT_ID)
