@@ -194,10 +194,12 @@ async function prepareReadmeConsumers(consumerDirectory, installedPackage) {
     return ast
   }
 
-  for (const readme of ['README.md', 'README.en.md']) {
+  // The root README is the product entry point; the npm package README owns
+  // the complete English integration examples alongside the Chinese guide.
+  for (const readme of ['packages/kjdraw-sdk/README.md', 'README.zh-CN.md']) {
     const markdown = (await readFile(join(repositoryRoot, readme), 'utf8')).replaceAll('\r\n', '\n')
     const snippets = [...markdown.matchAll(/^```(ts|tsx|vue|html)\s*\n([\s\S]*?)^```\s*$/gm)]
-      .map((match, index) => ({ language: match[1], source: match[2], name: `${readme.replaceAll('.', '-')}-${index + 1}` }))
+      .map((match, index) => ({ language: match[1], source: match[2], name: `${readme.replace(/[./\\]/g, '-')}-${index + 1}` }))
     for (const language of ['ts', 'tsx', 'vue', 'html']) {
       assert.ok(snippets.some(snippet => snippet.language === language), `${readme}: missing ${language} integration example`)
     }
@@ -246,7 +248,7 @@ async function prepareReadmeConsumers(consumerDirectory, installedPackage) {
           })
           // This checks the actual attributes against the public component
           // props. SFC syntax compilation above is not full vue-tsc checking.
-          source += `\n({ ${props.join(', ')} } satisfies InstanceType<typeof ${node.tag}>['$props'])\n`
+          source += `\n;({ ${props.join(', ')} } satisfies InstanceType<typeof ${node.tag}>['$props'])\n`
         })
         assert.ok(components > 0, `${readme}: Vue template must use its imported KJDraw component`)
       } else {
@@ -255,8 +257,12 @@ async function prepareReadmeConsumers(consumerDirectory, installedPackage) {
           .flatMap(node => node.specifiers.filter(specifier => specifier.type === 'ImportSpecifier' && specifier.imported.name === 'createKJDrawEditor').map(specifier => specifier.local.name))
         visitSyntax(ast, node => {
           if (node.type !== 'CallExpression' || node.callee.type !== 'Identifier' || !editorNames.includes(node.callee.name)) return
-          assert.equal(node.arguments[0]?.type, 'StringLiteral', `${readme}: editor example must name its HTML host`)
-          const selector = node.arguments[0].value
+          const argument = node.arguments[0]?.type === 'TSNonNullExpression' ? node.arguments[0].expression : node.arguments[0]
+          const selector = argument?.type === 'StringLiteral' ? argument.value
+            : argument?.type === 'CallExpression' && argument.callee?.type === 'MemberExpression'
+              && argument.callee.object?.name === 'document' && argument.callee.property?.name === 'querySelector'
+              && argument.arguments[0]?.type === 'StringLiteral' ? argument.arguments[0].value : undefined
+          assert.ok(selector, `${readme}: editor example must name its HTML host with a literal selector`)
           const host = hosts.get(selector)
           assert.ok(host, `${readme}: no HTML host matches ${selector}`)
           const height = host.style?.match(/(?:^|;)\s*height\s*:\s*(\d+(?:\.\d+)?)(px|rem|em|vh|dvh|svh|lvh)\s*(?:;|$)/i)
