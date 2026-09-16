@@ -341,6 +341,25 @@ function previewAgentDrawing(view){
   }
   requestAnimationFrame(render)
 }
+function renderAgentProposalPreview(target,preview,bounds){
+  const renderer=new KJCanvasRenderer(target,{document:doc(),theme:'light',grid:false,background:'#ffffff',pixelRatio:1,padding:38})
+  try{
+    renderer.resize(720,420)
+    if(Array.isArray(bounds)&&bounds.length===4&&bounds.every(Number.isFinite)&&bounds[2]>bounds[0]&&bounds[3]>bounds[1]){
+      renderer.camera.centerX=(bounds[0]+bounds[2])/2;renderer.camera.centerY=(bounds[1]+bounds[3])/2
+      renderer.camera.scale=Math.max(1e-7,Math.min(1e7,Math.min(644/(bounds[2]-bounds[0]),344/(bounds[3]-bounds[1]))))
+    }else renderer.fit()
+    const report=renderer.render()
+    if(preview.before.length)renderer.drawPreview(preview.before,'#d97706',[0,0],preview.resources)
+    if(preview.after.length)renderer.drawPreview(preview.after,'#2563eb',[0,0],preview.resources)
+    return report
+  }finally{renderer.dispose()}
+}
+function setAiEditorOpen(open){
+  if(!AI_SURFACE)return
+  document.body.classList.toggle('ai-editor-open',open)
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{resize();if(open)previewAgentDrawing()}))
+}
 function focusRegion([x0,y0,x1,y1]){camera.x=(x0+x1)/2;camera.y=(y0+y1)/2;camera.scale=Math.max(.00001,Math.min((width-90)/Math.max(1,x1-x0),(height-110)/Math.max(1,y1-y0)));render()}
 function field(container,label,value) { const row=document.createElement('div');row.className='kv';const k=document.createElement('span'),v=document.createElement('b');k.textContent=label;v.textContent=String(value);row.append(k,v);container.append(row) }
 function populateSampleSelector() {
@@ -1013,6 +1032,22 @@ $('snapshot').onclick=()=>{const record=session.createSnapshot(`Snapshot ${sessi
 const formatBytes=value=>value<1024?`${value} B`:value<1024*1024?`${(value/1024).toFixed(1)} KiB`:`${(value/1024/1024).toFixed(1)} MiB`
 async function packageProject(){return session.package()}
 async function saveProject(){const bytes=await packageProject();download(bytes,'kjdraw-project.kjp','application/zip');message(i18n.locale==='zh'?`KJP 已生成（${formatBytes(bytes.length)}）· 包含工程内全部图纸`:`KJP generated (${formatBytes(bytes.length)}) · includes every project drawing`);return bytes}
+async function saveAgentDocument(format='KJP'){
+  if(format==='KJP')return saveProject()
+  const content=await sdk.writeDocument(doc(),format==='DXF'?{format:'DXF',version:'2018'}:{format:'KJD'})
+  download(content,format==='DXF'?'drawing.dxf':'drawing.kjd',format==='DXF'?'application/dxf':'application/json')
+  message(i18n.locale==='zh'?`${format} 已生成并请求下载`:`${format} generated and download requested`)
+  return content
+}
+async function verifyAgentReopen(){
+  const source=doc(),fingerprint=source.fingerprint(),entityCount=source.listEntities().length
+  const kjd=await sdk.writeDocument(source,{format:'KJD'}),dxf=await sdk.writeDocument(source,{format:'DXF',version:'2018'})
+  const probe=createKJDrawSDK(),reopenedKjd=await probe.readDocument(kjd,{format:'KJD'}),reopenedDxf=await probe.readDocument(dxf,{format:'DXF'})
+  if(!reopenedKjd.validate().valid||reopenedKjd.id!==source.id||reopenedKjd.revision!==source.revision||reopenedKjd.fingerprint()!==fingerprint)throw new Error('KJD reopen mismatch.')
+  if(!reopenedDxf.validate().valid||reopenedDxf.listEntities().length!==entityCount)throw new Error('DXF reopen mismatch.')
+  const text=i18n.locale==='zh'?`KJD 与 DXF 重开验证通过 · ${entityCount.toLocaleString()} 个对象`:`KJD and DXF reopen verified · ${entityCount.toLocaleString()} entities`
+  message(text);return{message:text,kjdBytes:typeof kjd==='string'?new TextEncoder().encode(kjd).length:kjd.byteLength,dxfBytes:typeof dxf==='string'?new TextEncoder().encode(dxf).length:dxf.byteLength,entityCount}
+}
 $('save').onclick=()=>run(saveProject)
 function localProjectName(){const base=String(session?.title||'kjdraw-project').trim().replace(/[<>:"/\\|?*\u0000-\u001f]+/g,'-').replace(/[. ]+$/g,'').slice(0,120)||'kjdraw-project';return base.toLowerCase().endsWith('.kjp')?base:base+'.kjp'}
 async function saveLocalProject(){
@@ -1308,7 +1343,7 @@ try {
   registerGeometryBackend(createWasmGeometryBackend(instance));authority=createKJCoreDocumentAuthority(instance);solidAuthority=createKJCoreSolidBackend(instance)
 } catch(e){message('WASM unavailable · JavaScript reference mode');console.warn(e.message)}
 await freshSample();resize();fit()
-agentChat=createAgentChat($('ai-chat-content'),{locale:()=>i18n.locale,getContext:()=>({sdk,document:doc(),project:session}),getSelected:()=>selectedIds(),captureView:()=>{const a=world([0,0]),b=world([width,height]);return captureDrawingView(doc(),{bounds:[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[0],b[0]),Math.max(a[1],b[1])],width:Math.min(1200,Math.max(1,Math.round(width))),height:Math.min(900,Math.max(1,Math.round(height))),theme:'light'})},onBeforeRun:()=>{invalidatePlan();render()},onPreview:previewAgentDrawing,onProposalApplied:value=>persistApprovedRoadRecipe(value,()=>({sdk,document:doc(),project:session})),prepareRoadContext:(context,tools)=>prepareRoadDrawingContext(context,()=>({sdk,document:doc(),project:session}),tools),runMutation:async operation=>{let result;await run(async()=>{result=await operation()});return result},onApplied:()=>{invalidatePlan();$('file-state').textContent=i18n.locale==='zh'?'内存中已修改':'Modified in memory';refresh();render()},onSave:()=>saveProject()})
+agentChat=createAgentChat($('ai-chat-content'),{locale:()=>i18n.locale,connectionStorage:AI_SURFACE?sessionStorage:localStorage,getContext:()=>({sdk,document:doc(),project:session}),getSelected:()=>selectedIds(),captureView:()=>{const a=world([0,0]),b=world([width,height]);return captureDrawingView(doc(),{bounds:[Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[0],b[0]),Math.max(a[1],b[1])],width:Math.min(1200,Math.max(1,Math.round(width))),height:Math.min(900,Math.max(1,Math.round(height))),theme:'light'})},onBeforeRun:()=>{invalidatePlan();render()},onPreview:previewAgentDrawing,renderProposalPreview:renderAgentProposalPreview,onOpenEditor:setAiEditorOpen,onProposalApplied:value=>persistApprovedRoadRecipe(value,()=>({sdk,document:doc(),project:session})),prepareRoadContext:(context,tools)=>prepareRoadDrawingContext(context,()=>({sdk,document:doc(),project:session}),tools),runMutation:async operation=>{let result;await run(async()=>{result=await operation()});return result},onApplied:()=>{invalidatePlan();$('file-state').textContent=i18n.locale==='zh'?'内存中已修改':'Modified in memory';refresh();render()},onSave:saveAgentDocument,onVerifyReopen:verifyAgentReopen})
 initializeAgentWindow()
 
 function filterLayers(){

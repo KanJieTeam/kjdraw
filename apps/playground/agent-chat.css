@@ -47,6 +47,9 @@
 .chat-panel .chat-validation-scope { font-size: 10px; color: var(--kj-muted); margin: 8px 0 0; }
 .chat-card-actions button { border-radius: 8px; padding: 7px 10px; font-size: 12px; }
 .chat-panel .chat-proposal-summary { font: 11px var(--kj-mono); margin: 10px 0; padding: 10px; background: var(--kj-chrome); border-radius: 8px; }
+.chat-proposal-visual { margin: 10px 0 12px; overflow: hidden; border: 1px solid var(--kj-border); border-radius: 10px; background: #fff; }
+.chat-proposal-canvas { display: block; width: 100%; height: auto; aspect-ratio: 12 / 7; background: #fff; }
+.chat-proposal-visual figcaption { padding: 7px 10px; border-top: 1px solid var(--kj-border); color: var(--kj-muted); font-size: 10px; }
 .chat-panel .chat-proposal-state { font-size: 12px; margin: 0 0 12px; }
 .chat-card-actions .chat-primary { background: var(--kj-action); color: white; border-color: var(--kj-action); }
 .chat-composer { flex-shrink: 0; margin: 6px 12px 12px; padding: 12px; border: 1px solid var(--kj-border); border-radius: 16px; background: var(--kj-surface); box-shadow: 0 2px 12px #20293608; }

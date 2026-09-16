@@ -120,7 +120,7 @@ const copy = {
   reading: ['Reading drawing context…', '正在读取图纸内容…'], proposing: ['Preparing a drawing proposal…', '正在生成绘图方案…'], measuring: ['Checking geometry…', '正在检查几何数据…'],
   failed: ['The request could not be completed. Check the connection or revise your request.', '这次请求未能完成，请检查连接或调整需求后重试。'],
   limit: ['This run reached its limit. No changes were applied; narrow the request and continue.', '本次运行达到预算上限，未应用修改。请缩小需求范围后继续。'],
-  review: ['Review proposed changes', '检查绘图方案'], preview: ['Preview on drawing', '在图中预览'], approve: ['Apply changes', '应用修改'], reject: ['Discard', '放弃方案'],
+  review: ['Review proposed changes', '检查绘图方案'], preview: ['Preview on drawing', '在图中预览'], openEditor: ['Open full editor', '打开完整编辑器'], approve: ['Apply changes', '应用修改'], reject: ['Discard', '放弃方案'],
   pending: ['Your drawing is unchanged. Review before applying.', '当前图纸尚未修改，请检查后再应用。'],
   selectionSet: ['Selection set', '选择集'], selectionMembers: ['Target objects', '目标对象'],
   layerChange: ['Layer assignment', '图层调整'], unchangedObjects: ['already assigned', '已在目标层'],
@@ -129,8 +129,8 @@ const copy = {
   applied: ['Changes applied', '修改已应用'], rejected: ['Proposal discarded. Drawing unchanged.', '已放弃方案，图纸未改变。'],
   parametersNotSaved: ['Design parameters were not saved.', '设计参数未保存。'],
   stale: ['The drawing changed. Send a new request for an updated proposal.', '图纸已改变，请重新提出需求以生成最新方案。'],
-  undo: ['Undo this change', '撤销这次修改'], save: ['Save project', '保存工程'], undone: ['Change undone.', '已撤销这次修改。'],
-  saved: ['Project download requested.', '已请求下载工程文件。'], invalidConnection: ['Enter an HTTP(S) model endpoint without embedded credentials and a model name.', '请填写不含内嵌凭证的 HTTP(S) 模型地址和模型名称。'],
+  undo: ['Undo this change', '撤销这次修改'], save: ['Save project', '保存工程'], saveKjd: ['Save KJD', '保存 KJD'], saveDxf: ['Save DXF', '保存 DXF'], verifyReopen: ['Verify reopen', '验证重开'], undone: ['Change undone.', '已撤销这次修改。'],
+  saved: ['Download requested.', '已请求下载文件。'], reopened: ['KJD and DXF reopened successfully.', 'KJD 与 DXF 重开验证通过。'], previewCaption: ['Orange is the current geometry; blue is the proposal.', '橙色为当前图形，蓝色为提案。'], invalidConnection: ['Enter an HTTP(S) model endpoint without embedded credentials and a model name.', '请填写不含内嵌凭证的 HTTP(S) 模型地址和模型名称。'],
   context: ['Current drawing', '当前图纸'], you: ['You', '你'], details: ['Details', '详情'], omitted: ['Earlier conversation is omitted to fit this request’s budget.', '受本次请求预算限制，较早的对话未包含在上下文中。'],
 }
 
@@ -145,6 +145,7 @@ const connectionStorageKey='kjdraw:model-connection:v1'
 /** Browser chat shell. The model transport is explicitly configured by the host/user. */
 export function createAgentChat(container, options) {
   const L = key => copy[key][options.locale() === 'zh' ? 1 : 0]
+  const connectionStorage=options.connectionStorage??globalThis.localStorage
   let binding = null, tools = null, model = null, modelLabel = '', controller = null, epoch = 0, pending = [], overlay = null, applying = false
   let streamTarget = null, streamText = ''
   let dataAttachment = null, dataGeneration = 0, dataLoading = false
@@ -329,13 +330,13 @@ export function createAgentChat(container, options) {
     const streaming=['chat-completions','responses'].includes(selectedProtocol)
     let wire;try{wire=getChatModelAdapterOptions(providerId,modelName,reasoningMode.value)}catch(error){if(error instanceof KJModelError&&error.code==='KJMODEL_PROFILE')throw new Error('reasoning');throw error}
     const next=createChatModelAdapter({protocol:selectedProtocol,model:modelName,maxOutputTokens:Number(outputTokens.value),...wire,...(streaming?{...(selectedProtocol==='chat-completions'?{chatStreaming:true,chatStreamIncludeUsage:true}:{responsesStreaming:true}),onTextDelta:delta=>{if(!streamTarget||!streamTarget.isConnected)return;streamText=(streamText+delta).slice(-16000);streamTarget.textContent=streamText}}:{}),request:async({body,signal})=>{try{return await readChatModelResponse(await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal,credentials:'omit',redirect:'error'}))}catch(error){if(signal.aborted||error instanceof KJModelError)throw error;throw new KJModelError('KJMODEL_DIRECT_CONNECTION','Direct browser model request failed')}}})
-    if(persist)localStorage.setItem(connectionStorageKey,JSON.stringify({provider:providerId,endpoint:endpointValue,model:modelName,protocol:selectedProtocol,apiKey:key,maxOutputTokens:Number(outputTokens.value),reasoningMode:reasoningMode.value}))
+    if(persist)connectionStorage.setItem(connectionStorageKey,JSON.stringify({provider:providerId,endpoint:endpointValue,model:modelName,protocol:selectedProtocol,apiKey:key,maxOutputTokens:Number(outputTokens.value),reasoningMode:reasoningMode.value}))
     setConnection(next,modelName);settings.hidden=true;connection.setAttribute('aria-expanded','false');connectionError.textContent='';input.focus()
   }
   configure.onclick=()=>{try{activateConnection()}catch(error){connectionError.textContent=L(error.message==='key'?'missingApiKey':error.message==='reasoning'?'invalidReasoning':'invalidConnection')}}
   connection.onclick=()=>{settings.hidden=!settings.hidden;connection.setAttribute('aria-expanded',String(!settings.hidden));if(!settings.hidden)endpoint.focus()}
   cancelSettings.onclick=closeSettings
-  disconnect.onclick=()=>{localStorage.removeItem(connectionStorageKey);apiKey.value='';setConnection(null);closeSettings()}
+  disconnect.onclick=()=>{connectionStorage.removeItem(connectionStorageKey);apiKey.value='';setConnection(null);closeSettings()}
   const settingsEscape=event=>{if(event.key==='Escape'&&!settings.hidden){event.preventDefault();closeSettings()}}
   document.addEventListener('keydown',settingsEscape)
   connection.setAttribute('aria-expanded','false')
@@ -344,8 +345,11 @@ export function createAgentChat(container, options) {
     const types=[...new Set(proposal.preview.after.map(item=>item.type))].join(', ')
     summary.textContent=`${proposal.preview.before.length} → ${proposal.preview.after.length} · ${types}`
     const state=element('p','chat-proposal-state',L('pending')), actions=element('div','chat-card-actions')
-    const preview=button('preview'), approve=button('approve','chat-primary'), reject=button('reject')
-    actions.append(preview,approve,reject); card.append(summary,state,actions)
+    const preview=button('preview'), openEditor=button('openEditor'), approve=button('approve','chat-primary'), reject=button('reject')
+    const visual=element('figure','chat-proposal-visual'), proposalCanvas=element('canvas','chat-proposal-canvas'), caption=label(element('figcaption'),'previewCaption')
+    proposalCanvas.width=720;proposalCanvas.height=420;proposalCanvas.setAttribute('aria-label',L('review'));visual.append(proposalCanvas,caption)
+    actions.append(preview,openEditor,approve,reject); card.append(summary,visual,state,actions)
+    try{const report=options.renderProposalPreview?.(proposalCanvas,proposal.preview,proposal.engineeringEvidence?.bounds);if(report)visual.dataset.rendered=String(report.rendered??true)}catch{visual.hidden=true}
     if(proposal.command==='TEXTEDIT'){
       const details=element('div','chat-text-changes'),previous=new Map(proposal.preview.before.map(entity=>[entity.id,entity.payload.text]))
       details.append(element('p','',L('textChanges')))
@@ -413,6 +417,7 @@ export function createAgentChat(container, options) {
     }
     const item={proposal,actions}; pending.push(item)
     preview.onclick=()=>{syncContext();if(!pending.includes(item))return;overlay=proposal.preview;options.onPreview(evidence?.bounds?{bounds:evidence.bounds}:undefined)}
+    openEditor.onclick=()=>{syncContext();if(!pending.includes(item))return;overlay=proposal.preview;options.onOpenEditor?.(true);options.onPreview(evidence?.bounds?{bounds:evidence.bounds}:undefined)}
     reject.onclick=()=>{tools.reject(proposal.planId,'chat-user');pending=pending.filter(p=>p!==item);if(overlay===proposal.preview)overlay=null;actions.querySelectorAll('button').forEach(b=>b.disabled=true);state.textContent=L('rejected');options.onPreview()}
     approve.onclick=async()=>{
       syncContext(); if(!pending.includes(item)||controller||applying)return
@@ -441,15 +446,18 @@ export function createAgentChat(container, options) {
       }
       state.textContent=`${L('applied')} · REV ${result.value.afterRevision}${parametersFailed?` · ${L('parametersNotSaved')}`:''}`
       history.push({role:'assistant',text:state.textContent})
-      const revision=result.value.afterRevision, undo=button('undo'), save=button('save')
+      const revision=result.value.afterRevision, undo=button('undo'), save=button('save'), saveKjd=button('saveKjd'), saveDxf=button('saveDxf'), verifyReopen=button('verifyReopen'), edit=button('openEditor')
       undo.onclick=async()=>{
         syncContext();if(binding!==source||source.document.revision!==revision){state.textContent=L('stale');return}
         undo.disabled=true
         try{const result=await options.runMutation(()=>source.sdk.executeCommand('UNDO',{}, {document:source.document}));if(!result)return;state.textContent=L('undone');options.onApplied()}
         catch{state.textContent=L('failed')}
       }
-      save.onclick=async()=>{syncContext();if(binding!==source)return;try{await options.onSave();state.textContent=L('saved')}catch{state.textContent=L('failed')}}
-      actions.replaceChildren(undo,save); options.onApplied()
+      const saveFormat=format=>async()=>{syncContext();if(binding!==source)return;try{await options.onSave(format);state.textContent=L('saved')}catch{state.textContent=L('failed')}}
+      save.onclick=saveFormat('KJP');saveKjd.onclick=saveFormat('KJD');saveDxf.onclick=saveFormat('DXF')
+      verifyReopen.onclick=async()=>{syncContext();if(binding!==source)return;try{const report=await options.onVerifyReopen?.();state.textContent=report?.message||L('reopened')}catch{state.textContent=L('failed')}}
+      edit.onclick=()=>options.onOpenEditor?.(true)
+      actions.replaceChildren(undo,save,saveKjd,saveDxf,verifyReopen,edit); options.onApplied()
     }
     log.scrollTop=log.scrollHeight
   }
@@ -578,10 +586,10 @@ export function createAgentChat(container, options) {
   document.addEventListener('kjdraw:language',relabel)
   syncContext();setConnection(null)
   try{
-    const saved=JSON.parse(localStorage.getItem(connectionStorageKey)??'null')
+    const saved=JSON.parse(connectionStorage.getItem(connectionStorageKey)??'null')
     if(saved&&typeof saved==='object'){
       provider.value=CHAT_MODEL_PROVIDER_PRESETS.some(item=>item.id===saved.provider)?saved.provider:'custom';endpoint.value=typeof saved.endpoint==='string'?saved.endpoint:'';name.value=typeof saved.model==='string'?saved.model:'';protocol.value=saved.protocol;apiKey.value=typeof saved.apiKey==='string'?saved.apiKey:'';outputTokens.value=String(saved.maxOutputTokens);reasoningMode.value=['enabled','disabled'].includes(saved.reasoningMode)?saved.reasoningMode:'provider-default';populateCommonModels();syncReasoning();activateConnection({persist:false})
     }
-  }catch{localStorage.removeItem(connectionStorageKey);apiKey.value='';setConnection(null)}
+  }catch{connectionStorage.removeItem(connectionStorageKey);apiKey.value='';setConnection(null)}
   return { syncContext, cancelProposals, setModel: setConnection, get preview(){const current=options.getContext();return overlay&&binding.document===current.document&&binding.sdk===current.sdk&&binding.project===current.project&&binding.document.revision===overlay.revision?overlay:null}, destroy(){epoch++;clearData();controller?.abort();cancelProposals();document.removeEventListener('kjdraw:language',relabel);document.removeEventListener('keydown',settingsEscape)} }
 }
