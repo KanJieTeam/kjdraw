@@ -8,10 +8,11 @@
 
 <p align="center">
   <a href="#quick-start"><strong>Quick start</strong></a> ·
+  <a href="https://kanjieteam.github.io/kjdraw/ai/"><strong>Try with AI</strong></a> ·
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>Live editor</strong></a> ·
   <a href="#add-cad-to-your-app"><strong>Add CAD to your app</strong></a> ·
   <a href="#give-your-agent-cad-tools"><strong>Build a CAD agent</strong></a> ·
-  <a href="README.zh-CN.md">简体中文</a>
+  <a href="README.md">简体中文</a>
 </p>
 
 <p align="center">
