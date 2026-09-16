@@ -52,7 +52,8 @@ export interface KJGeologyColumnInput {
     projectName?: string;
     /** Exact source-backed document facts requested by a host-selected style pack; never inferred. */
     documentFacts?: Record<string, string>;
-    verticalScaleDenominator: number;
+    /** Explicit source/template fact. Omit to select from the style pack's standard scales. */
+    verticalScaleDenominator?: number;
     /** Physical long-log sheet or ordinary A4 sheet, in millimetres. */
     pageHeightMillimeters?: 297 | 841;
     /** Host-selected, versioned physical table geometry; independent of model text. */
