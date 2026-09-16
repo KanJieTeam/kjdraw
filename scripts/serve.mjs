@@ -13,12 +13,14 @@ export const server = createServer(async (req, res) => {
     if (req.url === '/api/model' && modelProxy) { await modelProxy(req, res); return }
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405).end(); return }
     const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname)
-    const publicPath = pathname === '/' ? '/apps/playground/index.html' : pathname.endsWith('/') ? `${pathname}index.html` : pathname
+    const aiSurface = pathname === '/ai/' || pathname === '/ai/index.html'
+    const publicPath = pathname === '/' || aiSurface ? '/apps/playground/index.html' : pathname.endsWith('/') ? `${pathname}index.html` : pathname
     if (!['/apps/playground/', '/packages/kjdraw-sdk/src/', '/web/public/kjcore/', '/docs/', '/examples/'].some(prefix => publicPath.startsWith(prefix))) { res.writeHead(404).end(); return }
     const target = resolve(root, `.${publicPath}`)
     const rel = relative(root, target)
     if (rel === '..' || rel.startsWith(`..${sep}`) || rel.split(sep).some(part => part.startsWith('.'))) { res.writeHead(403).end(); return }
-    const data = await readFile(target)
+    const source = await readFile(target)
+    const data = aiSurface ? Buffer.from(source.toString('utf8').replaceAll('="./', '="../')) : source
     res.writeHead(200, { 'Content-Type': mime[extname(target)] ?? 'application/octet-stream', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache', 'Content-Security-Policy': "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" })
     res.end(req.method === 'HEAD' ? undefined : data)
   } catch { res.writeHead(404).end('Not found') }

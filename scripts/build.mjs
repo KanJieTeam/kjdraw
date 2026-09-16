@@ -1,11 +1,12 @@
-import { cp, mkdir } from 'node:fs/promises'
+import { cp, mkdir, readFile, writeFile } from 'node:fs/promises'
 const root = new URL('../', import.meta.url)
 const out = new URL('../dist/', import.meta.url)
 await mkdir(out, { recursive: true })
 for (const path of ['apps/playground', 'packages/kjdraw-sdk/src', 'web/public/kjcore', 'docs', 'examples']) {
   await cp(new URL(path, root), new URL(path, out), { recursive: true })
 }
-await cp(new URL('apps/playground/index.html', root), new URL('index.html', out))
+const index = await readFile(new URL('apps/playground/index.html', root), 'utf8')
+await writeFile(new URL('index.html', out), index)
 await mkdir(new URL('ai/', out), { recursive: true })
-await cp(new URL('apps/playground/index.html', root), new URL('ai/index.html', out))
+await writeFile(new URL('ai/index.html', out), index.replaceAll('="./', '="../'))
 console.log('Static playground built in dist/. No server, account, or runtime dependency required.')
