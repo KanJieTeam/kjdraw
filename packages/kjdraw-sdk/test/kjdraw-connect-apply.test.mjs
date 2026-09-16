@@ -204,6 +204,29 @@ test('explicit candidate delivery upgrades only the exact prior KJDraw entry', a
   await assert.rejects(connectWorkspace(options(root)), /conflicts; refusing to overwrite/u)
 })
 
+test('user installer can migrate one exact prior KJDraw script path without weakening conflict refusal', async t => {
+  const root = await fixture(t)
+  const prior = { ...options(root), candidateDir: undefined, scope: 'user' }
+  await connectWorkspace(prior)
+  const previousMcpScript = join(root, 'previous-kjdraw-mcp.mjs')
+  await writeFile(previousMcpScript, 'fixture previous installed KJDraw MCP')
+  for (const relative of userConfigPaths) {
+    const path = join(root, relative), value = JSON.parse(await readFile(path, 'utf8'))
+    const entry = relative.startsWith('.zcode/') ? value.mcp.servers.kjdraw : value.mcpServers.kjdraw
+    entry.args[0] = previousMcpScript
+    await writeFile(path, `${JSON.stringify(value, null, 2)}\n`)
+  }
+  const upgraded = await connectWorkspace({ ...options(root), scope: 'user', previousMcpScript })
+  assert.ok(upgraded.clients.every(client => client.client === 'TraeCode' || client.action === 'added'))
+  const workBuddy = JSON.parse(await readFile(join(root, '.workbuddy/mcp.json'), 'utf8')).mcpServers.kjdraw
+  assert.notEqual(workBuddy.args[0], previousMcpScript)
+  assert.deepEqual(workBuddy.args.slice(-2), ['--candidate-dir', '.kjdraw/results'])
+  const conflicting = JSON.parse(await readFile(join(root, '.kimi-code/mcp.json'), 'utf8'))
+  conflicting.mcpServers.kjdraw.args[0] = join(root, 'owner-managed-server.mjs')
+  await writeFile(join(root, '.kimi-code/mcp.json'), JSON.stringify(conflicting))
+  await assert.rejects(connectWorkspace({ ...options(root), scope: 'user', previousMcpScript }), /conflicts; refusing to overwrite/u)
+})
+
 test('candidate output cannot alias the proposal ledger directory', async t => {
   const root = await fixture(t)
   await assert.rejects(connectWorkspace({ ...options(root), candidateDir: '.kjdraw/proposals' }), /must be different/u)
