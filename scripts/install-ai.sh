@@ -1,14 +1,15 @@
 #!/bin/sh
 set -eu
 
-KJDRAW_SOURCE_SHA='c526aa73a9009d927f99191bd65e77a4fec62740'
+KJDRAW_SOURCE_SHA='85d750e222bfbb2aa177343d55fb787ec51911ef'
 command -v node >/dev/null 2>&1 || { echo 'KJDraw requires Node.js 22 or newer.' >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || { echo 'KJDraw requires curl.' >&2; exit 1; }
 command -v tar >/dev/null 2>&1 || { echo 'KJDraw requires tar.' >&2; exit 1; }
 node -e 'if (+process.versions.node.split(".")[0] < 22) process.exit(1)'
 KJDRAW_USER_HOME="${KJDRAW_USER_HOME:-$(node -p 'require("node:os").homedir()')}"
 KJDRAW_DATA_ROOT="${XDG_DATA_HOME:-$KJDRAW_USER_HOME/.local/share}"
-KJDRAW_INSTALL="$KJDRAW_DATA_ROOT/kjdraw/source-c526aa7"
+KJDRAW_INSTALL="$KJDRAW_DATA_ROOT/kjdraw/source-85d750e"
+KJDRAW_PREVIOUS_C526="$KJDRAW_DATA_ROOT/kjdraw/source-c526aa7/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_A3C1="$KJDRAW_DATA_ROOT/kjdraw/source-a3c1bca/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_71DF="$KJDRAW_DATA_ROOT/kjdraw/source-71df822/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_616133E="$KJDRAW_DATA_ROOT/kjdraw/source-616133e/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
@@ -55,6 +56,7 @@ else
   set -- --all --apply --scope user --workspace "$KJDRAW_USER_HOME" --blank '.kjdraw/host.kjd' --units millimeter --candidate-dir '.kjdraw/results'
 fi
 if [ "${KJDRAW_REPLACE_EXISTING:-}" = '1' ]; then set -- "$@" --replace-existing; fi
+if [ -f "$KJDRAW_PREVIOUS_C526" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_C526"; fi
 if [ -f "$KJDRAW_PREVIOUS_A3C1" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_A3C1"; fi
 if [ -f "$KJDRAW_PREVIOUS_71DF" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_71DF"; fi
 if [ -f "$KJDRAW_PREVIOUS_616133E" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_616133E"; fi
