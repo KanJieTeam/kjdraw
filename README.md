@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="#快速开始"><strong>快速开始</strong></a> ·
-  <a href="https://kanjieteam.github.io/kjdraw/ai/"><strong>Try with AI</strong></a> ·
+  <a href="https://kanjieteam.github.io/kjdraw/ai/"><strong>开始 AI 绘图</strong></a> ·
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>在线编辑器</strong></a> ·
   <a href="#接入你的应用"><strong>接入你的应用</strong></a> ·
   <a href="#给你的-agent-配上-cad-工具"><strong>构建 CAD Agent</strong></a> ·
@@ -21,10 +21,6 @@
   <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><img src="https://img.shields.io/badge/Docs-get_started-2863f0?style=flat-square&labelColor=30363d" alt="使用文档"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
 </p>
-
-<p align="center"><a href="https://kanjieteam.github.io/kjdraw/"><img src="docs/media/kjdraw-workflow-zh.gif" alt="KJDraw AI 创建、修改、保存并重开一张经过验证的 409 对象夹具板工程图" width="100%"></a></p>
-
-<p align="center"><sub>真实模型工作流：2 次模型请求 · 5,449 total tokens · 409 个可编辑对象 · 一次精确修改 · 保存并重新打开验证。</sub></p>
 
 ## 为什么需要 KJDraw？
 
@@ -40,9 +36,11 @@ KJDraw 把这件事变成一句自然语言：
 
 ## KJDraw 真正解决什么
 
-| 模型只表达意图 | 引擎确定性执行 | 图纸始终可编辑 |
-| --- | --- | --- |
-| 模型通过少量高层工具提供需求、约束和修改，不逐个堆砌基础图元。 | KJDraw 解析几何、对象身份、图层、引用和单事务执行，缺少关键数据就拒绝。 | 结果是结构化 CAD，不是截图；支持继续修改、撤销重做、DXF/KJD/KJP 保存和重新打开。 |
+| 原则 | KJDraw 的做法 |
+| --- | --- |
+| **模型只表达意图** | 模型通过少量高层工具提供需求、约束和修改，不逐个堆砌基础图元。 |
+| **引擎确定性执行** | KJDraw 解析几何、对象身份、图层、引用和单事务执行；缺少关键数据就拒绝。 |
+| **图纸始终可编辑** | 结果是结构化 CAD，不是截图；支持继续修改、撤销重做、DXF/KJD/KJP 保存和重新打开。 |
 
 | 核心能力 | 现在能做什么 |
 | --- | --- |
@@ -182,6 +180,10 @@ npm run dev
 访问 **http://localhost:4173**。提交修改前运行 `npm run typecheck` 和 `npm test`；界面修改还需运行 `npm run test:browser`。
 
 [使用文档](https://kanjieteam.github.io/kjdraw/docs/latest/) · [API 参考](https://kanjieteam.github.io/kjdraw/docs/latest/api/) · [路线图](docs/roadmap.md) · [获取支持](SUPPORT.md) · [版本状态](docs/status.md) · [许可证](LICENSE)
+
+## Star History
+
+<p align="center"><a href="https://www.star-history.com/#KanJieTeam/kjdraw&Date"><img src="https://api.star-history.com/svg?repos=KanJieTeam/kjdraw&type=Date" alt="KJDraw Star History" width="680"></a></p>
 
 **由 [KanJieTeam](https://github.com/KanJieTeam) 发起，欢迎全球开发者参与。**
 

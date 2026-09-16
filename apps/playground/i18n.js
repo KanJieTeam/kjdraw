@@ -65,9 +65,9 @@ const messages = {
   }
 }
 
-export function createI18n() {
+export function createI18n(defaultLocale) {
   const stored = localStorage.getItem('kjdraw.language')
-  let locale = stored === 'zh' || stored === 'en' ? stored : (navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en')
+  let locale = stored === 'zh' || stored === 'en' ? stored : (defaultLocale === 'zh' || defaultLocale === 'en' ? defaultLocale : (navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en'))
   const t = key => messages[locale][key] ?? messages.en[key] ?? key
   const apply = () => {
     document.documentElement.lang = locale === 'zh' ? 'zh-CN' : 'en'
