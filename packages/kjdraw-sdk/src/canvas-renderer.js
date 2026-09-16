@@ -10,6 +10,7 @@ import { attributeHidden, insertAttributes, isAttachedAttribute, visibleAttribut
 import { layoutCadMText, layoutCadText } from './geometry/text-layout.js';
 import { sampleHatchSpline } from './geometry/hatch-boundary.js';
 import { effectiveLinetypeScale } from './linetype-scale.js';
+import { resolvePhysicalPlotPaper } from './plot-settings.js';
 import { displayedEntityBounds, hitTestDisplayedEntity, isEntitySelectable, selectEntitiesInBox, selectEntitiesByFence } from './selection-geometry.js';
 const HATCH_RASTER_PIXEL_LIMIT = 1048576;
 const HATCH_RASTER_FRAME_WORK = 4000000;
@@ -431,6 +432,7 @@ export class KJCanvasRenderer {
     #hatchSampleWorkRemaining = HATCH_RASTER_FRAME_WORK;
     #hatchSamplePixelsRemaining = HATCH_RASTER_PIXEL_LIMIT;
     #hatchRasterCache = [];
+    #paperSheetState = null;
     #report = Object.freeze({
         total: 0,
         culled: 0,
@@ -506,6 +508,15 @@ export class KJCanvasRenderer {
                 return value.type === 'object.update' && value.after?.kind === 'entity' && value.after.ownerId === active;
             });
             if (!localUpdates) this.#boundsCache = new WeakMap();
+            const pageChanged = operations.some((operation)=>{
+                const value = operation;
+                const record = value.after ?? value.before;
+                return record?.kind === 'layout' && String(record.payload?.blockRecordId ?? '') === active;
+            });
+            if (pageChanged && this.#fittedCamera && this.camera.centerX === this.#fittedCamera.centerX && this.camera.centerY === this.#fittedCamera.centerY && this.camera.scale === this.#fittedCamera.scale) {
+                this.fit();
+                return;
+            }
             this.render();
         });
         this.#selection.clear();
@@ -601,6 +612,14 @@ export class KJCanvasRenderer {
         const scene = this.#sceneProvider ? null : this.#defaultScene();
         const source = scene?.entities ?? this.#entities();
         const values = [];
+        const paper = this.#paperSheet();
+        if (paper) values.push([
+            0,
+            0
+        ], [
+            paper.width,
+            paper.height
+        ]);
         source.forEach((entity, index)=>{
             const layer = layers.get(String(entity.payload.layerId ?? ''));
             if (entity.payload.visible === false || layer?.visible === false || layer?.frozen === true) return;
@@ -907,6 +926,9 @@ export class KJCanvasRenderer {
             });
             return this.#report;
         }
+        const paper = this.#paperSheet();
+        this.#paperSheetState = paper;
+        if (paper) this.#drawPaperSheet(paper);
         const candidates = this.#entities(this.#visibleBounds());
         const sceneTotal = this.#sceneProvider ? candidates.length : this.#defaultScene().entities.length;
         const entities = [], detailEntities = [];
@@ -919,7 +941,8 @@ export class KJCanvasRenderer {
                 layer.id,
                 layer.payload
             ]) ?? []);
-        const palette = this.#theme === 'dark' ? DARK_PALETTE : LIGHT_PALETTE;
+        const drawingTheme = paper ? 'light' : this.#theme;
+        const palette = drawingTheme === 'dark' ? DARK_PALETTE : LIGHT_PALETTE;
         let rendered = 0, approximated = 0, hidden = 0;
         const approximateTypes = new Set();
         const unsupported = new Set();
@@ -1022,7 +1045,66 @@ export class KJCanvasRenderer {
         if (!document) return '';
         return this.#spaceId ?? document.spaces.modelSpaceId;
     }
+    #paperSheet() {
+        const document = this.#document, spaceId = this.#activeSpaceId();
+        if (!document || spaceId === document.spaces.modelSpaceId || !document.spaces.paperSpaceIds.includes(spaceId)) return null;
+        const layout = document.spaces.layoutIds.map((id)=>document.getObject(id)).find((item)=>item?.kind === 'layout' && !item.erased && String(item.payload.blockRecordId ?? '') === spaceId);
+        const settings = layout?.payload.dxfPlotSettings;
+        if (!layout || !settings) return null;
+        try {
+            const paper = resolvePhysicalPlotPaper(settings);
+            if (paper.width > 10000 || paper.height > 10000 || paper.left + paper.right >= paper.width || paper.top + paper.bottom >= paper.height) return null;
+            return {
+                ...paper,
+                layoutId: layout.id
+            };
+        } catch  {
+            return null;
+        }
+    }
+    #drawPaperSheet(paper) {
+        const context = this.context;
+        const lowerLeft = this.worldToScreen([
+            0,
+            0
+        ]), upperRight = this.worldToScreen([
+            paper.width,
+            paper.height
+        ]);
+        const x = Math.min(lowerLeft[0], upperRight[0]), y = Math.min(lowerLeft[1], upperRight[1]);
+        const width = Math.abs(upperRight[0] - lowerLeft[0]), height = Math.abs(upperRight[1] - lowerLeft[1]);
+        context.save();
+        context.shadowColor = this.#theme === 'dark' ? 'rgba(0,0,0,.48)' : 'rgba(15,23,42,.2)';
+        context.shadowBlur = 18;
+        context.shadowOffsetY = 5;
+        context.fillStyle = '#fffefb';
+        context.fillRect(x, y, width, height);
+        context.shadowColor = 'transparent';
+        context.lineWidth = 1;
+        context.strokeStyle = this.#theme === 'dark' ? '#596471' : '#aeb8c2';
+        context.strokeRect(x + .5, y + .5, Math.max(0, width - 1), Math.max(0, height - 1));
+        const printableMinimum = this.worldToScreen([
+            paper.left,
+            paper.bottom
+        ]);
+        const printableMaximum = this.worldToScreen([
+            paper.width - paper.right,
+            paper.height - paper.top
+        ]);
+        const printX = Math.min(printableMinimum[0], printableMaximum[0]), printY = Math.min(printableMinimum[1], printableMaximum[1]);
+        const printWidth = Math.abs(printableMaximum[0] - printableMinimum[0]), printHeight = Math.abs(printableMaximum[1] - printableMinimum[1]);
+        if (printWidth >= 8 && printHeight >= 8 && (paper.left || paper.right || paper.top || paper.bottom)) {
+            context.setLineDash([
+                3,
+                3
+            ]);
+            context.strokeStyle = 'rgba(92,105,117,.42)';
+            context.strokeRect(printX + .5, printY + .5, Math.max(0, printWidth - 1), Math.max(0, printHeight - 1));
+        }
+        context.restore();
+    }
     #color(entity, layer) {
+        const theme = this.#paperSheetState ? 'light' : this.#theme;
         const ownTrueColor = entity.payload.trueColor == null ? null : explicitColor(entity.payload.trueColor);
         if (ownTrueColor) return ownTrueColor;
         const color = entity.payload.color;
@@ -1030,8 +1112,8 @@ export class KJCanvasRenderer {
             const cssColor = /^(?:#|rgb|hsl)/i.test(color) ? explicitColor(color) : null;
             if (cssColor) return cssColor;
         }
-        if (color != null && Number.isFinite(Number(color)) && Number(color) > 0 && Number(color) < 256) return aciColor(color, this.#theme);
-        return (layer?.trueColor == null ? null : explicitColor(layer.trueColor)) ?? (typeof layer?.color === 'string' && /^(?:#|rgb|hsl)/i.test(layer.color) ? explicitColor(layer.color) : null) ?? aciColor(layer?.color ?? 7, this.#theme);
+        if (color != null && Number.isFinite(Number(color)) && Number(color) > 0 && Number(color) < 256) return aciColor(color, theme);
+        return (layer?.trueColor == null ? null : explicitColor(layer.trueColor)) ?? (typeof layer?.color === 'string' && /^(?:#|rgb|hsl)/i.test(layer.color) ? explicitColor(layer.color) : null) ?? aciColor(layer?.color ?? 7, theme);
     }
     #fitPoints(entity, depth = 0, unboundedOrigins = []) {
         if (entity.type === 'XLINE' || entity.type === 'RAY') {
