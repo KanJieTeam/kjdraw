@@ -50,7 +50,7 @@
 
 ### 在 AI 智能体中使用 KJDraw
 
-在需要接入的项目根目录运行安装命令。它会为支持的客户端配置 KJDraw MCP 与 CAD Skill，并建立项目级图纸宿主。模型 API Key 始终留在你的 AI 客户端，不交给 KJDraw。
+在任意目录运行一次即可。安装器会把 KJDraw 接入当前用户的 Kimi Code、WorkBuddy 与 ZCode，之后可在任意工作区使用；TraeCode 会打开官方的一次性导入确认。模型 API Key 始终留在你的 AI 客户端，不交给 KJDraw。
 
 **Windows PowerShell**
 
@@ -64,7 +64,7 @@ irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.
 curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
 ```
 
-连接器当前会在一次事务中写入 Kimi Code、WorkBuddy、ZCode 和 TraeCode 的项目配置。[安装细节与安全边界](docs/try-in-ai.zh-CN.md)
+连接器会安全合并用户级配置，不再要求修改每个项目；可编辑图纸宿主统一保存在用户主目录。[安装细节与安全边界](docs/try-in-ai.zh-CN.md)
 
 > **1.0 候选状态：** 命令行配置与真实引擎冒烟测试已经通过；四个客户端 GUI 与真实模型的独立验收仍是发布门槛。KJDraw 不收集模型 Key；源图只读打开，修改在宿主批准前始终是待审核提案。
 

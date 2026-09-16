@@ -106,6 +106,12 @@ test('user scope writes only verified global config paths and returns TraeCode o
   for (const rel of userConfigPaths) assert.ok((await stat(join(root, rel))).isFile())
   await assert.rejects(readFile(join(root, '.zcode/config.json')), { code: 'ENOENT' })
   await assert.rejects(readFile(join(root, '.trae/mcp.json')), { code: 'ENOENT' })
+  const configured = JSON.parse(await readFile(join(root, '.kimi-code/mcp.json'), 'utf8')).mcpServers.kjdraw
+  const request = (id, method, params) => JSON.stringify({ jsonrpc: '2.0', id, method, ...(params ? { params } : {}) })
+  const child = spawnSync(process.execPath, configured.args, { encoding: 'utf8', input: `${request(1, 'initialize', { protocolVersion: '2025-11-25' })}\n${request(2, 'tools/call', { name: 'cad_read_drawing', arguments: {} })}\n`, timeout: 10000 })
+  assert.equal(child.status, 0, child.stderr)
+  const responses = child.stdout.trim().split('\n').map(line => JSON.parse(line))
+  assert.equal(responses[1].result.structuredContent.value.revision, 0)
 })
 
 test('canonical project skills are idempotent and a conflicting copy blocks every write', async t => {

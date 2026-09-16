@@ -50,7 +50,7 @@ The model expresses drawing intent, supplied facts, constraints, and requested c
 
 ### Use KJDraw from an AI agent
 
-Run the installer from the root of the project you want to connect. It adds KJDraw's MCP server and CAD Skill to supported clients and creates a project-local drawing host. Your model key stays with your AI client.
+Run the installer once from any directory. It installs KJDraw for the current user, so Kimi Code, WorkBuddy, and ZCode can use the same CAD tools in every workspace. TraeCode opens its official one-time import confirmation. Your model key stays with your AI client.
 
 **Windows PowerShell**
 
@@ -64,7 +64,7 @@ irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.
 curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
 ```
 
-The connector currently writes project configuration for Kimi Code, WorkBuddy, ZCode, and TraeCode in one transaction. [Installation details and security model](docs/try-in-ai.md)
+The connector safely merges user-level configuration instead of modifying each project. KJDraw keeps its editable host drawing under the user's home directory. [Installation details and security model](docs/try-in-ai.md)
 
 > **1.0 release candidate:** command-line configuration and real-engine smoke tests pass; independent GUI/model acceptance remains a release gate. No model key is collected. Source drawings are opened read-only and changes remain proposals until the host approves them.
 

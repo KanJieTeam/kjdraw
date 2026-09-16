@@ -208,7 +208,7 @@ async function doctor(args) {
   for (const target of SKILLS) checks.push({ id: 'client-skill', ...await skillCheck(workspace, target, source) })
   checks.push({
     id: 'client-skill', client: 'WorkBuddy', status: 'manual-installation-required',
-    note: 'WorkBuddy documents Marketplace/upload installation, not a project-local Skill discovery path.',
+    note: 'WorkBuddy does not document a local Skill discovery path that KJDraw can write safely.',
   })
 
   const ok = checks.every(check => check.status === 'ok' || check.status === 'manual-installation-required' || check.status === 'confirmation-required')
