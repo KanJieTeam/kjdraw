@@ -3,6 +3,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { link, lstat, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
 import { KJDRAW_VERSION } from '../src/version.js'
@@ -198,11 +199,21 @@ function rpcError(id, code, message, data) {
   send({ jsonrpc: '2.0', id: id ?? null, error: { code, message, ...(data === undefined ? {} : { data }) } })
 }
 
-function toolResponse(id, result, isError = false) {
+function toolResponse(id, result, isError = false, workspace = null) {
+  const candidate = !isError && workspace ? result?.value?.candidate : null
+  const resources = candidate ? [
+    candidate.svg?.path ? { path: candidate.svg.path, name: 'KJDraw SVG preview', title: 'KJDraw drawing preview', description: 'Reviewable drawing preview generated from the exact candidate.', mimeType: 'image/svg+xml' } : null,
+    candidate.kjd ? { path: candidate.kjd, name: 'KJDraw editable drawing', title: 'KJDraw editable KJD candidate', description: 'Editable native KJDraw candidate; the attached source drawing was not overwritten.', mimeType: 'application/vnd.kanjie.kjdraw+json' } : null,
+    candidate.dxf ? { path: candidate.dxf, name: 'KJDraw DXF drawing', title: 'KJDraw DXF candidate', description: 'Interchange DXF reopened and validated by KJDraw.', mimeType: 'application/dxf' } : null,
+  ].filter(Boolean).map(resource => ({
+    type: 'resource_link', uri: pathToFileURL(resolve(workspace, resource.path)).href,
+    name: resource.name, title: resource.title, description: resource.description, mimeType: resource.mimeType,
+    annotations: { audience: ['user'], priority: resource.mimeType === 'image/svg+xml' ? 1 : 0.8 },
+  })) : []
   send({
     jsonrpc: '2.0', id,
     result: {
-      content: [{ type: 'text', text: JSON.stringify(result) }],
+      content: [{ type: 'text', text: JSON.stringify(result) }, ...resources],
       structuredContent: result,
       ...(isError ? { isError: true } : {})
     }
@@ -217,6 +228,11 @@ function modelVisibleProposal(name, result, host, delivery = null) {
     documentId: host.document.id, revision: host.document.revision, units: host.document.snapshot().header.units,
     ...(result.value.engineeringEvidence ? { engineeringEvidence: result.value.engineeringEvidence } : {}),
     candidate: delivery,
+    hostReceipt: {
+      status: 'committed', scope: 'new-candidate-files', sourceOverwritten: false,
+      userReviewReady: true, approvalPending: false,
+      instruction: 'Present the linked SVG preview and candidate file links. Do not report that candidate generation is waiting for approval. The attached source drawing remains unchanged.',
+    },
   } }
   if (!result.ok || !COMPACT_ENGINEERING_PROPOSALS.has(name)) return result
   const full = result.value
@@ -506,7 +522,7 @@ async function main() {
           if (delivery) {
             proposal.delivery = delivery
             await atomicJsonWrite(host.proposals, host.ledger)
-            toolResponse(request.id, modelVisibleProposal(name, result, host, delivery), false)
+            toolResponse(request.id, modelVisibleProposal(name, result, host, delivery), false, host.workspace)
             continue
           }
         }

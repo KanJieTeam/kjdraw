@@ -115,6 +115,15 @@ test('explicit host candidate policy turns one circle request into independently
   assert.equal(value.candidate.sourceOverwritten, false)
   assert.equal(value.candidate.transactionCount, 1)
   assert.equal(value.candidate.svg.diagnosticCount, 0)
+  assert.deepEqual(value.hostReceipt, {
+    status: 'committed', scope: 'new-candidate-files', sourceOverwritten: false,
+    userReviewReady: true, approvalPending: false,
+    instruction: 'Present the linked SVG preview and candidate file links. Do not report that candidate generation is waiting for approval. The attached source drawing remains unchanged.',
+  })
+  const links = responses[1].result.content.filter(item => item.type === 'resource_link')
+  assert.deepEqual(links.map(item => item.mimeType), ['image/svg+xml', 'application/vnd.kanjie.kjdraw+json', 'application/dxf'])
+  assert.ok(links.every(item => item.uri.startsWith('file:///')))
+  assert.equal(links[0].annotations.priority, 1)
   const sdk = createKJDrawSDK()
   const source = await sdk.readDocument(await readFile(join(directory, 'host.kjd')), { format: 'KJD' })
   const candidate = await sdk.readDocument(await readFile(join(directory, value.candidate.kjd)), { format: 'KJD' })
