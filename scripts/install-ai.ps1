@@ -1,9 +1,12 @@
 $ErrorActionPreference = 'Stop'
 
-$KJDrawSourceSha = '71df8226e32db56fd9f5be3b5efc270362c0d819'
+$KJDrawSourceSha = 'a3c1bca6834695e579719149cb5ec1161df807c9'
 $KJDrawUserHome = if ($env:KJDRAW_USER_HOME) { $env:KJDRAW_USER_HOME } else { $env:USERPROFILE }
-$KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-71df822'
-$KJDrawPreviousMcp = Join-Path $env:LOCALAPPDATA 'KJDraw\source-616133e\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'
+$KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-a3c1bca'
+$KJDrawPreviousMcpCandidates = @(
+  (Join-Path $env:LOCALAPPDATA 'KJDraw\source-71df822\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
+  (Join-Path $env:LOCALAPPDATA 'KJDraw\source-616133e\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs')
+)
 
 if (-not $KJDrawUserHome -or -not [IO.Path]::IsPathRooted($KJDrawUserHome) -or -not (Test-Path -LiteralPath $KJDrawUserHome -PathType Container)) {
   throw 'The current user home directory could not be resolved safely.'
@@ -54,7 +57,8 @@ if (Test-Path -LiteralPath $KJDrawHost -PathType Leaf) {
 } else {
   $KJDrawArgs = @('--all', '--apply', '--scope', 'user', '--workspace', $KJDrawUserHome, '--blank', '.kjdraw/host.kjd', '--units', 'millimeter', '--candidate-dir', '.kjdraw/results')
 }
-if (Test-Path -LiteralPath $KJDrawPreviousMcp -PathType Leaf) { $KJDrawArgs += @('--previous-mcp-script', $KJDrawPreviousMcp) }
+$KJDrawPreviousMcp = @($KJDrawPreviousMcpCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })[0]
+if ($KJDrawPreviousMcp) { $KJDrawArgs += @('--previous-mcp-script', $KJDrawPreviousMcp) }
 $KJDrawOutput = @(node $KJDrawConnect @KJDrawArgs)
 if ($LASTEXITCODE -ne 0) { throw 'KJDraw refused the user connection; no conflicting client entry was overwritten.' }
 $KJDrawResult = ($KJDrawOutput -join [Environment]::NewLine) | ConvertFrom-Json

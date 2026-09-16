@@ -22,17 +22,19 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
 </p>
 
-## CAD infrastructure designed for AI agents
+## The first drawing is easy. The tenth edit is the real test.
+
+Generating something that looks like CAD is no longer difficult. Engineering CAD means keeping hundreds of related objects correct across a long conversation: finding the same object again, preserving dimensions, layers, blocks, hatches, and references, then producing a consistent result after Undo, export, save, and reopen.
+
+Asking an LLM to emit coordinates and primitive entities one by one burns tokens, lets geometry and constraints drift, and leaves later turns guessing which object to change. A plausible image is not evidence of editable, auditable CAD.
+
+KJDraw is not another model trained to draw a few templates. It gives different models and agents the same CAD execution layer: the model decides what to draw; the local engine deterministically owns geometry, object identity, layers, references, transactions, validation, and file output.
+
+## How KJDraw closes the gap
 
 | Work at the intent level | Execute deterministically | Keep the drawing editable |
 | --- | --- | --- |
 | A model supplies requirements, constraints, and changes through a small set of high-level tools. | KJDraw resolves supported geometry, object identity, layers, references, and transactions. | Every accepted result remains structured CAD with Undo/Redo, save, and reopen support. |
-
-### From a prompt to a verified change
-
-`Intent → KJDraw Skill → high-level MCP tool → deterministic candidate → host review → atomic edit → validate, save, reopen`
-
-The model expresses drawing intent, supplied facts, constraints, and requested changes. KJDraw resolves supported geometry and object identity, rejects operations when required facts are missing or a protected boundary would be crossed, and returns evidence the host can review. This division keeps model output compact and gives different agent clients the same CAD contract.
 
 ## What you can build
 
