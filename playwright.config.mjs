@@ -18,7 +18,7 @@ export default defineConfig({
   webServer: {
     command: 'node scripts/serve.mjs',
     url: 'http://127.0.0.1:4173',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: process.env.KJDRAW_ISOLATED_SERVER ? false : !process.env.CI,
     timeout: 30_000,
   },
   projects: [
