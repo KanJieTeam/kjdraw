@@ -304,33 +304,46 @@ export async function connectWorkspace(options, hooks = {}) {
     if (pack.domain !== 'geology' || !pack.rules?.['geology-column-layout']) throw new Error('Geology column pack must declare the geology domain and geology-column-layout rule')
     geologyColumnKnowledge = { id: pack.id, version: pack.version, sha256: sha(bytes), path: relative(root, path).split(sep).join('/') }
   }
+  // Keep the spelling used to launch the installed package in persisted client
+  // entries. On macOS, realpath('/var/...') is '/private/var/...'; rewriting the
+  // user-visible path on every install makes an otherwise identical entry look
+  // different to clients and to the next installer run.
   const mcpPath = fileURLToPath(new URL('./kjdraw-mcp.mjs', import.meta.url))
   if (/[\\/]_npx[\\/]/iu.test(mcpPath) && options.apply) throw new Error('Refusing an ephemeral npm npx cache as a persistent MCP target; install the package locally or globally first')
   const mcpInfo = await item(mcpPath)
   if (!mcpInfo?.isFile() || mcpInfo.isSymbolicLink()) throw new Error('KJDraw MCP script is not a regular installed file')
+  const canonicalMcpPath = await realpath(mcpPath)
   const previousMcpScripts = options.previousMcpScripts ?? (options.previousMcpScript ? [options.previousMcpScript] : [])
   const previousMcpPaths = []
   for (const requested of previousMcpScripts) {
     if (scope !== 'user' || !isAbsolute(requested)) throw new Error('--previous-mcp-script requires user scope and an absolute path')
-    const previousInfo = await item(requested)
+    const requestedPath = resolve(requested)
+    const previousInfo = await item(requestedPath)
     if (!previousInfo?.isFile() || previousInfo.isSymbolicLink()) throw new Error('--previous-mcp-script must be an existing regular file')
-    const previousPath = await realpath(requested)
-    if (previousPath === mcpPath) throw new Error('--previous-mcp-script must identify an earlier installed file')
-    if (!previousMcpPaths.includes(previousPath)) previousMcpPaths.push(previousPath)
+    const previousPath = await realpath(requestedPath)
+    if (previousPath === canonicalMcpPath) throw new Error('--previous-mcp-script must identify an earlier installed file')
+    // Accept only the exact path supplied by the installer and its exact
+    // canonical alias. This handles /var versus /private/var without allowing
+    // any other existing kjdraw entry to be replaced.
+    for (const path of [requestedPath, previousPath]) if (!previousMcpPaths.includes(path)) previousMcpPaths.push(path)
   }
   const sourceSha256 = sha(await readFile(mcpPath))
   const nodeEvidence = await nodePathEvidence(root)
   const skill = await skillSource()
   const skillPlans = await planSkillTargets(root, skill)
   // 'node' avoids an ephemeral desktop runtime path and TraeCode's no-spaces command rule.
-  const entry = { command: 'node', args: [mcpPath, '--workspace', root, '--input', drawing.name, '--proposal-dir', relative(root, proposals).split(sep).join('/'),
+  const entry = { command: 'node', args: [mcpPath, '--workspace', rawRoot, '--input', drawing.name, '--proposal-dir', relative(root, proposals).split(sep).join('/'),
     ...(candidates ? ['--candidate-dir', relative(root, candidates).split(sep).join('/')] : []),
     ...(geologyColumnKnowledge ? ['--geology-column-pack', geologyColumnKnowledge.path, '--geology-column-pack-sha256', geologyColumnKnowledge.sha256] : [])] }
-  const acceptedPriorEntries = previousMcpPaths.flatMap(previousMcpScript => {
-    const exact = { ...entry, args: [previousMcpScript, ...entry.args.slice(1)] }
-    const candidateIndex = exact.args.indexOf('--candidate-dir')
-    return [exact, ...(candidateIndex >= 0 ? [{ ...exact, args: exact.args.toSpliced(candidateIndex, 2) }] : [])]
-  })
+  const workspaceSpellings = rawRoot === root ? [rawRoot] : [rawRoot, root]
+  const acceptedScripts = [...new Set([mcpPath, canonicalMcpPath, ...previousMcpPaths])]
+  const acceptedPriorEntries = acceptedScripts.flatMap(previousMcpScript => workspaceSpellings.flatMap(workspace => {
+    const args = [previousMcpScript, ...entry.args.slice(1)]
+    args[args.indexOf('--workspace') + 1] = workspace
+    const exact = { ...entry, args }
+    const candidateIndex = args.indexOf('--candidate-dir')
+    return [exact, ...(candidateIndex >= 0 ? [{ ...exact, args: args.toSpliced(candidateIndex, 2) }] : [])]
+  }))
   const clients = scope === 'user' ? USER_CLIENTS : PROJECT_CLIENTS
   const plans = []
   for (const client of clients) {

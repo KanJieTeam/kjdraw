@@ -257,6 +257,41 @@ test('user installer accepts the configured second path when two known historica
   }
 })
 
+test('user scope preserves a noncanonical macOS home spelling and migrates its exact prior script alias', { skip: process.platform === 'win32' }, async t => {
+  const parent = await fixture(t)
+  const realParent = join(parent, 'private')
+  const aliasParent = join(parent, 'var')
+  await mkdir(join(realParent, 'home'), { recursive: true })
+  await symlink(realParent, aliasParent, 'dir')
+  const root = join(aliasParent, 'home')
+  await connectWorkspace({ ...options(root), scope: 'user' })
+  const canonicalRoot = await realpath(root)
+  for (const relative of userConfigPaths) {
+    const path = join(root, relative), value = JSON.parse(await readFile(path, 'utf8'))
+    const entry = relative.startsWith('.zcode/') ? value.mcp.servers.kjdraw : value.mcpServers.kjdraw
+    entry.args[entry.args.indexOf('--workspace') + 1] = canonicalRoot
+    await writeFile(path, `${JSON.stringify(value, null, 2)}\n`)
+  }
+  await connectWorkspace({ ...options(root), scope: 'user' })
+  const previousMcpScript = join(root, 'previous-kjdraw-mcp.mjs')
+  await writeFile(previousMcpScript, 'fixture previous installed KJDraw MCP')
+  for (const relative of userConfigPaths) {
+    const path = join(root, relative), value = JSON.parse(await readFile(path, 'utf8'))
+    const entry = relative.startsWith('.zcode/') ? value.mcp.servers.kjdraw : value.mcpServers.kjdraw
+    assert.equal(entry.args[entry.args.indexOf('--workspace') + 1], resolve(root))
+    entry.args[0] = previousMcpScript
+    entry.args[entry.args.indexOf('--workspace') + 1] = canonicalRoot
+    await writeFile(path, `${JSON.stringify(value, null, 2)}\n`)
+  }
+  await connectWorkspace({ ...options(root), scope: 'user', previousMcpScript })
+  for (const relative of userConfigPaths) {
+    const value = JSON.parse(await readFile(join(root, relative), 'utf8'))
+    const entry = relative.startsWith('.zcode/') ? value.mcp.servers.kjdraw : value.mcpServers.kjdraw
+    assert.equal(entry.args[entry.args.indexOf('--workspace') + 1], resolve(root))
+    assert.notEqual(entry.args[0], previousMcpScript)
+  }
+})
+
 test('explicit replacement preserves unrelated MCP entries and rolls back original bytes on failure', async t => {
   const seedCustomUserConfigs = async root => {
     const originals = [
