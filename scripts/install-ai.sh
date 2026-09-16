@@ -1,14 +1,15 @@
 #!/bin/sh
 set -eu
 
-KJDRAW_SOURCE_SHA='6da40b21ab9cbbd6c344e93e140277a58c5cc666'
+KJDRAW_SOURCE_SHA='52f3a72ddc5356046317f9b19bd8460db8620a77'
 command -v node >/dev/null 2>&1 || { echo 'KJDraw requires Node.js 22 or newer.' >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || { echo 'KJDraw requires curl.' >&2; exit 1; }
 command -v tar >/dev/null 2>&1 || { echo 'KJDraw requires tar.' >&2; exit 1; }
 node -e 'if (+process.versions.node.split(".")[0] < 22) process.exit(1)'
 KJDRAW_USER_HOME="${KJDRAW_USER_HOME:-$(node -p 'require("node:os").homedir()')}"
 KJDRAW_DATA_ROOT="${XDG_DATA_HOME:-$KJDRAW_USER_HOME/.local/share}"
-KJDRAW_INSTALL="$KJDRAW_DATA_ROOT/kjdraw/source-6da40b2"
+KJDRAW_INSTALL="$KJDRAW_DATA_ROOT/kjdraw/source-52f3a72"
+KJDRAW_PREVIOUS_6DA="$KJDRAW_DATA_ROOT/kjdraw/source-6da40b2/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_85D="$KJDRAW_DATA_ROOT/kjdraw/source-85d750e/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_C526="$KJDRAW_DATA_ROOT/kjdraw/source-c526aa7/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_A3C1="$KJDRAW_DATA_ROOT/kjdraw/source-a3c1bca/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
@@ -61,6 +62,7 @@ fi
 # named entry; unrelated MCP servers remain untouched. Unknown conflicts in
 # other files still fail atomically inside kjdraw-connect.
 set -- "$@" --replace-existing
+if [ -f "$KJDRAW_PREVIOUS_6DA" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_6DA"; fi
 if [ -f "$KJDRAW_PREVIOUS_85D" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_85D"; fi
 if [ -f "$KJDRAW_PREVIOUS_C526" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_C526"; fi
 if [ -f "$KJDRAW_PREVIOUS_A3C1" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_A3C1"; fi
