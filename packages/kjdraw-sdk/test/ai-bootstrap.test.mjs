@@ -5,7 +5,7 @@ import test from 'node:test'
 
 const root = new URL('../../../', import.meta.url)
 const read = path => readFile(new URL(path, root), 'utf8')
-const pinned = 'a3c1bca6834695e579719149cb5ec1161df807c9'
+const pinned = 'c526aa73a9009d927f99191bd65e77a4fec62740'
 
 test('one-line AI bootstraps pin one public candidate and connect all clients without npx or force', async () => {
   const [powerShell, shell] = await Promise.all([read('scripts/install-ai.ps1'), read('scripts/install-ai.sh')])
@@ -19,16 +19,21 @@ test('one-line AI bootstraps pin one public candidate and connect all clients wi
     assert.match(source, /--candidate-dir/)
     assert.match(source, /\.kjdraw\/results/)
     assert.match(source, /--previous-mcp-script/)
+    assert.match(source, /--replace-existing/)
+    for (const previous of ['source-a3c1bca', 'source-71df822', 'source-616133e']) assert.match(source, new RegExp(previous))
     assert.doesNotMatch(source, /KJDRAW_PROJECT|Get-Location|\$PWD/)
     assert.doesNotMatch(source, /\bnpx\b|git clone|push|--force|reset --hard/)
   }
   assert.match(powerShell, /IsPathRooted/)
   assert.doesNotMatch(powerShell, /IsPathFullyQualified/)
+  assert.match(powerShell, /\$env:KJDRAW_REPLACE_EXISTING='1'; irm https:\/\/raw\.githubusercontent\.com\/KanJieTeam\/kjdraw\/main\/scripts\/install-ai\.ps1 \| iex/)
   assert.match(powerShell, /^[\x00-\x7f]*$/u)
+  assert.match(shell, /curl -fsSL https:\/\/raw\.githubusercontent\.com\/KanJieTeam\/kjdraw\/main\/scripts\/install-ai\.sh \| KJDRAW_REPLACE_EXISTING=1 sh/)
+  assert.doesNotMatch(shell, /KJDRAW_REPLACE_EXISTING=1 curl/)
 })
 
-test('Chinese default and English homepage lead with the same runnable one-command AI install', async () => {
-  const [chinese, english] = await Promise.all([read('README.md'), read('README.en.md')])
+test('English default and Chinese homepage lead with the same runnable one-command AI install', async () => {
+  const [english, chinese] = await Promise.all([read('README.md'), read('README.zh-CN.md')])
   for (const source of [chinese, english]) {
     assert.match(source, /irm https:\/\/raw\.githubusercontent\.com\/KanJieTeam\/kjdraw\/main\/scripts\/install-ai\.ps1 \| iex/)
     assert.match(source, /curl -fsSL https:\/\/raw\.githubusercontent\.com\/KanJieTeam\/kjdraw\/main\/scripts\/install-ai\.sh \| sh/)

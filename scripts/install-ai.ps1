@@ -1,9 +1,10 @@
 $ErrorActionPreference = 'Stop'
 
-$KJDrawSourceSha = 'a3c1bca6834695e579719149cb5ec1161df807c9'
+$KJDrawSourceSha = 'c526aa73a9009d927f99191bd65e77a4fec62740'
 $KJDrawUserHome = if ($env:KJDRAW_USER_HOME) { $env:KJDRAW_USER_HOME } else { $env:USERPROFILE }
-$KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-a3c1bca'
+$KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-c526aa7'
 $KJDrawPreviousMcpCandidates = @(
+  (Join-Path $env:LOCALAPPDATA 'KJDraw\source-a3c1bca\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-71df822\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-616133e\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs')
 )
@@ -57,8 +58,10 @@ if (Test-Path -LiteralPath $KJDrawHost -PathType Leaf) {
 } else {
   $KJDrawArgs = @('--all', '--apply', '--scope', 'user', '--workspace', $KJDrawUserHome, '--blank', '.kjdraw/host.kjd', '--units', 'millimeter', '--candidate-dir', '.kjdraw/results')
 }
-$KJDrawPreviousMcp = @($KJDrawPreviousMcpCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })[0]
-if ($KJDrawPreviousMcp) { $KJDrawArgs += @('--previous-mcp-script', $KJDrawPreviousMcp) }
+$KJDrawReplaceExisting = $env:KJDRAW_REPLACE_EXISTING -eq '1'
+if ($KJDrawReplaceExisting) { $KJDrawArgs += '--replace-existing' }
+$KJDrawPreviousMcp = @($KJDrawPreviousMcpCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf })
+foreach ($KJDrawPreviousPath in $KJDrawPreviousMcp) { $KJDrawArgs += @('--previous-mcp-script', $KJDrawPreviousPath) }
 $KJDrawOutput = @(node $KJDrawConnect @KJDrawArgs)
 if ($LASTEXITCODE -ne 0) { throw 'KJDraw refused the user connection; no conflicting client entry was overwritten.' }
 $KJDrawResult = ($KJDrawOutput -join [Environment]::NewLine) | ConvertFrom-Json
@@ -76,3 +79,4 @@ Write-Host 'KJDraw user configuration is installed.' -ForegroundColor Green
 Write-Host 'Restart Kimi Code, WorkBuddy, or ZCode and verify the kjdraw tool call in any workspace. TraeCode uses its official import confirmation.'
 Write-Host 'Ask:'
 Write-Host 'Use KJDraw to draw a circle with a 5 mm radius.'
+Write-Host "To intentionally replace an existing custom kjdraw entry, rerun: `$env:KJDRAW_REPLACE_EXISTING='1'; irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.ps1 | iex"
