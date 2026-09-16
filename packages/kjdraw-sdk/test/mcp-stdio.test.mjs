@@ -127,7 +127,7 @@ test('explicit host candidate policy turns one circle request into independently
   assert.ok(links.every(item => item.uri.startsWith('file:///')))
   assert.equal(links[0].annotations.priority, 1)
   const previewHtml = await readFile(join(directory, value.candidate.preview.path), 'utf8')
-  assert.match(previewHtml, /图纸信息/u)
+  assert.match(previewHtml, /对象属性/u)
   assert.match(previewHtml, /modePlot/u)
   assert.match(previewHtml, /querySelectorAll\('\[data-entity-type\]'\)/u)
   const sdk = createKJDrawSDK()
