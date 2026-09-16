@@ -202,13 +202,14 @@ function rpcError(id, code, message, data) {
 function toolResponse(id, result, isError = false, workspace = null) {
   const candidate = !isError && workspace ? result?.value?.candidate : null
   const resources = candidate ? [
+    candidate.preview?.path ? { path: candidate.preview.path, name: 'KJDraw interactive preview', title: 'KJDraw drawing preview (zoom and pan)', description: 'Open the reviewable drawing preview with fit, zoom and pan controls.', mimeType: 'text/html' } : null,
     candidate.svg?.path ? { path: candidate.svg.path, name: 'KJDraw SVG preview', title: 'KJDraw drawing preview', description: 'Reviewable drawing preview generated from the exact candidate.', mimeType: 'image/svg+xml' } : null,
     candidate.kjd ? { path: candidate.kjd, name: 'KJDraw editable drawing', title: 'KJDraw editable KJD candidate', description: 'Editable native KJDraw candidate; the attached source drawing was not overwritten.', mimeType: 'application/vnd.kanjie.kjdraw+json' } : null,
     candidate.dxf ? { path: candidate.dxf, name: 'KJDraw DXF drawing', title: 'KJDraw DXF candidate', description: 'Interchange DXF reopened and validated by KJDraw.', mimeType: 'application/dxf' } : null,
   ].filter(Boolean).map(resource => ({
     type: 'resource_link', uri: pathToFileURL(resolve(workspace, resource.path)).href,
     name: resource.name, title: resource.title, description: resource.description, mimeType: resource.mimeType,
-    annotations: { audience: ['user'], priority: resource.mimeType === 'image/svg+xml' ? 1 : 0.8 },
+    annotations: { audience: ['user'], priority: ['text/html', 'image/svg+xml'].includes(resource.mimeType) ? 1 : 0.8 },
   })) : []
   send({
     jsonrpc: '2.0', id,
@@ -231,7 +232,7 @@ function modelVisibleProposal(name, result, host, delivery = null) {
     hostReceipt: {
       status: 'committed', scope: 'new-candidate-files', sourceOverwritten: false,
       userReviewReady: true, approvalPending: false,
-      instruction: 'Present the linked SVG preview and candidate file links. Do not report that candidate generation is waiting for approval. The attached source drawing remains unchanged.',
+      instruction: 'Present the linked interactive preview first, followed by the SVG and candidate file links. The preview supports fit, zoom and pan. Do not report that candidate generation is waiting for approval. The attached source drawing remains unchanged.',
     },
   } }
   if (!result.ok || !COMPACT_ENGINEERING_PROPOSALS.has(name)) return result
@@ -304,6 +305,46 @@ async function candidateSvgPreview(host) {
   return exportDrawingSvg(previewDocument, { layoutId: layout.id, allowPartial: true })
 }
 
+function interactiveSvgPreview(svg, title = 'KJDraw drawing candidate') {
+  const embeddedSvg = JSON.stringify(svg).replaceAll('<', '\\u003c')
+  const embeddedTitle = JSON.stringify(title).replaceAll('<', '\\u003c')
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title}</title>
+<style>
+:root{color-scheme:light dark;font:13px system-ui,-apple-system,Segoe UI,sans-serif;background:#15191f;color:#e8edf2}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;flex-direction:column;background:#15191f}
+header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #303943;background:#20262e;flex-wrap:wrap}
+header strong{margin-right:auto;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+button{border:1px solid #4b5663;border-radius:6px;background:#2b333d;color:inherit;padding:6px 10px;cursor:pointer;font:inherit}
+button:hover{background:#384451}button:focus-visible{outline:2px solid #83c8ff;outline-offset:2px}
+#zoom{min-width:58px;text-align:center;color:#b7c2ce;font-variant-numeric:tabular-nums}
+#viewport{position:relative;flex:1;min-height:420px;overflow:hidden;background:#f8fafc;touch-action:none;cursor:grab}
+#viewport.dragging{cursor:grabbing}#drawing{width:100%;height:100%;display:block}#drawing>svg{width:100%;height:100%;display:block}
+footer{padding:7px 12px;color:#9ba8b6;background:#20262e;border-top:1px solid #303943;font-size:11px}
+</style></head><body>
+<header><strong id="title"></strong><button id="fit" type="button">Fit</button><button id="minus" type="button">−</button><span id="zoom">100%</span><button id="plus" type="button">+</button><button id="reset" type="button">100%</button></header>
+<main id="viewport" aria-label="Interactive KJDraw drawing preview"><div id="drawing"></div></main>
+<footer>Scroll to zoom · drag to pan · Fit restores the full drawing</footer>
+<script>
+const svgText=${embeddedSvg}, title=${embeddedTitle};
+const viewport=document.getElementById('viewport'), drawing=document.getElementById('drawing');
+drawing.innerHTML=svgText; const svg=drawing.firstElementChild; document.getElementById('title').textContent=title;
+let view=null, base=null, drag=null;
+function readBase(){const b=svg.viewBox.baseVal;return{x:b.x,y:b.y,width:b.width,height:b.height}}
+function setView(next){view={...next};svg.setAttribute('viewBox',[view.x,view.y,view.width,view.height].join(' '));document.getElementById('zoom').textContent=Math.round(base.width/view.width*100)+'%'}
+function fit(){if(!base)return;setView(base)}
+function zoomAt(factor,cx=(view.x+view.width/2),cy=(view.y+view.height/2)){const width=view.width/factor,height=view.height/factor;setView({x:cx-(cx-view.x)/factor,y:cy-(cy-view.y)/factor,width,height})}
+function pointerPoint(e){const r=svg.getBoundingClientRect();return{x:view.x+(e.clientX-r.left)/r.width*view.width,y:view.y+(e.clientY-r.top)/r.height*view.height}}
+document.getElementById('fit').onclick=fit;document.getElementById('reset').onclick=fit;document.getElementById('plus').onclick=()=>zoomAt(1.25);document.getElementById('minus').onclick=()=>zoomAt(.8);
+viewport.addEventListener('wheel',e=>{e.preventDefault();const p=pointerPoint(e);zoomAt(Math.exp(-e.deltaY*.001),p.x,p.y)},{passive:false});
+viewport.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,view:{...view}};viewport.classList.add('dragging');viewport.setPointerCapture(e.pointerId)});
+viewport.addEventListener('pointermove',e=>{if(!drag)return;const r=svg.getBoundingClientRect();const dx=(e.clientX-drag.x)/r.width*drag.view.width,dy=(e.clientY-drag.y)/r.height*drag.view.height;setView({x:drag.view.x-dx,y:drag.view.y-dy,width:drag.view.width,height:drag.view.height})});
+viewport.addEventListener('pointerup',e=>{drag=null;viewport.classList.remove('dragging');viewport.releasePointerCapture(e.pointerId)});
+svg.addEventListener('load',()=>{base=readBase();fit()}); base=readBase(); fit();
+</script></body></html>`
+}
+
 async function deliverCandidate(host, proposal) {
   if (proposal.result.status !== 'awaiting-host-approval') return null
   const applied = await host.session.approve(proposal.result.planId, 'kjdraw-local-candidate-host')
@@ -311,7 +352,7 @@ async function deliverCandidate(host, proposal) {
   const directory = host.candidateDir
   if (!directory) throw new Error('Candidate delivery was not selected by the host')
   const stem = `candidate-${host.ledger.session?.id ?? randomUUID()}-${proposal.sequence}`
-  const kjdPath = join(directory, `${stem}.kjd`), dxfPath = join(directory, `${stem}.dxf`), svgPath = join(directory, `${stem}.svg`)
+  const kjdPath = join(directory, `${stem}.kjd`), dxfPath = join(directory, `${stem}.dxf`), svgPath = join(directory, `${stem}.svg`), previewPath = join(directory, `${stem}.html`)
   const kjd = await host.sdk.writeDocument(host.document, { format: 'KJD' })
   const dxf = await host.sdk.writeDocument(host.document, { format: 'DXF', version: '2018' })
   const reopenedKjd = await createKJDrawSDK().readDocument(kjd, { format: 'KJD' })
@@ -325,6 +366,7 @@ async function deliverCandidate(host, proposal) {
   const preview = await candidateSvgPreview(host)
   if (preview) {
     await exclusiveAtomicFileCreate(svgPath, preview.svg)
+    await exclusiveAtomicFileCreate(previewPath, interactiveSvgPreview(preview.svg))
     svg = {
       path: relative(host.workspace, svgPath).split(sep).join('/'),
       status: preview.report.status,
@@ -337,7 +379,7 @@ async function deliverCandidate(host, proposal) {
   return {
     kjd: relative(host.workspace, kjdPath).split(sep).join('/'),
     dxf: relative(host.workspace, dxfPath).split(sep).join('/'),
-    ...(svg ? { svg } : {}),
+    ...(svg ? { preview: { path: relative(host.workspace, previewPath).split(sep).join('/'), format: 'interactive-svg-html', controls: ['fit', 'zoom', 'pan'] }, svg } : {}),
     entityCount, sourceOverwritten: false, transactionCount: 1,
     kjdReopenValid: true, dxfReopenValid: true,
   }

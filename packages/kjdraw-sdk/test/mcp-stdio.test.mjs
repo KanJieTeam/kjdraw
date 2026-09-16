@@ -115,15 +115,18 @@ test('explicit host candidate policy turns one circle request into independently
   assert.equal(value.candidate.sourceOverwritten, false)
   assert.equal(value.candidate.transactionCount, 1)
   assert.equal(value.candidate.svg.diagnosticCount, 0)
+  assert.equal(value.candidate.preview.format, 'interactive-svg-html')
+  assert.deepEqual(value.candidate.preview.controls, ['fit', 'zoom', 'pan'])
   assert.deepEqual(value.hostReceipt, {
     status: 'committed', scope: 'new-candidate-files', sourceOverwritten: false,
     userReviewReady: true, approvalPending: false,
-    instruction: 'Present the linked SVG preview and candidate file links. Do not report that candidate generation is waiting for approval. The attached source drawing remains unchanged.',
+    instruction: 'Present the linked interactive preview first, followed by the SVG and candidate file links. The preview supports fit, zoom and pan. Do not report that candidate generation is waiting for approval. The attached source drawing remains unchanged.',
   })
   const links = responses[1].result.content.filter(item => item.type === 'resource_link')
-  assert.deepEqual(links.map(item => item.mimeType), ['image/svg+xml', 'application/vnd.kanjie.kjdraw+json', 'application/dxf'])
+  assert.deepEqual(links.map(item => item.mimeType), ['text/html', 'image/svg+xml', 'application/vnd.kanjie.kjdraw+json', 'application/dxf'])
   assert.ok(links.every(item => item.uri.startsWith('file:///')))
   assert.equal(links[0].annotations.priority, 1)
+  assert.match(await readFile(join(directory, value.candidate.preview.path), 'utf8'), /Scroll to zoom/u)
   const sdk = createKJDrawSDK()
   const source = await sdk.readDocument(await readFile(join(directory, 'host.kjd')), { format: 'KJD' })
   const candidate = await sdk.readDocument(await readFile(join(directory, value.candidate.kjd)), { format: 'KJD' })
