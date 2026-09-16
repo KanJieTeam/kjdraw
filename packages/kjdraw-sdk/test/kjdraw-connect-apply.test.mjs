@@ -227,6 +227,70 @@ test('user installer can migrate one exact prior KJDraw script path without weak
   await assert.rejects(connectWorkspace({ ...options(root), scope: 'user', previousMcpScript }), /conflicts; refusing to overwrite/u)
 })
 
+test('user installer accepts the configured second path when two known historical KJDraw installs coexist', async t => {
+  const root = await fixture(t)
+  await connectWorkspace({ ...options(root), scope: 'user' })
+  const previousMcpScripts = [
+    join(root, 'appdata/KJDraw/source-71df822/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs'),
+    join(root, 'appdata/KJDraw/source-616133e/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs'),
+  ]
+  for (const previous of previousMcpScripts) {
+    await mkdir(dirname(previous), { recursive: true })
+    await writeFile(previous, `fixture historical KJDraw MCP: ${previous}\n`)
+  }
+  for (const relative of userConfigPaths) {
+    const path = join(root, relative), value = JSON.parse(await readFile(path, 'utf8'))
+    const entry = relative.startsWith('.zcode/') ? value.mcp.servers.kjdraw : value.mcpServers.kjdraw
+    entry.args[0] = previousMcpScripts[1]
+    await writeFile(path, `${JSON.stringify(value, null, 2)}\n`)
+  }
+  const upgraded = spawnSync(process.execPath, [publicBin, '--all', '--apply', '--scope', 'user', '--workspace', root,
+    '--input', '.kjdraw/active.kjd', '--candidate-dir', '.kjdraw/results',
+    '--previous-mcp-script', previousMcpScripts[0], '--previous-mcp-script', previousMcpScripts[1]], { encoding: 'utf8' })
+  assert.equal(upgraded.status, 0, upgraded.stderr)
+  assert.equal(JSON.parse(upgraded.stdout).configurationEvidence.conflictPolicy, 'refuse-unknown')
+  for (const relative of userConfigPaths) {
+    const value = JSON.parse(await readFile(join(root, relative), 'utf8'))
+    const entry = relative.startsWith('.zcode/') ? value.mcp.servers.kjdraw : value.mcpServers.kjdraw
+    assert.notEqual(entry.args[0], previousMcpScripts[0])
+    assert.notEqual(entry.args[0], previousMcpScripts[1])
+  }
+})
+
+test('explicit replacement preserves unrelated MCP entries and rolls back original bytes on failure', async t => {
+  const seedCustomUserConfigs = async root => {
+    const originals = [
+      await seeded(root, userConfigPaths[0], { mcpServers: { retained: { command: 'owner-kimi', args: ['--keep', '一'] }, kjdraw: { command: 'custom-kjdraw', args: ['kimi'] } }, profile: { locale: 'zh-CN' } }),
+      await seeded(root, userConfigPaths[1], { mcpServers: { retained: { url: 'https://owner.invalid/workbuddy' }, kjdraw: { command: 'custom-kjdraw', args: ['workbuddy'] } }, auth: { mode: 'owner' } }),
+      await seeded(root, userConfigPaths[2], { mcp: { servers: { retained: { command: 'owner-zcode', env: { SAFE: 'yes' } }, kjdraw: { command: 'custom-kjdraw', args: ['zcode'] } } }, model: 'owner-model' }),
+    ]
+    return originals
+  }
+
+  const successRoot = await fixture(t)
+  const successOriginals = await seedCustomUserConfigs(successRoot)
+  const retainedBefore = successOriginals.map(item => {
+    const value = JSON.parse(item.bytes.toString('utf8'))
+    return item.path.includes('.zcode') ? value.mcp.servers.retained : value.mcpServers.retained
+  })
+  const replaced = await connectWorkspace({ ...options(successRoot), scope: 'user', replaceExisting: true })
+  assert.equal(replaced.configurationEvidence.conflictPolicy, 'replace-explicit')
+  for (let index = 0; index < successOriginals.length; index += 1) {
+    const value = JSON.parse(await readFile(successOriginals[index].path, 'utf8'))
+    const servers = successOriginals[index].path.includes('.zcode') ? value.mcp.servers : value.mcpServers
+    assert.deepEqual(servers.retained, retainedBefore[index])
+    assert.equal(servers.kjdraw.command, 'node')
+  }
+
+  const rollbackRoot = await fixture(t)
+  const rollbackOriginals = await seedCustomUserConfigs(rollbackRoot)
+  await assert.rejects(connectWorkspace({ ...options(rollbackRoot), scope: 'user', replaceExisting: true }, {
+    beforeReplace: name => { if (name === 'ZCode') throw new Error('injected replacement failure') },
+  }), /injected replacement failure/)
+  for (const original of rollbackOriginals) assert.deepEqual(await readFile(original.path), original.bytes)
+  await assert.rejects(readFile(join(rollbackRoot, '.kjdraw/active.kjd')), { code: 'ENOENT' })
+})
+
 test('candidate output cannot alias the proposal ledger directory', async t => {
   const root = await fixture(t)
   await assert.rejects(connectWorkspace({ ...options(root), candidateDir: '.kjdraw/proposals' }), /must be different/u)

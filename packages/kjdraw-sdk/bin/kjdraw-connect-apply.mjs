@@ -33,7 +33,7 @@ const SKILL_TARGETS = Object.freeze([
 ])
 
 function usage() {
-  return `Usage: kjdraw-connect --all --workspace <directory> [--scope project|user] (--input <existing.kjd|drawing.dxf> | --blank <new.kjd> --units millimeter|meter) [--proposal-dir .kjdraw/proposals] [--candidate-dir .kjdraw/results] [--previous-mcp-script <absolute-installed-file>] [--geology-column-pack <relative.json> --geology-column-pack-sha256 <sha256>] [--apply]\n\nWithout --apply this is a read-only preview. --candidate-dir is an explicit host policy that materializes exact proposals as new candidate files without overwriting the input drawing. --previous-mcp-script authorizes only an exact KJDraw-managed entry migration from that existing regular file.`
+  return `Usage: kjdraw-connect --all --workspace <directory> [--scope project|user] (--input <existing.kjd|drawing.dxf> | --blank <new.kjd> --units millimeter|meter) [--proposal-dir .kjdraw/proposals] [--candidate-dir .kjdraw/results] [--previous-mcp-script <absolute-installed-file>]... [--replace-existing] [--geology-column-pack <relative.json> --geology-column-pack-sha256 <sha256>] [--apply]\n\nWithout --apply this is a read-only preview. --candidate-dir is an explicit host policy that materializes exact proposals as new candidate files without overwriting the input drawing. Each --previous-mcp-script authorizes one exact KJDraw-managed entry migration from an earlier regular file. --replace-existing is an explicit host instruction to replace a conflicting kjdraw entry while preserving the rest of each client configuration.`
 }
 
 function parseArgs(argv) {
@@ -42,9 +42,17 @@ function parseArgs(argv) {
   const seen = new Set()
   for (let i = 0; i < argv.length; i += 1) {
     const key = argv[i]
-    if (seen.has(key)) throw new Error(`Duplicate option: ${key}`)
+    if (seen.has(key) && key !== '--previous-mcp-script') throw new Error(`Duplicate option: ${key}`)
     seen.add(key)
-    if (key === '--all' || key === '--apply') { options[key.slice(2)] = true; continue }
+    if (key === '--all' || key === '--apply' || key === '--replace-existing') {
+      options[key === '--replace-existing' ? 'replaceExisting' : key.slice(2)] = true
+      continue
+    }
+    if (key === '--previous-mcp-script') {
+      if (!argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('Unknown or incomplete option')
+      ;(options.previousMcpScripts ??= []).push(argv[++i])
+      continue
+    }
     if (!['--workspace', '--scope', '--input', '--blank', '--units', '--proposal-dir', '--candidate-dir', '--previous-mcp-script', '--geology-column-pack', '--geology-column-pack-sha256'].includes(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('Unknown or incomplete option')
     options[key === '--proposal-dir' ? 'proposalDir' : key === '--candidate-dir' ? 'candidateDir' : key === '--previous-mcp-script' ? 'previousMcpScript' : key.slice(2)] = argv[++i]
   }
@@ -138,7 +146,7 @@ async function readConfig(path) {
   return { bytes, value }
 }
 
-function merged(original, keys, entry, legacyStdio = false, acceptedPriorEntries = []) {
+function merged(original, keys, entry, legacyStdio = false, acceptedPriorEntries = [], replaceExisting = false) {
   const value = structuredClone(original)
   let target = value
   for (const key of keys) {
@@ -152,7 +160,7 @@ function merged(original, keys, entry, legacyStdio = false, acceptedPriorEntries
     if (isDeepStrictEqual(normalized, entry)) return null
     const candidateIndex = entry.args?.indexOf('--candidate-dir') ?? -1
     const prior = candidateIndex >= 0 ? { ...entry, args: entry.args.toSpliced(candidateIndex, 2) } : null
-    if ((!prior || !isDeepStrictEqual(normalized, prior)) && !acceptedPriorEntries.some(candidate => isDeepStrictEqual(normalized, candidate))) throw new Error('Existing kjdraw MCP entry conflicts; refusing to overwrite it')
+    if (!replaceExisting && (!prior || !isDeepStrictEqual(normalized, prior)) && !acceptedPriorEntries.some(candidate => isDeepStrictEqual(normalized, candidate))) throw new Error('Existing kjdraw MCP entry conflicts; refusing to overwrite it')
     target.kjdraw = legacyStdio && existing.type === 'stdio' ? { type: 'stdio', ...entry } : entry
     return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8')
   }
@@ -300,13 +308,15 @@ export async function connectWorkspace(options, hooks = {}) {
   if (/[\\/]_npx[\\/]/iu.test(mcpPath) && options.apply) throw new Error('Refusing an ephemeral npm npx cache as a persistent MCP target; install the package locally or globally first')
   const mcpInfo = await item(mcpPath)
   if (!mcpInfo?.isFile() || mcpInfo.isSymbolicLink()) throw new Error('KJDraw MCP script is not a regular installed file')
-  let previousMcpScript = null
-  if (options.previousMcpScript) {
-    if (scope !== 'user' || !isAbsolute(options.previousMcpScript)) throw new Error('--previous-mcp-script requires user scope and an absolute path')
-    const previousInfo = await item(options.previousMcpScript)
+  const previousMcpScripts = options.previousMcpScripts ?? (options.previousMcpScript ? [options.previousMcpScript] : [])
+  const previousMcpPaths = []
+  for (const requested of previousMcpScripts) {
+    if (scope !== 'user' || !isAbsolute(requested)) throw new Error('--previous-mcp-script requires user scope and an absolute path')
+    const previousInfo = await item(requested)
     if (!previousInfo?.isFile() || previousInfo.isSymbolicLink()) throw new Error('--previous-mcp-script must be an existing regular file')
-    previousMcpScript = await realpath(options.previousMcpScript)
-    if (previousMcpScript === mcpPath) throw new Error('--previous-mcp-script must identify an earlier installed file')
+    const previousPath = await realpath(requested)
+    if (previousPath === mcpPath) throw new Error('--previous-mcp-script must identify an earlier installed file')
+    if (!previousMcpPaths.includes(previousPath)) previousMcpPaths.push(previousPath)
   }
   const sourceSha256 = sha(await readFile(mcpPath))
   const nodeEvidence = await nodePathEvidence(root)
@@ -316,11 +326,11 @@ export async function connectWorkspace(options, hooks = {}) {
   const entry = { command: 'node', args: [mcpPath, '--workspace', root, '--input', drawing.name, '--proposal-dir', relative(root, proposals).split(sep).join('/'),
     ...(candidates ? ['--candidate-dir', relative(root, candidates).split(sep).join('/')] : []),
     ...(geologyColumnKnowledge ? ['--geology-column-pack', geologyColumnKnowledge.path, '--geology-column-pack-sha256', geologyColumnKnowledge.sha256] : [])] }
-  const acceptedPriorEntries = previousMcpScript ? (() => {
+  const acceptedPriorEntries = previousMcpPaths.flatMap(previousMcpScript => {
     const exact = { ...entry, args: [previousMcpScript, ...entry.args.slice(1)] }
     const candidateIndex = exact.args.indexOf('--candidate-dir')
     return [exact, ...(candidateIndex >= 0 ? [{ ...exact, args: exact.args.toSpliced(candidateIndex, 2) }] : [])]
-  })() : []
+  })
   const clients = scope === 'user' ? USER_CLIENTS : PROJECT_CLIENTS
   const plans = []
   for (const client of clients) {
@@ -331,14 +341,14 @@ export async function connectWorkspace(options, hooks = {}) {
       const fallback = await readConfig(fallbackPath)
       if (Object.keys(fallback.value?.mcpServers ?? {}).length) throw new Error('ZCode .agents/mcp.json has active MCP servers; adding .zcode/config.json would hide them. Merge them in ZCode first')
     }
-    const content = merged(original.value, client.keys, entry, client.name === 'WorkBuddy', acceptedPriorEntries)
+    const content = merged(original.value, client.keys, entry, client.name === 'WorkBuddy', acceptedPriorEntries, options.replaceExisting === true)
     plans.push({ ...client, path, original: original.bytes, beforeSha: original.bytes ? sha(original.bytes) : null, content })
   }
   const traeInstallUrl = scope === 'user'
     ? `trae-cn://trae.ai-ide/mcp-import?type=stdio&name=kjdraw&config=${encodeURIComponent(Buffer.from(JSON.stringify(entry)).toString('base64'))}`
     : null
   const changed = plans.filter(plan => plan.content)
-  const configurationEvidence = { guiVerified: false, engineInvoked: false, approvalRoute: 'trusted-host-only', serverEntryName: 'kjdraw', scope, workBuddyGuide: clients.find(client => client.name === 'WorkBuddy')?.guide, node: nodeEvidence,
+  const configurationEvidence = { guiVerified: false, engineInvoked: false, approvalRoute: 'trusted-host-only', conflictPolicy: options.replaceExisting ? 'replace-explicit' : 'refuse-unknown', serverEntryName: 'kjdraw', scope, workBuddyGuide: clients.find(client => client.name === 'WorkBuddy')?.guide, node: nodeEvidence,
     ...(traeInstallUrl ? { traeInstallUrl, traeGuide: 'https://docs.trae.cn/ide_mcp-server-install-links' } : {}),
     ...(geologyColumnKnowledge ? { geologyColumnKnowledge } : {}) }
   const skillEvidence = { canonicalSha256: skill.sha256, workBuddy: 'MCP connected; WorkBuddy only documents Marketplace Skill installation, so no unverified local Skill path is written.', targets: skillPlans.map(plan => ({ path: relative(root, plan.path).split(sep).join('/'), clients: plan.clients, action: plan.action, activation: plan.activation })) }
