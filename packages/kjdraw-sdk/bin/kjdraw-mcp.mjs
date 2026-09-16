@@ -306,42 +306,51 @@ async function candidateSvgPreview(host) {
 }
 
 function interactiveSvgPreview(svg, title = 'KJDraw drawing candidate') {
+  const pageTitle = String(title).replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character])
   const embeddedSvg = JSON.stringify(svg).replaceAll('<', '\\u003c')
   const embeddedTitle = JSON.stringify(title).replaceAll('<', '\\u003c')
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title}</title>
+<title>${pageTitle}</title>
 <style>
-:root{color-scheme:light dark;font:13px system-ui,-apple-system,Segoe UI,sans-serif;background:#15191f;color:#e8edf2}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;flex-direction:column;background:#15191f}
-header{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #303943;background:#20262e;flex-wrap:wrap}
-header strong{margin-right:auto;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-button{border:1px solid #4b5663;border-radius:6px;background:#2b333d;color:inherit;padding:6px 10px;cursor:pointer;font:inherit}
-button:hover{background:#384451}button:focus-visible{outline:2px solid #83c8ff;outline-offset:2px}
-#zoom{min-width:58px;text-align:center;color:#b7c2ce;font-variant-numeric:tabular-nums}
-#viewport{position:relative;flex:1;min-height:420px;overflow:hidden;background:#f8fafc;touch-action:none;cursor:grab}
-#viewport.dragging{cursor:grabbing}#drawing{width:100%;height:100%;display:block}#drawing>svg{width:100%;height:100%;display:block}
-footer{padding:7px 12px;color:#9ba8b6;background:#20262e;border-top:1px solid #303943;font-size:11px}
+:root{font:12px system-ui,-apple-system,Segoe UI,sans-serif;background:#11151b;color:#e7edf5;--panel:#1d242d;--line:#364250;--muted:#9aa8b7;--accent:#79b8ff;--good:#5bd18d}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;grid-template-rows:auto 1fr auto;background:#11151b;color:#e7edf5}
+button{height:30px;border:1px solid #445162;border-radius:6px;background:#25303b;color:inherit;padding:0 10px;cursor:pointer;font:inherit}
+button:hover{background:#303c49}button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}button.on{background:#dfe9f7;color:#10151b;border-color:#dfe9f7}
+.topbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);background:#1a2028}
+.identity{min-width:0;display:flex;gap:10px;align-items:center}.brand{width:34px;height:34px;border-radius:7px;display:grid;place-items:center;background:#bff48c;color:#17251b;font-weight:900;letter-spacing:.04em}.copy{min-width:0}.copy strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.copy span{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:11px}.ok{color:var(--good)}.tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.separator{width:1px;height:22px;background:#445162}.zoom-readout{min-width:60px;text-align:center;color:#c8d3df;font-variant-numeric:tabular-nums}
+.workspace{min-height:420px;display:grid;grid-template-columns:44px minmax(0,1fr) 260px;background:#0c1015}.rail{border-right:1px solid var(--line);background:#161c23;padding:8px 6px;display:flex;flex-direction:column;gap:6px}.rail button{width:32px;height:32px;padding:0;font-weight:700}.rail button[disabled]{opacity:.42;cursor:default}.stage{position:relative;overflow:hidden;background:#080b0f;touch-action:none;cursor:grab}.stage.dragging{cursor:grabbing}.stage.plot{background:#d9dee6}
+.grid{position:absolute;inset:0;opacity:.55;background-image:linear-gradient(#263241 1px,transparent 1px),linear-gradient(90deg,#263241 1px,transparent 1px);background-size:28px 28px;pointer-events:none}.plot .grid{background-image:linear-gradient(#c6ccd4 1px,transparent 1px),linear-gradient(90deg,#c6ccd4 1px,transparent 1px)}
+.sheet{position:absolute;inset:22px;overflow:hidden;border:1px solid #303a45;box-shadow:0 16px 42px rgba(0,0,0,.35);background:#fff}.plot .sheet{box-shadow:0 18px 44px rgba(32,42,54,.25)}
+#drawing{width:100%;height:100%;display:block}#drawing>svg{width:100%;height:100%;display:block}.cad #drawing>svg{filter:invert(1) hue-rotate(180deg) contrast(.92) saturate(.75)}.plot #drawing>svg{filter:none}
+.crosshair{position:absolute;inset:0;pointer-events:none;display:none}.stage:hover .crosshair{display:block}.crosshair:before,.crosshair:after{content:"";position:absolute;background:#7aa8d8;opacity:.52}.crosshair:before{left:var(--mx,50%);top:0;width:1px;height:100%}.crosshair:after{top:var(--my,50%);left:0;height:1px;width:100%}
+.select-box{position:absolute;border:1px solid #80c8ff;background:rgba(79,140,255,.12);display:none;pointer-events:none}.inspector{border-left:1px solid var(--line);background:#171d24;display:flex;flex-direction:column;min-width:0}.inspector header{padding:12px;border-bottom:1px solid var(--line)}.inspector b{display:block;font-size:12px}.inspector small{color:var(--muted)}.metrics{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--line)}.metrics div{padding:10px 12px;border-right:1px solid var(--line)}.metrics div:nth-child(2n){border-right:0}.metrics span{display:block;color:var(--muted);font-size:10px}.metrics strong{font-size:15px;font-variant-numeric:tabular-nums}.props{padding:12px;overflow:auto}.props dl{display:grid;grid-template-columns:82px minmax(0,1fr);gap:7px 10px;margin:0}.props dt{color:var(--muted)}.props dd{margin:0;overflow-wrap:anywhere}.empty{color:var(--muted);line-height:1.5}
+.status{height:30px;display:flex;gap:16px;align-items:center;padding:0 12px;border-top:1px solid var(--line);background:#1a2028;color:#bcc8d4;font-size:11px}.status span{white-space:nowrap}.status .grow{flex:1;overflow:hidden;text-overflow:ellipsis}.kbd{border:1px solid #4b5663;border-radius:4px;padding:1px 5px;color:#d0d8e0}
+@media(max-width:780px){.topbar{grid-template-columns:1fr}.workspace{grid-template-columns:38px minmax(0,1fr)}.inspector{display:none}.tools{justify-content:flex-start}.sheet{inset:12px}.status{gap:8px;overflow:auto}}
 </style></head><body>
-<header><strong id="title"></strong><button id="fit" type="button">Fit</button><button id="minus" type="button">−</button><span id="zoom">100%</span><button id="plus" type="button">+</button><button id="reset" type="button">100%</button></header>
-<main id="viewport" aria-label="Interactive KJDraw drawing preview"><div id="drawing"></div></main>
-<footer>Scroll to zoom · drag to pan · Fit restores the full drawing</footer>
+<header class="topbar"><div class="identity"><div class="brand">KJ</div><div class="copy"><strong id="title"></strong><span><span class="ok">Verified candidate</span><span>Source drawing preserved</span></span></div></div><nav class="tools" aria-label="KJDraw preview controls"><button id="modeCad" class="on" type="button">CAD</button><button id="modePlot" type="button">Plot</button><span class="separator"></span><button id="fit" type="button">Fit</button><button id="minus" type="button">-</button><span id="zoom" class="zoom-readout">100%</span><button id="plus" type="button">+</button><button id="reset" type="button">100%</button><span class="separator"></span><button id="grid" class="on" type="button">Grid</button></nav></header>
+<main class="workspace"><aside class="rail" aria-label="Review tools"><button class="on" title="Pan and inspect" type="button">P</button><button id="windowZoom" title="Window zoom" type="button">Z</button><button disabled title="Measure">M</button></aside><section id="viewport" class="stage cad" aria-label="Professional KJDraw candidate preview"><div id="gridLayer" class="grid"></div><div class="sheet"><div id="drawing"></div></div><div class="crosshair"></div><div id="box" class="select-box"></div></section><aside class="inspector"><header><b>Candidate Review</b><small id="reviewLine">Exact proposal materialized as new files</small></header><div class="metrics"><div><span>Entities</span><strong id="entityCount">0</strong></div><div><span>Zoom</span><strong id="zoomMetric">100%</strong></div><div><span>Mode</span><strong id="modeMetric">CAD</strong></div><div><span>View</span><strong id="viewMetric">Fit</strong></div></div><section class="props" id="props"><p class="empty">Click an entity to inspect its drawing metadata.</p></section></aside></main>
+<footer class="status"><span class="grow" id="statusTitle"></span><span id="coords">X 0.000 | Y 0.000</span><span>Wheel zoom</span><span><span class="kbd">Drag</span> pan</span></footer>
 <script>
 const svgText=${embeddedSvg}, title=${embeddedTitle};
-const viewport=document.getElementById('viewport'), drawing=document.getElementById('drawing');
-drawing.innerHTML=svgText; const svg=drawing.firstElementChild; document.getElementById('title').textContent=title;
-let view=null, base=null, drag=null;
+const viewport=document.getElementById('viewport'), drawing=document.getElementById('drawing'), box=document.getElementById('box');
+drawing.innerHTML=svgText; const svg=drawing.firstElementChild; document.getElementById('title').textContent=title; document.getElementById('statusTitle').textContent=title;
+let view=null, base=null, drag=null, mode='cad', windowZoom=false, boxStart=null;
 function readBase(){const b=svg.viewBox.baseVal;return{x:b.x,y:b.y,width:b.width,height:b.height}}
-function setView(next){view={...next};svg.setAttribute('viewBox',[view.x,view.y,view.width,view.height].join(' '));document.getElementById('zoom').textContent=Math.round(base.width/view.width*100)+'%'}
+function updateMetrics(){const percent=Math.round(base.width/view.width*100)+'%';document.getElementById('zoom').textContent=percent;document.getElementById('zoomMetric').textContent=percent;document.getElementById('modeMetric').textContent=mode.toUpperCase();document.getElementById('viewMetric').textContent=Math.abs(base.width-view.width)<base.width*.002?'Fit':'Custom'}
+function setView(next){view={...next};svg.setAttribute('viewBox',[view.x,view.y,view.width,view.height].join(' '));updateMetrics()}
 function fit(){if(!base)return;setView(base)}
 function zoomAt(factor,cx=(view.x+view.width/2),cy=(view.y+view.height/2)){const width=view.width/factor,height=view.height/factor;setView({x:cx-(cx-view.x)/factor,y:cy-(cy-view.y)/factor,width,height})}
 function pointerPoint(e){const r=svg.getBoundingClientRect();return{x:view.x+(e.clientX-r.left)/r.width*view.width,y:view.y+(e.clientY-r.top)/r.height*view.height}}
-document.getElementById('fit').onclick=fit;document.getElementById('reset').onclick=fit;document.getElementById('plus').onclick=()=>zoomAt(1.25);document.getElementById('minus').onclick=()=>zoomAt(.8);
+function screenBox(a,b){const left=Math.min(a.x,b.x),top=Math.min(a.y,b.y);Object.assign(box.style,{display:'block',left:left+'px',top:top+'px',width:Math.abs(a.x-b.x)+'px',height:Math.abs(a.y-b.y)+'px'})}
+function setMode(next){mode=next;viewport.classList.toggle('cad',next==='cad');viewport.classList.toggle('plot',next==='plot');document.getElementById('modeCad').classList.toggle('on',next==='cad');document.getElementById('modePlot').classList.toggle('on',next==='plot');updateMetrics()}
+function inspectElement(target){const entity=target?.closest?.('[data-entity-type]');if(!entity)return;const attrs=[...entity.attributes].filter(a=>a.name.startsWith('data-')).map(a=>[a.name.replace(/^data-/,''),a.value]);document.getElementById('props').innerHTML='<dl>'+attrs.map(([k,v])=>'<dt>'+k+'</dt><dd>'+String(v).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))+'</dd>').join('')+'</dl>'}
+document.getElementById('fit').onclick=fit;document.getElementById('reset').onclick=fit;document.getElementById('plus').onclick=()=>zoomAt(1.25);document.getElementById('minus').onclick=()=>zoomAt(.8);document.getElementById('modeCad').onclick=()=>setMode('cad');document.getElementById('modePlot').onclick=()=>setMode('plot');document.getElementById('grid').onclick=event=>{event.currentTarget.classList.toggle('on');document.getElementById('gridLayer').style.display=event.currentTarget.classList.contains('on')?'block':'none'};document.getElementById('windowZoom').onclick=event=>{windowZoom=!windowZoom;event.currentTarget.classList.toggle('on',windowZoom)};
 viewport.addEventListener('wheel',e=>{e.preventDefault();const p=pointerPoint(e);zoomAt(Math.exp(-e.deltaY*.001),p.x,p.y)},{passive:false});
-viewport.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,view:{...view}};viewport.classList.add('dragging');viewport.setPointerCapture(e.pointerId)});
-viewport.addEventListener('pointermove',e=>{if(!drag)return;const r=svg.getBoundingClientRect();const dx=(e.clientX-drag.x)/r.width*drag.view.width,dy=(e.clientY-drag.y)/r.height*drag.view.height;setView({x:drag.view.x-dx,y:drag.view.y-dy,width:drag.view.width,height:drag.view.height})});
-viewport.addEventListener('pointerup',e=>{drag=null;viewport.classList.remove('dragging');viewport.releasePointerCapture(e.pointerId)});
-svg.addEventListener('load',()=>{base=readBase();fit()}); base=readBase(); fit();
+viewport.addEventListener('pointerdown',e=>{const local={x:e.offsetX,y:e.offsetY};if(windowZoom){boxStart=local;screenBox(local,local)}else{drag={x:e.clientX,y:e.clientY,view:{...view}};viewport.classList.add('dragging')}viewport.setPointerCapture(e.pointerId)});
+viewport.addEventListener('pointermove',e=>{const p=pointerPoint(e);viewport.style.setProperty('--mx',e.offsetX+'px');viewport.style.setProperty('--my',e.offsetY+'px');document.getElementById('coords').textContent='X '+p.x.toFixed(3)+' | Y '+p.y.toFixed(3);if(boxStart){screenBox(boxStart,{x:e.offsetX,y:e.offsetY});return}if(!drag)return;const r=svg.getBoundingClientRect();const dx=(e.clientX-drag.x)/r.width*drag.view.width,dy=(e.clientY-drag.y)/r.height*drag.view.height;setView({x:drag.view.x-dx,y:drag.view.y-dy,width:drag.view.width,height:drag.view.height})});
+viewport.addEventListener('pointerup',e=>{if(boxStart){const a=pointerPoint({clientX:e.clientX-(e.offsetX-boxStart.x),clientY:e.clientY-(e.offsetY-boxStart.y)}),b=pointerPoint(e);if(Math.abs(e.offsetX-boxStart.x)>8&&Math.abs(e.offsetY-boxStart.y)>8)setView({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),width:Math.abs(a.x-b.x),height:Math.abs(a.y-b.y)});boxStart=null;box.style.display='none'}else if(Math.abs((drag?.x??e.clientX)-e.clientX)+Math.abs((drag?.y??e.clientY)-e.clientY)<4)inspectElement(e.target);drag=null;viewport.classList.remove('dragging');viewport.releasePointerCapture(e.pointerId)});
+svg.addEventListener('click',e=>inspectElement(e.target));base=readBase();document.getElementById('entityCount').textContent=svg.querySelectorAll('[data-entity-type]').length;fit();
 </script></body></html>`
 }
 
