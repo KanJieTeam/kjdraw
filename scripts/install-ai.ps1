@@ -1,8 +1,8 @@
 $ErrorActionPreference = 'Stop'
 
-$KJDrawSourceSha = '466d8be59e1be68dea19043427b4ec9f6295c0ee'
+$KJDrawSourceSha = '80e29bb14d33d68aff024b7098c40116bccd224e'
 $KJDrawProject = if ($env:KJDRAW_PROJECT) { $env:KJDRAW_PROJECT } else { (Get-Location).Path }
-$KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-466d8be'
+$KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-80e29bb'
 
 if (-not [IO.Path]::IsPathRooted($KJDrawProject) -or -not (Test-Path -LiteralPath $KJDrawProject -PathType Container)) {
   throw 'Run this command inside an existing project, or set KJDRAW_PROJECT to its absolute path.'

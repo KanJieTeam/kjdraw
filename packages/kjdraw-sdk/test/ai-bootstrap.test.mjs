@@ -5,7 +5,7 @@ import test from 'node:test'
 
 const root = new URL('../../../', import.meta.url)
 const read = path => readFile(new URL(path, root), 'utf8')
-const pinned = '466d8be59e1be68dea19043427b4ec9f6295c0ee'
+const pinned = '80e29bb14d33d68aff024b7098c40116bccd224e'
 
 test('one-line AI bootstraps pin one public candidate and connect all clients without npx or force', async () => {
   const [powerShell, shell] = await Promise.all([read('scripts/install-ai.ps1'), read('scripts/install-ai.sh')])
