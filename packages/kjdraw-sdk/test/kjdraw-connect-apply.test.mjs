@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
-import { connectWorkspace } from '../bin/kjdraw-connect-apply.mjs'
+import { connectWorkspace, isEphemeralNodePath } from '../bin/kjdraw-connect-apply.mjs'
 import { createKJDrawSDK } from '../src/sdk.js'
 
 const script = fileURLToPath(new URL('../bin/kjdraw-connect-apply.mjs', import.meta.url))
@@ -191,6 +191,17 @@ test('duplicate CLI options and absent Node on installer PATH refuse the transac
   await writeFile(join(root, process.platform === 'win32' ? 'node.cmd' : 'node'), 'fixture-only; never execute')
   await assert.rejects(connectWorkspace(options(root)), /Project-local node command could shadow/)
   assert.deepEqual(await readdir(root), process.platform === 'win32' ? ['node.cmd', 'shadow'] : ['node'])
+})
+
+test('stable user-managed Node paths are not mistaken for project-local package shims', async t => {
+  const root = process.platform === 'win32' ? 'C:/Users/Administrator' : '/home/developer'
+  const stable = process.platform === 'win32'
+    ? join(root, 'AppData/Local/fnm/node-versions/v24/installation/node.exe')
+    : join(root, '.volta/tools/image/node/24/bin/node')
+  assert.equal(isEphemeralNodePath(root, stable), false)
+  assert.equal(isEphemeralNodePath(root, join(root, 'node_modules/.bin/node')), true)
+  assert.equal(isEphemeralNodePath(root, join(root, 'AppData/Local/Temp/runtime/node.exe')), true)
+  assert.equal(isEphemeralNodePath(root, join(root, '.npm/_npx/fixture/node')), true)
 })
 
 test('precise merge preserves unrelated fields; transient backups never leave fake keys beside configs', async t => {

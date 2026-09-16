@@ -61,6 +61,15 @@ function inside(root, candidate) {
   return part === '' || (part !== '..' && !part.startsWith(`..${sep}`) && !isAbsolute(part))
 }
 
+export function isEphemeralNodePath(root, candidate) {
+  const canonical = resolve(candidate)
+  const local = inside(root, canonical) ? relative(root, canonical) : canonical
+  return /(?:^|[\\/])(?:node_modules|_npx|\.pnpm)(?:[\\/]|$)/iu.test(local)
+    || /(?:^|[\\/])\.yarn[\\/]unplugged(?:[\\/]|$)/iu.test(local)
+    || /[\\/]AppData[\\/]Local[\\/]Temp[\\/]/iu.test(canonical)
+    || /^\/(?:tmp|var\/tmp)\//u.test(canonical)
+}
+
 async function item(path) {
   try { return await lstat(path) } catch (error) { if (error.code === 'ENOENT') return null; throw error }
 }
@@ -86,7 +95,7 @@ async function nodePathEvidence(root) {
       if (!info) continue
       if (name !== (process.platform === 'win32' ? 'node.exe' : 'node') || !info.isFile() || info.isSymbolicLink()) throw new Error('Node on installer PATH is a wrapper or not a regular executable')
       const canonical = await realpath(executable)
-      if (inside(root, canonical) || /[\\/]_npx[\\/]/iu.test(canonical)) throw new Error('Node on installer PATH is project-local or ephemeral; refusing a persistent MCP entry')
+      if (isEphemeralNodePath(root, canonical)) throw new Error('Node on installer PATH is project-local or ephemeral; refusing a persistent MCP entry')
       return { command: 'node', readableInstallerCandidateSha256: sha(Buffer.from(canonical)), clientPathVerified: false }
     }
   }
