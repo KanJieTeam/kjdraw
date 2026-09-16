@@ -2,7 +2,11 @@
 
 <h1 align="center">KJDraw</h1>
 
-<p align="center"><strong>The open-source CAD engine for the AI era.</strong></p>
+<p align="center">
+  <strong>The open-source CAD engine for AI agents.</strong><br>
+  The model decides what to draw. The engine decides how to draw it correctly.<br>
+  Stable object IDs, single-transaction edits, validated results, DXF in and out.
+</p>
 
 <p align="center">Create, understand, and edit structured engineering drawings<br>from natural language or code.</p>
 
@@ -10,8 +14,7 @@
   <a href="#quick-start"><strong>Quick start</strong></a> ·
   <a href="https://kanjieteam.github.io/kjdraw/ai/"><strong>Try with AI</strong></a> ·
   <a href="https://kanjieteam.github.io/kjdraw/"><strong>Live editor</strong></a> ·
-  <a href="#add-cad-to-your-app"><strong>Add CAD to your app</strong></a> ·
-  <a href="#give-your-agent-cad-tools"><strong>Build a CAD agent</strong></a> ·
+  <a href="https://kanjieteam.github.io/kjdraw/docs/latest/"><strong>Docs</strong></a> ·
   <a href="README.zh-CN.md">简体中文</a>
 </p>
 
@@ -22,9 +25,15 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache_2.0-2863f0?style=flat-square&labelColor=30363d" alt="Apache 2.0"></a>
 </p>
 
-## Why KJDraw: geometry is only the beginning
+> **Status: 1.0 release candidate.** Command-line configuration and real-engine smoke
+> tests pass; independent GUI and model acceptance is still a release gate.
+> See [release status](docs/status.md).
 
-Large models can generate geometry, but an engineering drawing is not a pile of independent primitives. It contains hundreds of related objects that must remain addressable across a conversation: dimensions, layers, blocks, hatches, references, and the relationships between them all have to survive Undo, export, save, and reopen.
+---
+
+## Why KJDraw
+
+Generating geometry is no longer the hard part. Engineering CAD starts where geometry ends: a drawing contains hundreds of related objects, and the model must find the same object again across turns, preserve dimensions, layers, blocks, hatches and references, and produce a consistent result after Undo, export, save and reopen.
 
 Asking an LLM to emit coordinates and primitive entities one by one creates four predictable failures:
 
@@ -33,9 +42,111 @@ Asking an LLM to emit coordinates and primitive entities one by one creates four
 - Without stable object identity, the next edit becomes a guess.
 - A rendered result does not prove that the drawing remains editable or auditable.
 
-KJDraw is not another model trained to draw a few templates. It gives different models and agents the same CAD execution layer: the model expresses what should be drawn; the local engine deterministically resolves how to draw it, preserving geometry, object identity, layers, references, transactions, validation, and file output.
+KJDraw turns the same job into one sentence:
 
-## How KJDraw closes the gap
+```text
+Draw an engineering borehole log with KJDraw: generate strata, lithology hatching,
+elevations and annotations from the borehole data.
+```
+
+KJDraw is not another model trained to draw a few templates. It gives different
+models and agents the same CAD execution layer: **the model decides what to draw;
+the engine decides how to draw it correctly.** The model submits engineering intent,
+facts and constraints; geometry, object identity, layers, references, transactions,
+validation and file output are resolved deterministically by the local engine.
+
+---
+
+## Quick start
+
+### From an AI agent
+
+KJDraw ships an **MCP server**, so any MCP-compatible client can call the same CAD
+tools. The installer configures KJDraw once at the user level for Kimi Code, WorkBuddy
+and ZCode; TraeCode opens its official one-time import confirmation.
+
+```jsonc
+// .mcp.json, or your client's MCP configuration
+{
+  "mcpServers": {
+    "kjdraw": {
+      "command": "npx",
+      "args": ["-y", "@kanjieteam/kjdraw", "mcp"]
+    }
+  }
+}
+```
+
+Or install the user-level connector once:
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
+```
+
+```powershell
+# Windows PowerShell
+irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.ps1 | iex
+```
+
+Your model key stays with your AI client — KJDraw never receives it. Create requests
+are materialized as independently verified KJD, DXF and SVG candidate files and never
+overwrite the source; in-place and destructive changes still require host review.
+[Installation details and security model →](docs/try-in-ai.md)
+
+### In your app
+
+```bash
+npm install @kanjieteam/kjdraw@next
+```
+
+```tsx
+import { KJDraw } from '@kanjieteam/kjdraw/react'
+
+export default function DrawingPage() {
+  return <KJDraw document="sample" locale="en" style={{ height: 720 }} />
+}
+```
+
+Also available as a framework-free editor (`@kanjieteam/kjdraw/editor`), a Vue 3
+component, and a CLI. These examples require **1.0.0-rc.3 or newer**; use `next`.
+
+### With no install at all
+
+[Open the live editor](https://kanjieteam.github.io/kjdraw/) — no account or upload.
+Explore mechanical, architectural, site and road samples; inspect layers; make an
+edit; undo it; save and reopen. Samples demonstrate the product and are not construction
+documents. See the [workbench guide](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/).
+
+---
+
+## What one agent edit looks like
+
+A model does not write hundreds of low-level entities. It names an intent; the engine
+resolves the objects, applies one transaction, and returns evidence the host can review.
+
+```jsonc
+{
+  "tool": "cad_propose_move",
+  "args": {
+    "objectIds": ["<stable-object-id>"],
+    "delta": { "dx": 1200, "dy": 0 },
+    "units": "mm"
+  }
+}
+```
+
+The host receives a pending proposal with the matched object identity, revision,
+transaction boundary and validation evidence. It can approve, reject or keep the
+proposal pending; accepted edits remain undoable and can be saved and reopened.
+
+[Build an agent workflow →](https://kanjieteam.github.io/kjdraw/docs/latest/agent/) ·
+[Agent integration guide →](docs/agent.md) ·
+[Run it without a model or API key →](examples/agent-command.mjs)
+
+---
+
+## How KJDraw works
 
 | Work at the intent level | Execute deterministically | Keep the drawing editable |
 | --- | --- | --- |
@@ -50,110 +161,24 @@ KJDraw is not another model trained to draw a few templates. It gives different 
 | **Continue editing through conversation** | Precise selection, move, copy, rotate, scale, offset, stretch, lengthen, text/layer edits, and structural delete/reconnect/relayer operations. |
 | **Embed CAD in your product** | JavaScript/TypeScript SDK, React and Vue components, packaged editor, CLI, and MCP tools powered by the same engine. |
 
-## Quick start
+---
 
-### Use KJDraw from an AI agent
+## Scope and compatibility
 
-Run the installer once from any directory. It installs KJDraw for the current user, so Kimi Code, WorkBuddy, and ZCode can use the same CAD tools in every workspace. TraeCode opens its official one-time import confirmation. Your model key stays with your AI client.
+KJDraw reads and writes native **KJD** drawings, **KJP** projects, and a
+[documented DXF compatibility range](docs/dxf-compatibility.md).
+**Direct DWG support is not included.**
 
-**Windows PowerShell**
+Read, edit and save drawings from code or the CLI without an AI model — see the
+[file guide](https://kanjieteam.github.io/kjdraw/docs/latest/files/).
 
-```powershell
-irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.ps1 | iex
-```
-
-**macOS / Linux**
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.sh | sh
-```
-
-The connector safely merges user-level configuration instead of modifying each project. KJDraw keeps its editable host drawing under the user's home directory. [Installation details and security model](docs/try-in-ai.md)
-
-> **1.0 release candidate:** command-line configuration and real-engine smoke tests pass; independent GUI/model acceptance remains a release gate. No model key is collected. The installer materializes create requests as independently verified KJD, DXF, and SVG candidate files without overwriting the source; in-place and destructive changes still require host review.
-
-### Explore the editor
-
-[Open the editor](https://kanjieteam.github.io/kjdraw/)—no account or upload required. Explore mechanical, architectural, site, and road samples; inspect layers; make an edit; Undo it; save; and reopen the drawing. Samples demonstrate the product and are not construction documents. See the [workbench guide](https://kanjieteam.github.io/kjdraw/docs/latest/workbench/).
-
-## Add CAD to your app
-
-Install the release-candidate channel:
-
-```sh
-npm install @kanjieteam/kjdraw@next
-```
-
-These examples require **1.0.0-rc.3 or newer**. Use the `next` channel; `latest` may be older. See [release status](docs/status.md) for published versions and source changes not yet on npm.
-
-### JavaScript / TypeScript
-
-Give the editor a container with a height:
-
-```html
-<div id="cad" style="height: 720px"></div>
-```
-
-```ts
-import { createKJDrawEditor } from '@kanjieteam/kjdraw/editor'
-
-const editor = createKJDrawEditor('#cad', {
-  document: 'sample',
-  locale: 'en',
-  theme: 'dark',
-  layout: 'classic',
-})
-
-await editor.ready
-// await editor.open(file) // File from your file picker
-// await editor.save({ format: 'DXF', download: true })
-```
-
-### React
-
-In an existing React application:
-
-```tsx
-import { KJDraw } from '@kanjieteam/kjdraw/react'
-
-export default function DrawingPage() {
-  return <KJDraw document="sample" locale="en" style={{ height: 720 }} />
-}
-```
-
-### Vue
-
-In an existing Vue 3 application:
-
-```vue
-<script setup lang="ts">
-import { KJDraw } from '@kanjieteam/kjdraw/vue'
-</script>
-
-<template>
-  <KJDraw document="sample" locale="en" style="height: 720px" />
-</template>
-```
-
-Choose **Classic**, **Compact** or **Focus** to suit your application. Changing the layout keeps the drawing and Undo history.
-
-[Quickstart](https://kanjieteam.github.io/kjdraw/docs/latest/quickstart/) · [React guide](https://kanjieteam.github.io/kjdraw/docs/latest/react/) · [Vue guide](https://kanjieteam.github.io/kjdraw/docs/latest/vue/) · [Runnable examples](packages/kjdraw-sdk/examples)
-
-## Give your agent CAD tools
-
-Your application supplies the AI model; KJDraw supplies the CAD tools. Connect your agent to create and modify drawing objects, preview supported changes for approval, and apply edits that users can continue working on or undo.
-
-For example, an agent host can turn a request to move selected equipment into a proposed move, ask the user to approve it, and apply it to the same drawing. The approved edit can be undone like a manual edit.
-
-- [Build an Agent workflow](https://kanjieteam.github.io/kjdraw/docs/latest/agent/): call drawing tools, review a change and apply it.
-- [Agent integration guide](docs/agent.md): integration instructions for coding agents.
-- [Run the command example](examples/agent-command.mjs): exercise a proposed edit, approval and Undo without a model or API key.
-
-## Files and automation
-
-Read, edit and save drawings from code or the CLI, without an AI model. See the [file guide](https://kanjieteam.github.io/kjdraw/docs/latest/files/) for examples.
-
-KJDraw supports native KJD drawings and KJP projects, plus a documented [DXF compatibility range](docs/dxf-compatibility.md). Direct DWG support is not included.
+| | KJDraw | ezdxf | LibreCAD | Excalidraw / tldraw |
+| --- | --- | --- | --- | --- |
+| Runs in the browser | ✅ | — | — | ✅ |
+| Engineering entities (dimensions, blocks, hatches) | ✅ | ✅ | ✅ | — |
+| Editor UI included | ✅ | — | ✅ | ✅ |
+| Agent / MCP tools with stable object IDs | ✅ | — | — | — |
+| DWG | — | — | partial | — |
 
 ## Contributing
 
