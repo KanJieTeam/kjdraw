@@ -289,7 +289,7 @@ async function candidateSvgPreview(host) {
 }
 
 async function deliverCandidate(host, proposal) {
-  if (proposal.result.command !== 'CREATEBATCH' || proposal.result.status !== 'awaiting-host-approval') return null
+  if (proposal.result.status !== 'awaiting-host-approval') return null
   const applied = await host.session.approve(proposal.result.planId, 'kjdraw-local-candidate-host')
   if (!applied.ok || applied.value.status !== 'committed') throw new Error('KJDraw could not materialize the exact proposal into a candidate drawing')
   const directory = host.candidateDir

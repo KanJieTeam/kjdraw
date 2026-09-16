@@ -125,6 +125,37 @@ test('explicit host candidate policy turns one circle request into independently
   assert.match(await readFile(join(directory, value.candidate.svg.path), 'utf8'), /data-entity-type="CIRCLE"/u)
 })
 
+test('explicit host candidate policy materializes a precise existing-object edit without overwriting the attached drawing', async t => {
+  const fixture = await drawingFixture('KJD')
+  t.after(() => rm(fixture.directory, { recursive: true, force: true }))
+  await mkdir(join(fixture.directory, 'sessions'))
+  await mkdir(join(fixture.directory, 'results'))
+  const sourcePath = join(fixture.directory, fixture.inputName), sourceBytes = await readFile(sourcePath)
+  const child = invoke([
+    '--workspace', fixture.directory, '--input', fixture.inputName,
+    '--proposal-dir', 'sessions', '--candidate-dir', 'results',
+  ], [
+    request(1, 'initialize', { protocolVersion: '2025-11-25' }),
+    request(2, 'tools/call', { name: 'cad_propose_move', arguments: {
+      expectedRevision: 1, units: 'millimeter', ids: ['edge'], dx: 25, dy: -4,
+    } }),
+  ])
+  assert.equal(child.status, 0, child.stderr)
+  const responses = child.stdout.trim().split('\n').map(line => JSON.parse(line))
+  const value = responses[1].result.structuredContent.value
+  assert.equal(value.product, 'KJDraw')
+  assert.equal(value.tool, 'cad_propose_move')
+  assert.equal(value.command, 'MOVE')
+  assert.equal(value.status, 'candidate-ready')
+  assert.equal(value.revision, 2)
+  assert.equal(value.candidate.transactionCount, 1)
+  const sdk = createKJDrawSDK()
+  const candidate = await sdk.readDocument(await readFile(join(fixture.directory, value.candidate.kjd)), { format: 'KJD' })
+  assert.deepEqual(candidate.getObject('edge').payload.start, [25, -4, 0])
+  assert.deepEqual(candidate.getObject('edge').payload.end, [125, -4, 0])
+  assert.deepEqual(await readFile(sourcePath), sourceBytes)
+})
+
 test('MCP blank and existing input modes are mutually exclusive and units are host-only', async t => {
   const fixture = await drawingFixture('KJD')
   t.after(() => rm(fixture.directory, { recursive: true, force: true }))
