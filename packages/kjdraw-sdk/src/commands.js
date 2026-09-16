@@ -266,7 +266,8 @@ export const KJ_CORE_COMMAND_CAPABILITIES = deepFreeze({
         precision: 'exact',
         supportedEntityTypes: [
             'LINE',
-            'ARC'
+            'ARC',
+            'ELLIPSE'
         ],
         modes: [
             'TOTAL',
