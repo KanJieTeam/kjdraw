@@ -90,6 +90,41 @@ test('MCP host creates and reopens a host-selected blank KJD, while model calls 
   assert.equal(ledger.proposals.length, 1)
 })
 
+test('explicit host candidate policy turns one circle request into independently reopenable CAD and SVG without overwriting the host drawing', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'kjdraw-mcp-circle-candidate-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  await mkdir(join(directory, 'sessions'))
+  await mkdir(join(directory, 'results'))
+  const child = invoke([
+    '--workspace', directory, '--blank', 'host.kjd', '--units', 'millimeter',
+    '--proposal-dir', 'sessions', '--candidate-dir', 'results',
+  ], [
+    request(1, 'initialize', { protocolVersion: '2025-11-25' }),
+    request(2, 'tools/call', { name: 'cad_propose_circles', arguments: {
+      expectedRevision: 0, units: 'millimeter', circles: [{ center: { x: 0, y: 0 }, radius: 5 }]
+    } }),
+  ])
+  assert.equal(child.status, 0, child.stderr)
+  const responses = child.stdout.trim().split('\n').map(line => JSON.parse(line))
+  const value = responses[1].result.structuredContent.value
+  assert.equal(value.product, 'KJDraw')
+  assert.equal(value.tool, 'cad_propose_circles')
+  assert.equal(value.status, 'candidate-ready')
+  assert.equal(value.revision, 1)
+  assert.equal(value.candidate.entityCount, 1)
+  assert.equal(value.candidate.sourceOverwritten, false)
+  assert.equal(value.candidate.transactionCount, 1)
+  assert.equal(value.candidate.svg.diagnosticCount, 0)
+  const sdk = createKJDrawSDK()
+  const source = await sdk.readDocument(await readFile(join(directory, 'host.kjd')), { format: 'KJD' })
+  const candidate = await sdk.readDocument(await readFile(join(directory, value.candidate.kjd)), { format: 'KJD' })
+  assert.equal(source.revision, 0)
+  assert.equal(source.listEntities().length, 0)
+  assert.equal(candidate.revision, 1)
+  assert.equal(candidate.listEntities({ type: 'CIRCLE' })[0].payload.radius, 5)
+  assert.match(await readFile(join(directory, value.candidate.svg.path), 'utf8'), /data-entity-type="CIRCLE"/u)
+})
+
 test('MCP blank and existing input modes are mutually exclusive and units are host-only', async t => {
   const fixture = await drawingFixture('KJD')
   t.after(() => rm(fixture.directory, { recursive: true, force: true }))

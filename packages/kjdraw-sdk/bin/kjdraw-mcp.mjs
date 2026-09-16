@@ -6,6 +6,8 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } 
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
 import { KJDRAW_VERSION } from '../src/version.js'
+import { exportDrawingSvg } from '../src/svg-export.js'
+import { displayedEntityBounds } from '../src/selection-geometry.js'
 
 const SERVER_NAME = '@kanjieteam/kjdraw-mcp'
 const PROTOCOL_VERSION = '2025-11-25'
@@ -15,7 +17,7 @@ const MAX_MESSAGE_BYTES = 4 * 1024 * 1024
 const MAX_KNOWLEDGE_PACK_BYTES = 1024 * 1024
 
 function usage() {
-  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposal-dir <existing-relative-directory>\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposal-dir <existing-relative-directory>\n\nOptional host-only geology style binding:\n  --geology-column-pack <existing-relative.json> --geology-column-pack-sha256 <64-lowercase-hex>\n\n--proposals is the legacy one-file mode. --proposal-dir creates one exclusive ledger per stdio session and exposes its relative path in initialize metadata. The host, not the model, chooses all paths, blank drawing units and an optional hash-locked knowledge pack. Tool calls can inspect the drawing or create pending proposals; this process never approves a proposal or saves a CAD file.`
+  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>]\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>]\n\nOptional host-only geology style binding:\n  --geology-column-pack <existing-relative.json> --geology-column-pack-sha256 <64-lowercase-hex>\n\n--proposals is the legacy one-file mode. --proposal-dir creates one exclusive ledger per stdio session. When the host also supplies --candidate-dir, exact CREATEBATCH proposals are materialized into new KJD/DXF/SVG candidate files there; the input drawing is never overwritten. The model cannot choose either path or approve writes to the input.`
 }
 
 function parseArgs(argv) {
@@ -24,11 +26,12 @@ function parseArgs(argv) {
   const values = {}
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index], value = argv[index + 1]
-    if (!['--workspace', '--input', '--blank', '--units', '--proposals', '--proposal-dir', '--geology-column-pack', '--geology-column-pack-sha256'].includes(key) || !value || Object.hasOwn(values, key.slice(2))) throw new Error(`Unknown, duplicate or incomplete argument: ${key ?? ''}`)
+    if (!['--workspace', '--input', '--blank', '--units', '--proposals', '--proposal-dir', '--candidate-dir', '--geology-column-pack', '--geology-column-pack-sha256'].includes(key) || !value || Object.hasOwn(values, key.slice(2))) throw new Error(`Unknown, duplicate or incomplete argument: ${key ?? ''}`)
     values[key.slice(2)] = value
   }
   if (!values.workspace) throw new Error('Missing required --workspace')
   if (Boolean(values.proposals) === Boolean(values['proposal-dir'])) throw new Error('Supply exactly one of --proposals or --proposal-dir')
+  if (values['candidate-dir'] && !values['proposal-dir']) throw new Error('--candidate-dir requires --proposal-dir')
   if (Boolean(values.input) === Boolean(values.blank)) throw new Error('Supply exactly one of --input or --blank')
   if (values.blank && !['millimeter', 'meter'].includes(values.units)) throw new Error('--blank requires --units millimeter or meter')
   if (values.input && values.units) throw new Error('--units is only allowed with --blank')
@@ -207,7 +210,14 @@ function toolResponse(id, result, isError = false) {
 }
 
 const COMPACT_ENGINEERING_PROPOSALS = new Set(['cad_propose_geology_column', 'cad_propose_geology_section'])
-function modelVisibleProposal(name, result, host) {
+function modelVisibleProposal(name, result, host, delivery = null) {
+  if (result.ok && delivery) return { ok: true, value: {
+    product: 'KJDraw', responseKind: 'verified-cad-candidate@1', tool: name,
+    planId: result.value.planId, command: result.value.command, status: 'candidate-ready',
+    documentId: host.document.id, revision: host.document.revision, units: host.document.snapshot().header.units,
+    ...(result.value.engineeringEvidence ? { engineeringEvidence: result.value.engineeringEvidence } : {}),
+    candidate: delivery,
+  } }
   if (!result.ok || !COMPACT_ENGINEERING_PROPOSALS.has(name)) return result
   const full = result.value
   const byType = Object.create(null)
@@ -225,8 +235,100 @@ function modelVisibleProposal(name, result, host) {
   } }
 }
 
+function candidateLayouts(document) {
+  const modelSpaceId = document.snapshot().spaces.modelSpaceId
+  return [...document.listObjects({ kind: 'layout' })].sort((left, right) =>
+    Number(left.payload.blockRecordId === modelSpaceId) - Number(right.payload.blockRecordId === modelSpaceId))
+}
+
+function candidateModelBounds(document) {
+  const modelSpaceId = document.snapshot().spaces.modelSpaceId
+  let minimumX = Infinity, minimumY = Infinity, maximumX = -Infinity, maximumY = -Infinity
+  for (const entity of document.listEntities()) {
+    if (entity.ownerId !== modelSpaceId || entity.erased || entity.payload.visible === false) continue
+    let bounds
+    try { bounds = displayedEntityBounds(document, entity) }
+    catch { continue }
+    if (!bounds || bounds.some(value => !Number.isFinite(value))) continue
+    minimumX = Math.min(minimumX, bounds[0]); minimumY = Math.min(minimumY, bounds[1])
+    maximumX = Math.max(maximumX, bounds[2]); maximumY = Math.max(maximumY, bounds[3])
+  }
+  if (![minimumX, minimumY, maximumX, maximumY].every(Number.isFinite)) return null
+  const spanX = maximumX - minimumX, spanY = maximumY - minimumY
+  const units = document.snapshot().header.units
+  const minimumPadding = units === 'meter' ? 0.1 : units === 'inch' ? 0.25 : units === 'foot' ? 0.02 : 5
+  const padding = Math.max(spanX, spanY) * 0.04 || minimumPadding
+  return {
+    minimum: [minimumX - Math.max(padding, minimumPadding), minimumY - Math.max(padding, minimumPadding)],
+    maximum: [maximumX + Math.max(padding, minimumPadding), maximumY + Math.max(padding, minimumPadding)],
+  }
+}
+
+async function candidateSvgPreview(host) {
+  for (const layout of candidateLayouts(host.document)) {
+    try { return exportDrawingSvg(host.document, { layoutId: layout.id, allowPartial: true }) }
+    catch {}
+  }
+  const bounds = candidateModelBounds(host.document)
+  if (!bounds) return null
+  const previewDocument = host.document.fork()
+  const modelSpaceId = previewDocument.snapshot().spaces.modelSpaceId
+  const layout = previewDocument.listObjects({ kind: 'layout' }).find(item => item.payload.blockRecordId === modelSpaceId)
+  if (!layout) return null
+  const spanX = bounds.maximum[0] - bounds.minimum[0], spanY = bounds.maximum[1] - bounds.minimum[1]
+  const landscape = spanX >= spanY
+  await host.sdk.executeCommand('PAGESETUP', { layoutId: layout.id, dxf: {
+    paperWidth: landscape ? 420 : 297, paperHeight: landscape ? 297 : 420, paperUnits: 1,
+    marginLeft: 10, marginRight: 10, marginTop: 10, marginBottom: 10,
+    originX: 0, originY: 0, scaleNumerator: 1, scaleDenominator: 1,
+    plotType: 4, rotation: 0, flags: 20, standardScaleType: 0,
+    windowMinX: bounds.minimum[0], windowMinY: bounds.minimum[1],
+    windowMaxX: bounds.maximum[0], windowMaxY: bounds.maximum[1],
+  } }, { document: previewDocument })
+  return exportDrawingSvg(previewDocument, { layoutId: layout.id, allowPartial: true })
+}
+
+async function deliverCandidate(host, proposal) {
+  if (proposal.result.command !== 'CREATEBATCH' || proposal.result.status !== 'awaiting-host-approval') return null
+  const applied = await host.session.approve(proposal.result.planId, 'kjdraw-local-candidate-host')
+  if (!applied.ok || applied.value.status !== 'committed') throw new Error('KJDraw could not materialize the exact proposal into a candidate drawing')
+  const directory = host.candidateDir
+  if (!directory) throw new Error('Candidate delivery was not selected by the host')
+  const stem = `candidate-${host.ledger.session?.id ?? randomUUID()}-${proposal.sequence}`
+  const kjdPath = join(directory, `${stem}.kjd`), dxfPath = join(directory, `${stem}.dxf`), svgPath = join(directory, `${stem}.svg`)
+  const kjd = await host.sdk.writeDocument(host.document, { format: 'KJD' })
+  const dxf = await host.sdk.writeDocument(host.document, { format: 'DXF', version: '2018' })
+  const reopenedKjd = await createKJDrawSDK().readDocument(kjd, { format: 'KJD' })
+  const reopenedDxf = await createKJDrawSDK().readDocument(dxf, { format: 'DXF' })
+  const entityCount = host.document.listEntities().length
+  if (!reopenedKjd.validate().valid || reopenedKjd.id !== host.document.id || reopenedKjd.revision !== host.document.revision || reopenedKjd.listEntities().length !== entityCount) throw new Error('Candidate KJD failed independent reopen validation')
+  if (!reopenedDxf.validate().valid || reopenedDxf.listEntities().length !== entityCount) throw new Error('Candidate DXF failed independent reopen validation')
+  await exclusiveAtomicFileCreate(kjdPath, kjd)
+  await exclusiveAtomicFileCreate(dxfPath, dxf)
+  let svg = null
+  const preview = await candidateSvgPreview(host)
+  if (preview) {
+    await exclusiveAtomicFileCreate(svgPath, preview.svg)
+    svg = {
+      path: relative(host.workspace, svgPath).split(sep).join('/'),
+      status: preview.report.status,
+      rendered: preview.report.rendered,
+      diagnosticCount: preview.report.diagnostics.length,
+      approximationCount: preview.report.approximations.length,
+    }
+  }
+  host.sourceFingerprint = fingerprint(host.document)
+  return {
+    kjd: relative(host.workspace, kjdPath).split(sep).join('/'),
+    dxf: relative(host.workspace, dxfPath).split(sep).join('/'),
+    ...(svg ? { svg } : {}),
+    entityCount, sourceOverwritten: false, transactionCount: 1,
+    kjdReopenValid: true, dxfReopenValid: true,
+  }
+}
+
 async function openHost(options) {
-  if (options.blank || options['proposal-dir'] || options['geology-column-pack']) {
+  if (options.blank || options['proposal-dir'] || options['candidate-dir'] || options['geology-column-pack']) {
     const workspaceEntry = await lstat(options.workspace)
     if (workspaceEntry.isSymbolicLink()) throw new Error('--workspace must not be a symbolic link')
   }
@@ -249,6 +351,8 @@ async function openHost(options) {
     ? await resolveVacantFileInside(workspace, options.blank, '--blank')
     : await resolveExistingInside(workspace, options.input, '--input')
   const proposalDir = options['proposal-dir'] ? await resolveSessionLedgerDir(workspace, options['proposal-dir']) : null
+  const candidateDir = options['candidate-dir'] ? await resolveSessionLedgerDir(workspace, options['candidate-dir']) : null
+  if (candidateDir && samePath(candidateDir, proposalDir)) throw new Error('--candidate-dir must be different from --proposal-dir')
   let sessionId = proposalDir ? randomUUID() : null
   let proposals = proposalDir
     ? join(proposalDir, `mcp-pending-${sessionId}.json`)
@@ -313,7 +417,7 @@ async function openHost(options) {
     }
   } else await exclusiveAtomicJsonCreate(proposals, ledger)
   const sessionReceipt = sessionId ? { ledgerPath: ledger.session.ledgerPath, sessionId, sourceFingerprint, sourceRevision: document.revision, sourceDocumentId: document.id } : null
-  return { document, session, sourceFingerprint, proposals, ledger, sessionReceipt }
+  return { workspace, sdk, document, session, sourceFingerprint, proposals, ledger, sessionReceipt, candidateDir }
 }
 
 async function main() {
@@ -389,14 +493,22 @@ async function main() {
           throw new Error('A tool call changed the host drawing; the result was rejected')
         }
         if (result.ok && definition.effect === 'propose') {
-          host.ledger.proposals.push({
+          const proposal = {
             sequence: host.ledger.proposals.length + 1,
             tool: name,
             sourceRevision: beforeRevision,
             sourceFingerprint: beforeFingerprint,
             result: result.value
-          })
+          }
+          host.ledger.proposals.push(proposal)
           await atomicJsonWrite(host.proposals, host.ledger)
+          const delivery = host.candidateDir ? await deliverCandidate(host, proposal) : null
+          if (delivery) {
+            proposal.delivery = delivery
+            await atomicJsonWrite(host.proposals, host.ledger)
+            toolResponse(request.id, modelVisibleProposal(name, result, host, delivery), false)
+            continue
+          }
         }
         toolResponse(request.id, modelVisibleProposal(name, result, host), !result.ok)
         continue

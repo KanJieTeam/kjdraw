@@ -15,7 +15,7 @@ const configPaths = ['.kimi-code/mcp.json', '.workbuddy/mcp.json', '.zcode/confi
 const userConfigPaths = ['.kimi-code/mcp.json', '.workbuddy/mcp.json', '.zcode/cli/config.json']
 const skillTargets = ['.kimi-code/skills/kjdraw-cad', '.zcode/skills/kjdraw-cad', '.trae/skills/kjdraw-cad']
 const skillFiles = ['SKILL.md', 'references/routes.json', 'references/acceptance.md']
-const options = root => ({ all: true, workspace: root, blank: '.kjdraw/active.kjd', units: 'millimeter', proposalDir: '.kjdraw/proposals', apply: true })
+const options = root => ({ all: true, workspace: root, blank: '.kjdraw/active.kjd', units: 'millimeter', proposalDir: '.kjdraw/proposals', candidateDir: '.kjdraw/results', apply: true })
 const hash = value => createHash('sha256').update(value).digest('hex')
 
 async function fixture(t) {
@@ -165,10 +165,49 @@ test('one connect transaction binds a host-hashed geology pack into all four cli
   } })}\n`, maxBuffer: 16 * 1024 * 1024 })
   assert.equal(child.status, 0, child.stderr)
   const responses = child.stdout.trim().split('\n').map(line => JSON.parse(line))
-  assert.equal(responses[1].result.structuredContent.value.status, 'awaiting-host-approval')
-  assert.deepEqual(responses[1].result.structuredContent.value.engineeringEvidence.knowledgePack, { id: pack.id, version: pack.version, sha256: saved.sha256 })
+  assert.ok(responses[1]?.result?.structuredContent, JSON.stringify(responses[1]))
+  const delivered = responses[1].result.structuredContent.value
+  assert.equal(delivered.status, 'candidate-ready')
+  assert.equal(delivered.product, 'KJDraw')
+  assert.equal(delivered.responseKind, 'verified-cad-candidate@1')
+  assert.deepEqual(delivered.engineeringEvidence.knowledgePack, { id: pack.id, version: pack.version, sha256: saved.sha256 })
+  assert.equal(delivered.candidate.sourceOverwritten, false)
+  assert.equal(delivered.candidate.transactionCount, 1)
+  assert.equal(delivered.candidate.kjdReopenValid, true)
+  assert.equal(delivered.candidate.dxfReopenValid, true)
+  assert.ok(['complete', 'approximate'].includes(delivered.candidate.svg.status))
+  assert.equal(delivered.candidate.svg.diagnosticCount, 0)
+  assert.ok(delivered.candidate.svg.rendered > 0)
+  assert.match(await readFile(join(root, delivered.candidate.svg.path), 'utf8'), /<svg\b/u)
+  const candidateKjd = await createKJDrawSDK().readDocument(await readFile(join(root, delivered.candidate.kjd)), { format: 'KJD' })
+  const candidateDxf = await createKJDrawSDK().readDocument(await readFile(join(root, delivered.candidate.dxf)), { format: 'DXF' })
+  assert.equal(candidateKjd.validate().valid, true)
+  assert.equal(candidateDxf.validate().valid, true)
+  assert.equal(candidateKjd.listEntities().length, delivered.candidate.entityCount)
+  assert.equal(candidateDxf.listEntities().length, delivered.candidate.entityCount)
   assert.deepEqual(await readFile(drawing), before)
   assert.equal(hash(await readFile(saved.path)), saved.sha256)
+})
+
+test('explicit candidate delivery upgrades only the exact prior KJDraw entry', async t => {
+  const root = await fixture(t)
+  const prior = { ...options(root), candidateDir: undefined }
+  await connectWorkspace(prior)
+  const upgraded = await connectWorkspace(options(root))
+  assert.ok(upgraded.clients.every(client => client.client === 'TraeCode' || client.action === 'added'))
+  const workBuddy = JSON.parse(await readFile(join(root, '.workbuddy/mcp.json'), 'utf8')).mcpServers.kjdraw
+  assert.deepEqual(workBuddy.args.slice(-2), ['--candidate-dir', '.kjdraw/results'])
+  await connectWorkspace(options(root))
+  const conflicting = JSON.parse(await readFile(join(root, '.kimi-code/mcp.json'), 'utf8'))
+  conflicting.mcpServers.kjdraw.args[0] = 'owner-managed-other-server.mjs'
+  await writeFile(join(root, '.kimi-code/mcp.json'), JSON.stringify(conflicting))
+  await assert.rejects(connectWorkspace(options(root)), /conflicts; refusing to overwrite/u)
+})
+
+test('candidate output cannot alias the proposal ledger directory', async t => {
+  const root = await fixture(t)
+  await assert.rejects(connectWorkspace({ ...options(root), candidateDir: '.kjdraw/proposals' }), /must be different/u)
+  assert.deepEqual(await readdir(root), [])
 })
 
 test('official WorkBuddy command/args shape is configured, while a matching legacy type:stdio entry is preserved byte-for-byte', async t => {

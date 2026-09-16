@@ -33,7 +33,7 @@ const SKILL_TARGETS = Object.freeze([
 ])
 
 function usage() {
-  return `Usage: kjdraw-connect --all --workspace <directory> [--scope project|user] (--input <existing.kjd|drawing.dxf> | --blank <new.kjd> --units millimeter|meter) [--proposal-dir .kjdraw/proposals] [--geology-column-pack <relative.json> --geology-column-pack-sha256 <sha256>] [--apply]\n\nWithout --apply this is a read-only preview. Project scope writes project configuration. User scope writes verified user-level Kimi Code, WorkBuddy, and ZCode configuration under the supplied user home and returns TraeCode's official confirmation link. Host review is required for every pending proposal.`
+  return `Usage: kjdraw-connect --all --workspace <directory> [--scope project|user] (--input <existing.kjd|drawing.dxf> | --blank <new.kjd> --units millimeter|meter) [--proposal-dir .kjdraw/proposals] [--candidate-dir .kjdraw/results] [--geology-column-pack <relative.json> --geology-column-pack-sha256 <sha256>] [--apply]\n\nWithout --apply this is a read-only preview. --candidate-dir is an explicit host policy that materializes exact proposals as new candidate files without overwriting the input drawing.`
 }
 
 function parseArgs(argv) {
@@ -45,8 +45,8 @@ function parseArgs(argv) {
     if (seen.has(key)) throw new Error(`Duplicate option: ${key}`)
     seen.add(key)
     if (key === '--all' || key === '--apply') { options[key.slice(2)] = true; continue }
-    if (!['--workspace', '--scope', '--input', '--blank', '--units', '--proposal-dir', '--geology-column-pack', '--geology-column-pack-sha256'].includes(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('Unknown or incomplete option')
-    options[key === '--proposal-dir' ? 'proposalDir' : key.slice(2)] = argv[++i]
+    if (!['--workspace', '--scope', '--input', '--blank', '--units', '--proposal-dir', '--candidate-dir', '--geology-column-pack', '--geology-column-pack-sha256'].includes(key) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('Unknown or incomplete option')
+    options[key === '--proposal-dir' ? 'proposalDir' : key === '--candidate-dir' ? 'candidateDir' : key.slice(2)] = argv[++i]
   }
   if (!options.all || !options.workspace) throw new Error('--all and --workspace are required')
   if (!['project', 'user'].includes(options.scope)) throw new Error('--scope must be project or user')
@@ -147,8 +147,14 @@ function merged(original, keys, entry, legacyStdio = false) {
     target = target[key]
   }
   if (Object.hasOwn(target, 'kjdraw')) {
-    if (!isDeepStrictEqual(target.kjdraw, entry) && !(legacyStdio && isDeepStrictEqual(target.kjdraw, { type: 'stdio', ...entry }))) throw new Error('Existing kjdraw MCP entry conflicts; refusing to overwrite it')
-    return null
+    const existing = target.kjdraw
+    const normalized = legacyStdio && object(existing) && existing.type === 'stdio' ? Object.fromEntries(Object.entries(existing).filter(([key]) => key !== 'type')) : existing
+    if (isDeepStrictEqual(normalized, entry)) return null
+    const candidateIndex = entry.args?.indexOf('--candidate-dir') ?? -1
+    const prior = candidateIndex >= 0 ? { ...entry, args: entry.args.toSpliced(candidateIndex, 2) } : null
+    if (!prior || !isDeepStrictEqual(normalized, prior)) throw new Error('Existing kjdraw MCP entry conflicts; refusing to overwrite it')
+    target.kjdraw = legacyStdio && existing.type === 'stdio' ? { type: 'stdio', ...entry } : entry
+    return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8')
   }
   target.kjdraw = entry
   return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, 'utf8')
@@ -274,6 +280,8 @@ export async function connectWorkspace(options, hooks = {}) {
   const root = await realpath(rawRoot)
   const drawing = await prepareDrawing(root, options)
   const proposals = await checkedPath(root, options.proposalDir ?? '.kjdraw/proposals', '--proposal-dir', 'directory')
+  const candidates = options.candidateDir ? await checkedPath(root, options.candidateDir, '--candidate-dir', 'directory') : null
+  if (candidates && candidates === proposals) throw new Error('--candidate-dir must be different from --proposal-dir')
   let geologyColumnKnowledge
   if (options['geology-column-pack']) {
     const path = await checkedPath(root, options['geology-column-pack'], '--geology-column-pack', 'file')
@@ -298,6 +306,7 @@ export async function connectWorkspace(options, hooks = {}) {
   const skillPlans = await planSkillTargets(root, skill)
   // 'node' avoids an ephemeral desktop runtime path and TraeCode's no-spaces command rule.
   const entry = { command: 'node', args: [mcpPath, '--workspace', root, '--input', drawing.name, '--proposal-dir', relative(root, proposals).split(sep).join('/'),
+    ...(candidates ? ['--candidate-dir', relative(root, candidates).split(sep).join('/')] : []),
     ...(geologyColumnKnowledge ? ['--geology-column-pack', geologyColumnKnowledge.path, '--geology-column-pack-sha256', geologyColumnKnowledge.sha256] : [])] }
   const clients = scope === 'user' ? USER_CLIENTS : PROJECT_CLIENTS
   const plans = []
@@ -335,6 +344,10 @@ export async function connectWorkspace(options, hooks = {}) {
   try {
     await ensureProjectDirectory(root, dirname(proposals))
     if (!await item(proposals)) { await mkdir(proposals); created.push({ path: proposals, type: 'directory' }) }
+    if (candidates) {
+      await ensureProjectDirectory(root, dirname(candidates))
+      if (!await item(candidates)) { await mkdir(candidates); created.push({ path: candidates, type: 'directory' }) }
+    }
     if (drawing.serialized !== null) {
       await ensureProjectDirectory(root, dirname(drawing.path))
       if (await item(drawing.path)) throw new Error('Blank drawing appeared during installation')

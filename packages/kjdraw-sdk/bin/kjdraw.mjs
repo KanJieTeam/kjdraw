@@ -86,6 +86,7 @@ async function onboard(args) {
     scope: 'user',
     workspace,
     proposalDir: '.kjdraw/proposals',
+    candidateDir: '.kjdraw/results',
     ...(hostInfo ? { input: '.kjdraw/host.kjd' } : { blank: '.kjdraw/host.kjd', units: 'millimeter' }),
   })
   const trae = result.clients.find(client => client.client === 'TraeCode')
@@ -123,7 +124,7 @@ async function readJsonCheck(path, keys, desired, safe) {
   const entry = container.kjdraw
   if (!plainObject(entry)) return { status: 'missing-kjdraw-entry' }
   if (entry.command !== 'node' || !Array.isArray(entry.args) || entry.args.some(value => typeof value !== 'string')) return { status: 'mismatched-kjdraw-entry' }
-  const expected = [MCP_SCRIPT, '--workspace', desired.workspace, '--input', '.kjdraw/host.kjd', '--proposal-dir', '.kjdraw/proposals']
+  const expected = [MCP_SCRIPT, '--workspace', desired.workspace, '--input', '.kjdraw/host.kjd', '--proposal-dir', '.kjdraw/proposals', '--candidate-dir', '.kjdraw/results']
   const normalized = entry.args.length ? [resolve(entry.args[0]), ...entry.args.slice(1)] : []
   const matches = JSON.stringify(normalized) === JSON.stringify(expected)
   return { status: matches ? 'ok' : 'mismatched-kjdraw-entry' }
