@@ -1,8 +1,8 @@
 $ErrorActionPreference = 'Stop'
 
-$KJDrawSourceSha = '80e29bb14d33d68aff024b7098c40116bccd224e'
+$KJDrawSourceSha = '616133eb542fe06db08f196be8eddcce22209d39'
 $KJDrawUserHome = if ($env:KJDRAW_USER_HOME) { $env:KJDRAW_USER_HOME } else { $env:USERPROFILE }
-$KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-80e29bb'
+$KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-616133e'
 
 if (-not $KJDrawUserHome -or -not [IO.Path]::IsPathRooted($KJDrawUserHome) -or -not (Test-Path -LiteralPath $KJDrawUserHome -PathType Container)) {
   throw 'The current user home directory could not be resolved safely.'
