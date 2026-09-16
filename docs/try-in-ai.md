@@ -29,11 +29,13 @@ The connector preserves unrelated JSON fields and MCP servers. It creates `~/.kj
 
 ## Verify the connection
 
-Restart the client, open any workspace, start a new conversation, and ask:
+Restart the client, open any workspace, start a new conversation, and ask in your own words:
 
 ```text
-Use KJDraw to read the current drawing, then draw a circle with a 5 mm radius. Create a pending proposal only.
+用 KJDraw 画一个半径 5 毫米的圆。
 ```
+
+You do not need to mention MCP, tool names, ledger files, or proposal IDs. The client should discover KJDraw from its user-level configuration. For a drawing request, KJDraw returns a compact exact proposal first; the host applies it according to that client's approval policy. This separation prevents an agent from silently overwriting the source drawing.
 
 Verify all three signals:
 
