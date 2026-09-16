@@ -1,14 +1,14 @@
 #!/bin/sh
 set -eu
 
-KJDRAW_SOURCE_SHA='5183a04a3b22b2337e315407cc4a5ab25f60ad2e'
+KJDRAW_SOURCE_SHA='b02293219cacdcf855d15058a9445448ca6c1486'
 command -v node >/dev/null 2>&1 || { echo 'KJDraw requires Node.js 22 or newer.' >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || { echo 'KJDraw requires curl.' >&2; exit 1; }
 command -v tar >/dev/null 2>&1 || { echo 'KJDraw requires tar.' >&2; exit 1; }
 node -e 'if (+process.versions.node.split(".")[0] < 22) process.exit(1)'
 KJDRAW_USER_HOME="${KJDRAW_USER_HOME:-$(node -p 'require("node:os").homedir()')}"
 KJDRAW_DATA_ROOT="${XDG_DATA_HOME:-$KJDRAW_USER_HOME/.local/share}"
-KJDRAW_INSTALL="$KJDRAW_DATA_ROOT/kjdraw/source-5183a04"
+KJDRAW_INSTALL="$KJDRAW_DATA_ROOT/kjdraw/source-b022932"
 KJDRAW_PREVIOUS_6DA="$KJDRAW_DATA_ROOT/kjdraw/source-6da40b2/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_85D="$KJDRAW_DATA_ROOT/kjdraw/source-85d750e/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 KJDRAW_PREVIOUS_C526="$KJDRAW_DATA_ROOT/kjdraw/source-c526aa7/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
