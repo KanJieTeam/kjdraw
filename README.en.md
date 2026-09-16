@@ -63,7 +63,7 @@ curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/inst
 
 The connector safely merges user-level configuration instead of modifying each project. KJDraw keeps its editable host drawing under the user's home directory. [Installation details and security model](docs/try-in-ai.md)
 
-> **1.0 release candidate:** command-line configuration and real-engine smoke tests pass; independent GUI/model acceptance remains a release gate. No model key is collected. Source drawings are opened read-only and changes remain proposals until the host approves them.
+> **1.0 release candidate:** command-line configuration and real-engine smoke tests pass; independent GUI/model acceptance remains a release gate. No model key is collected. The installer materializes create requests as independently verified KJD, DXF, and SVG candidate files without overwriting the source; in-place and destructive changes still require host review.
 
 ### Explore the editor
 

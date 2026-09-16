@@ -25,7 +25,7 @@ curl -fsSL https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/inst
 | ZCode | `~/.zcode/cli/config.json` | `~/.zcode/skills/kjdraw-cad/` | 所有工作区 |
 | TraeCode | 官方 `trae-cn://` 导入确认 | `~/.trae/skills/kjdraw-cad/` | 确认后由客户端全局管理 |
 
-KJDraw 的共享可编辑宿主图纸位于 `~/.kjdraw/host.kjd`，待审核提案位于 `~/.kjdraw/proposals/`。TraeCode 的官方导入链接同时保存在 `~/.kjdraw/trae-install-url.txt`；如果系统已经注册 TraeCode，安装器会打开一次确认窗口。
+KJDraw 的共享可编辑宿主图纸位于 `~/.kjdraw/host.kjd`，审计提案位于 `~/.kjdraw/proposals/`，独立候选图位于 `~/.kjdraw/results/`。TraeCode 的官方导入链接同时保存在 `~/.kjdraw/trae-install-url.txt`；如果系统已经注册 TraeCode，安装器会打开一次确认窗口。
 
 TraeCode 保留一次客户端确认是它的官方安全边界。KJDraw 不通过猜测内部文件路径来绕过确认，也不会把项目级 `.trae/mcp.json` 冒充用户级配置。
 
@@ -34,7 +34,7 @@ TraeCode 保留一次客户端确认是它的官方安全边界。KJDraw 不通�
 - 安装器精确合并 `kjdraw` 条目，保留其它 MCP 服务和无关配置字段。
 - 已存在但内容不同的 `kjdraw` 条目或 Skill 会阻止整个事务，不会被强制覆盖。
 - 若 ZCode 的用户级 `~/.agents/mcp.json` 已有活动服务，安装器会拒绝创建可能遮蔽它的原生配置，要求先人工合并。
-- KJDraw MCP 只读取宿主图纸；模型产生的是待审核提案，不能自行批准或覆盖源图。
+- KJDraw MCP 不允许模型选择输出路径或覆盖源图。安装器显式启用的宿主策略只会把精确的新建提案物化为新的 KJD、DXF 与 SVG 候选文件；原位修改与破坏性操作仍保留宿主审核。
 - 配置文件存在只能证明安装结果，不能证明某个 GUI 已加载 MCP，也不能证明所选模型实际调用了工具。
 
 ## 验证是否真正调用 KJDraw
@@ -45,13 +45,13 @@ TraeCode 保留一次客户端确认是它的官方安全边界。KJDraw 不通�
 用 KJDraw 画一个半径 5 毫米的圆。
 ```
 
-不需要写 MCP、工具名、ledger 文件或 plan ID。客户端会从用户级配置自动发现 KJDraw。对于会改图的请求，KJDraw 先返回紧凑且精确的候选修改，再由宿主客户端按自身的审核策略应用；这是刻意保留的安全边界，避免智能体静默覆盖源图。
+不需要写 MCP、工具名、ledger 文件或 plan ID。客户端会从用户级配置自动发现 KJDraw。新建类请求完成后会返回 `candidate-ready` 以及实际 KJD、DXF、SVG 路径；原位修改则按宿主客户端的审核策略执行。两条路径都不会静默覆盖源图。
 
 验收时必须同时看到：
 
 1. 智能体调用名称带 `kjdraw` 的 MCP 工具；
-2. 返回结果是待宿主审核，而不是直接覆盖图纸；
-3. `~/.kjdraw/host.kjd` 保持可重开，提案写入独立目录；
+2. 新建请求返回 `candidate-ready`，并给出 KJD、DXF、SVG 三种独立候选文件；
+3. `~/.kjdraw/host.kjd` 保持可重开且未被覆盖，提案和候选图分别写入独立目录；
 4. 客户端界面能识别 KJDraw 名称或 Skill，而不是仅由模型口头声称“已经绘图”。
 
 ## 当前候选状态

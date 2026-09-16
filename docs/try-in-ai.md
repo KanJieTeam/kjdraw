@@ -25,7 +25,7 @@ Requirements: Node.js 22 or newer; macOS/Linux also need `curl` and `tar`. The b
 | ZCode | `~/.zcode/cli/config.json` | `~/.zcode/skills/kjdraw-cad/` |
 | TraeCode | Official import link saved at `~/.kjdraw/trae-install-url.txt` | `~/.trae/skills/kjdraw-cad/` |
 
-The connector preserves unrelated JSON fields and MCP servers. It creates `~/.kjdraw/host.kjd` only when the user has no existing host drawing. Input drawings are opened read-only. AI tool calls create pending proposals; only the host application can approve and apply them. TraeCode still asks for one confirmation because its official install protocol deliberately keeps that security boundary in the client.
+The connector preserves unrelated JSON fields and MCP servers. It creates `~/.kjdraw/host.kjd` only when the user has no existing host drawing. The installed host policy materializes exact create proposals as new, independently reopened KJD/DXF files plus an SVG preview under `~/.kjdraw/results/`; it never overwrites the source. In-place and destructive operations still require host review. TraeCode still asks for one confirmation because its official install protocol deliberately keeps that security boundary in the client.
 
 ## Verify the connection
 
@@ -35,12 +35,12 @@ Restart the client, open any workspace, start a new conversation, and ask in you
 用 KJDraw 画一个半径 5 毫米的圆。
 ```
 
-You do not need to mention MCP, tool names, ledger files, or proposal IDs. The client should discover KJDraw from its user-level configuration. For a drawing request, KJDraw returns a compact exact proposal first; the host applies it according to that client's approval policy. This separation prevents an agent from silently overwriting the source drawing.
+You do not need to mention MCP, tool names, ledger files, or proposal IDs. The client should discover KJDraw from its user-level configuration. A create request returns `candidate-ready` with actual KJD, DXF, and SVG paths. In-place edits follow the client host's review policy. Neither route silently overwrites the source drawing.
 
 Verify all three signals:
 
 1. The client calls a `kjdraw` MCP tool.
-2. The result identifies KJDraw and remains pending review.
+2. A create result identifies KJDraw, reports `candidate-ready`, and includes KJD, DXF, and SVG candidate paths.
 3. Your source drawing has not been overwritten.
 
 User-level configuration and real-engine command-line smoke tests are covered by the repository tests. Independent GUI and real-model acceptance for all four clients remains a KJDraw 1.0 release gate; this page does not claim that gate has passed.

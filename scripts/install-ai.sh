@@ -1,14 +1,15 @@
 #!/bin/sh
 set -eu
 
-KJDRAW_SOURCE_SHA='616133eb542fe06db08f196be8eddcce22209d39'
+KJDRAW_SOURCE_SHA='71df8226e32db56fd9f5be3b5efc270362c0d819'
 command -v node >/dev/null 2>&1 || { echo 'KJDraw requires Node.js 22 or newer.' >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || { echo 'KJDraw requires curl.' >&2; exit 1; }
 command -v tar >/dev/null 2>&1 || { echo 'KJDraw requires tar.' >&2; exit 1; }
 node -e 'if (+process.versions.node.split(".")[0] < 22) process.exit(1)'
 KJDRAW_USER_HOME="${KJDRAW_USER_HOME:-$(node -p 'require("node:os").homedir()')}"
 KJDRAW_DATA_ROOT="${XDG_DATA_HOME:-$KJDRAW_USER_HOME/.local/share}"
-KJDRAW_INSTALL="$KJDRAW_DATA_ROOT/kjdraw/source-616133e"
+KJDRAW_INSTALL="$KJDRAW_DATA_ROOT/kjdraw/source-71df822"
+KJDRAW_PREVIOUS_MCP="$KJDRAW_DATA_ROOT/kjdraw/source-616133e/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 
 case "$KJDRAW_USER_HOME" in
   /*) ;;
@@ -47,10 +48,12 @@ fi
 KJDRAW_CONNECT="$KJDRAW_INSTALL/packages/kjdraw-sdk/bin/kjdraw-connect.mjs"
 printf 'Installing KJDraw user configuration in: %s\n' "$KJDRAW_USER_HOME"
 if [ -f "$KJDRAW_USER_HOME/.kjdraw/host.kjd" ]; then
-  KJDRAW_RESULT=$(node "$KJDRAW_CONNECT" --all --apply --scope user --workspace "$KJDRAW_USER_HOME" --input '.kjdraw/host.kjd')
+  set -- --all --apply --scope user --workspace "$KJDRAW_USER_HOME" --input '.kjdraw/host.kjd' --candidate-dir '.kjdraw/results'
 else
-  KJDRAW_RESULT=$(node "$KJDRAW_CONNECT" --all --apply --scope user --workspace "$KJDRAW_USER_HOME" --blank '.kjdraw/host.kjd' --units millimeter)
+  set -- --all --apply --scope user --workspace "$KJDRAW_USER_HOME" --blank '.kjdraw/host.kjd' --units millimeter --candidate-dir '.kjdraw/results'
 fi
+if [ -f "$KJDRAW_PREVIOUS_MCP" ]; then set -- "$@" --previous-mcp-script "$KJDRAW_PREVIOUS_MCP"; fi
+KJDRAW_RESULT=$(node "$KJDRAW_CONNECT" "$@")
 KJDRAW_TRAE_URL=$(printf '%s' "$KJDRAW_RESULT" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const r=JSON.parse(s);process.stdout.write(r.clients.find(x=>x.client==="TraeCode")?.installUrl||"")})')
 if [ -n "$KJDRAW_TRAE_URL" ]; then
   printf '%s' "$KJDRAW_TRAE_URL" > "$KJDRAW_USER_HOME/.kjdraw/trae-install-url.txt"
@@ -64,6 +67,5 @@ fi
 printf '\nKJDraw user configuration is installed.\n'
 printf '%s\n' 'Restart Kimi Code, WorkBuddy, or ZCode and verify the kjdraw tool call in any workspace. TraeCode uses its official import confirmation.'
 printf '%s\n' 'Ask:'
-printf '%s\n' 'Use KJDraw to read the current drawing, then draw a circle with a 5 mm radius. Create a pending proposal only.'
-printf '%s\n' '或者输入：'
-printf '%s\n' '使用 KJDraw 读取当前图纸，然后画一个半径 5 mm 的圆；只生成待审核提案。'
+printf '%s\n' 'Use KJDraw to draw a circle with a 5 mm radius.'
+printf '%s\n' '或者输入：用 KJDraw 画一个半径 5 毫米的圆。'

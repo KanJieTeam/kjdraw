@@ -1,8 +1,9 @@
 $ErrorActionPreference = 'Stop'
 
-$KJDrawSourceSha = '616133eb542fe06db08f196be8eddcce22209d39'
+$KJDrawSourceSha = '71df8226e32db56fd9f5be3b5efc270362c0d819'
 $KJDrawUserHome = if ($env:KJDRAW_USER_HOME) { $env:KJDRAW_USER_HOME } else { $env:USERPROFILE }
-$KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-616133e'
+$KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-71df822'
+$KJDrawPreviousMcp = Join-Path $env:LOCALAPPDATA 'KJDraw\source-616133e\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'
 
 if (-not $KJDrawUserHome -or -not [IO.Path]::IsPathRooted($KJDrawUserHome) -or -not (Test-Path -LiteralPath $KJDrawUserHome -PathType Container)) {
   throw 'The current user home directory could not be resolved safely.'
@@ -49,10 +50,12 @@ $KJDrawConnect = Join-Path $KJDrawInstall 'packages\kjdraw-sdk\bin\kjdraw-connec
 $KJDrawHost = Join-Path $KJDrawUserHome '.kjdraw\host.kjd'
 Write-Host "Installing KJDraw user configuration in: $KJDrawUserHome"
 if (Test-Path -LiteralPath $KJDrawHost -PathType Leaf) {
-  $KJDrawOutput = @(node $KJDrawConnect --all --apply --scope user --workspace $KJDrawUserHome --input '.kjdraw/host.kjd')
+  $KJDrawArgs = @('--all', '--apply', '--scope', 'user', '--workspace', $KJDrawUserHome, '--input', '.kjdraw/host.kjd', '--candidate-dir', '.kjdraw/results')
 } else {
-  $KJDrawOutput = @(node $KJDrawConnect --all --apply --scope user --workspace $KJDrawUserHome --blank '.kjdraw/host.kjd' --units millimeter)
+  $KJDrawArgs = @('--all', '--apply', '--scope', 'user', '--workspace', $KJDrawUserHome, '--blank', '.kjdraw/host.kjd', '--units', 'millimeter', '--candidate-dir', '.kjdraw/results')
 }
+if (Test-Path -LiteralPath $KJDrawPreviousMcp -PathType Leaf) { $KJDrawArgs += @('--previous-mcp-script', $KJDrawPreviousMcp) }
+$KJDrawOutput = @(node $KJDrawConnect @KJDrawArgs)
 if ($LASTEXITCODE -ne 0) { throw 'KJDraw refused the user connection; no conflicting client entry was overwritten.' }
 $KJDrawResult = ($KJDrawOutput -join [Environment]::NewLine) | ConvertFrom-Json
 $KJDrawTrae = @($KJDrawResult.clients | Where-Object { $_.client -eq 'TraeCode' })[0]
@@ -68,4 +71,4 @@ Write-Host ''
 Write-Host 'KJDraw user configuration is installed.' -ForegroundColor Green
 Write-Host 'Restart Kimi Code, WorkBuddy, or ZCode and verify the kjdraw tool call in any workspace. TraeCode uses its official import confirmation.'
 Write-Host 'Ask:'
-Write-Host 'Use KJDraw to read the current drawing, then draw a circle with a 5 mm radius. Create a pending proposal only.'
+Write-Host 'Use KJDraw to draw a circle with a 5 mm radius.'
