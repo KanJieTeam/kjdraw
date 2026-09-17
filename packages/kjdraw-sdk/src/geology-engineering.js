@@ -1022,33 +1022,37 @@ export function compileGeologyColumn(input) {
                     layer
                 ])).values()
         ];
-        if (distinct.length > 5) throw new KJValidationError('Geology: A4 legend supports at most five lithology classes');
-        const legendY = Math.min(34, bottom - 6, footerReserve - 4);
+        const columnsPerRow = Math.min(4, distinct.length), rows = Math.ceil(distinct.length / columnsPerRow);
+        const rowPitch = 10, requiredHeight = rows * rowPitch + 11;
+        if (requiredHeight > Math.min(bottom - 2, footerReserve - 2)) throw new KJValidationError('Geology: footer legend does not fit the declared sheet; use a larger footer or a field-grid style');
+        const legendY = Math.min(bottom - 3, footerReserve - 3);
         g.text(3, left, legendY, labels.legend, 2.8);
+        const cellWidth = (right - left) / columnsPerRow;
         for (const [index, layer] of distinct.entries()){
-            const x = left + index * Math.min(37, (right - left - 10) / distinct.length);
-            g.rect(0, x, legendY - 12, x + 10, legendY - 4);
+            const column = index % columnsPerRow, row = Math.floor(index / columnsPerRow);
+            const x = left + column * cellWidth, y = legendY - 5 - row * rowPitch;
+            g.rect(0, x, y - 7, x + 8, y - 1);
             g.hatch([
                 [
                     x,
-                    legendY - 12
+                    y - 7
                 ],
                 [
-                    x + 10,
-                    legendY - 12
+                    x + 8,
+                    y - 7
                 ],
                 [
-                    x + 10,
-                    legendY - 4
+                    x + 8,
+                    y - 1
                 ],
                 [
                     x,
-                    legendY - 4
+                    y - 1
                 ]
             ], layer);
-            g.text(3, x + 11, legendY - 10, layer.patternKey ? displayAliases?.names[layer.name] ?? layer.name : labels[layer.lithology], 2);
+            g.text(3, x + 9, y - 5.7, layer.patternKey ? displayAliases?.names[layer.name] ?? layer.name : labels[layer.lithology], 1.8);
         }
-        g.text(3, left, Math.min(12, legendY - 18), labels.footer, 2.2);
+        g.text(3, left, Math.max(2.5, legendY - 7 - rows * rowPitch), labels.footer, 2.2);
     };
     const renderFooterGrid = ()=>{
         if (!footerGrid) return;
@@ -1180,7 +1184,8 @@ export function compileGeologyColumn(input) {
                 thickness: metres(groupBottom - groupTop)
             };
             const valueY = textFlow && coreIndex < 2 ? labelY : yTop - yBottom < 2 ? labelY : mid;
-            emitLayerNumber(field('layerNumber'), valueY, values.layerNumber, yTop - yBottom);
+            const numberBandHeight = textFlow && coreIndex === 0 ? Math.max(yTop - yBottom, textFlow.firstBaselineMm + textFlow.labelHeightMm + 1) : yTop - yBottom;
+            emitLayerNumber(field('layerNumber'), valueY, values.layerNumber, numberBandHeight);
             for (const role of [
                 'layerName',
                 'baseElevation',
@@ -1524,9 +1529,16 @@ export function compileGeologySection(input) {
     }
     if (!Array.isArray(input.correlations) || input.correlations.length > 200) throw new KJValidationError('Geology: invalid correlation list');
     const unique = new Set();
+    const holeOrder = new Map(holes.map((hole, index)=>[
+            hole.id,
+            index
+        ]));
+    const pairTopology = new Map();
     for (const link of input.correlations){
         const left = byId.get(bounded(link.fromHoleId, 'correlation hole')), right = byId.get(bounded(link.toHoleId, 'correlation hole'));
         if (!left || !right || x(left.hole) >= x(right.hole)) throw new KJValidationError('Geology: correlation must follow declared station order');
+        const leftIndex = holeOrder.get(left.hole.id), rightIndex = holeOrder.get(right.hole.id);
+        if (rightIndex !== leftIndex + 1) throw new KJValidationError('Geology: correlation must join adjacent station-ordered holes');
         if (Boolean(link.fromIntervalId) === Boolean(link.fromStratumCode) || Boolean(link.toIntervalId) === Boolean(link.toStratumCode)) throw new KJValidationError('Geology: correlation must use exact interval ids or unambiguous layer codes');
         const candidatesA = left.strata.filter((layer)=>link.fromIntervalId ? layer.intervalId === link.fromIntervalId : layer.code === link.fromStratumCode);
         const candidatesB = right.strata.filter((layer)=>link.toIntervalId ? layer.intervalId === link.toIntervalId : layer.code === link.toStratumCode);
@@ -1536,6 +1548,16 @@ export function compileGeologySection(input) {
         const key = `${left.hole.id}:${a.intervalId ?? `${a.code}@${a.top}-${a.bottom}`}|${right.hole.id}:${b.intervalId ?? `${b.code}@${b.top}-${b.bottom}`}`;
         if (unique.has(key)) throw new KJValidationError('Geology: duplicate correlation');
         unique.add(key);
+        const pairKey = `${left.hole.id}|${right.hole.id}`, topology = pairTopology.get(pairKey) ?? [];
+        for (const prior of topology){
+            if (prior.source === a || prior.target === b) throw new KJValidationError('Geology: one interval cannot branch into multiple correlations between a hole pair');
+            if (Math.sign(a.top - prior.source.top) !== Math.sign(b.top - prior.target.top)) throw new KJValidationError('Geology: correlations cross or reverse stratigraphic order');
+        }
+        topology.push({
+            source: a,
+            target: b
+        });
+        pairTopology.set(pairKey, topology);
         const xl = x(left.hole), xr = x(right.hole);
         const topL = y(left.hole, a.top), topR = y(right.hole, b.top), bottomL = y(left.hole, a.bottom), bottomR = y(right.hole, b.bottom);
         g.hatch([

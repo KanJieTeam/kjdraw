@@ -874,6 +874,14 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
             ],
             legendMode: 'none',
             layerNumberStyle: 'circle',
+            textFlow: {
+                firstGroupBorrowMm: 8,
+                firstGroupUnruled: true,
+                firstBaselineMm: 2.2,
+                labelPitchMm: 2.8,
+                labelHeightMm: 1.5,
+                paragraphGapMm: 0.8
+            },
             headerGrid: {
                 rows: [
                     [

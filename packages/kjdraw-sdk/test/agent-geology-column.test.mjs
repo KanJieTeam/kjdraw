@@ -102,6 +102,36 @@ test('Chinese loess-region lithologies remain explicit and scale labels use engi
   assert.equal(new Set(patterns).size, 5)
 })
 
+test('a 30 m Chinese loess log keeps seven lithologies, descriptions, samples and SPT in one candidate', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const session = new KJAgentToolSession(sdk, document)
+  const result = await session.call('cad_propose_geology_column', {
+    version: '1.0.0', expectedRevision: 0, units: 'millimeter', locale: 'zh-CN',
+    projectName: '黄土塬工程', hole: { id: 'ZK1', collarElevation: 1128.5, depth: 30, stableWaterDepth: 25.5,
+      strata: [
+        { code: '1', name: '耕土', top: 0, bottom: 0.5, lithology: 'cultivated-soil', description: '植物根系发育' },
+        { code: '2', name: '湿陷性黄土', top: 0.5, bottom: 5.5, lithology: 'loess-collapsible', description: '大孔隙发育' },
+        { code: '3', name: '黄土', top: 5.5, bottom: 12.5, lithology: 'loess', description: '垂直节理发育' },
+        { code: '4', name: '古土壤', top: 12.5, bottom: 14.8, lithology: 'paleosol', description: '棕红色' },
+        { code: '5', name: '钙质结核层', top: 14.8, bottom: 18, lithology: 'calcareous-nodule', description: '钙质结核富集' },
+        { code: '6', name: '黄土状土', top: 18, bottom: 23.5, lithology: 'loess-like', description: '黄褐色' },
+        { code: '7', name: '粉质黏土', top: 23.5, bottom: 30, lithology: 'silty-clay', description: '可塑' },
+      ], observations: [
+        { kind: 'sample', id: 'S1', depth: 4.1, displayLabel: 'S1' },
+        { kind: 'spt', id: 'N1', depth: 11, value: 19 },
+        { kind: 'sample', id: 'S2', depth: 20, displayLabel: 'S2' },
+        { kind: 'spt', id: 'N2', depth: 27, value: 28 },
+      ] },
+  })
+  const proposal = accepted(result), visible = proposal.arguments.entities
+    .filter(entity => ['TEXT', 'MTEXT'].includes(entity.type)).map(entity => String(entity.payload.text))
+  assert.equal(proposal.engineeringEvidence.parameters.verticalScaleDenominator, 200)
+  for (const label of ['耕土', '湿陷性黄土', '黄土', '古土壤', '钙质结核层', '黄土状土', '粉质黏土', 'S1', 'S2', 'N=19', 'N=28'])
+    assert.ok(visible.some(value => value.includes(label)), label)
+  assert.equal(proposal.arguments.entities.filter(entity => entity.type === 'HATCH').length, 7)
+  assert.equal(document.revision, 0)
+})
+
 test('MIT synthetic style renders an appendix document fact only when explicitly supplied and preserves atomic roundtrips', async () => {
   const pack = {
     schema: 'kjdraw.knowledge-pack.v1', id: 'synthetic-appendix-header', version: '1.0.0',

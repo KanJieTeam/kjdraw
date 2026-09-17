@@ -205,6 +205,14 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK: ReadonlyDeep<KJKnowledgePack> = vali
       verticalScaleDenominators: [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000],
       legendMode: 'none',
       layerNumberStyle: 'circle',
+      textFlow: {
+        firstGroupBorrowMm: 8,
+        firstGroupUnruled: true,
+        firstBaselineMm: 2.2,
+        labelPitchMm: 2.8,
+        labelHeightMm: 1.5,
+        paragraphGapMm: 0.8,
+      },
       headerGrid: {
         rows: [
           [{ role: 'projectName', label: '工程名称', optional: true }, { role: 'holeId', label: '勘探点编号' }],

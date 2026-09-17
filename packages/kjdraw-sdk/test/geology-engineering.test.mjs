@@ -45,6 +45,20 @@ test('engineering column expands stratigraphy into physical A4 frame, elevations
   assert.match(svg.svg, /LITHOLOGY LEGEND/)
 })
 
+test('legacy footer legend lays out seven distinct lithologies without merging source strata', () => {
+  const kinds = ['fill', 'clay', 'silt', 'sand', 'gravel', 'rock', 'weathered-rock']
+  const input = { hole: { id: 'LEGEND-7', collarElevation: 120, depth: 14,
+    strata: kinds.map((lithology, index) => ({ code: String(index + 1), name: `Unit ${index + 1}`,
+      top: index * 2, bottom: (index + 1) * 2, lithology })) },
+    verticalScaleDenominator: 100, expectedRevision: 0 }
+  const compiled = compileGeologyColumn(input)
+  assert.equal(compiled.commandArgs.entities.filter(entity => entity.type === 'HATCH').length, 14,
+    'seven exact strata and seven legend swatches are retained')
+  const labels = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  for (const expected of ['fill', 'clay', 'silt', 'sand', 'gravel', 'rock', 'weathered rock'])
+    assert.ok(labels.includes(expected), expected)
+})
+
 test('Chinese geology inputs produce Chinese compiler labels for columns and sections', () => {
   const columnHole = hole('ZK-中文-01', 0, 105.25)
   columnHole.strata[0].name = '杂填土'
@@ -576,6 +590,37 @@ test('section targets repeated layer codes by exact interval identity, never an 
   const exact = compileGeologySection({ ...base, correlations: [{ fromHoleId: 'A', toHoleId: 'B', fromIntervalId: 'A-b', toIntervalId: 'B-b' }] })
   assert.equal(exact.commandArgs.entities.filter(entity => entity.type === 'HATCH').length, 7)
   assert.equal(exact.commandArgs.entities.filter(entity => entity.type === 'HATCH' && Math.max(...entity.payload.boundaryLoops[0].vertices.map(point => point[0])) - Math.min(...entity.payload.boundaryLoops[0].vertices.map(point => point[0])) > 20).length, 1)
+})
+
+test('section correlations stay between adjacent holes and preserve one-to-one stratigraphic order', () => {
+  const sectionHole = (id, station, order = ['clay', 'clay', 'clay']) => ({
+    id, station, collarElevation: 105, depth: 12,
+    strata: order.map((lithology, index) => ({
+      intervalId: `${id}-${index + 1}`, code: `${index + 1}`, name: lithology,
+      top: index * 4, bottom: (index + 1) * 4, lithology,
+    })),
+  })
+  const holes = [sectionHole('A', 0), sectionHole('B', 20), sectionHole('C', 40)]
+  const base = { holes, horizontalScaleDenominator: 500, verticalScaleDenominator: 200,
+    datumElevation: 80, surfaceRule: 'straight-between-supplied-collars', expectedRevision: 0 }
+  assert.throws(() => compileGeologySection({ ...base, correlations: [
+    { fromHoleId: 'A', toHoleId: 'C', fromIntervalId: 'A-1', toIntervalId: 'C-1' },
+  ] }), /adjacent station-ordered holes/)
+  assert.throws(() => compileGeologySection({ ...base, correlations: [
+    { fromHoleId: 'A', toHoleId: 'B', fromIntervalId: 'A-1', toIntervalId: 'B-2' },
+    { fromHoleId: 'A', toHoleId: 'B', fromIntervalId: 'A-2', toIntervalId: 'B-1' },
+  ] }), /cross or reverse stratigraphic order/)
+  assert.throws(() => compileGeologySection({ ...base, correlations: [
+    { fromHoleId: 'A', toHoleId: 'B', fromIntervalId: 'A-1', toIntervalId: 'B-1' },
+    { fromHoleId: 'A', toHoleId: 'B', fromIntervalId: 'A-1', toIntervalId: 'B-2' },
+  ] }), /cannot branch into multiple correlations/)
+  const compiled = compileGeologySection({ ...base, correlations: [
+    { fromHoleId: 'A', toHoleId: 'B', fromIntervalId: 'A-1', toIntervalId: 'B-1' },
+    { fromHoleId: 'A', toHoleId: 'B', fromIntervalId: 'A-2', toIntervalId: 'B-2' },
+    { fromHoleId: 'B', toHoleId: 'C', fromIntervalId: 'B-1', toIntervalId: 'C-1' },
+  ] })
+  assert.equal(compiled.commandArgs.entities.filter(entity => entity.type === 'HATCH').length, 12,
+    'nine borehole bands plus three non-crossing correlation polygons are preserved')
 })
 
 test('engineering geography refuses invented, discontinuous or visually unreadable layers and correlations', () => {
