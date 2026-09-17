@@ -74,6 +74,7 @@ test('AI homepage keeps drawing changes approval-gated and supports preview, sav
   await expect(page.locator('.stage-review-brand')).toBeVisible()
   await expect(page.locator('.stage-review-brand')).toContainText('KJDraw')
   await expect(page.locator('.cad-command-dock')).toBeHidden()
+  await expect(page.locator('.stage-label')).toBeHidden()
   await expect(page.locator('.canvas-navigator')).toBeVisible()
   await expect(page.locator('#canvas')).toBeVisible()
 

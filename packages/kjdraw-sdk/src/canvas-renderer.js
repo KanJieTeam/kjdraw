@@ -533,6 +533,11 @@ export class KJCanvasRenderer {
         this.render();
         return this;
     }
+    setBackground(background) {
+        this.#background = background;
+        this.render();
+        return this;
+    }
     setSelection(ids = []) {
         this.#selection = new Set(ids.map(String));
         this.render();

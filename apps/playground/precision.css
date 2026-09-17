@@ -124,7 +124,7 @@ main { height: calc(100dvh - 44px); }
 .stage-review-status i { width:6px;height:6px;border-radius:50%;background:#bdf878;box-shadow:0 0 0 3px #bdf87818; }
 .proposal-review .stage-review-brand { display:flex; }
 .proposal-review .cad-command-dock,.proposal-review .stage-hint,.proposal-review .orientation,.proposal-review .drop-hint,.proposal-review .ai-assistant-launcher { display:none!important; }
-.proposal-review .stage-label { top:66px; }
+.proposal-review .stage-label { display:none!important; }
 .proposal-review .canvas-navigator { top:calc(50% + 18px); }
 .proposal-review:not(.ai-surface) .site-header,
 .proposal-review:not(.ai-surface) .cad-ribbon,

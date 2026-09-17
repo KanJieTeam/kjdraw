@@ -430,6 +430,7 @@ export class KJCanvasRenderer {
 
   setTheme(theme: KJCanvasTheme): this { this.#theme = theme; this.render(); return this }
   setGrid(enabled: boolean): this { this.#grid = Boolean(enabled); this.render(); return this }
+  setBackground(background: string | null): this { this.#background = background; this.render(); return this }
   setSelection(ids: readonly string[] = []): this { this.#selection = new Set(ids.map(String)); this.render(); return this }
   setSpace(spaceId: string | null): this { this.#spaceId = spaceId; this.#spatialScene = null; this.#selection.clear(); this.render(); return this }
   setSceneProvider(provider: KJCanvasSceneProvider | null): this { this.#sceneProvider = provider; this.#spatialScene = null; this.render(); return this }

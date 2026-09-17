@@ -332,7 +332,10 @@ function resize() {
 }
 function fit(){cancelSelectionGestures();canvasRenderer.fit();render()}
 function previewAgentDrawing(view){
-  document.body.classList.toggle('proposal-review',Boolean(agentChat?.preview))
+  const reviewing=Boolean(agentChat?.preview)
+  document.body.classList.toggle('proposal-review',reviewing)
+  canvasRenderer.setBackground(reviewing?'#111a22':null)
+  canvasRenderer.setGrid(reviewing?true:gridEnabled)
   requestAnimationFrame(()=>requestAnimationFrame(()=>{
     resize()
     const bounds=view?.bounds
