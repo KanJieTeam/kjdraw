@@ -48,6 +48,8 @@ export interface KJGeologyObservation {
     rangeBottom?: number;
 }
 export interface KJGeologyColumnInput {
+    /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */
+    locale?: 'zh-CN' | 'en';
     hole: KJGeologyBorehole;
     projectName?: string;
     /** Exact source-backed document facts requested by a host-selected style pack; never inferred. */
@@ -64,6 +66,8 @@ export interface KJGeologyColumnInput {
     title?: string;
 }
 export interface KJGeologySectionInput {
+    /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */
+    locale?: 'zh-CN' | 'en';
     holes: KJGeologyBorehole[];
     /** Only explicitly correlated layers are drawn between holes. */
     correlations: {

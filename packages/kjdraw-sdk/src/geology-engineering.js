@@ -133,6 +133,47 @@ const defaultColumnLabels = {
     rock: 'rock',
     'weathered-rock': 'weathered-rock'
 };
+const chineseColumnLabels = {
+    hole: '钻孔编号',
+    collar: '孔口标高',
+    depth: '孔深',
+    verticalScale: '垂直比例尺',
+    datum: '基准：孔口标高',
+    project: '工程名称',
+    x: 'X坐标',
+    y: 'Y坐标',
+    startDate: '开孔日期',
+    endDate: '终孔日期',
+    depthColumn: '深度 m',
+    thicknessColumn: '层厚 m',
+    elevationColumn: '层底标高 m',
+    codeColumn: '层号',
+    hatchColumn: '岩土图例',
+    stratumColumn: '岩土名称',
+    descriptionColumn: '岩土描述',
+    sampleColumn: '取样',
+    sptColumn: '标贯 N',
+    legend: '岩土图例',
+    footer: '深度向下为正；标高按给定孔口标高计算。请与钻孔原始记录核对。',
+    fill: '填土',
+    clay: '黏性土',
+    silt: '粉土',
+    sand: '砂土',
+    gravel: '碎石土',
+    rock: '岩石',
+    'weathered-rock': '风化岩'
+};
+const hasChinese = (value)=>typeof value === 'string' && /[\u3400-\u9fff]/u.test(value);
+function geologyLocale(input) {
+    if (input.locale != null && input.locale !== 'zh-CN' && input.locale !== 'en') throw new KJValidationError('Geology: locale must be zh-CN or en');
+    if (input.locale) return input.locale;
+    if (hasChinese(input.title)) return 'zh-CN';
+    if ('projectName' in input && hasChinese(input.projectName)) return 'zh-CN';
+    const holes = 'hole' in input ? [
+        input.hole
+    ] : input.holes;
+    return holes.some((hole)=>hole.strata.some((layer)=>hasChinese(layer.name) || hasChinese(layer.description))) ? 'zh-CN' : 'en';
+}
 function columnLayout(input) {
     if (!input.columnStylePack) {
         const height = input.pageHeightMillimeters ?? 297;
@@ -151,7 +192,7 @@ function columnLayout(input) {
             ],
             headerDepth: 56,
             footerReserve: 57,
-            labels: defaultColumnLabels,
+            labels: geologyLocale(input) === 'zh-CN' ? chineseColumnLabels : defaultColumnLabels,
             verticalScaleDenominators: [
                 ...defaultColumnVerticalScales
             ]
@@ -760,7 +801,8 @@ export function compileGeologyColumn(input) {
         }
     }
     g.rect(0, 5, 5, pageWidth - 5, pageHeight - 5);
-    g.text(3, pageWidth / 2, pageHeight - 18, bounded(input.title ?? 'ENGINEERING BOREHOLE LOG', 'title'), titleHeight ?? 5, true);
+    const locale = geologyLocale(input);
+    g.text(3, pageWidth / 2, pageHeight - 18, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质钻孔柱状图' : 'ENGINEERING BOREHOLE LOG'), 'title'), titleHeight ?? 5, true);
     if (headerGrid) {
         const facts = {
             projectName: input.projectName ? bounded(input.projectName, 'project name', 96) : undefined,
@@ -1160,8 +1202,9 @@ export function compileGeologySection(input) {
         ...byId.values()
     ].flatMap((value)=>value.strata)));
     g.rect(0, 5, 5, 415, 292);
-    g.text(3, 133, 279, bounded(input.title ?? 'ENGINEERING GEOLOGICAL SECTION', 'title'), 5);
-    g.text(3, 16, 266, `HORIZONTAL 1:${metres(input.horizontalScaleDenominator)}  VERTICAL 1:${metres(input.verticalScaleDenominator)}  DATUM ${metres(datum)} m`, 3);
+    const locale = geologyLocale(input);
+    g.text(3, 133, 279, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质剖面图' : 'ENGINEERING GEOLOGICAL SECTION'), 'title'), 5);
+    g.text(3, 16, 266, locale === 'zh-CN' ? `水平比例尺 1:${metres(input.horizontalScaleDenominator)}  垂直比例尺 1:${metres(input.verticalScaleDenominator)}  基准标高 ${metres(datum)} m` : `HORIZONTAL 1:${metres(input.horizontalScaleDenominator)}  VERTICAL 1:${metres(input.verticalScaleDenominator)}  DATUM ${metres(datum)} m`, 3);
     g.line(4, 41, 48, 41, 257);
     g.line(4, 41, 48, 396, 48);
     const surface = holes.map((hole)=>[
@@ -1174,8 +1217,8 @@ export function compileGeologySection(input) {
         g.line(4, center, 48, center, top);
         g.rect(1, center - 2, bottom, center + 2, top);
         g.text(3, center - 4, top + 5, hole.id, 2.7);
-        g.text(3, center - 7, 36, `STA ${metres(hole.station)}`, 2.2);
-        g.text(3, center - 7, 29, `H ${metres(hole.collarElevation)}`, 2.2);
+        g.text(3, center - 7, 36, `${locale === 'zh-CN' ? '里程' : 'STA'} ${metres(hole.station)}`, 2.2);
+        g.text(3, center - 7, 29, `${locale === 'zh-CN' ? '孔口标高' : 'H'} ${metres(hole.collarElevation)}`, 2.2);
         for (const layer of byId.get(hole.id).strata){
             const a = y(hole, layer.top), b = y(hole, layer.bottom);
             g.line(1, center - 3, b, center + 3, b);
@@ -1237,6 +1280,6 @@ export function compileGeologySection(input) {
         g.line(1, xl, topL, xr, topR);
         g.text(3, (xl + xr) / 2 - 5, (topL + topR + bottomL + bottomR) / 4, `${a.code} ${a.name}`, 2.3);
     }
-    g.text(3, 16, 13, 'Only supplied strata/correlations are shown. Uncorrelated regions are intentionally blank.', 2.3);
+    g.text(3, 16, 13, locale === 'zh-CN' ? '仅显示已提供的地层与对比关系；未对比区域按设计留空。' : 'Only supplied strata/correlations are shown. Uncorrelated regions are intentionally blank.', 2.3);
     return g.finish();
 }

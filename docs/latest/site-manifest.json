@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.docs-site@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:994141127dc1c27139df2462daa2a150439b7b025302e8d7eb7ffade88836504",
+  "sourceDigest": "sha256:011588533eb087da06c19091d03edc0683dc906b4df1e9c5ed3ae1f34f578ab1",
   "locales": [
     "en",
     "zh"
@@ -69,12 +69,14 @@
           "en-installation",
           "en-installation-requirements",
           "en-installation-release-channels",
+          "en-installation-verify-installation",
           "en-installation-public-imports"
         ],
         "zh": [
           "zh-installation",
           "zh-installation-requirements",
           "zh-installation-release-channels",
+          "zh-installation-verify-installation",
           "zh-installation-public-imports"
         ]
       }
@@ -267,30 +269,26 @@
         "en": [
           "en-agent",
           "en-agent-agent-tools",
-          "en-agent-check-geometry",
-          "en-agent-domain-capabilities",
-          "en-agent-compose-drawing",
+          "en-agent-capabilities",
+          "en-agent-install",
+          "en-agent-quickstart",
+          "en-agent-tool-selection",
           "en-agent-drawing-context",
-          "en-agent-query-region",
-          "en-agent-review-before-mutation",
-          "en-agent-plan-and-execute",
+          "en-agent-review-and-apply",
           "en-agent-geometric-preview",
-          "en-agent-fail-closed-cases",
-          "en-agent-security-boundary"
+          "en-agent-errors-and-boundaries"
         ],
         "zh": [
           "zh-agent",
           "zh-agent-agent-tools",
-          "zh-agent-check-geometry",
-          "zh-agent-domain-capabilities",
-          "zh-agent-compose-drawing",
+          "zh-agent-capabilities",
+          "zh-agent-install",
+          "zh-agent-quickstart",
+          "zh-agent-tool-selection",
           "zh-agent-drawing-context",
-          "zh-agent-query-region",
-          "zh-agent-review-before-mutation",
-          "zh-agent-plan-and-execute",
+          "zh-agent-review-and-apply",
           "zh-agent-geometric-preview",
-          "zh-agent-fail-closed-cases",
-          "zh-agent-security-boundary"
+          "zh-agent-errors-and-boundaries"
         ]
       }
     },

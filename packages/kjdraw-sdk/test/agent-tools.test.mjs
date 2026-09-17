@@ -37,17 +37,17 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
         : tool.name === 'cad_propose_polyline_edit'
           ? ['segmentIndex', 'vertexIndex', 'point', 'tolerance', 'bulge', 'sweepDegrees', 'startWidth', 'endWidth']
         : tool.name === 'cad_propose_manufacturing_sheet'
-          ? ['holePatterns', 'slots']
+          ? ['locale', 'holePatterns', 'slots']
         : tool.name === 'cad_propose_architecture_plan'
-          ? ['exteriorOpenings', 'partitions', 'textHeight']
+          ? ['locale', 'exteriorOpenings', 'partitions', 'textHeight']
         : tool.name === 'cad_propose_site_plan'
-          ? ['northAngleDegrees']
+          ? ['locale', 'northAngleDegrees']
         : tool.name === 'cad_propose_cartesian_chart'
           ? ['origin', 'width', 'height', 'textHeight', 'xLabel', 'yLabel', 'showValues', 'yAxis']
         : tool.name === 'cad_propose_geology_column'
-          ? ['verticalScaleDenominator', 'projectName', 'title', 'pageHeightMillimeters', 'documentFacts']
+          ? ['locale', 'verticalScaleDenominator', 'projectName', 'title', 'pageHeightMillimeters', 'documentFacts']
         : tool.name === 'cad_propose_geology_section'
-          ? ['title']
+          ? ['locale', 'title']
         : tool.name === 'cad_propose_structural_edit'
           ? ['reconnections', 'relayer']
         : tool.name === 'cad_check_geometry'

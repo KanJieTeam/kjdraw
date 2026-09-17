@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/workbench/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=994141127dc1c271">
+  <link rel="stylesheet" href="../style.css?v=011588533eb087da">
   <title>Using the workbench · KJDraw Docs</title>
 </head>
 <body>
@@ -66,8 +66,8 @@
           <p class="lead">Open a drawing, create and modify geometry with exact coordinates, then save the result.</p>
           <h2 id="en-workbench-ai-conversation">Talk to a drawing model<a class="heading-anchor" href="#en-workbench-ai-conversation" aria-label="Link to Talk to a drawing model">#</a></h2>
 <p>Open <strong>AI Chat</strong> in the side panel to describe a drawing or ask for changes. The conversation keeps a bounded recent history in memory. <strong>Enter</strong> sends, <strong>Shift+Enter</strong> adds a line, and <strong>Stop</strong> cancels the current request. Starting a new conversation or opening another drawing clears the current conversation and cancels pending proposals.</p>
-<p>Use <strong>Connect model</strong> to choose the protocol, model name and your application&#39;s same-origin server endpoint. Keys stay on that server. Sending a message shares your request and queried drawing data with the configured model. For local setup, follow <a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/deployment.md#connect-the-local-editor-to-a-model">model proxy setup</a>. The public static demo does not include a model service; its three offline scenarios are under <strong>Local examples</strong>.</p>
-<p>The chat displays real reading, measurement and proposal activity. A proposed edit appears as a review card: <strong>Preview on drawing</strong>, <strong>Apply changes</strong>, or <strong>Discard</strong>. Applied changes can be undone or saved as a KJP project. The current tools support bounded creation and movement; this is not yet autonomous delivery of a complete complex drawing. Model text is displayed as text and is not treated as an execution receipt. A changed drawing requires a fresh proposal.</p>
+<p>Use <strong>Connect model</strong> to choose the protocol, model name and your application&#39;s same-origin server endpoint. Keys stay on that server. Sending a message shares your request and queried drawing data with the configured model. For local setup, follow <a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/deployment.md#connect-the-local-editor-to-a-model">model proxy setup</a>. The public static demo does not connect to a model; choose <strong>Local examples</strong> to explore preset workflows without one.</p>
+<p>The chat displays drawing reads, measurements and proposal activity. A proposed edit appears as a review card: <strong>Preview on drawing</strong>, <strong>Apply changes</strong>, or <strong>Discard</strong>. Applied changes can be undone or saved as a KJP project. Every model operation runs through a bounded CAD tool and produces structured results; model text alone is never treated as an execution receipt. Request a fresh proposal after the drawing changes.</p>
 <h2 id="en-workbench-open">Open a drawing<a class="heading-anchor" href="#en-workbench-open" aria-label="Link to Open a drawing">#</a></h2>
 <p>Open the Live Demo and choose an industry drawing, or choose <strong>Open</strong> to load a DXF, KJD or KJP file. You can also drag a supported file onto the canvas. The embedded editor opens DXF and KJD; the Demo project workspace also opens multi-drawing KJP packages.</p>
 <p>The active drawing appears in the title area. Choose <strong>Fit view</strong> after opening a file if the geometry is outside the current view. Opening a file replaces the current Demo workspace, so save edits you want to keep first.</p>
@@ -107,7 +107,7 @@
 <h2 id="en-workbench-spline-hatch">Splines and hatches<a class="heading-anchor" href="#en-workbench-spline-hatch" aria-label="Link to Splines and hatches">#</a></h2>
 <p>For a <strong>Spline</strong>, choose the degree first. Pick at least <code>degree + 1</code> control points, then press <strong>Enter</strong> to finish. Use <strong>Backspace</strong> to revise the last control point before committing. <strong>C</strong> produces a closed spline when enough points are available.</p>
 <p>For a <strong>Hatch</strong>, choose <strong>SOLID</strong>, <strong>ANSI31</strong> or <strong>ANSI37</strong> and set the scale before drawing the boundary. Pick at least three boundary vertices, then press <strong>Enter</strong> or <strong>C</strong>. KJDraw closes the boundary when it creates the hatch. ANSI31 is a single diagonal pattern; ANSI37 is a crossed diagonal pattern. In the embedded drawing dialog, clear <strong>Solid fill</strong> when choosing a line pattern.</p>
-<p>Hatch creation currently uses one polygon boundary per operation. Draw separate hatches for separate regions.</p>
+<p>Each hatch operation accepts one polygon boundary. Draw separate hatches for separate regions.</p>
 <p>Imported DXF hatches use their actual line definitions, including custom names, dashed lines, dots and staggered row origins. Polygon/bulge and LINE/ARC boundaries use even-odd hole clipping. Moving, rotating, uniformly scaling or mirroring a hatch transforms its pattern with its boundary; saving DXF retains the transformed definition. Ellipse/spline hatch boundaries and nonstandard collinear dash offsets remain unsupported. Very dense patterns draw partially within a bounded work budget; the editor prompts you to zoom in. A partial pattern is not complete plotting output.</p>
 <p>For an application-defined pattern, supply <code>patternLines</code> in drawing coordinates: each line has an <code>angle</code> in radians, <code>base: [x,y]</code>, <code>offset: [dx,dy]</code> and signed <code>dashes</code> (positive stroke, negative gap, zero dot; <code>[]</code> is continuous). These values already include the current <code>patternAngle</code>/<code>patternScale</code>. Store those settings as <code>patternDefinitionAngle</code>/<code>patternDefinitionScale</code> if your application will later change the global settings without rewriting the definitions. The renderer&#39;s <code>report.hatchDiagnostics</code> identifies <code>budget</code>, <code>unsupported-pattern</code> or <code>unsupported-boundary</code> limitations by entity ID.</p>
 <h2 id="en-workbench-dimensions">Add dimensions<a class="heading-anchor" href="#en-workbench-dimensions" aria-label="Link to Add dimensions">#</a></h2>
@@ -149,7 +149,7 @@
 <p>The canvas toolbar contains Select, Pan, Fit view, Zoom in and Zoom out. With Pan selected, drag using the left mouse button. Middle-button dragging also pans, and the mouse wheel zooms. Navigation does not modify geometry or add undo history.</p>
 <p>In the Demo, <strong>Save KJP</strong> downloads the whole project and <strong>DXF</strong> exports the active drawing. In an embedded editor, <strong>Save KJD</strong> preserves native drawing data and <strong>Export DXF</strong> creates an exchange file. Reopen the saved file when you want to verify the result. Downloading a file does not configure background cloud storage.</p>
 <h2 id="en-workbench-layouts">Choose a layout<a class="heading-anchor" href="#en-workbench-layouts" aria-label="Link to Choose a layout">#</a></h2>
-<p>Available from <strong>1.0.0-rc.3</strong>:</p>
+<p>Choose the layout that matches the task:</p>
 <div class="table-wrap"><table><thead><tr><th>Layout</th><th>Best for</th></tr></thead><tbody><tr><td>Classic</td><td>Familiar Ribbon tools and visible panels</td></tr><tr><td>Compact</td><td>More canvas space with a shorter horizontal toolbar</td></tr><tr><td>Focus</td><td>Reviewing drawings or using commands, with Ribbon and side panels hidden</td></tr></tbody></table></div>
 <p>The layout selector remains available in Focus. Switching layouts preserves the editor, drawing, selection and undo history. The Demo remembers the choice in this browser. Embedded instances keep their own layout; the host application decides whether to persist it.</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>const editor = createKJDrawEditor(&#39;#cad&#39;, { layout: &#39;classic&#39; })
@@ -171,8 +171,8 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
           <p class="lead">打开图纸，用精确坐标创建和修改图形，再保存结果。</p>
           <h2 id="zh-workbench-ai-conversation">与绘图模型对话<a class="heading-anchor" href="#zh-workbench-ai-conversation" aria-label="Link to 与绘图模型对话">#</a></h2>
 <p>在侧栏打开 <strong>AI 对话</strong>，描述图纸或提出修改。对话在内存中保留有预算限制的近期上下文。<strong>Enter</strong> 发送，<strong>Shift+Enter</strong> 换行，<strong>停止</strong> 取消本次请求。开启新对话或打开另一张图，会清除当前对话并取消待处理方案。</p>
-<p>通过 <strong>连接模型</strong> 选择协议、模型名称和应用同源的服务端地址，密钥留在服务端。发送消息会将需求和查询到的图纸数据交给所选模型。本地接入步骤见<a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/deployment.md#connect-the-local-editor-to-a-model">模型代理配置</a>。公开静态演示站不提供模型服务，原有三个离线场景收在 <strong>本地示例</strong> 中。</p>
-<p>对话显示实际的读图、测量和方案生成状态。绘图方案以卡片呈现，可选择 <strong>在图中预览</strong>、<strong>应用修改</strong> 或 <strong>放弃方案</strong>；应用后可撤销或保存为 KJP 工程。当前工具支持有范围限制的创建和移动，尚未完成复杂图纸的全自动交付。模型文字按普通文本显示，不作为执行成功的回执。图纸发生变化后需要重新提出方案。</p>
+<p>通过 <strong>连接模型</strong> 选择协议、模型名称和应用同源的服务端地址，密钥留在服务端。发送消息会将需求和查询到的图纸数据交给所选模型。本地接入步骤见<a href="https://github.com/KanJieTeam/kjdraw/blob/main/docs/deployment.md#connect-the-local-editor-to-a-model">模型代理配置</a>。公开静态演示站不连接模型；可在 <strong>本地示例</strong> 中直接体验预设流程。</p>
+<p>对话显示读图、测量和方案生成状态。绘图方案以卡片呈现，可选择 <strong>在图中预览</strong>、<strong>应用修改</strong> 或 <strong>放弃方案</strong>；应用后可撤销或保存为 KJP 工程。每次模型操作都通过有界 CAD 工具执行并返回结构化结果；模型文字本身不作为执行成功的回执。图纸发生变化后需要重新提出方案。</p>
 <h2 id="zh-workbench-open">打开图纸<a class="heading-anchor" href="#zh-workbench-open" aria-label="Link to 打开图纸">#</a></h2>
 <p>进入在线 Demo 后，可以选择一张行业图纸，也可以点击<strong>打开</strong>载入 DXF、KJD、KJP 文件；还可以把支持的文件直接拖到画布。嵌入式编辑器支持 DXF、KJD，Demo 工程工作区还支持包含多张图纸的 KJP 包。</p>
 <p>当前图纸会显示在标题区。打开文件后如果暂时看不到图形，点击<strong>全图</strong>。打开文件会替换 Demo 当前工作区，因此需要保留的修改请先保存。</p>
@@ -214,7 +214,7 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
 <p>开发者可提供 <code>patternLines</code>：每条含弧度 <code>angle</code>、<code>base: [x,y]</code>、<code>offset: [dx,dy]</code> 和有符号 <code>dashes</code>（正数为笔画、负数为空隙、零为点，<code>[]</code> 为连续线）。这些绘图坐标值已包含当前 <code>patternAngle</code>/<code>patternScale</code>；若后续只修改全局参数，应同时记录初始的 <code>patternDefinitionAngle</code>/<code>patternDefinitionScale</code>。渲染器 <code>report.hatchDiagnostics</code> 按实体 ID 返回预算、图案或边界限制。</p>
 <p>绘制<strong>样条曲线</strong>前先选择次数。至少输入“次数 + 1”个控制点，再按 <strong>Enter</strong> 完成。提交前可用 <strong>Backspace</strong> 调整最后一个控制点；达到需要的点数后，按 <strong>C</strong> 可创建闭合样条。</p>
 <p>绘制<strong>填充</strong>前，选择 <strong>SOLID</strong>、<strong>ANSI31</strong> 或 <strong>ANSI37</strong>，并设置比例。依次指定至少三个边界顶点，再按 <strong>Enter</strong> 或 <strong>C</strong>；KJDraw 创建填充时会自动闭合边界。ANSI31 为单向斜线，ANSI37 为交叉斜线。在嵌入式绘图对话框中使用线图案时，需要取消勾选<strong>实体填充</strong>。</p>
-<p>目前每次填充操作创建一个多边形边界；互相分离的区域请分别创建填充。</p>
+<p>每次填充操作接受一个多边形边界；互相分离的区域请分别创建填充。</p>
 <h2 id="zh-workbench-dimensions">添加尺寸标注<a class="heading-anchor" href="#zh-workbench-dimensions" aria-label="Link to 添加尺寸标注">#</a></h2>
 <p>选择<strong>尺寸标注</strong>并设置类型，然后严格按以下顺序取点：</p>
 <div class="table-wrap"><table><thead><tr><th>类型</th><th>取点顺序</th></tr></thead><tbody><tr><td>对齐</td><td>第一测量点、第二测量点、尺寸线位置</td></tr><tr><td>线性 / 旋转</td><td>第一测量点、第二测量点、尺寸线位置；先设置方向或旋转角度</td></tr><tr><td>半径</td><td>圆心、圆上一点</td></tr><tr><td>直径</td><td>一个直径端点、对侧端点</td></tr></tbody></table></div>
@@ -254,7 +254,7 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
 <p>画布工具栏提供选择、平移、全图、放大和缩小。选择平移后，可按住鼠标左键拖动画布；鼠标中键拖动也可平移，滚轮用于缩放。这些视图操作不改变图形，也不占用撤销历史。</p>
 <p>Demo 中的<strong>保存 KJP</strong>会下载整个工程，<strong>导出 DXF</strong>只导出当前图纸。嵌入式编辑器的<strong>保存 KJD</strong>保留原生图档数据，<strong>导出 DXF</strong>生成交换文件。需要核对结果时，可重新打开保存的文件。下载文件不代表已经配置后台云存储。</p>
 <h2 id="zh-workbench-layouts">选择工作台布局<a class="heading-anchor" href="#zh-workbench-layouts" aria-label="Link to 选择工作台布局">#</a></h2>
-<p>以下布局从 <strong>1.0.0-rc.3</strong> 开始提供：</p>
+<p>根据任务选择合适的布局：</p>
 <div class="table-wrap"><table><thead><tr><th>布局</th><th>适用情况</th></tr></thead><tbody><tr><td>经典布局</td><td>熟悉的 Ribbon 工具区与可见侧栏</td></tr><tr><td>紧凑布局</td><td>压缩横向工具区，为图纸提供更多空间</td></tr><tr><td>专注布局</td><td>隐藏 Ribbon 与侧栏，集中查看图纸或使用命令</td></tr></tbody></table></div>
 <p>专注布局仍保留布局选择器，可以随时切回。切换布局会保留编辑器、图纸、选择和撤销历史。Demo 会在本浏览器记住选择；嵌入组件各自管理布局，是否持久化由宿主应用决定。</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>const editor = createKJDrawEditor(&#39;#cad&#39;, { layout: &#39;classic&#39; })
@@ -276,6 +276,6 @@ editor.setLayout(&#39;compact&#39;)</code></pre>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=994141127dc1c271"></script>
+  <script type="module" src="../app.js?v=011588533eb087da"></script>
 </body>
 </html>

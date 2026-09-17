@@ -18,6 +18,7 @@ export interface KJAgentManufacturingSheetInput {
     version: typeof KJDRAW_MANUFACTURING_SHEET_VERSION;
     expectedRevision: number;
     units: 'millimeter';
+    locale?: 'zh-CN' | 'en';
     drawingId: string;
     title: string;
     revision: string;

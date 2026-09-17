@@ -868,6 +868,13 @@ const manufacturingSheetSchema = objectWithOptional({
             '1.0.0'
         ]
     },
+    locale: {
+        type: 'string',
+        enum: [
+            'zh-CN',
+            'en'
+        ]
+    },
     drawingId: {
         ...text,
         maxLength: 64
@@ -921,6 +928,7 @@ const manufacturingSheetSchema = objectWithOptional({
     ]),
     textHeight: radius
 }, [
+    'locale',
     'holePatterns',
     'slots'
 ]);
@@ -993,6 +1001,13 @@ const architecturePlanSchema = objectWithOptional({
             'millimeter'
         ]
     },
+    locale: {
+        type: 'string',
+        enum: [
+            'zh-CN',
+            'en'
+        ]
+    },
     drawingId: {
         ...text,
         maxLength: 64
@@ -1034,6 +1049,7 @@ const architecturePlanSchema = objectWithOptional({
     },
     textHeight: radius
 }, [
+    'locale',
     'exteriorOpenings',
     'partitions',
     'textHeight'
@@ -1056,6 +1072,13 @@ const sitePlanSchema = objectWithOptional({
         type: 'string',
         enum: [
             'meter'
+        ]
+    },
+    locale: {
+        type: 'string',
+        enum: [
+            'zh-CN',
+            'en'
         ]
     },
     drawingId: {
@@ -1159,6 +1182,7 @@ const sitePlanSchema = objectWithOptional({
         maximum: 500
     }
 }, [
+    'locale',
     'northAngleDegrees'
 ]);
 const cartesianChartSchema = objectWithOptional({
@@ -1473,6 +1497,13 @@ const geologyColumnSchema = objectWithOptional({
             'millimeter'
         ]
     },
+    locale: {
+        type: 'string',
+        enum: [
+            'zh-CN',
+            'en'
+        ]
+    },
     hole: geologyHoleSchema,
     verticalScaleDenominator: radius,
     projectName: {
@@ -1506,6 +1537,7 @@ const geologyColumnSchema = objectWithOptional({
         })
     }
 }, [
+    'locale',
     'verticalScaleDenominator',
     'projectName',
     'title',
@@ -1564,6 +1596,13 @@ const geologySectionSchema = objectWithOptional({
             'millimeter'
         ]
     },
+    locale: {
+        type: 'string',
+        enum: [
+            'zh-CN',
+            'en'
+        ]
+    },
     holes: {
         type: 'array',
         minItems: 2,
@@ -1590,6 +1629,7 @@ const geologySectionSchema = objectWithOptional({
         maxLength: 64
     }
 }, [
+    'locale',
     'title'
 ]);
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
@@ -1710,19 +1750,19 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_manufacturing_sheet',
         effect: 'propose',
-        description: 'Compile a complete editable millimeter manufacturing drawing from a compact versioned intent instead of emitting every CAD entity. Version 1.0.0 supports a rectangular plate, bounded rectangular through-hole patterns with optional counterbores, horizontal or vertical through slots, aligned top/front views, center marks, native measured dimensions, named engineering layers, sheet border, title block and machining notes. Interpret horizontal slots as orientationDegrees 0 (long axis +X), and a counterbore from the top as the +Z face; these are deterministic conventions, not clarification questions. If the request explicitly gives a border lower-left (0,0) and omits sheet.origin, use [0,0]; do not ask for that redundant value. Views compile at native 1:1 and the compiler deterministically rejects a sheet that cannot contain them. KJDraw validates all feature relationships, generates deterministic native geometry locally and returns the full preview. The model supplies design parameters only; host approval applies one atomic CREATEBATCH transaction.',
+        description: 'Compile a complete editable millimeter manufacturing drawing from a compact versioned intent instead of emitting every CAD entity. For a Chinese request set locale=zh-CN; generated view names, feature notes, title-block fields and machining notes will be Chinese, and Chinese title/material text also selects this automatically. Version 1.0.0 supports a rectangular plate, bounded rectangular through-hole patterns with optional counterbores, horizontal or vertical through slots, aligned top/front views, center marks, native measured dimensions, named engineering layers, sheet border, title block and machining notes. Interpret horizontal slots as orientationDegrees 0 (long axis +X), and a counterbore from the top as the +Z face; these are deterministic conventions, not clarification questions. If the request explicitly gives a border lower-left (0,0) and omits sheet.origin, use [0,0]; do not ask for that redundant value. Views compile at native 1:1 and the compiler deterministically rejects a sheet that cannot contain them. KJDraw validates all feature relationships, generates deterministic native geometry locally and returns the full preview. The model supplies design parameters only; host approval applies one atomic CREATEBATCH transaction.',
         inputSchema: manufacturingSheetSchema
     },
     {
         name: 'cad_propose_architecture_plan',
         effect: 'propose',
-        description: 'Compile a complete editable millimeter architectural floor plan from compact versioned intent. Version 1.0.0 supports one rectangular exterior envelope, straight horizontal or vertical partitions, explicit door and window openings, reusable native block definitions and instances, non-overlapping room boundaries, room names and areas, native dimensions, named layers, and an A3 1:100 equivalent model-space frame. Supply exact dimensions and room bounds; KJDraw validates wall material, openings, room bounds and partition intersections, then generates deterministic native geometry locally. Requires a blank drawing. Host approval applies the full reviewed result as one atomic CREATEBATCH transaction.',
+        description: 'Compile a complete editable millimeter architectural floor plan from compact versioned intent. For a Chinese request set locale=zh-CN; generated sheet labels will be Chinese, and Chinese title/room names also select this automatically. Version 1.0.0 supports one rectangular exterior envelope, straight horizontal or vertical partitions, explicit door and window openings, reusable native block definitions and instances, non-overlapping room boundaries, room names and areas, native dimensions, named layers, and an A3 1:100 equivalent model-space frame. Supply exact dimensions and room bounds; KJDraw validates wall material, openings, room bounds and partition intersections, then generates deterministic native geometry locally. Requires a blank drawing. Host approval applies the full reviewed result as one atomic CREATEBATCH transaction.',
         inputSchema: architecturePlanSchema
     },
     {
         name: 'cad_propose_site_plan',
         effect: 'propose',
-        description: 'Compile a complete editable meter general site plan from compact versioned intent. Version 1.0.0 supports a bounded site polygon, one or more road centerlines with generated edges, building footprints and labels, water/drainage/power/gas/telecom paths and declared nodes, coordinate reference annotation, north arrow, native dimensions, named layers, and a model-space view sized for ISO A1 landscape at 1:500. Supply actual project coordinates and geometry; KJDraw validates polygon topology, extents, utility requirements and output fit, then expands the result locally. Requires a blank drawing. Host approval applies one atomic CREATEBATCH transaction.',
+        description: 'Compile a complete editable meter general site plan from compact versioned intent. For a Chinese request set locale=zh-CN; generated road widths, floor counts, coordinates, north arrow and title notes will be Chinese, and Chinese project labels also select this automatically. Version 1.0.0 supports a bounded site polygon, one or more road centerlines with generated edges, building footprints and labels, water/drainage/power/gas/telecom paths and declared nodes, coordinate reference annotation, north arrow, native dimensions, named layers, and a model-space view sized for ISO A1 landscape at 1:500. Supply actual project coordinates and geometry; KJDraw validates polygon topology, extents, utility requirements and output fit, then expands the result locally. Requires a blank drawing. Host approval applies one atomic CREATEBATCH transaction.',
         inputSchema: sitePlanSchema
     },
     {
@@ -1734,13 +1774,13 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_geology_column',
         effect: 'propose',
-        description: 'Compile one editable engineering borehole column from exact supplied strata, collar elevation, depth, measured water and sample/SPT observations. Depths and elevations in hole are metres; the CAD document and physical page are millimetres. Version 1.0.0 uses either the built-in generic style or one versioned geology column knowledge pack selected and hash-locked by the host before this session; the model cannot supply or replace style code. A bound pack may request up to eight explicit source-backed documentFacts as stable key/value pairs (for example an appendix identifier); undeclared, duplicate, missing or unsafe facts are rejected and never inferred. It does not certify raw MDB facts or match an original DWG template. Missing descriptions, water or observations remain missing, never inferred. Clarify absent or conflicting facts before calling. Supply verticalScaleDenominator only when it is an explicit source/template fact; otherwise KJDraw selects the smallest fitting standard denominator declared by the style. The model supplies engineering facts, not CAD entities, pattern code or approval. A blank millimetre drawing is required. Returns full native geometry and evidence as a pending CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
+        description: 'Compile one editable engineering borehole column from exact supplied strata, collar elevation, depth, measured water and sample/SPT observations. Set locale=zh-CN for a Chinese request so every compiler-generated visible title, heading, legend and note is Chinese; if omitted, Chinese source text is detected automatically. Depths and elevations in hole are metres; the CAD document and physical page are millimetres. Version 1.0.0 uses either the built-in generic style or one versioned geology column knowledge pack selected and hash-locked by the host before this session; the model cannot supply or replace style code. A bound pack may request up to eight explicit source-backed documentFacts as stable key/value pairs (for example an appendix identifier); undeclared, duplicate, missing or unsafe facts are rejected and never inferred. It does not certify raw MDB facts or match an original DWG template. Missing descriptions, water or observations remain missing, never inferred. Clarify absent or conflicting facts before calling. Supply verticalScaleDenominator only when it is an explicit source/template fact; otherwise KJDraw selects the smallest fitting standard denominator declared by the style. The model supplies engineering facts, not CAD entities, pattern code or approval. A blank millimetre drawing is required. Returns full native geometry and evidence as a pending CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
         inputSchema: geologyColumnSchema
     },
     {
         name: 'cad_propose_geology_section',
         effect: 'propose',
-        description: 'Compile one editable A3 engineering geological section from 2–24 supplied boreholes with exact station, collar elevation and continuous depth intervals, plus explicit compatible interval/layer correlations. Hole facts, station, elevations, depths and datum are metres; CAD page is millimetres. Version 1.0.0 uses built-in generic patterns only and one declared straight surface rule; it does not infer unsupplied cross-hole layer continuity, water, observations or raw MDB/DWG provenance. Ambiguous, reverse, duplicate or incompatible correlations and non-fitting scales are rejected; uncorrelated space remains blank. The model supplies facts and identity links, not low-level CAD entities, private hatch assets or approval. Requires a blank millimetre drawing and at least one declared correlation. Returns a bounded native CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
+        description: 'Compile one editable A3 engineering geological section from 2–24 supplied boreholes with exact station, collar elevation and continuous depth intervals, plus explicit compatible interval/layer correlations. Set locale=zh-CN for a Chinese request so compiler-generated visible labels and notes are Chinese; if omitted, Chinese source text is detected automatically. Hole facts, station, elevations, depths and datum are metres; CAD page is millimetres. Version 1.0.0 uses built-in generic patterns only and one declared straight surface rule; it does not infer unsupplied cross-hole layer continuity, water, observations or raw MDB/DWG provenance. Ambiguous, reverse, duplicate or incompatible correlations and non-fitting scales are rejected; uncorrelated space remains blank. The model supplies facts and identity links, not low-level CAD entities, private hatch assets or approval. Requires a blank millimetre drawing and at least one declared correlation. Returns a bounded native CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
         inputSchema: geologySectionSchema
     },
     {

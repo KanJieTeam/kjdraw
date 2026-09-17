@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/files/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=994141127dc1c271">
+  <link rel="stylesheet" href="../style.css?v=011588533eb087da">
   <title>Files and projects · KJDraw Docs</title>
 </head>
 <body>
@@ -83,11 +83,23 @@ const dxf = await sdk.writeDocument(drawing, {
 <p>Imported layout <code>payload.dxfPlotSettings</code> retains 30 scalar <code>AcDbPlotSettings</code> fields, including paper dimensions, margins, offsets, window, units, rotation, scale and resource names. <code>KJDxfPlotSettings</code> is exported from the package; <code>transaction.createLayout({ name, dxfPlotSettings })</code> also accepts it. The fields remain in KJD and DXF 2000+.</p>
 <p>In the embedded editor, open <strong>Page setup</strong> from the top bar, choose a sheet and edit physical paper dimensions, margins, plot units, rotation or custom scale. Blank fields keep existing values. Apply changes only that sheet; Cancel/Escape and applying an unchanged form leave the drawing/history untouched. Changing either custom-scale field clears the standard-scale flag while preserving other flags. If the drawing changes while the form is open, close and reopen it before applying. Readonly editors disable the entry. This form configures exports; it does not provide print preview or drive a printer. Choose a plot area (display, extents, limits, named view, window or layout), enter a view name for named-view output, or four drawing-unit coordinates for a window. Window width and height must be positive. Origin offsets use millimeters. Fit to paper sets the standard-scale flag and scale type 0; custom ratio clears that flag. Existing unrelated flags and unused window/view settings are preserved. Named-view configuration stores the supplied reference; it does not verify or render that view.</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>await sdk.executeCommand(&#39;PAGESETUP&#39;, {
-  layoutName: &#39;Layout1&#39;,
+  layoutName: &#39;Model&#39;,
   dxf: { paperWidth: 594, paperHeight: 841, paperUnits: 1, rotation: 1,
+    plotType: 4, windowMinX: 0, windowMinY: 0, windowMaxX: 400, windowMaxY: 277,
     scaleNumerator: 1, scaleDenominator: 100 },
 })</code></pre>
 <p><code>dxf</code> patches only supplied fields and supports undo/redo. Physical paper dimensions, margins and origin offsets always use millimeters; <code>paperUnits</code> is 0/inches, 1/mm or 2/pixels. <code>rotation</code> is the DXF index 0/1/2/3 for 0/90/180/270 degrees counterclockwise. This explicit mode preserves the existing native <code>PLOTSETUP</code> settings contract (degree rotation, nested scale, output device). Native <code>plotSettings</code> and the legacy <code>paper</code> envelope are not silently converted to DXF configuration; use <code>dxf</code> for interchange. R12/R14 exports reject populated DXF page settings. Invalid settings fail atomically.</p>
+<p>Use the configured layout for strict vector or print output:</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createDrawingPrintHtml, exportDrawingSvg } from &#39;@kanjieteam/kjdraw&#39;
+
+const layout = drawing.getActiveLayout()
+if (!layout) throw new Error(&#39;No active layout&#39;)
+const svg = exportDrawingSvg(drawing, { layoutId: layout.id })
+const print = createDrawingPrintHtml(drawing, { layoutId: layout.id, title: &#39;Drawing&#39; })
+
+console.log(svg.report.status, svg.paper.millimetersPerDrawingUnit)
+// svg.svg and print.html are complete document strings.</code></pre>
+<p>Model-space output requires an explicit window (<code>plotType: 4</code>) or named view (<code>plotType: 3</code>). A paper layout uses its layout range. Strict export rejects geometry it cannot represent; inspect <code>report</code> before delivering the file.</p>
 <p>This is configuration preservation, not physical printing or a page preview. Layout limits/extents, viewport projection, named page-setup dictionaries, shade-object handles, transparency XDATA and referenced printer/style files remain outside this guarantee. KJDraw does not execute resource names or load local printer configuration.</p>
 <h2 id="en-files-package-a-project">Package a project<a class="heading-anchor" href="#en-files-package-a-project" aria-label="Link to Package a project">#</a></h2>
 <p>Use <code>KJProjectSession</code> when the application needs active-drawing state, membership and a command journal. Use <code>createKjpPackage()</code> and <code>openKjpPackage()</code> for lower-level package assembly and inspection. A browser file binding can download and reopen a KJP; a desktop or server provider defines atomic replacement and fsync guarantees.</p>
@@ -116,14 +128,28 @@ const dxf = await sdk.writeDocument(drawing, {
 <p>DXF 2000 及更新版本导出保留命名布局、空布局、标签顺序和实体归属。导入在没有实体 <code>410</code> 提示时仍解析布局与空间块引用；非主图纸空间实体写入对应空间块，供独立读取器正确识别。此保证不包含完整纸张设置、视口和打印保真。布局身份冲突或实体归属无法判定时导入会报错，避免静默移动图形。</p>
 <h2 id="zh-files-dxf-page-configuration">保留 DXF 页面配置<a class="heading-anchor" href="#zh-files-dxf-page-configuration" aria-label="Link to 保留 DXF 页面配置">#</a></h2>
 <p>导入布局的 <code>payload.dxfPlotSettings</code> 保留 30 个 <code>AcDbPlotSettings</code> 标量字段，包括纸张尺寸、边距、偏移、窗口、单位、旋转、比例及资源名称。包导出 <code>KJDxfPlotSettings</code> 类型，<code>transaction.createLayout({ name, dxfPlotSettings })</code> 也可设置。字段保存在 KJD 和 DXF 2000+ 中。</p>
-<p>在嵌入式编辑器顶部打开<strong>页面设置</strong>，选择图纸布局，编辑物理纸张尺寸、边距、打印单位、旋转或自定义比例。空字段保留已有值；应用只修改选定布局，取消/Escape及未修改表单不会改变图档或新增历史。修改任一比例值会清除标准比例标志，其余标志保持不变。打开表单后若图档变更，需要关闭重开才能应用；只读模式禁用入口。该表单配置导出，尚不提供打印预览或实际打印。 可选显示范围、图形范围、图形界限、命名视图、窗口或布局；命名视图需要填写名称，窗口需要填写四个绘图单位坐标且宽高为正。原点偏移以毫米计。“适合纸张”设置标准比例标志与比例类型 0，自定义比例清除该标志；其他标志和当前未使用的窗口/视图配置保留。命名视图仅保存给定引用，尚不校验或渲染该视图。</p>
+<p>在嵌入式编辑器顶部打开<strong>页面设置</strong>，选择图纸布局，编辑物理纸张尺寸、边距、打印单位、旋转或自定义比例。空字段保留已有值；应用只修改选定布局，取消、按 Esc 或提交未修改的表单都不会改变图档或新增历史。打开表单后若图档发生变化，请关闭后重新打开；只读模式不提供此入口。</p>
+<p>页面设置用于配置导出，不执行打印或生成打印预览。可选范围包括显示、图形范围、图形界限、命名视图、窗口或布局。命名视图需要名称；窗口需要四个绘图单位坐标，且宽高必须为正。原点偏移以毫米计。</p>
+<p>修改任一自定义比例值会清除标准比例标志。“适合纸张”设置标准比例标志和比例类型 0；其他标志以及未使用的窗口、视图配置保持不变。命名视图只保存给定引用，不校验或渲染该视图。</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>await sdk.executeCommand(&#39;PAGESETUP&#39;, {
-  layoutName: &#39;Layout1&#39;,
+  layoutName: &#39;Model&#39;,
   dxf: { paperWidth: 594, paperHeight: 841, paperUnits: 1, rotation: 1,
+    plotType: 4, windowMinX: 0, windowMinY: 0, windowMaxX: 400, windowMaxY: 277,
     scaleNumerator: 1, scaleDenominator: 100 },
 })</code></pre>
 <p><code>dxf</code> 仅修改提供的字段，支持撤销/重做。物理纸张、边距和原点偏移始终以毫米表示；<code>paperUnits</code> 的 0/1/2 分别表示英寸/毫米/像素。<code>rotation</code> 使用 DXF 索引 0/1/2/3，对应逆时针 0/90/180/270 度。显式模式兼容现有原生 <code>PLOTSETUP</code> 契约（角度旋转、嵌套比例、输出设备）；原生 <code>plotSettings</code> 与旧 <code>paper</code> 信息不会静默转换为 DXF 配置，交换页面参数请使用 <code>dxf</code>。R12/R14 导出会拒绝丢失已设置的 DXF 页面参数；非法修改完整回滚。</p>
-<p>本项保留配置，尚不等于实际打印或页面预览。布局范围、视口投影、命名页面设置字典、着色对象句柄、透明度 XDATA 及引用的打印机/样式文件仍不在保证内。资源名称不会被执行，也不会自动加载本地打印机配置。</p>
+<p>使用配置好的布局生成严格的矢量图或打印文档：</p>
+<pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createDrawingPrintHtml, exportDrawingSvg } from &#39;@kanjieteam/kjdraw&#39;
+
+const layout = drawing.getActiveLayout()
+if (!layout) throw new Error(&#39;没有活动布局&#39;)
+const svg = exportDrawingSvg(drawing, { layoutId: layout.id })
+const print = createDrawingPrintHtml(drawing, { layoutId: layout.id, title: &#39;图纸&#39; })
+
+console.log(svg.report.status, svg.paper.millimetersPerDrawingUnit)
+// svg.svg 与 print.html 都是完整文档字符串。</code></pre>
+<p>模型空间输出需要明确窗口（<code>plotType: 4</code>）或命名视图（<code>plotType: 3</code>）；图纸布局使用自身范围。严格导出会拒绝无法表达的几何，交付前应检查 <code>report</code>。</p>
+<p>该接口只保留页面配置，不执行打印或生成页面预览。它不处理布局范围、视口投影、命名页面设置字典、着色对象句柄、透明度 XDATA 以及引用的打印机或样式文件。资源名称不会被执行，也不会自动加载本地打印机配置。</p>
 <h2 id="zh-files-package-a-project">打包工程<a class="heading-anchor" href="#zh-files-package-a-project" aria-label="Link to 打包工程">#</a></h2>
 <p>应用需要活动图档、成员关系和命令日志时使用 <code>KJProjectSession</code>。需要更底层的工程包组装与检查时使用 <code>createKjpPackage()</code> 和 <code>openKjpPackage()</code>。浏览器文件绑定可以下载并重开 KJP；桌面或服务端 Provider 则负责定义原子替换与 fsync 保证。</p>
 <h2 id="zh-files-limits-and-dxf-evidence">资源上限与 DXF 证据<a class="heading-anchor" href="#zh-files-limits-and-dxf-evidence" aria-label="Link to 资源上限与 DXF 证据">#</a></h2>
@@ -136,6 +162,6 @@ const dxf = await sdk.writeDocument(drawing, {
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=994141127dc1c271"></script>
+  <script type="module" src="../app.js?v=011588533eb087da"></script>
 </body>
 </html>

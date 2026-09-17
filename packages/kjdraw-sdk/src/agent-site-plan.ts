@@ -36,6 +36,7 @@ export interface KJAgentSitePlanInput {
   version: typeof KJDRAW_SITE_PLAN_VERSION
   expectedRevision: number
   units: 'meter'
+  locale?: 'zh-CN' | 'en'
   drawingId: string
   title: string
   revision: string
@@ -58,7 +59,7 @@ type Point2 = [number, number]
 type Point3 = [number, number, number]
 type EntitySpec = { type: string; payload: Record<string, unknown>; options: { id: string } }
 
-const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'drawingId', 'title', 'revision', 'boundary', 'roads', 'buildings', 'utilities', 'coordinateReference', 'northAngleDegrees', 'scale']
+const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'boundary', 'roads', 'buildings', 'utilities', 'coordinateReference', 'northAngleDegrees', 'scale']
 const ROAD_KEYS = ['name', 'width', 'centerline']
 const BUILDING_KEYS = ['name', 'floors', 'footprint']
 const UTILITY_KEYS = ['kind', 'name', 'path', 'diameterMm', 'nodeIndices']
@@ -299,6 +300,10 @@ function validateInput(document: SitePlanDocument, source: KJAgentSitePlanInput)
   if (totalPoints > MAX_TOTAL_POINTS) throw new KJValidationError(`Site plan input contains ${totalPoints} points; maximum is ${MAX_TOTAL_POINTS}`)
 
   const northAngleDegrees = boundedNumber(input.northAngleDegrees ?? 0, 'input.northAngleDegrees', -360, 360)
+  const locale = input.locale == null
+    ? [input.title, ...roads.map(road => road.name), ...buildings.map(building => building.name), ...utilities.map(utility => utility.name)].some(value => /[\u3400-\u9fff]/u.test(String(value))) ? 'zh-CN' as const : 'en' as const
+    : input.locale === 'zh-CN' || input.locale === 'en' ? input.locale
+      : (() => { throw new KJValidationError('input.locale must be zh-CN or en') })()
   const viewMargin = Math.max(8, Math.min(20, Math.max(boundaryExtent.width, boundaryExtent.height) * 0.06))
   const viewWidth = boundaryExtent.width + viewMargin * 2, viewHeight = boundaryExtent.height + viewMargin * 2
   const groundWidthAtA1 = 801 * 500 / 1_000, groundHeightAtA1 = 544 * 500 / 1_000
@@ -319,6 +324,7 @@ function validateInput(document: SitePlanDocument, source: KJAgentSitePlanInput)
     version: input.version,
     expectedRevision,
     units: input.units,
+    locale,
     drawingId: boundedString(input.drawingId, 'input.drawingId', 96),
     title: boundedString(input.title, 'input.title', 160),
     revision: boundedString(input.revision, 'input.revision', 32),
@@ -332,6 +338,7 @@ function format(value: number, digits = 2): string {
 
 export function buildAgentSitePlan(document: SitePlanDocument, source: KJAgentSitePlanInput) {
   const input = validateInput(document, source)
+  const zh = input.locale === 'zh-CN'
   const idPrefix = `site-${stableHash({ drawingId: input.drawingId, version: input.version }).slice(0, 12)}`
   const entities: EntitySpec[] = []
   const linetypeIds = {
@@ -375,12 +382,12 @@ export function buildAgentSitePlan(document: SitePlanDocument, source: KJAgentSi
     polyline(edges.left, 'ROAD_EDGE'); polyline(edges.right, 'ROAD_EDGE'); polyline(road.centerline, 'ROAD_CENTER')
     const middleIndex = Math.floor((road.centerline.length - 1) / 2), start = road.centerline[middleIndex]!, end = road.centerline[middleIndex + 1]!
     const rotation = Math.atan2(end[1] - start[1], end[0] - start[0]) * 180 / Math.PI
-    text([(start[0] + end[0]) / 2, (start[1] + end[1]) / 2 + textHeight], `${road.name}  W=${format(road.width)}m`, textHeight, rotation)
+    text([(start[0] + end[0]) / 2, (start[1] + end[1]) / 2 + textHeight], `${road.name}  ${zh ? '宽' : 'W'}=${format(road.width)}m`, textHeight, rotation)
   }
 
   for (const building of input.buildings) {
     polyline(building.footprint, 'BUILDING', true)
-    const label = building.floors == null ? building.name : `${building.name}  ${building.floors}F`
+    const label = building.floors == null ? building.name : `${building.name}  ${building.floors}${zh ? '层' : 'F'}`
     text(polygonLabelPoint(building.footprint), label, textHeight)
   }
 
@@ -406,7 +413,7 @@ export function buildAgentSitePlan(document: SitePlanDocument, source: KJAgentSi
   const marker = Math.max(1, textHeight * 0.65)
   line([control.position[0] - marker, control.position[1]], [control.position[0] + marker, control.position[1]], 'ANNOTATION')
   line([control.position[0], control.position[1] - marker], [control.position[0], control.position[1] + marker], 'ANNOTATION')
-  text([control.position[0] + marker, control.position[1] + marker], `${control.crs}  E=${format(control.easting, 3)}  N=${format(control.northing, 3)}`, textHeight * 0.9)
+  text([control.position[0] + marker, control.position[1] + marker], `${control.crs}  ${zh ? '东坐标' : 'E'}=${format(control.easting, 3)}  ${zh ? '北坐标' : 'N'}=${format(control.northing, 3)}`, textHeight * 0.9)
 
   const northAnchor: Point2 = [maximum[0] - input.viewMargin * 0.75, maximum[1] - input.viewMargin * 0.75]
   const northLength = Math.max(6, Math.min(14, span * 0.08)), angle = (90 + input.northAngleDegrees) * Math.PI / 180
@@ -418,12 +425,14 @@ export function buildAgentSitePlan(document: SitePlanDocument, source: KJAgentSi
     [northTip[0] - Math.cos(angle - arrowAngle) * arrowLength, northTip[1] - Math.sin(angle - arrowAngle) * arrowLength],
     [northTip[0] - Math.cos(angle + arrowAngle) * arrowLength, northTip[1] - Math.sin(angle + arrowAngle) * arrowLength],
   ], 'ANNOTATION', true)
-  text([northTip[0], northTip[1] + textHeight], 'N', textHeight * 1.3)
+  text([northTip[0], northTip[1] + textHeight], zh ? '北' : 'N', textHeight * 1.3)
 
   const noteOrigin: Point2 = [minimum[0] + input.viewMargin * 0.2, maximum[1] - input.viewMargin * 0.3]
   text(noteOrigin, input.title, textHeight * 1.2)
-  text([noteOrigin[0], noteOrigin[1] - textHeight * 1.6], `DRAWING ${input.drawingId}  REV ${input.revision}  SCALE 1:500`, textHeight)
-  text([noteOrigin[0], noteOrigin[1] - textHeight * 3], `SITE AREA ${format(polygonArea(input.boundary))} m2`, textHeight)
+  text([noteOrigin[0], noteOrigin[1] - textHeight * 1.6], zh
+    ? `图号 ${input.drawingId}  版本 ${input.revision}  比例 1:500`
+    : `DRAWING ${input.drawingId}  REV ${input.revision}  SCALE 1:500`, textHeight)
+  text([noteOrigin[0], noteOrigin[1] - textHeight * 3], `${zh ? '用地面积' : 'SITE AREA'} ${format(polygonArea(input.boundary))} ${zh ? 'm²' : 'm2'}`, textHeight)
 
   if (entities.length + 1 > MAX_ENTITY_COUNT) throw new KJValidationError(`Site plan expands to ${entities.length + 1} entities; maximum is ${MAX_ENTITY_COUNT}`)
   const viewCenter: Point2 = [(minimum[0] + maximum[0]) / 2, (minimum[1] + maximum[1]) / 2]

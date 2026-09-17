@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/react/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=994141127dc1c271">
+  <link rel="stylesheet" href="../style.css?v=011588533eb087da">
   <title>React integration · KJDraw Docs</title>
 </head>
 <body>
@@ -95,7 +95,7 @@ export function DrawingEditor() {
     &lt;/section&gt;
   )
 }</code></pre>
-<p><code>KJDraw</code> mounts the complete editor and gives the ref a <code>KJDrawEditor</code>. Use the ref for <code>open()</code>, <code>save()</code>, <code>execute()</code>, selection and view methods. Since <code>1.0.0-rc.3</code>, <code>layout=&quot;classic&quot;</code> provides the full CAD ribbon and panels, <code>compact</code> shortens the ribbon, and <code>focus</code> prioritizes the canvas. Changing <code>layout</code> updates the existing editor in place, so its drawing, selection and undo history stay intact. React unmount disposes the editor. See the <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a> for every prop and method.</p>
+<p><code>KJDraw</code> mounts the complete editor and gives the ref a <code>KJDrawEditor</code>. Use the ref for <code>open()</code>, <code>save()</code>, <code>execute()</code>, selection and view methods. <code>layout=&quot;classic&quot;</code> provides the full CAD ribbon and panels, <code>compact</code> shortens the ribbon, and <code>focus</code> prioritizes the canvas. Changing <code>layout</code> updates the existing editor in place, so its drawing, selection and undo history stay intact. React unmount disposes the editor. See the <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a> for every prop and method.</p>
 <h2 id="en-react-minimal-hook">A minimal hook<a class="heading-anchor" href="#en-react-minimal-hook" aria-label="Link to A minimal hook">#</a></h2>
 <pre data-language="tsx"><button class="copy" type="button">Copy</button><code>import { useEffect, useRef, useState } from &#39;react&#39;
 import { createKJDrawSDK, type KJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
@@ -138,7 +138,7 @@ export function useKJDraw() {
 </ul>
 <h2 id="en-react-rendering">Rendering<a class="heading-anchor" href="#en-react-rendering" aria-label="Link to Rendering">#</a></h2>
 <p>The <code>/core</code> headless entry does not impose a React renderer or state library. A custom canvas component can redraw after committed events, while property panels select typed records from the active document. For large drawings, derive viewport-specific display data instead of copying the entire object graph into React state.</p>
-<p>Use <code>KJDraw</code> when you need a working CAD surface immediately, or the headless hook when your product owns every interface layer. The maintained examples are <a href="https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples">compiled against the npm package</a> during release checks.</p>
+<p>Use <code>KJDraw</code> when you need a working CAD surface immediately, or the headless hook when your product owns every interface layer. See the <a href="https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples">maintained examples</a> for complete applications that use the same public package exports.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-react">
           <p class="eyebrow">KJDRAW / React 集成</p>
@@ -175,7 +175,7 @@ export function DrawingEditor() {
     &lt;/section&gt;
   )
 }</code></pre>
-<p><code>KJDraw</code> 会挂载完整编辑器，并把 <code>KJDrawEditor</code> 暴露给 ref。可通过 ref 调用 <code>open()</code>、<code>save()</code>、<code>execute()</code>、选择与视图方法。自 <code>1.0.0-rc.3</code> 起，<code>layout=&quot;classic&quot;</code> 提供完整 CAD Ribbon 与面板，<code>compact</code> 使用较矮的 Ribbon，<code>focus</code> 让画布优先。修改 <code>layout</code> 会原位更新同一个编辑器，因此图档、选择集与撤销历史都保持不变；React 卸载组件时会自动释放编辑器。全部属性与方法见 <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a>。</p>
+<p><code>KJDraw</code> 会挂载完整编辑器，并把 <code>KJDrawEditor</code> 暴露给 ref。可通过 ref 调用 <code>open()</code>、<code>save()</code>、<code>execute()</code>、选择与视图方法。<code>layout=&quot;classic&quot;</code> 提供完整 CAD Ribbon 与面板，<code>compact</code> 使用较矮的 Ribbon，<code>focus</code> 让画布优先。修改 <code>layout</code> 会原位更新同一个编辑器，因此图档、选择集与撤销历史都保持不变；React 卸载组件时会自动释放编辑器。全部属性与方法见 <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">Editor API</a>。</p>
 <h2 id="zh-react-minimal-hook">最小 Hook<a class="heading-anchor" href="#zh-react-minimal-hook" aria-label="Link to 最小 Hook">#</a></h2>
 <pre data-language="tsx"><button class="copy" type="button">Copy</button><code>import { useEffect, useRef, useState } from &#39;react&#39;
 import { createKJDrawSDK, type KJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
@@ -218,7 +218,7 @@ export function useKJDraw() {
 </ul>
 <h2 id="zh-react-rendering">渲染方式<a class="heading-anchor" href="#zh-react-rendering" aria-label="Link to 渲染方式">#</a></h2>
 <p><code>/core</code> 无界面入口不强制 React 渲染器或状态库。自定义 Canvas 组件可以在命令提交后重绘，属性面板则从活动图档读取类型化记录。面对大型图纸，应按视口派生显示数据，不要把完整对象图复制进 React state。</p>
-<p>需要立即可用的 CAD 界面时使用 <code>KJDraw</code>，产品希望完全掌控每层界面时使用无界面 Hook。<a href="https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples">持续维护的示例</a>会在发布检查中针对实际 npm 包编译。</p>
+<p>需要立即可用的 CAD 界面时使用 <code>KJDraw</code>，产品希望完全掌控每层界面时使用无界面 Hook。<a href="https://github.com/KanJieTeam/kjdraw/tree/main/packages/kjdraw-sdk/examples">持续维护的示例</a>提供使用相同公开包入口的完整应用。</p>
         </article>
         <nav class="pager" aria-label="Adjacent documentation"><a href="../commands/"><strong class="lang-en">Commands and transactions</strong><strong class="lang-zh">命令与事务</strong></a><a href="../vue/"><strong class="lang-en">Vue integration</strong><strong class="lang-zh">Vue 集成</strong></a></nav>
       </div>
@@ -226,6 +226,6 @@ export function useKJDraw() {
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=994141127dc1c271"></script>
+  <script type="module" src="../app.js?v=011588533eb087da"></script>
 </body>
 </html>

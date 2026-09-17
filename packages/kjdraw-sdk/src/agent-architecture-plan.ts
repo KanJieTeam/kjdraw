@@ -38,6 +38,7 @@ export interface KJAgentArchitecturePlanInput {
   version: typeof KJDRAW_ARCHITECTURE_PLAN_VERSION
   expectedRevision: number
   units: 'millimeter'
+  locale?: 'zh-CN' | 'en'
   drawingId: string
   title: string
   width: number
@@ -61,7 +62,7 @@ type EntitySpec = { type: string; payload: Record<string, unknown>; options: { i
 type BlockSpec = { id: string; name: string; basePoint: Point3; entities: EntitySpec[] }
 type Interval = { start: number; end: number; kind: KJArchitectureOpeningKind; width: number }
 
-const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'drawingId', 'title', 'width', 'depth', 'wallThickness', 'exteriorOpenings', 'partitions', 'rooms', 'textHeight']
+const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'width', 'depth', 'wallThickness', 'exteriorOpenings', 'partitions', 'rooms', 'textHeight']
 const EXTERIOR_OPENING_KEYS = ['wall', 'offset', 'width', 'kind']
 const PARTITION_KEYS = ['id', 'axis', 'position', 'start', 'end', 'openings']
 const PARTITION_OPENING_KEYS = ['offset', 'width', 'kind']
@@ -257,6 +258,10 @@ function validateInput(document: ArchitectureDocument, source: KJAgentArchitectu
     version: input.version,
     expectedRevision,
     units: input.units,
+    locale: input.locale == null
+      ? [input.title, ...rooms.map(room => room.name)].some(value => /[\u3400-\u9fff]/u.test(String(value))) ? 'zh-CN' as const : 'en' as const
+      : input.locale === 'zh-CN' || input.locale === 'en' ? input.locale
+        : (() => { throw new KJValidationError('input.locale must be zh-CN or en') })(),
     drawingId: boundedString(input.drawingId, 'input.drawingId', 96),
     title: boundedString(input.title, 'input.title', 160),
     width, depth, wallThickness, exteriorOpenings, partitions, rooms, textHeight,
@@ -280,6 +285,7 @@ function splitWall(length: number, openings: Interval[]): [number, number][] {
 
 export function buildAgentArchitecturePlan(document: ArchitectureDocument, source: KJAgentArchitecturePlanInput) {
   const input = validateInput(document, source)
+  const zh = input.locale === 'zh-CN'
   const totalOpeningCount = input.exteriorOpenings.length + input.partitions.reduce((sum, partition) => sum + partition.openings.length, 0)
   const idPrefix = `arch-${stableHash({ drawingId: input.drawingId, version: input.version }).slice(0, 12)}`
   const continuousId = `${idPrefix}-lt-continuous`
@@ -382,7 +388,7 @@ export function buildAgentArchitecturePlan(document: ArchitectureDocument, sourc
     rectangle(x, y, roomWidth, roomDepth, 'A-ROOM')
     const centerX = x + roomWidth / 2, centerY = y + roomDepth / 2
     text(centerX - Math.min(roomWidth * 0.18, input.textHeight * 2), centerY + input.textHeight * 0.35, room.name)
-    text(centerX - input.textHeight * 1.5, centerY - input.textHeight * 0.9, `${formatNumber(roomWidth * roomDepth / 1_000_000)} m2`, input.textHeight * 0.9)
+    text(centerX - input.textHeight * 1.5, centerY - input.textHeight * 0.9, `${formatNumber(roomWidth * roomDepth / 1_000_000)} ${zh ? 'm²' : 'm2'}`, input.textHeight * 0.9)
   }
 
   dimension(p3(0, 0), p3(input.width, 0), p3(input.width / 2, -800))
@@ -394,9 +400,9 @@ export function buildAgentArchitecturePlan(document: ArchitectureDocument, sourc
   rectangle(titleX, titleY, titleWidth, titleHeight, 'A-SHEET')
   add('LINE', 'A-SHEET', { start: p3(titleX + titleWidth * 0.68, titleY), end: p3(titleX + titleWidth * 0.68, titleY + titleHeight) })
   text(titleX + 500, titleY + 1_350, input.title, input.textHeight * 1.15, 'A-SHEET')
-  text(titleX + 500, titleY + 500, `DRAWING ${input.drawingId}`, input.textHeight * 0.9, 'A-SHEET')
+  text(titleX + 500, titleY + 500, `${zh ? '图号' : 'DRAWING'} ${input.drawingId}`, input.textHeight * 0.9, 'A-SHEET')
   text(titleX + titleWidth * 0.68 + 400, titleY + 1_350, 'A3', input.textHeight, 'A-SHEET')
-  text(titleX + titleWidth * 0.68 + 400, titleY + 500, 'SCALE 1:100 / mm', input.textHeight * 0.9, 'A-SHEET')
+  text(titleX + titleWidth * 0.68 + 400, titleY + 500, zh ? '比例 1:100 / mm' : 'SCALE 1:100 / mm', input.textHeight * 0.9, 'A-SHEET')
 
   const blocks = [...blockByKey.values()].sort((left, right) => left.name.localeCompare(right.name))
   const blockMemberCount = blocks.reduce((sum, block) => sum + block.entities.length, 0)

@@ -64,6 +64,14 @@ test('manufacturing sheet compiler emits deterministic native drawing entities a
   assert.deepEqual(first.commandArgs.resources.linetypes.map(item => item.pattern), [[], [8, -1, 1, -1], [3, -1]])
 })
 
+test('manufacturing sheet localizes every compiler-generated visible note for Chinese requests', () => {
+  const document = KJDocument.create({ documentId: 'manufacturing-zh', units: 'millimeter' })
+  const compiled = buildAgentManufacturingSheet(document, complexInput({ locale: 'zh-CN', title: '精密安装板', material: '铝合金' }))
+  const texts = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  for (const expected of ['俯视图', '主视图', '加工技术要求：', '图号:', '材料:', '比例:']) assert.ok(texts.some(value => value.includes(expected)), expected)
+  assert.ok(!texts.some(value => /TOP VIEW|FRONT VIEW|MACHINING NOTES|DRAWING:|MATERIAL:|SCALE:/u.test(value)))
+})
+
 test('compiled manufacturing sheet executes through CREATEBATCH and reopens through KJD and DXF', async () => {
   const sdk = createKJDrawSDK()
   const document = sdk.createDocument({ documentId: 'manufacturing-roundtrip', units: 'millimeter' })

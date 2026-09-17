@@ -45,6 +45,30 @@ test('engineering column expands stratigraphy into physical A4 frame, elevations
   assert.match(svg.svg, /LITHOLOGY LEGEND/)
 })
 
+test('Chinese geology inputs produce Chinese compiler labels for columns and sections', () => {
+  const columnHole = hole('ZK-中文-01', 0, 105.25)
+  columnHole.strata[0].name = '杂填土'
+  columnHole.strata[1].name = '粉质黏土'
+  columnHole.strata[2].name = '中砂'
+  const column = compileGeologyColumn({ hole: columnHole, expectedRevision: 0 })
+  const columnText = column.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  for (const expected of ['工程地质钻孔柱状图', '钻孔编号 ZK-中文-01', '深度 m', '岩土图例']) assert.ok(columnText.some(value => value.includes(expected)), expected)
+  assert.ok(!columnText.some(value => /ENGINEERING BOREHOLE LOG|LITHOLOGY LEGEND|VERTICAL SCALE/u.test(value)))
+
+  const left = hole('ZK1', 0, 105.25), right = hole('ZK2', 20, 104.8)
+  for (const item of [...left.strata, ...right.strata]) item.name = item.code === '1' ? '填土' : item.code === '2' ? '粉质黏土' : '中砂'
+  const section = compileGeologySection({ holes: [left, right], correlations: [
+    { fromHoleId: 'ZK1', toHoleId: 'ZK2', fromStratumCode: '1', toStratumCode: '1' },
+  ], horizontalScaleDenominator: 500, verticalScaleDenominator: 200, datumElevation: 80,
+  surfaceRule: 'straight-between-supplied-collars', expectedRevision: 0 })
+  const sectionText = section.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  for (const expected of ['工程地质剖面图', '水平比例尺', '里程', '仅显示已提供的地层与对比关系']) assert.ok(sectionText.some(value => value.includes(expected)), expected)
+  assert.ok(!sectionText.some(value => /ENGINEERING GEOLOGICAL SECTION|HORIZONTAL 1:|Only supplied strata/u.test(value)))
+
+  const forcedEnglish = compileGeologyColumn({ hole: columnHole, locale: 'en', expectedRevision: 0 })
+  assert.ok(forcedEnglish.commandArgs.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === 'ENGINEERING BOREHOLE LOG'))
+})
+
 test('column selects the smallest fitting standard vertical scale and records whether it was automatic or explicit', () => {
   for (const [depths, expected] of [
     [[3, 9, 15], 100],

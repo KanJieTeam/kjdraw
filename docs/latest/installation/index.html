@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0b1220">
   <link rel="canonical" href="https://kanjieteam.github.io/kjdraw/docs/latest/installation/">
   <link rel="icon" href="../../assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="../style.css?v=994141127dc1c271">
+  <link rel="stylesheet" href="../style.css?v=011588533eb087da">
   <title>Installation · KJDraw Docs</title>
 </head>
 <body>
@@ -66,20 +66,24 @@
           <p class="lead">Choose the npm channel, runtime and import path that match your application.</p>
           <h2 id="en-installation-requirements">Requirements<a class="heading-anchor" href="#en-installation-requirements" aria-label="Link to Requirements">#</a></h2>
 <ul>
-<li>Node.js 22 or newer for repository tooling and supported Node.js consumers.</li>
+<li>Node.js 22 or newer for server-side and command-line applications.</li>
 <li>A modern browser with ES modules, Canvas 2D, WebAssembly and Web Crypto for browser products.</li>
 <li>npm, pnpm or another package manager that understands package exports.</li>
 </ul>
 <p>KJDraw&#39;s core has no runtime npm dependencies. React and Vue are optional peer dependencies: install the framework your application uses when importing <code>/react</code> or <code>/vue</code>. Headless and plain TypeScript applications do not need either framework.</p>
 <h2 id="en-installation-release-channels">Release channels<a class="heading-anchor" href="#en-installation-release-channels" aria-label="Link to Release channels">#</a></h2>
-<div class="table-wrap"><table><thead><tr><th>Intent</th><th>Command</th></tr></thead><tbody><tr><td>Evaluate the current candidate</td><td><code>npm install @kanjieteam/kjdraw@next</code></td></tr><tr><td>Pin the interaction and layout candidate</td><td><code>npm install @kanjieteam/kjdraw@1.0.0-rc.3</code></td></tr><tr><td>Install stable after npm promotion</td><td><code>npm install @kanjieteam/kjdraw</code></td></tr><tr><td>Work from a checkout</td><td><code>npm install /path/to/kjdraw/packages/kjdraw-sdk</code></td></tr></tbody></table></div>
-<p>Prereleases use <code>next</code>; stable versions use <code>latest</code>. Layout switching and interactive moves require RC3 or newer. Confirm the version with <code>npm list @kanjieteam/kjdraw</code>. If the registry has not listed RC3 yet, use the repository checkout to evaluate these additions; do not expect an older installed package to include them.</p>
+<div class="table-wrap"><table><thead><tr><th>Intent</th><th>Command</th></tr></thead><tbody><tr><td>Try the current release candidate</td><td><code>npm install @kanjieteam/kjdraw@next</code></td></tr><tr><td>Pin this documented release</td><td><code>npm install @kanjieteam/kjdraw@1.0.0-rc.3</code></td></tr><tr><td>Install the stable channel</td><td><code>npm install @kanjieteam/kjdraw@latest</code></td></tr><tr><td>Install a local checkout</td><td><code>npm install /path/to/kjdraw/packages/kjdraw-sdk</code></td></tr></tbody></table></div>
+<p>Use <code>next</code> for prereleases and <code>latest</code> for stable releases. Pin an exact version when builds must remain reproducible, and confirm the resolved version with <code>npm list @kanjieteam/kjdraw</code>.</p>
+<h2 id="en-installation-verify-installation">Verify the installation<a class="heading-anchor" href="#en-installation-verify-installation" aria-label="Link to Verify the installation">#</a></h2>
+<p>Run the packaged quickstart directly from a clean project:</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/quickstart.mjs</code></pre>
+<p>A successful run prints JSON containing the installed SDK version, document ID and one created line. It needs no browser, model or API key.</p>
 <h2 id="en-installation-public-imports">Public imports<a class="heading-anchor" href="#en-installation-public-imports" aria-label="Link to Public imports">#</a></h2>
 <p>Use the root for the common SDK surface and subpaths when you want a smaller, explicit contract.</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 import { createDXFFileAdapter } from &#39;@kanjieteam/kjdraw/file/dxf&#39;
 import { KJDeploymentRegistry } from &#39;@kanjieteam/kjdraw/deployment&#39;</code></pre>
-<p>Every declared package export appears in the generated API reference and is verified against the package manifest in CI.</p>
+<p>The <a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">API Reference</a> lists every supported package entry and its public types.</p>
         </article>
         <article class="lang-zh" lang="zh-CN" id="zh-installation">
           <p class="eyebrow">KJDRAW / 安装</p>
@@ -87,27 +91,31 @@ import { KJDeploymentRegistry } from &#39;@kanjieteam/kjdraw/deployment&#39;</co
           <p class="lead">根据应用形态选择 npm 渠道、运行环境和导入路径。</p>
           <h2 id="zh-installation-requirements">环境要求<a class="heading-anchor" href="#zh-installation-requirements" aria-label="Link to 环境要求">#</a></h2>
 <ul>
-<li>仓库工具链和受支持的 Node.js 消费端使用 Node.js 22 或更高版本。</li>
+<li>服务端与命令行应用使用 Node.js 22 或更高版本。</li>
 <li>浏览器产品需要支持 ES Modules、Canvas 2D、WebAssembly 与 Web Crypto 的现代浏览器。</li>
 <li>npm、pnpm 或其他能够解析 package exports 的包管理器。</li>
 </ul>
 <p>KJDraw 核心的 npm 运行时依赖为零。React、Vue 是可选 peer dependency：导入 <code>/react</code> 或 <code>/vue</code> 时，安装应用所用的框架即可。无界面程序和原生 TypeScript 应用无需安装这两个框架。</p>
 <h2 id="zh-installation-release-channels">发布渠道<a class="heading-anchor" href="#zh-installation-release-channels" aria-label="Link to 发布渠道">#</a></h2>
-<div class="table-wrap"><table><thead><tr><th>目标</th><th>命令</th></tr></thead><tbody><tr><td>评估当前候选版</td><td><code>npm install @kanjieteam/kjdraw@next</code></td></tr><tr><td>锁定交互与布局候选版</td><td><code>npm install @kanjieteam/kjdraw@1.0.0-rc.3</code></td></tr><tr><td>npm 晋级稳定版后安装</td><td><code>npm install @kanjieteam/kjdraw</code></td></tr><tr><td>从本地 checkout 使用</td><td><code>npm install /path/to/kjdraw/packages/kjdraw-sdk</code></td></tr></tbody></table></div>
-<p>预发布版本使用 <code>next</code>，稳定版本使用 <code>latest</code>。布局切换与交互移动需要 RC3 或更新版本，可用 <code>npm list @kanjieteam/kjdraw</code> 核对。若 Registry 尚未列出 RC3，可以从仓库 checkout 体验新增能力；旧包不会自动包含这些修改。</p>
+<div class="table-wrap"><table><thead><tr><th>目标</th><th>命令</th></tr></thead><tbody><tr><td>试用当前候选版</td><td><code>npm install @kanjieteam/kjdraw@next</code></td></tr><tr><td>锁定本文档对应版本</td><td><code>npm install @kanjieteam/kjdraw@1.0.0-rc.3</code></td></tr><tr><td>安装稳定渠道</td><td><code>npm install @kanjieteam/kjdraw@latest</code></td></tr><tr><td>安装本地 checkout</td><td><code>npm install /path/to/kjdraw/packages/kjdraw-sdk</code></td></tr></tbody></table></div>
+<p>预发布版本使用 <code>next</code>，稳定版本使用 <code>latest</code>。需要可复现构建时应锁定确切版本，并用 <code>npm list @kanjieteam/kjdraw</code> 核对实际安装结果。</p>
+<h2 id="zh-installation-verify-installation">验证安装<a class="heading-anchor" href="#zh-installation-verify-installation" aria-label="Link to 验证安装">#</a></h2>
+<p>在干净工程中直接运行安装包自带的快速示例：</p>
+<pre data-language="sh"><button class="copy" type="button">Copy</button><code>node node_modules/@kanjieteam/kjdraw/examples/quickstart.mjs</code></pre>
+<p>运行成功后会输出 JSON，其中包含已安装的 SDK 版本、图档 ID 和一条创建完成的直线。该示例不需要浏览器、模型或 API Key。</p>
 <h2 id="zh-installation-public-imports">公共导入路径<a class="heading-anchor" href="#zh-installation-public-imports" aria-label="Link to 公共导入路径">#</a></h2>
 <p>常用 SDK 能力从根入口导入；当你希望边界更小、更明确时使用子路径。</p>
 <pre data-language="ts"><button class="copy" type="button">Copy</button><code>import { createKJDrawSDK } from &#39;@kanjieteam/kjdraw&#39;
 import { createDXFFileAdapter } from &#39;@kanjieteam/kjdraw/file/dxf&#39;
 import { KJDeploymentRegistry } from &#39;@kanjieteam/kjdraw/deployment&#39;</code></pre>
-<p>所有 package exports 都会进入自动生成的 API Reference，并由 CI 对照包清单验证。</p>
+<p><a href="https://kanjieteam.github.io/kjdraw/docs/latest/api/">API Reference</a>列出了全部受支持的包入口及其公开类型。</p>
         </article>
         <nav class="pager" aria-label="Adjacent documentation"><a href="../quickstart/"><strong class="lang-en">Quickstart</strong><strong class="lang-zh">快速上手</strong></a><a href="../workbench/"><strong class="lang-en">Using the workbench</strong><strong class="lang-zh">工作台操作指南</strong></a></nav>
       </div>
-      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-installation-requirements">Requirements</a><a class="toc-level-2" href="#en-installation-release-channels">Release channels</a><a class="toc-level-2" href="#en-installation-public-imports">Public imports</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-installation-requirements">环境要求</a><a class="toc-level-2" href="#zh-installation-release-channels">发布渠道</a><a class="toc-level-2" href="#zh-installation-public-imports">公共导入路径</a></div></aside>
+      <aside class="toc"><b><span class="lang-en">On this page</span><span class="lang-zh">本页目录</span></b><div class="lang-en"><a class="toc-level-2" href="#en-installation-requirements">Requirements</a><a class="toc-level-2" href="#en-installation-release-channels">Release channels</a><a class="toc-level-2" href="#en-installation-verify-installation">Verify the installation</a><a class="toc-level-2" href="#en-installation-public-imports">Public imports</a></div><div class="lang-zh"><a class="toc-level-2" href="#zh-installation-requirements">环境要求</a><a class="toc-level-2" href="#zh-installation-release-channels">发布渠道</a><a class="toc-level-2" href="#zh-installation-verify-installation">验证安装</a><a class="toc-level-2" href="#zh-installation-public-imports">公共导入路径</a></div></aside>
     </main>
   </div>
   <dialog id="search-dialog"><form method="dialog"><div class="search-head"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search KJDraw docs"><button aria-label="Close">Esc</button></div><div id="results" role="listbox"></div><p id="search-stats" class="search-foot"><span class="lang-en">Guides, Editor API and complete type reference</span><span class="lang-zh">指南、Editor API 与完整类型参考</span></p></form></dialog>
-  <script type="module" src="../app.js?v=994141127dc1c271"></script>
+  <script type="module" src="../app.js?v=011588533eb087da"></script>
 </body>
 </html>

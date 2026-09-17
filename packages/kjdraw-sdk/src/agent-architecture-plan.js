@@ -6,6 +6,7 @@ const INPUT_KEYS = [
     'version',
     'expectedRevision',
     'units',
+    'locale',
     'drawingId',
     'title',
     'width',
@@ -257,6 +258,12 @@ function validateInput(document, source) {
         version: input.version,
         expectedRevision,
         units: input.units,
+        locale: input.locale == null ? [
+            input.title,
+            ...rooms.map((room)=>room.name)
+        ].some((value)=>/[\u3400-\u9fff]/u.test(String(value))) ? 'zh-CN' : 'en' : input.locale === 'zh-CN' || input.locale === 'en' ? input.locale : (()=>{
+            throw new KJValidationError('input.locale must be zh-CN or en');
+        })(),
         drawingId: boundedString(input.drawingId, 'input.drawingId', 96),
         title: boundedString(input.title, 'input.title', 160),
         width,
@@ -289,6 +296,7 @@ function splitWall(length, openings) {
 }
 export function buildAgentArchitecturePlan(document, source) {
     const input = validateInput(document, source);
+    const zh = input.locale === 'zh-CN';
     const totalOpeningCount = input.exteriorOpenings.length + input.partitions.reduce((sum, partition)=>sum + partition.openings.length, 0);
     const idPrefix = `arch-${stableHash({
         drawingId: input.drawingId,
@@ -496,7 +504,7 @@ export function buildAgentArchitecturePlan(document, source) {
         rectangle(x, y, roomWidth, roomDepth, 'A-ROOM');
         const centerX = x + roomWidth / 2, centerY = y + roomDepth / 2;
         text(centerX - Math.min(roomWidth * 0.18, input.textHeight * 2), centerY + input.textHeight * 0.35, room.name);
-        text(centerX - input.textHeight * 1.5, centerY - input.textHeight * 0.9, `${formatNumber(roomWidth * roomDepth / 1_000_000)} m2`, input.textHeight * 0.9);
+        text(centerX - input.textHeight * 1.5, centerY - input.textHeight * 0.9, `${formatNumber(roomWidth * roomDepth / 1_000_000)} ${zh ? 'm²' : 'm2'}`, input.textHeight * 0.9);
     }
     dimension(p3(0, 0), p3(input.width, 0), p3(input.width / 2, -800));
     dimension(p3(0, 0), p3(0, input.depth), p3(-800, input.depth / 2));
@@ -510,9 +518,9 @@ export function buildAgentArchitecturePlan(document, source) {
         end: p3(titleX + titleWidth * 0.68, titleY + titleHeight)
     });
     text(titleX + 500, titleY + 1_350, input.title, input.textHeight * 1.15, 'A-SHEET');
-    text(titleX + 500, titleY + 500, `DRAWING ${input.drawingId}`, input.textHeight * 0.9, 'A-SHEET');
+    text(titleX + 500, titleY + 500, `${zh ? '图号' : 'DRAWING'} ${input.drawingId}`, input.textHeight * 0.9, 'A-SHEET');
     text(titleX + titleWidth * 0.68 + 400, titleY + 1_350, 'A3', input.textHeight, 'A-SHEET');
-    text(titleX + titleWidth * 0.68 + 400, titleY + 500, 'SCALE 1:100 / mm', input.textHeight * 0.9, 'A-SHEET');
+    text(titleX + titleWidth * 0.68 + 400, titleY + 500, zh ? '比例 1:100 / mm' : 'SCALE 1:100 / mm', input.textHeight * 0.9, 'A-SHEET');
     const blocks = [
         ...blockByKey.values()
     ].sort((left, right)=>left.name.localeCompare(right.name));

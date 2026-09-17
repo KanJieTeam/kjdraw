@@ -6,6 +6,7 @@ const INPUT_KEYS = [
     'version',
     'expectedRevision',
     'units',
+    'locale',
     'drawingId',
     'title',
     'revision',
@@ -75,6 +76,11 @@ function point2(value, label, minimum = -1_000_000, maximum = 1_000_000) {
 }
 function formatMillimeters(value) {
     return Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+}
+function locale(value, ...sourceText) {
+    if (value != null && value !== 'zh-CN' && value !== 'en') throw new KJValidationError('input.locale must be zh-CN or en');
+    if (value) return value;
+    return sourceText.some((item)=>typeof item === 'string' && /[\u3400-\u9fff]/u.test(item)) ? 'zh-CN' : 'en';
 }
 function validateInput(document, source) {
     if (!document || typeof document.id !== 'string' || !Number.isInteger(document.revision) || typeof document.snapshot !== 'function') {
@@ -163,6 +169,7 @@ function validateInput(document, source) {
         version: input.version,
         expectedRevision,
         units: input.units,
+        locale: locale(input.locale, input.title, input.material),
         drawingId: boundedString(input.drawingId, 'input.drawingId', 96),
         title: boundedString(input.title, 'input.title', 160),
         revision: boundedString(input.revision, 'input.revision', 32),
@@ -344,8 +351,9 @@ export function buildAgentManufacturingSheet(document, source) {
     rectangle(sheetX, sheetY, sheetWidth, sheetHeight, 'SHEET');
     rectangle(topX, topY, input.length * scale, input.width * scale, 'OUTLINE');
     rectangle(frontX, frontY, input.length * scale, input.thickness * scale, 'OUTLINE');
-    text(topX, topY + input.width * scale + input.textHeight * 1.4, 'TOP VIEW');
-    text(frontX, frontY + input.thickness * scale + input.textHeight * 1.4, 'FRONT VIEW');
+    const zh = input.locale === 'zh-CN';
+    text(topX, topY + input.width * scale + input.textHeight * 1.4, zh ? '俯视图' : 'TOP VIEW');
+    text(frontX, frontY + input.thickness * scale + input.textHeight * 1.4, zh ? '主视图' : 'FRONT VIEW');
     line(topX - input.textHeight, topY + input.width * scale / 2, topX + input.length * scale + input.textHeight, topY + input.width * scale / 2, 'CENTER');
     line(topX + input.length * scale / 2, topY - input.textHeight, topX + input.length * scale / 2, topY + input.width * scale + input.textHeight, 'CENTER');
     line(frontX - input.textHeight, frontY + input.thickness * scale / 2, frontX + input.length * scale + input.textHeight, frontY + input.thickness * scale / 2, 'CENTER');
@@ -404,7 +412,7 @@ export function buildAgentManufacturingSheet(document, source) {
         if (firstCenter) {
             const dimensionLane = patternIndex + 1;
             const dimensionCenter = patternIndex % 2 === 0 ? firstCenter : lastCenter;
-            const diameterText = pattern.counterboreDiameter == null ? `${pattern.rows * pattern.columns}X DIA ${formatMillimeters(pattern.throughDiameter)} THRU` : `${pattern.rows * pattern.columns}X DIA ${formatMillimeters(pattern.throughDiameter)} THRU / C'BORE DIA ${formatMillimeters(pattern.counterboreDiameter)} DEPTH ${formatMillimeters(pattern.counterboreDepth)}`;
+            const diameterText = pattern.counterboreDiameter == null ? zh ? `${pattern.rows * pattern.columns}× 通孔 ⌀${formatMillimeters(pattern.throughDiameter)}` : `${pattern.rows * pattern.columns}X DIA ${formatMillimeters(pattern.throughDiameter)} THRU` : zh ? `${pattern.rows * pattern.columns}× 通孔 ⌀${formatMillimeters(pattern.throughDiameter)} / 沉孔 ⌀${formatMillimeters(pattern.counterboreDiameter)} 深 ${formatMillimeters(pattern.counterboreDepth)}` : `${pattern.rows * pattern.columns}X DIA ${formatMillimeters(pattern.throughDiameter)} THRU / C'BORE DIA ${formatMillimeters(pattern.counterboreDiameter)} DEPTH ${formatMillimeters(pattern.counterboreDepth)}`;
             const radius = pattern.throughDiameter / 2;
             dimension([
                 p3(dimensionCenter[0] - radius, dimensionCenter[1]),
@@ -416,14 +424,14 @@ export function buildAgentManufacturingSheet(document, source) {
                     p3(topX + pattern.origin[0], topY + pattern.origin[1]),
                     p3(topX + pattern.origin[0] + pattern.spacing[0], topY + pattern.origin[1])
                 ], p3(topX + pattern.origin[0] + pattern.spacing[0] / 2, topY - dimensionLane * dimensionPad / 2));
-                text(topX + pattern.origin[0], topY + input.textHeight * (2 + patternIndex * 1.5), `${pattern.columns - 1} SPACES @ ${formatMillimeters(pattern.spacing[0])}`);
+                text(topX + pattern.origin[0], topY + input.textHeight * (2 + patternIndex * 1.5), zh ? `${pattern.columns - 1} 等距 × ${formatMillimeters(pattern.spacing[0])}` : `${pattern.columns - 1} SPACES @ ${formatMillimeters(pattern.spacing[0])}`);
             }
             if (pattern.rows > 1) {
                 dimension([
                     p3(topX + pattern.origin[0], topY + pattern.origin[1]),
                     p3(topX + pattern.origin[0], topY + pattern.origin[1] + pattern.spacing[1])
                 ], p3(topX - dimensionLane * dimensionPad / 2, topY + pattern.origin[1] + pattern.spacing[1] / 2));
-                text(topX + input.textHeight * (2 + patternIndex * 15), topY + input.width + input.textHeight * (2 + patternIndex * 2), `${pattern.rows - 1} SPACES @ ${formatMillimeters(pattern.spacing[1])}`);
+                text(topX + input.textHeight * (2 + patternIndex * 15), topY + input.width + input.textHeight * (2 + patternIndex * 2), zh ? `${pattern.rows - 1} 等距 × ${formatMillimeters(pattern.spacing[1])}` : `${pattern.rows - 1} SPACES @ ${formatMillimeters(pattern.spacing[1])}`);
             }
         }
     });
@@ -457,7 +465,7 @@ export function buildAgentManufacturingSheet(document, source) {
         const projectedHalfWidth = slot.orientationDegrees === 0 ? halfLength : radius;
         line(frontX + slot.center[0] - projectedHalfWidth, frontY, frontX + slot.center[0] - projectedHalfWidth, frontY + input.thickness, 'HIDDEN');
         line(frontX + slot.center[0] + projectedHalfWidth, frontY, frontX + slot.center[0] + projectedHalfWidth, frontY + input.thickness, 'HIDDEN');
-        text(cx + radius + input.textHeight, cy + radius + input.textHeight, `S${index + 1} SLOT ${formatMillimeters(slot.length)} X ${formatMillimeters(slot.width)}`);
+        text(cx + radius + input.textHeight, cy + radius + input.textHeight, zh ? `槽${index + 1} ${formatMillimeters(slot.length)} × ${formatMillimeters(slot.width)}` : `S${index + 1} SLOT ${formatMillimeters(slot.length)} X ${formatMillimeters(slot.width)}`);
     });
     const titleY = sheetY + margin;
     const titleX = sheetX + margin;
@@ -467,11 +475,16 @@ export function buildAgentManufacturingSheet(document, source) {
     line(titleSplit, titleY, titleSplit, titleY + titleHeight, 'SHEET');
     line(titleSplit, titleY + titleHeight / 2, titleX + titleWidth, titleY + titleHeight / 2, 'SHEET');
     text(titleX + input.textHeight, titleY + titleHeight - input.textHeight * 2, input.title, input.textHeight * 1.25);
-    text(titleX + input.textHeight, titleY + titleHeight - input.textHeight * 4, `DRAWING: ${input.drawingId}`);
-    text(titleX + input.textHeight, titleY + titleHeight - input.textHeight * 6, `MATERIAL: ${input.material}   QTY: ${input.quantity}`);
-    text(titleSplit + input.textHeight, titleY + titleHeight - input.textHeight * 2, `REV: ${input.revision}`);
-    text(titleSplit + input.textHeight, titleY + titleHeight / 2 - input.textHeight * 2, `UNITS: mm   SCALE: 1:${formatMillimeters(1 / scale)}`);
-    const notes = [
+    text(titleX + input.textHeight, titleY + titleHeight - input.textHeight * 4, `${zh ? '图号' : 'DRAWING'}: ${input.drawingId}`);
+    text(titleX + input.textHeight, titleY + titleHeight - input.textHeight * 6, `${zh ? '材料' : 'MATERIAL'}: ${input.material}   ${zh ? '数量' : 'QTY'}: ${input.quantity}`);
+    text(titleSplit + input.textHeight, titleY + titleHeight - input.textHeight * 2, `${zh ? '版本' : 'REV'}: ${input.revision}`);
+    text(titleSplit + input.textHeight, titleY + titleHeight / 2 - input.textHeight * 2, `${zh ? '单位' : 'UNITS'}: mm   ${zh ? '比例' : 'SCALE'}: 1:${formatMillimeters(1 / scale)}`);
+    const notes = zh ? [
+        '加工技术要求：',
+        '1. 图中尺寸单位均为毫米。',
+        '2. 去除毛刺，锐边倒钝。',
+        '3. 禁止量图；以标注尺寸为准。'
+    ] : [
         'MACHINING NOTES:',
         '1. ALL DIMENSIONS ARE IN MILLIMETERS.',
         '2. REMOVE BURRS AND BREAK SHARP EDGES.',
