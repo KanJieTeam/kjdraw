@@ -73,6 +73,7 @@ export function getKJDrawChatCapabilityForRequest(document,request) {
 
 const copy = {
   title: ['KJDraw AI', 'KJDraw AI'], newChat: ['New conversation', '新对话'], connect: ['Connect model', '连接模型'],
+  drawingReview: ['Engineering drawing review', '工程图纸预览'], pendingReview: ['Pending review', '待审阅'],
   geometryChecks: ['Geometry checks', '几何检查'], passed: ['Passed', '通过'], checkFailed: ['Failed', '未通过'],
   savedTasks: ['Saved drawing tasks', '图纸中的持久任务'], chooseTask: ['Select a task to review…', '选择任务并审阅…'],
   runTask: ['Execute reviewed task', '执行已审阅任务'], taskScope: ['Locked object scope', '锁定对象范围'], taskTools: ['Locked tools', '锁定工具'],
@@ -347,7 +348,11 @@ export function createAgentChat(container, options) {
     const state=element('p','chat-proposal-state',L('pending')), actions=element('div','chat-card-actions')
     const preview=button('preview'), openEditor=button('openEditor'), approve=button('approve','chat-primary'), reject=button('reject')
     const visual=element('figure','chat-proposal-visual'), proposalCanvas=element('canvas','chat-proposal-canvas'), caption=label(element('figcaption'),'previewCaption')
+    const brand=element('header','chat-proposal-brand'), identity=element('span','chat-proposal-brand-identity'), mark=document.createElement('img')
+    mark.src='/docs/assets/mark.svg';mark.alt='';identity.append(mark,element('b','', 'KJDraw'),element('i'),label(element('span'),'drawingReview'))
+    const reviewStatus=element('span','chat-proposal-brand-status');reviewStatus.append(element('i'),label(element('span'),'pendingReview'));brand.append(identity,reviewStatus)
     proposalCanvas.width=720;proposalCanvas.height=420;proposalCanvas.setAttribute('aria-label',L('review'));visual.append(proposalCanvas,caption)
+    visual.prepend(brand)
     actions.append(preview,openEditor,approve,reject); card.append(summary,visual,state,actions)
     try{const report=options.renderProposalPreview?.(proposalCanvas,proposal.preview,proposal.engineeringEvidence?.bounds);if(report)visual.dataset.rendered=String(report.rendered??true)}catch{visual.hidden=true}
     if(proposal.command==='TEXTEDIT'){

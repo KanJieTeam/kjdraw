@@ -332,14 +332,18 @@ function resize() {
 }
 function fit(){cancelSelectionGestures();canvasRenderer.fit();render()}
 function previewAgentDrawing(view){
-  const bounds=view?.bounds
-  if(agentChat?.preview&&Array.isArray(bounds)&&bounds.length===4&&bounds.every(Number.isFinite)&&bounds[2]>bounds[0]&&bounds[3]>bounds[1]){
-    cancelSelectionGestures()
-    canvasRenderer.panBy(0,0)
-    camera.x=bounds[0]+(bounds[2]-bounds[0])/2;camera.y=bounds[1]+(bounds[3]-bounds[1])/2
-    camera.scale=Math.max(1e-7,Math.min(1e7,Math.max(1,width-164)/(bounds[2]-bounds[0]),Math.max(1,height-164)/(bounds[3]-bounds[1])))
-  }
-  requestAnimationFrame(render)
+  document.body.classList.toggle('proposal-review',Boolean(agentChat?.preview))
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    resize()
+    const bounds=view?.bounds
+    if(agentChat?.preview&&Array.isArray(bounds)&&bounds.length===4&&bounds.every(Number.isFinite)&&bounds[2]>bounds[0]&&bounds[3]>bounds[1]){
+      cancelSelectionGestures()
+      canvasRenderer.panBy(0,0)
+      camera.x=bounds[0]+(bounds[2]-bounds[0])/2;camera.y=bounds[1]+(bounds[3]-bounds[1])/2
+      camera.scale=Math.max(1e-7,Math.min(1e7,Math.max(1,width-164)/(bounds[2]-bounds[0]),Math.max(1,height-164)/(bounds[3]-bounds[1])))
+    }
+    render()
+  }))
 }
 function renderAgentProposalPreview(target,preview,bounds){
   const renderer=new KJCanvasRenderer(target,{document:doc(),theme:'light',grid:false,background:'#ffffff',pixelRatio:1,padding:38})

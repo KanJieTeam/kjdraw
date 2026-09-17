@@ -64,9 +64,21 @@ test('AI homepage keeps drawing changes approval-gated and supports preview, sav
     return{blue,nonWhite}
   })
   expect(previewPixels.blue).toBeGreaterThan(100);expect(previewPixels.nonWhite).toBeGreaterThan(200)
+  await expect(page.locator('.chat-proposal-brand')).toContainText('KJDraw')
+  await expect(page.locator('.chat-proposal-brand')).toContainText('工程图纸预览')
+  await expect(page.locator('.chat-proposal-brand')).toContainText('待审阅')
   await expect(page.locator('#canvas')).toBeHidden()
 
+  await page.getByRole('button',{name:'打开完整编辑器',exact:true}).click()
+  await expect(page.locator('body')).toHaveClass(/proposal-review/)
+  await expect(page.locator('.stage-review-brand')).toBeVisible()
+  await expect(page.locator('.stage-review-brand')).toContainText('KJDraw')
+  await expect(page.locator('.cad-command-dock')).toBeHidden()
+  await expect(page.locator('.canvas-navigator')).toBeVisible()
+  await expect(page.locator('#canvas')).toBeVisible()
+
   await page.getByRole('button',{name:'应用修改',exact:true}).click()
+  await expect(page.locator('body')).not.toHaveClass(/proposal-review/)
   await expect(page.locator('.chat-proposal-state')).toContainText('修改已应用')
   await expect(page.locator('#revision')).toHaveText('REV 1')
   await expect(page.locator('#entity-count')).toHaveText('9 个对象')
