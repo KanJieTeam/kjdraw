@@ -3,6 +3,10 @@ $ErrorActionPreference = 'Stop'
 $KJDrawSourceSha = '57e0697df0a7e57497b731cf35ac500f004f4cde'
 $KJDrawUserHome = if ($env:KJDRAW_USER_HOME) { $env:KJDRAW_USER_HOME } else { $env:USERPROFILE }
 $KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-57e0697'
+$KJDrawProcessUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+$KJDrawDesktopUser = $null
+try { $KJDrawDesktopUser = (Get-CimInstance Win32_ComputerSystem -ErrorAction Stop).UserName } catch {}
+$KJDrawDifferentDesktopUser = $KJDrawDesktopUser -and -not [string]::Equals($KJDrawProcessUser, $KJDrawDesktopUser, [StringComparison]::OrdinalIgnoreCase)
 $KJDrawPreviousMcpCandidates = @(
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-1854240\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-5f655c2\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
@@ -62,6 +66,9 @@ $KJDrawConnect = Join-Path $KJDrawInstall 'packages\kjdraw-sdk\bin\kjdraw-connec
 $KJDrawMcp = Join-Path $KJDrawInstall 'packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'
 $KJDrawHost = Join-Path $KJDrawUserHome '.kjdraw\host.kjd'
 Write-Host "Installing KJDraw user configuration in: $KJDrawUserHome"
+if ($KJDrawDifferentDesktopUser) {
+  Write-Warning "This PowerShell is running as $KJDrawProcessUser, but the active Windows desktop belongs to $KJDrawDesktopUser. KJDraw only configures the current account. Run this one-line installer from a normal PowerShell opened by the same account that runs WorkBuddy, Kimi Code, or ZCode."
+}
 $KJDrawSchemaOutput = @(node $KJDrawMcp --check-tool-schemas)
 if ($LASTEXITCODE -ne 0) { throw 'KJDraw MCP tool schemas failed compatibility validation; no client configuration was changed.' }
 $KJDrawSchemaCheck = ($KJDrawSchemaOutput -join [Environment]::NewLine) | ConvertFrom-Json
@@ -113,6 +120,9 @@ Write-Host 'KJDraw user configuration is installed.' -ForegroundColor Green
 if ($KJDrawStaleProcesses.Count) {
   $KJDrawStaleIds = ($KJDrawStaleProcesses | ForEach-Object { $_.ProcessId }) -join ', '
   Write-Warning "An earlier KJDraw MCP process is still attached to an open client task (PID: $KJDrawStaleIds). Fully exit WorkBuddy/Kimi Code, reopen it, and start a new task. Existing candidate HTML files are immutable and will keep their old appearance."
+}
+if ($KJDrawDifferentDesktopUser) {
+  Write-Warning 'The desktop client for the other Windows account was not configured by this run.'
 }
 Write-Host 'Restart Kimi Code, WorkBuddy, or ZCode and verify the kjdraw tool call in any workspace. TraeCode uses its official import confirmation.'
 Write-Host 'Ask:'

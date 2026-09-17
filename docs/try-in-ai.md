@@ -8,6 +8,11 @@ Windows PowerShell:
 irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.ps1 | iex
 ```
 
+Run the command from a normal PowerShell opened by the same Windows account
+that runs WorkBuddy, Kimi Code, or ZCode. If the shell belongs to a different
+Administrator account, the installer warns that the desktop client account was
+not configured.
+
 macOS / Linux:
 
 ```sh

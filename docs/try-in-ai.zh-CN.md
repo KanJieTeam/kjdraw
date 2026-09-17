@@ -8,6 +8,10 @@ Windows PowerShell：
 irm https://raw.githubusercontent.com/KanJieTeam/kjdraw/main/scripts/install-ai.ps1 | iex
 ```
 
+请在启动 WorkBuddy、Kimi Code 或 ZCode 的同一 Windows 账号下打开普通 PowerShell，
+不要切换到另一个 `Administrator` 账号执行。安装器只写入当前账号；账号不一致时会
+明确警告，不会把“下载成功”误报成桌面客户端已经更新。
+
 macOS / Linux：
 
 ```sh
