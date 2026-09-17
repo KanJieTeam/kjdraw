@@ -5,7 +5,7 @@ import test from 'node:test'
 
 const root = new URL('../../../', import.meta.url)
 const read = path => readFile(new URL(path, root), 'utf8')
-const pinned = '1854240a52c9d166dc3f2342e69ed59b9cfa3745'
+const pinned = '57e0697df0a7e57497b731cf35ac500f004f4cde'
 
 test('one-line AI bootstraps pin one public candidate and connect all clients without npx or force', async () => {
   const [powerShell, shell] = await Promise.all([read('scripts/install-ai.ps1'), read('scripts/install-ai.sh')])
@@ -23,7 +23,7 @@ test('one-line AI bootstraps pin one public candidate and connect all clients wi
     assert.match(source, /\.kjdraw\/results/)
     assert.match(source, /--previous-mcp-script/)
     assert.match(source, /--replace-existing/)
-    for (const previous of ['source-5f655c2', 'source-69bec87', 'source-7b25cf4', 'source-b022932', 'source-6da40b2', 'source-85d750e', 'source-c526aa7', 'source-a3c1bca', 'source-71df822', 'source-616133e']) assert.match(source, new RegExp(previous))
+    for (const previous of ['source-1854240', 'source-5f655c2', 'source-69bec87', 'source-7b25cf4', 'source-b022932', 'source-6da40b2', 'source-85d750e', 'source-c526aa7', 'source-a3c1bca', 'source-71df822', 'source-616133e']) assert.match(source, new RegExp(previous))
     assert.doesNotMatch(source, /KJDRAW_PROJECT|Get-Location|\$PWD/)
     assert.doesNotMatch(source, /\bnpx\b|git clone|push|--force|reset --hard/)
   }

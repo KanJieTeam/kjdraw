@@ -1,9 +1,10 @@
 $ErrorActionPreference = 'Stop'
 
-$KJDrawSourceSha = '1854240a52c9d166dc3f2342e69ed59b9cfa3745'
+$KJDrawSourceSha = '57e0697df0a7e57497b731cf35ac500f004f4cde'
 $KJDrawUserHome = if ($env:KJDRAW_USER_HOME) { $env:KJDRAW_USER_HOME } else { $env:USERPROFILE }
-$KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-1854240'
+$KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-57e0697'
 $KJDrawPreviousMcpCandidates = @(
+  (Join-Path $env:LOCALAPPDATA 'KJDraw\source-1854240\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-5f655c2\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-69bec87\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-7b25cf4\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
