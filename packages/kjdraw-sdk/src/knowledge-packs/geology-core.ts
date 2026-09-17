@@ -98,7 +98,7 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK: ReadonlyDeep<KJKnowledgePack> = vali
                 patternName: {
                   lookup: {
                     value: { get: 'item.properties.lithology' },
-                    cases: { fill: 'CROSS', clay: 'ANSI31', silt: 'ANSI31', sand: 'ANSI37', gravel: 'CROSS', rock: 'ANSI31', 'weathered-rock': 'CROSS' },
+                    cases: { fill: 'CROSS', 'cultivated-soil': 'ANSI37', clay: 'ANSI31', 'silty-clay': 'ANSI37', silt: 'ANSI31', sand: 'ANSI37', gravel: 'CROSS', rock: 'ANSI31', 'weathered-rock': 'CROSS', loess: 'ANSI37', 'loess-collapsible': 'CROSS', 'loess-like': 'ANSI31', paleosol: 'CROSS', 'calcareous-nodule': 'ANSI37' },
                   },
                 },
                 patternScale: 0.4,
@@ -145,12 +145,19 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK: ReadonlyDeep<KJKnowledgePack> = vali
     },
     'lithology-pattern-roles': {
       fill: 'irregular-mixed-grain',
+      cultivatedSoil: 'organic-topsoil',
       clay: 'fine-dot',
+      siltyClay: 'fine-dot-and-short-line',
       silt: 'fine-dash',
       sand: 'granular-dot',
       gravel: 'coarse-grain',
       rock: 'inclined-bed',
       weatheredRock: 'broken-inclined-bed',
+      loess: 'dot-and-short-vertical-line',
+      collapsibleLoess: 'dot-short-line-and-collapse-marker',
+      loessLike: 'fine-dot-and-short-vertical-line',
+      paleosol: 'dot-dash-soil-horizon',
+      calcareousNodule: 'nodule-and-dot',
       unknown: 'unfilled-with-unknown-marker',
     },
     'section-correlation': {

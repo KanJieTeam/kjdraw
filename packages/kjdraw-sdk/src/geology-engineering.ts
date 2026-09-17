@@ -17,7 +17,7 @@ export interface KJGeologyStratum {
   name: string
   top: number
   bottom: number
-  lithology: 'fill' | 'clay' | 'silt' | 'sand' | 'gravel' | 'rock' | 'weathered-rock'
+  lithology: 'fill' | 'cultivated-soil' | 'clay' | 'silty-clay' | 'silt' | 'sand' | 'gravel' | 'rock' | 'weathered-rock' | 'loess' | 'loess-collapsible' | 'loess-like' | 'paleosol' | 'calcareous-nodule'
   /** Semantic pattern role in a licensed pack, e.g. fine-sand versus medium-sand. */
   patternKey?: string
   description?: string
@@ -85,8 +85,8 @@ export interface KJGeologySectionInput {
 }
 
 const pattern: Record<KJGeologyStratum['lithology'], string> = {
-  fill: 'CROSS', clay: 'ANSI31', silt: 'ANSI31', sand: 'ANSI37', gravel: 'CROSS',
-  rock: 'ANSI31', 'weathered-rock': 'CROSS',
+  fill: 'CROSS', 'cultivated-soil': 'ANSI37', clay: 'ANSI31', 'silty-clay': 'ANSI37', silt: 'ANSI31', sand: 'ANSI37', gravel: 'CROSS',
+  rock: 'ANSI31', 'weathered-rock': 'CROSS', loess: 'ANSI37', 'loess-collapsible': 'CROSS', 'loess-like': 'ANSI31', paleosol: 'CROSS', 'calcareous-nodule': 'ANSI37',
 }
 const bounded = (value: unknown, label: string, max = 64): string => {
   if (typeof value !== 'string' || !value.trim() || value.length > max || /[\u0000-\u001f\u007f]/.test(value)) throw new KJValidationError(`Geology: invalid ${label}`)
@@ -106,6 +106,7 @@ const projectCoordinate = (value: unknown, label: string): number => {
   return value
 }
 const metres = (value: number): string => value.toFixed(2)
+const scaleDenominator = (value: number): string => Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/0+$/u, '').replace(/\.$/u, '')
 
 interface ColumnLayout {
   paperWidth: number
@@ -162,7 +163,8 @@ const defaultColumnLabels: Record<string, string> = {
   depthColumn: 'DEPTH m', thicknessColumn: 'THICKNESS m', elevationColumn: 'ELEV. m', codeColumn: 'CODE', hatchColumn: 'LITHOLOGY',
   stratumColumn: 'STRATUM', descriptionColumn: 'DESCRIPTION', sampleColumn: 'SAMPLE', sptColumn: 'SPT N',
   legend: 'LITHOLOGY LEGEND', footer: 'Depth positive downward; elevations from supplied collar. Verify against drilling log.',
-  fill: 'fill', clay: 'clay', silt: 'silt', sand: 'sand', gravel: 'gravel', rock: 'rock', 'weathered-rock': 'weathered-rock',
+  fill: 'fill', 'cultivated-soil': 'cultivated soil', clay: 'clay', 'silty-clay': 'silty clay', silt: 'silt', sand: 'sand', gravel: 'gravel', rock: 'rock', 'weathered-rock': 'weathered rock',
+  loess: 'loess', 'loess-collapsible': 'collapsible loess', 'loess-like': 'loess-like soil', paleosol: 'paleosol', 'calcareous-nodule': 'calcareous nodules',
 }
 
 const chineseColumnLabels: Record<string, string> = {
@@ -171,7 +173,8 @@ const chineseColumnLabels: Record<string, string> = {
   depthColumn: '深度 m', thicknessColumn: '层厚 m', elevationColumn: '层底标高 m', codeColumn: '层号', hatchColumn: '岩土图例',
   stratumColumn: '岩土名称', descriptionColumn: '岩土描述', sampleColumn: '取样', sptColumn: '标贯 N',
   legend: '岩土图例', footer: '深度向下为正；标高按给定孔口标高计算。请与钻孔原始记录核对。',
-  fill: '填土', clay: '黏性土', silt: '粉土', sand: '砂土', gravel: '碎石土', rock: '岩石', 'weathered-rock': '风化岩',
+  fill: '填土', 'cultivated-soil': '耕植土', clay: '黏性土', 'silty-clay': '粉质黏土', silt: '粉土', sand: '砂土', gravel: '碎石土', rock: '岩石', 'weathered-rock': '风化岩',
+  loess: '黄土', 'loess-collapsible': '湿陷性黄土', 'loess-like': '黄土状土', paleosol: '古土壤', 'calcareous-nodule': '钙质结核层',
 }
 
 const hasChinese = (value: unknown): boolean => typeof value === 'string' && /[\u3400-\u9fff]/u.test(value)
@@ -555,7 +558,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       x: hole.x == null ? undefined : metres(hole.x), y: hole.y == null ? undefined : metres(hole.y),
       startDate: hole.startDate, endDate: hole.endDate,
       stableWaterDepth: hole.stableWaterDepth == null ? undefined : metres(hole.stableWaterDepth),
-      verticalScale: `1:${metres(verticalScaleDenominator)}`,
+      verticalScale: `1:${scaleDenominator(verticalScaleDenominator)}`,
     }
     const headerTop = pageHeight - 24, headerBottom = pageHeight - headerDepth + 3
     const rowHeight = (headerTop - headerBottom) / headerGrid.rows.length
@@ -584,7 +587,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     const location = [hole.x != null ? `${labels.x} ${metres(hole.x)}` : '', hole.y != null ? `${labels.y} ${metres(hole.y)}` : '',
       hole.startDate ? `${labels.startDate} ${hole.startDate}` : '', hole.endDate ? `${labels.endDate} ${hole.endDate}` : ''].filter(Boolean).join('   ')
     if (location) g.text(3, left + 2, pageHeight - 43, location, 2.3)
-    g.text(3, left + 2, pageHeight - 50, `${labels.verticalScale} 1:${metres(verticalScaleDenominator)}   ${labels.datum}`, 2.6)
+    g.text(3, left + 2, pageHeight - 50, `${labels.verticalScale} 1:${scaleDenominator(verticalScaleDenominator)}   ${labels.datum}`, 2.6)
   }
   const renderLegend = (): void => {
     const distinct = [...new Map(strata.map(layer => [layer.patternKey ?? layer.lithology, layer])).values()]
@@ -814,8 +817,8 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   const locale = geologyLocale(input)
   g.text(3, 133, 279, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质剖面图' : 'ENGINEERING GEOLOGICAL SECTION'), 'title'), 5)
   g.text(3, 16, 266, locale === 'zh-CN'
-    ? `水平比例尺 1:${metres(input.horizontalScaleDenominator)}  垂直比例尺 1:${metres(input.verticalScaleDenominator)}  基准标高 ${metres(datum)} m`
-    : `HORIZONTAL 1:${metres(input.horizontalScaleDenominator)}  VERTICAL 1:${metres(input.verticalScaleDenominator)}  DATUM ${metres(datum)} m`, 3)
+    ? `水平比例尺 1:${scaleDenominator(input.horizontalScaleDenominator)}  垂直比例尺 1:${scaleDenominator(input.verticalScaleDenominator)}  基准标高 ${metres(datum)} m`
+    : `HORIZONTAL 1:${scaleDenominator(input.horizontalScaleDenominator)}  VERTICAL 1:${scaleDenominator(input.verticalScaleDenominator)}  DATUM ${metres(datum)} m`, 3)
   g.line(4, 41, 48, 41, 257)
   g.line(4, 41, 48, 396, 48)
   const surface = holes.map(hole => [x(hole), y(hole, 0)] as [number, number])

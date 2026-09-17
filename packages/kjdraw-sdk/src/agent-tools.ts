@@ -321,7 +321,7 @@ const componentInsertSchema: KJAgentToolSchema = { ...componentInsertSchemaBase,
 const geologyStratumSchema = objectWithOptional({
   intervalId: { ...text, maxLength: 64 }, groupId: { ...text, maxLength: 24 }, groupRole: { type: 'string', enum: ['principal', 'lens'] },
   code: { ...text, maxLength: 24 }, name: { ...text, maxLength: 64 }, top: nonnegative, bottom: radius,
-  lithology: { type: 'string', enum: ['fill', 'clay', 'silt', 'sand', 'gravel', 'rock', 'weathered-rock'] },
+  lithology: { type: 'string', enum: ['fill', 'cultivated-soil', 'clay', 'silty-clay', 'silt', 'sand', 'gravel', 'rock', 'weathered-rock', 'loess', 'loess-collapsible', 'loess-like', 'paleosol', 'calcareous-nodule'] },
   description: { ...text, maxLength: 96 }, descriptionSource: { type: 'string', enum: ['interval', 'layer-definition'] },
 }, ['intervalId', 'groupId', 'groupRole', 'description', 'descriptionSource'])
 const geologyObservationSchema = objectWithOptional({

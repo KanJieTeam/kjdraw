@@ -74,6 +74,31 @@ test('versioned geology facts compile to a host-only CREATEBATCH proposal, then 
   }
 })
 
+test('Chinese loess-region lithologies remain explicit and scale labels use engineering integer notation', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const session = new KJAgentToolSession(sdk, document)
+  const schema = session.definitions.find(tool => tool.name === 'cad_propose_geology_column')
+  for (const value of ['loess', 'loess-collapsible', 'loess-like', 'paleosol', 'silty-clay', 'calcareous-nodule']) {
+    assert.ok(schema.inputSchema.properties.hole.properties.strata.items.properties.lithology.enum.includes(value), value)
+  }
+  const proposal = accepted(await session.call('cad_propose_geology_column', {
+    version: '1.0.0', expectedRevision: 0, units: 'millimeter', locale: 'zh-CN', verticalScaleDenominator: 50,
+    projectName: '陇东黄土工程', hole: { id: 'ZK-01', collarElevation: 1188.6, depth: 5, strata: [
+      { code: '1', name: '湿陷性黄土', top: 0, bottom: 1, lithology: 'loess-collapsible' },
+      { code: '2', name: '古土壤', top: 1, bottom: 2, lithology: 'paleosol' },
+      { code: '3', name: '黄土状土', top: 2, bottom: 3, lithology: 'loess-like' },
+      { code: '4', name: '粉质黏土', top: 3, bottom: 4, lithology: 'silty-clay' },
+      { code: '5', name: '钙质结核层', top: 4, bottom: 5, lithology: 'calcareous-nodule' },
+    ] },
+  }))
+  const visible = proposal.arguments.entities.filter(entity => ['TEXT', 'MTEXT'].includes(entity.type)).map(entity => entity.payload.text)
+  for (const label of ['工程地质钻孔柱状图', '陇东黄土工程', '湿陷性黄土', '古土壤', '黄土状土', '粉质黏土', '钙质结核层']) {
+    assert.ok(visible.some(text => String(text).includes(label)), label)
+  }
+  assert.ok(visible.some(text => String(text).includes('垂直比例尺 1:50')))
+  assert.ok(!visible.some(text => String(text).includes('1:50.00')))
+})
+
 test('MIT synthetic style renders an appendix document fact only when explicitly supplied and preserves atomic roundtrips', async () => {
   const pack = {
     schema: 'kjdraw.knowledge-pack.v1', id: 'synthetic-appendix-header', version: '1.0.0',

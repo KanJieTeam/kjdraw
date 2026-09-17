@@ -1395,12 +1395,19 @@ const geologyStratumSchema = objectWithOptional({
         type: 'string',
         enum: [
             'fill',
+            'cultivated-soil',
             'clay',
+            'silty-clay',
             'silt',
             'sand',
             'gravel',
             'rock',
-            'weathered-rock'
+            'weathered-rock',
+            'loess',
+            'loess-collapsible',
+            'loess-like',
+            'paleosol',
+            'calcareous-nodule'
         ]
     },
     description: {

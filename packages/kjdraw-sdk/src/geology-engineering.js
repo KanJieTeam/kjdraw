@@ -6,12 +6,19 @@ import { hatchPatternFromKnowledgePack } from './hatch-pattern-catalog.js';
 import { layoutCadMText } from './geometry/text-layout.js';
 const pattern = {
     fill: 'CROSS',
+    'cultivated-soil': 'ANSI37',
     clay: 'ANSI31',
+    'silty-clay': 'ANSI37',
     silt: 'ANSI31',
     sand: 'ANSI37',
     gravel: 'CROSS',
     rock: 'ANSI31',
-    'weathered-rock': 'CROSS'
+    'weathered-rock': 'CROSS',
+    loess: 'ANSI37',
+    'loess-collapsible': 'CROSS',
+    'loess-like': 'ANSI31',
+    paleosol: 'CROSS',
+    'calcareous-nodule': 'ANSI37'
 };
 const bounded = (value, label, max = 64)=>{
     if (typeof value !== 'string' || !value.trim() || value.length > max || /[\u0000-\u001f\u007f]/.test(value)) throw new KJValidationError(`Geology: invalid ${label}`);
@@ -31,6 +38,7 @@ const projectCoordinate = (value, label)=>{
     return value;
 };
 const metres = (value)=>value.toFixed(2);
+const scaleDenominator = (value)=>Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/0+$/u, '').replace(/\.$/u, '');
 const headerRoles = new Set([
     'projectName',
     'holeId',
@@ -126,12 +134,19 @@ const defaultColumnLabels = {
     legend: 'LITHOLOGY LEGEND',
     footer: 'Depth positive downward; elevations from supplied collar. Verify against drilling log.',
     fill: 'fill',
+    'cultivated-soil': 'cultivated soil',
     clay: 'clay',
+    'silty-clay': 'silty clay',
     silt: 'silt',
     sand: 'sand',
     gravel: 'gravel',
     rock: 'rock',
-    'weathered-rock': 'weathered-rock'
+    'weathered-rock': 'weathered rock',
+    loess: 'loess',
+    'loess-collapsible': 'collapsible loess',
+    'loess-like': 'loess-like soil',
+    paleosol: 'paleosol',
+    'calcareous-nodule': 'calcareous nodules'
 };
 const chineseColumnLabels = {
     hole: '钻孔编号',
@@ -156,12 +171,19 @@ const chineseColumnLabels = {
     legend: '岩土图例',
     footer: '深度向下为正；标高按给定孔口标高计算。请与钻孔原始记录核对。',
     fill: '填土',
+    'cultivated-soil': '耕植土',
     clay: '黏性土',
+    'silty-clay': '粉质黏土',
     silt: '粉土',
     sand: '砂土',
     gravel: '碎石土',
     rock: '岩石',
-    'weathered-rock': '风化岩'
+    'weathered-rock': '风化岩',
+    loess: '黄土',
+    'loess-collapsible': '湿陷性黄土',
+    'loess-like': '黄土状土',
+    paleosol: '古土壤',
+    'calcareous-nodule': '钙质结核层'
 };
 const hasChinese = (value)=>typeof value === 'string' && /[\u3400-\u9fff]/u.test(value);
 function geologyLocale(input) {
@@ -814,7 +836,7 @@ export function compileGeologyColumn(input) {
             startDate: hole.startDate,
             endDate: hole.endDate,
             stableWaterDepth: hole.stableWaterDepth == null ? undefined : metres(hole.stableWaterDepth),
-            verticalScale: `1:${metres(verticalScaleDenominator)}`
+            verticalScale: `1:${scaleDenominator(verticalScaleDenominator)}`
         };
         const headerTop = pageHeight - 24, headerBottom = pageHeight - headerDepth + 3;
         const rowHeight = (headerTop - headerBottom) / headerGrid.rows.length;
@@ -848,7 +870,7 @@ export function compileGeologyColumn(input) {
             hole.endDate ? `${labels.endDate} ${hole.endDate}` : ''
         ].filter(Boolean).join('   ');
         if (location) g.text(3, left + 2, pageHeight - 43, location, 2.3);
-        g.text(3, left + 2, pageHeight - 50, `${labels.verticalScale} 1:${metres(verticalScaleDenominator)}   ${labels.datum}`, 2.6);
+        g.text(3, left + 2, pageHeight - 50, `${labels.verticalScale} 1:${scaleDenominator(verticalScaleDenominator)}   ${labels.datum}`, 2.6);
     }
     const renderLegend = ()=>{
         const distinct = [
@@ -1204,7 +1226,7 @@ export function compileGeologySection(input) {
     g.rect(0, 5, 5, 415, 292);
     const locale = geologyLocale(input);
     g.text(3, 133, 279, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质剖面图' : 'ENGINEERING GEOLOGICAL SECTION'), 'title'), 5);
-    g.text(3, 16, 266, locale === 'zh-CN' ? `水平比例尺 1:${metres(input.horizontalScaleDenominator)}  垂直比例尺 1:${metres(input.verticalScaleDenominator)}  基准标高 ${metres(datum)} m` : `HORIZONTAL 1:${metres(input.horizontalScaleDenominator)}  VERTICAL 1:${metres(input.verticalScaleDenominator)}  DATUM ${metres(datum)} m`, 3);
+    g.text(3, 16, 266, locale === 'zh-CN' ? `水平比例尺 1:${scaleDenominator(input.horizontalScaleDenominator)}  垂直比例尺 1:${scaleDenominator(input.verticalScaleDenominator)}  基准标高 ${metres(datum)} m` : `HORIZONTAL 1:${scaleDenominator(input.horizontalScaleDenominator)}  VERTICAL 1:${scaleDenominator(input.verticalScaleDenominator)}  DATUM ${metres(datum)} m`, 3);
     g.line(4, 41, 48, 41, 257);
     g.line(4, 41, 48, 396, 48);
     const surface = holes.map((hole)=>[
