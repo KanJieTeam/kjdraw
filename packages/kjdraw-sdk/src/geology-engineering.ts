@@ -181,7 +181,7 @@ const documentFactRecord = (value: unknown): Record<string, string> => {
 type FieldRole = 'layerNumber' | 'layerName' | 'baseElevation' | 'thickness' | 'depth' | 'pattern' | 'description' | 'sample' | 'spt' | 'measurement'
 const fieldRoles = new Set<FieldRole>(['layerNumber', 'layerName', 'baseElevation', 'thickness', 'depth', 'pattern', 'description', 'sample', 'spt', 'measurement'])
 const requiredFieldRoles: FieldRole[] = ['layerNumber', 'layerName', 'baseElevation', 'thickness', 'depth', 'pattern', 'description', 'sample', 'spt']
-const defaultColumnVerticalScales = Object.freeze([50, 100, 200, 250, 500, 1000, 2000, 5000])
+const defaultColumnVerticalScales = Object.freeze([50, 100, 150, 200, 250, 500, 1000, 2000, 5000])
 
 const defaultColumnLabels: Record<string, string> = {
   hole: 'HOLE', collar: 'COLLAR', depth: 'DEPTH', verticalScale: 'VERTICAL SCALE', datum: 'DATUM: collar elevation',

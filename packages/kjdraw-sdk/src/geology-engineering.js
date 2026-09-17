@@ -105,6 +105,7 @@ const requiredFieldRoles = [
 const defaultColumnVerticalScales = Object.freeze([
     50,
     100,
+    150,
     200,
     250,
     500,

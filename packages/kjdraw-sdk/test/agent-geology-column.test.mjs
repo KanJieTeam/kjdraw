@@ -125,7 +125,7 @@ test('a 30 m Chinese loess log keeps seven lithologies, descriptions, samples an
   })
   const proposal = accepted(result), visible = proposal.arguments.entities
     .filter(entity => ['TEXT', 'MTEXT'].includes(entity.type)).map(entity => String(entity.payload.text))
-  assert.equal(proposal.engineeringEvidence.parameters.verticalScaleDenominator, 200)
+  assert.equal(proposal.engineeringEvidence.parameters.verticalScaleDenominator, 150)
   for (const label of ['耕土', '湿陷性黄土', '黄土', '古土壤', '钙质结核层', '黄土状土', '粉质黏土', 'S1', 'S2', 'N=19', 'N=28'])
     assert.ok(visible.some(value => value.includes(label)), label)
   assert.equal(proposal.arguments.entities.filter(entity => entity.type === 'HATCH').length, 7)

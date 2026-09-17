@@ -202,7 +202,7 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK: ReadonlyDeep<KJKnowledgePack> = vali
       fieldHeaderHeight: 12,
       footerReserve: 15,
       titleHeight: 6,
-      verticalScaleDenominators: [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000],
+      verticalScaleDenominators: [10, 20, 25, 50, 100, 150, 200, 250, 500, 1000, 2000, 5000],
       legendMode: 'none',
       layerNumberStyle: 'circle',
       textFlow: {
