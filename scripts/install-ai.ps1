@@ -43,6 +43,12 @@ if (Test-Path -LiteralPath $KJDrawInstall) {
     throw "The existing KJDraw install is not the pinned candidate: $KJDrawInstall"
   }
 } else {
+  $KJDrawInstallDrive = New-Object System.IO.DriveInfo ([IO.Path]::GetPathRoot($KJDrawInstall))
+  $KJDrawMinimumFreeBytes = 128MB
+  if ($KJDrawInstallDrive.AvailableFreeSpace -lt $KJDrawMinimumFreeBytes) {
+    $KJDrawAvailableMiB = [math]::Floor($KJDrawInstallDrive.AvailableFreeSpace / 1MB)
+    throw "KJDraw needs at least 128 MiB free on $($KJDrawInstallDrive.Name) for an atomic install; only $KJDrawAvailableMiB MiB is available. Free disk space and run the same one-line installer again."
+  }
   $KJDrawParent = Split-Path -Parent $KJDrawInstall
   $KJDrawStage = "$KJDrawInstall.stage-$PID"
   $KJDrawArchive = "$KJDrawStage.zip"
@@ -58,8 +64,9 @@ if (Test-Path -LiteralPath $KJDrawInstall) {
     Set-Content -LiteralPath (Join-Path $KJDrawExpanded[0].FullName '.kjdraw-source-sha') -Value $KJDrawSourceSha -NoNewline
     Move-Item -LiteralPath $KJDrawExpanded[0].FullName -Destination $KJDrawInstall
   } finally {
-    if (Test-Path -LiteralPath $KJDrawArchive) { Remove-Item -LiteralPath $KJDrawArchive -Force }
-    if (Test-Path -LiteralPath $KJDrawStage) { Remove-Item -LiteralPath $KJDrawStage -Recurse -Force }
+    # Cleanup must never replace the real download, extraction, or move error.
+    if (Test-Path -LiteralPath $KJDrawArchive) { Remove-Item -LiteralPath $KJDrawArchive -Force -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $KJDrawStage) { Remove-Item -LiteralPath $KJDrawStage -Recurse -Force -ErrorAction SilentlyContinue }
   }
 }
 
