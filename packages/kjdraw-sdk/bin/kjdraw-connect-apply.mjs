@@ -25,6 +25,7 @@ const USER_CLIENTS = Object.freeze([
 const MAX_CONFIG_BYTES = 1024 * 1024
 const MAX_DRAWING_BYTES = 64 * 1024 * 1024
 const MAX_KNOWLEDGE_PACK_BYTES = 1024 * 1024
+const KIMI_TOOL_PROFILE = 'kimi-safe'
 const SKILL_FILES = Object.freeze(['SKILL.md', 'references/routes.json', 'references/acceptance.md'])
 const SKILL_TARGETS = Object.freeze([
   { path: '.kimi-code/skills/kjdraw-cad', clients: ['Kimi Code CLI'], activation: 'Start a new Kimi Code CLI session and invoke /skill:kjdraw-cad.' },
@@ -335,6 +336,9 @@ export async function connectWorkspace(options, hooks = {}) {
   const entry = { command: 'node', args: [mcpPath, '--workspace', rawRoot, '--input', drawing.name, '--proposal-dir', relative(root, proposals).split(sep).join('/'),
     ...(candidates ? ['--candidate-dir', relative(root, candidates).split(sep).join('/')] : []),
     ...(geologyColumnKnowledge ? ['--geology-column-pack', geologyColumnKnowledge.path, '--geology-column-pack-sha256', geologyColumnKnowledge.sha256] : [])] }
+  const entryFor = client => client.name === 'Kimi Code'
+    ? { ...entry, args: [...entry.args, '--tool-profile', KIMI_TOOL_PROFILE] }
+    : entry
   const workspaceSpellings = rawRoot === root ? [rawRoot] : [rawRoot, root]
   const acceptedScripts = [...new Set([mcpPath, canonicalMcpPath, ...previousMcpPaths])]
   const acceptedPriorEntries = acceptedScripts.flatMap(previousMcpScript => workspaceSpellings.flatMap(workspace => {
@@ -344,6 +348,10 @@ export async function connectWorkspace(options, hooks = {}) {
     const candidateIndex = args.indexOf('--candidate-dir')
     return [exact, ...(candidateIndex >= 0 ? [{ ...exact, args: args.toSpliced(candidateIndex, 2) }] : [])]
   }))
+  const acceptedPriorKimiEntries = acceptedPriorEntries.flatMap(candidate => [
+    candidate,
+    { ...candidate, args: [...candidate.args, '--tool-profile', KIMI_TOOL_PROFILE] },
+  ])
   const clients = scope === 'user' ? USER_CLIENTS : PROJECT_CLIENTS
   const plans = []
   for (const client of clients) {
@@ -354,14 +362,18 @@ export async function connectWorkspace(options, hooks = {}) {
       const fallback = await readConfig(fallbackPath)
       if (Object.keys(fallback.value?.mcpServers ?? {}).length) throw new Error('ZCode .agents/mcp.json has active MCP servers; adding .zcode/config.json would hide them. Merge them in ZCode first')
     }
-    const content = merged(original.value, client.keys, entry, client.name === 'WorkBuddy', acceptedPriorEntries, options.replaceExisting === true)
-    plans.push({ ...client, path, original: original.bytes, beforeSha: original.bytes ? sha(original.bytes) : null, content })
+    const clientEntry = entryFor(client)
+    const clientAcceptedPriorEntries = client.name === 'Kimi Code'
+      ? [...acceptedPriorKimiEntries, entry]
+      : acceptedPriorEntries
+    const content = merged(original.value, client.keys, clientEntry, client.name === 'WorkBuddy', clientAcceptedPriorEntries, options.replaceExisting === true)
+    plans.push({ ...client, path, original: original.bytes, beforeSha: original.bytes ? sha(original.bytes) : null, content, entry: clientEntry })
   }
   const traeInstallUrl = scope === 'user'
     ? `trae-cn://trae.ai-ide/mcp-import?type=stdio&name=kjdraw&config=${encodeURIComponent(Buffer.from(JSON.stringify(entry)).toString('base64'))}`
     : null
   const changed = plans.filter(plan => plan.content)
-  const configurationEvidence = { guiVerified: false, engineInvoked: false, approvalRoute: 'trusted-host-only', conflictPolicy: options.replaceExisting ? 'replace-explicit' : 'refuse-unknown', serverEntryName: 'kjdraw', scope, workBuddyGuide: clients.find(client => client.name === 'WorkBuddy')?.guide, node: nodeEvidence,
+  const configurationEvidence = { guiVerified: false, engineInvoked: false, approvalRoute: 'trusted-host-only', conflictPolicy: options.replaceExisting ? 'replace-explicit' : 'refuse-unknown', serverEntryName: 'kjdraw', scope, kimiToolProfile: KIMI_TOOL_PROFILE, workBuddyGuide: clients.find(client => client.name === 'WorkBuddy')?.guide, node: nodeEvidence,
     ...(traeInstallUrl ? { traeInstallUrl, traeGuide: 'https://docs.trae.cn/ide_mcp-server-install-links' } : {}),
     ...(geologyColumnKnowledge ? { geologyColumnKnowledge } : {}) }
   const skillEvidence = { canonicalSha256: skill.sha256, workBuddy: 'MCP connected; WorkBuddy only documents Marketplace Skill installation, so no unverified local Skill path is written.', targets: skillPlans.map(plan => ({ path: relative(root, plan.path).split(sep).join('/'), clients: plan.clients, action: plan.action, activation: plan.activation })) }

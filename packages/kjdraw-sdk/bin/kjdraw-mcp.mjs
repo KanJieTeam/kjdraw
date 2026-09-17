@@ -17,9 +17,28 @@ const SUPPORTED_PROTOCOLS = new Set([PROTOCOL_VERSION, '2025-06-18'])
 const MAX_DRAWING_BYTES = 64 * 1024 * 1024
 const MAX_MESSAGE_BYTES = 4 * 1024 * 1024
 const MAX_KNOWLEDGE_PACK_BYTES = 1024 * 1024
+const KIMI_SAFE_TOOL_NAMES = new Set([
+  'cad_read_drawing',
+  'cad_read_page',
+  'cad_measure_distance',
+  'cad_propose_lines',
+  'cad_propose_circles',
+  'cad_propose_move',
+  'cad_propose_offset',
+  'cad_propose_polyline_edit',
+  'cad_propose_text_edit',
+  'cad_propose_drawing_compact',
+  'cad_propose_manufacturing_sheet',
+  'cad_propose_architecture_plan',
+  'cad_propose_cartesian_chart',
+  'cad_propose_geology_column',
+  'cad_propose_geology_section',
+  'cad_propose_road_drawing',
+  'cad_propose_site_plan',
+])
 
 function usage() {
-  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>]\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>]\n  kjdraw-mcp --check-tool-schemas\n\nOptional host-only geology style binding:\n  --geology-column-pack <existing-relative.json> --geology-column-pack-sha256 <64-lowercase-hex>\n\n--proposals is the legacy one-file mode. --proposal-dir creates one exclusive ledger per stdio session. When the host also supplies --candidate-dir, exact CREATEBATCH proposals are materialized into new KJD/DXF/SVG candidate files there; the input drawing is never overwritten. The model cannot choose either path or approve writes to the input.`
+  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json> [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>] [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json> [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>] [--tool-profile <full|kimi-safe>]\n  kjdraw-mcp --check-tool-schemas\n\nOptional host-only geology style binding:\n  --geology-column-pack <existing-relative.json> --geology-column-pack-sha256 <64-lowercase-hex>\n\n--tool-profile defaults to full. kimi-safe exposes the core read, drafting, geology, architecture, manufacturing and chart tools through a bounded schema set for older Kimi Work runtimes. --proposals is the legacy one-file mode. --proposal-dir creates one exclusive ledger per stdio session. When the host also supplies --candidate-dir, exact CREATEBATCH proposals are materialized into new KJD/DXF/SVG candidate files there; the input drawing is never overwritten. The model cannot choose either path or approve writes to the input.`
 }
 
 function parseArgs(argv) {
@@ -29,7 +48,7 @@ function parseArgs(argv) {
   const values = {}
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index], value = argv[index + 1]
-    if (!['--workspace', '--input', '--blank', '--units', '--proposals', '--proposal-dir', '--candidate-dir', '--geology-column-pack', '--geology-column-pack-sha256'].includes(key) || !value || Object.hasOwn(values, key.slice(2))) throw new Error(`Unknown, duplicate or incomplete argument: ${key ?? ''}`)
+    if (!['--workspace', '--input', '--blank', '--units', '--proposals', '--proposal-dir', '--candidate-dir', '--geology-column-pack', '--geology-column-pack-sha256', '--tool-profile'].includes(key) || !value || Object.hasOwn(values, key.slice(2))) throw new Error(`Unknown, duplicate or incomplete argument: ${key ?? ''}`)
     values[key.slice(2)] = value
   }
   if (!values.workspace) throw new Error('Missing required --workspace')
@@ -40,7 +59,18 @@ function parseArgs(argv) {
   if (values.input && values.units) throw new Error('--units is only allowed with --blank')
   if (Boolean(values['geology-column-pack']) !== Boolean(values['geology-column-pack-sha256'])) throw new Error('--geology-column-pack and --geology-column-pack-sha256 must be supplied together')
   if (values['geology-column-pack-sha256'] && !/^[a-f0-9]{64}$/u.test(values['geology-column-pack-sha256'])) throw new Error('--geology-column-pack-sha256 must be 64 lowercase hexadecimal characters')
+  values['tool-profile'] ??= 'full'
+  if (!['full', 'kimi-safe'].includes(values['tool-profile'])) throw new Error('--tool-profile must be full or kimi-safe')
   return values
+}
+
+function profileDefinitions(definitions, profile = 'full') {
+  if (profile === 'full') return definitions
+  const selected = definitions.filter(tool => KIMI_SAFE_TOOL_NAMES.has(tool.name))
+  for (const required of ['cad_read_drawing', 'cad_read_page', 'cad_measure_distance', 'cad_propose_drawing_compact']) {
+    if (!selected.some(tool => tool.name === required)) throw new Error(`Kimi-safe tool profile is missing ${required}`)
+  }
+  return selected
 }
 
 function checkToolSchemas() {
@@ -53,7 +83,9 @@ function checkToolSchemas() {
       assertPortableMcpInputSchema(schema, `${tool.name}.inputSchema`)
       byteLength += Buffer.byteLength(JSON.stringify(schema), 'utf8')
     }
-    return { units, toolCount: definitions.length, schemaByteLength: byteLength }
+    const kimiSafeDefinitions = profileDefinitions(definitions, 'kimi-safe')
+    const kimiSafeSchemaByteLength = kimiSafeDefinitions.reduce((total, tool) => total + Buffer.byteLength(JSON.stringify(portableMcpInputSchema(tool.inputSchema)), 'utf8'), 0)
+    return { units, toolCount: definitions.length, schemaByteLength: byteLength, kimiSafeToolCount: kimiSafeDefinitions.length, kimiSafeSchemaByteLength }
   })
   return { ok: true, profile: KJDRAW_MCP_SCHEMA_PROFILE, unitProfiles }
 }
@@ -497,7 +529,7 @@ async function openHost(options) {
     }
   } else await exclusiveAtomicJsonCreate(proposals, ledger)
   const sessionReceipt = sessionId ? { ledgerPath: ledger.session.ledgerPath, sessionId, sourceFingerprint, sourceRevision: document.revision, sourceDocumentId: document.id } : null
-  return { workspace, sdk, document, session, sourceFingerprint, proposals, ledger, sessionReceipt, candidateDir }
+  return { workspace, sdk, document, session, sourceFingerprint, proposals, ledger, sessionReceipt, candidateDir, toolProfile: options['tool-profile'] }
 }
 
 async function main() {
@@ -549,7 +581,7 @@ async function main() {
       if (request.method === 'ping') { if (!notification) send({ jsonrpc: '2.0', id: request.id, result: {} }); continue }
       if (!initialized) { if (!notification) rpcError(request.id, -32002, 'Server is not initialized'); continue }
       if (request.method === 'tools/list') {
-        if (!notification) send({ jsonrpc: '2.0', id: request.id, result: { tools: host.session.definitions.map(tool => {
+        if (!notification) send({ jsonrpc: '2.0', id: request.id, result: { tools: profileDefinitions(host.session.definitions, host.toolProfile).map(tool => {
           const inputSchema = portableMcpInputSchema(tool.inputSchema)
           assertPortableMcpInputSchema(inputSchema, `${tool.name}.inputSchema`)
           return {
@@ -569,7 +601,7 @@ async function main() {
       if (request.method === 'tools/call') {
         if (notification) continue
         const name = request.params?.name, input = request.params?.arguments ?? {}
-        const definition = host.session.definitions.find(tool => tool.name === name)
+        const definition = profileDefinitions(host.session.definitions, host.toolProfile).find(tool => tool.name === name)
         if (!definition) { rpcError(request.id, -32602, 'Unknown tool; use a name returned by tools/list'); continue }
         if (!input || Array.isArray(input) || typeof input !== 'object') { rpcError(request.id, -32602, 'Tool arguments must be an object'); continue }
         const beforeRevision = host.document.revision, beforeFingerprint = fingerprint(host.document)

@@ -100,6 +100,30 @@ test('MCP standalone schema preflight covers both unit profiles before an instal
   assert.equal(result.profile, 'moonshot-walle-compatible-v1')
   assert.deepEqual(result.unitProfiles.map(profile => profile.units), ['millimeter', 'meter'])
   assert.ok(result.unitProfiles.every(profile => profile.toolCount >= 30 && profile.schemaByteLength > 50000))
+  assert.ok(result.unitProfiles.every(profile => profile.kimiSafeToolCount >= 10 && profile.kimiSafeToolCount < profile.toolCount))
+  assert.ok(result.unitProfiles.every(profile => profile.kimiSafeSchemaByteLength < profile.schemaByteLength / 2))
+})
+
+test('Kimi-safe profile exposes a bounded core and rejects hidden full-profile calls', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'kjdraw-mcp-kimi-safe-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const child = invoke([
+    ...blankArgs(directory), '--tool-profile', 'kimi-safe'
+  ], [
+    request(1, 'initialize', { protocolVersion: '2025-11-25' }),
+    request(2, 'tools/list', {}),
+    request(3, 'tools/call', { name: 'cad_read_drawing', arguments: {} }),
+    request(4, 'tools/call', { name: 'cad_propose_drawing_annotated', arguments: {} }),
+  ])
+  assert.equal(child.status, 0, child.stderr)
+  const responses = child.stdout.trim().split('\n').map(line => JSON.parse(line))
+  const names = responses[1].result.tools.map(tool => tool.name)
+  assert.equal(names.length, 12)
+  assert.ok(names.includes('cad_read_drawing'))
+  assert.ok(names.includes('cad_propose_site_plan'))
+  assert.equal(names.includes('cad_propose_drawing_annotated'), false)
+  assert.equal(responses[2].result.structuredContent.value.revision, 0)
+  assert.equal(responses[3].error.code, -32602)
 })
 
 test('explicit host candidate policy turns one circle request into independently reopenable CAD and SVG without overwriting the host drawing', async t => {

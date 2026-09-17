@@ -80,6 +80,8 @@ test('preview changes no files; apply initializes a validated blank host drawing
     assert.equal(entry.args[entry.args.indexOf('--input') + 1], '.kjdraw/active.kjd')
     assert.equal(entry.args[entry.args.indexOf('--proposal-dir') + 1], '.kjdraw/proposals')
     if (rel.startsWith('.workbuddy/')) assert.equal(Object.hasOwn(entry, 'type'), false)
+    if (rel.startsWith('.kimi-code/')) assert.deepEqual(entry.args.slice(-2), ['--tool-profile', 'kimi-safe'])
+    else assert.equal(entry.args.includes('--tool-profile'), false)
   }
   const sourceSkill = fileURLToPath(new URL('../skills/kjdraw-cad/', import.meta.url))
   for (const target of skillTargets) for (const file of skillFiles) {
@@ -107,6 +109,8 @@ test('user scope writes only verified global config paths and returns TraeCode o
   await assert.rejects(readFile(join(root, '.zcode/config.json')), { code: 'ENOENT' })
   await assert.rejects(readFile(join(root, '.trae/mcp.json')), { code: 'ENOENT' })
   const configured = JSON.parse(await readFile(join(root, '.kimi-code/mcp.json'), 'utf8')).mcpServers.kjdraw
+  assert.deepEqual(configured.args.slice(-2), ['--tool-profile', 'kimi-safe'])
+  assert.equal(result.configurationEvidence.kimiToolProfile, 'kimi-safe')
   const request = (id, method, params) => JSON.stringify({ jsonrpc: '2.0', id, method, ...(params ? { params } : {}) })
   const child = spawnSync(process.execPath, configured.args, { encoding: 'utf8', input: `${request(1, 'initialize', { protocolVersion: '2025-11-25' })}\n${request(2, 'tools/call', { name: 'cad_read_drawing', arguments: {} })}\n`, timeout: 10000 })
   assert.equal(child.status, 0, child.stderr)
@@ -154,7 +158,8 @@ test('one connect transaction binds a host-hashed geology pack into all four cli
     const config = JSON.parse(await readFile(join(root, relative), 'utf8'))
     const current = relative.startsWith('.zcode/') ? config.mcp.servers.kjdraw : config.mcpServers.kjdraw
     entry ??= current
-    assert.deepEqual(current.args.slice(-4), ['--geology-column-pack', 'knowledge/geology-column.json', '--geology-column-pack-sha256', saved.sha256])
+    const packIndex = current.args.indexOf('--geology-column-pack')
+    assert.deepEqual(current.args.slice(packIndex, packIndex + 4), ['--geology-column-pack', 'knowledge/geology-column.json', '--geology-column-pack-sha256', saved.sha256])
   }
   const drawing = join(root, '.kjdraw/active.kjd'), before = await readFile(drawing)
   const request = (id, method, params) => JSON.stringify({ jsonrpc: '2.0', id, method, ...(params ? { params } : {}) })
