@@ -263,7 +263,11 @@ function toolResponse(id, result, isError = false, workspace = null) {
   send({
     jsonrpc: '2.0', id,
     result: {
-      content: [{ type: 'text', text: JSON.stringify(result) }, ...resources],
+      // Put review artifacts before the machine-readable fallback. Some desktop
+      // MCP hosts only surface the leading content blocks in the conversation;
+      // a text-first response could therefore claim a preview was ready while
+      // hiding every actual drawing link from the user.
+      content: [...resources, { type: 'text', text: JSON.stringify(result) }],
       structuredContent: result,
       ...(isError ? { isError: true } : {})
     }
