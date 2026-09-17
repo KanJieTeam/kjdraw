@@ -28,6 +28,14 @@ async function walk(directory, files = []) {
 }
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex')
+function errorChain(error) {
+  const messages = []
+  for (let current = error, depth = 0; current && depth < 6; current = current.cause, depth += 1) {
+    const message = current instanceof Error ? current.message : String(current)
+    if (message && messages.at(-1) !== message) messages.push(message)
+  }
+  return messages.join(' <- ')
+}
 const kindOf = path => /柱状图/u.test(path) ? 'geology-column-template'
   : /剖面图/u.test(path) ? 'geology-section-template'
     : /平面图/u.test(path) ? 'geology-plan-template'
@@ -46,13 +54,17 @@ function summarizeDrawing(document) {
   const entities = document.listEntities()
   const entityTypes = Object.fromEntries([...new Set(entities.map(entity => entity.type))].sort().map(type => [type, entities.filter(entity => entity.type === type).length]))
   const textEntities = entities.filter(entity => entity.type === 'TEXT' || entity.type === 'MTEXT')
+  const proxies = entities.filter(entity => entity.type === 'PROXY_ENTITY')
+  const countBy = values => Object.fromEntries([...new Set(values)].sort().map(value => [value, values.filter(item => item === value).length]))
   const visibleText = textEntities.map(entity => String(entity.payload.text ?? ''))
   const snapshot = document.snapshot()
   return {
     units: snapshot.header?.units ?? null,
     entityCount: entities.length,
     entityTypes,
-    proxyEntityCount: entityTypes.PROXY_ENTITY ?? 0,
+    proxyEntityCount: proxies.length,
+    proxyOriginalTypes: countBy(proxies.map(entity => String(entity.payload.originalType ?? 'UNKNOWN'))),
+    proxyImportErrors: countBy(proxies.map(entity => entity.payload.importError == null ? 'opaque-unsupported-type' : String(entity.payload.importError))),
     layerCount: document.getTable('layers')?.records.length ?? 0,
     blockDefinitionCount: document.listObjects({ type: 'BLOCK_RECORD' }).length,
     layoutCount: snapshot.spaces?.layoutIds?.length ?? 0,
@@ -76,7 +88,7 @@ for (const path of sourceFiles) {
       const drawing = await sdk.readDocument(bytes, { format: 'DXF' })
       files.push({ ...entry, status: 'parsed', ...summarizeDrawing(drawing) })
     } catch (error) {
-      files.push({ ...entry, status: 'rejected', reason: error instanceof Error ? error.message : String(error) })
+      files.push({ ...entry, status: 'rejected', reason: errorChain(error) })
     }
   }
 }

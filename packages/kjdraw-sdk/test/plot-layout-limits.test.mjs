@@ -54,7 +54,7 @@ print(json.dumps({'limits':[list(p.limmin),list(p.limmax)],'extents':[list(p.ext
   assert.deepEqual(JSON.parse(result.stdout), { limits:[[-12,-8,0],[198,92,0]], extents:[[-10,-7,0],[150,80,4]], model_extents:[[1e20,1e20,1e20],[-1e20,-1e20,-1e20]], errors:0, fixes:0 })
 })
 
-test('missing, partial or reversed layout ranges reject without output or import mutation', async () => {
+test('missing or partial layout ranges reject while complete legacy sentinels import as explicitly unknown', async () => {
   const sdk = createKJDrawSDK(), drawing = sdk.createDocument(), layout = paperByName(drawing)
   await sdk.executeCommand('PAGESETUP', { layoutId:layout.id, dxf:page }, { document:drawing })
   await drawing.transact('explicitly unknown layout range', tx => tx.updateObject(layout.id, { payload:{ dxfLayoutGeometry:{ limits:null, extents:null } } }))
@@ -66,5 +66,6 @@ test('missing, partial or reversed layout ranges reject without output or import
   assert.equal(drawing.serialize(), before)
   const input = tags => `0\nSECTION\n2\nOBJECTS\n0\nLAYOUT\n5\nB1\n100\nAcDbLayout\n1\nSheet\n70\n1\n71\n1\n${tags}330\nB0\n0\nENDSEC\n0\nEOF\n`
   await assert.rejects(createKJDrawSDK().readDocument(input('10\n0\n'), { format:'DXF' }), error => /incomplete limits/.test(String(error.cause)))
-  await assert.rejects(createKJDrawSDK().readDocument(input('10\n10\n20\n0\n11\n0\n21\n10\n'), { format:'DXF' }), error => /positive width and height/.test(String(error.cause)))
+  const imported = await createKJDrawSDK().readDocument(input('10\n10\n20\n0\n11\n0\n21\n10\n'), { format:'DXF' })
+  assert.deepEqual(paperByName(imported, 'Sheet').payload.dxfLayoutGeometry, { limits:null, extents:null })
 })

@@ -140,6 +140,19 @@ s=io.StringIO();D.write(s);print(json.dumps(s.getvalue()))
  assert.equal(result.errors+result.fixes,0);assert.equal(result.dimensions[0].precision,3);assert.deepEqual(result.dimensions[0].labels,['37.125°'])
 })
 
+test('repeated inherited linear precision from legacy DWG conversion uses the effective last value',async()=>{
+ const sdk=createKJDrawSDK(),document=sdk.createDocument();await sdk.executeCommand('CREATE',{type:'DIMENSION',payload:{...definition('ANGULAR_3_POINT'),precision:-1}})
+ const source=String(await sdk.writeDocument(document,{format:'DXF'}))
+ const marker=/1070\r?\n\s*179\r?\n1070\r?\n\s*-?\d+/
+ assert.match(source,marker)
+ const repeated=source.replace(marker,match=>`${match}\n1070\n271\n1070\n2\n1070\n271\n1070\n2`)
+ const imported=await createKJDrawSDK().readDocument(repeated,{format:'DXF'}),dimension=imported.listEntities({type:'DIMENSION'})[0]
+ assert.equal(dimension.payload.linearPrecision,2)
+ const differing=repeated.replace('1070\n271\n1070\n2\n1070\n271\n1070\n2','1070\n271\n1070\n2\n1070\n271\n1070\n3')
+ const last=await createKJDrawSDK().readDocument(differing,{format:'DXF'})
+ assert.equal(last.listEntities({type:'DIMENSION'})[0].payload.linearPrecision,3)
+})
+
 test('degenerate and non-XY angular dimensions fail export explicitly without changing document history',async()=>{
  for(const payload of [definition('ANGULAR',0),definition('ANGULAR',180),{...definition('ANGULAR_3_POINT'),definitionPoints:[[0,0],[10,0],[0,10],[0,0]]},{...definition('ANGULAR_3_POINT'),definitionPoints:[[6,6,2],[10,0,2],[0,10,2],[0,0,2]]},{...definition('ANGULAR_3_POINT'),angularUnits:3}]){
   const sdk=createKJDrawSDK(),document=sdk.createDocument();await sdk.executeCommand('CREATE',{type:'DIMENSION',payload})

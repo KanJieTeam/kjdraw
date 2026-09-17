@@ -90,7 +90,7 @@ function readDimensionOverrides(record) {
                 result[property] = number;
             }
             if (precisionCode === 179 && code === 271) {
-                if (value.code !== 1070 || !Number.isInteger(number) || number < 0 || number > 8 || result.linearPrecision !== undefined) throw new KJValidationError('Invalid DIMENSION inherited linear precision override');
+                if (value.code !== 1070 || !Number.isInteger(number) || number < 0 || number > 8) throw new KJValidationError('Invalid DIMENSION inherited linear precision override');
                 result.linearPrecision = number;
             }
             if (code === 275) {
@@ -574,7 +574,7 @@ function readLayoutGeometry(record) {
         21
     ].map((code)=>values(record, code).length > 0);
     if (hasLimits.some(Boolean) && !hasLimits.every(Boolean)) throw new KJValidationError('DXF AcDbLayout has incomplete limits');
-    const limits = hasLimits.every(Boolean) ? {
+    const suppliedLimits = hasLimits.every(Boolean) ? {
         minimum: [
             number(record, 10),
             number(record, 20)
@@ -584,6 +584,7 @@ function readLayoutGeometry(record) {
             number(record, 21)
         ]
     } : null;
+    const limits = suppliedLimits && suppliedLimits.maximum[0] > suppliedLimits.minimum[0] && suppliedLimits.maximum[1] > suppliedLimits.minimum[1] ? suppliedLimits : null;
     const hasExtents = [
         14,
         24,
@@ -1086,20 +1087,23 @@ function entityPayload(record, blockIds, resources = {}) {
                 }
             };
         case 'MTEXT':
-            return {
-                type: 'MTEXT',
-                payload: {
-                    position: point(record),
-                    text: values(record, 3).join('') + first(record, 1, ''),
-                    height: number(record, 40, 2.5),
-                    rotation: number(record, 50, 0) * Math.PI / 180,
-                    attachmentPoint: number(record, 71, 1),
-                    ...values(record, 41).length ? {
-                        width: number(record, 41)
-                    } : {},
-                    styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null
-                }
-            };
+            {
+                const width = values(record, 41).length ? number(record, 41) : null;
+                return {
+                    type: 'MTEXT',
+                    payload: {
+                        position: point(record),
+                        text: values(record, 3).join('') + first(record, 1, ''),
+                        height: number(record, 40, 2.5),
+                        rotation: number(record, 50, 0) * Math.PI / 180,
+                        attachmentPoint: number(record, 71, 1),
+                        ...width !== null && width !== 0 ? {
+                            width
+                        } : {},
+                        styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null
+                    }
+                };
+            }
         case 'ATTDEF':
         case 'ATTRIB':
             {

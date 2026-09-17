@@ -82,7 +82,9 @@ function readDimensionOverrides(record: DxfRecord): DxfDimensionOverrides {
         result[property] = number
       }
       if (precisionCode === 179 && code === 271) {
-        if (value.code !== 1070 || !Number.isInteger(number) || number < 0 || number > 8 || result.linearPrecision !== undefined) throw new KJValidationError('Invalid DIMENSION inherited linear precision override')
+        if (value.code !== 1070 || !Number.isInteger(number) || number < 0 || number > 8) throw new KJValidationError('Invalid DIMENSION inherited linear precision override')
+        // AutoCAD/ODA may serialize this inherited formatting key repeatedly.
+        // Match their effective last-value semantics; it changes label formatting only.
         result.linearPrecision = number
       }
       if (code === 275) {
@@ -577,7 +579,10 @@ function point(record: DxfRecord, xCode = 10, yCode = 20, zCode = 30): Point3 { 
 function readLayoutGeometry(record: DxfRecord): KJDxfLayoutGeometry {
   const hasLimits = [10,20,11,21].map(code => values(record, code).length > 0)
   if (hasLimits.some(Boolean) && !hasLimits.every(Boolean)) throw new KJValidationError('DXF AcDbLayout has incomplete limits')
-  const limits = hasLimits.every(Boolean) ? { minimum:[number(record,10),number(record,20)] as [number,number], maximum:[number(record,11),number(record,21)] as [number,number] } : null
+  const suppliedLimits = hasLimits.every(Boolean) ? { minimum:[number(record,10),number(record,20)] as [number,number], maximum:[number(record,11),number(record,21)] as [number,number] } : null
+  // Many valid legacy DWGs carry AutoCAD's zero/inverted paper-limit sentinel.
+  // Preserve the explicit unknown state instead of rejecting all model geometry.
+  const limits = suppliedLimits && suppliedLimits.maximum[0] > suppliedLimits.minimum[0] && suppliedLimits.maximum[1] > suppliedLimits.minimum[1] ? suppliedLimits : null
   const hasExtents = [14,24,15,25].map(code => values(record, code).length > 0)
   if (hasExtents.some(Boolean) && !hasExtents.every(Boolean)) throw new KJValidationError('DXF AcDbLayout has incomplete extents')
   const rawMinimum = hasExtents.every(Boolean) ? point(record,14,24,34) : null
@@ -793,7 +798,10 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
       return { type: 'SPLINE', payload: { degree: number(record, 71), knots: values(record, 40).map(Number), weights: weights.length ? weights : undefined, controlPoints: repeatedPoints(record), fitPoints: repeatedPoints(record, 11, 21, 31), closed: (number(record, 70, 0) & 1) === 1, periodic: (number(record, 70, 0) & 2) === 2, ...(startTangent ? { startTangent } : {}), ...(endTangent ? { endTangent } : {}) } }
     }
     case 'TEXT': return { type: 'TEXT', payload: { ...readSingleLineText(record, resources), verticalAlignment: number(record, 73, 0) } }
-    case 'MTEXT': return { type: 'MTEXT', payload: { position: point(record), text: values(record, 3).join('') + first(record, 1, ''), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, attachmentPoint: number(record, 71, 1), ...(values(record, 41).length ? { width: number(record, 41) } : {}), styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null } }
+    case 'MTEXT': {
+      const width = values(record, 41).length ? number(record, 41) : null
+      return { type: 'MTEXT', payload: { position: point(record), text: values(record, 3).join('') + first(record, 1, ''), height: number(record, 40, 2.5), rotation: number(record, 50, 0) * Math.PI / 180, attachmentPoint: number(record, 71, 1), ...(width !== null && width !== 0 ? { width } : {}), styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null } }
+    }
     case 'ATTDEF':
     case 'ATTRIB': {
       if (record.tags.some(tag => tag.code === 100 && tag.value === 'AcDbMText')) throw new KJValidationError('Embedded multiline DXF attributes require an MTEXT-aware adapter')
