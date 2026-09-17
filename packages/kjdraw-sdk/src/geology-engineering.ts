@@ -4,6 +4,7 @@ import type { KJKnowledgeCompileResult } from './knowledge-compiler.js'
 import { validateKnowledgePack, type KJKnowledgePack } from './knowledge-pack.js'
 import { hatchPatternFromKnowledgePack } from './hatch-pattern-catalog.js'
 import { layoutCadMText } from './geometry/text-layout.js'
+import { KJDRAW_GEOLOGY_KNOWLEDGE_PACK } from './knowledge-packs/geology-core.js'
 
 /** Engineering facts, not CAD coordinates. Depths/stations/elevations are metres. */
 export interface KJGeologyStratum {
@@ -122,6 +123,7 @@ interface ColumnLayout {
   labels: Record<string, string>
   displayAliases?: { codes: Record<string, string>; names: Record<string, string> }
   headerGrid?: { rows: HeaderCell[][] }
+  footerGrid?: { height: number; cells: FooterCell[] }
   fieldGrid?: { start: number; role: FieldRole; label: string; key?: string; decimals?: number }[]
   legendMode?: 'footer' | 'none'
   textFlow?: { firstGroupBorrowMm: number; firstGroupUnruled: boolean; firstBaselineMm: number; labelPitchMm: number; labelHeightMm: number; paragraphGapMm: number }
@@ -129,7 +131,8 @@ interface ColumnLayout {
 }
 
 type HeaderRole = 'projectName' | 'holeId' | 'collarElevation' | 'depth' | 'x' | 'y' | 'startDate' | 'endDate' | 'stableWaterDepth' | 'verticalScale'
-type HeaderCell = { role: HeaderRole; label: string } | { role: 'documentFact'; key: string; label: string }
+type HeaderCell = { role: HeaderRole; label: string; optional?: boolean } | { role: 'documentFact'; key: string; label: string; optional?: boolean }
+type FooterCell = { start: number; key: string; label: string }
 const headerRoles = new Set<HeaderRole>(['projectName', 'holeId', 'collarElevation', 'depth', 'x', 'y', 'startDate', 'endDate', 'stableWaterDepth', 'verticalScale'])
 const stableDocumentFactKey = (value: unknown, label = 'document fact key'): string => {
   if (typeof value !== 'string' || !/^[A-Za-z][A-Za-z0-9]{0,31}$/u.test(value) || ['constructor', 'prototype'].includes(value.toLowerCase())) throw new KJValidationError(`Geology: invalid ${label}`)
@@ -189,6 +192,8 @@ function geologyLocale(input: KJGeologyColumnInput | KJGeologySectionInput): 'zh
 
 function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   if (!input.columnStylePack) {
+    if (geologyLocale(input) === 'zh-CN' && input.pageHeightMillimeters == null)
+      return columnLayout({ ...input, columnStylePack: KJDRAW_GEOLOGY_KNOWLEDGE_PACK })
     const height = input.pageHeightMillimeters ?? 297
     if (height !== 297 && height !== 841) throw new KJValidationError('Geology: column page height must be 297 or 841 mm')
     return { paperWidth: 210, paperHeight: height, left: 15, right: 195, columns: [32, 51, 67, 92, 147],
@@ -203,7 +208,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'footerReserve', 'headerGrid', 'sptDisplayCap', 'legendMode', 'titleHeight', 'textFlow', 'verticalScaleDenominators'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'titleHeight', 'textFlow', 'verticalScaleDenominators'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -227,10 +232,10 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   }
   const headerDepth = value.headerDepth == null ? 56 : numeric(value.headerDepth, 'style header depth')
   const footerReserve = value.footerReserve == null ? 57 : numeric(value.footerReserve, 'style footer reserve')
-  if (headerDepth < 40 || headerDepth > 90 || footerReserve < 30 || footerReserve > 120) throw new KJValidationError('Geology: style header or footer reserve is unreadable')
+  if (headerDepth < 40 || headerDepth > 90 || footerReserve < 12 || footerReserve > 120) throw new KJValidationError('Geology: style header or footer reserve is unreadable')
   const sptDisplayCap = value.sptDisplayCap == null ? undefined : numeric(value.sptDisplayCap, 'style SPT display cap')
   if (sptDisplayCap != null && (!Number.isSafeInteger(sptDisplayCap) || sptDisplayCap < 1 || sptDisplayCap > 1000)) throw new KJValidationError('Geology: SPT display cap must be an integer from 1 to 1000')
-  let labels = defaultColumnLabels
+  let labels = geologyLocale(input) === 'zh-CN' ? chineseColumnLabels : defaultColumnLabels
   if (value.labels != null) {
     if (!value.labels || typeof value.labels !== 'object' || Array.isArray(value.labels)) throw new KJValidationError('Geology: style labels must be a declared object')
     const provided = value.labels as Record<string, unknown>
@@ -264,18 +269,20 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       return row.map((raw, cellIndex) => {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a role and label`)
         const cell = raw as Record<string, unknown>
+        const optional = cell.optional == null ? undefined : cell.optional
+        if (optional != null && typeof optional !== 'boolean') throw new KJValidationError('Geology: header fact optional flag must be boolean')
         if (cell.role === 'documentFact') {
-          if (Object.keys(cell).sort().join(',') !== 'key,label,role') throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a document fact key, role and label`)
+          if (!['key,label,role', 'key,label,optional,role'].includes(Object.keys(cell).sort().join(','))) throw new KJValidationError(`Geology: header grid cell ${rowIndex + 1}/${cellIndex + 1} needs a document fact key, role and label`)
           const key = stableDocumentFactKey(cell.key), canonical = key.toLowerCase()
           if (documentKeys.has(canonical)) throw new KJValidationError('Geology: duplicate document fact key')
           documentKeys.add(canonical)
-          return { role: 'documentFact' as const, key, label: bounded(cell.label, 'header fact label', 24) }
+          return { role: 'documentFact' as const, key, label: bounded(cell.label, 'header fact label', 24), ...(optional == null ? {} : { optional }) }
         }
-        if (Object.keys(cell).sort().join(',') !== 'label,role' || typeof cell.role !== 'string' || !headerRoles.has(cell.role as HeaderRole)) throw new KJValidationError('Geology: undeclared header fact role')
+        if (!['label,role', 'label,optional,role'].includes(Object.keys(cell).sort().join(',')) || typeof cell.role !== 'string' || !headerRoles.has(cell.role as HeaderRole)) throw new KJValidationError('Geology: undeclared header fact role')
         const role = cell.role as HeaderRole
         if (seen.has(role)) throw new KJValidationError('Geology: duplicate header fact role')
         seen.add(role)
-        return { role, label: bounded(cell.label, 'header fact label', 24) }
+        return { role, label: bounded(cell.label, 'header fact label', 24), ...(optional == null ? {} : { optional }) }
       })
     }) }
   }
@@ -310,6 +317,29 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       if (width < minimum || field.start < left || field.start >= right) throw new KJValidationError(`Geology: field ${field.role} is out of bounds or unreadable`)
     }
   }
+  let footerGrid: ColumnLayout['footerGrid']
+  if (value.footerGrid != null) {
+    const supplied = value.footerGrid
+    if (!supplied || typeof supplied !== 'object' || Array.isArray(supplied) || Object.keys(supplied).sort().join(',') !== 'cells,height') throw new KJValidationError('Geology: footer grid must declare height and cells')
+    const height = numeric((supplied as Record<string, unknown>).height, 'footer grid height')
+    const cells = (supplied as Record<string, unknown>).cells
+    if (height < 7 || height > 16 || height + 5 > footerReserve || !Array.isArray(cells) || cells.length < 3 || cells.length > 8) throw new KJValidationError('Geology: footer grid does not fit the declared sheet')
+    const keys = new Set<string>()
+    const parsed = cells.map((raw, index) => {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'key,label,start') throw new KJValidationError('Geology: footer cell needs an exact key, label and start')
+      const cell = raw as Record<string, unknown>, start = numeric(cell.start, `footer cell start ${index + 1}`)
+      const key = stableDocumentFactKey(cell.key, 'footer fact key'), label = bounded(cell.label, 'footer fact label', 16)
+      if (keys.has(key.toLowerCase())) throw new KJValidationError('Geology: duplicate footer fact key')
+      keys.add(key.toLowerCase())
+      return { start, key, label }
+    })
+    for (const [index, cell] of parsed.entries()) {
+      const end = parsed[index + 1]?.start ?? right
+      if (cell.start < left || end - cell.start < 20 || index && cell.start <= parsed[index - 1]!.start) throw new KJValidationError('Geology: footer cell is out of bounds or unreadable')
+    }
+    if (Math.abs(parsed[0]!.start - left) > 1e-6) throw new KJValidationError('Geology: footer grid must start at the table margin')
+    footerGrid = { height, cells: parsed }
+  }
   let textFlow: ColumnLayout['textFlow']
   if (value.textFlow != null) {
     if (!isFieldGrid || !value.textFlow || typeof value.textFlow !== 'object' || Array.isArray(value.textFlow)) throw new KJValidationError('Geology: text flow requires a declarative field grid')
@@ -335,9 +365,10 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   }
   const legendMode = value.legendMode == null ? 'footer' : value.legendMode
   if (legendMode !== 'footer' && legendMode !== 'none' || legendMode === 'none' && !fieldGrid) throw new KJValidationError('Geology: undeclared or inappropriate legend mode')
+  if (footerGrid && legendMode !== 'none') throw new KJValidationError('Geology: a title block cannot overlap the footer legend')
   return { paperWidth, paperHeight, left, right, columns, headerDepth, footerReserve, legendMode, titleHeight, verticalScaleDenominators, ...(sptDisplayCap == null ? {} : { sptDisplayCap }),
     ...(observationColumns ? { observationColumns } : {}), labels,
-    ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}) }
+    ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}) }
 }
 
 function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
@@ -428,7 +459,7 @@ function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
 function patternDefinitions(pack: KJKnowledgePack | undefined, strata: KJGeologyStratum[]): Record<string, Record<string, unknown>> {
   if (!pack) {
     if (strata.some(layer => layer.patternKey != null)) throw new KJValidationError('Geology: a declared pattern key requires a licensed hatch pack')
-    return {}
+    pack = KJDRAW_GEOLOGY_KNOWLEDGE_PACK
   }
   const definitions: Record<string, Record<string, unknown>> = {}
   for (const role of new Set(strata.map(layer => layer.patternKey ?? layer.lithology))) definitions[role] = hatchPatternFromKnowledgePack(pack, role)
@@ -473,9 +504,10 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const { hole } = input, strata = checkHole(hole)
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
-    headerDepth, footerReserve, labels, displayAliases, headerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow } = layout
+    headerDepth, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow } = layout
   const documentFacts = documentFactRecord(input.documentFacts)
-  const declaredDocumentFactKeys = new Set(headerGrid?.rows.flat().filter((cell): cell is Extract<HeaderCell, { role: 'documentFact' }> => cell.role === 'documentFact').map(cell => cell.key) ?? [])
+  const declaredDocumentFactKeys = new Set([...(headerGrid?.rows.flat().filter((cell): cell is Extract<HeaderCell, { role: 'documentFact' }> => cell.role === 'documentFact').map(cell => cell.key) ?? []),
+    ...(footerGrid?.cells.map(cell => cell.key) ?? [])])
   for (const key of Object.keys(documentFacts)) if (!declaredDocumentFactKeys.has(key)) throw new KJValidationError(`Geology: document fact ${key} is not declared by the style pack`)
   const gridField = (role: FieldRole) => fieldGrid?.find(field => field.role === role)
   const gridEnd = (field: NonNullable<ColumnLayout['fieldGrid']>[number]): number => fieldGrid?.[fieldGrid.indexOf(field) + 1]?.start ?? right
@@ -573,12 +605,13 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         g.line(0, valueX, rowBottom, valueX, rowTop)
         const identity = cell.role === 'documentFact' ? cell.key : cell.role
         const value = cell.role === 'documentFact' ? documentFacts[cell.key] : facts[cell.role]
-        if (value == null) throw new KJValidationError(`Geology: declared header fact ${identity} is missing; refusing to invent a value`)
+        if (value == null && !cell.optional) throw new KJValidationError(`Geology: declared header fact ${identity} is missing; refusing to invent a value`)
+        const visibleValue = value ?? ''
         const estimated = (text: string): number => [...text].reduce((sum, character) => sum + (/^[\x20-\x7e]$/u.test(character) ? 1.15 : 2.1), 0)
-        if (estimated(cell.label) > valueX - cellLeft - 3 || estimated(value) > cellLeft + width - valueX - 3)
+        if (estimated(cell.label) > valueX - cellLeft - 3 || estimated(visibleValue) > cellLeft + width - valueX - 3)
           throw new KJValidationError(`Geology: header fact ${identity} does not fit the declared cell`)
         g.text(3, cellLeft + 2, rowTop - rowHeight * 0.69, cell.label, 2.2)
-        g.text(3, valueX + 2, rowTop - rowHeight * 0.69, value, 2.2)
+        if (visibleValue) g.text(3, valueX + 2, rowTop - rowHeight * 0.69, visibleValue, 2.2)
       }
     }
   } else {
@@ -601,6 +634,21 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       g.text(3, x + 11, legendY - 10, layer.patternKey ? displayAliases?.names[layer.name] ?? layer.name : labels[layer.lithology]!, 2)
     }
     g.text(3, left, Math.min(12, legendY - 18), labels.footer!, 2.2)
+  }
+  const renderFooterGrid = (): void => {
+    if (!footerGrid) return
+    const bottom = 5, top = bottom + footerGrid.height
+    g.rect(0, left, bottom, right, top)
+    for (const [index, cell] of footerGrid.cells.entries()) {
+      const end = footerGrid.cells[index + 1]?.start ?? right
+      if (index) g.line(0, cell.start, bottom, cell.start, top)
+      const labelWidth = Math.min((end - cell.start) * 0.48, 2.2 + [...cell.label].length * 1.8)
+      const split = cell.start + labelWidth
+      g.line(1, split, bottom, split, top)
+      g.text(3, cell.start + 1, bottom + 2.4, cell.label, 1.6)
+      const value = documentFacts[cell.key]
+      if (value) g.text(3, split + 1, bottom + 2.4, value, 1.6)
+    }
   }
   if (fieldGrid) {
     const field = (role: FieldRole) => fieldGrid.find(item => item.role === role)!
@@ -635,9 +683,13 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       }
       throw new KJValidationError(`Geology: ${identity} description collides with another text lane or exceeds source-declared borrow`)
     }
-    g.rect(0, left, bottom, right, pageHeight - headerDepth)
+    // The physical form occupies its declared sheet bay even when the measured
+    // borehole is shallower than that bay.  Strata remain exactly depth-scaled;
+    // only the reusable form grid continues to the footer reserve.
+    const formBottom = footerReserve
+    g.rect(0, left, formBottom, right, pageHeight - headerDepth)
     for (const item of fieldGrid) {
-      if (item.start !== left) g.line(0, item.start, bottom, item.start, pageHeight - headerDepth)
+      if (item.start !== left) g.line(0, item.start, formBottom, item.start, pageHeight - headerDepth)
       emitFieldText(item, pageHeight - headerDepth - 6, item.label, 1.5)
     }
     g.line(0, left, top, right, top)
@@ -729,6 +781,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       if (line.x2 - cursor >= 0.4) g.line(1, cursor, line.y, line.x2, line.y)
     }
     if (layout.legendMode === 'footer') renderLegend()
+    renderFooterGrid()
     return finishColumn()
   }
   g.rect(0, left, bottom, right, pageHeight - headerDepth)
@@ -792,6 +845,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     g.text(3, (item.kind === 'sample' ? sampleX : sptX) + 2, y, label, 1.8)
   }
   renderLegend()
+  renderFooterGrid()
   return finishColumn()
 }
 

@@ -52,7 +52,7 @@ test('Chinese geology inputs produce Chinese compiler labels for columns and sec
   columnHole.strata[2].name = '中砂'
   const column = compileGeologyColumn({ hole: columnHole, expectedRevision: 0 })
   const columnText = column.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
-  for (const expected of ['工程地质钻孔柱状图', '钻孔编号 ZK-中文-01', '深度 m', '岩土图例']) assert.ok(columnText.some(value => value.includes(expected)), expected)
+  for (const expected of ['工程地质钻孔柱状图', '钻孔编号', 'ZK-中文-01', '层底深度', '柱状图', '岩土描述']) assert.ok(columnText.some(value => value.includes(expected)), expected)
   assert.ok(!columnText.some(value => /ENGINEERING BOREHOLE LOG|LITHOLOGY LEGEND|VERTICAL SCALE/u.test(value)))
 
   const left = hole('ZK1', 0, 105.25), right = hole('ZK2', 20, 104.8)

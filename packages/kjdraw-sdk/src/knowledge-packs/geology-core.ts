@@ -8,14 +8,77 @@ import { stableHash, type ReadonlyDeep } from '../utils.js'
 
 /**
  * Public, sanitized geology semantics. This pack describes intent vocabulary
- * and drawing rules only; it contains no private drawings, survey data, or
- * renderer-specific hatch geometry.
+ * and drawing rules only; it contains no private drawings or survey data.
+ * The small hatch catalog below is original redistributable data, not copied
+ * from the private reference corpus.
  */
 const provenance = {
   id: 'kjdraw-geology-semantics',
   title: 'KJDraw public geology semantic contract',
   license: 'Apache-2.0',
   scope: 'sanitized-domain-semantics-v1',
+} as const
+
+const openHatchPatterns = [
+  { name: 'GEO_FILL', description: 'Irregular crossed fill', lines: [
+    { angle: Math.PI / 4, base: [0, 0], offset: [0, 4], dashes: [5, -3] },
+    { angle: -Math.PI / 4, base: [1, 0], offset: [0, 7], dashes: [2, -5] },
+  ] },
+  { name: 'GEO_TOPSOIL', description: 'Sparse organic topsoil marks', lines: [
+    { angle: 0, base: [0, 0], offset: [0, 4], dashes: [0, -2, 0, -7] },
+    { angle: Math.PI / 2, base: [1, 0], offset: [7, 0], dashes: [1, -8] },
+  ] },
+  { name: 'GEO_FINE_SOIL', description: 'Fine soil dots', lines: [
+    { angle: 0, base: [0, 0], offset: [0, 3], dashes: [0, -3] },
+  ] },
+  { name: 'GEO_SILTY_CLAY', description: 'Short horizontal strokes with sparse dots', lines: [
+    { angle: 0, base: [0, 0], offset: [0, 3], dashes: [2, -3] },
+    { angle: Math.PI / 2, base: [0, 0], offset: [6, 0], dashes: [0, -6] },
+  ] },
+  { name: 'GEO_SILT', description: 'Fine broken horizontal strokes', lines: [
+    { angle: 0, base: [0, 0], offset: [0, 2.5], dashes: [1.2, -2.3] },
+  ] },
+  { name: 'GEO_SAND', description: 'Dense granular dots', lines: [
+    { angle: 0, base: [0, 0], offset: [0, 2.2], dashes: [0, -2.2] },
+    { angle: 0, base: [1.1, 1.1], offset: [0, 4.4], dashes: [0, -4.4] },
+  ] },
+  { name: 'GEO_GRAVEL', description: 'Coarse crossed grains', lines: [
+    { angle: Math.PI / 4, base: [0, 0], offset: [0, 6], dashes: [1.5, -4.5] },
+    { angle: -Math.PI / 4, base: [2, 0], offset: [0, 6], dashes: [1.5, -4.5] },
+  ] },
+  { name: 'GEO_ROCK', description: 'Inclined bedding', lines: [
+    { angle: Math.PI / 6, base: [0, 0], offset: [0, 3.5], dashes: [] },
+  ] },
+  { name: 'GEO_WEATHERED_ROCK', description: 'Broken inclined bedding', lines: [
+    { angle: Math.PI / 6, base: [0, 0], offset: [0, 3.5], dashes: [5, -2] },
+    { angle: -Math.PI / 6, base: [0, 0], offset: [0, 8], dashes: [1.5, -6.5] },
+  ] },
+  { name: 'GEO_LOESS', description: 'Vertical pore marks and fine dots', lines: [
+    { angle: Math.PI / 2, base: [0, 0], offset: [3, 0], dashes: [1, -3] },
+    { angle: 0, base: [0, 0], offset: [0, 5], dashes: [0, -5] },
+  ] },
+  { name: 'GEO_COLLAPSIBLE_LOESS', description: 'Pore marks with collapse markers', lines: [
+    { angle: Math.PI / 2, base: [0, 0], offset: [3, 0], dashes: [2, -2] },
+    { angle: 0, base: [1.5, 0], offset: [0, 6], dashes: [0, -3, 0, -9] },
+  ] },
+  { name: 'GEO_LOESS_LIKE', description: 'Sparse pore marks', lines: [
+    { angle: Math.PI / 2, base: [0, 0], offset: [4, 0], dashes: [1, -5] },
+    { angle: 0, base: [2, 0], offset: [0, 7], dashes: [0, -7] },
+  ] },
+  { name: 'GEO_PALEOSOL', description: 'Soil horizon dash and dot bands', lines: [
+    { angle: 0, base: [0, 0], offset: [0, 3.5], dashes: [4, -2, 0, -2] },
+  ] },
+  { name: 'GEO_NODULE', description: 'Widely spaced nodule points', lines: [
+    { angle: 0, base: [0, 0], offset: [0, 5], dashes: [0, -2, 0, -8] },
+    { angle: Math.PI / 2, base: [2.5, 0], offset: [8, 0], dashes: [0, -3, 0, -12] },
+  ] },
+] as const
+
+const openHatchMappings = {
+  fill: 'GEO_FILL', 'cultivated-soil': 'GEO_TOPSOIL', clay: 'GEO_FINE_SOIL', 'silty-clay': 'GEO_SILTY_CLAY',
+  silt: 'GEO_SILT', sand: 'GEO_SAND', gravel: 'GEO_GRAVEL', rock: 'GEO_ROCK', 'weathered-rock': 'GEO_WEATHERED_ROCK',
+  loess: 'GEO_LOESS', 'loess-collapsible': 'GEO_COLLAPSIBLE_LOESS', 'loess-like': 'GEO_LOESS_LIKE',
+  paleosol: 'GEO_PALEOSOL', 'calcareous-nodule': 'GEO_NODULE',
 } as const
 
 export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK: ReadonlyDeep<KJKnowledgePack> = validateKnowledgePack({
@@ -126,6 +189,49 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK: ReadonlyDeep<KJKnowledgePack> = vali
     },
   },
   rules: {
+    'hatch-pattern-catalog': {
+      version: '1.0.0', contentHash: stableHash(openHatchPatterns), patterns: openHatchPatterns, mappings: openHatchMappings,
+    },
+    'geology-column-layout': {
+      paperWidth: 210,
+      paperHeight: 297,
+      left: 10,
+      right: 200,
+      headerDepth: 57,
+      footerReserve: 14,
+      titleHeight: 6,
+      verticalScaleDenominators: [10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000],
+      legendMode: 'none',
+      headerGrid: {
+        rows: [
+          [{ role: 'projectName', label: '工程名称', optional: true }],
+          [{ role: 'holeId', label: '钻孔编号' }, { role: 'collarElevation', label: '孔口标高' }],
+          [{ role: 'depth', label: '孔深' }, { role: 'verticalScale', label: '纵向比例尺' }],
+        ],
+      },
+      footerGrid: {
+        height: 9,
+        cells: [
+          { start: 10, key: 'organization', label: '勘察单位' },
+          { start: 68, key: 'preparedBy', label: '编制' },
+          { start: 92, key: 'checkedBy', label: '校核' },
+          { start: 116, key: 'approvedBy', label: '审核' },
+          { start: 140, key: 'issueDate', label: '日期' },
+          { start: 166, key: 'drawingNumber', label: '图号' },
+        ],
+      },
+      fieldGrid: [
+        { start: 10, role: 'layerNumber', label: '层号' },
+        { start: 20, role: 'layerName', label: '岩土名称' },
+        { start: 38, role: 'baseElevation', label: '层底标高' },
+        { start: 54, role: 'thickness', label: '层厚' },
+        { start: 66, role: 'depth', label: '层底深度' },
+        { start: 80, role: 'pattern', label: '柱状图' },
+        { start: 98, role: 'description', label: '岩土描述' },
+        { start: 164, role: 'sample', label: '取样' },
+        { start: 178, role: 'spt', label: '标贯 N' },
+      ],
+    },
     'data-boundary': {
       missing: 'preserve-unknown-and-request-clarification',
       interpolation: 'forbidden-without-explicit-rule',
