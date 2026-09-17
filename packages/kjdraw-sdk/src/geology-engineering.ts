@@ -64,9 +64,9 @@ export interface KJGeologyColumnInput {
   /** Physical long-log sheet or ordinary A4 sheet, in millimetres. */
   pageHeightMillimeters?: 297 | 841
   /** Host-selected, versioned physical table geometry; independent of model text. */
-  columnStylePack?: KJKnowledgePack
+  columnStylePack?: ReadonlyDeep<KJKnowledgePack>
   /** Optional licensed, versioned pattern knowledge; no purchased pattern is built into KJDraw. */
-  hatchPack?: KJKnowledgePack
+  hatchPack?: ReadonlyDeep<KJKnowledgePack>
   expectedRevision: number
   title?: string
 }
@@ -83,7 +83,7 @@ export interface KJGeologySectionInput {
   projectName?: string
   /** Exact source-backed title-block facts; absent facts remain blank. */
   documentFacts?: Record<string, string>
-  hatchPack?: KJKnowledgePack
+  hatchPack?: ReadonlyDeep<KJKnowledgePack>
   expectedRevision: number
   title?: string
 }
@@ -514,7 +514,7 @@ function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
   return strata
 }
 
-function patternDefinitions(pack: KJKnowledgePack | undefined, strata: KJGeologyStratum[]): Record<string, Record<string, unknown>> {
+function patternDefinitions(pack: ReadonlyDeep<KJKnowledgePack> | undefined, strata: KJGeologyStratum[]): Record<string, Record<string, unknown>> {
   if (!pack) {
     if (strata.some(layer => layer.patternKey != null)) throw new KJValidationError('Geology: a declared pattern key requires a licensed hatch pack')
     pack = KJDRAW_GEOLOGY_KNOWLEDGE_PACK

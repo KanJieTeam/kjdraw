@@ -13,7 +13,7 @@ export interface KJGeologyStratum {
     name: string;
     top: number;
     bottom: number;
-    lithology: 'fill' | 'clay' | 'silt' | 'sand' | 'gravel' | 'rock' | 'weathered-rock';
+    lithology: 'fill' | 'cultivated-soil' | 'clay' | 'silty-clay' | 'silt' | 'sand' | 'gravel' | 'rock' | 'weathered-rock' | 'loess' | 'loess-collapsible' | 'loess-like' | 'paleosol' | 'calcareous-nodule';
     /** Semantic pattern role in a licensed pack, e.g. fine-sand versus medium-sand. */
     patternKey?: string;
     description?: string;
@@ -59,9 +59,9 @@ export interface KJGeologyColumnInput {
     /** Physical long-log sheet or ordinary A4 sheet, in millimetres. */
     pageHeightMillimeters?: 297 | 841;
     /** Host-selected, versioned physical table geometry; independent of model text. */
-    columnStylePack?: KJKnowledgePack;
+    columnStylePack?: ReadonlyDeep<KJKnowledgePack>;
     /** Optional licensed, versioned pattern knowledge; no purchased pattern is built into KJDraw. */
-    hatchPack?: KJKnowledgePack;
+    hatchPack?: ReadonlyDeep<KJKnowledgePack>;
     expectedRevision: number;
     title?: string;
 }
@@ -82,7 +82,10 @@ export interface KJGeologySectionInput {
     verticalScaleDenominator: number;
     datumElevation: number;
     surfaceRule: 'straight-between-supplied-collars';
-    hatchPack?: KJKnowledgePack;
+    projectName?: string;
+    /** Exact source-backed title-block facts; absent facts remain blank. */
+    documentFacts?: Record<string, string>;
+    hatchPack?: ReadonlyDeep<KJKnowledgePack>;
     expectedRevision: number;
     title?: string;
 }

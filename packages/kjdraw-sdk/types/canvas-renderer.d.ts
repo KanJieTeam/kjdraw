@@ -110,6 +110,7 @@ export declare class KJCanvasRenderer {
     setDocument(document: KJDocument | null): this;
     setTheme(theme: KJCanvasTheme): this;
     setGrid(enabled: boolean): this;
+    setBackground(background: string | null): this;
     setSelection(ids?: readonly string[]): this;
     setSpace(spaceId: string | null): this;
     setSceneProvider(provider: KJCanvasSceneProvider | null): this;
