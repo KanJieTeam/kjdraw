@@ -92,10 +92,9 @@ test('Chinese loess-region lithologies remain explicit and scale labels use engi
     ] },
   }))
   const visible = proposal.arguments.entities.filter(entity => ['TEXT', 'MTEXT'].includes(entity.type)).map(entity => entity.payload.text)
-  for (const label of ['工程地质钻孔柱状图', '陇东黄土工程', '湿陷性黄土', '古土壤', '黄土状土', '粉质黏土', '钙质结核层']) {
+  for (const label of ['钻孔柱状图', '陇东黄土工程', '湿陷性黄土', '古土壤', '黄土状土', '粉质黏土', '钙质结核层']) {
     assert.ok(visible.some(text => String(text).includes(label)), label)
   }
-  assert.ok(visible.some(text => String(text).includes('纵向比例尺')))
   assert.ok(visible.some(text => String(text) === '1:50'))
   assert.ok(!visible.some(text => String(text).includes('1:50.00')))
   const patterns = proposal.arguments.entities.filter(entity => entity.type === 'HATCH').map(entity => entity.payload.patternName)

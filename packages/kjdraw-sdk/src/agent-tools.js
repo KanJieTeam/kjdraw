@@ -1551,13 +1551,18 @@ const geologyColumnSchema = objectWithOptional({
     'pageHeightMillimeters',
     'documentFacts'
 ]);
-const geologySectionHoleSchema = object({
+const geologySectionHoleSchema = objectWithOptional({
     id: geologyHoleSchema.properties.id,
     collarElevation: number,
     depth: radius,
     station: number,
-    strata: geologyHoleSchema.properties.strata
-});
+    strata: geologyHoleSchema.properties.strata,
+    stableWaterDepth: nonnegative,
+    observations: geologyHoleSchema.properties.observations
+}, [
+    'stableWaterDepth',
+    'observations'
+]);
 const geologyCorrelationSchema = objectWithOptional({
     fromHoleId: {
         ...text,
@@ -1631,13 +1636,20 @@ const geologySectionSchema = objectWithOptional({
             'straight-between-supplied-collars'
         ]
     },
+    projectName: {
+        ...text,
+        maxLength: 64
+    },
     title: {
         ...text,
         maxLength: 64
-    }
+    },
+    documentFacts: geologyColumnSchema.properties.documentFacts
 }, [
     'locale',
-    'title'
+    'projectName',
+    'title',
+    'documentFacts'
 ]);
 export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
@@ -1787,7 +1799,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_geology_section',
         effect: 'propose',
-        description: 'Compile one editable A3 engineering geological section from 2–24 supplied boreholes with exact station, collar elevation and continuous depth intervals, plus explicit compatible interval/layer correlations. Set locale=zh-CN for a Chinese request so compiler-generated visible labels and notes are Chinese; if omitted, Chinese source text is detected automatically. Hole facts, station, elevations, depths and datum are metres; CAD page is millimetres. Version 1.0.0 uses built-in generic patterns only and one declared straight surface rule; it does not infer unsupplied cross-hole layer continuity, water, observations or raw MDB/DWG provenance. Ambiguous, reverse, duplicate or incompatible correlations and non-fitting scales are rejected; uncorrelated space remains blank. The model supplies facts and identity links, not low-level CAD entities, private hatch assets or approval. Requires a blank millimetre drawing and at least one declared correlation. Returns a bounded native CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
+        description: 'Compile one editable A3 engineering geological section from 2–24 supplied boreholes with exact station, collar elevation, continuous depth intervals, optional measured water/sample/SPT observations, and explicit compatible interval/layer correlations. Set locale=zh-CN for a Chinese request so compiler-generated visible labels and notes are Chinese; if omitted, Chinese source text is detected automatically. Hole facts, station, elevations, depths and datum are metres; CAD page is millimetres. Version 1.0.0 uses the bundled versioned professional section layout and original redistributable semantic hatch patterns. Optional projectName and declared documentFacts populate the title block; missing facts remain blank and are never inferred. It does not infer unsupplied cross-hole continuity, water, observations or raw MDB/DWG provenance. Ambiguous, reverse, duplicate or incompatible correlations and non-fitting scales are rejected; uncorrelated space remains blank. The model supplies facts and identity links, not low-level CAD entities, private hatch assets or approval. Requires a blank millimetre drawing and at least one declared correlation. Returns a bounded native CREATEBATCH proposal; only a trusted host can approve one undoable transaction.',
         inputSchema: geologySectionSchema
     },
     {
@@ -2830,8 +2842,24 @@ export class KJAgentToolSession {
                             };
                         } else if (name === 'cad_propose_geology_section') {
                             if (document.listEntities().length !== 0) throw new KJValidationError('Geology section requires a blank drawing; existing geometry is not replaced');
-                            const { version: _version, units: _units, ...intent } = args;
-                            const compiled = compileGeologySection(intent);
+                            const { version: _version, units: _units, documentFacts: suppliedDocumentFacts, ...intent } = args;
+                            let documentFacts;
+                            if (suppliedDocumentFacts !== undefined) {
+                                documentFacts = Object.create(null);
+                                const seen = new Set();
+                                for (const fact of suppliedDocumentFacts){
+                                    const canonical = fact.key.toLowerCase();
+                                    if (seen.has(canonical)) throw new KJValidationError('Geology section document fact keys must be unique');
+                                    seen.add(canonical);
+                                    documentFacts[fact.key] = fact.value;
+                                }
+                            }
+                            const compiled = compileGeologySection({
+                                ...intent,
+                                ...documentFacts ? {
+                                    documentFacts
+                                } : {}
+                            });
                             if (compiled.commandArgs.entities.length > 512 || compiled.commandArgs.resources.layers.length + compiled.commandArgs.resources.linetypes.length > 32) throw new KJValidationError('Geology section exceeds the bounded Agent proposal budget');
                             commandArgs = structuredClone(compiled.commandArgs);
                             engineeringEvidence = compiled.evidence;

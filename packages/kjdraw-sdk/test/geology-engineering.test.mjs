@@ -52,8 +52,23 @@ test('Chinese geology inputs produce Chinese compiler labels for columns and sec
   columnHole.strata[2].name = '中砂'
   const column = compileGeologyColumn({ hole: columnHole, expectedRevision: 0 })
   const columnText = column.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
-  for (const expected of ['工程地质钻孔柱状图', '钻孔编号', 'ZK-中文-01', '层底深度', '柱状图', '岩土描述']) assert.ok(columnText.some(value => value.includes(expected)), expected)
+  for (const expected of ['钻孔柱状图', '勘探点编号', 'ZK-中文-01', '深度', '柱状图图例', '地  层  描  述']) assert.ok(columnText.some(value => value.includes(expected)), expected)
+  assert.ok(columnText.includes('1:100'), 'the physical column header carries the selected vertical scale')
   assert.ok(!columnText.some(value => /ENGINEERING BOREHOLE LOG|LITHOLOGY LEGEND|VERTICAL SCALE/u.test(value)))
+  const verticalRules = column.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
+    entity.payload.start[0] === entity.payload.end[0] && entity.payload.start[1] === 15 && entity.payload.end[1] === 245)
+  assert.deepEqual(verticalRules.map(entity => entity.payload.start[0]).sort((a, b) => a - b), [25, 43, 55, 65, 75, 95, 145, 170],
+    'the public style preserves the measured nine-column proportions of the accepted CAD form')
+  for (const hatch of column.commandArgs.entities.filter(entity => entity.type === 'HATCH')) {
+    const xs = hatch.payload.boundaryLoops[0].vertices.map(point => point[0])
+    assert.equal(Math.min(...xs), 75)
+    assert.equal(Math.max(...xs), 95)
+  }
+  assert.equal(column.commandArgs.entities.filter(entity => entity.type === 'CIRCLE').length, columnHole.strata.length,
+    'the formal style emits editable CAD circles for layer numbers')
+  assert.ok(column.commandArgs.entities.some(entity => entity.type === 'LWPOLYLINE' && entity.payload.closed &&
+    entity.payload.vertices.some(point => point[0] === 15 && point[1] === 5) &&
+    entity.payload.vertices.some(point => point[0] === 195 && point[1] === 282)), 'formal frame follows the 180 mm CAD form instead of the paper edge')
 
   const left = hole('ZK1', 0, 105.25), right = hole('ZK2', 20, 104.8)
   for (const item of [...left.strata, ...right.strata]) item.name = item.code === '1' ? '填土' : item.code === '2' ? '粉质黏土' : '中砂'
@@ -519,7 +534,11 @@ test('twelve sourced CJK layer-name characters reject a 20 mm lane and survive a
   const compiled = compileGeologyColumn({ ...input, columnStylePack: wide })
   const sourceLabels = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT' && entity.payload.text === name)
   assert.equal(sourceLabels.length, 1)
-  assert.equal(sourceLabels[0].payload.position[0], 21.2)
+  const wideFields = grid(59), layerNameField = wideFields.find(field => field.role === 'layerName')
+  const baseElevationField = wideFields.find(field => field.role === 'baseElevation')
+  assert.equal(sourceLabels[0].payload.position[0], (layerNameField.start + baseElevationField.start) / 2,
+    'formal field values are centred inside their declared physical lane')
+  assert.equal(sourceLabels[0].payload.horizontalAlignment, 1)
   assert.ok(compiled.commandArgs.entities.some(entity => entity.type === 'HATCH' && entity.payload.patternLines?.length === 1))
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })

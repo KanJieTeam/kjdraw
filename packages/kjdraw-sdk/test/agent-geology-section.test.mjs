@@ -98,6 +98,21 @@ test('reversed, incompatible, ambiguous or invented correlations fail without a 
   assert.equal(new KJAgentToolSession(meterSdk, meterDocument).definitions.some(tool => tool.name === 'cad_propose_geology_section'), false)
 })
 
+test('professional section layout renders only supplied title-block, water, sample and SPT facts', async () => {
+  const sdk=createKJDrawSDK(), document=sdk.createDocument({units:'millimeter'}), session=new KJAgentToolSession(sdk,document)
+  const request=intent()
+  request.locale='zh-CN';request.projectName='黄土场地工程勘察'
+  request.documentFacts=[{key:'organization',value:'测试勘察院'},{key:'drawingNumber',value:'PM-01'}]
+  request.holes[0].stableWaterDepth=5.2
+  request.holes[0].observations=[{kind:'sample',id:'S1',depth:4,displayLabel:'原状样'},{kind:'spt',id:'N1',depth:11,value:18}]
+  const proposal=accepted(await session.call('cad_propose_geology_section',request))
+  const visible=proposal.arguments.entities.filter(entity=>entity.type==='TEXT').map(entity=>String(entity.payload.text))
+  for(const expected of ['黄土场地工程勘察','测试勘察院','PM-01','水位 5.20','原状样','N=18','水平比例尺']) assert.ok(visible.some(value=>value.includes(expected)),expected)
+  assert.equal(proposal.engineeringEvidence.parameters.styleRule,'geology-section-layout')
+  const undeclared=await session.call('cad_propose_geology_section',{...intent(),documentFacts:[{key:'inventedApproval',value:'not allowed'}]})
+  assert.equal(undeclared.ok,false);assert.match(undeclared.error.message,/not declared by the section style/u)
+})
+
 test('existing geometry is protected and a dense 24-hole section above proposal budget fails closed', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), session = new KJAgentToolSession(sdk, document)
   const holes = Array.from({ length: 24 }, (_, i) => hole(`SYN-${i + 1}`, i, 105))

@@ -218,7 +218,10 @@ function columnLayout(input) {
                 147
             ],
             headerDepth: 56,
+            headerRowHeight: 7,
+            fieldHeaderHeight: 10,
             footerReserve: 57,
+            layerNumberStyle: 'plain',
             labels: geologyLocale(input) === 'zh-CN' ? chineseColumnLabels : defaultColumnLabels,
             verticalScaleDenominators: [
                 ...defaultColumnVerticalScales
@@ -245,11 +248,14 @@ function columnLayout(input) {
             'observationColumns',
             'displayAliases',
             'headerDepth',
+            'headerRowHeight',
+            'fieldHeaderHeight',
             'footerReserve',
             'headerGrid',
             'footerGrid',
             'sptDisplayCap',
             'legendMode',
+            'layerNumberStyle',
             'titleHeight',
             'textFlow',
             'verticalScaleDenominators'
@@ -283,8 +289,10 @@ function columnLayout(input) {
         if (observationColumns[0] <= columns.at(-1) + 35 || observationColumns[1] <= observationColumns[0] + 15 || right <= observationColumns[1] + 12) throw new KJValidationError('Geology: description, sample and SPT columns are not readable');
     }
     const headerDepth = value.headerDepth == null ? 56 : numeric(value.headerDepth, 'style header depth');
+    const headerRowHeight = value.headerRowHeight == null ? 7 : numeric(value.headerRowHeight, 'header row height');
+    const fieldHeaderHeight = value.fieldHeaderHeight == null ? 10 : numeric(value.fieldHeaderHeight, 'field header height');
     const footerReserve = value.footerReserve == null ? 57 : numeric(value.footerReserve, 'style footer reserve');
-    if (headerDepth < 40 || headerDepth > 90 || footerReserve < 12 || footerReserve > 120) throw new KJValidationError('Geology: style header or footer reserve is unreadable');
+    if (headerDepth < 40 || headerDepth > 90 || headerRowHeight < 4.5 || headerRowHeight > 10 || fieldHeaderHeight < 8 || fieldHeaderHeight > 18 || footerReserve < 12 || footerReserve > 120) throw new KJValidationError('Geology: style header or footer reserve is unreadable');
     const sptDisplayCap = value.sptDisplayCap == null ? undefined : numeric(value.sptDisplayCap, 'style SPT display cap');
     if (sptDisplayCap != null && (!Number.isSafeInteger(sptDisplayCap) || sptDisplayCap < 1 || sptDisplayCap > 1000)) throw new KJValidationError('Geology: SPT display cap must be an integer from 1 to 1000');
     let labels = geologyLocale(input) === 'zh-CN' ? chineseColumnLabels : defaultColumnLabels;
@@ -326,7 +334,7 @@ function columnLayout(input) {
         const supplied = value.headerGrid;
         if (!supplied || typeof supplied !== 'object' || Array.isArray(supplied) || Object.keys(supplied).join(',') !== 'rows') throw new KJValidationError('Geology: header grid must declare rows only');
         const rows = supplied.rows;
-        if (!Array.isArray(rows) || rows.length < 2 || rows.length > 4 || (headerDepth - 27) / rows.length < 7) throw new KJValidationError('Geology: header grid rows do not fit the declared sheet');
+        if (!Array.isArray(rows) || rows.length < 2 || rows.length > 4 || headerRowHeight * rows.length + fieldHeaderHeight + 10 > headerDepth) throw new KJValidationError('Geology: header grid rows do not fit the declared sheet');
         const seen = new Set(), documentKeys = new Set();
         headerGrid = {
             rows: rows.map((row, rowIndex)=>{
@@ -379,9 +387,11 @@ function columnLayout(input) {
             if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError('Geology: field grid column must be a declared object');
             const cell = raw;
             const role = cell.role;
-            const schema = role === 'measurement' ? cell.decimals == null ? 'key,label,role,start' : 'decimals,key,label,role,start' : 'label,role,start';
+            const optionalSubLabel = cell.subLabel == null ? '' : ',subLabel';
+            const schema = role === 'measurement' ? cell.decimals == null ? `key,label,role,start${optionalSubLabel}` : `decimals,key,label,role,start${optionalSubLabel}` : `label,role,start${optionalSubLabel}`;
             if (!fieldRoles.has(role) || Object.keys(cell).sort().join(',') !== schema) throw new KJValidationError('Geology: field grid column needs an exact role schema');
             const start = numeric(cell.start, `field grid start ${index + 1}`), label = bounded(cell.label, `field grid label ${index + 1}`, 32);
+            const subLabel = cell.subLabel == null ? undefined : bounded(cell.subLabel, `field grid sublabel ${index + 1}`, 24);
             if (role !== 'measurement' && roles.has(role)) throw new KJValidationError(`Geology: duplicate field role ${role}`);
             roles.add(role);
             if (role === 'measurement') {
@@ -394,6 +404,9 @@ function columnLayout(input) {
                     start,
                     role,
                     label,
+                    ...subLabel ? {
+                        subLabel
+                    } : {},
                     key,
                     decimals
                 };
@@ -401,7 +414,10 @@ function columnLayout(input) {
             return {
                 start,
                 role,
-                label
+                label,
+                ...subLabel ? {
+                    subLabel
+                } : {}
             };
         });
         if (requiredFieldRoles.some((role)=>!roles.has(role)) || Math.abs(fieldGrid[0].start - left) > 1e-6) throw new KJValidationError('Geology: field grid misses a core role or left margin');
@@ -473,6 +489,8 @@ function columnLayout(input) {
     }
     const legendMode = value.legendMode == null ? 'footer' : value.legendMode;
     if (legendMode !== 'footer' && legendMode !== 'none' || legendMode === 'none' && !fieldGrid) throw new KJValidationError('Geology: undeclared or inappropriate legend mode');
+    const layerNumberStyle = value.layerNumberStyle == null ? 'plain' : value.layerNumberStyle;
+    if (layerNumberStyle !== 'plain' && layerNumberStyle !== 'circle') throw new KJValidationError('Geology: layer number style must be plain or circle');
     if (footerGrid && legendMode !== 'none') throw new KJValidationError('Geology: a title block cannot overlap the footer legend');
     return {
         paperWidth,
@@ -481,8 +499,11 @@ function columnLayout(input) {
         right,
         columns,
         headerDepth,
+        headerRowHeight,
+        fieldHeaderHeight,
         footerReserve,
         legendMode,
+        layerNumberStyle,
         titleHeight,
         verticalScaleDenominators,
         ...sptDisplayCap == null ? {} : {
@@ -507,6 +528,56 @@ function columnLayout(input) {
         ...textFlow ? {
             textFlow
         } : {}
+    };
+}
+function sectionLayout() {
+    const raw = KJDRAW_GEOLOGY_KNOWLEDGE_PACK.rules?.['geology-section-layout'];
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError('Geology: bundled section layout is missing');
+    const value = raw;
+    const scalarKeys = [
+        'paperWidth',
+        'paperHeight',
+        'outerMargin',
+        'innerMargin',
+        'plotLeft',
+        'plotRight',
+        'plotBottom',
+        'plotTop',
+        'titleY',
+        'scaleY',
+        'footerHeight',
+        'boreholeWidth',
+        'elevationTickStep'
+    ];
+    if (Object.keys(value).sort().join(',') !== [
+        ...scalarKeys,
+        'footerGrid'
+    ].sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field');
+    const scalars = Object.fromEntries(scalarKeys.map((key)=>[
+            key,
+            numeric(value[key], `section ${key}`)
+        ]));
+    if (scalars.paperWidth !== 420 || scalars.paperHeight !== 297 || scalars.outerMargin < 3 || scalars.innerMargin <= scalars.outerMargin || scalars.plotLeft <= scalars.innerMargin || scalars.plotRight >= scalars.paperWidth - scalars.innerMargin || scalars.plotRight - scalars.plotLeft < 250 || scalars.plotBottom < scalars.innerMargin + scalars.footerHeight + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop || scalars.scaleY <= scalars.plotTop || scalars.scaleY >= scalars.titleY || scalars.boreholeWidth < 2 || scalars.boreholeWidth > 8 || scalars.elevationTickStep < 0.5 || scalars.elevationTickStep > 20) throw new KJValidationError('Geology: section layout geometry is unreadable');
+    if (!Array.isArray(value.footerGrid) || value.footerGrid.length < 3 || value.footerGrid.length > 8) throw new KJValidationError('Geology: section footer grid is invalid');
+    const seen = new Set(), footerGrid = value.footerGrid.map((rawCell, index)=>{
+        if (!rawCell || typeof rawCell !== 'object' || Array.isArray(rawCell) || Object.keys(rawCell).sort().join(',') !== 'key,label,start') throw new KJValidationError('Geology: section footer cell needs an exact key, label and start');
+        const cell = rawCell, start = numeric(cell.start, `section footer start ${index + 1}`);
+        const key = stableDocumentFactKey(cell.key, 'section footer fact key'), label = bounded(cell.label, 'section footer label', 16);
+        if (seen.has(key.toLowerCase())) throw new KJValidationError('Geology: duplicate section footer fact key');
+        seen.add(key.toLowerCase());
+        return {
+            start,
+            key,
+            label
+        };
+    });
+    for (const [index, cell] of footerGrid.entries()){
+        const end = footerGrid[index + 1]?.start ?? scalars.paperWidth - scalars.innerMargin;
+        if (index === 0 && Math.abs(cell.start - scalars.innerMargin) > 1e-6 || index && cell.start <= footerGrid[index - 1].start || end - cell.start < 28) throw new KJValidationError('Geology: section footer cell is out of bounds or unreadable');
+    }
+    return {
+        ...scalars,
+        footerGrid
     };
 }
 function checkHole(hole) {
@@ -717,6 +788,14 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
                 y2
             ]
         ], true);
+    const circle = (layer, x, y, radius)=>add('CIRCLE', layer, {
+            center: [
+                x,
+                y,
+                0
+            ],
+            radius
+        });
     const hatch = (points, layer)=>add('HATCH', 2, {
             boundaryLoops: [
                 {
@@ -772,6 +851,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
         mtext,
         poly,
         rect,
+        circle,
         hatch,
         finish
     };
@@ -779,7 +859,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
 export function compileGeologyColumn(input) {
     const { hole } = input, strata = checkHole(hole);
     const layout = columnLayout(input);
-    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow } = layout;
+    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, layerNumberStyle } = layout;
     const documentFacts = documentFactRecord(input.documentFacts);
     const declaredDocumentFactKeys = new Set([
         ...headerGrid?.rows.flat().filter((cell)=>cell.role === 'documentFact').map((cell)=>cell.key) ?? [],
@@ -794,7 +874,7 @@ export function compileGeologyColumn(input) {
     const codeX = columns.length === 6 ? columns[3] : columns[2];
     const hatchX = columns.length === 6 ? columns[4] : columns[3];
     const descriptionX = gridField('description')?.start ?? columns.at(-1);
-    const top = pageHeight - headerDepth - 10;
+    const top = pageHeight - headerDepth - fieldHeaderHeight;
     const availableBodyHeight = top - footerReserve;
     const automaticScale = input.verticalScaleDenominator == null ? layout.verticalScaleDenominators.find((denominator)=>hole.depth * 1000 / denominator <= availableBodyHeight + 1e-9) : undefined;
     if (input.verticalScaleDenominator == null && automaticScale == null) throw new KJValidationError('Geology: no declared standard vertical scale fits the borehole on this sheet');
@@ -879,9 +959,10 @@ export function compileGeologyColumn(input) {
             depthLabelY.set(layer, value);
         }
     }
-    g.rect(0, 5, 5, pageWidth - 5, pageHeight - 5);
     const locale = geologyLocale(input);
-    g.text(3, pageWidth / 2, pageHeight - 18, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质钻孔柱状图' : 'ENGINEERING BOREHOLE LOG'), 'title'), titleHeight ?? 5, true);
+    const formalFrame = Boolean(fieldGrid);
+    const frameTop = formalFrame ? pageHeight - 15 : pageHeight - 5;
+    g.rect(0, formalFrame ? left : 5, 5, formalFrame ? right : pageWidth - 5, frameTop);
     if (headerGrid) {
         const facts = {
             projectName: input.projectName ? bounded(input.projectName, 'project name', 96) : undefined,
@@ -895,8 +976,11 @@ export function compileGeologyColumn(input) {
             stableWaterDepth: hole.stableWaterDepth == null ? undefined : metres(hole.stableWaterDepth),
             verticalScale: `1:${scaleDenominator(verticalScaleDenominator)}`
         };
-        const headerTop = pageHeight - 24, headerBottom = pageHeight - headerDepth + 3;
-        const rowHeight = (headerTop - headerBottom) / headerGrid.rows.length;
+        const headerBottom = pageHeight - headerDepth;
+        const rowHeight = headerRowHeight;
+        const headerTop = headerBottom + rowHeight * headerGrid.rows.length;
+        const titleY = headerTop + (frameTop - headerTop - (titleHeight ?? 5)) / 2;
+        g.text(3, pageWidth / 2, titleY, bounded(input.title ?? (locale === 'zh-CN' ? '钻孔柱状图' : 'BOREHOLE LOG'), 'title'), titleHeight ?? 5, true);
         g.rect(0, left, headerBottom, right, headerTop);
         for (const [rowIndex, row] of headerGrid.rows.entries()){
             const rowTop = headerTop - rowIndex * rowHeight, rowBottom = rowTop - rowHeight;
@@ -919,6 +1003,7 @@ export function compileGeologyColumn(input) {
             }
         }
     } else {
+        g.text(3, pageWidth / 2, pageHeight - 18, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质钻孔柱状图' : 'ENGINEERING BOREHOLE LOG'), 'title'), titleHeight ?? 5, true);
         if (input.projectName) g.text(3, left + 2, pageHeight - 27, `${labels.project} ${bounded(input.projectName, 'project name', 96)}`, 2.5);
         g.text(3, left + 2, pageHeight - 36, `${labels.hole} ${hole.id}   ${labels.collar} ${metres(hole.collarElevation)} m   ${labels.depth} ${metres(hole.depth)} m`, 3);
         const location = [
@@ -972,14 +1057,18 @@ export function compileGeologyColumn(input) {
         for (const [index, cell] of footerGrid.cells.entries()){
             const end = footerGrid.cells[index + 1]?.start ?? right;
             if (index) g.line(0, cell.start, bottom, cell.start, top);
-            const labelWidth = Math.min((end - cell.start) * 0.48, 2.2 + [
-                ...cell.label
-            ].length * 1.8);
-            const split = cell.start + labelWidth;
-            g.line(1, split, bottom, split, top);
-            g.text(3, cell.start + 1, bottom + 2.4, cell.label, 1.6);
+            const width = end - cell.start;
+            const labelHeight = width < 25 ? 1.4 : 1.55;
+            g.text(3, cell.start + width / 2, top - labelHeight - 1, cell.label, labelHeight, true);
             const value = documentFacts[cell.key];
-            if (value) g.text(3, split + 1, bottom + 2.4, value, 1.6);
+            if (value) {
+                const valueHeight = width < 25 ? 1.3 : 1.45;
+                const estimated = [
+                    ...value
+                ].reduce((sum, character)=>sum + (/^[\x20-\x7e]$/u.test(character) ? valueHeight * 0.64 : valueHeight), 0);
+                if (estimated > width - 2) throw new KJValidationError(`Geology: footer fact ${cell.key} does not fit its declared cell`);
+                g.text(3, cell.start + width / 2, bottom + 1.2, value, valueHeight, true);
+            }
         }
     };
     if (fieldGrid) {
@@ -991,15 +1080,35 @@ export function compileGeologyColumn(input) {
         const bandLines = [];
         const textBoxes = [];
         const emitFieldText = (item, y, value, height = 1.8)=>{
-            const width = estimatedWidth(value, height), x = item.start + 1.2;
+            const width = estimatedWidth(value, height);
             if (width > fieldWidth(item) - 2.4) throw new KJValidationError(`Geology: ${item.role} text does not fit its declared field`);
-            g.text(3, x, y, value, height);
+            const centered = item.role !== 'description';
+            const x = centered ? item.start + fieldWidth(item) / 2 : item.start + 1.2;
+            g.text(3, x, y, value, height, centered);
             textBoxes.push({
                 role: item.role,
-                left: x - 0.25,
-                right: x + width + 0.25,
+                left: x - (centered ? width / 2 : 0) - 0.25,
+                right: x + (centered ? width / 2 : width) + 0.25,
                 bottom: y - 0.25,
                 top: y + height + 0.25
+            });
+        };
+        const emitLayerNumber = (item, y, value, bandHeight)=>{
+            if (layerNumberStyle !== 'circle') return emitFieldText(item, y, value, Math.min(2.1, Math.max(1.4, bandHeight * 0.38)));
+            const circled = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳'.indexOf(value);
+            const visible = circled >= 0 ? String(circled + 1) : /^\d{1,2}$/u.test(value) ? value : undefined;
+            if (!visible) return emitFieldText(item, y, value, Math.min(2.1, Math.max(1.4, bandHeight * 0.38)));
+            const radius = Math.min(1.9, fieldWidth(item) / 2 - 1, bandHeight / 2 - 0.5);
+            if (radius < 1) throw new KJValidationError('Geology: circled layer number does not fit its declared band');
+            const x = item.start + fieldWidth(item) / 2, height = Math.min(1.8, radius * 0.95);
+            g.circle(0, x, y, radius);
+            g.text(3, x, y - height * 0.34, visible, height, true);
+            textBoxes.push({
+                role: item.role,
+                left: x - radius - 0.2,
+                right: x + radius + 0.2,
+                bottom: y - radius - 0.2,
+                top: y + radius + 0.2
             });
         };
         let previousDescriptionBottom, previousLabelY, renderedCoreCount = 0;
@@ -1042,7 +1151,12 @@ export function compileGeologyColumn(input) {
         g.rect(0, left, formBottom, right, pageHeight - headerDepth);
         for (const item of fieldGrid){
             if (item.start !== left) g.line(0, item.start, formBottom, item.start, pageHeight - headerDepth);
-            emitFieldText(item, pageHeight - headerDepth - 6, item.label, 1.5);
+            const centerX = item.start + fieldWidth(item) / 2;
+            if (item.subLabel) {
+                const subLabel = item.subLabel.replaceAll('{verticalScale}', scaleDenominator(verticalScaleDenominator));
+                g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.42, item.label, 1.8, true);
+                g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.78, subLabel, 1.6, true);
+            } else g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.62, item.label, 1.8, true);
         }
         g.line(0, left, top, right, top);
         const patternField = field('pattern'), depthField = field('depth');
@@ -1051,7 +1165,7 @@ export function compileGeologyColumn(input) {
             const coreIndex = renderedCoreCount++;
             const mid = (yTop + yBottom) / 2;
             let labelY = yTop - Math.max(1.8, (yTop - yBottom) / 2);
-            let labelHeight = 1.8;
+            let labelHeight = 2.1;
             if (textFlow && coreIndex < 2) {
                 labelHeight = textFlow.labelHeightMm;
                 labelY = Math.min(yTop - textFlow.firstBaselineMm, previousLabelY == null ? yTop - textFlow.firstBaselineMm : previousLabelY - textFlow.labelPitchMm);
@@ -1065,12 +1179,13 @@ export function compileGeologyColumn(input) {
                 baseElevation: metres(hole.collarElevation - groupBottom),
                 thickness: metres(groupBottom - groupTop)
             };
+            const valueY = textFlow && coreIndex < 2 ? labelY : yTop - yBottom < 2 ? labelY : mid;
+            emitLayerNumber(field('layerNumber'), valueY, values.layerNumber, yTop - yBottom);
             for (const role of [
-                'layerNumber',
                 'layerName',
                 'baseElevation',
                 'thickness'
-            ])emitFieldText(field(role), textFlow && coreIndex < 2 ? labelY : yTop - yBottom < 2 ? labelY : mid, values[role], labelHeight);
+            ])emitFieldText(field(role), valueY, values[role], labelHeight);
             if (principal.description && (grouped || principal.descriptionSource !== 'layer-definition' || definitionAnchors.get(`${principal.code}\u0000${principal.description}`) === principal)) writeGridDescription(principal.description, yTop, yBottom, coreIndex, `major group ${id}`);
         };
         for (const layer of strata){
@@ -1279,6 +1394,12 @@ export function compileGeologyColumn(input) {
 export function compileGeologySection(input) {
     if (input.surfaceRule !== 'straight-between-supplied-collars') throw new KJValidationError('Geology: an explicit surface connection rule is required');
     if (!Array.isArray(input.holes) || input.holes.length < 2 || input.holes.length > 24) throw new KJValidationError('Geology: section requires 2–24 holes');
+    const layout = sectionLayout();
+    const documentFacts = documentFactRecord(input.documentFacts);
+    if (input.projectName != null) bounded(input.projectName, 'project name', 96);
+    if (Object.hasOwn(documentFacts, 'projectName')) throw new KJValidationError('Geology: section projectName must use its dedicated field');
+    const declaredFacts = new Set(layout.footerGrid.map((cell)=>cell.key).filter((key)=>key !== 'projectName'));
+    for (const key of Object.keys(documentFacts))if (!declaredFacts.has(key)) throw new KJValidationError(`Geology: document fact ${key} is not declared by the section style`);
     const holes = [
         ...input.holes
     ].sort((a, b)=>numeric(a.station, 'station') - numeric(b.station, 'station'));
@@ -1295,18 +1416,43 @@ export function compileGeologySection(input) {
         });
     }
     for(let i = 1; i < holes.length; i++)if (holes[i].station <= holes[i - 1].station) throw new KJValidationError('Geology: stations must be strictly increasing');
-    const x = (hole)=>53 + (hole.station - holes[0].station) * hs;
-    const y = (hole, depth)=>48 + (hole.collarElevation - depth - datum) * vs;
-    if (x(holes.at(-1)) > 390 || holes.some((hole)=>y(hole, 0) > 256 || y(hole, hole.depth) < 48)) throw new KJValidationError('Geology: section does not fit A3 at the declared scales and datum');
+    const originX = layout.plotLeft + 18;
+    const x = (hole)=>originX + (hole.station - holes[0].station) * hs;
+    const y = (hole, depth)=>layout.plotBottom + (hole.collarElevation - depth - datum) * vs;
+    if (x(holes.at(-1)) > layout.plotRight - 4 || holes.some((hole)=>y(hole, 0) > layout.plotTop || y(hole, hole.depth) < layout.plotBottom)) throw new KJValidationError('Geology: section does not fit A3 at the declared scales and datum');
     const g = drawingBuilder(input, 'geology-section-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, [
         ...byId.values()
     ].flatMap((value)=>value.strata)));
-    g.rect(0, 5, 5, 415, 292);
+    g.rect(0, layout.outerMargin, layout.outerMargin, layout.paperWidth - layout.outerMargin, layout.paperHeight - layout.outerMargin);
+    g.rect(0, layout.innerMargin, layout.innerMargin, layout.paperWidth - layout.innerMargin, layout.paperHeight - layout.innerMargin);
     const locale = geologyLocale(input);
-    g.text(3, 133, 279, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质剖面图' : 'ENGINEERING GEOLOGICAL SECTION'), 'title'), 5);
-    g.text(3, 16, 266, locale === 'zh-CN' ? `水平比例尺 1:${scaleDenominator(input.horizontalScaleDenominator)}  垂直比例尺 1:${scaleDenominator(input.verticalScaleDenominator)}  基准标高 ${metres(datum)} m` : `HORIZONTAL 1:${scaleDenominator(input.horizontalScaleDenominator)}  VERTICAL 1:${scaleDenominator(input.verticalScaleDenominator)}  DATUM ${metres(datum)} m`, 3);
-    g.line(4, 41, 48, 41, 257);
-    g.line(4, 41, 48, 396, 48);
+    g.text(3, layout.paperWidth / 2, layout.titleY, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质剖面图' : 'ENGINEERING GEOLOGICAL SECTION'), 'title'), 5, true);
+    g.text(3, layout.paperWidth / 2, layout.scaleY, locale === 'zh-CN' ? `水平比例尺 1:${scaleDenominator(input.horizontalScaleDenominator)}   垂直比例尺 1:${scaleDenominator(input.verticalScaleDenominator)}` : `HORIZONTAL 1:${scaleDenominator(input.horizontalScaleDenominator)}   VERTICAL 1:${scaleDenominator(input.verticalScaleDenominator)}`, 2.5, true);
+    g.line(1, layout.plotLeft, layout.plotBottom, layout.plotLeft, layout.plotTop);
+    g.line(1, layout.plotLeft, layout.plotBottom, layout.plotRight, layout.plotBottom);
+    const maximumElevation = Math.max(...holes.map((hole)=>hole.collarElevation));
+    for(let elevation = Math.ceil(datum / layout.elevationTickStep) * layout.elevationTickStep; elevation <= maximumElevation + 1e-9; elevation += layout.elevationTickStep){
+        const tickY = layout.plotBottom + (elevation - datum) * vs;
+        if (tickY > layout.plotTop) break;
+        g.line(1, layout.plotLeft - 1.8, tickY, layout.plotLeft + 2.2, tickY);
+        g.text(3, layout.plotLeft - 13, tickY - 0.7, Number.isInteger(elevation) ? elevation.toFixed(0) : metres(elevation), 1.6);
+    }
+    const footerBottom = layout.innerMargin, footerTop = footerBottom + layout.footerHeight;
+    g.rect(0, layout.innerMargin, footerBottom, layout.paperWidth - layout.innerMargin, footerTop);
+    const footerValues = {
+        projectName: input.projectName,
+        ...documentFacts
+    };
+    for (const [index, cell] of layout.footerGrid.entries()){
+        const end = layout.footerGrid[index + 1]?.start ?? layout.paperWidth - layout.innerMargin;
+        if (index) g.line(0, cell.start, footerBottom, cell.start, footerTop);
+        const split = cell.start + Math.min((end - cell.start) * 0.42, 3 + [
+            ...cell.label
+        ].length * 1.75);
+        g.line(1, split, footerBottom, split, footerTop);
+        g.text(3, cell.start + 1.2, footerBottom + 2.8, cell.label, 1.6);
+        if (footerValues[cell.key]) g.text(3, split + 1.2, footerBottom + 2.8, footerValues[cell.key], 1.6);
+    }
     const surface = holes.map((hole)=>[
             x(hole),
             y(hole, 0)
@@ -1314,32 +1460,66 @@ export function compileGeologySection(input) {
     g.poly(1, surface);
     for (const hole of holes){
         const center = x(hole), top = y(hole, 0), bottom = y(hole, hole.depth);
-        g.line(4, center, 48, center, top);
-        g.rect(1, center - 2, bottom, center + 2, top);
-        g.text(3, center - 4, top + 5, hole.id, 2.7);
-        g.text(3, center - 7, 36, `${locale === 'zh-CN' ? '里程' : 'STA'} ${metres(hole.station)}`, 2.2);
-        g.text(3, center - 7, 29, `${locale === 'zh-CN' ? '孔口标高' : 'H'} ${metres(hole.collarElevation)}`, 2.2);
+        const half = layout.boreholeWidth / 2;
+        g.line(4, center, footerTop, center, top);
+        g.rect(1, center - half, bottom, center + half, top);
+        g.line(1, center - 5, top + 1.5, center + 5, top + 1.5);
+        g.text(3, center, top + 6.2, hole.id, 2.1, true);
+        g.text(3, center, top + 3.2, metres(hole.collarElevation), 1.5, true);
+        g.text(3, center - 9, layout.plotBottom - 8, `${locale === 'zh-CN' ? '里程' : 'STA'} ${metres(hole.station)}`, 1.7);
+        g.text(3, center - 9, layout.plotBottom - 13, `${locale === 'zh-CN' ? '孔深' : 'DEPTH'} ${metres(hole.depth)}`, 1.7);
         for (const layer of byId.get(hole.id).strata){
             const a = y(hole, layer.top), b = y(hole, layer.bottom);
-            g.line(1, center - 3, b, center + 3, b);
+            g.line(1, center - half - 1, b, center + half + 5, b);
             g.hatch([
                 [
-                    center - 2,
+                    center - half,
                     b
                 ],
                 [
-                    center + 2,
+                    center + half,
                     b
                 ],
                 [
-                    center + 2,
+                    center + half,
                     a
                 ],
                 [
-                    center - 2,
+                    center - half,
                     a
                 ]
             ], layer);
+            g.text(3, center + half + 1.5, b + 0.5, metres(layer.bottom), 1.35);
+        }
+        if (hole.stableWaterDepth != null) {
+            const waterY = y(hole, hole.stableWaterDepth);
+            g.line(1, center - 5, waterY, center + 5, waterY);
+            g.poly(1, [
+                [
+                    center - 2,
+                    waterY + 1.2
+                ],
+                [
+                    center,
+                    waterY - 1
+                ],
+                [
+                    center + 2,
+                    waterY + 1.2
+                ]
+            ]);
+            g.text(3, center + 6, waterY - 0.7, `${locale === 'zh-CN' ? '水位' : 'WL'} ${metres(hole.stableWaterDepth)}`, 1.5);
+        }
+        for (const observation of hole.observations ?? []){
+            const observationY = y(hole, observation.depth), markerX = center + half + 5;
+            if (observation.kind === 'sample') {
+                g.rect(1, markerX, observationY - 1.2, markerX + 2.2, observationY + 1.2);
+                g.text(3, markerX + 3.2, observationY - 0.7, observation.displayLabel ?? observation.id, 1.5);
+            } else {
+                g.line(1, markerX, observationY, markerX + 2.5, observationY);
+                const shown = Number.isInteger(observation.value) ? observation.value.toString() : metres(observation.value);
+                g.text(3, markerX + 3.2, observationY - 0.7, observation.displayLabel ?? `N=${shown}`, 1.5);
+            }
         }
     }
     if (!Array.isArray(input.correlations) || input.correlations.length > 200) throw new KJValidationError('Geology: invalid correlation list');
@@ -1378,8 +1558,13 @@ export function compileGeologySection(input) {
         ], a);
         g.line(1, xl, bottomL, xr, bottomR);
         g.line(1, xl, topL, xr, topR);
-        g.text(3, (xl + xr) / 2 - 5, (topL + topR + bottomL + bottomR) / 4, `${a.code} ${a.name}`, 2.3);
+        g.text(3, (xl + xr) / 2, (topL + topR + bottomL + bottomR) / 4, a.code, 1.8, true);
     }
-    g.text(3, 16, 13, locale === 'zh-CN' ? '仅显示已提供的地层与对比关系；未对比区域按设计留空。' : 'Only supplied strata/correlations are shown. Uncorrelated regions are intentionally blank.', 2.3);
-    return g.finish();
+    g.text(3, layout.innerMargin + 2, footerTop + 2.2, locale === 'zh-CN' ? '仅显示已提供的地层与对比关系；未对比区域按设计留空。' : 'Only supplied strata/correlations are shown. Uncorrelated regions are intentionally blank.', 1.5);
+    return g.finish({
+        horizontalScaleDenominator: input.horizontalScaleDenominator,
+        verticalScaleDenominator: input.verticalScaleDenominator,
+        datumElevation: datum,
+        styleRule: 'geology-section-layout'
+    });
 }

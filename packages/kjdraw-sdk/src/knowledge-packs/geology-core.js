@@ -852,10 +852,12 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
         'geology-column-layout': {
             paperWidth: 210,
             paperHeight: 297,
-            left: 10,
-            right: 200,
-            headerDepth: 57,
-            footerReserve: 14,
+            left: 15,
+            right: 195,
+            headerDepth: 52,
+            headerRowHeight: 5,
+            fieldHeaderHeight: 12,
+            footerReserve: 15,
             titleHeight: 6,
             verticalScaleDenominators: [
                 10,
@@ -871,6 +873,7 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
                 5000
             ],
             legendMode: 'none',
+            layerNumberStyle: 'circle',
             headerGrid: {
                 rows: [
                     [
@@ -878,60 +881,77 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
                             role: 'projectName',
                             label: '工程名称',
                             optional: true
+                        },
+                        {
+                            role: 'holeId',
+                            label: '勘探点编号'
                         }
                     ],
                     [
                         {
-                            role: 'holeId',
-                            label: '钻孔编号'
+                            role: 'x',
+                            label: 'X坐标(m)',
+                            optional: true
+                        },
+                        {
+                            role: 'y',
+                            label: 'Y坐标(m)',
+                            optional: true
                         },
                         {
                             role: 'collarElevation',
-                            label: '孔口标高'
+                            label: '孔口标高(m)'
                         }
                     ],
                     [
                         {
-                            role: 'depth',
-                            label: '孔深'
+                            role: 'startDate',
+                            label: '开孔日期',
+                            optional: true
                         },
                         {
-                            role: 'verticalScale',
-                            label: '纵向比例尺'
+                            role: 'endDate',
+                            label: '终孔日期',
+                            optional: true
+                        },
+                        {
+                            role: 'stableWaterDepth',
+                            label: '稳定水位(m)',
+                            optional: true
                         }
                     ]
                 ]
             },
             footerGrid: {
-                height: 9,
+                height: 10,
                 cells: [
                     {
-                        start: 10,
+                        start: 15,
                         key: 'organization',
                         label: '勘察单位'
                     },
                     {
-                        start: 68,
+                        start: 55,
                         key: 'preparedBy',
                         label: '编制'
                     },
                     {
-                        start: 92,
+                        start: 80,
                         key: 'checkedBy',
                         label: '校核'
                     },
                     {
-                        start: 116,
+                        start: 105,
                         key: 'approvedBy',
                         label: '审核'
                     },
                     {
-                        start: 140,
+                        start: 130,
                         key: 'issueDate',
-                        label: '日期'
+                        label: '制图日期'
                     },
                     {
-                        start: 166,
+                        start: 160,
                         key: 'drawingNumber',
                         label: '图号'
                     }
@@ -939,49 +959,104 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
             },
             fieldGrid: [
                 {
-                    start: 10,
+                    start: 15,
                     role: 'layerNumber',
-                    label: '层号'
+                    label: '地层',
+                    subLabel: '编号'
                 },
                 {
-                    start: 20,
+                    start: 25,
                     role: 'layerName',
-                    label: '岩土名称'
+                    label: '地层',
+                    subLabel: '名称'
                 },
                 {
-                    start: 38,
+                    start: 43,
                     role: 'baseElevation',
-                    label: '层底标高'
+                    label: '高程',
+                    subLabel: '(m)'
                 },
                 {
-                    start: 54,
+                    start: 55,
                     role: 'thickness',
-                    label: '层厚'
+                    label: '厚度',
+                    subLabel: '(m)'
                 },
                 {
-                    start: 66,
+                    start: 65,
                     role: 'depth',
-                    label: '层底深度'
+                    label: '深度',
+                    subLabel: '(m)'
                 },
                 {
-                    start: 80,
+                    start: 75,
                     role: 'pattern',
-                    label: '柱状图'
+                    label: '柱状图图例',
+                    subLabel: '1:{verticalScale}'
                 },
                 {
-                    start: 98,
+                    start: 95,
                     role: 'description',
-                    label: '岩土描述'
+                    label: '地  层  描  述'
                 },
                 {
-                    start: 164,
+                    start: 145,
                     role: 'sample',
-                    label: '取样'
+                    label: '取样',
+                    subLabel: '编号'
                 },
                 {
-                    start: 178,
+                    start: 170,
                     role: 'spt',
-                    label: '标贯 N'
+                    label: '标贯',
+                    subLabel: 'N(击)'
+                }
+            ]
+        },
+        'geology-section-layout': {
+            paperWidth: 420,
+            paperHeight: 297,
+            outerMargin: 5,
+            innerMargin: 12,
+            plotLeft: 34,
+            plotRight: 400,
+            plotBottom: 43,
+            plotTop: 246,
+            titleY: 277,
+            scaleY: 268,
+            footerHeight: 10,
+            boreholeWidth: 3.2,
+            elevationTickStep: 2,
+            footerGrid: [
+                {
+                    start: 12,
+                    key: 'projectName',
+                    label: '工程名称'
+                },
+                {
+                    start: 180,
+                    key: 'organization',
+                    label: '勘察单位'
+                },
+                {
+                    start: 254,
+                    key: 'preparedBy',
+                    label: '编制'
+                },
+                {
+                    start: 288,
+                    key: 'checkedBy',
+                    label: '校核'
+                },
+                {
+                    start: 322,
+                    key: 'approvedBy',
+                    label: '审核'
+                },
+                {
+                    start: 356,
+                    key: 'drawingNumber',
+                    label: '图号'
                 }
             ]
         },

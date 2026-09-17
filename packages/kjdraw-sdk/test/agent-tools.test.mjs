@@ -47,7 +47,7 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
         : tool.name === 'cad_propose_geology_column'
           ? ['locale', 'verticalScaleDenominator', 'projectName', 'title', 'pageHeightMillimeters', 'documentFacts']
         : tool.name === 'cad_propose_geology_section'
-          ? ['locale', 'title']
+          ? ['locale', 'projectName', 'title', 'documentFacts']
         : tool.name === 'cad_propose_structural_edit'
           ? ['reconnections', 'relayer']
         : tool.name === 'cad_check_geometry'
