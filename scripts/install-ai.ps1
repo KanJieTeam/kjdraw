@@ -88,8 +88,28 @@ if ($KJDrawTrae.installUrl) {
   }
 }
 
+# Client tasks keep the stdio process they launched when the task started.
+# Detect only exact earlier KJDraw MCP script paths; never terminate the client
+# or unrelated Node processes from an installer.
+$KJDrawStaleProcesses = @()
+try {
+  $KJDrawPreviousCanonical = @($KJDrawPreviousMcp | ForEach-Object { [IO.Path]::GetFullPath($_) })
+  if ($KJDrawPreviousCanonical.Count) {
+    $KJDrawStaleProcesses = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction Stop | Where-Object {
+      $KJDrawCommandLine = $_.CommandLine
+      $KJDrawCommandLine -and @($KJDrawPreviousCanonical | Where-Object { $KJDrawCommandLine.Contains($_, [StringComparison]::OrdinalIgnoreCase) }).Count
+    })
+  }
+} catch {
+  $KJDrawStaleProcesses = @()
+}
+
 Write-Host ''
 Write-Host 'KJDraw user configuration is installed.' -ForegroundColor Green
+if ($KJDrawStaleProcesses.Count) {
+  $KJDrawStaleIds = ($KJDrawStaleProcesses | ForEach-Object { $_.ProcessId }) -join ', '
+  Write-Warning "An earlier KJDraw MCP process is still attached to an open client task (PID: $KJDrawStaleIds). Fully exit WorkBuddy/Kimi Code, reopen it, and start a new task. Existing candidate HTML files are immutable and will keep their old appearance."
+}
 Write-Host 'Restart Kimi Code, WorkBuddy, or ZCode and verify the kjdraw tool call in any workspace. TraeCode uses its official import confirmation.'
 Write-Host 'Ask:'
 Write-Host 'Use KJDraw to draw a circle with a 5 mm radius.'
