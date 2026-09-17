@@ -1,13 +1,14 @@
 $ErrorActionPreference = 'Stop'
 
-$KJDrawSourceSha = '4c7124e1682b95f28a79c3d876fdb914ea15fe54'
+$KJDrawSourceSha = '734a7f4df511fe5828444df556e4c8e92621cd06'
 $KJDrawUserHome = if ($env:KJDRAW_USER_HOME) { $env:KJDRAW_USER_HOME } else { $env:USERPROFILE }
-$KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-4c7124e'
+$KJDrawInstall = Join-Path $env:LOCALAPPDATA 'KJDraw\source-734a7f4'
 $KJDrawProcessUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 $KJDrawDesktopUser = $null
 try { $KJDrawDesktopUser = (Get-CimInstance Win32_ComputerSystem -ErrorAction Stop).UserName } catch {}
 $KJDrawDifferentDesktopUser = $KJDrawDesktopUser -and -not [string]::Equals($KJDrawProcessUser, $KJDrawDesktopUser, [StringComparison]::OrdinalIgnoreCase)
 $KJDrawPreviousMcpCandidates = @(
+  (Join-Path $env:LOCALAPPDATA 'KJDraw\source-4c7124e\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-0c2d86e\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-57e0697\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
   (Join-Path $env:LOCALAPPDATA 'KJDraw\source-1854240\packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'),
