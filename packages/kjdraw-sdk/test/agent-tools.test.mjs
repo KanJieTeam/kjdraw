@@ -37,7 +37,7 @@ test('tool definitions are frozen serializable schemas with no approval or arbit
         : tool.name === 'cad_propose_polyline_edit'
           ? ['segmentIndex', 'vertexIndex', 'point', 'tolerance', 'bulge', 'sweepDegrees', 'startWidth', 'endWidth']
         : tool.name === 'cad_propose_manufacturing_sheet'
-          ? ['locale', 'holePatterns', 'slots']
+          ? ['locale', 'holePatterns', 'boltCirclePatterns', 'slots']
         : tool.name === 'cad_propose_architecture_plan'
           ? ['locale', 'exteriorOpenings', 'partitions', 'textHeight']
         : tool.name === 'cad_propose_site_plan'

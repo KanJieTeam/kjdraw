@@ -124,7 +124,8 @@ async function readJsonCheck(path, keys, desired, safe) {
   const entry = container.kjdraw
   if (!plainObject(entry)) return { status: 'missing-kjdraw-entry' }
   if (entry.command !== 'node' || !Array.isArray(entry.args) || entry.args.some(value => typeof value !== 'string')) return { status: 'mismatched-kjdraw-entry' }
-  const expected = [MCP_SCRIPT, '--workspace', desired.workspace, '--input', '.kjdraw/host.kjd', '--proposal-dir', '.kjdraw/proposals', '--candidate-dir', '.kjdraw/results']
+  const expected = [MCP_SCRIPT, '--workspace', desired.workspace, '--input', '.kjdraw/host.kjd', '--proposal-dir', '.kjdraw/proposals', '--candidate-dir', '.kjdraw/results',
+    ...(desired.client === 'Kimi Code' ? ['--tool-profile', 'kimi-safe'] : [])]
   const normalized = entry.args.length ? [resolve(entry.args[0]), ...entry.args.slice(1)] : []
   const matches = JSON.stringify(normalized) === JSON.stringify(expected)
   return { status: matches ? 'ok' : 'mismatched-kjdraw-entry' }
@@ -191,7 +192,7 @@ async function doctor(args) {
 
   for (const config of CONFIGS) {
     const checked = await projectPath(workspace, config.path)
-    checks.push({ id: 'client-config', client: config.client, path: config.path, ...await readJsonCheck(checked.path, config.keys, { workspace }, checked.safe) })
+    checks.push({ id: 'client-config', client: config.client, path: config.path, ...await readJsonCheck(checked.path, config.keys, { workspace, client: config.client }, checked.safe) })
   }
   const traeImport = await projectPath(workspace, '.kjdraw/trae-install-url.txt')
   const traeInfo = await item(traeImport.path)
