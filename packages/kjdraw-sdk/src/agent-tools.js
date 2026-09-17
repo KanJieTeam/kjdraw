@@ -854,6 +854,31 @@ const manufacturingHolePattern = {
             'counterboreDepth'
         ].includes(name))
 };
+const manufacturingBoltCircleBase = object({
+    count: {
+        type: 'integer',
+        minimum: 2,
+        maximum: 64
+    },
+    center: numericTuple(2),
+    pitchDiameter: radius,
+    throughDiameter: radius,
+    startAngleDegrees: {
+        type: 'number',
+        minimum: -360,
+        maximum: 360
+    },
+    counterboreDiameter: radius,
+    counterboreDepth: radius
+});
+const manufacturingBoltCircle = {
+    ...manufacturingBoltCircleBase,
+    required: manufacturingBoltCircleBase.required.filter((name)=>![
+            'startAngleDegrees',
+            'counterboreDiameter',
+            'counterboreDepth'
+        ].includes(name))
+};
 const manufacturingSheetSchema = objectWithOptional({
     expectedRevision: revision,
     units: {
@@ -905,6 +930,12 @@ const manufacturingSheetSchema = objectWithOptional({
         maxItems: 16,
         items: manufacturingHolePattern
     },
+    boltCirclePatterns: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 16,
+        items: manufacturingBoltCircle
+    },
     slots: {
         type: 'array',
         minItems: 0,
@@ -930,6 +961,7 @@ const manufacturingSheetSchema = objectWithOptional({
 }, [
     'locale',
     'holePatterns',
+    'boltCirclePatterns',
     'slots'
 ]);
 const architectureOpening = object({
@@ -1769,7 +1801,7 @@ export const KJDRAW_AGENT_TOOLS = deepFreeze([
     {
         name: 'cad_propose_manufacturing_sheet',
         effect: 'propose',
-        description: 'Compile a complete editable millimeter manufacturing drawing from a compact versioned intent instead of emitting every CAD entity. For a Chinese request set locale=zh-CN; generated view names, feature notes, title-block fields and machining notes will be Chinese, and Chinese title/material text also selects this automatically. Version 1.0.0 supports a rectangular plate, bounded rectangular through-hole patterns with optional counterbores, horizontal or vertical through slots, aligned top/front views, center marks, native measured dimensions, named engineering layers, sheet border, title block and machining notes. Interpret horizontal slots as orientationDegrees 0 (long axis +X), and a counterbore from the top as the +Z face; these are deterministic conventions, not clarification questions. If the request explicitly gives a border lower-left (0,0) and omits sheet.origin, use [0,0]; do not ask for that redundant value. Views compile at native 1:1 and the compiler deterministically rejects a sheet that cannot contain them. KJDraw validates all feature relationships, generates deterministic native geometry locally and returns the full preview. The model supplies design parameters only; host approval applies one atomic CREATEBATCH transaction.',
+        description: 'Compile a complete editable millimeter manufacturing drawing from a compact versioned intent instead of emitting every CAD entity. For a Chinese request set locale=zh-CN; generated view names, feature notes, title-block fields and machining notes will be Chinese, and Chinese title/material text also selects this automatically. Version 1.0.0 supports a rectangular plate, bounded rectangular and evenly spaced bolt-circle through-hole patterns with optional counterbores, horizontal or vertical through slots, aligned top/front views, center marks, native measured dimensions, named engineering layers, sheet border, title block and machining notes. For bolt circles supply the exact count, center, pitch diameter and optional start angle; the compiler owns every hole coordinate, pitch-circle construction line and native diameter annotation. Interpret horizontal slots as orientationDegrees 0 (long axis +X), and a counterbore from the top as the +Z face; these are deterministic conventions, not clarification questions. If the request explicitly gives a border lower-left (0,0) and omits sheet.origin, use [0,0]; do not ask for that redundant value. Views compile at native 1:1 and the compiler deterministically rejects a sheet that cannot contain them. KJDraw validates all feature relationships, generates deterministic native geometry locally and returns the full preview. The model supplies design parameters only; host approval applies one atomic CREATEBATCH transaction.',
         inputSchema: manufacturingSheetSchema
     },
     {

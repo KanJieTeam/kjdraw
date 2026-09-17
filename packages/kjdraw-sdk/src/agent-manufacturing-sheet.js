@@ -16,6 +16,7 @@ const INPUT_KEYS = [
     'width',
     'thickness',
     'holePatterns',
+    'boltCirclePatterns',
     'slots',
     'sheet',
     'textHeight'
@@ -26,6 +27,15 @@ const HOLE_KEYS = [
     'origin',
     'spacing',
     'throughDiameter',
+    'counterboreDiameter',
+    'counterboreDepth'
+];
+const BOLT_CIRCLE_KEYS = [
+    'count',
+    'center',
+    'pitchDiameter',
+    'throughDiameter',
+    'startAngleDegrees',
     'counterboreDiameter',
     'counterboreDepth'
 ];
@@ -143,6 +153,42 @@ function validateInput(document, source) {
             counterboreDepth
         };
     });
+    const boltCircleSource = input.boltCirclePatterns ?? [];
+    if (!Array.isArray(boltCircleSource) || boltCircleSource.length > 16) throw new KJValidationError('input.boltCirclePatterns must contain at most 16 patterns');
+    const boltCirclePatterns = boltCircleSource.map((source, index)=>{
+        const pattern = plain(source, `input.boltCirclePatterns[${index}]`);
+        exactKeys(pattern, BOLT_CIRCLE_KEYS, `input.boltCirclePatterns[${index}]`);
+        const count = boundedInteger(pattern.count, `input.boltCirclePatterns[${index}].count`, 2, 64);
+        holeCount += count;
+        if (holeCount > 128) throw new KJValidationError('input hole patterns expand to more than 128 holes');
+        const center = point2(pattern.center, `input.boltCirclePatterns[${index}].center`, 0, 100_000);
+        const pitchDiameter = boundedNumber(pattern.pitchDiameter, `input.boltCirclePatterns[${index}].pitchDiameter`, 0.01, Math.min(length, width) * 2);
+        const throughDiameter = boundedNumber(pattern.throughDiameter, `input.boltCirclePatterns[${index}].throughDiameter`, 0.01, Math.min(length, width));
+        const startAngleDegrees = pattern.startAngleDegrees == null ? 0 : boundedNumber(pattern.startAngleDegrees, `input.boltCirclePatterns[${index}].startAngleDegrees`, -360, 360);
+        const hasCounterboreDiameter = pattern.counterboreDiameter != null;
+        const hasCounterboreDepth = pattern.counterboreDepth != null;
+        if (hasCounterboreDiameter !== hasCounterboreDepth) throw new KJValidationError(`input.boltCirclePatterns[${index}] counterboreDiameter and counterboreDepth must be supplied together`);
+        const counterboreDiameter = hasCounterboreDiameter ? boundedNumber(pattern.counterboreDiameter, `input.boltCirclePatterns[${index}].counterboreDiameter`, throughDiameter, Math.min(length, width)) : undefined;
+        if (counterboreDiameter != null && counterboreDiameter <= throughDiameter) throw new KJValidationError(`input.boltCirclePatterns[${index}].counterboreDiameter must exceed throughDiameter`);
+        const counterboreDepth = hasCounterboreDepth ? boundedNumber(pattern.counterboreDepth, `input.boltCirclePatterns[${index}].counterboreDepth`, 0.01, thickness) : undefined;
+        if (counterboreDepth != null && counterboreDepth >= thickness) throw new KJValidationError(`input.boltCirclePatterns[${index}].counterboreDepth must be less than thickness`);
+        const featureDiameter = counterboreDiameter ?? throughDiameter;
+        const pitchRadius = pitchDiameter / 2;
+        const featureRadius = featureDiameter / 2;
+        if (2 * pitchRadius * Math.sin(Math.PI / count) < featureDiameter - 1e-9) throw new KJValidationError(`input.boltCirclePatterns[${index}] holes overlap`);
+        if (center[0] - pitchRadius - featureRadius < 0 || center[1] - pitchRadius - featureRadius < 0 || center[0] + pitchRadius + featureRadius > length || center[1] + pitchRadius + featureRadius > width) {
+            throw new KJValidationError(`input.boltCirclePatterns[${index}] lies outside the plate`);
+        }
+        return {
+            count,
+            center,
+            pitchDiameter,
+            throughDiameter,
+            startAngleDegrees,
+            counterboreDiameter,
+            counterboreDepth
+        };
+    });
     const slotSource = input.slots ?? [];
     if (!Array.isArray(slotSource) || slotSource.length > 64) throw new KJValidationError('input.slots must contain at most 64 slots');
     const slots = slotSource.map((source, index)=>{
@@ -179,6 +225,7 @@ function validateInput(document, source) {
         width,
         thickness,
         holePatterns,
+        boltCirclePatterns,
         slots,
         sheet: {
             origin: sheetOrigin,
@@ -435,6 +482,71 @@ export function buildAgentManufacturingSheet(document, source) {
             }
         }
     });
+    input.boltCirclePatterns.forEach((pattern, patternIndex)=>{
+        const centerX = topX + pattern.center[0] * scale;
+        const centerY = topY + pattern.center[1] * scale;
+        const pitchRadius = pattern.pitchDiameter * scale / 2;
+        const projectedColumns = new Set();
+        const centers = [];
+        add('CIRCLE', 'CENTER', {
+            center: p3(centerX, centerY),
+            radius: pitchRadius
+        });
+        const centerSize = Math.max(input.textHeight * 1.5, pattern.throughDiameter * scale);
+        line(centerX - centerSize, centerY, centerX + centerSize, centerY, 'CENTER');
+        line(centerX, centerY - centerSize, centerX, centerY + centerSize, 'CENTER');
+        for(let holeIndex = 0; holeIndex < pattern.count; holeIndex += 1){
+            const angle = (pattern.startAngleDegrees + holeIndex * 360 / pattern.count) * Math.PI / 180;
+            const plateX = pattern.center[0] + pattern.pitchDiameter / 2 * Math.cos(angle);
+            const plateY = pattern.center[1] + pattern.pitchDiameter / 2 * Math.sin(angle);
+            const x = topX + plateX * scale, y = topY + plateY * scale;
+            const center = p3(x, y);
+            centers.push(center);
+            add('CIRCLE', 'OUTLINE', {
+                center,
+                radius: pattern.throughDiameter * scale / 2
+            });
+            if (pattern.counterboreDiameter != null) add('CIRCLE', 'OUTLINE', {
+                center,
+                radius: pattern.counterboreDiameter * scale / 2
+            });
+            const markSize = Math.max(input.textHeight, pattern.throughDiameter * scale * 0.75);
+            line(x - markSize, y, x + markSize, y, 'CENTER');
+            line(x, y - markSize, x, y + markSize, 'CENTER');
+            const projectionKey = formatMillimeters(plateX);
+            if (!projectedColumns.has(projectionKey)) {
+                projectedColumns.add(projectionKey);
+                const projectedX = frontX + plateX * scale;
+                const throughRadius = pattern.throughDiameter * scale / 2;
+                const throughTop = frontY + (input.thickness - (pattern.counterboreDepth ?? 0)) * scale;
+                line(projectedX - throughRadius, frontY, projectedX - throughRadius, throughTop, 'HIDDEN');
+                line(projectedX + throughRadius, frontY, projectedX + throughRadius, throughTop, 'HIDDEN');
+                line(projectedX, frontY - input.textHeight, projectedX, frontY + input.thickness * scale + input.textHeight, 'CENTER');
+                if (pattern.counterboreDiameter != null && pattern.counterboreDepth != null) {
+                    const counterboreRadius = pattern.counterboreDiameter * scale / 2;
+                    const counterboreBottom = frontY + (input.thickness - pattern.counterboreDepth) * scale;
+                    line(projectedX - counterboreRadius, counterboreBottom, projectedX - counterboreRadius, frontY + input.thickness * scale, 'HIDDEN');
+                    line(projectedX + counterboreRadius, counterboreBottom, projectedX + counterboreRadius, frontY + input.thickness * scale, 'HIDDEN');
+                    line(projectedX - counterboreRadius, counterboreBottom, projectedX - throughRadius, counterboreBottom, 'HIDDEN');
+                    line(projectedX + throughRadius, counterboreBottom, projectedX + counterboreRadius, counterboreBottom, 'HIDDEN');
+                }
+            }
+        }
+        const firstCenter = centers[0];
+        line(centerX, centerY, firstCenter[0], firstCenter[1], 'CENTER');
+        const holeRadius = pattern.throughDiameter * scale / 2;
+        dimension([
+            p3(firstCenter[0] - holeRadius, firstCenter[1]),
+            p3(firstCenter[0] + holeRadius, firstCenter[1])
+        ], p3(firstCenter[0] + dimensionPad * 1.5, firstCenter[1] + dimensionPad), 'DIAMETER');
+        dimension([
+            p3(centerX - pitchRadius, centerY),
+            p3(centerX + pitchRadius, centerY)
+        ], p3(centerX, centerY - pitchRadius - dimensionPad / 2), 'DIAMETER');
+        const featureText = pattern.counterboreDiameter == null ? zh ? `${pattern.count}× 等分通孔 ⌀${formatMillimeters(pattern.throughDiameter)}，分布圆 ⌀${formatMillimeters(pattern.pitchDiameter)}` : `${pattern.count}X EQ SP DIA ${formatMillimeters(pattern.throughDiameter)} THRU ON DIA ${formatMillimeters(pattern.pitchDiameter)} PCD` : zh ? `${pattern.count}× 等分通孔 ⌀${formatMillimeters(pattern.throughDiameter)} / 沉孔 ⌀${formatMillimeters(pattern.counterboreDiameter)} 深 ${formatMillimeters(pattern.counterboreDepth)}，分布圆 ⌀${formatMillimeters(pattern.pitchDiameter)}` : `${pattern.count}X EQ SP DIA ${formatMillimeters(pattern.throughDiameter)} THRU / C'BORE DIA ${formatMillimeters(pattern.counterboreDiameter)} DEPTH ${formatMillimeters(pattern.counterboreDepth)} ON DIA ${formatMillimeters(pattern.pitchDiameter)} PCD`;
+        const noteLane = input.holePatterns.length + patternIndex;
+        text(topX, topY + input.width + input.textHeight * (4 + noteLane * 2), featureText);
+    });
     input.slots.forEach((slot, index)=>{
         const cx = topX + slot.center[0] * scale, cy = topY + slot.center[1] * scale;
         const halfStraight = (slot.length - slot.width) * scale / 2, radius = slot.width * scale / 2;
@@ -562,14 +674,15 @@ export function buildAgentManufacturingSheet(document, source) {
                 width: input.width,
                 thickness: input.thickness,
                 holePatternCount: input.holePatterns.length,
-                holeCount: input.holePatterns.reduce((total, pattern)=>total + pattern.rows * pattern.columns, 0),
+                boltCirclePatternCount: input.boltCirclePatterns.length,
+                holeCount: input.holePatterns.reduce((total, pattern)=>total + pattern.rows * pattern.columns, 0) + input.boltCirclePatterns.reduce((total, pattern)=>total + pattern.count, 0),
                 slotCount: input.slots.length,
                 sheet: input.sheet,
                 textHeight: input.textHeight,
                 viewScale: scale
             },
             limitations: [
-                'Rectangular hole arrays only',
+                'Hole arrays support rectangular grids and evenly spaced bolt circles',
                 'Slot orientations are limited to 0 or 90 degrees',
                 'Views are orthographic and compiled at 1:1; the compiler refuses a sheet that cannot contain the requested geometry'
             ]

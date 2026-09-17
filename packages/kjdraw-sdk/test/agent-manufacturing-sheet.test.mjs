@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 import { createKJDrawSDK, KJDocument, KJValidationError } from '../src/index.js'
+import { projectDimension } from '../src/geometry/annotation.js'
 import {
   KJDRAW_MANUFACTURING_SHEET_VERSION,
   buildAgentManufacturingSheet,
 } from '../src/agent-manufacturing-sheet.js'
+
+const near = (actual, expected, tolerance = 1e-9) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} != ${expected}`)
 
 function complexInput(overrides = {}) {
   return {
@@ -72,6 +76,60 @@ test('manufacturing sheet localizes every compiler-generated visible note for Ch
   assert.ok(!texts.some(value => /TOP VIEW|FRONT VIEW|MACHINING NOTES|DRAWING:|MATERIAL:|SCALE:/u.test(value)))
 })
 
+test('manufacturing sheet compiles an exact editable bolt circle with native PCD and hole dimensions', async t => {
+  const sdk = createKJDrawSDK()
+  const document = sdk.createDocument({ documentId: 'manufacturing-bolt-circle', units: 'millimeter' })
+  const compiled = buildAgentManufacturingSheet(document, complexInput({
+    locale: 'zh-CN', title: '法兰安装板', material: '45钢', holePatterns: [], slots: [],
+    boltCirclePatterns: [{ count: 6, center: [120, 70], pitchDiameter: 80, throughDiameter: 8, startAngleDegrees: 30 }],
+  }))
+  assert.equal(compiled.evidence.parameters.holePatternCount, 0)
+  assert.equal(compiled.evidence.parameters.boltCirclePatternCount, 1)
+  assert.equal(compiled.evidence.parameters.holeCount, 6)
+  const centerLayer = compiled.commandArgs.resources.layers.find(layer => layer.name === 'CENTER')
+  const pitchCircle = compiled.commandArgs.entities.find(entity => entity.type === 'CIRCLE' && entity.payload.layerId === centerLayer.id && entity.payload.radius === 40)
+  assert.ok(pitchCircle)
+  const holes = compiled.commandArgs.entities.filter(entity => entity.type === 'CIRCLE' && entity.payload.radius === 4)
+  assert.equal(holes.length, 6)
+  for (const hole of holes) near(Math.hypot(hole.payload.center[0] - pitchCircle.payload.center[0], hole.payload.center[1] - pitchCircle.payload.center[1]), 40)
+  const notes = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  assert.ok(notes.some(value => value === '6× 等分通孔 ⌀8，分布圆 ⌀80'))
+  const measurements = compiled.commandArgs.entities.filter(entity => entity.type === 'DIMENSION').map(entity => projectDimension(entity.payload)?.measurement)
+  assert.ok(measurements.some(value => value === 8))
+  assert.ok(measurements.some(value => value === 80))
+
+  await executeCompiled(sdk, document, compiled)
+  const editableHole = document.listEntities({ type: 'CIRCLE' }).find(entity => entity.payload.radius === 4)
+  const originalCenter = structuredClone(editableHole.payload.center)
+  await sdk.executeCommand('MOVE', { ids: [editableHole.id], dx: 1, dy: 0 }, { document })
+  assert.deepEqual(document.getObject(editableHole.id).payload.center, [originalCenter[0] + 1, originalCenter[1], 0])
+  await sdk.executeCommand('UNDO', {}, { document })
+  assert.deepEqual(document.getObject(editableHole.id).payload.center, originalCenter)
+  const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const reopened = await createKJDrawSDK().readDocument(dxf, { format: 'DXF', version: '2018' })
+  const reopenedPitch = reopened.listEntities({ type: 'CIRCLE' }).find(entity => entity.payload.layerId === reopened.getTable('layers').records.find(layer => layer.name === 'CENTER').id && entity.payload.radius === 40)
+  assert.ok(reopenedPitch)
+  assert.equal(reopened.listEntities({ type: 'CIRCLE' }).filter(entity => entity.payload.radius === 4).length, 6)
+  const reopenedMeasurements = reopened.listEntities({ type: 'DIMENSION' }).map(entity => projectDimension(entity.payload, reopened.getObject(entity.payload.styleId)?.payload)?.measurement)
+  assert.ok(reopenedMeasurements.some(value => value === 8))
+  assert.ok(reopenedMeasurements.some(value => value === 80))
+  assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON ?? 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); print(json.dumps({"version":ezdxf.__version__,"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(d.modelspace().query("CIRCLE")),"measurements":[e.get_measurement() for e in d.modelspace().query("DIMENSION")]}))'],
+  dxf, { encoding: 'utf8', timeout: 30000, windowsHide: true })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/.test(independent.stderr ?? ''))
+    t.skip('official ezdxf is unavailable')
+  else {
+    assert.equal(independent.status, 0, independent.stderr)
+    const report = JSON.parse(independent.stdout)
+    assert.equal(report.version, '1.4.4')
+    assert.deepEqual([report.errors, report.fixes], [0, 0])
+    assert.ok(report.circles >= 7)
+    assert.ok(report.measurements.some(value => Math.abs(value - 8) <= 1e-9))
+    assert.ok(report.measurements.some(value => Math.abs(value - 80) <= 1e-9))
+  }
+})
+
 test('compiled manufacturing sheet executes through CREATEBATCH and reopens through KJD and DXF', async () => {
   const sdk = createKJDrawSDK()
   const document = sdk.createDocument({ documentId: 'manufacturing-roundtrip', units: 'millimeter' })
@@ -117,6 +175,9 @@ test('manufacturing sheet compiler rejects stale, unsupported, out-of-bounds and
   rejects({ quantity: 1.5 }, /integer/)
   rejects({ holePatterns: [{ rows: 1, columns: 1, origin: [2, 2], spacing: [0, 0], throughDiameter: 10 }] }, /outside the plate/)
   rejects({ holePatterns: [{ rows: 1, columns: 1, origin: [20, 20], spacing: [0, 0], throughDiameter: 10, counterboreDiameter: 18 }] }, /supplied together/)
+  rejects({ boltCirclePatterns: [{ count: 6, center: [20, 20], pitchDiameter: 40, throughDiameter: 8 }] }, /outside the plate/)
+  rejects({ boltCirclePatterns: [{ count: 12, center: [120, 70], pitchDiameter: 20, throughDiameter: 8 }] }, /overlap/)
+  rejects({ boltCirclePatterns: [{ count: 6, center: [120, 70], pitchDiameter: 80, throughDiameter: 8, counterboreDiameter: 14 }] }, /supplied together/)
   rejects({ slots: [{ center: [120, 70], length: 40, width: 10, orientationDegrees: 45 }] }, /0 or 90/)
   rejects({ length: 2_000, width: 1_000 }, /1:1 model-space scale/)
   rejects({

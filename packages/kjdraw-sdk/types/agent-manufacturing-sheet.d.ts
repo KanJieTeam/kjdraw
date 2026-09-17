@@ -8,6 +8,15 @@ export interface KJAgentManufacturingHolePattern {
     counterboreDiameter?: number;
     counterboreDepth?: number;
 }
+export interface KJAgentManufacturingBoltCirclePattern {
+    count: number;
+    center: [number, number];
+    pitchDiameter: number;
+    throughDiameter: number;
+    startAngleDegrees?: number;
+    counterboreDiameter?: number;
+    counterboreDepth?: number;
+}
 export interface KJAgentManufacturingSlot {
     center: [number, number];
     length: number;
@@ -28,6 +37,7 @@ export interface KJAgentManufacturingSheetInput {
     width: number;
     thickness: number;
     holePatterns?: KJAgentManufacturingHolePattern[];
+    boltCirclePatterns?: KJAgentManufacturingBoltCirclePattern[];
     slots?: KJAgentManufacturingSlot[];
     sheet: {
         origin: [number, number];
@@ -121,6 +131,7 @@ export declare function buildAgentManufacturingSheet(document: ManufacturingDocu
             width: number;
             thickness: number;
             holePatternCount: number;
+            boltCirclePatternCount: number;
             holeCount: number;
             slotCount: number;
             sheet: {

@@ -94,11 +94,11 @@ const descriptors: KJDrawBuiltinCapabilityDescriptor[] = [
   {
     id: 'builtin.manufacturing-sheet', version: '1.0.0', family: 'manufacturing',
     name: { en: 'Manufacturing sheet', zhCN: '机械制造工程图' },
-    summary: { en: 'Parametric plate, holes, slots, orthographic views, dimensions and machining notes.', zhCN: '参数化板件、孔阵列、槽、正投影视图、尺寸和加工说明。' },
+    summary: { en: 'Parametric plate, grid and bolt-circle holes, slots, orthographic views, dimensions and machining notes.', zhCN: '参数化板件、矩形及分布圆孔阵列、槽、正投影视图、尺寸和加工说明。' },
     units: ['millimeter'],
     examples: [{ en: 'Create a manufacturing drawing for a fixture plate with counterbores.', zhCN: '绘制带沉孔的夹具板制造工程图。' }],
     verification: ['geometry', 'layers', 'native dimensions', 'undo/redo', 'KJD reopen', 'DXF reopen'],
-    manifest: manifest('builtin.manufacturing-sheet', 'Manufacturing sheet', '1.0.0', 'cad_propose_manufacturing_sheet', 'Use the manufacturing-sheet compiler exactly once. Extract only explicit plate, feature, title-block and sheet parameters from the request. Deterministic conventions: a horizontal slot means its long axis follows +X (orientationDegrees 0); a counterbore specified from the top is the +Z face. Do not ask to confirm these standard meanings when the request already says horizontal or top. If a border lower-left is explicitly (0,0), use sheet.origin [0,0]. Never emit individual geometry or invent missing dimensions, material, quantity or machining requirements. Ask only for genuinely missing required values. The compiler owns deterministic geometry, engineering layers, native dimensions, the atomic proposal and bounded evidence.'),
+    manifest: manifest('builtin.manufacturing-sheet', 'Manufacturing sheet', '1.0.0', 'cad_propose_manufacturing_sheet', 'Use the manufacturing-sheet compiler exactly once. Extract only explicit plate, feature, title-block and sheet parameters from the request. Represent a flange or PCD hole set as boltCirclePatterns with its exact count, center, pitch diameter and optional start angle; never calculate or emit its individual holes. Deterministic conventions: a horizontal slot means its long axis follows +X (orientationDegrees 0); a counterbore specified from the top is the +Z face. Do not ask to confirm these standard meanings when the request already says horizontal or top. If a border lower-left is explicitly (0,0), use sheet.origin [0,0]. Never emit individual geometry or invent missing dimensions, material, quantity or machining requirements. Ask only for genuinely missing required values. The compiler owns deterministic geometry, engineering layers, native dimensions, the atomic proposal and bounded evidence.'),
   },
   {
     id: 'builtin.architecture-plan', version: '1.0.0', family: 'architecture',
@@ -152,7 +152,7 @@ export function matchKJDrawBuiltinCapability(input: { prompt: string; units: str
   // This optional shortcut is not a semantic planner. Ambiguity must retain the
   // host's general tool policy instead of locking the conversation to a compiler.
   if (!/\b(?:create|draw|generate|compile|build|plot)\b|绘制|生成|画/.test(normalized)) return null
-  const manufacturing = /manufactur|machin|fixture\s+plate|counterbore|through\s+slot|hole\s+array|machined\s+feature|制造|加工|夹具板|沉孔|槽孔|孔阵列/.test(normalized)
+  const manufacturing = /manufactur|machin|fixture\s+plate|counterbore|through\s+slot|hole\s+array|bolt\s+circle|pitch\s+circle|\bpcd\b|flange|machined\s+feature|制造|加工|夹具板|沉孔|槽孔|孔阵列|螺栓圆|分布圆|法兰/.test(normalized)
   const mixedFamily = /\b(?:bar|column|line|chart|floor|architectural|site|campus|road|profile|cross[- ]section)\b|柱状图|条形图|折线图|建筑|场地|园区|道路|纵断面|横断面/.test(normalized)
   if (manufacturing && !mixedFamily && !/\b(?:how|explain|compare)\b|如何|怎么|解释|比较|[?？]/.test(normalized)) {
     return KJDRAW_BUILTIN_AGENT_CAPABILITIES.find(descriptor => descriptor.id === 'builtin.manufacturing-sheet') ?? null
@@ -162,7 +162,7 @@ export function matchKJDrawBuiltinCapability(input: { prompt: string; units: str
   if (/\b(?:move|translate|rotate|delete|remove|relayer|modify|edit|update)\b|移动|平移|旋转|删除|重连|调层|修改|更新/.test(normalized)) return null
   const rules: { id: string; units: string; test: RegExp }[] = [
     { id: 'builtin.cartesian-chart', units: 'millimeter', test: /\b(?:bar chart|column chart|line chart|combo chart|cartesian chart|data chart)\b|柱状图|条形图|折线图|组合图|数据图表|坐标图/ },
-    { id: 'builtin.manufacturing-sheet', units: 'millimeter', test: /\b(?:manufacturing drawing|fixture plate|counterbore|machining notes?|through holes?)\b|制造工程图|夹具板|沉孔|加工说明|通孔/ },
+    { id: 'builtin.manufacturing-sheet', units: 'millimeter', test: /\b(?:manufacturing drawing|fixture plate|counterbore|machining notes?|through holes?|bolt circle|pitch circle|flange)\b|制造工程图|夹具板|沉孔|加工说明|通孔|螺栓圆|分布圆|法兰/ },
     { id: 'builtin.architecture-plan', units: 'millimeter', test: /\b(?:architectural plan|floor plan|office plan|room layout|walls? with (?:doors?|windows?))\b|建筑平面图|户型图|办公室平面|房间布局|墙体.*门窗/ },
     { id: 'builtin.site-plan', units: 'meter', test: /\b(?:general site plan|site plan|campus plan|site boundary|utility plan|utilities plan)\b|总平面图|总图|园区平面|场地边界|综合管线/ },
     { id: 'builtin.road-plan-profile-sections', units: 'meter', test: /\b(?:road (?:plan|profile|cross[- ]sections?)|alignment and profile|earthwork sections?)\b|道路(?:平面|纵断面|横断面)|路线.{0,8}纵断面|纵断面.{0,8}横断面|道路土方/ },

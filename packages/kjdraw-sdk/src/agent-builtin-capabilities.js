@@ -244,8 +244,8 @@ const descriptors = [
             zhCN: '机械制造工程图'
         },
         summary: {
-            en: 'Parametric plate, holes, slots, orthographic views, dimensions and machining notes.',
-            zhCN: '参数化板件、孔阵列、槽、正投影视图、尺寸和加工说明。'
+            en: 'Parametric plate, grid and bolt-circle holes, slots, orthographic views, dimensions and machining notes.',
+            zhCN: '参数化板件、矩形及分布圆孔阵列、槽、正投影视图、尺寸和加工说明。'
         },
         units: [
             'millimeter'
@@ -264,7 +264,7 @@ const descriptors = [
             'KJD reopen',
             'DXF reopen'
         ],
-        manifest: manifest('builtin.manufacturing-sheet', 'Manufacturing sheet', '1.0.0', 'cad_propose_manufacturing_sheet', 'Use the manufacturing-sheet compiler exactly once. Extract only explicit plate, feature, title-block and sheet parameters from the request. Deterministic conventions: a horizontal slot means its long axis follows +X (orientationDegrees 0); a counterbore specified from the top is the +Z face. Do not ask to confirm these standard meanings when the request already says horizontal or top. If a border lower-left is explicitly (0,0), use sheet.origin [0,0]. Never emit individual geometry or invent missing dimensions, material, quantity or machining requirements. Ask only for genuinely missing required values. The compiler owns deterministic geometry, engineering layers, native dimensions, the atomic proposal and bounded evidence.')
+        manifest: manifest('builtin.manufacturing-sheet', 'Manufacturing sheet', '1.0.0', 'cad_propose_manufacturing_sheet', 'Use the manufacturing-sheet compiler exactly once. Extract only explicit plate, feature, title-block and sheet parameters from the request. Represent a flange or PCD hole set as boltCirclePatterns with its exact count, center, pitch diameter and optional start angle; never calculate or emit its individual holes. Deterministic conventions: a horizontal slot means its long axis follows +X (orientationDegrees 0); a counterbore specified from the top is the +Z face. Do not ask to confirm these standard meanings when the request already says horizontal or top. If a border lower-left is explicitly (0,0), use sheet.origin [0,0]. Never emit individual geometry or invent missing dimensions, material, quantity or machining requirements. Ask only for genuinely missing required values. The compiler owns deterministic geometry, engineering layers, native dimensions, the atomic proposal and bounded evidence.')
     },
     {
         id: 'builtin.architecture-plan',
@@ -403,7 +403,7 @@ export function matchKJDrawBuiltinCapability(input) {
     if (typeof input?.prompt !== 'string' || !input.prompt.trim() || !Number.isSafeInteger(input.entityCount) || input.entityCount !== 0) return null;
     const normalized = input.prompt.normalize('NFKC').toLowerCase();
     if (!/\b(?:create|draw|generate|compile|build|plot)\b|绘制|生成|画/.test(normalized)) return null;
-    const manufacturing = /manufactur|machin|fixture\s+plate|counterbore|through\s+slot|hole\s+array|machined\s+feature|制造|加工|夹具板|沉孔|槽孔|孔阵列/.test(normalized);
+    const manufacturing = /manufactur|machin|fixture\s+plate|counterbore|through\s+slot|hole\s+array|bolt\s+circle|pitch\s+circle|\bpcd\b|flange|machined\s+feature|制造|加工|夹具板|沉孔|槽孔|孔阵列|螺栓圆|分布圆|法兰/.test(normalized);
     const mixedFamily = /\b(?:bar|column|line|chart|floor|architectural|site|campus|road|profile|cross[- ]section)\b|柱状图|条形图|折线图|建筑|场地|园区|道路|纵断面|横断面/.test(normalized);
     if (manufacturing && !mixedFamily && !/\b(?:how|explain|compare)\b|如何|怎么|解释|比较|[?？]/.test(normalized)) {
         return KJDRAW_BUILTIN_AGENT_CAPABILITIES.find((descriptor)=>descriptor.id === 'builtin.manufacturing-sheet') ?? null;
@@ -420,7 +420,7 @@ export function matchKJDrawBuiltinCapability(input) {
         {
             id: 'builtin.manufacturing-sheet',
             units: 'millimeter',
-            test: /\b(?:manufacturing drawing|fixture plate|counterbore|machining notes?|through holes?)\b|制造工程图|夹具板|沉孔|加工说明|通孔/
+            test: /\b(?:manufacturing drawing|fixture plate|counterbore|machining notes?|through holes?|bolt circle|pitch circle|flange)\b|制造工程图|夹具板|沉孔|加工说明|通孔|螺栓圆|分布圆|法兰/
         },
         {
             id: 'builtin.architecture-plan',
