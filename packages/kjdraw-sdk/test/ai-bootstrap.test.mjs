@@ -12,6 +12,9 @@ test('one-line AI bootstraps pin one public candidate and connect all clients wi
   for (const source of [powerShell, shell]) {
     assert.match(source, new RegExp(pinned))
     assert.match(source, /kjdraw-connect\.mjs/)
+    assert.match(source, /kjdraw-mcp\.mjs/)
+    assert.match(source, /--check-tool-schemas/)
+    assert.match(source, /moonshot-walle-compatible-v1/)
     assert.match(source, /codeload\.github\.com\/KanJieTeam\/kjdraw/)
     for (const option of ['--all', '--apply', '--scope', '--workspace']) assert.match(source, new RegExp(option))
     assert.match(source, /--input|--blank/)

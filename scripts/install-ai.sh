@@ -51,7 +51,16 @@ else
 fi
 
 KJDRAW_CONNECT="$KJDRAW_INSTALL/packages/kjdraw-sdk/bin/kjdraw-connect.mjs"
+KJDRAW_MCP="$KJDRAW_INSTALL/packages/kjdraw-sdk/bin/kjdraw-mcp.mjs"
 printf 'Installing KJDraw user configuration in: %s\n' "$KJDRAW_USER_HOME"
+KJDRAW_SCHEMA_CHECK=$(node "$KJDRAW_MCP" --check-tool-schemas) || {
+  echo 'KJDraw MCP tool schemas failed compatibility validation; no client configuration was changed.' >&2
+  exit 1
+}
+printf '%s' "$KJDRAW_SCHEMA_CHECK" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const r=JSON.parse(s);if(!r.ok||r.profile!=="moonshot-walle-compatible-v1")process.exit(1)})' || {
+  echo 'KJDraw MCP tool schemas are not compatible with the installed Kimi Code integration; no client configuration was changed.' >&2
+  exit 1
+}
 if [ -f "$KJDRAW_USER_HOME/.kjdraw/host.kjd" ]; then
   set -- --all --apply --scope user --workspace "$KJDRAW_USER_HOME" --input '.kjdraw/host.kjd' --candidate-dir '.kjdraw/results'
 else

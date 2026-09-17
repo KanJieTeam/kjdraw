@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJAgentToolSession } from '../src/agent-tools.js'
+import { assertPortableMcpInputSchema, portableMcpInputSchema } from '../src/mcp-schema-compat.js'
 
 const executable = fileURLToPath(new URL('../bin/kjdraw-mcp.mjs', import.meta.url))
 const request = (id, method, params) => JSON.stringify({ jsonrpc: '2.0', id, method, ...(params === undefined ? {} : { params }) })
@@ -88,6 +89,17 @@ test('MCP host creates and reopens a host-selected blank KJD, while model calls 
   assert.equal(ledger.source.revision, 0)
   assert.equal(ledger.source.units, 'meter')
   assert.equal(ledger.proposals.length, 1)
+})
+
+test('MCP standalone schema preflight covers both unit profiles before an installer writes client configuration', () => {
+  const child = invoke(['--check-tool-schemas'])
+  assert.equal(child.status, 0, child.stderr)
+  assert.equal(child.stderr, '')
+  const result = JSON.parse(child.stdout)
+  assert.equal(result.ok, true)
+  assert.equal(result.profile, 'moonshot-walle-compatible-v1')
+  assert.deepEqual(result.unitProfiles.map(profile => profile.units), ['millimeter', 'meter'])
+  assert.ok(result.unitProfiles.every(profile => profile.toolCount >= 30 && profile.schemaByteLength > 50000))
 })
 
 test('explicit host candidate policy turns one circle request into independently reopenable CAD and SVG without overwriting the host drawing', async t => {
@@ -278,7 +290,14 @@ test('MCP stdio exposes the attached Agent registry and persists proposals witho
   assert.deepEqual(responses[0].result.capabilities, { tools: { listChanged: false } })
   const listed = responses[1].result.tools
   assert.deepEqual(listed.map(tool => tool.name), expectedDefinitions.map(tool => tool.name))
-  assert.deepEqual(listed.map(tool => tool.inputSchema), expectedDefinitions.map(tool => tool.inputSchema))
+  assert.deepEqual(listed.map(tool => tool.inputSchema), expectedDefinitions.map(tool => portableMcpInputSchema(tool.inputSchema)))
+  for (const tool of listed) {
+    assert.doesNotThrow(() => assertPortableMcpInputSchema(tool.inputSchema, `${tool.name}.inputSchema`))
+    assert.equal(JSON.stringify(tool.inputSchema).includes('exclusiveMinimum'), false)
+  }
+  const positiveRadius = listed.find(tool => tool.name === 'cad_propose_circles').inputSchema.properties.circles.items.properties.radius
+  assert.equal(positiveRadius.minimum, 1e-12)
+  assert.equal(positiveRadius.maximum, 1e12)
   assert.ok(listed.some(tool => tool.name === 'cad_propose_geology_column' && tool.annotations.readOnlyHint === false))
   assert.ok(listed.some(tool => tool.name === 'cad_propose_geology_section' && tool.annotations.readOnlyHint === false))
   assert.equal(listed.some(tool => /approve|save|open/u.test(tool.name)), false)

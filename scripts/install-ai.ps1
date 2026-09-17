@@ -54,8 +54,15 @@ if (Test-Path -LiteralPath $KJDrawInstall) {
 }
 
 $KJDrawConnect = Join-Path $KJDrawInstall 'packages\kjdraw-sdk\bin\kjdraw-connect.mjs'
+$KJDrawMcp = Join-Path $KJDrawInstall 'packages\kjdraw-sdk\bin\kjdraw-mcp.mjs'
 $KJDrawHost = Join-Path $KJDrawUserHome '.kjdraw\host.kjd'
 Write-Host "Installing KJDraw user configuration in: $KJDrawUserHome"
+$KJDrawSchemaOutput = @(node $KJDrawMcp --check-tool-schemas)
+if ($LASTEXITCODE -ne 0) { throw 'KJDraw MCP tool schemas failed compatibility validation; no client configuration was changed.' }
+$KJDrawSchemaCheck = ($KJDrawSchemaOutput -join [Environment]::NewLine) | ConvertFrom-Json
+if (-not $KJDrawSchemaCheck.ok -or $KJDrawSchemaCheck.profile -ne 'moonshot-walle-compatible-v1') {
+  throw 'KJDraw MCP tool schemas are not compatible with the installed Kimi Code integration; no client configuration was changed.'
+}
 if (Test-Path -LiteralPath $KJDrawHost -PathType Leaf) {
   $KJDrawArgs = @('--all', '--apply', '--scope', 'user', '--workspace', $KJDrawUserHome, '--input', '.kjdraw/host.kjd', '--candidate-dir', '.kjdraw/results')
 } else {

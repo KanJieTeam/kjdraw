@@ -9,6 +9,7 @@ import { KJAgentToolSession } from '../src/agent-tools.js'
 import { KJDRAW_VERSION } from '../src/version.js'
 import { exportDrawingSvg } from '../src/svg-export.js'
 import { displayedEntityBounds } from '../src/selection-geometry.js'
+import { assertPortableMcpInputSchema, KJDRAW_MCP_SCHEMA_PROFILE, portableMcpInputSchema } from '../src/mcp-schema-compat.js'
 
 const SERVER_NAME = '@kanjieteam/kjdraw-mcp'
 const PROTOCOL_VERSION = '2025-11-25'
@@ -18,12 +19,13 @@ const MAX_MESSAGE_BYTES = 4 * 1024 * 1024
 const MAX_KNOWLEDGE_PACK_BYTES = 1024 * 1024
 
 function usage() {
-  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>]\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>]\n\nOptional host-only geology style binding:\n  --geology-column-pack <existing-relative.json> --geology-column-pack-sha256 <64-lowercase-hex>\n\n--proposals is the legacy one-file mode. --proposal-dir creates one exclusive ledger per stdio session. When the host also supplies --candidate-dir, exact CREATEBATCH proposals are materialized into new KJD/DXF/SVG candidate files there; the input drawing is never overwritten. The model cannot choose either path or approve writes to the input.`
+  return `Usage:\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --input <drawing.kjd|drawing.dxf> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>]\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposals <pending.json>\n  kjdraw-mcp --workspace <directory> --blank <new-drawing.kjd> --units <millimeter|meter> --proposal-dir <existing-relative-directory> [--candidate-dir <existing-relative-directory>]\n  kjdraw-mcp --check-tool-schemas\n\nOptional host-only geology style binding:\n  --geology-column-pack <existing-relative.json> --geology-column-pack-sha256 <64-lowercase-hex>\n\n--proposals is the legacy one-file mode. --proposal-dir creates one exclusive ledger per stdio session. When the host also supplies --candidate-dir, exact CREATEBATCH proposals are materialized into new KJD/DXF/SVG candidate files there; the input drawing is never overwritten. The model cannot choose either path or approve writes to the input.`
 }
 
 function parseArgs(argv) {
   if (argv.includes('--help') || argv.includes('-h')) return { help: true }
   if (argv.includes('--version') || argv.includes('-v')) return { version: true }
+  if (argv.length === 1 && argv[0] === '--check-tool-schemas') return { checkToolSchemas: true }
   const values = {}
   for (let index = 0; index < argv.length; index += 2) {
     const key = argv[index], value = argv[index + 1]
@@ -39,6 +41,21 @@ function parseArgs(argv) {
   if (Boolean(values['geology-column-pack']) !== Boolean(values['geology-column-pack-sha256'])) throw new Error('--geology-column-pack and --geology-column-pack-sha256 must be supplied together')
   if (values['geology-column-pack-sha256'] && !/^[a-f0-9]{64}$/u.test(values['geology-column-pack-sha256'])) throw new Error('--geology-column-pack-sha256 must be 64 lowercase hexadecimal characters')
   return values
+}
+
+function checkToolSchemas() {
+  const unitProfiles = ['millimeter', 'meter'].map(units => {
+    const sdk = createKJDrawSDK(), document = sdk.createDocument({ units })
+    const definitions = new KJAgentToolSession(sdk, document).definitions
+    let byteLength = 0
+    for (const tool of definitions) {
+      const schema = portableMcpInputSchema(tool.inputSchema)
+      assertPortableMcpInputSchema(schema, `${tool.name}.inputSchema`)
+      byteLength += Buffer.byteLength(JSON.stringify(schema), 'utf8')
+    }
+    return { units, toolCount: definitions.length, schemaByteLength: byteLength }
+  })
+  return { ok: true, profile: KJDRAW_MCP_SCHEMA_PROFILE, unitProfiles }
 }
 
 function assertRelativePath(value, label) {
@@ -491,6 +508,7 @@ async function main() {
   }
   if (args.help) { process.stdout.write(`${usage()}\n`); return }
   if (args.version) { process.stdout.write(`${KJDRAW_VERSION}\n`); return }
+  if (args.checkToolSchemas) { process.stdout.write(`${JSON.stringify(checkToolSchemas())}\n`); return }
 
   let host
   try { host = await openHost(args) } catch (error) {
@@ -530,17 +548,21 @@ async function main() {
       if (request.method === 'ping') { if (!notification) send({ jsonrpc: '2.0', id: request.id, result: {} }); continue }
       if (!initialized) { if (!notification) rpcError(request.id, -32002, 'Server is not initialized'); continue }
       if (request.method === 'tools/list') {
-        if (!notification) send({ jsonrpc: '2.0', id: request.id, result: { tools: host.session.definitions.map(tool => ({
-          name: tool.name,
-          description: tool.description,
-          inputSchema: tool.inputSchema,
-          annotations: {
-            readOnlyHint: tool.effect === 'read',
-            destructiveHint: false,
-            idempotentHint: tool.effect === 'read',
-            openWorldHint: false
+        if (!notification) send({ jsonrpc: '2.0', id: request.id, result: { tools: host.session.definitions.map(tool => {
+          const inputSchema = portableMcpInputSchema(tool.inputSchema)
+          assertPortableMcpInputSchema(inputSchema, `${tool.name}.inputSchema`)
+          return {
+            name: tool.name,
+            description: tool.description,
+            inputSchema,
+            annotations: {
+              readOnlyHint: tool.effect === 'read',
+              destructiveHint: false,
+              idempotentHint: tool.effect === 'read',
+              openWorldHint: false
+            }
           }
-        })) } })
+        }) } })
         continue
       }
       if (request.method === 'tools/call') {
