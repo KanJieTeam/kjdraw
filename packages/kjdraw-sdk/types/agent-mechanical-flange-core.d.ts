@@ -1,7 +1,7 @@
 export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: '1.0.0';
 type Point2 = [number, number];
 type Entity = {
-    type: 'LINE' | 'CIRCLE' | 'ARC' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'HATCH';
+    type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'HATCH';
     payload: Record<string, unknown>;
     options: {
         id: string;
@@ -151,6 +151,43 @@ export interface KJFlangeAuxiliaryLine {
     end: Point2;
     role: 'geometry' | 'center' | 'hidden' | 'notes' | 'grid' | 'frame';
 }
+export type KJFlangeAuxiliaryCurve = {
+    kind: 'arc';
+    center: Point2;
+    radius: number;
+    startAngle: number;
+    endAngle: number;
+    clockwise?: boolean;
+    role: KJFlangeAuxiliaryLine['role'];
+} | {
+    kind: 'ellipse';
+    center: Point2;
+    majorAxis: Point2;
+    ratio: number;
+    startParameter: number;
+    endParameter: number;
+    role: KJFlangeAuxiliaryLine['role'];
+} | {
+    kind: 'polyline';
+    vertices: {
+        point: Point2;
+        bulge?: number;
+        startWidth?: number;
+        endWidth?: number;
+    }[];
+    closed?: boolean;
+    role: KJFlangeAuxiliaryLine['role'];
+} | {
+    kind: 'spline';
+    degree: number;
+    controlPoints: Point2[];
+    knots: number[];
+    fitPoints?: Point2[];
+    weights?: number[];
+    closed?: boolean;
+    periodic?: boolean;
+    role: KJFlangeAuxiliaryLine['role'];
+};
 /** Source-supplied visible sheet text. Content remains input data and is not
  *  retained by the reusable knowledge pack. */
 export interface KJFlangeSheetNote {
@@ -231,6 +268,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
     dimensions?: KJFlangeDimension[];
     leaders?: KJFlangeLeader[];
     auxiliaryLines?: KJFlangeAuxiliaryLine[];
+    auxiliaryCurves?: KJFlangeAuxiliaryCurve[];
     styleProfile?: KJFlangeStyleProfile;
     sheet: {
         origin: Point2;
@@ -276,6 +314,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             sideOutlineSegmentCount: number;
             sectionHatchCount: number;
             auxiliaryLineCount: number;
+            auxiliaryCurveCount: number;
             noteCount: number;
             dimensionCount: number;
             leaderCount: number;
