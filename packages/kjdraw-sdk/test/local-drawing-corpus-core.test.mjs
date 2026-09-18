@@ -30,7 +30,7 @@ async function drawing(patch = {}) {
     tx.createEntity('HATCH', { solid: false, patternName: 'PRIVATE_TEST', patternScale: 1, patternAngle: 0,
       patternLines: [{ angle: 0, base: [0, 0], offset: [0, patch.patternOffset ?? 2], dashes: [1, -1] }],
       boundaryLoops: [
-        { external: true, vertices: [[0, 40], [40, 40], [40, 80], [0, 80]] },
+        { external: true, ...(patch.outerFlags === undefined ? {} : { flags: patch.outerFlags }), vertices: [[0, 40], [40, 40], [40, 80], [0, 80]] },
         { external: false, vertices: [[10 + (patch.hatchIslandShift ?? 0), 50], [30, 50], [30, 70], [10 + (patch.hatchIslandShift ?? 0), 70]] },
       ], layerId: layer.id }, { id: 'hatch-a' })
     tx.createEntity('TEXT', { position: [patch.textX ?? 0, 30, 0], alignmentPoint: [patch.alignmentX ?? 0, 30, 0],
@@ -131,6 +131,23 @@ test('DXF imports of identical bytes ignore transient resource IDs but retain bl
   const changedLayer = createCanonicalFeatureSummary(await sdk.readDocument(await encoded('BRACKET', 5), { format: 'DXF' }), { salt })
   assert.ok(compareCanonicalFeatureSummaries(reference, changedBlock).categoryCounts.geometry > 0)
   assert.ok(compareCanonicalFeatureSummaries(reference, changedLayer).categoryCounts.style > 0)
+})
+
+test('canonical HATCH loops ignore only DXF-generated path-kind flags on reopen', async () => {
+  const sdk = createKJDrawSDK(), original = await drawing()
+  const reopened = await sdk.readDocument(await sdk.writeDocument(original, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  const expected = createCanonicalFeatureSummary(original, { salt })
+  const actual = createCanonicalFeatureSummary(reopened, { salt })
+  const comparison = compareCanonicalFeatureSummaries(expected, actual)
+  assert.equal(comparison.categoryCounts.geometry ?? 0, 0, JSON.stringify(comparison.categoryCounts))
+  assert.equal(actual.counts.hatches, expected.counts.hatches)
+
+  const altered = await drawing({ hatchIslandShift: 1 })
+  const changed = compareCanonicalFeatureSummaries(expected, createCanonicalFeatureSummary(altered, { salt }))
+  assert.ok(changed.categoryCounts.geometry > 0, 'actual boundary changes remain visible')
+  const alteredFlags = await drawing({ outerFlags: 16 })
+  assert.ok(compareCanonicalFeatureSummaries(expected, createCanonicalFeatureSummary(alteredFlags, { salt })).categoryCounts.geometry > 0,
+    'non-derivable DXF boundary flags remain visible')
 })
 
 test('strict comparison rejects physical sheet, rotation, plot scale and plot-window drift', async () => {

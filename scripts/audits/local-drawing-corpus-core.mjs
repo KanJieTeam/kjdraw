@@ -3,7 +3,7 @@ import { createHash, createHmac } from 'node:crypto'
 import { displayedEntityBounds } from '../../packages/kjdraw-sdk/src/selection-geometry.js'
 
 export const KJDRAW_LOCAL_CORPUS_SCHEMA = 'com.kanjie.kjdraw.local-drawing-corpus-manifest@3'
-export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@3'
+export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@4'
 export const KJDRAW_FEATURE_COMPARISON_SCHEMA = 'com.kanjie.kjdraw.feature-comparison@2'
 
 const textTypes = new Set(['TEXT', 'MTEXT', 'ATTRIB', 'ATTDEF'])
@@ -74,6 +74,19 @@ function hatchValue(value, tolerance) {
   return String(value)
 }
 
+function hatchLoopValue(loop, tolerance) {
+  const value = hatchValue(loop, tolerance)
+  if (value && typeof value === 'object' && !Array.isArray(value) && Number.isSafeInteger(value.flags)) {
+    // DXF adds path-kind and external bits when a HATCH is exported. Their
+    // meaning is already represented by vertices/edges and external here.
+    const remaining = value.flags & ~3
+    if (remaining) value.flags = remaining
+    else delete value.flags
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value) && Array.isArray(value.vertices) && value.closed === undefined) value.closed = true
+  return value
+}
+
 function resourceIdentity(document, id) {
   const target = typeof id === 'string' ? document.getObject(id) : null
   return target ? `${target.kind}:${target.type}:${target.name ?? ''}` : 'unresolved'
@@ -112,7 +125,7 @@ function geometryOf(document, entity, tolerance) {
     patternName: String(source.patternName ?? ''), patternScale: finite(source.patternScale) ? rounded(source.patternScale, tolerance) : null,
     patternAngle: finite(source.patternAngle) ? rounded(source.patternAngle, tolerance) : null,
     patternLines: Array.isArray(source.patternLines) ? hatchValue(source.patternLines, tolerance) : null,
-    boundaryLoops: Array.isArray(source.boundaryLoops) ? hatchValue(source.boundaryLoops, tolerance) : null,
+    boundaryLoops: Array.isArray(source.boundaryLoops) ? source.boundaryLoops.map(loop => hatchLoopValue(loop, tolerance)) : null,
   }
   if (entity.type === 'DIMENSION') return pick('dimensionType', 'definitionPoints', 'measurement', 'textOverride')
   return null
