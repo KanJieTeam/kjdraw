@@ -52,6 +52,19 @@ export interface KJGeologyObservation {
   rangeTop?: number
   rangeBottom?: number
 }
+/** A source-backed cross-hole boundary supplied by an external data adapter.
+ *  Depths are measured downwards from each hole collar in metres.  This is
+ *  deliberately a neutral input contract: adapters may read MDB/DWG facts,
+ *  but the compiler never invents a connection when one is absent.
+ */
+export interface KJGeologySectionConnection {
+  fromHoleId: string
+  toHoleId: string
+  fromDepth: number
+  toDepth: number
+  kind?: 'continuity' | 'pinchout' | 'lens' | 'manualBoundary'
+  layerCode?: string
+}
 export interface KJGeologyColumnInput {
   /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */
   locale?: 'zh-CN' | 'en'
@@ -78,6 +91,8 @@ export interface KJGeologySectionInput {
   holes: KJGeologyBorehole[]
   /** Only explicitly correlated layers are drawn between holes. */
   correlations: { fromHoleId: string; toHoleId: string; fromStratumCode?: string; toStratumCode?: string; fromIntervalId?: string; toIntervalId?: string }[]
+  /** Explicit source-backed boundaries are rendered before inferred correlations. */
+  manualConnections?: KJGeologySectionConnection[]
   horizontalScaleDenominator: number
   verticalScaleDenominator: number
   datumElevation: number
@@ -575,6 +590,7 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     entities.push({ type, payload: { ...payload, layerId: layers[layer]!.id }, options: { id: `${prefix}-entity-${String(entities.length + 1).padStart(5, '0')}` } })
   }
   const line = (layer: number, x1: number, y1: number, x2: number, y2: number) => add('LINE', layer, { start: [x1, y1, 0], end: [x2, y2, 0] })
+  const semanticLine = (layer: number, x1: number, y1: number, x2: number, y2: number, metadata: Record<string, unknown>) => add('LINE', layer, { start: [x1, y1, 0], end: [x2, y2, 0], ...metadata })
   const text = (layer: number, x: number, y: number, value: string, height = 2.6, centered = false, widthFactor?: number) => add('TEXT', layer, {
     position: [x, y, 0], text: value, height,
     ...(widthFactor == null ? {} : { widthFactor }),
@@ -596,7 +612,7 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     evidence: { packId: 'geology.core', packVersion: '1.0.0', packHash: stableHash({ pattern, hatches }), intentHash: stableHash(input), templateId, rootObjectId: prefix, expectedRevision, entityCount: entities.length,
       ...(parameters ? { parameters } : {}) },
   })
-  return { line, text, mtext, poly, rect, circle, hatch, finish }
+  return { line, semanticLine, text, mtext, poly, rect, circle, hatch, finish }
 }
 
 export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<KJKnowledgeCompileResult> {
@@ -1083,9 +1099,35 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
       }
     }
   }
+  const holeOrder = new Map(holes.map((hole, index) => [hole.id, index]))
+  const manualConnections = input.manualConnections ?? []
+  if (!Array.isArray(manualConnections) || manualConnections.length > 200) throw new KJValidationError('Geology: invalid manual connection list')
+  const manualKeys = new Set<string>()
+  const manualPairTopology = new Map<string, { fromDepth: number; toDepth: number }[]>()
+  for (const connection of manualConnections) {
+    const left = byId.get(bounded(connection.fromHoleId, 'manual connection hole'))
+    const right = byId.get(bounded(connection.toHoleId, 'manual connection hole'))
+    if (!left || !right || x(left.hole) >= x(right.hole)) throw new KJValidationError('Geology: manual connection must follow declared station order')
+    const leftIndex = holeOrder.get(left.hole.id)!, rightIndex = holeOrder.get(right.hole.id)!
+    if (rightIndex !== leftIndex + 1) throw new KJValidationError('Geology: manual connection must join adjacent station-ordered holes')
+    const fromDepth = numeric(connection.fromDepth, 'manual connection from depth')
+    const toDepth = numeric(connection.toDepth, 'manual connection to depth')
+    if (fromDepth < 0 || fromDepth > left.hole.depth || toDepth < 0 || toDepth > right.hole.depth) throw new KJValidationError('Geology: manual connection depth is outside its borehole')
+    const kind = connection.kind ?? 'manualBoundary'
+    if (!['continuity', 'pinchout', 'lens', 'manualBoundary'].includes(kind)) throw new KJValidationError('Geology: invalid manual connection kind')
+    const layerCode = connection.layerCode == null ? undefined : bounded(connection.layerCode, 'manual connection layer code')
+    const key = `${left.hole.id}:${fromDepth}|${right.hole.id}:${toDepth}|${layerCode ?? ''}|${kind}`
+    if (manualKeys.has(key)) throw new KJValidationError('Geology: duplicate manual connection')
+    manualKeys.add(key)
+    const pairKey = `${left.hole.id}|${right.hole.id}`, pair = manualPairTopology.get(pairKey) ?? []
+    for (const prior of pair) if (Math.sign(fromDepth - prior.fromDepth) !== Math.sign(toDepth - prior.toDepth)) throw new KJValidationError('Geology: manual connections cross or reverse stratigraphic order')
+    pair.push({ fromDepth, toDepth }); manualPairTopology.set(pairKey, pair)
+    g.semanticLine(1, x(left.hole), y(left.hole, fromDepth), x(right.hole), y(right.hole, toDepth), {
+      semanticRole: 'source-manual-connection', connectionKind: kind, ...(layerCode == null ? {} : { sourceLayerCode: layerCode }),
+    })
+  }
   if (!Array.isArray(input.correlations) || input.correlations.length > 200) throw new KJValidationError('Geology: invalid correlation list')
   const unique = new Set<string>()
-  const holeOrder = new Map(holes.map((hole, index) => [hole.id, index]))
   const pairTopology = new Map<string, { source: KJGeologyStratum; target: KJGeologyStratum }[]>()
   for (const link of input.correlations) {
     const left = byId.get(bounded(link.fromHoleId, 'correlation hole')), right = byId.get(bounded(link.toHoleId, 'correlation hole'))

@@ -774,6 +774,11 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
                 0
             ]
         });
+    const semanticLine = (layer, x1, y1, x2, y2, metadata)=>add('LINE', layer, {
+            start: [x1, y1, 0],
+            end: [x2, y2, 0],
+            ...metadata
+        });
     const text = (layer, x, y, value, height = 2.6, centered = false, widthFactor)=>add('TEXT', layer, {
             position: [
                 x,
@@ -890,6 +895,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
         });
     return {
         line,
+        semanticLine,
         text,
         mtext,
         poly,
@@ -1578,12 +1584,42 @@ export function compileGeologySection(input) {
             }
         }
     }
-    if (!Array.isArray(input.correlations) || input.correlations.length > 200) throw new KJValidationError('Geology: invalid correlation list');
-    const unique = new Set();
     const holeOrder = new Map(holes.map((hole, index)=>[
             hole.id,
             index
         ]));
+    const manualConnections = input.manualConnections ?? [];
+    if (!Array.isArray(manualConnections) || manualConnections.length > 200) throw new KJValidationError('Geology: invalid manual connection list');
+    const manualKeys = new Set();
+    const manualPairTopology = new Map();
+    for (const connection of manualConnections) {
+        const left = byId.get(bounded(connection.fromHoleId, 'manual connection hole'));
+        const right = byId.get(bounded(connection.toHoleId, 'manual connection hole'));
+        if (!left || !right || x(left.hole) >= x(right.hole)) throw new KJValidationError('Geology: manual connection must follow declared station order');
+        const leftIndex = holeOrder.get(left.hole.id), rightIndex = holeOrder.get(right.hole.id);
+        if (rightIndex !== leftIndex + 1) throw new KJValidationError('Geology: manual connection must join adjacent station-ordered holes');
+        const fromDepth = numeric(connection.fromDepth, 'manual connection from depth');
+        const toDepth = numeric(connection.toDepth, 'manual connection to depth');
+        if (fromDepth < 0 || fromDepth > left.hole.depth || toDepth < 0 || toDepth > right.hole.depth) throw new KJValidationError('Geology: manual connection depth is outside its borehole');
+        const kind = connection.kind ?? 'manualBoundary';
+        if (!['continuity', 'pinchout', 'lens', 'manualBoundary'].includes(kind)) throw new KJValidationError('Geology: invalid manual connection kind');
+        const layerCode = connection.layerCode == null ? undefined : bounded(connection.layerCode, 'manual connection layer code');
+        const key = `${left.hole.id}:${fromDepth}|${right.hole.id}:${toDepth}|${layerCode ?? ''}|${kind}`;
+        if (manualKeys.has(key)) throw new KJValidationError('Geology: duplicate manual connection');
+        manualKeys.add(key);
+        const pairKey = `${left.hole.id}|${right.hole.id}`, pair = manualPairTopology.get(pairKey) ?? [];
+        for (const prior of pair) if (Math.sign(fromDepth - prior.fromDepth) !== Math.sign(toDepth - prior.toDepth)) throw new KJValidationError('Geology: manual connections cross or reverse stratigraphic order');
+        pair.push({ fromDepth, toDepth });
+        manualPairTopology.set(pairKey, pair);
+        const xl = x(left.hole), xr = x(right.hole);
+        g.semanticLine(1, xl, y(left.hole, fromDepth), xr, y(right.hole, toDepth), {
+            semanticRole: 'source-manual-connection',
+            connectionKind: kind,
+            ...layerCode == null ? {} : { sourceLayerCode: layerCode }
+        });
+    }
+    if (!Array.isArray(input.correlations) || input.correlations.length > 200) throw new KJValidationError('Geology: invalid correlation list');
+    const unique = new Set();
     const pairTopology = new Map();
     for (const link of input.correlations){
         const left = byId.get(bounded(link.fromHoleId, 'correlation hole')), right = byId.get(bounded(link.toHoleId, 'correlation hole'));
