@@ -1,7 +1,7 @@
 export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: '1.0.0';
 type Point2 = [number, number];
 type Entity = {
-    type: 'LINE' | 'CIRCLE' | 'ARC' | 'TEXT' | 'MTEXT' | 'DIMENSION';
+    type: 'LINE' | 'CIRCLE' | 'ARC' | 'SOLID' | 'TEXT' | 'MTEXT' | 'DIMENSION';
     payload: Record<string, unknown>;
     options: {
         id: string;
@@ -80,6 +80,13 @@ export type KJFlangeSideViewOutlineSegment = {
     radius: number;
     startAngle: number;
     endAngle: number;
+} | {
+    kind: 'circle';
+    center: {
+        station: number;
+        offset: number;
+    };
+    radius: number;
 };
 /** Source-supplied visible sheet text. Content remains input data and is not
  *  retained by the reusable knowledge pack. */
@@ -112,6 +119,10 @@ export type KJFlangeEndViewOutlineSegment = {
     radius: number;
     startAngle: number;
     endAngle: number;
+} | {
+    kind: 'circle';
+    centerOffset: Point2;
+    radius: number;
 };
 /** A source-positioned cutting-plane mark, relative to the end-view center.
  *  The stem and tick vectors retain the drafting direction of each mark. */
@@ -119,6 +130,10 @@ export interface KJFlangeCuttingPlaneMark {
     anchorOffset: Point2;
     stemVector: Point2;
     tickVector: Point2;
+    arrowhead?: {
+        length: number;
+        width: number;
+    };
 }
 export interface KJAgentMechanicalFlangeCoreInput {
     version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION;
