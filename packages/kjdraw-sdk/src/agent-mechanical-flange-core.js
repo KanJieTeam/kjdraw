@@ -48,6 +48,7 @@ function validate(document, source) {
         'auxiliaryLines',
         'auxiliaryCurves',
         'symbols',
+        'styleResources',
         'styleProfile',
         'sheet'
     ], 'input');
@@ -56,6 +57,116 @@ function validate(document, source) {
     const expectedRevision = finite(input.expectedRevision, 'input.expectedRevision', 0, Number.MAX_SAFE_INTEGER);
     if (!Number.isInteger(expectedRevision) || expectedRevision !== document.revision) throw new KJValidationError('input.expectedRevision must match the document revision');
     if (typeof input.drawingId !== 'string' || !input.drawingId.trim() || input.drawingId.length > 96 || /[\u0000-\u001f\u007f]/u.test(input.drawingId)) throw new KJValidationError('input.drawingId must be printable text');
+    const resourceSource = input.styleResources == null ? {
+        textStyles: [],
+        dimensionStyles: []
+    } : plain(input.styleResources, 'input.styleResources');
+    exact(resourceSource, [
+        'textStyles',
+        'dimensionStyles'
+    ], 'input.styleResources');
+    if (!Array.isArray(resourceSource.textStyles) || resourceSource.textStyles.length > 16 || !Array.isArray(resourceSource.dimensionStyles) || resourceSource.dimensionStyles.length > 16) throw new KJValidationError('input.styleResources allow at most 16 records per table');
+    const resourceKey = (value, label)=>{
+        if (typeof value !== 'string' || !value.trim() || value !== value.trim() || value.length > 96 || /[\u0000-\u001f\u007f]/u.test(value)) throw new KJValidationError(`${label} must be bounded printable text`);
+        return value;
+    };
+    const resourceName = (value, label)=>{
+        if (typeof value !== 'string' || !value.trim() || value !== value.trim() || value.length > 128 || /[\u0000-\u001f\u007f<>/\\":;?*|=]/u.test(value)) throw new KJValidationError(`${label} must be a bounded table name`);
+        return value;
+    };
+    const optionalNumber = (value, label, min, max, integer = false)=>{
+        if (value == null) return undefined;
+        const result = finite(value, label, min, max);
+        if (integer && !Number.isInteger(result)) throw new KJValidationError(`${label} must be an integer`);
+        return result;
+    };
+    const optionalResourceText = (value, label)=>{
+        if (value == null) return value;
+        if (typeof value !== 'string' || value.length > 512 || /[\u0000-\u001f\u007f]/u.test(value)) throw new KJValidationError(`${label} must be bounded printable text or null`);
+        return value;
+    };
+    const textStyleKeys = new Set(), textStyleNames = new Set();
+    const textStyles = resourceSource.textStyles.map((value, index)=>{
+        const label = `input.styleResources.textStyles[${index}]`, style = plain(value, label);
+        exact(style, [
+            'key',
+            'name',
+            'fontFamily',
+            'fontFile',
+            'bigFontFile',
+            'fixedHeight',
+            'widthFactor',
+            'obliqueAngle',
+            'dxfFlags',
+            'generationFlags',
+            'lastHeight'
+        ], label);
+        const key = resourceKey(style.key, `${label}.key`), name = resourceName(style.name, `${label}.name`), normalizedName = name.toUpperCase();
+        if (textStyleKeys.has(key) || textStyleNames.has(normalizedName)) throw new KJValidationError(`${label} key and name must be unique`);
+        textStyleKeys.add(key);
+        textStyleNames.add(normalizedName);
+        return {
+            key,
+            name,
+            fontFamily: optionalResourceText(style.fontFamily, `${label}.fontFamily`),
+            fontFile: optionalResourceText(style.fontFile, `${label}.fontFile`),
+            bigFontFile: optionalResourceText(style.bigFontFile, `${label}.bigFontFile`),
+            fixedHeight: optionalNumber(style.fixedHeight, `${label}.fixedHeight`, 0, 1e12),
+            widthFactor: optionalNumber(style.widthFactor, `${label}.widthFactor`, 1e-12, 1e12),
+            obliqueAngle: optionalNumber(style.obliqueAngle, `${label}.obliqueAngle`, -Math.PI * 2, Math.PI * 2),
+            dxfFlags: optionalNumber(style.dxfFlags, `${label}.dxfFlags`, 0, 65535, true),
+            generationFlags: optionalNumber(style.generationFlags, `${label}.generationFlags`, 0, 65535, true),
+            lastHeight: optionalNumber(style.lastHeight, `${label}.lastHeight`, 0, 1e12)
+        };
+    });
+    const dimensionStyleKeys = new Set(), dimensionStyleNames = new Set();
+    const dimensionStyles = resourceSource.dimensionStyles.map((value, index)=>{
+        const label = `input.styleResources.dimensionStyles[${index}]`, style = plain(value, label);
+        exact(style, [
+            'key',
+            'name',
+            'overallScale',
+            'arrowSize',
+            'extensionOffset',
+            'baselineSpacing',
+            'extensionBeyond',
+            'rounding',
+            'textHeight',
+            'decimalPlaces',
+            'angularDecimalPlaces',
+            'angularUnits',
+            'centerMarkSize',
+            'textGap',
+            'dxfFlags'
+        ], label);
+        const key = resourceKey(style.key, `${label}.key`), name = resourceName(style.name, `${label}.name`), normalizedName = name.toUpperCase();
+        if (dimensionStyleKeys.has(key) || dimensionStyleNames.has(normalizedName)) throw new KJValidationError(`${label} key and name must be unique`);
+        dimensionStyleKeys.add(key);
+        dimensionStyleNames.add(normalizedName);
+        return {
+            key,
+            name,
+            overallScale: optionalNumber(style.overallScale, `${label}.overallScale`, 1e-12, 1e12),
+            arrowSize: optionalNumber(style.arrowSize, `${label}.arrowSize`, 0, 1e12),
+            extensionOffset: optionalNumber(style.extensionOffset, `${label}.extensionOffset`, 0, 1e12),
+            baselineSpacing: optionalNumber(style.baselineSpacing, `${label}.baselineSpacing`, 0, 1e12),
+            extensionBeyond: optionalNumber(style.extensionBeyond, `${label}.extensionBeyond`, 0, 1e12),
+            rounding: optionalNumber(style.rounding, `${label}.rounding`, 0, 1e12),
+            textHeight: optionalNumber(style.textHeight, `${label}.textHeight`, 1e-12, 1e12),
+            decimalPlaces: optionalNumber(style.decimalPlaces, `${label}.decimalPlaces`, 0, 8, true),
+            angularDecimalPlaces: optionalNumber(style.angularDecimalPlaces, `${label}.angularDecimalPlaces`, -1, 8, true),
+            angularUnits: optionalNumber(style.angularUnits, `${label}.angularUnits`, 0, 3, true),
+            centerMarkSize: optionalNumber(style.centerMarkSize, `${label}.centerMarkSize`, -1e12, 1e12),
+            textGap: optionalNumber(style.textGap, `${label}.textGap`, 0, 1e12),
+            dxfFlags: optionalNumber(style.dxfFlags, `${label}.dxfFlags`, 0, 65535, true)
+        };
+    });
+    const annotationStyleKey = (value, keys, label)=>{
+        if (value == null) return undefined;
+        const key = resourceKey(value, label);
+        if (!keys.has(key)) throw new KJValidationError(`${label} must reference input.styleResources`);
+        return key;
+    };
     const end = plain(input.endView, 'input.endView');
     exact(end, [
         'center',
@@ -454,7 +565,8 @@ function validate(document, source) {
             'position',
             'height',
             'rotation',
-            'width'
+            'width',
+            'styleKey'
         ], `input.sheet.notes[${index}]`);
         if (note.kind !== 'single-line' && note.kind !== 'multiline') throw new KJValidationError(`input.sheet.notes[${index}].kind is invalid`);
         if (typeof note.text !== 'string' || !note.text || note.text.length > 512 || /[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(note.text)) throw new KJValidationError(`input.sheet.notes[${index}].text must be bounded visible text`);
@@ -468,6 +580,7 @@ function validate(document, source) {
         const rotation = note.rotation == null ? 0 : finite(note.rotation, `input.sheet.notes[${index}].rotation`, -Math.PI * 2, Math.PI * 2);
         const width = note.width == null ? undefined : finite(note.width, `input.sheet.notes[${index}].width`, 0.1, sheetSize[0]);
         if (note.kind === 'single-line' && width != null) throw new KJValidationError(`input.sheet.notes[${index}].width is only valid for multiline text`);
+        const styleKey = annotationStyleKey(note.styleKey, textStyleKeys, `input.sheet.notes[${index}].styleKey`);
         return {
             kind: note.kind,
             text,
@@ -476,6 +589,9 @@ function validate(document, source) {
             rotation,
             ...width == null ? {} : {
                 width
+            },
+            ...styleKey == null ? {} : {
+                styleKey
             }
         };
     });
@@ -488,7 +604,8 @@ function validate(document, source) {
             'definitionPoints',
             'textPosition',
             'textOverride',
-            'rotation'
+            'rotation',
+            'styleKey'
         ], `input.dimensions[${index}]`);
         if (![
             'aligned',
@@ -525,6 +642,7 @@ function validate(document, source) {
             rotation
         };
         if (!projectDimension(payload)) throw new KJValidationError(`input.dimensions[${index}] does not define a projectable native dimension`);
+        const styleKey = annotationStyleKey(dimension.styleKey, dimensionStyleKeys, `input.dimensions[${index}].styleKey`);
         return {
             kind: dimension.kind,
             definitionPoints,
@@ -534,7 +652,10 @@ function validate(document, source) {
             ...textOverride == null ? {} : {
                 textOverride
             },
-            rotation
+            rotation,
+            ...styleKey == null ? {} : {
+                styleKey
+            }
         };
     });
     if (input.leaders != null && !Array.isArray(input.leaders)) throw new KJValidationError('input.leaders must be an array');
@@ -595,6 +716,7 @@ function validate(document, source) {
             'position',
             'rows',
             'xAxisDirection',
+            'styleKey',
             'role'
         ], label);
         if (frame.role !== 'dimensions' && frame.role !== 'notes') throw new KJValidationError(`${label}.role is invalid`);
@@ -644,10 +766,14 @@ function validate(document, source) {
             0
         ] : point(frame.xAxisDirection, `${label}.xAxisDirection`);
         if (Math.hypot(...xAxisDirection) <= 1e-12) throw new KJValidationError(`${label}.xAxisDirection must not be zero`);
+        const styleKey = annotationStyleKey(frame.styleKey, dimensionStyleKeys, `${label}.styleKey`);
         return {
             position: point(frame.position, `${label}.position`),
             rows,
             xAxisDirection,
+            ...styleKey == null ? {} : {
+                styleKey
+            },
             role: frame.role
         };
     });
@@ -904,6 +1030,7 @@ function validate(document, source) {
                     'rotation',
                     'width',
                     'attachmentPoint',
+                    'styleKey',
                     'role'
                 ], memberLabel);
                 if (typeof member.text !== 'string' || !member.text || member.text.length > 512 || /[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(member.text)) throw new KJValidationError(`${memberLabel}.text must be bounded visible text`);
@@ -911,6 +1038,7 @@ function validate(document, source) {
                 if (symbolTextCharacters > 8_192) throw new KJValidationError('input.symbols exceed the text budget');
                 const attachmentPoint = member.attachmentPoint == null ? 1 : finite(member.attachmentPoint, `${memberLabel}.attachmentPoint`, 1, 9);
                 if (!Number.isInteger(attachmentPoint)) throw new KJValidationError(`${memberLabel}.attachmentPoint must be an integer`);
+                const styleKey = annotationStyleKey(member.styleKey, textStyleKeys, `${memberLabel}.styleKey`);
                 return {
                     kind: 'multiline-text',
                     text: member.text,
@@ -921,6 +1049,9 @@ function validate(document, source) {
                         width: finite(member.width, `${memberLabel}.width`, 0.000_001, 1_000_000)
                     },
                     attachmentPoint,
+                    ...styleKey == null ? {} : {
+                        styleKey
+                    },
                     role
                 };
             }
@@ -1067,6 +1198,8 @@ function validate(document, source) {
         auxiliaryCurves,
         symbolDefinitions,
         symbolInstances,
+        textStyles,
+        dimensionStyles,
         styles,
         sheetOrigin,
         sheetSize,
@@ -1080,6 +1213,59 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         id: input.drawingId,
         version: KJDRAW_MECHANICAL_FLANGE_CORE_VERSION
     }).slice(0, 12)}`;
+    const compact = (value)=>Object.fromEntries(Object.entries(value).filter(([, item])=>item !== undefined));
+    const textStyleByKey = new Map(), textStyleResources = [];
+    const dimensionStyleByKey = new Map(), dimensionStyleResources = [];
+    for (const [index, style] of input.textStyles.entries()){
+        const existing = document.getTable?.('textStyles')?.records.find((record)=>String(record.name).toUpperCase() === style.name.toUpperCase());
+        const id = existing?.id ?? `${prefix}-text-style-${String(index + 1).padStart(2, '0')}`;
+        textStyleByKey.set(style.key, {
+            id,
+            name: style.name
+        });
+        if (!existing) textStyleResources.push({
+            id,
+            name: style.name,
+            payload: compact({
+                fontFamily: style.fontFamily,
+                fontFile: style.fontFile,
+                bigFontFile: style.bigFontFile,
+                fixedHeight: style.fixedHeight,
+                widthFactor: style.widthFactor,
+                obliqueAngle: style.obliqueAngle,
+                dxfFlags: style.dxfFlags,
+                generationFlags: style.generationFlags,
+                lastHeight: style.lastHeight
+            })
+        });
+    }
+    for (const [index, style] of input.dimensionStyles.entries()){
+        const existing = document.getTable?.('dimensionStyles')?.records.find((record)=>String(record.name).toUpperCase() === style.name.toUpperCase());
+        const id = existing?.id ?? `${prefix}-dimension-style-${String(index + 1).padStart(2, '0')}`;
+        dimensionStyleByKey.set(style.key, {
+            id,
+            name: style.name
+        });
+        if (!existing) dimensionStyleResources.push({
+            id,
+            name: style.name,
+            payload: compact({
+                overallScale: style.overallScale,
+                arrowSize: style.arrowSize,
+                extensionOffset: style.extensionOffset,
+                baselineSpacing: style.baselineSpacing,
+                extensionBeyond: style.extensionBeyond,
+                rounding: style.rounding,
+                textHeight: style.textHeight,
+                decimalPlaces: style.decimalPlaces,
+                angularDecimalPlaces: style.angularDecimalPlaces,
+                angularUnits: style.angularUnits,
+                centerMarkSize: style.centerMarkSize,
+                textGap: style.textGap,
+                dxfFlags: style.dxfFlags
+            })
+        });
+    }
     const role = (name, defaults)=>({
             ...defaults,
             ...input.styles[name] ?? {},
@@ -1607,6 +1793,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                     layerId: roleIds[member.role]
                 };
             } else {
+                const style = member.styleKey == null ? null : textStyleByKey.get(member.styleKey);
                 type = 'MTEXT';
                 payload = {
                     position: p3(...member.position),
@@ -1616,6 +1803,9 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                     attachmentPoint: member.attachmentPoint ?? 1,
                     ...member.width == null ? {} : {
                         width: member.width
+                    },
+                    ...style == null ? {} : {
+                        styleId: style.id
                     },
                     layerId: roleIds[member.role]
                 };
@@ -1688,10 +1878,14 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             }
             return `${value}^J`;
         }).join('');
+        const style = frame.styleKey == null ? null : dimensionStyleByKey.get(frame.styleKey);
         emit('TOLERANCE', {
             position: p3(...frame.position),
             text,
-            styleName: 'STANDARD',
+            styleName: style?.name ?? 'STANDARD',
+            ...style == null ? {} : {
+                styleId: style.id
+            },
             normal: [
                 0,
                 0,
@@ -1704,27 +1898,39 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             layerId: roleIds[frame.role]
         }, frame.role);
     }
-    for (const note of input.notes)emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
-        position: p3(...note.position),
-        text: note.text,
-        height: note.height,
-        rotation: note.rotation,
-        ...note.width == null ? {} : {
-            width: note.width
-        },
-        layerId: roleIds.notes
-    }, 'notes');
-    for (const dimension of input.dimensions)emit('DIMENSION', {
-        dimensionType: dimension.kind.toUpperCase(),
-        definitionPoints: dimension.definitionPoints.map(([x, y])=>p3(x, y)),
-        ...dimension.textPosition == null ? {} : {
-            textPosition: p3(...dimension.textPosition)
-        },
-        textOverride: dimension.textOverride ?? null,
-        rotation: dimension.rotation ?? 0,
-        styleName: 'STANDARD',
-        layerId: roleIds.dimensions
-    }, 'dimensions');
+    for (const note of input.notes){
+        const style = note.styleKey == null ? null : textStyleByKey.get(note.styleKey);
+        emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
+            position: p3(...note.position),
+            text: note.text,
+            height: note.height,
+            rotation: note.rotation,
+            ...note.width == null ? {} : {
+                width: note.width
+            },
+            ...style == null ? {} : {
+                styleId: style.id
+            },
+            layerId: roleIds.notes
+        }, 'notes');
+    }
+    for (const dimension of input.dimensions){
+        const style = dimension.styleKey == null ? null : dimensionStyleByKey.get(dimension.styleKey);
+        emit('DIMENSION', {
+            dimensionType: dimension.kind.toUpperCase(),
+            definitionPoints: dimension.definitionPoints.map(([x, y])=>p3(x, y)),
+            ...dimension.textPosition == null ? {} : {
+                textPosition: p3(...dimension.textPosition)
+            },
+            textOverride: dimension.textOverride ?? null,
+            rotation: dimension.rotation ?? 0,
+            styleName: style?.name ?? 'STANDARD',
+            ...style == null ? {} : {
+                styleId: style.id
+            },
+            layerId: roleIds.dimensions
+        }, 'dimensions');
+    }
     for (const leader of input.leaders)emit('LEADER', {
         vertices: leader.vertices.map(([x, y])=>p3(x, y)),
         annotationId: null,
@@ -1742,6 +1948,12 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             resources: {
                 linetypes,
                 layers,
+                ...textStyleResources.length ? {
+                    textStyles: textStyleResources
+                } : {},
+                ...dimensionStyleResources.length ? {
+                    dimensionStyles: dimensionStyleResources
+                } : {},
                 ...blocks.length ? {
                     blocks
                 } : {}
@@ -1768,6 +1980,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 symbolDefinitionCount: input.symbolDefinitions.length,
                 symbolInstanceCount: input.symbolInstances.length,
                 featureControlFrameCount: input.featureControlFrames.length,
+                textStyleCount: input.textStyles.length,
+                dimensionStyleCount: input.dimensionStyles.length,
                 noteCount: input.notes.length,
                 dimensionCount: input.dimensions.length,
                 leaderCount: input.leaders.length

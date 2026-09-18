@@ -182,6 +182,38 @@ test('caller-supplied semantic style roles preserve effective CAD display facts 
   assert.equal(reopenedCircle.payload.lineweight, 35)
 })
 
+test('caller-supplied annotation style resources stay generic and bind each native annotation', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...source,
+    styleResources: {
+      textStyles: [{ key: 'narrow-note', name: 'PUBLIC-NOTE-STYLE', fontFamily: 'TXT', fontFile: 'TXT', bigFontFile: '', fixedHeight: 0, widthFactor: .7, obliqueAngle: 0, dxfFlags: 0, generationFlags: 0 }],
+      dimensionStyles: [{ key: 'precision-dimension', name: 'PUBLIC-DIM-STYLE', overallScale: 1, arrowSize: 3, extensionOffset: .625, baselineSpacing: 3.75, extensionBeyond: 0, rounding: 1e-9, textHeight: 3, decimalPlaces: 2, centerMarkSize: 2.5, textGap: .75, dxfFlags: 0 }],
+    },
+    sheet: { ...source.sheet, notes: source.sheet.notes.map(note => ({ ...note, styleKey: 'narrow-note' })) },
+    dimensions: source.dimensions.map(dimension => ({ ...dimension, styleKey: 'precision-dimension' })),
+    featureControlFrames: [{ position: [120, 80], role: 'dimensions', styleKey: 'precision-dimension', rows: [{ characteristic: 'position', tolerance: '0.1', datumReferences: [{ label: 'A' }] }] }],
+  })
+  assert.equal(proposal.commandArgs.resources.textStyles.length, 1)
+  assert.equal(proposal.commandArgs.resources.dimensionStyles.length, 1)
+  assert.equal(proposal.evidence.parameters.textStyleCount, 1)
+  assert.equal(proposal.evidence.parameters.dimensionStyleCount, 1)
+  const textStyleId = proposal.commandArgs.resources.textStyles[0].id
+  const dimensionStyleId = proposal.commandArgs.resources.dimensionStyles[0].id
+  for (const entity of proposal.commandArgs.entities.filter(entity => ['TEXT', 'MTEXT'].includes(entity.type))) assert.equal(entity.payload.styleId, textStyleId)
+  for (const entity of proposal.commandArgs.entities.filter(entity => ['DIMENSION', 'TOLERANCE'].includes(entity.type))) assert.equal(entity.payload.styleId, dimensionStyleId)
+  assert.equal(JSON.stringify(proposal).includes('privateCatalog'), false)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const reopened = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  const reopenedTextStyle = reopened.getTable('textStyles').records.find(record => record.name === 'PUBLIC-NOTE-STYLE')
+  const reopenedDimensionStyle = reopened.getTable('dimensionStyles').records.find(record => record.name === 'PUBLIC-DIM-STYLE')
+  assert.equal(reopenedTextStyle.payload.widthFactor, .7)
+  assert.equal(reopenedDimensionStyle.payload.decimalPlaces, 2)
+  assert.ok(reopened.listEntities({ type: 'MTEXT' }).every(entity => entity.payload.styleId === reopenedTextStyle.id))
+  assert.ok(reopened.listEntities({ type: 'DIMENSION' }).every(entity => entity.payload.styleId === reopenedDimensionStyle.id))
+  assert.equal(reopened.listEntities({ type: 'TOLERANCE' })[0].payload.styleId, reopenedDimensionStyle.id)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), dimensions: [{ ...input(document.revision).dimensions[0], styleKey: 'missing' }] }), /must reference input.styleResources/u)
+})
+
 test('bounded semantic auxiliary lines compile as native LINE entities', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryLines: [
