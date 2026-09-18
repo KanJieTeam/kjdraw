@@ -64,6 +64,16 @@ function point(value, tolerance) {
   return [rounded(value[0], tolerance), rounded(value[1], tolerance), rounded(value[2] ?? 0, tolerance)]
 }
 
+function hatchValue(value, tolerance) {
+  if (finite(value)) return rounded(value, tolerance)
+  if (typeof value === 'string' || typeof value === 'boolean' || value === null) return value
+  if (Array.isArray(value)) return value.map(item => hatchValue(item, tolerance))
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value)
+    .filter(([key]) => !['sourceHandles', 'sourceBoundaryObjects'].includes(key))
+    .map(([key, item]) => [key, key === 'rawTags' ? digest(item) : hatchValue(item, tolerance)]))
+  return String(value)
+}
+
 function geometryOf(entity, tolerance) {
   const source = entity.payload ?? {}
   const pick = (...keys) => Object.fromEntries(keys.filter(key => source[key] !== undefined).map(key => {
@@ -90,7 +100,8 @@ function geometryOf(entity, tolerance) {
     solid: source.solid === true, associative: source.associative === true,
     patternName: String(source.patternName ?? ''), patternScale: finite(source.patternScale) ? rounded(source.patternScale, tolerance) : null,
     patternAngle: finite(source.patternAngle) ? rounded(source.patternAngle, tolerance) : null,
-    loopCount: Array.isArray(source.boundaryLoops) ? source.boundaryLoops.length : 0,
+    patternLines: Array.isArray(source.patternLines) ? hatchValue(source.patternLines, tolerance) : null,
+    boundaryLoops: Array.isArray(source.boundaryLoops) ? hatchValue(source.boundaryLoops, tolerance) : null,
   }
   if (entity.type === 'DIMENSION') return pick('dimensionType', 'definitionPoints', 'measurement', 'textOverride')
   return null

@@ -26,6 +26,12 @@ async function drawing(patch = {}) {
     tx.createEntity('LINE', { start: [50, -10, 0], end: [50, 30, 0], layerId: layer.id }, { id: 'line-c' })
     tx.createEntity('CIRCLE', { center: [20, 10, 0], radius: 5, layerId: layer.id }, { id: 'circle-a' })
     if (!patch.missingCircle) tx.createEntity('CIRCLE', { center: [20, 10, 0], radius: patch.radius ?? 10, layerId: layer.id }, { id: 'circle-b' })
+    tx.createEntity('HATCH', { solid: false, patternName: 'PRIVATE_TEST', patternScale: 1, patternAngle: 0,
+      patternLines: [{ angle: 0, base: [0, 0], offset: [0, patch.patternOffset ?? 2], dashes: [1, -1] }],
+      boundaryLoops: [
+        { external: true, vertices: [[0, 40], [40, 40], [40, 80], [0, 80]] },
+        { external: false, vertices: [[10 + (patch.hatchIslandShift ?? 0), 50], [30, 50], [30, 70], [10 + (patch.hatchIslandShift ?? 0), 70]] },
+      ], layerId: layer.id }, { id: 'hatch-a' })
     tx.createEntity('TEXT', { position: [0, 30, 0], text: patch.text ?? 'Synthetic title', height: 2.5, layerId: layer.id }, { id: 'title' })
   })
   if (patch.page) {
@@ -77,6 +83,8 @@ test('canonical feature summaries are stable and the strict comparator catches k
     ['text', { text: 'Changed title' }],
     ['structure', { missingCircle: true }],
     ['topology', { radius: 5 }],
+    ['geometry', { hatchIslandShift: 1 }],
+    ['geometry', { patternOffset: 3 }],
   ]
   for (const [category, patch] of cases) {
     const comparison = compareCanonicalFeatureSummaries(reference, createCanonicalFeatureSummary(await drawing(patch), { salt }))
