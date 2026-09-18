@@ -1,11 +1,12 @@
 import { KJValidationError } from './errors.js'
+import { projectDimension } from './geometry/annotation.js'
 import { KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK } from './knowledge-packs/mechanical-flange-core.js'
 import { stableHash } from './utils.js'
 
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
 type Point2 = [number, number]
 type Point3 = [number, number, number]
-type Entity = { type: 'LINE' | 'CIRCLE' | 'TEXT' | 'MTEXT'; payload: Record<string, unknown>; options: { id: string } }
+type Entity = { type: 'LINE' | 'CIRCLE' | 'TEXT' | 'MTEXT' | 'DIMENSION'; payload: Record<string, unknown>; options: { id: string } }
 interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } } }
 
 export interface KJFlangeTitleGrid {
@@ -40,6 +41,16 @@ export interface KJFlangeSheetNote {
   width?: number
 }
 
+/** A bounded native mechanical dimension supplied as engineering annotation
+ *  facts. Measurements are derived from definition points, never accepted. */
+export interface KJFlangeDimension {
+  kind: 'aligned' | 'rotated' | 'diameter' | 'radius' | 'angular'
+  definitionPoints: Point2[]
+  textPosition?: Point2
+  textOverride?: string
+  rotation?: number
+}
+
 export interface KJAgentMechanicalFlangeCoreInput {
   version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION
   expectedRevision: number
@@ -47,6 +58,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   drawingId: string
   endView: { center: Point2; ringRadii: number[]; squareHoles: { pitch: number; radius: number } }
   sideViewAxis?: { xRange: Point2; symmetricProfiles?: KJFlangeSymmetricProfile[] }
+  dimensions?: KJFlangeDimension[]
   sheet: { origin: Point2; size: Point2; inset: number; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
 }
 
@@ -75,7 +87,7 @@ const increasing = (value: unknown, label: string, maxCount: number, min: number
 
 function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   if (!document || typeof document.id !== 'string' || !Number.isSafeInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Flange compiler requires a KJDraw document')
-  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'sheet'], 'input')
+  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'dimensions', 'sheet'], 'input')
   if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`)
   if (input.units !== 'millimeter' || document.snapshot().header?.units !== 'millimeter') throw new KJValidationError('Flange compiler requires millimeter units')
   const expectedRevision = finite(input.expectedRevision, 'input.expectedRevision', 0, Number.MAX_SAFE_INTEGER)
@@ -164,7 +176,27 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     if (note.kind === 'single-line' && width != null) throw new KJValidationError(`input.sheet.notes[${index}].width is only valid for multiline text`)
     return { kind: note.kind, text, position, height, rotation, ...(width == null ? {} : { width }) }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, xRange, symmetricProfiles, sheetOrigin, sheetSize, inset, titleGrid, notes }
+  if (input.dimensions != null && !Array.isArray(input.dimensions)) throw new KJValidationError('input.dimensions must be an array')
+  if ((input.dimensions as unknown[] | undefined)?.length && (input.dimensions as unknown[]).length > 128) throw new KJValidationError('input.dimensions exceed their budget')
+  const dimensions: KJFlangeDimension[] = ((input.dimensions ?? []) as unknown[]).map((value, index) => {
+    const dimension = plain(value, `input.dimensions[${index}]`)
+    exact(dimension, ['kind', 'definitionPoints', 'textPosition', 'textOverride', 'rotation'], `input.dimensions[${index}]`)
+    if (!['aligned', 'rotated', 'diameter', 'radius', 'angular'].includes(dimension.kind as string)) throw new KJValidationError(`input.dimensions[${index}].kind is invalid`)
+    const requiredPoints = dimension.kind === 'angular' ? 5 : ['diameter', 'radius'].includes(dimension.kind as string) ? 2 : 3
+    if (!Array.isArray(dimension.definitionPoints) || dimension.definitionPoints.length !== requiredPoints) throw new KJValidationError(`input.dimensions[${index}].definitionPoints must contain ${requiredPoints} points`)
+    const definitionPoints = dimension.definitionPoints.map((value, pointIndex) => point(value, `input.dimensions[${index}].definitionPoints[${pointIndex}]`))
+    const textPosition = dimension.textPosition == null ? undefined : point(dimension.textPosition, `input.dimensions[${index}].textPosition`)
+    const textOverride = dimension.textOverride == null ? undefined : dimension.textOverride
+    if (textOverride != null && (typeof textOverride !== 'string' || textOverride.length > 128 || /[\r\n\u0000-\u001f\u007f]/u.test(textOverride))) throw new KJValidationError(`input.dimensions[${index}].textOverride must be bounded single-line text`)
+    const rotation = dimension.rotation == null ? 0 : finite(dimension.rotation, `input.dimensions[${index}].rotation`, -Math.PI * 2, Math.PI * 2)
+    const dimensionType = String(dimension.kind).toUpperCase()
+    const payload = { dimensionType, definitionPoints: definitionPoints.map(([x, y]) => [x, y, 0]),
+      ...(textPosition == null ? {} : { textPosition: [...textPosition, 0] }), textOverride: textOverride ?? null, rotation }
+    if (!projectDimension(payload)) throw new KJValidationError(`input.dimensions[${index}] does not define a projectable native dimension`)
+    return { kind: dimension.kind as KJFlangeDimension['kind'], definitionPoints, ...(textPosition == null ? {} : { textPosition }),
+      ...(textOverride == null ? {} : { textOverride }), rotation }
+  })
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, xRange, symmetricProfiles, dimensions, sheetOrigin, sheetSize, inset, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -210,6 +242,11 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     position: p3(...note.position), text: note.text, height: note.height, rotation: note.rotation,
     ...(note.width == null ? {} : { width: note.width }), layerId: noteLayerId,
   })
+  for (const dimension of input.dimensions) emit('DIMENSION', {
+    dimensionType: dimension.kind.toUpperCase(), definitionPoints: dimension.definitionPoints.map(([x, y]) => p3(x, y)),
+    ...(dimension.textPosition == null ? {} : { textPosition: p3(...dimension.textPosition) }),
+    textOverride: dimension.textOverride ?? null, rotation: dimension.rotation ?? 0, styleName: 'STANDARD', layerId: noteLayerId,
+  })
   return {
     commandArgs: { entities, resources: {
       linetypes: [{ id: linetypeId, name: `${prefix}_CONT`, pattern: [] }],
@@ -224,8 +261,8 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       knowledgePackVersion: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version,
       expectedRevision: input.expectedRevision, entityCount: entities.length,
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
-        symmetricProfileCount: input.symmetricProfiles.length, noteCount: input.notes.length },
-      limitations: ['Flange end-view, symmetric axial-profile and sheet-grid core only', 'Does not generate dimensions, attributes or hatches', 'Private drawings and labels are not embedded'],
+        symmetricProfileCount: input.symmetricProfiles.length, noteCount: input.notes.length, dimensionCount: input.dimensions.length },
+      limitations: ['Flange end-view, symmetric axial-profile, native dimension and sheet-grid core only', 'Does not generate attributes or hatches', 'Private drawings and labels are not embedded'],
     },
   }
 }
