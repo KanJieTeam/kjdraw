@@ -91,6 +91,13 @@ export type KJFlangeEndViewOutlineSegment = {
     startAngle: number;
     endAngle: number;
 };
+/** A source-positioned cutting-plane mark, relative to the end-view center.
+ *  The stem and tick vectors retain the drafting direction of each mark. */
+export interface KJFlangeCuttingPlaneMark {
+    anchorOffset: Point2;
+    stemVector: Point2;
+    tickVector: Point2;
+}
 export interface KJAgentMechanicalFlangeCoreInput {
     version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION;
     expectedRevision: number;
@@ -104,6 +111,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
             radius: number;
         };
         outlineSegments?: KJFlangeEndViewOutlineSegment[];
+        cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[];
     };
     sideViewAxis?: {
         xRange: Point2;
@@ -149,6 +157,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             titleGrid: boolean;
             sideViewAxis: boolean;
             outlineSegmentCount: number;
+            cuttingPlaneMarkCount: number;
             symmetricProfileCount: number;
             noteCount: number;
             dimensionCount: number;
