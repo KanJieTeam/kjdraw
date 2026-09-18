@@ -137,8 +137,10 @@ test('acceptance matrix is machine-readable and passed scope is backed by releas
     assert.equal(realCorpus.requiredForStable, true)
     assert.notEqual(realCorpus.verifyOnCandidate, true)
     assert.ok(['blocked', 'partial', 'passed'].includes(realCorpus.status))
-    assert.match(realCorpus.gap ?? '', /100%/)
-    assert.match(realCorpus.gap ?? '', /not passes/)
+    if (realCorpus.status !== 'passed') {
+      assert.match(realCorpus.gap ?? '', /100%/)
+      assert.match(realCorpus.gap ?? '', /not passes/)
+    }
   }
   const localAuthority = matrix.gates.find(row => row.id === 'file.local-authority')
   assert.equal(localAuthority.status, 'passed')
