@@ -40,6 +40,7 @@ const AFFINE_ENTITY_TYPES = Object.freeze([
     'LEADER',
     'MLEADER',
     'DIMENSION',
+    'TOLERANCE',
     'VIEWPORT',
     'SOLID',
     'TRACE',

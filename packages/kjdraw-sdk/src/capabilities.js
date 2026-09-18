@@ -106,6 +106,7 @@ export const KJDRAW_1_0_READINESS_PROFILE = Object.freeze({
         'LEADER',
         'MLEADER',
         'DIMENSION',
+        'TOLERANCE',
         'VIEWPORT',
         'PROXY_ENTITY',
         'SOLID3D'

@@ -235,3 +235,22 @@ test('generic local symbols compile as editable native blocks without source blo
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols: { definitions: [{ ...symbols.definitions[0], rawTags: [] }], instances: symbols.instances } }), /unsupported field/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols: { definitions: symbols.definitions, instances: [{ ...symbols.instances[0], symbolKey: 'missing' }] } }), /reference a definition/u)
 })
+
+test('semantic feature-control frames compile as native TOLERANCE without opaque tags', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const featureControlFrames = [{ position: [120, 80], role: 'dimensions', rows: [
+    { characteristic: 'concentricity', tolerance: '0.02', datumReferences: [{ label: 'A' }] },
+    { characteristic: 'perpendicularity', tolerance: '0.03', diameterZone: true, materialCondition: 'maximum', datumReferences: [{ label: 'B', materialCondition: 'least' }] },
+  ] }]
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames })
+  const tolerance = proposal.commandArgs.entities.find(entity => entity.type === 'TOLERANCE')
+  assert.equal(proposal.evidence.parameters.featureControlFrameCount, 1)
+  assert.equal(tolerance.payload.text, String.raw`{\Fgdt;r}%%v0.02%%vA%%v%%v%%v%%v^J{\Fgdt;b}%%v{\Fgdt;n}0.03{\Fgdt;m}%%vB{\Fgdt;l}%%v%%v%%v%%v^J`)
+  assert.equal(JSON.stringify(tolerance).includes('rawTags'), false)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxf = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  assert.equal(dxf.listEntities({ type: 'TOLERANCE' }).length, 1)
+  assert.equal(dxf.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames: [{ ...featureControlFrames[0], rawTags: [] }] }), /unsupported field/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames: [{ ...featureControlFrames[0], rows: [{ characteristic: 'unknown', tolerance: '0.1' }] }] }), /characteristic is invalid/u)
+})

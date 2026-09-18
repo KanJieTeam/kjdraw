@@ -32,6 +32,7 @@ export const KJDRAW_AGENT_MOVABLE_TYPES = Object.freeze([
     'MTEXT',
     'LEADER',
     'DIMENSION',
+    'TOLERANCE',
     'INSERT'
 ]);
 const creatable = [
@@ -43,6 +44,7 @@ const creatable = [
     'MTEXT',
     'LEADER',
     'DIMENSION',
+    'TOLERANCE',
     'INSERT'
 ];
 const stretchable = [
@@ -120,7 +122,7 @@ function validateMovableAnnotation(document, entity) {
         validateTransformGeometry(document, entity);
         return;
     }
-    if (entity.type !== 'TEXT' && entity.type !== 'DIMENSION') return;
+    if (entity.type !== 'TEXT' && entity.type !== 'DIMENSION' && entity.type !== 'TOLERANCE') return;
     const payload = entity.payload;
     for (const field of [
         'normal',
@@ -129,7 +131,7 @@ function validateMovableAnnotation(document, entity) {
         const normal = payload[field];
         if (normal !== undefined && normal !== null && (!Array.isArray(normal) || normal.length !== 3 || normal[0] !== 0 || normal[1] !== 0 || normal[2] !== 1)) throw new KJValidationError('Annotation move preview requires the default +Z plane');
     }
-    const points = entity.type === 'TEXT' ? [
+    const points = entity.type === 'TEXT' || entity.type === 'TOLERANCE' ? [
         payload.position,
         ...payload.alignmentPoint ? [
             payload.alignmentPoint
@@ -141,6 +143,7 @@ function validateMovableAnnotation(document, entity) {
         ] : []
     ];
     if (!points.length || points.some((point)=>!Array.isArray(point) || point.length !== 3 || point.some((value)=>typeof value !== 'number' || !Number.isFinite(value)) || point[2] !== 0)) throw new KJValidationError('Annotation move preview requires complete model XY geometry at z=0');
+    if (entity.type === 'TOLERANCE' && (typeof payload.text !== 'string' || !payload.text || !Array.isArray(payload.xAxisDirection) || Math.hypot(Number(payload.xAxisDirection[0]), Number(payload.xAxisDirection[1])) <= 1e-12)) throw new KJValidationError('Annotation move preview requires a bounded native tolerance frame');
     if (entity.type === 'DIMENSION' && !projectDimension(payload, document.getObject(String(payload.styleId ?? ''))?.payload)) throw new KJValidationError('Annotation move preview requires supported nondegenerate native dimension geometry');
 }
 function validateTransformGeometry(document, entity) {
@@ -239,6 +242,12 @@ function validateTransformGeometry(document, entity) {
             ...projection.arcs.map((arc)=>arc.center)
         ];
         if (!visiblePoints.every((p)=>p.every(bounded)) || !bounded(projection.measurement) || !bounded(projection.label.height) || projection.arcs.some((arc)=>!bounded(arc.radius))) throw new KJValidationError('Transform annotation projection exceeds its finite coordinate budget');
+    } else if (entity.type === 'TOLERANCE') {
+        points = [
+            payload.position,
+            payload.xAxisDirection
+        ];
+        if (typeof payload.text !== 'string' || !payload.text || payload.text.length > 4096 || !Array.isArray(payload.xAxisDirection) || Math.hypot(Number(payload.xAxisDirection[0]), Number(payload.xAxisDirection[1])) <= 1e-12) throw new KJValidationError('Transform preview requires a bounded native tolerance frame');
     } else if (entity.type === 'HATCH') {
         const loops = Array.isArray(payload.boundaryLoops) ? payload.boundaryLoops : [];
         if (!loops.length || loops.length > 64 || !bounded(payload.patternScale) || payload.patternScale <= 0 || !bounded(payload.patternAngle)) throw new KJValidationError('Transform preview requires a bounded native hatch');

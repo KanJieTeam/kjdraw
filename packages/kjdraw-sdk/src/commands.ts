@@ -330,7 +330,7 @@ export interface KJRegisteredCommand extends KJCommandDefinition {
 const AFFINE_ENTITY_TYPES = Object.freeze([
   'LINE', 'RAY', 'XLINE', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE',
   'WIPEOUT', 'REVISION_CLOUD', 'SPLINE', 'ELLIPSE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT',
-  'IMAGE', 'HATCH', 'LEADER', 'MLEADER', 'DIMENSION', 'VIEWPORT',
+  'IMAGE', 'HATCH', 'LEADER', 'MLEADER', 'DIMENSION', 'TOLERANCE', 'VIEWPORT',
   'SOLID', 'TRACE', 'TABLE',
 ])
 

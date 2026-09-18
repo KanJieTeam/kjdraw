@@ -201,6 +201,7 @@ const READ_TYPES = Object.freeze([
     'HATCH',
     'LEADER',
     'DIMENSION',
+    'TOLERANCE',
     'SOLID',
     'VIEWPORT',
     'WIPEOUT',
@@ -225,6 +226,7 @@ const WRITE_TYPES = new Set([
     'HATCH',
     'LEADER',
     'DIMENSION',
+    'TOLERANCE',
     'SOLID',
     'VIEWPORT',
     'WIPEOUT',
@@ -1242,6 +1244,29 @@ function entityPayload(record, blockIds, resources = {}) {
                         measurement: values(record, 42).length ? number(record, 42) : null,
                         rotation: number(record, 50, 0) * Math.PI / 180,
                         rawTags: record.tags
+                    }
+                };
+            }
+        case 'TOLERANCE':
+            {
+                const styleName = first(record, 3, 'STANDARD');
+                return {
+                    type: 'TOLERANCE',
+                    payload: {
+                        position: point(record),
+                        text: first(record, 1, ''),
+                        styleName,
+                        styleId: resources.dimensionStyleIds?.get(normalizeName(styleName)) ?? null,
+                        normal: optionalPoint(record, 210, 220, 230) ?? [
+                            0,
+                            0,
+                            1
+                        ],
+                        xAxisDirection: optionalPoint(record, 11, 21, 31) ?? [
+                            1,
+                            0,
+                            0
+                        ]
                     }
                 };
             }
@@ -3115,6 +3140,22 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
             1
         ].includes(subtype)) emit(output, 50, dimensionRotation * 180 / Math.PI);
         if (subtype === 0) emitSubclass(output, version, 'AcDbRotatedDimension');
+    } else if (entity.type === 'TOLERANCE') {
+        if (VERSION_RANK[version] < VERSION_RANK['2000']) throw new KJValidationError('DXF TOLERANCE requires DXF 2000 or newer');
+        emitSubclass(output, version, 'AcDbFcf');
+        emit(output, 3, (p.styleId ? resources.dimensionStyleNames?.get(p.styleId) : undefined) ?? p.styleName ?? 'STANDARD');
+        emitPoint(output, p.position);
+        emit(output, 1, p.text ?? '');
+        emitPoint(output, p.normal ?? [
+            0,
+            0,
+            1
+        ], 210);
+        emitPoint(output, p.xAxisDirection ?? [
+            1,
+            0,
+            0
+        ], 11);
     } else if (entity.type === 'VIEWPORT') {
         if (p.unresolvedViewportReferences?.length) throw new KJValidationError('Cannot export VIEWPORT with unresolved source references');
         if (p.viewCenter?.[2]) throw new KJValidationError('VIEWPORT viewCenter must be a two-dimensional DCS point');

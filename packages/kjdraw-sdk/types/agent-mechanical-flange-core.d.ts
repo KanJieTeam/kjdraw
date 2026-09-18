@@ -2,7 +2,7 @@ export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: '1.0.0';
 type Point2 = [number, number];
 type Point3 = [number, number, number];
 type Entity = {
-    type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'HATCH' | 'INSERT';
+    type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT';
     payload: Record<string, unknown>;
     options: {
         id: string;
@@ -259,6 +259,23 @@ export interface KJFlangeLeader {
     hookLineDirection?: number;
     hookLineEnabled?: boolean;
 }
+export type KJFlangeGeometricCharacteristic = 'position' | 'concentricity' | 'symmetry' | 'parallelism' | 'perpendicularity' | 'angularity' | 'cylindricity' | 'flatness' | 'circularity' | 'straightness' | 'surface-profile' | 'line-profile' | 'circular-runout' | 'total-runout';
+export type KJFlangeMaterialCondition = 'maximum' | 'least' | 'regardless';
+export interface KJFlangeFeatureControlFrame {
+    position: Point2;
+    rows: {
+        characteristic: KJFlangeGeometricCharacteristic;
+        tolerance: string;
+        diameterZone?: boolean;
+        materialCondition?: KJFlangeMaterialCondition;
+        datumReferences?: {
+            label: string;
+            materialCondition?: KJFlangeMaterialCondition;
+        }[];
+    }[];
+    xAxisDirection?: Point2;
+    role: 'dimensions' | 'notes';
+}
 /** Source-measured visible end-view outline geometry, expressed relative to
  *  the end-view center so that the same rule remains position independent. */
 export type KJFlangeEndViewOutlineSegment = {
@@ -310,6 +327,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
     };
     dimensions?: KJFlangeDimension[];
     leaders?: KJFlangeLeader[];
+    featureControlFrames?: KJFlangeFeatureControlFrame[];
     auxiliaryLines?: KJFlangeAuxiliaryLine[];
     auxiliaryCurves?: KJFlangeAuxiliaryCurve[];
     symbols?: {
@@ -376,6 +394,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             auxiliaryCurveCount: number;
             symbolDefinitionCount: number;
             symbolInstanceCount: number;
+            featureControlFrameCount: number;
             noteCount: number;
             dimensionCount: number;
             leaderCount: number;

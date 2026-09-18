@@ -26,6 +26,7 @@ const STANDARD = new Set([
     'LEADER',
     'MLEADER',
     'DIMENSION',
+    'TOLERANCE',
     'VIEWPORT',
     'WIPEOUT',
     'REVISION_CLOUD',
@@ -423,6 +424,24 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                 ...payload.dimensionAssociations == null ? {} : {
                     dimensionAssociations: normalizeDimensionAssociations(payload.dimensionAssociations)
                 }
+            };
+        case 'TOLERANCE':
+            return {
+                ...base(payload),
+                position: point3(payload.position, 'position'),
+                text: String(payload.text ?? ''),
+                styleId: payload.styleId == null ? null : String(payload.styleId),
+                styleName: String(payload.styleName ?? 'STANDARD'),
+                normal: vector3(payload.normal ?? [
+                    0,
+                    0,
+                    1
+                ], 'normal'),
+                xAxisDirection: vector3(payload.xAxisDirection ?? [
+                    1,
+                    0,
+                    0
+                ], 'xAxisDirection')
             };
         case 'VIEWPORT':
             {

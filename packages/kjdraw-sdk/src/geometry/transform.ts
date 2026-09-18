@@ -262,6 +262,11 @@ export function transformEntityPayload(
           && transformPoint3(matrix, payload.textPosition as Point2Input),
         rotation: transformAngle(matrix, payload.rotation ?? 0),
       }
+    case 'TOLERANCE': {
+      const axis = transformVector3(matrix, (payload.xAxisDirection ?? [1, 0, 0]) as Point2Input), z = Number(axis[2] ?? 0), length = Math.hypot(axis[0], axis[1], z)
+      if (!(length > 1e-15)) throw new KJValidationError('TOLERANCE x-axis direction became degenerate')
+      return { ...payload, position: transformPoint3(matrix, payload.position as Point2Input), xAxisDirection: [axis[0] / length, axis[1] / length, z / length] }
+    }
     case 'VIEWPORT':
       return {
         ...payload,
