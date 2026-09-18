@@ -23554,6 +23554,18 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
         offset: number;
         breaks?: number[];
     }[];
+    /** bounded horizontal rules measured from the grid&#39;s bottom and left edges. */
+    horizontalsegments?: {
+        offset: number;
+        start: number;
+        end: number;
+    }[];
+    /** bounded vertical rules measured from the grid&#39;s left and bottom edges. */
+    verticalsegments?: {
+        offset: number;
+        start: number;
+        end: number;
+    }[];
     diagonalheader?: {
         width: number;
         drop: number;
@@ -23574,6 +23586,18 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     rows: {
         offset: number;
         breaks?: number[];
+    }[];
+    /** Bounded horizontal rules measured from the grid&#39;s bottom and left edges. */
+    horizontalSegments?: {
+        offset: number;
+        start: number;
+        end: number;
+    }[];
+    /** Bounded vertical rules measured from the grid&#39;s left and bottom edges. */
+    verticalSegments?: {
+        offset: number;
+        start: number;
+        end: number;
     }[];
     diagonalHeader?: {
         width: number;

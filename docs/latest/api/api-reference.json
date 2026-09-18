@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:40db17086224cc013eb989e44b91d96f63932a63823f99e1d688fae8a6f1cafb",
+  "sourceDigest": "sha256:a409feb43a6ba510904322dd78d72adeda5945a10c419f741523056103c3a1f6",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -9721,7 +9721,7 @@
         {
           "name": "KJFlangeTitleGrid",
           "kind": "interface",
-          "declaration": "export interface KJFlangeTitleGrid {\n    origin: Point2;\n    size: Point2;\n    /** Full-height column boundaries measured from the grid's left edge. */\n    columns: number[];\n    /** Column boundaries that stop below the grid's top edge. */\n    partialColumns?: {\n        offset: number;\n        height: number;\n    }[];\n    /** Row boundaries measured from the bottom; breaks split one row into segments. */\n    rows: {\n        offset: number;\n        breaks?: number[];\n    }[];\n    diagonalHeader?: {\n        width: number;\n        drop: number;\n    };\n}",
+          "declaration": "export interface KJFlangeTitleGrid {\n    origin: Point2;\n    size: Point2;\n    /** Full-height column boundaries measured from the grid's left edge. */\n    columns: number[];\n    /** Column boundaries that stop below the grid's top edge. */\n    partialColumns?: {\n        offset: number;\n        height: number;\n    }[];\n    /** Row boundaries measured from the bottom; breaks split one row into segments. */\n    rows: {\n        offset: number;\n        breaks?: number[];\n    }[];\n    /** Bounded horizontal rules measured from the grid's bottom and left edges. */\n    horizontalSegments?: {\n        offset: number;\n        start: number;\n        end: number;\n    }[];\n    /** Bounded vertical rules measured from the grid's left and bottom edges. */\n    verticalSegments?: {\n        offset: number;\n        start: number;\n        end: number;\n    }[];\n    diagonalHeader?: {\n        width: number;\n        drop: number;\n    };\n}",
           "source": "agent-mechanical-flange-core.d.ts",
           "anchor": "root-interface-kjflangetitlegrid"
         },
