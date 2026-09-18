@@ -18,6 +18,10 @@ export interface KJFlangeTitleGrid {
   partialColumns?: { offset: number; height: number }[]
   /** Row boundaries measured from the bottom; breaks split one row into segments. */
   rows: { offset: number; breaks?: number[] }[]
+  /** Bounded horizontal rules measured from the grid's bottom and left edges. */
+  horizontalSegments?: { offset: number; start: number; end: number }[]
+  /** Bounded vertical rules measured from the grid's left and bottom edges. */
+  verticalSegments?: { offset: number; start: number; end: number }[]
   diagonalHeader?: { width: number; drop: number }
 }
 
@@ -132,7 +136,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   if (sheetSize[0] < 100 || sheetSize[1] < 100) throw new KJValidationError('input.sheet.size is too small')
   const inset = finite(sheet.inset, 'input.sheet.inset', 0, Math.min(...sheetSize) / 2 - 1)
   const grid = sheet.titleGrid == null ? null : plain(sheet.titleGrid, 'input.sheet.titleGrid')
-  if (grid) exact(grid, ['origin', 'size', 'columns', 'partialColumns', 'rows', 'diagonalHeader'], 'input.sheet.titleGrid')
+  if (grid) exact(grid, ['origin', 'size', 'columns', 'partialColumns', 'rows', 'horizontalSegments', 'verticalSegments', 'diagonalHeader'], 'input.sheet.titleGrid')
   let titleGrid: KJFlangeTitleGrid | null = null
   if (grid) {
     const origin = point(grid.origin, 'input.sheet.titleGrid.origin'), size = point(grid.size, 'input.sheet.titleGrid.size')
@@ -151,9 +155,26 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       const entry = plain(value, `input.sheet.titleGrid.partialColumns[${index}]`); exact(entry, ['offset', 'height'], `input.sheet.titleGrid.partialColumns[${index}]`)
       return { offset: finite(entry.offset, `input.sheet.titleGrid.partialColumns[${index}].offset`, 0, size[0]), height: finite(entry.height, `input.sheet.titleGrid.partialColumns[${index}].height`, 0, size[1]) }
     })
+    const segments = (value: unknown, label: string, offsetMax: number, spanMax: number) => {
+      if (value != null && !Array.isArray(value)) throw new KJValidationError(`${label} must be an array`)
+      if ((value as unknown[] | undefined)?.length && (value as unknown[]).length > 64) throw new KJValidationError(`${label} exceed their budget`)
+      return ((value ?? []) as unknown[]).map((segmentValue, index) => {
+        const entry = plain(segmentValue, `${label}[${index}]`)
+        exact(entry, ['offset', 'start', 'end'], `${label}[${index}]`)
+        const segment = {
+          offset: finite(entry.offset, `${label}[${index}].offset`, 0, offsetMax),
+          start: finite(entry.start, `${label}[${index}].start`, 0, spanMax),
+          end: finite(entry.end, `${label}[${index}].end`, 0, spanMax),
+        }
+        if (segment.start >= segment.end) throw new KJValidationError(`${label}[${index}] start must be less than end`)
+        return segment
+      })
+    }
+    const horizontalSegments = segments(grid.horizontalSegments, 'input.sheet.titleGrid.horizontalSegments', size[1], size[0])
+    const verticalSegments = segments(grid.verticalSegments, 'input.sheet.titleGrid.verticalSegments', size[0], size[1])
     const diagonal = grid.diagonalHeader == null ? null : plain(grid.diagonalHeader, 'input.sheet.titleGrid.diagonalHeader')
     if (diagonal) exact(diagonal, ['width', 'drop'], 'input.sheet.titleGrid.diagonalHeader')
-    titleGrid = { origin, size, columns, rows, partialColumns,
+    titleGrid = { origin, size, columns, rows, partialColumns, horizontalSegments, verticalSegments,
       ...(diagonal ? { diagonalHeader: { width: finite(diagonal.width, 'input.sheet.titleGrid.diagonalHeader.width', 0, size[0]), drop: finite(diagonal.drop, 'input.sheet.titleGrid.diagonalHeader.drop', 0, size[1]) } } : {}) }
   }
   if (sheet.notes != null && !Array.isArray(sheet.notes)) throw new KJValidationError('input.sheet.notes must be an array')
@@ -225,6 +246,8 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       const spans = [0, ...(row.breaks ?? []), w]
       for (let index = 0; index < spans.length - 1; index++) line([x + spans[index]!, y + row.offset], [x + spans[index + 1]!, y + row.offset])
     }
+    for (const segment of grid.horizontalSegments ?? []) line([x + segment.start, y + segment.offset], [x + segment.end, y + segment.offset])
+    for (const segment of grid.verticalSegments ?? []) line([x + segment.offset, y + segment.start], [x + segment.offset, y + segment.end])
     if (grid.diagonalHeader) line([x, y + h], [x + grid.diagonalHeader.width, y + h - grid.diagonalHeader.drop])
   }
   if (input.xRange) line([input.xRange[0], cy], [input.xRange[1], cy], centerLayerId)
