@@ -8,6 +8,7 @@ import { isDeepStrictEqual } from 'node:util'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { validateKnowledgePack } from '../src/knowledge-pack.js'
 import { KJDRAW_VERSION } from '../src/version.js'
+import { safeConnectError } from './connect-error.mjs'
 
 const PROJECT_CLIENTS = Object.freeze([
   { name: 'Kimi Code', path: '.kimi-code/mcp.json', keys: ['mcpServers'] },
@@ -134,6 +135,13 @@ async function checkedPath(root, value, label, finalType) {
 
 function sha(bytes) { return createHash('sha256').update(bytes).digest('hex') }
 function object(value) { return value !== null && typeof value === 'object' && !Array.isArray(value) }
+export async function inspected(stage, operation) {
+  try { return await operation() }
+  catch (error) {
+    if (typeof error?.code === 'string') throw new Error(`${stage}: ${safeConnectError(error)}`)
+    throw error
+  }
+}
 
 async function readConfig(path) {
   const info = await item(path)
@@ -284,12 +292,12 @@ export async function connectWorkspace(options, hooks = {}) {
   const scope = options.scope ?? 'project'
   if (!['project', 'user'].includes(scope)) throw new Error('--scope must be project or user')
   const rawRoot = resolve(options.workspace)
-  const rootInfo = await item(rawRoot)
+  const rootInfo = await inspected('User workspace', () => item(rawRoot))
   if (!rootInfo?.isDirectory() || rootInfo.isSymbolicLink()) throw new Error('--workspace must be a real directory, not a symbolic link')
-  const root = await realpath(rawRoot)
-  const drawing = await prepareDrawing(root, options)
-  const proposals = await checkedPath(root, options.proposalDir ?? '.kjdraw/proposals', '--proposal-dir', 'directory')
-  const candidates = options.candidateDir ? await checkedPath(root, options.candidateDir, '--candidate-dir', 'directory') : null
+  const root = await inspected('User workspace', () => realpath(rawRoot))
+  const drawing = await inspected('Host drawing', () => prepareDrawing(root, options))
+  const proposals = await inspected('Proposal directory', () => checkedPath(root, options.proposalDir ?? '.kjdraw/proposals', '--proposal-dir', 'directory'))
+  const candidates = options.candidateDir ? await inspected('Result directory', () => checkedPath(root, options.candidateDir, '--candidate-dir', 'directory')) : null
   if (candidates && candidates === proposals) throw new Error('--candidate-dir must be different from --proposal-dir')
   let geologyColumnKnowledge
   if (options['geology-column-pack']) {
@@ -311,9 +319,9 @@ export async function connectWorkspace(options, hooks = {}) {
   // different to clients and to the next installer run.
   const mcpPath = fileURLToPath(new URL('./kjdraw-mcp.mjs', import.meta.url))
   if (/[\\/]_npx[\\/]/iu.test(mcpPath) && options.apply) throw new Error('Refusing an ephemeral npm npx cache as a persistent MCP target; install the package locally or globally first')
-  const mcpInfo = await item(mcpPath)
+  const mcpInfo = await inspected('Installed MCP script', () => item(mcpPath))
   if (!mcpInfo?.isFile() || mcpInfo.isSymbolicLink()) throw new Error('KJDraw MCP script is not a regular installed file')
-  const canonicalMcpPath = await realpath(mcpPath)
+  const canonicalMcpPath = await inspected('Installed MCP script', () => realpath(mcpPath))
   const previousMcpScripts = options.previousMcpScripts ?? (options.previousMcpScript ? [options.previousMcpScript] : [])
   const previousMcpPaths = []
   for (const requested of previousMcpScripts) {
@@ -328,10 +336,10 @@ export async function connectWorkspace(options, hooks = {}) {
     // any other existing kjdraw entry to be replaced.
     for (const path of [requestedPath, previousPath]) if (!previousMcpPaths.includes(path)) previousMcpPaths.push(path)
   }
-  const sourceSha256 = sha(await readFile(mcpPath))
-  const nodeEvidence = await nodePathEvidence(root)
-  const skill = await skillSource()
-  const skillPlans = await planSkillTargets(root, skill)
+  const sourceSha256 = sha(await inspected('Installed MCP script', () => readFile(mcpPath)))
+  const nodeEvidence = await inspected('Node.js runtime', () => nodePathEvidence(root))
+  const skill = await inspected('Packaged KJDraw skill', () => skillSource())
+  const skillPlans = await inspected('Existing KJDraw skill', () => planSkillTargets(root, skill))
   // 'node' avoids an ephemeral desktop runtime path and TraeCode's no-spaces command rule.
   const entry = { command: 'node', args: [mcpPath, '--workspace', rawRoot, '--input', drawing.name, '--proposal-dir', relative(root, proposals).split(sep).join('/'),
     ...(candidates ? ['--candidate-dir', relative(root, candidates).split(sep).join('/')] : []),
@@ -355,8 +363,8 @@ export async function connectWorkspace(options, hooks = {}) {
   const clients = scope === 'user' ? USER_CLIENTS : PROJECT_CLIENTS
   const plans = []
   for (const client of clients) {
-    const path = await checkedPath(root, client.path, client.name, 'file')
-    const original = await readConfig(path)
+    const path = await inspected(`${client.name} configuration`, () => checkedPath(root, client.path, client.name, 'file'))
+    const original = await inspected(`${client.name} configuration`, () => readConfig(path))
     if (client.name === 'ZCode' && !Object.keys(original.value?.mcp?.servers ?? {}).length) {
       const fallbackPath = await checkedPath(root, '.agents/mcp.json', 'ZCode .agents fallback', 'file')
       const fallback = await readConfig(fallbackPath)
@@ -493,8 +501,7 @@ async function main() {
   try {
     await runApplyCli(process.argv.slice(2))
   } catch (error) {
-    const safe = error instanceof Error && !('code' in error) ? error.message : 'Unable to inspect the requested project safely'
-    process.stderr.write(`kjdraw-connect: ${safe}\n`)
+    process.stderr.write(`kjdraw-connect: ${safeConnectError(error)}\n`)
     process.exitCode = 1
   }
 }

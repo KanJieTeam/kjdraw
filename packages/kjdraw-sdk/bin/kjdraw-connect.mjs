@@ -7,6 +7,7 @@ import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } 
 import { fileURLToPath } from 'node:url'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJDRAW_VERSION } from '../src/version.js'
+import { safeConnectError } from './connect-error.mjs'
 
 const MAX_CONFIG_BYTES = 1024 * 1024
 const MAX_DRAWING_BYTES = 64 * 1024 * 1024
@@ -247,7 +248,6 @@ async function main() {
 }
 
 main().catch(error => {
-  const safe = error instanceof Error && !('code' in error) ? error.message : 'Unable to inspect the requested drawing or configuration safely'
-  process.stderr.write(`KJDraw connect: ${safe}\n`)
+  process.stderr.write(`KJDraw connect: ${safeConnectError(error)}\n`)
   process.exitCode = 1
 })
