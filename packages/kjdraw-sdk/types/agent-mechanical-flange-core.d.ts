@@ -1,7 +1,7 @@
 export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: '1.0.0';
 type Point2 = [number, number];
 type Entity = {
-    type: 'LINE' | 'CIRCLE' | 'TEXT' | 'MTEXT';
+    type: 'LINE' | 'CIRCLE' | 'TEXT' | 'MTEXT' | 'DIMENSION';
     payload: Record<string, unknown>;
     options: {
         id: string;
@@ -57,6 +57,15 @@ export interface KJFlangeSheetNote {
     rotation?: number;
     width?: number;
 }
+/** A bounded native mechanical dimension supplied as engineering annotation
+ *  facts. Measurements are derived from definition points, never accepted. */
+export interface KJFlangeDimension {
+    kind: 'aligned' | 'rotated' | 'diameter' | 'radius' | 'angular';
+    definitionPoints: Point2[];
+    textPosition?: Point2;
+    textOverride?: string;
+    rotation?: number;
+}
 export interface KJAgentMechanicalFlangeCoreInput {
     version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION;
     expectedRevision: number;
@@ -74,6 +83,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
         xRange: Point2;
         symmetricProfiles?: KJFlangeSymmetricProfile[];
     };
+    dimensions?: KJFlangeDimension[];
     sheet: {
         origin: Point2;
         size: Point2;
@@ -114,6 +124,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             sideViewAxis: boolean;
             symmetricProfileCount: number;
             noteCount: number;
+            dimensionCount: number;
         };
         limitations: string[];
     };

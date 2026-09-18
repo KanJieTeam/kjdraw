@@ -1,5 +1,6 @@
 // Generated from agent-mechanical-flange-core.ts by scripts/build-typescript.mjs. Do not edit directly.
 import { KJValidationError } from './errors.js';
+import { projectDimension } from './geometry/annotation.js';
 import { KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK } from './knowledge-packs/mechanical-flange-core.js';
 import { stableHash } from './utils.js';
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0';
@@ -41,6 +42,7 @@ function validate(document, source) {
         'drawingId',
         'endView',
         'sideViewAxis',
+        'dimensions',
         'sheet'
     ], 'input');
     if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`);
@@ -217,6 +219,64 @@ function validate(document, source) {
             }
         };
     });
+    if (input.dimensions != null && !Array.isArray(input.dimensions)) throw new KJValidationError('input.dimensions must be an array');
+    if (input.dimensions?.length && input.dimensions.length > 128) throw new KJValidationError('input.dimensions exceed their budget');
+    const dimensions = (input.dimensions ?? []).map((value, index)=>{
+        const dimension = plain(value, `input.dimensions[${index}]`);
+        exact(dimension, [
+            'kind',
+            'definitionPoints',
+            'textPosition',
+            'textOverride',
+            'rotation'
+        ], `input.dimensions[${index}]`);
+        if (![
+            'aligned',
+            'rotated',
+            'diameter',
+            'radius',
+            'angular'
+        ].includes(dimension.kind)) throw new KJValidationError(`input.dimensions[${index}].kind is invalid`);
+        const requiredPoints = dimension.kind === 'angular' ? 5 : [
+            'diameter',
+            'radius'
+        ].includes(dimension.kind) ? 2 : 3;
+        if (!Array.isArray(dimension.definitionPoints) || dimension.definitionPoints.length !== requiredPoints) throw new KJValidationError(`input.dimensions[${index}].definitionPoints must contain ${requiredPoints} points`);
+        const definitionPoints = dimension.definitionPoints.map((value, pointIndex)=>point(value, `input.dimensions[${index}].definitionPoints[${pointIndex}]`));
+        const textPosition = dimension.textPosition == null ? undefined : point(dimension.textPosition, `input.dimensions[${index}].textPosition`);
+        const textOverride = dimension.textOverride == null ? undefined : dimension.textOverride;
+        if (textOverride != null && (typeof textOverride !== 'string' || textOverride.length > 128 || /[\r\n\u0000-\u001f\u007f]/u.test(textOverride))) throw new KJValidationError(`input.dimensions[${index}].textOverride must be bounded single-line text`);
+        const rotation = dimension.rotation == null ? 0 : finite(dimension.rotation, `input.dimensions[${index}].rotation`, -Math.PI * 2, Math.PI * 2);
+        const dimensionType = String(dimension.kind).toUpperCase();
+        const payload = {
+            dimensionType,
+            definitionPoints: definitionPoints.map(([x, y])=>[
+                    x,
+                    y,
+                    0
+                ]),
+            ...textPosition == null ? {} : {
+                textPosition: [
+                    ...textPosition,
+                    0
+                ]
+            },
+            textOverride: textOverride ?? null,
+            rotation
+        };
+        if (!projectDimension(payload)) throw new KJValidationError(`input.dimensions[${index}] does not define a projectable native dimension`);
+        return {
+            kind: dimension.kind,
+            definitionPoints,
+            ...textPosition == null ? {} : {
+                textPosition
+            },
+            ...textOverride == null ? {} : {
+                textOverride
+            },
+            rotation
+        };
+    });
     return {
         expectedRevision,
         drawingId: input.drawingId.trim(),
@@ -226,6 +286,7 @@ function validate(document, source) {
         radius,
         xRange,
         symmetricProfiles,
+        dimensions,
         sheetOrigin,
         sheetSize,
         inset,
@@ -409,6 +470,17 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         },
         layerId: noteLayerId
     });
+    for (const dimension of input.dimensions)emit('DIMENSION', {
+        dimensionType: dimension.kind.toUpperCase(),
+        definitionPoints: dimension.definitionPoints.map(([x, y])=>p3(x, y)),
+        ...dimension.textPosition == null ? {} : {
+            textPosition: p3(...dimension.textPosition)
+        },
+        textOverride: dimension.textOverride ?? null,
+        rotation: dimension.rotation ?? 0,
+        styleName: 'STANDARD',
+        layerId: noteLayerId
+    });
     return {
         commandArgs: {
             entities,
@@ -464,11 +536,12 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 titleGrid: input.titleGrid != null,
                 sideViewAxis: input.xRange != null,
                 symmetricProfileCount: input.symmetricProfiles.length,
-                noteCount: input.notes.length
+                noteCount: input.notes.length,
+                dimensionCount: input.dimensions.length
             },
             limitations: [
-                'Flange end-view, symmetric axial-profile and sheet-grid core only',
-                'Does not generate dimensions, attributes or hatches',
+                'Flange end-view, symmetric axial-profile, native dimension and sheet-grid core only',
+                'Does not generate attributes or hatches',
                 'Private drawings and labels are not embedded'
             ]
         }
