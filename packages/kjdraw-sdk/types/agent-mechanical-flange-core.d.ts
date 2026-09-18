@@ -59,6 +59,28 @@ export interface KJFlangeSymmetricProfile {
     }[];
     endCaps?: 'none' | 'start' | 'end' | 'both';
 }
+/** Source-measured side-view geometry. Stations use drawing X coordinates;
+ *  offsets are measured from the shared projection axis. */
+export type KJFlangeSideViewOutlineSegment = {
+    kind: 'line';
+    start: {
+        station: number;
+        offset: number;
+    };
+    end: {
+        station: number;
+        offset: number;
+    };
+} | {
+    kind: 'arc';
+    center: {
+        station: number;
+        offset: number;
+    };
+    radius: number;
+    startAngle: number;
+    endAngle: number;
+};
 /** Source-supplied visible sheet text. Content remains input data and is not
  *  retained by the reusable knowledge pack. */
 export interface KJFlangeSheetNote {
@@ -116,6 +138,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
     sideViewAxis?: {
         xRange: Point2;
         symmetricProfiles?: KJFlangeSymmetricProfile[];
+        outlineSegments?: KJFlangeSideViewOutlineSegment[];
     };
     dimensions?: KJFlangeDimension[];
     sheet: {
@@ -159,6 +182,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             outlineSegmentCount: number;
             cuttingPlaneMarkCount: number;
             symmetricProfileCount: number;
+            sideOutlineSegmentCount: number;
             noteCount: number;
             dimensionCount: number;
         };

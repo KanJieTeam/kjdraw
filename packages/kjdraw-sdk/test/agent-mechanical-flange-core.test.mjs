@@ -14,7 +14,10 @@ const input = expectedRevision => ({
     vertices: [{ station: 190, radius: 25 }, { station: 210, radius: 25 }, { station: 210, radius: 40 },
       { station: 250, radius: 40 }, { station: 255, radius: 30 }, { station: 280, radius: 30 }],
     endCaps: 'both',
-  }] },
+  }], outlineSegments: [
+    { kind: 'line', start: { station: 200, offset: 45 }, end: { station: 270, offset: 38 } },
+    { kind: 'arc', center: { station: 220, offset: -30 }, radius: 5, startAngle: 0, endAngle: Math.PI },
+  ] },
   dimensions: [
     { kind: 'rotated', definitionPoints: [[90, 92], [50, 110], [130, 110]], textPosition: [90, 92], rotation: 0 },
     { kind: 'diameter', definitionPoints: [[78, 150], [102, 150]], textPosition: [125, 165], textOverride: '4X DIA <>' },
@@ -40,13 +43,14 @@ test('flange knowledge pack and compiler are source-neutral and deterministic', 
   const a = buildAgentMechanicalFlangeCore(document, input(document.revision))
   const b = buildAgentMechanicalFlangeCore(document, input(document.revision))
   assert.deepEqual(a, b)
-  assert.equal(a.evidence.entityCount, 47)
+  assert.equal(a.evidence.entityCount, 49)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'CIRCLE').length, 7)
-  assert.equal(a.commandArgs.entities.filter(e => e.type === 'LINE').length, 35)
-  assert.equal(a.commandArgs.entities.filter(e => e.type === 'ARC').length, 1)
+  assert.equal(a.commandArgs.entities.filter(e => e.type === 'LINE').length, 36)
+  assert.equal(a.commandArgs.entities.filter(e => e.type === 'ARC').length, 2)
   assert.equal(a.evidence.parameters.outlineSegmentCount, 2)
   assert.equal(a.evidence.parameters.cuttingPlaneMarkCount, 1)
   assert.equal(a.evidence.parameters.symmetricProfileCount, 1)
+  assert.equal(a.evidence.parameters.sideOutlineSegmentCount, 2)
   assert.equal(a.evidence.parameters.noteCount, 2)
   assert.equal(a.evidence.parameters.dimensionCount, 2)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'TEXT').length, 1)
@@ -67,11 +71,11 @@ test('all ring, hole, projection-axis and grid positions respond to parameters',
   assert.ok(entities.some(e => e.type === 'LINE' && JSON.stringify(e.payload.start) === '[340,26,0]' && JSON.stringify(e.payload.end) === '[392,26,0]'))
   assert.ok(entities.some(e => e.type === 'LINE' && JSON.stringify(e.payload.start) === '[360,20,0]' && JSON.stringify(e.payload.end) === '[360,32,0]'))
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
-  assert.equal(document.listEntities().length, 47)
+  assert.equal(document.listEntities().length, 49)
   const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
   const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
   const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
-  assert.equal(kjd.listEntities().length, 47)
+  assert.equal(kjd.listEntities().length, 49)
   assert.equal(dxf.listEntities().filter(e => e.type === 'CIRCLE').length, 7)
   assert.equal(dxf.listEntities().filter(e => e.type === 'DIMENSION').length, 2)
   const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
@@ -83,7 +87,7 @@ test('all ring, hole, projection-axis and grid positions respond to parameters',
     t.diagnostic('official ezdxf unavailable; independent check skipped')
   } else {
     assert.equal(independent.status, 0, independent.stderr)
-    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, circles: 7, arcs: 1, lines: 35, dimensions: 2 })
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, circles: 7, arcs: 2, lines: 36, dimensions: 2 })
   }
 })
 
@@ -98,6 +102,7 @@ test('flange compiler rejects unsupported source injection and impossible geomet
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), expectedRevision: 1 }), /expectedRevision/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sideViewAxis: { xRange: [190, 280], symmetricProfiles: [{ vertices: [{ station: 210, radius: 10 }, { station: 200, radius: 10 }] }] } }), /must not decrease/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sideViewAxis: { xRange: [190, 280], symmetricProfiles: [{ vertices: [{ station: 200, radius: 10 }, { station: 200, radius: 10 }] }] } }), /zero-length/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sideViewAxis: { ...input(0).sideViewAxis, outlineSegments: [{ kind: 'line', start: { station: 180, offset: 0 }, end: { station: 200, offset: 0 } }] } }), /must be finite/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, notes: [{ kind: 'single-line', text: 'OFF SHEET', position: [500, 10], height: 3 }] } }), /position must lie on the sheet/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, notes: [{ kind: 'single-line', text: 'NO WIDTH', position: [20, 20], height: 3, width: 10 }] } }), /only valid for multiline/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), dimensions: [{ kind: 'diameter', definitionPoints: [[1, 1], [2, 2], [3, 3]] }] }), /must contain 2 points/u)
