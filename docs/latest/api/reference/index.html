@@ -14266,7 +14266,6 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             cuttingplanemarkcount: number;
             symmetricprofilecount: number;
             sideoutlinesegmentcount: number;
-            sectionhatchcount: number;
             notecount: number;
             dimensioncount: number;
             leadercount: number;
@@ -14308,7 +14307,6 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             cuttingPlaneMarkCount: number;
             symmetricProfileCount: number;
             sideOutlineSegmentCount: number;
-            sectionHatchCount: number;
             noteCount: number;
             dimensionCount: number;
             leaderCount: number;
@@ -17516,7 +17514,6 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         xrange: point2;
         symmetricprofiles?: kjflangesymmetricprofile[];
         outlinesegments?: kjflangesideviewoutlinesegment[];
-        sectionhatches?: kjflangesectionhatch[];
     };
     dimensions?: kjflangedimension[];
     leaders?: kjflangeleader[];
@@ -17548,7 +17545,6 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         xRange: Point2;
         symmetricProfiles?: KJFlangeSymmetricProfile[];
         outlineSegments?: KJFlangeSideViewOutlineSegment[];
-        sectionHatches?: KJFlangeSectionHatch[];
     };
     dimensions?: KJFlangeDimension[];
     leaders?: KJFlangeLeader[];
@@ -23593,61 +23589,6 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     annotationType?: number;
     hookLineDirection?: number;
     hookLineEnabled?: boolean;
-}</code></pre>
-      <p class="source-path">agent-mechanical-flange-core.d.ts</p>
-    </article>
-<article class="api-symbol" id="root-interface-kjflangesectionhatch" data-search="kjflangesectionhatch interface @kanjieteam/kjdraw export interface kjflangesectionhatch {
-    edges: ({
-        kind: &#39;line&#39;;
-        start: {
-            station: number;
-            offset: number;
-        };
-        end: {
-            station: number;
-            offset: number;
-        };
-    } | {
-        kind: &#39;arc&#39;;
-        center: {
-            station: number;
-            offset: number;
-        };
-        radius: number;
-        startangle: number;
-        endangle: number;
-        counterclockwise?: boolean;
-    })[];
-    lineangle: number;
-    linespacing: number;
-    patternorigin?: point2;
-}">
-      <header><div><span class="kind">interface</span><h3>KJFlangeSectionHatch</h3></div><a class="permalink" href="#root-interface-kjflangesectionhatch" aria-label="Link to KJFlangeSectionHatch">#</a></header>
-      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFlangeSectionHatch {
-    edges: ({
-        kind: &#39;line&#39;;
-        start: {
-            station: number;
-            offset: number;
-        };
-        end: {
-            station: number;
-            offset: number;
-        };
-    } | {
-        kind: &#39;arc&#39;;
-        center: {
-            station: number;
-            offset: number;
-        };
-        radius: number;
-        startAngle: number;
-        endAngle: number;
-        counterClockwise?: boolean;
-    })[];
-    lineAngle: number;
-    lineSpacing: number;
-    patternOrigin?: Point2;
 }</code></pre>
       <p class="source-path">agent-mechanical-flange-core.d.ts</p>
     </article>
