@@ -167,6 +167,41 @@ function validate(document, source) {
         if (!keys.has(key)) throw new KJValidationError(`${label} must reference input.styleResources`);
         return key;
     };
+    const styleProfile = input.styleProfile == null ? {} : plain(input.styleProfile, 'input.styleProfile');
+    exact(styleProfile, [
+        'frame',
+        'grid',
+        'geometry',
+        'center',
+        'notes',
+        'dimensions',
+        'hatch',
+        'hidden',
+        'custom'
+    ], 'input.styleProfile');
+    if (styleProfile.custom != null && (!Array.isArray(styleProfile.custom) || styleProfile.custom.length > 16)) throw new KJValidationError('input.styleProfile.custom must contain at most 16 items');
+    const customStyleSource = styleProfile.custom ?? [];
+    const entityStyleKeys = new Set();
+    for (const [index, value] of customStyleSource.entries()){
+        const label = `input.styleProfile.custom[${index}]`, style = plain(value, label);
+        exact(style, [
+            'key',
+            'layerName',
+            'color',
+            'lineweight',
+            'linetypeName',
+            'linetypePattern'
+        ], label);
+        const key = resourceKey(style.key, `${label}.key`);
+        if (entityStyleKeys.has(key)) throw new KJValidationError(`${label}.key must be unique`);
+        entityStyleKeys.add(key);
+    }
+    const entityStyleKey = (value, label)=>{
+        if (value == null) return undefined;
+        const key = resourceKey(value, label);
+        if (!entityStyleKeys.has(key)) throw new KJValidationError(`${label} must reference input.styleProfile.custom`);
+        return key;
+    };
     const end = plain(input.endView, 'input.endView');
     exact(end, [
         'center',
@@ -190,11 +225,13 @@ function validate(document, source) {
     if (end.outlineSegments?.length && end.outlineSegments.length > 128) throw new KJValidationError('input.endView.outlineSegments exceed their budget');
     const outlineSegments = (end.outlineSegments ?? []).map((value, index)=>{
         const segment = plain(value, `input.endView.outlineSegments[${index}]`);
+        const styleKey = entityStyleKey(segment.styleKey, `input.endView.outlineSegments[${index}].styleKey`);
         if (segment.kind === 'line') {
             exact(segment, [
                 'kind',
                 'startOffset',
-                'endOffset'
+                'endOffset',
+                'styleKey'
             ], `input.endView.outlineSegments[${index}]`);
             const startOffset = point(segment.startOffset, `input.endView.outlineSegments[${index}].startOffset`);
             const endOffset = point(segment.endOffset, `input.endView.outlineSegments[${index}].endOffset`);
@@ -202,7 +239,10 @@ function validate(document, source) {
             return {
                 kind: 'line',
                 startOffset,
-                endOffset
+                endOffset,
+                ...styleKey == null ? {} : {
+                    styleKey
+                }
             };
         }
         if (segment.kind === 'arc') {
@@ -211,7 +251,8 @@ function validate(document, source) {
                 'centerOffset',
                 'radius',
                 'startAngle',
-                'endAngle'
+                'endAngle',
+                'styleKey'
             ], `input.endView.outlineSegments[${index}]`);
             const centerOffset = point(segment.centerOffset, `input.endView.outlineSegments[${index}].centerOffset`);
             const arcRadius = finite(segment.radius, `input.endView.outlineSegments[${index}].radius`, 0.1, 100_000);
@@ -223,19 +264,26 @@ function validate(document, source) {
                 centerOffset,
                 radius: arcRadius,
                 startAngle,
-                endAngle
+                endAngle,
+                ...styleKey == null ? {} : {
+                    styleKey
+                }
             };
         }
         if (segment.kind === 'circle') {
             exact(segment, [
                 'kind',
                 'centerOffset',
-                'radius'
+                'radius',
+                'styleKey'
             ], `input.endView.outlineSegments[${index}]`);
             return {
                 kind: 'circle',
                 centerOffset: point(segment.centerOffset, `input.endView.outlineSegments[${index}].centerOffset`),
-                radius: finite(segment.radius, `input.endView.outlineSegments[${index}].radius`, 0.1, 100_000)
+                radius: finite(segment.radius, `input.endView.outlineSegments[${index}].radius`, 0.1, 100_000),
+                ...styleKey == null ? {} : {
+                    styleKey
+                }
             };
         }
         throw new KJValidationError(`input.endView.outlineSegments[${index}].kind is invalid`);
@@ -248,7 +296,10 @@ function validate(document, source) {
             'anchorOffset',
             'stemVector',
             'tickVector',
-            'arrowhead'
+            'arrowhead',
+            'stemStyleKey',
+            'tickStyleKey',
+            'arrowheadStyleKey'
         ], `input.endView.cuttingPlaneMarks[${index}]`);
         const anchorOffset = point(mark.anchorOffset, `input.endView.cuttingPlaneMarks[${index}].anchorOffset`);
         const stemVector = point(mark.stemVector, `input.endView.cuttingPlaneMarks[${index}].stemVector`);
@@ -259,6 +310,7 @@ function validate(document, source) {
             'length',
             'width'
         ], `input.endView.cuttingPlaneMarks[${index}].arrowhead`);
+        const stemStyleKey = entityStyleKey(mark.stemStyleKey, `input.endView.cuttingPlaneMarks[${index}].stemStyleKey`), tickStyleKey = entityStyleKey(mark.tickStyleKey, `input.endView.cuttingPlaneMarks[${index}].tickStyleKey`), arrowheadStyleKey = entityStyleKey(mark.arrowheadStyleKey, `input.endView.cuttingPlaneMarks[${index}].arrowheadStyleKey`);
         return {
             anchorOffset,
             stemVector,
@@ -268,17 +320,28 @@ function validate(document, source) {
                     length: finite(arrow.length, `input.endView.cuttingPlaneMarks[${index}].arrowhead.length`, 0.1, 100_000),
                     width: finite(arrow.width, `input.endView.cuttingPlaneMarks[${index}].arrowhead.width`, 0.1, 100_000)
                 }
-            } : {}
+            } : {},
+            ...stemStyleKey == null ? {} : {
+                stemStyleKey
+            },
+            ...tickStyleKey == null ? {} : {
+                tickStyleKey
+            },
+            ...arrowheadStyleKey == null ? {} : {
+                arrowheadStyleKey
+            }
         };
     });
     const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis');
     if (side) exact(side, [
         'xRange',
+        'axisStyleKey',
         'symmetricProfiles',
         'outlineSegments',
         'sectionHatches'
     ], 'input.sideViewAxis');
     const xRange = side ? point(side.xRange, 'input.sideViewAxis.xRange') : null;
+    const axisStyleKey = side == null ? undefined : entityStyleKey(side.axisStyleKey, 'input.sideViewAxis.axisStyleKey');
     if (xRange && xRange[0] >= xRange[1]) throw new KJValidationError('input.sideViewAxis.xRange must increase');
     if (side?.symmetricProfiles != null && !Array.isArray(side.symmetricProfiles)) throw new KJValidationError('input.sideViewAxis.symmetricProfiles must be an array');
     if (side?.symmetricProfiles?.length && side.symmetricProfiles.length > 64) throw new KJValidationError('input.sideViewAxis.symmetricProfiles exceed their budget');
@@ -286,7 +349,8 @@ function validate(document, source) {
         const profile = plain(value, `input.sideViewAxis.symmetricProfiles[${profileIndex}]`);
         exact(profile, [
             'vertices',
-            'endCaps'
+            'endCaps',
+            'styleKey'
         ], `input.sideViewAxis.symmetricProfiles[${profileIndex}]`);
         if (!Array.isArray(profile.vertices) || profile.vertices.length < 2 || profile.vertices.length > 64) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices must contain 2 to 64 points`);
         const vertices = profile.vertices.map((vertexValue, vertexIndex)=>{
@@ -314,15 +378,20 @@ function validate(document, source) {
             'end',
             'both'
         ].includes(endCaps)) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].endCaps is invalid`);
+        const styleKey = entityStyleKey(profile.styleKey, `input.sideViewAxis.symmetricProfiles[${profileIndex}].styleKey`);
         return {
             vertices,
-            endCaps
+            endCaps,
+            ...styleKey == null ? {} : {
+                styleKey
+            }
         };
     });
     if (side?.outlineSegments != null && !Array.isArray(side.outlineSegments)) throw new KJValidationError('input.sideViewAxis.outlineSegments must be an array');
     if (side?.outlineSegments?.length && side.outlineSegments.length > 128) throw new KJValidationError('input.sideViewAxis.outlineSegments exceed their budget');
     const sideOutlineSegments = (side?.outlineSegments ?? []).map((value, index)=>{
         const segment = plain(value, `input.sideViewAxis.outlineSegments[${index}]`);
+        const styleKey = entityStyleKey(segment.styleKey, `input.sideViewAxis.outlineSegments[${index}].styleKey`);
         const stationOffset = (pointValue, label)=>{
             const value = plain(pointValue, label);
             exact(value, [
@@ -338,7 +407,8 @@ function validate(document, source) {
             exact(segment, [
                 'kind',
                 'start',
-                'end'
+                'end',
+                'styleKey'
             ], `input.sideViewAxis.outlineSegments[${index}]`);
             const start = stationOffset(segment.start, `input.sideViewAxis.outlineSegments[${index}].start`);
             const end = stationOffset(segment.end, `input.sideViewAxis.outlineSegments[${index}].end`);
@@ -346,7 +416,10 @@ function validate(document, source) {
             return {
                 kind: 'line',
                 start,
-                end
+                end,
+                ...styleKey == null ? {} : {
+                    styleKey
+                }
             };
         }
         if (segment.kind === 'arc') {
@@ -355,7 +428,8 @@ function validate(document, source) {
                 'center',
                 'radius',
                 'startAngle',
-                'endAngle'
+                'endAngle',
+                'styleKey'
             ], `input.sideViewAxis.outlineSegments[${index}]`);
             const arcCenter = stationOffset(segment.center, `input.sideViewAxis.outlineSegments[${index}].center`);
             const arcRadius = finite(segment.radius, `input.sideViewAxis.outlineSegments[${index}].radius`, 0.1, 100_000);
@@ -367,19 +441,26 @@ function validate(document, source) {
                 center: arcCenter,
                 radius: arcRadius,
                 startAngle,
-                endAngle
+                endAngle,
+                ...styleKey == null ? {} : {
+                    styleKey
+                }
             };
         }
         if (segment.kind === 'circle') {
             exact(segment, [
                 'kind',
                 'center',
-                'radius'
+                'radius',
+                'styleKey'
             ], `input.sideViewAxis.outlineSegments[${index}]`);
             return {
                 kind: 'circle',
                 center: stationOffset(segment.center, `input.sideViewAxis.outlineSegments[${index}].center`),
-                radius: finite(segment.radius, `input.sideViewAxis.outlineSegments[${index}].radius`, 0.1, 100_000)
+                radius: finite(segment.radius, `input.sideViewAxis.outlineSegments[${index}].radius`, 0.1, 100_000),
+                ...styleKey == null ? {} : {
+                    styleKey
+                }
             };
         }
         throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}].kind is invalid`);
@@ -392,7 +473,8 @@ function validate(document, source) {
             'edges',
             'lineAngle',
             'lineSpacing',
-            'patternOrigin'
+            'patternOrigin',
+            'styleKey'
         ], label);
         if (!Array.isArray(hatch.edges) || hatch.edges.length < 3 || hatch.edges.length > 128) throw new KJValidationError(`${label}.edges must contain 3 to 128 edges`);
         const localPoint = (value, label)=>{
@@ -452,11 +534,15 @@ function validate(document, source) {
             0,
             0
         ] : point(hatch.patternOrigin, `${label}.patternOrigin`);
+        const styleKey = entityStyleKey(hatch.styleKey, `${label}.styleKey`);
         return {
             edges,
             lineAngle,
             lineSpacing,
-            patternOrigin
+            patternOrigin,
+            ...styleKey == null ? {} : {
+                styleKey
+            }
         };
     });
     const sheet = plain(input.sheet, 'input.sheet');
@@ -464,12 +550,15 @@ function validate(document, source) {
         'origin',
         'size',
         'inset',
+        'outerFrameStyleKey',
+        'insetFrameStyleKey',
         'titleGrid',
         'notes'
     ], 'input.sheet');
     const sheetOrigin = point(sheet.origin, 'input.sheet.origin'), sheetSize = point(sheet.size, 'input.sheet.size');
     if (sheetSize[0] < 100 || sheetSize[1] < 100) throw new KJValidationError('input.sheet.size is too small');
     const inset = finite(sheet.inset, 'input.sheet.inset', 0, Math.min(...sheetSize) / 2 - 1);
+    const outerFrameStyleKey = entityStyleKey(sheet.outerFrameStyleKey, 'input.sheet.outerFrameStyleKey'), insetFrameStyleKey = entityStyleKey(sheet.insetFrameStyleKey, 'input.sheet.insetFrameStyleKey');
     const grid = sheet.titleGrid == null ? null : plain(sheet.titleGrid, 'input.sheet.titleGrid');
     if (grid) exact(grid, [
         'origin',
@@ -479,23 +568,46 @@ function validate(document, source) {
         'rows',
         'horizontalSegments',
         'verticalSegments',
+        'topStyleKey',
         'diagonalHeader'
     ], 'input.sheet.titleGrid');
     let titleGrid = null;
     if (grid) {
         const origin = point(grid.origin, 'input.sheet.titleGrid.origin'), size = point(grid.size, 'input.sheet.titleGrid.size');
         if (size[0] <= 0 || size[1] <= 0 || origin[0] < sheetOrigin[0] + inset || origin[1] < sheetOrigin[1] + inset || origin[0] + size[0] > sheetOrigin[0] + sheetSize[0] - inset || origin[1] + size[1] > sheetOrigin[1] + sheetSize[1] - inset) throw new KJValidationError('title grid must lie inside the inset frame');
-        const columns = increasing(grid.columns, 'input.sheet.titleGrid.columns', 32, 0, size[0]);
+        if (!Array.isArray(grid.columns) || grid.columns.length > 32) throw new KJValidationError('input.sheet.titleGrid.columns exceeds its item budget');
+        const columns = grid.columns.map((value, index)=>{
+            if (typeof value === 'number') return value;
+            const entry = plain(value, `input.sheet.titleGrid.columns[${index}]`);
+            exact(entry, [
+                'offset',
+                'styleKey'
+            ], `input.sheet.titleGrid.columns[${index}]`);
+            const styleKey = entityStyleKey(entry.styleKey, `input.sheet.titleGrid.columns[${index}].styleKey`);
+            return {
+                offset: finite(entry.offset, `input.sheet.titleGrid.columns[${index}].offset`, 0, size[0]),
+                ...styleKey == null ? {} : {
+                    styleKey
+                }
+            };
+        });
+        const columnOffsets = columns.map((value)=>typeof value === 'number' ? value : value.offset);
+        if (columnOffsets.some((value, index)=>index > 0 && value <= columnOffsets[index - 1])) throw new KJValidationError('input.sheet.titleGrid.columns must increase strictly');
         if (!Array.isArray(grid.rows) || grid.rows.length > 16) throw new KJValidationError('title grid rows exceed their budget');
         const rows = grid.rows.map((value, index)=>{
             const entry = plain(value, `input.sheet.titleGrid.rows[${index}]`);
             exact(entry, [
                 'offset',
-                'breaks'
+                'breaks',
+                'styleKey'
             ], `input.sheet.titleGrid.rows[${index}]`);
+            const styleKey = entityStyleKey(entry.styleKey, `input.sheet.titleGrid.rows[${index}].styleKey`);
             return {
                 offset: finite(entry.offset, `input.sheet.titleGrid.rows[${index}].offset`, 0, size[1]),
-                breaks: increasing(entry.breaks ?? [], `input.sheet.titleGrid.rows[${index}].breaks`, 16, 0, size[0])
+                breaks: increasing(entry.breaks ?? [], `input.sheet.titleGrid.rows[${index}].breaks`, 16, 0, size[0]),
+                ...styleKey == null ? {} : {
+                    styleKey
+                }
             };
         });
         if (rows.some((row, index)=>index > 0 && row.offset <= rows[index - 1].offset)) throw new KJValidationError('title grid row offsets must increase');
@@ -505,11 +617,16 @@ function validate(document, source) {
             const entry = plain(value, `input.sheet.titleGrid.partialColumns[${index}]`);
             exact(entry, [
                 'offset',
-                'height'
+                'height',
+                'styleKey'
             ], `input.sheet.titleGrid.partialColumns[${index}]`);
+            const styleKey = entityStyleKey(entry.styleKey, `input.sheet.titleGrid.partialColumns[${index}].styleKey`);
             return {
                 offset: finite(entry.offset, `input.sheet.titleGrid.partialColumns[${index}].offset`, 0, size[0]),
-                height: finite(entry.height, `input.sheet.titleGrid.partialColumns[${index}].height`, 0, size[1])
+                height: finite(entry.height, `input.sheet.titleGrid.partialColumns[${index}].height`, 0, size[1]),
+                ...styleKey == null ? {} : {
+                    styleKey
+                }
             };
         });
         const segments = (value, label, offsetMax, spanMax)=>{
@@ -520,12 +637,17 @@ function validate(document, source) {
                 exact(entry, [
                     'offset',
                     'start',
-                    'end'
+                    'end',
+                    'styleKey'
                 ], `${label}[${index}]`);
+                const styleKey = entityStyleKey(entry.styleKey, `${label}[${index}].styleKey`);
                 const segment = {
                     offset: finite(entry.offset, `${label}[${index}].offset`, 0, offsetMax),
                     start: finite(entry.start, `${label}[${index}].start`, 0, spanMax),
-                    end: finite(entry.end, `${label}[${index}].end`, 0, spanMax)
+                    end: finite(entry.end, `${label}[${index}].end`, 0, spanMax),
+                    ...styleKey == null ? {} : {
+                        styleKey
+                    }
                 };
                 if (segment.start >= segment.end) throw new KJValidationError(`${label}[${index}] start must be less than end`);
                 return segment;
@@ -536,8 +658,11 @@ function validate(document, source) {
         const diagonal = grid.diagonalHeader == null ? null : plain(grid.diagonalHeader, 'input.sheet.titleGrid.diagonalHeader');
         if (diagonal) exact(diagonal, [
             'width',
-            'drop'
+            'drop',
+            'styleKey'
         ], 'input.sheet.titleGrid.diagonalHeader');
+        const topStyleKey = entityStyleKey(grid.topStyleKey, 'input.sheet.titleGrid.topStyleKey');
+        const diagonalStyleKey = diagonal == null ? undefined : entityStyleKey(diagonal.styleKey, 'input.sheet.titleGrid.diagonalHeader.styleKey');
         titleGrid = {
             origin,
             size,
@@ -546,10 +671,16 @@ function validate(document, source) {
             partialColumns,
             horizontalSegments,
             verticalSegments,
+            ...topStyleKey == null ? {} : {
+                topStyleKey
+            },
             ...diagonal ? {
                 diagonalHeader: {
                     width: finite(diagonal.width, 'input.sheet.titleGrid.diagonalHeader.width', 0, size[0]),
-                    drop: finite(diagonal.drop, 'input.sheet.titleGrid.diagonalHeader.drop', 0, size[1])
+                    drop: finite(diagonal.drop, 'input.sheet.titleGrid.diagonalHeader.drop', 0, size[1]),
+                    ...diagonalStyleKey == null ? {} : {
+                        styleKey: diagonalStyleKey
+                    }
                 }
             } : {}
         };
@@ -566,7 +697,8 @@ function validate(document, source) {
             'height',
             'rotation',
             'width',
-            'styleKey'
+            'styleKey',
+            'entityStyleKey'
         ], `input.sheet.notes[${index}]`);
         if (note.kind !== 'single-line' && note.kind !== 'multiline') throw new KJValidationError(`input.sheet.notes[${index}].kind is invalid`);
         if (typeof note.text !== 'string' || !note.text || note.text.length > 512 || /[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(note.text)) throw new KJValidationError(`input.sheet.notes[${index}].text must be bounded visible text`);
@@ -581,6 +713,7 @@ function validate(document, source) {
         const width = note.width == null ? undefined : finite(note.width, `input.sheet.notes[${index}].width`, 0.1, sheetSize[0]);
         if (note.kind === 'single-line' && width != null) throw new KJValidationError(`input.sheet.notes[${index}].width is only valid for multiline text`);
         const styleKey = annotationStyleKey(note.styleKey, textStyleKeys, `input.sheet.notes[${index}].styleKey`);
+        const noteEntityStyleKey = entityStyleKey(note.entityStyleKey, `input.sheet.notes[${index}].entityStyleKey`);
         return {
             kind: note.kind,
             text,
@@ -592,6 +725,9 @@ function validate(document, source) {
             },
             ...styleKey == null ? {} : {
                 styleKey
+            },
+            ...noteEntityStyleKey == null ? {} : {
+                entityStyleKey: noteEntityStyleKey
             }
         };
     });
@@ -668,18 +804,23 @@ function validate(document, source) {
             'pathType',
             'annotationType',
             'hookLineDirection',
-            'hookLineEnabled'
+            'hookLineEnabled',
+            'styleKey'
         ], `input.leaders[${index}]`);
         if (!Array.isArray(leader.vertices) || leader.vertices.length < 2 || leader.vertices.length > 64) throw new KJValidationError(`input.leaders[${index}].vertices must contain 2 to 64 points`);
         const vertices = leader.vertices.map((value, pointIndex)=>point(value, `input.leaders[${index}].vertices[${pointIndex}]`));
         const integer = (value, label, max)=>value == null ? 0 : finite(value, label, 0, max);
+        const styleKey = entityStyleKey(leader.styleKey, `input.leaders[${index}].styleKey`);
         return {
             vertices,
             arrowEnabled: leader.arrowEnabled == null ? true : leader.arrowEnabled === true,
             pathType: integer(leader.pathType, `input.leaders[${index}].pathType`, 1),
             annotationType: integer(leader.annotationType, `input.leaders[${index}].annotationType`, 3),
             hookLineDirection: integer(leader.hookLineDirection, `input.leaders[${index}].hookLineDirection`, 1),
-            hookLineEnabled: leader.hookLineEnabled === true
+            hookLineEnabled: leader.hookLineEnabled === true,
+            ...styleKey == null ? {} : {
+                styleKey
+            }
         };
     });
     if (input.featureControlFrames != null && !Array.isArray(input.featureControlFrames)) throw new KJValidationError('input.featureControlFrames must be an array');
@@ -784,7 +925,8 @@ function validate(document, source) {
         exact(line, [
             'start',
             'end',
-            'role'
+            'role',
+            'styleKey'
         ], label);
         if (![
             'geometry',
@@ -796,10 +938,14 @@ function validate(document, source) {
         ].includes(line.role)) throw new KJValidationError(`${label}.role is invalid`);
         const start = point(line.start, `${label}.start`), end = point(line.end, `${label}.end`);
         if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError(`${label} must not have zero length`);
+        const styleKey = entityStyleKey(line.styleKey, `${label}.styleKey`);
         return {
             start,
             end,
-            role: line.role
+            role: line.role,
+            ...styleKey == null ? {} : {
+                styleKey
+            }
         };
     });
     if (input.auxiliaryCurves != null && !Array.isArray(input.auxiliaryCurves)) throw new KJValidationError('input.auxiliaryCurves must be an array');
@@ -815,6 +961,7 @@ function validate(document, source) {
             'frame'
         ].includes(curve.role)) throw new KJValidationError(`${label}.role is invalid`);
         const role = curve.role;
+        const styleKey = entityStyleKey(curve.styleKey, `${label}.styleKey`);
         if (curve.kind === 'arc') {
             exact(curve, [
                 'kind',
@@ -823,7 +970,8 @@ function validate(document, source) {
                 'startAngle',
                 'endAngle',
                 'clockwise',
-                'role'
+                'role',
+                'styleKey'
             ], label);
             const startAngle = finite(curve.startAngle, `${label}.startAngle`, -Math.PI * 4, Math.PI * 4), endAngle = finite(curve.endAngle, `${label}.endAngle`, -Math.PI * 4, Math.PI * 4);
             if (startAngle === endAngle) throw new KJValidationError(`${label} arc sweep must not be zero`);
@@ -835,7 +983,10 @@ function validate(document, source) {
                 startAngle,
                 endAngle,
                 clockwise: curve.clockwise === true,
-                role
+                role,
+                ...styleKey == null ? {} : {
+                    styleKey
+                }
             };
         }
         if (curve.kind === 'ellipse') {
@@ -846,7 +997,8 @@ function validate(document, source) {
                 'ratio',
                 'startParameter',
                 'endParameter',
-                'role'
+                'role',
+                'styleKey'
             ], label);
             const majorAxis = point(curve.majorAxis, `${label}.majorAxis`);
             if (Math.hypot(...majorAxis) <= 1e-12) throw new KJValidationError(`${label}.majorAxis must not be zero`);
@@ -857,7 +1009,10 @@ function validate(document, source) {
                 ratio: finite(curve.ratio, `${label}.ratio`, 1e-9, 1),
                 startParameter: finite(curve.startParameter, `${label}.startParameter`, -Math.PI * 4, Math.PI * 4),
                 endParameter: finite(curve.endParameter, `${label}.endParameter`, -Math.PI * 4, Math.PI * 4),
-                role
+                role,
+                ...styleKey == null ? {} : {
+                    styleKey
+                }
             };
         }
         if (curve.kind === 'polyline') {
@@ -865,7 +1020,8 @@ function validate(document, source) {
                 'kind',
                 'vertices',
                 'closed',
-                'role'
+                'role',
+                'styleKey'
             ], label);
             if (!Array.isArray(curve.vertices) || curve.vertices.length < 2 || curve.vertices.length > 4096) throw new KJValidationError(`${label}.vertices must contain 2 to 4096 points`);
             const vertices = curve.vertices.map((value, vertexIndex)=>{
@@ -887,7 +1043,10 @@ function validate(document, source) {
                 kind: 'polyline',
                 vertices,
                 closed: curve.closed === true,
-                role
+                role,
+                ...styleKey == null ? {} : {
+                    styleKey
+                }
             };
         }
         if (curve.kind === 'spline') {
@@ -900,7 +1059,8 @@ function validate(document, source) {
                 'weights',
                 'closed',
                 'periodic',
-                'role'
+                'role',
+                'styleKey'
             ], label);
             const degree = finite(curve.degree, `${label}.degree`, 1, 10);
             if (!Number.isInteger(degree)) throw new KJValidationError(`${label}.degree must be an integer`);
@@ -925,7 +1085,10 @@ function validate(document, source) {
                 weights,
                 closed: curve.closed === true,
                 periodic: curve.periodic === true,
-                role
+                role,
+                ...styleKey == null ? {} : {
+                    styleKey
+                }
             };
         }
         throw new KJValidationError(`${label}.kind is invalid`);
@@ -968,12 +1131,14 @@ function validate(document, source) {
         if (symbolMemberCount > 512) throw new KJValidationError('input.symbols exceed the member budget');
         const members = definition.members.map((memberValue, memberIndex)=>{
             const memberLabel = `${label}.members[${memberIndex}]`, member = plain(memberValue, memberLabel), role = symbolRole(member.role, `${memberLabel}.role`);
+            const entityStyleKeyValue = entityStyleKey(member.entityStyleKey, `${memberLabel}.entityStyleKey`);
             if (member.kind === 'line') {
                 exact(member, [
                     'kind',
                     'start',
                     'end',
-                    'role'
+                    'role',
+                    'entityStyleKey'
                 ], memberLabel);
                 const start = point(member.start, `${memberLabel}.start`), end = point(member.end, `${memberLabel}.end`);
                 if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError(`${memberLabel} must not have zero length`);
@@ -981,7 +1146,10 @@ function validate(document, source) {
                     kind: 'line',
                     start,
                     end,
-                    role
+                    role,
+                    ...entityStyleKeyValue == null ? {} : {
+                        entityStyleKey: entityStyleKeyValue
+                    }
                 };
             }
             if (member.kind === 'circle') {
@@ -989,13 +1157,17 @@ function validate(document, source) {
                     'kind',
                     'center',
                     'radius',
-                    'role'
+                    'role',
+                    'entityStyleKey'
                 ], memberLabel);
                 return {
                     kind: 'circle',
                     center: point(member.center, `${memberLabel}.center`),
                     radius: finite(member.radius, `${memberLabel}.radius`, 0.000_001, 100_000),
-                    role
+                    role,
+                    ...entityStyleKeyValue == null ? {} : {
+                        entityStyleKey: entityStyleKeyValue
+                    }
                 };
             }
             if (member.kind === 'arc') {
@@ -1006,7 +1178,8 @@ function validate(document, source) {
                     'startAngle',
                     'endAngle',
                     'clockwise',
-                    'role'
+                    'role',
+                    'entityStyleKey'
                 ], memberLabel);
                 const startAngle = finite(member.startAngle, `${memberLabel}.startAngle`, -Math.PI * 4, Math.PI * 4), endAngle = finite(member.endAngle, `${memberLabel}.endAngle`, -Math.PI * 4, Math.PI * 4);
                 if (startAngle === endAngle) throw new KJValidationError(`${memberLabel} arc sweep must not be zero`);
@@ -1018,7 +1191,10 @@ function validate(document, source) {
                     startAngle,
                     endAngle,
                     clockwise: member.clockwise === true,
-                    role
+                    role,
+                    ...entityStyleKeyValue == null ? {} : {
+                        entityStyleKey: entityStyleKeyValue
+                    }
                 };
             }
             if (member.kind === 'multiline-text') {
@@ -1031,7 +1207,8 @@ function validate(document, source) {
                     'width',
                     'attachmentPoint',
                     'styleKey',
-                    'role'
+                    'role',
+                    'entityStyleKey'
                 ], memberLabel);
                 if (typeof member.text !== 'string' || !member.text || member.text.length > 512 || /[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(member.text)) throw new KJValidationError(`${memberLabel}.text must be bounded visible text`);
                 symbolTextCharacters += member.text.length;
@@ -1052,7 +1229,10 @@ function validate(document, source) {
                     ...styleKey == null ? {} : {
                         styleKey
                     },
-                    role
+                    role,
+                    ...entityStyleKeyValue == null ? {} : {
+                        entityStyleKey: entityStyleKeyValue
+                    }
                 };
             }
             throw new KJValidationError(`${memberLabel}.kind is invalid`);
@@ -1070,7 +1250,8 @@ function validate(document, source) {
             'position',
             'scale',
             'rotation',
-            'role'
+            'role',
+            'styleKey'
         ], label);
         if (typeof instance.symbolKey !== 'string' || !symbolKeys.has(instance.symbolKey)) throw new KJValidationError(`${label}.symbolKey must reference a definition`);
         const scaleSource = instance.scale ?? [
@@ -1082,25 +1263,18 @@ function validate(document, source) {
             finite(scaleSource[0], `${label}.scale[0]`, 0.000_001, 1_000_000),
             finite(scaleSource[1], `${label}.scale[1]`, 0.000_001, 1_000_000)
         ];
+        const styleKey = entityStyleKey(instance.styleKey, `${label}.styleKey`);
         return {
             symbolKey: instance.symbolKey,
             position: point(instance.position, `${label}.position`),
             scale,
             rotation: instance.rotation == null ? 0 : finite(instance.rotation, `${label}.rotation`, -Math.PI * 4, Math.PI * 4),
-            role: symbolRole(instance.role, `${label}.role`)
+            role: symbolRole(instance.role, `${label}.role`),
+            ...styleKey == null ? {} : {
+                styleKey
+            }
         };
     });
-    const styleProfile = input.styleProfile == null ? {} : plain(input.styleProfile, 'input.styleProfile');
-    if (styleProfile) exact(styleProfile, [
-        'frame',
-        'grid',
-        'geometry',
-        'center',
-        'notes',
-        'dimensions',
-        'hatch',
-        'hidden'
-    ], 'input.styleProfile');
     const styleRole = (value, label)=>{
         if (value == null) return {};
         const role = plain(value, label);
@@ -1178,6 +1352,13 @@ function validate(document, source) {
         'hatch',
         'hidden'
     ])styles[role] = styleRole(styleProfile[role], `input.styleProfile.${role}`);
+    const customStyles = customStyleSource.map((value, index)=>{
+        const source = plain(value, `input.styleProfile.custom[${index}]`), { key, ...definition } = source;
+        return {
+            key: String(key),
+            definition: styleRole(definition, `input.styleProfile.custom[${index}]`)
+        };
+    });
     return {
         expectedRevision,
         drawingId: input.drawingId.trim(),
@@ -1189,6 +1370,7 @@ function validate(document, source) {
         cuttingPlaneMarks,
         sideOutlineSegments,
         xRange,
+        axisStyleKey,
         symmetricProfiles,
         sectionHatches,
         dimensions,
@@ -1201,9 +1383,12 @@ function validate(document, source) {
         textStyles,
         dimensionStyles,
         styles,
+        customStyles,
         sheetOrigin,
         sheetSize,
         inset,
+        outerFrameStyleKey,
+        insetFrameStyleKey,
         titleGrid,
         notes
     };
@@ -1329,15 +1514,28 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             ]
         })
     };
+    const customRoleByKey = new Map();
+    for (const [index, custom] of input.customStyles.entries()){
+        const name = `custom-${String(index + 1).padStart(2, '0')}`, fallback = roles.geometry;
+        customRoleByKey.set(custom.key, name);
+        roles[name] = {
+            ...fallback,
+            ...custom.definition,
+            pattern: custom.definition.linetypePattern ?? fallback.pattern
+        };
+    }
+    const styleNameFor = (key, fallback)=>key == null ? fallback : customRoleByKey.get(key);
     const roleIds = {}, layers = [], layerByName = new Map();
-    const linetypeIds = {}, linetypes = [], linetypeByKey = new Map();
+    const linetypeIds = {}, linetypes = [];
+    const linetypeByName = new Map(document.getTable?.('linetypes')?.records.map((record)=>[
+            String(record.name).toUpperCase(),
+            record.id
+        ]) ?? []);
     for (const name of Object.keys(roles)){
-        const definition = roles[name], key = JSON.stringify([
-            definition.linetypeName ?? `FLANGE_${String(name).toUpperCase()}`,
-            definition.pattern
-        ]);
+        const definition = roles[name];
         const linetypeName = definition.linetypeName ?? `FLANGE_${String(name).toUpperCase()}`;
-        let id = linetypeByKey.get(key) ?? document.getTable?.('linetypes')?.records.find((record)=>String(record.name).toUpperCase() === linetypeName.toUpperCase())?.id;
+        const normalizedLinetypeName = linetypeName.toUpperCase();
+        let id = linetypeByName.get(normalizedLinetypeName);
         if (!id) {
             id = `${prefix}-${name}-linetype`;
             linetypes.push({
@@ -1345,8 +1543,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 name: linetypeName,
                 pattern: definition.pattern
             });
+            linetypeByName.set(normalizedLinetypeName, id);
         }
-        linetypeByKey.set(key, id);
         linetypeIds[name] = id;
         const layerName = definition.layerName, existingLayer = document.getTable?.('layers')?.records.find((record)=>String(record.name).toUpperCase() === layerName.toUpperCase()), pendingLayer = layerByName.get(layerName.toUpperCase());
         roleIds[name] = existingLayer?.id ?? pendingLayer ?? `${prefix}-${name}`;
@@ -1395,6 +1593,13 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             end: p3(...b),
             layerId
         }, styleName);
+    const styled = (key, fallback)=>{
+        const name = styleNameFor(key, fallback);
+        return {
+            name,
+            layerId: roleIds[name]
+        };
+    };
     const rectangle = (origin, size)=>{
         const [x, y] = origin, [w, h] = size;
         line([
@@ -1445,39 +1650,41 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         layerId: roleIds.geometry
     }, 'geometry');
     for (const segment of input.outlineSegments){
+        const style = styled(segment.styleKey, 'geometry');
         if (segment.kind === 'line') line([
             cx + segment.startOffset[0],
             cy + segment.startOffset[1]
         ], [
             cx + segment.endOffset[0],
             cy + segment.endOffset[1]
-        ], roleIds.geometry, 'geometry');
+        ], style.layerId, style.name);
         else if (segment.kind === 'arc') emit('ARC', {
             center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]),
             radius: segment.radius,
             startAngle: segment.startAngle,
             endAngle: segment.endAngle,
-            layerId: roleIds.geometry
-        }, 'geometry');
+            layerId: style.layerId
+        }, style.name);
         else emit('CIRCLE', {
             center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]),
             radius: segment.radius,
-            layerId: roleIds.geometry
-        }, 'geometry');
+            layerId: style.layerId
+        }, style.name);
     }
     for (const mark of input.cuttingPlaneMarks){
         const anchor = [
             cx + mark.anchorOffset[0],
             cy + mark.anchorOffset[1]
         ];
+        const stemStyle = styled(mark.stemStyleKey, 'notes'), tickStyle = styled(mark.tickStyleKey, 'notes');
         line(anchor, [
             anchor[0] + mark.stemVector[0],
             anchor[1] + mark.stemVector[1]
-        ], roleIds.notes, 'notes');
+        ], stemStyle.layerId, stemStyle.name);
         line(anchor, [
             anchor[0] + mark.tickVector[0],
             anchor[1] + mark.tickVector[1]
-        ], roleIds.notes, 'notes');
+        ], tickStyle.layerId, tickStyle.name);
         if (mark.arrowhead) {
             const tip = [
                 anchor[0] + mark.tickVector[0],
@@ -1503,6 +1710,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 base[0] - perpendicular[0] * half,
                 base[1] - perpendicular[1] * half
             ];
+            const arrowStyle = styled(mark.arrowheadStyleKey, 'notes');
             emit('SOLID', {
                 vertices: [
                     p3(...tip),
@@ -1510,117 +1718,136 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                     p3(...b),
                     p3(...b)
                 ],
-                layerId: roleIds.notes
-            }, 'notes');
+                layerId: arrowStyle.layerId
+            }, arrowStyle.name);
         }
     }
-    const frameLine = (a, b)=>line(a, b, roleIds.frame, 'frame');
-    const frameRectangle = (origin, size)=>{
-        const [x, y] = origin, [w, h] = size;
-        frameLine([
+    const frameRectangle = (origin, size, styleKey)=>{
+        const [x, y] = origin, [w, h] = size, style = styled(styleKey, 'frame');
+        line([
             x,
             y
         ], [
             x + w,
             y
-        ]);
-        frameLine([
+        ], style.layerId, style.name);
+        line([
             x + w,
             y
         ], [
             x + w,
             y + h
-        ]);
-        frameLine([
+        ], style.layerId, style.name);
+        line([
             x + w,
             y + h
         ], [
             x,
             y + h
-        ]);
-        frameLine([
+        ], style.layerId, style.name);
+        line([
             x,
             y + h
         ], [
             x,
             y
-        ]);
+        ], style.layerId, style.name);
     };
-    frameRectangle(input.sheetOrigin, input.sheetSize);
+    frameRectangle(input.sheetOrigin, input.sheetSize, input.outerFrameStyleKey);
     frameRectangle([
         input.sheetOrigin[0] + input.inset,
         input.sheetOrigin[1] + input.inset
     ], [
         input.sheetSize[0] - input.inset * 2,
         input.sheetSize[1] - input.inset * 2
-    ]);
+    ], input.insetFrameStyleKey);
     if (input.titleGrid) {
         const grid = input.titleGrid, [x, y] = grid.origin, [w, h] = grid.size;
+        const topStyle = styled(grid.topStyleKey, 'grid');
         line([
             x,
             y + h
         ], [
             x + w,
             y + h
-        ], roleIds.grid);
-        for (const offset of grid.columns)line([
-            x + offset,
-            y
-        ], [
-            x + offset,
-            y + h
-        ], roleIds.grid);
-        for (const column of grid.partialColumns ?? [])line([
-            x + column.offset,
-            y
-        ], [
-            x + column.offset,
-            y + column.height
-        ], roleIds.grid);
+        ], topStyle.layerId, topStyle.name);
+        for (const column of grid.columns){
+            const offset = typeof column === 'number' ? column : column.offset, style = styled(typeof column === 'number' ? undefined : column.styleKey, 'grid');
+            line([
+                x + offset,
+                y
+            ], [
+                x + offset,
+                y + h
+            ], style.layerId, style.name);
+        }
+        for (const column of grid.partialColumns ?? []){
+            const style = styled(column.styleKey, 'grid');
+            line([
+                x + column.offset,
+                y
+            ], [
+                x + column.offset,
+                y + column.height
+            ], style.layerId, style.name);
+        }
         for (const row of grid.rows){
             const spans = [
                 0,
                 ...row.breaks ?? [],
                 w
-            ];
+            ], style = styled(row.styleKey, 'grid');
             for(let index = 0; index < spans.length - 1; index++)line([
                 x + spans[index],
                 y + row.offset
             ], [
                 x + spans[index + 1],
                 y + row.offset
-            ], roleIds.grid);
+            ], style.layerId, style.name);
         }
-        for (const segment of grid.horizontalSegments ?? [])line([
-            x + segment.start,
-            y + segment.offset
-        ], [
-            x + segment.end,
-            y + segment.offset
-        ], roleIds.grid);
-        for (const segment of grid.verticalSegments ?? [])line([
-            x + segment.offset,
-            y + segment.start
-        ], [
-            x + segment.offset,
-            y + segment.end
-        ], roleIds.grid);
-        if (grid.diagonalHeader) line([
-            x,
-            y + h
-        ], [
-            x + grid.diagonalHeader.width,
-            y + h - grid.diagonalHeader.drop
-        ], roleIds.grid);
+        for (const segment of grid.horizontalSegments ?? []){
+            const style = styled(segment.styleKey, 'grid');
+            line([
+                x + segment.start,
+                y + segment.offset
+            ], [
+                x + segment.end,
+                y + segment.offset
+            ], style.layerId, style.name);
+        }
+        for (const segment of grid.verticalSegments ?? []){
+            const style = styled(segment.styleKey, 'grid');
+            line([
+                x + segment.offset,
+                y + segment.start
+            ], [
+                x + segment.offset,
+                y + segment.end
+            ], style.layerId, style.name);
+        }
+        if (grid.diagonalHeader) {
+            const style = styled(grid.diagonalHeader.styleKey, 'grid');
+            line([
+                x,
+                y + h
+            ], [
+                x + grid.diagonalHeader.width,
+                y + h - grid.diagonalHeader.drop
+            ], style.layerId, style.name);
+        }
     }
-    if (input.xRange) line([
-        input.xRange[0],
-        cy
-    ], [
-        input.xRange[1],
-        cy
-    ], roleIds.center, 'center');
+    if (input.xRange) {
+        const style = styled(input.axisStyleKey, 'center');
+        line([
+            input.xRange[0],
+            cy
+        ], [
+            input.xRange[1],
+            cy
+        ], style.layerId, style.name);
+    }
     for (const profile of input.symmetricProfiles){
+        const style = styled(profile.styleKey, 'geometry');
         for(let index = 1; index < profile.vertices.length; index++){
             const previous = profile.vertices[index - 1], current = profile.vertices[index];
             line([
@@ -1629,14 +1856,14 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             ], [
                 current.station,
                 cy + current.radius
-            ], roleIds.geometry, 'geometry');
+            ], style.layerId, style.name);
             line([
                 previous.station,
                 cy - previous.radius
             ], [
                 current.station,
                 cy - current.radius
-            ], roleIds.geometry, 'geometry');
+            ], style.layerId, style.name);
         }
         const start = profile.vertices[0], end = profile.vertices.at(-1);
         if (profile.endCaps === 'start' || profile.endCaps === 'both') line([
@@ -1645,93 +1872,101 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         ], [
             start.station,
             cy + start.radius
-        ], roleIds.geometry, 'geometry');
+        ], style.layerId, style.name);
         if (profile.endCaps === 'end' || profile.endCaps === 'both') line([
             end.station,
             cy - end.radius
         ], [
             end.station,
             cy + end.radius
-        ], roleIds.geometry, 'geometry');
+        ], style.layerId, style.name);
     }
     for (const segment of input.sideOutlineSegments){
+        const style = styled(segment.styleKey, 'geometry');
         if (segment.kind === 'line') line([
             segment.start.station,
             cy + segment.start.offset
         ], [
             segment.end.station,
             cy + segment.end.offset
-        ], roleIds.geometry, 'geometry');
+        ], style.layerId, style.name);
         else if (segment.kind === 'arc') emit('ARC', {
             center: p3(segment.center.station, cy + segment.center.offset),
             radius: segment.radius,
             startAngle: segment.startAngle,
             endAngle: segment.endAngle,
-            layerId: roleIds.geometry
-        }, 'geometry');
+            layerId: style.layerId
+        }, style.name);
         else emit('CIRCLE', {
             center: p3(segment.center.station, cy + segment.center.offset),
             radius: segment.radius,
-            layerId: roleIds.geometry
-        }, 'geometry');
+            layerId: style.layerId
+        }, style.name);
     }
-    for (const hatch of input.sectionHatches)emit('HATCH', {
-        boundaryLoops: [
-            {
-                external: false,
-                flags: 0,
-                edges: hatch.edges.map((edge)=>edge.kind === 'line' ? {
-                        type: 'LINE',
-                        start: p3(edge.start.station, cy + edge.start.offset),
-                        end: p3(edge.end.station, cy + edge.end.offset)
-                    } : {
-                        type: 'ARC',
-                        center: p3(edge.center.station, cy + edge.center.offset),
-                        radius: edge.radius,
-                        startAngle: edge.startAngle,
-                        endAngle: edge.endAngle,
-                        counterClockwise: edge.counterClockwise !== false
-                    })
-            }
-        ],
-        patternName: 'ANSI31',
-        solid: false,
-        associative: false,
-        patternAngle: 0,
-        patternScale: 1,
-        patternLines: [
-            {
-                angle: hatch.lineAngle,
-                base: hatch.patternOrigin,
-                offset: [
-                    -Math.sin(hatch.lineAngle) * hatch.lineSpacing,
-                    Math.cos(hatch.lineAngle) * hatch.lineSpacing
-                ],
-                dashes: []
-            }
-        ],
-        patternDefinitionAngle: 0,
-        patternDefinitionScale: 1,
-        layerId: roleIds.hatch
-    }, 'hatch');
-    for (const auxiliary of input.auxiliaryLines)line(auxiliary.start, auxiliary.end, roleIds[auxiliary.role], auxiliary.role);
+    for (const hatch of input.sectionHatches){
+        const style = styled(hatch.styleKey, 'hatch');
+        emit('HATCH', {
+            boundaryLoops: [
+                {
+                    external: false,
+                    flags: 0,
+                    edges: hatch.edges.map((edge)=>edge.kind === 'line' ? {
+                            type: 'LINE',
+                            start: p3(edge.start.station, cy + edge.start.offset),
+                            end: p3(edge.end.station, cy + edge.end.offset)
+                        } : {
+                            type: 'ARC',
+                            center: p3(edge.center.station, cy + edge.center.offset),
+                            radius: edge.radius,
+                            startAngle: edge.startAngle,
+                            endAngle: edge.endAngle,
+                            counterClockwise: edge.counterClockwise !== false
+                        })
+                }
+            ],
+            patternName: 'ANSI31',
+            solid: false,
+            associative: false,
+            patternAngle: 0,
+            patternScale: 1,
+            patternLines: [
+                {
+                    angle: hatch.lineAngle,
+                    base: hatch.patternOrigin,
+                    offset: [
+                        -Math.sin(hatch.lineAngle) * hatch.lineSpacing,
+                        Math.cos(hatch.lineAngle) * hatch.lineSpacing
+                    ],
+                    dashes: []
+                }
+            ],
+            patternDefinitionAngle: 0,
+            patternDefinitionScale: 1,
+            layerId: style.layerId
+        }, style.name);
+    }
+    for (const auxiliary of input.auxiliaryLines){
+        const style = styled(auxiliary.styleKey, auxiliary.role);
+        line(auxiliary.start, auxiliary.end, style.layerId, style.name);
+    }
     for (const curve of input.auxiliaryCurves){
+        const style = styled(curve.styleKey, curve.role);
         if (curve.kind === 'arc') emit('ARC', {
             center: p3(...curve.center),
             radius: curve.radius,
             startAngle: curve.startAngle,
             endAngle: curve.endAngle,
             clockwise: curve.clockwise === true,
-            layerId: roleIds[curve.role]
-        }, curve.role);
+            layerId: style.layerId
+        }, style.name);
         else if (curve.kind === 'ellipse') emit('ELLIPSE', {
             center: p3(...curve.center),
             majorAxis: p3(...curve.majorAxis),
             ratio: curve.ratio,
             startParameter: curve.startParameter,
             endParameter: curve.endParameter,
-            layerId: roleIds[curve.role]
-        }, curve.role);
+            layerId: style.layerId
+        }, style.name);
         else if (curve.kind === 'polyline') emit('LWPOLYLINE', {
             vertices: curve.vertices.map((vertex)=>({
                     ...vertex,
@@ -1739,8 +1974,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 })),
             closed: curve.closed === true,
             elevation: 0,
-            layerId: roleIds[curve.role]
-        }, curve.role);
+            layerId: style.layerId
+        }, style.name);
         else emit('SPLINE', {
             degree: curve.degree,
             controlPoints: curve.controlPoints.map((value)=>p3(...value)),
@@ -1753,8 +1988,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             } : {},
             closed: curve.closed === true,
             periodic: curve.periodic === true,
-            layerId: roleIds[curve.role]
-        }, curve.role);
+            layerId: style.layerId
+        }, style.name);
     }
     const symbolBlockByKey = new Map();
     const blocks = input.symbolDefinitions.map((definition, definitionIndex)=>{
@@ -1768,19 +2003,20 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         });
         const members = definition.members.map((member, memberIndex)=>{
             let type, payload;
+            const entityStyle = styled(member.entityStyleKey, member.role);
             if (member.kind === 'line') {
                 type = 'LINE';
                 payload = {
                     start: p3(...member.start),
                     end: p3(...member.end),
-                    layerId: roleIds[member.role]
+                    layerId: entityStyle.layerId
                 };
             } else if (member.kind === 'circle') {
                 type = 'CIRCLE';
                 payload = {
                     center: p3(...member.center),
                     radius: member.radius,
-                    layerId: roleIds[member.role]
+                    layerId: entityStyle.layerId
                 };
             } else if (member.kind === 'arc') {
                 type = 'ARC';
@@ -1790,7 +2026,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                     startAngle: member.startAngle,
                     endAngle: member.endAngle,
                     clockwise: member.clockwise === true,
-                    layerId: roleIds[member.role]
+                    layerId: entityStyle.layerId
                 };
             } else {
                 const style = member.styleKey == null ? null : textStyleByKey.get(member.styleKey);
@@ -1807,12 +2043,12 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                     ...style == null ? {} : {
                         styleId: style.id
                     },
-                    layerId: roleIds[member.role]
+                    layerId: entityStyle.layerId
                 };
             }
             return {
                 type,
-                payload: stylePayload(payload, member.role),
+                payload: stylePayload(payload, entityStyle.name),
                 options: {
                     id: `${id}-member-${String(memberIndex + 1).padStart(2, '0')}`
                 }
@@ -1826,7 +2062,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         };
     });
     for (const instance of input.symbolInstances){
-        const block = symbolBlockByKey.get(instance.symbolKey);
+        const block = symbolBlockByKey.get(instance.symbolKey), style = styled(instance.styleKey, instance.role);
         emit('INSERT', {
             blockRecordId: block.id,
             position: p3(...instance.position),
@@ -1839,8 +2075,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             attributes: {},
             attributeIds: [],
             sequenceEndId: null,
-            layerId: roleIds[instance.role]
-        }, instance.role);
+            layerId: style.layerId
+        }, style.name);
     }
     const characteristicCode = {
         position: 'j',
@@ -1899,7 +2135,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         }, frame.role);
     }
     for (const note of input.notes){
-        const style = note.styleKey == null ? null : textStyleByKey.get(note.styleKey);
+        const style = note.styleKey == null ? null : textStyleByKey.get(note.styleKey), entityStyle = styled(note.entityStyleKey, 'notes');
         emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
             position: p3(...note.position),
             text: note.text,
@@ -1911,8 +2147,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             ...style == null ? {} : {
                 styleId: style.id
             },
-            layerId: roleIds.notes
-        }, 'notes');
+            layerId: entityStyle.layerId
+        }, entityStyle.name);
     }
     for (const dimension of input.dimensions){
         const style = dimension.styleKey == null ? null : dimensionStyleByKey.get(dimension.styleKey);
@@ -1931,17 +2167,20 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             layerId: roleIds.dimensions
         }, 'dimensions');
     }
-    for (const leader of input.leaders)emit('LEADER', {
-        vertices: leader.vertices.map(([x, y])=>p3(x, y)),
-        annotationId: null,
-        ownsAnnotation: false,
-        arrowEnabled: leader.arrowEnabled !== false,
-        pathType: leader.pathType ?? 0,
-        annotationType: leader.annotationType ?? 3,
-        hookLineDirection: leader.hookLineDirection ?? 0,
-        hookLineEnabled: leader.hookLineEnabled === true,
-        layerId: roleIds.notes
-    }, 'notes');
+    for (const leader of input.leaders){
+        const style = styled(leader.styleKey, 'notes');
+        emit('LEADER', {
+            vertices: leader.vertices.map(([x, y])=>p3(x, y)),
+            annotationId: null,
+            ownsAnnotation: false,
+            arrowEnabled: leader.arrowEnabled !== false,
+            pathType: leader.pathType ?? 0,
+            annotationType: leader.annotationType ?? 3,
+            hookLineDirection: leader.hookLineDirection ?? 0,
+            hookLineEnabled: leader.hookLineEnabled === true,
+            layerId: style.layerId
+        }, style.name);
+    }
     return {
         commandArgs: {
             entities,
@@ -1980,6 +2219,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 symbolDefinitionCount: input.symbolDefinitions.length,
                 symbolInstanceCount: input.symbolInstances.length,
                 featureControlFrameCount: input.featureControlFrames.length,
+                entityStyleCount: input.customStyles.length,
                 textStyleCount: input.textStyles.length,
                 dimensionStyleCount: input.dimensionStyles.length,
                 noteCount: input.notes.length,

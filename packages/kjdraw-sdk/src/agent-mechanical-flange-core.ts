@@ -13,16 +13,17 @@ export interface KJFlangeTitleGrid {
   origin: Point2
   size: Point2
   /** Full-height column boundaries measured from the grid's left edge. */
-  columns: number[]
+  columns: (number | { offset: number; styleKey?: string })[]
   /** Column boundaries that stop below the grid's top edge. */
-  partialColumns?: { offset: number; height: number }[]
+  partialColumns?: { offset: number; height: number; styleKey?: string }[]
   /** Row boundaries measured from the bottom; breaks split one row into segments. */
-  rows: { offset: number; breaks?: number[] }[]
+  rows: { offset: number; breaks?: number[]; styleKey?: string }[]
   /** Bounded horizontal rules measured from the grid's bottom and left edges. */
-  horizontalSegments?: { offset: number; start: number; end: number }[]
+  horizontalSegments?: { offset: number; start: number; end: number; styleKey?: string }[]
   /** Bounded vertical rules measured from the grid's left and bottom edges. */
-  verticalSegments?: { offset: number; start: number; end: number }[]
-  diagonalHeader?: { width: number; drop: number }
+  verticalSegments?: { offset: number; start: number; end: number; styleKey?: string }[]
+  topStyleKey?: string
+  diagonalHeader?: { width: number; drop: number; styleKey?: string }
 }
 
 /** One source-measured meridian of an axially symmetric side view.
@@ -32,14 +33,15 @@ export interface KJFlangeTitleGrid {
 export interface KJFlangeSymmetricProfile {
   vertices: { station: number; radius: number }[]
   endCaps?: 'none' | 'start' | 'end' | 'both'
+  styleKey?: string
 }
 
 /** Source-measured side-view geometry. Stations use drawing X coordinates;
  *  offsets are measured from the shared projection axis. */
 export type KJFlangeSideViewOutlineSegment =
-  | { kind: 'line'; start: { station: number; offset: number }; end: { station: number; offset: number } }
-  | { kind: 'arc'; center: { station: number; offset: number }; radius: number; startAngle: number; endAngle: number }
-  | { kind: 'circle'; center: { station: number; offset: number }; radius: number }
+  | { kind: 'line'; start: { station: number; offset: number }; end: { station: number; offset: number }; styleKey?: string }
+  | { kind: 'arc'; center: { station: number; offset: number }; radius: number; startAngle: number; endAngle: number; styleKey?: string }
+  | { kind: 'circle'; center: { station: number; offset: number }; radius: number; styleKey?: string }
 
 /** A source-measured cut face in the side view. Boundary coordinates are
  *  relative to the projection axis; the pattern is generated, not copied
@@ -52,6 +54,7 @@ export interface KJFlangeSectionHatch {
   lineAngle: number
   lineSpacing: number
   patternOrigin?: Point2
+  styleKey?: string
 }
 
 /** Drawing-style roles are caller-supplied facts. The compiler never embeds
@@ -74,6 +77,7 @@ export interface KJFlangeStyleProfile {
   dimensions?: KJFlangeStyleRole
   hatch?: KJFlangeStyleRole
   hidden?: KJFlangeStyleRole
+  custom?: ({ key: string } & KJFlangeStyleRole)[]
 }
 
 /** Bounded source-measured line facts that do not belong to a primary view
@@ -82,21 +86,22 @@ export interface KJFlangeAuxiliaryLine {
   start: Point2
   end: Point2
   role: 'geometry' | 'center' | 'hidden' | 'notes' | 'grid' | 'frame'
+  styleKey?: string
 }
 
 export type KJFlangeAuxiliaryCurve =
-  | { kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; clockwise?: boolean; role: KJFlangeAuxiliaryLine['role'] }
-  | { kind: 'ellipse'; center: Point2; majorAxis: Point2; ratio: number; startParameter: number; endParameter: number; role: KJFlangeAuxiliaryLine['role'] }
-  | { kind: 'polyline'; vertices: { point: Point2; bulge?: number; startWidth?: number; endWidth?: number }[]; closed?: boolean; role: KJFlangeAuxiliaryLine['role'] }
-  | { kind: 'spline'; degree: number; controlPoints: Point2[]; knots: number[]; fitPoints?: Point2[]; weights?: number[]; closed?: boolean; periodic?: boolean; role: KJFlangeAuxiliaryLine['role'] }
+  | { kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; clockwise?: boolean; role: KJFlangeAuxiliaryLine['role']; styleKey?: string }
+  | { kind: 'ellipse'; center: Point2; majorAxis: Point2; ratio: number; startParameter: number; endParameter: number; role: KJFlangeAuxiliaryLine['role']; styleKey?: string }
+  | { kind: 'polyline'; vertices: { point: Point2; bulge?: number; startWidth?: number; endWidth?: number }[]; closed?: boolean; role: KJFlangeAuxiliaryLine['role']; styleKey?: string }
+  | { kind: 'spline'; degree: number; controlPoints: Point2[]; knots: number[]; fitPoints?: Point2[]; weights?: number[]; closed?: boolean; periodic?: boolean; role: KJFlangeAuxiliaryLine['role']; styleKey?: string }
 
 /** A reusable local symbol definition. Only visible native geometry and text
  * are accepted; source handles, block names and application metadata are not. */
 export type KJFlangeSymbolMember =
-  | { kind: 'line'; start: Point2; end: Point2; role: KJFlangeAuxiliaryLine['role'] }
-  | { kind: 'circle'; center: Point2; radius: number; role: KJFlangeAuxiliaryLine['role'] }
-  | { kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; clockwise?: boolean; role: KJFlangeAuxiliaryLine['role'] }
-  | { kind: 'multiline-text'; text: string; position: Point2; height: number; rotation?: number; width?: number; attachmentPoint?: number; styleKey?: string; role: KJFlangeAuxiliaryLine['role'] }
+  | { kind: 'line'; start: Point2; end: Point2; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
+  | { kind: 'circle'; center: Point2; radius: number; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
+  | { kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; clockwise?: boolean; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
+  | { kind: 'multiline-text'; text: string; position: Point2; height: number; rotation?: number; width?: number; attachmentPoint?: number; styleKey?: string; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
 
 export interface KJFlangeSymbolDefinition {
   key: string
@@ -110,6 +115,7 @@ export interface KJFlangeSymbolInstance {
   scale?: Point2
   rotation?: number
   role: KJFlangeAuxiliaryLine['role']
+  styleKey?: string
 }
 
 /** Source-supplied visible sheet text. Content remains input data and is not
@@ -122,6 +128,7 @@ export interface KJFlangeSheetNote {
   rotation?: number
   width?: number
   styleKey?: string
+  entityStyleKey?: string
 }
 
 /** A bounded native mechanical dimension supplied as engineering annotation
@@ -143,6 +150,7 @@ export interface KJFlangeLeader {
   annotationType?: number
   hookLineDirection?: number
   hookLineEnabled?: boolean
+  styleKey?: string
 }
 
 export type KJFlangeGeometricCharacteristic = 'position' | 'concentricity' | 'symmetry' | 'parallelism' | 'perpendicularity' | 'angularity' | 'cylindricity' | 'flatness' | 'circularity' | 'straightness' | 'surface-profile' | 'line-profile' | 'circular-runout' | 'total-runout'
@@ -190,9 +198,9 @@ export interface KJFlangeDimensionStyleDefinition {
 /** Source-measured visible end-view outline geometry, expressed relative to
  *  the end-view center so that the same rule remains position independent. */
 export type KJFlangeEndViewOutlineSegment =
-  | { kind: 'line'; startOffset: Point2; endOffset: Point2 }
-  | { kind: 'arc'; centerOffset: Point2; radius: number; startAngle: number; endAngle: number }
-  | { kind: 'circle'; centerOffset: Point2; radius: number }
+  | { kind: 'line'; startOffset: Point2; endOffset: Point2; styleKey?: string }
+  | { kind: 'arc'; centerOffset: Point2; radius: number; startAngle: number; endAngle: number; styleKey?: string }
+  | { kind: 'circle'; centerOffset: Point2; radius: number; styleKey?: string }
 
 /** A source-positioned cutting-plane mark, relative to the end-view center.
  *  The stem and tick vectors retain the drafting direction of each mark. */
@@ -201,6 +209,9 @@ export interface KJFlangeCuttingPlaneMark {
   stemVector: Point2
   tickVector: Point2
   arrowhead?: { length: number; width: number }
+  stemStyleKey?: string
+  tickStyleKey?: string
+  arrowheadStyleKey?: string
 }
 
 export interface KJAgentMechanicalFlangeCoreInput {
@@ -209,7 +220,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   units: 'millimeter'
   drawingId: string
   endView: { center: Point2; ringRadii: number[]; squareHoles: { pitch: number; radius: number }; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
-  sideViewAxis?: { xRange: Point2; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
+  sideViewAxis?: { xRange: Point2; axisStyleKey?: string; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
   dimensions?: KJFlangeDimension[]
   leaders?: KJFlangeLeader[]
   featureControlFrames?: KJFlangeFeatureControlFrame[]
@@ -218,7 +229,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   symbols?: { definitions: KJFlangeSymbolDefinition[]; instances: KJFlangeSymbolInstance[] }
   styleResources?: { textStyles: KJFlangeTextStyleDefinition[]; dimensionStyles: KJFlangeDimensionStyleDefinition[] }
   styleProfile?: KJFlangeStyleProfile
-  sheet: { origin: Point2; size: Point2; inset: number; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
+  sheet: { origin: Point2; size: Point2; inset: number; outerFrameStyleKey?: string; insetFrameStyleKey?: string; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
 }
 
 const finite = (value: unknown, label: string, min: number, max: number): number => {
@@ -303,6 +314,24 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     if (!keys.has(key)) throw new KJValidationError(`${label} must reference input.styleResources`)
     return key
   }
+  const styleProfile = input.styleProfile == null ? {} : plain(input.styleProfile, 'input.styleProfile')
+  exact(styleProfile, ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch', 'hidden', 'custom'], 'input.styleProfile')
+  if (styleProfile.custom != null && (!Array.isArray(styleProfile.custom) || styleProfile.custom.length > 16)) throw new KJValidationError('input.styleProfile.custom must contain at most 16 items')
+  const customStyleSource = (styleProfile.custom ?? []) as unknown[]
+  const entityStyleKeys = new Set<string>()
+  for (const [index, value] of customStyleSource.entries()) {
+    const label = `input.styleProfile.custom[${index}]`, style = plain(value, label)
+    exact(style, ['key', 'layerName', 'color', 'lineweight', 'linetypeName', 'linetypePattern'], label)
+    const key = resourceKey(style.key, `${label}.key`)
+    if (entityStyleKeys.has(key)) throw new KJValidationError(`${label}.key must be unique`)
+    entityStyleKeys.add(key)
+  }
+  const entityStyleKey = (value: unknown, label: string): string | undefined => {
+    if (value == null) return undefined
+    const key = resourceKey(value, label)
+    if (!entityStyleKeys.has(key)) throw new KJValidationError(`${label} must reference input.styleProfile.custom`)
+    return key
+  }
   const end = plain(input.endView, 'input.endView'); exact(end, ['center', 'ringRadii', 'squareHoles', 'outlineSegments', 'cuttingPlaneMarks'], 'input.endView')
   const center = point(end.center, 'input.endView.center')
   const ringRadii = increasing(end.ringRadii, 'input.endView.ringRadii', 16, 0.1, 100_000)
@@ -315,26 +344,27 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   if ((end.outlineSegments as unknown[] | undefined)?.length && (end.outlineSegments as unknown[]).length > 128) throw new KJValidationError('input.endView.outlineSegments exceed their budget')
   const outlineSegments: KJFlangeEndViewOutlineSegment[] = ((end.outlineSegments ?? []) as unknown[]).map((value, index) => {
     const segment = plain(value, `input.endView.outlineSegments[${index}]`)
+    const styleKey = entityStyleKey(segment.styleKey, `input.endView.outlineSegments[${index}].styleKey`)
     if (segment.kind === 'line') {
-      exact(segment, ['kind', 'startOffset', 'endOffset'], `input.endView.outlineSegments[${index}]`)
+      exact(segment, ['kind', 'startOffset', 'endOffset', 'styleKey'], `input.endView.outlineSegments[${index}]`)
       const startOffset = point(segment.startOffset, `input.endView.outlineSegments[${index}].startOffset`)
       const endOffset = point(segment.endOffset, `input.endView.outlineSegments[${index}].endOffset`)
       if (startOffset[0] === endOffset[0] && startOffset[1] === endOffset[1]) throw new KJValidationError(`input.endView.outlineSegments[${index}] must not have zero length`)
-      return { kind: 'line', startOffset, endOffset }
+      return { kind: 'line', startOffset, endOffset, ...(styleKey == null ? {} : { styleKey }) }
     }
     if (segment.kind === 'arc') {
-      exact(segment, ['kind', 'centerOffset', 'radius', 'startAngle', 'endAngle'], `input.endView.outlineSegments[${index}]`)
+      exact(segment, ['kind', 'centerOffset', 'radius', 'startAngle', 'endAngle', 'styleKey'], `input.endView.outlineSegments[${index}]`)
       const centerOffset = point(segment.centerOffset, `input.endView.outlineSegments[${index}].centerOffset`)
       const arcRadius = finite(segment.radius, `input.endView.outlineSegments[${index}].radius`, 0.1, 100_000)
       const startAngle = finite(segment.startAngle, `input.endView.outlineSegments[${index}].startAngle`, -Math.PI * 4, Math.PI * 4)
       const endAngle = finite(segment.endAngle, `input.endView.outlineSegments[${index}].endAngle`, -Math.PI * 4, Math.PI * 4)
       if (startAngle === endAngle) throw new KJValidationError(`input.endView.outlineSegments[${index}] arc sweep must not be zero`)
-      return { kind: 'arc', centerOffset, radius: arcRadius, startAngle, endAngle }
+      return { kind: 'arc', centerOffset, radius: arcRadius, startAngle, endAngle, ...(styleKey == null ? {} : { styleKey }) }
     }
     if (segment.kind === 'circle') {
-      exact(segment, ['kind', 'centerOffset', 'radius'], `input.endView.outlineSegments[${index}]`)
+      exact(segment, ['kind', 'centerOffset', 'radius', 'styleKey'], `input.endView.outlineSegments[${index}]`)
       return { kind: 'circle', centerOffset: point(segment.centerOffset, `input.endView.outlineSegments[${index}].centerOffset`),
-        radius: finite(segment.radius, `input.endView.outlineSegments[${index}].radius`, 0.1, 100_000) }
+        radius: finite(segment.radius, `input.endView.outlineSegments[${index}].radius`, 0.1, 100_000), ...(styleKey == null ? {} : { styleKey }) }
     }
     throw new KJValidationError(`input.endView.outlineSegments[${index}].kind is invalid`)
   })
@@ -342,24 +372,27 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   if ((end.cuttingPlaneMarks as unknown[] | undefined)?.length && (end.cuttingPlaneMarks as unknown[]).length > 16) throw new KJValidationError('input.endView.cuttingPlaneMarks exceed their budget')
   const cuttingPlaneMarks: KJFlangeCuttingPlaneMark[] = ((end.cuttingPlaneMarks ?? []) as unknown[]).map((value, index) => {
     const mark = plain(value, `input.endView.cuttingPlaneMarks[${index}]`)
-    exact(mark, ['anchorOffset', 'stemVector', 'tickVector', 'arrowhead'], `input.endView.cuttingPlaneMarks[${index}]`)
+    exact(mark, ['anchorOffset', 'stemVector', 'tickVector', 'arrowhead', 'stemStyleKey', 'tickStyleKey', 'arrowheadStyleKey'], `input.endView.cuttingPlaneMarks[${index}]`)
     const anchorOffset = point(mark.anchorOffset, `input.endView.cuttingPlaneMarks[${index}].anchorOffset`)
     const stemVector = point(mark.stemVector, `input.endView.cuttingPlaneMarks[${index}].stemVector`)
     const tickVector = point(mark.tickVector, `input.endView.cuttingPlaneMarks[${index}].tickVector`)
     if (stemVector[0] === 0 && stemVector[1] === 0 || tickVector[0] === 0 && tickVector[1] === 0) throw new KJValidationError(`input.endView.cuttingPlaneMarks[${index}] vectors must not have zero length`)
     const arrow = mark.arrowhead == null ? null : plain(mark.arrowhead, `input.endView.cuttingPlaneMarks[${index}].arrowhead`)
     if (arrow) exact(arrow, ['length', 'width'], `input.endView.cuttingPlaneMarks[${index}].arrowhead`)
-    return { anchorOffset, stemVector, tickVector, ...(arrow ? { arrowhead: { length: finite(arrow.length, `input.endView.cuttingPlaneMarks[${index}].arrowhead.length`, 0.1, 100_000), width: finite(arrow.width, `input.endView.cuttingPlaneMarks[${index}].arrowhead.width`, 0.1, 100_000) } } : {}) }
+    const stemStyleKey = entityStyleKey(mark.stemStyleKey, `input.endView.cuttingPlaneMarks[${index}].stemStyleKey`), tickStyleKey = entityStyleKey(mark.tickStyleKey, `input.endView.cuttingPlaneMarks[${index}].tickStyleKey`), arrowheadStyleKey = entityStyleKey(mark.arrowheadStyleKey, `input.endView.cuttingPlaneMarks[${index}].arrowheadStyleKey`)
+    return { anchorOffset, stemVector, tickVector, ...(arrow ? { arrowhead: { length: finite(arrow.length, `input.endView.cuttingPlaneMarks[${index}].arrowhead.length`, 0.1, 100_000), width: finite(arrow.width, `input.endView.cuttingPlaneMarks[${index}].arrowhead.width`, 0.1, 100_000) } } : {}),
+      ...(stemStyleKey == null ? {} : { stemStyleKey }), ...(tickStyleKey == null ? {} : { tickStyleKey }), ...(arrowheadStyleKey == null ? {} : { arrowheadStyleKey }) }
   })
   const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis')
-  if (side) exact(side, ['xRange', 'symmetricProfiles', 'outlineSegments', 'sectionHatches'], 'input.sideViewAxis')
+  if (side) exact(side, ['xRange', 'axisStyleKey', 'symmetricProfiles', 'outlineSegments', 'sectionHatches'], 'input.sideViewAxis')
   const xRange = side ? point(side.xRange, 'input.sideViewAxis.xRange') : null
+  const axisStyleKey = side == null ? undefined : entityStyleKey(side.axisStyleKey, 'input.sideViewAxis.axisStyleKey')
   if (xRange && xRange[0] >= xRange[1]) throw new KJValidationError('input.sideViewAxis.xRange must increase')
   if (side?.symmetricProfiles != null && !Array.isArray(side.symmetricProfiles)) throw new KJValidationError('input.sideViewAxis.symmetricProfiles must be an array')
   if ((side?.symmetricProfiles as unknown[] | undefined)?.length && (side!.symmetricProfiles as unknown[]).length > 64) throw new KJValidationError('input.sideViewAxis.symmetricProfiles exceed their budget')
   const symmetricProfiles: KJFlangeSymmetricProfile[] = ((side?.symmetricProfiles ?? []) as unknown[]).map((value, profileIndex) => {
     const profile = plain(value, `input.sideViewAxis.symmetricProfiles[${profileIndex}]`)
-    exact(profile, ['vertices', 'endCaps'], `input.sideViewAxis.symmetricProfiles[${profileIndex}]`)
+    exact(profile, ['vertices', 'endCaps', 'styleKey'], `input.sideViewAxis.symmetricProfiles[${profileIndex}]`)
     if (!Array.isArray(profile.vertices) || profile.vertices.length < 2 || profile.vertices.length > 64) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices must contain 2 to 64 points`)
     const vertices = profile.vertices.map((vertexValue, vertexIndex) => {
       const vertex = plain(vertexValue, `input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices[${vertexIndex}]`)
@@ -375,37 +408,39 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     }
     const endCaps = profile.endCaps ?? 'none'
     if (!['none', 'start', 'end', 'both'].includes(endCaps as string)) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].endCaps is invalid`)
-    return { vertices, endCaps } as KJFlangeSymmetricProfile
+    const styleKey = entityStyleKey(profile.styleKey, `input.sideViewAxis.symmetricProfiles[${profileIndex}].styleKey`)
+    return { vertices, endCaps, ...(styleKey == null ? {} : { styleKey }) } as KJFlangeSymmetricProfile
   })
   if (side?.outlineSegments != null && !Array.isArray(side.outlineSegments)) throw new KJValidationError('input.sideViewAxis.outlineSegments must be an array')
   if ((side?.outlineSegments as unknown[] | undefined)?.length && (side!.outlineSegments as unknown[]).length > 128) throw new KJValidationError('input.sideViewAxis.outlineSegments exceed their budget')
   const sideOutlineSegments: KJFlangeSideViewOutlineSegment[] = ((side?.outlineSegments ?? []) as unknown[]).map((value, index) => {
     const segment = plain(value, `input.sideViewAxis.outlineSegments[${index}]`)
+    const styleKey = entityStyleKey(segment.styleKey, `input.sideViewAxis.outlineSegments[${index}].styleKey`)
     const stationOffset = (pointValue: unknown, label: string) => {
       const value = plain(pointValue, label)
       exact(value, ['station', 'offset'], label)
       return { station: finite(value.station, `${label}.station`, xRange![0], xRange![1]), offset: finite(value.offset, `${label}.offset`, -100_000, 100_000) }
     }
     if (segment.kind === 'line') {
-      exact(segment, ['kind', 'start', 'end'], `input.sideViewAxis.outlineSegments[${index}]`)
+      exact(segment, ['kind', 'start', 'end', 'styleKey'], `input.sideViewAxis.outlineSegments[${index}]`)
       const start = stationOffset(segment.start, `input.sideViewAxis.outlineSegments[${index}].start`)
       const end = stationOffset(segment.end, `input.sideViewAxis.outlineSegments[${index}].end`)
       if (start.station === end.station && start.offset === end.offset) throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}] must not have zero length`)
-      return { kind: 'line', start, end }
+      return { kind: 'line', start, end, ...(styleKey == null ? {} : { styleKey }) }
     }
     if (segment.kind === 'arc') {
-      exact(segment, ['kind', 'center', 'radius', 'startAngle', 'endAngle'], `input.sideViewAxis.outlineSegments[${index}]`)
+      exact(segment, ['kind', 'center', 'radius', 'startAngle', 'endAngle', 'styleKey'], `input.sideViewAxis.outlineSegments[${index}]`)
       const arcCenter = stationOffset(segment.center, `input.sideViewAxis.outlineSegments[${index}].center`)
       const arcRadius = finite(segment.radius, `input.sideViewAxis.outlineSegments[${index}].radius`, 0.1, 100_000)
       const startAngle = finite(segment.startAngle, `input.sideViewAxis.outlineSegments[${index}].startAngle`, -Math.PI * 4, Math.PI * 4)
       const endAngle = finite(segment.endAngle, `input.sideViewAxis.outlineSegments[${index}].endAngle`, -Math.PI * 4, Math.PI * 4)
       if (startAngle === endAngle) throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}] arc sweep must not be zero`)
-      return { kind: 'arc', center: arcCenter, radius: arcRadius, startAngle, endAngle }
+      return { kind: 'arc', center: arcCenter, radius: arcRadius, startAngle, endAngle, ...(styleKey == null ? {} : { styleKey }) }
     }
     if (segment.kind === 'circle') {
-      exact(segment, ['kind', 'center', 'radius'], `input.sideViewAxis.outlineSegments[${index}]`)
+      exact(segment, ['kind', 'center', 'radius', 'styleKey'], `input.sideViewAxis.outlineSegments[${index}]`)
       return { kind: 'circle', center: stationOffset(segment.center, `input.sideViewAxis.outlineSegments[${index}].center`),
-        radius: finite(segment.radius, `input.sideViewAxis.outlineSegments[${index}].radius`, 0.1, 100_000) }
+        radius: finite(segment.radius, `input.sideViewAxis.outlineSegments[${index}].radius`, 0.1, 100_000), ...(styleKey == null ? {} : { styleKey }) }
     }
     throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}].kind is invalid`)
   })
@@ -413,7 +448,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   if ((side?.sectionHatches as unknown[] | undefined)?.length && (side!.sectionHatches as unknown[]).length > 32) throw new KJValidationError('input.sideViewAxis.sectionHatches exceed their budget')
   const sectionHatches: KJFlangeSectionHatch[] = ((side?.sectionHatches ?? []) as unknown[]).map((value, hatchIndex) => {
     const label = `input.sideViewAxis.sectionHatches[${hatchIndex}]`, hatch = plain(value, label)
-    exact(hatch, ['edges', 'lineAngle', 'lineSpacing', 'patternOrigin'], label)
+    exact(hatch, ['edges', 'lineAngle', 'lineSpacing', 'patternOrigin', 'styleKey'], label)
     if (!Array.isArray(hatch.edges) || hatch.edges.length < 3 || hatch.edges.length > 128) throw new KJValidationError(`${label}.edges must contain 3 to 128 edges`)
     const localPoint = (value: unknown, label: string) => {
       const coordinate = plain(value, label); exact(coordinate, ['station', 'offset'], label)
@@ -441,42 +476,56 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const lineAngle = finite(hatch.lineAngle, `${label}.lineAngle`, -Math.PI * 2, Math.PI * 2)
     const lineSpacing = finite(hatch.lineSpacing, `${label}.lineSpacing`, 0.01, 100_000)
     const patternOrigin = hatch.patternOrigin == null ? [0, 0] as Point2 : point(hatch.patternOrigin, `${label}.patternOrigin`)
-    return { edges, lineAngle, lineSpacing, patternOrigin }
+    const styleKey = entityStyleKey(hatch.styleKey, `${label}.styleKey`)
+    return { edges, lineAngle, lineSpacing, patternOrigin, ...(styleKey == null ? {} : { styleKey }) }
   })
-  const sheet = plain(input.sheet, 'input.sheet'); exact(sheet, ['origin', 'size', 'inset', 'titleGrid', 'notes'], 'input.sheet')
+  const sheet = plain(input.sheet, 'input.sheet'); exact(sheet, ['origin', 'size', 'inset', 'outerFrameStyleKey', 'insetFrameStyleKey', 'titleGrid', 'notes'], 'input.sheet')
   const sheetOrigin = point(sheet.origin, 'input.sheet.origin'), sheetSize = point(sheet.size, 'input.sheet.size')
   if (sheetSize[0] < 100 || sheetSize[1] < 100) throw new KJValidationError('input.sheet.size is too small')
   const inset = finite(sheet.inset, 'input.sheet.inset', 0, Math.min(...sheetSize) / 2 - 1)
+  const outerFrameStyleKey = entityStyleKey(sheet.outerFrameStyleKey, 'input.sheet.outerFrameStyleKey'), insetFrameStyleKey = entityStyleKey(sheet.insetFrameStyleKey, 'input.sheet.insetFrameStyleKey')
   const grid = sheet.titleGrid == null ? null : plain(sheet.titleGrid, 'input.sheet.titleGrid')
-  if (grid) exact(grid, ['origin', 'size', 'columns', 'partialColumns', 'rows', 'horizontalSegments', 'verticalSegments', 'diagonalHeader'], 'input.sheet.titleGrid')
+  if (grid) exact(grid, ['origin', 'size', 'columns', 'partialColumns', 'rows', 'horizontalSegments', 'verticalSegments', 'topStyleKey', 'diagonalHeader'], 'input.sheet.titleGrid')
   let titleGrid: KJFlangeTitleGrid | null = null
   if (grid) {
     const origin = point(grid.origin, 'input.sheet.titleGrid.origin'), size = point(grid.size, 'input.sheet.titleGrid.size')
     if (size[0] <= 0 || size[1] <= 0 || origin[0] < sheetOrigin[0] + inset || origin[1] < sheetOrigin[1] + inset
       || origin[0] + size[0] > sheetOrigin[0] + sheetSize[0] - inset || origin[1] + size[1] > sheetOrigin[1] + sheetSize[1] - inset) throw new KJValidationError('title grid must lie inside the inset frame')
-    const columns = increasing(grid.columns, 'input.sheet.titleGrid.columns', 32, 0, size[0])
+    if (!Array.isArray(grid.columns) || grid.columns.length > 32) throw new KJValidationError('input.sheet.titleGrid.columns exceeds its item budget')
+    const columns = grid.columns.map((value, index) => {
+      if (typeof value === 'number') return value
+      const entry = plain(value, `input.sheet.titleGrid.columns[${index}]`); exact(entry, ['offset', 'styleKey'], `input.sheet.titleGrid.columns[${index}]`)
+      const styleKey = entityStyleKey(entry.styleKey, `input.sheet.titleGrid.columns[${index}].styleKey`)
+      return { offset: finite(entry.offset, `input.sheet.titleGrid.columns[${index}].offset`, 0, size[0]), ...(styleKey == null ? {} : { styleKey }) }
+    })
+    const columnOffsets = columns.map(value => typeof value === 'number' ? value : value.offset)
+    if (columnOffsets.some((value, index) => index > 0 && value <= columnOffsets[index - 1]!)) throw new KJValidationError('input.sheet.titleGrid.columns must increase strictly')
     if (!Array.isArray(grid.rows) || grid.rows.length > 16) throw new KJValidationError('title grid rows exceed their budget')
     const rows = grid.rows.map((value, index) => {
-      const entry = plain(value, `input.sheet.titleGrid.rows[${index}]`); exact(entry, ['offset', 'breaks'], `input.sheet.titleGrid.rows[${index}]`)
-      return { offset: finite(entry.offset, `input.sheet.titleGrid.rows[${index}].offset`, 0, size[1]), breaks: increasing(entry.breaks ?? [], `input.sheet.titleGrid.rows[${index}].breaks`, 16, 0, size[0]) }
+      const entry = plain(value, `input.sheet.titleGrid.rows[${index}]`); exact(entry, ['offset', 'breaks', 'styleKey'], `input.sheet.titleGrid.rows[${index}]`)
+      const styleKey = entityStyleKey(entry.styleKey, `input.sheet.titleGrid.rows[${index}].styleKey`)
+      return { offset: finite(entry.offset, `input.sheet.titleGrid.rows[${index}].offset`, 0, size[1]), breaks: increasing(entry.breaks ?? [], `input.sheet.titleGrid.rows[${index}].breaks`, 16, 0, size[0]), ...(styleKey == null ? {} : { styleKey }) }
     })
     if (rows.some((row, index) => index > 0 && row.offset <= rows[index - 1]!.offset)) throw new KJValidationError('title grid row offsets must increase')
     if (!Array.isArray(grid.partialColumns) && grid.partialColumns != null) throw new KJValidationError('title grid partialColumns must be an array')
     if ((grid.partialColumns as unknown[] | undefined)?.length && (grid.partialColumns as unknown[]).length > 16) throw new KJValidationError('title grid partialColumns exceed their budget')
     const partialColumns = ((grid.partialColumns ?? []) as unknown[]).map((value, index) => {
-      const entry = plain(value, `input.sheet.titleGrid.partialColumns[${index}]`); exact(entry, ['offset', 'height'], `input.sheet.titleGrid.partialColumns[${index}]`)
-      return { offset: finite(entry.offset, `input.sheet.titleGrid.partialColumns[${index}].offset`, 0, size[0]), height: finite(entry.height, `input.sheet.titleGrid.partialColumns[${index}].height`, 0, size[1]) }
+      const entry = plain(value, `input.sheet.titleGrid.partialColumns[${index}]`); exact(entry, ['offset', 'height', 'styleKey'], `input.sheet.titleGrid.partialColumns[${index}]`)
+      const styleKey = entityStyleKey(entry.styleKey, `input.sheet.titleGrid.partialColumns[${index}].styleKey`)
+      return { offset: finite(entry.offset, `input.sheet.titleGrid.partialColumns[${index}].offset`, 0, size[0]), height: finite(entry.height, `input.sheet.titleGrid.partialColumns[${index}].height`, 0, size[1]), ...(styleKey == null ? {} : { styleKey }) }
     })
     const segments = (value: unknown, label: string, offsetMax: number, spanMax: number) => {
       if (value != null && !Array.isArray(value)) throw new KJValidationError(`${label} must be an array`)
       if ((value as unknown[] | undefined)?.length && (value as unknown[]).length > 64) throw new KJValidationError(`${label} exceed their budget`)
       return ((value ?? []) as unknown[]).map((segmentValue, index) => {
         const entry = plain(segmentValue, `${label}[${index}]`)
-        exact(entry, ['offset', 'start', 'end'], `${label}[${index}]`)
+        exact(entry, ['offset', 'start', 'end', 'styleKey'], `${label}[${index}]`)
+        const styleKey = entityStyleKey(entry.styleKey, `${label}[${index}].styleKey`)
         const segment = {
           offset: finite(entry.offset, `${label}[${index}].offset`, 0, offsetMax),
           start: finite(entry.start, `${label}[${index}].start`, 0, spanMax),
           end: finite(entry.end, `${label}[${index}].end`, 0, spanMax),
+          ...(styleKey == null ? {} : { styleKey }),
         }
         if (segment.start >= segment.end) throw new KJValidationError(`${label}[${index}] start must be less than end`)
         return segment
@@ -485,16 +534,19 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const horizontalSegments = segments(grid.horizontalSegments, 'input.sheet.titleGrid.horizontalSegments', size[1], size[0])
     const verticalSegments = segments(grid.verticalSegments, 'input.sheet.titleGrid.verticalSegments', size[0], size[1])
     const diagonal = grid.diagonalHeader == null ? null : plain(grid.diagonalHeader, 'input.sheet.titleGrid.diagonalHeader')
-    if (diagonal) exact(diagonal, ['width', 'drop'], 'input.sheet.titleGrid.diagonalHeader')
+    if (diagonal) exact(diagonal, ['width', 'drop', 'styleKey'], 'input.sheet.titleGrid.diagonalHeader')
+    const topStyleKey = entityStyleKey(grid.topStyleKey, 'input.sheet.titleGrid.topStyleKey')
+    const diagonalStyleKey = diagonal == null ? undefined : entityStyleKey(diagonal.styleKey, 'input.sheet.titleGrid.diagonalHeader.styleKey')
     titleGrid = { origin, size, columns, rows, partialColumns, horizontalSegments, verticalSegments,
-      ...(diagonal ? { diagonalHeader: { width: finite(diagonal.width, 'input.sheet.titleGrid.diagonalHeader.width', 0, size[0]), drop: finite(diagonal.drop, 'input.sheet.titleGrid.diagonalHeader.drop', 0, size[1]) } } : {}) }
+      ...(topStyleKey == null ? {} : { topStyleKey }), ...(diagonal ? { diagonalHeader: { width: finite(diagonal.width, 'input.sheet.titleGrid.diagonalHeader.width', 0, size[0]), drop: finite(diagonal.drop, 'input.sheet.titleGrid.diagonalHeader.drop', 0, size[1]),
+        ...(diagonalStyleKey == null ? {} : { styleKey: diagonalStyleKey }) } } : {}) }
   }
   if (sheet.notes != null && !Array.isArray(sheet.notes)) throw new KJValidationError('input.sheet.notes must be an array')
   if ((sheet.notes as unknown[] | undefined)?.length && (sheet.notes as unknown[]).length > 128) throw new KJValidationError('input.sheet.notes exceed their budget')
   let noteCharacters = 0
   const notes: KJFlangeSheetNote[] = ((sheet.notes ?? []) as unknown[]).map((value, index) => {
     const note = plain(value, `input.sheet.notes[${index}]`)
-    exact(note, ['kind', 'text', 'position', 'height', 'rotation', 'width', 'styleKey'], `input.sheet.notes[${index}]`)
+    exact(note, ['kind', 'text', 'position', 'height', 'rotation', 'width', 'styleKey', 'entityStyleKey'], `input.sheet.notes[${index}]`)
     if (note.kind !== 'single-line' && note.kind !== 'multiline') throw new KJValidationError(`input.sheet.notes[${index}].kind is invalid`)
     if (typeof note.text !== 'string' || !note.text || note.text.length > 512 || /[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(note.text)) throw new KJValidationError(`input.sheet.notes[${index}].text must be bounded visible text`)
     if (note.kind === 'single-line' && /[\r\n]/u.test(note.text)) throw new KJValidationError(`input.sheet.notes[${index}].text must stay on one line`)
@@ -508,7 +560,8 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const width = note.width == null ? undefined : finite(note.width, `input.sheet.notes[${index}].width`, 0.1, sheetSize[0])
     if (note.kind === 'single-line' && width != null) throw new KJValidationError(`input.sheet.notes[${index}].width is only valid for multiline text`)
     const styleKey = annotationStyleKey(note.styleKey, textStyleKeys, `input.sheet.notes[${index}].styleKey`)
-    return { kind: note.kind, text, position, height, rotation, ...(width == null ? {} : { width }), ...(styleKey == null ? {} : { styleKey }) }
+    const noteEntityStyleKey = entityStyleKey(note.entityStyleKey, `input.sheet.notes[${index}].entityStyleKey`)
+    return { kind: note.kind, text, position, height, rotation, ...(width == null ? {} : { width }), ...(styleKey == null ? {} : { styleKey }), ...(noteEntityStyleKey == null ? {} : { entityStyleKey: noteEntityStyleKey }) }
   })
   if (input.dimensions != null && !Array.isArray(input.dimensions)) throw new KJValidationError('input.dimensions must be an array')
   if ((input.dimensions as unknown[] | undefined)?.length && (input.dimensions as unknown[]).length > 128) throw new KJValidationError('input.dimensions exceed their budget')
@@ -535,13 +588,14 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   if ((input.leaders as unknown[] | undefined)?.length && (input.leaders as unknown[]).length > 64) throw new KJValidationError('input.leaders exceed their budget')
   const leaders: KJFlangeLeader[] = ((input.leaders ?? []) as unknown[]).map((value, index) => {
     const leader = plain(value, `input.leaders[${index}]`)
-    exact(leader, ['vertices', 'arrowEnabled', 'pathType', 'annotationType', 'hookLineDirection', 'hookLineEnabled'], `input.leaders[${index}]`)
+    exact(leader, ['vertices', 'arrowEnabled', 'pathType', 'annotationType', 'hookLineDirection', 'hookLineEnabled', 'styleKey'], `input.leaders[${index}]`)
     if (!Array.isArray(leader.vertices) || leader.vertices.length < 2 || leader.vertices.length > 64) throw new KJValidationError(`input.leaders[${index}].vertices must contain 2 to 64 points`)
     const vertices = leader.vertices.map((value, pointIndex) => point(value, `input.leaders[${index}].vertices[${pointIndex}]`))
     const integer = (value: unknown, label: string, max: number) => value == null ? 0 : finite(value, label, 0, max)
+    const styleKey = entityStyleKey(leader.styleKey, `input.leaders[${index}].styleKey`)
     return { vertices, arrowEnabled: leader.arrowEnabled == null ? true : leader.arrowEnabled === true,
       pathType: integer(leader.pathType, `input.leaders[${index}].pathType`, 1), annotationType: integer(leader.annotationType, `input.leaders[${index}].annotationType`, 3),
-      hookLineDirection: integer(leader.hookLineDirection, `input.leaders[${index}].hookLineDirection`, 1), hookLineEnabled: leader.hookLineEnabled === true }
+      hookLineDirection: integer(leader.hookLineDirection, `input.leaders[${index}].hookLineDirection`, 1), hookLineEnabled: leader.hookLineEnabled === true, ...(styleKey == null ? {} : { styleKey }) }
   })
   if (input.featureControlFrames != null && !Array.isArray(input.featureControlFrames)) throw new KJValidationError('input.featureControlFrames must be an array')
   if ((input.featureControlFrames as unknown[] | undefined)?.length && (input.featureControlFrames as unknown[]).length > 32) throw new KJValidationError('input.featureControlFrames exceed their budget')
@@ -581,11 +635,12 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   if (input.auxiliaryLines != null && !Array.isArray(input.auxiliaryLines)) throw new KJValidationError('input.auxiliaryLines must be an array')
   if ((input.auxiliaryLines as unknown[] | undefined)?.length && (input.auxiliaryLines as unknown[]).length > 256) throw new KJValidationError('input.auxiliaryLines exceed their budget')
   const auxiliaryLines: KJFlangeAuxiliaryLine[] = ((input.auxiliaryLines ?? []) as unknown[]).map((value, index) => {
-    const label = `input.auxiliaryLines[${index}]`, line = plain(value, label); exact(line, ['start', 'end', 'role'], label)
+    const label = `input.auxiliaryLines[${index}]`, line = plain(value, label); exact(line, ['start', 'end', 'role', 'styleKey'], label)
     if (!['geometry', 'center', 'hidden', 'notes', 'grid', 'frame'].includes(line.role as string)) throw new KJValidationError(`${label}.role is invalid`)
     const start = point(line.start, `${label}.start`), end = point(line.end, `${label}.end`)
     if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError(`${label} must not have zero length`)
-    return { start, end, role: line.role as KJFlangeAuxiliaryLine['role'] }
+    const styleKey = entityStyleKey(line.styleKey, `${label}.styleKey`)
+    return { start, end, role: line.role as KJFlangeAuxiliaryLine['role'], ...(styleKey == null ? {} : { styleKey }) }
   })
   if (input.auxiliaryCurves != null && !Array.isArray(input.auxiliaryCurves)) throw new KJValidationError('input.auxiliaryCurves must be an array')
   if ((input.auxiliaryCurves as unknown[] | undefined)?.length && (input.auxiliaryCurves as unknown[]).length > 128) throw new KJValidationError('input.auxiliaryCurves exceed their budget')
@@ -593,31 +648,32 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const label = `input.auxiliaryCurves[${index}]`, curve = plain(value, label)
     if (!['geometry', 'center', 'hidden', 'notes', 'grid', 'frame'].includes(curve.role as string)) throw new KJValidationError(`${label}.role is invalid`)
     const role = curve.role as KJFlangeAuxiliaryLine['role']
+    const styleKey = entityStyleKey(curve.styleKey, `${label}.styleKey`)
     if (curve.kind === 'arc') {
-      exact(curve, ['kind', 'center', 'radius', 'startAngle', 'endAngle', 'clockwise', 'role'], label)
+      exact(curve, ['kind', 'center', 'radius', 'startAngle', 'endAngle', 'clockwise', 'role', 'styleKey'], label)
       const startAngle = finite(curve.startAngle, `${label}.startAngle`, -Math.PI * 4, Math.PI * 4), endAngle = finite(curve.endAngle, `${label}.endAngle`, -Math.PI * 4, Math.PI * 4)
       if (startAngle === endAngle) throw new KJValidationError(`${label} arc sweep must not be zero`)
       if (curve.clockwise != null && typeof curve.clockwise !== 'boolean') throw new KJValidationError(`${label}.clockwise must be boolean`)
-      return { kind: 'arc', center: point(curve.center, `${label}.center`), radius: finite(curve.radius, `${label}.radius`, 0.1, 100_000), startAngle, endAngle, clockwise: curve.clockwise === true, role }
+      return { kind: 'arc', center: point(curve.center, `${label}.center`), radius: finite(curve.radius, `${label}.radius`, 0.1, 100_000), startAngle, endAngle, clockwise: curve.clockwise === true, role, ...(styleKey == null ? {} : { styleKey }) }
     }
     if (curve.kind === 'ellipse') {
-      exact(curve, ['kind', 'center', 'majorAxis', 'ratio', 'startParameter', 'endParameter', 'role'], label)
+      exact(curve, ['kind', 'center', 'majorAxis', 'ratio', 'startParameter', 'endParameter', 'role', 'styleKey'], label)
       const majorAxis = point(curve.majorAxis, `${label}.majorAxis`)
       if (Math.hypot(...majorAxis) <= 1e-12) throw new KJValidationError(`${label}.majorAxis must not be zero`)
       return { kind: 'ellipse', center: point(curve.center, `${label}.center`), majorAxis,
-        ratio: finite(curve.ratio, `${label}.ratio`, 1e-9, 1), startParameter: finite(curve.startParameter, `${label}.startParameter`, -Math.PI * 4, Math.PI * 4), endParameter: finite(curve.endParameter, `${label}.endParameter`, -Math.PI * 4, Math.PI * 4), role }
+        ratio: finite(curve.ratio, `${label}.ratio`, 1e-9, 1), startParameter: finite(curve.startParameter, `${label}.startParameter`, -Math.PI * 4, Math.PI * 4), endParameter: finite(curve.endParameter, `${label}.endParameter`, -Math.PI * 4, Math.PI * 4), role, ...(styleKey == null ? {} : { styleKey }) }
     }
     if (curve.kind === 'polyline') {
-      exact(curve, ['kind', 'vertices', 'closed', 'role'], label)
+      exact(curve, ['kind', 'vertices', 'closed', 'role', 'styleKey'], label)
       if (!Array.isArray(curve.vertices) || curve.vertices.length < 2 || curve.vertices.length > 4096) throw new KJValidationError(`${label}.vertices must contain 2 to 4096 points`)
       const vertices = curve.vertices.map((value, vertexIndex) => {
         const vertexLabel = `${label}.vertices[${vertexIndex}]`, vertex = plain(value, vertexLabel); exact(vertex, ['point', 'bulge', 'startWidth', 'endWidth'], vertexLabel)
         return { point: point(vertex.point, `${vertexLabel}.point`), bulge: finite(vertex.bulge ?? 0, `${vertexLabel}.bulge`, -1e6, 1e6), startWidth: finite(vertex.startWidth ?? 0, `${vertexLabel}.startWidth`, 0, 1e6), endWidth: finite(vertex.endWidth ?? 0, `${vertexLabel}.endWidth`, 0, 1e6) }
       })
-      return { kind: 'polyline', vertices, closed: curve.closed === true, role }
+      return { kind: 'polyline', vertices, closed: curve.closed === true, role, ...(styleKey == null ? {} : { styleKey }) }
     }
     if (curve.kind === 'spline') {
-      exact(curve, ['kind', 'degree', 'controlPoints', 'knots', 'fitPoints', 'weights', 'closed', 'periodic', 'role'], label)
+      exact(curve, ['kind', 'degree', 'controlPoints', 'knots', 'fitPoints', 'weights', 'closed', 'periodic', 'role', 'styleKey'], label)
       const degree = finite(curve.degree, `${label}.degree`, 1, 10)
       if (!Number.isInteger(degree)) throw new KJValidationError(`${label}.degree must be an integer`)
       if (!Array.isArray(curve.controlPoints) || curve.controlPoints.length < degree + 1 || curve.controlPoints.length > 4096) throw new KJValidationError(`${label}.controlPoints are invalid`)
@@ -628,7 +684,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       const fitPoints = curve.fitPoints == null ? [] : Array.isArray(curve.fitPoints) ? curve.fitPoints.map((value, pointIndex) => point(value, `${label}.fitPoints[${pointIndex}]`)) : (() => { throw new KJValidationError(`${label}.fitPoints must be an array`) })()
       const weights = curve.weights == null ? [] : Array.isArray(curve.weights) ? curve.weights.map((value, weightIndex) => finite(value, `${label}.weights[${weightIndex}]`, 1e-12, 1e12)) : (() => { throw new KJValidationError(`${label}.weights must be an array`) })()
       if (weights.length && weights.length !== controlPoints.length) throw new KJValidationError(`${label}.weights length is invalid`)
-      return { kind: 'spline', degree, controlPoints, knots, fitPoints, weights, closed: curve.closed === true, periodic: curve.periodic === true, role }
+      return { kind: 'spline', degree, controlPoints, knots, fitPoints, weights, closed: curve.closed === true, periodic: curve.periodic === true, role, ...(styleKey == null ? {} : { styleKey }) }
     }
     throw new KJValidationError(`${label}.kind is invalid`)
   })
@@ -652,25 +708,26 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     if (symbolMemberCount > 512) throw new KJValidationError('input.symbols exceed the member budget')
     const members: KJFlangeSymbolMember[] = (definition.members as unknown[]).map((memberValue, memberIndex) => {
       const memberLabel = `${label}.members[${memberIndex}]`, member = plain(memberValue, memberLabel), role = symbolRole(member.role, `${memberLabel}.role`)
+      const entityStyleKeyValue = entityStyleKey(member.entityStyleKey, `${memberLabel}.entityStyleKey`)
       if (member.kind === 'line') {
-        exact(member, ['kind', 'start', 'end', 'role'], memberLabel)
+        exact(member, ['kind', 'start', 'end', 'role', 'entityStyleKey'], memberLabel)
         const start = point(member.start, `${memberLabel}.start`), end = point(member.end, `${memberLabel}.end`)
         if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError(`${memberLabel} must not have zero length`)
-        return { kind: 'line', start, end, role }
+        return { kind: 'line', start, end, role, ...(entityStyleKeyValue == null ? {} : { entityStyleKey: entityStyleKeyValue }) }
       }
       if (member.kind === 'circle') {
-        exact(member, ['kind', 'center', 'radius', 'role'], memberLabel)
-        return { kind: 'circle', center: point(member.center, `${memberLabel}.center`), radius: finite(member.radius, `${memberLabel}.radius`, 0.000_001, 100_000), role }
+        exact(member, ['kind', 'center', 'radius', 'role', 'entityStyleKey'], memberLabel)
+        return { kind: 'circle', center: point(member.center, `${memberLabel}.center`), radius: finite(member.radius, `${memberLabel}.radius`, 0.000_001, 100_000), role, ...(entityStyleKeyValue == null ? {} : { entityStyleKey: entityStyleKeyValue }) }
       }
       if (member.kind === 'arc') {
-        exact(member, ['kind', 'center', 'radius', 'startAngle', 'endAngle', 'clockwise', 'role'], memberLabel)
+        exact(member, ['kind', 'center', 'radius', 'startAngle', 'endAngle', 'clockwise', 'role', 'entityStyleKey'], memberLabel)
         const startAngle = finite(member.startAngle, `${memberLabel}.startAngle`, -Math.PI * 4, Math.PI * 4), endAngle = finite(member.endAngle, `${memberLabel}.endAngle`, -Math.PI * 4, Math.PI * 4)
         if (startAngle === endAngle) throw new KJValidationError(`${memberLabel} arc sweep must not be zero`)
         if (member.clockwise != null && typeof member.clockwise !== 'boolean') throw new KJValidationError(`${memberLabel}.clockwise must be boolean`)
-        return { kind: 'arc', center: point(member.center, `${memberLabel}.center`), radius: finite(member.radius, `${memberLabel}.radius`, 0.000_001, 100_000), startAngle, endAngle, clockwise: member.clockwise === true, role }
+        return { kind: 'arc', center: point(member.center, `${memberLabel}.center`), radius: finite(member.radius, `${memberLabel}.radius`, 0.000_001, 100_000), startAngle, endAngle, clockwise: member.clockwise === true, role, ...(entityStyleKeyValue == null ? {} : { entityStyleKey: entityStyleKeyValue }) }
       }
       if (member.kind === 'multiline-text') {
-        exact(member, ['kind', 'text', 'position', 'height', 'rotation', 'width', 'attachmentPoint', 'styleKey', 'role'], memberLabel)
+        exact(member, ['kind', 'text', 'position', 'height', 'rotation', 'width', 'attachmentPoint', 'styleKey', 'role', 'entityStyleKey'], memberLabel)
         if (typeof member.text !== 'string' || !member.text || member.text.length > 512 || /[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(member.text)) throw new KJValidationError(`${memberLabel}.text must be bounded visible text`)
         symbolTextCharacters += member.text.length
         if (symbolTextCharacters > 8_192) throw new KJValidationError('input.symbols exceed the text budget')
@@ -679,23 +736,23 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
         const styleKey = annotationStyleKey(member.styleKey, textStyleKeys, `${memberLabel}.styleKey`)
         return { kind: 'multiline-text', text: member.text, position: point(member.position, `${memberLabel}.position`),
           height: finite(member.height, `${memberLabel}.height`, 0.000_001, 100_000), rotation: member.rotation == null ? 0 : finite(member.rotation, `${memberLabel}.rotation`, -Math.PI * 4, Math.PI * 4),
-          ...(member.width == null ? {} : { width: finite(member.width, `${memberLabel}.width`, 0.000_001, 1_000_000) }), attachmentPoint, ...(styleKey == null ? {} : { styleKey }), role }
+          ...(member.width == null ? {} : { width: finite(member.width, `${memberLabel}.width`, 0.000_001, 1_000_000) }), attachmentPoint, ...(styleKey == null ? {} : { styleKey }), role,
+          ...(entityStyleKeyValue == null ? {} : { entityStyleKey: entityStyleKeyValue }) }
       }
       throw new KJValidationError(`${memberLabel}.kind is invalid`)
     })
     return { key: definition.key, basePoint: point(definition.basePoint, `${label}.basePoint`), members }
   })
   const symbolInstances: KJFlangeSymbolInstance[] = (symbolSource.instances as unknown[]).map((value, index) => {
-    const label = `input.symbols.instances[${index}]`, instance = plain(value, label); exact(instance, ['symbolKey', 'position', 'scale', 'rotation', 'role'], label)
+    const label = `input.symbols.instances[${index}]`, instance = plain(value, label); exact(instance, ['symbolKey', 'position', 'scale', 'rotation', 'role', 'styleKey'], label)
     if (typeof instance.symbolKey !== 'string' || !symbolKeys.has(instance.symbolKey)) throw new KJValidationError(`${label}.symbolKey must reference a definition`)
     const scaleSource = instance.scale ?? [1, 1]
     if (!Array.isArray(scaleSource) || scaleSource.length !== 2) throw new KJValidationError(`${label}.scale must contain two coordinates`)
     const scale: Point2 = [finite(scaleSource[0], `${label}.scale[0]`, 0.000_001, 1_000_000), finite(scaleSource[1], `${label}.scale[1]`, 0.000_001, 1_000_000)]
+    const styleKey = entityStyleKey(instance.styleKey, `${label}.styleKey`)
     return { symbolKey: instance.symbolKey, position: point(instance.position, `${label}.position`), scale,
-      rotation: instance.rotation == null ? 0 : finite(instance.rotation, `${label}.rotation`, -Math.PI * 4, Math.PI * 4), role: symbolRole(instance.role, `${label}.role`) }
+      rotation: instance.rotation == null ? 0 : finite(instance.rotation, `${label}.rotation`, -Math.PI * 4, Math.PI * 4), role: symbolRole(instance.role, `${label}.role`), ...(styleKey == null ? {} : { styleKey }) }
   })
-  const styleProfile = input.styleProfile == null ? {} : plain(input.styleProfile, 'input.styleProfile')
-  if (styleProfile) exact(styleProfile, ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch', 'hidden'], 'input.styleProfile')
   const styleRole = (value: unknown, label: string): KJFlangeStyleRole => {
     if (value == null) return {}
     const role = plain(value, label); exact(role, ['layerName', 'color', 'lineweight', 'linetypeName', 'linetypePattern'], label)
@@ -711,7 +768,11 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   }
   const styles: KJFlangeStyleProfile = {}
   for (const role of ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch', 'hidden'] as const) styles[role] = styleRole(styleProfile[role], `input.styleProfile.${role}`)
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, textStyles, dimensionStyles, styles, sheetOrigin, sheetSize, inset, titleGrid, notes }
+  const customStyles = customStyleSource.map((value, index) => {
+    const source = plain(value, `input.styleProfile.custom[${index}]`), { key, ...definition } = source
+    return { key: String(key), definition: styleRole(definition, `input.styleProfile.custom[${index}]`) }
+  })
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameStyleKey, insetFrameStyleKey, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -735,31 +796,42 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       baselineSpacing: style.baselineSpacing, extensionBeyond: style.extensionBeyond, rounding: style.rounding, textHeight: style.textHeight, decimalPlaces: style.decimalPlaces,
       angularDecimalPlaces: style.angularDecimalPlaces, angularUnits: style.angularUnits, centerMarkSize: style.centerMarkSize, textGap: style.textGap, dxfFlags: style.dxfFlags }) })
   }
-  const role = (name: keyof KJFlangeStyleProfile, defaults: { layerName: string; color: number; lineweight: number; pattern: number[] }) => ({ ...defaults, ...(input.styles[name] ?? {}), pattern: input.styles[name]?.linetypePattern ?? defaults.pattern })
-  const roles = { frame: role('frame', { layerName: 'FLANGE_FRAME', color: 7, lineweight: 25, pattern: [] }), grid: role('grid', { layerName: 'FLANGE_GRID', color: 7, lineweight: 18, pattern: [] }), geometry: role('geometry', { layerName: 'FLANGE_GEOMETRY', color: 7, lineweight: 35, pattern: [] }), center: role('center', { layerName: 'FLANGE_CENTER', color: 7, lineweight: 18, pattern: [8, -1, 1, -1] }), notes: role('notes', { layerName: 'FLANGE_NOTES', color: 7, lineweight: 18, pattern: [] }), dimensions: role('dimensions', { layerName: 'FLANGE_DIMENSIONS', color: 2, lineweight: 18, pattern: [] }), hatch: role('hatch', { layerName: 'FLANGE_HATCH', color: 7, lineweight: 18, pattern: [] }), hidden: role('hidden', { layerName: 'FLANGE_HIDDEN', color: 8, lineweight: 18, pattern: [3, -1] }) }
-  const roleIds = {} as Record<keyof typeof roles, string>, layers: { id: string; name: string; color: number; linetypeId: string; lineweight: number }[] = [], layerByName = new Map<string, string>()
-  const linetypeIds = {} as Record<keyof typeof roles, string>, linetypes: { id: string; name: string; pattern: number[] }[] = [], linetypeByKey = new Map<string, string>()
-  for (const name of Object.keys(roles) as (keyof typeof roles)[]) {
-    const definition = roles[name], key = JSON.stringify([definition.linetypeName ?? `FLANGE_${String(name).toUpperCase()}`, definition.pattern])
+  type BaseRole = 'frame' | 'grid' | 'geometry' | 'center' | 'notes' | 'dimensions' | 'hatch' | 'hidden'
+  type CompiledStyle = { layerName: string; color: number; lineweight: number; pattern: number[]; linetypeName?: string }
+  const role = (name: BaseRole, defaults: CompiledStyle): CompiledStyle => ({ ...defaults, ...(input.styles[name] ?? {}), pattern: input.styles[name]?.linetypePattern ?? defaults.pattern })
+  const roles: Record<string, CompiledStyle> = { frame: role('frame', { layerName: 'FLANGE_FRAME', color: 7, lineweight: 25, pattern: [] }), grid: role('grid', { layerName: 'FLANGE_GRID', color: 7, lineweight: 18, pattern: [] }), geometry: role('geometry', { layerName: 'FLANGE_GEOMETRY', color: 7, lineweight: 35, pattern: [] }), center: role('center', { layerName: 'FLANGE_CENTER', color: 7, lineweight: 18, pattern: [8, -1, 1, -1] }), notes: role('notes', { layerName: 'FLANGE_NOTES', color: 7, lineweight: 18, pattern: [] }), dimensions: role('dimensions', { layerName: 'FLANGE_DIMENSIONS', color: 2, lineweight: 18, pattern: [] }), hatch: role('hatch', { layerName: 'FLANGE_HATCH', color: 7, lineweight: 18, pattern: [] }), hidden: role('hidden', { layerName: 'FLANGE_HIDDEN', color: 8, lineweight: 18, pattern: [3, -1] }) }
+  const customRoleByKey = new Map<string, string>()
+  for (const [index, custom] of input.customStyles.entries()) {
+    const name = `custom-${String(index + 1).padStart(2, '0')}`, fallback = roles.geometry!
+    customRoleByKey.set(custom.key, name)
+    roles[name] = { ...fallback, ...custom.definition, pattern: custom.definition.linetypePattern ?? fallback.pattern }
+  }
+  const styleNameFor = (key: string | undefined, fallback: BaseRole): string => key == null ? fallback : customRoleByKey.get(key)!
+  const roleIds: Record<string, string> = {}, layers: { id: string; name: string; color: number; linetypeId: string; lineweight: number }[] = [], layerByName = new Map<string, string>()
+  const linetypeIds: Record<string, string> = {}, linetypes: { id: string; name: string; pattern: number[] }[] = []
+  const linetypeByName = new Map(document.getTable?.('linetypes')?.records.map(record => [String(record.name).toUpperCase(), record.id]) ?? [])
+  for (const name of Object.keys(roles)) {
+    const definition = roles[name]!
     const linetypeName = definition.linetypeName ?? `FLANGE_${String(name).toUpperCase()}`
-    let id = linetypeByKey.get(key) ?? document.getTable?.('linetypes')?.records.find(record => String(record.name).toUpperCase() === linetypeName.toUpperCase())?.id
-    if (!id) { id = `${prefix}-${name}-linetype`; linetypes.push({ id, name: linetypeName, pattern: definition.pattern }) }
-    linetypeByKey.set(key, id)
+    const normalizedLinetypeName = linetypeName.toUpperCase()
+    let id = linetypeByName.get(normalizedLinetypeName)
+    if (!id) { id = `${prefix}-${name}-linetype`; linetypes.push({ id, name: linetypeName, pattern: definition.pattern }); linetypeByName.set(normalizedLinetypeName, id) }
     linetypeIds[name] = id
     const layerName = definition.layerName, existingLayer = document.getTable?.('layers')?.records.find(record => String(record.name).toUpperCase() === layerName.toUpperCase()), pendingLayer = layerByName.get(layerName.toUpperCase())
     roleIds[name] = existingLayer?.id ?? pendingLayer ?? `${prefix}-${name}`
     if (!existingLayer && !pendingLayer) { layerByName.set(layerName.toUpperCase(), roleIds[name]); layers.push({ id: roleIds[name], name: layerName, color: definition.color, linetypeId: id, lineweight: definition.lineweight }) }
   }
   const entities: Entity[] = [], p3 = (x: number, y: number): Point3 => [x, y, 0]
-  const roleByLayer = new Map(Object.keys(roles).map(name => [roleIds[name as keyof typeof roles], roles[name as keyof typeof roles]]))
-  const stylePayload = (payload: Record<string, unknown>, styleName?: keyof typeof roles) => {
+  const roleByLayer = new Map(Object.keys(roles).map(name => [roleIds[name], roles[name]]))
+  const stylePayload = (payload: Record<string, unknown>, styleName?: string) => {
     const style = styleName == null ? roleByLayer.get(payload.layerId as string) : roles[styleName]
     return style == null ? payload : { ...payload, color: style.color, lineweight: style.lineweight, ...(style.linetypeName == null ? {} : { linetypeName: style.linetypeName }) }
   }
-  const emit = (type: Entity['type'], payload: Record<string, unknown>, styleName?: keyof typeof roles) => {
+  const emit = (type: Entity['type'], payload: Record<string, unknown>, styleName?: string) => {
     entities.push({ type, payload: stylePayload(payload, styleName), options: { id: `${prefix}-${String(entities.length + 1).padStart(4, '0')}` } })
   }
-  const line = (a: Point2, b: Point2, layerId = roleIds.grid, styleName: keyof typeof roles = 'grid') => emit('LINE', { start: p3(...a), end: p3(...b), layerId }, styleName)
+  const line = (a: Point2, b: Point2, layerId = roleIds.grid!, styleName = 'grid') => emit('LINE', { start: p3(...a), end: p3(...b), layerId }, styleName)
+  const styled = (key: string | undefined, fallback: BaseRole) => { const name = styleNameFor(key, fallback); return { name, layerId: roleIds[name]! } }
   const rectangle = (origin: Point2, size: Point2) => {
     const [x, y] = origin, [w, h] = size
     line([x, y], [x + w, y]); line([x + w, y], [x + w, y + h]); line([x + w, y + h], [x, y + h]); line([x, y + h], [x, y])
@@ -769,15 +841,17 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   const halfPitch = input.pitch / 2
   for (const dx of [-1, 1]) for (const dy of [-1, 1]) emit('CIRCLE', { center: p3(cx + dx * halfPitch, cy + dy * halfPitch), radius: input.radius, layerId: roleIds.geometry }, 'geometry')
   for (const segment of input.outlineSegments) {
-    if (segment.kind === 'line') line([cx + segment.startOffset[0], cy + segment.startOffset[1]], [cx + segment.endOffset[0], cy + segment.endOffset[1]], roleIds.geometry, 'geometry')
+    const style = styled(segment.styleKey, 'geometry')
+    if (segment.kind === 'line') line([cx + segment.startOffset[0], cy + segment.startOffset[1]], [cx + segment.endOffset[0], cy + segment.endOffset[1]], style.layerId, style.name)
     else if (segment.kind === 'arc') emit('ARC', { center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]), radius: segment.radius,
-      startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: roleIds.geometry }, 'geometry')
-    else emit('CIRCLE', { center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]), radius: segment.radius, layerId: roleIds.geometry }, 'geometry')
+      startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: style.layerId }, style.name)
+    else emit('CIRCLE', { center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]), radius: segment.radius, layerId: style.layerId }, style.name)
   }
   for (const mark of input.cuttingPlaneMarks) {
     const anchor: Point2 = [cx + mark.anchorOffset[0], cy + mark.anchorOffset[1]]
-    line(anchor, [anchor[0] + mark.stemVector[0], anchor[1] + mark.stemVector[1]], roleIds.notes, 'notes')
-    line(anchor, [anchor[0] + mark.tickVector[0], anchor[1] + mark.tickVector[1]], roleIds.notes, 'notes')
+    const stemStyle = styled(mark.stemStyleKey, 'notes'), tickStyle = styled(mark.tickStyleKey, 'notes')
+    line(anchor, [anchor[0] + mark.stemVector[0], anchor[1] + mark.stemVector[1]], stemStyle.layerId, stemStyle.name)
+    line(anchor, [anchor[0] + mark.tickVector[0], anchor[1] + mark.tickVector[1]], tickStyle.layerId, tickStyle.name)
     if (mark.arrowhead) {
       const tip: Point2 = [anchor[0] + mark.tickVector[0], anchor[1] + mark.tickVector[1]], norm = Math.hypot(mark.tickVector[0], mark.tickVector[1])
       const unit: Point2 = [mark.tickVector[0] / norm, mark.tickVector[1] / norm], perpendicular: Point2 = [-unit[1], unit[0]]
@@ -785,58 +859,61 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       const half = mark.arrowhead.width / 2
       const a: Point2 = [base[0] + perpendicular[0] * half, base[1] + perpendicular[1] * half]
       const b: Point2 = [base[0] - perpendicular[0] * half, base[1] - perpendicular[1] * half]
-      emit('SOLID', { vertices: [p3(...tip), p3(...a), p3(...b), p3(...b)], layerId: roleIds.notes }, 'notes')
+      const arrowStyle = styled(mark.arrowheadStyleKey, 'notes')
+      emit('SOLID', { vertices: [p3(...tip), p3(...a), p3(...b), p3(...b)], layerId: arrowStyle.layerId }, arrowStyle.name)
     }
   }
-  const frameLine = (a: Point2, b: Point2) => line(a, b, roleIds.frame, 'frame')
-  const frameRectangle = (origin: Point2, size: Point2) => { const [x, y] = origin, [w, h] = size; frameLine([x, y], [x + w, y]); frameLine([x + w, y], [x + w, y + h]); frameLine([x + w, y + h], [x, y + h]); frameLine([x, y + h], [x, y]) }
-  frameRectangle(input.sheetOrigin, input.sheetSize)
-  frameRectangle([input.sheetOrigin[0] + input.inset, input.sheetOrigin[1] + input.inset], [input.sheetSize[0] - input.inset * 2, input.sheetSize[1] - input.inset * 2])
+  const frameRectangle = (origin: Point2, size: Point2, styleKey?: string) => { const [x, y] = origin, [w, h] = size, style = styled(styleKey, 'frame'); line([x, y], [x + w, y], style.layerId, style.name); line([x + w, y], [x + w, y + h], style.layerId, style.name); line([x + w, y + h], [x, y + h], style.layerId, style.name); line([x, y + h], [x, y], style.layerId, style.name) }
+  frameRectangle(input.sheetOrigin, input.sheetSize, input.outerFrameStyleKey)
+  frameRectangle([input.sheetOrigin[0] + input.inset, input.sheetOrigin[1] + input.inset], [input.sheetSize[0] - input.inset * 2, input.sheetSize[1] - input.inset * 2], input.insetFrameStyleKey)
   if (input.titleGrid) {
     const grid = input.titleGrid, [x, y] = grid.origin, [w, h] = grid.size
-    line([x, y + h], [x + w, y + h], roleIds.grid)
-    for (const offset of grid.columns) line([x + offset, y], [x + offset, y + h], roleIds.grid)
-    for (const column of grid.partialColumns ?? []) line([x + column.offset, y], [x + column.offset, y + column.height], roleIds.grid)
+    const topStyle = styled(grid.topStyleKey, 'grid'); line([x, y + h], [x + w, y + h], topStyle.layerId, topStyle.name)
+    for (const column of grid.columns) { const offset = typeof column === 'number' ? column : column.offset, style = styled(typeof column === 'number' ? undefined : column.styleKey, 'grid'); line([x + offset, y], [x + offset, y + h], style.layerId, style.name) }
+    for (const column of grid.partialColumns ?? []) { const style = styled(column.styleKey, 'grid'); line([x + column.offset, y], [x + column.offset, y + column.height], style.layerId, style.name) }
     for (const row of grid.rows) {
-      const spans = [0, ...(row.breaks ?? []), w]
-      for (let index = 0; index < spans.length - 1; index++) line([x + spans[index]!, y + row.offset], [x + spans[index + 1]!, y + row.offset], roleIds.grid)
+      const spans = [0, ...(row.breaks ?? []), w], style = styled(row.styleKey, 'grid')
+      for (let index = 0; index < spans.length - 1; index++) line([x + spans[index]!, y + row.offset], [x + spans[index + 1]!, y + row.offset], style.layerId, style.name)
     }
-    for (const segment of grid.horizontalSegments ?? []) line([x + segment.start, y + segment.offset], [x + segment.end, y + segment.offset], roleIds.grid)
-    for (const segment of grid.verticalSegments ?? []) line([x + segment.offset, y + segment.start], [x + segment.offset, y + segment.end], roleIds.grid)
-    if (grid.diagonalHeader) line([x, y + h], [x + grid.diagonalHeader.width, y + h - grid.diagonalHeader.drop], roleIds.grid)
+    for (const segment of grid.horizontalSegments ?? []) { const style = styled(segment.styleKey, 'grid'); line([x + segment.start, y + segment.offset], [x + segment.end, y + segment.offset], style.layerId, style.name) }
+    for (const segment of grid.verticalSegments ?? []) { const style = styled(segment.styleKey, 'grid'); line([x + segment.offset, y + segment.start], [x + segment.offset, y + segment.end], style.layerId, style.name) }
+    if (grid.diagonalHeader) { const style = styled(grid.diagonalHeader.styleKey, 'grid'); line([x, y + h], [x + grid.diagonalHeader.width, y + h - grid.diagonalHeader.drop], style.layerId, style.name) }
   }
-  if (input.xRange) line([input.xRange[0], cy], [input.xRange[1], cy], roleIds.center, 'center')
+  if (input.xRange) { const style = styled(input.axisStyleKey, 'center'); line([input.xRange[0], cy], [input.xRange[1], cy], style.layerId, style.name) }
   for (const profile of input.symmetricProfiles) {
+    const style = styled(profile.styleKey, 'geometry')
     for (let index = 1; index < profile.vertices.length; index++) {
       const previous = profile.vertices[index - 1]!, current = profile.vertices[index]!
-      line([previous.station, cy + previous.radius], [current.station, cy + current.radius], roleIds.geometry, 'geometry')
-      line([previous.station, cy - previous.radius], [current.station, cy - current.radius], roleIds.geometry, 'geometry')
+      line([previous.station, cy + previous.radius], [current.station, cy + current.radius], style.layerId, style.name)
+      line([previous.station, cy - previous.radius], [current.station, cy - current.radius], style.layerId, style.name)
     }
     const start = profile.vertices[0]!, end = profile.vertices.at(-1)!
-    if (profile.endCaps === 'start' || profile.endCaps === 'both') line([start.station, cy - start.radius], [start.station, cy + start.radius], roleIds.geometry, 'geometry')
-    if (profile.endCaps === 'end' || profile.endCaps === 'both') line([end.station, cy - end.radius], [end.station, cy + end.radius], roleIds.geometry, 'geometry')
+    if (profile.endCaps === 'start' || profile.endCaps === 'both') line([start.station, cy - start.radius], [start.station, cy + start.radius], style.layerId, style.name)
+    if (profile.endCaps === 'end' || profile.endCaps === 'both') line([end.station, cy - end.radius], [end.station, cy + end.radius], style.layerId, style.name)
   }
   for (const segment of input.sideOutlineSegments) {
-    if (segment.kind === 'line') line([segment.start.station, cy + segment.start.offset], [segment.end.station, cy + segment.end.offset], roleIds.geometry, 'geometry')
+    const style = styled(segment.styleKey, 'geometry')
+    if (segment.kind === 'line') line([segment.start.station, cy + segment.start.offset], [segment.end.station, cy + segment.end.offset], style.layerId, style.name)
     else if (segment.kind === 'arc') emit('ARC', { center: p3(segment.center.station, cy + segment.center.offset), radius: segment.radius,
-      startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: roleIds.geometry }, 'geometry')
-    else emit('CIRCLE', { center: p3(segment.center.station, cy + segment.center.offset), radius: segment.radius, layerId: roleIds.geometry }, 'geometry')
+      startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: style.layerId }, style.name)
+    else emit('CIRCLE', { center: p3(segment.center.station, cy + segment.center.offset), radius: segment.radius, layerId: style.layerId }, style.name)
   }
-  for (const hatch of input.sectionHatches) emit('HATCH', { boundaryLoops: [{ external: false, flags: 0, edges: hatch.edges.map(edge => edge.kind === 'line'
+  for (const hatch of input.sectionHatches) { const style = styled(hatch.styleKey, 'hatch'); emit('HATCH', { boundaryLoops: [{ external: false, flags: 0, edges: hatch.edges.map(edge => edge.kind === 'line'
     ? { type: 'LINE', start: p3(edge.start.station, cy + edge.start.offset), end: p3(edge.end.station, cy + edge.end.offset) }
     : { type: 'ARC', center: p3(edge.center.station, cy + edge.center.offset), radius: edge.radius,
       startAngle: edge.startAngle, endAngle: edge.endAngle, counterClockwise: edge.counterClockwise !== false }) }],
     patternName: 'ANSI31', solid: false, associative: false, patternAngle: 0, patternScale: 1,
     patternLines: [{ angle: hatch.lineAngle, base: hatch.patternOrigin, offset: [-Math.sin(hatch.lineAngle) * hatch.lineSpacing, Math.cos(hatch.lineAngle) * hatch.lineSpacing], dashes: [] }],
-    patternDefinitionAngle: 0, patternDefinitionScale: 1, layerId: roleIds.hatch }, 'hatch')
-  for (const auxiliary of input.auxiliaryLines) line(auxiliary.start, auxiliary.end, roleIds[auxiliary.role], auxiliary.role)
+    patternDefinitionAngle: 0, patternDefinitionScale: 1, layerId: style.layerId }, style.name) }
+  for (const auxiliary of input.auxiliaryLines) { const style = styled(auxiliary.styleKey, auxiliary.role); line(auxiliary.start, auxiliary.end, style.layerId, style.name) }
   for (const curve of input.auxiliaryCurves) {
-    if (curve.kind === 'arc') emit('ARC', { center: p3(...curve.center), radius: curve.radius, startAngle: curve.startAngle, endAngle: curve.endAngle, clockwise: curve.clockwise === true, layerId: roleIds[curve.role] }, curve.role)
-    else if (curve.kind === 'ellipse') emit('ELLIPSE', { center: p3(...curve.center), majorAxis: p3(...curve.majorAxis), ratio: curve.ratio, startParameter: curve.startParameter, endParameter: curve.endParameter, layerId: roleIds[curve.role] }, curve.role)
-    else if (curve.kind === 'polyline') emit('LWPOLYLINE', { vertices: curve.vertices.map(vertex => ({ ...vertex, point: p3(...vertex.point) })), closed: curve.closed === true, elevation: 0, layerId: roleIds[curve.role] }, curve.role)
+    const style = styled(curve.styleKey, curve.role)
+    if (curve.kind === 'arc') emit('ARC', { center: p3(...curve.center), radius: curve.radius, startAngle: curve.startAngle, endAngle: curve.endAngle, clockwise: curve.clockwise === true, layerId: style.layerId }, style.name)
+    else if (curve.kind === 'ellipse') emit('ELLIPSE', { center: p3(...curve.center), majorAxis: p3(...curve.majorAxis), ratio: curve.ratio, startParameter: curve.startParameter, endParameter: curve.endParameter, layerId: style.layerId }, style.name)
+    else if (curve.kind === 'polyline') emit('LWPOLYLINE', { vertices: curve.vertices.map(vertex => ({ ...vertex, point: p3(...vertex.point) })), closed: curve.closed === true, elevation: 0, layerId: style.layerId }, style.name)
     else emit('SPLINE', { degree: curve.degree, controlPoints: curve.controlPoints.map(value => p3(...value)), knots: curve.knots,
       ...(curve.fitPoints?.length ? { fitPoints: curve.fitPoints.map(value => p3(...value)) } : {}), ...(curve.weights?.length ? { weights: curve.weights } : {}),
-      closed: curve.closed === true, periodic: curve.periodic === true, layerId: roleIds[curve.role] }, curve.role)
+      closed: curve.closed === true, periodic: curve.periodic === true, layerId: style.layerId }, style.name)
   }
   const symbolBlockByKey = new Map<string, { id: string }>()
   const blocks = input.symbolDefinitions.map((definition, definitionIndex) => {
@@ -844,20 +921,20 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     const id = `${prefix}-symbol-${String(definitionIndex + 1).padStart(2, '0')}-${token}`
     symbolBlockByKey.set(definition.key, { id })
     const members = definition.members.map((member, memberIndex) => {
-      let type: Entity['type'], payload: Record<string, unknown>
-      if (member.kind === 'line') { type = 'LINE'; payload = { start: p3(...member.start), end: p3(...member.end), layerId: roleIds[member.role] } }
-      else if (member.kind === 'circle') { type = 'CIRCLE'; payload = { center: p3(...member.center), radius: member.radius, layerId: roleIds[member.role] } }
-      else if (member.kind === 'arc') { type = 'ARC'; payload = { center: p3(...member.center), radius: member.radius, startAngle: member.startAngle, endAngle: member.endAngle, clockwise: member.clockwise === true, layerId: roleIds[member.role] } }
+      let type: Entity['type'], payload: Record<string, unknown>; const entityStyle = styled(member.entityStyleKey, member.role)
+      if (member.kind === 'line') { type = 'LINE'; payload = { start: p3(...member.start), end: p3(...member.end), layerId: entityStyle.layerId } }
+      else if (member.kind === 'circle') { type = 'CIRCLE'; payload = { center: p3(...member.center), radius: member.radius, layerId: entityStyle.layerId } }
+      else if (member.kind === 'arc') { type = 'ARC'; payload = { center: p3(...member.center), radius: member.radius, startAngle: member.startAngle, endAngle: member.endAngle, clockwise: member.clockwise === true, layerId: entityStyle.layerId } }
       else { const style = member.styleKey == null ? null : textStyleByKey.get(member.styleKey)!; type = 'MTEXT'; payload = { position: p3(...member.position), text: member.text, height: member.height, rotation: member.rotation ?? 0,
-        attachmentPoint: member.attachmentPoint ?? 1, ...(member.width == null ? {} : { width: member.width }), ...(style == null ? {} : { styleId: style.id }), layerId: roleIds[member.role] } }
-      return { type, payload: stylePayload(payload, member.role), options: { id: `${id}-member-${String(memberIndex + 1).padStart(2, '0')}` } }
+        attachmentPoint: member.attachmentPoint ?? 1, ...(member.width == null ? {} : { width: member.width }), ...(style == null ? {} : { styleId: style.id }), layerId: entityStyle.layerId } }
+      return { type, payload: stylePayload(payload, entityStyle.name), options: { id: `${id}-member-${String(memberIndex + 1).padStart(2, '0')}` } }
     })
     return { id, name: `KJ_FLANGE_SYMBOL_${String(definitionIndex + 1).padStart(2, '0')}_${token.toUpperCase()}`, basePoint: p3(...definition.basePoint), entities: members }
   })
   for (const instance of input.symbolInstances) {
-    const block = symbolBlockByKey.get(instance.symbolKey)!
+    const block = symbolBlockByKey.get(instance.symbolKey)!, style = styled(instance.styleKey, instance.role)
     emit('INSERT', { blockRecordId: block.id, position: p3(...instance.position), scale: [instance.scale?.[0] ?? 1, instance.scale?.[1] ?? 1, 1],
-      rotation: instance.rotation ?? 0, attributes: {}, attributeIds: [], sequenceEndId: null, layerId: roleIds[instance.role] }, instance.role)
+      rotation: instance.rotation ?? 0, attributes: {}, attributeIds: [], sequenceEndId: null, layerId: style.layerId }, style.name)
   }
   const characteristicCode: Record<KJFlangeGeometricCharacteristic, string> = { position: 'j', concentricity: 'r', symmetry: 'i', parallelism: 'f', perpendicularity: 'b', angularity: 'a', cylindricity: 'g', flatness: 'c', circularity: 'e', straightness: 'u', 'surface-profile': 'd', 'line-profile': 'k', 'circular-runout': 'h', 'total-runout': 't' }
   const conditionCode: Record<KJFlangeMaterialCondition, string> = { maximum: 'm', least: 'l', regardless: 's' }
@@ -874,18 +951,18 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     emit('TOLERANCE', { position: p3(...frame.position), text, styleName: style?.name ?? 'STANDARD', ...(style == null ? {} : { styleId: style.id }), normal: [0, 0, 1],
       xAxisDirection: p3(...(frame.xAxisDirection ?? [1, 0])), layerId: roleIds[frame.role] }, frame.role)
   }
-  for (const note of input.notes) { const style = note.styleKey == null ? null : textStyleByKey.get(note.styleKey)!; emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
+  for (const note of input.notes) { const style = note.styleKey == null ? null : textStyleByKey.get(note.styleKey)!, entityStyle = styled(note.entityStyleKey, 'notes'); emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
     position: p3(...note.position), text: note.text, height: note.height, rotation: note.rotation,
-    ...(note.width == null ? {} : { width: note.width }), ...(style == null ? {} : { styleId: style.id }), layerId: roleIds.notes,
-  }, 'notes') }
+    ...(note.width == null ? {} : { width: note.width }), ...(style == null ? {} : { styleId: style.id }), layerId: entityStyle.layerId,
+  }, entityStyle.name) }
   for (const dimension of input.dimensions) { const style = dimension.styleKey == null ? null : dimensionStyleByKey.get(dimension.styleKey)!; emit('DIMENSION', {
     dimensionType: dimension.kind.toUpperCase(), definitionPoints: dimension.definitionPoints.map(([x, y]) => p3(x, y)),
     ...(dimension.textPosition == null ? {} : { textPosition: p3(...dimension.textPosition) }),
     textOverride: dimension.textOverride ?? null, rotation: dimension.rotation ?? 0, styleName: style?.name ?? 'STANDARD', ...(style == null ? {} : { styleId: style.id }), layerId: roleIds.dimensions,
   }, 'dimensions') }
-  for (const leader of input.leaders) emit('LEADER', { vertices: leader.vertices.map(([x, y]) => p3(x, y)), annotationId: null, ownsAnnotation: false,
+  for (const leader of input.leaders) { const style = styled(leader.styleKey, 'notes'); emit('LEADER', { vertices: leader.vertices.map(([x, y]) => p3(x, y)), annotationId: null, ownsAnnotation: false,
     arrowEnabled: leader.arrowEnabled !== false, pathType: leader.pathType ?? 0, annotationType: leader.annotationType ?? 3,
-    hookLineDirection: leader.hookLineDirection ?? 0, hookLineEnabled: leader.hookLineEnabled === true, layerId: roleIds.notes }, 'notes')
+    hookLineDirection: leader.hookLineDirection ?? 0, hookLineEnabled: leader.hookLineEnabled === true, layerId: style.layerId }, style.name) }
   return {
     commandArgs: { entities, resources: {
       linetypes,
@@ -902,7 +979,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
         sectionHatchCount: input.sectionHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryCurveCount: input.auxiliaryCurves.length,
         symbolDefinitionCount: input.symbolDefinitions.length, symbolInstanceCount: input.symbolInstances.length, featureControlFrameCount: input.featureControlFrames.length,
-        textStyleCount: input.textStyles.length, dimensionStyleCount: input.dimensionStyles.length,
+        entityStyleCount: input.customStyles.length, textStyleCount: input.textStyles.length, dimensionStyleCount: input.dimensionStyles.length,
         noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
       limitations: ['Flange end-view, symmetric axial-profile, cut-face hatches, native dimension and sheet-grid core only', 'Local symbols do not generate attributes or nested blocks', 'Private drawings and labels are not embedded'],
     },

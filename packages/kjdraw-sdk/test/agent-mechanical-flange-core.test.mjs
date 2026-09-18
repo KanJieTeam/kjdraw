@@ -182,6 +182,48 @@ test('caller-supplied semantic style roles preserve effective CAD display facts 
   assert.equal(reopenedCircle.payload.lineweight, 35)
 })
 
+test('caller-supplied entity style keys preserve mixed native display facts and merge case-insensitive table names', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
+  const proposal = buildAgentMechanicalFlangeCore(document, {
+    ...source,
+    styleProfile: { custom: [
+      { key: 'fine', layerName: 'PUBLIC_FINE', color: 3, lineweight: 18, linetypeName: 'PUBLIC_DASH', linetypePattern: [2, -1] },
+      { key: 'bold', layerName: 'PUBLIC_BOLD', color: 1, lineweight: 35, linetypeName: 'public_dash', linetypePattern: [2, -1] },
+    ] },
+    endView: {
+      ...source.endView,
+      outlineSegments: source.endView.outlineSegments.map((segment, index) => index === 0 ? { ...segment, styleKey: 'bold' } : segment),
+      cuttingPlaneMarks: source.endView.cuttingPlaneMarks.map(mark => ({ ...mark, stemStyleKey: 'fine', tickStyleKey: 'bold', arrowheadStyleKey: 'fine' })),
+    },
+    sideViewAxis: { ...source.sideViewAxis, axisStyleKey: 'fine', symmetricProfiles: source.sideViewAxis.symmetricProfiles.map(profile => ({ ...profile, styleKey: 'bold' })) },
+    auxiliaryLines: [{ start: [10, 60], end: [30, 60], role: 'geometry', styleKey: 'fine' }],
+    auxiliaryCurves: [{ kind: 'arc', center: [40, 60], radius: 5, startAngle: 0, endAngle: Math.PI, role: 'geometry', styleKey: 'bold' }],
+    leaders: source.leaders.map(leader => ({ ...leader, styleKey: 'bold' })),
+    sheet: {
+      ...source.sheet,
+      outerFrameStyleKey: 'bold', insetFrameStyleKey: 'fine',
+      titleGrid: { ...source.sheet.titleGrid, topStyleKey: 'bold', columns: [{ offset: 0, styleKey: 'fine' }, ...source.sheet.titleGrid.columns.slice(1)] },
+      notes: source.sheet.notes.map(note => ({ ...note, entityStyleKey: 'bold' })),
+    },
+  })
+  const layers = new Map(proposal.commandArgs.resources.layers.map(layer => [layer.name, layer.id]))
+  assert.equal(proposal.evidence.parameters.entityStyleCount, 2)
+  assert.equal(proposal.commandArgs.resources.linetypes.filter(item => item.name.toUpperCase() === 'PUBLIC_DASH').length, 1)
+  assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === '[45,120,0]').payload.layerId, layers.get('PUBLIC_BOLD'))
+  assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === '[90,198,0]').payload.layerId, layers.get('PUBLIC_FINE'))
+  assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'SOLID').payload.layerId, layers.get('PUBLIC_FINE'))
+  assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === '[190,150,0]').payload.layerId, layers.get('PUBLIC_FINE'))
+  assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === '[10,60,0]').payload.layerId, layers.get('PUBLIC_FINE'))
+  assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'ARC' && JSON.stringify(entity.payload.center) === '[40,60,0]').payload.layerId, layers.get('PUBLIC_BOLD'))
+  assert.ok(proposal.commandArgs.entities.filter(entity => ['TEXT', 'MTEXT'].includes(entity.type)).every(entity => entity.payload.layerId === layers.get('PUBLIC_BOLD')))
+  assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LEADER').payload.layerId, layers.get('PUBLIC_BOLD'))
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, leaders: [{ ...source.leaders[0], styleKey: 'missing' }] }), /must reference input.styleProfile.custom/u)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const reopened = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  assert.equal(reopened.getTable('linetypes').records.filter(item => item.name.toUpperCase() === 'PUBLIC_DASH').length, 1)
+  assert.equal(reopened.listEntities({ type: 'LEADER' })[0].payload.color, 1)
+})
+
 test('caller-supplied annotation style resources stay generic and bind each native annotation', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
   const proposal = buildAgentMechanicalFlangeCore(document, { ...source,

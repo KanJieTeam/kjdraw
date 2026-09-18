@@ -28,32 +28,41 @@ export interface KJFlangeTitleGrid {
     origin: Point2;
     size: Point2;
     /** Full-height column boundaries measured from the grid's left edge. */
-    columns: number[];
+    columns: (number | {
+        offset: number;
+        styleKey?: string;
+    })[];
     /** Column boundaries that stop below the grid's top edge. */
     partialColumns?: {
         offset: number;
         height: number;
+        styleKey?: string;
     }[];
     /** Row boundaries measured from the bottom; breaks split one row into segments. */
     rows: {
         offset: number;
         breaks?: number[];
+        styleKey?: string;
     }[];
     /** Bounded horizontal rules measured from the grid's bottom and left edges. */
     horizontalSegments?: {
         offset: number;
         start: number;
         end: number;
+        styleKey?: string;
     }[];
     /** Bounded vertical rules measured from the grid's left and bottom edges. */
     verticalSegments?: {
         offset: number;
         start: number;
         end: number;
+        styleKey?: string;
     }[];
+    topStyleKey?: string;
     diagonalHeader?: {
         width: number;
         drop: number;
+        styleKey?: string;
     };
 }
 /** One source-measured meridian of an axially symmetric side view.
@@ -66,6 +75,7 @@ export interface KJFlangeSymmetricProfile {
         radius: number;
     }[];
     endCaps?: 'none' | 'start' | 'end' | 'both';
+    styleKey?: string;
 }
 /** Source-measured side-view geometry. Stations use drawing X coordinates;
  *  offsets are measured from the shared projection axis. */
@@ -79,6 +89,7 @@ export type KJFlangeSideViewOutlineSegment = {
         station: number;
         offset: number;
     };
+    styleKey?: string;
 } | {
     kind: 'arc';
     center: {
@@ -88,6 +99,7 @@ export type KJFlangeSideViewOutlineSegment = {
     radius: number;
     startAngle: number;
     endAngle: number;
+    styleKey?: string;
 } | {
     kind: 'circle';
     center: {
@@ -95,6 +107,7 @@ export type KJFlangeSideViewOutlineSegment = {
         offset: number;
     };
     radius: number;
+    styleKey?: string;
 };
 /** A source-measured cut face in the side view. Boundary coordinates are
  *  relative to the projection axis; the pattern is generated, not copied
@@ -124,6 +137,7 @@ export interface KJFlangeSectionHatch {
     lineAngle: number;
     lineSpacing: number;
     patternOrigin?: Point2;
+    styleKey?: string;
 }
 /** Drawing-style roles are caller-supplied facts. The compiler never embeds
  * a source application's layer or style catalogue; a caller may map its
@@ -144,6 +158,9 @@ export interface KJFlangeStyleProfile {
     dimensions?: KJFlangeStyleRole;
     hatch?: KJFlangeStyleRole;
     hidden?: KJFlangeStyleRole;
+    custom?: ({
+        key: string;
+    } & KJFlangeStyleRole)[];
 }
 /** Bounded source-measured line facts that do not belong to a primary view
  *  profile (for example a projection aid or a local sheet rule). */
@@ -151,6 +168,7 @@ export interface KJFlangeAuxiliaryLine {
     start: Point2;
     end: Point2;
     role: 'geometry' | 'center' | 'hidden' | 'notes' | 'grid' | 'frame';
+    styleKey?: string;
 }
 export type KJFlangeAuxiliaryCurve = {
     kind: 'arc';
@@ -160,6 +178,7 @@ export type KJFlangeAuxiliaryCurve = {
     endAngle: number;
     clockwise?: boolean;
     role: KJFlangeAuxiliaryLine['role'];
+    styleKey?: string;
 } | {
     kind: 'ellipse';
     center: Point2;
@@ -168,6 +187,7 @@ export type KJFlangeAuxiliaryCurve = {
     startParameter: number;
     endParameter: number;
     role: KJFlangeAuxiliaryLine['role'];
+    styleKey?: string;
 } | {
     kind: 'polyline';
     vertices: {
@@ -178,6 +198,7 @@ export type KJFlangeAuxiliaryCurve = {
     }[];
     closed?: boolean;
     role: KJFlangeAuxiliaryLine['role'];
+    styleKey?: string;
 } | {
     kind: 'spline';
     degree: number;
@@ -188,6 +209,7 @@ export type KJFlangeAuxiliaryCurve = {
     closed?: boolean;
     periodic?: boolean;
     role: KJFlangeAuxiliaryLine['role'];
+    styleKey?: string;
 };
 /** A reusable local symbol definition. Only visible native geometry and text
  * are accepted; source handles, block names and application metadata are not. */
@@ -196,11 +218,13 @@ export type KJFlangeSymbolMember = {
     start: Point2;
     end: Point2;
     role: KJFlangeAuxiliaryLine['role'];
+    entityStyleKey?: string;
 } | {
     kind: 'circle';
     center: Point2;
     radius: number;
     role: KJFlangeAuxiliaryLine['role'];
+    entityStyleKey?: string;
 } | {
     kind: 'arc';
     center: Point2;
@@ -209,6 +233,7 @@ export type KJFlangeSymbolMember = {
     endAngle: number;
     clockwise?: boolean;
     role: KJFlangeAuxiliaryLine['role'];
+    entityStyleKey?: string;
 } | {
     kind: 'multiline-text';
     text: string;
@@ -219,6 +244,7 @@ export type KJFlangeSymbolMember = {
     attachmentPoint?: number;
     styleKey?: string;
     role: KJFlangeAuxiliaryLine['role'];
+    entityStyleKey?: string;
 };
 export interface KJFlangeSymbolDefinition {
     key: string;
@@ -231,6 +257,7 @@ export interface KJFlangeSymbolInstance {
     scale?: Point2;
     rotation?: number;
     role: KJFlangeAuxiliaryLine['role'];
+    styleKey?: string;
 }
 /** Source-supplied visible sheet text. Content remains input data and is not
  *  retained by the reusable knowledge pack. */
@@ -242,6 +269,7 @@ export interface KJFlangeSheetNote {
     rotation?: number;
     width?: number;
     styleKey?: string;
+    entityStyleKey?: string;
 }
 /** A bounded native mechanical dimension supplied as engineering annotation
  *  facts. Measurements are derived from definition points, never accepted. */
@@ -261,6 +289,7 @@ export interface KJFlangeLeader {
     annotationType?: number;
     hookLineDirection?: number;
     hookLineEnabled?: boolean;
+    styleKey?: string;
 }
 export type KJFlangeGeometricCharacteristic = 'position' | 'concentricity' | 'symmetry' | 'parallelism' | 'perpendicularity' | 'angularity' | 'cylindricity' | 'flatness' | 'circularity' | 'straightness' | 'surface-profile' | 'line-profile' | 'circular-runout' | 'total-runout';
 export type KJFlangeMaterialCondition = 'maximum' | 'least' | 'regardless';
@@ -316,16 +345,19 @@ export type KJFlangeEndViewOutlineSegment = {
     kind: 'line';
     startOffset: Point2;
     endOffset: Point2;
+    styleKey?: string;
 } | {
     kind: 'arc';
     centerOffset: Point2;
     radius: number;
     startAngle: number;
     endAngle: number;
+    styleKey?: string;
 } | {
     kind: 'circle';
     centerOffset: Point2;
     radius: number;
+    styleKey?: string;
 };
 /** A source-positioned cutting-plane mark, relative to the end-view center.
  *  The stem and tick vectors retain the drafting direction of each mark. */
@@ -337,6 +369,9 @@ export interface KJFlangeCuttingPlaneMark {
         length: number;
         width: number;
     };
+    stemStyleKey?: string;
+    tickStyleKey?: string;
+    arrowheadStyleKey?: string;
 }
 export interface KJAgentMechanicalFlangeCoreInput {
     version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION;
@@ -355,6 +390,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
     };
     sideViewAxis?: {
         xRange: Point2;
+        axisStyleKey?: string;
         symmetricProfiles?: KJFlangeSymmetricProfile[];
         outlineSegments?: KJFlangeSideViewOutlineSegment[];
         sectionHatches?: KJFlangeSectionHatch[];
@@ -377,6 +413,8 @@ export interface KJAgentMechanicalFlangeCoreInput {
         origin: Point2;
         size: Point2;
         inset: number;
+        outerFrameStyleKey?: string;
+        insetFrameStyleKey?: string;
         titleGrid?: KJFlangeTitleGrid;
         notes?: KJFlangeSheetNote[];
     };
@@ -443,6 +481,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             symbolDefinitionCount: number;
             symbolInstanceCount: number;
             featureControlFrameCount: number;
+            entityStyleCount: number;
             textStyleCount: number;
             dimensionStyleCount: number;
             noteCount: number;
