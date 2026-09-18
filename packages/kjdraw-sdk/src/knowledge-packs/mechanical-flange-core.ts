@@ -5,7 +5,7 @@ import { stableHash } from '../utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePack({
   schema: 'kjdraw.knowledge-pack.v1',
   id: 'mechanical-flange-core',
-  version: '2.1.0',
+  version: '2.2.0',
   title: 'Parameterized flange orthographic-view and sheet-grid rules',
   domain: 'mechanical-manufacturing',
   license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
@@ -13,7 +13,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
     id: 'kjdraw-authored-flange-rules-v1',
     title: 'KJDraw authored flange geometry and layout rules',
     license: 'MIT',
-    contentHash: stableHash('flange-views:concentric-rings:square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:parameterized-ansi31:auxiliary-circles:native-leaders:native-derived-dimensions:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:v2.1'),
+    contentHash: stableHash('flange-views:concentric-rings:square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:parameterized-ansi31:caller-supplied-style-roles:auxiliary-circles:native-leaders:native-derived-dimensions:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:v2.2'),
   }],
   ontology: {
     objectKinds: ['flange', 'bore', 'concentric-ring', 'square-hole-pattern', 'end-view-outline', 'cutting-plane-mark', 'side-view-axis', 'symmetric-meridian-profile', 'side-view-outline', 'cut-face', 'native-dimension', 'native-leader', 'sheet-frame', 'title-grid', 'sheet-note'],
@@ -24,6 +24,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
     sectionMarks: 'bounded source-positioned cutting-plane stems, ticks and optional native arrowheads relative to the end-view center',
     sideView: 'axis plus optional mirrored meridian profiles and source-measured line, arc or circle outlines relative to that axis; repeated stations encode shoulders',
     cutFaces: 'source-measured bounded line and arc paths relative to the side-view axis generate native non-associative ANSI31 hatch with parametric angle, spacing and origin; source DXF tags are never copied',
+    styles: 'caller-supplied semantic roles map effective layer, color, lineweight and linetype facts; no source application catalogue is embedded',
     sheet: 'outer frame, inset frame and optional bounded semantic title-grid with full or locally segmented rules',
     notes: 'bounded source-supplied sheet labels and technical notes; visible content is never embedded in this pack',
     dimensions: 'native dimensions derive measurements from bounded definition points and never trust supplied measurement values',

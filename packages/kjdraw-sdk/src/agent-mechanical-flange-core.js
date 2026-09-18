@@ -44,6 +44,7 @@ function validate(document, source) {
         'sideViewAxis',
         'dimensions',
         'leaders',
+        'styleProfile',
         'sheet'
     ], 'input');
     if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`);
@@ -556,6 +557,61 @@ function validate(document, source) {
             hookLineEnabled: leader.hookLineEnabled === true
         };
     });
+    const styleProfile = input.styleProfile == null ? {} : plain(input.styleProfile, 'input.styleProfile');
+    if (styleProfile) exact(styleProfile, [
+        'frame',
+        'grid',
+        'geometry',
+        'center',
+        'notes',
+        'dimensions',
+        'hatch'
+    ], 'input.styleProfile');
+    const styleRole = (value, label)=>{
+        if (value == null) return {};
+        const role = plain(value, label);
+        exact(role, [
+            'layerName',
+            'color',
+            'lineweight',
+            'linetypeName',
+            'linetypePattern'
+        ], label);
+        if (role.layerName != null && (typeof role.layerName !== 'string' || !/^[^\u0000-\u001f\u007f]{1,64}$/u.test(role.layerName))) throw new KJValidationError(`${label}.layerName must be bounded printable text`);
+        if (role.linetypeName != null && (typeof role.linetypeName !== 'string' || !/^[^\u0000-\u001f\u007f]{1,64}$/u.test(role.linetypeName))) throw new KJValidationError(`${label}.linetypeName must be bounded printable text`);
+        const color = role.color == null ? undefined : finite(role.color, `${label}.color`, 0, 255);
+        const lineweight = role.lineweight == null ? undefined : finite(role.lineweight, `${label}.lineweight`, -3, 211);
+        if (role.linetypePattern != null && (!Array.isArray(role.linetypePattern) || role.linetypePattern.length > 32 || role.linetypePattern.some((item)=>typeof item !== 'number' || !Number.isFinite(item) || Math.abs(item) > 1_000))) throw new KJValidationError(`${label}.linetypePattern is invalid`);
+        return {
+            ...role.layerName == null ? {} : {
+                layerName: role.layerName
+            },
+            ...color == null ? {} : {
+                color
+            },
+            ...lineweight == null ? {} : {
+                lineweight
+            },
+            ...role.linetypeName == null ? {} : {
+                linetypeName: role.linetypeName
+            },
+            ...role.linetypePattern == null ? {} : {
+                linetypePattern: [
+                    ...role.linetypePattern
+                ]
+            }
+        };
+    };
+    const styles = {};
+    for (const role of [
+        'frame',
+        'grid',
+        'geometry',
+        'center',
+        'notes',
+        'dimensions',
+        'hatch'
+    ])styles[role] = styleRole(styleProfile[role], `input.styleProfile.${role}`);
     return {
         expectedRevision,
         drawingId: input.drawingId.trim(),
@@ -571,6 +627,7 @@ function validate(document, source) {
         sectionHatches,
         dimensions,
         leaders,
+        styles,
         sheetOrigin,
         sheetSize,
         inset,
@@ -583,24 +640,124 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         id: input.drawingId,
         version: KJDRAW_MECHANICAL_FLANGE_CORE_VERSION
     }).slice(0, 12)}`;
-    const linetypeId = `${prefix}-continuous`, geometryLayerId = `${prefix}-geometry`, sheetLayerId = `${prefix}-sheet`, centerLayerId = `${prefix}-center`, noteLayerId = `${prefix}-notes`;
+    const role = (name, defaults)=>({
+            ...defaults,
+            ...input.styles[name] ?? {},
+            pattern: input.styles[name]?.linetypePattern ?? defaults.pattern
+        });
+    const roles = {
+        frame: role('frame', {
+            layerName: 'FLANGE_FRAME',
+            color: 7,
+            lineweight: 25,
+            pattern: []
+        }),
+        grid: role('grid', {
+            layerName: 'FLANGE_GRID',
+            color: 7,
+            lineweight: 18,
+            pattern: []
+        }),
+        geometry: role('geometry', {
+            layerName: 'FLANGE_GEOMETRY',
+            color: 7,
+            lineweight: 35,
+            pattern: []
+        }),
+        center: role('center', {
+            layerName: 'FLANGE_CENTER',
+            color: 7,
+            lineweight: 18,
+            pattern: [
+                8,
+                -1,
+                1,
+                -1
+            ]
+        }),
+        notes: role('notes', {
+            layerName: 'FLANGE_NOTES',
+            color: 7,
+            lineweight: 18,
+            pattern: []
+        }),
+        dimensions: role('dimensions', {
+            layerName: 'FLANGE_DIMENSIONS',
+            color: 2,
+            lineweight: 18,
+            pattern: []
+        }),
+        hatch: role('hatch', {
+            layerName: 'FLANGE_HATCH',
+            color: 7,
+            lineweight: 18,
+            pattern: []
+        })
+    };
+    const roleIds = {}, layers = [], layerByName = new Map();
+    const linetypeIds = {}, linetypes = [], linetypeByKey = new Map();
+    for (const name of Object.keys(roles)){
+        const definition = roles[name], key = JSON.stringify([
+            definition.linetypeName ?? `FLANGE_${String(name).toUpperCase()}`,
+            definition.pattern
+        ]);
+        const linetypeName = definition.linetypeName ?? `FLANGE_${String(name).toUpperCase()}`;
+        let id = linetypeByKey.get(key) ?? document.getTable?.('linetypes')?.records.find((record)=>String(record.name).toUpperCase() === linetypeName.toUpperCase())?.id;
+        if (!id) {
+            id = `${prefix}-${name}-linetype`;
+            linetypes.push({
+                id,
+                name: linetypeName,
+                pattern: definition.pattern
+            });
+        }
+        linetypeByKey.set(key, id);
+        linetypeIds[name] = id;
+        const layerName = definition.layerName, existingLayer = document.getTable?.('layers')?.records.find((record)=>String(record.name).toUpperCase() === layerName.toUpperCase()), pendingLayer = layerByName.get(layerName.toUpperCase());
+        roleIds[name] = existingLayer?.id ?? pendingLayer ?? `${prefix}-${name}`;
+        if (!existingLayer && !pendingLayer) {
+            layerByName.set(layerName.toUpperCase(), roleIds[name]);
+            layers.push({
+                id: roleIds[name],
+                name: layerName,
+                color: definition.color,
+                linetypeId: id,
+                lineweight: definition.lineweight
+            });
+        }
+    }
     const entities = [], p3 = (x, y)=>[
             x,
             y,
             0
         ];
-    const emit = (type, payload)=>entities.push({
+    const roleByLayer = new Map(Object.keys(roles).map((name)=>[
+            roleIds[name],
+            roles[name]
+        ]));
+    const emit = (type, payload, styleName)=>{
+        const style = styleName == null ? roleByLayer.get(payload.layerId) : roles[styleName];
+        const styled = style == null ? payload : {
+            ...payload,
+            color: style.color,
+            lineweight: style.lineweight,
+            ...style.linetypeName == null ? {} : {
+                linetypeName: style.linetypeName
+            }
+        };
+        entities.push({
             type,
-            payload,
+            payload: styled,
             options: {
                 id: `${prefix}-${String(entities.length + 1).padStart(4, '0')}`
             }
         });
-    const line = (a, b, layerId = sheetLayerId)=>emit('LINE', {
+    };
+    const line = (a, b, layerId = roleIds.grid, styleName = 'grid')=>emit('LINE', {
             start: p3(...a),
             end: p3(...b),
             layerId
-        });
+        }, styleName);
     const rectangle = (origin, size)=>{
         const [x, y] = origin, [w, h] = size;
         line([
@@ -636,8 +793,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
     for (const ringRadius of input.ringRadii)emit('CIRCLE', {
         center: p3(cx, cy),
         radius: ringRadius,
-        layerId: geometryLayerId
-    });
+        layerId: roleIds.geometry
+    }, 'geometry');
     const halfPitch = input.pitch / 2;
     for (const dx of [
         -1,
@@ -648,8 +805,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
     ])emit('CIRCLE', {
         center: p3(cx + dx * halfPitch, cy + dy * halfPitch),
         radius: input.radius,
-        layerId: geometryLayerId
-    });
+        layerId: roleIds.geometry
+    }, 'geometry');
     for (const segment of input.outlineSegments){
         if (segment.kind === 'line') line([
             cx + segment.startOffset[0],
@@ -657,19 +814,19 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         ], [
             cx + segment.endOffset[0],
             cy + segment.endOffset[1]
-        ], geometryLayerId);
+        ], roleIds.geometry, 'geometry');
         else if (segment.kind === 'arc') emit('ARC', {
             center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]),
             radius: segment.radius,
             startAngle: segment.startAngle,
             endAngle: segment.endAngle,
-            layerId: geometryLayerId
-        });
+            layerId: roleIds.geometry
+        }, 'geometry');
         else emit('CIRCLE', {
             center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]),
             radius: segment.radius,
-            layerId: geometryLayerId
-        });
+            layerId: roleIds.geometry
+        }, 'geometry');
     }
     for (const mark of input.cuttingPlaneMarks){
         const anchor = [
@@ -679,11 +836,11 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         line(anchor, [
             anchor[0] + mark.stemVector[0],
             anchor[1] + mark.stemVector[1]
-        ], noteLayerId);
+        ], roleIds.notes, 'notes');
         line(anchor, [
             anchor[0] + mark.tickVector[0],
             anchor[1] + mark.tickVector[1]
-        ], noteLayerId);
+        ], roleIds.notes, 'notes');
         if (mark.arrowhead) {
             const tip = [
                 anchor[0] + mark.tickVector[0],
@@ -716,12 +873,44 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                     p3(...b),
                     p3(...b)
                 ],
-                layerId: noteLayerId
-            });
+                layerId: roleIds.notes
+            }, 'notes');
         }
     }
-    rectangle(input.sheetOrigin, input.sheetSize);
-    rectangle([
+    const frameLine = (a, b)=>line(a, b, roleIds.frame, 'frame');
+    const frameRectangle = (origin, size)=>{
+        const [x, y] = origin, [w, h] = size;
+        frameLine([
+            x,
+            y
+        ], [
+            x + w,
+            y
+        ]);
+        frameLine([
+            x + w,
+            y
+        ], [
+            x + w,
+            y + h
+        ]);
+        frameLine([
+            x + w,
+            y + h
+        ], [
+            x,
+            y + h
+        ]);
+        frameLine([
+            x,
+            y + h
+        ], [
+            x,
+            y
+        ]);
+    };
+    frameRectangle(input.sheetOrigin, input.sheetSize);
+    frameRectangle([
         input.sheetOrigin[0] + input.inset,
         input.sheetOrigin[1] + input.inset
     ], [
@@ -736,21 +925,21 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         ], [
             x + w,
             y + h
-        ]);
+        ], roleIds.grid);
         for (const offset of grid.columns)line([
             x + offset,
             y
         ], [
             x + offset,
             y + h
-        ]);
+        ], roleIds.grid);
         for (const column of grid.partialColumns ?? [])line([
             x + column.offset,
             y
         ], [
             x + column.offset,
             y + column.height
-        ]);
+        ], roleIds.grid);
         for (const row of grid.rows){
             const spans = [
                 0,
@@ -763,7 +952,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             ], [
                 x + spans[index + 1],
                 y + row.offset
-            ]);
+            ], roleIds.grid);
         }
         for (const segment of grid.horizontalSegments ?? [])line([
             x + segment.start,
@@ -771,21 +960,21 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         ], [
             x + segment.end,
             y + segment.offset
-        ]);
+        ], roleIds.grid);
         for (const segment of grid.verticalSegments ?? [])line([
             x + segment.offset,
             y + segment.start
         ], [
             x + segment.offset,
             y + segment.end
-        ]);
+        ], roleIds.grid);
         if (grid.diagonalHeader) line([
             x,
             y + h
         ], [
             x + grid.diagonalHeader.width,
             y + h - grid.diagonalHeader.drop
-        ]);
+        ], roleIds.grid);
     }
     if (input.xRange) line([
         input.xRange[0],
@@ -793,7 +982,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
     ], [
         input.xRange[1],
         cy
-    ], centerLayerId);
+    ], roleIds.center, 'center');
     for (const profile of input.symmetricProfiles){
         for(let index = 1; index < profile.vertices.length; index++){
             const previous = profile.vertices[index - 1], current = profile.vertices[index];
@@ -803,14 +992,14 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             ], [
                 current.station,
                 cy + current.radius
-            ], geometryLayerId);
+            ], roleIds.geometry, 'geometry');
             line([
                 previous.station,
                 cy - previous.radius
             ], [
                 current.station,
                 cy - current.radius
-            ], geometryLayerId);
+            ], roleIds.geometry, 'geometry');
         }
         const start = profile.vertices[0], end = profile.vertices.at(-1);
         if (profile.endCaps === 'start' || profile.endCaps === 'both') line([
@@ -819,14 +1008,14 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         ], [
             start.station,
             cy + start.radius
-        ], geometryLayerId);
+        ], roleIds.geometry, 'geometry');
         if (profile.endCaps === 'end' || profile.endCaps === 'both') line([
             end.station,
             cy - end.radius
         ], [
             end.station,
             cy + end.radius
-        ], geometryLayerId);
+        ], roleIds.geometry, 'geometry');
     }
     for (const segment of input.sideOutlineSegments){
         if (segment.kind === 'line') line([
@@ -835,19 +1024,19 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         ], [
             segment.end.station,
             cy + segment.end.offset
-        ], geometryLayerId);
+        ], roleIds.geometry, 'geometry');
         else if (segment.kind === 'arc') emit('ARC', {
             center: p3(segment.center.station, cy + segment.center.offset),
             radius: segment.radius,
             startAngle: segment.startAngle,
             endAngle: segment.endAngle,
-            layerId: geometryLayerId
-        });
+            layerId: roleIds.geometry
+        }, 'geometry');
         else emit('CIRCLE', {
             center: p3(segment.center.station, cy + segment.center.offset),
             radius: segment.radius,
-            layerId: geometryLayerId
-        });
+            layerId: roleIds.geometry
+        }, 'geometry');
     }
     for (const hatch of input.sectionHatches)emit('HATCH', {
         boundaryLoops: [
@@ -886,8 +1075,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         ],
         patternDefinitionAngle: 0,
         patternDefinitionScale: 1,
-        layerId: geometryLayerId
-    });
+        layerId: roleIds.hatch
+    }, 'hatch');
     for (const note of input.notes)emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
         position: p3(...note.position),
         text: note.text,
@@ -896,8 +1085,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         ...note.width == null ? {} : {
             width: note.width
         },
-        layerId: noteLayerId
-    });
+        layerId: roleIds.notes
+    }, 'notes');
     for (const dimension of input.dimensions)emit('DIMENSION', {
         dimensionType: dimension.kind.toUpperCase(),
         definitionPoints: dimension.definitionPoints.map(([x, y])=>p3(x, y)),
@@ -907,8 +1096,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         textOverride: dimension.textOverride ?? null,
         rotation: dimension.rotation ?? 0,
         styleName: 'STANDARD',
-        layerId: noteLayerId
-    });
+        layerId: roleIds.dimensions
+    }, 'dimensions');
     for (const leader of input.leaders)emit('LEADER', {
         vertices: leader.vertices.map(([x, y])=>p3(x, y)),
         annotationId: null,
@@ -918,49 +1107,14 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         annotationType: leader.annotationType ?? 3,
         hookLineDirection: leader.hookLineDirection ?? 0,
         hookLineEnabled: leader.hookLineEnabled === true,
-        layerId: noteLayerId
-    });
+        layerId: roleIds.notes
+    }, 'notes');
     return {
         commandArgs: {
             entities,
             resources: {
-                linetypes: [
-                    {
-                        id: linetypeId,
-                        name: `${prefix}_CONT`,
-                        pattern: []
-                    }
-                ],
-                layers: [
-                    {
-                        id: geometryLayerId,
-                        name: 'FLANGE_GEOMETRY',
-                        color: 7,
-                        linetypeId,
-                        lineweight: 35
-                    },
-                    {
-                        id: sheetLayerId,
-                        name: 'FLANGE_SHEET',
-                        color: 7,
-                        linetypeId,
-                        lineweight: 18
-                    },
-                    {
-                        id: centerLayerId,
-                        name: 'FLANGE_CENTER',
-                        color: 7,
-                        linetypeId,
-                        lineweight: 18
-                    },
-                    {
-                        id: noteLayerId,
-                        name: 'FLANGE_NOTES',
-                        color: 7,
-                        linetypeId,
-                        lineweight: 18
-                    }
-                ]
+                linetypes,
+                layers
             }
         },
         evidence: {

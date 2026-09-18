@@ -7,7 +7,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
 type Point2 = [number, number]
 type Point3 = [number, number, number]
 type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'HATCH'; payload: Record<string, unknown>; options: { id: string } }
-interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } } }
+interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } }; getTable?: (name: string) => { records: { id: string; name?: string; payload?: Record<string, unknown> }[] } | undefined }
 
 export interface KJFlangeTitleGrid {
   origin: Point2
@@ -52,6 +52,27 @@ export interface KJFlangeSectionHatch {
   lineAngle: number
   lineSpacing: number
   patternOrigin?: Point2
+}
+
+/** Drawing-style roles are caller-supplied facts. The compiler never embeds
+ * a source application's layer or style catalogue; a caller may map its
+ * local roles to these generic roles for faithful output. */
+export interface KJFlangeStyleRole {
+  layerName?: string
+  color?: number
+  lineweight?: number
+  linetypeName?: string
+  linetypePattern?: number[]
+}
+
+export interface KJFlangeStyleProfile {
+  frame?: KJFlangeStyleRole
+  grid?: KJFlangeStyleRole
+  geometry?: KJFlangeStyleRole
+  center?: KJFlangeStyleRole
+  notes?: KJFlangeStyleRole
+  dimensions?: KJFlangeStyleRole
+  hatch?: KJFlangeStyleRole
 }
 
 /** Source-supplied visible sheet text. Content remains input data and is not
@@ -110,6 +131,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   sideViewAxis?: { xRange: Point2; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
   dimensions?: KJFlangeDimension[]
   leaders?: KJFlangeLeader[]
+  styleProfile?: KJFlangeStyleProfile
   sheet: { origin: Point2; size: Point2; inset: number; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
 }
 
@@ -138,7 +160,7 @@ const increasing = (value: unknown, label: string, maxCount: number, min: number
 
 function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   if (!document || typeof document.id !== 'string' || !Number.isSafeInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Flange compiler requires a KJDraw document')
-  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'sheet'], 'input')
+  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'styleProfile', 'sheet'], 'input')
   if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`)
   if (input.units !== 'millimeter' || document.snapshot().header?.units !== 'millimeter') throw new KJValidationError('Flange compiler requires millimeter units')
   const expectedRevision = finite(input.expectedRevision, 'input.expectedRevision', 0, Number.MAX_SAFE_INTEGER)
@@ -382,34 +404,67 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       pathType: integer(leader.pathType, `input.leaders[${index}].pathType`, 1), annotationType: integer(leader.annotationType, `input.leaders[${index}].annotationType`, 3),
       hookLineDirection: integer(leader.hookLineDirection, `input.leaders[${index}].hookLineDirection`, 1), hookLineEnabled: leader.hookLineEnabled === true }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, xRange, symmetricProfiles, sideOutlineSegments, sectionHatches, dimensions, leaders, sheetOrigin, sheetSize, inset, titleGrid, notes }
+  const styleProfile = input.styleProfile == null ? {} : plain(input.styleProfile, 'input.styleProfile')
+  if (styleProfile) exact(styleProfile, ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch'], 'input.styleProfile')
+  const styleRole = (value: unknown, label: string): KJFlangeStyleRole => {
+    if (value == null) return {}
+    const role = plain(value, label); exact(role, ['layerName', 'color', 'lineweight', 'linetypeName', 'linetypePattern'], label)
+    if (role.layerName != null && (typeof role.layerName !== 'string' || !/^[^\u0000-\u001f\u007f]{1,64}$/u.test(role.layerName))) throw new KJValidationError(`${label}.layerName must be bounded printable text`)
+    if (role.linetypeName != null && (typeof role.linetypeName !== 'string' || !/^[^\u0000-\u001f\u007f]{1,64}$/u.test(role.linetypeName))) throw new KJValidationError(`${label}.linetypeName must be bounded printable text`)
+    const color = role.color == null ? undefined : finite(role.color, `${label}.color`, 0, 255)
+    const lineweight = role.lineweight == null ? undefined : finite(role.lineweight, `${label}.lineweight`, -3, 211)
+    if (role.linetypePattern != null && (!Array.isArray(role.linetypePattern) || role.linetypePattern.length > 32 || role.linetypePattern.some((item: unknown) => typeof item !== 'number' || !Number.isFinite(item) || Math.abs(item) > 1_000))) throw new KJValidationError(`${label}.linetypePattern is invalid`)
+    return { ...(role.layerName == null ? {} : { layerName: role.layerName }), ...(color == null ? {} : { color }), ...(lineweight == null ? {} : { lineweight }), ...(role.linetypeName == null ? {} : { linetypeName: role.linetypeName }), ...(role.linetypePattern == null ? {} : { linetypePattern: [...role.linetypePattern] }) }
+  }
+  const styles: KJFlangeStyleProfile = {}
+  for (const role of ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch'] as const) styles[role] = styleRole(styleProfile[role], `input.styleProfile.${role}`)
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, xRange, symmetricProfiles, sideOutlineSegments, sectionHatches, dimensions, leaders, styles, sheetOrigin, sheetSize, inset, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
 export function buildAgentMechanicalFlangeCore(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   const input = validate(document, source), prefix = `flange-${stableHash({ id: input.drawingId, version: KJDRAW_MECHANICAL_FLANGE_CORE_VERSION }).slice(0, 12)}`
-  const linetypeId = `${prefix}-continuous`, geometryLayerId = `${prefix}-geometry`, sheetLayerId = `${prefix}-sheet`, centerLayerId = `${prefix}-center`, noteLayerId = `${prefix}-notes`
+  const role = (name: keyof KJFlangeStyleProfile, defaults: { layerName: string; color: number; lineweight: number; pattern: number[] }) => ({ ...defaults, ...(input.styles[name] ?? {}), pattern: input.styles[name]?.linetypePattern ?? defaults.pattern })
+  const roles = { frame: role('frame', { layerName: 'FLANGE_FRAME', color: 7, lineweight: 25, pattern: [] }), grid: role('grid', { layerName: 'FLANGE_GRID', color: 7, lineweight: 18, pattern: [] }), geometry: role('geometry', { layerName: 'FLANGE_GEOMETRY', color: 7, lineweight: 35, pattern: [] }), center: role('center', { layerName: 'FLANGE_CENTER', color: 7, lineweight: 18, pattern: [8, -1, 1, -1] }), notes: role('notes', { layerName: 'FLANGE_NOTES', color: 7, lineweight: 18, pattern: [] }), dimensions: role('dimensions', { layerName: 'FLANGE_DIMENSIONS', color: 2, lineweight: 18, pattern: [] }), hatch: role('hatch', { layerName: 'FLANGE_HATCH', color: 7, lineweight: 18, pattern: [] }) }
+  const roleIds = {} as Record<keyof typeof roles, string>, layers: { id: string; name: string; color: number; linetypeId: string; lineweight: number }[] = [], layerByName = new Map<string, string>()
+  const linetypeIds = {} as Record<keyof typeof roles, string>, linetypes: { id: string; name: string; pattern: number[] }[] = [], linetypeByKey = new Map<string, string>()
+  for (const name of Object.keys(roles) as (keyof typeof roles)[]) {
+    const definition = roles[name], key = JSON.stringify([definition.linetypeName ?? `FLANGE_${String(name).toUpperCase()}`, definition.pattern])
+    const linetypeName = definition.linetypeName ?? `FLANGE_${String(name).toUpperCase()}`
+    let id = linetypeByKey.get(key) ?? document.getTable?.('linetypes')?.records.find(record => String(record.name).toUpperCase() === linetypeName.toUpperCase())?.id
+    if (!id) { id = `${prefix}-${name}-linetype`; linetypes.push({ id, name: linetypeName, pattern: definition.pattern }) }
+    linetypeByKey.set(key, id)
+    linetypeIds[name] = id
+    const layerName = definition.layerName, existingLayer = document.getTable?.('layers')?.records.find(record => String(record.name).toUpperCase() === layerName.toUpperCase()), pendingLayer = layerByName.get(layerName.toUpperCase())
+    roleIds[name] = existingLayer?.id ?? pendingLayer ?? `${prefix}-${name}`
+    if (!existingLayer && !pendingLayer) { layerByName.set(layerName.toUpperCase(), roleIds[name]); layers.push({ id: roleIds[name], name: layerName, color: definition.color, linetypeId: id, lineweight: definition.lineweight }) }
+  }
   const entities: Entity[] = [], p3 = (x: number, y: number): Point3 => [x, y, 0]
-  const emit = (type: Entity['type'], payload: Record<string, unknown>) => entities.push({ type, payload, options: { id: `${prefix}-${String(entities.length + 1).padStart(4, '0')}` } })
-  const line = (a: Point2, b: Point2, layerId = sheetLayerId) => emit('LINE', { start: p3(...a), end: p3(...b), layerId })
+  const roleByLayer = new Map(Object.keys(roles).map(name => [roleIds[name as keyof typeof roles], roles[name as keyof typeof roles]]))
+  const emit = (type: Entity['type'], payload: Record<string, unknown>, styleName?: keyof typeof roles) => {
+    const style = styleName == null ? roleByLayer.get(payload.layerId as string) : roles[styleName]
+    const styled = style == null ? payload : { ...payload, color: style.color, lineweight: style.lineweight, ...(style.linetypeName == null ? {} : { linetypeName: style.linetypeName }) }
+    entities.push({ type, payload: styled, options: { id: `${prefix}-${String(entities.length + 1).padStart(4, '0')}` } })
+  }
+  const line = (a: Point2, b: Point2, layerId = roleIds.grid, styleName: keyof typeof roles = 'grid') => emit('LINE', { start: p3(...a), end: p3(...b), layerId }, styleName)
   const rectangle = (origin: Point2, size: Point2) => {
     const [x, y] = origin, [w, h] = size
     line([x, y], [x + w, y]); line([x + w, y], [x + w, y + h]); line([x + w, y + h], [x, y + h]); line([x, y + h], [x, y])
   }
   const [cx, cy] = input.center
-  for (const ringRadius of input.ringRadii) emit('CIRCLE', { center: p3(cx, cy), radius: ringRadius, layerId: geometryLayerId })
+  for (const ringRadius of input.ringRadii) emit('CIRCLE', { center: p3(cx, cy), radius: ringRadius, layerId: roleIds.geometry }, 'geometry')
   const halfPitch = input.pitch / 2
-  for (const dx of [-1, 1]) for (const dy of [-1, 1]) emit('CIRCLE', { center: p3(cx + dx * halfPitch, cy + dy * halfPitch), radius: input.radius, layerId: geometryLayerId })
+  for (const dx of [-1, 1]) for (const dy of [-1, 1]) emit('CIRCLE', { center: p3(cx + dx * halfPitch, cy + dy * halfPitch), radius: input.radius, layerId: roleIds.geometry }, 'geometry')
   for (const segment of input.outlineSegments) {
-    if (segment.kind === 'line') line([cx + segment.startOffset[0], cy + segment.startOffset[1]], [cx + segment.endOffset[0], cy + segment.endOffset[1]], geometryLayerId)
+    if (segment.kind === 'line') line([cx + segment.startOffset[0], cy + segment.startOffset[1]], [cx + segment.endOffset[0], cy + segment.endOffset[1]], roleIds.geometry, 'geometry')
     else if (segment.kind === 'arc') emit('ARC', { center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]), radius: segment.radius,
-      startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: geometryLayerId })
-    else emit('CIRCLE', { center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]), radius: segment.radius, layerId: geometryLayerId })
+      startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: roleIds.geometry }, 'geometry')
+    else emit('CIRCLE', { center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]), radius: segment.radius, layerId: roleIds.geometry }, 'geometry')
   }
   for (const mark of input.cuttingPlaneMarks) {
     const anchor: Point2 = [cx + mark.anchorOffset[0], cy + mark.anchorOffset[1]]
-    line(anchor, [anchor[0] + mark.stemVector[0], anchor[1] + mark.stemVector[1]], noteLayerId)
-    line(anchor, [anchor[0] + mark.tickVector[0], anchor[1] + mark.tickVector[1]], noteLayerId)
+    line(anchor, [anchor[0] + mark.stemVector[0], anchor[1] + mark.stemVector[1]], roleIds.notes, 'notes')
+    line(anchor, [anchor[0] + mark.tickVector[0], anchor[1] + mark.tickVector[1]], roleIds.notes, 'notes')
     if (mark.arrowhead) {
       const tip: Point2 = [anchor[0] + mark.tickVector[0], anchor[1] + mark.tickVector[1]], norm = Math.hypot(mark.tickVector[0], mark.tickVector[1])
       const unit: Point2 = [mark.tickVector[0] / norm, mark.tickVector[1] / norm], perpendicular: Point2 = [-unit[1], unit[0]]
@@ -417,40 +472,42 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       const half = mark.arrowhead.width / 2
       const a: Point2 = [base[0] + perpendicular[0] * half, base[1] + perpendicular[1] * half]
       const b: Point2 = [base[0] - perpendicular[0] * half, base[1] - perpendicular[1] * half]
-      emit('SOLID', { vertices: [p3(...tip), p3(...a), p3(...b), p3(...b)], layerId: noteLayerId })
+      emit('SOLID', { vertices: [p3(...tip), p3(...a), p3(...b), p3(...b)], layerId: roleIds.notes }, 'notes')
     }
   }
-  rectangle(input.sheetOrigin, input.sheetSize)
-  rectangle([input.sheetOrigin[0] + input.inset, input.sheetOrigin[1] + input.inset], [input.sheetSize[0] - input.inset * 2, input.sheetSize[1] - input.inset * 2])
+  const frameLine = (a: Point2, b: Point2) => line(a, b, roleIds.frame, 'frame')
+  const frameRectangle = (origin: Point2, size: Point2) => { const [x, y] = origin, [w, h] = size; frameLine([x, y], [x + w, y]); frameLine([x + w, y], [x + w, y + h]); frameLine([x + w, y + h], [x, y + h]); frameLine([x, y + h], [x, y]) }
+  frameRectangle(input.sheetOrigin, input.sheetSize)
+  frameRectangle([input.sheetOrigin[0] + input.inset, input.sheetOrigin[1] + input.inset], [input.sheetSize[0] - input.inset * 2, input.sheetSize[1] - input.inset * 2])
   if (input.titleGrid) {
     const grid = input.titleGrid, [x, y] = grid.origin, [w, h] = grid.size
-    line([x, y + h], [x + w, y + h])
-    for (const offset of grid.columns) line([x + offset, y], [x + offset, y + h])
-    for (const column of grid.partialColumns ?? []) line([x + column.offset, y], [x + column.offset, y + column.height])
+    line([x, y + h], [x + w, y + h], roleIds.grid)
+    for (const offset of grid.columns) line([x + offset, y], [x + offset, y + h], roleIds.grid)
+    for (const column of grid.partialColumns ?? []) line([x + column.offset, y], [x + column.offset, y + column.height], roleIds.grid)
     for (const row of grid.rows) {
       const spans = [0, ...(row.breaks ?? []), w]
-      for (let index = 0; index < spans.length - 1; index++) line([x + spans[index]!, y + row.offset], [x + spans[index + 1]!, y + row.offset])
+      for (let index = 0; index < spans.length - 1; index++) line([x + spans[index]!, y + row.offset], [x + spans[index + 1]!, y + row.offset], roleIds.grid)
     }
-    for (const segment of grid.horizontalSegments ?? []) line([x + segment.start, y + segment.offset], [x + segment.end, y + segment.offset])
-    for (const segment of grid.verticalSegments ?? []) line([x + segment.offset, y + segment.start], [x + segment.offset, y + segment.end])
-    if (grid.diagonalHeader) line([x, y + h], [x + grid.diagonalHeader.width, y + h - grid.diagonalHeader.drop])
+    for (const segment of grid.horizontalSegments ?? []) line([x + segment.start, y + segment.offset], [x + segment.end, y + segment.offset], roleIds.grid)
+    for (const segment of grid.verticalSegments ?? []) line([x + segment.offset, y + segment.start], [x + segment.offset, y + segment.end], roleIds.grid)
+    if (grid.diagonalHeader) line([x, y + h], [x + grid.diagonalHeader.width, y + h - grid.diagonalHeader.drop], roleIds.grid)
   }
-  if (input.xRange) line([input.xRange[0], cy], [input.xRange[1], cy], centerLayerId)
+  if (input.xRange) line([input.xRange[0], cy], [input.xRange[1], cy], roleIds.center, 'center')
   for (const profile of input.symmetricProfiles) {
     for (let index = 1; index < profile.vertices.length; index++) {
       const previous = profile.vertices[index - 1]!, current = profile.vertices[index]!
-      line([previous.station, cy + previous.radius], [current.station, cy + current.radius], geometryLayerId)
-      line([previous.station, cy - previous.radius], [current.station, cy - current.radius], geometryLayerId)
+      line([previous.station, cy + previous.radius], [current.station, cy + current.radius], roleIds.geometry, 'geometry')
+      line([previous.station, cy - previous.radius], [current.station, cy - current.radius], roleIds.geometry, 'geometry')
     }
     const start = profile.vertices[0]!, end = profile.vertices.at(-1)!
-    if (profile.endCaps === 'start' || profile.endCaps === 'both') line([start.station, cy - start.radius], [start.station, cy + start.radius], geometryLayerId)
-    if (profile.endCaps === 'end' || profile.endCaps === 'both') line([end.station, cy - end.radius], [end.station, cy + end.radius], geometryLayerId)
+    if (profile.endCaps === 'start' || profile.endCaps === 'both') line([start.station, cy - start.radius], [start.station, cy + start.radius], roleIds.geometry, 'geometry')
+    if (profile.endCaps === 'end' || profile.endCaps === 'both') line([end.station, cy - end.radius], [end.station, cy + end.radius], roleIds.geometry, 'geometry')
   }
   for (const segment of input.sideOutlineSegments) {
-    if (segment.kind === 'line') line([segment.start.station, cy + segment.start.offset], [segment.end.station, cy + segment.end.offset], geometryLayerId)
+    if (segment.kind === 'line') line([segment.start.station, cy + segment.start.offset], [segment.end.station, cy + segment.end.offset], roleIds.geometry, 'geometry')
     else if (segment.kind === 'arc') emit('ARC', { center: p3(segment.center.station, cy + segment.center.offset), radius: segment.radius,
-      startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: geometryLayerId })
-    else emit('CIRCLE', { center: p3(segment.center.station, cy + segment.center.offset), radius: segment.radius, layerId: geometryLayerId })
+      startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: roleIds.geometry }, 'geometry')
+    else emit('CIRCLE', { center: p3(segment.center.station, cy + segment.center.offset), radius: segment.radius, layerId: roleIds.geometry }, 'geometry')
   }
   for (const hatch of input.sectionHatches) emit('HATCH', { boundaryLoops: [{ external: false, flags: 0, edges: hatch.edges.map(edge => edge.kind === 'line'
     ? { type: 'LINE', start: p3(edge.start.station, cy + edge.start.offset), end: p3(edge.end.station, cy + edge.end.offset) }
@@ -458,28 +515,23 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       startAngle: edge.startAngle, endAngle: edge.endAngle, counterClockwise: edge.counterClockwise !== false }) }],
     patternName: 'ANSI31', solid: false, associative: false, patternAngle: 0, patternScale: 1,
     patternLines: [{ angle: hatch.lineAngle, base: hatch.patternOrigin, offset: [-Math.sin(hatch.lineAngle) * hatch.lineSpacing, Math.cos(hatch.lineAngle) * hatch.lineSpacing], dashes: [] }],
-    patternDefinitionAngle: 0, patternDefinitionScale: 1, layerId: geometryLayerId })
+    patternDefinitionAngle: 0, patternDefinitionScale: 1, layerId: roleIds.hatch }, 'hatch')
   for (const note of input.notes) emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
     position: p3(...note.position), text: note.text, height: note.height, rotation: note.rotation,
-    ...(note.width == null ? {} : { width: note.width }), layerId: noteLayerId,
-  })
+    ...(note.width == null ? {} : { width: note.width }), layerId: roleIds.notes,
+  }, 'notes')
   for (const dimension of input.dimensions) emit('DIMENSION', {
     dimensionType: dimension.kind.toUpperCase(), definitionPoints: dimension.definitionPoints.map(([x, y]) => p3(x, y)),
     ...(dimension.textPosition == null ? {} : { textPosition: p3(...dimension.textPosition) }),
-    textOverride: dimension.textOverride ?? null, rotation: dimension.rotation ?? 0, styleName: 'STANDARD', layerId: noteLayerId,
-  })
+    textOverride: dimension.textOverride ?? null, rotation: dimension.rotation ?? 0, styleName: 'STANDARD', layerId: roleIds.dimensions,
+  }, 'dimensions')
   for (const leader of input.leaders) emit('LEADER', { vertices: leader.vertices.map(([x, y]) => p3(x, y)), annotationId: null, ownsAnnotation: false,
     arrowEnabled: leader.arrowEnabled !== false, pathType: leader.pathType ?? 0, annotationType: leader.annotationType ?? 3,
-    hookLineDirection: leader.hookLineDirection ?? 0, hookLineEnabled: leader.hookLineEnabled === true, layerId: noteLayerId })
+    hookLineDirection: leader.hookLineDirection ?? 0, hookLineEnabled: leader.hookLineEnabled === true, layerId: roleIds.notes }, 'notes')
   return {
     commandArgs: { entities, resources: {
-      linetypes: [{ id: linetypeId, name: `${prefix}_CONT`, pattern: [] }],
-      layers: [
-        { id: geometryLayerId, name: 'FLANGE_GEOMETRY', color: 7, linetypeId, lineweight: 35 },
-        { id: sheetLayerId, name: 'FLANGE_SHEET', color: 7, linetypeId, lineweight: 18 },
-        { id: centerLayerId, name: 'FLANGE_CENTER', color: 7, linetypeId, lineweight: 18 },
-        { id: noteLayerId, name: 'FLANGE_NOTES', color: 7, linetypeId, lineweight: 18 },
-      ],
+      linetypes,
+      layers,
     } },
     evidence: { knowledgePackId: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.id,
       knowledgePackVersion: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version,

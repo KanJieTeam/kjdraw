@@ -150,3 +150,31 @@ test('source-relative cut faces compile into native patterned hatches with bound
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
     sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...face, edges: [{ ...face.edges[0], start: { station: 185, offset: 10 } }, ...face.edges.slice(1)] }] } }), /must be finite/u)
 })
+
+test('caller-supplied semantic style roles preserve effective CAD display facts without private catalogues', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const proposal = buildAgentMechanicalFlangeCore(document, {
+    ...input(document.revision),
+    styleProfile: {
+      geometry: { layerName: 'MODEL_GEOMETRY', color: 7, lineweight: 35, linetypeName: 'CONTINUOUS', linetypePattern: [] },
+      hatch: { layerName: 'MODEL_HATCH', color: 7, lineweight: 18, linetypeName: 'CONTINUOUS', linetypePattern: [] },
+      frame: { layerName: 'SHEET_FRAME', color: 7, lineweight: 25, linetypeName: 'CONTINUOUS', linetypePattern: [] },
+      grid: { layerName: 'SHEET_GRID', color: 7, lineweight: 18, linetypeName: 'CONTINUOUS', linetypePattern: [] },
+      center: { layerName: 'CENTERLINES', color: 3, lineweight: 18, linetypeName: 'CENTER', linetypePattern: [8, -1, 1, -1] },
+      notes: { layerName: 'ANNOTATION', color: 7, lineweight: 18, linetypeName: 'CONTINUOUS', linetypePattern: [] },
+      dimensions: { layerName: 'DIMENSIONS', color: 2, lineweight: 18, linetypeName: 'CONTINUOUS', linetypePattern: [] },
+    },
+  })
+  const circle = proposal.commandArgs.entities.find(entity => entity.type === 'CIRCLE')
+  assert.equal(circle.payload.color, 7)
+  assert.equal(circle.payload.lineweight, 35)
+  assert.equal(circle.payload.linetypeName, 'CONTINUOUS')
+  assert.ok(proposal.commandArgs.resources.linetypes.filter(item => item.name === 'CONTINUOUS').length <= 1)
+  assert.equal(proposal.commandArgs.resources.layers.some(item => item.name === 'MODEL_GEOMETRY'), true)
+  assert.equal(JSON.stringify(proposal).includes('privateCatalog'), false)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const reopened = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  const reopenedCircle = reopened.listEntities({ type: 'CIRCLE' }).find(entity => entity.payload.radius === 12)
+  assert.equal(reopenedCircle.payload.color, 7)
+  assert.equal(reopenedCircle.payload.lineweight, 35)
+})

@@ -15,6 +15,13 @@ interface Document {
             units?: string;
         };
     };
+    getTable?: (name: string) => {
+        records: {
+            id: string;
+            name?: string;
+            payload?: Record<string, unknown>;
+        }[];
+    } | undefined;
 }
 export interface KJFlangeTitleGrid {
     origin: Point2;
@@ -117,6 +124,25 @@ export interface KJFlangeSectionHatch {
     lineSpacing: number;
     patternOrigin?: Point2;
 }
+/** Drawing-style roles are caller-supplied facts. The compiler never embeds
+ * a source application's layer or style catalogue; a caller may map its
+ * local roles to these generic roles for faithful output. */
+export interface KJFlangeStyleRole {
+    layerName?: string;
+    color?: number;
+    lineweight?: number;
+    linetypeName?: string;
+    linetypePattern?: number[];
+}
+export interface KJFlangeStyleProfile {
+    frame?: KJFlangeStyleRole;
+    grid?: KJFlangeStyleRole;
+    geometry?: KJFlangeStyleRole;
+    center?: KJFlangeStyleRole;
+    notes?: KJFlangeStyleRole;
+    dimensions?: KJFlangeStyleRole;
+    hatch?: KJFlangeStyleRole;
+}
 /** Source-supplied visible sheet text. Content remains input data and is not
  *  retained by the reusable knowledge pack. */
 export interface KJFlangeSheetNote {
@@ -196,6 +222,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
     };
     dimensions?: KJFlangeDimension[];
     leaders?: KJFlangeLeader[];
+    styleProfile?: KJFlangeStyleProfile;
     sheet: {
         origin: Point2;
         size: Point2;
@@ -212,7 +239,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             linetypes: {
                 id: string;
                 name: string;
-                pattern: never[];
+                pattern: number[];
             }[];
             layers: {
                 id: string;
