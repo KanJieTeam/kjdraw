@@ -6,7 +6,7 @@ import { stableHash } from './utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
 type Point2 = [number, number]
 type Point3 = [number, number, number]
-type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'TEXT' | 'MTEXT' | 'DIMENSION'; payload: Record<string, unknown>; options: { id: string } }
+type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'SOLID' | 'TEXT' | 'MTEXT' | 'DIMENSION'; payload: Record<string, unknown>; options: { id: string } }
 interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } } }
 
 export interface KJFlangeTitleGrid {
@@ -39,6 +39,7 @@ export interface KJFlangeSymmetricProfile {
 export type KJFlangeSideViewOutlineSegment =
   | { kind: 'line'; start: { station: number; offset: number }; end: { station: number; offset: number } }
   | { kind: 'arc'; center: { station: number; offset: number }; radius: number; startAngle: number; endAngle: number }
+  | { kind: 'circle'; center: { station: number; offset: number }; radius: number }
 
 /** Source-supplied visible sheet text. Content remains input data and is not
  *  retained by the reusable knowledge pack. */
@@ -66,6 +67,7 @@ export interface KJFlangeDimension {
 export type KJFlangeEndViewOutlineSegment =
   | { kind: 'line'; startOffset: Point2; endOffset: Point2 }
   | { kind: 'arc'; centerOffset: Point2; radius: number; startAngle: number; endAngle: number }
+  | { kind: 'circle'; centerOffset: Point2; radius: number }
 
 /** A source-positioned cutting-plane mark, relative to the end-view center.
  *  The stem and tick vectors retain the drafting direction of each mark. */
@@ -73,6 +75,7 @@ export interface KJFlangeCuttingPlaneMark {
   anchorOffset: Point2
   stemVector: Point2
   tickVector: Point2
+  arrowhead?: { length: number; width: number }
 }
 
 export interface KJAgentMechanicalFlangeCoreInput {
@@ -145,18 +148,25 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       if (startAngle === endAngle) throw new KJValidationError(`input.endView.outlineSegments[${index}] arc sweep must not be zero`)
       return { kind: 'arc', centerOffset, radius: arcRadius, startAngle, endAngle }
     }
+    if (segment.kind === 'circle') {
+      exact(segment, ['kind', 'centerOffset', 'radius'], `input.endView.outlineSegments[${index}]`)
+      return { kind: 'circle', centerOffset: point(segment.centerOffset, `input.endView.outlineSegments[${index}].centerOffset`),
+        radius: finite(segment.radius, `input.endView.outlineSegments[${index}].radius`, 0.1, 100_000) }
+    }
     throw new KJValidationError(`input.endView.outlineSegments[${index}].kind is invalid`)
   })
   if (end.cuttingPlaneMarks != null && !Array.isArray(end.cuttingPlaneMarks)) throw new KJValidationError('input.endView.cuttingPlaneMarks must be an array')
   if ((end.cuttingPlaneMarks as unknown[] | undefined)?.length && (end.cuttingPlaneMarks as unknown[]).length > 16) throw new KJValidationError('input.endView.cuttingPlaneMarks exceed their budget')
   const cuttingPlaneMarks: KJFlangeCuttingPlaneMark[] = ((end.cuttingPlaneMarks ?? []) as unknown[]).map((value, index) => {
     const mark = plain(value, `input.endView.cuttingPlaneMarks[${index}]`)
-    exact(mark, ['anchorOffset', 'stemVector', 'tickVector'], `input.endView.cuttingPlaneMarks[${index}]`)
+    exact(mark, ['anchorOffset', 'stemVector', 'tickVector', 'arrowhead'], `input.endView.cuttingPlaneMarks[${index}]`)
     const anchorOffset = point(mark.anchorOffset, `input.endView.cuttingPlaneMarks[${index}].anchorOffset`)
     const stemVector = point(mark.stemVector, `input.endView.cuttingPlaneMarks[${index}].stemVector`)
     const tickVector = point(mark.tickVector, `input.endView.cuttingPlaneMarks[${index}].tickVector`)
     if (stemVector[0] === 0 && stemVector[1] === 0 || tickVector[0] === 0 && tickVector[1] === 0) throw new KJValidationError(`input.endView.cuttingPlaneMarks[${index}] vectors must not have zero length`)
-    return { anchorOffset, stemVector, tickVector }
+    const arrow = mark.arrowhead == null ? null : plain(mark.arrowhead, `input.endView.cuttingPlaneMarks[${index}].arrowhead`)
+    if (arrow) exact(arrow, ['length', 'width'], `input.endView.cuttingPlaneMarks[${index}].arrowhead`)
+    return { anchorOffset, stemVector, tickVector, ...(arrow ? { arrowhead: { length: finite(arrow.length, `input.endView.cuttingPlaneMarks[${index}].arrowhead.length`, 0.1, 100_000), width: finite(arrow.width, `input.endView.cuttingPlaneMarks[${index}].arrowhead.width`, 0.1, 100_000) } } : {}) }
   })
   const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis')
   if (side) exact(side, ['xRange', 'symmetricProfiles', 'outlineSegments'], 'input.sideViewAxis')
@@ -208,6 +218,11 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       const endAngle = finite(segment.endAngle, `input.sideViewAxis.outlineSegments[${index}].endAngle`, -Math.PI * 4, Math.PI * 4)
       if (startAngle === endAngle) throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}] arc sweep must not be zero`)
       return { kind: 'arc', center: arcCenter, radius: arcRadius, startAngle, endAngle }
+    }
+    if (segment.kind === 'circle') {
+      exact(segment, ['kind', 'center', 'radius'], `input.sideViewAxis.outlineSegments[${index}]`)
+      return { kind: 'circle', center: stationOffset(segment.center, `input.sideViewAxis.outlineSegments[${index}].center`),
+        radius: finite(segment.radius, `input.sideViewAxis.outlineSegments[${index}].radius`, 0.1, 100_000) }
     }
     throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}].kind is invalid`)
   })
@@ -317,13 +332,23 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   for (const dx of [-1, 1]) for (const dy of [-1, 1]) emit('CIRCLE', { center: p3(cx + dx * halfPitch, cy + dy * halfPitch), radius: input.radius, layerId: geometryLayerId })
   for (const segment of input.outlineSegments) {
     if (segment.kind === 'line') line([cx + segment.startOffset[0], cy + segment.startOffset[1]], [cx + segment.endOffset[0], cy + segment.endOffset[1]], geometryLayerId)
-    else emit('ARC', { center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]), radius: segment.radius,
+    else if (segment.kind === 'arc') emit('ARC', { center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]), radius: segment.radius,
       startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: geometryLayerId })
+    else emit('CIRCLE', { center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]), radius: segment.radius, layerId: geometryLayerId })
   }
   for (const mark of input.cuttingPlaneMarks) {
     const anchor: Point2 = [cx + mark.anchorOffset[0], cy + mark.anchorOffset[1]]
     line(anchor, [anchor[0] + mark.stemVector[0], anchor[1] + mark.stemVector[1]], noteLayerId)
     line(anchor, [anchor[0] + mark.tickVector[0], anchor[1] + mark.tickVector[1]], noteLayerId)
+    if (mark.arrowhead) {
+      const tip: Point2 = [anchor[0] + mark.tickVector[0], anchor[1] + mark.tickVector[1]], norm = Math.hypot(mark.tickVector[0], mark.tickVector[1])
+      const unit: Point2 = [mark.tickVector[0] / norm, mark.tickVector[1] / norm], perpendicular: Point2 = [-unit[1], unit[0]]
+      const base: Point2 = [tip[0] - unit[0] * mark.arrowhead.length, tip[1] - unit[1] * mark.arrowhead.length]
+      const half = mark.arrowhead.width / 2
+      const a: Point2 = [base[0] + perpendicular[0] * half, base[1] + perpendicular[1] * half]
+      const b: Point2 = [base[0] - perpendicular[0] * half, base[1] - perpendicular[1] * half]
+      emit('SOLID', { vertices: [p3(...tip), p3(...a), p3(...b), p3(...b)], layerId: noteLayerId })
+    }
   }
   rectangle(input.sheetOrigin, input.sheetSize)
   rectangle([input.sheetOrigin[0] + input.inset, input.sheetOrigin[1] + input.inset], [input.sheetSize[0] - input.inset * 2, input.sheetSize[1] - input.inset * 2])
@@ -353,8 +378,9 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   }
   for (const segment of input.sideOutlineSegments) {
     if (segment.kind === 'line') line([segment.start.station, cy + segment.start.offset], [segment.end.station, cy + segment.end.offset], geometryLayerId)
-    else emit('ARC', { center: p3(segment.center.station, cy + segment.center.offset), radius: segment.radius,
+    else if (segment.kind === 'arc') emit('ARC', { center: p3(segment.center.station, cy + segment.center.offset), radius: segment.radius,
       startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: geometryLayerId })
+    else emit('CIRCLE', { center: p3(segment.center.station, cy + segment.center.offset), radius: segment.radius, layerId: geometryLayerId })
   }
   for (const note of input.notes) emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
     position: p3(...note.position), text: note.text, height: note.height, rotation: note.rotation,

@@ -109,6 +109,18 @@ function validate(document, source) {
                 endAngle
             };
         }
+        if (segment.kind === 'circle') {
+            exact(segment, [
+                'kind',
+                'centerOffset',
+                'radius'
+            ], `input.endView.outlineSegments[${index}]`);
+            return {
+                kind: 'circle',
+                centerOffset: point(segment.centerOffset, `input.endView.outlineSegments[${index}].centerOffset`),
+                radius: finite(segment.radius, `input.endView.outlineSegments[${index}].radius`, 0.1, 100_000)
+            };
+        }
         throw new KJValidationError(`input.endView.outlineSegments[${index}].kind is invalid`);
     });
     if (end.cuttingPlaneMarks != null && !Array.isArray(end.cuttingPlaneMarks)) throw new KJValidationError('input.endView.cuttingPlaneMarks must be an array');
@@ -118,16 +130,28 @@ function validate(document, source) {
         exact(mark, [
             'anchorOffset',
             'stemVector',
-            'tickVector'
+            'tickVector',
+            'arrowhead'
         ], `input.endView.cuttingPlaneMarks[${index}]`);
         const anchorOffset = point(mark.anchorOffset, `input.endView.cuttingPlaneMarks[${index}].anchorOffset`);
         const stemVector = point(mark.stemVector, `input.endView.cuttingPlaneMarks[${index}].stemVector`);
         const tickVector = point(mark.tickVector, `input.endView.cuttingPlaneMarks[${index}].tickVector`);
         if (stemVector[0] === 0 && stemVector[1] === 0 || tickVector[0] === 0 && tickVector[1] === 0) throw new KJValidationError(`input.endView.cuttingPlaneMarks[${index}] vectors must not have zero length`);
+        const arrow = mark.arrowhead == null ? null : plain(mark.arrowhead, `input.endView.cuttingPlaneMarks[${index}].arrowhead`);
+        if (arrow) exact(arrow, [
+            'length',
+            'width'
+        ], `input.endView.cuttingPlaneMarks[${index}].arrowhead`);
         return {
             anchorOffset,
             stemVector,
-            tickVector
+            tickVector,
+            ...arrow ? {
+                arrowhead: {
+                    length: finite(arrow.length, `input.endView.cuttingPlaneMarks[${index}].arrowhead.length`, 0.1, 100_000),
+                    width: finite(arrow.width, `input.endView.cuttingPlaneMarks[${index}].arrowhead.width`, 0.1, 100_000)
+                }
+            } : {}
         };
     });
     const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis');
@@ -226,6 +250,18 @@ function validate(document, source) {
                 radius: arcRadius,
                 startAngle,
                 endAngle
+            };
+        }
+        if (segment.kind === 'circle') {
+            exact(segment, [
+                'kind',
+                'center',
+                'radius'
+            ], `input.sideViewAxis.outlineSegments[${index}]`);
+            return {
+                kind: 'circle',
+                center: stationOffset(segment.center, `input.sideViewAxis.outlineSegments[${index}].center`),
+                radius: finite(segment.radius, `input.sideViewAxis.outlineSegments[${index}].radius`, 0.1, 100_000)
             };
         }
         throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}].kind is invalid`);
@@ -519,11 +555,16 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             cx + segment.endOffset[0],
             cy + segment.endOffset[1]
         ], geometryLayerId);
-        else emit('ARC', {
+        else if (segment.kind === 'arc') emit('ARC', {
             center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]),
             radius: segment.radius,
             startAngle: segment.startAngle,
             endAngle: segment.endAngle,
+            layerId: geometryLayerId
+        });
+        else emit('CIRCLE', {
+            center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]),
+            radius: segment.radius,
             layerId: geometryLayerId
         });
     }
@@ -540,6 +581,41 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             anchor[0] + mark.tickVector[0],
             anchor[1] + mark.tickVector[1]
         ], noteLayerId);
+        if (mark.arrowhead) {
+            const tip = [
+                anchor[0] + mark.tickVector[0],
+                anchor[1] + mark.tickVector[1]
+            ], norm = Math.hypot(mark.tickVector[0], mark.tickVector[1]);
+            const unit = [
+                mark.tickVector[0] / norm,
+                mark.tickVector[1] / norm
+            ], perpendicular = [
+                -unit[1],
+                unit[0]
+            ];
+            const base = [
+                tip[0] - unit[0] * mark.arrowhead.length,
+                tip[1] - unit[1] * mark.arrowhead.length
+            ];
+            const half = mark.arrowhead.width / 2;
+            const a = [
+                base[0] + perpendicular[0] * half,
+                base[1] + perpendicular[1] * half
+            ];
+            const b = [
+                base[0] - perpendicular[0] * half,
+                base[1] - perpendicular[1] * half
+            ];
+            emit('SOLID', {
+                vertices: [
+                    p3(...tip),
+                    p3(...a),
+                    p3(...b),
+                    p3(...b)
+                ],
+                layerId: noteLayerId
+            });
+        }
     }
     rectangle(input.sheetOrigin, input.sheetSize);
     rectangle([
@@ -657,11 +733,16 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             segment.end.station,
             cy + segment.end.offset
         ], geometryLayerId);
-        else emit('ARC', {
+        else if (segment.kind === 'arc') emit('ARC', {
             center: p3(segment.center.station, cy + segment.center.offset),
             radius: segment.radius,
             startAngle: segment.startAngle,
             endAngle: segment.endAngle,
+            layerId: geometryLayerId
+        });
+        else emit('CIRCLE', {
+            center: p3(segment.center.station, cy + segment.center.offset),
+            radius: segment.radius,
             layerId: geometryLayerId
         });
     }

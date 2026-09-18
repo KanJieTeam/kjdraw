@@ -4,7 +4,7 @@ import { stableHash } from '../utils.js';
 export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePack({
     schema: 'kjdraw.knowledge-pack.v1',
     id: 'mechanical-flange-core',
-    version: '1.7.0',
+    version: '1.10.0',
     title: 'Parameterized flange orthographic-view and sheet-grid rules',
     domain: 'mechanical-manufacturing',
     license: {
@@ -17,7 +17,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
             id: 'kjdraw-authored-flange-rules-v1',
             title: 'KJDraw authored flange geometry and layout rules',
             license: 'MIT',
-            contentHash: stableHash('flange-views:concentric-rings:square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:side-axis:symmetric-meridian-profile:source-measured-side-outlines:native-derived-dimensions:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:v1.7')
+            contentHash: stableHash('flange-views:concentric-rings:square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:auxiliary-circles:native-derived-dimensions:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:v1.10')
         }
     ],
     ontology: {
@@ -44,9 +44,9 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
         ]
     },
     rules: {
-        endView: 'concentric rings, a four-corner square mounting-hole array and optional source-measured line or arc outlines relative to the view center',
-        sectionMarks: 'bounded source-positioned cutting-plane stems and ticks relative to the end-view center',
-        sideView: 'axis plus optional mirrored meridian profiles and source-measured line or arc outlines relative to that axis; repeated stations encode shoulders',
+        endView: 'concentric rings, a four-corner square mounting-hole array and optional source-measured line, arc or circle outlines relative to the view center',
+        sectionMarks: 'bounded source-positioned cutting-plane stems, ticks and optional native arrowheads relative to the end-view center',
+        sideView: 'axis plus optional mirrored meridian profiles and source-measured line, arc or circle outlines relative to that axis; repeated stations encode shoulders',
         sheet: 'outer frame, inset frame and optional bounded semantic title-grid with full or locally segmented rules',
         notes: 'bounded source-supplied sheet labels and technical notes; visible content is never embedded in this pack',
         dimensions: 'native dimensions derive measurements from bounded definition points and never trust supplied measurement values',
