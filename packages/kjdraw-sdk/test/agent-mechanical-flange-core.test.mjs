@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 
 import { buildAgentMechanicalFlangeCore, createKJDrawSDK, KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK } from '../src/index.js'
 
@@ -27,7 +28,7 @@ test('flange knowledge pack and compiler are source-neutral and deterministic', 
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'LINE').length, 18)
 })
 
-test('all ring, hole, projection-axis and grid positions respond to parameters', async () => {
+test('all ring, hole, projection-axis and grid positions respond to parameters', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const proposal = buildAgentMechanicalFlangeCore(document, input(document.revision))
   const entities = proposal.commandArgs.entities
@@ -38,9 +39,21 @@ test('all ring, hole, projection-axis and grid positions respond to parameters',
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
   assert.equal(document.listEntities().length, 25)
   const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
-  const dxf = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
   assert.equal(kjd.listEntities().length, 25)
   assert.equal(dxf.listEntities().filter(e => e.type === 'CIRCLE').length, 7)
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(m.query("CIRCLE")),"lines":len(m.query("LINE"))}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
+    PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, circles: 7, lines: 18 })
+  }
 })
 
 test('flange compiler rejects unsupported source injection and impossible geometry', () => {
