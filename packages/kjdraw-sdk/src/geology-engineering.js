@@ -98,9 +98,7 @@ const requiredFieldRoles = [
     'thickness',
     'depth',
     'pattern',
-    'description',
-    'sample',
-    'spt'
+    'description'
 ];
 const defaultColumnVerticalScales = Object.freeze([
     50,
@@ -200,6 +198,7 @@ function geologyLocale(input) {
 }
 function columnLayout(input) {
     if (!input.columnStylePack) {
+        if (input.strictSourceTemplate) throw new KJValidationError('Geology: strict source template needs a source-backed style pack');
         if (geologyLocale(input) === 'zh-CN' && input.pageHeightMillimeters == null) return columnLayout({
             ...input,
             columnStylePack: KJDRAW_GEOLOGY_KNOWLEDGE_PACK
@@ -259,7 +258,8 @@ function columnLayout(input) {
             'layerNumberStyle',
             'titleHeight',
             'textFlow',
-            'verticalScaleDenominators'
+            'verticalScaleDenominators',
+            'sourceTemplate'
         ].includes(key)) || expectedKeys.some((key)=>!keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns');
     const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height');
     const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height');
@@ -382,7 +382,7 @@ function columnLayout(input) {
     }
     let fieldGrid;
     if (isFieldGrid) {
-        if (!Array.isArray(value.fieldGrid) || value.fieldGrid.length < 9 || value.fieldGrid.length > 24) throw new KJValidationError('Geology: field grid needs 9–24 declared physical columns');
+        if (!Array.isArray(value.fieldGrid) || value.fieldGrid.length < 7 || value.fieldGrid.length > 24) throw new KJValidationError('Geology: field grid needs 7–24 declared physical columns');
         const roles = new Set(), measurementKeys = new Set();
         fieldGrid = value.fieldGrid.map((raw, index)=>{
             if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError('Geology: field grid column must be a declared object');
@@ -426,7 +426,6 @@ function columnLayout(input) {
             const width = (fieldGrid[index + 1]?.start ?? right) - field.start;
             const minimum = field.role === 'description' ? 35 : field.role === 'layerName' ? 15 : field.role === 'measurement' ? 7.5 : [
                 'spt',
-                'sample',
                 'pattern'
             ].includes(field.role) ? 12 : 10;
             if (width < minimum || field.start < left || field.start >= right) throw new KJValidationError(`Geology: field ${field.role} is out of bounds or unreadable`);
@@ -493,6 +492,34 @@ function columnLayout(input) {
     const layerNumberStyle = value.layerNumberStyle == null ? 'plain' : value.layerNumberStyle;
     if (layerNumberStyle !== 'plain' && layerNumberStyle !== 'circle') throw new KJValidationError('Geology: layer number style must be plain or circle');
     if (footerGrid && legendMode !== 'none') throw new KJValidationError('Geology: a title block cannot overlap the footer legend');
+    let sourceTemplate;
+    if (input.strictSourceTemplate && value.sourceTemplate == null) throw new KJValidationError('Geology: strict source template needs native vector evidence');
+    if (value.sourceTemplate != null) {
+        const raw = value.sourceTemplate;
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError('Geology: source template evidence must be a declared object');
+        const evidence = raw;
+        if (Object.keys(evidence).sort().join(',') !== 'fieldRoles,footerLabels,gridLineHandles,innerGridWidthMillimeters,sourceId,verticalScaleDenominator') throw new KJValidationError('Geology: source template evidence has an unknown or missing field');
+        const sourceId = bounded(evidence.sourceId, 'source template ID', 64);
+        const source = pack.sources.find((item)=>item.id === sourceId);
+        if (!source || !/^[a-f0-9]{64}$/u.test(source.contentHash)) throw new KJValidationError('Geology: source template needs a SHA-256 pack source');
+        const sourceScale = numeric(evidence.verticalScaleDenominator, 'source template vertical scale');
+        const sourceWidth = numeric(evidence.innerGridWidthMillimeters, 'source template inner grid width');
+        if (!Number.isSafeInteger(sourceScale) || sourceScale < 10 || sourceScale > 100000 || Math.abs(sourceWidth - (right - left)) > 0.1) throw new KJValidationError('Geology: source template scale or vector grid width differs from the declared layout');
+        const actualRoles = fieldGrid?.map((item)=>item.role === 'measurement' ? `measurement:${item.key}` : item.role);
+        if (!actualRoles || !Array.isArray(evidence.fieldRoles) || evidence.fieldRoles.length !== actualRoles.length || evidence.fieldRoles.some((role, index)=>role !== actualRoles[index])) throw new KJValidationError('Geology: physical field roles differ from the source template');
+        const actualFooterLabels = footerGrid?.cells.map((cell)=>cell.label) ?? [];
+        if (!Array.isArray(evidence.footerLabels) || evidence.footerLabels.length !== actualFooterLabels.length || evidence.footerLabels.some((label, index)=>label !== actualFooterLabels[index])) throw new KJValidationError('Geology: footer labels differ from the source template');
+        if (!Array.isArray(evidence.gridLineHandles) || evidence.gridLineHandles.length < 2 || evidence.gridLineHandles.length > 256 || evidence.gridLineHandles.some((handle)=>typeof handle !== 'string' || !/^[A-Fa-f0-9]{1,16}$/u.test(handle))) throw new KJValidationError('Geology: source template needs bounded native grid line handles');
+        sourceTemplate = {
+            sourceId,
+            sourceSha256: source.contentHash,
+            verticalScaleDenominator: sourceScale,
+            innerGridWidthMillimeters: sourceWidth,
+            fieldRoles: actualRoles,
+            footerLabels: actualFooterLabels,
+            gridLineHandles: evidence.gridLineHandles
+        };
+    }
     return {
         paperWidth,
         paperHeight,
@@ -528,6 +555,9 @@ function columnLayout(input) {
         } : {},
         ...textFlow ? {
             textFlow
+        } : {},
+        ...sourceTemplate ? {
+            sourceTemplate
         } : {}
     };
 }
@@ -860,7 +890,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
 export function compileGeologyColumn(input) {
     const { hole } = input, strata = checkHole(hole);
     const layout = columnLayout(input);
-    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, layerNumberStyle } = layout;
+    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, layerNumberStyle, sourceTemplate } = layout;
     const documentFacts = documentFactRecord(input.documentFacts);
     const declaredDocumentFactKeys = new Set([
         ...headerGrid?.rows.flat().filter((cell)=>cell.role === 'documentFact').map((cell)=>cell.key) ?? [],
@@ -880,6 +910,7 @@ export function compileGeologyColumn(input) {
     const automaticScale = input.verticalScaleDenominator == null ? layout.verticalScaleDenominators.find((denominator)=>hole.depth * 1000 / denominator <= availableBodyHeight + 1e-9) : undefined;
     if (input.verticalScaleDenominator == null && automaticScale == null) throw new KJValidationError('Geology: no declared standard vertical scale fits the borehole on this sheet');
     const verticalScaleDenominator = positive(input.verticalScaleDenominator ?? automaticScale, 'vertical scale denominator');
+    if (input.strictSourceTemplate && (input.verticalScaleDenominator == null || !sourceTemplate || verticalScaleDenominator !== sourceTemplate.verticalScaleDenominator)) throw new KJValidationError('Geology: explicit vertical scale differs from the source template');
     const scale = 1000 / verticalScaleDenominator;
     const bottom = top - hole.depth * scale;
     if (scale < 0.1 || scale > 100 || bottom < footerReserve) throw new KJValidationError('Geology: column does not fit the declared physical sheet at this vertical scale');
@@ -887,10 +918,15 @@ export function compileGeologyColumn(input) {
     const finishColumn = ()=>g.finish({
             verticalScaleDenominator,
             verticalScaleSource: input.verticalScaleDenominator == null ? 'style-standard' : 'explicit',
+            ...sourceTemplate ? {
+                sourceTemplateSha256: sourceTemplate.sourceSha256,
+                sourceGridWidthMillimeters: sourceTemplate.innerGridWidthMillimeters
+            } : {},
             stratumCount: strata.length,
             lithologyCount: new Set(strata.map((layer)=>layer.patternKey ?? layer.lithology)).size
         });
     const observations = hole.observations ?? [];
+    if (input.strictSourceTemplate && fieldGrid && observations.some((item)=>item.kind === 'sample' && !gridField('sample') || item.kind === 'spt' && !gridField('spt'))) throw new KJValidationError('Geology: source template has no physical field for supplied observations');
     if (observations.length && strata.some((layer)=>layer.description) && !observationColumns && !fieldGrid) throw new KJValidationError('Geology: supplied descriptions and depth-aligned observations need separate declared columns');
     if (observations.length && !observationColumns && !fieldGrid && right - descriptionX < 42) throw new KJValidationError('Geology: style observation columns must have at least 42 mm total width');
     const sampleX = gridField('sample')?.start ?? observationColumns?.[0] ?? descriptionX;

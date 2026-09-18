@@ -60,6 +60,8 @@ export interface KJGeologyColumnInput {
     pageHeightMillimeters?: 297 | 841;
     /** Host-selected, versioned physical table geometry; independent of model text. */
     columnStylePack?: ReadonlyDeep<KJKnowledgePack>;
+    /** Refuse a source-template mismatch or an unrenderable observation kind. This is a template gate, not 1:1 certification. */
+    strictSourceTemplate?: boolean;
     /** Optional licensed, versioned pattern knowledge; no purchased pattern is built into KJDraw. */
     hatchPack?: ReadonlyDeep<KJKnowledgePack>;
     expectedRevision: number;

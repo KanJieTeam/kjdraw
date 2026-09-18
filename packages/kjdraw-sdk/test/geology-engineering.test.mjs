@@ -492,6 +492,61 @@ test('a versioned fourteen-field grid charts direct sample measurements without 
   assert.throws(() => compileGeologyColumn(overlap), /intervals overlap/)
 })
 
+test('source-backed physical grids omit absent SPT lanes and strict mode rejects unrenderable observations', async () => {
+  const fieldGrid = [
+    { start: 26, role: 'layerNumber', label: 'No' }, { start: 36, role: 'layerName', label: 'Name' },
+    { start: 54, role: 'baseElevation', label: 'Base' }, { start: 66, role: 'thickness', label: 'Thick' },
+    { start: 76, role: 'depth', label: 'Depth' }, { start: 86, role: 'pattern', label: 'Pattern' },
+    { start: 106, role: 'description', label: 'Description' }, { start: 166, role: 'sample', label: 'Sample' },
+    { start: 176, role: 'measurement', key: 'collapseCoefficient', label: 'Collapse' },
+    { start: 186, role: 'measurement', key: 'compressionCoefficient', label: 'Compress' },
+  ]
+  const footerGrid = { height: 8, cells: [
+    { start: 26, key: 'drawnBy', label: 'Drawn' }, { start: 86, key: 'reviewedBy', label: 'Reviewed' },
+    { start: 146, key: 'drawingDate', label: 'Date' },
+  ] }
+  const sourceSha256 = crypto.createHash('sha256').update('synthetic-native-dwg-vector-evidence').digest('hex')
+  const rule = { paperWidth: 210, paperHeight: 340, left: 26, right: 196, fieldGrid, footerGrid,
+    footerReserve: 30, legendMode: 'none', sourceTemplate: {
+      sourceId: 'synthetic-native-dwg', innerGridWidthMillimeters: 170, verticalScaleDenominator: 200,
+      fieldRoles: fieldGrid.map(field => field.role === 'measurement' ? `measurement:${field.key}` : field.role),
+      footerLabels: footerGrid.cells.map(cell => cell.label), gridLineHandles: ['A1', 'A2'],
+    } }
+  const style = validateKnowledgePack({ schema: 'kjdraw.knowledge-pack.v1', id: 'source-vector-grid-test', version: '1.0.0',
+    title: 'Synthetic native vector source contract', domain: 'geology',
+    license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
+    sources: [{ id: 'synthetic-native-dwg', title: 'Synthetic vector grid', license: 'MIT', contentHash: sourceSha256 }],
+    ontology: { objectKinds: ['borehole-log'], relationKinds: [] }, rules: { 'geology-column-layout': rule } })
+  const source = hole('SOURCE-1', 0, 1111.04, [10, 20, 30])
+  source.observations = [{ kind: 'sample', id: 'R1', depth: 5,
+    measurements: { collapseCoefficient: 0.123, compressionCoefficient: 0.234 } }]
+  const input = { hole: source, verticalScaleDenominator: 200, expectedRevision: 0,
+    columnStylePack: style, strictSourceTemplate: true }
+  const compiled = compileGeologyColumn(input)
+  assert.equal(compiled.evidence.parameters.sourceGridWidthMillimeters, 170)
+  assert.equal(compiled.evidence.parameters.sourceTemplateSha256, sourceSha256)
+  const visible = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  assert.ok(visible.includes('0.12') && visible.includes('0.23'))
+  assert.ok(!visible.some(value => value.includes('SPT') || value.includes('N=')))
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
+  const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const reopened = await sdk.readDocument(dxf, { format: 'DXF', version: '2018' })
+  assert.equal(reopened.listEntities().length, compiled.evidence.entityCount)
+  const withSpt = structuredClone(input)
+  withSpt.hole.observations.push({ kind: 'spt', id: 'P1', depth: 15, value: 9 })
+  assert.throws(() => compileGeologyColumn(withSpt), /no physical field for supplied observations/)
+  const wrongScale = structuredClone(input)
+  wrongScale.verticalScaleDenominator = 250
+  assert.throws(() => compileGeologyColumn(wrongScale), /vertical scale differs from the source template/)
+  const wrongWidth = structuredClone(input)
+  wrongWidth.columnStylePack.rules['geology-column-layout'].right = 195
+  assert.throws(() => compileGeologyColumn(wrongWidth), /vector grid width differs/)
+  const missingSptEvidence = structuredClone(input)
+  delete missingSptEvidence.columnStylePack.rules['geology-column-layout'].sourceTemplate
+  assert.throws(() => compileGeologyColumn(missingSptEvidence), /needs native vector evidence/)
+})
+
 test('a declared text lane borrows space for a sourced thin first group without moving depth or hatch boundaries', async () => {
   const grid = [
     { start: 5, role: 'layerNumber', label: 'No' }, { start: 20, role: 'layerName', label: 'Name' },
