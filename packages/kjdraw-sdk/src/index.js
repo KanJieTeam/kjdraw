@@ -5,6 +5,7 @@ export * from './component-library.js';
 export * from './agent-plans.js';
 export * from './agent-tools.js';
 export * from './agent-manufacturing-sheet.js';
+export * from './mechanical-topology.js';
 export * from './agent-architecture-plan.js';
 export * from './agent-site-plan.js';
 export * from './agent-cartesian-chart.js';
