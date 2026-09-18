@@ -148,7 +148,7 @@ interface ColumnLayout {
   displayAliases?: { codes: Record<string, string>; names: Record<string, string> }
   headerGrid?: { rows: HeaderCell[][] }
   footerGrid?: { height: number; cells: FooterCell[] }
-  fieldGrid?: { start: number; role: FieldRole; label: string; subLabel?: string; key?: string; decimals?: number }[]
+  fieldGrid?: { start: number; role: FieldRole; label: string; subLabel?: string; key?: string; decimals?: number; textWidthFactor?: number }[]
   legendMode?: 'footer' | 'none'
   layerNumberStyle: 'plain' | 'circle'
   textFlow?: { firstGroupBorrowMm: number; firstGroupUnruled: boolean; firstBaselineMm: number; labelPitchMm: number; labelHeightMm: number; paragraphGapMm: number }
@@ -326,10 +326,13 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       const cell = raw as Record<string, unknown>
       const role = cell.role as FieldRole
       const optionalSubLabel = cell.subLabel == null ? '' : ',subLabel'
-      const schema = role === 'measurement' ? (cell.decimals == null ? `key,label,role,start${optionalSubLabel}` : `decimals,key,label,role,start${optionalSubLabel}`) : `label,role,start${optionalSubLabel}`
+      const optionalWidthFactor = cell.textWidthFactor == null ? '' : ',textWidthFactor'
+      const schema = role === 'measurement' ? (cell.decimals == null ? `key,label,role,start${optionalSubLabel}${optionalWidthFactor}` : `decimals,key,label,role,start${optionalSubLabel}${optionalWidthFactor}`) : `label,role,start${optionalSubLabel}${optionalWidthFactor}`
       if (!fieldRoles.has(role) || Object.keys(cell).sort().join(',') !== schema) throw new KJValidationError('Geology: field grid column needs an exact role schema')
       const start = numeric(cell.start, `field grid start ${index + 1}`), label = bounded(cell.label, `field grid label ${index + 1}`, 32)
       const subLabel = cell.subLabel == null ? undefined : bounded(cell.subLabel, `field grid sublabel ${index + 1}`, 24)
+      const textWidthFactor = cell.textWidthFactor == null ? undefined : numeric(cell.textWidthFactor, `field grid text width factor ${index + 1}`)
+      if (textWidthFactor != null && (textWidthFactor < 0.5 || textWidthFactor > 1.5)) throw new KJValidationError('Geology: field grid text width factor must be 0.5–1.5')
       if (role !== 'measurement' && roles.has(role)) throw new KJValidationError(`Geology: duplicate field role ${role}`)
       roles.add(role)
       if (role === 'measurement') {
@@ -338,9 +341,9 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
         measurementKeys.add(key)
         const decimals = cell.decimals == null ? 2 : numeric(cell.decimals, 'measurement display decimals')
         if (!Number.isSafeInteger(decimals) || decimals < 0 || decimals > 4) throw new KJValidationError('Geology: measurement decimals must be 0–4')
-        return { start, role, label, ...(subLabel ? { subLabel } : {}), key, decimals }
+        return { start, role, label, ...(subLabel ? { subLabel } : {}), ...(textWidthFactor == null ? {} : { textWidthFactor }), key, decimals }
       }
-      return { start, role, label, ...(subLabel ? { subLabel } : {}) }
+      return { start, role, label, ...(subLabel ? { subLabel } : {}), ...(textWidthFactor == null ? {} : { textWidthFactor }) }
     })
     if (requiredFieldRoles.some(role => !roles.has(role)) || Math.abs(fieldGrid[0]!.start - left) > 1e-6) throw new KJValidationError('Geology: field grid misses a core role or left margin')
     for (const [index, field] of fieldGrid.entries()) {
@@ -572,8 +575,9 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     entities.push({ type, payload: { ...payload, layerId: layers[layer]!.id }, options: { id: `${prefix}-entity-${String(entities.length + 1).padStart(5, '0')}` } })
   }
   const line = (layer: number, x1: number, y1: number, x2: number, y2: number) => add('LINE', layer, { start: [x1, y1, 0], end: [x2, y2, 0] })
-  const text = (layer: number, x: number, y: number, value: string, height = 2.6, centered = false) => add('TEXT', layer, {
+  const text = (layer: number, x: number, y: number, value: string, height = 2.6, centered = false, widthFactor?: number) => add('TEXT', layer, {
     position: [x, y, 0], text: value, height,
+    ...(widthFactor == null ? {} : { widthFactor }),
     ...(centered ? { horizontalAlignment: 1, alignmentPoint: [x, y, 0] } : {}),
   })
   const mtext = (layer: number, x: number, y: number, value: string, height: number, width: number) => add('MTEXT', layer, {
@@ -774,11 +778,11 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     const bandLines: { x1: number; x2: number; y: number }[] = []
     const textBoxes: { role: FieldRole; left: number; right: number; bottom: number; top: number }[] = []
     const emitFieldText = (item: typeof fieldGrid[number], y: number, value: string, height = 1.8): void => {
-      const width = estimatedWidth(value, height)
+      const width = estimatedWidth(value, height) * (item.textWidthFactor ?? 1)
       if (width > fieldWidth(item) - 2.4) throw new KJValidationError(`Geology: ${item.role} text does not fit its declared field`)
       const centered = item.role !== 'description'
       const x = centered ? item.start + fieldWidth(item) / 2 : item.start + 1.2
-      g.text(3, x, y, value, height, centered)
+      g.text(3, x, y, value, height, centered, item.textWidthFactor)
       textBoxes.push({ role: item.role, left: x - (centered ? width / 2 : 0) - 0.25,
         right: x + (centered ? width / 2 : width) + 0.25, bottom: y - 0.25, top: y + height + 0.25 })
     }
@@ -825,9 +829,9 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       const centerX = item.start + fieldWidth(item) / 2
       if (item.subLabel) {
         const subLabel = item.subLabel.replaceAll('{verticalScale}', scaleDenominator(verticalScaleDenominator))
-        g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.42, item.label, 1.8, true)
-        g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.78, subLabel, 1.6, true)
-      } else g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.62, item.label, 1.8, true)
+        g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.42, item.label, 1.8, true, item.textWidthFactor)
+        g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.78, subLabel, 1.6, true, item.textWidthFactor)
+      } else g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.62, item.label, 1.8, true, item.textWidthFactor)
     }
     g.line(0, left, top, right, top)
     const patternField = field('pattern'), depthField = field('depth')

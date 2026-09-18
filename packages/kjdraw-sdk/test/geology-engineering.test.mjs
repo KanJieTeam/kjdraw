@@ -495,9 +495,9 @@ test('a versioned fourteen-field grid charts direct sample measurements without 
 test('source-backed physical grids omit absent SPT lanes and strict mode rejects unrenderable observations', async () => {
   const fieldGrid = [
     { start: 26, role: 'layerNumber', label: 'No' }, { start: 36, role: 'layerName', label: 'Name' },
-    { start: 54, role: 'baseElevation', label: 'Base' }, { start: 66, role: 'thickness', label: 'Thick' },
+    { start: 54, role: 'baseElevation', label: 'Base', textWidthFactor: 0.8 }, { start: 66, role: 'thickness', label: 'Thick' },
     { start: 76, role: 'depth', label: 'Depth' }, { start: 86, role: 'pattern', label: 'Pattern' },
-    { start: 106, role: 'description', label: 'Description' }, { start: 166, role: 'sample', label: 'Sample' },
+    { start: 106, role: 'description', label: 'Description' }, { start: 166, role: 'sample', label: 'Sample', textWidthFactor: 0.8 },
     { start: 176, role: 'measurement', key: 'collapseCoefficient', label: 'Collapse' },
     { start: 186, role: 'measurement', key: 'compressionCoefficient', label: 'Compress' },
   ]
@@ -527,12 +527,14 @@ test('source-backed physical grids omit absent SPT lanes and strict mode rejects
   assert.equal(compiled.evidence.parameters.sourceTemplateSha256, sourceSha256)
   const visible = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
   assert.ok(visible.includes('0.12') && visible.includes('0.23'))
+  assert.ok(compiled.commandArgs.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === 'Sample' && entity.payload.widthFactor === 0.8))
   assert.ok(!visible.some(value => value.includes('SPT') || value.includes('N=')))
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
   const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
   const reopened = await sdk.readDocument(dxf, { format: 'DXF', version: '2018' })
   assert.equal(reopened.listEntities().length, compiled.evidence.entityCount)
+  assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === 'Sample' && entity.payload.widthFactor === 0.8))
   const withSpt = structuredClone(input)
   withSpt.hole.observations.push({ kind: 'spt', id: 'P1', depth: 15, value: 9 })
   assert.throws(() => compileGeologyColumn(withSpt), /no physical field for supplied observations/)
@@ -545,6 +547,9 @@ test('source-backed physical grids omit absent SPT lanes and strict mode rejects
   const wrongWidth = structuredClone(input)
   wrongWidth.columnStylePack.rules['geology-column-layout'].right = 195
   assert.throws(() => compileGeologyColumn(wrongWidth), /vector grid width differs/)
+  const invalidTextFactor = structuredClone(input)
+  invalidTextFactor.columnStylePack.rules['geology-column-layout'].fieldGrid[2].textWidthFactor = 0.1
+  assert.throws(() => compileGeologyColumn(invalidTextFactor), /text width factor must be 0.5–1.5/)
   const missingSptEvidence = structuredClone(input)
   delete missingSptEvidence.columnStylePack.rules['geology-column-layout'].sourceTemplate
   assert.throws(() => compileGeologyColumn(missingSptEvidence), /needs native vector evidence/)

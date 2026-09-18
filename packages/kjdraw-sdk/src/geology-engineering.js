@@ -389,10 +389,13 @@ function columnLayout(input) {
             const cell = raw;
             const role = cell.role;
             const optionalSubLabel = cell.subLabel == null ? '' : ',subLabel';
-            const schema = role === 'measurement' ? cell.decimals == null ? `key,label,role,start${optionalSubLabel}` : `decimals,key,label,role,start${optionalSubLabel}` : `label,role,start${optionalSubLabel}`;
+            const optionalWidthFactor = cell.textWidthFactor == null ? '' : ',textWidthFactor';
+            const schema = role === 'measurement' ? cell.decimals == null ? `key,label,role,start${optionalSubLabel}${optionalWidthFactor}` : `decimals,key,label,role,start${optionalSubLabel}${optionalWidthFactor}` : `label,role,start${optionalSubLabel}${optionalWidthFactor}`;
             if (!fieldRoles.has(role) || Object.keys(cell).sort().join(',') !== schema) throw new KJValidationError('Geology: field grid column needs an exact role schema');
             const start = numeric(cell.start, `field grid start ${index + 1}`), label = bounded(cell.label, `field grid label ${index + 1}`, 32);
             const subLabel = cell.subLabel == null ? undefined : bounded(cell.subLabel, `field grid sublabel ${index + 1}`, 24);
+            const textWidthFactor = cell.textWidthFactor == null ? undefined : numeric(cell.textWidthFactor, `field grid text width factor ${index + 1}`);
+            if (textWidthFactor != null && (textWidthFactor < 0.5 || textWidthFactor > 1.5)) throw new KJValidationError('Geology: field grid text width factor must be 0.5–1.5');
             if (role !== 'measurement' && roles.has(role)) throw new KJValidationError(`Geology: duplicate field role ${role}`);
             roles.add(role);
             if (role === 'measurement') {
@@ -408,6 +411,9 @@ function columnLayout(input) {
                     ...subLabel ? {
                         subLabel
                     } : {},
+                    ...textWidthFactor == null ? {} : {
+                        textWidthFactor
+                    },
                     key,
                     decimals
                 };
@@ -418,7 +424,10 @@ function columnLayout(input) {
                 label,
                 ...subLabel ? {
                     subLabel
-                } : {}
+                } : {},
+                ...textWidthFactor == null ? {} : {
+                    textWidthFactor
+                }
             };
         });
         if (requiredFieldRoles.some((role)=>!roles.has(role)) || Math.abs(fieldGrid[0].start - left) > 1e-6) throw new KJValidationError('Geology: field grid misses a core role or left margin');
@@ -765,7 +774,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
                 0
             ]
         });
-    const text = (layer, x, y, value, height = 2.6, centered = false)=>add('TEXT', layer, {
+    const text = (layer, x, y, value, height = 2.6, centered = false, widthFactor)=>add('TEXT', layer, {
             position: [
                 x,
                 y,
@@ -773,6 +782,9 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
             ],
             text: value,
             height,
+            ...widthFactor == null ? {} : {
+                widthFactor
+            },
             ...centered ? {
                 horizontalAlignment: 1,
                 alignmentPoint: [
@@ -1123,11 +1135,11 @@ export function compileGeologyColumn(input) {
         const bandLines = [];
         const textBoxes = [];
         const emitFieldText = (item, y, value, height = 1.8)=>{
-            const width = estimatedWidth(value, height);
+            const width = estimatedWidth(value, height) * (item.textWidthFactor ?? 1);
             if (width > fieldWidth(item) - 2.4) throw new KJValidationError(`Geology: ${item.role} text does not fit its declared field`);
             const centered = item.role !== 'description';
             const x = centered ? item.start + fieldWidth(item) / 2 : item.start + 1.2;
-            g.text(3, x, y, value, height, centered);
+            g.text(3, x, y, value, height, centered, item.textWidthFactor);
             textBoxes.push({
                 role: item.role,
                 left: x - (centered ? width / 2 : 0) - 0.25,
@@ -1197,9 +1209,9 @@ export function compileGeologyColumn(input) {
             const centerX = item.start + fieldWidth(item) / 2;
             if (item.subLabel) {
                 const subLabel = item.subLabel.replaceAll('{verticalScale}', scaleDenominator(verticalScaleDenominator));
-                g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.42, item.label, 1.8, true);
-                g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.78, subLabel, 1.6, true);
-            } else g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.62, item.label, 1.8, true);
+                g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.42, item.label, 1.8, true, item.textWidthFactor);
+                g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.78, subLabel, 1.6, true, item.textWidthFactor);
+            } else g.text(3, centerX, pageHeight - headerDepth - fieldHeaderHeight * 0.62, item.label, 1.8, true, item.textWidthFactor);
         }
         g.line(0, left, top, right, top);
         const patternField = field('pattern'), depthField = field('depth');
