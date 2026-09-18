@@ -7,7 +7,9 @@ const point = (value)=>Array.isArray(value) && value.length >= 2 && value.slice(
     ] : null;
 const scalar = (value)=>typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 100_000 ? value : null;
 function circle(entity) {
-    const center = point(entity.payload.center), radius = scalar(entity.payload.radius);
+    const payload = entity?.payload;
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+    const center = point(payload.center), radius = scalar(payload.radius);
     return center && radius != null ? {
         x: center[0],
         y: center[1],
@@ -15,8 +17,10 @@ function circle(entity) {
     } : null;
 }
 function arc(entity) {
-    const base = circle(entity), start = entity.payload.startAngle, end = entity.payload.endAngle;
-    return base && typeof start === 'number' && Number.isFinite(start) && typeof end === 'number' && Number.isFinite(end) ? {
+    const base = circle(entity);
+    if (!base) return null;
+    const start = entity.payload.startAngle, end = entity.payload.endAngle;
+    return typeof start === 'number' && Number.isFinite(start) && typeof end === 'number' && Number.isFinite(end) ? {
         ...base,
         start,
         end

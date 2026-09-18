@@ -41,6 +41,7 @@ test('reports multiple valid end views as ambiguous instead of choosing one', ()
 
 test('ignores malformed primitives and guards unbounded input', () => {
   assert.equal(detectMechanicalBearingSeatEndView([{ type: 'CIRCLE', payload: { center: [Infinity, 0], radius: 1 } }]).status, 'none')
+  assert.equal(detectMechanicalBearingSeatEndView([{ type: 'CIRCLE' }, { type: 'ARC', payload: null }, null]).status, 'none')
   assert.equal(detectMechanicalBearingSeatEndView(new Array(100_001).fill({ type: 'LINE', payload: {} })).status, 'none')
   const tooManyArcs = new Array(500).fill({ type: 'ARC', payload: { center: [0, 0], radius: 1, startAngle: 0, endAngle: 1 } })
   const tooManyCircles = new Array(20).fill({ type: 'CIRCLE', payload: { center: [0, 0], radius: 0.5 } })
