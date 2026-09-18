@@ -2194,6 +2194,7 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
             width: number;
             thickness: number;
             holepatterncount: number;
+            boltcirclepatterncount: number;
             holecount: number;
             slotcount: number;
             sheet: {
@@ -2277,6 +2278,7 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
             width: number;
             thickness: number;
             holePatternCount: number;
+            boltCirclePatternCount: number;
             holeCount: number;
             slotCount: number;
             sheet: {
@@ -2289,6 +2291,27 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
         limitations: string[];
     };
 };</code></pre>
+      <p class="source-path">agent-manufacturing-sheet.d.ts</p>
+    </article>
+<article class="api-symbol" id="agent-manufacturing-sheet-interface-kjagentmanufacturingboltcirclepattern" data-search="kjagentmanufacturingboltcirclepattern interface @kanjieteam/kjdraw/agent-manufacturing-sheet export interface kjagentmanufacturingboltcirclepattern {
+    count: number;
+    center: [number, number];
+    pitchdiameter: number;
+    throughdiameter: number;
+    startangledegrees?: number;
+    counterborediameter?: number;
+    counterboredepth?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentManufacturingBoltCirclePattern</h3></div><a class="permalink" href="#agent-manufacturing-sheet-interface-kjagentmanufacturingboltcirclepattern" aria-label="Link to KJAgentManufacturingBoltCirclePattern">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentManufacturingBoltCirclePattern {
+    count: number;
+    center: [number, number];
+    pitchDiameter: number;
+    throughDiameter: number;
+    startAngleDegrees?: number;
+    counterboreDiameter?: number;
+    counterboreDepth?: number;
+}</code></pre>
       <p class="source-path">agent-manufacturing-sheet.d.ts</p>
     </article>
 <article class="api-symbol" id="agent-manufacturing-sheet-interface-kjagentmanufacturingholepattern" data-search="kjagentmanufacturingholepattern interface @kanjieteam/kjdraw/agent-manufacturing-sheet export interface kjagentmanufacturingholepattern {
@@ -2326,6 +2349,7 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     width: number;
     thickness: number;
     holepatterns?: kjagentmanufacturingholepattern[];
+    boltcirclepatterns?: kjagentmanufacturingboltcirclepattern[];
     slots?: kjagentmanufacturingslot[];
     sheet: {
         origin: [number, number];
@@ -2348,6 +2372,7 @@ export type { KJAgentGeometryPreview, KJAgentPreviewEntity } from &#39;./agent-p
     width: number;
     thickness: number;
     holePatterns?: KJAgentManufacturingHolePattern[];
+    boltCirclePatterns?: KJAgentManufacturingBoltCirclePattern[];
     slots?: KJAgentManufacturingSlot[];
     sheet: {
         origin: [number, number];
@@ -14109,6 +14134,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             width: number;
             thickness: number;
             holepatterncount: number;
+            boltcirclepatterncount: number;
             holecount: number;
             slotcount: number;
             sheet: {
@@ -14192,6 +14218,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             width: number;
             thickness: number;
             holePatternCount: number;
+            boltCirclePatternCount: number;
             holeCount: number;
             slotCount: number;
             sheet: {
@@ -14205,6 +14232,77 @@ export declare function assertPlainObject(value: unknown, label: string): Record
     };
 };</code></pre>
       <p class="source-path">agent-manufacturing-sheet.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-function-buildagentmechanicalflangecore" data-search="buildagentmechanicalflangecore function @kanjieteam/kjdraw export declare function buildagentmechanicalflangecore(document: document, source: kjagentmechanicalflangecoreinput): {
+    commandargs: {
+        entities: entity[];
+        resources: {
+            linetypes: {
+                id: string;
+                name: string;
+                pattern: never[];
+            }[];
+            layers: {
+                id: string;
+                name: string;
+                color: number;
+                linetypeid: string;
+                lineweight: number;
+            }[];
+        };
+    };
+    evidence: {
+        knowledgepackid: string;
+        knowledgepackversion: string;
+        expectedrevision: number;
+        entitycount: number;
+        parameters: {
+            ringcount: number;
+            squareholepitch: number;
+            squareholeradius: number;
+            titlegrid: boolean;
+            sideviewaxis: boolean;
+            symmetricprofilecount: number;
+        };
+        limitations: string[];
+    };
+};">
+      <header><div><span class="kind">function</span><h3>buildAgentMechanicalFlangeCore</h3></div><a class="permalink" href="#root-function-buildagentmechanicalflangecore" aria-label="Link to buildAgentMechanicalFlangeCore">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function buildAgentMechanicalFlangeCore(document: Document, source: KJAgentMechanicalFlangeCoreInput): {
+    commandArgs: {
+        entities: Entity[];
+        resources: {
+            linetypes: {
+                id: string;
+                name: string;
+                pattern: never[];
+            }[];
+            layers: {
+                id: string;
+                name: string;
+                color: number;
+                linetypeId: string;
+                lineweight: number;
+            }[];
+        };
+    };
+    evidence: {
+        knowledgePackId: string;
+        knowledgePackVersion: string;
+        expectedRevision: number;
+        entityCount: number;
+        parameters: {
+            ringCount: number;
+            squareHolePitch: number;
+            squareHoleRadius: number;
+            titleGrid: boolean;
+            sideViewAxis: boolean;
+            symmetricProfileCount: number;
+        };
+        limitations: string[];
+    };
+};</code></pre>
+      <p class="source-path">agent-mechanical-flange-core.d.ts</p>
     </article>
 <article class="api-symbol" id="root-function-buildagentsiteplan" data-search="buildagentsiteplan function @kanjieteam/kjdraw export declare function buildagentsiteplan(document: siteplandocument, source: kjagentsiteplaninput): {
     commandargs: {
@@ -15096,6 +15194,11 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
       <header><div><span class="kind">function</span><h3>deleteDesignRelations</h3></div><a class="permalink" href="#root-function-deletedesignrelations" aria-label="Link to deleteDesignRelations">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function deleteDesignRelations(document: KJDocument, tx: KJTransaction, id: string): KJObjectRecord;</code></pre>
       <p class="source-path">design-relations.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-function-detectmechanicalbearingseatendview" data-search="detectmechanicalbearingseatendview function @kanjieteam/kjdraw export declare function detectmechanicalbearingseatendview(entities: readonly kjmechanicaltopologyentity[]): kjmechanicalbearingseatdetection;">
+      <header><div><span class="kind">function</span><h3>detectMechanicalBearingSeatEndView</h3></div><a class="permalink" href="#root-function-detectmechanicalbearingseatendview" aria-label="Link to detectMechanicalBearingSeatEndView">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare function detectMechanicalBearingSeatEndView(entities: readonly KJMechanicalTopologyEntity[]): KJMechanicalBearingSeatDetection;</code></pre>
+      <p class="source-path">mechanical-topology.d.ts</p>
     </article>
 <article class="api-symbol" id="root-function-determinant3" data-search="determinant3 function @kanjieteam/kjdraw export declare function determinant3(value: affinematrix3input): number;">
       <header><div><span class="kind">function</span><h3>determinant3</h3></div><a class="permalink" href="#root-function-determinant3" aria-label="Link to determinant3">#</a></header>
@@ -17276,6 +17379,27 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
 }</code></pre>
       <p class="source-path">agent-tools.d.ts</p>
     </article>
+<article class="api-symbol" id="root-interface-kjagentmanufacturingboltcirclepattern" data-search="kjagentmanufacturingboltcirclepattern interface @kanjieteam/kjdraw export interface kjagentmanufacturingboltcirclepattern {
+    count: number;
+    center: [number, number];
+    pitchdiameter: number;
+    throughdiameter: number;
+    startangledegrees?: number;
+    counterborediameter?: number;
+    counterboredepth?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentManufacturingBoltCirclePattern</h3></div><a class="permalink" href="#root-interface-kjagentmanufacturingboltcirclepattern" aria-label="Link to KJAgentManufacturingBoltCirclePattern">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentManufacturingBoltCirclePattern {
+    count: number;
+    center: [number, number];
+    pitchDiameter: number;
+    throughDiameter: number;
+    startAngleDegrees?: number;
+    counterboreDiameter?: number;
+    counterboreDepth?: number;
+}</code></pre>
+      <p class="source-path">agent-manufacturing-sheet.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-interface-kjagentmanufacturingholepattern" data-search="kjagentmanufacturingholepattern interface @kanjieteam/kjdraw export interface kjagentmanufacturingholepattern {
     rows: number;
     columns: number;
@@ -17311,6 +17435,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     width: number;
     thickness: number;
     holepatterns?: kjagentmanufacturingholepattern[];
+    boltcirclepatterns?: kjagentmanufacturingboltcirclepattern[];
     slots?: kjagentmanufacturingslot[];
     sheet: {
         origin: [number, number];
@@ -17333,6 +17458,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     width: number;
     thickness: number;
     holePatterns?: KJAgentManufacturingHolePattern[];
+    boltCirclePatterns?: KJAgentManufacturingBoltCirclePattern[];
     slots?: KJAgentManufacturingSlot[];
     sheet: {
         origin: [number, number];
@@ -17356,6 +17482,57 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     orientationDegrees: 0 | 90;
 }</code></pre>
       <p class="source-path">agent-manufacturing-sheet.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjagentmechanicalflangecoreinput" data-search="kjagentmechanicalflangecoreinput interface @kanjieteam/kjdraw export interface kjagentmechanicalflangecoreinput {
+    version: typeof kjdraw_mechanical_flange_core_version;
+    expectedrevision: number;
+    units: &#39;millimeter&#39;;
+    drawingid: string;
+    endview: {
+        center: point2;
+        ringradii: number[];
+        squareholes: {
+            pitch: number;
+            radius: number;
+        };
+    };
+    sideviewaxis?: {
+        xrange: point2;
+        symmetricprofiles?: kjflangesymmetricprofile[];
+    };
+    sheet: {
+        origin: point2;
+        size: point2;
+        inset: number;
+        titlegrid?: kjflangetitlegrid;
+    };
+}">
+      <header><div><span class="kind">interface</span><h3>KJAgentMechanicalFlangeCoreInput</h3></div><a class="permalink" href="#root-interface-kjagentmechanicalflangecoreinput" aria-label="Link to KJAgentMechanicalFlangeCoreInput">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJAgentMechanicalFlangeCoreInput {
+    version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION;
+    expectedRevision: number;
+    units: &#39;millimeter&#39;;
+    drawingId: string;
+    endView: {
+        center: Point2;
+        ringRadii: number[];
+        squareHoles: {
+            pitch: number;
+            radius: number;
+        };
+    };
+    sideViewAxis?: {
+        xRange: Point2;
+        symmetricProfiles?: KJFlangeSymmetricProfile[];
+    };
+    sheet: {
+        origin: Point2;
+        size: Point2;
+        inset: number;
+        titleGrid?: KJFlangeTitleGrid;
+    };
+}</code></pre>
+      <p class="source-path">agent-mechanical-flange-core.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjagentmodel" data-search="kjagentmodel interface @kanjieteam/kjdraw export interface kjagentmodel {
     createconversation(options: kjmodelconversationoptions): kjmodelconversation;
@@ -21610,6 +21787,72 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_MANUFACTURING_SHEET_VERSION: &#39;1.0.0&#39;;</code></pre>
       <p class="source-path">agent-manufacturing-sheet.d.ts</p>
     </article>
+<article class="api-symbol" id="root-const-kjdraw-mechanical-flange-core-knowledge-pack" data-search="kjdraw_mechanical_flange_core_knowledge_pack const @kanjieteam/kjdraw export declare const kjdraw_mechanical_flange_core_knowledge_pack: {
+    readonly schema: typeof import(&quot;../knowledge-pack.js&quot;).kjdraw_knowledge_pack_schema;
+    readonly id: string;
+    readonly version: string;
+    readonly title: string;
+    readonly domain: string;
+    readonly license: {
+        readonly spdx: string;
+        readonly redistributable: boolean;
+        readonly trainingallowed: boolean;
+    };
+    readonly sources: readonly {
+        readonly id: string;
+        readonly title: string;
+        readonly license: string;
+        readonly contenthash: string;
+        readonly uri?: string;
+    }[];
+    readonly ontology: {
+        readonly objectkinds: readonly string[];
+        readonly relationkinds: readonly string[];
+    };
+    readonly templates?: {
+        readonly [x: string]: unknown;
+    };
+    readonly rules?: {
+        readonly [x: string]: unknown;
+    };
+};">
+      <header><div><span class="kind">const</span><h3>KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK</h3></div><a class="permalink" href="#root-const-kjdraw-mechanical-flange-core-knowledge-pack" aria-label="Link to KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK: {
+    readonly schema: typeof import(&quot;../knowledge-pack.js&quot;).KJDRAW_KNOWLEDGE_PACK_SCHEMA;
+    readonly id: string;
+    readonly version: string;
+    readonly title: string;
+    readonly domain: string;
+    readonly license: {
+        readonly spdx: string;
+        readonly redistributable: boolean;
+        readonly trainingAllowed: boolean;
+    };
+    readonly sources: readonly {
+        readonly id: string;
+        readonly title: string;
+        readonly license: string;
+        readonly contentHash: string;
+        readonly uri?: string;
+    }[];
+    readonly ontology: {
+        readonly objectKinds: readonly string[];
+        readonly relationKinds: readonly string[];
+    };
+    readonly templates?: {
+        readonly [x: string]: unknown;
+    };
+    readonly rules?: {
+        readonly [x: string]: unknown;
+    };
+};</code></pre>
+      <p class="source-path">knowledge-packs/mechanical-flange-core.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-const-kjdraw-mechanical-flange-core-version" data-search="kjdraw_mechanical_flange_core_version const @kanjieteam/kjdraw export declare const kjdraw_mechanical_flange_core_version: &#39;1.0.0&#39;;">
+      <header><div><span class="kind">const</span><h3>KJDRAW_MECHANICAL_FLANGE_CORE_VERSION</h3></div><a class="permalink" href="#root-const-kjdraw-mechanical-flange-core-version" aria-label="Link to KJDRAW_MECHANICAL_FLANGE_CORE_VERSION">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: &#39;1.0.0&#39;;</code></pre>
+      <p class="source-path">agent-mechanical-flange-core.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-const-kjdraw-plugin-permissions" data-search="kjdraw_plugin_permissions const @kanjieteam/kjdraw export declare const kjdraw_plugin_permissions: readonly [&quot;commands.register&quot;, &quot;commands.execute&quot;, &quot;extensions.register&quot;, &quot;file-adapters.register&quot;, &quot;algorithms.register&quot;, &quot;keymaps.register&quot;, &quot;workspaces.register&quot;, &quot;scene-sources.register&quot;, &quot;ribbons.register&quot;, &quot;panels.register&quot;, &quot;symbols.register&quot;];">
       <header><div><span class="kind">const</span><h3>KJDRAW_PLUGIN_PERMISSIONS</h3></div><a class="permalink" href="#root-const-kjdraw-plugin-permissions" aria-label="Link to KJDRAW_PLUGIN_PERMISSIONS">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export declare const KJDRAW_PLUGIN_PERMISSIONS: readonly [&quot;commands.register&quot;, &quot;commands.execute&quot;, &quot;extensions.register&quot;, &quot;file-adapters.register&quot;, &quot;algorithms.register&quot;, &quot;keymaps.register&quot;, &quot;workspaces.register&quot;, &quot;scene-sources.register&quot;, &quot;ribbons.register&quot;, &quot;panels.register&quot;, &quot;symbols.register&quot;];</code></pre>
@@ -23235,6 +23478,66 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
 }</code></pre>
       <p class="source-path">file-adapters.d.ts</p>
     </article>
+<article class="api-symbol" id="root-interface-kjflangesymmetricprofile" data-search="kjflangesymmetricprofile interface @kanjieteam/kjdraw export interface kjflangesymmetricprofile {
+    vertices: {
+        station: number;
+        radius: number;
+    }[];
+    endcaps?: &#39;none&#39; | &#39;start&#39; | &#39;end&#39; | &#39;both&#39;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJFlangeSymmetricProfile</h3></div><a class="permalink" href="#root-interface-kjflangesymmetricprofile" aria-label="Link to KJFlangeSymmetricProfile">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFlangeSymmetricProfile {
+    vertices: {
+        station: number;
+        radius: number;
+    }[];
+    endCaps?: &#39;none&#39; | &#39;start&#39; | &#39;end&#39; | &#39;both&#39;;
+}</code></pre>
+      <p class="source-path">agent-mechanical-flange-core.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjflangetitlegrid" data-search="kjflangetitlegrid interface @kanjieteam/kjdraw export interface kjflangetitlegrid {
+    origin: point2;
+    size: point2;
+    /** full-height column boundaries measured from the grid&#39;s left edge. */
+    columns: number[];
+    /** column boundaries that stop below the grid&#39;s top edge. */
+    partialcolumns?: {
+        offset: number;
+        height: number;
+    }[];
+    /** row boundaries measured from the bottom; breaks split one row into segments. */
+    rows: {
+        offset: number;
+        breaks?: number[];
+    }[];
+    diagonalheader?: {
+        width: number;
+        drop: number;
+    };
+}">
+      <header><div><span class="kind">interface</span><h3>KJFlangeTitleGrid</h3></div><a class="permalink" href="#root-interface-kjflangetitlegrid" aria-label="Link to KJFlangeTitleGrid">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFlangeTitleGrid {
+    origin: Point2;
+    size: Point2;
+    /** Full-height column boundaries measured from the grid&#39;s left edge. */
+    columns: number[];
+    /** Column boundaries that stop below the grid&#39;s top edge. */
+    partialColumns?: {
+        offset: number;
+        height: number;
+    }[];
+    /** Row boundaries measured from the bottom; breaks split one row into segments. */
+    rows: {
+        offset: number;
+        breaks?: number[];
+    }[];
+    diagonalHeader?: {
+        width: number;
+        drop: number;
+    };
+}</code></pre>
+      <p class="source-path">agent-mechanical-flange-core.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-type-kjformatcapability" data-search="kjformatcapability type @kanjieteam/kjdraw export type kjformatcapability = typeof kj_format_capability[keyof typeof kj_format_capability];">
       <header><div><span class="kind">type</span><h3>KJFormatCapability</h3></div><a class="permalink" href="#root-type-kjformatcapability" aria-label="Link to KJFormatCapability">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJFormatCapability = typeof KJ_FORMAT_CAPABILITY[keyof typeof KJ_FORMAT_CAPABILITY];</code></pre>
@@ -23298,9 +23601,11 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     /** physical long-log sheet or ordinary a4 sheet, in millimetres. */
     pageheightmillimeters?: 297 | 841;
     /** host-selected, versioned physical table geometry; independent of model text. */
-    columnstylepack?: kjknowledgepack;
+    columnstylepack?: readonlydeep&lt;kjknowledgepack&gt;;
+    /** refuse a source-template mismatch or an unrenderable observation kind. this is a template gate, not 1:1 certification. */
+    strictsourcetemplate?: boolean;
     /** optional licensed, versioned pattern knowledge; no purchased pattern is built into kjdraw. */
-    hatchpack?: kjknowledgepack;
+    hatchpack?: readonlydeep&lt;kjknowledgepack&gt;;
     expectedrevision: number;
     title?: string;
 }">
@@ -23317,9 +23622,11 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     /** Physical long-log sheet or ordinary A4 sheet, in millimetres. */
     pageHeightMillimeters?: 297 | 841;
     /** Host-selected, versioned physical table geometry; independent of model text. */
-    columnStylePack?: KJKnowledgePack;
+    columnStylePack?: ReadonlyDeep&lt;KJKnowledgePack&gt;;
+    /** Refuse a source-template mismatch or an unrenderable observation kind. This is a template gate, not 1:1 certification. */
+    strictSourceTemplate?: boolean;
     /** Optional licensed, versioned pattern knowledge; no purchased pattern is built into KJDraw. */
-    hatchPack?: KJKnowledgePack;
+    hatchPack?: ReadonlyDeep&lt;KJKnowledgePack&gt;;
     expectedRevision: number;
     title?: string;
 }</code></pre>
@@ -23354,6 +23661,25 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
 }</code></pre>
       <p class="source-path">geology-engineering.d.ts</p>
     </article>
+<article class="api-symbol" id="root-interface-kjgeologysectionconnection" data-search="kjgeologysectionconnection interface @kanjieteam/kjdraw export interface kjgeologysectionconnection {
+    fromholeid: string;
+    toholeid: string;
+    fromdepth: number;
+    todepth: number;
+    kind?: &#39;continuity&#39; | &#39;pinchout&#39; | &#39;lens&#39; | &#39;manualboundary&#39;;
+    layercode?: string;
+}">
+      <header><div><span class="kind">interface</span><h3>KJGeologySectionConnection</h3></div><a class="permalink" href="#root-interface-kjgeologysectionconnection" aria-label="Link to KJGeologySectionConnection">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJGeologySectionConnection {
+    fromHoleId: string;
+    toHoleId: string;
+    fromDepth: number;
+    toDepth: number;
+    kind?: &#39;continuity&#39; | &#39;pinchout&#39; | &#39;lens&#39; | &#39;manualBoundary&#39;;
+    layerCode?: string;
+}</code></pre>
+      <p class="source-path">geology-engineering.d.ts</p>
+    </article>
 <article class="api-symbol" id="root-interface-kjgeologysectioninput" data-search="kjgeologysectioninput interface @kanjieteam/kjdraw export interface kjgeologysectioninput {
     /** visible generated labels. when omitted, chinese source text selects zh-cn; otherwise en. */
     locale?: &#39;zh-cn&#39; | &#39;en&#39;;
@@ -23367,11 +23693,18 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
         fromintervalid?: string;
         tointervalid?: string;
     }[];
+    /** explicit source-backed boundaries are rendered before inferred correlations. */
+    manualconnections?: kjgeologysectionconnection[];
     horizontalscaledenominator: number;
     verticalscaledenominator: number;
     datumelevation: number;
     surfacerule: &#39;straight-between-supplied-collars&#39;;
-    hatchpack?: kjknowledgepack;
+    projectname?: string;
+    /** exact source-backed title-block facts; absent facts remain blank. */
+    documentfacts?: record&lt;string, string&gt;;
+    /** host-selected, versioned physical sheet geometry. project-specific values stay in the pack. */
+    sectionstylepack?: readonlydeep&lt;kjknowledgepack&gt;;
+    hatchpack?: readonlydeep&lt;kjknowledgepack&gt;;
     expectedrevision: number;
     title?: string;
 }">
@@ -23389,11 +23722,18 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
         fromIntervalId?: string;
         toIntervalId?: string;
     }[];
+    /** Explicit source-backed boundaries are rendered before inferred correlations. */
+    manualConnections?: KJGeologySectionConnection[];
     horizontalScaleDenominator: number;
     verticalScaleDenominator: number;
     datumElevation: number;
     surfaceRule: &#39;straight-between-supplied-collars&#39;;
-    hatchPack?: KJKnowledgePack;
+    projectName?: string;
+    /** Exact source-backed title-block facts; absent facts remain blank. */
+    documentFacts?: Record&lt;string, string&gt;;
+    /** Host-selected, versioned physical sheet geometry. Project-specific values stay in the pack. */
+    sectionStylePack?: ReadonlyDeep&lt;KJKnowledgePack&gt;;
+    hatchPack?: ReadonlyDeep&lt;KJKnowledgePack&gt;;
     expectedRevision: number;
     title?: string;
 }</code></pre>
@@ -23410,9 +23750,11 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     name: string;
     top: number;
     bottom: number;
-    lithology: &#39;fill&#39; | &#39;clay&#39; | &#39;silt&#39; | &#39;sand&#39; | &#39;gravel&#39; | &#39;rock&#39; | &#39;weathered-rock&#39;;
+    lithology: &#39;fill&#39; | &#39;cultivated-soil&#39; | &#39;clay&#39; | &#39;silty-clay&#39; | &#39;silt&#39; | &#39;sand&#39; | &#39;gravel&#39; | &#39;rock&#39; | &#39;weathered-rock&#39; | &#39;loess&#39; | &#39;loess-collapsible&#39; | &#39;loess-like&#39; | &#39;paleosol&#39; | &#39;calcareous-nodule&#39;;
     /** semantic pattern role in a licensed pack, e.g. fine-sand versus medium-sand. */
     patternkey?: string;
+    /** source-backed display fact: omit or filled draws the hatch; boundary-only preserves the interval without inventing fill. */
+    patternvisibility?: &#39;filled&#39; | &#39;boundary-only&#39;;
     description?: string;
     /** interval text is never merged; a project layer definition may repeat through lenses. */
     descriptionsource?: &#39;interval&#39; | &#39;layer-definition&#39;;
@@ -23429,9 +23771,11 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     name: string;
     top: number;
     bottom: number;
-    lithology: &#39;fill&#39; | &#39;clay&#39; | &#39;silt&#39; | &#39;sand&#39; | &#39;gravel&#39; | &#39;rock&#39; | &#39;weathered-rock&#39;;
+    lithology: &#39;fill&#39; | &#39;cultivated-soil&#39; | &#39;clay&#39; | &#39;silty-clay&#39; | &#39;silt&#39; | &#39;sand&#39; | &#39;gravel&#39; | &#39;rock&#39; | &#39;weathered-rock&#39; | &#39;loess&#39; | &#39;loess-collapsible&#39; | &#39;loess-like&#39; | &#39;paleosol&#39; | &#39;calcareous-nodule&#39;;
     /** Semantic pattern role in a licensed pack, e.g. fine-sand versus medium-sand. */
     patternKey?: string;
+    /** Source-backed display fact: omit or filled draws the hatch; boundary-only preserves the interval without inventing fill. */
+    patternVisibility?: &#39;filled&#39; | &#39;boundary-only&#39;;
     description?: string;
     /** Interval text is never merged; a project layer definition may repeat through lenses. */
     descriptionSource?: &#39;interval&#39; | &#39;layer-definition&#39;;
@@ -24206,6 +24550,47 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     readonly zh: string;
 }</code></pre>
       <p class="source-path">modification-controls.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjmechanicalbearingseatdetection" data-search="kjmechanicalbearingseatdetection interface @kanjieteam/kjdraw export interface kjmechanicalbearingseatdetection {
+    status: &#39;match&#39; | &#39;none&#39; | &#39;ambiguous&#39;;
+    candidates: readonly kjmechanicalbearingseatendview[];
+}">
+      <header><div><span class="kind">interface</span><h3>KJMechanicalBearingSeatDetection</h3></div><a class="permalink" href="#root-interface-kjmechanicalbearingseatdetection" aria-label="Link to KJMechanicalBearingSeatDetection">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJMechanicalBearingSeatDetection {
+    status: &#39;match&#39; | &#39;none&#39; | &#39;ambiguous&#39;;
+    candidates: readonly KJMechanicalBearingSeatEndView[];
+}</code></pre>
+      <p class="source-path">mechanical-topology.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjmechanicalbearingseatendview" data-search="kjmechanicalbearingseatendview interface @kanjieteam/kjdraw export interface kjmechanicalbearingseatendview {
+    center: readonly [number, number];
+    crownradius: number;
+    housingdiameter: number;
+    borediameter: number;
+    mountingholediameter: number;
+    mountingholespacing: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJMechanicalBearingSeatEndView</h3></div><a class="permalink" href="#root-interface-kjmechanicalbearingseatendview" aria-label="Link to KJMechanicalBearingSeatEndView">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJMechanicalBearingSeatEndView {
+    center: readonly [number, number];
+    crownRadius: number;
+    housingDiameter: number;
+    boreDiameter: number;
+    mountingHoleDiameter: number;
+    mountingHoleSpacing: number;
+}</code></pre>
+      <p class="source-path">mechanical-topology.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjmechanicaltopologyentity" data-search="kjmechanicaltopologyentity interface @kanjieteam/kjdraw export interface kjmechanicaltopologyentity {
+    type: string;
+    payload: readonly&lt;record&lt;string, unknown&gt;&gt;;
+}">
+      <header><div><span class="kind">interface</span><h3>KJMechanicalTopologyEntity</h3></div><a class="permalink" href="#root-interface-kjmechanicaltopologyentity" aria-label="Link to KJMechanicalTopologyEntity">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJMechanicalTopologyEntity {
+    type: string;
+    payload: Readonly&lt;Record&lt;string, unknown&gt;&gt;;
+}</code></pre>
+      <p class="source-path">mechanical-topology.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjmodeladapteroptions" data-search="kjmodeladapteroptions interface @kanjieteam/kjdraw export interface kjmodeladapteroptions {
     protocol: kjmodelprotocol;
@@ -31498,6 +31883,7 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     setdocument(document: kjdocument | null): this;
     settheme(theme: kjcanvastheme): this;
     setgrid(enabled: boolean): this;
+    setbackground(background: string | null): this;
     setselection(ids?: readonly string[]): this;
     setspace(spaceid: string | null): this;
     setsceneprovider(provider: kjcanvassceneprovider | null): this;
@@ -31539,6 +31925,7 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     setDocument(document: KJDocument | null): this;
     setTheme(theme: KJCanvasTheme): this;
     setGrid(enabled: boolean): this;
+    setBackground(background: string | null): this;
     setSelection(ids?: readonly string[]): this;
     setSpace(spaceId: string | null): this;
     setSceneProvider(provider: KJCanvasSceneProvider | null): this;
