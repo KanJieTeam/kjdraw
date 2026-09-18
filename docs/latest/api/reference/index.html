@@ -14262,6 +14262,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             squareholeradius: number;
             titlegrid: boolean;
             sideviewaxis: boolean;
+            outlinesegmentcount: number;
             symmetricprofilecount: number;
             notecount: number;
             dimensioncount: number;
@@ -14299,6 +14300,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             squareHoleRadius: number;
             titleGrid: boolean;
             sideViewAxis: boolean;
+            outlineSegmentCount: number;
             symmetricProfileCount: number;
             noteCount: number;
             dimensionCount: number;
@@ -17499,6 +17501,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
             pitch: number;
             radius: number;
         };
+        outlinesegments?: kjflangeendviewoutlinesegment[];
     };
     sideviewaxis?: {
         xrange: point2;
@@ -17526,6 +17529,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
             pitch: number;
             radius: number;
         };
+        outlineSegments?: KJFlangeEndViewOutlineSegment[];
     };
     sideViewAxis?: {
         xRange: Point2;
@@ -23501,6 +23505,31 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     textOverride?: string;
     rotation?: number;
 }</code></pre>
+      <p class="source-path">agent-mechanical-flange-core.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjflangeendviewoutlinesegment" data-search="kjflangeendviewoutlinesegment type @kanjieteam/kjdraw export type kjflangeendviewoutlinesegment = {
+    kind: &#39;line&#39;;
+    startoffset: point2;
+    endoffset: point2;
+} | {
+    kind: &#39;arc&#39;;
+    centeroffset: point2;
+    radius: number;
+    startangle: number;
+    endangle: number;
+};">
+      <header><div><span class="kind">type</span><h3>KJFlangeEndViewOutlineSegment</h3></div><a class="permalink" href="#root-type-kjflangeendviewoutlinesegment" aria-label="Link to KJFlangeEndViewOutlineSegment">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJFlangeEndViewOutlineSegment = {
+    kind: &#39;line&#39;;
+    startOffset: Point2;
+    endOffset: Point2;
+} | {
+    kind: &#39;arc&#39;;
+    centerOffset: Point2;
+    radius: number;
+    startAngle: number;
+    endAngle: number;
+};</code></pre>
       <p class="source-path">agent-mechanical-flange-core.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjflangesheetnote" data-search="kjflangesheetnote interface @kanjieteam/kjdraw export interface kjflangesheetnote {

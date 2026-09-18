@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:a409feb43a6ba510904322dd78d72adeda5945a10c419f741523056103c3a1f6",
+  "sourceDigest": "sha256:7eedd39f6868c5f8d155bb10830aececdf5ed903746a569897183734481dd912",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -10843,6 +10843,14 @@
       "href": "./api/reference/#root-interface-kjflangedimension",
       "anchor": "root-interface-kjflangedimension",
       "summary": "export interface KJFlangeDimension { kind: 'aligned' | 'rotated' | 'diameter' | 'radius' | 'angular'; definitionPoints: Point2[]; textPosition?: Point2; textOverride?: string; rotation?: number; }"
+    },
+    {
+      "name": "KJFlangeEndViewOutlineSegment",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjflangeendviewoutlinesegment",
+      "anchor": "root-type-kjflangeendviewoutlinesegment",
+      "summary": "export type KJFlangeEndViewOutlineSegment = { kind: 'line'; startOffset: Point2; endOffset: Point2; } | { kind: 'arc'; centerOffset: Point2; radius: number; startAngle: number; endAngle: number; };"
     },
     {
       "name": "KJFlangeSheetNote",
