@@ -109,6 +109,30 @@ test('canonical feature summaries are stable and the strict comparator catches k
   }
 })
 
+test('DXF imports of identical bytes ignore transient resource IDs but retain block and layer differences', async () => {
+  const sdk = createKJDrawSDK()
+  const encoded = async (blockName, color) => {
+    const document = sdk.createDocument({ units: 'millimeter' })
+    await document.transact('Resource reference fixture', tx => {
+      const layer = tx.upsertTableRecord('layers', { name: 'CUT', payload: { color, lineTypeId: 'linetype-continuous' } })
+      const block = tx.upsertTableRecord('blockRecords', { name: blockName, type: 'BLOCK_RECORD', payload: { basePoint: [0, 0, 0] } })
+      tx.createEntity('LINE', { start: [0, 0, 0], end: [10, 0, 0], layerId: layer.id }, { ownerId: block.id })
+      tx.createEntity('INSERT', { position: [20, 30, 0], blockRecordId: block.id, layerId: layer.id })
+    })
+    return sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  }
+  const referenceBytes = await encoded('BRACKET', 2)
+  const reference = createCanonicalFeatureSummary(await sdk.readDocument(referenceBytes, { format: 'DXF' }), { salt })
+  const repeated = createCanonicalFeatureSummary(await sdk.readDocument(referenceBytes, { format: 'DXF' }), { salt })
+  assert.equal(reference.digest, repeated.digest)
+  assert.equal(compareCanonicalFeatureSummaries(reference, repeated).passed, true)
+
+  const changedBlock = createCanonicalFeatureSummary(await sdk.readDocument(await encoded('OTHER_BRACKET', 2), { format: 'DXF' }), { salt })
+  const changedLayer = createCanonicalFeatureSummary(await sdk.readDocument(await encoded('BRACKET', 5), { format: 'DXF' }), { salt })
+  assert.ok(compareCanonicalFeatureSummaries(reference, changedBlock).categoryCounts.geometry > 0)
+  assert.ok(compareCanonicalFeatureSummaries(reference, changedLayer).categoryCounts.style > 0)
+})
+
 test('strict comparison rejects physical sheet, rotation, plot scale and plot-window drift', async () => {
   const reference = createCanonicalFeatureSummary(await drawing({ page: {} }), { salt })
   assert.equal(reference.layouts[0].plotSettings.numeric.paperWidth, 210)

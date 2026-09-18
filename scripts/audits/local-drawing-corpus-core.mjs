@@ -3,11 +3,11 @@ import { createHash, createHmac } from 'node:crypto'
 import { displayedEntityBounds } from '../../packages/kjdraw-sdk/src/selection-geometry.js'
 
 export const KJDRAW_LOCAL_CORPUS_SCHEMA = 'com.kanjie.kjdraw.local-drawing-corpus-manifest@3'
-export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@2'
+export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@3'
 export const KJDRAW_FEATURE_COMPARISON_SCHEMA = 'com.kanjie.kjdraw.feature-comparison@2'
 
 const textTypes = new Set(['TEXT', 'MTEXT', 'ATTRIB', 'ATTDEF'])
-const referenceKeys = new Set(['layerId', 'lineTypeId', 'styleId', 'dimensionStyleId', 'blockRecordId'])
+const referenceKeys = new Set(['layerId', 'lineTypeId', 'linetypeId', 'styleId', 'dimensionStyleId'])
 const finite = value => typeof value === 'number' && Number.isFinite(value)
 const stableCompare = (left, right) => left < right ? -1 : left > right ? 1 : 0
 
@@ -74,7 +74,12 @@ function hatchValue(value, tolerance) {
   return String(value)
 }
 
-function geometryOf(entity, tolerance) {
+function resourceIdentity(document, id) {
+  const target = typeof id === 'string' ? document.getObject(id) : null
+  return target ? `${target.kind}:${target.type}:${target.name ?? ''}` : 'unresolved'
+}
+
+function geometryOf(document, entity, tolerance) {
   const source = entity.payload ?? {}
   const pick = (...keys) => Object.fromEntries(keys.filter(key => source[key] !== undefined).map(key => {
     const value = source[key]
@@ -88,7 +93,7 @@ function geometryOf(entity, tolerance) {
   if (entity.type === 'CIRCLE') return pick('center', 'radius')
   if (entity.type === 'ARC') return pick('center', 'radius', 'startAngle', 'endAngle')
   if (entity.type === 'ELLIPSE') return pick('center', 'majorAxis', 'ratio', 'startParameter', 'endParameter')
-  if (entity.type === 'INSERT') return pick('position', 'scale', 'rotation', 'blockRecordId')
+  if (entity.type === 'INSERT') return { ...pick('position', 'scale', 'rotation'), blockDefinition: resourceIdentity(document, source.blockRecordId) }
   if (entity.type === 'TEXT' || entity.type === 'ATTRIB' || entity.type === 'ATTDEF') return pick(
     'position', 'alignmentPoint', 'height', 'rotation', 'widthFactor', 'obliqueAngle', 'generationFlags',
     'horizontalAlignment', 'verticalAlignment', 'normal', 'extrusionDirection', 'thickness')
@@ -113,6 +118,14 @@ function geometryOf(entity, tolerance) {
   return null
 }
 
+function stableResourcePayload(document, value) {
+  if (Array.isArray(value)) return value.map(item => stableResourcePayload(document, item))
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key,
+    referenceKeys.has(key) && typeof item === 'string' ? resourceIdentity(document, item) : stableResourcePayload(document, item),
+  ]))
+  return value
+}
+
 function styleOf(document, entity, salt) {
   const source = entity.payload ?? {}, result = {}
   for (const key of ['color', 'lineweight', 'linetypeScale', 'visible']) if (source[key] !== undefined) result[key] = source[key]
@@ -120,7 +133,7 @@ function styleOf(document, entity, salt) {
     const target = document.getObject(source[key])
     result[key] = target ? {
       identity: `${target.kind}:${target.type}:${target.name ?? ''}`,
-      payloadDigest: privateDigest(target.payload ?? {}, salt, 'kjdraw-corpus-resource'),
+      payloadDigest: privateDigest(stableResourcePayload(document, target.payload ?? {}), salt, 'kjdraw-corpus-resource'),
     } : 'unresolved'
   }
   return result
@@ -242,7 +255,7 @@ export function createCanonicalFeatureSummary(document, { salt, geometryToleranc
   if (!finite(geometryTolerance) || geometryTolerance <= 0 || geometryTolerance > 1e6) throw new Error('geometryTolerance must be finite, positive and at most 1000000')
   const entities = [...document.listEntities()].sort((left, right) => stableCompare(left.ownerId ?? '', right.ownerId ?? '') || stableCompare(left.handle ?? '', right.handle ?? '') || stableCompare(left.id, right.id))
   const nodes = entities.map(entity => {
-    const owner = document.getObject(entity.ownerId), geometry = geometryOf(entity, geometryTolerance), style = styleOf(document, entity, salt), text = textOf(entity, salt)
+    const owner = document.getObject(entity.ownerId), geometry = geometryOf(document, entity, geometryTolerance), style = styleOf(document, entity, salt), text = textOf(entity, salt)
     const bounds = displayedEntityBounds(document, entity)
     return {
       type: entity.type,
