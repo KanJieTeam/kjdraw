@@ -54,7 +54,8 @@ function validate(document, source) {
     exact(end, [
         'center',
         'ringRadii',
-        'squareHoles'
+        'squareHoles',
+        'outlineSegments'
     ], 'input.endView');
     const center = point(end.center, 'input.endView.center');
     const ringRadii = increasing(end.ringRadii, 'input.endView.ringRadii', 16, 0.1, 100_000);
@@ -67,6 +68,48 @@ function validate(document, source) {
     const pitch = finite(holes.pitch, 'input.endView.squareHoles.pitch', 0.1, 100_000);
     const radius = finite(holes.radius, 'input.endView.squareHoles.radius', 0.1, 100_000);
     if (pitch <= radius * 2) throw new KJValidationError('square-hole pitch must exceed the hole diameter');
+    if (end.outlineSegments != null && !Array.isArray(end.outlineSegments)) throw new KJValidationError('input.endView.outlineSegments must be an array');
+    if (end.outlineSegments?.length && end.outlineSegments.length > 128) throw new KJValidationError('input.endView.outlineSegments exceed their budget');
+    const outlineSegments = (end.outlineSegments ?? []).map((value, index)=>{
+        const segment = plain(value, `input.endView.outlineSegments[${index}]`);
+        if (segment.kind === 'line') {
+            exact(segment, [
+                'kind',
+                'startOffset',
+                'endOffset'
+            ], `input.endView.outlineSegments[${index}]`);
+            const startOffset = point(segment.startOffset, `input.endView.outlineSegments[${index}].startOffset`);
+            const endOffset = point(segment.endOffset, `input.endView.outlineSegments[${index}].endOffset`);
+            if (startOffset[0] === endOffset[0] && startOffset[1] === endOffset[1]) throw new KJValidationError(`input.endView.outlineSegments[${index}] must not have zero length`);
+            return {
+                kind: 'line',
+                startOffset,
+                endOffset
+            };
+        }
+        if (segment.kind === 'arc') {
+            exact(segment, [
+                'kind',
+                'centerOffset',
+                'radius',
+                'startAngle',
+                'endAngle'
+            ], `input.endView.outlineSegments[${index}]`);
+            const centerOffset = point(segment.centerOffset, `input.endView.outlineSegments[${index}].centerOffset`);
+            const arcRadius = finite(segment.radius, `input.endView.outlineSegments[${index}].radius`, 0.1, 100_000);
+            const startAngle = finite(segment.startAngle, `input.endView.outlineSegments[${index}].startAngle`, -Math.PI * 4, Math.PI * 4);
+            const endAngle = finite(segment.endAngle, `input.endView.outlineSegments[${index}].endAngle`, -Math.PI * 4, Math.PI * 4);
+            if (startAngle === endAngle) throw new KJValidationError(`input.endView.outlineSegments[${index}] arc sweep must not be zero`);
+            return {
+                kind: 'arc',
+                centerOffset,
+                radius: arcRadius,
+                startAngle,
+                endAngle
+            };
+        }
+        throw new KJValidationError(`input.endView.outlineSegments[${index}].kind is invalid`);
+    });
     const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis');
     if (side) exact(side, [
         'xRange',
@@ -309,6 +352,7 @@ function validate(document, source) {
         ringRadii,
         pitch,
         radius,
+        outlineSegments,
         xRange,
         symmetricProfiles,
         dimensions,
@@ -391,6 +435,22 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         radius: input.radius,
         layerId: geometryLayerId
     });
+    for (const segment of input.outlineSegments){
+        if (segment.kind === 'line') line([
+            cx + segment.startOffset[0],
+            cy + segment.startOffset[1]
+        ], [
+            cx + segment.endOffset[0],
+            cy + segment.endOffset[1]
+        ], geometryLayerId);
+        else emit('ARC', {
+            center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]),
+            radius: segment.radius,
+            startAngle: segment.startAngle,
+            endAngle: segment.endAngle,
+            layerId: geometryLayerId
+        });
+    }
     rectangle(input.sheetOrigin, input.sheetSize);
     rectangle([
         input.sheetOrigin[0] + input.inset,
@@ -574,6 +634,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 squareHoleRadius: input.radius,
                 titleGrid: input.titleGrid != null,
                 sideViewAxis: input.xRange != null,
+                outlineSegmentCount: input.outlineSegments.length,
                 symmetricProfileCount: input.symmetricProfiles.length,
                 noteCount: input.notes.length,
                 dimensionCount: input.dimensions.length

@@ -6,7 +6,10 @@ import { buildAgentMechanicalFlangeCore, createKJDrawSDK, KJDRAW_MECHANICAL_FLAN
 
 const input = expectedRevision => ({
   version: '1.0.0', expectedRevision, units: 'millimeter', drawingId: 'PUBLIC-TEST-FLANGE',
-  endView: { center: [90, 150], ringRadii: [12, 28, 40], squareHoles: { pitch: 60, radius: 4 } },
+  endView: { center: [90, 150], ringRadii: [12, 28, 40], squareHoles: { pitch: 60, radius: 4 }, outlineSegments: [
+    { kind: 'line', startOffset: [-45, -30], endOffset: [-45, 30] },
+    { kind: 'arc', centerOffset: [0, 0], radius: 45, startAngle: 0, endAngle: Math.PI / 2 },
+  ] },
   sideViewAxis: { xRange: [190, 280], symmetricProfiles: [{
     vertices: [{ station: 190, radius: 25 }, { station: 210, radius: 25 }, { station: 210, radius: 40 },
       { station: 250, radius: 40 }, { station: 255, radius: 30 }, { station: 280, radius: 30 }],
@@ -37,9 +40,11 @@ test('flange knowledge pack and compiler are source-neutral and deterministic', 
   const a = buildAgentMechanicalFlangeCore(document, input(document.revision))
   const b = buildAgentMechanicalFlangeCore(document, input(document.revision))
   assert.deepEqual(a, b)
-  assert.equal(a.evidence.entityCount, 43)
+  assert.equal(a.evidence.entityCount, 45)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'CIRCLE').length, 7)
-  assert.equal(a.commandArgs.entities.filter(e => e.type === 'LINE').length, 32)
+  assert.equal(a.commandArgs.entities.filter(e => e.type === 'LINE').length, 33)
+  assert.equal(a.commandArgs.entities.filter(e => e.type === 'ARC').length, 1)
+  assert.equal(a.evidence.parameters.outlineSegmentCount, 2)
   assert.equal(a.evidence.parameters.symmetricProfileCount, 1)
   assert.equal(a.evidence.parameters.noteCount, 2)
   assert.equal(a.evidence.parameters.dimensionCount, 2)
@@ -61,15 +66,15 @@ test('all ring, hole, projection-axis and grid positions respond to parameters',
   assert.ok(entities.some(e => e.type === 'LINE' && JSON.stringify(e.payload.start) === '[340,26,0]' && JSON.stringify(e.payload.end) === '[392,26,0]'))
   assert.ok(entities.some(e => e.type === 'LINE' && JSON.stringify(e.payload.start) === '[360,20,0]' && JSON.stringify(e.payload.end) === '[360,32,0]'))
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
-  assert.equal(document.listEntities().length, 43)
+  assert.equal(document.listEntities().length, 45)
   const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
   const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
   const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
-  assert.equal(kjd.listEntities().length, 43)
+  assert.equal(kjd.listEntities().length, 45)
   assert.equal(dxf.listEntities().filter(e => e.type === 'CIRCLE').length, 7)
   assert.equal(dxf.listEntities().filter(e => e.type === 'DIMENSION').length, 2)
   const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
-    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(m.query("CIRCLE")),"lines":len(m.query("LINE")),"dimensions":len(m.query("DIMENSION"))}))'],
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(m.query("CIRCLE")),"arcs":len(m.query("ARC")),"lines":len(m.query("LINE")),"dimensions":len(m.query("DIMENSION"))}))'],
   dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
     PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
   if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
@@ -77,7 +82,7 @@ test('all ring, hole, projection-axis and grid positions respond to parameters',
     t.diagnostic('official ezdxf unavailable; independent check skipped')
   } else {
     assert.equal(independent.status, 0, independent.stderr)
-    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, circles: 7, lines: 32, dimensions: 2 })
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, circles: 7, arcs: 1, lines: 33, dimensions: 2 })
   }
 })
 
@@ -86,6 +91,8 @@ test('flange compiler rejects unsupported source injection and impossible geomet
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), rawDrawing: 'private' }), /unsupported field/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), endView: { ...input(0).endView, ringRadii: [20, 12] } }), /increase strictly/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), endView: { ...input(0).endView, squareHoles: { pitch: 6, radius: 4 } } }), /pitch must exceed/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), endView: { ...input(0).endView, outlineSegments: [{ kind: 'line', startOffset: [0, 0], endOffset: [0, 0] }] } }), /zero length/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), endView: { ...input(0).endView, outlineSegments: [{ kind: 'arc', centerOffset: [0, 0], radius: 10, startAngle: 1, endAngle: 1 }] } }), /sweep must not be zero/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), expectedRevision: 1 }), /expectedRevision/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sideViewAxis: { xRange: [190, 280], symmetricProfiles: [{ vertices: [{ station: 210, radius: 10 }, { station: 200, radius: 10 }] }] } }), /must not decrease/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sideViewAxis: { xRange: [190, 280], symmetricProfiles: [{ vertices: [{ station: 200, radius: 10 }, { station: 200, radius: 10 }] }] } }), /zero-length/u)

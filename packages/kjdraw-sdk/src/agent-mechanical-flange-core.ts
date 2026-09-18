@@ -6,7 +6,7 @@ import { stableHash } from './utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
 type Point2 = [number, number]
 type Point3 = [number, number, number]
-type Entity = { type: 'LINE' | 'CIRCLE' | 'TEXT' | 'MTEXT' | 'DIMENSION'; payload: Record<string, unknown>; options: { id: string } }
+type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'TEXT' | 'MTEXT' | 'DIMENSION'; payload: Record<string, unknown>; options: { id: string } }
 interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } } }
 
 export interface KJFlangeTitleGrid {
@@ -55,12 +55,18 @@ export interface KJFlangeDimension {
   rotation?: number
 }
 
+/** Source-measured visible end-view outline geometry, expressed relative to
+ *  the end-view center so that the same rule remains position independent. */
+export type KJFlangeEndViewOutlineSegment =
+  | { kind: 'line'; startOffset: Point2; endOffset: Point2 }
+  | { kind: 'arc'; centerOffset: Point2; radius: number; startAngle: number; endAngle: number }
+
 export interface KJAgentMechanicalFlangeCoreInput {
   version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION
   expectedRevision: number
   units: 'millimeter'
   drawingId: string
-  endView: { center: Point2; ringRadii: number[]; squareHoles: { pitch: number; radius: number } }
+  endView: { center: Point2; ringRadii: number[]; squareHoles: { pitch: number; radius: number }; outlineSegments?: KJFlangeEndViewOutlineSegment[] }
   sideViewAxis?: { xRange: Point2; symmetricProfiles?: KJFlangeSymmetricProfile[] }
   dimensions?: KJFlangeDimension[]
   sheet: { origin: Point2; size: Point2; inset: number; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
@@ -97,7 +103,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   const expectedRevision = finite(input.expectedRevision, 'input.expectedRevision', 0, Number.MAX_SAFE_INTEGER)
   if (!Number.isInteger(expectedRevision) || expectedRevision !== document.revision) throw new KJValidationError('input.expectedRevision must match the document revision')
   if (typeof input.drawingId !== 'string' || !input.drawingId.trim() || input.drawingId.length > 96 || /[\u0000-\u001f\u007f]/u.test(input.drawingId)) throw new KJValidationError('input.drawingId must be printable text')
-  const end = plain(input.endView, 'input.endView'); exact(end, ['center', 'ringRadii', 'squareHoles'], 'input.endView')
+  const end = plain(input.endView, 'input.endView'); exact(end, ['center', 'ringRadii', 'squareHoles', 'outlineSegments'], 'input.endView')
   const center = point(end.center, 'input.endView.center')
   const ringRadii = increasing(end.ringRadii, 'input.endView.ringRadii', 16, 0.1, 100_000)
   if (ringRadii.length < 2) throw new KJValidationError('input.endView.ringRadii requires at least two radii')
@@ -105,6 +111,28 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   const pitch = finite(holes.pitch, 'input.endView.squareHoles.pitch', 0.1, 100_000)
   const radius = finite(holes.radius, 'input.endView.squareHoles.radius', 0.1, 100_000)
   if (pitch <= radius * 2) throw new KJValidationError('square-hole pitch must exceed the hole diameter')
+  if (end.outlineSegments != null && !Array.isArray(end.outlineSegments)) throw new KJValidationError('input.endView.outlineSegments must be an array')
+  if ((end.outlineSegments as unknown[] | undefined)?.length && (end.outlineSegments as unknown[]).length > 128) throw new KJValidationError('input.endView.outlineSegments exceed their budget')
+  const outlineSegments: KJFlangeEndViewOutlineSegment[] = ((end.outlineSegments ?? []) as unknown[]).map((value, index) => {
+    const segment = plain(value, `input.endView.outlineSegments[${index}]`)
+    if (segment.kind === 'line') {
+      exact(segment, ['kind', 'startOffset', 'endOffset'], `input.endView.outlineSegments[${index}]`)
+      const startOffset = point(segment.startOffset, `input.endView.outlineSegments[${index}].startOffset`)
+      const endOffset = point(segment.endOffset, `input.endView.outlineSegments[${index}].endOffset`)
+      if (startOffset[0] === endOffset[0] && startOffset[1] === endOffset[1]) throw new KJValidationError(`input.endView.outlineSegments[${index}] must not have zero length`)
+      return { kind: 'line', startOffset, endOffset }
+    }
+    if (segment.kind === 'arc') {
+      exact(segment, ['kind', 'centerOffset', 'radius', 'startAngle', 'endAngle'], `input.endView.outlineSegments[${index}]`)
+      const centerOffset = point(segment.centerOffset, `input.endView.outlineSegments[${index}].centerOffset`)
+      const arcRadius = finite(segment.radius, `input.endView.outlineSegments[${index}].radius`, 0.1, 100_000)
+      const startAngle = finite(segment.startAngle, `input.endView.outlineSegments[${index}].startAngle`, -Math.PI * 4, Math.PI * 4)
+      const endAngle = finite(segment.endAngle, `input.endView.outlineSegments[${index}].endAngle`, -Math.PI * 4, Math.PI * 4)
+      if (startAngle === endAngle) throw new KJValidationError(`input.endView.outlineSegments[${index}] arc sweep must not be zero`)
+      return { kind: 'arc', centerOffset, radius: arcRadius, startAngle, endAngle }
+    }
+    throw new KJValidationError(`input.endView.outlineSegments[${index}].kind is invalid`)
+  })
   const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis')
   if (side) exact(side, ['xRange', 'symmetricProfiles'], 'input.sideViewAxis')
   const xRange = side ? point(side.xRange, 'input.sideViewAxis.xRange') : null
@@ -217,7 +245,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     return { kind: dimension.kind as KJFlangeDimension['kind'], definitionPoints, ...(textPosition == null ? {} : { textPosition }),
       ...(textOverride == null ? {} : { textOverride }), rotation }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, xRange, symmetricProfiles, dimensions, sheetOrigin, sheetSize, inset, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, xRange, symmetricProfiles, dimensions, sheetOrigin, sheetSize, inset, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -235,6 +263,11 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   for (const ringRadius of input.ringRadii) emit('CIRCLE', { center: p3(cx, cy), radius: ringRadius, layerId: geometryLayerId })
   const halfPitch = input.pitch / 2
   for (const dx of [-1, 1]) for (const dy of [-1, 1]) emit('CIRCLE', { center: p3(cx + dx * halfPitch, cy + dy * halfPitch), radius: input.radius, layerId: geometryLayerId })
+  for (const segment of input.outlineSegments) {
+    if (segment.kind === 'line') line([cx + segment.startOffset[0], cy + segment.startOffset[1]], [cx + segment.endOffset[0], cy + segment.endOffset[1]], geometryLayerId)
+    else emit('ARC', { center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]), radius: segment.radius,
+      startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: geometryLayerId })
+  }
   rectangle(input.sheetOrigin, input.sheetSize)
   rectangle([input.sheetOrigin[0] + input.inset, input.sheetOrigin[1] + input.inset], [input.sheetSize[0] - input.inset * 2, input.sheetSize[1] - input.inset * 2])
   if (input.titleGrid) {
@@ -284,7 +317,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       knowledgePackVersion: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version,
       expectedRevision: input.expectedRevision, entityCount: entities.length,
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
-        symmetricProfileCount: input.symmetricProfiles.length, noteCount: input.notes.length, dimensionCount: input.dimensions.length },
+        outlineSegmentCount: input.outlineSegments.length, symmetricProfileCount: input.symmetricProfiles.length, noteCount: input.notes.length, dimensionCount: input.dimensions.length },
       limitations: ['Flange end-view, symmetric axial-profile, native dimension and sheet-grid core only', 'Does not generate attributes or hatches', 'Private drawings and labels are not embedded'],
     },
   }
