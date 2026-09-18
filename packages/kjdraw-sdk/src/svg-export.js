@@ -174,6 +174,76 @@ function hatchEdgePath(value) {
     }
     return path + ' Z';
 }
+function hatchPreviewBoundary(loops) {
+    const paths = [], points = [];
+    let count = 0;
+    for (const raw of loops){
+        const loop = data(raw);
+        if (Array.isArray(loop.vertices)) {
+            if (loop.vertices.length < 3) fail('custom PAT boundary requires at least three vertices');
+            count += loop.vertices.length;
+            paths.push(polyPath(loop.vertices, true));
+            for(let index = 0; index < loop.vertices.length; index++){
+                const vertex = loop.vertices[index], next = loop.vertices[(index + 1) % loop.vertices.length];
+                const a = point(Array.isArray(vertex) ? vertex : data(vertex).point);
+                points.push(a);
+                const bulge = numeric(data(vertex).bulge, 0);
+                if (bulge) {
+                    const b = point(Array.isArray(next) ? next : data(next).point);
+                    const chord = Math.hypot(b[0] - a[0], b[1] - a[1]);
+                    if (!chord) fail('custom PAT boundary contains a degenerate bulge');
+                    const radius = chord * (1 + bulge * bulge) / (4 * Math.abs(bulge));
+                    for (const p of [
+                        a,
+                        b
+                    ])points.push([
+                        p[0] - 2 * radius,
+                        p[1] - 2 * radius
+                    ], [
+                        p[0] + 2 * radius,
+                        p[1] + 2 * radius
+                    ]);
+                }
+            }
+        } else {
+            const edges = loop.edges;
+            if (!Array.isArray(edges) || !edges.length) fail('custom PAT boundary requires polygon or edge loops');
+            count += edges.length;
+            paths.push(hatchEdgePath(loop));
+            for (const rawEdge of edges){
+                const edge = data(rawEdge), type = String(edge.type).toUpperCase();
+                if (type === 'LINE') {
+                    points.push(point(edge.start), point(edge.end));
+                    continue;
+                }
+                let center, radius;
+                if (type === 'SPLINE') {
+                    const conic = closedHatchSplineConic(edge);
+                    if (!conic) fail('unsupported custom PAT spline boundary');
+                    center = point(conic.center);
+                    radius = Math.hypot(...point(conic.majorAxis));
+                } else if (type === 'ARC' || type === 'ELLIPSE') {
+                    center = point(edge.center);
+                    radius = type === 'ARC' ? numeric(edge.radius) : Math.hypot(...point(edge.majorAxis));
+                } else return fail(`unsupported custom PAT edge ${type}`);
+                if (!(radius > 0)) fail('custom PAT curved boundary radius must be positive');
+                points.push([
+                    center[0] - radius,
+                    center[1] - radius
+                ], [
+                    center[0] + radius,
+                    center[1] + radius
+                ]);
+            }
+        }
+        if (count > 4096) fail('custom PAT boundary exceeds the preview budget');
+    }
+    if (!points.length) fail('custom PAT boundary has no bounds');
+    return {
+        path: paths.join(' '),
+        points
+    };
+}
 export function exportDrawingSvg(document, options) {
     const source = document.snapshot(), revision = document.revision;
     if (!options || typeof options.layoutId !== 'string' || typeof options.allowPartial !== 'undefined' && typeof options.allowPartial !== 'boolean') fail('layoutId and valid export options are required');
@@ -407,16 +477,14 @@ export function exportDrawingSvg(document, options) {
             if (!Array.isArray(p.boundaryLoops) || !p.boundaryLoops.length || p.boundaryLoops.length > 128) fail('pattern hatch has no bounded boundaries');
             const name = String(p.patternName ?? '').toUpperCase();
             if (Array.isArray(p.patternLines) && p.patternLines.length) {
-                if (p.patternLines.length > 32 || p.boundaryLoops.some((loop)=>!Array.isArray(data(loop).vertices))) fail('custom PAT preview requires bounded polygon loops and 1–32 line families');
-                const vertices = p.boundaryLoops.flatMap((loop)=>data(loop).vertices).map((value)=>point(Array.isArray(value) ? value : data(value).point));
-                if (vertices.length < 3 || vertices.length > 4096) fail('custom PAT boundary exceeds the preview budget');
-                const minX = Math.min(...vertices.map((v)=>v[0])), maxX = Math.max(...vertices.map((v)=>v[0]));
-                const minY = Math.min(...vertices.map((v)=>v[1])), maxY = Math.max(...vertices.map((v)=>v[1]));
+                if (p.patternLines.length > 32) fail('custom PAT preview supports 1–32 line families');
+                const boundary = hatchPreviewBoundary(p.boundaryLoops);
+                const minX = Math.min(...boundary.points.map((v)=>v[0])), maxX = Math.max(...boundary.points.map((v)=>v[0]));
+                const minY = Math.min(...boundary.points.map((v)=>v[1])), maxY = Math.max(...boundary.points.map((v)=>v[1]));
                 const patternScale = numeric(p.patternScale, 1), patternAngle = numeric(p.patternAngle, 0);
                 if (!(patternScale > 0 && patternScale <= 100) || Math.abs(patternAngle) > 1000) fail('custom PAT scale or angle is outside preview bounds');
                 const clipId = `kj-pat-clip-${++sequence}`;
-                const boundary = p.boundaryLoops.map((loop)=>polyPath(data(loop).vertices, true)).join(' ');
-                definitions.push(count(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${boundary}" fill-rule="evenodd"/></clipPath>`));
+                definitions.push(count(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${boundary.path}" fill-rule="evenodd"/></clipPath>`));
                 const corners = [
                     [
                         minX,

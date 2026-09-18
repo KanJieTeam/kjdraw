@@ -61,6 +61,31 @@ test('named built-in pattern HATCH exports bounded SVG previews without silently
   assert.ok(output.report.approximations.every(item => /CAD hatch/.test(item.reason)))
 })
 
+test('custom PAT SVG clips bounded edge loops including curved boundaries', async () => {
+  const { document, layoutId, create } = await fixture()
+  const patternLines = [{ angle: 0, base: [0, 0], offset: [0, 2], dashes: [] }]
+  await create('HATCH', {
+    boundaryLoops: [{ external: true, closed: true, edges: [
+      { type: 'LINE', start: [0, 0], end: [20, 0] },
+      { type: 'LINE', start: [20, 0], end: [20, 10] },
+      { type: 'LINE', start: [20, 10], end: [0, 10] },
+      { type: 'LINE', start: [0, 10], end: [0, 0] },
+    ] }], patternName: 'LOCAL', patternScale: 1, patternAngle: 0, patternLines,
+  })
+  await create('HATCH', {
+    boundaryLoops: [{ external: true, closed: true, edges: [
+      { type: 'ARC', center: [40, 10], radius: 10, startAngle: 0, endAngle: Math.PI * 2, counterClockwise: true },
+    ] }], patternName: 'LOCAL', patternScale: 1, patternAngle: 0, patternLines,
+  })
+  const result = exportDrawingSvg(document, { layoutId, allowPartial: false })
+  assert.equal(result.report.diagnostics.length, 0, JSON.stringify(result.report.diagnostics))
+  assert.equal(result.report.rendered, 2)
+  assert.equal((result.svg.match(/id="kj-pat-clip-/g) ?? []).length, 2)
+  assert.match(result.svg, /A 10 10 0 0 1/)
+  assert.match(result.svg, /clip-path="url\(#kj-pat-clip-/)
+  parseSvg(result.svg)
+})
+
 test('A3 vector SVG has physical millimeters and exact 1:100 viewport geometry, clips, layer styles and native dimension values',async()=>{
   const {sdk,document,layoutId,create}=await fixture(),model=document.snapshot().spaces.modelSpaceId
   let dashed,frozen,noPlot
