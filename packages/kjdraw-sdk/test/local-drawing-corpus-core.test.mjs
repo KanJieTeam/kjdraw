@@ -8,6 +8,7 @@ import test from 'node:test'
 
 import { createKJDrawSDK } from '../src/index.js'
 import {
+  KJDRAW_LOCAL_CORPUS_SCHEMA,
   anonymousFileId,
   canonicalJson,
   classifyDrawingHint,
@@ -168,7 +169,7 @@ test('batch comparator consumes explicit one-to-one anonymous mappings and fails
   const reference = createCanonicalFeatureSummary(await drawing(), { salt })
   const changed = createCanonicalFeatureSummary(await drawing({ shift: 2 }), { salt })
   const wrap = (corpusId, anonymousId, featureSummary) => ({
-    schema: 'com.kanjie.kjdraw.local-drawing-corpus-manifest@2', corpusId, deterministic: true,
+    schema: KJDRAW_LOCAL_CORPUS_SCHEMA, corpusId, deterministic: true,
     files: [{ anonymousId, parseStatus: 'parsed', featureSummary }],
   })
   const expected = join(root, 'expected.json'), actual = join(root, 'actual.json'), matching = join(root, 'matching.json'), pairs = join(root, 'pairs.json')
@@ -187,4 +188,29 @@ test('batch comparator consumes explicit one-to-one anonymous mappings and fails
   assert.equal(JSON.parse(passed.stdout).passed, true)
   const missing = spawnSync(process.execPath, [script, '--expected', expected, '--actual', expected, '--pairs', pairs], { encoding: 'utf8' })
   assert.equal(missing.status, 1, 'mismatched anonymous ID must fail closed even when manifests are otherwise identical')
+})
+
+test('sharded manifests release feature summaries and remain directly comparable', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'kjdraw-corpus-sharded-'))
+  const sdk = createKJDrawSDK(), source = await drawing({ page: {} })
+  await writeFile(join(root, 'candidate.dxf'), await sdk.writeDocument(source, { format: 'DXF', version: '2018' }))
+  const manifestPath = join(root, 'manifest.json'), featureDir = join(root, 'features')
+  const inspect = fileURLToPath(new URL('../../../scripts/audits/inspect-local-drawing-corpus.mjs', import.meta.url))
+  const run = spawnSync(process.execPath, [inspect, '--root', root, '--corpus-id', 'sharded-test', '--format', 'DXF', '--output', manifestPath, '--feature-dir', featureDir], {
+    encoding: 'utf8', env: { ...process.env, KJDRAW_CORPUS_SALT: salt },
+  })
+  assert.equal(run.status, 0, run.stderr)
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')), entry = manifest.files[0]
+  assert.equal(manifest.schema, KJDRAW_LOCAL_CORPUS_SCHEMA)
+  assert.equal(manifest.featureStorage, 'sharded')
+  assert.equal(Object.hasOwn(entry, 'featureSummary'), false)
+  assert.match(entry.featureSummaryRef, /^features\/cad-[0-9a-f]{32}\.json$/u)
+  const shard = JSON.parse(await readFile(join(root, entry.featureSummaryRef), 'utf8'))
+  assert.equal(shard.digest, entry.featureDigest)
+  const pairs = join(root, 'pairs.json')
+  await writeFile(pairs, canonicalJson([{ expectedId: entry.anonymousId, actualId: entry.anonymousId }]))
+  const compare = fileURLToPath(new URL('../../../scripts/audits/compare-local-drawing-features.mjs', import.meta.url))
+  const compared = spawnSync(process.execPath, [compare, '--expected', manifestPath, '--actual', manifestPath, '--pairs', pairs], { encoding: 'utf8' })
+  assert.equal(compared.status, 0, compared.stderr)
+  assert.equal(JSON.parse(compared.stdout).passed, true)
 })

@@ -2,7 +2,7 @@ import { createHash, createHmac } from 'node:crypto'
 
 import { displayedEntityBounds } from '../../packages/kjdraw-sdk/src/selection-geometry.js'
 
-export const KJDRAW_LOCAL_CORPUS_SCHEMA = 'com.kanjie.kjdraw.local-drawing-corpus-manifest@2'
+export const KJDRAW_LOCAL_CORPUS_SCHEMA = 'com.kanjie.kjdraw.local-drawing-corpus-manifest@3'
 export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@2'
 export const KJDRAW_FEATURE_COMPARISON_SCHEMA = 'com.kanjie.kjdraw.feature-comparison@2'
 
