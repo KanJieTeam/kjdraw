@@ -411,9 +411,12 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const role = plain(value, label); exact(role, ['layerName', 'color', 'lineweight', 'linetypeName', 'linetypePattern'], label)
     if (role.layerName != null && (typeof role.layerName !== 'string' || !/^[^\u0000-\u001f\u007f]{1,64}$/u.test(role.layerName))) throw new KJValidationError(`${label}.layerName must be bounded printable text`)
     if (role.linetypeName != null && (typeof role.linetypeName !== 'string' || !/^[^\u0000-\u001f\u007f]{1,64}$/u.test(role.linetypeName))) throw new KJValidationError(`${label}.linetypeName must be bounded printable text`)
-    const color = role.color == null ? undefined : finite(role.color, `${label}.color`, 0, 255)
+    const color = role.color == null ? undefined : finite(role.color, `${label}.color`, 1, 255)
+    if (color != null && !Number.isInteger(color)) throw new KJValidationError(`${label}.color must be an integer ACI color`)
     const lineweight = role.lineweight == null ? undefined : finite(role.lineweight, `${label}.lineweight`, -3, 211)
-    if (role.linetypePattern != null && (!Array.isArray(role.linetypePattern) || role.linetypePattern.length > 32 || role.linetypePattern.some((item: unknown) => typeof item !== 'number' || !Number.isFinite(item) || Math.abs(item) > 1_000))) throw new KJValidationError(`${label}.linetypePattern is invalid`)
+    const supportedLineweights = new Set([-3, -2, -1, 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211])
+    if (lineweight != null && !supportedLineweights.has(lineweight)) throw new KJValidationError(`${label}.lineweight is not a supported CAD lineweight`)
+    if (role.linetypePattern != null && (!Array.isArray(role.linetypePattern) || role.linetypePattern.length > 32 || role.linetypePattern.length % 2 !== 0 || role.linetypePattern.some((item: unknown, index: number) => typeof item !== 'number' || !Number.isFinite(item) || Math.abs(item) > 1_000 || index % 2 === 0 && item <= 0 || index % 2 === 1 && item >= 0))) throw new KJValidationError(`${label}.linetypePattern is invalid`)
     return { ...(role.layerName == null ? {} : { layerName: role.layerName }), ...(color == null ? {} : { color }), ...(lineweight == null ? {} : { lineweight }), ...(role.linetypeName == null ? {} : { linetypeName: role.linetypeName }), ...(role.linetypePattern == null ? {} : { linetypePattern: [...role.linetypePattern] }) }
   }
   const styles: KJFlangeStyleProfile = {}
