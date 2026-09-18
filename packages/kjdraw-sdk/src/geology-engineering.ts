@@ -591,6 +591,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const finishColumn = (): ReadonlyDeep<KJKnowledgeCompileResult> => g.finish({
     verticalScaleDenominator,
     verticalScaleSource: input.verticalScaleDenominator == null ? 'style-standard' : 'explicit',
+    stratumCount: strata.length,
+    lithologyCount: new Set(strata.map(layer => layer.patternKey ?? layer.lithology)).size,
   })
   const observations = hole.observations ?? []
   if (observations.length && strata.some(layer => layer.description) && !observationColumns && !fieldGrid) throw new KJValidationError('Geology: supplied descriptions and depth-aligned observations need separate declared columns')

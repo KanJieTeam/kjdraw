@@ -59,6 +59,20 @@ test('legacy footer legend lays out seven distinct lithologies without merging s
     assert.ok(labels.includes(expected), expected)
 })
 
+test('A4 footer legend retains nine distinct lithologies and reports their exact count', () => {
+  const kinds = ['fill', 'cultivated-soil', 'clay', 'silty-clay', 'silt', 'sand', 'gravel', 'loess', 'paleosol']
+  const result = compileGeologyColumn({ hole: { id: 'LEGEND-9', collarElevation: 300, depth: 30,
+    strata: kinds.map((lithology, index) => ({ code: String(index + 1), name: `Unit ${index + 1}`,
+      top: index * 30 / 9, bottom: (index + 1) * 30 / 9, lithology })) }, expectedRevision: 0 })
+  assert.equal(result.evidence.parameters.stratumCount, 9)
+  assert.equal(result.evidence.parameters.lithologyCount, 9)
+  assert.equal(result.evidence.parameters.verticalScaleDenominator, 200)
+  assert.equal(result.commandArgs.entities.filter(entity => entity.type === 'HATCH').length, 18,
+    'all nine strata and all nine separate legend swatches must remain native hatches')
+  const labels = result.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  for (const kind of kinds) assert.ok(labels.includes(kind.replaceAll('-', ' ')), kind)
+})
+
 test('Chinese geology inputs produce Chinese compiler labels for columns and sections', () => {
   const columnHole = hole('ZK-中文-01', 0, 105.25)
   columnHole.strata[0].name = '杂填土'

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 import { KJAgentToolSession } from '../src/agent-tools.js'
 import { createKJDrawSDK } from '../src/sdk.js'
 
@@ -130,6 +131,49 @@ test('a 30 m Chinese loess log keeps seven lithologies, descriptions, samples an
     assert.ok(visible.some(value => value.includes(label)), label)
   assert.equal(proposal.arguments.entities.filter(entity => entity.type === 'HATCH').length, 7)
   assert.equal(document.revision, 0)
+})
+
+test('nine Chinese lithologies are proposed, approved and reopened without an A4 five-class truncation', async t => {
+  const names = ['素填土', '耕植土', '黏土', '粉质黏土', '粉土', '砂土', '砾石', '黄土', '古土壤']
+  const lithologies = ['fill', 'cultivated-soil', 'clay', 'silty-clay', 'silt', 'sand', 'gravel', 'loess', 'paleosol']
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const session = new KJAgentToolSession(sdk, document)
+  assert.match(session.definitions.find(tool => tool.name === 'cad_propose_geology_column').description, /no five-class limit/u)
+  const proposal = accepted(await session.call('cad_propose_geology_column', {
+    version: '1.0.0', expectedRevision: 0, units: 'millimeter', locale: 'zh-CN',
+    hole: { id: 'ZK09', collarElevation: 300, depth: 30,
+      strata: names.map((name, index) => ({ code: String(index + 1), name, top: index * 30 / 9,
+        bottom: (index + 1) * 30 / 9, lithology: lithologies[index] })) },
+  }))
+  assert.equal(proposal.engineeringEvidence.parameters.stratumCount, 9)
+  assert.equal(proposal.engineeringEvidence.parameters.lithologyCount, 9)
+  assert.equal(proposal.arguments.entities.filter(entity => entity.type === 'HATCH').length, 9)
+  const texts = proposal.arguments.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  for (const name of names) assert.equal(texts.filter(text => text === name).length, 1, name)
+  accepted(await session.approve(proposal.planId, 'synthetic-host-reviewer'))
+  let dxf
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    if (format === 'DXF') dxf = bytes
+    const reopened = await sdk.readDocument(bytes,
+      { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    assert.equal(reopened.listEntities({ type: 'HATCH' }).length, 9)
+    const visible = reopened.listEntities({ type: 'TEXT' }).map(entity => entity.payload.text)
+    for (const name of names) assert.equal(visible.filter(text => text === name).length, 1, `${format}: ${name}`)
+  }
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; from ezdxf.tools.text import plain_text; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"hatches":len(m.query("HATCH")),"texts":[plain_text(e.dxf.text) for e in m.query("TEXT")]},ensure_ascii=False))'],
+  dxf, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
+    PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    const report = JSON.parse(independent.stdout)
+    assert.deepEqual([report.errors, report.fixes, report.hatches], [0, 0, 9])
+    for (const name of names) assert.equal(report.texts.filter(text => text === name).length, 1, `ezdxf: ${name}`)
+  }
 })
 
 test('MIT synthetic style renders an appendix document fact only when explicitly supplied and preserves atomic roundtrips', async () => {
