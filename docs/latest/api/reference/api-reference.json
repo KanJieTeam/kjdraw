@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:089e7b4adac00d3274f5d648cf8f07c6a9d0aeffe80fa032339a7a0c8c4889e1",
+  "sourceDigest": "sha256:b85bc668b56ed358aa2746dc9c52402c85e86fdb45aca316a5e0778eda30e82a",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -9700,7 +9700,7 @@
         {
           "name": "KJFlangeCuttingPlaneMark",
           "kind": "interface",
-          "declaration": "export interface KJFlangeCuttingPlaneMark {\n    anchorOffset: Point2;\n    stemVector: Point2;\n    tickVector: Point2;\n}",
+          "declaration": "export interface KJFlangeCuttingPlaneMark {\n    anchorOffset: Point2;\n    stemVector: Point2;\n    tickVector: Point2;\n    arrowhead?: {\n        length: number;\n        width: number;\n    };\n}",
           "source": "agent-mechanical-flange-core.d.ts",
           "anchor": "root-interface-kjflangecuttingplanemark"
         },
@@ -9714,7 +9714,7 @@
         {
           "name": "KJFlangeEndViewOutlineSegment",
           "kind": "type",
-          "declaration": "export type KJFlangeEndViewOutlineSegment = {\n    kind: 'line';\n    startOffset: Point2;\n    endOffset: Point2;\n} | {\n    kind: 'arc';\n    centerOffset: Point2;\n    radius: number;\n    startAngle: number;\n    endAngle: number;\n};",
+          "declaration": "export type KJFlangeEndViewOutlineSegment = {\n    kind: 'line';\n    startOffset: Point2;\n    endOffset: Point2;\n} | {\n    kind: 'arc';\n    centerOffset: Point2;\n    radius: number;\n    startAngle: number;\n    endAngle: number;\n} | {\n    kind: 'circle';\n    centerOffset: Point2;\n    radius: number;\n};",
           "source": "agent-mechanical-flange-core.d.ts",
           "anchor": "root-type-kjflangeendviewoutlinesegment"
         },
@@ -9728,7 +9728,7 @@
         {
           "name": "KJFlangeSideViewOutlineSegment",
           "kind": "type",
-          "declaration": "export type KJFlangeSideViewOutlineSegment = {\n    kind: 'line';\n    start: {\n        station: number;\n        offset: number;\n    };\n    end: {\n        station: number;\n        offset: number;\n    };\n} | {\n    kind: 'arc';\n    center: {\n        station: number;\n        offset: number;\n    };\n    radius: number;\n    startAngle: number;\n    endAngle: number;\n};",
+          "declaration": "export type KJFlangeSideViewOutlineSegment = {\n    kind: 'line';\n    start: {\n        station: number;\n        offset: number;\n    };\n    end: {\n        station: number;\n        offset: number;\n    };\n} | {\n    kind: 'arc';\n    center: {\n        station: number;\n        offset: number;\n    };\n    radius: number;\n    startAngle: number;\n    endAngle: number;\n} | {\n    kind: 'circle';\n    center: {\n        station: number;\n        offset: number;\n    };\n    radius: number;\n};",
           "source": "agent-mechanical-flange-core.d.ts",
           "anchor": "root-type-kjflangesideviewoutlinesegment"
         },

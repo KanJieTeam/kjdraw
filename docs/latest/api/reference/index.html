@@ -23502,12 +23502,20 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     anchoroffset: point2;
     stemvector: point2;
     tickvector: point2;
+    arrowhead?: {
+        length: number;
+        width: number;
+    };
 }">
       <header><div><span class="kind">interface</span><h3>KJFlangeCuttingPlaneMark</h3></div><a class="permalink" href="#root-interface-kjflangecuttingplanemark" aria-label="Link to KJFlangeCuttingPlaneMark">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFlangeCuttingPlaneMark {
     anchorOffset: Point2;
     stemVector: Point2;
     tickVector: Point2;
+    arrowhead?: {
+        length: number;
+        width: number;
+    };
 }</code></pre>
       <p class="source-path">agent-mechanical-flange-core.d.ts</p>
     </article>
@@ -23538,6 +23546,10 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     radius: number;
     startangle: number;
     endangle: number;
+} | {
+    kind: &#39;circle&#39;;
+    centeroffset: point2;
+    radius: number;
 };">
       <header><div><span class="kind">type</span><h3>KJFlangeEndViewOutlineSegment</h3></div><a class="permalink" href="#root-type-kjflangeendviewoutlinesegment" aria-label="Link to KJFlangeEndViewOutlineSegment">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJFlangeEndViewOutlineSegment = {
@@ -23550,6 +23562,10 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     radius: number;
     startAngle: number;
     endAngle: number;
+} | {
+    kind: &#39;circle&#39;;
+    centerOffset: Point2;
+    radius: number;
 };</code></pre>
       <p class="source-path">agent-mechanical-flange-core.d.ts</p>
     </article>
@@ -23591,6 +23607,13 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     radius: number;
     startangle: number;
     endangle: number;
+} | {
+    kind: &#39;circle&#39;;
+    center: {
+        station: number;
+        offset: number;
+    };
+    radius: number;
 };">
       <header><div><span class="kind">type</span><h3>KJFlangeSideViewOutlineSegment</h3></div><a class="permalink" href="#root-type-kjflangesideviewoutlinesegment" aria-label="Link to KJFlangeSideViewOutlineSegment">#</a></header>
       <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJFlangeSideViewOutlineSegment = {
@@ -23612,6 +23635,13 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     radius: number;
     startAngle: number;
     endAngle: number;
+} | {
+    kind: &#39;circle&#39;;
+    center: {
+        station: number;
+        offset: number;
+    };
+    radius: number;
 };</code></pre>
       <p class="source-path">agent-mechanical-flange-core.d.ts</p>
     </article>

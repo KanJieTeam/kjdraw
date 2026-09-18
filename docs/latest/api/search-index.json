@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:089e7b4adac00d3274f5d648cf8f07c6a9d0aeffe80fa032339a7a0c8c4889e1",
+  "sourceDigest": "sha256:b85bc668b56ed358aa2746dc9c52402c85e86fdb45aca316a5e0778eda30e82a",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -10842,7 +10842,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-interface-kjflangecuttingplanemark",
       "anchor": "root-interface-kjflangecuttingplanemark",
-      "summary": "export interface KJFlangeCuttingPlaneMark { anchorOffset: Point2; stemVector: Point2; tickVector: Point2; }"
+      "summary": "export interface KJFlangeCuttingPlaneMark { anchorOffset: Point2; stemVector: Point2; tickVector: Point2; arrowhead?: { length: number; width: number; }; }"
     },
     {
       "name": "KJFlangeDimension",
@@ -10858,7 +10858,7 @@
       "module": "@kanjieteam/kjdraw",
       "href": "./api/reference/#root-type-kjflangeendviewoutlinesegment",
       "anchor": "root-type-kjflangeendviewoutlinesegment",
-      "summary": "export type KJFlangeEndViewOutlineSegment = { kind: 'line'; startOffset: Point2; endOffset: Point2; } | { kind: 'arc'; centerOffset: Point2; radius: number; startAngle: number; endAngle: number; };"
+      "summary": "export type KJFlangeEndViewOutlineSegment = { kind: 'line'; startOffset: Point2; endOffset: Point2; } | { kind: 'arc'; centerOffset: Point2; radius: number; startAngle: number; endAngle: number; } | { kind: 'circle'; cen"
     },
     {
       "name": "KJFlangeSheetNote",
