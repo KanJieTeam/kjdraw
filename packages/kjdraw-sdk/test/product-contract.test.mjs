@@ -132,6 +132,14 @@ test('acceptance matrix is machine-readable and passed scope is backed by releas
   const productionWorkflows = matrix.gates.find(gate => gate.id === 'cad.production-workflows')
   assert.ok(productionWorkflows.evidence.includes('tests/browser/workbench-paper-space.spec.mjs'))
   assert.match(productionWorkflows.gap, /Passing CI, publishing npm or renaming a version cannot pass this gate/)
+  for (const id of ['industry.geotechnical-real-corpus', 'industry.mechanical-real-corpus']) {
+    const realCorpus = matrix.gates.find(gate => gate.id === id)
+    assert.equal(realCorpus.requiredForStable, true)
+    assert.notEqual(realCorpus.verifyOnCandidate, true)
+    assert.ok(['blocked', 'partial', 'passed'].includes(realCorpus.status))
+    assert.match(realCorpus.gap ?? '', /100%/)
+    assert.match(realCorpus.gap ?? '', /not passes/)
+  }
   const localAuthority = matrix.gates.find(row => row.id === 'file.local-authority')
   assert.equal(localAuthority.status, 'passed')
   assert.ok(localAuthority.evidence.some(path => path.endsWith('/project-session.test.mjs')))
