@@ -50,6 +50,16 @@ async function drawing(patch = {}) {
   return document
 }
 
+async function largeTopologyDrawing(perpendicular = false) {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'large-topology', units: 'millimeter' })
+  await document.transact('Large topology fixture', tx => {
+    for (let index = 0; index < 300; index += 1) tx.createEntity('LINE', perpendicular && index === 299
+      ? { start: [299, 0, 0], end: [299, 10, 0] }
+      : { start: [0, index, 0], end: [10, index, 0] }, { id: `line-${index}` })
+  })
+  return document
+}
+
 test('anonymous IDs and canonical manifests are salted, path-free and byte deterministic', () => {
   const bytes = new TextEncoder().encode('private drawing bytes')
   assert.equal(anonymousFileId(bytes, salt, 'geology'), anonymousFileId(bytes, salt, 'geology'))
@@ -115,6 +125,16 @@ test('strict comparison rejects physical sheet, rotation, plot scale and plot-wi
     assert.equal(comparison.passed, false, JSON.stringify(page))
     assert.ok(comparison.categoryCounts.layout > 0, JSON.stringify(comparison))
   }
+})
+
+test('topology comparison remains active beyond 256 primitives', async () => {
+  const parallel = createCanonicalFeatureSummary(await largeTopologyDrawing(), { salt })
+  const changed = createCanonicalFeatureSummary(await largeTopologyDrawing(true), { salt })
+  assert.equal(parallel.relations.omitted, 0)
+  assert.equal(parallel.relations.counts.parallel, 44850)
+  assert.equal(changed.relations.counts.perpendicular, 299)
+  const comparison = compareCanonicalFeatureSummaries(parallel, changed)
+  assert.ok(comparison.categoryCounts.topology > 0, JSON.stringify(comparison))
 })
 
 test('local corpus CLI emits no path or raw SHA, marks DWG blocked and repeats byte-for-byte', async t => {

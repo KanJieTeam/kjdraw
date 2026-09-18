@@ -155,33 +155,40 @@ function primitive(entity) {
 }
 
 function relationCounts(entities, tolerance) {
-  const primitives = entities.map((entity, index) => ({ index, value: primitive(entity) })).filter(item => item.value)
+  const primitives = entities.map(entity => primitive(entity)).filter(Boolean)
   const counts = { connected: 0, parallel: 0, perpendicular: 0, collinear: 0, concentric: 0, equalLength: 0, equalRadius: 0 }
-  let comparisons = 0
-  if (primitives.length > 256) return { counts, comparisons, omitted: primitives.length - 256, reason: 'primitive-budget' }
-  const close = (left, right) => Math.abs(left - right) <= tolerance
-  const samePoint = (left, right) => Math.hypot(left[0] - right[0], left[1] - right[1]) <= tolerance
-  for (let leftIndex = 0; leftIndex < primitives.length; leftIndex++) for (let rightIndex = leftIndex + 1; rightIndex < primitives.length; rightIndex++) {
-    comparisons += 1
-    const left = primitives[leftIndex].value, right = primitives[rightIndex].value
-    if (left.kind === 'line' && right.kind === 'line') {
-      if ([left.start, left.end].some(a => [right.start, right.end].some(b => samePoint(a, b)))) counts.connected += 1
-      const cross = left.dx * right.dy - left.dy * right.dx
-      const dot = left.dx * right.dx + left.dy * right.dy
-      const scale = left.length * right.length
-      if (Math.abs(cross) <= tolerance * Math.max(1, scale)) {
-        counts.parallel += 1
-        const offsetCross = (right.start[0] - left.start[0]) * left.dy - (right.start[1] - left.start[1]) * left.dx
-        if (Math.abs(offsetCross) <= tolerance * Math.max(1, left.length)) counts.collinear += 1
-      }
-      if (Math.abs(dot) <= tolerance * Math.max(1, scale)) counts.perpendicular += 1
-      if (close(left.length, right.length)) counts.equalLength += 1
-    } else if (left.kind === 'circle' && right.kind === 'circle') {
-      if (samePoint(left.center, right.center)) counts.concentric += 1
-      if (close(left.radius, right.radius)) counts.equalRadius += 1
+  const groups = { endpoint: new Map(), direction: new Map(), collinear: new Map(), length: new Map(), center: new Map(), radius: new Map() }
+  const add = (map, key) => map.set(key, (map.get(key) ?? 0) + 1)
+  const choose2 = amount => amount * (amount - 1) / 2
+  const key = values => values.map(value => rounded(value, tolerance)).join(',')
+  const direction = line => {
+    let x = line.dx / line.length, y = line.dy / line.length
+    if (x < 0 || Math.abs(x) <= tolerance && y < 0) { x = -x; y = -y }
+    return [rounded(x, tolerance), rounded(y, tolerance)]
+  }
+  for (const value of primitives) {
+    if (value.kind === 'line') {
+      add(groups.endpoint, key(value.start.slice(0, 2))); add(groups.endpoint, key(value.end.slice(0, 2)))
+      const unit = direction(value), directionKey = key(unit)
+      add(groups.direction, directionKey)
+      add(groups.collinear, `${directionKey}:${key([unit[0] * value.start[1] - unit[1] * value.start[0]])}`)
+      add(groups.length, key([value.length]))
+    } else {
+      add(groups.center, key(value.center.slice(0, 2)))
+      add(groups.radius, key([value.radius]))
     }
   }
-  return { counts, comparisons, omitted: 0, reason: null }
+  counts.connected = [...groups.endpoint.values()].reduce((sum, amount) => sum + choose2(amount), 0)
+  counts.parallel = [...groups.direction.values()].reduce((sum, amount) => sum + choose2(amount), 0)
+  counts.collinear = [...groups.collinear.values()].reduce((sum, amount) => sum + choose2(amount), 0)
+  counts.equalLength = [...groups.length.values()].reduce((sum, amount) => sum + choose2(amount), 0)
+  counts.concentric = [...groups.center.values()].reduce((sum, amount) => sum + choose2(amount), 0)
+  counts.equalRadius = [...groups.radius.values()].reduce((sum, amount) => sum + choose2(amount), 0)
+  for (const [directionKey, amount] of groups.direction) {
+    const [x, y] = directionKey.split(',').map(Number), perpendicular = key(direction({ dx: -y, dy: x, length: 1 }))
+    if (directionKey < perpendicular && groups.direction.has(perpendicular)) counts.perpendicular += amount * groups.direction.get(perpendicular)
+  }
+  return { counts, comparisons: choose2(primitives.length), omitted: 0, reason: null }
 }
 
 function count(values) {
