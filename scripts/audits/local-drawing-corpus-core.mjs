@@ -89,6 +89,12 @@ function geometryOf(entity, tolerance) {
   if (entity.type === 'ARC') return pick('center', 'radius', 'startAngle', 'endAngle')
   if (entity.type === 'ELLIPSE') return pick('center', 'majorAxis', 'ratio', 'startParameter', 'endParameter')
   if (entity.type === 'INSERT') return pick('position', 'scale', 'rotation', 'blockRecordId')
+  if (entity.type === 'TEXT' || entity.type === 'ATTRIB' || entity.type === 'ATTDEF') return pick(
+    'position', 'alignmentPoint', 'height', 'rotation', 'widthFactor', 'obliqueAngle', 'generationFlags',
+    'horizontalAlignment', 'verticalAlignment', 'normal', 'extrusionDirection', 'thickness')
+  if (entity.type === 'MTEXT') return pick(
+    'position', 'height', 'width', 'rotation', 'direction', 'attachmentPoint', 'lineSpacingStyle',
+    'lineSpacingFactor', 'backgroundFill', 'backgroundScale', 'normal', 'extrusionDirection')
   if (entity.type === 'LWPOLYLINE' || entity.type === 'POLYLINE') return {
     closed: source.closed === true,
     vertices: Array.isArray(source.vertices) ? source.vertices.map(vertex => {

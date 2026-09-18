@@ -32,7 +32,9 @@ async function drawing(patch = {}) {
         { external: true, vertices: [[0, 40], [40, 40], [40, 80], [0, 80]] },
         { external: false, vertices: [[10 + (patch.hatchIslandShift ?? 0), 50], [30, 50], [30, 70], [10 + (patch.hatchIslandShift ?? 0), 70]] },
       ], layerId: layer.id }, { id: 'hatch-a' })
-    tx.createEntity('TEXT', { position: [0, 30, 0], text: patch.text ?? 'Synthetic title', height: 2.5, layerId: layer.id }, { id: 'title' })
+    tx.createEntity('TEXT', { position: [patch.textX ?? 0, 30, 0], alignmentPoint: [patch.alignmentX ?? 0, 30, 0],
+      text: patch.text ?? 'Synthetic title', height: 2.5, widthFactor: patch.widthFactor ?? 1,
+      horizontalAlignment: patch.horizontalAlignment ?? 0, layerId: layer.id }, { id: 'title' })
   })
   if (patch.page) {
     const layout = document.snapshot().spaces.layoutIds.map(id => document.getObject(id)).find(item => item?.name === 'Model')
@@ -85,6 +87,9 @@ test('canonical feature summaries are stable and the strict comparator catches k
     ['topology', { radius: 5 }],
     ['geometry', { hatchIslandShift: 1 }],
     ['geometry', { patternOffset: 3 }],
+    ['geometry', { textX: 1 }],
+    ['geometry', { alignmentX: 2, horizontalAlignment: 1 }],
+    ['geometry', { widthFactor: 0.8 }],
   ]
   for (const [category, patch] of cases) {
     const comparison = compareCanonicalFeatureSummaries(reference, createCanonicalFeatureSummary(await drawing(patch), { salt }))
