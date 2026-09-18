@@ -100,6 +100,8 @@ export interface KJGeologySectionInput {
   projectName?: string
   /** Exact source-backed title-block facts; absent facts remain blank. */
   documentFacts?: Record<string, string>
+  /** Host-selected, versioned physical sheet geometry. Project-specific values stay in the pack. */
+  sectionStylePack?: ReadonlyDeep<KJKnowledgePack>
   hatchPack?: ReadonlyDeep<KJKnowledgePack>
   expectedRevision: number
   title?: string
@@ -454,14 +456,16 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(sourceTemplate ? { sourceTemplate } : {}) }
 }
 
-function sectionLayout(): SectionLayout {
-  const raw = KJDRAW_GEOLOGY_KNOWLEDGE_PACK.rules?.['geology-section-layout']
+function sectionLayout(input: KJGeologySectionInput): SectionLayout {
+  const pack = validateKnowledgePack(input.sectionStylePack ?? KJDRAW_GEOLOGY_KNOWLEDGE_PACK)
+  const raw = pack.rules?.['geology-section-layout']
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError('Geology: bundled section layout is missing')
   const value = raw as Record<string, unknown>
   const scalarKeys = ['paperWidth', 'paperHeight', 'outerMargin', 'innerMargin', 'plotLeft', 'plotRight', 'plotBottom', 'plotTop', 'titleY', 'scaleY', 'footerHeight', 'boreholeWidth', 'elevationTickStep'] as const
   if (Object.keys(value).sort().join(',') !== [...scalarKeys, 'footerGrid'].sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field')
   const scalars = Object.fromEntries(scalarKeys.map(key => [key, numeric(value[key], `section ${key}`)])) as unknown as Omit<SectionLayout, 'footerGrid'>
-  if (scalars.paperWidth !== 420 || scalars.paperHeight !== 297 || scalars.outerMargin < 3 || scalars.innerMargin <= scalars.outerMargin ||
+  if (scalars.paperWidth < 210 || scalars.paperWidth > 1600 || scalars.paperHeight < 210 || scalars.paperHeight > 1600 ||
+    scalars.outerMargin < 3 || scalars.innerMargin <= scalars.outerMargin ||
     scalars.plotLeft <= scalars.innerMargin || scalars.plotRight >= scalars.paperWidth - scalars.innerMargin || scalars.plotRight - scalars.plotLeft < 250 ||
     scalars.plotBottom < scalars.innerMargin + scalars.footerHeight + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop ||
     scalars.scaleY <= scalars.plotTop || scalars.scaleY >= scalars.titleY || scalars.boreholeWidth < 2 || scalars.boreholeWidth > 8 ||
@@ -1014,7 +1018,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
 export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDeep<KJKnowledgeCompileResult> {
   if (input.surfaceRule !== 'straight-between-supplied-collars') throw new KJValidationError('Geology: an explicit surface connection rule is required')
   if (!Array.isArray(input.holes) || input.holes.length < 2 || input.holes.length > 24) throw new KJValidationError('Geology: section requires 2–24 holes')
-  const layout = sectionLayout()
+  const layout = sectionLayout(input)
   const documentFacts = documentFactRecord(input.documentFacts)
   if (input.projectName != null) bounded(input.projectName, 'project name', 96)
   if (Object.hasOwn(documentFacts, 'projectName')) throw new KJValidationError('Geology: section projectName must use its dedicated field')

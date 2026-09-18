@@ -570,8 +570,9 @@ function columnLayout(input) {
         } : {}
     };
 }
-function sectionLayout() {
-    const raw = KJDRAW_GEOLOGY_KNOWLEDGE_PACK.rules?.['geology-section-layout'];
+function sectionLayout(input) {
+    const pack = validateKnowledgePack(input.sectionStylePack ?? KJDRAW_GEOLOGY_KNOWLEDGE_PACK);
+    const raw = pack.rules?.['geology-section-layout'];
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError('Geology: bundled section layout is missing');
     const value = raw;
     const scalarKeys = [
@@ -597,7 +598,7 @@ function sectionLayout() {
             key,
             numeric(value[key], `section ${key}`)
         ]));
-    if (scalars.paperWidth !== 420 || scalars.paperHeight !== 297 || scalars.outerMargin < 3 || scalars.innerMargin <= scalars.outerMargin || scalars.plotLeft <= scalars.innerMargin || scalars.plotRight >= scalars.paperWidth - scalars.innerMargin || scalars.plotRight - scalars.plotLeft < 250 || scalars.plotBottom < scalars.innerMargin + scalars.footerHeight + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop || scalars.scaleY <= scalars.plotTop || scalars.scaleY >= scalars.titleY || scalars.boreholeWidth < 2 || scalars.boreholeWidth > 8 || scalars.elevationTickStep < 0.5 || scalars.elevationTickStep > 20) throw new KJValidationError('Geology: section layout geometry is unreadable');
+    if (scalars.paperWidth < 210 || scalars.paperWidth > 1600 || scalars.paperHeight < 210 || scalars.paperHeight > 1600 || scalars.outerMargin < 3 || scalars.innerMargin <= scalars.outerMargin || scalars.plotLeft <= scalars.innerMargin || scalars.plotRight >= scalars.paperWidth - scalars.innerMargin || scalars.plotRight - scalars.plotLeft < 250 || scalars.plotBottom < scalars.innerMargin + scalars.footerHeight + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop || scalars.scaleY <= scalars.plotTop || scalars.scaleY >= scalars.titleY || scalars.boreholeWidth < 2 || scalars.boreholeWidth > 8 || scalars.elevationTickStep < 0.5 || scalars.elevationTickStep > 20) throw new KJValidationError('Geology: section layout geometry is unreadable');
     if (!Array.isArray(value.footerGrid) || value.footerGrid.length < 3 || value.footerGrid.length > 8) throw new KJValidationError('Geology: section footer grid is invalid');
     const seen = new Set(), footerGrid = value.footerGrid.map((rawCell, index)=>{
         if (!rawCell || typeof rawCell !== 'object' || Array.isArray(rawCell) || Object.keys(rawCell).sort().join(',') !== 'key,label,start') throw new KJValidationError('Geology: section footer cell needs an exact key, label and start');
@@ -775,8 +776,16 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}) {
             ]
         });
     const semanticLine = (layer, x1, y1, x2, y2, metadata)=>add('LINE', layer, {
-            start: [x1, y1, 0],
-            end: [x2, y2, 0],
+            start: [
+                x1,
+                y1,
+                0
+            ],
+            end: [
+                x2,
+                y2,
+                0
+            ],
             ...metadata
         });
     const text = (layer, x, y, value, height = 2.6, centered = false, widthFactor)=>add('TEXT', layer, {
@@ -1456,7 +1465,7 @@ export function compileGeologyColumn(input) {
 export function compileGeologySection(input) {
     if (input.surfaceRule !== 'straight-between-supplied-collars') throw new KJValidationError('Geology: an explicit surface connection rule is required');
     if (!Array.isArray(input.holes) || input.holes.length < 2 || input.holes.length > 24) throw new KJValidationError('Geology: section requires 2–24 holes');
-    const layout = sectionLayout();
+    const layout = sectionLayout(input);
     const documentFacts = documentFactRecord(input.documentFacts);
     if (input.projectName != null) bounded(input.projectName, 'project name', 96);
     if (Object.hasOwn(documentFacts, 'projectName')) throw new KJValidationError('Geology: section projectName must use its dedicated field');
@@ -1592,7 +1601,7 @@ export function compileGeologySection(input) {
     if (!Array.isArray(manualConnections) || manualConnections.length > 200) throw new KJValidationError('Geology: invalid manual connection list');
     const manualKeys = new Set();
     const manualPairTopology = new Map();
-    for (const connection of manualConnections) {
+    for (const connection of manualConnections){
         const left = byId.get(bounded(connection.fromHoleId, 'manual connection hole'));
         const right = byId.get(bounded(connection.toHoleId, 'manual connection hole'));
         if (!left || !right || x(left.hole) >= x(right.hole)) throw new KJValidationError('Geology: manual connection must follow declared station order');
@@ -1602,20 +1611,29 @@ export function compileGeologySection(input) {
         const toDepth = numeric(connection.toDepth, 'manual connection to depth');
         if (fromDepth < 0 || fromDepth > left.hole.depth || toDepth < 0 || toDepth > right.hole.depth) throw new KJValidationError('Geology: manual connection depth is outside its borehole');
         const kind = connection.kind ?? 'manualBoundary';
-        if (!['continuity', 'pinchout', 'lens', 'manualBoundary'].includes(kind)) throw new KJValidationError('Geology: invalid manual connection kind');
+        if (![
+            'continuity',
+            'pinchout',
+            'lens',
+            'manualBoundary'
+        ].includes(kind)) throw new KJValidationError('Geology: invalid manual connection kind');
         const layerCode = connection.layerCode == null ? undefined : bounded(connection.layerCode, 'manual connection layer code');
         const key = `${left.hole.id}:${fromDepth}|${right.hole.id}:${toDepth}|${layerCode ?? ''}|${kind}`;
         if (manualKeys.has(key)) throw new KJValidationError('Geology: duplicate manual connection');
         manualKeys.add(key);
         const pairKey = `${left.hole.id}|${right.hole.id}`, pair = manualPairTopology.get(pairKey) ?? [];
-        for (const prior of pair) if (Math.sign(fromDepth - prior.fromDepth) !== Math.sign(toDepth - prior.toDepth)) throw new KJValidationError('Geology: manual connections cross or reverse stratigraphic order');
-        pair.push({ fromDepth, toDepth });
+        for (const prior of pair)if (Math.sign(fromDepth - prior.fromDepth) !== Math.sign(toDepth - prior.toDepth)) throw new KJValidationError('Geology: manual connections cross or reverse stratigraphic order');
+        pair.push({
+            fromDepth,
+            toDepth
+        });
         manualPairTopology.set(pairKey, pair);
-        const xl = x(left.hole), xr = x(right.hole);
-        g.semanticLine(1, xl, y(left.hole, fromDepth), xr, y(right.hole, toDepth), {
+        g.semanticLine(1, x(left.hole), y(left.hole, fromDepth), x(right.hole), y(right.hole, toDepth), {
             semanticRole: 'source-manual-connection',
             connectionKind: kind,
-            ...layerCode == null ? {} : { sourceLayerCode: layerCode }
+            ...layerCode == null ? {} : {
+                sourceLayerCode: layerCode
+            }
         });
     }
     if (!Array.isArray(input.correlations) || input.correlations.length > 200) throw new KJValidationError('Geology: invalid correlation list');

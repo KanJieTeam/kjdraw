@@ -13,6 +13,6 @@ This public repository originated from the KanJieTeam Kanjie workspace at the ow
 
 The SDK has no runtime npm dependencies. The playground uses browser APIs and local ES modules. GitHub Actions uses third-party actions only for development/build automation. The full Apache-2.0 license text is an unmodified copy of the standard license text distributed with Playwright; no Playwright implementation is redistributed in this core.
 
-Excluded: Kanjie account/organization services, reports and MDB data, historical case knowledge, vendor CAD templates, legacy YTKC/Lizheng asset libraries, private configuration, keys, caches and original git history. Compatibility family identifiers in inherited contracts do not include or license those vendors' assets.
+Excluded: account/organization services, reports and MDB data, historical case knowledge, vendor CAD templates, proprietary legacy CAD asset libraries, private configuration, keys, caches and original git history. Generic compatibility contracts do not include or license any vendor assets.
 
 This source inventory is not a third-party legal audit. New contributions and new dependencies must identify their provenance and retain any required notices. Contact: kanjieteam@163.com.

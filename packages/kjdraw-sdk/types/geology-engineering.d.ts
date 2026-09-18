@@ -47,6 +47,19 @@ export interface KJGeologyObservation {
     rangeTop?: number;
     rangeBottom?: number;
 }
+/** A source-backed cross-hole boundary supplied by an external data adapter.
+ *  Depths are measured downwards from each hole collar in metres.  This is
+ *  deliberately a neutral input contract: adapters may read MDB/DWG facts,
+ *  but the compiler never invents a connection when one is absent.
+ */
+export interface KJGeologySectionConnection {
+    fromHoleId: string;
+    toHoleId: string;
+    fromDepth: number;
+    toDepth: number;
+    kind?: 'continuity' | 'pinchout' | 'lens' | 'manualBoundary';
+    layerCode?: string;
+}
 export interface KJGeologyColumnInput {
     /** Visible generated labels. When omitted, Chinese source text selects zh-CN; otherwise en. */
     locale?: 'zh-CN' | 'en';
@@ -80,6 +93,8 @@ export interface KJGeologySectionInput {
         fromIntervalId?: string;
         toIntervalId?: string;
     }[];
+    /** Explicit source-backed boundaries are rendered before inferred correlations. */
+    manualConnections?: KJGeologySectionConnection[];
     horizontalScaleDenominator: number;
     verticalScaleDenominator: number;
     datumElevation: number;
@@ -87,6 +102,8 @@ export interface KJGeologySectionInput {
     projectName?: string;
     /** Exact source-backed title-block facts; absent facts remain blank. */
     documentFacts?: Record<string, string>;
+    /** Host-selected, versioned physical sheet geometry. Project-specific values stay in the pack. */
+    sectionStylePack?: ReadonlyDeep<KJKnowledgePack>;
     hatchPack?: ReadonlyDeep<KJKnowledgePack>;
     expectedRevision: number;
     title?: string;
