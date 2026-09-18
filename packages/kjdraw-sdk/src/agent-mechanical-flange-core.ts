@@ -6,7 +6,7 @@ import { stableHash } from './utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
 type Point2 = [number, number]
 type Point3 = [number, number, number]
-type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION'; payload: Record<string, unknown>; options: { id: string } }
+type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'HATCH'; payload: Record<string, unknown>; options: { id: string } }
 interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } } }
 
 export interface KJFlangeTitleGrid {
@@ -40,6 +40,19 @@ export type KJFlangeSideViewOutlineSegment =
   | { kind: 'line'; start: { station: number; offset: number }; end: { station: number; offset: number } }
   | { kind: 'arc'; center: { station: number; offset: number }; radius: number; startAngle: number; endAngle: number }
   | { kind: 'circle'; center: { station: number; offset: number }; radius: number }
+
+/** A source-measured cut face in the side view. Boundary coordinates are
+ *  relative to the projection axis; the pattern is generated, not copied
+ *  from DXF tags or a private block definition. */
+export interface KJFlangeSectionHatch {
+  edges: (
+    | { kind: 'line'; start: { station: number; offset: number }; end: { station: number; offset: number } }
+    | { kind: 'arc'; center: { station: number; offset: number }; radius: number; startAngle: number; endAngle: number; counterClockwise?: boolean }
+  )[]
+  lineAngle: number
+  lineSpacing: number
+  patternOrigin?: Point2
+}
 
 /** Source-supplied visible sheet text. Content remains input data and is not
  *  retained by the reusable knowledge pack. */
@@ -94,7 +107,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   units: 'millimeter'
   drawingId: string
   endView: { center: Point2; ringRadii: number[]; squareHoles: { pitch: number; radius: number }; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
-  sideViewAxis?: { xRange: Point2; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[] }
+  sideViewAxis?: { xRange: Point2; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
   dimensions?: KJFlangeDimension[]
   leaders?: KJFlangeLeader[]
   sheet: { origin: Point2; size: Point2; inset: number; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
@@ -180,7 +193,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     return { anchorOffset, stemVector, tickVector, ...(arrow ? { arrowhead: { length: finite(arrow.length, `input.endView.cuttingPlaneMarks[${index}].arrowhead.length`, 0.1, 100_000), width: finite(arrow.width, `input.endView.cuttingPlaneMarks[${index}].arrowhead.width`, 0.1, 100_000) } } : {}) }
   })
   const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis')
-  if (side) exact(side, ['xRange', 'symmetricProfiles', 'outlineSegments'], 'input.sideViewAxis')
+  if (side) exact(side, ['xRange', 'symmetricProfiles', 'outlineSegments', 'sectionHatches'], 'input.sideViewAxis')
   const xRange = side ? point(side.xRange, 'input.sideViewAxis.xRange') : null
   if (xRange && xRange[0] >= xRange[1]) throw new KJValidationError('input.sideViewAxis.xRange must increase')
   if (side?.symmetricProfiles != null && !Array.isArray(side.symmetricProfiles)) throw new KJValidationError('input.sideViewAxis.symmetricProfiles must be an array')
@@ -236,6 +249,40 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
         radius: finite(segment.radius, `input.sideViewAxis.outlineSegments[${index}].radius`, 0.1, 100_000) }
     }
     throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}].kind is invalid`)
+  })
+  if (side?.sectionHatches != null && !Array.isArray(side.sectionHatches)) throw new KJValidationError('input.sideViewAxis.sectionHatches must be an array')
+  if ((side?.sectionHatches as unknown[] | undefined)?.length && (side!.sectionHatches as unknown[]).length > 32) throw new KJValidationError('input.sideViewAxis.sectionHatches exceed their budget')
+  const sectionHatches: KJFlangeSectionHatch[] = ((side?.sectionHatches ?? []) as unknown[]).map((value, hatchIndex) => {
+    const label = `input.sideViewAxis.sectionHatches[${hatchIndex}]`, hatch = plain(value, label)
+    exact(hatch, ['edges', 'lineAngle', 'lineSpacing', 'patternOrigin'], label)
+    if (!Array.isArray(hatch.edges) || hatch.edges.length < 3 || hatch.edges.length > 128) throw new KJValidationError(`${label}.edges must contain 3 to 128 edges`)
+    const localPoint = (value: unknown, label: string) => {
+      const coordinate = plain(value, label); exact(coordinate, ['station', 'offset'], label)
+      return { station: finite(coordinate.station, `${label}.station`, xRange![0], xRange![1]), offset: finite(coordinate.offset, `${label}.offset`, -100_000, 100_000) }
+    }
+    const edges = hatch.edges.map((value, edgeIndex) => {
+      const labelEdge = `${label}.edges[${edgeIndex}]`, edge = plain(value, labelEdge)
+      if (edge.kind === 'line') {
+        exact(edge, ['kind', 'start', 'end'], labelEdge)
+        const start = localPoint(edge.start, `${labelEdge}.start`), end = localPoint(edge.end, `${labelEdge}.end`)
+        if (start.station === end.station && start.offset === end.offset) throw new KJValidationError(`${labelEdge} must not have zero length`)
+        return { kind: 'line' as const, start, end }
+      }
+      if (edge.kind === 'arc') {
+        exact(edge, ['kind', 'center', 'radius', 'startAngle', 'endAngle', 'counterClockwise'], labelEdge)
+        if (edge.counterClockwise != null && typeof edge.counterClockwise !== 'boolean') throw new KJValidationError(`${labelEdge}.counterClockwise must be boolean`)
+        const startAngle = finite(edge.startAngle, `${labelEdge}.startAngle`, -Math.PI * 4, Math.PI * 4)
+        const endAngle = finite(edge.endAngle, `${labelEdge}.endAngle`, -Math.PI * 4, Math.PI * 4)
+        if (startAngle === endAngle) throw new KJValidationError(`${labelEdge} arc sweep must not be zero`)
+        return { kind: 'arc' as const, center: localPoint(edge.center, `${labelEdge}.center`),
+          radius: finite(edge.radius, `${labelEdge}.radius`, 0.1, 100_000), startAngle, endAngle, counterClockwise: edge.counterClockwise !== false }
+      }
+      throw new KJValidationError(`${labelEdge}.kind is invalid`)
+    })
+    const lineAngle = finite(hatch.lineAngle, `${label}.lineAngle`, -Math.PI * 2, Math.PI * 2)
+    const lineSpacing = finite(hatch.lineSpacing, `${label}.lineSpacing`, 0.01, 100_000)
+    const patternOrigin = hatch.patternOrigin == null ? [0, 0] as Point2 : point(hatch.patternOrigin, `${label}.patternOrigin`)
+    return { edges, lineAngle, lineSpacing, patternOrigin }
   })
   const sheet = plain(input.sheet, 'input.sheet'); exact(sheet, ['origin', 'size', 'inset', 'titleGrid', 'notes'], 'input.sheet')
   const sheetOrigin = point(sheet.origin, 'input.sheet.origin'), sheetSize = point(sheet.size, 'input.sheet.size')
@@ -335,7 +382,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       pathType: integer(leader.pathType, `input.leaders[${index}].pathType`, 1), annotationType: integer(leader.annotationType, `input.leaders[${index}].annotationType`, 3),
       hookLineDirection: integer(leader.hookLineDirection, `input.leaders[${index}].hookLineDirection`, 1), hookLineEnabled: leader.hookLineEnabled === true }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, xRange, symmetricProfiles, sideOutlineSegments, dimensions, leaders, sheetOrigin, sheetSize, inset, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, xRange, symmetricProfiles, sideOutlineSegments, sectionHatches, dimensions, leaders, sheetOrigin, sheetSize, inset, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -405,6 +452,13 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: geometryLayerId })
     else emit('CIRCLE', { center: p3(segment.center.station, cy + segment.center.offset), radius: segment.radius, layerId: geometryLayerId })
   }
+  for (const hatch of input.sectionHatches) emit('HATCH', { boundaryLoops: [{ external: false, flags: 0, edges: hatch.edges.map(edge => edge.kind === 'line'
+    ? { type: 'LINE', start: p3(edge.start.station, cy + edge.start.offset), end: p3(edge.end.station, cy + edge.end.offset) }
+    : { type: 'ARC', center: p3(edge.center.station, cy + edge.center.offset), radius: edge.radius,
+      startAngle: edge.startAngle, endAngle: edge.endAngle, counterClockwise: edge.counterClockwise !== false }) }],
+    patternName: 'ANSI31', solid: false, associative: false, patternAngle: 0, patternScale: 1,
+    patternLines: [{ angle: hatch.lineAngle, base: hatch.patternOrigin, offset: [-Math.sin(hatch.lineAngle) * hatch.lineSpacing, Math.cos(hatch.lineAngle) * hatch.lineSpacing], dashes: [] }],
+    patternDefinitionAngle: 0, patternDefinitionScale: 1, layerId: geometryLayerId })
   for (const note of input.notes) emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
     position: p3(...note.position), text: note.text, height: note.height, rotation: note.rotation,
     ...(note.width == null ? {} : { width: note.width }), layerId: noteLayerId,
@@ -433,8 +487,8 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
-        noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
-      limitations: ['Flange end-view, symmetric axial-profile, native dimension and sheet-grid core only', 'Does not generate attributes or hatches', 'Private drawings and labels are not embedded'],
+        sectionHatchCount: input.sectionHatches.length, noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
+      limitations: ['Flange end-view, symmetric axial-profile, cut-face hatches, native dimension and sheet-grid core only', 'Does not generate attributes or arbitrary blocks', 'Private drawings and labels are not embedded'],
     },
   }
 }

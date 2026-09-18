@@ -159,7 +159,8 @@ function validate(document, source) {
     if (side) exact(side, [
         'xRange',
         'symmetricProfiles',
-        'outlineSegments'
+        'outlineSegments',
+        'sectionHatches'
     ], 'input.sideViewAxis');
     const xRange = side ? point(side.xRange, 'input.sideViewAxis.xRange') : null;
     if (xRange && xRange[0] >= xRange[1]) throw new KJValidationError('input.sideViewAxis.xRange must increase');
@@ -266,6 +267,81 @@ function validate(document, source) {
             };
         }
         throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}].kind is invalid`);
+    });
+    if (side?.sectionHatches != null && !Array.isArray(side.sectionHatches)) throw new KJValidationError('input.sideViewAxis.sectionHatches must be an array');
+    if (side?.sectionHatches?.length && side.sectionHatches.length > 32) throw new KJValidationError('input.sideViewAxis.sectionHatches exceed their budget');
+    const sectionHatches = (side?.sectionHatches ?? []).map((value, hatchIndex)=>{
+        const label = `input.sideViewAxis.sectionHatches[${hatchIndex}]`, hatch = plain(value, label);
+        exact(hatch, [
+            'edges',
+            'lineAngle',
+            'lineSpacing',
+            'patternOrigin'
+        ], label);
+        if (!Array.isArray(hatch.edges) || hatch.edges.length < 3 || hatch.edges.length > 128) throw new KJValidationError(`${label}.edges must contain 3 to 128 edges`);
+        const localPoint = (value, label)=>{
+            const coordinate = plain(value, label);
+            exact(coordinate, [
+                'station',
+                'offset'
+            ], label);
+            return {
+                station: finite(coordinate.station, `${label}.station`, xRange[0], xRange[1]),
+                offset: finite(coordinate.offset, `${label}.offset`, -100_000, 100_000)
+            };
+        };
+        const edges = hatch.edges.map((value, edgeIndex)=>{
+            const labelEdge = `${label}.edges[${edgeIndex}]`, edge = plain(value, labelEdge);
+            if (edge.kind === 'line') {
+                exact(edge, [
+                    'kind',
+                    'start',
+                    'end'
+                ], labelEdge);
+                const start = localPoint(edge.start, `${labelEdge}.start`), end = localPoint(edge.end, `${labelEdge}.end`);
+                if (start.station === end.station && start.offset === end.offset) throw new KJValidationError(`${labelEdge} must not have zero length`);
+                return {
+                    kind: 'line',
+                    start,
+                    end
+                };
+            }
+            if (edge.kind === 'arc') {
+                exact(edge, [
+                    'kind',
+                    'center',
+                    'radius',
+                    'startAngle',
+                    'endAngle',
+                    'counterClockwise'
+                ], labelEdge);
+                if (edge.counterClockwise != null && typeof edge.counterClockwise !== 'boolean') throw new KJValidationError(`${labelEdge}.counterClockwise must be boolean`);
+                const startAngle = finite(edge.startAngle, `${labelEdge}.startAngle`, -Math.PI * 4, Math.PI * 4);
+                const endAngle = finite(edge.endAngle, `${labelEdge}.endAngle`, -Math.PI * 4, Math.PI * 4);
+                if (startAngle === endAngle) throw new KJValidationError(`${labelEdge} arc sweep must not be zero`);
+                return {
+                    kind: 'arc',
+                    center: localPoint(edge.center, `${labelEdge}.center`),
+                    radius: finite(edge.radius, `${labelEdge}.radius`, 0.1, 100_000),
+                    startAngle,
+                    endAngle,
+                    counterClockwise: edge.counterClockwise !== false
+                };
+            }
+            throw new KJValidationError(`${labelEdge}.kind is invalid`);
+        });
+        const lineAngle = finite(hatch.lineAngle, `${label}.lineAngle`, -Math.PI * 2, Math.PI * 2);
+        const lineSpacing = finite(hatch.lineSpacing, `${label}.lineSpacing`, 0.01, 100_000);
+        const patternOrigin = hatch.patternOrigin == null ? [
+            0,
+            0
+        ] : point(hatch.patternOrigin, `${label}.patternOrigin`);
+        return {
+            edges,
+            lineAngle,
+            lineSpacing,
+            patternOrigin
+        };
     });
     const sheet = plain(input.sheet, 'input.sheet');
     exact(sheet, [
@@ -492,6 +568,7 @@ function validate(document, source) {
         xRange,
         symmetricProfiles,
         sideOutlineSegments,
+        sectionHatches,
         dimensions,
         leaders,
         sheetOrigin,
@@ -772,6 +849,45 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             layerId: geometryLayerId
         });
     }
+    for (const hatch of input.sectionHatches)emit('HATCH', {
+        boundaryLoops: [
+            {
+                external: false,
+                flags: 0,
+                edges: hatch.edges.map((edge)=>edge.kind === 'line' ? {
+                        type: 'LINE',
+                        start: p3(edge.start.station, cy + edge.start.offset),
+                        end: p3(edge.end.station, cy + edge.end.offset)
+                    } : {
+                        type: 'ARC',
+                        center: p3(edge.center.station, cy + edge.center.offset),
+                        radius: edge.radius,
+                        startAngle: edge.startAngle,
+                        endAngle: edge.endAngle,
+                        counterClockwise: edge.counterClockwise !== false
+                    })
+            }
+        ],
+        patternName: 'ANSI31',
+        solid: false,
+        associative: false,
+        patternAngle: 0,
+        patternScale: 1,
+        patternLines: [
+            {
+                angle: hatch.lineAngle,
+                base: hatch.patternOrigin,
+                offset: [
+                    -Math.sin(hatch.lineAngle) * hatch.lineSpacing,
+                    Math.cos(hatch.lineAngle) * hatch.lineSpacing
+                ],
+                dashes: []
+            }
+        ],
+        patternDefinitionAngle: 0,
+        patternDefinitionScale: 1,
+        layerId: geometryLayerId
+    });
     for (const note of input.notes)emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
         position: p3(...note.position),
         text: note.text,
@@ -862,13 +978,14 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
                 symmetricProfileCount: input.symmetricProfiles.length,
                 sideOutlineSegmentCount: input.sideOutlineSegments.length,
+                sectionHatchCount: input.sectionHatches.length,
                 noteCount: input.notes.length,
                 dimensionCount: input.dimensions.length,
                 leaderCount: input.leaders.length
             },
             limitations: [
-                'Flange end-view, symmetric axial-profile, native dimension and sheet-grid core only',
-                'Does not generate attributes or hatches',
+                'Flange end-view, symmetric axial-profile, cut-face hatches, native dimension and sheet-grid core only',
+                'Does not generate attributes or arbitrary blocks',
                 'Private drawings and labels are not embedded'
             ]
         }

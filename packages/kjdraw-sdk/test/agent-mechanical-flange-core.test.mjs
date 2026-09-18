@@ -117,3 +117,36 @@ test('flange compiler rejects unsupported source injection and impossible geomet
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, titleGrid: { ...input(0).sheet.titleGrid, horizontalSegments: [{ offset: 10, start: 20, end: 10 }] } } }), /start must be less than end/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, titleGrid: { ...input(0).sheet.titleGrid, verticalSegments: [{ offset: 200, start: 0, end: 10 }] } } }), /must be finite/u)
 })
+
+test('source-relative cut faces compile into native patterned hatches with bounded edge paths', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const face = { lineAngle: Math.PI / 4, lineSpacing: 3.175, edges: [
+    { kind: 'line', start: { station: 200, offset: 10 }, end: { station: 220, offset: 10 } },
+    { kind: 'arc', center: { station: 220, offset: 5 }, radius: 5, startAngle: Math.PI / 2, endAngle: -Math.PI / 2, counterClockwise: false },
+    { kind: 'line', start: { station: 220, offset: 0 }, end: { station: 200, offset: 0 } },
+    { kind: 'line', start: { station: 200, offset: 0 }, end: { station: 200, offset: 10 } },
+  ] }
+  const source = { ...input(document.revision), sideViewAxis: { ...input(document.revision).sideViewAxis, sectionHatches: [face] } }
+  const proposal = buildAgentMechanicalFlangeCore(document, source)
+  const hatch = proposal.commandArgs.entities.find(entity => entity.type === 'HATCH')
+  assert.equal(proposal.evidence.parameters.sectionHatchCount, 1)
+  assert.equal(proposal.evidence.entityCount, 54)
+  assert.deepEqual(hatch.payload.boundaryLoops[0].edges[0], { type: 'LINE', start: [200, 160, 0], end: [220, 160, 0] })
+  assert.deepEqual(hatch.payload.boundaryLoops[0].edges[1].center, [220, 155, 0])
+  assert.ok(Math.abs(hatch.payload.patternLines[0].offset[0] + 3.175 / Math.sqrt(2)) < 1e-12)
+  assert.equal(JSON.stringify(hatch).includes('rawTags'), false)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const reopened = await sdk.readDocument(dxf, { format: 'DXF' })
+  assert.equal(reopened.listEntities({ type: 'HATCH' }).length, 1)
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); h=d.modelspace().query("HATCH"); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"hatches":len(h),"edges":len(h[0].paths[0].edges)}))'],
+  dxf, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
+    PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  assert.equal(independent.status, 0, independent.stderr)
+  assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, hatches: 1, edges: 4 })
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
+    sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...face, rawTags: [] }] } }), /unsupported field/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
+    sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...face, edges: [{ ...face.edges[0], start: { station: 185, offset: 10 } }, ...face.edges.slice(1)] }] } }), /must be finite/u)
+})
