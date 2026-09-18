@@ -14264,6 +14264,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             sideviewaxis: boolean;
             symmetricprofilecount: number;
             notecount: number;
+            dimensioncount: number;
         };
         limitations: string[];
     };
@@ -14300,6 +14301,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             sideViewAxis: boolean;
             symmetricProfileCount: number;
             noteCount: number;
+            dimensionCount: number;
         };
         limitations: string[];
     };
@@ -17502,6 +17504,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         xrange: point2;
         symmetricprofiles?: kjflangesymmetricprofile[];
     };
+    dimensions?: kjflangedimension[];
     sheet: {
         origin: point2;
         size: point2;
@@ -17528,6 +17531,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         xRange: Point2;
         symmetricProfiles?: KJFlangeSymmetricProfile[];
     };
+    dimensions?: KJFlangeDimension[];
     sheet: {
         origin: Point2;
         size: Point2;
@@ -23481,6 +23485,23 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     unit: &#39;bytes&#39; | &#39;percent&#39; | &#39;steps&#39; | &#39;tags&#39; | &#39;entities&#39;;
 }</code></pre>
       <p class="source-path">file-adapters.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjflangedimension" data-search="kjflangedimension interface @kanjieteam/kjdraw export interface kjflangedimension {
+    kind: &#39;aligned&#39; | &#39;rotated&#39; | &#39;diameter&#39; | &#39;radius&#39; | &#39;angular&#39;;
+    definitionpoints: point2[];
+    textposition?: point2;
+    textoverride?: string;
+    rotation?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJFlangeDimension</h3></div><a class="permalink" href="#root-interface-kjflangedimension" aria-label="Link to KJFlangeDimension">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFlangeDimension {
+    kind: &#39;aligned&#39; | &#39;rotated&#39; | &#39;diameter&#39; | &#39;radius&#39; | &#39;angular&#39;;
+    definitionPoints: Point2[];
+    textPosition?: Point2;
+    textOverride?: string;
+    rotation?: number;
+}</code></pre>
+      <p class="source-path">agent-mechanical-flange-core.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjflangesheetnote" data-search="kjflangesheetnote interface @kanjieteam/kjdraw export interface kjflangesheetnote {
     kind: &#39;single-line&#39; | &#39;multiline&#39;;

@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:f3ab977cc17664bdc62e8e11ef960d28c11de17c0849564d1ec3ced8b7e86dcf",
+  "sourceDigest": "sha256:40db17086224cc013eb989e44b91d96f63932a63823f99e1d688fae8a6f1cafb",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -10835,6 +10835,14 @@
       "href": "./api/reference/#root-interface-kjfilereadprogress",
       "anchor": "root-interface-kjfilereadprogress",
       "summary": "export interface KJFileReadProgress { phase: 'validate' | 'upload' | 'convert' | 'download' | 'source' | 'parse' | 'import'; completed: number; total?: number; unit: 'bytes' | 'percent' | 'steps' | 'tags' | 'entities'; }"
+    },
+    {
+      "name": "KJFlangeDimension",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangedimension",
+      "anchor": "root-interface-kjflangedimension",
+      "summary": "export interface KJFlangeDimension { kind: 'aligned' | 'rotated' | 'diameter' | 'radius' | 'angular'; definitionPoints: Point2[]; textPosition?: Point2; textOverride?: string; rotation?: number; }"
     },
     {
       "name": "KJFlangeSheetNote",
