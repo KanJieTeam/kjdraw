@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:7eedd39f6868c5f8d155bb10830aececdf5ed903746a569897183734481dd912",
+  "sourceDigest": "sha256:dcb0654ab25bdc123c187f3bc17eec14f1e0d59b78219d458cde72a3c6d82aae",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -10835,6 +10835,14 @@
       "href": "./api/reference/#root-interface-kjfilereadprogress",
       "anchor": "root-interface-kjfilereadprogress",
       "summary": "export interface KJFileReadProgress { phase: 'validate' | 'upload' | 'convert' | 'download' | 'source' | 'parse' | 'import'; completed: number; total?: number; unit: 'bytes' | 'percent' | 'steps' | 'tags' | 'entities'; }"
+    },
+    {
+      "name": "KJFlangeCuttingPlaneMark",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangecuttingplanemark",
+      "anchor": "root-interface-kjflangecuttingplanemark",
+      "summary": "export interface KJFlangeCuttingPlaneMark { anchorOffset: Point2; stemVector: Point2; tickVector: Point2; }"
     },
     {
       "name": "KJFlangeDimension",

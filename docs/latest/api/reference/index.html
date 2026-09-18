@@ -14263,6 +14263,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             titlegrid: boolean;
             sideviewaxis: boolean;
             outlinesegmentcount: number;
+            cuttingplanemarkcount: number;
             symmetricprofilecount: number;
             notecount: number;
             dimensioncount: number;
@@ -14301,6 +14302,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             titleGrid: boolean;
             sideViewAxis: boolean;
             outlineSegmentCount: number;
+            cuttingPlaneMarkCount: number;
             symmetricProfileCount: number;
             noteCount: number;
             dimensionCount: number;
@@ -17502,6 +17504,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
             radius: number;
         };
         outlinesegments?: kjflangeendviewoutlinesegment[];
+        cuttingplanemarks?: kjflangecuttingplanemark[];
     };
     sideviewaxis?: {
         xrange: point2;
@@ -17530,6 +17533,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
             radius: number;
         };
         outlineSegments?: KJFlangeEndViewOutlineSegment[];
+        cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[];
     };
     sideViewAxis?: {
         xRange: Point2;
@@ -23489,6 +23493,19 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     unit: &#39;bytes&#39; | &#39;percent&#39; | &#39;steps&#39; | &#39;tags&#39; | &#39;entities&#39;;
 }</code></pre>
       <p class="source-path">file-adapters.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjflangecuttingplanemark" data-search="kjflangecuttingplanemark interface @kanjieteam/kjdraw export interface kjflangecuttingplanemark {
+    anchoroffset: point2;
+    stemvector: point2;
+    tickvector: point2;
+}">
+      <header><div><span class="kind">interface</span><h3>KJFlangeCuttingPlaneMark</h3></div><a class="permalink" href="#root-interface-kjflangecuttingplanemark" aria-label="Link to KJFlangeCuttingPlaneMark">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFlangeCuttingPlaneMark {
+    anchorOffset: Point2;
+    stemVector: Point2;
+    tickVector: Point2;
+}</code></pre>
+      <p class="source-path">agent-mechanical-flange-core.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjflangedimension" data-search="kjflangedimension interface @kanjieteam/kjdraw export interface kjflangedimension {
     kind: &#39;aligned&#39; | &#39;rotated&#39; | &#39;diameter&#39; | &#39;radius&#39; | &#39;angular&#39;;
