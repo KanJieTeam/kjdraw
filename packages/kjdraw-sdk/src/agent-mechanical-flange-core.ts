@@ -61,12 +61,20 @@ export type KJFlangeEndViewOutlineSegment =
   | { kind: 'line'; startOffset: Point2; endOffset: Point2 }
   | { kind: 'arc'; centerOffset: Point2; radius: number; startAngle: number; endAngle: number }
 
+/** A source-positioned cutting-plane mark, relative to the end-view center.
+ *  The stem and tick vectors retain the drafting direction of each mark. */
+export interface KJFlangeCuttingPlaneMark {
+  anchorOffset: Point2
+  stemVector: Point2
+  tickVector: Point2
+}
+
 export interface KJAgentMechanicalFlangeCoreInput {
   version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION
   expectedRevision: number
   units: 'millimeter'
   drawingId: string
-  endView: { center: Point2; ringRadii: number[]; squareHoles: { pitch: number; radius: number }; outlineSegments?: KJFlangeEndViewOutlineSegment[] }
+  endView: { center: Point2; ringRadii: number[]; squareHoles: { pitch: number; radius: number }; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
   sideViewAxis?: { xRange: Point2; symmetricProfiles?: KJFlangeSymmetricProfile[] }
   dimensions?: KJFlangeDimension[]
   sheet: { origin: Point2; size: Point2; inset: number; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
@@ -103,7 +111,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   const expectedRevision = finite(input.expectedRevision, 'input.expectedRevision', 0, Number.MAX_SAFE_INTEGER)
   if (!Number.isInteger(expectedRevision) || expectedRevision !== document.revision) throw new KJValidationError('input.expectedRevision must match the document revision')
   if (typeof input.drawingId !== 'string' || !input.drawingId.trim() || input.drawingId.length > 96 || /[\u0000-\u001f\u007f]/u.test(input.drawingId)) throw new KJValidationError('input.drawingId must be printable text')
-  const end = plain(input.endView, 'input.endView'); exact(end, ['center', 'ringRadii', 'squareHoles', 'outlineSegments'], 'input.endView')
+  const end = plain(input.endView, 'input.endView'); exact(end, ['center', 'ringRadii', 'squareHoles', 'outlineSegments', 'cuttingPlaneMarks'], 'input.endView')
   const center = point(end.center, 'input.endView.center')
   const ringRadii = increasing(end.ringRadii, 'input.endView.ringRadii', 16, 0.1, 100_000)
   if (ringRadii.length < 2) throw new KJValidationError('input.endView.ringRadii requires at least two radii')
@@ -132,6 +140,17 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       return { kind: 'arc', centerOffset, radius: arcRadius, startAngle, endAngle }
     }
     throw new KJValidationError(`input.endView.outlineSegments[${index}].kind is invalid`)
+  })
+  if (end.cuttingPlaneMarks != null && !Array.isArray(end.cuttingPlaneMarks)) throw new KJValidationError('input.endView.cuttingPlaneMarks must be an array')
+  if ((end.cuttingPlaneMarks as unknown[] | undefined)?.length && (end.cuttingPlaneMarks as unknown[]).length > 16) throw new KJValidationError('input.endView.cuttingPlaneMarks exceed their budget')
+  const cuttingPlaneMarks: KJFlangeCuttingPlaneMark[] = ((end.cuttingPlaneMarks ?? []) as unknown[]).map((value, index) => {
+    const mark = plain(value, `input.endView.cuttingPlaneMarks[${index}]`)
+    exact(mark, ['anchorOffset', 'stemVector', 'tickVector'], `input.endView.cuttingPlaneMarks[${index}]`)
+    const anchorOffset = point(mark.anchorOffset, `input.endView.cuttingPlaneMarks[${index}].anchorOffset`)
+    const stemVector = point(mark.stemVector, `input.endView.cuttingPlaneMarks[${index}].stemVector`)
+    const tickVector = point(mark.tickVector, `input.endView.cuttingPlaneMarks[${index}].tickVector`)
+    if (stemVector[0] === 0 && stemVector[1] === 0 || tickVector[0] === 0 && tickVector[1] === 0) throw new KJValidationError(`input.endView.cuttingPlaneMarks[${index}] vectors must not have zero length`)
+    return { anchorOffset, stemVector, tickVector }
   })
   const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis')
   if (side) exact(side, ['xRange', 'symmetricProfiles'], 'input.sideViewAxis')
@@ -245,7 +264,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     return { kind: dimension.kind as KJFlangeDimension['kind'], definitionPoints, ...(textPosition == null ? {} : { textPosition }),
       ...(textOverride == null ? {} : { textOverride }), rotation }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, xRange, symmetricProfiles, dimensions, sheetOrigin, sheetSize, inset, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, xRange, symmetricProfiles, dimensions, sheetOrigin, sheetSize, inset, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -267,6 +286,11 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     if (segment.kind === 'line') line([cx + segment.startOffset[0], cy + segment.startOffset[1]], [cx + segment.endOffset[0], cy + segment.endOffset[1]], geometryLayerId)
     else emit('ARC', { center: p3(cx + segment.centerOffset[0], cy + segment.centerOffset[1]), radius: segment.radius,
       startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: geometryLayerId })
+  }
+  for (const mark of input.cuttingPlaneMarks) {
+    const anchor: Point2 = [cx + mark.anchorOffset[0], cy + mark.anchorOffset[1]]
+    line(anchor, [anchor[0] + mark.stemVector[0], anchor[1] + mark.stemVector[1]], noteLayerId)
+    line(anchor, [anchor[0] + mark.tickVector[0], anchor[1] + mark.tickVector[1]], noteLayerId)
   }
   rectangle(input.sheetOrigin, input.sheetSize)
   rectangle([input.sheetOrigin[0] + input.inset, input.sheetOrigin[1] + input.inset], [input.sheetSize[0] - input.inset * 2, input.sheetSize[1] - input.inset * 2])
@@ -317,7 +341,8 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       knowledgePackVersion: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version,
       expectedRevision: input.expectedRevision, entityCount: entities.length,
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
-        outlineSegmentCount: input.outlineSegments.length, symmetricProfileCount: input.symmetricProfiles.length, noteCount: input.notes.length, dimensionCount: input.dimensions.length },
+        outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
+        symmetricProfileCount: input.symmetricProfiles.length, noteCount: input.notes.length, dimensionCount: input.dimensions.length },
       limitations: ['Flange end-view, symmetric axial-profile, native dimension and sheet-grid core only', 'Does not generate attributes or hatches', 'Private drawings and labels are not embedded'],
     },
   }

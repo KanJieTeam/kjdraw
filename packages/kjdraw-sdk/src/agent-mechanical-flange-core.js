@@ -55,7 +55,8 @@ function validate(document, source) {
         'center',
         'ringRadii',
         'squareHoles',
-        'outlineSegments'
+        'outlineSegments',
+        'cuttingPlaneMarks'
     ], 'input.endView');
     const center = point(end.center, 'input.endView.center');
     const ringRadii = increasing(end.ringRadii, 'input.endView.ringRadii', 16, 0.1, 100_000);
@@ -109,6 +110,25 @@ function validate(document, source) {
             };
         }
         throw new KJValidationError(`input.endView.outlineSegments[${index}].kind is invalid`);
+    });
+    if (end.cuttingPlaneMarks != null && !Array.isArray(end.cuttingPlaneMarks)) throw new KJValidationError('input.endView.cuttingPlaneMarks must be an array');
+    if (end.cuttingPlaneMarks?.length && end.cuttingPlaneMarks.length > 16) throw new KJValidationError('input.endView.cuttingPlaneMarks exceed their budget');
+    const cuttingPlaneMarks = (end.cuttingPlaneMarks ?? []).map((value, index)=>{
+        const mark = plain(value, `input.endView.cuttingPlaneMarks[${index}]`);
+        exact(mark, [
+            'anchorOffset',
+            'stemVector',
+            'tickVector'
+        ], `input.endView.cuttingPlaneMarks[${index}]`);
+        const anchorOffset = point(mark.anchorOffset, `input.endView.cuttingPlaneMarks[${index}].anchorOffset`);
+        const stemVector = point(mark.stemVector, `input.endView.cuttingPlaneMarks[${index}].stemVector`);
+        const tickVector = point(mark.tickVector, `input.endView.cuttingPlaneMarks[${index}].tickVector`);
+        if (stemVector[0] === 0 && stemVector[1] === 0 || tickVector[0] === 0 && tickVector[1] === 0) throw new KJValidationError(`input.endView.cuttingPlaneMarks[${index}] vectors must not have zero length`);
+        return {
+            anchorOffset,
+            stemVector,
+            tickVector
+        };
     });
     const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis');
     if (side) exact(side, [
@@ -353,6 +373,7 @@ function validate(document, source) {
         pitch,
         radius,
         outlineSegments,
+        cuttingPlaneMarks,
         xRange,
         symmetricProfiles,
         dimensions,
@@ -450,6 +471,20 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             endAngle: segment.endAngle,
             layerId: geometryLayerId
         });
+    }
+    for (const mark of input.cuttingPlaneMarks){
+        const anchor = [
+            cx + mark.anchorOffset[0],
+            cy + mark.anchorOffset[1]
+        ];
+        line(anchor, [
+            anchor[0] + mark.stemVector[0],
+            anchor[1] + mark.stemVector[1]
+        ], noteLayerId);
+        line(anchor, [
+            anchor[0] + mark.tickVector[0],
+            anchor[1] + mark.tickVector[1]
+        ], noteLayerId);
     }
     rectangle(input.sheetOrigin, input.sheetSize);
     rectangle([
@@ -635,6 +670,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 titleGrid: input.titleGrid != null,
                 sideViewAxis: input.xRange != null,
                 outlineSegmentCount: input.outlineSegments.length,
+                cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
                 symmetricProfileCount: input.symmetricProfiles.length,
                 noteCount: input.notes.length,
                 dimensionCount: input.dimensions.length
