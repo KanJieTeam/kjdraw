@@ -86,6 +86,23 @@ test('custom PAT SVG clips bounded edge loops including curved boundaries', asyn
   parseSvg(result.svg)
 })
 
+test('custom PAT SVG keeps OCS row offsets for vertical geology marks at scaled spacing', async () => {
+  const { document, layoutId, create } = await fixture()
+  const hatch = await create('HATCH', {
+    boundaryLoops: [{ external: true, closed: true, vertices: [[0, 0], [10, 0], [10, 10], [0, 10]] }],
+    patternName: 'VERTICAL_PORE_MARKS', solid: false, patternScale: 0.5, patternAngle: 0,
+    patternDefinitionScale: 1, patternDefinitionAngle: 0,
+    patternLines: [{ angle: Math.PI / 2, base: [0, 0], offset: [3, 0], dashes: [1, -3] }],
+  })
+  const output = exportDrawingSvg(document, { layoutId })
+  assert.equal(output.report.diagnostics.length, 0)
+  const rows = parseSvg(output.svg).lines.filter(line => line.id === hatch.id)
+  assert.ok(rows.length >= 6)
+  const x = [...new Set(rows.map(line => Number(line.start[0].toFixed(6))))].sort((a, b) => a - b)
+  assert.ok(x.length >= 6)
+  for (let index = 1; index < x.length; index++) near(x[index] - x[index - 1], 1.5)
+})
+
 test('A3 vector SVG has physical millimeters and exact 1:100 viewport geometry, clips, layer styles and native dimension values',async()=>{
   const {sdk,document,layoutId,create}=await fixture(),model=document.snapshot().spaces.modelSpaceId
   let dashed,frozen,noPlot

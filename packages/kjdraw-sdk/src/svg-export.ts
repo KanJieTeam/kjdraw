@@ -11,6 +11,7 @@ import { multiply3, rotation3, scale3, translation3, type AffineMatrix3 } from '
 import { deepFreeze } from './utils.js'
 import { effectiveLinetypeScale } from './linetype-scale.js'
 import { closedHatchSplineConic } from './geometry/hatch-boundary.js'
+import { hatchPatternLines } from './geometry/hatch.js'
 
 export interface KJSvgExportOptions { layoutId: string; allowPartial?: boolean; maxEntities?: number }
 export interface KJSvgDiagnostic { entityId: string; type: string; reason: string }
@@ -335,6 +336,10 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
         const minY = Math.min(...boundary.points.map(v => v[1])), maxY = Math.max(...boundary.points.map(v => v[1]))
         const patternScale = numeric(p.patternScale, 1), patternAngle = numeric(p.patternAngle, 0)
         if (!(patternScale > 0 && patternScale <= 100) || Math.abs(patternAngle) > 1000) fail('custom PAT scale or angle is outside preview bounds')
+        // PAT offsets are OCS drawing vectors, not coordinates in the line's
+        // tangent/normal frame. Resolve the definition transform once using
+        // the same geometry as Canvas and DXF before placing preview rows.
+        const patternLines = hatchPatternLines(p)
         const clipId = `kj-pat-clip-${++sequence}`
         definitions.push(count(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${boundary.path}" fill-rule="evenodd"/></clipPath>`))
         const corners: [number, number][] = [[minX, minY], [minX, maxY], [maxX, minY], [maxX, maxY]]
@@ -342,14 +347,13 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
         const extent = Math.hypot(maxX - minX, maxY - minY) * 2 + 4
         let strokes = 0, approximatedDashes = false
         const marks: string[] = []
-        for (const raw of p.patternLines) {
-          const line = data(raw), angle = numeric(line.angle) + patternAngle
+        for (const line of patternLines) {
+          const angle = line.angle
           const base = point(line.base), offset = point(line.offset)
           const u: [number, number] = [Math.cos(angle), Math.sin(angle)]
           const normal: [number, number] = [-u[1], u[0]]
-          const origin: [number, number] = [base[0] * patternScale, base[1] * patternScale]
-          const step: [number, number] = [(u[0] * offset[0] + normal[0] * offset[1]) * patternScale,
-            (u[1] * offset[0] + normal[1] * offset[1]) * patternScale]
+          const origin: [number, number] = [base[0], base[1]]
+          const step: [number, number] = [offset[0], offset[1]]
           const spacing = step[0] * normal[0] + step[1] * normal[1]
           if (!Number.isFinite(spacing) || Math.abs(spacing) < .05 || Math.abs(spacing) > 1000) fail('custom PAT family has no readable row spacing')
           const projections = corners.map(v => v[0] * normal[0] + v[1] * normal[1])
@@ -363,7 +367,7 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
             if (!Array.isArray(line.dashes) || line.dashes.length > 128 || line.dashes.some(value => !Number.isFinite(value))) fail('custom PAT dash cycle is invalid')
             if (line.dashes.length) {
               approximatedDashes = true
-              const dash = line.dashes.map(value => Math.max(.07, Math.abs(value) * patternScale))
+              const dash = line.dashes.map(value => Math.max(.07, Math.abs(value)))
               dashStyle = ` stroke-dasharray="${dash.join(' ')}" stroke-linecap="round"`
             }
           }

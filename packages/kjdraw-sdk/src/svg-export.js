@@ -10,6 +10,7 @@ import { multiply3, rotation3, scale3, translation3 } from './geometry/matrix3.j
 import { deepFreeze } from './utils.js';
 import { effectiveLinetypeScale } from './linetype-scale.js';
 import { closedHatchSplineConic } from './geometry/hatch-boundary.js';
+import { hatchPatternLines } from './geometry/hatch.js';
 const data = (value)=>value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 function fail(reason) {
     throw new KJValidationError(`SVG export: ${reason}`);
@@ -483,6 +484,7 @@ export function exportDrawingSvg(document, options) {
                 const minY = Math.min(...boundary.points.map((v)=>v[1])), maxY = Math.max(...boundary.points.map((v)=>v[1]));
                 const patternScale = numeric(p.patternScale, 1), patternAngle = numeric(p.patternAngle, 0);
                 if (!(patternScale > 0 && patternScale <= 100) || Math.abs(patternAngle) > 1000) fail('custom PAT scale or angle is outside preview bounds');
+                const patternLines = hatchPatternLines(p);
                 const clipId = `kj-pat-clip-${++sequence}`;
                 definitions.push(count(`<clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><path d="${boundary.path}" fill-rule="evenodd"/></clipPath>`));
                 const corners = [
@@ -510,8 +512,8 @@ export function exportDrawingSvg(document, options) {
                 const extent = Math.hypot(maxX - minX, maxY - minY) * 2 + 4;
                 let strokes = 0, approximatedDashes = false;
                 const marks = [];
-                for (const raw of p.patternLines){
-                    const line = data(raw), angle = numeric(line.angle) + patternAngle;
+                for (const line of patternLines){
+                    const angle = line.angle;
                     const base = point(line.base), offset = point(line.offset);
                     const u = [
                         Math.cos(angle),
@@ -522,12 +524,12 @@ export function exportDrawingSvg(document, options) {
                         u[0]
                     ];
                     const origin = [
-                        base[0] * patternScale,
-                        base[1] * patternScale
+                        base[0],
+                        base[1]
                     ];
                     const step = [
-                        (u[0] * offset[0] + normal[0] * offset[1]) * patternScale,
-                        (u[1] * offset[0] + normal[1] * offset[1]) * patternScale
+                        offset[0],
+                        offset[1]
                     ];
                     const spacing = step[0] * normal[0] + step[1] * normal[1];
                     if (!Number.isFinite(spacing) || Math.abs(spacing) < .05 || Math.abs(spacing) > 1000) fail('custom PAT family has no readable row spacing');
@@ -542,7 +544,7 @@ export function exportDrawingSvg(document, options) {
                         if (!Array.isArray(line.dashes) || line.dashes.length > 128 || line.dashes.some((value)=>!Number.isFinite(value))) fail('custom PAT dash cycle is invalid');
                         if (line.dashes.length) {
                             approximatedDashes = true;
-                            const dash = line.dashes.map((value)=>Math.max(.07, Math.abs(value) * patternScale));
+                            const dash = line.dashes.map((value)=>Math.max(.07, Math.abs(value)));
                             dashStyle = ` stroke-dasharray="${dash.join(' ')}" stroke-linecap="round"`;
                         }
                     }
