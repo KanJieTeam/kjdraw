@@ -3,8 +3,8 @@ import { createHash, createHmac } from 'node:crypto'
 import { displayedEntityBounds } from '../../packages/kjdraw-sdk/src/selection-geometry.js'
 
 export const KJDRAW_LOCAL_CORPUS_SCHEMA = 'com.kanjie.kjdraw.local-drawing-corpus-manifest@2'
-export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@1'
-export const KJDRAW_FEATURE_COMPARISON_SCHEMA = 'com.kanjie.kjdraw.feature-comparison@1'
+export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@2'
+export const KJDRAW_FEATURE_COMPARISON_SCHEMA = 'com.kanjie.kjdraw.feature-comparison@2'
 
 const textTypes = new Set(['TEXT', 'MTEXT', 'ATTRIB', 'ATTDEF'])
 const referenceKeys = new Set(['layerId', 'lineTypeId', 'styleId', 'dimensionStyleId', 'blockRecordId'])
@@ -180,6 +180,39 @@ function overallBounds(document, entities) {
   return { width: merged[2] - merged[0], height: merged[3] - merged[1] }
 }
 
+const plotNumericKeys = [
+  'paperWidth', 'paperHeight', 'paperUnits', 'rotation', 'plotType', 'flags',
+  'scaleNumerator', 'scaleDenominator', 'marginLeft', 'marginRight', 'marginTop', 'marginBottom',
+  'originX', 'originY', 'windowMinX', 'windowMinY', 'windowMaxX', 'windowMaxY',
+]
+const plotPrivateTextKeys = ['pageSetupName', 'printerName', 'paperName', 'viewName']
+
+function plotLayoutOf(layout, salt, tolerance) {
+  const payload = layout.payload ?? {}, raw = payload.dxfPlotSettings
+  const settings = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : null
+  const numeric = settings ? Object.fromEntries(plotNumericKeys
+    .filter(key => settings[key] !== undefined)
+    .map(key => [key, finite(settings[key]) ? rounded(settings[key], tolerance) : 'invalid'])) : null
+  const privateText = settings ? Object.fromEntries(plotPrivateTextKeys
+    .filter(key => settings[key] !== undefined)
+    .map(key => [key, typeof settings[key] === 'string'
+      ? privateDigest(settings[key], salt, `kjdraw-corpus-plot-${key}`)
+      : 'invalid'])) : null
+  const paper = payload.paper && typeof payload.paper === 'object' && !Array.isArray(payload.paper)
+    ? Object.fromEntries(Object.entries(payload.paper).map(([key, value]) => [key, finite(value) ? rounded(value, tolerance) : value]))
+    : payload.paper ?? null
+  const geometry = payload.dxfLayoutGeometry && typeof payload.dxfLayoutGeometry === 'object' && !Array.isArray(payload.dxfLayoutGeometry)
+    ? privateDigest(payload.dxfLayoutGeometry, salt, 'kjdraw-corpus-layout-geometry')
+    : null
+  return {
+    nameDigest: privateDigest(layout.name ?? '', salt, 'kjdraw-corpus-layout-name'),
+    paper,
+    plotSettings: settings ? { numeric, privateText } : null,
+    layoutGeometryDigest: geometry,
+    viewportCount: Array.isArray(payload.viewportIds) ? payload.viewportIds.length : 0,
+  }
+}
+
 export function createCanonicalFeatureSummary(document, { salt, geometryTolerance = 1e-6 } = {}) {
   validateCorpusSalt(salt)
   if (!finite(geometryTolerance) || geometryTolerance <= 0 || geometryTolerance > 1e6) throw new Error('geometryTolerance must be finite, positive and at most 1000000')
@@ -200,10 +233,11 @@ export function createCanonicalFeatureSummary(document, { salt, geometryToleranc
   const snapshot = document.snapshot(), bounds = overallBounds(document, entities)
   const relations = relationCounts(entities, geometryTolerance)
   const layouts = (snapshot.spaces?.layoutIds ?? []).map(id => snapshot.objects[id]).filter(Boolean).map(layout => ({
-    model: layout.payload?.model === true,
+    model: layout.payload?.model === true || layout.name === 'Model',
     tabOrder: finite(layout.payload?.tabOrder) ? layout.payload.tabOrder : null,
     entityCount: entities.filter(entity => entity.ownerId === layout.payload?.blockRecordId).length,
-  })).sort((left, right) => Number(right.model) - Number(left.model) || (left.tabOrder ?? 0) - (right.tabOrder ?? 0))
+    ...plotLayoutOf(layout, salt, geometryTolerance),
+  })).sort((left, right) => Number(right.model) - Number(left.model) || (left.tabOrder ?? 0) - (right.tabOrder ?? 0) || stableCompare(left.nameDigest, right.nameDigest))
   const summary = {
     schema: KJDRAW_CANONICAL_FEATURE_SCHEMA,
     geometryTolerance,

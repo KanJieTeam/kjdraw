@@ -28,6 +28,17 @@ async function drawing(patch = {}) {
     if (!patch.missingCircle) tx.createEntity('CIRCLE', { center: [20, 10, 0], radius: patch.radius ?? 10, layerId: layer.id }, { id: 'circle-b' })
     tx.createEntity('TEXT', { position: [0, 30, 0], text: patch.text ?? 'Synthetic title', height: 2.5, layerId: layer.id }, { id: 'title' })
   })
+  if (patch.page) {
+    const layout = document.snapshot().spaces.layoutIds.map(id => document.getObject(id)).find(item => item?.name === 'Model')
+    await sdk.executeCommand('PAGESETUP', { layoutId: layout.id, dxf: {
+      paperWidth: patch.page.paperWidth ?? 210, paperHeight: patch.page.paperHeight ?? 297,
+      paperUnits: 1, rotation: patch.page.rotation ?? 0, plotType: 4,
+      windowMinX: patch.page.windowMinX ?? 0, windowMinY: 0,
+      windowMaxX: patch.page.windowMaxX ?? 210, windowMaxY: 297,
+      flags: 0, scaleNumerator: 1, scaleDenominator: patch.page.scaleDenominator ?? 1,
+      marginLeft: 5, marginRight: 5, marginTop: 5, marginBottom: 5,
+    } }, { document })
+  }
   return document
 }
 
@@ -71,6 +82,25 @@ test('canonical feature summaries are stable and the strict comparator catches k
     const comparison = compareCanonicalFeatureSummaries(reference, createCanonicalFeatureSummary(await drawing(patch), { salt }))
     assert.equal(comparison.passed, false, category)
     assert.ok(comparison.categoryCounts[category] > 0, `${category}: ${JSON.stringify(comparison)}`)
+  }
+})
+
+test('strict comparison rejects physical sheet, rotation, plot scale and plot-window drift', async () => {
+  const reference = createCanonicalFeatureSummary(await drawing({ page: {} }), { salt })
+  assert.equal(reference.layouts[0].plotSettings.numeric.paperWidth, 210)
+  assert.equal(reference.layouts[0].plotSettings.numeric.paperHeight, 297)
+  assert.equal(reference.layouts[0].plotSettings.numeric.scaleDenominator, 1)
+  const cases = [
+    { paperWidth: 237.067, paperHeight: 362.568, windowMaxX: 237.067 },
+    { rotation: 1 },
+    { scaleDenominator: 100 },
+    { windowMinX: 12 },
+  ]
+  for (const page of cases) {
+    const actual = createCanonicalFeatureSummary(await drawing({ page }), { salt })
+    const comparison = compareCanonicalFeatureSummaries(reference, actual)
+    assert.equal(comparison.passed, false, JSON.stringify(page))
+    assert.ok(comparison.categoryCounts.layout > 0, JSON.stringify(comparison))
   }
 })
 
