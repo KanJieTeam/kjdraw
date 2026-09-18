@@ -3103,13 +3103,17 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
         'linetypes'
     ].every((key)=>resourceKeys.includes(key)) || resourceKeys.some((key)=>![
             'blocks',
+            'dimensionStyles',
             'layers',
-            'linetypes'
+            'linetypes',
+            'textStyles'
         ].includes(key))) throw new KJValidationError('CREATEBATCH resource fields do not match the declared format');
-    const blocks = resources.blocks ?? [];
+    const blocks = resources.blocks ?? [], textStyles = resources.textStyles ?? [], dimensionStyles = resources.dimensionStyles ?? [];
     for (const group of [
         resources.linetypes,
         resources.layers,
+        textStyles,
+        dimensionStyles,
         blocks
     ])if (!Array.isArray(group) || group.length > 16) throw new KJValidationError('CREATEBATCH resources allow at most 16 records per table');
     const ids = new Set(), linetypes = new Map(document.getTable('linetypes').records.filter((item)=>!item.erased).map((item)=>[
@@ -3160,6 +3164,92 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
         if (!BATCH_LINEWEIGHTS.has(layer.lineweight)) throw new KJValidationError('CREATEBATCH layer lineweight must be a supported DXF hundredth-millimetre value');
         if (typeof layer.linetypeId !== 'string' || !linetypes.has(layer.linetypeId)) throw new KJValidationError('CREATEBATCH layer linetypeId must reference the linetype table');
     }
+    const payload = (value, allowed, label)=>{
+        if (!value || typeof value !== 'object' || Array.isArray(value) || ![
+            Object.prototype,
+            null
+        ].includes(Object.getPrototypeOf(value))) throw new KJValidationError(`${label} payload must be a plain object`);
+        const result = value;
+        if (Object.keys(result).some((key)=>!allowed.includes(key))) throw new KJValidationError(`${label} payload contains an unsupported field`);
+        return result;
+    };
+    const finiteField = (record, key, min, max, label, integer = false)=>{
+        if (record[key] == null) return;
+        const value = record[key];
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max || integer && !Number.isInteger(value)) throw new KJValidationError(`${label}.${key} is invalid`);
+    };
+    const textStyleNames = new Set(document.getTable('textStyles').records.map((item)=>normalizeName(String(item.name))));
+    for (const style of textStyles){
+        fields(style, [
+            'id',
+            'name',
+            'payload'
+        ]);
+        validateIdentity(style, textStyleNames);
+        const record = payload(style.payload, [
+            'fontFamily',
+            'fontFile',
+            'bigFontFile',
+            'fixedHeight',
+            'widthFactor',
+            'obliqueAngle',
+            'dxfFlags',
+            'generationFlags',
+            'lastHeight'
+        ], 'CREATEBATCH text style');
+        for (const key of [
+            'fontFamily',
+            'fontFile',
+            'bigFontFile'
+        ])if (record[key] != null && (typeof record[key] !== 'string' || String(record[key]).length > 512 || /[\u0000-\u001f\u007f]/.test(String(record[key])))) throw new KJValidationError(`CREATEBATCH text style ${key} must be bounded printable text or null`);
+        finiteField(record, 'fixedHeight', 0, 1e12, 'CREATEBATCH text style');
+        finiteField(record, 'widthFactor', 1e-12, 1e12, 'CREATEBATCH text style');
+        finiteField(record, 'obliqueAngle', -Math.PI * 2, Math.PI * 2, 'CREATEBATCH text style');
+        finiteField(record, 'dxfFlags', 0, 65535, 'CREATEBATCH text style', true);
+        finiteField(record, 'generationFlags', 0, 65535, 'CREATEBATCH text style', true);
+        finiteField(record, 'lastHeight', 0, 1e12, 'CREATEBATCH text style');
+    }
+    const dimensionStyleNames = new Set(document.getTable('dimensionStyles').records.map((item)=>normalizeName(String(item.name))));
+    for (const style of dimensionStyles){
+        fields(style, [
+            'id',
+            'name',
+            'payload'
+        ]);
+        validateIdentity(style, dimensionStyleNames);
+        const record = payload(style.payload, [
+            'overallScale',
+            'arrowSize',
+            'extensionOffset',
+            'baselineSpacing',
+            'extensionBeyond',
+            'rounding',
+            'textHeight',
+            'decimalPlaces',
+            'angularDecimalPlaces',
+            'angularUnits',
+            'centerMarkSize',
+            'textGap',
+            'dxfFlags'
+        ], 'CREATEBATCH dimension style');
+        for (const key of [
+            'arrowSize',
+            'extensionOffset',
+            'baselineSpacing',
+            'extensionBeyond',
+            'rounding',
+            'textGap'
+        ])finiteField(record, key, 0, 1e12, 'CREATEBATCH dimension style');
+        for (const key of [
+            'overallScale',
+            'textHeight'
+        ])finiteField(record, key, 1e-12, 1e12, 'CREATEBATCH dimension style');
+        finiteField(record, 'centerMarkSize', -1e12, 1e12, 'CREATEBATCH dimension style');
+        finiteField(record, 'decimalPlaces', 0, 8, 'CREATEBATCH dimension style', true);
+        finiteField(record, 'angularDecimalPlaces', -1, 8, 'CREATEBATCH dimension style', true);
+        finiteField(record, 'angularUnits', 0, 3, 'CREATEBATCH dimension style', true);
+        finiteField(record, 'dxfFlags', 0, 65535, 'CREATEBATCH dimension style', true);
+    }
     const blockNames = new Set(document.getTable('blockRecords').records.map((item)=>normalizeName(String(item.name))));
     const explicitEntityIds = new Set();
     const validateExplicitEntityId = (spec, label, required)=>{
@@ -3204,6 +3294,22 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
             ]).has(String(spec.payload.layerId))) throw new KJValidationError('CREATEBATCH block entity layerId must reference the layer table');
             if (spec.payload?.linetypeId !== undefined && !linetypes.has(String(spec.payload.linetypeId))) throw new KJValidationError('CREATEBATCH block entity linetypeId must reference the linetype table');
             if (spec.payload?.lineweight !== undefined && !BATCH_LINEWEIGHTS.has(Number(spec.payload.lineweight))) throw new KJValidationError('CREATEBATCH block entity lineweight must be supported');
+            if (resources.textStyles != null && [
+                'TEXT',
+                'MTEXT',
+                'ATTDEF',
+                'ATTRIB'
+            ].includes(normalizeName(spec.type)) && spec.payload?.styleId !== undefined && !new Set([
+                ...document.getTable('textStyles').records.filter((item)=>!item.erased).map((item)=>item.id),
+                ...textStyles.map((item)=>item.id)
+            ]).has(String(spec.payload.styleId))) throw new KJValidationError('CREATEBATCH block text styleId must reference the text style table');
+            if (resources.dimensionStyles != null && [
+                'DIMENSION',
+                'TOLERANCE'
+            ].includes(normalizeName(spec.type)) && spec.payload?.styleId !== undefined && !new Set([
+                ...document.getTable('dimensionStyles').records.filter((item)=>!item.erased).map((item)=>item.id),
+                ...dimensionStyles.map((item)=>item.id)
+            ]).has(String(spec.payload.styleId))) throw new KJValidationError('CREATEBATCH block dimension styleId must reference the dimension style table');
             if (Object.keys(spec.payload ?? {}).some((key)=>BLOCK_RELATION_FIELDS.has(key))) throw new KJValidationError('CREATEBATCH block entities cannot supply ownership or attachment relationships');
         }
     }
@@ -3233,6 +3339,18 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
             locked: false,
             plottable: true
         }
+    });
+    for (const style of textStyles)transaction.upsertTableRecord('textStyles', {
+        id: style.id,
+        name: style.name,
+        type: 'TEXT_STYLE',
+        payload: clone(style.payload)
+    });
+    for (const style of dimensionStyles)transaction.upsertTableRecord('dimensionStyles', {
+        id: style.id,
+        name: style.name,
+        type: 'DIM_STYLE',
+        payload: clone(style.payload)
     });
     const created = [];
     for (const block of blocks){
@@ -3436,13 +3554,23 @@ function createEntityBatch({ document, transaction }, args = {}) {
         created.push(...createBatchResources(document, transaction, args.resources, specs));
         const tableIds = (table)=>new Set([
                 ...document.getTable(table).records.filter((item)=>!item.erased).map((item)=>item.id),
-                ...args.resources[table].map((item)=>item.id)
+                ...(args.resources[table] ?? []).map((item)=>item.id)
             ]);
-        const layers = tableIds('layers'), linetypes = tableIds('linetypes');
+        const layers = tableIds('layers'), linetypes = tableIds('linetypes'), textStyles = tableIds('textStyles'), dimensionStyles = tableIds('dimensionStyles');
         for (const spec of specs){
             if (spec?.payload?.layerId !== undefined && !layers.has(spec.payload.layerId)) throw new KJValidationError('CREATEBATCH entity layerId must reference the layer table');
             if (spec?.payload?.linetypeId !== undefined && !linetypes.has(spec.payload.linetypeId)) throw new KJValidationError('CREATEBATCH entity linetypeId must reference the linetype table');
             if (spec?.payload?.lineweight !== undefined && !BATCH_LINEWEIGHTS.has(spec.payload.lineweight)) throw new KJValidationError('CREATEBATCH entity lineweight must be a supported DXF hundredth-millimetre value');
+            if (args.resources?.textStyles != null && [
+                'TEXT',
+                'MTEXT',
+                'ATTDEF',
+                'ATTRIB'
+            ].includes(normalizeName(spec?.type)) && spec?.payload?.styleId !== undefined && !textStyles.has(String(spec.payload.styleId))) throw new KJValidationError('CREATEBATCH text styleId must reference the text style table');
+            if (args.resources?.dimensionStyles != null && [
+                'DIMENSION',
+                'TOLERANCE'
+            ].includes(normalizeName(spec?.type)) && spec?.payload?.styleId !== undefined && !dimensionStyles.has(String(spec.payload.styleId))) throw new KJValidationError('CREATEBATCH dimension styleId must reference the dimension style table');
             if (normalizeName(String(spec?.type ?? '')) === 'INSERT') {
                 const blockId = String(spec?.payload?.blockRecordId ?? '');
                 const block = transaction.getObject(blockId);

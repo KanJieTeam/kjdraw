@@ -217,6 +217,7 @@ export type KJFlangeSymbolMember = {
     rotation?: number;
     width?: number;
     attachmentPoint?: number;
+    styleKey?: string;
     role: KJFlangeAuxiliaryLine['role'];
 };
 export interface KJFlangeSymbolDefinition {
@@ -240,6 +241,7 @@ export interface KJFlangeSheetNote {
     height: number;
     rotation?: number;
     width?: number;
+    styleKey?: string;
 }
 /** A bounded native mechanical dimension supplied as engineering annotation
  *  facts. Measurements are derived from definition points, never accepted. */
@@ -249,6 +251,7 @@ export interface KJFlangeDimension {
     textPosition?: Point2;
     textOverride?: string;
     rotation?: number;
+    styleKey?: string;
 }
 /** A source-measured native leader without private annotation handles. */
 export interface KJFlangeLeader {
@@ -274,7 +277,38 @@ export interface KJFlangeFeatureControlFrame {
         }[];
     }[];
     xAxisDirection?: Point2;
+    styleKey?: string;
     role: 'dimensions' | 'notes';
+}
+export interface KJFlangeTextStyleDefinition {
+    key: string;
+    name: string;
+    fontFamily?: string | null;
+    fontFile?: string | null;
+    bigFontFile?: string | null;
+    fixedHeight?: number;
+    widthFactor?: number;
+    obliqueAngle?: number;
+    dxfFlags?: number;
+    generationFlags?: number;
+    lastHeight?: number;
+}
+export interface KJFlangeDimensionStyleDefinition {
+    key: string;
+    name: string;
+    overallScale?: number;
+    arrowSize?: number;
+    extensionOffset?: number;
+    baselineSpacing?: number;
+    extensionBeyond?: number;
+    rounding?: number;
+    textHeight?: number;
+    decimalPlaces?: number;
+    angularDecimalPlaces?: number;
+    angularUnits?: number;
+    centerMarkSize?: number;
+    textGap?: number;
+    dxfFlags?: number;
 }
 /** Source-measured visible end-view outline geometry, expressed relative to
  *  the end-view center so that the same rule remains position independent. */
@@ -334,6 +368,10 @@ export interface KJAgentMechanicalFlangeCoreInput {
         definitions: KJFlangeSymbolDefinition[];
         instances: KJFlangeSymbolInstance[];
     };
+    styleResources?: {
+        textStyles: KJFlangeTextStyleDefinition[];
+        dimensionStyles: KJFlangeDimensionStyleDefinition[];
+    };
     styleProfile?: KJFlangeStyleProfile;
     sheet: {
         origin: Point2;
@@ -359,6 +397,16 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
                 color: number;
                 linetypeId: string;
                 lineweight: number;
+            }[];
+            textStyles?: {
+                id: string;
+                name: string;
+                payload: Record<string, unknown>;
+            }[];
+            dimensionStyles?: {
+                id: string;
+                name: string;
+                payload: Record<string, unknown>;
             }[];
             blocks?: {
                 id: string;
@@ -395,6 +443,8 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             symbolDefinitionCount: number;
             symbolInstanceCount: number;
             featureControlFrameCount: number;
+            textStyleCount: number;
+            dimensionStyleCount: number;
             noteCount: number;
             dimensionCount: number;
             leaderCount: number;

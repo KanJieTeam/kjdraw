@@ -74,6 +74,16 @@ export interface KJEntityBatchResources {
         linetypeId: string;
         lineweight: number;
     }[];
+    textStyles?: {
+        id: string;
+        name: string;
+        payload: KJObjectPayload;
+    }[];
+    dimensionStyles?: {
+        id: string;
+        name: string;
+        payload: KJObjectPayload;
+    }[];
     blocks?: {
         id: string;
         name: string;

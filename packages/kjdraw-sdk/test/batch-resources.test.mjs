@@ -69,6 +69,37 @@ test('resource batches can reference existing linetypes, accept empty groups, an
   assert.equal(document.getTable('layers').records.find(item => item.name === 'LEGACY').payload.color, 2)
 })
 
+test('resource batches create bounded text and dimension styles atomically and preserve native references', async () => {
+  const { sdk, document } = fixture(), layer0 = document.getTable('layers').currentId
+  const args = { resources: { linetypes: [], layers: [],
+    textStyles: [{ id: 'note-style', name: 'NOTE-NARROW', payload: { fontFamily: 'TXT', fontFile: 'TXT', bigFontFile: '', fixedHeight: 0, widthFactor: .7, obliqueAngle: 0, dxfFlags: 0, generationFlags: 0 } }],
+    dimensionStyles: [{ id: 'dimension-style', name: 'DIM-PRECISION', payload: { overallScale: 1, arrowSize: 3, extensionOffset: .625, baselineSpacing: 3.75, extensionBeyond: 0, rounding: 1e-9, textHeight: 3, decimalPlaces: 2, centerMarkSize: 2.5, textGap: .75, dxfFlags: 0 } }],
+  }, entities: [
+    { type: 'MTEXT', payload: { position: [5, 5, 0], text: 'NOTE', height: 3, styleId: 'note-style', layerId: layer0 }, options: { id: 'note' } },
+    { type: 'DIMENSION', payload: { dimensionType: 'ALIGNED', definitionPoints: [[0, 5, 0], [0, 0, 0], [10, 0, 0]], styleId: 'dimension-style', styleName: 'DIM-PRECISION', layerId: layer0 }, options: { id: 'dimension' } },
+    { type: 'TOLERANCE', payload: { position: [5, 8, 0], text: String.raw`{\Fgdt;j}%%v0.1%%vA%%v%%v%%v%%v^J`, styleId: 'dimension-style', styleName: 'DIM-PRECISION', normal: [0, 0, 1], xAxisDirection: [1, 0, 0], layerId: layer0 }, options: { id: 'tolerance' } },
+  ] }
+  await sdk.executeCommand('CREATEBATCH', args)
+  assert.equal(document.getObject('note-style').payload.widthFactor, .7)
+  assert.equal(document.getObject('dimension-style').payload.decimalPlaces, 2)
+  assert.equal(document.getObject('note').payload.styleId, 'note-style')
+  assert.equal(document.getObject('tolerance').payload.styleId, 'dimension-style')
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, format === 'DXF' ? { format, version: '2018' } : { format }), { format })
+    const textStyle = reopened.getTable('textStyles').records.find(item => item.name === 'NOTE-NARROW')
+    const dimensionStyle = reopened.getTable('dimensionStyles').records.find(item => item.name === 'DIM-PRECISION')
+    assert.equal(textStyle.payload.widthFactor, .7)
+    assert.equal(dimensionStyle.payload.decimalPlaces, 2)
+    assert.equal(reopened.listEntities({ type: 'MTEXT' })[0].payload.styleId, textStyle.id)
+    assert.equal(reopened.listEntities({ type: 'TOLERANCE' })[0].payload.styleId, dimensionStyle.id)
+  }
+  await sdk.executeCommand('UNDO')
+  assert.equal(document.getObject('note-style'), null)
+  assert.equal(document.getObject('dimension-style'), null)
+  await sdk.executeCommand('REDO')
+  assert.equal(document.getObject('note-style').payload.widthFactor, .7)
+})
+
 test('resource batches create reusable native blocks and inserts in one undoable transaction', async () => {
   const { sdk, document } = fixture(), continuous = document.getTable('linetypes').currentId
   const args = {
