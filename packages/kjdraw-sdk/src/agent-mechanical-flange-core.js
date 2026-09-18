@@ -133,7 +133,8 @@ function validate(document, source) {
     const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis');
     if (side) exact(side, [
         'xRange',
-        'symmetricProfiles'
+        'symmetricProfiles',
+        'outlineSegments'
     ], 'input.sideViewAxis');
     const xRange = side ? point(side.xRange, 'input.sideViewAxis.xRange') : null;
     if (xRange && xRange[0] >= xRange[1]) throw new KJValidationError('input.sideViewAxis.xRange must increase');
@@ -175,6 +176,59 @@ function validate(document, source) {
             vertices,
             endCaps
         };
+    });
+    if (side?.outlineSegments != null && !Array.isArray(side.outlineSegments)) throw new KJValidationError('input.sideViewAxis.outlineSegments must be an array');
+    if (side?.outlineSegments?.length && side.outlineSegments.length > 128) throw new KJValidationError('input.sideViewAxis.outlineSegments exceed their budget');
+    const sideOutlineSegments = (side?.outlineSegments ?? []).map((value, index)=>{
+        const segment = plain(value, `input.sideViewAxis.outlineSegments[${index}]`);
+        const stationOffset = (pointValue, label)=>{
+            const value = plain(pointValue, label);
+            exact(value, [
+                'station',
+                'offset'
+            ], label);
+            return {
+                station: finite(value.station, `${label}.station`, xRange[0], xRange[1]),
+                offset: finite(value.offset, `${label}.offset`, -100_000, 100_000)
+            };
+        };
+        if (segment.kind === 'line') {
+            exact(segment, [
+                'kind',
+                'start',
+                'end'
+            ], `input.sideViewAxis.outlineSegments[${index}]`);
+            const start = stationOffset(segment.start, `input.sideViewAxis.outlineSegments[${index}].start`);
+            const end = stationOffset(segment.end, `input.sideViewAxis.outlineSegments[${index}].end`);
+            if (start.station === end.station && start.offset === end.offset) throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}] must not have zero length`);
+            return {
+                kind: 'line',
+                start,
+                end
+            };
+        }
+        if (segment.kind === 'arc') {
+            exact(segment, [
+                'kind',
+                'center',
+                'radius',
+                'startAngle',
+                'endAngle'
+            ], `input.sideViewAxis.outlineSegments[${index}]`);
+            const arcCenter = stationOffset(segment.center, `input.sideViewAxis.outlineSegments[${index}].center`);
+            const arcRadius = finite(segment.radius, `input.sideViewAxis.outlineSegments[${index}].radius`, 0.1, 100_000);
+            const startAngle = finite(segment.startAngle, `input.sideViewAxis.outlineSegments[${index}].startAngle`, -Math.PI * 4, Math.PI * 4);
+            const endAngle = finite(segment.endAngle, `input.sideViewAxis.outlineSegments[${index}].endAngle`, -Math.PI * 4, Math.PI * 4);
+            if (startAngle === endAngle) throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}] arc sweep must not be zero`);
+            return {
+                kind: 'arc',
+                center: arcCenter,
+                radius: arcRadius,
+                startAngle,
+                endAngle
+            };
+        }
+        throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}].kind is invalid`);
     });
     const sheet = plain(input.sheet, 'input.sheet');
     exact(sheet, [
@@ -376,6 +430,7 @@ function validate(document, source) {
         cuttingPlaneMarks,
         xRange,
         symmetricProfiles,
+        sideOutlineSegments,
         dimensions,
         sheetOrigin,
         sheetSize,
@@ -594,6 +649,22 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             cy + end.radius
         ], geometryLayerId);
     }
+    for (const segment of input.sideOutlineSegments){
+        if (segment.kind === 'line') line([
+            segment.start.station,
+            cy + segment.start.offset
+        ], [
+            segment.end.station,
+            cy + segment.end.offset
+        ], geometryLayerId);
+        else emit('ARC', {
+            center: p3(segment.center.station, cy + segment.center.offset),
+            radius: segment.radius,
+            startAngle: segment.startAngle,
+            endAngle: segment.endAngle,
+            layerId: geometryLayerId
+        });
+    }
     for (const note of input.notes)emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
         position: p3(...note.position),
         text: note.text,
@@ -672,6 +743,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 outlineSegmentCount: input.outlineSegments.length,
                 cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
                 symmetricProfileCount: input.symmetricProfiles.length,
+                sideOutlineSegmentCount: input.sideOutlineSegments.length,
                 noteCount: input.notes.length,
                 dimensionCount: input.dimensions.length
             },

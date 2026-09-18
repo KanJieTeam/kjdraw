@@ -34,6 +34,12 @@ export interface KJFlangeSymmetricProfile {
   endCaps?: 'none' | 'start' | 'end' | 'both'
 }
 
+/** Source-measured side-view geometry. Stations use drawing X coordinates;
+ *  offsets are measured from the shared projection axis. */
+export type KJFlangeSideViewOutlineSegment =
+  | { kind: 'line'; start: { station: number; offset: number }; end: { station: number; offset: number } }
+  | { kind: 'arc'; center: { station: number; offset: number }; radius: number; startAngle: number; endAngle: number }
+
 /** Source-supplied visible sheet text. Content remains input data and is not
  *  retained by the reusable knowledge pack. */
 export interface KJFlangeSheetNote {
@@ -75,7 +81,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   units: 'millimeter'
   drawingId: string
   endView: { center: Point2; ringRadii: number[]; squareHoles: { pitch: number; radius: number }; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
-  sideViewAxis?: { xRange: Point2; symmetricProfiles?: KJFlangeSymmetricProfile[] }
+  sideViewAxis?: { xRange: Point2; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[] }
   dimensions?: KJFlangeDimension[]
   sheet: { origin: Point2; size: Point2; inset: number; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
 }
@@ -153,7 +159,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     return { anchorOffset, stemVector, tickVector }
   })
   const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis')
-  if (side) exact(side, ['xRange', 'symmetricProfiles'], 'input.sideViewAxis')
+  if (side) exact(side, ['xRange', 'symmetricProfiles', 'outlineSegments'], 'input.sideViewAxis')
   const xRange = side ? point(side.xRange, 'input.sideViewAxis.xRange') : null
   if (xRange && xRange[0] >= xRange[1]) throw new KJValidationError('input.sideViewAxis.xRange must increase')
   if (side?.symmetricProfiles != null && !Array.isArray(side.symmetricProfiles)) throw new KJValidationError('input.sideViewAxis.symmetricProfiles must be an array')
@@ -177,6 +183,33 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const endCaps = profile.endCaps ?? 'none'
     if (!['none', 'start', 'end', 'both'].includes(endCaps as string)) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].endCaps is invalid`)
     return { vertices, endCaps } as KJFlangeSymmetricProfile
+  })
+  if (side?.outlineSegments != null && !Array.isArray(side.outlineSegments)) throw new KJValidationError('input.sideViewAxis.outlineSegments must be an array')
+  if ((side?.outlineSegments as unknown[] | undefined)?.length && (side!.outlineSegments as unknown[]).length > 128) throw new KJValidationError('input.sideViewAxis.outlineSegments exceed their budget')
+  const sideOutlineSegments: KJFlangeSideViewOutlineSegment[] = ((side?.outlineSegments ?? []) as unknown[]).map((value, index) => {
+    const segment = plain(value, `input.sideViewAxis.outlineSegments[${index}]`)
+    const stationOffset = (pointValue: unknown, label: string) => {
+      const value = plain(pointValue, label)
+      exact(value, ['station', 'offset'], label)
+      return { station: finite(value.station, `${label}.station`, xRange![0], xRange![1]), offset: finite(value.offset, `${label}.offset`, -100_000, 100_000) }
+    }
+    if (segment.kind === 'line') {
+      exact(segment, ['kind', 'start', 'end'], `input.sideViewAxis.outlineSegments[${index}]`)
+      const start = stationOffset(segment.start, `input.sideViewAxis.outlineSegments[${index}].start`)
+      const end = stationOffset(segment.end, `input.sideViewAxis.outlineSegments[${index}].end`)
+      if (start.station === end.station && start.offset === end.offset) throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}] must not have zero length`)
+      return { kind: 'line', start, end }
+    }
+    if (segment.kind === 'arc') {
+      exact(segment, ['kind', 'center', 'radius', 'startAngle', 'endAngle'], `input.sideViewAxis.outlineSegments[${index}]`)
+      const arcCenter = stationOffset(segment.center, `input.sideViewAxis.outlineSegments[${index}].center`)
+      const arcRadius = finite(segment.radius, `input.sideViewAxis.outlineSegments[${index}].radius`, 0.1, 100_000)
+      const startAngle = finite(segment.startAngle, `input.sideViewAxis.outlineSegments[${index}].startAngle`, -Math.PI * 4, Math.PI * 4)
+      const endAngle = finite(segment.endAngle, `input.sideViewAxis.outlineSegments[${index}].endAngle`, -Math.PI * 4, Math.PI * 4)
+      if (startAngle === endAngle) throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}] arc sweep must not be zero`)
+      return { kind: 'arc', center: arcCenter, radius: arcRadius, startAngle, endAngle }
+    }
+    throw new KJValidationError(`input.sideViewAxis.outlineSegments[${index}].kind is invalid`)
   })
   const sheet = plain(input.sheet, 'input.sheet'); exact(sheet, ['origin', 'size', 'inset', 'titleGrid', 'notes'], 'input.sheet')
   const sheetOrigin = point(sheet.origin, 'input.sheet.origin'), sheetSize = point(sheet.size, 'input.sheet.size')
@@ -264,7 +297,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     return { kind: dimension.kind as KJFlangeDimension['kind'], definitionPoints, ...(textPosition == null ? {} : { textPosition }),
       ...(textOverride == null ? {} : { textOverride }), rotation }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, xRange, symmetricProfiles, dimensions, sheetOrigin, sheetSize, inset, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, xRange, symmetricProfiles, sideOutlineSegments, dimensions, sheetOrigin, sheetSize, inset, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -318,6 +351,11 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     if (profile.endCaps === 'start' || profile.endCaps === 'both') line([start.station, cy - start.radius], [start.station, cy + start.radius], geometryLayerId)
     if (profile.endCaps === 'end' || profile.endCaps === 'both') line([end.station, cy - end.radius], [end.station, cy + end.radius], geometryLayerId)
   }
+  for (const segment of input.sideOutlineSegments) {
+    if (segment.kind === 'line') line([segment.start.station, cy + segment.start.offset], [segment.end.station, cy + segment.end.offset], geometryLayerId)
+    else emit('ARC', { center: p3(segment.center.station, cy + segment.center.offset), radius: segment.radius,
+      startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: geometryLayerId })
+  }
   for (const note of input.notes) emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
     position: p3(...note.position), text: note.text, height: note.height, rotation: note.rotation,
     ...(note.width == null ? {} : { width: note.width }), layerId: noteLayerId,
@@ -342,7 +380,8 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       expectedRevision: input.expectedRevision, entityCount: entities.length,
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
-        symmetricProfileCount: input.symmetricProfiles.length, noteCount: input.notes.length, dimensionCount: input.dimensions.length },
+        symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
+        noteCount: input.notes.length, dimensionCount: input.dimensions.length },
       limitations: ['Flange end-view, symmetric axial-profile, native dimension and sheet-grid core only', 'Does not generate attributes or hatches', 'Private drawings and labels are not embedded'],
     },
   }
