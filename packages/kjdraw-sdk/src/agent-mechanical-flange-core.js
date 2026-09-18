@@ -44,6 +44,7 @@ function validate(document, source) {
         'sideViewAxis',
         'dimensions',
         'leaders',
+        'auxiliaryLines',
         'styleProfile',
         'sheet'
     ], 'input');
@@ -557,6 +558,31 @@ function validate(document, source) {
             hookLineEnabled: leader.hookLineEnabled === true
         };
     });
+    if (input.auxiliaryLines != null && !Array.isArray(input.auxiliaryLines)) throw new KJValidationError('input.auxiliaryLines must be an array');
+    if (input.auxiliaryLines?.length && input.auxiliaryLines.length > 256) throw new KJValidationError('input.auxiliaryLines exceed their budget');
+    const auxiliaryLines = (input.auxiliaryLines ?? []).map((value, index)=>{
+        const label = `input.auxiliaryLines[${index}]`, line = plain(value, label);
+        exact(line, [
+            'start',
+            'end',
+            'role'
+        ], label);
+        if (![
+            'geometry',
+            'center',
+            'hidden',
+            'notes',
+            'grid',
+            'frame'
+        ].includes(line.role)) throw new KJValidationError(`${label}.role is invalid`);
+        const start = point(line.start, `${label}.start`), end = point(line.end, `${label}.end`);
+        if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError(`${label} must not have zero length`);
+        return {
+            start,
+            end,
+            role: line.role
+        };
+    });
     const styleProfile = input.styleProfile == null ? {} : plain(input.styleProfile, 'input.styleProfile');
     if (styleProfile) exact(styleProfile, [
         'frame',
@@ -565,7 +591,8 @@ function validate(document, source) {
         'center',
         'notes',
         'dimensions',
-        'hatch'
+        'hatch',
+        'hidden'
     ], 'input.styleProfile');
     const styleRole = (value, label)=>{
         if (value == null) return {};
@@ -641,7 +668,8 @@ function validate(document, source) {
         'center',
         'notes',
         'dimensions',
-        'hatch'
+        'hatch',
+        'hidden'
     ])styles[role] = styleRole(styleProfile[role], `input.styleProfile.${role}`);
     return {
         expectedRevision,
@@ -658,6 +686,7 @@ function validate(document, source) {
         sectionHatches,
         dimensions,
         leaders,
+        auxiliaryLines,
         styles,
         sheetOrigin,
         sheetSize,
@@ -723,6 +752,15 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             color: 7,
             lineweight: 18,
             pattern: []
+        }),
+        hidden: role('hidden', {
+            layerName: 'FLANGE_HIDDEN',
+            color: 8,
+            lineweight: 18,
+            pattern: [
+                3,
+                -1
+            ]
         })
     };
     const roleIds = {}, layers = [], layerByName = new Map();
@@ -1108,6 +1146,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         patternDefinitionScale: 1,
         layerId: roleIds.hatch
     }, 'hatch');
+    for (const auxiliary of input.auxiliaryLines)line(auxiliary.start, auxiliary.end, roleIds[auxiliary.role], auxiliary.role);
     for (const note of input.notes)emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
         position: p3(...note.position),
         text: note.text,
@@ -1164,6 +1203,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 symmetricProfileCount: input.symmetricProfiles.length,
                 sideOutlineSegmentCount: input.sideOutlineSegments.length,
                 sectionHatchCount: input.sectionHatches.length,
+                auxiliaryLineCount: input.auxiliaryLines.length,
                 noteCount: input.notes.length,
                 dimensionCount: input.dimensions.length,
                 leaderCount: input.leaders.length
