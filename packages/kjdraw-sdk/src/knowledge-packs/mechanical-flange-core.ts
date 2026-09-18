@@ -5,7 +5,7 @@ import { stableHash } from '../utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePack({
   schema: 'kjdraw.knowledge-pack.v1',
   id: 'mechanical-flange-core',
-  version: '2.4.0',
+  version: '2.5.0',
   title: 'Parameterized flange orthographic-view and sheet-grid rules',
   domain: 'mechanical-manufacturing',
   license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
@@ -13,10 +13,10 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
     id: 'kjdraw-authored-flange-rules-v1',
     title: 'KJDraw authored flange geometry and layout rules',
     license: 'MIT',
-    contentHash: stableHash('flange-views:concentric-rings:square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:parameterized-ansi31:caller-supplied-style-roles:semantic-auxiliary-lines:semantic-native-curves:auxiliary-circles:native-leaders:native-derived-dimensions:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:v2.4'),
+    contentHash: stableHash('flange-views:concentric-rings:square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:parameterized-ansi31:caller-supplied-style-roles:semantic-auxiliary-lines:semantic-native-curves:generic-local-symbols:auxiliary-circles:native-leaders:native-derived-dimensions:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:v2.5'),
   }],
   ontology: {
-    objectKinds: ['flange', 'bore', 'concentric-ring', 'square-hole-pattern', 'end-view-outline', 'cutting-plane-mark', 'side-view-axis', 'symmetric-meridian-profile', 'side-view-outline', 'cut-face', 'native-dimension', 'native-leader', 'sheet-frame', 'title-grid', 'sheet-note'],
+    objectKinds: ['flange', 'bore', 'concentric-ring', 'square-hole-pattern', 'end-view-outline', 'cutting-plane-mark', 'side-view-axis', 'symmetric-meridian-profile', 'side-view-outline', 'cut-face', 'native-dimension', 'native-leader', 'local-symbol', 'sheet-frame', 'title-grid', 'sheet-note'],
     relationKinds: ['concentric-with', 'projects-to', 'mirrors-across-axis', 'placed-on'],
   },
   rules: {
@@ -27,6 +27,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
     styles: 'caller-supplied semantic roles map effective layer, color, lineweight and linetype facts; no source application catalogue is embedded',
     auxiliaryLines: 'bounded source-measured line segments carry only a semantic role and are emitted as native LINE entities; arbitrary private object data is rejected',
     auxiliaryCurves: 'bounded source-measured arc, ellipse, lightweight-polyline and spline facts carry only geometry and a semantic style role; handles, raw tags and application metadata are rejected',
+    symbols: 'bounded local line, circle, arc and multiline-text members compile into generic native block definitions and positioned instances; caller block names, handles, attributes and application metadata are never retained',
     sheet: 'outer frame, inset frame and optional bounded semantic title-grid with full or locally segmented rules',
     notes: 'bounded source-supplied sheet labels and technical notes; visible content is never embedded in this pack',
     dimensions: 'native dimensions derive measurements from bounded definition points and never trust supplied measurement values',

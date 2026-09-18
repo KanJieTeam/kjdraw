@@ -6,7 +6,7 @@ import { stableHash } from './utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
 type Point2 = [number, number]
 type Point3 = [number, number, number]
-type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'HATCH'; payload: Record<string, unknown>; options: { id: string } }
+type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'HATCH' | 'INSERT'; payload: Record<string, unknown>; options: { id: string } }
 interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } }; getTable?: (name: string) => { records: { id: string; name?: string; payload?: Record<string, unknown> }[] } | undefined }
 
 export interface KJFlangeTitleGrid {
@@ -90,6 +90,28 @@ export type KJFlangeAuxiliaryCurve =
   | { kind: 'polyline'; vertices: { point: Point2; bulge?: number; startWidth?: number; endWidth?: number }[]; closed?: boolean; role: KJFlangeAuxiliaryLine['role'] }
   | { kind: 'spline'; degree: number; controlPoints: Point2[]; knots: number[]; fitPoints?: Point2[]; weights?: number[]; closed?: boolean; periodic?: boolean; role: KJFlangeAuxiliaryLine['role'] }
 
+/** A reusable local symbol definition. Only visible native geometry and text
+ * are accepted; source handles, block names and application metadata are not. */
+export type KJFlangeSymbolMember =
+  | { kind: 'line'; start: Point2; end: Point2; role: KJFlangeAuxiliaryLine['role'] }
+  | { kind: 'circle'; center: Point2; radius: number; role: KJFlangeAuxiliaryLine['role'] }
+  | { kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; clockwise?: boolean; role: KJFlangeAuxiliaryLine['role'] }
+  | { kind: 'multiline-text'; text: string; position: Point2; height: number; rotation?: number; width?: number; attachmentPoint?: number; role: KJFlangeAuxiliaryLine['role'] }
+
+export interface KJFlangeSymbolDefinition {
+  key: string
+  basePoint: Point2
+  members: KJFlangeSymbolMember[]
+}
+
+export interface KJFlangeSymbolInstance {
+  symbolKey: string
+  position: Point2
+  scale?: Point2
+  rotation?: number
+  role: KJFlangeAuxiliaryLine['role']
+}
+
 /** Source-supplied visible sheet text. Content remains input data and is not
  *  retained by the reusable knowledge pack. */
 export interface KJFlangeSheetNote {
@@ -148,6 +170,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   leaders?: KJFlangeLeader[]
   auxiliaryLines?: KJFlangeAuxiliaryLine[]
   auxiliaryCurves?: KJFlangeAuxiliaryCurve[]
+  symbols?: { definitions: KJFlangeSymbolDefinition[]; instances: KJFlangeSymbolInstance[] }
   styleProfile?: KJFlangeStyleProfile
   sheet: { origin: Point2; size: Point2; inset: number; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
 }
@@ -177,7 +200,7 @@ const increasing = (value: unknown, label: string, maxCount: number, min: number
 
 function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   if (!document || typeof document.id !== 'string' || !Number.isSafeInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Flange compiler requires a KJDraw document')
-  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'auxiliaryLines', 'auxiliaryCurves', 'styleProfile', 'sheet'], 'input')
+  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'auxiliaryLines', 'auxiliaryCurves', 'symbols', 'styleProfile', 'sheet'], 'input')
   if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`)
   if (input.units !== 'millimeter' || document.snapshot().header?.units !== 'millimeter') throw new KJValidationError('Flange compiler requires millimeter units')
   const expectedRevision = finite(input.expectedRevision, 'input.expectedRevision', 0, Number.MAX_SAFE_INTEGER)
@@ -475,6 +498,67 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     }
     throw new KJValidationError(`${label}.kind is invalid`)
   })
+  const symbolSource = input.symbols == null ? { definitions: [], instances: [] } : plain(input.symbols, 'input.symbols')
+  exact(symbolSource, ['definitions', 'instances'], 'input.symbols')
+  if (!Array.isArray(symbolSource.definitions) || symbolSource.definitions.length > 16) throw new KJValidationError('input.symbols.definitions must contain at most 16 items')
+  if (!Array.isArray(symbolSource.instances) || symbolSource.instances.length > 64) throw new KJValidationError('input.symbols.instances must contain at most 64 items')
+  const symbolKeys = new Set<string>()
+  let symbolMemberCount = 0, symbolTextCharacters = 0
+  const symbolRole = (value: unknown, label: string): KJFlangeAuxiliaryLine['role'] => {
+    if (!['geometry', 'center', 'hidden', 'notes', 'grid', 'frame'].includes(value as string)) throw new KJValidationError(`${label} is invalid`)
+    return value as KJFlangeAuxiliaryLine['role']
+  }
+  const symbolDefinitions: KJFlangeSymbolDefinition[] = (symbolSource.definitions as unknown[]).map((value, index) => {
+    const label = `input.symbols.definitions[${index}]`, definition = plain(value, label); exact(definition, ['key', 'basePoint', 'members'], label)
+    if (typeof definition.key !== 'string' || !definition.key.trim() || definition.key !== definition.key.trim() || definition.key.length > 96 || /[\u0000-\u001f\u007f]/u.test(definition.key)) throw new KJValidationError(`${label}.key must be bounded printable text`)
+    if (symbolKeys.has(definition.key)) throw new KJValidationError(`${label}.key must be unique`)
+    symbolKeys.add(definition.key)
+    if (!Array.isArray(definition.members) || !definition.members.length || definition.members.length > 64) throw new KJValidationError(`${label}.members must contain 1 to 64 items`)
+    symbolMemberCount += definition.members.length
+    if (symbolMemberCount > 512) throw new KJValidationError('input.symbols exceed the member budget')
+    const members: KJFlangeSymbolMember[] = (definition.members as unknown[]).map((memberValue, memberIndex) => {
+      const memberLabel = `${label}.members[${memberIndex}]`, member = plain(memberValue, memberLabel), role = symbolRole(member.role, `${memberLabel}.role`)
+      if (member.kind === 'line') {
+        exact(member, ['kind', 'start', 'end', 'role'], memberLabel)
+        const start = point(member.start, `${memberLabel}.start`), end = point(member.end, `${memberLabel}.end`)
+        if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError(`${memberLabel} must not have zero length`)
+        return { kind: 'line', start, end, role }
+      }
+      if (member.kind === 'circle') {
+        exact(member, ['kind', 'center', 'radius', 'role'], memberLabel)
+        return { kind: 'circle', center: point(member.center, `${memberLabel}.center`), radius: finite(member.radius, `${memberLabel}.radius`, 0.000_001, 100_000), role }
+      }
+      if (member.kind === 'arc') {
+        exact(member, ['kind', 'center', 'radius', 'startAngle', 'endAngle', 'clockwise', 'role'], memberLabel)
+        const startAngle = finite(member.startAngle, `${memberLabel}.startAngle`, -Math.PI * 4, Math.PI * 4), endAngle = finite(member.endAngle, `${memberLabel}.endAngle`, -Math.PI * 4, Math.PI * 4)
+        if (startAngle === endAngle) throw new KJValidationError(`${memberLabel} arc sweep must not be zero`)
+        if (member.clockwise != null && typeof member.clockwise !== 'boolean') throw new KJValidationError(`${memberLabel}.clockwise must be boolean`)
+        return { kind: 'arc', center: point(member.center, `${memberLabel}.center`), radius: finite(member.radius, `${memberLabel}.radius`, 0.000_001, 100_000), startAngle, endAngle, clockwise: member.clockwise === true, role }
+      }
+      if (member.kind === 'multiline-text') {
+        exact(member, ['kind', 'text', 'position', 'height', 'rotation', 'width', 'attachmentPoint', 'role'], memberLabel)
+        if (typeof member.text !== 'string' || !member.text || member.text.length > 512 || /[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(member.text)) throw new KJValidationError(`${memberLabel}.text must be bounded visible text`)
+        symbolTextCharacters += member.text.length
+        if (symbolTextCharacters > 8_192) throw new KJValidationError('input.symbols exceed the text budget')
+        const attachmentPoint = member.attachmentPoint == null ? 1 : finite(member.attachmentPoint, `${memberLabel}.attachmentPoint`, 1, 9)
+        if (!Number.isInteger(attachmentPoint)) throw new KJValidationError(`${memberLabel}.attachmentPoint must be an integer`)
+        return { kind: 'multiline-text', text: member.text, position: point(member.position, `${memberLabel}.position`),
+          height: finite(member.height, `${memberLabel}.height`, 0.000_001, 100_000), rotation: member.rotation == null ? 0 : finite(member.rotation, `${memberLabel}.rotation`, -Math.PI * 4, Math.PI * 4),
+          ...(member.width == null ? {} : { width: finite(member.width, `${memberLabel}.width`, 0.000_001, 1_000_000) }), attachmentPoint, role }
+      }
+      throw new KJValidationError(`${memberLabel}.kind is invalid`)
+    })
+    return { key: definition.key, basePoint: point(definition.basePoint, `${label}.basePoint`), members }
+  })
+  const symbolInstances: KJFlangeSymbolInstance[] = (symbolSource.instances as unknown[]).map((value, index) => {
+    const label = `input.symbols.instances[${index}]`, instance = plain(value, label); exact(instance, ['symbolKey', 'position', 'scale', 'rotation', 'role'], label)
+    if (typeof instance.symbolKey !== 'string' || !symbolKeys.has(instance.symbolKey)) throw new KJValidationError(`${label}.symbolKey must reference a definition`)
+    const scaleSource = instance.scale ?? [1, 1]
+    if (!Array.isArray(scaleSource) || scaleSource.length !== 2) throw new KJValidationError(`${label}.scale must contain two coordinates`)
+    const scale: Point2 = [finite(scaleSource[0], `${label}.scale[0]`, 0.000_001, 1_000_000), finite(scaleSource[1], `${label}.scale[1]`, 0.000_001, 1_000_000)]
+    return { symbolKey: instance.symbolKey, position: point(instance.position, `${label}.position`), scale,
+      rotation: instance.rotation == null ? 0 : finite(instance.rotation, `${label}.rotation`, -Math.PI * 4, Math.PI * 4), role: symbolRole(instance.role, `${label}.role`) }
+  })
   const styleProfile = input.styleProfile == null ? {} : plain(input.styleProfile, 'input.styleProfile')
   if (styleProfile) exact(styleProfile, ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch', 'hidden'], 'input.styleProfile')
   const styleRole = (value: unknown, label: string): KJFlangeStyleRole => {
@@ -492,7 +576,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   }
   const styles: KJFlangeStyleProfile = {}
   for (const role of ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch', 'hidden'] as const) styles[role] = styleRole(styleProfile[role], `input.styleProfile.${role}`)
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, xRange, symmetricProfiles, sideOutlineSegments, sectionHatches, dimensions, leaders, auxiliaryLines, auxiliaryCurves, styles, sheetOrigin, sheetSize, inset, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, symmetricProfiles, sectionHatches, dimensions, leaders, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, styles, sheetOrigin, sheetSize, inset, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -515,10 +599,12 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   }
   const entities: Entity[] = [], p3 = (x: number, y: number): Point3 => [x, y, 0]
   const roleByLayer = new Map(Object.keys(roles).map(name => [roleIds[name as keyof typeof roles], roles[name as keyof typeof roles]]))
-  const emit = (type: Entity['type'], payload: Record<string, unknown>, styleName?: keyof typeof roles) => {
+  const stylePayload = (payload: Record<string, unknown>, styleName?: keyof typeof roles) => {
     const style = styleName == null ? roleByLayer.get(payload.layerId as string) : roles[styleName]
-    const styled = style == null ? payload : { ...payload, color: style.color, lineweight: style.lineweight, ...(style.linetypeName == null ? {} : { linetypeName: style.linetypeName }) }
-    entities.push({ type, payload: styled, options: { id: `${prefix}-${String(entities.length + 1).padStart(4, '0')}` } })
+    return style == null ? payload : { ...payload, color: style.color, lineweight: style.lineweight, ...(style.linetypeName == null ? {} : { linetypeName: style.linetypeName }) }
+  }
+  const emit = (type: Entity['type'], payload: Record<string, unknown>, styleName?: keyof typeof roles) => {
+    entities.push({ type, payload: stylePayload(payload, styleName), options: { id: `${prefix}-${String(entities.length + 1).padStart(4, '0')}` } })
   }
   const line = (a: Point2, b: Point2, layerId = roleIds.grid, styleName: keyof typeof roles = 'grid') => emit('LINE', { start: p3(...a), end: p3(...b), layerId }, styleName)
   const rectangle = (origin: Point2, size: Point2) => {
@@ -599,6 +685,27 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       ...(curve.fitPoints?.length ? { fitPoints: curve.fitPoints.map(value => p3(...value)) } : {}), ...(curve.weights?.length ? { weights: curve.weights } : {}),
       closed: curve.closed === true, periodic: curve.periodic === true, layerId: roleIds[curve.role] }, curve.role)
   }
+  const symbolBlockByKey = new Map<string, { id: string }>()
+  const blocks = input.symbolDefinitions.map((definition, definitionIndex) => {
+    const token = stableHash({ basePoint: definition.basePoint, members: definition.members }).slice(0, 12)
+    const id = `${prefix}-symbol-${String(definitionIndex + 1).padStart(2, '0')}-${token}`
+    symbolBlockByKey.set(definition.key, { id })
+    const members = definition.members.map((member, memberIndex) => {
+      let type: Entity['type'], payload: Record<string, unknown>
+      if (member.kind === 'line') { type = 'LINE'; payload = { start: p3(...member.start), end: p3(...member.end), layerId: roleIds[member.role] } }
+      else if (member.kind === 'circle') { type = 'CIRCLE'; payload = { center: p3(...member.center), radius: member.radius, layerId: roleIds[member.role] } }
+      else if (member.kind === 'arc') { type = 'ARC'; payload = { center: p3(...member.center), radius: member.radius, startAngle: member.startAngle, endAngle: member.endAngle, clockwise: member.clockwise === true, layerId: roleIds[member.role] } }
+      else { type = 'MTEXT'; payload = { position: p3(...member.position), text: member.text, height: member.height, rotation: member.rotation ?? 0,
+        attachmentPoint: member.attachmentPoint ?? 1, ...(member.width == null ? {} : { width: member.width }), layerId: roleIds[member.role] } }
+      return { type, payload: stylePayload(payload, member.role), options: { id: `${id}-member-${String(memberIndex + 1).padStart(2, '0')}` } }
+    })
+    return { id, name: `KJ_FLANGE_SYMBOL_${String(definitionIndex + 1).padStart(2, '0')}_${token.toUpperCase()}`, basePoint: p3(...definition.basePoint), entities: members }
+  })
+  for (const instance of input.symbolInstances) {
+    const block = symbolBlockByKey.get(instance.symbolKey)!
+    emit('INSERT', { blockRecordId: block.id, position: p3(...instance.position), scale: [instance.scale?.[0] ?? 1, instance.scale?.[1] ?? 1, 1],
+      rotation: instance.rotation ?? 0, attributes: {}, attributeIds: [], sequenceEndId: null, layerId: roleIds[instance.role] }, instance.role)
+  }
   for (const note of input.notes) emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
     position: p3(...note.position), text: note.text, height: note.height, rotation: note.rotation,
     ...(note.width == null ? {} : { width: note.width }), layerId: roleIds.notes,
@@ -615,6 +722,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     commandArgs: { entities, resources: {
       linetypes,
       layers,
+      ...(blocks.length ? { blocks } : {}),
     } },
     evidence: { knowledgePackId: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.id,
       knowledgePackVersion: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version,
@@ -622,8 +730,9 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
-        sectionHatchCount: input.sectionHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryCurveCount: input.auxiliaryCurves.length, noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
-      limitations: ['Flange end-view, symmetric axial-profile, cut-face hatches, native dimension and sheet-grid core only', 'Does not generate attributes or arbitrary blocks', 'Private drawings and labels are not embedded'],
+        sectionHatchCount: input.sectionHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryCurveCount: input.auxiliaryCurves.length,
+        symbolDefinitionCount: input.symbolDefinitions.length, symbolInstanceCount: input.symbolInstances.length, noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
+      limitations: ['Flange end-view, symmetric axial-profile, cut-face hatches, native dimension and sheet-grid core only', 'Local symbols do not generate attributes or nested blocks', 'Private drawings and labels are not embedded'],
     },
   }
 }
