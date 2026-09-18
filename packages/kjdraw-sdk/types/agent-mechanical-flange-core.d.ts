@@ -1,7 +1,7 @@
 export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: '1.0.0';
 type Point2 = [number, number];
 type Entity = {
-    type: 'LINE' | 'CIRCLE' | 'TEXT' | 'MTEXT' | 'DIMENSION';
+    type: 'LINE' | 'CIRCLE' | 'ARC' | 'TEXT' | 'MTEXT' | 'DIMENSION';
     payload: Record<string, unknown>;
     options: {
         id: string;
@@ -78,6 +78,19 @@ export interface KJFlangeDimension {
     textOverride?: string;
     rotation?: number;
 }
+/** Source-measured visible end-view outline geometry, expressed relative to
+ *  the end-view center so that the same rule remains position independent. */
+export type KJFlangeEndViewOutlineSegment = {
+    kind: 'line';
+    startOffset: Point2;
+    endOffset: Point2;
+} | {
+    kind: 'arc';
+    centerOffset: Point2;
+    radius: number;
+    startAngle: number;
+    endAngle: number;
+};
 export interface KJAgentMechanicalFlangeCoreInput {
     version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION;
     expectedRevision: number;
@@ -90,6 +103,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
             pitch: number;
             radius: number;
         };
+        outlineSegments?: KJFlangeEndViewOutlineSegment[];
     };
     sideViewAxis?: {
         xRange: Point2;
@@ -134,6 +148,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             squareHoleRadius: number;
             titleGrid: boolean;
             sideViewAxis: boolean;
+            outlineSegmentCount: number;
             symmetricProfileCount: number;
             noteCount: number;
             dimensionCount: number;
