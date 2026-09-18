@@ -14268,6 +14268,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             sideoutlinesegmentcount: number;
             notecount: number;
             dimensioncount: number;
+            leadercount: number;
         };
         limitations: string[];
     };
@@ -14308,6 +14309,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             sideOutlineSegmentCount: number;
             noteCount: number;
             dimensionCount: number;
+            leaderCount: number;
         };
         limitations: string[];
     };
@@ -17514,6 +17516,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         outlinesegments?: kjflangesideviewoutlinesegment[];
     };
     dimensions?: kjflangedimension[];
+    leaders?: kjflangeleader[];
     sheet: {
         origin: point2;
         size: point2;
@@ -17544,6 +17547,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         outlineSegments?: KJFlangeSideViewOutlineSegment[];
     };
     dimensions?: KJFlangeDimension[];
+    leaders?: KJFlangeLeader[];
     sheet: {
         origin: Point2;
         size: Point2;
@@ -23567,6 +23571,25 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     centerOffset: Point2;
     radius: number;
 };</code></pre>
+      <p class="source-path">agent-mechanical-flange-core.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjflangeleader" data-search="kjflangeleader interface @kanjieteam/kjdraw export interface kjflangeleader {
+    vertices: point2[];
+    arrowenabled?: boolean;
+    pathtype?: number;
+    annotationtype?: number;
+    hooklinedirection?: number;
+    hooklineenabled?: boolean;
+}">
+      <header><div><span class="kind">interface</span><h3>KJFlangeLeader</h3></div><a class="permalink" href="#root-interface-kjflangeleader" aria-label="Link to KJFlangeLeader">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFlangeLeader {
+    vertices: Point2[];
+    arrowEnabled?: boolean;
+    pathType?: number;
+    annotationType?: number;
+    hookLineDirection?: number;
+    hookLineEnabled?: boolean;
+}</code></pre>
       <p class="source-path">agent-mechanical-flange-core.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjflangesheetnote" data-search="kjflangesheetnote interface @kanjieteam/kjdraw export interface kjflangesheetnote {

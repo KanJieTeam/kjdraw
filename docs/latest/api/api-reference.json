@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:b85bc668b56ed358aa2746dc9c52402c85e86fdb45aca316a5e0778eda30e82a",
+  "sourceDigest": "sha256:119fd52680825c6334058ff308587a7bccf6842e66657628bc02ee5f3d2173f3",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -6081,7 +6081,7 @@
         {
           "name": "buildAgentMechanicalFlangeCore",
           "kind": "function",
-          "declaration": "export declare function buildAgentMechanicalFlangeCore(document: Document, source: KJAgentMechanicalFlangeCoreInput): {\n    commandArgs: {\n        entities: Entity[];\n        resources: {\n            linetypes: {\n                id: string;\n                name: string;\n                pattern: never[];\n            }[];\n            layers: {\n                id: string;\n                name: string;\n                color: number;\n                linetypeId: string;\n                lineweight: number;\n            }[];\n        };\n    };\n    evidence: {\n        knowledgePackId: string;\n        knowledgePackVersion: string;\n        expectedRevision: number;\n        entityCount: number;\n        parameters: {\n            ringCount: number;\n            squareHolePitch: number;\n            squareHoleRadius: number;\n            titleGrid: boolean;\n            sideViewAxis: boolean;\n            outlineSegmentCount: number;\n            cuttingPlaneMarkCount: number;\n            symmetricProfileCount: number;\n            sideOutlineSegmentCount: number;\n            noteCount: number;\n            dimensionCount: number;\n        };\n        limitations: string[];\n    };\n};",
+          "declaration": "export declare function buildAgentMechanicalFlangeCore(document: Document, source: KJAgentMechanicalFlangeCoreInput): {\n    commandArgs: {\n        entities: Entity[];\n        resources: {\n            linetypes: {\n                id: string;\n                name: string;\n                pattern: never[];\n            }[];\n            layers: {\n                id: string;\n                name: string;\n                color: number;\n                linetypeId: string;\n                lineweight: number;\n            }[];\n        };\n    };\n    evidence: {\n        knowledgePackId: string;\n        knowledgePackVersion: string;\n        expectedRevision: number;\n        entityCount: number;\n        parameters: {\n            ringCount: number;\n            squareHolePitch: number;\n            squareHoleRadius: number;\n            titleGrid: boolean;\n            sideViewAxis: boolean;\n            outlineSegmentCount: number;\n            cuttingPlaneMarkCount: number;\n            symmetricProfileCount: number;\n            sideOutlineSegmentCount: number;\n            noteCount: number;\n            dimensionCount: number;\n            leaderCount: number;\n        };\n        limitations: string[];\n    };\n};",
           "source": "agent-mechanical-flange-core.d.ts",
           "anchor": "root-function-buildagentmechanicalflangecore"
         },
@@ -7481,7 +7481,7 @@
         {
           "name": "KJAgentMechanicalFlangeCoreInput",
           "kind": "interface",
-          "declaration": "export interface KJAgentMechanicalFlangeCoreInput {\n    version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION;\n    expectedRevision: number;\n    units: 'millimeter';\n    drawingId: string;\n    endView: {\n        center: Point2;\n        ringRadii: number[];\n        squareHoles: {\n            pitch: number;\n            radius: number;\n        };\n        outlineSegments?: KJFlangeEndViewOutlineSegment[];\n        cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[];\n    };\n    sideViewAxis?: {\n        xRange: Point2;\n        symmetricProfiles?: KJFlangeSymmetricProfile[];\n        outlineSegments?: KJFlangeSideViewOutlineSegment[];\n    };\n    dimensions?: KJFlangeDimension[];\n    sheet: {\n        origin: Point2;\n        size: Point2;\n        inset: number;\n        titleGrid?: KJFlangeTitleGrid;\n        notes?: KJFlangeSheetNote[];\n    };\n}",
+          "declaration": "export interface KJAgentMechanicalFlangeCoreInput {\n    version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION;\n    expectedRevision: number;\n    units: 'millimeter';\n    drawingId: string;\n    endView: {\n        center: Point2;\n        ringRadii: number[];\n        squareHoles: {\n            pitch: number;\n            radius: number;\n        };\n        outlineSegments?: KJFlangeEndViewOutlineSegment[];\n        cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[];\n    };\n    sideViewAxis?: {\n        xRange: Point2;\n        symmetricProfiles?: KJFlangeSymmetricProfile[];\n        outlineSegments?: KJFlangeSideViewOutlineSegment[];\n    };\n    dimensions?: KJFlangeDimension[];\n    leaders?: KJFlangeLeader[];\n    sheet: {\n        origin: Point2;\n        size: Point2;\n        inset: number;\n        titleGrid?: KJFlangeTitleGrid;\n        notes?: KJFlangeSheetNote[];\n    };\n}",
           "source": "agent-mechanical-flange-core.d.ts",
           "anchor": "root-interface-kjagentmechanicalflangecoreinput"
         },
@@ -9717,6 +9717,13 @@
           "declaration": "export type KJFlangeEndViewOutlineSegment = {\n    kind: 'line';\n    startOffset: Point2;\n    endOffset: Point2;\n} | {\n    kind: 'arc';\n    centerOffset: Point2;\n    radius: number;\n    startAngle: number;\n    endAngle: number;\n} | {\n    kind: 'circle';\n    centerOffset: Point2;\n    radius: number;\n};",
           "source": "agent-mechanical-flange-core.d.ts",
           "anchor": "root-type-kjflangeendviewoutlinesegment"
+        },
+        {
+          "name": "KJFlangeLeader",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeLeader {\n    vertices: Point2[];\n    arrowEnabled?: boolean;\n    pathType?: number;\n    annotationType?: number;\n    hookLineDirection?: number;\n    hookLineEnabled?: boolean;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangeleader"
         },
         {
           "name": "KJFlangeSheetNote",

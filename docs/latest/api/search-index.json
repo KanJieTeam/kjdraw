@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:b85bc668b56ed358aa2746dc9c52402c85e86fdb45aca316a5e0778eda30e82a",
+  "sourceDigest": "sha256:119fd52680825c6334058ff308587a7bccf6842e66657628bc02ee5f3d2173f3",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -10859,6 +10859,14 @@
       "href": "./api/reference/#root-type-kjflangeendviewoutlinesegment",
       "anchor": "root-type-kjflangeendviewoutlinesegment",
       "summary": "export type KJFlangeEndViewOutlineSegment = { kind: 'line'; startOffset: Point2; endOffset: Point2; } | { kind: 'arc'; centerOffset: Point2; radius: number; startAngle: number; endAngle: number; } | { kind: 'circle'; cen"
+    },
+    {
+      "name": "KJFlangeLeader",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangeleader",
+      "anchor": "root-interface-kjflangeleader",
+      "summary": "export interface KJFlangeLeader { vertices: Point2[]; arrowEnabled?: boolean; pathType?: number; annotationType?: number; hookLineDirection?: number; hookLineEnabled?: boolean; }"
     },
     {
       "name": "KJFlangeSheetNote",
