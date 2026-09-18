@@ -1,7 +1,7 @@
 export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: '1.0.0';
 type Point2 = [number, number];
 type Entity = {
-    type: 'LINE' | 'CIRCLE';
+    type: 'LINE' | 'CIRCLE' | 'TEXT' | 'MTEXT';
     payload: Record<string, unknown>;
     options: {
         id: string;
@@ -47,6 +47,16 @@ export interface KJFlangeSymmetricProfile {
     }[];
     endCaps?: 'none' | 'start' | 'end' | 'both';
 }
+/** Source-supplied visible sheet text. Content remains input data and is not
+ *  retained by the reusable knowledge pack. */
+export interface KJFlangeSheetNote {
+    kind: 'single-line' | 'multiline';
+    text: string;
+    position: Point2;
+    height: number;
+    rotation?: number;
+    width?: number;
+}
 export interface KJAgentMechanicalFlangeCoreInput {
     version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION;
     expectedRevision: number;
@@ -69,6 +79,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
         size: Point2;
         inset: number;
         titleGrid?: KJFlangeTitleGrid;
+        notes?: KJFlangeSheetNote[];
     };
 }
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -102,6 +113,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             titleGrid: boolean;
             sideViewAxis: boolean;
             symmetricProfileCount: number;
+            noteCount: number;
         };
         limitations: string[];
     };

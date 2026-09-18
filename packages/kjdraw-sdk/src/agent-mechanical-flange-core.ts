@@ -5,7 +5,7 @@ import { stableHash } from './utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
 type Point2 = [number, number]
 type Point3 = [number, number, number]
-type Entity = { type: 'LINE' | 'CIRCLE'; payload: Record<string, unknown>; options: { id: string } }
+type Entity = { type: 'LINE' | 'CIRCLE' | 'TEXT' | 'MTEXT'; payload: Record<string, unknown>; options: { id: string } }
 interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } } }
 
 export interface KJFlangeTitleGrid {
@@ -29,6 +29,17 @@ export interface KJFlangeSymmetricProfile {
   endCaps?: 'none' | 'start' | 'end' | 'both'
 }
 
+/** Source-supplied visible sheet text. Content remains input data and is not
+ *  retained by the reusable knowledge pack. */
+export interface KJFlangeSheetNote {
+  kind: 'single-line' | 'multiline'
+  text: string
+  position: Point2
+  height: number
+  rotation?: number
+  width?: number
+}
+
 export interface KJAgentMechanicalFlangeCoreInput {
   version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION
   expectedRevision: number
@@ -36,7 +47,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   drawingId: string
   endView: { center: Point2; ringRadii: number[]; squareHoles: { pitch: number; radius: number } }
   sideViewAxis?: { xRange: Point2; symmetricProfiles?: KJFlangeSymmetricProfile[] }
-  sheet: { origin: Point2; size: Point2; inset: number; titleGrid?: KJFlangeTitleGrid }
+  sheet: { origin: Point2; size: Point2; inset: number; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
 }
 
 const finite = (value: unknown, label: string, min: number, max: number): number => {
@@ -104,7 +115,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     if (!['none', 'start', 'end', 'both'].includes(endCaps as string)) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].endCaps is invalid`)
     return { vertices, endCaps } as KJFlangeSymmetricProfile
   })
-  const sheet = plain(input.sheet, 'input.sheet'); exact(sheet, ['origin', 'size', 'inset', 'titleGrid'], 'input.sheet')
+  const sheet = plain(input.sheet, 'input.sheet'); exact(sheet, ['origin', 'size', 'inset', 'titleGrid', 'notes'], 'input.sheet')
   const sheetOrigin = point(sheet.origin, 'input.sheet.origin'), sheetSize = point(sheet.size, 'input.sheet.size')
   if (sheetSize[0] < 100 || sheetSize[1] < 100) throw new KJValidationError('input.sheet.size is too small')
   const inset = finite(sheet.inset, 'input.sheet.inset', 0, Math.min(...sheetSize) / 2 - 1)
@@ -133,13 +144,33 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     titleGrid = { origin, size, columns, rows, partialColumns,
       ...(diagonal ? { diagonalHeader: { width: finite(diagonal.width, 'input.sheet.titleGrid.diagonalHeader.width', 0, size[0]), drop: finite(diagonal.drop, 'input.sheet.titleGrid.diagonalHeader.drop', 0, size[1]) } } : {}) }
   }
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, xRange, symmetricProfiles, sheetOrigin, sheetSize, inset, titleGrid }
+  if (sheet.notes != null && !Array.isArray(sheet.notes)) throw new KJValidationError('input.sheet.notes must be an array')
+  if ((sheet.notes as unknown[] | undefined)?.length && (sheet.notes as unknown[]).length > 128) throw new KJValidationError('input.sheet.notes exceed their budget')
+  let noteCharacters = 0
+  const notes: KJFlangeSheetNote[] = ((sheet.notes ?? []) as unknown[]).map((value, index) => {
+    const note = plain(value, `input.sheet.notes[${index}]`)
+    exact(note, ['kind', 'text', 'position', 'height', 'rotation', 'width'], `input.sheet.notes[${index}]`)
+    if (note.kind !== 'single-line' && note.kind !== 'multiline') throw new KJValidationError(`input.sheet.notes[${index}].kind is invalid`)
+    if (typeof note.text !== 'string' || !note.text || note.text.length > 512 || /[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(note.text)) throw new KJValidationError(`input.sheet.notes[${index}].text must be bounded visible text`)
+    if (note.kind === 'single-line' && /[\r\n]/u.test(note.text)) throw new KJValidationError(`input.sheet.notes[${index}].text must stay on one line`)
+    const text = note.kind === 'multiline' ? note.text.replace(/\r\n?|\n/gu, '\\P') : note.text
+    noteCharacters += text.length
+    if (noteCharacters > 8_192) throw new KJValidationError('input.sheet.notes exceed the text budget')
+    const position = point(note.position, `input.sheet.notes[${index}].position`)
+    if (position[0] < sheetOrigin[0] || position[0] > sheetOrigin[0] + sheetSize[0] || position[1] < sheetOrigin[1] || position[1] > sheetOrigin[1] + sheetSize[1]) throw new KJValidationError(`input.sheet.notes[${index}].position must lie on the sheet`)
+    const height = finite(note.height, `input.sheet.notes[${index}].height`, 0.1, Math.min(...sheetSize) / 4)
+    const rotation = note.rotation == null ? 0 : finite(note.rotation, `input.sheet.notes[${index}].rotation`, -Math.PI * 2, Math.PI * 2)
+    const width = note.width == null ? undefined : finite(note.width, `input.sheet.notes[${index}].width`, 0.1, sheetSize[0])
+    if (note.kind === 'single-line' && width != null) throw new KJValidationError(`input.sheet.notes[${index}].width is only valid for multiline text`)
+    return { kind: note.kind, text, position, height, rotation, ...(width == null ? {} : { width }) }
+  })
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, xRange, symmetricProfiles, sheetOrigin, sheetSize, inset, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
 export function buildAgentMechanicalFlangeCore(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   const input = validate(document, source), prefix = `flange-${stableHash({ id: input.drawingId, version: KJDRAW_MECHANICAL_FLANGE_CORE_VERSION }).slice(0, 12)}`
-  const linetypeId = `${prefix}-continuous`, geometryLayerId = `${prefix}-geometry`, sheetLayerId = `${prefix}-sheet`, centerLayerId = `${prefix}-center`
+  const linetypeId = `${prefix}-continuous`, geometryLayerId = `${prefix}-geometry`, sheetLayerId = `${prefix}-sheet`, centerLayerId = `${prefix}-center`, noteLayerId = `${prefix}-notes`
   const entities: Entity[] = [], p3 = (x: number, y: number): Point3 => [x, y, 0]
   const emit = (type: Entity['type'], payload: Record<string, unknown>) => entities.push({ type, payload, options: { id: `${prefix}-${String(entities.length + 1).padStart(4, '0')}` } })
   const line = (a: Point2, b: Point2, layerId = sheetLayerId) => emit('LINE', { start: p3(...a), end: p3(...b), layerId })
@@ -175,6 +206,10 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     if (profile.endCaps === 'start' || profile.endCaps === 'both') line([start.station, cy - start.radius], [start.station, cy + start.radius], geometryLayerId)
     if (profile.endCaps === 'end' || profile.endCaps === 'both') line([end.station, cy - end.radius], [end.station, cy + end.radius], geometryLayerId)
   }
+  for (const note of input.notes) emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
+    position: p3(...note.position), text: note.text, height: note.height, rotation: note.rotation,
+    ...(note.width == null ? {} : { width: note.width }), layerId: noteLayerId,
+  })
   return {
     commandArgs: { entities, resources: {
       linetypes: [{ id: linetypeId, name: `${prefix}_CONT`, pattern: [] }],
@@ -182,13 +217,14 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
         { id: geometryLayerId, name: 'FLANGE_GEOMETRY', color: 7, linetypeId, lineweight: 35 },
         { id: sheetLayerId, name: 'FLANGE_SHEET', color: 7, linetypeId, lineweight: 18 },
         { id: centerLayerId, name: 'FLANGE_CENTER', color: 7, linetypeId, lineweight: 18 },
+        { id: noteLayerId, name: 'FLANGE_NOTES', color: 7, linetypeId, lineweight: 18 },
       ],
     } },
     evidence: { knowledgePackId: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.id,
       knowledgePackVersion: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version,
       expectedRevision: input.expectedRevision, entityCount: entities.length,
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
-        symmetricProfileCount: input.symmetricProfiles.length },
+        symmetricProfileCount: input.symmetricProfiles.length, noteCount: input.notes.length },
       limitations: ['Flange end-view, symmetric axial-profile and sheet-grid core only', 'Does not generate dimensions, attributes or hatches', 'Private drawings and labels are not embedded'],
     },
   }

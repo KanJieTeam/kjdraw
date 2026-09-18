@@ -116,7 +116,8 @@ function validate(document, source) {
         'origin',
         'size',
         'inset',
-        'titleGrid'
+        'titleGrid',
+        'notes'
     ], 'input.sheet');
     const sheetOrigin = point(sheet.origin, 'input.sheet.origin'), sheetSize = point(sheet.size, 'input.sheet.size');
     if (sheetSize[0] < 100 || sheetSize[1] < 100) throw new KJValidationError('input.sheet.size is too small');
@@ -180,6 +181,42 @@ function validate(document, source) {
             } : {}
         };
     }
+    if (sheet.notes != null && !Array.isArray(sheet.notes)) throw new KJValidationError('input.sheet.notes must be an array');
+    if (sheet.notes?.length && sheet.notes.length > 128) throw new KJValidationError('input.sheet.notes exceed their budget');
+    let noteCharacters = 0;
+    const notes = (sheet.notes ?? []).map((value, index)=>{
+        const note = plain(value, `input.sheet.notes[${index}]`);
+        exact(note, [
+            'kind',
+            'text',
+            'position',
+            'height',
+            'rotation',
+            'width'
+        ], `input.sheet.notes[${index}]`);
+        if (note.kind !== 'single-line' && note.kind !== 'multiline') throw new KJValidationError(`input.sheet.notes[${index}].kind is invalid`);
+        if (typeof note.text !== 'string' || !note.text || note.text.length > 512 || /[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(note.text)) throw new KJValidationError(`input.sheet.notes[${index}].text must be bounded visible text`);
+        if (note.kind === 'single-line' && /[\r\n]/u.test(note.text)) throw new KJValidationError(`input.sheet.notes[${index}].text must stay on one line`);
+        const text = note.kind === 'multiline' ? note.text.replace(/\r\n?|\n/gu, '\\P') : note.text;
+        noteCharacters += text.length;
+        if (noteCharacters > 8_192) throw new KJValidationError('input.sheet.notes exceed the text budget');
+        const position = point(note.position, `input.sheet.notes[${index}].position`);
+        if (position[0] < sheetOrigin[0] || position[0] > sheetOrigin[0] + sheetSize[0] || position[1] < sheetOrigin[1] || position[1] > sheetOrigin[1] + sheetSize[1]) throw new KJValidationError(`input.sheet.notes[${index}].position must lie on the sheet`);
+        const height = finite(note.height, `input.sheet.notes[${index}].height`, 0.1, Math.min(...sheetSize) / 4);
+        const rotation = note.rotation == null ? 0 : finite(note.rotation, `input.sheet.notes[${index}].rotation`, -Math.PI * 2, Math.PI * 2);
+        const width = note.width == null ? undefined : finite(note.width, `input.sheet.notes[${index}].width`, 0.1, sheetSize[0]);
+        if (note.kind === 'single-line' && width != null) throw new KJValidationError(`input.sheet.notes[${index}].width is only valid for multiline text`);
+        return {
+            kind: note.kind,
+            text,
+            position,
+            height,
+            rotation,
+            ...width == null ? {} : {
+                width
+            }
+        };
+    });
     return {
         expectedRevision,
         drawingId: input.drawingId.trim(),
@@ -192,7 +229,8 @@ function validate(document, source) {
         sheetOrigin,
         sheetSize,
         inset,
-        titleGrid
+        titleGrid,
+        notes
     };
 }
 export function buildAgentMechanicalFlangeCore(document, source) {
@@ -200,7 +238,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         id: input.drawingId,
         version: KJDRAW_MECHANICAL_FLANGE_CORE_VERSION
     }).slice(0, 12)}`;
-    const linetypeId = `${prefix}-continuous`, geometryLayerId = `${prefix}-geometry`, sheetLayerId = `${prefix}-sheet`, centerLayerId = `${prefix}-center`;
+    const linetypeId = `${prefix}-continuous`, geometryLayerId = `${prefix}-geometry`, sheetLayerId = `${prefix}-sheet`, centerLayerId = `${prefix}-center`, noteLayerId = `${prefix}-notes`;
     const entities = [], p3 = (x, y)=>[
             x,
             y,
@@ -361,6 +399,16 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             cy + end.radius
         ], geometryLayerId);
     }
+    for (const note of input.notes)emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
+        position: p3(...note.position),
+        text: note.text,
+        height: note.height,
+        rotation: note.rotation,
+        ...note.width == null ? {} : {
+            width: note.width
+        },
+        layerId: noteLayerId
+    });
     return {
         commandArgs: {
             entities,
@@ -393,6 +441,13 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                         color: 7,
                         linetypeId,
                         lineweight: 18
+                    },
+                    {
+                        id: noteLayerId,
+                        name: 'FLANGE_NOTES',
+                        color: 7,
+                        linetypeId,
+                        lineweight: 18
                     }
                 ]
             }
@@ -408,7 +463,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 squareHoleRadius: input.radius,
                 titleGrid: input.titleGrid != null,
                 sideViewAxis: input.xRange != null,
-                symmetricProfileCount: input.symmetricProfiles.length
+                symmetricProfileCount: input.symmetricProfiles.length,
+                noteCount: input.notes.length
             },
             limitations: [
                 'Flange end-view, symmetric axial-profile and sheet-grid core only',
