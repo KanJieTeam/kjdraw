@@ -1,7 +1,7 @@
 export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: '1.0.0';
 type Point2 = [number, number];
 type Entity = {
-    type: 'LINE' | 'CIRCLE' | 'ARC' | 'SOLID' | 'TEXT' | 'MTEXT' | 'DIMENSION';
+    type: 'LINE' | 'CIRCLE' | 'ARC' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION';
     payload: Record<string, unknown>;
     options: {
         id: string;
@@ -107,6 +107,15 @@ export interface KJFlangeDimension {
     textOverride?: string;
     rotation?: number;
 }
+/** A source-measured native leader without private annotation handles. */
+export interface KJFlangeLeader {
+    vertices: Point2[];
+    arrowEnabled?: boolean;
+    pathType?: number;
+    annotationType?: number;
+    hookLineDirection?: number;
+    hookLineEnabled?: boolean;
+}
 /** Source-measured visible end-view outline geometry, expressed relative to
  *  the end-view center so that the same rule remains position independent. */
 export type KJFlangeEndViewOutlineSegment = {
@@ -156,6 +165,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
         outlineSegments?: KJFlangeSideViewOutlineSegment[];
     };
     dimensions?: KJFlangeDimension[];
+    leaders?: KJFlangeLeader[];
     sheet: {
         origin: Point2;
         size: Point2;
@@ -200,6 +210,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             sideOutlineSegmentCount: number;
             noteCount: number;
             dimensionCount: number;
+            leaderCount: number;
         };
         limitations: string[];
     };

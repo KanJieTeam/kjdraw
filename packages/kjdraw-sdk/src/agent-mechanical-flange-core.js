@@ -43,6 +43,7 @@ function validate(document, source) {
         'endView',
         'sideViewAxis',
         'dimensions',
+        'leaders',
         'sheet'
     ], 'input');
     if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`);
@@ -455,6 +456,30 @@ function validate(document, source) {
             rotation
         };
     });
+    if (input.leaders != null && !Array.isArray(input.leaders)) throw new KJValidationError('input.leaders must be an array');
+    if (input.leaders?.length && input.leaders.length > 64) throw new KJValidationError('input.leaders exceed their budget');
+    const leaders = (input.leaders ?? []).map((value, index)=>{
+        const leader = plain(value, `input.leaders[${index}]`);
+        exact(leader, [
+            'vertices',
+            'arrowEnabled',
+            'pathType',
+            'annotationType',
+            'hookLineDirection',
+            'hookLineEnabled'
+        ], `input.leaders[${index}]`);
+        if (!Array.isArray(leader.vertices) || leader.vertices.length < 2 || leader.vertices.length > 64) throw new KJValidationError(`input.leaders[${index}].vertices must contain 2 to 64 points`);
+        const vertices = leader.vertices.map((value, pointIndex)=>point(value, `input.leaders[${index}].vertices[${pointIndex}]`));
+        const integer = (value, label, max)=>value == null ? 0 : finite(value, label, 0, max);
+        return {
+            vertices,
+            arrowEnabled: leader.arrowEnabled == null ? true : leader.arrowEnabled === true,
+            pathType: integer(leader.pathType, `input.leaders[${index}].pathType`, 1),
+            annotationType: integer(leader.annotationType, `input.leaders[${index}].annotationType`, 3),
+            hookLineDirection: integer(leader.hookLineDirection, `input.leaders[${index}].hookLineDirection`, 1),
+            hookLineEnabled: leader.hookLineEnabled === true
+        };
+    });
     return {
         expectedRevision,
         drawingId: input.drawingId.trim(),
@@ -468,6 +493,7 @@ function validate(document, source) {
         symmetricProfiles,
         sideOutlineSegments,
         dimensions,
+        leaders,
         sheetOrigin,
         sheetSize,
         inset,
@@ -767,6 +793,17 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         styleName: 'STANDARD',
         layerId: noteLayerId
     });
+    for (const leader of input.leaders)emit('LEADER', {
+        vertices: leader.vertices.map(([x, y])=>p3(x, y)),
+        annotationId: null,
+        ownsAnnotation: false,
+        arrowEnabled: leader.arrowEnabled !== false,
+        pathType: leader.pathType ?? 0,
+        annotationType: leader.annotationType ?? 3,
+        hookLineDirection: leader.hookLineDirection ?? 0,
+        hookLineEnabled: leader.hookLineEnabled === true,
+        layerId: noteLayerId
+    });
     return {
         commandArgs: {
             entities,
@@ -826,7 +863,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 symmetricProfileCount: input.symmetricProfiles.length,
                 sideOutlineSegmentCount: input.sideOutlineSegments.length,
                 noteCount: input.notes.length,
-                dimensionCount: input.dimensions.length
+                dimensionCount: input.dimensions.length,
+                leaderCount: input.leaders.length
             },
             limitations: [
                 'Flange end-view, symmetric axial-profile, native dimension and sheet-grid core only',
