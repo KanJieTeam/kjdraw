@@ -536,6 +536,9 @@ test('source-backed physical grids omit absent SPT lanes and strict mode rejects
   const withSpt = structuredClone(input)
   withSpt.hole.observations.push({ kind: 'spt', id: 'P1', depth: 15, value: 9 })
   assert.throws(() => compileGeologyColumn(withSpt), /no physical field for supplied observations/)
+  withSpt.strictSourceTemplate = false
+  assert.throws(() => compileGeologyColumn(withSpt), /no physical field for supplied observations/,
+    'non-strict field grids must not silently discard observations either')
   const wrongScale = structuredClone(input)
   wrongScale.verticalScaleDenominator = 250
   assert.throws(() => compileGeologyColumn(wrongScale), /vertical scale differs from the source template/)

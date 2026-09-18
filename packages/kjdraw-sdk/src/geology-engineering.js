@@ -926,7 +926,7 @@ export function compileGeologyColumn(input) {
             lithologyCount: new Set(strata.map((layer)=>layer.patternKey ?? layer.lithology)).size
         });
     const observations = hole.observations ?? [];
-    if (input.strictSourceTemplate && fieldGrid && observations.some((item)=>item.kind === 'sample' && !gridField('sample') || item.kind === 'spt' && !gridField('spt'))) throw new KJValidationError('Geology: source template has no physical field for supplied observations');
+    if (fieldGrid && observations.some((item)=>item.kind === 'sample' && !gridField('sample') || item.kind === 'spt' && !gridField('spt'))) throw new KJValidationError('Geology: field grid has no physical field for supplied observations');
     if (observations.length && strata.some((layer)=>layer.description) && !observationColumns && !fieldGrid) throw new KJValidationError('Geology: supplied descriptions and depth-aligned observations need separate declared columns');
     if (observations.length && !observationColumns && !fieldGrid && right - descriptionX < 42) throw new KJValidationError('Geology: style observation columns must have at least 42 mm total width');
     const sampleX = gridField('sample')?.start ?? observationColumns?.[0] ?? descriptionX;
