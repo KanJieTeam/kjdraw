@@ -21,6 +21,8 @@ export interface KJGeologyStratum {
   lithology: 'fill' | 'cultivated-soil' | 'clay' | 'silty-clay' | 'silt' | 'sand' | 'gravel' | 'rock' | 'weathered-rock' | 'loess' | 'loess-collapsible' | 'loess-like' | 'paleosol' | 'calcareous-nodule'
   /** Semantic pattern role in a licensed pack, e.g. fine-sand versus medium-sand. */
   patternKey?: string
+  /** Source-backed display fact: omit or filled draws the hatch; boundary-only preserves the interval without inventing fill. */
+  patternVisibility?: 'filled' | 'boundary-only'
   description?: string
   /** Interval text is never merged; a project layer definition may repeat through lenses. */
   descriptionSource?: 'interval' | 'layer-definition'
@@ -532,6 +534,8 @@ function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
     if (Math.abs(top - previous) > 1e-6 || bottom <= top || bottom > hole.depth + 1e-6) throw new KJValidationError(`Geology: gap, overlap or invalid depth at ${code}`)
     if (!Object.hasOwn(pattern, layer.lithology)) throw new KJValidationError(`Geology: undeclared lithology at ${code}`)
     if (layer.patternKey != null) bounded(layer.patternKey, 'pattern key', 96)
+    if (layer.patternVisibility != null && layer.patternVisibility !== 'filled' && layer.patternVisibility !== 'boundary-only')
+      throw new KJValidationError(`Geology: invalid pattern visibility at ${code}`)
     previous = bottom
   }
   if (Math.abs(previous - hole.depth) > 1e-6) throw new KJValidationError('Geology: final layer bottom must equal hole depth')
@@ -902,7 +906,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         const item = field(role)
         bandLines.push({ x1: item.start, x2: gridEnd(item), y: yBottom })
       }
-      g.hatch([[patternField.start, yBottom], [gridEnd(patternField), yBottom],
+      if (layer.patternVisibility !== 'boundary-only') g.hatch([[patternField.start, yBottom], [gridEnd(patternField), yBottom],
         [gridEnd(patternField), yTop], [patternField.start, yTop]], layer)
       const depthY = depthLabelY.get(layer) ?? yBottom + 0.4
       if (Math.abs(depthY - (yBottom + 0.4)) > 0.6) g.line(1, gridEnd(depthField) - 5, yBottom, gridEnd(depthField) - 1, depthY)
@@ -973,7 +977,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     if (bandHeight < (grouped ? 0.4 : 1.4)) throw new KJValidationError(`Geology: layer ${layer.code} is too thin for readable geometry at this scale`)
     const isMajorBoundary = !grouped || groups.some(group => Math.abs(group.bottom - layer.bottom) < 1e-6)
     g.line(1, isMajorBoundary ? left : depthX, yBottom, isMajorBoundary ? right : descriptionX, yBottom)
-    g.hatch([[codeX, yBottom], [hatchX, yBottom], [hatchX, yTop], [codeX, yTop]], layer)
+    if (layer.patternVisibility !== 'boundary-only') g.hatch([[codeX, yBottom], [hatchX, yBottom], [hatchX, yTop], [codeX, yTop]], layer)
     const labelHeight = Math.min(2.3, bandHeight * 0.55)
     const depthY = depthLabelY.get(layer) ?? yBottom + 0.4
     if (grouped && Math.abs(depthY - (yBottom + 0.4)) > 0.6) g.line(1, depthX - 5, yBottom, depthX - 1, depthY)
@@ -1082,7 +1086,7 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
     for (const layer of byId.get(hole.id)!.strata) {
       const a = y(hole, layer.top), b = y(hole, layer.bottom)
       g.line(1, center - half - 1, b, center + half + 5, b)
-      g.hatch([[center - half, b], [center + half, b], [center + half, a], [center - half, a]], layer)
+      if (layer.patternVisibility !== 'boundary-only') g.hatch([[center - half, b], [center + half, b], [center + half, a], [center - half, a]], layer)
       g.text(3, center + half + 1.5, b + 0.5, metres(layer.bottom), 1.35)
     }
     if (hole.stableWaterDepth != null) {

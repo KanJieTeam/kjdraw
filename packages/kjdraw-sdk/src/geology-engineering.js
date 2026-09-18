@@ -671,6 +671,7 @@ function checkHole(hole) {
         if (Math.abs(top - previous) > 1e-6 || bottom <= top || bottom > hole.depth + 1e-6) throw new KJValidationError(`Geology: gap, overlap or invalid depth at ${code}`);
         if (!Object.hasOwn(pattern, layer.lithology)) throw new KJValidationError(`Geology: undeclared lithology at ${code}`);
         if (layer.patternKey != null) bounded(layer.patternKey, 'pattern key', 96);
+        if (layer.patternVisibility != null && layer.patternVisibility !== 'filled' && layer.patternVisibility !== 'boundary-only') throw new KJValidationError(`Geology: invalid pattern visibility at ${code}`);
         previous = bottom;
     }
     if (Math.abs(previous - hole.depth) > 1e-6) throw new KJValidationError('Geology: final layer bottom must equal hole depth');
@@ -1290,7 +1291,7 @@ export function compileGeologyColumn(input) {
                     y: yBottom
                 });
             }
-            g.hatch([
+            if (layer.patternVisibility !== 'boundary-only') g.hatch([
                 [
                     patternField.start,
                     yBottom
@@ -1403,7 +1404,7 @@ export function compileGeologyColumn(input) {
         if (bandHeight < (grouped ? 0.4 : 1.4)) throw new KJValidationError(`Geology: layer ${layer.code} is too thin for readable geometry at this scale`);
         const isMajorBoundary = !grouped || groups.some((group)=>Math.abs(group.bottom - layer.bottom) < 1e-6);
         g.line(1, isMajorBoundary ? left : depthX, yBottom, isMajorBoundary ? right : descriptionX, yBottom);
-        g.hatch([
+        if (layer.patternVisibility !== 'boundary-only') g.hatch([
             [
                 codeX,
                 yBottom
@@ -1542,7 +1543,7 @@ export function compileGeologySection(input) {
         for (const layer of byId.get(hole.id).strata){
             const a = y(hole, layer.top), b = y(hole, layer.bottom);
             g.line(1, center - half - 1, b, center + half + 5, b);
-            g.hatch([
+            if (layer.patternVisibility !== 'boundary-only') g.hatch([
                 [
                     center - half,
                     b

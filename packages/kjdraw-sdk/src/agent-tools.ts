@@ -328,8 +328,9 @@ const geologyStratumSchema = objectWithOptional({
   intervalId: { ...text, maxLength: 64 }, groupId: { ...text, maxLength: 24 }, groupRole: { type: 'string', enum: ['principal', 'lens'] },
   code: { ...text, maxLength: 24 }, name: { ...text, maxLength: 64 }, top: nonnegative, bottom: radius,
   lithology: { type: 'string', enum: ['fill', 'cultivated-soil', 'clay', 'silty-clay', 'silt', 'sand', 'gravel', 'rock', 'weathered-rock', 'loess', 'loess-collapsible', 'loess-like', 'paleosol', 'calcareous-nodule'] },
+  patternVisibility: { type: 'string', enum: ['filled', 'boundary-only'] },
   description: { ...text, maxLength: 96 }, descriptionSource: { type: 'string', enum: ['interval', 'layer-definition'] },
-}, ['intervalId', 'groupId', 'groupRole', 'description', 'descriptionSource'])
+}, ['intervalId', 'groupId', 'groupRole', 'patternVisibility', 'description', 'descriptionSource'])
 const geologyObservationSchema = objectWithOptional({
   kind: { type: 'string', enum: ['sample', 'spt'] }, id: { ...text, maxLength: 24 }, depth: nonnegative,
   value: nonnegative, displayLabel: { ...text, maxLength: 24 },

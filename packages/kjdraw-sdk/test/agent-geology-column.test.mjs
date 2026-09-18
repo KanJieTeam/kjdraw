@@ -75,6 +75,38 @@ test('versioned geology facts compile to a host-only CREATEBATCH proposal, then 
   }
 })
 
+test('source-backed boundary-only strata keep boundaries and text while omitting hatch fills across KJD/DXF reopen', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const session = new KJAgentToolSession(sdk, document)
+  const base = intent()
+  const sourceIntent = {
+    ...base,
+    hole: { ...base.hole, strata: base.hole.strata.map((layer, index) => index === 1 ? { ...layer, patternVisibility: 'boundary-only' } : layer) },
+  }
+  const schema = session.definitions.find(tool => tool.name === 'cad_propose_geology_column')
+  assert.deepEqual(schema.inputSchema.properties.hole.properties.strata.items.properties.patternVisibility.enum, ['filled', 'boundary-only'])
+  const invalid = await session.call('cad_propose_geology_column', {
+    ...sourceIntent,
+    hole: { ...sourceIntent.hole, strata: sourceIntent.hole.strata.map((layer, index) => index === 1 ? { ...layer, patternVisibility: 'outline-only' } : layer) },
+  })
+  assert.equal(invalid.ok, false)
+  assert.match(invalid.error.message, /patternVisibility|boundary-only|filled/u)
+  const proposal = accepted(await session.call('cad_propose_geology_column', sourceIntent))
+  assert.equal(proposal.arguments.entities.filter(entity => entity.type === 'HATCH').length, 5)
+  assert.equal(proposal.arguments.entities.filter(entity => entity.type === 'LINE').length > 0, true)
+  const textValues = proposal.arguments.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  assert.ok(textValues.includes('Silty clay'))
+  accepted(await session.approve(proposal.planId, 'synthetic-host-reviewer'))
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await createKJDrawSDK().readDocument(bytes, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(reopened.listEntities({ type: 'HATCH' }).length, 5)
+    assert.ok(reopened.listEntities({ type: 'LINE' }).length > 0)
+    assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === 'Silty clay'))
+  }
+})
+
 test('Chinese loess-region lithologies remain explicit and scale labels use engineering integer notation', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const session = new KJAgentToolSession(sdk, document)

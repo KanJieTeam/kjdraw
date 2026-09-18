@@ -1442,6 +1442,13 @@ const geologyStratumSchema = objectWithOptional({
             'calcareous-nodule'
         ]
     },
+    patternVisibility: {
+        type: 'string',
+        enum: [
+            'filled',
+            'boundary-only'
+        ]
+    },
     description: {
         ...text,
         maxLength: 96
@@ -1457,6 +1464,7 @@ const geologyStratumSchema = objectWithOptional({
     'intervalId',
     'groupId',
     'groupRole',
+    'patternVisibility',
     'description',
     'descriptionSource'
 ]);

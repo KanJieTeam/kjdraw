@@ -16,6 +16,8 @@ export interface KJGeologyStratum {
     lithology: 'fill' | 'cultivated-soil' | 'clay' | 'silty-clay' | 'silt' | 'sand' | 'gravel' | 'rock' | 'weathered-rock' | 'loess' | 'loess-collapsible' | 'loess-like' | 'paleosol' | 'calcareous-nodule';
     /** Semantic pattern role in a licensed pack, e.g. fine-sand versus medium-sand. */
     patternKey?: string;
+    /** Source-backed display fact: omit or filled draws the hatch; boundary-only preserves the interval without inventing fill. */
+    patternVisibility?: 'filled' | 'boundary-only';
     description?: string;
     /** Interval text is never merged; a project layer definition may repeat through lenses. */
     descriptionSource?: 'interval' | 'layer-definition';
