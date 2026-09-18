@@ -14265,6 +14265,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             outlinesegmentcount: number;
             cuttingplanemarkcount: number;
             symmetricprofilecount: number;
+            sideoutlinesegmentcount: number;
             notecount: number;
             dimensioncount: number;
         };
@@ -14304,6 +14305,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             outlineSegmentCount: number;
             cuttingPlaneMarkCount: number;
             symmetricProfileCount: number;
+            sideOutlineSegmentCount: number;
             noteCount: number;
             dimensionCount: number;
         };
@@ -17509,6 +17511,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     sideviewaxis?: {
         xrange: point2;
         symmetricprofiles?: kjflangesymmetricprofile[];
+        outlinesegments?: kjflangesideviewoutlinesegment[];
     };
     dimensions?: kjflangedimension[];
     sheet: {
@@ -17538,6 +17541,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
     sideViewAxis?: {
         xRange: Point2;
         symmetricProfiles?: KJFlangeSymmetricProfile[];
+        outlineSegments?: KJFlangeSideViewOutlineSegment[];
     };
     dimensions?: KJFlangeDimension[];
     sheet: {
@@ -23566,6 +23570,49 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     rotation?: number;
     width?: number;
 }</code></pre>
+      <p class="source-path">agent-mechanical-flange-core.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-type-kjflangesideviewoutlinesegment" data-search="kjflangesideviewoutlinesegment type @kanjieteam/kjdraw export type kjflangesideviewoutlinesegment = {
+    kind: &#39;line&#39;;
+    start: {
+        station: number;
+        offset: number;
+    };
+    end: {
+        station: number;
+        offset: number;
+    };
+} | {
+    kind: &#39;arc&#39;;
+    center: {
+        station: number;
+        offset: number;
+    };
+    radius: number;
+    startangle: number;
+    endangle: number;
+};">
+      <header><div><span class="kind">type</span><h3>KJFlangeSideViewOutlineSegment</h3></div><a class="permalink" href="#root-type-kjflangesideviewoutlinesegment" aria-label="Link to KJFlangeSideViewOutlineSegment">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export type KJFlangeSideViewOutlineSegment = {
+    kind: &#39;line&#39;;
+    start: {
+        station: number;
+        offset: number;
+    };
+    end: {
+        station: number;
+        offset: number;
+    };
+} | {
+    kind: &#39;arc&#39;;
+    center: {
+        station: number;
+        offset: number;
+    };
+    radius: number;
+    startAngle: number;
+    endAngle: number;
+};</code></pre>
       <p class="source-path">agent-mechanical-flange-core.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjflangesymmetricprofile" data-search="kjflangesymmetricprofile interface @kanjieteam/kjdraw export interface kjflangesymmetricprofile {

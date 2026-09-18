@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:dcb0654ab25bdc123c187f3bc17eec14f1e0d59b78219d458cde72a3c6d82aae",
+  "sourceDigest": "sha256:089e7b4adac00d3274f5d648cf8f07c6a9d0aeffe80fa032339a7a0c8c4889e1",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -10867,6 +10867,14 @@
       "href": "./api/reference/#root-interface-kjflangesheetnote",
       "anchor": "root-interface-kjflangesheetnote",
       "summary": "export interface KJFlangeSheetNote { kind: 'single-line' | 'multiline'; text: string; position: Point2; height: number; rotation?: number; width?: number; }"
+    },
+    {
+      "name": "KJFlangeSideViewOutlineSegment",
+      "kind": "type",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-type-kjflangesideviewoutlinesegment",
+      "anchor": "root-type-kjflangesideviewoutlinesegment",
+      "summary": "export type KJFlangeSideViewOutlineSegment = { kind: 'line'; start: { station: number; offset: number; }; end: { station: number; offset: number; }; } | { kind: 'arc'; center: { station: number; offset: number; }; radius"
     },
     {
       "name": "KJFlangeSymmetricProfile",
