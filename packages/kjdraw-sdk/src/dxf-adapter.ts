@@ -933,7 +933,8 @@ function importResourceTables(transaction: KJTransaction, tableRecords: readonly
   }
   for (const record of tableRecords.filter(value => value.type === 'STYLE')) {
     const name = String(first(record, 2, 'STANDARD')).trim() || 'STANDARD'
-    const imported = transaction.upsertTableRecord('textStyles', { name, type: 'TEXT_STYLE', payload: { fontFamily: first(record, 3, 'sans-serif'), fontFile: first(record, 3, null), bigFontFile: first(record, 4, null), fixedHeight: number(record, 40, 0), widthFactor: number(record, 41, 1), obliqueAngle: number(record, 50, 0) * Math.PI / 180, dxfFlags: number(record, 70, 0), generationFlags: number(record, 71, 0) } })
+    const sourceWidthFactor = number(record, 41, 1)
+    const imported = transaction.upsertTableRecord('textStyles', { name, type: 'TEXT_STYLE', payload: { fontFamily: first(record, 3, 'sans-serif'), fontFile: first(record, 3, null), bigFontFile: first(record, 4, null), fixedHeight: number(record, 40, 0), widthFactor: sourceWidthFactor > 0 ? sourceWidthFactor : 1, obliqueAngle: number(record, 50, 0) * Math.PI / 180, dxfFlags: number(record, 70, 0), generationFlags: number(record, 71, 0) } })
     textStyleIds.set(normalizeName(name), imported.id)
   }
   for (const record of tableRecords.filter(value => value.type === 'DIMSTYLE')) {
@@ -1207,11 +1208,12 @@ function recordSubclass(record: DxfRecord, name: string): DxfRecord {
 function readSingleLineText(source: DxfRecord, resources: DxfImportResources): DxfPayload {
   const record = recordSubclass(source, 'AcDbText')
   const alignmentPoint = optionalPoint(record, 11, 21, 31)
+  const sourceWidthFactor = values(record, 41).length ? number(record, 41) : undefined
   return {
     position: point(record), ...(alignmentPoint ? { alignmentPoint } : {}),
     ...readDxfText(record), height: number(record, 40, 2.5), rotation: number(record, 50) * Math.PI / 180,
     horizontalAlignment: number(record, 72),
-    ...(values(record, 41).length ? { widthFactor: number(record, 41) } : {}),
+    ...(sourceWidthFactor == null ? {} : { widthFactor: sourceWidthFactor > 0 ? sourceWidthFactor : 1 }),
     ...(values(record, 51).length ? { obliqueAngle: number(record, 51) * Math.PI / 180 } : {}),
     ...(values(record, 71).length ? { generationFlags: number(record, 71) } : {}),
     styleId: resources.textStyleIds?.get(normalizeName(first(record, 7, 'STANDARD'))) ?? null,

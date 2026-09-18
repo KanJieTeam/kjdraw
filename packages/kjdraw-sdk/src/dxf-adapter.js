@@ -1485,6 +1485,7 @@ function importResourceTables(transaction, tableRecords, document) {
     }
     for (const record of tableRecords.filter((value)=>value.type === 'STYLE')){
         const name = String(first(record, 2, 'STANDARD')).trim() || 'STANDARD';
+        const sourceWidthFactor = number(record, 41, 1);
         const imported = transaction.upsertTableRecord('textStyles', {
             name,
             type: 'TEXT_STYLE',
@@ -1493,7 +1494,7 @@ function importResourceTables(transaction, tableRecords, document) {
                 fontFile: first(record, 3, null),
                 bigFontFile: first(record, 4, null),
                 fixedHeight: number(record, 40, 0),
-                widthFactor: number(record, 41, 1),
+                widthFactor: sourceWidthFactor > 0 ? sourceWidthFactor : 1,
                 obliqueAngle: number(record, 50, 0) * Math.PI / 180,
                 dxfFlags: number(record, 70, 0),
                 generationFlags: number(record, 71, 0)
@@ -1999,6 +2000,7 @@ function recordSubclass(record, name) {
 function readSingleLineText(source, resources) {
     const record = recordSubclass(source, 'AcDbText');
     const alignmentPoint = optionalPoint(record, 11, 21, 31);
+    const sourceWidthFactor = values(record, 41).length ? number(record, 41) : undefined;
     return {
         position: point(record),
         ...alignmentPoint ? {
@@ -2008,9 +2010,9 @@ function readSingleLineText(source, resources) {
         height: number(record, 40, 2.5),
         rotation: number(record, 50) * Math.PI / 180,
         horizontalAlignment: number(record, 72),
-        ...values(record, 41).length ? {
-            widthFactor: number(record, 41)
-        } : {},
+        ...sourceWidthFactor == null ? {} : {
+            widthFactor: sourceWidthFactor > 0 ? sourceWidthFactor : 1
+        },
         ...values(record, 51).length ? {
             obliqueAngle: number(record, 51) * Math.PI / 180
         } : {},

@@ -4,6 +4,15 @@ import { KJValidationError, createDXFFileAdapter, createKJDrawSDK } from '../src
 
 const fixture = `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1032\n0\nENDSEC\n0\nSECTION\n2\nTABLES\n0\nTABLE\n2\nLAYER\n70\n1\n0\nLAYER\n5\n20\n2\nGEO\n70\n0\n62\n3\n6\nCONTINUOUS\n0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n0\nLINE\n5\n100\n8\nGEO\n10\n0\n20\n0\n11\n10\n21\n5\n0\nCIRCLE\n5\n101\n8\nGEO\n10\n2\n20\n3\n40\n4\n0\nENDSEC\n0\nEOF\n`
 
+test('legacy zero text-style and entity widths import as the DXF default width', async () => {
+  const source = fixture.replace('0\nENDSEC\n0\nSECTION\n2\nENTITIES', '0\nTABLE\n2\nSTYLE\n70\n1\n0\nSTYLE\n2\nLEGACY\n40\n0\n41\n0\n50\n0\n71\n0\n3\ntxt\n4\n\n0\nENDTAB\n0\nENDSEC\n0\nSECTION\n2\nENTITIES')
+    .replace('0\nENDSEC\n0\nEOF', '0\nTEXT\n8\nGEO\n10\n1\n20\n2\n40\n2.5\n41\n0\n1\nLegacy text\n7\nLEGACY\n0\nENDSEC\n0\nEOF')
+  const sdk = createKJDrawSDK()
+  const document = await sdk.readDocument(new TextEncoder().encode(source), { format: 'DXF', version: '2018' })
+  assert.equal(document.getTable('textStyles').records.find(record => record.name === 'LEGACY').payload.widthFactor, 1)
+  assert.equal(document.listEntities({ type: 'TEXT' })[0].payload.widthFactor, 1)
+})
+
 test('default ASCII DXF adapter reads layers and core entities and writes a reopenable artifact', async () => {
   const sdk = createKJDrawSDK()
   const document = await sdk.readDocument(new TextEncoder().encode(fixture), { format: 'DXF', version: '2018' })
