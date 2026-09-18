@@ -290,6 +290,7 @@ export function getEntityGrips(entity) {
             add('position', 'move', payload.position);
             if (payload.alignmentPoint) add('alignment', 'alignment', payload.alignmentPoint);
             break;
+        case 'TOLERANCE':
         case 'INSERT':
         case 'TABLE':
             add('position', 'move', payload.position);
@@ -476,6 +477,7 @@ export function editEntityGrip(entity, gripId, targetPoint) {
         case 'ATTRIB':
             payload[gripId === 'alignment' ? 'alignmentPoint' : 'position'] = target;
             return payload;
+        case 'TOLERANCE':
         case 'INSERT':
         case 'TABLE':
             payload.position = target;

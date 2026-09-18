@@ -80,7 +80,7 @@ export declare function auditSDKReadiness(sdk: KJCapabilitySDK, profile?: KJSDKR
             capabilities: Readonly<Record<string, unknown>>;
         }>[];
         commandIds: readonly string[];
-        entityTypes: readonly ("ARC" | "ATTDEF" | "ATTRIB" | "CIRCLE" | "DIMENSION" | "ELLIPSE" | "HATCH" | "IMAGE" | "INSERT" | "LEADER" | "LINE" | "LWPOLYLINE" | "MLEADER" | "MTEXT" | "POINT" | "POLYLINE" | "PROXY_ENTITY" | "RAY" | "REVISION_CLOUD" | "SOLID" | "SOLID3D" | "SPLINE" | "TABLE" | "TEXT" | "TRACE" | "VIEWPORT" | "WIPEOUT" | "XLINE")[];
+        entityTypes: readonly ("ARC" | "ATTDEF" | "ATTRIB" | "CIRCLE" | "DIMENSION" | "ELLIPSE" | "HATCH" | "IMAGE" | "INSERT" | "LEADER" | "LINE" | "LWPOLYLINE" | "MLEADER" | "MTEXT" | "POINT" | "POLYLINE" | "PROXY_ENTITY" | "RAY" | "REVISION_CLOUD" | "SOLID" | "SOLID3D" | "SPLINE" | "TABLE" | "TEXT" | "TOLERANCE" | "TRACE" | "VIEWPORT" | "WIPEOUT" | "XLINE")[];
         fileAdapters: readonly KJFileAdapterCapability[];
     }>;
 }>;
@@ -109,7 +109,7 @@ export declare function buildSDKCapabilityManifest(sdk: KJCapabilitySDK): Readon
         capabilities: Readonly<Record<string, unknown>>;
     }>[];
     commandIds: readonly string[];
-    entityTypes: readonly ("ARC" | "ATTDEF" | "ATTRIB" | "CIRCLE" | "DIMENSION" | "ELLIPSE" | "HATCH" | "IMAGE" | "INSERT" | "LEADER" | "LINE" | "LWPOLYLINE" | "MLEADER" | "MTEXT" | "POINT" | "POLYLINE" | "PROXY_ENTITY" | "RAY" | "REVISION_CLOUD" | "SOLID" | "SOLID3D" | "SPLINE" | "TABLE" | "TEXT" | "TRACE" | "VIEWPORT" | "WIPEOUT" | "XLINE")[];
+    entityTypes: readonly ("ARC" | "ATTDEF" | "ATTRIB" | "CIRCLE" | "DIMENSION" | "ELLIPSE" | "HATCH" | "IMAGE" | "INSERT" | "LEADER" | "LINE" | "LWPOLYLINE" | "MLEADER" | "MTEXT" | "POINT" | "POLYLINE" | "PROXY_ENTITY" | "RAY" | "REVISION_CLOUD" | "SOLID" | "SOLID3D" | "SPLINE" | "TABLE" | "TEXT" | "TOLERANCE" | "TRACE" | "VIEWPORT" | "WIPEOUT" | "XLINE")[];
     fileAdapters: readonly KJFileAdapterCapability[];
 }>;
 /**

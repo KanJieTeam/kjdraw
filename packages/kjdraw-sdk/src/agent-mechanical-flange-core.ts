@@ -6,7 +6,7 @@ import { stableHash } from './utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
 type Point2 = [number, number]
 type Point3 = [number, number, number]
-type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'HATCH' | 'INSERT'; payload: Record<string, unknown>; options: { id: string } }
+type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT'; payload: Record<string, unknown>; options: { id: string } }
 interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } }; getTable?: (name: string) => { records: { id: string; name?: string; payload?: Record<string, unknown> }[] } | undefined }
 
 export interface KJFlangeTitleGrid {
@@ -143,6 +143,15 @@ export interface KJFlangeLeader {
   hookLineEnabled?: boolean
 }
 
+export type KJFlangeGeometricCharacteristic = 'position' | 'concentricity' | 'symmetry' | 'parallelism' | 'perpendicularity' | 'angularity' | 'cylindricity' | 'flatness' | 'circularity' | 'straightness' | 'surface-profile' | 'line-profile' | 'circular-runout' | 'total-runout'
+export type KJFlangeMaterialCondition = 'maximum' | 'least' | 'regardless'
+export interface KJFlangeFeatureControlFrame {
+  position: Point2
+  rows: { characteristic: KJFlangeGeometricCharacteristic; tolerance: string; diameterZone?: boolean; materialCondition?: KJFlangeMaterialCondition; datumReferences?: { label: string; materialCondition?: KJFlangeMaterialCondition }[] }[]
+  xAxisDirection?: Point2
+  role: 'dimensions' | 'notes'
+}
+
 /** Source-measured visible end-view outline geometry, expressed relative to
  *  the end-view center so that the same rule remains position independent. */
 export type KJFlangeEndViewOutlineSegment =
@@ -168,6 +177,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   sideViewAxis?: { xRange: Point2; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
   dimensions?: KJFlangeDimension[]
   leaders?: KJFlangeLeader[]
+  featureControlFrames?: KJFlangeFeatureControlFrame[]
   auxiliaryLines?: KJFlangeAuxiliaryLine[]
   auxiliaryCurves?: KJFlangeAuxiliaryCurve[]
   symbols?: { definitions: KJFlangeSymbolDefinition[]; instances: KJFlangeSymbolInstance[] }
@@ -200,7 +210,7 @@ const increasing = (value: unknown, label: string, maxCount: number, min: number
 
 function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   if (!document || typeof document.id !== 'string' || !Number.isSafeInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Flange compiler requires a KJDraw document')
-  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'auxiliaryLines', 'auxiliaryCurves', 'symbols', 'styleProfile', 'sheet'], 'input')
+  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'featureControlFrames', 'auxiliaryLines', 'auxiliaryCurves', 'symbols', 'styleProfile', 'sheet'], 'input')
   if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`)
   if (input.units !== 'millimeter' || document.snapshot().header?.units !== 'millimeter') throw new KJValidationError('Flange compiler requires millimeter units')
   const expectedRevision = finite(input.expectedRevision, 'input.expectedRevision', 0, Number.MAX_SAFE_INTEGER)
@@ -444,6 +454,40 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       pathType: integer(leader.pathType, `input.leaders[${index}].pathType`, 1), annotationType: integer(leader.annotationType, `input.leaders[${index}].annotationType`, 3),
       hookLineDirection: integer(leader.hookLineDirection, `input.leaders[${index}].hookLineDirection`, 1), hookLineEnabled: leader.hookLineEnabled === true }
   })
+  if (input.featureControlFrames != null && !Array.isArray(input.featureControlFrames)) throw new KJValidationError('input.featureControlFrames must be an array')
+  if ((input.featureControlFrames as unknown[] | undefined)?.length && (input.featureControlFrames as unknown[]).length > 32) throw new KJValidationError('input.featureControlFrames exceed their budget')
+  const characteristics = ['position', 'concentricity', 'symmetry', 'parallelism', 'perpendicularity', 'angularity', 'cylindricity', 'flatness', 'circularity', 'straightness', 'surface-profile', 'line-profile', 'circular-runout', 'total-runout'] as const
+  const conditions = ['maximum', 'least', 'regardless'] as const
+  const materialCondition = (value: unknown, label: string): KJFlangeMaterialCondition | undefined => {
+    if (value == null) return undefined
+    if (!conditions.includes(value as KJFlangeMaterialCondition)) throw new KJValidationError(`${label} is invalid`)
+    return value as KJFlangeMaterialCondition
+  }
+  const featureControlFrames: KJFlangeFeatureControlFrame[] = ((input.featureControlFrames ?? []) as unknown[]).map((value, index) => {
+    const label = `input.featureControlFrames[${index}]`, frame = plain(value, label); exact(frame, ['position', 'rows', 'xAxisDirection', 'role'], label)
+    if (frame.role !== 'dimensions' && frame.role !== 'notes') throw new KJValidationError(`${label}.role is invalid`)
+    if (!Array.isArray(frame.rows) || !frame.rows.length || frame.rows.length > 4) throw new KJValidationError(`${label}.rows must contain 1 to 4 items`)
+    const rows = (frame.rows as unknown[]).map((rowValue, rowIndex) => {
+      const rowLabel = `${label}.rows[${rowIndex}]`, row = plain(rowValue, rowLabel); exact(row, ['characteristic', 'tolerance', 'diameterZone', 'materialCondition', 'datumReferences'], rowLabel)
+      if (!characteristics.includes(row.characteristic as KJFlangeGeometricCharacteristic)) throw new KJValidationError(`${rowLabel}.characteristic is invalid`)
+      if (typeof row.tolerance !== 'string' || !/^[0-9A-Za-z.+\- ]{1,32}$/u.test(row.tolerance)) throw new KJValidationError(`${rowLabel}.tolerance must be bounded frame text`)
+      if (row.diameterZone != null && typeof row.diameterZone !== 'boolean') throw new KJValidationError(`${rowLabel}.diameterZone must be boolean`)
+      if (row.datumReferences != null && !Array.isArray(row.datumReferences)) throw new KJValidationError(`${rowLabel}.datumReferences must be an array`)
+      if ((row.datumReferences as unknown[] | undefined)?.length && (row.datumReferences as unknown[]).length > 4) throw new KJValidationError(`${rowLabel}.datumReferences exceed their budget`)
+      const datumReferences = ((row.datumReferences ?? []) as unknown[]).map((datumValue, datumIndex) => {
+        const datumLabel = `${rowLabel}.datumReferences[${datumIndex}]`, datum = plain(datumValue, datumLabel); exact(datum, ['label', 'materialCondition'], datumLabel)
+        if (typeof datum.label !== 'string' || !/^[A-Z0-9]{1,8}$/u.test(datum.label)) throw new KJValidationError(`${datumLabel}.label must be 1 to 8 uppercase letters or digits`)
+        const condition = materialCondition(datum.materialCondition, `${datumLabel}.materialCondition`)
+        return { label: datum.label, ...(condition == null ? {} : { materialCondition: condition }) }
+      })
+      const condition = materialCondition(row.materialCondition, `${rowLabel}.materialCondition`)
+      return { characteristic: row.characteristic as KJFlangeGeometricCharacteristic, tolerance: row.tolerance, diameterZone: row.diameterZone === true,
+        ...(condition == null ? {} : { materialCondition: condition }), datumReferences }
+    })
+    const xAxisDirection = frame.xAxisDirection == null ? [1, 0] as Point2 : point(frame.xAxisDirection, `${label}.xAxisDirection`)
+    if (Math.hypot(...xAxisDirection) <= 1e-12) throw new KJValidationError(`${label}.xAxisDirection must not be zero`)
+    return { position: point(frame.position, `${label}.position`), rows, xAxisDirection, role: frame.role as KJFlangeFeatureControlFrame['role'] }
+  })
   if (input.auxiliaryLines != null && !Array.isArray(input.auxiliaryLines)) throw new KJValidationError('input.auxiliaryLines must be an array')
   if ((input.auxiliaryLines as unknown[] | undefined)?.length && (input.auxiliaryLines as unknown[]).length > 256) throw new KJValidationError('input.auxiliaryLines exceed their budget')
   const auxiliaryLines: KJFlangeAuxiliaryLine[] = ((input.auxiliaryLines ?? []) as unknown[]).map((value, index) => {
@@ -576,7 +620,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   }
   const styles: KJFlangeStyleProfile = {}
   for (const role of ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch', 'hidden'] as const) styles[role] = styleRole(styleProfile[role], `input.styleProfile.${role}`)
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, symmetricProfiles, sectionHatches, dimensions, leaders, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, styles, sheetOrigin, sheetSize, inset, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, styles, sheetOrigin, sheetSize, inset, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -706,6 +750,20 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     emit('INSERT', { blockRecordId: block.id, position: p3(...instance.position), scale: [instance.scale?.[0] ?? 1, instance.scale?.[1] ?? 1, 1],
       rotation: instance.rotation ?? 0, attributes: {}, attributeIds: [], sequenceEndId: null, layerId: roleIds[instance.role] }, instance.role)
   }
+  const characteristicCode: Record<KJFlangeGeometricCharacteristic, string> = { position: 'j', concentricity: 'r', symmetry: 'i', parallelism: 'f', perpendicularity: 'b', angularity: 'a', cylindricity: 'g', flatness: 'c', circularity: 'e', straightness: 'u', 'surface-profile': 'd', 'line-profile': 'k', 'circular-runout': 'h', 'total-runout': 't' }
+  const conditionCode: Record<KJFlangeMaterialCondition, string> = { maximum: 'm', least: 'l', regardless: 's' }
+  const gdt = (code: string) => `{\\Fgdt;${code}}`
+  for (const frame of input.featureControlFrames) {
+    const text = frame.rows.map(row => {
+      let value = `${gdt(characteristicCode[row.characteristic])}%%v${row.diameterZone ? gdt('n') : ''}${row.tolerance}${row.materialCondition ? gdt(conditionCode[row.materialCondition]) : ''}%%v`
+      let dividers = 2
+      for (const datum of row.datumReferences ?? []) { value += `${datum.label}${datum.materialCondition ? gdt(conditionCode[datum.materialCondition]) : ''}%%v`; dividers++ }
+      while (dividers < 6) { value += '%%v'; dividers++ }
+      return `${value}^J`
+    }).join('')
+    emit('TOLERANCE', { position: p3(...frame.position), text, styleName: 'STANDARD', normal: [0, 0, 1],
+      xAxisDirection: p3(...(frame.xAxisDirection ?? [1, 0])), layerId: roleIds[frame.role] }, frame.role)
+  }
   for (const note of input.notes) emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
     position: p3(...note.position), text: note.text, height: note.height, rotation: note.rotation,
     ...(note.width == null ? {} : { width: note.width }), layerId: roleIds.notes,
@@ -731,7 +789,8 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
         sectionHatchCount: input.sectionHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryCurveCount: input.auxiliaryCurves.length,
-        symbolDefinitionCount: input.symbolDefinitions.length, symbolInstanceCount: input.symbolInstances.length, noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
+        symbolDefinitionCount: input.symbolDefinitions.length, symbolInstanceCount: input.symbolInstances.length, featureControlFrameCount: input.featureControlFrames.length,
+        noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
       limitations: ['Flange end-view, symmetric axial-profile, cut-face hatches, native dimension and sheet-grid core only', 'Local symbols do not generate attributes or nested blocks', 'Private drawings and labels are not embedded'],
     },
   }

@@ -173,6 +173,15 @@ function finite(value: unknown, fallback = 0): number {
   return Number.isFinite(result) ? result : fallback
 }
 
+function toleranceRows(value: unknown): string[][] {
+  const glyphs: Readonly<Record<string, string>> = { j: '⌖', r: '◎', i: '≡', f: '∥', b: '⊥', a: '∠', g: '⌭', c: '▱', e: '○', u: '—', d: '⌒', k: '⌢', h: '↗', t: '⇗', n: '⌀', m: 'Ⓜ', l: 'Ⓛ', s: 'Ⓢ', p: 'Ⓟ' }
+  return String(value ?? '').split('^J').filter(Boolean).map(row => {
+    const cells = row.split('%%v').map(cell => cell.replace(/\{\\Fgdt;([a-z])\}/gu, (_, code: string) => glyphs[code] ?? code))
+    while (cells.at(-1) === '') cells.pop()
+    return cells.length ? cells : ['']
+  })
+}
+
 function splineSamples(payload: Readonly<Record<string, unknown>>): Point2[] {
   const definition = normalizeSplineDefinition({
     degree: finite(payload.degree, 3), controlPoints: points(payload.controlPoints),
@@ -1242,6 +1251,29 @@ export class KJCanvasRenderer {
             context.stroke(); drawn = false
             this.#hatchDiagnostics.push({ entityId: entity.id, reason: 'unsupported-pattern' })
           }
+        }
+      }
+    } else if (entity.type === 'TOLERANCE') {
+      const position = point2(payload.position), axis = point2(payload.xAxisDirection) ?? [1, 0]
+      if (!position || Math.hypot(...axis) <= 1e-12) drawn = false
+      else {
+        const rows = toleranceRows(payload.text), style = this.#document?.getObject(String(payload.styleId ?? ''))?.payload
+        const height = Math.max(.01, finite(style?.textHeight, 2.5)), padding = height * .38, rowHeight = height * 1.65
+        context.font = `${height * this.camera.scale}px "Segoe UI Symbol", "Segoe UI", sans-serif`
+        context.textAlign = 'center'; context.textBaseline = 'middle'
+        const widths = rows.map(row => row.map(cell => Math.max(height * 1.2, context.measureText(cell || ' ').width / this.camera.scale + padding * 2)))
+        const screen = this.worldToScreen(position), rotation = Math.atan2(axis[1], axis[0])
+        context.translate(screen[0], screen[1]); context.rotate(-rotation)
+        let y = 0
+        for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+          let x = 0
+          for (let cellIndex = 0; cellIndex < rows[rowIndex]!.length; cellIndex++) {
+            const width = widths[rowIndex]![cellIndex]!, pixelWidth = width * this.camera.scale, pixelHeight = rowHeight * this.camera.scale
+            context.strokeRect(x, y, pixelWidth, pixelHeight)
+            context.fillText(rows[rowIndex]![cellIndex]!, x + pixelWidth / 2, y + pixelHeight / 2)
+            x += pixelWidth
+          }
+          y += rowHeight * this.camera.scale
         }
       }
     } else if (entity.type === 'DIMENSION') {

@@ -315,8 +315,8 @@ const PRODUCT_VERSIONS: readonly DxfProductVersion[] = Object.freeze(['R14', '20
 const VERSIONS: readonly DxfVersion[] = Object.freeze(['R12', ...PRODUCT_VERSIONS])
 const ACADVER: Readonly<Record<DxfVersion, string>> = Object.freeze({ R12: 'AC1009', R14: 'AC1014', 2000: 'AC1015', 2004: 'AC1018', 2010: 'AC1024', 2013: 'AC1027', 2018: 'AC1032', 2024: 'AC1032' })
 const VERSION_BY_CODE: Readonly<Record<string, DxfVersion>> = Object.freeze({ AC1009: 'R12', AC1014: 'R14', AC1015: '2000', AC1018: '2004', AC1024: '2010', AC1027: '2013', AC1032: '2018' })
-const READ_TYPES = Object.freeze(['LINE', 'XLINE', 'RAY', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
-const WRITE_TYPES = new Set(['LINE', 'XLINE', 'RAY', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
+const READ_TYPES = Object.freeze(['LINE', 'XLINE', 'RAY', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'TOLERANCE', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
+const WRITE_TYPES = new Set(['LINE', 'XLINE', 'RAY', 'POINT', 'CIRCLE', 'ARC', 'LWPOLYLINE', 'POLYLINE', 'ELLIPSE', 'SPLINE', 'TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB', 'INSERT', 'HATCH', 'LEADER', 'DIMENSION', 'TOLERANCE', 'SOLID', 'VIEWPORT', 'WIPEOUT', 'PROXY_ENTITY'])
 
 const DIMENSION_TYPE_BY_CODE: Readonly<Record<number, string>> = Object.freeze({ 0: 'ROTATED', 1: 'ALIGNED', 2: 'ANGULAR', 3: 'DIAMETER', 4: 'RADIUS', 5: 'ANGULAR_3_POINT', 6: 'ORDINATE' })
 const DIMENSION_CODE_BY_TYPE: Readonly<Record<string, number>> = Object.freeze(Object.fromEntries(Object.entries(DIMENSION_TYPE_BY_CODE).map(([code, type]) => [type, Number(code)])))
@@ -831,6 +831,12 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
       const definitionPoints = [optionalPoint(record, 10, 20, 30), optionalPoint(record, 13, 23, 33), optionalPoint(record, 14, 24, 34), optionalPoint(record, 15, 25, 35), optionalPoint(record, 16, 26, 36)].filter((value): value is Point3 => Boolean(value))
       const styleName = first(record, 3, 'STANDARD')
       return { type: 'DIMENSION', payload: { dimensionType: DIMENSION_TYPE_BY_CODE[dxfDimensionType & 7] ?? 'ROTATED', ...(incompleteAngularDefinition ? { incompleteAngularDefinition: true } : {}), ...readDimensionOverrides(record), dxfDimensionType, definitionPoints, textPosition: optionalPoint(record, 11, 21, 31), textOverride: first(record, 1), styleName, styleId: resources.dimensionStyleIds?.get(normalizeName(styleName)) ?? null, blockName: first(record, 2), measurement: values(record, 42).length ? number(record, 42) : null, rotation: number(record, 50, 0) * Math.PI / 180, rawTags: record.tags } }
+    }
+    case 'TOLERANCE': {
+      const styleName = first(record, 3, 'STANDARD')
+      return { type: 'TOLERANCE', payload: { position: point(record), text: first(record, 1, ''), styleName,
+        styleId: resources.dimensionStyleIds?.get(normalizeName(styleName)) ?? null,
+        normal: optionalPoint(record, 210, 220, 230) ?? [0, 0, 1], xAxisDirection: optionalPoint(record, 11, 21, 31) ?? [1, 0, 0] } }
     }
     case 'SOLID': return { type: 'SOLID', payload: { vertices: [point(record), point(record, 11, 21, 31), point(record, 12, 22, 32), point(record, 13, 23, 33)] } }
     case 'VIEWPORT': return { type: 'VIEWPORT', payload: { center: point(record), width: number(record, 40), height: number(record, 41), viewCenter: point(record, 12, 22, 32), viewHeight: number(record, 45), twistAngle: number(record, 51, 0) * Math.PI / 180,
@@ -1895,6 +1901,13 @@ function emitEntity(
       : Number(p.rotation ?? 0)
     if (dimensionRotation && [0, 1].includes(subtype)) emit(output, 50, dimensionRotation * 180 / Math.PI)
     if (subtype === 0) emitSubclass(output, version, 'AcDbRotatedDimension')
+  }
+  else if (entity.type === 'TOLERANCE') {
+    if (VERSION_RANK[version] < VERSION_RANK['2000']) throw new KJValidationError('DXF TOLERANCE requires DXF 2000 or newer')
+    emitSubclass(output, version, 'AcDbFcf')
+    emit(output, 3, (p.styleId ? resources.dimensionStyleNames?.get(p.styleId) : undefined) ?? p.styleName ?? 'STANDARD')
+    emitPoint(output, p.position!); emit(output, 1, p.text ?? '')
+    emitPoint(output, (p.normal ?? [0, 0, 1]) as Point3, 210); emitPoint(output, (p.xAxisDirection ?? [1, 0, 0]) as Point3, 11)
   }
   else if (entity.type === 'VIEWPORT') {
     if (p.unresolvedViewportReferences?.length) throw new KJValidationError('Cannot export VIEWPORT with unresolved source references')

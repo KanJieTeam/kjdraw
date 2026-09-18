@@ -135,6 +135,20 @@ test('dimensions paint measurable lines, arrows and text and can be selected on 
   renderer.dispose()
 })
 
+test('native tolerance frames paint semantic compartments and remain selectable', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'tolerance-paint' })
+  const tolerance = await sdk.executeCommand('CREATE', { type: 'TOLERANCE', payload: { position: [10, 20],
+    text: String.raw`{\Fgdt;r}%%v0.02%%vA%%v%%v%%v%%v^J`, styleName: 'STANDARD', normal: [0, 0, 1], xAxisDirection: [1, 0, 0] } })
+  const { canvas, context } = mockCanvas(), renderer = new KJCanvasRenderer(canvas, { document, grid: false, pixelRatio: 1 }).fit()
+  context.calls.length = 0; renderer.render()
+  assert.ok(context.calls.some(call => call[0] === 'fillText' && call[1] === '◎'))
+  assert.ok(context.calls.some(call => call[0] === 'fillText' && call[1] === '0.02'))
+  assert.equal(context.calls.filter(call => call[0] === 'strokeRect').length, 3)
+  assert.equal(renderer.hitTest(renderer.worldToScreen([10, 20]))?.entity.id, tolerance.id)
+  assert.equal(renderer.report.unsupported, 0)
+  renderer.dispose()
+})
+
 test('Canvas renderer projects core entities, reports approximations and skips hidden layers', async () => {
   const sdk = createKJDrawSDK()
   const document = sdk.createDocument({ documentId: 'canvas-projection' })
