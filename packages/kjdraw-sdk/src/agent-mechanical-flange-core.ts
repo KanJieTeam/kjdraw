@@ -20,13 +20,22 @@ export interface KJFlangeTitleGrid {
   diagonalHeader?: { width: number; drop: number }
 }
 
+/** One source-measured meridian of an axially symmetric side view.
+ *  Stations are absolute drawing X coordinates and radii are positive
+ *  distances from the side-view axis. Repeated stations express shoulders.
+ */
+export interface KJFlangeSymmetricProfile {
+  vertices: { station: number; radius: number }[]
+  endCaps?: 'none' | 'start' | 'end' | 'both'
+}
+
 export interface KJAgentMechanicalFlangeCoreInput {
   version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION
   expectedRevision: number
   units: 'millimeter'
   drawingId: string
   endView: { center: Point2; ringRadii: number[]; squareHoles: { pitch: number; radius: number } }
-  sideViewAxis?: { xRange: Point2 }
+  sideViewAxis?: { xRange: Point2; symmetricProfiles?: KJFlangeSymmetricProfile[] }
   sheet: { origin: Point2; size: Point2; inset: number; titleGrid?: KJFlangeTitleGrid }
 }
 
@@ -70,9 +79,31 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   const radius = finite(holes.radius, 'input.endView.squareHoles.radius', 0.1, 100_000)
   if (pitch <= radius * 2) throw new KJValidationError('square-hole pitch must exceed the hole diameter')
   const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis')
-  if (side) exact(side, ['xRange'], 'input.sideViewAxis')
+  if (side) exact(side, ['xRange', 'symmetricProfiles'], 'input.sideViewAxis')
   const xRange = side ? point(side.xRange, 'input.sideViewAxis.xRange') : null
   if (xRange && xRange[0] >= xRange[1]) throw new KJValidationError('input.sideViewAxis.xRange must increase')
+  if (side?.symmetricProfiles != null && !Array.isArray(side.symmetricProfiles)) throw new KJValidationError('input.sideViewAxis.symmetricProfiles must be an array')
+  if ((side?.symmetricProfiles as unknown[] | undefined)?.length && (side!.symmetricProfiles as unknown[]).length > 64) throw new KJValidationError('input.sideViewAxis.symmetricProfiles exceed their budget')
+  const symmetricProfiles: KJFlangeSymmetricProfile[] = ((side?.symmetricProfiles ?? []) as unknown[]).map((value, profileIndex) => {
+    const profile = plain(value, `input.sideViewAxis.symmetricProfiles[${profileIndex}]`)
+    exact(profile, ['vertices', 'endCaps'], `input.sideViewAxis.symmetricProfiles[${profileIndex}]`)
+    if (!Array.isArray(profile.vertices) || profile.vertices.length < 2 || profile.vertices.length > 64) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices must contain 2 to 64 points`)
+    const vertices = profile.vertices.map((vertexValue, vertexIndex) => {
+      const vertex = plain(vertexValue, `input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices[${vertexIndex}]`)
+      exact(vertex, ['station', 'radius'], `input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices[${vertexIndex}]`)
+      const station = finite(vertex.station, `input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices[${vertexIndex}].station`, xRange![0], xRange![1])
+      const radius = finite(vertex.radius, `input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices[${vertexIndex}].radius`, 0.1, 100_000)
+      return { station, radius }
+    })
+    for (let index = 1; index < vertices.length; index++) {
+      const previous = vertices[index - 1]!, current = vertices[index]!
+      if (current.station < previous.station) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}] stations must not decrease`)
+      if (current.station === previous.station && current.radius === previous.radius) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}] contains a zero-length segment`)
+    }
+    const endCaps = profile.endCaps ?? 'none'
+    if (!['none', 'start', 'end', 'both'].includes(endCaps as string)) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].endCaps is invalid`)
+    return { vertices, endCaps } as KJFlangeSymmetricProfile
+  })
   const sheet = plain(input.sheet, 'input.sheet'); exact(sheet, ['origin', 'size', 'inset', 'titleGrid'], 'input.sheet')
   const sheetOrigin = point(sheet.origin, 'input.sheet.origin'), sheetSize = point(sheet.size, 'input.sheet.size')
   if (sheetSize[0] < 100 || sheetSize[1] < 100) throw new KJValidationError('input.sheet.size is too small')
@@ -102,7 +133,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     titleGrid = { origin, size, columns, rows, partialColumns,
       ...(diagonal ? { diagonalHeader: { width: finite(diagonal.width, 'input.sheet.titleGrid.diagonalHeader.width', 0, size[0]), drop: finite(diagonal.drop, 'input.sheet.titleGrid.diagonalHeader.drop', 0, size[1]) } } : {}) }
   }
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, xRange, sheetOrigin, sheetSize, inset, titleGrid }
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, xRange, symmetricProfiles, sheetOrigin, sheetSize, inset, titleGrid }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -134,6 +165,16 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     if (grid.diagonalHeader) line([x, y + h], [x + grid.diagonalHeader.width, y + h - grid.diagonalHeader.drop])
   }
   if (input.xRange) line([input.xRange[0], cy], [input.xRange[1], cy], centerLayerId)
+  for (const profile of input.symmetricProfiles) {
+    for (let index = 1; index < profile.vertices.length; index++) {
+      const previous = profile.vertices[index - 1]!, current = profile.vertices[index]!
+      line([previous.station, cy + previous.radius], [current.station, cy + current.radius], geometryLayerId)
+      line([previous.station, cy - previous.radius], [current.station, cy - current.radius], geometryLayerId)
+    }
+    const start = profile.vertices[0]!, end = profile.vertices.at(-1)!
+    if (profile.endCaps === 'start' || profile.endCaps === 'both') line([start.station, cy - start.radius], [start.station, cy + start.radius], geometryLayerId)
+    if (profile.endCaps === 'end' || profile.endCaps === 'both') line([end.station, cy - end.radius], [end.station, cy + end.radius], geometryLayerId)
+  }
   return {
     commandArgs: { entities, resources: {
       linetypes: [{ id: linetypeId, name: `${prefix}_CONT`, pattern: [] }],
@@ -146,8 +187,9 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     evidence: { knowledgePackId: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.id,
       knowledgePackVersion: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version,
       expectedRevision: input.expectedRevision, entityCount: entities.length,
-      parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null },
-      limitations: ['Flange end-view and sheet-grid core only', 'Does not generate axial contour, dimensions, attributes or hatches', 'Private drawings and labels are not embedded'],
+      parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
+        symmetricProfileCount: input.symmetricProfiles.length },
+      limitations: ['Flange end-view, symmetric axial-profile and sheet-grid core only', 'Does not generate dimensions, attributes or hatches', 'Private drawings and labels are not embedded'],
     },
   }
 }
