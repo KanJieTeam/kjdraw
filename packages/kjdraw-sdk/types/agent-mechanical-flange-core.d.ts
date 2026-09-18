@@ -31,6 +31,18 @@ export interface KJFlangeTitleGrid {
         offset: number;
         breaks?: number[];
     }[];
+    /** Bounded horizontal rules measured from the grid's bottom and left edges. */
+    horizontalSegments?: {
+        offset: number;
+        start: number;
+        end: number;
+    }[];
+    /** Bounded vertical rules measured from the grid's left and bottom edges. */
+    verticalSegments?: {
+        offset: number;
+        start: number;
+        end: number;
+    }[];
     diagonalHeader?: {
         width: number;
         drop: number;

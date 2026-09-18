@@ -131,6 +131,8 @@ function validate(document, source) {
         'columns',
         'partialColumns',
         'rows',
+        'horizontalSegments',
+        'verticalSegments',
         'diagonalHeader'
     ], 'input.sheet.titleGrid');
     let titleGrid = null;
@@ -164,6 +166,27 @@ function validate(document, source) {
                 height: finite(entry.height, `input.sheet.titleGrid.partialColumns[${index}].height`, 0, size[1])
             };
         });
+        const segments = (value, label, offsetMax, spanMax)=>{
+            if (value != null && !Array.isArray(value)) throw new KJValidationError(`${label} must be an array`);
+            if (value?.length && value.length > 64) throw new KJValidationError(`${label} exceed their budget`);
+            return (value ?? []).map((segmentValue, index)=>{
+                const entry = plain(segmentValue, `${label}[${index}]`);
+                exact(entry, [
+                    'offset',
+                    'start',
+                    'end'
+                ], `${label}[${index}]`);
+                const segment = {
+                    offset: finite(entry.offset, `${label}[${index}].offset`, 0, offsetMax),
+                    start: finite(entry.start, `${label}[${index}].start`, 0, spanMax),
+                    end: finite(entry.end, `${label}[${index}].end`, 0, spanMax)
+                };
+                if (segment.start >= segment.end) throw new KJValidationError(`${label}[${index}] start must be less than end`);
+                return segment;
+            });
+        };
+        const horizontalSegments = segments(grid.horizontalSegments, 'input.sheet.titleGrid.horizontalSegments', size[1], size[0]);
+        const verticalSegments = segments(grid.verticalSegments, 'input.sheet.titleGrid.verticalSegments', size[0], size[1]);
         const diagonal = grid.diagonalHeader == null ? null : plain(grid.diagonalHeader, 'input.sheet.titleGrid.diagonalHeader');
         if (diagonal) exact(diagonal, [
             'width',
@@ -175,6 +198,8 @@ function validate(document, source) {
             columns,
             rows,
             partialColumns,
+            horizontalSegments,
+            verticalSegments,
             ...diagonal ? {
                 diagonalHeader: {
                     width: finite(diagonal.width, 'input.sheet.titleGrid.diagonalHeader.width', 0, size[0]),
@@ -411,6 +436,20 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 y + row.offset
             ]);
         }
+        for (const segment of grid.horizontalSegments ?? [])line([
+            x + segment.start,
+            y + segment.offset
+        ], [
+            x + segment.end,
+            y + segment.offset
+        ]);
+        for (const segment of grid.verticalSegments ?? [])line([
+            x + segment.offset,
+            y + segment.start
+        ], [
+            x + segment.offset,
+            y + segment.end
+        ]);
         if (grid.diagonalHeader) line([
             x,
             y + h

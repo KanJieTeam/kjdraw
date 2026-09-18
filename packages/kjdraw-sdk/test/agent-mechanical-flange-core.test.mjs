@@ -19,6 +19,8 @@ const input = expectedRevision => ({
   sheet: { origin: [0, 0], size: [400, 300], inset: 8,
     titleGrid: { origin: [240, 8], size: [152, 35], columns: [0, 20, 60],
       partialColumns: [{ offset: 100, height: 18 }], rows: [{ offset: 12 }, { offset: 24, breaks: [80] }],
+      horizontalSegments: [{ offset: 18, start: 100, end: 152 }],
+      verticalSegments: [{ offset: 120, start: 12, end: 24 }],
       diagonalHeader: { width: 20, drop: 6 } },
     notes: [
       { kind: 'single-line', text: 'PART ID', position: [250, 25], height: 3 },
@@ -35,9 +37,9 @@ test('flange knowledge pack and compiler are source-neutral and deterministic', 
   const a = buildAgentMechanicalFlangeCore(document, input(document.revision))
   const b = buildAgentMechanicalFlangeCore(document, input(document.revision))
   assert.deepEqual(a, b)
-  assert.equal(a.evidence.entityCount, 41)
+  assert.equal(a.evidence.entityCount, 43)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'CIRCLE').length, 7)
-  assert.equal(a.commandArgs.entities.filter(e => e.type === 'LINE').length, 30)
+  assert.equal(a.commandArgs.entities.filter(e => e.type === 'LINE').length, 32)
   assert.equal(a.evidence.parameters.symmetricProfileCount, 1)
   assert.equal(a.evidence.parameters.noteCount, 2)
   assert.equal(a.evidence.parameters.dimensionCount, 2)
@@ -56,12 +58,14 @@ test('all ring, hole, projection-axis and grid positions respond to parameters',
   assert.ok(entities.some(e => e.type === 'LINE' && JSON.stringify(e.payload.start) === '[190,175,0]' && JSON.stringify(e.payload.end) === '[210,175,0]'))
   assert.ok(entities.some(e => e.type === 'LINE' && JSON.stringify(e.payload.start) === '[190,125,0]' && JSON.stringify(e.payload.end) === '[210,125,0]'))
   assert.ok(entities.some(e => e.type === 'LINE' && JSON.stringify(e.payload.start) === '[190,125,0]' && JSON.stringify(e.payload.end) === '[190,175,0]'))
+  assert.ok(entities.some(e => e.type === 'LINE' && JSON.stringify(e.payload.start) === '[340,26,0]' && JSON.stringify(e.payload.end) === '[392,26,0]'))
+  assert.ok(entities.some(e => e.type === 'LINE' && JSON.stringify(e.payload.start) === '[360,20,0]' && JSON.stringify(e.payload.end) === '[360,32,0]'))
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
-  assert.equal(document.listEntities().length, 41)
+  assert.equal(document.listEntities().length, 43)
   const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
   const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
   const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
-  assert.equal(kjd.listEntities().length, 41)
+  assert.equal(kjd.listEntities().length, 43)
   assert.equal(dxf.listEntities().filter(e => e.type === 'CIRCLE').length, 7)
   assert.equal(dxf.listEntities().filter(e => e.type === 'DIMENSION').length, 2)
   const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
@@ -73,7 +77,7 @@ test('all ring, hole, projection-axis and grid positions respond to parameters',
     t.diagnostic('official ezdxf unavailable; independent check skipped')
   } else {
     assert.equal(independent.status, 0, independent.stderr)
-    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, circles: 7, lines: 30, dimensions: 2 })
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, circles: 7, lines: 32, dimensions: 2 })
   }
 })
 
@@ -90,4 +94,6 @@ test('flange compiler rejects unsupported source injection and impossible geomet
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), dimensions: [{ kind: 'diameter', definitionPoints: [[1, 1], [2, 2], [3, 3]] }] }), /must contain 2 points/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), dimensions: [{ kind: 'radius', definitionPoints: [[1, 1], [1, 1]] }] }), /projectable native dimension/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, titleGrid: { ...input(0).sheet.titleGrid, origin: [0, 0] } } }), /inside the inset frame/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, titleGrid: { ...input(0).sheet.titleGrid, horizontalSegments: [{ offset: 10, start: 20, end: 10 }] } } }), /start must be less than end/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, titleGrid: { ...input(0).sheet.titleGrid, verticalSegments: [{ offset: 200, start: 0, end: 10 }] } } }), /must be finite/u)
 })
