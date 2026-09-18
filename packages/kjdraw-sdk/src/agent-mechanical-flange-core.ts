@@ -6,7 +6,7 @@ import { stableHash } from './utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
 type Point2 = [number, number]
 type Point3 = [number, number, number]
-type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'SOLID' | 'TEXT' | 'MTEXT' | 'DIMENSION'; payload: Record<string, unknown>; options: { id: string } }
+type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION'; payload: Record<string, unknown>; options: { id: string } }
 interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } } }
 
 export interface KJFlangeTitleGrid {
@@ -62,6 +62,16 @@ export interface KJFlangeDimension {
   rotation?: number
 }
 
+/** A source-measured native leader without private annotation handles. */
+export interface KJFlangeLeader {
+  vertices: Point2[]
+  arrowEnabled?: boolean
+  pathType?: number
+  annotationType?: number
+  hookLineDirection?: number
+  hookLineEnabled?: boolean
+}
+
 /** Source-measured visible end-view outline geometry, expressed relative to
  *  the end-view center so that the same rule remains position independent. */
 export type KJFlangeEndViewOutlineSegment =
@@ -86,6 +96,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   endView: { center: Point2; ringRadii: number[]; squareHoles: { pitch: number; radius: number }; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
   sideViewAxis?: { xRange: Point2; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[] }
   dimensions?: KJFlangeDimension[]
+  leaders?: KJFlangeLeader[]
   sheet: { origin: Point2; size: Point2; inset: number; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
 }
 
@@ -114,7 +125,7 @@ const increasing = (value: unknown, label: string, maxCount: number, min: number
 
 function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   if (!document || typeof document.id !== 'string' || !Number.isSafeInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Flange compiler requires a KJDraw document')
-  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'dimensions', 'sheet'], 'input')
+  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'sheet'], 'input')
   if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`)
   if (input.units !== 'millimeter' || document.snapshot().header?.units !== 'millimeter') throw new KJValidationError('Flange compiler requires millimeter units')
   const expectedRevision = finite(input.expectedRevision, 'input.expectedRevision', 0, Number.MAX_SAFE_INTEGER)
@@ -312,7 +323,19 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     return { kind: dimension.kind as KJFlangeDimension['kind'], definitionPoints, ...(textPosition == null ? {} : { textPosition }),
       ...(textOverride == null ? {} : { textOverride }), rotation }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, xRange, symmetricProfiles, sideOutlineSegments, dimensions, sheetOrigin, sheetSize, inset, titleGrid, notes }
+  if (input.leaders != null && !Array.isArray(input.leaders)) throw new KJValidationError('input.leaders must be an array')
+  if ((input.leaders as unknown[] | undefined)?.length && (input.leaders as unknown[]).length > 64) throw new KJValidationError('input.leaders exceed their budget')
+  const leaders: KJFlangeLeader[] = ((input.leaders ?? []) as unknown[]).map((value, index) => {
+    const leader = plain(value, `input.leaders[${index}]`)
+    exact(leader, ['vertices', 'arrowEnabled', 'pathType', 'annotationType', 'hookLineDirection', 'hookLineEnabled'], `input.leaders[${index}]`)
+    if (!Array.isArray(leader.vertices) || leader.vertices.length < 2 || leader.vertices.length > 64) throw new KJValidationError(`input.leaders[${index}].vertices must contain 2 to 64 points`)
+    const vertices = leader.vertices.map((value, pointIndex) => point(value, `input.leaders[${index}].vertices[${pointIndex}]`))
+    const integer = (value: unknown, label: string, max: number) => value == null ? 0 : finite(value, label, 0, max)
+    return { vertices, arrowEnabled: leader.arrowEnabled == null ? true : leader.arrowEnabled === true,
+      pathType: integer(leader.pathType, `input.leaders[${index}].pathType`, 1), annotationType: integer(leader.annotationType, `input.leaders[${index}].annotationType`, 3),
+      hookLineDirection: integer(leader.hookLineDirection, `input.leaders[${index}].hookLineDirection`, 1), hookLineEnabled: leader.hookLineEnabled === true }
+  })
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, xRange, symmetricProfiles, sideOutlineSegments, dimensions, leaders, sheetOrigin, sheetSize, inset, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -391,6 +414,9 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     ...(dimension.textPosition == null ? {} : { textPosition: p3(...dimension.textPosition) }),
     textOverride: dimension.textOverride ?? null, rotation: dimension.rotation ?? 0, styleName: 'STANDARD', layerId: noteLayerId,
   })
+  for (const leader of input.leaders) emit('LEADER', { vertices: leader.vertices.map(([x, y]) => p3(x, y)), annotationId: null, ownsAnnotation: false,
+    arrowEnabled: leader.arrowEnabled !== false, pathType: leader.pathType ?? 0, annotationType: leader.annotationType ?? 3,
+    hookLineDirection: leader.hookLineDirection ?? 0, hookLineEnabled: leader.hookLineEnabled === true, layerId: noteLayerId })
   return {
     commandArgs: { entities, resources: {
       linetypes: [{ id: linetypeId, name: `${prefix}_CONT`, pattern: [] }],
@@ -407,7 +433,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
-        noteCount: input.notes.length, dimensionCount: input.dimensions.length },
+        noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
       limitations: ['Flange end-view, symmetric axial-profile, native dimension and sheet-grid core only', 'Does not generate attributes or hatches', 'Private drawings and labels are not embedded'],
     },
   }

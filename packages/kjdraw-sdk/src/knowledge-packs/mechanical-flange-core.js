@@ -4,7 +4,7 @@ import { stableHash } from '../utils.js';
 export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePack({
     schema: 'kjdraw.knowledge-pack.v1',
     id: 'mechanical-flange-core',
-    version: '1.10.0',
+    version: '2.0.0',
     title: 'Parameterized flange orthographic-view and sheet-grid rules',
     domain: 'mechanical-manufacturing',
     license: {
@@ -17,7 +17,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
             id: 'kjdraw-authored-flange-rules-v1',
             title: 'KJDraw authored flange geometry and layout rules',
             license: 'MIT',
-            contentHash: stableHash('flange-views:concentric-rings:square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:auxiliary-circles:native-derived-dimensions:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:v1.10')
+            contentHash: stableHash('flange-views:concentric-rings:square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:auxiliary-circles:native-leaders:native-derived-dimensions:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:v2.0')
         }
     ],
     ontology: {
@@ -32,6 +32,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
             'symmetric-meridian-profile',
             'side-view-outline',
             'native-dimension',
+            'native-leader',
             'sheet-frame',
             'title-grid',
             'sheet-note'
@@ -50,6 +51,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
         sheet: 'outer frame, inset frame and optional bounded semantic title-grid with full or locally segmented rules',
         notes: 'bounded source-supplied sheet labels and technical notes; visible content is never embedded in this pack',
         dimensions: 'native dimensions derive measurements from bounded definition points and never trust supplied measurement values',
+        leaders: 'native source-measured leaders retain bounded vertices and drafting flags without private annotation handles',
         nativeEntities: [
             'CIRCLE',
             'LINE'

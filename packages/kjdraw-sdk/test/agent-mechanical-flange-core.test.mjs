@@ -24,6 +24,7 @@ const input = expectedRevision => ({
     { kind: 'rotated', definitionPoints: [[90, 92], [50, 110], [130, 110]], textPosition: [90, 92], rotation: 0 },
     { kind: 'diameter', definitionPoints: [[78, 150], [102, 150]], textPosition: [125, 165], textOverride: '4X DIA <>' },
   ],
+  leaders: [{ vertices: [[80, 100], [70, 90], [65, 90]], arrowEnabled: true, pathType: 0, annotationType: 3 }],
   sheet: { origin: [0, 0], size: [400, 300], inset: 8,
     titleGrid: { origin: [240, 8], size: [152, 35], columns: [0, 20, 60],
       partialColumns: [{ offset: 100, height: 18 }], rows: [{ offset: 12 }, { offset: 24, breaks: [80] }],
@@ -45,17 +46,19 @@ test('flange knowledge pack and compiler are source-neutral and deterministic', 
   const a = buildAgentMechanicalFlangeCore(document, input(document.revision))
   const b = buildAgentMechanicalFlangeCore(document, input(document.revision))
   assert.deepEqual(a, b)
-  assert.equal(a.evidence.entityCount, 52)
+  assert.equal(a.evidence.entityCount, 53)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'CIRCLE').length, 9)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'LINE').length, 36)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'ARC').length, 2)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'SOLID').length, 1)
+  assert.equal(a.commandArgs.entities.filter(e => e.type === 'LEADER').length, 1)
   assert.equal(a.evidence.parameters.outlineSegmentCount, 3)
   assert.equal(a.evidence.parameters.cuttingPlaneMarkCount, 1)
   assert.equal(a.evidence.parameters.symmetricProfileCount, 1)
   assert.equal(a.evidence.parameters.sideOutlineSegmentCount, 3)
   assert.equal(a.evidence.parameters.noteCount, 2)
   assert.equal(a.evidence.parameters.dimensionCount, 2)
+  assert.equal(a.evidence.parameters.leaderCount, 1)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'TEXT').length, 1)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'MTEXT').length, 1)
 })
@@ -74,15 +77,15 @@ test('all ring, hole, projection-axis and grid positions respond to parameters',
   assert.ok(entities.some(e => e.type === 'LINE' && JSON.stringify(e.payload.start) === '[340,26,0]' && JSON.stringify(e.payload.end) === '[392,26,0]'))
   assert.ok(entities.some(e => e.type === 'LINE' && JSON.stringify(e.payload.start) === '[360,20,0]' && JSON.stringify(e.payload.end) === '[360,32,0]'))
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
-  assert.equal(document.listEntities().length, 52)
+  assert.equal(document.listEntities().length, 53)
   const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
   const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
   const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
-  assert.equal(kjd.listEntities().length, 52)
+  assert.equal(kjd.listEntities().length, 53)
   assert.equal(dxf.listEntities().filter(e => e.type === 'CIRCLE').length, 9)
   assert.equal(dxf.listEntities().filter(e => e.type === 'DIMENSION').length, 2)
   const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
-    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(m.query("CIRCLE")),"arcs":len(m.query("ARC")),"lines":len(m.query("LINE")),"solids":len(m.query("SOLID")),"dimensions":len(m.query("DIMENSION"))}))'],
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(m.query("CIRCLE")),"arcs":len(m.query("ARC")),"lines":len(m.query("LINE")),"solids":len(m.query("SOLID")),"leaders":len(m.query("LEADER")),"dimensions":len(m.query("DIMENSION"))}))'],
   dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
     PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
   if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
@@ -90,7 +93,7 @@ test('all ring, hole, projection-axis and grid positions respond to parameters',
     t.diagnostic('official ezdxf unavailable; independent check skipped')
   } else {
     assert.equal(independent.status, 0, independent.stderr)
-    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, circles: 9, arcs: 2, lines: 36, solids: 1, dimensions: 2 })
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, circles: 9, arcs: 2, lines: 36, solids: 1, leaders: 1, dimensions: 2 })
   }
 })
 
