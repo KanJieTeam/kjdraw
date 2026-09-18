@@ -219,7 +219,7 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK: ReadonlyDeep<KJKnowledgePack> = vali
           [{ role: 'x', label: 'X坐标(m)', optional: true }, { role: 'y', label: 'Y坐标(m)', optional: true },
             { role: 'collarElevation', label: '孔口标高(m)' }],
           [{ role: 'startDate', label: '开孔日期', optional: true }, { role: 'endDate', label: '终孔日期', optional: true },
-            { role: 'stableWaterDepth', label: '稳定水位(m)', optional: true }],
+            { role: 'stableWaterDepth', label: '稳定水位(m)', optional: true }, { role: 'verticalScale', label: '垂直比例尺' }],
         ],
       },
       footerGrid: {

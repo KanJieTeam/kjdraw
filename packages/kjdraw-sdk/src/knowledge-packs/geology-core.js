@@ -927,6 +927,10 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
                             role: 'stableWaterDepth',
                             label: '稳定水位(m)',
                             optional: true
+                        },
+                        {
+                            role: 'verticalScale',
+                            label: '垂直比例尺'
                         }
                     ]
                 ]

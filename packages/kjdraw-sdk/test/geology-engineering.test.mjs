@@ -194,6 +194,16 @@ test('versioned header grid uses only present borehole facts and keeps a deep-lo
   assert.throws(() => compileGeologyColumn(missing), /declared header fact stableWaterDepth is missing/)
 })
 
+test('bundled Chinese column header renders the selected physical vertical scale as visible native text', () => {
+  const source = hole('比例-1', 0, 1111.04, [6.8, 15.4, 30])
+  source.strata[0].name = '填土'
+  const compiled = compileGeologyColumn({ hole: source, projectName: '比例尺回归', expectedRevision: 0 })
+  const texts = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
+  assert.equal(compiled.evidence.parameters.verticalScaleDenominator, 150)
+  assert.ok(texts.includes('垂直比例尺'))
+  assert.ok(texts.includes('1:150'))
+})
+
 test('a versioned SPT chart cap affects visible text only, never the raw measured input', () => {
   const pack = validateKnowledgePack({ schema: 'kjdraw.knowledge-pack.v1', id: 'geo-spt-chart-cap', version: '1.0.0',
     title: 'Original synthetic display convention', domain: 'geology', license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
