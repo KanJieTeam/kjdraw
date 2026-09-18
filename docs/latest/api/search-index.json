@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:119fd52680825c6334058ff308587a7bccf6842e66657628bc02ee5f3d2173f3",
+  "sourceDigest": "sha256:30cc97078a317b30cd759d25133e40e59fe55116cea5c18cb7e995057a2133d1",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -10867,6 +10867,14 @@
       "href": "./api/reference/#root-interface-kjflangeleader",
       "anchor": "root-interface-kjflangeleader",
       "summary": "export interface KJFlangeLeader { vertices: Point2[]; arrowEnabled?: boolean; pathType?: number; annotationType?: number; hookLineDirection?: number; hookLineEnabled?: boolean; }"
+    },
+    {
+      "name": "KJFlangeSectionHatch",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangesectionhatch",
+      "anchor": "root-interface-kjflangesectionhatch",
+      "summary": "export interface KJFlangeSectionHatch { edges: ({ kind: 'line'; start: { station: number; offset: number; }; end: { station: number; offset: number; }; } | { kind: 'arc'; center: { station: number; offset: number; }; rad"
     },
     {
       "name": "KJFlangeSheetNote",

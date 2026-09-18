@@ -1,7 +1,7 @@
 export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: '1.0.0';
 type Point2 = [number, number];
 type Entity = {
-    type: 'LINE' | 'CIRCLE' | 'ARC' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION';
+    type: 'LINE' | 'CIRCLE' | 'ARC' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'HATCH';
     payload: Record<string, unknown>;
     options: {
         id: string;
@@ -88,6 +88,35 @@ export type KJFlangeSideViewOutlineSegment = {
     };
     radius: number;
 };
+/** A source-measured cut face in the side view. Boundary coordinates are
+ *  relative to the projection axis; the pattern is generated, not copied
+ *  from DXF tags or a private block definition. */
+export interface KJFlangeSectionHatch {
+    edges: ({
+        kind: 'line';
+        start: {
+            station: number;
+            offset: number;
+        };
+        end: {
+            station: number;
+            offset: number;
+        };
+    } | {
+        kind: 'arc';
+        center: {
+            station: number;
+            offset: number;
+        };
+        radius: number;
+        startAngle: number;
+        endAngle: number;
+        counterClockwise?: boolean;
+    })[];
+    lineAngle: number;
+    lineSpacing: number;
+    patternOrigin?: Point2;
+}
 /** Source-supplied visible sheet text. Content remains input data and is not
  *  retained by the reusable knowledge pack. */
 export interface KJFlangeSheetNote {
@@ -163,6 +192,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
         xRange: Point2;
         symmetricProfiles?: KJFlangeSymmetricProfile[];
         outlineSegments?: KJFlangeSideViewOutlineSegment[];
+        sectionHatches?: KJFlangeSectionHatch[];
     };
     dimensions?: KJFlangeDimension[];
     leaders?: KJFlangeLeader[];
@@ -208,6 +238,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             cuttingPlaneMarkCount: number;
             symmetricProfileCount: number;
             sideOutlineSegmentCount: number;
+            sectionHatchCount: number;
             noteCount: number;
             dimensionCount: number;
             leaderCount: number;
