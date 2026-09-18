@@ -6,7 +6,7 @@ import { stableHash } from './utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
 type Point2 = [number, number]
 type Point3 = [number, number, number]
-type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'HATCH'; payload: Record<string, unknown>; options: { id: string } }
+type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'HATCH'; payload: Record<string, unknown>; options: { id: string } }
 interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } }; getTable?: (name: string) => { records: { id: string; name?: string; payload?: Record<string, unknown> }[] } | undefined }
 
 export interface KJFlangeTitleGrid {
@@ -84,6 +84,12 @@ export interface KJFlangeAuxiliaryLine {
   role: 'geometry' | 'center' | 'hidden' | 'notes' | 'grid' | 'frame'
 }
 
+export type KJFlangeAuxiliaryCurve =
+  | { kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; clockwise?: boolean; role: KJFlangeAuxiliaryLine['role'] }
+  | { kind: 'ellipse'; center: Point2; majorAxis: Point2; ratio: number; startParameter: number; endParameter: number; role: KJFlangeAuxiliaryLine['role'] }
+  | { kind: 'polyline'; vertices: { point: Point2; bulge?: number; startWidth?: number; endWidth?: number }[]; closed?: boolean; role: KJFlangeAuxiliaryLine['role'] }
+  | { kind: 'spline'; degree: number; controlPoints: Point2[]; knots: number[]; fitPoints?: Point2[]; weights?: number[]; closed?: boolean; periodic?: boolean; role: KJFlangeAuxiliaryLine['role'] }
+
 /** Source-supplied visible sheet text. Content remains input data and is not
  *  retained by the reusable knowledge pack. */
 export interface KJFlangeSheetNote {
@@ -141,6 +147,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   dimensions?: KJFlangeDimension[]
   leaders?: KJFlangeLeader[]
   auxiliaryLines?: KJFlangeAuxiliaryLine[]
+  auxiliaryCurves?: KJFlangeAuxiliaryCurve[]
   styleProfile?: KJFlangeStyleProfile
   sheet: { origin: Point2; size: Point2; inset: number; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
 }
@@ -170,7 +177,7 @@ const increasing = (value: unknown, label: string, maxCount: number, min: number
 
 function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   if (!document || typeof document.id !== 'string' || !Number.isSafeInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Flange compiler requires a KJDraw document')
-  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'auxiliaryLines', 'styleProfile', 'sheet'], 'input')
+  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'auxiliaryLines', 'auxiliaryCurves', 'styleProfile', 'sheet'], 'input')
   if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`)
   if (input.units !== 'millimeter' || document.snapshot().header?.units !== 'millimeter') throw new KJValidationError('Flange compiler requires millimeter units')
   const expectedRevision = finite(input.expectedRevision, 'input.expectedRevision', 0, Number.MAX_SAFE_INTEGER)
@@ -423,6 +430,51 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError(`${label} must not have zero length`)
     return { start, end, role: line.role as KJFlangeAuxiliaryLine['role'] }
   })
+  if (input.auxiliaryCurves != null && !Array.isArray(input.auxiliaryCurves)) throw new KJValidationError('input.auxiliaryCurves must be an array')
+  if ((input.auxiliaryCurves as unknown[] | undefined)?.length && (input.auxiliaryCurves as unknown[]).length > 128) throw new KJValidationError('input.auxiliaryCurves exceed their budget')
+  const auxiliaryCurves: KJFlangeAuxiliaryCurve[] = ((input.auxiliaryCurves ?? []) as unknown[]).map((value, index) => {
+    const label = `input.auxiliaryCurves[${index}]`, curve = plain(value, label)
+    if (!['geometry', 'center', 'hidden', 'notes', 'grid', 'frame'].includes(curve.role as string)) throw new KJValidationError(`${label}.role is invalid`)
+    const role = curve.role as KJFlangeAuxiliaryLine['role']
+    if (curve.kind === 'arc') {
+      exact(curve, ['kind', 'center', 'radius', 'startAngle', 'endAngle', 'clockwise', 'role'], label)
+      const startAngle = finite(curve.startAngle, `${label}.startAngle`, -Math.PI * 4, Math.PI * 4), endAngle = finite(curve.endAngle, `${label}.endAngle`, -Math.PI * 4, Math.PI * 4)
+      if (startAngle === endAngle) throw new KJValidationError(`${label} arc sweep must not be zero`)
+      if (curve.clockwise != null && typeof curve.clockwise !== 'boolean') throw new KJValidationError(`${label}.clockwise must be boolean`)
+      return { kind: 'arc', center: point(curve.center, `${label}.center`), radius: finite(curve.radius, `${label}.radius`, 0.1, 100_000), startAngle, endAngle, clockwise: curve.clockwise === true, role }
+    }
+    if (curve.kind === 'ellipse') {
+      exact(curve, ['kind', 'center', 'majorAxis', 'ratio', 'startParameter', 'endParameter', 'role'], label)
+      const majorAxis = point(curve.majorAxis, `${label}.majorAxis`)
+      if (Math.hypot(...majorAxis) <= 1e-12) throw new KJValidationError(`${label}.majorAxis must not be zero`)
+      return { kind: 'ellipse', center: point(curve.center, `${label}.center`), majorAxis,
+        ratio: finite(curve.ratio, `${label}.ratio`, 1e-9, 1), startParameter: finite(curve.startParameter, `${label}.startParameter`, -Math.PI * 4, Math.PI * 4), endParameter: finite(curve.endParameter, `${label}.endParameter`, -Math.PI * 4, Math.PI * 4), role }
+    }
+    if (curve.kind === 'polyline') {
+      exact(curve, ['kind', 'vertices', 'closed', 'role'], label)
+      if (!Array.isArray(curve.vertices) || curve.vertices.length < 2 || curve.vertices.length > 4096) throw new KJValidationError(`${label}.vertices must contain 2 to 4096 points`)
+      const vertices = curve.vertices.map((value, vertexIndex) => {
+        const vertexLabel = `${label}.vertices[${vertexIndex}]`, vertex = plain(value, vertexLabel); exact(vertex, ['point', 'bulge', 'startWidth', 'endWidth'], vertexLabel)
+        return { point: point(vertex.point, `${vertexLabel}.point`), bulge: finite(vertex.bulge ?? 0, `${vertexLabel}.bulge`, -1e6, 1e6), startWidth: finite(vertex.startWidth ?? 0, `${vertexLabel}.startWidth`, 0, 1e6), endWidth: finite(vertex.endWidth ?? 0, `${vertexLabel}.endWidth`, 0, 1e6) }
+      })
+      return { kind: 'polyline', vertices, closed: curve.closed === true, role }
+    }
+    if (curve.kind === 'spline') {
+      exact(curve, ['kind', 'degree', 'controlPoints', 'knots', 'fitPoints', 'weights', 'closed', 'periodic', 'role'], label)
+      const degree = finite(curve.degree, `${label}.degree`, 1, 10)
+      if (!Number.isInteger(degree)) throw new KJValidationError(`${label}.degree must be an integer`)
+      if (!Array.isArray(curve.controlPoints) || curve.controlPoints.length < degree + 1 || curve.controlPoints.length > 4096) throw new KJValidationError(`${label}.controlPoints are invalid`)
+      const controlPoints = curve.controlPoints.map((value, pointIndex) => point(value, `${label}.controlPoints[${pointIndex}]`))
+      if (!Array.isArray(curve.knots) || curve.knots.length !== controlPoints.length + degree + 1) throw new KJValidationError(`${label}.knots length is invalid`)
+      const knots = curve.knots.map((value, knotIndex) => finite(value, `${label}.knots[${knotIndex}]`, -1e12, 1e12))
+      if (knots.some((value, knotIndex) => knotIndex > 0 && value < knots[knotIndex - 1]!)) throw new KJValidationError(`${label}.knots must not decrease`)
+      const fitPoints = curve.fitPoints == null ? [] : Array.isArray(curve.fitPoints) ? curve.fitPoints.map((value, pointIndex) => point(value, `${label}.fitPoints[${pointIndex}]`)) : (() => { throw new KJValidationError(`${label}.fitPoints must be an array`) })()
+      const weights = curve.weights == null ? [] : Array.isArray(curve.weights) ? curve.weights.map((value, weightIndex) => finite(value, `${label}.weights[${weightIndex}]`, 1e-12, 1e12)) : (() => { throw new KJValidationError(`${label}.weights must be an array`) })()
+      if (weights.length && weights.length !== controlPoints.length) throw new KJValidationError(`${label}.weights length is invalid`)
+      return { kind: 'spline', degree, controlPoints, knots, fitPoints, weights, closed: curve.closed === true, periodic: curve.periodic === true, role }
+    }
+    throw new KJValidationError(`${label}.kind is invalid`)
+  })
   const styleProfile = input.styleProfile == null ? {} : plain(input.styleProfile, 'input.styleProfile')
   if (styleProfile) exact(styleProfile, ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch', 'hidden'], 'input.styleProfile')
   const styleRole = (value: unknown, label: string): KJFlangeStyleRole => {
@@ -440,7 +492,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   }
   const styles: KJFlangeStyleProfile = {}
   for (const role of ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch', 'hidden'] as const) styles[role] = styleRole(styleProfile[role], `input.styleProfile.${role}`)
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, xRange, symmetricProfiles, sideOutlineSegments, sectionHatches, dimensions, leaders, auxiliaryLines, styles, sheetOrigin, sheetSize, inset, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, xRange, symmetricProfiles, sideOutlineSegments, sectionHatches, dimensions, leaders, auxiliaryLines, auxiliaryCurves, styles, sheetOrigin, sheetSize, inset, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -539,6 +591,14 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     patternLines: [{ angle: hatch.lineAngle, base: hatch.patternOrigin, offset: [-Math.sin(hatch.lineAngle) * hatch.lineSpacing, Math.cos(hatch.lineAngle) * hatch.lineSpacing], dashes: [] }],
     patternDefinitionAngle: 0, patternDefinitionScale: 1, layerId: roleIds.hatch }, 'hatch')
   for (const auxiliary of input.auxiliaryLines) line(auxiliary.start, auxiliary.end, roleIds[auxiliary.role], auxiliary.role)
+  for (const curve of input.auxiliaryCurves) {
+    if (curve.kind === 'arc') emit('ARC', { center: p3(...curve.center), radius: curve.radius, startAngle: curve.startAngle, endAngle: curve.endAngle, clockwise: curve.clockwise === true, layerId: roleIds[curve.role] }, curve.role)
+    else if (curve.kind === 'ellipse') emit('ELLIPSE', { center: p3(...curve.center), majorAxis: p3(...curve.majorAxis), ratio: curve.ratio, startParameter: curve.startParameter, endParameter: curve.endParameter, layerId: roleIds[curve.role] }, curve.role)
+    else if (curve.kind === 'polyline') emit('LWPOLYLINE', { vertices: curve.vertices.map(vertex => ({ ...vertex, point: p3(...vertex.point) })), closed: curve.closed === true, elevation: 0, layerId: roleIds[curve.role] }, curve.role)
+    else emit('SPLINE', { degree: curve.degree, controlPoints: curve.controlPoints.map(value => p3(...value)), knots: curve.knots,
+      ...(curve.fitPoints?.length ? { fitPoints: curve.fitPoints.map(value => p3(...value)) } : {}), ...(curve.weights?.length ? { weights: curve.weights } : {}),
+      closed: curve.closed === true, periodic: curve.periodic === true, layerId: roleIds[curve.role] }, curve.role)
+  }
   for (const note of input.notes) emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
     position: p3(...note.position), text: note.text, height: note.height, rotation: note.rotation,
     ...(note.width == null ? {} : { width: note.width }), layerId: roleIds.notes,
@@ -562,7 +622,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
-        sectionHatchCount: input.sectionHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
+        sectionHatchCount: input.sectionHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryCurveCount: input.auxiliaryCurves.length, noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
       limitations: ['Flange end-view, symmetric axial-profile, cut-face hatches, native dimension and sheet-grid core only', 'Does not generate attributes or arbitrary blocks', 'Private drawings and labels are not embedded'],
     },
   }

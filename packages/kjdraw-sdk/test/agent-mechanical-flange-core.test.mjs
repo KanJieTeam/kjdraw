@@ -196,3 +196,19 @@ test('bounded semantic auxiliary lines compile as native LINE entities', async (
   const dxf = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
   assert.ok(dxf.listEntities({ type: 'LINE' }).some(line => JSON.stringify(line.payload.start) === '[10,12,0]' && JSON.stringify(line.payload.end) === '[34,12,0]'))
 })
+
+test('bounded semantic auxiliary curves compile as native editable CAD entities', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves: [
+    { kind: 'arc', center: [20, 20], radius: 5, startAngle: 0, endAngle: Math.PI / 2, role: 'geometry' },
+    { kind: 'ellipse', center: [40, 20], majorAxis: [8, 2], ratio: .25, startParameter: 0, endParameter: Math.PI, role: 'geometry' },
+    { kind: 'polyline', vertices: [{ point: [50, 10] }, { point: [55, 12], bulge: .2 }, { point: [60, 10] }], role: 'hidden' },
+    { kind: 'spline', degree: 2, controlPoints: [[70, 10], [75, 14], [80, 10]], knots: [0, 0, 0, 1, 1, 1], role: 'geometry' },
+  ] })
+  assert.equal(proposal.evidence.parameters.auxiliaryCurveCount, 4)
+  assert.deepEqual(proposal.commandArgs.entities.filter(entity => ['ELLIPSE', 'LWPOLYLINE', 'SPLINE'].includes(entity.type)).map(entity => entity.type), ['ELLIPSE', 'LWPOLYLINE', 'SPLINE'])
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxf = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  for (const type of ['ELLIPSE', 'LWPOLYLINE', 'SPLINE']) assert.equal(dxf.listEntities({ type }).length, 1)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves: [{ kind: 'spline', degree: 2, controlPoints: [[0, 0], [1, 1], [2, 0]], knots: [0, 0, 1], role: 'geometry' }] }), /knots length/u)
+})
