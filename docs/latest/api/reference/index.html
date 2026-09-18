@@ -14263,6 +14263,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             titlegrid: boolean;
             sideviewaxis: boolean;
             symmetricprofilecount: number;
+            notecount: number;
         };
         limitations: string[];
     };
@@ -14298,6 +14299,7 @@ export declare function assertPlainObject(value: unknown, label: string): Record
             titleGrid: boolean;
             sideViewAxis: boolean;
             symmetricProfileCount: number;
+            noteCount: number;
         };
         limitations: string[];
     };
@@ -17505,6 +17507,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         size: point2;
         inset: number;
         titlegrid?: kjflangetitlegrid;
+        notes?: kjflangesheetnote[];
     };
 }">
       <header><div><span class="kind">interface</span><h3>KJAgentMechanicalFlangeCoreInput</h3></div><a class="permalink" href="#root-interface-kjagentmechanicalflangecoreinput" aria-label="Link to KJAgentMechanicalFlangeCoreInput">#</a></header>
@@ -17530,6 +17533,7 @@ export type { KJBoxSelectionMode, KJSpatialSelectionOptions } from &#39;./select
         size: Point2;
         inset: number;
         titleGrid?: KJFlangeTitleGrid;
+        notes?: KJFlangeSheetNote[];
     };
 }</code></pre>
       <p class="source-path">agent-mechanical-flange-core.d.ts</p>
@@ -23477,6 +23481,25 @@ export declare const KJDRAW_AGENT_TASK_TOOL_API_VERSION: string;</code></pre>
     unit: &#39;bytes&#39; | &#39;percent&#39; | &#39;steps&#39; | &#39;tags&#39; | &#39;entities&#39;;
 }</code></pre>
       <p class="source-path">file-adapters.d.ts</p>
+    </article>
+<article class="api-symbol" id="root-interface-kjflangesheetnote" data-search="kjflangesheetnote interface @kanjieteam/kjdraw export interface kjflangesheetnote {
+    kind: &#39;single-line&#39; | &#39;multiline&#39;;
+    text: string;
+    position: point2;
+    height: number;
+    rotation?: number;
+    width?: number;
+}">
+      <header><div><span class="kind">interface</span><h3>KJFlangeSheetNote</h3></div><a class="permalink" href="#root-interface-kjflangesheetnote" aria-label="Link to KJFlangeSheetNote">#</a></header>
+      <pre data-language="ts"><button class="copy" type="button" data-copy-code>Copy</button><code>export interface KJFlangeSheetNote {
+    kind: &#39;single-line&#39; | &#39;multiline&#39;;
+    text: string;
+    position: Point2;
+    height: number;
+    rotation?: number;
+    width?: number;
+}</code></pre>
+      <p class="source-path">agent-mechanical-flange-core.d.ts</p>
     </article>
 <article class="api-symbol" id="root-interface-kjflangesymmetricprofile" data-search="kjflangesymmetricprofile interface @kanjieteam/kjdraw export interface kjflangesymmetricprofile {
     vertices: {

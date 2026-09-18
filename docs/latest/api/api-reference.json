@@ -3,7 +3,7 @@
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
   "source": "packages/kjdraw-sdk/types",
-  "sourceDigest": "sha256:e139039764b8c57c7b6e334e5746a74fc4fc8c9195c3e37307b95894783a0621",
+  "sourceDigest": "sha256:f3ab977cc17664bdc62e8e11ef960d28c11de17c0849564d1ec3ced8b7e86dcf",
   "modules": [
     {
       "exportPath": "./model-usage",
@@ -6081,7 +6081,7 @@
         {
           "name": "buildAgentMechanicalFlangeCore",
           "kind": "function",
-          "declaration": "export declare function buildAgentMechanicalFlangeCore(document: Document, source: KJAgentMechanicalFlangeCoreInput): {\n    commandArgs: {\n        entities: Entity[];\n        resources: {\n            linetypes: {\n                id: string;\n                name: string;\n                pattern: never[];\n            }[];\n            layers: {\n                id: string;\n                name: string;\n                color: number;\n                linetypeId: string;\n                lineweight: number;\n            }[];\n        };\n    };\n    evidence: {\n        knowledgePackId: string;\n        knowledgePackVersion: string;\n        expectedRevision: number;\n        entityCount: number;\n        parameters: {\n            ringCount: number;\n            squareHolePitch: number;\n            squareHoleRadius: number;\n            titleGrid: boolean;\n            sideViewAxis: boolean;\n            symmetricProfileCount: number;\n        };\n        limitations: string[];\n    };\n};",
+          "declaration": "export declare function buildAgentMechanicalFlangeCore(document: Document, source: KJAgentMechanicalFlangeCoreInput): {\n    commandArgs: {\n        entities: Entity[];\n        resources: {\n            linetypes: {\n                id: string;\n                name: string;\n                pattern: never[];\n            }[];\n            layers: {\n                id: string;\n                name: string;\n                color: number;\n                linetypeId: string;\n                lineweight: number;\n            }[];\n        };\n    };\n    evidence: {\n        knowledgePackId: string;\n        knowledgePackVersion: string;\n        expectedRevision: number;\n        entityCount: number;\n        parameters: {\n            ringCount: number;\n            squareHolePitch: number;\n            squareHoleRadius: number;\n            titleGrid: boolean;\n            sideViewAxis: boolean;\n            symmetricProfileCount: number;\n            noteCount: number;\n        };\n        limitations: string[];\n    };\n};",
           "source": "agent-mechanical-flange-core.d.ts",
           "anchor": "root-function-buildagentmechanicalflangecore"
         },
@@ -7481,7 +7481,7 @@
         {
           "name": "KJAgentMechanicalFlangeCoreInput",
           "kind": "interface",
-          "declaration": "export interface KJAgentMechanicalFlangeCoreInput {\n    version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION;\n    expectedRevision: number;\n    units: 'millimeter';\n    drawingId: string;\n    endView: {\n        center: Point2;\n        ringRadii: number[];\n        squareHoles: {\n            pitch: number;\n            radius: number;\n        };\n    };\n    sideViewAxis?: {\n        xRange: Point2;\n        symmetricProfiles?: KJFlangeSymmetricProfile[];\n    };\n    sheet: {\n        origin: Point2;\n        size: Point2;\n        inset: number;\n        titleGrid?: KJFlangeTitleGrid;\n    };\n}",
+          "declaration": "export interface KJAgentMechanicalFlangeCoreInput {\n    version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION;\n    expectedRevision: number;\n    units: 'millimeter';\n    drawingId: string;\n    endView: {\n        center: Point2;\n        ringRadii: number[];\n        squareHoles: {\n            pitch: number;\n            radius: number;\n        };\n    };\n    sideViewAxis?: {\n        xRange: Point2;\n        symmetricProfiles?: KJFlangeSymmetricProfile[];\n    };\n    sheet: {\n        origin: Point2;\n        size: Point2;\n        inset: number;\n        titleGrid?: KJFlangeTitleGrid;\n        notes?: KJFlangeSheetNote[];\n    };\n}",
           "source": "agent-mechanical-flange-core.d.ts",
           "anchor": "root-interface-kjagentmechanicalflangecoreinput"
         },
@@ -9696,6 +9696,13 @@
           "declaration": "export interface KJFileReadProgress {\n    phase: 'validate' | 'upload' | 'convert' | 'download' | 'source' | 'parse' | 'import';\n    completed: number;\n    total?: number;\n    unit: 'bytes' | 'percent' | 'steps' | 'tags' | 'entities';\n}",
           "source": "file-adapters.d.ts",
           "anchor": "root-interface-kjfilereadprogress"
+        },
+        {
+          "name": "KJFlangeSheetNote",
+          "kind": "interface",
+          "declaration": "export interface KJFlangeSheetNote {\n    kind: 'single-line' | 'multiline';\n    text: string;\n    position: Point2;\n    height: number;\n    rotation?: number;\n    width?: number;\n}",
+          "source": "agent-mechanical-flange-core.d.ts",
+          "anchor": "root-interface-kjflangesheetnote"
         },
         {
           "name": "KJFlangeSymmetricProfile",

@@ -2,7 +2,7 @@
   "schema": "com.kanjie.kjdraw.api-search-index@1",
   "package": "@kanjieteam/kjdraw",
   "version": "1.0.0-rc.3",
-  "sourceDigest": "sha256:e139039764b8c57c7b6e334e5746a74fc4fc8c9195c3e37307b95894783a0621",
+  "sourceDigest": "sha256:f3ab977cc17664bdc62e8e11ef960d28c11de17c0849564d1ec3ced8b7e86dcf",
   "entries": [
     {
       "name": "extractKJModelUsage",
@@ -10835,6 +10835,14 @@
       "href": "./api/reference/#root-interface-kjfilereadprogress",
       "anchor": "root-interface-kjfilereadprogress",
       "summary": "export interface KJFileReadProgress { phase: 'validate' | 'upload' | 'convert' | 'download' | 'source' | 'parse' | 'import'; completed: number; total?: number; unit: 'bytes' | 'percent' | 'steps' | 'tags' | 'entities'; }"
+    },
+    {
+      "name": "KJFlangeSheetNote",
+      "kind": "interface",
+      "module": "@kanjieteam/kjdraw",
+      "href": "./api/reference/#root-interface-kjflangesheetnote",
+      "anchor": "root-interface-kjflangesheetnote",
+      "summary": "export interface KJFlangeSheetNote { kind: 'single-line' | 'multiline'; text: string; position: Point2; height: number; rotation?: number; width?: number; }"
     },
     {
       "name": "KJFlangeSymmetricProfile",
