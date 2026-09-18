@@ -33,8 +33,8 @@ test('authored PAT line families have bounded visible SVG geometry and preserve 
   assert.equal(reopened.listEntities({ type: 'HATCH' })[0].payload.patternLines.length, 2)
 })
 
-test('non-spacing or unbounded custom PAT definitions refuse a misleading SVG preview', async () => {
-  const invalid = await preview([{ angle: 0, base: [0, 0], offset: [5, 0], dashes: [] }])
+test('non-equivalent collinear dash shifts or unbounded custom PAT definitions refuse a misleading SVG preview', async () => {
+  const invalid = await preview([{ angle: 0, base: [0, 0], offset: [5, 0], dashes: [2, -1] }])
   assert.throws(() => exportDrawingSvg(invalid.document, { layoutId: invalid.layout.id }), /visible geometry could not be represented/)
   const diagnostic = exportDrawingSvg(invalid.document, { layoutId: invalid.layout.id, allowPartial: true }).report.diagnostics
   assert.equal(diagnostic.length, 1)
