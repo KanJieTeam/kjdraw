@@ -36,6 +36,17 @@ export interface KJFlangeTitleGrid {
         drop: number;
     };
 }
+/** One source-measured meridian of an axially symmetric side view.
+ *  Stations are absolute drawing X coordinates and radii are positive
+ *  distances from the side-view axis. Repeated stations express shoulders.
+ */
+export interface KJFlangeSymmetricProfile {
+    vertices: {
+        station: number;
+        radius: number;
+    }[];
+    endCaps?: 'none' | 'start' | 'end' | 'both';
+}
 export interface KJAgentMechanicalFlangeCoreInput {
     version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION;
     expectedRevision: number;
@@ -51,6 +62,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
     };
     sideViewAxis?: {
         xRange: Point2;
+        symmetricProfiles?: KJFlangeSymmetricProfile[];
     };
     sheet: {
         origin: Point2;
@@ -89,6 +101,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             squareHoleRadius: number;
             titleGrid: boolean;
             sideViewAxis: boolean;
+            symmetricProfileCount: number;
         };
         limitations: string[];
     };
