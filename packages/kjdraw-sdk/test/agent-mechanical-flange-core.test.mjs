@@ -118,6 +118,7 @@ test('flange compiler rejects unsupported source injection and impossible geomet
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, titleGrid: { ...input(0).sheet.titleGrid, verticalSegments: [{ offset: 200, start: 0, end: 10 }] } } }), /must be finite/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), styleProfile: { geometry: { color: 2.5 } } }), /integer ACI/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), styleProfile: { center: { linetypePattern: [1, 2] } } }), /linetypePattern is invalid/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), auxiliaryLines: [{ start: [1, 1], end: [2, 2], role: 'unknown' }] }), /role is invalid/u)
 })
 
 test('source-relative cut faces compile into native patterned hatches with bounded edge paths', async () => {
@@ -179,4 +180,19 @@ test('caller-supplied semantic style roles preserve effective CAD display facts 
   const reopenedCircle = reopened.listEntities({ type: 'CIRCLE' }).find(entity => entity.payload.radius === 12)
   assert.equal(reopenedCircle.payload.color, 7)
   assert.equal(reopenedCircle.payload.lineweight, 35)
+})
+
+test('bounded semantic auxiliary lines compile as native LINE entities', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryLines: [
+    { start: [10, 12], end: [34, 12], role: 'hidden' },
+    { start: [10, 14], end: [34, 14], role: 'center' },
+  ] })
+  const lines = proposal.commandArgs.entities.filter(entity => entity.type === 'LINE')
+  assert.equal(lines.length, 38)
+  assert.deepEqual(lines.find(line => JSON.stringify(line.payload.start) === '[10,12,0]').payload.end, [34, 12, 0])
+  assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 2)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxf = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  assert.ok(dxf.listEntities({ type: 'LINE' }).some(line => JSON.stringify(line.payload.start) === '[10,12,0]' && JSON.stringify(line.payload.end) === '[34,12,0]'))
 })

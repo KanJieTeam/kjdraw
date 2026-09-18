@@ -73,6 +73,15 @@ export interface KJFlangeStyleProfile {
   notes?: KJFlangeStyleRole
   dimensions?: KJFlangeStyleRole
   hatch?: KJFlangeStyleRole
+  hidden?: KJFlangeStyleRole
+}
+
+/** Bounded source-measured line facts that do not belong to a primary view
+ *  profile (for example a projection aid or a local sheet rule). */
+export interface KJFlangeAuxiliaryLine {
+  start: Point2
+  end: Point2
+  role: 'geometry' | 'center' | 'hidden' | 'notes' | 'grid' | 'frame'
 }
 
 /** Source-supplied visible sheet text. Content remains input data and is not
@@ -131,6 +140,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   sideViewAxis?: { xRange: Point2; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
   dimensions?: KJFlangeDimension[]
   leaders?: KJFlangeLeader[]
+  auxiliaryLines?: KJFlangeAuxiliaryLine[]
   styleProfile?: KJFlangeStyleProfile
   sheet: { origin: Point2; size: Point2; inset: number; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
 }
@@ -160,7 +170,7 @@ const increasing = (value: unknown, label: string, maxCount: number, min: number
 
 function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   if (!document || typeof document.id !== 'string' || !Number.isSafeInteger(document.revision) || typeof document.snapshot !== 'function') throw new KJValidationError('Flange compiler requires a KJDraw document')
-  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'styleProfile', 'sheet'], 'input')
+  const input = plain(source, 'input'); exact(input, ['version', 'expectedRevision', 'units', 'drawingId', 'endView', 'sideViewAxis', 'dimensions', 'leaders', 'auxiliaryLines', 'styleProfile', 'sheet'], 'input')
   if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`)
   if (input.units !== 'millimeter' || document.snapshot().header?.units !== 'millimeter') throw new KJValidationError('Flange compiler requires millimeter units')
   const expectedRevision = finite(input.expectedRevision, 'input.expectedRevision', 0, Number.MAX_SAFE_INTEGER)
@@ -404,8 +414,17 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       pathType: integer(leader.pathType, `input.leaders[${index}].pathType`, 1), annotationType: integer(leader.annotationType, `input.leaders[${index}].annotationType`, 3),
       hookLineDirection: integer(leader.hookLineDirection, `input.leaders[${index}].hookLineDirection`, 1), hookLineEnabled: leader.hookLineEnabled === true }
   })
+  if (input.auxiliaryLines != null && !Array.isArray(input.auxiliaryLines)) throw new KJValidationError('input.auxiliaryLines must be an array')
+  if ((input.auxiliaryLines as unknown[] | undefined)?.length && (input.auxiliaryLines as unknown[]).length > 256) throw new KJValidationError('input.auxiliaryLines exceed their budget')
+  const auxiliaryLines: KJFlangeAuxiliaryLine[] = ((input.auxiliaryLines ?? []) as unknown[]).map((value, index) => {
+    const label = `input.auxiliaryLines[${index}]`, line = plain(value, label); exact(line, ['start', 'end', 'role'], label)
+    if (!['geometry', 'center', 'hidden', 'notes', 'grid', 'frame'].includes(line.role as string)) throw new KJValidationError(`${label}.role is invalid`)
+    const start = point(line.start, `${label}.start`), end = point(line.end, `${label}.end`)
+    if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError(`${label} must not have zero length`)
+    return { start, end, role: line.role as KJFlangeAuxiliaryLine['role'] }
+  })
   const styleProfile = input.styleProfile == null ? {} : plain(input.styleProfile, 'input.styleProfile')
-  if (styleProfile) exact(styleProfile, ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch'], 'input.styleProfile')
+  if (styleProfile) exact(styleProfile, ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch', 'hidden'], 'input.styleProfile')
   const styleRole = (value: unknown, label: string): KJFlangeStyleRole => {
     if (value == null) return {}
     const role = plain(value, label); exact(role, ['layerName', 'color', 'lineweight', 'linetypeName', 'linetypePattern'], label)
@@ -420,15 +439,15 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     return { ...(role.layerName == null ? {} : { layerName: role.layerName }), ...(color == null ? {} : { color }), ...(lineweight == null ? {} : { lineweight }), ...(role.linetypeName == null ? {} : { linetypeName: role.linetypeName }), ...(role.linetypePattern == null ? {} : { linetypePattern: [...role.linetypePattern] }) }
   }
   const styles: KJFlangeStyleProfile = {}
-  for (const role of ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch'] as const) styles[role] = styleRole(styleProfile[role], `input.styleProfile.${role}`)
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, xRange, symmetricProfiles, sideOutlineSegments, sectionHatches, dimensions, leaders, styles, sheetOrigin, sheetSize, inset, titleGrid, notes }
+  for (const role of ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch', 'hidden'] as const) styles[role] = styleRole(styleProfile[role], `input.styleProfile.${role}`)
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, xRange, symmetricProfiles, sideOutlineSegments, sectionHatches, dimensions, leaders, auxiliaryLines, styles, sheetOrigin, sheetSize, inset, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
 export function buildAgentMechanicalFlangeCore(document: Document, source: KJAgentMechanicalFlangeCoreInput) {
   const input = validate(document, source), prefix = `flange-${stableHash({ id: input.drawingId, version: KJDRAW_MECHANICAL_FLANGE_CORE_VERSION }).slice(0, 12)}`
   const role = (name: keyof KJFlangeStyleProfile, defaults: { layerName: string; color: number; lineweight: number; pattern: number[] }) => ({ ...defaults, ...(input.styles[name] ?? {}), pattern: input.styles[name]?.linetypePattern ?? defaults.pattern })
-  const roles = { frame: role('frame', { layerName: 'FLANGE_FRAME', color: 7, lineweight: 25, pattern: [] }), grid: role('grid', { layerName: 'FLANGE_GRID', color: 7, lineweight: 18, pattern: [] }), geometry: role('geometry', { layerName: 'FLANGE_GEOMETRY', color: 7, lineweight: 35, pattern: [] }), center: role('center', { layerName: 'FLANGE_CENTER', color: 7, lineweight: 18, pattern: [8, -1, 1, -1] }), notes: role('notes', { layerName: 'FLANGE_NOTES', color: 7, lineweight: 18, pattern: [] }), dimensions: role('dimensions', { layerName: 'FLANGE_DIMENSIONS', color: 2, lineweight: 18, pattern: [] }), hatch: role('hatch', { layerName: 'FLANGE_HATCH', color: 7, lineweight: 18, pattern: [] }) }
+  const roles = { frame: role('frame', { layerName: 'FLANGE_FRAME', color: 7, lineweight: 25, pattern: [] }), grid: role('grid', { layerName: 'FLANGE_GRID', color: 7, lineweight: 18, pattern: [] }), geometry: role('geometry', { layerName: 'FLANGE_GEOMETRY', color: 7, lineweight: 35, pattern: [] }), center: role('center', { layerName: 'FLANGE_CENTER', color: 7, lineweight: 18, pattern: [8, -1, 1, -1] }), notes: role('notes', { layerName: 'FLANGE_NOTES', color: 7, lineweight: 18, pattern: [] }), dimensions: role('dimensions', { layerName: 'FLANGE_DIMENSIONS', color: 2, lineweight: 18, pattern: [] }), hatch: role('hatch', { layerName: 'FLANGE_HATCH', color: 7, lineweight: 18, pattern: [] }), hidden: role('hidden', { layerName: 'FLANGE_HIDDEN', color: 8, lineweight: 18, pattern: [3, -1] }) }
   const roleIds = {} as Record<keyof typeof roles, string>, layers: { id: string; name: string; color: number; linetypeId: string; lineweight: number }[] = [], layerByName = new Map<string, string>()
   const linetypeIds = {} as Record<keyof typeof roles, string>, linetypes: { id: string; name: string; pattern: number[] }[] = [], linetypeByKey = new Map<string, string>()
   for (const name of Object.keys(roles) as (keyof typeof roles)[]) {
@@ -519,6 +538,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     patternName: 'ANSI31', solid: false, associative: false, patternAngle: 0, patternScale: 1,
     patternLines: [{ angle: hatch.lineAngle, base: hatch.patternOrigin, offset: [-Math.sin(hatch.lineAngle) * hatch.lineSpacing, Math.cos(hatch.lineAngle) * hatch.lineSpacing], dashes: [] }],
     patternDefinitionAngle: 0, patternDefinitionScale: 1, layerId: roleIds.hatch }, 'hatch')
+  for (const auxiliary of input.auxiliaryLines) line(auxiliary.start, auxiliary.end, roleIds[auxiliary.role], auxiliary.role)
   for (const note of input.notes) emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
     position: p3(...note.position), text: note.text, height: note.height, rotation: note.rotation,
     ...(note.width == null ? {} : { width: note.width }), layerId: roleIds.notes,
@@ -542,7 +562,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
-        sectionHatchCount: input.sectionHatches.length, noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
+        sectionHatchCount: input.sectionHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
       limitations: ['Flange end-view, symmetric axial-profile, cut-face hatches, native dimension and sheet-grid core only', 'Does not generate attributes or arbitrary blocks', 'Private drawings and labels are not embedded'],
     },
   }

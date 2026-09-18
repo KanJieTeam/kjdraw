@@ -142,6 +142,14 @@ export interface KJFlangeStyleProfile {
     notes?: KJFlangeStyleRole;
     dimensions?: KJFlangeStyleRole;
     hatch?: KJFlangeStyleRole;
+    hidden?: KJFlangeStyleRole;
+}
+/** Bounded source-measured line facts that do not belong to a primary view
+ *  profile (for example a projection aid or a local sheet rule). */
+export interface KJFlangeAuxiliaryLine {
+    start: Point2;
+    end: Point2;
+    role: 'geometry' | 'center' | 'hidden' | 'notes' | 'grid' | 'frame';
 }
 /** Source-supplied visible sheet text. Content remains input data and is not
  *  retained by the reusable knowledge pack. */
@@ -222,6 +230,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
     };
     dimensions?: KJFlangeDimension[];
     leaders?: KJFlangeLeader[];
+    auxiliaryLines?: KJFlangeAuxiliaryLine[];
     styleProfile?: KJFlangeStyleProfile;
     sheet: {
         origin: Point2;
@@ -266,6 +275,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             symmetricProfileCount: number;
             sideOutlineSegmentCount: number;
             sectionHatchCount: number;
+            auxiliaryLineCount: number;
             noteCount: number;
             dimensionCount: number;
             leaderCount: number;
