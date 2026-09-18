@@ -46,6 +46,7 @@ function validate(document, source) {
         'leaders',
         'auxiliaryLines',
         'auxiliaryCurves',
+        'symbols',
         'styleProfile',
         'sheet'
     ], 'input');
@@ -712,6 +713,161 @@ function validate(document, source) {
         }
         throw new KJValidationError(`${label}.kind is invalid`);
     });
+    const symbolSource = input.symbols == null ? {
+        definitions: [],
+        instances: []
+    } : plain(input.symbols, 'input.symbols');
+    exact(symbolSource, [
+        'definitions',
+        'instances'
+    ], 'input.symbols');
+    if (!Array.isArray(symbolSource.definitions) || symbolSource.definitions.length > 16) throw new KJValidationError('input.symbols.definitions must contain at most 16 items');
+    if (!Array.isArray(symbolSource.instances) || symbolSource.instances.length > 64) throw new KJValidationError('input.symbols.instances must contain at most 64 items');
+    const symbolKeys = new Set();
+    let symbolMemberCount = 0, symbolTextCharacters = 0;
+    const symbolRole = (value, label)=>{
+        if (![
+            'geometry',
+            'center',
+            'hidden',
+            'notes',
+            'grid',
+            'frame'
+        ].includes(value)) throw new KJValidationError(`${label} is invalid`);
+        return value;
+    };
+    const symbolDefinitions = symbolSource.definitions.map((value, index)=>{
+        const label = `input.symbols.definitions[${index}]`, definition = plain(value, label);
+        exact(definition, [
+            'key',
+            'basePoint',
+            'members'
+        ], label);
+        if (typeof definition.key !== 'string' || !definition.key.trim() || definition.key !== definition.key.trim() || definition.key.length > 96 || /[\u0000-\u001f\u007f]/u.test(definition.key)) throw new KJValidationError(`${label}.key must be bounded printable text`);
+        if (symbolKeys.has(definition.key)) throw new KJValidationError(`${label}.key must be unique`);
+        symbolKeys.add(definition.key);
+        if (!Array.isArray(definition.members) || !definition.members.length || definition.members.length > 64) throw new KJValidationError(`${label}.members must contain 1 to 64 items`);
+        symbolMemberCount += definition.members.length;
+        if (symbolMemberCount > 512) throw new KJValidationError('input.symbols exceed the member budget');
+        const members = definition.members.map((memberValue, memberIndex)=>{
+            const memberLabel = `${label}.members[${memberIndex}]`, member = plain(memberValue, memberLabel), role = symbolRole(member.role, `${memberLabel}.role`);
+            if (member.kind === 'line') {
+                exact(member, [
+                    'kind',
+                    'start',
+                    'end',
+                    'role'
+                ], memberLabel);
+                const start = point(member.start, `${memberLabel}.start`), end = point(member.end, `${memberLabel}.end`);
+                if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError(`${memberLabel} must not have zero length`);
+                return {
+                    kind: 'line',
+                    start,
+                    end,
+                    role
+                };
+            }
+            if (member.kind === 'circle') {
+                exact(member, [
+                    'kind',
+                    'center',
+                    'radius',
+                    'role'
+                ], memberLabel);
+                return {
+                    kind: 'circle',
+                    center: point(member.center, `${memberLabel}.center`),
+                    radius: finite(member.radius, `${memberLabel}.radius`, 0.000_001, 100_000),
+                    role
+                };
+            }
+            if (member.kind === 'arc') {
+                exact(member, [
+                    'kind',
+                    'center',
+                    'radius',
+                    'startAngle',
+                    'endAngle',
+                    'clockwise',
+                    'role'
+                ], memberLabel);
+                const startAngle = finite(member.startAngle, `${memberLabel}.startAngle`, -Math.PI * 4, Math.PI * 4), endAngle = finite(member.endAngle, `${memberLabel}.endAngle`, -Math.PI * 4, Math.PI * 4);
+                if (startAngle === endAngle) throw new KJValidationError(`${memberLabel} arc sweep must not be zero`);
+                if (member.clockwise != null && typeof member.clockwise !== 'boolean') throw new KJValidationError(`${memberLabel}.clockwise must be boolean`);
+                return {
+                    kind: 'arc',
+                    center: point(member.center, `${memberLabel}.center`),
+                    radius: finite(member.radius, `${memberLabel}.radius`, 0.000_001, 100_000),
+                    startAngle,
+                    endAngle,
+                    clockwise: member.clockwise === true,
+                    role
+                };
+            }
+            if (member.kind === 'multiline-text') {
+                exact(member, [
+                    'kind',
+                    'text',
+                    'position',
+                    'height',
+                    'rotation',
+                    'width',
+                    'attachmentPoint',
+                    'role'
+                ], memberLabel);
+                if (typeof member.text !== 'string' || !member.text || member.text.length > 512 || /[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(member.text)) throw new KJValidationError(`${memberLabel}.text must be bounded visible text`);
+                symbolTextCharacters += member.text.length;
+                if (symbolTextCharacters > 8_192) throw new KJValidationError('input.symbols exceed the text budget');
+                const attachmentPoint = member.attachmentPoint == null ? 1 : finite(member.attachmentPoint, `${memberLabel}.attachmentPoint`, 1, 9);
+                if (!Number.isInteger(attachmentPoint)) throw new KJValidationError(`${memberLabel}.attachmentPoint must be an integer`);
+                return {
+                    kind: 'multiline-text',
+                    text: member.text,
+                    position: point(member.position, `${memberLabel}.position`),
+                    height: finite(member.height, `${memberLabel}.height`, 0.000_001, 100_000),
+                    rotation: member.rotation == null ? 0 : finite(member.rotation, `${memberLabel}.rotation`, -Math.PI * 4, Math.PI * 4),
+                    ...member.width == null ? {} : {
+                        width: finite(member.width, `${memberLabel}.width`, 0.000_001, 1_000_000)
+                    },
+                    attachmentPoint,
+                    role
+                };
+            }
+            throw new KJValidationError(`${memberLabel}.kind is invalid`);
+        });
+        return {
+            key: definition.key,
+            basePoint: point(definition.basePoint, `${label}.basePoint`),
+            members
+        };
+    });
+    const symbolInstances = symbolSource.instances.map((value, index)=>{
+        const label = `input.symbols.instances[${index}]`, instance = plain(value, label);
+        exact(instance, [
+            'symbolKey',
+            'position',
+            'scale',
+            'rotation',
+            'role'
+        ], label);
+        if (typeof instance.symbolKey !== 'string' || !symbolKeys.has(instance.symbolKey)) throw new KJValidationError(`${label}.symbolKey must reference a definition`);
+        const scaleSource = instance.scale ?? [
+            1,
+            1
+        ];
+        if (!Array.isArray(scaleSource) || scaleSource.length !== 2) throw new KJValidationError(`${label}.scale must contain two coordinates`);
+        const scale = [
+            finite(scaleSource[0], `${label}.scale[0]`, 0.000_001, 1_000_000),
+            finite(scaleSource[1], `${label}.scale[1]`, 0.000_001, 1_000_000)
+        ];
+        return {
+            symbolKey: instance.symbolKey,
+            position: point(instance.position, `${label}.position`),
+            scale,
+            rotation: instance.rotation == null ? 0 : finite(instance.rotation, `${label}.rotation`, -Math.PI * 4, Math.PI * 4),
+            role: symbolRole(instance.role, `${label}.role`)
+        };
+    });
     const styleProfile = input.styleProfile == null ? {} : plain(input.styleProfile, 'input.styleProfile');
     if (styleProfile) exact(styleProfile, [
         'frame',
@@ -809,14 +965,16 @@ function validate(document, source) {
         radius,
         outlineSegments,
         cuttingPlaneMarks,
+        sideOutlineSegments,
         xRange,
         symmetricProfiles,
-        sideOutlineSegments,
         sectionHatches,
         dimensions,
         leaders,
         auxiliaryLines,
         auxiliaryCurves,
+        symbolDefinitions,
+        symbolInstances,
         styles,
         sheetOrigin,
         sheetSize,
@@ -934,9 +1092,9 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             roleIds[name],
             roles[name]
         ]));
-    const emit = (type, payload, styleName)=>{
+    const stylePayload = (payload, styleName)=>{
         const style = styleName == null ? roleByLayer.get(payload.layerId) : roles[styleName];
-        const styled = style == null ? payload : {
+        return style == null ? payload : {
             ...payload,
             color: style.color,
             lineweight: style.lineweight,
@@ -944,9 +1102,11 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 linetypeName: style.linetypeName
             }
         };
+    };
+    const emit = (type, payload, styleName)=>{
         entities.push({
             type,
-            payload: styled,
+            payload: stylePayload(payload, styleName),
             options: {
                 id: `${prefix}-${String(entities.length + 1).padStart(4, '0')}`
             }
@@ -1318,6 +1478,88 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             layerId: roleIds[curve.role]
         }, curve.role);
     }
+    const symbolBlockByKey = new Map();
+    const blocks = input.symbolDefinitions.map((definition, definitionIndex)=>{
+        const token = stableHash({
+            basePoint: definition.basePoint,
+            members: definition.members
+        }).slice(0, 12);
+        const id = `${prefix}-symbol-${String(definitionIndex + 1).padStart(2, '0')}-${token}`;
+        symbolBlockByKey.set(definition.key, {
+            id
+        });
+        const members = definition.members.map((member, memberIndex)=>{
+            let type, payload;
+            if (member.kind === 'line') {
+                type = 'LINE';
+                payload = {
+                    start: p3(...member.start),
+                    end: p3(...member.end),
+                    layerId: roleIds[member.role]
+                };
+            } else if (member.kind === 'circle') {
+                type = 'CIRCLE';
+                payload = {
+                    center: p3(...member.center),
+                    radius: member.radius,
+                    layerId: roleIds[member.role]
+                };
+            } else if (member.kind === 'arc') {
+                type = 'ARC';
+                payload = {
+                    center: p3(...member.center),
+                    radius: member.radius,
+                    startAngle: member.startAngle,
+                    endAngle: member.endAngle,
+                    clockwise: member.clockwise === true,
+                    layerId: roleIds[member.role]
+                };
+            } else {
+                type = 'MTEXT';
+                payload = {
+                    position: p3(...member.position),
+                    text: member.text,
+                    height: member.height,
+                    rotation: member.rotation ?? 0,
+                    attachmentPoint: member.attachmentPoint ?? 1,
+                    ...member.width == null ? {} : {
+                        width: member.width
+                    },
+                    layerId: roleIds[member.role]
+                };
+            }
+            return {
+                type,
+                payload: stylePayload(payload, member.role),
+                options: {
+                    id: `${id}-member-${String(memberIndex + 1).padStart(2, '0')}`
+                }
+            };
+        });
+        return {
+            id,
+            name: `KJ_FLANGE_SYMBOL_${String(definitionIndex + 1).padStart(2, '0')}_${token.toUpperCase()}`,
+            basePoint: p3(...definition.basePoint),
+            entities: members
+        };
+    });
+    for (const instance of input.symbolInstances){
+        const block = symbolBlockByKey.get(instance.symbolKey);
+        emit('INSERT', {
+            blockRecordId: block.id,
+            position: p3(...instance.position),
+            scale: [
+                instance.scale?.[0] ?? 1,
+                instance.scale?.[1] ?? 1,
+                1
+            ],
+            rotation: instance.rotation ?? 0,
+            attributes: {},
+            attributeIds: [],
+            sequenceEndId: null,
+            layerId: roleIds[instance.role]
+        }, instance.role);
+    }
     for (const note of input.notes)emit(note.kind === 'single-line' ? 'TEXT' : 'MTEXT', {
         position: p3(...note.position),
         text: note.text,
@@ -1355,7 +1597,10 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             entities,
             resources: {
                 linetypes,
-                layers
+                layers,
+                ...blocks.length ? {
+                    blocks
+                } : {}
             }
         },
         evidence: {
@@ -1376,13 +1621,15 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 sectionHatchCount: input.sectionHatches.length,
                 auxiliaryLineCount: input.auxiliaryLines.length,
                 auxiliaryCurveCount: input.auxiliaryCurves.length,
+                symbolDefinitionCount: input.symbolDefinitions.length,
+                symbolInstanceCount: input.symbolInstances.length,
                 noteCount: input.notes.length,
                 dimensionCount: input.dimensions.length,
                 leaderCount: input.leaders.length
             },
             limitations: [
                 'Flange end-view, symmetric axial-profile, cut-face hatches, native dimension and sheet-grid core only',
-                'Does not generate attributes or arbitrary blocks',
+                'Local symbols do not generate attributes or nested blocks',
                 'Private drawings and labels are not embedded'
             ]
         }

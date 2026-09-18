@@ -1,7 +1,8 @@
 export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: '1.0.0';
 type Point2 = [number, number];
+type Point3 = [number, number, number];
 type Entity = {
-    type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'HATCH';
+    type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'HATCH' | 'INSERT';
     payload: Record<string, unknown>;
     options: {
         id: string;
@@ -188,6 +189,48 @@ export type KJFlangeAuxiliaryCurve = {
     periodic?: boolean;
     role: KJFlangeAuxiliaryLine['role'];
 };
+/** A reusable local symbol definition. Only visible native geometry and text
+ * are accepted; source handles, block names and application metadata are not. */
+export type KJFlangeSymbolMember = {
+    kind: 'line';
+    start: Point2;
+    end: Point2;
+    role: KJFlangeAuxiliaryLine['role'];
+} | {
+    kind: 'circle';
+    center: Point2;
+    radius: number;
+    role: KJFlangeAuxiliaryLine['role'];
+} | {
+    kind: 'arc';
+    center: Point2;
+    radius: number;
+    startAngle: number;
+    endAngle: number;
+    clockwise?: boolean;
+    role: KJFlangeAuxiliaryLine['role'];
+} | {
+    kind: 'multiline-text';
+    text: string;
+    position: Point2;
+    height: number;
+    rotation?: number;
+    width?: number;
+    attachmentPoint?: number;
+    role: KJFlangeAuxiliaryLine['role'];
+};
+export interface KJFlangeSymbolDefinition {
+    key: string;
+    basePoint: Point2;
+    members: KJFlangeSymbolMember[];
+}
+export interface KJFlangeSymbolInstance {
+    symbolKey: string;
+    position: Point2;
+    scale?: Point2;
+    rotation?: number;
+    role: KJFlangeAuxiliaryLine['role'];
+}
 /** Source-supplied visible sheet text. Content remains input data and is not
  *  retained by the reusable knowledge pack. */
 export interface KJFlangeSheetNote {
@@ -269,6 +312,10 @@ export interface KJAgentMechanicalFlangeCoreInput {
     leaders?: KJFlangeLeader[];
     auxiliaryLines?: KJFlangeAuxiliaryLine[];
     auxiliaryCurves?: KJFlangeAuxiliaryCurve[];
+    symbols?: {
+        definitions: KJFlangeSymbolDefinition[];
+        instances: KJFlangeSymbolInstance[];
+    };
     styleProfile?: KJFlangeStyleProfile;
     sheet: {
         origin: Point2;
@@ -295,6 +342,18 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
                 linetypeId: string;
                 lineweight: number;
             }[];
+            blocks?: {
+                id: string;
+                name: string;
+                basePoint: Point3;
+                entities: {
+                    type: "ARC" | "CIRCLE" | "LINE" | "MTEXT";
+                    payload: Record<string, unknown>;
+                    options: {
+                        id: string;
+                    };
+                }[];
+            }[];
         };
     };
     evidence: {
@@ -315,6 +374,8 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             sectionHatchCount: number;
             auxiliaryLineCount: number;
             auxiliaryCurveCount: number;
+            symbolDefinitionCount: number;
+            symbolInstanceCount: number;
             noteCount: number;
             dimensionCount: number;
             leaderCount: number;
