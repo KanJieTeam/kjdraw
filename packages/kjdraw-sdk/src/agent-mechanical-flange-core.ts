@@ -912,12 +912,25 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   const compact = (value: Record<string, unknown>) => Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined))
   const textStyleByKey = new Map<string, { id: string; name: string }>(), textStyleResources: { id: string; name: string; payload: Record<string, unknown> }[] = []
   const dimensionStyleByKey = new Map<string, { id: string; name: string }>(), dimensionStyleResources: { id: string; name: string; payload: Record<string, unknown> }[] = []
+  const payloadMatches = (existing: Record<string, unknown> | undefined, requested: Record<string, unknown>) => Object.entries(requested).every(([key, value]) => JSON.stringify(existing?.[key]) === JSON.stringify(value))
+  const reservedTextStyleNames = new Set(document.getTable?.('textStyles')?.records.map(record => String(record.name).toUpperCase()) ?? [])
   for (const [index, style] of input.textStyles.entries()) {
     const existing = document.getTable?.('textStyles')?.records.find(record => String(record.name).toUpperCase() === style.name.toUpperCase())
-    const id = existing?.id ?? `${prefix}-text-style-${String(index + 1).padStart(2, '0')}`
-    textStyleByKey.set(style.key, { id, name: style.name })
-    if (!existing) textStyleResources.push({ id, name: style.name, payload: compact({ fontFamily: style.fontFamily, fontFile: style.fontFile, bigFontFile: style.bigFontFile,
-      fixedHeight: style.fixedHeight, widthFactor: style.widthFactor, obliqueAngle: style.obliqueAngle, dxfFlags: style.dxfFlags, generationFlags: style.generationFlags, lastHeight: style.lastHeight }) })
+    const payload = compact({ fontFamily: style.fontFamily, fontFile: style.fontFile, bigFontFile: style.bigFontFile,
+      fixedHeight: style.fixedHeight, widthFactor: style.widthFactor, obliqueAngle: style.obliqueAngle, dxfFlags: style.dxfFlags, generationFlags: style.generationFlags, lastHeight: style.lastHeight })
+    let reusable = existing != null && payloadMatches(existing.payload, payload) ? existing : undefined
+    let name = style.name
+    if (existing && !reusable) {
+      name = `KJ_TEXT_${String(index + 1).padStart(2, '0')}_${stableHash(payload).slice(0, 12).toUpperCase()}`
+      const alias = document.getTable?.('textStyles')?.records.find(record => String(record.name).toUpperCase() === name.toUpperCase())
+      if (alias && !payloadMatches(alias.payload, payload)) throw new KJValidationError('generated text style alias conflicts with an existing resource')
+      reusable = alias
+    }
+    const id = reusable?.id ?? `${prefix}-text-style-${String(index + 1).padStart(2, '0')}`
+    if (!reusable && reservedTextStyleNames.has(name.toUpperCase())) throw new KJValidationError('generated text style alias conflicts with an existing resource')
+    reservedTextStyleNames.add(name.toUpperCase())
+    textStyleByKey.set(style.key, { id, name })
+    if (!reusable) textStyleResources.push({ id, name, payload })
   }
   for (const [index, style] of input.dimensionStyles.entries()) {
     const existing = document.getTable?.('dimensionStyles')?.records.find(record => String(record.name).toUpperCase() === style.name.toUpperCase())
