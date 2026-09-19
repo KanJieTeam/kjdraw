@@ -335,6 +335,9 @@ export interface KJFlangeLeader {
     annotationType?: number;
     hookLineDirection?: number;
     hookLineEnabled?: boolean;
+    /** Native DXF leader annotation height/width (groups 40/41). */
+    textHeight?: number;
+    textWidth?: number;
     styleKey?: string;
 }
 export type KJFlangeGeometricCharacteristic = 'position' | 'concentricity' | 'symmetry' | 'parallelism' | 'perpendicularity' | 'angularity' | 'cylindricity' | 'flatness' | 'circularity' | 'straightness' | 'surface-profile' | 'line-profile' | 'circular-runout' | 'total-runout';

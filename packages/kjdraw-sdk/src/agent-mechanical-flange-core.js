@@ -871,12 +871,16 @@ function validate(document, source) {
             'annotationType',
             'hookLineDirection',
             'hookLineEnabled',
+            'textHeight',
+            'textWidth',
             'styleKey'
         ], `input.leaders[${index}]`);
         if (!Array.isArray(leader.vertices) || leader.vertices.length < 2 || leader.vertices.length > 64) throw new KJValidationError(`input.leaders[${index}].vertices must contain 2 to 64 points`);
         const vertices = leader.vertices.map((value, pointIndex)=>point(value, `input.leaders[${index}].vertices[${pointIndex}]`));
         const integer = (value, label, max)=>value == null ? 0 : finite(value, label, 0, max);
         const styleKey = entityStyleKey(leader.styleKey, `input.leaders[${index}].styleKey`);
+        const textHeight = leader.textHeight == null ? undefined : finite(leader.textHeight, `input.leaders[${index}].textHeight`, 0, 1e9);
+        const textWidth = leader.textWidth == null ? undefined : finite(leader.textWidth, `input.leaders[${index}].textWidth`, 0, 1e9);
         return {
             vertices,
             arrowEnabled: leader.arrowEnabled == null ? true : leader.arrowEnabled === true,
@@ -884,6 +888,12 @@ function validate(document, source) {
             annotationType: integer(leader.annotationType, `input.leaders[${index}].annotationType`, 3),
             hookLineDirection: integer(leader.hookLineDirection, `input.leaders[${index}].hookLineDirection`, 1),
             hookLineEnabled: leader.hookLineEnabled === true,
+            ...textHeight == null ? {} : {
+                textHeight
+            },
+            ...textWidth == null ? {} : {
+                textWidth
+            },
             ...styleKey == null ? {} : {
                 styleKey
             }
@@ -2506,6 +2516,12 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             annotationType: leader.annotationType ?? 3,
             hookLineDirection: leader.hookLineDirection ?? 0,
             hookLineEnabled: leader.hookLineEnabled === true,
+            ...leader.textHeight == null ? {} : {
+                textHeight: leader.textHeight
+            },
+            ...leader.textWidth == null ? {} : {
+                textWidth: leader.textWidth
+            },
             layerId: style.layerId
         }, style.name);
     }

@@ -180,6 +180,9 @@ export interface KJFlangeLeader {
   annotationType?: number
   hookLineDirection?: number
   hookLineEnabled?: boolean
+  /** Native DXF leader annotation height/width (groups 40/41). */
+  textHeight?: number
+  textWidth?: number
   styleKey?: string
 }
 
@@ -656,14 +659,17 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   if ((input.leaders as unknown[] | undefined)?.length && (input.leaders as unknown[]).length > 64) throw new KJValidationError('input.leaders exceed their budget')
   const leaders: KJFlangeLeader[] = ((input.leaders ?? []) as unknown[]).map((value, index) => {
     const leader = plain(value, `input.leaders[${index}]`)
-    exact(leader, ['vertices', 'arrowEnabled', 'pathType', 'annotationType', 'hookLineDirection', 'hookLineEnabled', 'styleKey'], `input.leaders[${index}]`)
+    exact(leader, ['vertices', 'arrowEnabled', 'pathType', 'annotationType', 'hookLineDirection', 'hookLineEnabled', 'textHeight', 'textWidth', 'styleKey'], `input.leaders[${index}]`)
     if (!Array.isArray(leader.vertices) || leader.vertices.length < 2 || leader.vertices.length > 64) throw new KJValidationError(`input.leaders[${index}].vertices must contain 2 to 64 points`)
     const vertices = leader.vertices.map((value, pointIndex) => point(value, `input.leaders[${index}].vertices[${pointIndex}]`))
     const integer = (value: unknown, label: string, max: number) => value == null ? 0 : finite(value, label, 0, max)
     const styleKey = entityStyleKey(leader.styleKey, `input.leaders[${index}].styleKey`)
+    const textHeight = leader.textHeight == null ? undefined : finite(leader.textHeight, `input.leaders[${index}].textHeight`, 0, 1e9)
+    const textWidth = leader.textWidth == null ? undefined : finite(leader.textWidth, `input.leaders[${index}].textWidth`, 0, 1e9)
     return { vertices, arrowEnabled: leader.arrowEnabled == null ? true : leader.arrowEnabled === true,
       pathType: integer(leader.pathType, `input.leaders[${index}].pathType`, 1), annotationType: integer(leader.annotationType, `input.leaders[${index}].annotationType`, 3),
-      hookLineDirection: integer(leader.hookLineDirection, `input.leaders[${index}].hookLineDirection`, 1), hookLineEnabled: leader.hookLineEnabled === true, ...(styleKey == null ? {} : { styleKey }) }
+      hookLineDirection: integer(leader.hookLineDirection, `input.leaders[${index}].hookLineDirection`, 1), hookLineEnabled: leader.hookLineEnabled === true,
+      ...(textHeight == null ? {} : { textHeight }), ...(textWidth == null ? {} : { textWidth }), ...(styleKey == null ? {} : { styleKey }) }
   })
   if (input.featureControlFrames != null && !Array.isArray(input.featureControlFrames)) throw new KJValidationError('input.featureControlFrames must be an array')
   if ((input.featureControlFrames as unknown[] | undefined)?.length && (input.featureControlFrames as unknown[]).length > 32) throw new KJValidationError('input.featureControlFrames exceed their budget')
@@ -1134,7 +1140,8 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   }, 'dimensions') }
   for (const leader of input.leaders) { const style = styled(leader.styleKey, 'notes'); emit('LEADER', { vertices: leader.vertices.map(([x, y]) => p3(x, y)), annotationId: null, ownsAnnotation: false,
     arrowEnabled: leader.arrowEnabled !== false, pathType: leader.pathType ?? 0, annotationType: leader.annotationType ?? 3,
-    hookLineDirection: leader.hookLineDirection ?? 0, hookLineEnabled: leader.hookLineEnabled === true, layerId: style.layerId }, style.name) }
+    hookLineDirection: leader.hookLineDirection ?? 0, hookLineEnabled: leader.hookLineEnabled === true,
+    ...(leader.textHeight == null ? {} : { textHeight: leader.textHeight }), ...(leader.textWidth == null ? {} : { textWidth: leader.textWidth }), layerId: style.layerId }, style.name) }
   return {
     commandArgs: { entities, resources: {
       linetypes,

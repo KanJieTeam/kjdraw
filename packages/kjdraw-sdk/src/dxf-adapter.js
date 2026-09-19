@@ -3107,6 +3107,7 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
     } else if (entity.type === 'LEADER') {
         const annotation = p.unresolvedLeaderAnnotation ? null : p.annotationId ? resources.objects?.get(String(p.annotationId)) : null;
         if (p.annotationId && (!annotation || annotation.erased || annotation.kind !== 'entity' || annotation.type !== 'MTEXT' || annotation.ownerId !== entity.ownerId)) throw new KJValidationError('DXF LEADER annotation must reference live MTEXT in the same owner space');
+        const textHeight = annotation?.payload.height ?? p.textHeight, textWidth = annotation?.payload.width ?? p.textWidth;
         emitSubclass(output, version, 'AcDbLeader');
         emit(output, 3, 'STANDARD');
         emit(output, 71, p.arrowEnabled === false ? 0 : 1);
@@ -3114,8 +3115,8 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emit(output, 73, annotation ? 0 : p.unresolvedLeaderAnnotation ? 3 : p.annotationType ?? 3);
         emit(output, 74, p.hookLineDirection ?? 0);
         emit(output, 75, p.hookLineEnabled === true ? 1 : 0);
-        if (annotation?.payload.height != null) emit(output, 40, annotation.payload.height);
-        if (annotation?.payload.width != null) emit(output, 41, annotation.payload.width);
+        if (textHeight != null) emit(output, 40, textHeight);
+        if (textWidth != null) emit(output, 41, textWidth);
         emit(output, 76, entityVertices.length);
         for (const value of entityVertices)emitPoint(output, vertexPoint(value));
         emitPoint(output, p.horizontalDirection ?? [
