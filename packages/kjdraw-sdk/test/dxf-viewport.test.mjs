@@ -88,6 +88,16 @@ test('viewport export rejects missing or cross-space typed references and unsupp
   }
 })
 
+test('viewport export drops stale optional dictionary and visual-style handles without replaying them',async()=>{
+  const sdk=createKJDrawSDK(),document=sdk.createDocument(),layout=await sdk.executeCommand('LAYOUT',{operation:'create',name:'Detail'})
+  const viewport=await sdk.executeCommand('VIEWPORT',{layoutId:layout.id,center:[50,40],width:80,height:60,viewCenter:[12,-5],viewHeight:75})
+  await sdk.executeCommand('VIEWPORT',{operation:'update',id:viewport.id,patch:{rawTags:[{code:102,value:'{ACAD_XDICTIONARY'},{code:360,value:'DEADBEEF'},{code:102,value:'}'},{code:348,value:'BADF00D'},{code:72,value:'321'}]}})
+  const adapter=createDXFFileAdapter(),output=adapter.write(document,{version:'2018'})
+  assert.doesNotMatch(output,/DEADBEEF|BADF00D/)
+  const reopened=await adapter.read(output),next=reopened.listEntities({type:'VIEWPORT'}).find(entity=>entity.payload.viewportId!==1)
+  assert.ok(next);assert.ok(next.payload.rawTags.some(tag=>tag.code===72&&tag.value==='321'))
+})
+
 test('viewport normalization rejects malformed controls and canonicalizes boolean aliases for later updates',async()=>{
   const sdk=createKJDrawSDK(),document=sdk.createDocument(),layout=await sdk.executeCommand('LAYOUT',{operation:'create',name:'Detail'})
   const viewport=await sdk.executeCommand('VIEWPORT',{layoutId:layout.id,center:[50,40],width:80,height:60,viewCenter:[0,0],viewHeight:75})

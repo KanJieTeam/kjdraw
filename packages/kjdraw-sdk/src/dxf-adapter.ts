@@ -1856,7 +1856,13 @@ function emitEntity(
       for (const tag of p.dxfAttributeExtraTags as readonly DxfTag[]) {
         // Preserve uninterpreted scalar fields in their original subclass. Never
         // guess that its 71/72 codes are AcDbText mirror/alignment properties.
-        if (![71,72].includes(tag.code) || typeof tag.value !== 'string' || !/^\s*[+-]?\d+\s*$/.test(tag.value)) throw new KJValidationError('Unsupported attribute subclass metadata cannot be exported without loss')
+        const integer = [71,72,1070,1071].includes(tag.code) && typeof tag.value === 'string' && /^\s*[+-]?\d+\s*$/.test(tag.value)
+        const numericScalar = [10,11,20,21,30,31,40,41,42,43,44,45,46,1040,1041,1042].includes(tag.code)
+          && typeof tag.value === 'string' && tag.value.trim() !== '' && Number.isFinite(Number(tag.value))
+        const boundedText = [1,101,1000,1001,1002,1003,1005].includes(tag.code) && typeof tag.value === 'string'
+          && tag.value.length <= 16384 && !/[\u0000\r\n]/.test(tag.value)
+        const binary = tag.code === 1004 && typeof tag.value === 'string' && tag.value.length <= 508 && /^[\da-f]*$/i.test(tag.value)
+        if (!integer && !numericScalar && !boundedText && !binary) throw new KJValidationError('Unsupported attribute subclass metadata cannot be exported without loss')
         emit(output, tag.code, tag.value)
       }
     }
@@ -1870,10 +1876,11 @@ function emitEntity(
   }
   else if (entity.type === 'SOLID') { emitSubclass(output, version, 'AcDbTrace'); entityVertices.forEach((value, index) => emitPoint(output, vertexPoint(value), 10 + index)) }
   else if (entity.type === 'LEADER') {
-    if (p.unresolvedLeaderAnnotation) throw new KJValidationError(`DXF LEADER has an unresolved annotation reference: ${p.unresolvedLeaderAnnotation}`)
-    const annotation = p.annotationId ? resources.objects?.get(String(p.annotationId)) : null
+    // Keep editable leader geometry even when an imported annotation handle is dangling.
+    // Omitting only the invalid association lets the complete drawing export as valid DXF.
+    const annotation = p.unresolvedLeaderAnnotation ? null : p.annotationId ? resources.objects?.get(String(p.annotationId)) : null
     if (p.annotationId && (!annotation || annotation.erased || annotation.kind !== 'entity' || annotation.type !== 'MTEXT' || annotation.ownerId !== entity.ownerId)) throw new KJValidationError('DXF LEADER annotation must reference live MTEXT in the same owner space')
-    emitSubclass(output, version, 'AcDbLeader'); emit(output, 3, 'STANDARD'); emit(output, 71, p.arrowEnabled === false ? 0 : 1); emit(output, 72, p.pathType ?? 0); emit(output, 73, annotation ? 0 : p.annotationType ?? 3); emit(output, 74, p.hookLineDirection ?? 0); emit(output, 75, p.hookLineEnabled === true ? 1 : 0); if (annotation?.payload.height != null) emit(output, 40, annotation.payload.height); if (annotation?.payload.width != null) emit(output, 41, annotation.payload.width); emit(output, 76, entityVertices.length); for (const value of entityVertices) emitPoint(output, vertexPoint(value)); emitPoint(output, p.horizontalDirection ?? [1, 0, 0], 211); if (p.blockOffset) emitPoint(output, p.blockOffset, 212); if (p.annotationOffset) emitPoint(output, p.annotationOffset, 213); if (annotation) emit(output, 340, annotation.handle)
+    emitSubclass(output, version, 'AcDbLeader'); emit(output, 3, 'STANDARD'); emit(output, 71, p.arrowEnabled === false ? 0 : 1); emit(output, 72, p.pathType ?? 0); emit(output, 73, annotation ? 0 : p.unresolvedLeaderAnnotation ? 3 : p.annotationType ?? 3); emit(output, 74, p.hookLineDirection ?? 0); emit(output, 75, p.hookLineEnabled === true ? 1 : 0); if (annotation?.payload.height != null) emit(output, 40, annotation.payload.height); if (annotation?.payload.width != null) emit(output, 41, annotation.payload.width); emit(output, 76, entityVertices.length); for (const value of entityVertices) emitPoint(output, vertexPoint(value)); emitPoint(output, p.horizontalDirection ?? [1, 0, 0], 211); if (p.blockOffset) emitPoint(output, p.blockOffset, 212); if (p.annotationOffset) emitPoint(output, p.annotationOffset, 213); if (annotation) emit(output, 340, annotation.handle)
   }
   else if (entity.type === 'DIMENSION') {
     if (!p.definitionPoints?.length) throw new KJValidationError('DXF DIMENSION requires at least one definition point')
@@ -1938,11 +1945,20 @@ function emitEntity(
     // Preserve unmodeled scalar tags, but do not replay stale canonical coordinates or
     // unremapped graph references/XDATA. Such data remains in rawTags for recovery.
     const canonical = new Set([5,6,8,48,60,62,67,330,370,410,420,100,10,20,30,40,41,68,69,12,22,32,16,26,36,17,27,37,42,43,44,45,51,90,331,340,210,220,230])
+    let skipExtensionDictionary = false
     for (const tag of p.rawTags ?? []) {
       if (canonical.has(tag.code)) continue
+      if (tag.code === 102 && tag.value === '{ACAD_XDICTIONARY') { skipExtensionDictionary = true; continue }
+      if (skipExtensionDictionary) { if (tag.code === 102 && tag.value === '}') skipExtensionDictionary = false; continue }
+      // These imported hard pointers identify optional dictionaries or viewport
+      // plot/visual-style objects that are not part of KJDraw's remapped graph.
+      // Dropping them is safer than replaying stale handles and preserves all
+      // modeled viewport geometry, layer freezes and clipping references.
+      if (tag.code === 348 || tag.code === 360) continue
       if (tag.code === 102 || tag.code >= 1000 || ((tag.code >= 320 && tag.code <= 369 || tag.code >= 390 && tag.code <= 399 || tag.code === 480 || tag.code === 481) && tag.value !== '0')) throw new KJValidationError('Cannot safely export unsupported VIEWPORT raw reference or XDATA')
       emit(output, tag.code, tag.value)
     }
+    if (skipExtensionDictionary) throw new KJValidationError('Cannot safely export malformed VIEWPORT extension dictionary tags')
   }
   emitEntityExtrusion(output, p)
   const dimensionStyle = entity.type === 'DIMENSION' ? resources.dimensions?.get(entity.handle) : undefined

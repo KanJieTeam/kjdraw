@@ -60,10 +60,10 @@ test('DXF attribute sequences reject broken ownership, missing termination, unsu
 })
 
 test('ATTRIB subclass codes never override AcDbText generation or alignment and opaque scalar fields survive export',async()=>{
-  const source=fixture().replace('51\n10\n71\n1\n72','51\n10\n72').replace('70\n0\n74\n2','70\n0\n74\n2\n71\n1\n72\n0')
+  const source=fixture().replace('51\n10\n71\n1\n72','51\n10\n72').replace('70\n0\n74\n2','70\n0\n74\n2\n71\n1\n72\n0\n11\n24\n21\n35\n31\n0\n1001\nSYNTHETIC_ATTRIBUTE_DATA\n1070\n1\n1041\n12.5')
   const adapter=createDXFFileAdapter(),document=await adapter.read(source),attribute=attributes(document).values[0]
   assert.equal(attribute.payload.generationFlags,0);assert.equal(attribute.payload.horizontalAlignment,1)
-  assert.deepEqual(attribute.payload.dxfAttributeExtraTags,[{code:71,value:'1'},{code:72,value:'0'}])
+  assert.deepEqual(attribute.payload.dxfAttributeExtraTags,[{code:71,value:'1'},{code:72,value:'0'},{code:11,value:'24'},{code:21,value:'35'},{code:31,value:'0'},{code:1001,value:'SYNTHETIC_ATTRIBUTE_DATA'},{code:1070,value:'1'},{code:1041,value:'12.5'}])
   const reopened=await adapter.read(adapter.write(document,{version:'2018'})),next=attributes(reopened).values[0]
   assert.equal(next.payload.generationFlags,0);assert.equal(next.payload.horizontalAlignment,1)
   assert.deepEqual(next.payload.dxfAttributeExtraTags,attribute.payload.dxfAttributeExtraTags)

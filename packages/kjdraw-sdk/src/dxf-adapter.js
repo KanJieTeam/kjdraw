@@ -3052,10 +3052,41 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         if (p.dxfAttributeExtraTags != null) {
             if (!Array.isArray(p.dxfAttributeExtraTags)) throw new KJValidationError('Invalid opaque attribute subclass tags');
             for (const tag of p.dxfAttributeExtraTags){
-                if (![
+                const integer = [
                     71,
-                    72
-                ].includes(tag.code) || typeof tag.value !== 'string' || !/^\s*[+-]?\d+\s*$/.test(tag.value)) throw new KJValidationError('Unsupported attribute subclass metadata cannot be exported without loss');
+                    72,
+                    1070,
+                    1071
+                ].includes(tag.code) && typeof tag.value === 'string' && /^\s*[+-]?\d+\s*$/.test(tag.value);
+                const numericScalar = [
+                    10,
+                    11,
+                    20,
+                    21,
+                    30,
+                    31,
+                    40,
+                    41,
+                    42,
+                    43,
+                    44,
+                    45,
+                    46,
+                    1040,
+                    1041,
+                    1042
+                ].includes(tag.code) && typeof tag.value === 'string' && tag.value.trim() !== '' && Number.isFinite(Number(tag.value));
+                const boundedText = [
+                    1,
+                    101,
+                    1000,
+                    1001,
+                    1002,
+                    1003,
+                    1005
+                ].includes(tag.code) && typeof tag.value === 'string' && tag.value.length <= 16384 && !/[\u0000\r\n]/.test(tag.value);
+                const binary = tag.code === 1004 && typeof tag.value === 'string' && tag.value.length <= 508 && /^[\da-f]*$/i.test(tag.value);
+                if (!integer && !numericScalar && !boundedText && !binary) throw new KJValidationError('Unsupported attribute subclass metadata cannot be exported without loss');
                 emit(output, tag.code, tag.value);
             }
         }
@@ -3074,14 +3105,13 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emitSubclass(output, version, 'AcDbTrace');
         entityVertices.forEach((value, index)=>emitPoint(output, vertexPoint(value), 10 + index));
     } else if (entity.type === 'LEADER') {
-        if (p.unresolvedLeaderAnnotation) throw new KJValidationError(`DXF LEADER has an unresolved annotation reference: ${p.unresolvedLeaderAnnotation}`);
-        const annotation = p.annotationId ? resources.objects?.get(String(p.annotationId)) : null;
+        const annotation = p.unresolvedLeaderAnnotation ? null : p.annotationId ? resources.objects?.get(String(p.annotationId)) : null;
         if (p.annotationId && (!annotation || annotation.erased || annotation.kind !== 'entity' || annotation.type !== 'MTEXT' || annotation.ownerId !== entity.ownerId)) throw new KJValidationError('DXF LEADER annotation must reference live MTEXT in the same owner space');
         emitSubclass(output, version, 'AcDbLeader');
         emit(output, 3, 'STANDARD');
         emit(output, 71, p.arrowEnabled === false ? 0 : 1);
         emit(output, 72, p.pathType ?? 0);
-        emit(output, 73, annotation ? 0 : p.annotationType ?? 3);
+        emit(output, 73, annotation ? 0 : p.unresolvedLeaderAnnotation ? 3 : p.annotationType ?? 3);
         emit(output, 74, p.hookLineDirection ?? 0);
         emit(output, 75, p.hookLineEnabled === true ? 1 : 0);
         if (annotation?.payload.height != null) emit(output, 40, annotation.payload.height);
@@ -3235,11 +3265,22 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
             220,
             230
         ]);
+        let skipExtensionDictionary = false;
         for (const tag of p.rawTags ?? []){
             if (canonical.has(tag.code)) continue;
+            if (tag.code === 102 && tag.value === '{ACAD_XDICTIONARY') {
+                skipExtensionDictionary = true;
+                continue;
+            }
+            if (skipExtensionDictionary) {
+                if (tag.code === 102 && tag.value === '}') skipExtensionDictionary = false;
+                continue;
+            }
+            if (tag.code === 348 || tag.code === 360) continue;
             if (tag.code === 102 || tag.code >= 1000 || (tag.code >= 320 && tag.code <= 369 || tag.code >= 390 && tag.code <= 399 || tag.code === 480 || tag.code === 481) && tag.value !== '0') throw new KJValidationError('Cannot safely export unsupported VIEWPORT raw reference or XDATA');
             emit(output, tag.code, tag.value);
         }
+        if (skipExtensionDictionary) throw new KJValidationError('Cannot safely export malformed VIEWPORT extension dictionary tags');
     }
     emitEntityExtrusion(output, p);
     const dimensionStyle = entity.type === 'DIMENSION' ? resources.dimensions?.get(entity.handle) : undefined;

@@ -78,6 +78,18 @@ print(json.dumps({'vertices':[list(v) for v in leader.vertices], 'arrow':leader.
   }
 })
 
+test('imported LEADER with a dangling annotation handle exports its intact geometry without the stale association',async()=>{
+  const source=[0,'SECTION',2,'HEADER',9,'$ACADVER',1,'AC1032',0,'ENDSEC',0,'SECTION',2,'ENTITIES',
+    0,'LEADER',5,'A1',8,'0',100,'AcDbLeader',3,'STANDARD',71,1,72,0,73,0,74,0,75,0,76,3,
+    10,0,20,0,30,0,10,10,20,5,30,0,10,20,20,5,30,0,211,1,221,0,231,0,340,'DEAD',0,'ENDSEC',0,'EOF',''].join('\n')
+  const sdk=createKJDrawSDK(),document=await sdk.readDocument(source,{format:'DXF'}),leader=document.listEntities({type:'LEADER'})[0]
+  assert.equal(leader.payload.unresolvedLeaderAnnotation,'DEAD')
+  const output=String(await sdk.writeDocument(document,{format:'DXF',version:'2018'}))
+  assert.doesNotMatch(output,/\n340\nDEAD\n/)
+  const reopened=await sdk.readDocument(output,{format:'DXF'}),next=reopened.listEntities({type:'LEADER'})[0]
+  assert.deepEqual(next.payload.vertices,leader.payload.vertices);assert.equal(next.payload.annotationId,null);assert.equal(next.payload.annotationType,3)
+})
+
 test('LEADER validation, stale edits and protected layers reject atomically', async t => {
   for (const args of [
     { vertices: [[0, 0], [0, 0]], text: 'bad' }, { vertices: [[0, 0], [1, 1]], text: '' },
