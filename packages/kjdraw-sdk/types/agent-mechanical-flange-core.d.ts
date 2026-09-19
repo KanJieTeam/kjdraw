@@ -245,6 +245,14 @@ export type KJFlangeSymbolMember = {
     styleKey?: string;
     role: KJFlangeAuxiliaryLine['role'];
     entityStyleKey?: string;
+} | {
+    kind: 'instance';
+    symbolKey: string;
+    position: Point2;
+    scale?: Point2;
+    rotation?: number;
+    role: KJFlangeAuxiliaryLine['role'];
+    entityStyleKey?: string;
 };
 export interface KJFlangeSymbolDefinition {
     key: string;
@@ -451,7 +459,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
                 name: string;
                 basePoint: Point3;
                 entities: {
-                    type: "ARC" | "CIRCLE" | "LINE" | "MTEXT";
+                    type: "ARC" | "CIRCLE" | "INSERT" | "LINE" | "MTEXT";
                     payload: Record<string, unknown>;
                     options: {
                         id: string;

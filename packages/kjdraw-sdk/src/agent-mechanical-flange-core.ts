@@ -102,6 +102,7 @@ export type KJFlangeSymbolMember =
   | { kind: 'circle'; center: Point2; radius: number; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
   | { kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; clockwise?: boolean; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
   | { kind: 'multiline-text'; text: string; position: Point2; height: number; rotation?: number; width?: number; attachmentPoint?: number; styleKey?: string; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
+  | { kind: 'instance'; symbolKey: string; position: Point2; scale?: Point2; rotation?: number; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
 
 export interface KJFlangeSymbolDefinition {
   key: string
@@ -690,7 +691,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   })
   const symbolSource = input.symbols == null ? { definitions: [], instances: [] } : plain(input.symbols, 'input.symbols')
   exact(symbolSource, ['definitions', 'instances'], 'input.symbols')
-  if (!Array.isArray(symbolSource.definitions) || symbolSource.definitions.length > 16) throw new KJValidationError('input.symbols.definitions must contain at most 16 items')
+  if (!Array.isArray(symbolSource.definitions) || symbolSource.definitions.length > 32) throw new KJValidationError('input.symbols.definitions must contain at most 32 items')
   if (!Array.isArray(symbolSource.instances) || symbolSource.instances.length > 64) throw new KJValidationError('input.symbols.instances must contain at most 64 items')
   const symbolKeys = new Set<string>()
   let symbolMemberCount = 0, symbolTextCharacters = 0
@@ -737,6 +738,16 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
         return { kind: 'multiline-text', text: member.text, position: point(member.position, `${memberLabel}.position`),
           height: finite(member.height, `${memberLabel}.height`, 0.000_001, 100_000), rotation: member.rotation == null ? 0 : finite(member.rotation, `${memberLabel}.rotation`, -Math.PI * 4, Math.PI * 4),
           ...(member.width == null ? {} : { width: finite(member.width, `${memberLabel}.width`, 0.000_001, 1_000_000) }), attachmentPoint, ...(styleKey == null ? {} : { styleKey }), role,
+           ...(entityStyleKeyValue == null ? {} : { entityStyleKey: entityStyleKeyValue }) }
+      }
+      if (member.kind === 'instance') {
+        exact(member, ['kind', 'symbolKey', 'position', 'scale', 'rotation', 'role', 'entityStyleKey'], memberLabel)
+        if (typeof member.symbolKey !== 'string' || !member.symbolKey.trim() || member.symbolKey.length > 96 || /[\u0000-\u001f\u007f]/u.test(member.symbolKey)) throw new KJValidationError(`${memberLabel}.symbolKey must be bounded printable text`)
+        const scaleSource = member.scale ?? [1, 1]
+        if (!Array.isArray(scaleSource) || scaleSource.length !== 2) throw new KJValidationError(`${memberLabel}.scale must contain two coordinates`)
+        const scale: Point2 = [finite(scaleSource[0], `${memberLabel}.scale[0]`, 0.000_001, 1_000_000), finite(scaleSource[1], `${memberLabel}.scale[1]`, 0.000_001, 1_000_000)]
+        return { kind: 'instance', symbolKey: member.symbolKey, position: point(member.position, `${memberLabel}.position`), scale,
+          rotation: member.rotation == null ? 0 : finite(member.rotation, `${memberLabel}.rotation`, -Math.PI * 4, Math.PI * 4), role,
           ...(entityStyleKeyValue == null ? {} : { entityStyleKey: entityStyleKeyValue }) }
       }
       throw new KJValidationError(`${memberLabel}.kind is invalid`)
@@ -753,6 +764,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     return { symbolKey: instance.symbolKey, position: point(instance.position, `${label}.position`), scale,
       rotation: instance.rotation == null ? 0 : finite(instance.rotation, `${label}.rotation`, -Math.PI * 4, Math.PI * 4), role: symbolRole(instance.role, `${label}.role`), ...(styleKey == null ? {} : { styleKey }) }
   })
+  for (const definition of symbolDefinitions) for (const member of definition.members) if (member.kind === 'instance' && !symbolKeys.has(member.symbolKey)) throw new KJValidationError(`input.symbols.definitions[${definition.key}].members instance must reference a definition`)
   const styleRole = (value: unknown, label: string): KJFlangeStyleRole => {
     if (value == null) return {}
     const role = plain(value, label); exact(role, ['layerName', 'color', 'lineweight', 'linetypeName', 'linetypePattern'], label)
@@ -916,17 +928,22 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       closed: curve.closed === true, periodic: curve.periodic === true, layerId: style.layerId }, style.name)
   }
   const symbolBlockByKey = new Map<string, { id: string }>()
+  for (const [definitionIndex, definition] of input.symbolDefinitions.entries()) {
+    const token = stableHash({ basePoint: definition.basePoint, members: definition.members }).slice(0, 12)
+    symbolBlockByKey.set(definition.key, { id: `${prefix}-symbol-${String(definitionIndex + 1).padStart(2, '0')}-${token}` })
+  }
   const blocks = input.symbolDefinitions.map((definition, definitionIndex) => {
     const token = stableHash({ basePoint: definition.basePoint, members: definition.members }).slice(0, 12)
-    const id = `${prefix}-symbol-${String(definitionIndex + 1).padStart(2, '0')}-${token}`
-    symbolBlockByKey.set(definition.key, { id })
+    const id = symbolBlockByKey.get(definition.key)!.id
     const members = definition.members.map((member, memberIndex) => {
       let type: Entity['type'], payload: Record<string, unknown>; const entityStyle = styled(member.entityStyleKey, member.role)
       if (member.kind === 'line') { type = 'LINE'; payload = { start: p3(...member.start), end: p3(...member.end), layerId: entityStyle.layerId } }
       else if (member.kind === 'circle') { type = 'CIRCLE'; payload = { center: p3(...member.center), radius: member.radius, layerId: entityStyle.layerId } }
       else if (member.kind === 'arc') { type = 'ARC'; payload = { center: p3(...member.center), radius: member.radius, startAngle: member.startAngle, endAngle: member.endAngle, clockwise: member.clockwise === true, layerId: entityStyle.layerId } }
-      else { const style = member.styleKey == null ? null : textStyleByKey.get(member.styleKey)!; type = 'MTEXT'; payload = { position: p3(...member.position), text: member.text, height: member.height, rotation: member.rotation ?? 0,
+      else if (member.kind === 'multiline-text') { const style = member.styleKey == null ? null : textStyleByKey.get(member.styleKey)!; type = 'MTEXT'; payload = { position: p3(...member.position), text: member.text, height: member.height, rotation: member.rotation ?? 0,
         attachmentPoint: member.attachmentPoint ?? 1, ...(member.width == null ? {} : { width: member.width }), ...(style == null ? {} : { styleId: style.id }), layerId: entityStyle.layerId } }
+      else { type = 'INSERT'; payload = { blockRecordId: symbolBlockByKey.get(member.symbolKey)!.id, position: p3(...member.position), scale: [member.scale?.[0] ?? 1, member.scale?.[1] ?? 1, 1], rotation: member.rotation ?? 0,
+        attributes: {}, attributeIds: [], sequenceEndId: null, layerId: entityStyle.layerId } }
       return { type, payload: stylePayload(payload, entityStyle.name), options: { id: `${id}-member-${String(memberIndex + 1).padStart(2, '0')}` } }
     })
     return { id, name: `KJ_FLANGE_SYMBOL_${String(definitionIndex + 1).padStart(2, '0')}_${token.toUpperCase()}`, basePoint: p3(...definition.basePoint), entities: members }

@@ -1775,7 +1775,7 @@ function createBatchResources(document: KJDocument, transaction: KJTransaction, 
   const resourceKeys = Object.keys(resources).sort()
   if (!['layers', 'linetypes'].every(key => resourceKeys.includes(key)) || resourceKeys.some(key => !['blocks', 'dimensionStyles', 'layers', 'linetypes', 'textStyles'].includes(key))) throw new KJValidationError('CREATEBATCH resource fields do not match the declared format')
   const blocks = resources.blocks ?? [], textStyles = resources.textStyles ?? [], dimensionStyles = resources.dimensionStyles ?? []
-  for (const group of [resources.linetypes, resources.layers, textStyles, dimensionStyles, blocks]) if (!Array.isArray(group) || group.length > 16) throw new KJValidationError('CREATEBATCH resources allow at most 16 records per table')
+  for (const group of [resources.linetypes, resources.layers, textStyles, dimensionStyles, blocks]) if (!Array.isArray(group) || group.length > 32) throw new KJValidationError('CREATEBATCH resources allow at most 32 records per table')
   const ids = new Set<string>(), linetypes = new Map(document.getTable('linetypes')!.records.filter(item => !item.erased).map(item => [item.id, item.name!]))
   const validateIdentity = (value: { id: string; name: string }, names: Set<string>): void => {
     if (typeof value.id !== 'string' || !value.id.trim() || value.id.length > 256 || value.id !== value.id.trim() || /[\u0000-\u001f\u007f]/.test(value.id) || ['__proto__', 'constructor', 'prototype'].includes(value.id)) throw new KJValidationError('CREATEBATCH resource IDs must be bounded nonempty data strings')
@@ -1837,6 +1837,16 @@ function createBatchResources(document: KJDocument, transaction: KJTransaction, 
     finiteField(record, 'dxfFlags', 0, 65535, 'CREATEBATCH dimension style', true)
   }
   const blockNames = new Set(document.getTable('blockRecords')!.records.map(item => normalizeName(String(item.name))))
+  const blockIds = new Set([...document.getTable('blockRecords')!.records.filter(item => !item.erased).map(item => item.id), ...blocks.map(block => block.id)])
+  const blockEdges = new Map(blocks.map(block => [block.id, block.entities.filter(spec => normalizeName(spec.type) === 'INSERT').map(spec => String(spec.payload?.blockRecordId ?? ''))]))
+  const blockVisit = new Set<string>(), blockStack = new Set<string>()
+  const visitBlock = (id: string): void => {
+    if (blockStack.has(id)) throw new KJValidationError('CREATEBATCH block resources cannot contain nested cycles')
+    if (blockVisit.has(id)) return
+    blockStack.add(id)
+    for (const child of blockEdges.get(id) ?? []) if (blockEdges.has(child)) visitBlock(child)
+    blockStack.delete(id); blockVisit.add(id)
+  }
   const explicitEntityIds = new Set<string>()
   const validateExplicitEntityId = (spec: KJEntityBatchSpec, label: string, required: boolean): void => {
     const id = spec.options?.id
@@ -1852,7 +1862,11 @@ function createBatchResources(document: KJDocument, transaction: KJTransaction, 
     for (const [memberIndex, spec] of block.entities.entries()) {
       fields(spec, ['type', 'payload', 'options'])
       if (typeof spec.type !== 'string' || !spec.type.trim()) throw new KJValidationError('CREATEBATCH block entity type is required')
-      if (normalizeName(spec.type) === 'INSERT' || ['ATTRIB', 'SEQEND'].includes(normalizeName(spec.type))) throw new KJValidationError('CREATEBATCH v1 blocks do not support nested or attached entities')
+      if (['ATTRIB', 'SEQEND'].includes(normalizeName(spec.type))) throw new KJValidationError('CREATEBATCH blocks do not support attached entities')
+      if (normalizeName(spec.type) === 'INSERT') {
+        const blockRecordId = spec.payload?.blockRecordId
+        if (typeof blockRecordId !== 'string' || !blockIds.has(blockRecordId)) throw new KJValidationError('CREATEBATCH nested INSERT blockRecordId must reference a declared or existing block definition')
+      }
       fields(spec.options, ['id'])
       validateExplicitEntityId(spec, `CREATEBATCH resources.blocks[${index}].entities[${memberIndex}]`, true)
       if (spec.payload?.layerId !== undefined && !new Set([...document.getTable('layers')!.records.filter(item => !item.erased).map(item => item.id), ...resources.layers.map(item => item.id)]).has(String(spec.payload.layerId))) throw new KJValidationError('CREATEBATCH block entity layerId must reference the layer table')
@@ -1860,8 +1874,11 @@ function createBatchResources(document: KJDocument, transaction: KJTransaction, 
       if (spec.payload?.lineweight !== undefined && !BATCH_LINEWEIGHTS.has(Number(spec.payload.lineweight))) throw new KJValidationError('CREATEBATCH block entity lineweight must be supported')
       if (resources.textStyles != null && ['TEXT', 'MTEXT', 'ATTDEF', 'ATTRIB'].includes(normalizeName(spec.type)) && spec.payload?.styleId !== undefined && !new Set([...document.getTable('textStyles')!.records.filter(item => !item.erased).map(item => item.id), ...textStyles.map(item => item.id)]).has(String(spec.payload.styleId))) throw new KJValidationError('CREATEBATCH block text styleId must reference the text style table')
       if (resources.dimensionStyles != null && ['DIMENSION', 'TOLERANCE'].includes(normalizeName(spec.type)) && spec.payload?.styleId !== undefined && !new Set([...document.getTable('dimensionStyles')!.records.filter(item => !item.erased).map(item => item.id), ...dimensionStyles.map(item => item.id)]).has(String(spec.payload.styleId))) throw new KJValidationError('CREATEBATCH block dimension styleId must reference the dimension style table')
-      if (Object.keys(spec.payload ?? {}).some(key => BLOCK_RELATION_FIELDS.has(key))) throw new KJValidationError('CREATEBATCH block entities cannot supply ownership or attachment relationships')
+      if (normalizeName(spec.type) === 'INSERT') {
+        if ((spec.payload?.attributeIds as unknown[] | undefined)?.length || spec.payload?.sequenceEndId != null || spec.payload?.parentInsertId != null) throw new KJValidationError('CREATEBATCH nested INSERT cannot supply attached entity relationships')
+      } else if (Object.keys(spec.payload ?? {}).some(key => BLOCK_RELATION_FIELDS.has(key))) throw new KJValidationError('CREATEBATCH block entities cannot supply ownership or attachment relationships')
     }
+    visitBlock(block.id)
   }
   for (const spec of modelSpecs) validateExplicitEntityId(spec, 'CREATEBATCH entity', false)
   for (const type of resources.linetypes) transaction.upsertTableRecord('linetypes', { id: type.id, name: type.name, type: 'LINETYPE', payload: { description: '', pattern: clone(type.pattern), totalPatternLength: type.pattern.reduce((sum, segment) => sum + Math.abs(segment), 0), dxfFlags: 0 } })
@@ -1869,8 +1886,9 @@ function createBatchResources(document: KJDocument, transaction: KJTransaction, 
   for (const style of textStyles) transaction.upsertTableRecord('textStyles', { id: style.id, name: style.name, type: 'TEXT_STYLE', payload: clone(style.payload) })
   for (const style of dimensionStyles) transaction.upsertTableRecord('dimensionStyles', { id: style.id, name: style.name, type: 'DIM_STYLE', payload: clone(style.payload) })
   const created: KJObjectRecord[] = []
+  const blockRecords = new Map(blocks.map(block => [block.id, transaction.upsertTableRecord('blockRecords', { id: block.id, name: block.name, type: 'BLOCK_RECORD', payload: { entityIds: [], isSpace: false, basePoint: vec3(block.basePoint, 'block basePoint'), description: null } })]))
   for (const block of blocks) {
-    const record = transaction.upsertTableRecord('blockRecords', { id: block.id, name: block.name, type: 'BLOCK_RECORD', payload: { entityIds: [], isSpace: false, basePoint: vec3(block.basePoint, 'block basePoint'), description: null } })
+    const record = blockRecords.get(block.id)!
     for (const spec of block.entities) created.push(transaction.createEntity(spec.type!, clone(spec.payload ?? {}), { id: String(spec.options!.id), ownerId: record.id }))
   }
   return created
