@@ -35,6 +35,8 @@ export interface KJFlangeSymmetricProfile {
   vertices: { station: number; radius: number }[]
   endCaps?: 'none' | 'start' | 'end' | 'both'
   styleKey?: string
+  startCapStyleKey?: string
+  endCapStyleKey?: string
 }
 
 /** Source-measured side-view geometry. Stations use drawing X coordinates;
@@ -80,6 +82,8 @@ export interface KJFlangeStyleProfile {
   hidden?: KJFlangeStyleRole
   custom?: ({ key: string } & KJFlangeStyleRole)[]
 }
+
+export type KJFlangeFrameSide = 'bottom' | 'right' | 'top' | 'left'
 
 /** Bounded source-measured line facts that do not belong to a primary view
  *  profile (for example a projection aid or a local sheet rule). */
@@ -179,9 +183,10 @@ export interface KJFlangeLeader {
 
 export type KJFlangeGeometricCharacteristic = 'position' | 'concentricity' | 'symmetry' | 'parallelism' | 'perpendicularity' | 'angularity' | 'cylindricity' | 'flatness' | 'circularity' | 'straightness' | 'surface-profile' | 'line-profile' | 'circular-runout' | 'total-runout'
 export type KJFlangeMaterialCondition = 'maximum' | 'least' | 'regardless'
+export interface KJFlangeDatumReference { label: string; materialCondition?: KJFlangeMaterialCondition; slot?: number }
 export interface KJFlangeFeatureControlFrame {
   position: Point2
-  rows: { characteristic: KJFlangeGeometricCharacteristic; tolerance: string; diameterZone?: boolean; materialCondition?: KJFlangeMaterialCondition; datumReferences?: { label: string; materialCondition?: KJFlangeMaterialCondition }[] }[]
+  rows: { characteristic: KJFlangeGeometricCharacteristic; tolerance: string; diameterZone?: boolean; materialCondition?: KJFlangeMaterialCondition; datumReferences?: KJFlangeDatumReference[] }[]
   xAxisDirection?: Point2
   styleKey?: string
   role: 'dimensions' | 'notes'
@@ -253,7 +258,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   expectedRevision: number
   units: 'millimeter'
   drawingId: string
-  endView: { center: Point2; ringRadii: number[]; squareHoles?: { pitch: number; radius: number }; holePatterns?: KJFlangePolarHolePattern[]; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
+  endView: { center: Point2; ringRadii: number[]; ringStyleKeys?: (string | null)[]; squareHoles?: { pitch: number; radius: number }; holePatterns?: KJFlangePolarHolePattern[]; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
   sideViewAxis?: { xRange: Point2; axisStyleKey?: string; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
   dimensions?: KJFlangeDimension[]
   leaders?: KJFlangeLeader[]
@@ -263,7 +268,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   symbols?: { definitions: KJFlangeSymbolDefinition[]; instances: KJFlangeSymbolInstance[] }
   styleResources?: { textStyles: KJFlangeTextStyleDefinition[]; dimensionStyles: KJFlangeDimensionStyleDefinition[] }
   styleProfile?: KJFlangeStyleProfile
-  sheet: { origin: Point2; size: Point2; inset: number; outerFrameStyleKey?: string; insetFrameStyleKey?: string; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
+  sheet: { origin: Point2; size: Point2; inset: number; outerFrameStyleKey?: string; insetFrameStyleKey?: string; outerFrameSides?: KJFlangeFrameSide[]; insetFrameSides?: KJFlangeFrameSide[]; titleGrid?: KJFlangeTitleGrid; notes?: KJFlangeSheetNote[] }
 }
 
 const finite = (value: unknown, label: string, min: number, max: number): number => {
@@ -366,10 +371,12 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     if (!entityStyleKeys.has(key)) throw new KJValidationError(`${label} must reference input.styleProfile.custom`)
     return key
   }
-  const end = plain(input.endView, 'input.endView'); exact(end, ['center', 'ringRadii', 'squareHoles', 'holePatterns', 'outlineSegments', 'cuttingPlaneMarks'], 'input.endView')
+  const end = plain(input.endView, 'input.endView'); exact(end, ['center', 'ringRadii', 'ringStyleKeys', 'squareHoles', 'holePatterns', 'outlineSegments', 'cuttingPlaneMarks'], 'input.endView')
   const center = point(end.center, 'input.endView.center')
   const ringRadii = increasing(end.ringRadii, 'input.endView.ringRadii', 16, 0.1, 100_000)
   if (ringRadii.length < 2) throw new KJValidationError('input.endView.ringRadii requires at least two radii')
+  if (end.ringStyleKeys != null && (!Array.isArray(end.ringStyleKeys) || end.ringStyleKeys.length !== ringRadii.length)) throw new KJValidationError('input.endView.ringStyleKeys must match ringRadii')
+  const ringStyleKeys = end.ringStyleKeys == null ? ringRadii.map(() => undefined) : end.ringStyleKeys.map((value, index) => entityStyleKey(value, `input.endView.ringStyleKeys[${index}]`))
   let pitch: number | undefined, radius: number | undefined
   const holePatterns: KJFlangePolarHolePattern[] = []
   if (end.squareHoles != null) {
@@ -443,7 +450,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   if ((side?.symmetricProfiles as unknown[] | undefined)?.length && (side!.symmetricProfiles as unknown[]).length > 64) throw new KJValidationError('input.sideViewAxis.symmetricProfiles exceed their budget')
   const symmetricProfiles: KJFlangeSymmetricProfile[] = ((side?.symmetricProfiles ?? []) as unknown[]).map((value, profileIndex) => {
     const profile = plain(value, `input.sideViewAxis.symmetricProfiles[${profileIndex}]`)
-    exact(profile, ['vertices', 'endCaps', 'styleKey'], `input.sideViewAxis.symmetricProfiles[${profileIndex}]`)
+    exact(profile, ['vertices', 'endCaps', 'styleKey', 'startCapStyleKey', 'endCapStyleKey'], `input.sideViewAxis.symmetricProfiles[${profileIndex}]`)
     if (!Array.isArray(profile.vertices) || profile.vertices.length < 2 || profile.vertices.length > 64) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices must contain 2 to 64 points`)
     const vertices = profile.vertices.map((vertexValue, vertexIndex) => {
       const vertex = plain(vertexValue, `input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices[${vertexIndex}]`)
@@ -460,7 +467,9 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const endCaps = profile.endCaps ?? 'none'
     if (!['none', 'start', 'end', 'both'].includes(endCaps as string)) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].endCaps is invalid`)
     const styleKey = entityStyleKey(profile.styleKey, `input.sideViewAxis.symmetricProfiles[${profileIndex}].styleKey`)
-    return { vertices, endCaps, ...(styleKey == null ? {} : { styleKey }) } as KJFlangeSymmetricProfile
+    const startCapStyleKey = entityStyleKey(profile.startCapStyleKey, `input.sideViewAxis.symmetricProfiles[${profileIndex}].startCapStyleKey`)
+    const endCapStyleKey = entityStyleKey(profile.endCapStyleKey, `input.sideViewAxis.symmetricProfiles[${profileIndex}].endCapStyleKey`)
+    return { vertices, endCaps, ...(styleKey == null ? {} : { styleKey }), ...(startCapStyleKey == null ? {} : { startCapStyleKey }), ...(endCapStyleKey == null ? {} : { endCapStyleKey }) } as KJFlangeSymmetricProfile
   })
   if (side?.outlineSegments != null && !Array.isArray(side.outlineSegments)) throw new KJValidationError('input.sideViewAxis.outlineSegments must be an array')
   if ((side?.outlineSegments as unknown[] | undefined)?.length && (side!.outlineSegments as unknown[]).length > 128) throw new KJValidationError('input.sideViewAxis.outlineSegments exceed their budget')
@@ -530,11 +539,17 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const styleKey = entityStyleKey(hatch.styleKey, `${label}.styleKey`)
     return { edges, lineAngle, lineSpacing, patternOrigin, ...(styleKey == null ? {} : { styleKey }) }
   })
-  const sheet = plain(input.sheet, 'input.sheet'); exact(sheet, ['origin', 'size', 'inset', 'outerFrameStyleKey', 'insetFrameStyleKey', 'titleGrid', 'notes'], 'input.sheet')
+  const sheet = plain(input.sheet, 'input.sheet'); exact(sheet, ['origin', 'size', 'inset', 'outerFrameStyleKey', 'insetFrameStyleKey', 'outerFrameSides', 'insetFrameSides', 'titleGrid', 'notes'], 'input.sheet')
   const sheetOrigin = point(sheet.origin, 'input.sheet.origin'), sheetSize = point(sheet.size, 'input.sheet.size')
   if (sheetSize[0] < 100 || sheetSize[1] < 100) throw new KJValidationError('input.sheet.size is too small')
   const inset = finite(sheet.inset, 'input.sheet.inset', 0, Math.min(...sheetSize) / 2 - 1)
   const outerFrameStyleKey = entityStyleKey(sheet.outerFrameStyleKey, 'input.sheet.outerFrameStyleKey'), insetFrameStyleKey = entityStyleKey(sheet.insetFrameStyleKey, 'input.sheet.insetFrameStyleKey')
+  const frameSides = (value: unknown, label: string): KJFlangeFrameSide[] => {
+    if (value == null) return ['bottom', 'right', 'top', 'left']
+    if (!Array.isArray(value) || value.length > 4 || value.some(side => !['bottom', 'right', 'top', 'left'].includes(side as string)) || new Set(value).size !== value.length) throw new KJValidationError(`${label} must contain unique frame sides`)
+    return [...value] as KJFlangeFrameSide[]
+  }
+  const outerFrameSides = frameSides(sheet.outerFrameSides, 'input.sheet.outerFrameSides'), insetFrameSides = frameSides(sheet.insetFrameSides, 'input.sheet.insetFrameSides')
   const grid = sheet.titleGrid == null ? null : plain(sheet.titleGrid, 'input.sheet.titleGrid')
   if (grid) exact(grid, ['origin', 'size', 'columns', 'partialColumns', 'rows', 'horizontalSegments', 'verticalSegments', 'topStyleKey', 'diagonalHeader'], 'input.sheet.titleGrid')
   let titleGrid: KJFlangeTitleGrid | null = null
@@ -668,13 +683,21 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       if (row.diameterZone != null && typeof row.diameterZone !== 'boolean') throw new KJValidationError(`${rowLabel}.diameterZone must be boolean`)
       if (row.datumReferences != null && !Array.isArray(row.datumReferences)) throw new KJValidationError(`${rowLabel}.datumReferences must be an array`)
       if ((row.datumReferences as unknown[] | undefined)?.length && (row.datumReferences as unknown[]).length > 4) throw new KJValidationError(`${rowLabel}.datumReferences exceed their budget`)
-      const datumReferences = ((row.datumReferences ?? []) as unknown[]).map((datumValue, datumIndex) => {
-        const datumLabel = `${rowLabel}.datumReferences[${datumIndex}]`, datum = plain(datumValue, datumLabel); exact(datum, ['label', 'materialCondition'], datumLabel)
+      const datumReferences: KJFlangeDatumReference[] = ((row.datumReferences ?? []) as unknown[]).map((datumValue, datumIndex) => {
+        const datumLabel = `${rowLabel}.datumReferences[${datumIndex}]`, datum = plain(datumValue, datumLabel); exact(datum, ['label', 'materialCondition', 'slot'], datumLabel)
         if (typeof datum.label !== 'string' || !/^[A-Z0-9]{1,8}$/u.test(datum.label)) throw new KJValidationError(`${datumLabel}.label must be 1 to 8 uppercase letters or digits`)
+        const slot = datum.slot
+        if (slot != null && (typeof slot !== 'number' || !Number.isInteger(slot) || slot < 0 || slot > 3)) throw new KJValidationError(`${datumLabel}.slot must be an integer from 0 to 3`)
         const condition = materialCondition(datum.materialCondition, `${datumLabel}.materialCondition`)
-        return { label: datum.label, ...(condition == null ? {} : { materialCondition: condition }) }
+        return { label: datum.label, ...(condition == null ? {} : { materialCondition: condition }), ...(typeof slot === 'number' ? { slot } : {}) }
       })
       const condition = materialCondition(row.materialCondition, `${rowLabel}.materialCondition`)
+      const usedSlots = new Set<number>()
+      for (const datum of datumReferences) {
+        if (datum.slot == null) continue
+        if (usedSlots.has(datum.slot)) throw new KJValidationError(`${rowLabel}.datumReferences slots must be unique`)
+        usedSlots.add(datum.slot)
+      }
       return { characteristic: row.characteristic as KJFlangeGeometricCharacteristic, tolerance: row.tolerance, diameterZone: row.diameterZone === true,
         ...(condition == null ? {} : { materialCondition: condition }), datumReferences }
     })
@@ -871,7 +894,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const source = plain(value, `input.styleProfile.custom[${index}]`), { key, ...definition } = source
     return { key: String(key), definition: styleRole(definition, `input.styleProfile.custom[${index}]`) }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameStyleKey, insetFrameStyleKey, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSides, insetFrameSides, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -936,7 +959,10 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     line([x, y], [x + w, y]); line([x + w, y], [x + w, y + h]); line([x + w, y + h], [x, y + h]); line([x, y + h], [x, y])
   }
   const [cx, cy] = input.center
-  for (const ringRadius of input.ringRadii) emit('CIRCLE', { center: p3(cx, cy), radius: ringRadius, layerId: roleIds.geometry }, 'geometry')
+  for (const [index, ringRadius] of input.ringRadii.entries()) {
+    const style = styled(input.ringStyleKeys[index], 'geometry')
+    emit('CIRCLE', { center: p3(cx, cy), radius: ringRadius, layerId: style.layerId }, style.name)
+  }
   if (input.pitch != null && input.radius != null) {
     const halfPitch = input.pitch / 2
     for (const dx of [-1, 1]) for (const dy of [-1, 1]) emit('CIRCLE', { center: p3(cx + dx * halfPitch, cy + dy * halfPitch), radius: input.radius, layerId: roleIds.geometry }, 'geometry')
@@ -971,9 +997,15 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       emit('SOLID', { vertices: [p3(...tip), p3(...a), p3(...b), p3(...b)], layerId: arrowStyle.layerId }, arrowStyle.name)
     }
   }
-  const frameRectangle = (origin: Point2, size: Point2, styleKey?: string) => { const [x, y] = origin, [w, h] = size, style = styled(styleKey, 'frame'); line([x, y], [x + w, y], style.layerId, style.name); line([x + w, y], [x + w, y + h], style.layerId, style.name); line([x + w, y + h], [x, y + h], style.layerId, style.name); line([x, y + h], [x, y], style.layerId, style.name) }
-  frameRectangle(input.sheetOrigin, input.sheetSize, input.outerFrameStyleKey)
-  if (input.inset > 0) frameRectangle([input.sheetOrigin[0] + input.inset, input.sheetOrigin[1] + input.inset], [input.sheetSize[0] - input.inset * 2, input.sheetSize[1] - input.inset * 2], input.insetFrameStyleKey)
+  const frameRectangle = (origin: Point2, size: Point2, sides: KJFlangeFrameSide[], styleKey?: string) => {
+    const [x, y] = origin, [w, h] = size, style = styled(styleKey, 'frame')
+    if (sides.includes('bottom')) line([x, y], [x + w, y], style.layerId, style.name)
+    if (sides.includes('right')) line([x + w, y], [x + w, y + h], style.layerId, style.name)
+    if (sides.includes('top')) line([x + w, y + h], [x, y + h], style.layerId, style.name)
+    if (sides.includes('left')) line([x, y + h], [x, y], style.layerId, style.name)
+  }
+  frameRectangle(input.sheetOrigin, input.sheetSize, input.outerFrameSides, input.outerFrameStyleKey)
+  if (input.inset > 0) frameRectangle([input.sheetOrigin[0] + input.inset, input.sheetOrigin[1] + input.inset], [input.sheetSize[0] - input.inset * 2, input.sheetSize[1] - input.inset * 2], input.insetFrameSides, input.insetFrameStyleKey)
   if (input.titleGrid) {
     const grid = input.titleGrid, [x, y] = grid.origin, [w, h] = grid.size
     const topStyle = styled(grid.topStyleKey, 'grid'); line([x, y + h], [x + w, y + h], topStyle.layerId, topStyle.name)
@@ -996,8 +1028,8 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       line([previous.station, cy - previous.radius], [current.station, cy - current.radius], style.layerId, style.name)
     }
     const start = profile.vertices[0]!, end = profile.vertices.at(-1)!
-    if (profile.endCaps === 'start' || profile.endCaps === 'both') line([start.station, cy - start.radius], [start.station, cy + start.radius], style.layerId, style.name)
-    if (profile.endCaps === 'end' || profile.endCaps === 'both') line([end.station, cy - end.radius], [end.station, cy + end.radius], style.layerId, style.name)
+    if (profile.endCaps === 'start' || profile.endCaps === 'both') { const capStyle = styled(profile.startCapStyleKey ?? profile.styleKey, 'geometry'); line([start.station, cy - start.radius], [start.station, cy + start.radius], capStyle.layerId, capStyle.name) }
+    if (profile.endCaps === 'end' || profile.endCaps === 'both') { const capStyle = styled(profile.endCapStyleKey ?? profile.styleKey, 'geometry'); line([end.station, cy - end.radius], [end.station, cy + end.radius], capStyle.layerId, capStyle.name) }
   }
   for (const segment of input.sideOutlineSegments) {
     const style = styled(segment.styleKey, 'geometry')
@@ -1068,9 +1100,14 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   for (const frame of input.featureControlFrames) {
     const text = frame.rows.map(row => {
       let value = `${gdt(characteristicCode[row.characteristic])}%%v${row.diameterZone ? gdt('n') : ''}${row.tolerance}${row.materialCondition ? gdt(conditionCode[row.materialCondition]) : ''}%%v`
-      let dividers = 2
-      for (const datum of row.datumReferences ?? []) { value += `${datum.label}${datum.materialCondition ? gdt(conditionCode[datum.materialCondition]) : ''}%%v`; dividers++ }
-      while (dividers < 6) { value += '%%v'; dividers++ }
+      const cells = Array<string>(4).fill('')
+      let nextSlot = 0
+      for (const datum of row.datumReferences ?? []) {
+        const slot = datum.slot ?? nextSlot
+        cells[slot] = `${datum.label}${datum.materialCondition ? gdt(conditionCode[datum.materialCondition]) : ''}`
+        nextSlot = Math.max(nextSlot, slot + 1)
+      }
+      for (const cell of cells) value += `${cell}%%v`
       return `${value}^J`
     }).join('')
     const style = frame.styleKey == null ? null : dimensionStyleByKey.get(frame.styleKey)!

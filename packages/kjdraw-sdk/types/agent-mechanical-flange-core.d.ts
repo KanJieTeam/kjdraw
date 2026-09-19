@@ -87,6 +87,8 @@ export interface KJFlangeSymmetricProfile {
     }[];
     endCaps?: 'none' | 'start' | 'end' | 'both';
     styleKey?: string;
+    startCapStyleKey?: string;
+    endCapStyleKey?: string;
 }
 /** Source-measured side-view geometry. Stations use drawing X coordinates;
  *  offsets are measured from the shared projection axis. */
@@ -173,6 +175,7 @@ export interface KJFlangeStyleProfile {
         key: string;
     } & KJFlangeStyleRole)[];
 }
+export type KJFlangeFrameSide = 'bottom' | 'right' | 'top' | 'left';
 /** Bounded source-measured line facts that do not belong to a primary view
  *  profile (for example a projection aid or a local sheet rule). */
 export interface KJFlangeAuxiliaryLine {
@@ -334,6 +337,11 @@ export interface KJFlangeLeader {
 }
 export type KJFlangeGeometricCharacteristic = 'position' | 'concentricity' | 'symmetry' | 'parallelism' | 'perpendicularity' | 'angularity' | 'cylindricity' | 'flatness' | 'circularity' | 'straightness' | 'surface-profile' | 'line-profile' | 'circular-runout' | 'total-runout';
 export type KJFlangeMaterialCondition = 'maximum' | 'least' | 'regardless';
+export interface KJFlangeDatumReference {
+    label: string;
+    materialCondition?: KJFlangeMaterialCondition;
+    slot?: number;
+}
 export interface KJFlangeFeatureControlFrame {
     position: Point2;
     rows: {
@@ -341,10 +349,7 @@ export interface KJFlangeFeatureControlFrame {
         tolerance: string;
         diameterZone?: boolean;
         materialCondition?: KJFlangeMaterialCondition;
-        datumReferences?: {
-            label: string;
-            materialCondition?: KJFlangeMaterialCondition;
-        }[];
+        datumReferences?: KJFlangeDatumReference[];
     }[];
     xAxisDirection?: Point2;
     styleKey?: string;
@@ -431,6 +436,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
     endView: {
         center: Point2;
         ringRadii: number[];
+        ringStyleKeys?: (string | null)[];
         squareHoles?: {
             pitch: number;
             radius: number;
@@ -466,6 +472,8 @@ export interface KJAgentMechanicalFlangeCoreInput {
         inset: number;
         outerFrameStyleKey?: string;
         insetFrameStyleKey?: string;
+        outerFrameSides?: KJFlangeFrameSide[];
+        insetFrameSides?: KJFlangeFrameSide[];
         titleGrid?: KJFlangeTitleGrid;
         notes?: KJFlangeSheetNote[];
     };
