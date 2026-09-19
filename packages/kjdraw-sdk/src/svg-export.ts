@@ -302,6 +302,12 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
     if (entity.type === 'CIRCLE') { const a = point(p.center), r = numeric(p.radius); if (!(r > 0)) fail('circle radius must be positive'); return `<circle cx="${a[0]}" cy="${a[1]}" r="${r}"/>` }
     if (entity.type === 'ARC') return `<path d="${arcPath(point(p.center), numeric(p.radius), numeric(p.startAngle), numeric(p.endAngle), p.clockwise === true)}"/>`
     if (entity.type === 'ELLIPSE') return `<path d="${ellipsePath(point(p.center), point(p.majorAxis), numeric(p.ratio), numeric(p.startParameter, 0), numeric(p.endParameter, TAU))}"/>`
+    if (entity.type === 'SPLINE') {
+      const points = Array.isArray(p.fitPoints) && p.fitPoints.length >= 2 ? p.fitPoints : p.controlPoints
+      if (!Array.isArray(points) || points.length < 2 || points.length > 4096) fail('spline requires 2–4096 control or fit points')
+      report.approximations.push({ entityId: entity.id, type: entity.type, reason: 'SVG renders spline through its bounded fit/control-point polyline; DXF retains native spline data' })
+      return `<polyline points="${points.map(point).map(pos).join(' ')}"${p.closed === true ? ' fill="none"' : ''}/>`
+    }
     if (entity.type === 'LWPOLYLINE' || entity.type === 'POLYLINE') { if (numeric(p.elevation, 0) || numeric(p.constantWidth, 0) || (numeric(p.dxfFlags,0)&(8|16|64))!==0) fail('polyline elevation/width is unsupported'); return `<path d="${polyPath(p.vertices ?? p.points, p.closed === true)}"/>` }
     if (entity.type === 'SOLID') return `<path d="${polyPath(Array.isArray(p.vertices)&&p.vertices.length===4?[p.vertices[0],p.vertices[1],p.vertices[3],p.vertices[2]]:p.vertices, true)}" fill="currentColor"/>`
     if (entity.type === 'TEXT' || entity.type === 'ATTRIB' || entity.type === 'ATTDEF') {
@@ -316,6 +322,24 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
       return text(entity, String(p.text ?? p.defaultValue ?? ''), position, numeric(p.height, 2.5), numeric(p.rotation, 0), ['start','middle','end'][horizontal], ['alphabetic','text-after-edge','central','text-before-edge'][vertical], stretch, textFontFamily(style, 'Microsoft YaHei,PingFang SC,WenQuanYi Zen Hei,Noto Sans CJK SC,sans-serif'))
     }
     if (entity.type === 'MTEXT') return multilineText(entity)
+    if (entity.type === 'LEADER') {
+      const vertices = Array.isArray(p.vertices) && p.vertices.length >= 2 ? p.vertices.map(point) : []
+      if (vertices.length < 2) fail('leader requires at least two vertices')
+      const path = `<polyline points="${vertices.map(pos).join(' ')}"/>`
+      let arrow = ''
+      if (p.arrowEnabled !== false) {
+        const tip = vertices[0]!, next = vertices[1]!, dx = next[0] - tip[0], dy = next[1] - tip[1], length = Math.hypot(dx, dy)
+        if (length > 1e-12) { const size = Math.max(.01, Math.min(18, Math.abs(numeric(p.arrowSize ?? p.textHeight, 2.5)))), ux = dx / length, uy = dy / length, rear: Point = [tip[0] + ux * size, tip[1] + uy * size], half = size * .36
+          const arrowPoints: Point[] = [tip, [rear[0] - uy * half, rear[1] + ux * half], [rear[0] + uy * half, rear[1] - ux * half]]
+          arrow = `<polygon points="${arrowPoints.map(pos).join(' ')}" fill="currentColor"/>` }
+      }
+      const annotation = p.annotationId ? '' : p.textPosition == null ? '' : text(entity, String(p.text ?? p.textOverride ?? ''), point(p.textPosition), numeric(p.textHeight, 2.5), numeric(p.rotation, 0), 'start', 'alphabetic')
+      return path + arrow + annotation
+    }
+    if (entity.type === 'TOLERANCE') {
+      const position = point(p.position), axis = point(p.xAxisDirection ?? [1, 0]), style = document.getObject(String(p.styleId ?? ''))?.payload ?? {}
+      return text(entity, String(p.text ?? ''), position, numeric(style.textHeight, 2.5), Math.atan2(axis[1], axis[0]), 'start', 'alphabetic')
+    }
     if (entity.type === 'DIMENSION') {
       const projection = projectDimension(p, document.getObject(String(p.styleId ?? ''))?.payload)
       if (!projection) fail('dimension subtype or definition is unsupported')
@@ -433,7 +457,7 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
         const id = String(p.blockRecordId), block = document.getObject(id)
         const attributes = insertAttributes(document, entity)
         if(Object.keys(data(p.attributes)).length&&!attributes.length||owned(entity.id).length)fail('block attributes require positioned native ATTRIB entities')
-        if(Array.isArray(p.scale)&&numeric(p.scale[2],1)!==1)fail('non-unit block Z scale is unsupported')
+        if (Array.isArray(p.scale)) numeric(p.scale[2], 1)
         if (depth >= 12 || ancestors.includes(id)) fail('block nesting or cycle budget exceeded')
         if (!block || block.kind !== 'block-record' || block.payload.isSpace) fail('invalid block reference')
         const a=point(p.position),b=point(block.payload.basePoint??[0,0]),sc=Array.isArray(p.scale)?p.scale:[p.scale??1,p.scale??1]
