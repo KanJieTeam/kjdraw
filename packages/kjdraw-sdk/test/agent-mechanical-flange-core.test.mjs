@@ -226,7 +226,9 @@ test('caller-supplied entity style keys preserve mixed native display facts and 
   const layers = new Map(proposal.commandArgs.resources.layers.map(layer => [layer.name, layer.id]))
   assert.equal(proposal.evidence.parameters.entityStyleCount, 2)
   assert.equal(proposal.commandArgs.resources.linetypes.filter(item => item.name.toUpperCase() === 'PUBLIC_DASH').length, 1)
+  const publicDashId = proposal.commandArgs.resources.linetypes.find(item => item.name.toUpperCase() === 'PUBLIC_DASH').id
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'CIRCLE' && entity.payload.radius === 12).payload.layerId, layers.get('PUBLIC_FINE'))
+  assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'CIRCLE' && entity.payload.radius === 12).payload.linetypeId, publicDashId)
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'CIRCLE' && entity.payload.radius === 28).payload.layerId, layers.get('PUBLIC_BOLD'))
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === '[45,120,0]').payload.layerId, layers.get('PUBLIC_BOLD'))
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === '[90,198,0]').payload.layerId, layers.get('PUBLIC_FINE'))
@@ -311,24 +313,30 @@ test('bounded semantic auxiliary curves compile as native editable CAD entities'
 test('generic local symbols compile as editable native blocks without source block metadata', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const symbols = { definitions: [{ key: 'local-callout', basePoint: [0, 0], members: [
-    { kind: 'line', start: [0, 0], end: [8, 0], role: 'notes' },
-    { kind: 'circle', center: [10, 0], radius: 2, role: 'notes' },
-    { kind: 'arc', center: [15, 0], radius: 3, startAngle: 0, endAngle: Math.PI, role: 'notes' },
-    { kind: 'multiline-text', text: 'REF', position: [9, 1], height: 1.5, attachmentPoint: 5, role: 'notes' },
+    { kind: 'line', start: [0, 0], end: [8, 0], role: 'notes', entityStyleKey: 'by-block' },
+    { kind: 'circle', center: [10, 0], radius: 2, role: 'notes', entityStyleKey: 'by-block' },
+    { kind: 'arc', center: [15, 0], radius: 3, startAngle: 0, endAngle: Math.PI, role: 'notes', entityStyleKey: 'by-block' },
+    { kind: 'multiline-text', text: 'REF', position: [9, 1], height: 1.5, attachmentPoint: 5, role: 'notes', entityStyleKey: 'by-block' },
   ] }], instances: [{ symbolKey: 'local-callout', position: [30, 40], scale: [1, 1], rotation: Math.PI / 6, role: 'notes' }] }
-  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols })
+  const symbolInput = { ...input(document.revision), symbols,
+    styleProfile: { custom: [{ key: 'by-block', layerName: '0', color: 0, lineweight: 0, linetypeName: 'Continuous', linetypePattern: [] }] } }
+  const proposal = buildAgentMechanicalFlangeCore(document, symbolInput)
   assert.equal(proposal.evidence.parameters.symbolDefinitionCount, 1)
   assert.equal(proposal.evidence.parameters.symbolInstanceCount, 1)
   assert.equal(proposal.commandArgs.resources.blocks.length, 1)
   assert.equal(proposal.commandArgs.resources.blocks[0].entities.length, 4)
+  assert.ok(proposal.commandArgs.resources.blocks[0].entities.every(entity => entity.payload.color === 0 && entity.payload.lineweight === 0))
+  assert.ok(proposal.commandArgs.resources.layers.every(layer => layer.color >= 1 && layer.color <= 255))
   assert.equal(JSON.stringify(proposal).includes('local-callout'), false)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
   assert.equal(document.listEntities({ type: 'INSERT' }).length, 1)
   const dxf = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
   assert.equal(dxf.listEntities({ type: 'INSERT' }).length, 1)
   assert.equal(dxf.getTable('blockRecords').records.filter(record => record.name?.startsWith('KJ_FLANGE_SYMBOL_')).length, 1)
-  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols: { definitions: [{ ...symbols.definitions[0], rawTags: [] }], instances: symbols.instances } }), /unsupported field/u)
-  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols: { definitions: symbols.definitions, instances: [{ ...symbols.instances[0], symbolKey: 'missing' }] } }), /reference a definition/u)
+  const blockRecord = dxf.getTable('blockRecords').records.find(record => record.name?.startsWith('KJ_FLANGE_SYMBOL_'))
+  assert.ok(dxf.listEntities().filter(entity => entity.ownerId === blockRecord.id).every(entity => entity.payload.color === 0 && entity.payload.lineweight === 0))
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...symbolInput, expectedRevision: document.revision, symbols: { definitions: [{ ...symbols.definitions[0], rawTags: [] }], instances: symbols.instances } }), /unsupported field/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...symbolInput, expectedRevision: document.revision, symbols: { definitions: symbols.definitions, instances: [{ ...symbols.instances[0], symbolKey: 'missing' }] } }), /reference a definition/u)
 })
 
 test('generic local symbols preserve nested block topology without attached entities', async () => {

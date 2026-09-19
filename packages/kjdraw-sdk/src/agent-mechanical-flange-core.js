@@ -1496,8 +1496,8 @@ function validate(document, source) {
         ], label);
         if (role.layerName != null && (typeof role.layerName !== 'string' || !/^[^\u0000-\u001f\u007f]{1,64}$/u.test(role.layerName))) throw new KJValidationError(`${label}.layerName must be bounded printable text`);
         if (role.linetypeName != null && (typeof role.linetypeName !== 'string' || !/^[^\u0000-\u001f\u007f]{1,64}$/u.test(role.linetypeName))) throw new KJValidationError(`${label}.linetypeName must be bounded printable text`);
-        const color = role.color == null ? undefined : finite(role.color, `${label}.color`, 1, 255);
-        if (color != null && !Number.isInteger(color)) throw new KJValidationError(`${label}.color must be an integer ACI color`);
+        const color = role.color == null ? undefined : finite(role.color, `${label}.color`, 0, 255);
+        if (color != null && !Number.isInteger(color)) throw new KJValidationError(`${label}.color must be an integer ACI color, including 0 for ByBlock`);
         const lineweight = role.lineweight == null ? undefined : finite(role.lineweight, `${label}.lineweight`, -3, 211);
         const supportedLineweights = new Set([
             -3,
@@ -1767,7 +1767,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             layers.push({
                 id: roleIds[name],
                 name: layerName,
-                color: definition.color,
+                color: definition.color === 0 ? 7 : definition.color,
                 linetypeId: id,
                 lineweight: definition.lineweight
             });
@@ -1783,11 +1783,15 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             roles[name]
         ]));
     const stylePayload = (payload, styleName)=>{
-        const style = styleName == null ? roleByLayer.get(payload.layerId) : roles[styleName];
+        const resolvedStyleName = styleName ?? Object.keys(roles).find((name)=>roleIds[name] === payload.layerId);
+        const style = resolvedStyleName == null ? roleByLayer.get(payload.layerId) : roles[resolvedStyleName];
         return style == null ? payload : {
             ...payload,
             color: style.color,
             lineweight: style.lineweight,
+            ...resolvedStyleName == null ? {} : {
+                linetypeId: linetypeIds[resolvedStyleName]
+            },
             ...style.linetypeName == null ? {} : {
                 linetypeName: style.linetypeName
             }
