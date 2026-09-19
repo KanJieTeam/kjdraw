@@ -24,7 +24,7 @@ const input = expectedRevision => ({
     { kind: 'rotated', definitionPoints: [[90, 92], [50, 110], [130, 110]], textPosition: [90, 92], rotation: 0 },
     { kind: 'diameter', definitionPoints: [[78, 150], [102, 150]], textPosition: [125, 165], textOverride: '4X DIA <>' },
   ],
-  leaders: [{ vertices: [[80, 100], [70, 90], [65, 90]], arrowEnabled: true, pathType: 0, annotationType: 3 }],
+  leaders: [{ vertices: [[80, 100], [70, 90], [65, 90]], arrowEnabled: true, pathType: 0, annotationType: 3, textHeight: 7, textWidth: 14 }],
   sheet: { origin: [0, 0], size: [400, 300], inset: 8,
     titleGrid: { origin: [240, 8], size: [152, 35], columns: [0, 20, 60],
       partialColumns: [{ offset: 100, height: 18 }], rows: [{ offset: 12 }, { offset: 24, breaks: [80] }],
@@ -52,6 +52,8 @@ test('flange knowledge pack and compiler are source-neutral and deterministic', 
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'ARC').length, 2)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'SOLID').length, 1)
   assert.equal(a.commandArgs.entities.filter(e => e.type === 'LEADER').length, 1)
+  assert.equal(a.commandArgs.entities.find(e => e.type === 'LEADER').payload.textHeight, 7)
+  assert.equal(a.commandArgs.entities.find(e => e.type === 'LEADER').payload.textWidth, 14)
   assert.equal(a.evidence.parameters.outlineSegmentCount, 3)
   assert.equal(a.evidence.parameters.cuttingPlaneMarkCount, 1)
   assert.equal(a.evidence.parameters.symmetricProfileCount, 1)
@@ -84,6 +86,8 @@ test('all ring, hole, projection-axis and grid positions respond to parameters',
   assert.equal(kjd.listEntities().length, 53)
   assert.equal(dxf.listEntities().filter(e => e.type === 'CIRCLE').length, 9)
   assert.equal(dxf.listEntities().filter(e => e.type === 'DIMENSION').length, 2)
+  assert.equal(dxf.listEntities({ type: 'LEADER' })[0].payload.textHeight, 7)
+  assert.equal(dxf.listEntities({ type: 'LEADER' })[0].payload.textWidth, 14)
   const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
     'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"circles":len(m.query("CIRCLE")),"arcs":len(m.query("ARC")),"lines":len(m.query("LINE")),"solids":len(m.query("SOLID")),"leaders":len(m.query("LEADER")),"dimensions":len(m.query("DIMENSION"))}))'],
   dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
