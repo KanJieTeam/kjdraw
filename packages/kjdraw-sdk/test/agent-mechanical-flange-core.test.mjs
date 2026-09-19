@@ -284,6 +284,26 @@ test('caller-supplied annotation style resources stay generic and bind each nati
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), dimensions: [{ ...input(document.revision).dimensions[0], styleKey: 'missing' }] }), /must reference input.styleResources/u)
 })
 
+test('conflicting built-in text style names receive deterministic non-destructive aliases', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
+  const styledNotes = source.sheet.notes.map(note => ({ ...note, styleKey: 'source-standard' }))
+  const request = { ...source,
+    styleResources: { textStyles: [{ key: 'source-standard', name: 'Standard', fontFamily: 'TXT', fontFile: 'TXT', bigFontFile: '', fixedHeight: 0, widthFactor: .65, obliqueAngle: 0, dxfFlags: 0, generationFlags: 0 }], dimensionStyles: [] },
+    sheet: { ...source.sheet, notes: styledNotes },
+  }
+  const first = buildAgentMechanicalFlangeCore(document, request), second = buildAgentMechanicalFlangeCore(document, request)
+  assert.deepEqual(first, second)
+  assert.equal(first.commandArgs.resources.textStyles.length, 1)
+  assert.match(first.commandArgs.resources.textStyles[0].name, /^KJ_TEXT_/u)
+  assert.notEqual(first.commandArgs.resources.textStyles[0].name.toUpperCase(), 'STANDARD')
+  await sdk.executeCommand('CREATEBATCH', first.commandArgs, { document })
+  const reopened = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  const generatedStyle = reopened.getTable('textStyles').records.find(record => record.name === first.commandArgs.resources.textStyles[0].name)
+  assert.equal(generatedStyle.payload.fontFamily, 'TXT')
+  assert.equal(generatedStyle.payload.widthFactor, .65)
+  assert.ok(reopened.listEntities({ type: 'MTEXT' }).every(entity => entity.payload.styleId === generatedStyle.id))
+})
+
 test('bounded semantic auxiliary lines compile as native LINE entities', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryLines: [

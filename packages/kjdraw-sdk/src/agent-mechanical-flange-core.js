@@ -1631,27 +1631,40 @@ export function buildAgentMechanicalFlangeCore(document, source) {
     const compact = (value)=>Object.fromEntries(Object.entries(value).filter(([, item])=>item !== undefined));
     const textStyleByKey = new Map(), textStyleResources = [];
     const dimensionStyleByKey = new Map(), dimensionStyleResources = [];
+    const payloadMatches = (existing, requested)=>Object.entries(requested).every(([key, value])=>JSON.stringify(existing?.[key]) === JSON.stringify(value));
+    const reservedTextStyleNames = new Set(document.getTable?.('textStyles')?.records.map((record)=>String(record.name).toUpperCase()) ?? []);
     for (const [index, style] of input.textStyles.entries()){
         const existing = document.getTable?.('textStyles')?.records.find((record)=>String(record.name).toUpperCase() === style.name.toUpperCase());
-        const id = existing?.id ?? `${prefix}-text-style-${String(index + 1).padStart(2, '0')}`;
+        const payload = compact({
+            fontFamily: style.fontFamily,
+            fontFile: style.fontFile,
+            bigFontFile: style.bigFontFile,
+            fixedHeight: style.fixedHeight,
+            widthFactor: style.widthFactor,
+            obliqueAngle: style.obliqueAngle,
+            dxfFlags: style.dxfFlags,
+            generationFlags: style.generationFlags,
+            lastHeight: style.lastHeight
+        });
+        let reusable = existing != null && payloadMatches(existing.payload, payload) ? existing : undefined;
+        let name = style.name;
+        if (existing && !reusable) {
+            name = `KJ_TEXT_${String(index + 1).padStart(2, '0')}_${stableHash(payload).slice(0, 12).toUpperCase()}`;
+            const alias = document.getTable?.('textStyles')?.records.find((record)=>String(record.name).toUpperCase() === name.toUpperCase());
+            if (alias && !payloadMatches(alias.payload, payload)) throw new KJValidationError('generated text style alias conflicts with an existing resource');
+            reusable = alias;
+        }
+        const id = reusable?.id ?? `${prefix}-text-style-${String(index + 1).padStart(2, '0')}`;
+        if (!reusable && reservedTextStyleNames.has(name.toUpperCase())) throw new KJValidationError('generated text style alias conflicts with an existing resource');
+        reservedTextStyleNames.add(name.toUpperCase());
         textStyleByKey.set(style.key, {
             id,
-            name: style.name
+            name
         });
-        if (!existing) textStyleResources.push({
+        if (!reusable) textStyleResources.push({
             id,
-            name: style.name,
-            payload: compact({
-                fontFamily: style.fontFamily,
-                fontFile: style.fontFile,
-                bigFontFile: style.bigFontFile,
-                fixedHeight: style.fixedHeight,
-                widthFactor: style.widthFactor,
-                obliqueAngle: style.obliqueAngle,
-                dxfFlags: style.dxfFlags,
-                generationFlags: style.generationFlags,
-                lastHeight: style.lastHeight
-            })
+            name,
+            payload
         });
     }
     for (const [index, style] of input.dimensionStyles.entries()){
