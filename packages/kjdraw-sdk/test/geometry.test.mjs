@@ -93,6 +93,9 @@ test('entity transforms preserve circular geometry and reject invalid distortion
   closePoint(rotated.center, [0, 2]); close(rotated.radius, 3)
   const nonUniformLine = transformEntityPayload('LINE', { start: [0, 0], end: [1, 1] }, scale3(2, 3))
   closePoint(nonUniformLine.end, [2, 3])
+  const polyline = transformEntityPayload('LWPOLYLINE', { vertices: [{ point: [0, 0] }, { point: [1, 0] }] }, scale3(2, 2))
+  assert.deepEqual(polyline.vertices, [{ point: [0, 0], bulge: 0 }, { point: [2, 0], bulge: 0 }])
+  assert.equal(Object.hasOwn(polyline.vertices[0], 'startWidth'), false)
   assert.throws(() => transformEntityPayload('CIRCLE', circle, scale3(2, 3)), KJValidationError)
 })
 

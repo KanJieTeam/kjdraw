@@ -12,6 +12,11 @@ import type { Point2Input } from './vector2.js'
 
 export type GeometryEntityPayload = Record<string, unknown>
 
+function withoutUndefined<T extends Record<string, unknown>>(record: T): T {
+  for (const key of Object.keys(record)) if (record[key] === undefined) delete record[key]
+  return record
+}
+
 function angleOf(vector: Point2Input): number {
   const record = vector as { readonly x?: unknown; readonly y?: unknown }
   const coordinates = Array.isArray(vector) ? vector : [record.x, record.y]
@@ -31,13 +36,13 @@ function transformVertex(
 ): unknown {
   if (Array.isArray(vertex)) return transformPoint3(matrix, vertex)
   const record = vertex as Record<string, unknown>
-  return {
+  return withoutUndefined({
     ...(clone(record)),
     point: transformPoint3(matrix, record.point as Point2Input),
     bulge: mirrored ? -(Number(record.bulge ?? 0)) : Number(record.bulge ?? 0),
     startWidth: record.startWidth == null ? undefined : Number(record.startWidth) * scale,
     endWidth: record.endWidth == null ? undefined : Number(record.endWidth) * scale,
-  }
+  })
 }
 
 function transformLoops(
@@ -48,7 +53,7 @@ function transformLoops(
 ): unknown[] {
   return ((loops ?? []) as readonly unknown[]).map(loop => {
     const record = loop as Record<string, unknown>
-    return {
+    return withoutUndefined({
       ...clone(record),
       vertices: record.vertices == null
         ? undefined
@@ -58,7 +63,7 @@ function transformLoops(
       edges: record.edges == null
         ? undefined
         : (record.edges as readonly unknown[]).map(edge => transformEdge(matrix, edge, mirrored, scale)),
-    }
+    })
   })
 }
 
@@ -124,46 +129,46 @@ export function transformEntityPayload(
 
   switch (normalizedType) {
     case 'LINE':
-      return {
+      return withoutUndefined({
         ...payload,
         start: transformPoint3(matrix, payload.start as Point2Input),
         end: transformPoint3(matrix, payload.end as Point2Input),
-      }
+      })
     case 'RAY':
     case 'XLINE':
-      return {
+      return withoutUndefined({
         ...payload,
         origin: transformPoint3(matrix, payload.origin as Point2Input),
         direction: transformVector3(matrix, payload.direction as Point2Input),
-      }
+      })
     case 'POINT':
       return { ...payload, position: transformPoint3(matrix, payload.position as Point2Input) }
     case 'CIRCLE':
-      return {
+      return withoutUndefined({
         ...payload,
         center: transformPoint3(matrix, payload.center as Point2Input),
         radius: Number(payload.radius) * scale(),
-      }
+      })
     case 'ARC':
-      return {
+      return withoutUndefined({
         ...payload,
         center: transformPoint3(matrix, payload.center as Point2Input),
         radius: Number(payload.radius) * scale(),
         startAngle: transformAngle(matrix, payload.startAngle),
         endAngle: transformAngle(matrix, payload.endAngle),
         clockwise: mirrored ? !payload.clockwise : payload.clockwise,
-      }
+      })
     case 'LWPOLYLINE':
     case 'POLYLINE':
     case 'WIPEOUT':
     case 'REVISION_CLOUD':
-      return {
+      return withoutUndefined({
         ...payload,
         vertices: ((payload.vertices ?? payload.points ?? []) as readonly unknown[])
           .map(vertex => transformVertex(matrix, vertex, mirrored, scale())),
-      }
+      })
     case 'SPLINE':
-      return {
+      return withoutUndefined({
         ...payload,
         controlPoints: ((payload.controlPoints ?? []) as readonly unknown[])
           .map(point => transformPoint3(matrix, point as Point2Input)),
@@ -171,9 +176,9 @@ export function transformEntityPayload(
           ? undefined
           : (payload.fitPoints as readonly unknown[])
             .map(point => transformPoint3(matrix, point as Point2Input)),
-      }
+      })
     case 'ELLIPSE':
-      return {
+      return withoutUndefined({
         ...payload,
         center: transformPoint3(matrix, payload.center as Point2Input),
         majorAxis: transformVector3(matrix, payload.majorAxis as Point2Input),
@@ -182,12 +187,12 @@ export function transformEntityPayload(
           ? undefined
           : Number(payload.majorAxisLength) * scale(),
         clockwise: mirrored ? !payload.clockwise : payload.clockwise,
-      }
+      })
     case 'TEXT':
     case 'MTEXT':
     case 'ATTDEF':
     case 'ATTRIB':
-      return {
+      return withoutUndefined({
         ...payload,
         position: transformPoint3(matrix, payload.position as Point2Input),
         alignmentPoint: payload.alignmentPoint
@@ -196,10 +201,10 @@ export function transformEntityPayload(
         ...(normalizedType === 'MTEXT' && payload.width != null ? { width: Number(payload.width) * scale() } : {}),
         rotation: transformAngle(matrix, payload.rotation ?? 0),
         mirrored: mirrored ? !payload.mirrored : payload.mirrored,
-      }
+      })
     case 'INSERT': {
       const insertionScale = payload.scale
-      return {
+      return withoutUndefined({
         ...payload,
         position: transformPoint3(matrix, payload.position as Point2Input),
         rotation: transformAngle(matrix, payload.rotation ?? 0),
@@ -207,15 +212,15 @@ export function transformEntityPayload(
           ? insertionScale.map((value: unknown) => Number(value) * scale())
           : Number(insertionScale ?? 1) * scale(),
         mirrored: mirrored ? !payload.mirrored : payload.mirrored,
-      }
+      })
     }
     case 'IMAGE':
-      return {
+      return withoutUndefined({
         ...payload,
         position: transformPoint3(matrix, payload.position as Point2Input),
         uVector: transformVector3(matrix, payload.uVector as Point2Input),
         vVector: transformVector3(matrix, payload.vVector as Point2Input),
-      }
+      })
     case 'HATCH': {
       const patternScale = Number(payload.patternScale ?? 1) * scale(), patternAngle = transformAngle(matrix, payload.patternAngle ?? 0)
       const solid = payload.solid === true || String(payload.patternName).toUpperCase() === 'SOLID'
@@ -223,18 +228,18 @@ export function transformEntityPayload(
         const base = transformPoint3(matrix, line.base), offset = transformVector3(matrix, line.offset)
         return { angle: transformAngle(matrix, line.angle), base: [base[0], base[1]], offset: [offset[0], offset[1]], dashes: line.dashes.map(d => d * scale()) }
       })
-      return {
+      return withoutUndefined({
         ...payload,
         boundaryLoops: transformLoops(matrix, payload.boundaryLoops, mirrored, scale()),
         patternScale, patternAngle,
         ...(patternLines ? { patternLines, patternDefinitionScale: patternScale, patternDefinitionAngle: patternAngle } : {}),
-      }
+      })
     }
     case 'LEADER': {
       const direction = transformVector3(matrix, (payload.horizontalDirection ?? [1, 0, 0]) as Point2Input)
       const directionZ = Number(direction[2] ?? 0), length = Math.hypot(direction[0], direction[1], directionZ)
       if (!(length > 1e-15)) throw new KJValidationError('LEADER horizontal direction became degenerate')
-      return {
+      return withoutUndefined({
         ...payload,
         vertices: ((payload.vertices ?? []) as readonly unknown[])
           .map(point => transformPoint3(matrix, point as Point2Input)),
@@ -243,25 +248,25 @@ export function transformEntityPayload(
         horizontalDirection: [direction[0] / length, direction[1] / length, directionZ / length],
         blockOffset: payload.blockOffset && transformVector3(matrix, payload.blockOffset as Point2Input),
         annotationOffset: payload.annotationOffset && transformVector3(matrix, payload.annotationOffset as Point2Input),
-      }
+      })
     }
     case 'MLEADER':
-      return {
+      return withoutUndefined({
         ...payload,
         vertices: ((payload.vertices ?? []) as readonly unknown[])
           .map(point => transformPoint3(matrix, point as Point2Input)),
         textPosition: payload.textPosition
           && transformPoint3(matrix, payload.textPosition as Point2Input),
-      }
+      })
     case 'DIMENSION':
-      return {
+      return withoutUndefined({
         ...payload,
         definitionPoints: ((payload.definitionPoints ?? []) as readonly unknown[])
           .map(point => transformPoint3(matrix, point as Point2Input)),
         textPosition: payload.textPosition
           && transformPoint3(matrix, payload.textPosition as Point2Input),
         rotation: transformAngle(matrix, payload.rotation ?? 0),
-      }
+      })
     case 'TOLERANCE': {
       const axis = transformVector3(matrix, (payload.xAxisDirection ?? [1, 0, 0]) as Point2Input), z = Number(axis[2] ?? 0), length = Math.hypot(axis[0], axis[1], z)
       if (!(length > 1e-15)) throw new KJValidationError('TOLERANCE x-axis direction became degenerate')

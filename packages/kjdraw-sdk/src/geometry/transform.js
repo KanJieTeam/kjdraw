@@ -3,6 +3,10 @@ import { KJValidationError } from '../errors.js';
 import { clone } from '../utils.js';
 import { hatchPatternLines } from './hatch.js';
 import { determinant3, similarityScale3, transformPoint3, transformVector3 } from './matrix3.js';
+function withoutUndefined(record) {
+    for (const key of Object.keys(record))if (record[key] === undefined) delete record[key];
+    return record;
+}
 function angleOf(vector) {
     const record = vector;
     const coordinates = Array.isArray(vector) ? vector : [
@@ -21,22 +25,22 @@ function transformAngle(matrix, angle) {
 function transformVertex(matrix, vertex, mirrored, scale) {
     if (Array.isArray(vertex)) return transformPoint3(matrix, vertex);
     const record = vertex;
-    return {
+    return withoutUndefined({
         ...clone(record),
         point: transformPoint3(matrix, record.point),
         bulge: mirrored ? -Number(record.bulge ?? 0) : Number(record.bulge ?? 0),
         startWidth: record.startWidth == null ? undefined : Number(record.startWidth) * scale,
         endWidth: record.endWidth == null ? undefined : Number(record.endWidth) * scale
-    };
+    });
 }
 function transformLoops(matrix, loops, mirrored, scale) {
     return (loops ?? []).map((loop)=>{
         const record = loop;
-        return {
+        return withoutUndefined({
             ...clone(record),
             vertices: record.vertices == null ? undefined : record.vertices.map((vertex)=>transformVertex(matrix, vertex, mirrored, scale)),
             edges: record.edges == null ? undefined : record.edges.map((edge)=>transformEdge(matrix, edge, mirrored, scale))
-        };
+        });
     });
 }
 function transformEdge(matrix, edge, mirrored, scale) {
@@ -96,66 +100,66 @@ export function transformEntityPayload(type, source, matrix) {
     const scale = ()=>resolvedScale ??= similarityScale3(matrix);
     switch(normalizedType){
         case 'LINE':
-            return {
+            return withoutUndefined({
                 ...payload,
                 start: transformPoint3(matrix, payload.start),
                 end: transformPoint3(matrix, payload.end)
-            };
+            });
         case 'RAY':
         case 'XLINE':
-            return {
+            return withoutUndefined({
                 ...payload,
                 origin: transformPoint3(matrix, payload.origin),
                 direction: transformVector3(matrix, payload.direction)
-            };
+            });
         case 'POINT':
             return {
                 ...payload,
                 position: transformPoint3(matrix, payload.position)
             };
         case 'CIRCLE':
-            return {
+            return withoutUndefined({
                 ...payload,
                 center: transformPoint3(matrix, payload.center),
                 radius: Number(payload.radius) * scale()
-            };
+            });
         case 'ARC':
-            return {
+            return withoutUndefined({
                 ...payload,
                 center: transformPoint3(matrix, payload.center),
                 radius: Number(payload.radius) * scale(),
                 startAngle: transformAngle(matrix, payload.startAngle),
                 endAngle: transformAngle(matrix, payload.endAngle),
                 clockwise: mirrored ? !payload.clockwise : payload.clockwise
-            };
+            });
         case 'LWPOLYLINE':
         case 'POLYLINE':
         case 'WIPEOUT':
         case 'REVISION_CLOUD':
-            return {
+            return withoutUndefined({
                 ...payload,
                 vertices: (payload.vertices ?? payload.points ?? []).map((vertex)=>transformVertex(matrix, vertex, mirrored, scale()))
-            };
+            });
         case 'SPLINE':
-            return {
+            return withoutUndefined({
                 ...payload,
                 controlPoints: (payload.controlPoints ?? []).map((point)=>transformPoint3(matrix, point)),
                 fitPoints: payload.fitPoints == null ? undefined : payload.fitPoints.map((point)=>transformPoint3(matrix, point))
-            };
+            });
         case 'ELLIPSE':
-            return {
+            return withoutUndefined({
                 ...payload,
                 center: transformPoint3(matrix, payload.center),
                 majorAxis: transformVector3(matrix, payload.majorAxis),
                 majorRadius: payload.majorRadius == null ? undefined : Number(payload.majorRadius) * scale(),
                 majorAxisLength: payload.majorAxisLength == null ? undefined : Number(payload.majorAxisLength) * scale(),
                 clockwise: mirrored ? !payload.clockwise : payload.clockwise
-            };
+            });
         case 'TEXT':
         case 'MTEXT':
         case 'ATTDEF':
         case 'ATTRIB':
-            return {
+            return withoutUndefined({
                 ...payload,
                 position: transformPoint3(matrix, payload.position),
                 alignmentPoint: payload.alignmentPoint && transformPoint3(matrix, payload.alignmentPoint),
@@ -165,25 +169,25 @@ export function transformEntityPayload(type, source, matrix) {
                 } : {},
                 rotation: transformAngle(matrix, payload.rotation ?? 0),
                 mirrored: mirrored ? !payload.mirrored : payload.mirrored
-            };
+            });
         case 'INSERT':
             {
                 const insertionScale = payload.scale;
-                return {
+                return withoutUndefined({
                     ...payload,
                     position: transformPoint3(matrix, payload.position),
                     rotation: transformAngle(matrix, payload.rotation ?? 0),
                     scale: Array.isArray(insertionScale) ? insertionScale.map((value)=>Number(value) * scale()) : Number(insertionScale ?? 1) * scale(),
                     mirrored: mirrored ? !payload.mirrored : payload.mirrored
-                };
+                });
             }
         case 'IMAGE':
-            return {
+            return withoutUndefined({
                 ...payload,
                 position: transformPoint3(matrix, payload.position),
                 uVector: transformVector3(matrix, payload.uVector),
                 vVector: transformVector3(matrix, payload.vVector)
-            };
+            });
         case 'HATCH':
             {
                 const patternScale = Number(payload.patternScale ?? 1) * scale(), patternAngle = transformAngle(matrix, payload.patternAngle ?? 0);
@@ -203,7 +207,7 @@ export function transformEntityPayload(type, source, matrix) {
                         dashes: line.dashes.map((d)=>d * scale())
                     };
                 });
-                return {
+                return withoutUndefined({
                     ...payload,
                     boundaryLoops: transformLoops(matrix, payload.boundaryLoops, mirrored, scale()),
                     patternScale,
@@ -213,7 +217,7 @@ export function transformEntityPayload(type, source, matrix) {
                         patternDefinitionScale: patternScale,
                         patternDefinitionAngle: patternAngle
                     } : {}
-                };
+                });
             }
         case 'LEADER':
             {
@@ -224,7 +228,7 @@ export function transformEntityPayload(type, source, matrix) {
                 ]);
                 const directionZ = Number(direction[2] ?? 0), length = Math.hypot(direction[0], direction[1], directionZ);
                 if (!(length > 1e-15)) throw new KJValidationError('LEADER horizontal direction became degenerate');
-                return {
+                return withoutUndefined({
                     ...payload,
                     vertices: (payload.vertices ?? []).map((point)=>transformPoint3(matrix, point)),
                     textPosition: payload.textPosition && transformPoint3(matrix, payload.textPosition),
@@ -235,21 +239,21 @@ export function transformEntityPayload(type, source, matrix) {
                     ],
                     blockOffset: payload.blockOffset && transformVector3(matrix, payload.blockOffset),
                     annotationOffset: payload.annotationOffset && transformVector3(matrix, payload.annotationOffset)
-                };
+                });
             }
         case 'MLEADER':
-            return {
+            return withoutUndefined({
                 ...payload,
                 vertices: (payload.vertices ?? []).map((point)=>transformPoint3(matrix, point)),
                 textPosition: payload.textPosition && transformPoint3(matrix, payload.textPosition)
-            };
+            });
         case 'DIMENSION':
-            return {
+            return withoutUndefined({
                 ...payload,
                 definitionPoints: (payload.definitionPoints ?? []).map((point)=>transformPoint3(matrix, point)),
                 textPosition: payload.textPosition && transformPoint3(matrix, payload.textPosition),
                 rotation: transformAngle(matrix, payload.rotation ?? 0)
-            };
+            });
         case 'TOLERANCE':
             {
                 const axis = transformVector3(matrix, payload.xAxisDirection ?? [
