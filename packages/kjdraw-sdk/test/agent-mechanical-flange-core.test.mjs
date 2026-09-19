@@ -97,6 +97,21 @@ test('all ring, hole, projection-axis and grid positions respond to parameters',
   }
 })
 
+test('end-view hole patterns support arbitrary bounded polar arrays without a legacy square array',()=>{
+  const document=createKJDrawSDK().createDocument({units:'millimeter'}),source=input(document.revision)
+  const proposal=buildAgentMechanicalFlangeCore(document,{...source,endView:{...source.endView,squareHoles:undefined,holePatterns:[{count:8,pitchRadius:30,holeRadius:2,startAngle:Math.PI/8}]}})
+  const holes=proposal.commandArgs.entities.filter(entity=>entity.type==='CIRCLE'&&entity.payload.radius===2&&Math.abs(Math.hypot(entity.payload.center[0]-90,entity.payload.center[1]-150)-30)<1e-9)
+  assert.equal(holes.length,8);assert.equal(proposal.evidence.parameters.holePatternCount,1);assert.equal(proposal.evidence.parameters.holeCount,8)
+  for(let index=0;index<holes.length;index++){
+    const angle=Math.PI/8+index*Math.PI/4,center=holes[index].payload.center
+    assert.ok(Math.abs(center[0]-(90+Math.cos(angle)*30))<1e-9);assert.ok(Math.abs(center[1]-(150+Math.sin(angle)*30))<1e-9)
+  }
+  const noInset=buildAgentMechanicalFlangeCore(document,{...source,sheet:{...source.sheet,inset:0},endView:{...source.endView,squareHoles:undefined,holePatterns:[{count:8,pitchRadius:30,holeRadius:2,startAngle:Math.PI/8}]}})
+  assert.equal(noInset.commandArgs.entities.length,proposal.commandArgs.entities.length-4)
+  assert.throws(()=>buildAgentMechanicalFlangeCore(document,{...source,endView:{...source.endView,squareHoles:undefined,holePatterns:[{count:8.5,pitchRadius:30,holeRadius:2}]}}),/count must be an integer/u)
+  assert.throws(()=>buildAgentMechanicalFlangeCore(document,{...source,endView:{...source.endView,squareHoles:undefined,holePatterns:[{count:4,pitchRadius:2,holeRadius:2}]}}),/must exceed/u)
+})
+
 test('flange compiler rejects unsupported source injection and impossible geometry', () => {
   const document = createKJDrawSDK().createDocument({ units: 'millimeter' })
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), rawDrawing: 'private' }), /unsupported field/u)
