@@ -69,6 +69,8 @@ export interface KJFlangeStyleRole {
   lineweight?: number
   linetypeName?: string
   linetypePattern?: number[]
+  /** Per-entity linetype scale. The referenced linetype definition remains reusable. */
+  linetypeScale?: number
 }
 
 export interface KJFlangeStyleProfile {
@@ -360,7 +362,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   const entityStyleKeys = new Set<string>()
   for (const [index, value] of customStyleSource.entries()) {
     const label = `input.styleProfile.custom[${index}]`, style = plain(value, label)
-    exact(style, ['key', 'layerName', 'color', 'lineweight', 'linetypeName', 'linetypePattern'], label)
+    exact(style, ['key', 'layerName', 'color', 'lineweight', 'linetypeName', 'linetypePattern', 'linetypeScale'], label)
     const key = resourceKey(style.key, `${label}.key`)
     if (entityStyleKeys.has(key)) throw new KJValidationError(`${label}.key must be unique`)
     entityStyleKeys.add(key)
@@ -877,7 +879,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   for (const definition of symbolDefinitions) for (const member of definition.members) if (member.kind === 'instance' && !symbolKeys.has(member.symbolKey)) throw new KJValidationError(`input.symbols.definitions[${definition.key}].members instance must reference a definition`)
   const styleRole = (value: unknown, label: string): KJFlangeStyleRole => {
     if (value == null) return {}
-    const role = plain(value, label); exact(role, ['layerName', 'color', 'lineweight', 'linetypeName', 'linetypePattern'], label)
+    const role = plain(value, label); exact(role, ['layerName', 'color', 'lineweight', 'linetypeName', 'linetypePattern', 'linetypeScale'], label)
     if (role.layerName != null && (typeof role.layerName !== 'string' || !/^[^\u0000-\u001f\u007f]{1,64}$/u.test(role.layerName))) throw new KJValidationError(`${label}.layerName must be bounded printable text`)
     if (role.linetypeName != null && (typeof role.linetypeName !== 'string' || !/^[^\u0000-\u001f\u007f]{1,64}$/u.test(role.linetypeName))) throw new KJValidationError(`${label}.linetypeName must be bounded printable text`)
     const color = role.color == null ? undefined : finite(role.color, `${label}.color`, 0, 255)
@@ -886,7 +888,8 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const supportedLineweights = new Set([-3, -2, -1, 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211])
     if (lineweight != null && !supportedLineweights.has(lineweight)) throw new KJValidationError(`${label}.lineweight is not a supported CAD lineweight`)
     if (role.linetypePattern != null && (!Array.isArray(role.linetypePattern) || role.linetypePattern.length > 32 || role.linetypePattern.length % 2 !== 0 || role.linetypePattern.some((item: unknown, index: number) => typeof item !== 'number' || !Number.isFinite(item) || Math.abs(item) > 1_000 || index % 2 === 0 && item <= 0 || index % 2 === 1 && item >= 0))) throw new KJValidationError(`${label}.linetypePattern is invalid`)
-    return { ...(role.layerName == null ? {} : { layerName: role.layerName }), ...(color == null ? {} : { color }), ...(lineweight == null ? {} : { lineweight }), ...(role.linetypeName == null ? {} : { linetypeName: role.linetypeName }), ...(role.linetypePattern == null ? {} : { linetypePattern: [...role.linetypePattern] }) }
+    const linetypeScale = role.linetypeScale == null ? undefined : finite(role.linetypeScale, `${label}.linetypeScale`, 1e-9, 1e9)
+    return { ...(role.layerName == null ? {} : { layerName: role.layerName }), ...(color == null ? {} : { color }), ...(lineweight == null ? {} : { lineweight }), ...(role.linetypeName == null ? {} : { linetypeName: role.linetypeName }), ...(role.linetypePattern == null ? {} : { linetypePattern: [...role.linetypePattern] }), ...(linetypeScale == null ? {} : { linetypeScale }) }
   }
   const styles: KJFlangeStyleProfile = {}
   for (const role of ['frame', 'grid', 'geometry', 'center', 'notes', 'dimensions', 'hatch', 'hidden'] as const) styles[role] = styleRole(styleProfile[role], `input.styleProfile.${role}`)
@@ -919,7 +922,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       angularDecimalPlaces: style.angularDecimalPlaces, angularUnits: style.angularUnits, centerMarkSize: style.centerMarkSize, textGap: style.textGap, dxfFlags: style.dxfFlags }) })
   }
   type BaseRole = 'frame' | 'grid' | 'geometry' | 'center' | 'notes' | 'dimensions' | 'hatch' | 'hidden'
-  type CompiledStyle = { layerName: string; color: number; lineweight: number; pattern: number[]; linetypeName?: string }
+  type CompiledStyle = { layerName: string; color: number; lineweight: number; pattern: number[]; linetypeName?: string; linetypeScale?: number }
   const role = (name: BaseRole, defaults: CompiledStyle): CompiledStyle => ({ ...defaults, ...(input.styles[name] ?? {}), pattern: input.styles[name]?.linetypePattern ?? defaults.pattern })
   const roles: Record<string, CompiledStyle> = { frame: role('frame', { layerName: 'FLANGE_FRAME', color: 7, lineweight: 25, pattern: [] }), grid: role('grid', { layerName: 'FLANGE_GRID', color: 7, lineweight: 18, pattern: [] }), geometry: role('geometry', { layerName: 'FLANGE_GEOMETRY', color: 7, lineweight: 35, pattern: [] }), center: role('center', { layerName: 'FLANGE_CENTER', color: 7, lineweight: 18, pattern: [8, -1, 1, -1] }), notes: role('notes', { layerName: 'FLANGE_NOTES', color: 7, lineweight: 18, pattern: [] }), dimensions: role('dimensions', { layerName: 'FLANGE_DIMENSIONS', color: 2, lineweight: 18, pattern: [] }), hatch: role('hatch', { layerName: 'FLANGE_HATCH', color: 7, lineweight: 18, pattern: [] }), hidden: role('hidden', { layerName: 'FLANGE_HIDDEN', color: 8, lineweight: 18, pattern: [3, -1] }) }
   const customRoleByKey = new Map<string, string>()
@@ -953,7 +956,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     const resolvedStyleName = styleName ?? Object.keys(roles).find(name => roleIds[name] === payload.layerId)
     const style = resolvedStyleName == null ? roleByLayer.get(payload.layerId as string) : roles[resolvedStyleName]
     return style == null ? payload : { ...payload, color: style.color, lineweight: style.lineweight,
-      ...(resolvedStyleName == null ? {} : { linetypeId: linetypeIds[resolvedStyleName] }), ...(style.linetypeName == null ? {} : { linetypeName: style.linetypeName }) }
+      ...(resolvedStyleName == null ? {} : { linetypeId: linetypeIds[resolvedStyleName] }), ...(style.linetypeName == null ? {} : { linetypeName: style.linetypeName }), ...(style.linetypeScale == null ? {} : { linetypeScale: style.linetypeScale }) }
   }
   const emit = (type: Entity['type'], payload: Record<string, unknown>, styleName?: string) => {
     entities.push({ type, payload: stylePayload(payload, styleName), options: { id: `${prefix}-${String(entities.length + 1).padStart(4, '0')}` } })
