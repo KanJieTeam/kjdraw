@@ -161,6 +161,8 @@ export interface KJFlangeStyleRole {
     lineweight?: number;
     linetypeName?: string;
     linetypePattern?: number[];
+    /** Per-entity linetype scale. The referenced linetype definition remains reusable. */
+    linetypeScale?: number;
 }
 export interface KJFlangeStyleProfile {
     frame?: KJFlangeStyleRole;

@@ -203,7 +203,7 @@ test('caller-supplied entity style keys preserve mixed native display facts and 
   const proposal = buildAgentMechanicalFlangeCore(document, {
     ...source,
     styleProfile: { custom: [
-      { key: 'fine', layerName: 'PUBLIC_FINE', color: 3, lineweight: 18, linetypeName: 'PUBLIC_DASH', linetypePattern: [2, -1] },
+      { key: 'fine', layerName: 'PUBLIC_FINE', color: 3, lineweight: 18, linetypeName: 'PUBLIC_DASH', linetypePattern: [2, -1], linetypeScale: .5 },
       { key: 'bold', layerName: 'PUBLIC_BOLD', color: 1, lineweight: 35, linetypeName: 'public_dash', linetypePattern: [2, -1] },
     ] },
     endView: {
@@ -229,6 +229,7 @@ test('caller-supplied entity style keys preserve mixed native display facts and 
   const publicDashId = proposal.commandArgs.resources.linetypes.find(item => item.name.toUpperCase() === 'PUBLIC_DASH').id
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'CIRCLE' && entity.payload.radius === 12).payload.layerId, layers.get('PUBLIC_FINE'))
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'CIRCLE' && entity.payload.radius === 12).payload.linetypeId, publicDashId)
+  assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'CIRCLE' && entity.payload.radius === 12).payload.linetypeScale, .5)
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'CIRCLE' && entity.payload.radius === 28).payload.layerId, layers.get('PUBLIC_BOLD'))
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === '[45,120,0]').payload.layerId, layers.get('PUBLIC_BOLD'))
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === '[90,198,0]').payload.layerId, layers.get('PUBLIC_FINE'))

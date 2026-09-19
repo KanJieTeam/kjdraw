@@ -190,7 +190,8 @@ function validate(document, source) {
             'color',
             'lineweight',
             'linetypeName',
-            'linetypePattern'
+            'linetypePattern',
+            'linetypeScale'
         ], label);
         const key = resourceKey(style.key, `${label}.key`);
         if (entityStyleKeys.has(key)) throw new KJValidationError(`${label}.key must be unique`);
@@ -1492,7 +1493,8 @@ function validate(document, source) {
             'color',
             'lineweight',
             'linetypeName',
-            'linetypePattern'
+            'linetypePattern',
+            'linetypeScale'
         ], label);
         if (role.layerName != null && (typeof role.layerName !== 'string' || !/^[^\u0000-\u001f\u007f]{1,64}$/u.test(role.layerName))) throw new KJValidationError(`${label}.layerName must be bounded printable text`);
         if (role.linetypeName != null && (typeof role.linetypeName !== 'string' || !/^[^\u0000-\u001f\u007f]{1,64}$/u.test(role.linetypeName))) throw new KJValidationError(`${label}.linetypeName must be bounded printable text`);
@@ -1530,6 +1532,7 @@ function validate(document, source) {
         ]);
         if (lineweight != null && !supportedLineweights.has(lineweight)) throw new KJValidationError(`${label}.lineweight is not a supported CAD lineweight`);
         if (role.linetypePattern != null && (!Array.isArray(role.linetypePattern) || role.linetypePattern.length > 32 || role.linetypePattern.length % 2 !== 0 || role.linetypePattern.some((item, index)=>typeof item !== 'number' || !Number.isFinite(item) || Math.abs(item) > 1_000 || index % 2 === 0 && item <= 0 || index % 2 === 1 && item >= 0))) throw new KJValidationError(`${label}.linetypePattern is invalid`);
+        const linetypeScale = role.linetypeScale == null ? undefined : finite(role.linetypeScale, `${label}.linetypeScale`, 1e-9, 1e9);
         return {
             ...role.layerName == null ? {} : {
                 layerName: role.layerName
@@ -1547,6 +1550,9 @@ function validate(document, source) {
                 linetypePattern: [
                     ...role.linetypePattern
                 ]
+            },
+            ...linetypeScale == null ? {} : {
+                linetypeScale
             }
         };
     };
@@ -1794,6 +1800,9 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             },
             ...style.linetypeName == null ? {} : {
                 linetypeName: style.linetypeName
+            },
+            ...style.linetypeScale == null ? {} : {
+                linetypeScale: style.linetypeScale
             }
         };
     };
