@@ -880,8 +880,8 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const role = plain(value, label); exact(role, ['layerName', 'color', 'lineweight', 'linetypeName', 'linetypePattern'], label)
     if (role.layerName != null && (typeof role.layerName !== 'string' || !/^[^\u0000-\u001f\u007f]{1,64}$/u.test(role.layerName))) throw new KJValidationError(`${label}.layerName must be bounded printable text`)
     if (role.linetypeName != null && (typeof role.linetypeName !== 'string' || !/^[^\u0000-\u001f\u007f]{1,64}$/u.test(role.linetypeName))) throw new KJValidationError(`${label}.linetypeName must be bounded printable text`)
-    const color = role.color == null ? undefined : finite(role.color, `${label}.color`, 1, 255)
-    if (color != null && !Number.isInteger(color)) throw new KJValidationError(`${label}.color must be an integer ACI color`)
+    const color = role.color == null ? undefined : finite(role.color, `${label}.color`, 0, 255)
+    if (color != null && !Number.isInteger(color)) throw new KJValidationError(`${label}.color must be an integer ACI color, including 0 for ByBlock`)
     const lineweight = role.lineweight == null ? undefined : finite(role.lineweight, `${label}.lineweight`, -3, 211)
     const supportedLineweights = new Set([-3, -2, -1, 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211])
     if (lineweight != null && !supportedLineweights.has(lineweight)) throw new KJValidationError(`${label}.lineweight is not a supported CAD lineweight`)
@@ -941,13 +941,19 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     linetypeIds[name] = id
     const layerName = definition.layerName, existingLayer = document.getTable?.('layers')?.records.find(record => String(record.name).toUpperCase() === layerName.toUpperCase()), pendingLayer = layerByName.get(layerName.toUpperCase())
     roleIds[name] = existingLayer?.id ?? pendingLayer ?? `${prefix}-${name}`
-    if (!existingLayer && !pendingLayer) { layerByName.set(layerName.toUpperCase(), roleIds[name]); layers.push({ id: roleIds[name], name: layerName, color: definition.color, linetypeId: id, lineweight: definition.lineweight }) }
+    if (!existingLayer && !pendingLayer) {
+      layerByName.set(layerName.toUpperCase(), roleIds[name])
+      // ACI 0 is valid on entities (ByBlock) but not on layer table records.
+      layers.push({ id: roleIds[name], name: layerName, color: definition.color === 0 ? 7 : definition.color, linetypeId: id, lineweight: definition.lineweight })
+    }
   }
   const entities: Entity[] = [], p3 = (x: number, y: number): Point3 => [x, y, 0]
   const roleByLayer = new Map(Object.keys(roles).map(name => [roleIds[name], roles[name]]))
   const stylePayload = (payload: Record<string, unknown>, styleName?: string) => {
-    const style = styleName == null ? roleByLayer.get(payload.layerId as string) : roles[styleName]
-    return style == null ? payload : { ...payload, color: style.color, lineweight: style.lineweight, ...(style.linetypeName == null ? {} : { linetypeName: style.linetypeName }) }
+    const resolvedStyleName = styleName ?? Object.keys(roles).find(name => roleIds[name] === payload.layerId)
+    const style = resolvedStyleName == null ? roleByLayer.get(payload.layerId as string) : roles[resolvedStyleName]
+    return style == null ? payload : { ...payload, color: style.color, lineweight: style.lineweight,
+      ...(resolvedStyleName == null ? {} : { linetypeId: linetypeIds[resolvedStyleName] }), ...(style.linetypeName == null ? {} : { linetypeName: style.linetypeName }) }
   }
   const emit = (type: Entity['type'], payload: Record<string, unknown>, styleName?: string) => {
     entities.push({ type, payload: stylePayload(payload, styleName), options: { id: `${prefix}-${String(entities.length + 1).padStart(4, '0')}` } })
