@@ -310,6 +310,25 @@ test('generic local symbols compile as editable native blocks without source blo
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols: { definitions: symbols.definitions, instances: [{ ...symbols.instances[0], symbolKey: 'missing' }] } }), /reference a definition/u)
 })
 
+test('generic local symbols preserve nested block topology without attached entities', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const symbols = { definitions: [
+    { key: 'child', basePoint: [0, 0], members: [{ kind: 'circle', center: [0, 0], radius: 2, role: 'geometry' }] },
+    { key: 'parent', basePoint: [0, 0], members: [
+      { kind: 'instance', symbolKey: 'child', position: [8, 0], scale: [1.5, 1], rotation: Math.PI / 8, role: 'geometry' },
+      { kind: 'line', start: [0, 0], end: [8, 0], role: 'geometry' },
+    ] },
+  ], instances: [{ symbolKey: 'parent', position: [30, 40], scale: [1, 1], rotation: 0, role: 'geometry' }] }
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols })
+  assert.equal(proposal.commandArgs.resources.blocks.length, 2)
+  assert.equal(proposal.commandArgs.resources.blocks.find(block => block.name.includes('02')).entities.filter(entity => entity.type === 'INSERT').length, 1)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  assert.equal(document.listEntities({ type: 'INSERT' }).length, 2)
+  const dxf = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  assert.equal(dxf.listEntities({ type: 'INSERT' }).length, 2)
+  assert.equal(dxf.listEntities({ type: 'CIRCLE' }).length, 10)
+})
+
 test('semantic feature-control frames compile as native TOLERANCE without opaque tags', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const featureControlFrames = [{ position: [120, 80], role: 'dimensions', rows: [

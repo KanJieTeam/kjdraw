@@ -17,7 +17,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
             id: 'kjdraw-authored-flange-rules-v1',
             title: 'KJDraw authored flange geometry and layout rules',
             license: 'MIT',
-            contentHash: stableHash('flange-views:concentric-rings:square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:parameterized-ansi31:caller-supplied-style-roles:caller-supplied-entity-style-overrides:caller-supplied-annotation-style-resources:semantic-auxiliary-lines:semantic-native-curves:generic-local-symbols:semantic-feature-control-frames:auxiliary-circles:native-leaders:native-derived-dimensions:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:v2.8')
+            contentHash: stableHash('flange-views:concentric-rings:square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:parameterized-ansi31:caller-supplied-style-roles:caller-supplied-entity-style-overrides:caller-supplied-annotation-style-resources:semantic-auxiliary-lines:semantic-native-curves:generic-local-symbols:nested-local-symbols:semantic-feature-control-frames:auxiliary-circles:native-leaders:native-derived-dimensions:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:v2.8')
         }
     ],
     ontology: {
@@ -57,7 +57,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
         annotationStyles: 'bounded caller-supplied text and dimension style resources are atomically created and referenced by semantic keys; the reusable rules retain no private style names or values',
         auxiliaryLines: 'bounded source-measured line segments carry only a semantic role and are emitted as native LINE entities; arbitrary private object data is rejected',
         auxiliaryCurves: 'bounded source-measured arc, ellipse, lightweight-polyline and spline facts carry only geometry and a semantic style role; handles, raw tags and application metadata are rejected',
-        symbols: 'bounded local line, circle, arc and multiline-text members compile into generic native block definitions and positioned instances; caller block names, handles, attributes and application metadata are never retained',
+        symbols: 'bounded local line, circle, arc, multiline-text and nested-instance members compile into generic native block definitions and positioned instances; caller block names, handles, attributes and application metadata are never retained',
         featureControlFrames: 'geometric characteristic, tolerance-zone and datum semantics compile into editable native TOLERANCE entities; opaque source tags and application-specific object data are rejected',
         sheet: 'outer frame, inset frame and optional bounded semantic title-grid with full or locally segmented rules',
         notes: 'bounded source-supplied sheet labels and technical notes; visible content is never embedded in this pack',
