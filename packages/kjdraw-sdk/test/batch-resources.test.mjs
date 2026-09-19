@@ -152,12 +152,64 @@ test('block resource identity, ownership and references are validated atomically
     args => { args.resources.blocks[0].entities[0].type = 'INSERT' },
     args => { args.entities[0].payload.blockRecordId = 'missing' },
     args => { args.entities[0].payload.attributeIds = ['forged'] },
-    args => { args.resources.blocks = Array.from({ length: 17 }, (_, index) => ({ id: `b-${index}`, name: `B-${index}`, basePoint: [0, 0, 0], entities: [{ type: 'POINT', payload: { position: [0, 0, 0], layerId: 'layer' }, options: { id: `m-${index}` } }] })) },
+    args => { args.resources.blocks[0].entities = Array.from({ length: 129 }, (_, index) => ({ type: 'POINT', payload: { position: [index, 0, 0], layerId: 'layer' }, options: { id: `member-${index}` } })) },
+    args => { args.resources.blocks = Array.from({ length: 65 }, (_, index) => ({ id: `b-${index}`, name: `B-${index}`, basePoint: [0, 0, 0], entities: [{ type: 'POINT', payload: { position: [0, 0, 0], layerId: 'layer' }, options: { id: `m-${index}` } }] })) },
   ]
   for (const mutate of cases) {
     const args = valid(); mutate(args)
     await assert.rejects(sdk.executeCommand('CREATEBATCH', args))
     assert.equal(document.serialize(), source)
+  }
+})
+
+test('CREATEBATCH atomically creates editable attributed block sequences and preserves them through KJD and DXF', async () => {
+  const { sdk, document } = fixture(), continuous = document.getTable('linetypes').currentId
+  const args = {
+    resources: {
+      linetypes: [], layers: [{ id: 'tag-layer', name: 'PUBLIC-TAGS', color: 7, linetypeId: continuous, lineweight: 18 }],
+      blocks: [{ id: 'tag-block', name: 'PUBLIC-TAGGED-SYMBOL', basePoint: [0, 0, 0], entities: [
+        { type: 'LINE', payload: { start: [0, 0, 0], end: [10, 0, 0], layerId: 'tag-layer' }, options: { id: 'tag-line' } },
+        { type: 'ATTDEF', payload: { position: [1, 2, 0], text: 'DEFAULT', tag: 'PART', prompt: 'Part', flags: 0, height: 2.5, rotation: 0, layerId: 'tag-layer' }, options: { id: 'tag-definition' } },
+      ] }],
+    },
+    entities: [{ type: 'INSERT', payload: { blockRecordId: 'tag-block', position: [20, 30, 0], scale: [1, 1, 1], rotation: 0, attributes: {}, attributeIds: [], sequenceEndId: null, layerId: 'tag-layer' }, options: { id: 'tag-insert' },
+      attributeSequence: { attributes: [
+        { id: 'tag-value', payload: { position: [21, 32, 0], alignmentPoint: [21, 32, 0], text: 'P-100', tag: 'PART', prompt: '', flags: 0, height: 2.5, rotation: 0, layerId: 'tag-layer' } },
+      ], sequenceEnd: { id: 'tag-end', dxfOwnerMode: 'insert', layerId: 'tag-layer' } } }],
+  }
+  const created = await sdk.executeCommand('CREATEBATCH', args)
+  assert.deepEqual(created.map(item => item.id), ['tag-line', 'tag-definition', 'tag-insert', 'tag-value', 'tag-end'])
+  const insert = document.getObject('tag-insert'), value = document.getObject('tag-value'), end = document.getObject('tag-end')
+  assert.deepEqual(insert.payload.attributeIds, ['tag-value']); assert.equal(insert.payload.sequenceEndId, 'tag-end')
+  assert.equal(value.ownerId, document.spaces.modelSpaceId); assert.equal(value.payload.parentInsertId, 'tag-insert')
+  assert.equal(end.kind, 'custom'); assert.equal(end.ownerId, 'tag-insert'); assert.equal(document.validate().valid, true)
+  for (const format of ['KJD', 'DXF']) {
+    const reopened = await createKJDrawSDK().readDocument(await sdk.writeDocument(document, { format }), { format })
+    const next = reopened.listEntities({ type: 'INSERT' })[0], attribute = reopened.getObject(next.payload.attributeIds[0]), sequence = reopened.getObject(next.payload.sequenceEndId)
+    assert.equal(attribute.payload.text, 'P-100'); assert.equal(attribute.payload.tag, 'PART'); assert.equal(attribute.payload.parentInsertId, next.id)
+    assert.equal(sequence.kind, 'custom'); assert.equal(sequence.ownerId, next.id)
+  }
+})
+
+test('CREATEBATCH rejects incomplete, forged or oversized attributed sequences without mutation', async () => {
+  const { sdk, document } = fixture(), source = document.serialize(), continuous = document.getTable('linetypes').currentId
+  const valid = () => ({ resources: { linetypes: [], layers: [{ id: 'layer', name: 'ATTRIBUTES', color: 7, linetypeId: continuous, lineweight: 18 }], blocks: [
+    { id: 'block', name: 'ATTRIBUTED-BLOCK', basePoint: [0, 0, 0], entities: [{ type: 'POINT', payload: { position: [0, 0, 0], layerId: 'layer' }, options: { id: 'member' } }] },
+  ] }, entities: [{ type: 'INSERT', payload: { blockRecordId: 'block', position: [0, 0, 0], scale: [1, 1, 1], rotation: 0, attributeIds: [], sequenceEndId: null, layerId: 'layer' }, options: { id: 'insert' },
+    attributeSequence: { attributes: [{ id: 'attribute', payload: { position: [0, 0, 0], text: 'A', tag: 'TAG', prompt: '', flags: 0, height: 2.5, rotation: 0 } }], sequenceEnd: { id: 'end', dxfOwnerMode: 'insert' } } }] })
+  const cases = [
+    args => { args.entities[0].type = 'LINE' },
+    args => { args.entities[0].options = {} },
+    args => { args.entities[0].attributeSequence.attributes = [] },
+    args => { args.entities[0].attributeSequence.attributes[0].id = 'insert' },
+    args => { args.entities[0].attributeSequence.attributes[0].payload.parentInsertId = 'forged' },
+    args => { args.entities[0].attributeSequence.sequenceEnd.dxfOwnerMode = 'other' },
+    args => { args.entities[0].attributeSequence.sequenceEnd.extra = true },
+    args => { args.entities[0].attributeSequence.attributes = Array.from({ length: 65 }, (_, index) => ({ id: `attribute-${index}`, payload: { position: [0, 0, 0], text: 'A', tag: `T${index}`, prompt: '', flags: 0, height: 2.5, rotation: 0 } })) },
+  ]
+  for (const mutate of cases) {
+    const args = valid(); mutate(args)
+    await assert.rejects(sdk.executeCommand('CREATEBATCH', args)); assert.equal(document.serialize(), source)
   }
 })
 

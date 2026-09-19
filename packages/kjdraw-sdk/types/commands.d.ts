@@ -52,6 +52,7 @@ export interface KJEntityBatchSpec extends Record<string, unknown> {
     type?: string;
     payload?: KJObjectPayload;
     options?: KJObjectSpec;
+    attributeSequence?: KJEntityBatchAttributeSequence;
     layerName?: string;
     layer?: {
         color?: unknown;
@@ -59,6 +60,17 @@ export interface KJEntityBatchSpec extends Record<string, unknown> {
         frozen?: unknown;
         locked?: unknown;
         plottable?: unknown;
+    };
+}
+export interface KJEntityBatchAttributeSequence {
+    attributes: {
+        id: string;
+        payload: KJObjectPayload;
+    }[];
+    sequenceEnd: {
+        id: string;
+        dxfOwnerMode: 'insert' | 'space';
+        layerId?: string;
     };
 }
 export interface KJEntityBatchResources {

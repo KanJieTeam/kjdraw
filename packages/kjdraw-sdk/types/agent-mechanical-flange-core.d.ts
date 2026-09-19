@@ -2,10 +2,21 @@ export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: '1.0.0';
 type Point2 = [number, number];
 type Point3 = [number, number, number];
 type Entity = {
-    type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT';
+    type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'ATTDEF' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT';
     payload: Record<string, unknown>;
     options: {
         id: string;
+    };
+    attributeSequence?: {
+        attributes: {
+            id: string;
+            payload: Record<string, unknown>;
+        }[];
+        sequenceEnd: {
+            id: string;
+            dxfOwnerMode: 'insert' | 'space';
+            layerId?: string;
+        };
     };
 };
 interface Document {
@@ -245,7 +256,9 @@ export type KJFlangeSymbolMember = {
     styleKey?: string;
     role: KJFlangeAuxiliaryLine['role'];
     entityStyleKey?: string;
-} | {
+} | ({
+    kind: 'attribute-definition';
+} & KJFlangeSymbolAttribute) | {
     kind: 'instance';
     symbolKey: string;
     position: Point2;
@@ -254,6 +267,25 @@ export type KJFlangeSymbolMember = {
     role: KJFlangeAuxiliaryLine['role'];
     entityStyleKey?: string;
 };
+export interface KJFlangeSymbolAttribute {
+    text: string;
+    tag: string;
+    prompt?: string;
+    position: Point2;
+    alignmentPoint?: Point2;
+    height: number;
+    rotation?: number;
+    widthFactor?: number;
+    obliqueAngle?: number;
+    horizontalAlignment?: number;
+    verticalAlignment?: number;
+    generationFlags?: number;
+    flags?: number;
+    lockPosition?: boolean;
+    styleKey?: string;
+    role: KJFlangeAuxiliaryLine['role'];
+    entityStyleKey?: string;
+}
 export interface KJFlangeSymbolDefinition {
     key: string;
     basePoint: Point2;
@@ -266,6 +298,7 @@ export interface KJFlangeSymbolInstance {
     rotation?: number;
     role: KJFlangeAuxiliaryLine['role'];
     styleKey?: string;
+    attributes?: KJFlangeSymbolAttribute[];
 }
 /** Source-supplied visible sheet text. Content remains input data and is not
  *  retained by the reusable knowledge pack. */
@@ -469,7 +502,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
                 name: string;
                 basePoint: Point3;
                 entities: {
-                    type: "ARC" | "CIRCLE" | "INSERT" | "LINE" | "MTEXT";
+                    type: "ARC" | "ATTDEF" | "CIRCLE" | "INSERT" | "LINE" | "MTEXT";
                     payload: Record<string, unknown>;
                     options: {
                         id: string;
@@ -500,6 +533,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             auxiliaryCurveCount: number;
             symbolDefinitionCount: number;
             symbolInstanceCount: number;
+            symbolAttributeCount: number;
             featureControlFrameCount: number;
             entityStyleCount: number;
             textStyleCount: number;

@@ -344,6 +344,34 @@ test('generic local symbols preserve nested block topology without attached enti
   assert.equal(dxf.listEntities({ type: 'CIRCLE' }).length, 10)
 })
 
+test('generic local symbols compile editable attribute definitions and complete native instance sequences', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const attribute = { text: 'P-100', tag: 'PART', prompt: 'Part number', position: [31, 42], alignmentPoint: [31, 42], height: 2.5,
+    widthFactor: .8, horizontalAlignment: 1, verticalAlignment: 2, generationFlags: 1, flags: 0, role: 'notes' }
+  const symbols = { definitions: [{ key: 'tagged-symbol', basePoint: [0, 0], members: [
+    { kind: 'line', start: [0, 0], end: [10, 0], role: 'notes' },
+    { kind: 'attribute-definition', ...attribute, text: 'DEFAULT', position: [1, 2], alignmentPoint: [1, 2] },
+  ] }], instances: [{ symbolKey: 'tagged-symbol', position: [30, 40], scale: [1, 1], rotation: 0, role: 'notes', attributes: [attribute] }] }
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols })
+  const block = proposal.commandArgs.resources.blocks[0], insert = proposal.commandArgs.entities.find(entity => entity.type === 'INSERT' && entity.attributeSequence)
+  assert.equal(block.entities.filter(entity => entity.type === 'ATTDEF').length, 1)
+  assert.equal(proposal.evidence.parameters.symbolAttributeCount, 2)
+  assert.equal(insert.attributeSequence.attributes.length, 1); assert.equal(insert.attributeSequence.attributes[0].payload.text, 'P-100')
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const currentInsert = document.listEntities({ type: 'INSERT' }).find(entity => entity.payload.attributeIds.length)
+  assert.equal(document.getObject(currentInsert.payload.attributeIds[0]).payload.text, 'P-100')
+  assert.equal(document.getObject(currentInsert.payload.sequenceEndId).type, 'SEQEND')
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
+  const reopened = dxf.listEntities({ type: 'INSERT' }).find(entity => entity.payload.attributeIds.length)
+  assert.equal(dxf.getObject(reopened.payload.attributeIds[0]).payload.tag, 'PART'); assert.ok(dxf.getObject(reopened.payload.sequenceEndId))
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); ins=[e for e in d.modelspace().query("INSERT") if len(e.attribs)][0]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"values":[x.dxf.text for x in ins.attribs],"tags":[x.dxf.tag for x in ins.attribs],"hasSeqend":ins.seqend is not None}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) t.diagnostic('official ezdxf unavailable; independent check skipped')
+  else { assert.equal(independent.status, 0, independent.stderr); assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, values: ['P-100'], tags: ['PART'], hasSeqend: true }) }
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols: { ...symbols, instances: [{ ...symbols.instances[0], attributes: [{ ...attribute, tag: 'PART', rawTags: [] }] }] } }), /unsupported field/u)
+})
+
 test('semantic feature-control frames compile as native TOLERANCE without opaque tags', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const featureControlFrames = [{ position: [120, 80], role: 'dimensions', rows: [
