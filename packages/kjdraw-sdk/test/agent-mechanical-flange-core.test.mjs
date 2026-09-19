@@ -131,6 +131,7 @@ test('flange compiler rejects unsupported source injection and impossible geomet
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, titleGrid: { ...input(0).sheet.titleGrid, origin: [0, 0] } } }), /inside the inset frame/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, titleGrid: { ...input(0).sheet.titleGrid, horizontalSegments: [{ offset: 10, start: 20, end: 10 }] } } }), /start must be less than end/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, titleGrid: { ...input(0).sheet.titleGrid, verticalSegments: [{ offset: 200, start: 0, end: 10 }] } } }), /must be finite/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, outerFrameSides: ['left', 'left'] } }), /unique frame sides/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), styleProfile: { geometry: { color: 2.5 } } }), /integer ACI/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), styleProfile: { center: { linetypePattern: [1, 2] } } }), /linetypePattern is invalid/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), auxiliaryLines: [{ start: [1, 1], end: [2, 2], role: 'unknown' }] }), /role is invalid/u)
@@ -207,16 +208,17 @@ test('caller-supplied entity style keys preserve mixed native display facts and 
     ] },
     endView: {
       ...source.endView,
+      ringStyleKeys: ['fine', 'bold', null],
       outlineSegments: source.endView.outlineSegments.map((segment, index) => index === 0 ? { ...segment, styleKey: 'bold' } : segment),
       cuttingPlaneMarks: source.endView.cuttingPlaneMarks.map(mark => ({ ...mark, stemStyleKey: 'fine', tickStyleKey: 'bold', arrowheadStyleKey: 'fine' })),
     },
-    sideViewAxis: { ...source.sideViewAxis, axisStyleKey: 'fine', symmetricProfiles: source.sideViewAxis.symmetricProfiles.map(profile => ({ ...profile, styleKey: 'bold' })) },
+    sideViewAxis: { ...source.sideViewAxis, axisStyleKey: 'fine', symmetricProfiles: source.sideViewAxis.symmetricProfiles.map(profile => ({ ...profile, styleKey: 'bold', startCapStyleKey: 'fine', endCapStyleKey: 'fine' })) },
     auxiliaryLines: [{ start: [10, 60], end: [30, 60], role: 'geometry', styleKey: 'fine' }],
     auxiliaryCurves: [{ kind: 'arc', center: [40, 60], radius: 5, startAngle: 0, endAngle: Math.PI, role: 'geometry', styleKey: 'bold' }],
     leaders: source.leaders.map(leader => ({ ...leader, styleKey: 'bold' })),
     sheet: {
       ...source.sheet,
-      outerFrameStyleKey: 'bold', insetFrameStyleKey: 'fine',
+      outerFrameStyleKey: 'bold', insetFrameStyleKey: 'fine', outerFrameSides: ['bottom', 'top', 'left'],
       titleGrid: { ...source.sheet.titleGrid, topStyleKey: 'bold', columns: [{ offset: 0, styleKey: 'fine' }, ...source.sheet.titleGrid.columns.slice(1)] },
       notes: source.sheet.notes.map(note => ({ ...note, entityStyleKey: 'bold' })),
     },
@@ -224,14 +226,18 @@ test('caller-supplied entity style keys preserve mixed native display facts and 
   const layers = new Map(proposal.commandArgs.resources.layers.map(layer => [layer.name, layer.id]))
   assert.equal(proposal.evidence.parameters.entityStyleCount, 2)
   assert.equal(proposal.commandArgs.resources.linetypes.filter(item => item.name.toUpperCase() === 'PUBLIC_DASH').length, 1)
+  assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'CIRCLE' && entity.payload.radius === 12).payload.layerId, layers.get('PUBLIC_FINE'))
+  assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'CIRCLE' && entity.payload.radius === 28).payload.layerId, layers.get('PUBLIC_BOLD'))
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === '[45,120,0]').payload.layerId, layers.get('PUBLIC_BOLD'))
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === '[90,198,0]').payload.layerId, layers.get('PUBLIC_FINE'))
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'SOLID').payload.layerId, layers.get('PUBLIC_FINE'))
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === '[190,150,0]').payload.layerId, layers.get('PUBLIC_FINE'))
+  assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === '[190,125,0]' && JSON.stringify(entity.payload.end) === '[190,175,0]').payload.layerId, layers.get('PUBLIC_FINE'))
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === '[10,60,0]').payload.layerId, layers.get('PUBLIC_FINE'))
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'ARC' && JSON.stringify(entity.payload.center) === '[40,60,0]').payload.layerId, layers.get('PUBLIC_BOLD'))
   assert.ok(proposal.commandArgs.entities.filter(entity => ['TEXT', 'MTEXT'].includes(entity.type)).every(entity => entity.payload.layerId === layers.get('PUBLIC_BOLD')))
   assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'LEADER').payload.layerId, layers.get('PUBLIC_BOLD'))
+  assert.equal(proposal.commandArgs.entities.some(entity => entity.type === 'LINE' && JSON.stringify(entity.payload.start) === '[400,0,0]' && JSON.stringify(entity.payload.end) === '[400,300,0]'), false)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, leaders: [{ ...source.leaders[0], styleKey: 'missing' }] }), /must reference input.styleProfile.custom/u)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
   const reopened = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
@@ -389,4 +395,12 @@ test('semantic feature-control frames compile as native TOLERANCE without opaque
   assert.equal(dxf.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames: [{ ...featureControlFrames[0], rawTags: [] }] }), /unsupported field/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames: [{ ...featureControlFrames[0], rows: [{ characteristic: 'unknown', tolerance: '0.1' }] }] }), /characteristic is invalid/u)
+})
+
+test('feature-control datum slots preserve intentional empty cells', () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames: [{ position: [120, 80], role: 'dimensions', rows: [{ characteristic: 'concentricity', tolerance: '0.03', datumReferences: [{ label: 'A', slot: 1 }, { label: 'B', slot: 2 }] }] }] })
+  const tolerance = proposal.commandArgs.entities.find(entity => entity.type === 'TOLERANCE')
+  assert.equal(tolerance.payload.text, String.raw`{\Fgdt;r}%%v0.03%%v%%vA%%vB%%v%%v^J`)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames: [{ position: [120, 80], role: 'dimensions', rows: [{ characteristic: 'concentricity', tolerance: '0.03', datumReferences: [{ label: 'A', slot: 4 }] }] }] }), /slot must be an integer from 0 to 3/u)
 })

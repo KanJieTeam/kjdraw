@@ -206,6 +206,7 @@ function validate(document, source) {
     exact(end, [
         'center',
         'ringRadii',
+        'ringStyleKeys',
         'squareHoles',
         'holePatterns',
         'outlineSegments',
@@ -214,6 +215,8 @@ function validate(document, source) {
     const center = point(end.center, 'input.endView.center');
     const ringRadii = increasing(end.ringRadii, 'input.endView.ringRadii', 16, 0.1, 100_000);
     if (ringRadii.length < 2) throw new KJValidationError('input.endView.ringRadii requires at least two radii');
+    if (end.ringStyleKeys != null && (!Array.isArray(end.ringStyleKeys) || end.ringStyleKeys.length !== ringRadii.length)) throw new KJValidationError('input.endView.ringStyleKeys must match ringRadii');
+    const ringStyleKeys = end.ringStyleKeys == null ? ringRadii.map(()=>undefined) : end.ringStyleKeys.map((value, index)=>entityStyleKey(value, `input.endView.ringStyleKeys[${index}]`));
     let pitch, radius;
     const holePatterns = [];
     if (end.squareHoles != null) {
@@ -382,7 +385,9 @@ function validate(document, source) {
         exact(profile, [
             'vertices',
             'endCaps',
-            'styleKey'
+            'styleKey',
+            'startCapStyleKey',
+            'endCapStyleKey'
         ], `input.sideViewAxis.symmetricProfiles[${profileIndex}]`);
         if (!Array.isArray(profile.vertices) || profile.vertices.length < 2 || profile.vertices.length > 64) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].vertices must contain 2 to 64 points`);
         const vertices = profile.vertices.map((vertexValue, vertexIndex)=>{
@@ -411,11 +416,19 @@ function validate(document, source) {
             'both'
         ].includes(endCaps)) throw new KJValidationError(`input.sideViewAxis.symmetricProfiles[${profileIndex}].endCaps is invalid`);
         const styleKey = entityStyleKey(profile.styleKey, `input.sideViewAxis.symmetricProfiles[${profileIndex}].styleKey`);
+        const startCapStyleKey = entityStyleKey(profile.startCapStyleKey, `input.sideViewAxis.symmetricProfiles[${profileIndex}].startCapStyleKey`);
+        const endCapStyleKey = entityStyleKey(profile.endCapStyleKey, `input.sideViewAxis.symmetricProfiles[${profileIndex}].endCapStyleKey`);
         return {
             vertices,
             endCaps,
             ...styleKey == null ? {} : {
                 styleKey
+            },
+            ...startCapStyleKey == null ? {} : {
+                startCapStyleKey
+            },
+            ...endCapStyleKey == null ? {} : {
+                endCapStyleKey
             }
         };
     });
@@ -584,6 +597,8 @@ function validate(document, source) {
         'inset',
         'outerFrameStyleKey',
         'insetFrameStyleKey',
+        'outerFrameSides',
+        'insetFrameSides',
         'titleGrid',
         'notes'
     ], 'input.sheet');
@@ -591,6 +606,24 @@ function validate(document, source) {
     if (sheetSize[0] < 100 || sheetSize[1] < 100) throw new KJValidationError('input.sheet.size is too small');
     const inset = finite(sheet.inset, 'input.sheet.inset', 0, Math.min(...sheetSize) / 2 - 1);
     const outerFrameStyleKey = entityStyleKey(sheet.outerFrameStyleKey, 'input.sheet.outerFrameStyleKey'), insetFrameStyleKey = entityStyleKey(sheet.insetFrameStyleKey, 'input.sheet.insetFrameStyleKey');
+    const frameSides = (value, label)=>{
+        if (value == null) return [
+            'bottom',
+            'right',
+            'top',
+            'left'
+        ];
+        if (!Array.isArray(value) || value.length > 4 || value.some((side)=>![
+                'bottom',
+                'right',
+                'top',
+                'left'
+            ].includes(side)) || new Set(value).size !== value.length) throw new KJValidationError(`${label} must contain unique frame sides`);
+        return [
+            ...value
+        ];
+    };
+    const outerFrameSides = frameSides(sheet.outerFrameSides, 'input.sheet.outerFrameSides'), insetFrameSides = frameSides(sheet.insetFrameSides, 'input.sheet.insetFrameSides');
     const grid = sheet.titleGrid == null ? null : plain(sheet.titleGrid, 'input.sheet.titleGrid');
     if (grid) exact(grid, [
         'origin',
@@ -912,18 +945,30 @@ function validate(document, source) {
                 const datumLabel = `${rowLabel}.datumReferences[${datumIndex}]`, datum = plain(datumValue, datumLabel);
                 exact(datum, [
                     'label',
-                    'materialCondition'
+                    'materialCondition',
+                    'slot'
                 ], datumLabel);
                 if (typeof datum.label !== 'string' || !/^[A-Z0-9]{1,8}$/u.test(datum.label)) throw new KJValidationError(`${datumLabel}.label must be 1 to 8 uppercase letters or digits`);
+                const slot = datum.slot;
+                if (slot != null && (typeof slot !== 'number' || !Number.isInteger(slot) || slot < 0 || slot > 3)) throw new KJValidationError(`${datumLabel}.slot must be an integer from 0 to 3`);
                 const condition = materialCondition(datum.materialCondition, `${datumLabel}.materialCondition`);
                 return {
                     label: datum.label,
                     ...condition == null ? {} : {
                         materialCondition: condition
-                    }
+                    },
+                    ...typeof slot === 'number' ? {
+                        slot
+                    } : {}
                 };
             });
             const condition = materialCondition(row.materialCondition, `${rowLabel}.materialCondition`);
+            const usedSlots = new Set();
+            for (const datum of datumReferences){
+                if (datum.slot == null) continue;
+                if (usedSlots.has(datum.slot)) throw new KJValidationError(`${rowLabel}.datumReferences slots must be unique`);
+                usedSlots.add(datum.slot);
+            }
             return {
                 characteristic: row.characteristic,
                 tolerance: row.tolerance,
@@ -1528,6 +1573,7 @@ function validate(document, source) {
         drawingId: input.drawingId.trim(),
         center,
         ringRadii,
+        ringStyleKeys,
         pitch,
         radius,
         holePatterns,
@@ -1555,6 +1601,8 @@ function validate(document, source) {
         inset,
         outerFrameStyleKey,
         insetFrameStyleKey,
+        outerFrameSides,
+        insetFrameSides,
         titleGrid,
         notes
     };
@@ -1798,11 +1846,14 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         ]);
     };
     const [cx, cy] = input.center;
-    for (const ringRadius of input.ringRadii)emit('CIRCLE', {
-        center: p3(cx, cy),
-        radius: ringRadius,
-        layerId: roleIds.geometry
-    }, 'geometry');
+    for (const [index, ringRadius] of input.ringRadii.entries()){
+        const style = styled(input.ringStyleKeys[index], 'geometry');
+        emit('CIRCLE', {
+            center: p3(cx, cy),
+            radius: ringRadius,
+            layerId: style.layerId
+        }, style.name);
+    }
     if (input.pitch != null && input.radius != null) {
         const halfPitch = input.pitch / 2;
         for (const dx of [
@@ -1901,30 +1952,30 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             }, arrowStyle.name);
         }
     }
-    const frameRectangle = (origin, size, styleKey)=>{
+    const frameRectangle = (origin, size, sides, styleKey)=>{
         const [x, y] = origin, [w, h] = size, style = styled(styleKey, 'frame');
-        line([
+        if (sides.includes('bottom')) line([
             x,
             y
         ], [
             x + w,
             y
         ], style.layerId, style.name);
-        line([
+        if (sides.includes('right')) line([
             x + w,
             y
         ], [
             x + w,
             y + h
         ], style.layerId, style.name);
-        line([
+        if (sides.includes('top')) line([
             x + w,
             y + h
         ], [
             x,
             y + h
         ], style.layerId, style.name);
-        line([
+        if (sides.includes('left')) line([
             x,
             y + h
         ], [
@@ -1932,14 +1983,14 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             y
         ], style.layerId, style.name);
     };
-    frameRectangle(input.sheetOrigin, input.sheetSize, input.outerFrameStyleKey);
+    frameRectangle(input.sheetOrigin, input.sheetSize, input.outerFrameSides, input.outerFrameStyleKey);
     if (input.inset > 0) frameRectangle([
         input.sheetOrigin[0] + input.inset,
         input.sheetOrigin[1] + input.inset
     ], [
         input.sheetSize[0] - input.inset * 2,
         input.sheetSize[1] - input.inset * 2
-    ], input.insetFrameStyleKey);
+    ], input.insetFrameSides, input.insetFrameStyleKey);
     if (input.titleGrid) {
         const grid = input.titleGrid, [x, y] = grid.origin, [w, h] = grid.size;
         const topStyle = styled(grid.topStyleKey, 'grid');
@@ -2045,20 +2096,26 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             ], style.layerId, style.name);
         }
         const start = profile.vertices[0], end = profile.vertices.at(-1);
-        if (profile.endCaps === 'start' || profile.endCaps === 'both') line([
-            start.station,
-            cy - start.radius
-        ], [
-            start.station,
-            cy + start.radius
-        ], style.layerId, style.name);
-        if (profile.endCaps === 'end' || profile.endCaps === 'both') line([
-            end.station,
-            cy - end.radius
-        ], [
-            end.station,
-            cy + end.radius
-        ], style.layerId, style.name);
+        if (profile.endCaps === 'start' || profile.endCaps === 'both') {
+            const capStyle = styled(profile.startCapStyleKey ?? profile.styleKey, 'geometry');
+            line([
+                start.station,
+                cy - start.radius
+            ], [
+                start.station,
+                cy + start.radius
+            ], capStyle.layerId, capStyle.name);
+        }
+        if (profile.endCaps === 'end' || profile.endCaps === 'both') {
+            const capStyle = styled(profile.endCapStyleKey ?? profile.styleKey, 'geometry');
+            line([
+                end.station,
+                cy - end.radius
+            ], [
+                end.station,
+                cy + end.radius
+            ], capStyle.layerId, capStyle.name);
+        }
     }
     for (const segment of input.sideOutlineSegments){
         const style = styled(segment.styleKey, 'geometry');
@@ -2362,15 +2419,14 @@ export function buildAgentMechanicalFlangeCore(document, source) {
     for (const frame of input.featureControlFrames){
         const text = frame.rows.map((row)=>{
             let value = `${gdt(characteristicCode[row.characteristic])}%%v${row.diameterZone ? gdt('n') : ''}${row.tolerance}${row.materialCondition ? gdt(conditionCode[row.materialCondition]) : ''}%%v`;
-            let dividers = 2;
+            const cells = Array(4).fill('');
+            let nextSlot = 0;
             for (const datum of row.datumReferences ?? []){
-                value += `${datum.label}${datum.materialCondition ? gdt(conditionCode[datum.materialCondition]) : ''}%%v`;
-                dividers++;
+                const slot = datum.slot ?? nextSlot;
+                cells[slot] = `${datum.label}${datum.materialCondition ? gdt(conditionCode[datum.materialCondition]) : ''}`;
+                nextSlot = Math.max(nextSlot, slot + 1);
             }
-            while(dividers < 6){
-                value += '%%v';
-                dividers++;
-            }
+            for (const cell of cells)value += `${cell}%%v`;
             return `${value}^J`;
         }).join('');
         const style = frame.styleKey == null ? null : dimensionStyleByKey.get(frame.styleKey);
