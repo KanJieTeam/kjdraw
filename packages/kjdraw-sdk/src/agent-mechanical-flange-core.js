@@ -207,20 +207,52 @@ function validate(document, source) {
         'center',
         'ringRadii',
         'squareHoles',
+        'holePatterns',
         'outlineSegments',
         'cuttingPlaneMarks'
     ], 'input.endView');
     const center = point(end.center, 'input.endView.center');
     const ringRadii = increasing(end.ringRadii, 'input.endView.ringRadii', 16, 0.1, 100_000);
     if (ringRadii.length < 2) throw new KJValidationError('input.endView.ringRadii requires at least two radii');
-    const holes = plain(end.squareHoles, 'input.endView.squareHoles');
-    exact(holes, [
-        'pitch',
-        'radius'
-    ], 'input.endView.squareHoles');
-    const pitch = finite(holes.pitch, 'input.endView.squareHoles.pitch', 0.1, 100_000);
-    const radius = finite(holes.radius, 'input.endView.squareHoles.radius', 0.1, 100_000);
-    if (pitch <= radius * 2) throw new KJValidationError('square-hole pitch must exceed the hole diameter');
+    let pitch, radius;
+    const holePatterns = [];
+    if (end.squareHoles != null) {
+        const holes = plain(end.squareHoles, 'input.endView.squareHoles');
+        exact(holes, [
+            'pitch',
+            'radius'
+        ], 'input.endView.squareHoles');
+        pitch = finite(holes.pitch, 'input.endView.squareHoles.pitch', 0.1, 100_000);
+        radius = finite(holes.radius, 'input.endView.squareHoles.radius', 0.1, 100_000);
+        if (pitch <= radius * 2) throw new KJValidationError('square-hole pitch must exceed the hole diameter');
+    }
+    if (end.holePatterns != null && (!Array.isArray(end.holePatterns) || end.holePatterns.length > 16)) throw new KJValidationError('input.endView.holePatterns must contain at most 16 patterns');
+    for (const [index, value] of (end.holePatterns ?? []).entries()){
+        const label = `input.endView.holePatterns[${index}]`, pattern = plain(value, label);
+        exact(pattern, [
+            'count',
+            'pitchRadius',
+            'holeRadius',
+            'startAngle',
+            'styleKey'
+        ], label);
+        const count = finite(pattern.count, `${label}.count`, 1, 128);
+        if (!Number.isInteger(count)) throw new KJValidationError(`${label}.count must be an integer`);
+        const pitchRadius = finite(pattern.pitchRadius, `${label}.pitchRadius`, 0.1, 100_000), holeRadius = finite(pattern.holeRadius, `${label}.holeRadius`, 0.000_001, 100_000);
+        if (pitchRadius <= holeRadius) throw new KJValidationError(`${label}.pitchRadius must exceed holeRadius`);
+        const startAngle = pattern.startAngle == null ? 0 : finite(pattern.startAngle, `${label}.startAngle`, -Math.PI * 4, Math.PI * 4);
+        const styleKey = entityStyleKey(pattern.styleKey, `${label}.styleKey`);
+        holePatterns.push({
+            count,
+            pitchRadius,
+            holeRadius,
+            startAngle,
+            ...styleKey == null ? {} : {
+                styleKey
+            }
+        });
+    }
+    if (holePatterns.reduce((sum, pattern)=>sum + pattern.count, 0) > 256) throw new KJValidationError('input.endView.holePatterns exceed the 256-hole budget');
     if (end.outlineSegments != null && !Array.isArray(end.outlineSegments)) throw new KJValidationError('input.endView.outlineSegments must be an array');
     if (end.outlineSegments?.length && end.outlineSegments.length > 128) throw new KJValidationError('input.endView.outlineSegments exceed their budget');
     const outlineSegments = (end.outlineSegments ?? []).map((value, index)=>{
@@ -1399,6 +1431,7 @@ function validate(document, source) {
         ringRadii,
         pitch,
         radius,
+        holePatterns,
         outlineSegments,
         cuttingPlaneMarks,
         sideOutlineSegments,
@@ -1670,18 +1703,31 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         radius: ringRadius,
         layerId: roleIds.geometry
     }, 'geometry');
-    const halfPitch = input.pitch / 2;
-    for (const dx of [
-        -1,
-        1
-    ])for (const dy of [
-        -1,
-        1
-    ])emit('CIRCLE', {
-        center: p3(cx + dx * halfPitch, cy + dy * halfPitch),
-        radius: input.radius,
-        layerId: roleIds.geometry
-    }, 'geometry');
+    if (input.pitch != null && input.radius != null) {
+        const halfPitch = input.pitch / 2;
+        for (const dx of [
+            -1,
+            1
+        ])for (const dy of [
+            -1,
+            1
+        ])emit('CIRCLE', {
+            center: p3(cx + dx * halfPitch, cy + dy * halfPitch),
+            radius: input.radius,
+            layerId: roleIds.geometry
+        }, 'geometry');
+    }
+    for (const pattern of input.holePatterns){
+        const style = styled(pattern.styleKey, 'geometry');
+        for(let index = 0; index < pattern.count; index++){
+            const angle = (pattern.startAngle ?? 0) + index * Math.PI * 2 / pattern.count;
+            emit('CIRCLE', {
+                center: p3(cx + Math.cos(angle) * pattern.pitchRadius, cy + Math.sin(angle) * pattern.pitchRadius),
+                radius: pattern.holeRadius,
+                layerId: style.layerId
+            }, style.name);
+        }
+    }
     for (const segment of input.outlineSegments){
         const style = styled(segment.styleKey, 'geometry');
         if (segment.kind === 'line') line([
@@ -1787,7 +1833,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
         ], style.layerId, style.name);
     };
     frameRectangle(input.sheetOrigin, input.sheetSize, input.outerFrameStyleKey);
-    frameRectangle([
+    if (input.inset > 0) frameRectangle([
         input.sheetOrigin[0] + input.inset,
         input.sheetOrigin[1] + input.inset
     ], [
@@ -2262,6 +2308,8 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 ringCount: input.ringRadii.length,
                 squareHolePitch: input.pitch,
                 squareHoleRadius: input.radius,
+                holePatternCount: input.holePatterns.length + (input.pitch == null ? 0 : 1),
+                holeCount: input.holePatterns.reduce((sum, pattern)=>sum + pattern.count, input.pitch == null ? 0 : 4),
                 titleGrid: input.titleGrid != null,
                 sideViewAxis: input.xRange != null,
                 outlineSegmentCount: input.outlineSegments.length,

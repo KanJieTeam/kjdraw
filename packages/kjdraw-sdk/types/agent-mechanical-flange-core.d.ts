@@ -381,6 +381,15 @@ export interface KJFlangeCuttingPlaneMark {
     tickStyleKey?: string;
     arrowheadStyleKey?: string;
 }
+/** A source-measured circular hole array. Angles are radians, counterclockwise
+ *  from the positive X axis, and the pattern remains relative to endView.center. */
+export interface KJFlangePolarHolePattern {
+    count: number;
+    pitchRadius: number;
+    holeRadius: number;
+    startAngle?: number;
+    styleKey?: string;
+}
 export interface KJAgentMechanicalFlangeCoreInput {
     version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION;
     expectedRevision: number;
@@ -389,10 +398,11 @@ export interface KJAgentMechanicalFlangeCoreInput {
     endView: {
         center: Point2;
         ringRadii: number[];
-        squareHoles: {
+        squareHoles?: {
             pitch: number;
             radius: number;
         };
+        holePatterns?: KJFlangePolarHolePattern[];
         outlineSegments?: KJFlangeEndViewOutlineSegment[];
         cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[];
     };
@@ -475,8 +485,10 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
         entityCount: number;
         parameters: {
             ringCount: number;
-            squareHolePitch: number;
-            squareHoleRadius: number;
+            squareHolePitch: number | undefined;
+            squareHoleRadius: number | undefined;
+            holePatternCount: number;
+            holeCount: number;
             titleGrid: boolean;
             sideViewAxis: boolean;
             outlineSegmentCount: number;

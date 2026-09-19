@@ -215,12 +215,22 @@ export interface KJFlangeCuttingPlaneMark {
   arrowheadStyleKey?: string
 }
 
+/** A source-measured circular hole array. Angles are radians, counterclockwise
+ *  from the positive X axis, and the pattern remains relative to endView.center. */
+export interface KJFlangePolarHolePattern {
+  count: number
+  pitchRadius: number
+  holeRadius: number
+  startAngle?: number
+  styleKey?: string
+}
+
 export interface KJAgentMechanicalFlangeCoreInput {
   version: typeof KJDRAW_MECHANICAL_FLANGE_CORE_VERSION
   expectedRevision: number
   units: 'millimeter'
   drawingId: string
-  endView: { center: Point2; ringRadii: number[]; squareHoles: { pitch: number; radius: number }; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
+  endView: { center: Point2; ringRadii: number[]; squareHoles?: { pitch: number; radius: number }; holePatterns?: KJFlangePolarHolePattern[]; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
   sideViewAxis?: { xRange: Point2; axisStyleKey?: string; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
   dimensions?: KJFlangeDimension[]
   leaders?: KJFlangeLeader[]
@@ -333,14 +343,31 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     if (!entityStyleKeys.has(key)) throw new KJValidationError(`${label} must reference input.styleProfile.custom`)
     return key
   }
-  const end = plain(input.endView, 'input.endView'); exact(end, ['center', 'ringRadii', 'squareHoles', 'outlineSegments', 'cuttingPlaneMarks'], 'input.endView')
+  const end = plain(input.endView, 'input.endView'); exact(end, ['center', 'ringRadii', 'squareHoles', 'holePatterns', 'outlineSegments', 'cuttingPlaneMarks'], 'input.endView')
   const center = point(end.center, 'input.endView.center')
   const ringRadii = increasing(end.ringRadii, 'input.endView.ringRadii', 16, 0.1, 100_000)
   if (ringRadii.length < 2) throw new KJValidationError('input.endView.ringRadii requires at least two radii')
-  const holes = plain(end.squareHoles, 'input.endView.squareHoles'); exact(holes, ['pitch', 'radius'], 'input.endView.squareHoles')
-  const pitch = finite(holes.pitch, 'input.endView.squareHoles.pitch', 0.1, 100_000)
-  const radius = finite(holes.radius, 'input.endView.squareHoles.radius', 0.1, 100_000)
-  if (pitch <= radius * 2) throw new KJValidationError('square-hole pitch must exceed the hole diameter')
+  let pitch: number | undefined, radius: number | undefined
+  const holePatterns: KJFlangePolarHolePattern[] = []
+  if (end.squareHoles != null) {
+    const holes = plain(end.squareHoles, 'input.endView.squareHoles'); exact(holes, ['pitch', 'radius'], 'input.endView.squareHoles')
+    pitch = finite(holes.pitch, 'input.endView.squareHoles.pitch', 0.1, 100_000)
+    radius = finite(holes.radius, 'input.endView.squareHoles.radius', 0.1, 100_000)
+    if (pitch <= radius * 2) throw new KJValidationError('square-hole pitch must exceed the hole diameter')
+  }
+  if (end.holePatterns != null && (!Array.isArray(end.holePatterns) || end.holePatterns.length > 16)) throw new KJValidationError('input.endView.holePatterns must contain at most 16 patterns')
+  for (const [index, value] of ((end.holePatterns ?? []) as unknown[]).entries()) {
+    const label = `input.endView.holePatterns[${index}]`, pattern = plain(value, label)
+    exact(pattern, ['count', 'pitchRadius', 'holeRadius', 'startAngle', 'styleKey'], label)
+    const count = finite(pattern.count, `${label}.count`, 1, 128)
+    if (!Number.isInteger(count)) throw new KJValidationError(`${label}.count must be an integer`)
+    const pitchRadius = finite(pattern.pitchRadius, `${label}.pitchRadius`, 0.1, 100_000), holeRadius = finite(pattern.holeRadius, `${label}.holeRadius`, 0.000_001, 100_000)
+    if (pitchRadius <= holeRadius) throw new KJValidationError(`${label}.pitchRadius must exceed holeRadius`)
+    const startAngle = pattern.startAngle == null ? 0 : finite(pattern.startAngle, `${label}.startAngle`, -Math.PI * 4, Math.PI * 4)
+    const styleKey = entityStyleKey(pattern.styleKey, `${label}.styleKey`)
+    holePatterns.push({ count, pitchRadius, holeRadius, startAngle, ...(styleKey == null ? {} : { styleKey }) })
+  }
+  if (holePatterns.reduce((sum, pattern) => sum + pattern.count, 0) > 256) throw new KJValidationError('input.endView.holePatterns exceed the 256-hole budget')
   if (end.outlineSegments != null && !Array.isArray(end.outlineSegments)) throw new KJValidationError('input.endView.outlineSegments must be an array')
   if ((end.outlineSegments as unknown[] | undefined)?.length && (end.outlineSegments as unknown[]).length > 128) throw new KJValidationError('input.endView.outlineSegments exceed their budget')
   const outlineSegments: KJFlangeEndViewOutlineSegment[] = ((end.outlineSegments ?? []) as unknown[]).map((value, index) => {
@@ -784,7 +811,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const source = plain(value, `input.styleProfile.custom[${index}]`), { key, ...definition } = source
     return { key: String(key), definition: styleRole(definition, `input.styleProfile.custom[${index}]`) }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameStyleKey, insetFrameStyleKey, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), center, ringRadii, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, symbolDefinitions, symbolInstances, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameStyleKey, insetFrameStyleKey, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -850,8 +877,17 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   }
   const [cx, cy] = input.center
   for (const ringRadius of input.ringRadii) emit('CIRCLE', { center: p3(cx, cy), radius: ringRadius, layerId: roleIds.geometry }, 'geometry')
-  const halfPitch = input.pitch / 2
-  for (const dx of [-1, 1]) for (const dy of [-1, 1]) emit('CIRCLE', { center: p3(cx + dx * halfPitch, cy + dy * halfPitch), radius: input.radius, layerId: roleIds.geometry }, 'geometry')
+  if (input.pitch != null && input.radius != null) {
+    const halfPitch = input.pitch / 2
+    for (const dx of [-1, 1]) for (const dy of [-1, 1]) emit('CIRCLE', { center: p3(cx + dx * halfPitch, cy + dy * halfPitch), radius: input.radius, layerId: roleIds.geometry }, 'geometry')
+  }
+  for (const pattern of input.holePatterns) {
+    const style = styled(pattern.styleKey, 'geometry')
+    for (let index = 0; index < pattern.count; index++) {
+      const angle = (pattern.startAngle ?? 0) + index * Math.PI * 2 / pattern.count
+      emit('CIRCLE', { center: p3(cx + Math.cos(angle) * pattern.pitchRadius, cy + Math.sin(angle) * pattern.pitchRadius), radius: pattern.holeRadius, layerId: style.layerId }, style.name)
+    }
+  }
   for (const segment of input.outlineSegments) {
     const style = styled(segment.styleKey, 'geometry')
     if (segment.kind === 'line') line([cx + segment.startOffset[0], cy + segment.startOffset[1]], [cx + segment.endOffset[0], cy + segment.endOffset[1]], style.layerId, style.name)
@@ -877,7 +913,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   }
   const frameRectangle = (origin: Point2, size: Point2, styleKey?: string) => { const [x, y] = origin, [w, h] = size, style = styled(styleKey, 'frame'); line([x, y], [x + w, y], style.layerId, style.name); line([x + w, y], [x + w, y + h], style.layerId, style.name); line([x + w, y + h], [x, y + h], style.layerId, style.name); line([x, y + h], [x, y], style.layerId, style.name) }
   frameRectangle(input.sheetOrigin, input.sheetSize, input.outerFrameStyleKey)
-  frameRectangle([input.sheetOrigin[0] + input.inset, input.sheetOrigin[1] + input.inset], [input.sheetSize[0] - input.inset * 2, input.sheetSize[1] - input.inset * 2], input.insetFrameStyleKey)
+  if (input.inset > 0) frameRectangle([input.sheetOrigin[0] + input.inset, input.sheetOrigin[1] + input.inset], [input.sheetSize[0] - input.inset * 2, input.sheetSize[1] - input.inset * 2], input.insetFrameStyleKey)
   if (input.titleGrid) {
     const grid = input.titleGrid, [x, y] = grid.origin, [w, h] = grid.size
     const topStyle = styled(grid.topStyleKey, 'grid'); line([x, y + h], [x + w, y + h], topStyle.layerId, topStyle.name)
@@ -991,7 +1027,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     evidence: { knowledgePackId: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.id,
       knowledgePackVersion: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version,
       expectedRevision: input.expectedRevision, entityCount: entities.length,
-      parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
+      parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, holePatternCount: input.holePatterns.length + (input.pitch == null ? 0 : 1), holeCount: input.holePatterns.reduce((sum, pattern) => sum + pattern.count, input.pitch == null ? 0 : 4), titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
         sectionHatchCount: input.sectionHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryCurveCount: input.auxiliaryCurves.length,
