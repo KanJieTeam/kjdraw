@@ -99,6 +99,38 @@ test('sheet-note attachment points are bounded to multiline MTEXT', () => {
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...base, sheet: { ...base.sheet, notes: [{ ...note, kind: 'multiline', attachmentPoint: 5.5 }] } }), /attachmentPoint is only valid/u)
 })
 
+test('single-line sheet-note width factors remain entity-local through KJD and DXF', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
+  const note = { kind: 'single-line', text: 'PUBLIC WIDTH', position: [30, 60], height: 3, widthFactor: .8 }
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...source, sheet: { ...source.sheet, notes: [note] } })
+  const emitted = proposal.commandArgs.entities.find(entity => entity.type === 'TEXT')
+  assert.equal(emitted.payload.widthFactor, .8)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = format === 'DXF' ? dxf : await sdk.writeDocument(document, { format: 'KJD', version: '1' })
+    const reopened = await sdk.readDocument(bytes, { format })
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(reopened.listEntities({ type: 'TEXT' }).find(entity => entity.payload.text === note.text)?.payload.widthFactor, .8)
+  }
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); q=list(d.modelspace().query("TEXT")); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"widthFactor":float(q[0].dxf.width)}))'],
+  dxf, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
+    PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || independent.status !== 0 && /No module named ['"]ezdxf/u.test(independent.stderr ?? '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr ?? independent.error?.message)
+    t.skip('official ezdxf is not installed'); return
+  }
+  assert.equal(independent.status, 0, independent.stderr)
+  assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, widthFactor: .8 })
+  for (const invalid of [
+    { ...note, widthFactor: 0 },
+    { ...note, widthFactor: Number.NaN },
+    { ...note, sourceWidthFactor: .8 },
+    { kind: 'multiline', text: 'PUBLIC WIDTH', position: [30, 60], height: 3, widthFactor: .8 },
+  ]) assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), sheet: { ...source.sheet, notes: [invalid] } }), /widthFactor|unsupported field/u)
+})
+
 test('outer frame offsets preserve measured borders without shifting inset geometry', () => {
   const document = createKJDrawSDK().createDocument({ units: 'millimeter' }), base = input(document.revision)
   const proposal = buildAgentMechanicalFlangeCore(document, { ...base, sheet: { ...base.sheet, outerFrameOffset: [0.125, -0.25] } })

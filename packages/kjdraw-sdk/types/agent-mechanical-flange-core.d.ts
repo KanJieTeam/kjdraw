@@ -487,6 +487,8 @@ export interface KJFlangeSheetNote {
     position: Point2;
     height: number;
     rotation?: number;
+    /** Entity-local TEXT width factor; valid only for single-line notes. */
+    widthFactor?: number;
     width?: number;
     attachmentPoint?: number;
     styleKey?: string;
