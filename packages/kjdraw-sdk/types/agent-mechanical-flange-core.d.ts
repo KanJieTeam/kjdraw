@@ -698,6 +698,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
         expectedRevision: number;
         entityCount: number;
         parameters: {
+            endViewPresent: boolean;
             ringCount: number;
             squareHolePitch: number | undefined;
             squareHoleRadius: number | undefined;
