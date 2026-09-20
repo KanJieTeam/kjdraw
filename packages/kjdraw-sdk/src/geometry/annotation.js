@@ -275,6 +275,46 @@ export function projectDimension(payload, style = {}) {
         ]);
         if (type === 'DIAMETER') arrow(first, u);
         textPoint = plus(second, u, height * 1.1);
+    } else if (type === 'ORDINATE') {
+        const end = points[2];
+        if (!end) return null;
+        const angle = finite(payload.rotation, 0);
+        const localX = [
+            Math.cos(angle),
+            Math.sin(angle)
+        ];
+        const localY = [
+            -localX[1],
+            localX[0]
+        ];
+        const xType = (Math.trunc(finite(payload.dxfDimensionType, 6)) & 64) !== 0;
+        const measurementAxis = xType ? localX : localY;
+        const leaderAxis = xType ? localY : localX;
+        const featureVector = delta(second, first), leaderVector = delta(end, second);
+        measurement = Math.abs(dot(featureVector, measurementAxis));
+        const leaderDistance = dot(leaderVector, leaderAxis);
+        if (measurement < 1e-12 || Math.abs(leaderDistance) < 1e-12) return null;
+        const direction = plus([
+            0,
+            0
+        ], leaderAxis, Math.sign(leaderDistance));
+        const leg = Math.max(arrowSize * 2, height);
+        const start = plus(second, direction, gap);
+        const elbow = plus(end, direction, -Math.min(leg, Math.abs(leaderDistance) / 2));
+        const firstLeg = Math.max(leg, Math.abs(leaderDistance) - leg * 2);
+        const junction = plus(second, direction, firstLeg);
+        lines.push([
+            start,
+            junction
+        ], [
+            junction,
+            elbow
+        ], [
+            elbow,
+            end
+        ]);
+        textPoint = plus(end, direction, height * .65);
+        rotation = angle + (xType ? Math.PI / 2 : 0);
     } else return null;
     const angular = type === 'ANGULAR' || type === 'ANGULAR_3_POINT';
     if (angular && Number(payload.angularUnits ?? style.angularUnits ?? 0) !== 0) return null;

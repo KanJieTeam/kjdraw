@@ -1242,7 +1242,7 @@ function entityPayload(record, blockIds, resources = {}) {
                         styleId: resources.dimensionStyleIds?.get(normalizeName(styleName)) ?? null,
                         blockName: first(record, 2),
                         measurement: values(record, 42).length ? number(record, 42) : null,
-                        rotation: number(record, 50, 0) * Math.PI / 180,
+                        rotation: (subtype === 6 ? -number(record, 51, 0) : number(record, 50, 0)) * Math.PI / 180,
                         rawTags: record.tags
                     }
                 };
@@ -2111,14 +2111,15 @@ const NATIVE_DIMENSION_SUBTYPES = new Set([
     2,
     3,
     4,
-    5
+    5,
+    6
 ]);
 function nativeDimensionCode(payload) {
     const namedType = normalizeName(payload.dimensionType);
     const mapped = namedType === 'LINEAR' ? 0 : DIMENSION_CODE_BY_TYPE[namedType];
     const value = payload.dxfDimensionType == null ? mapped : Number(payload.dxfDimensionType);
     if (!Number.isInteger(value) || value < 0 || !NATIVE_DIMENSION_SUBTYPES.has(value & 7)) {
-        throw new KJValidationError(`DXF export requires a valid ALIGNED, ROTATED, ANGULAR, ANGULAR_3_POINT, RADIUS, or DIAMETER dimension; received ${payload.dimensionType ?? payload.dxfDimensionType ?? 'unknown'}`);
+        throw new KJValidationError(`DXF export requires a valid ALIGNED, ROTATED, ANGULAR, ANGULAR_3_POINT, RADIUS, DIAMETER, or ORDINATE dimension; received ${payload.dimensionType ?? payload.dxfDimensionType ?? 'unknown'}`);
     }
     return value;
 }
@@ -3188,6 +3189,7 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emit(output, 3, (p.styleId ? resources.dimensionStyleNames?.get(p.styleId) : undefined) ?? p.styleName ?? 'STANDARD');
         emit(output, 70, isSubclassDXF(version) ? dimensionCode | 32 : dimensionCode);
         if (p.textOverride != null) emit(output, 1, p.textOverride);
+        if ((dimensionCode & 7) === 6 && p.rotation) emit(output, 51, -Number(p.rotation) * 180 / Math.PI);
         if (dimension.measurement != null && ![
             2,
             5
