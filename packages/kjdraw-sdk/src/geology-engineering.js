@@ -1329,8 +1329,6 @@ function sectionLayout(input) {
     const scalarKeys = [
         'paperWidth',
         'paperHeight',
-        'outerMargin',
-        'innerMargin',
         'plotLeft',
         'plotRight',
         'plotBottom',
@@ -1341,15 +1339,54 @@ function sectionLayout(input) {
         'boreholeWidth',
         'elevationTickStep'
     ];
-    if (Object.keys(value).sort().join(',') !== [
+    const hasOuterMargins = value.outerMargins != null, hasInnerMargins = value.innerMargins != null;
+    const expectedKeys = [
         ...scalarKeys,
-        'footerGrid'
-    ].sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field');
+        'footerGrid',
+        hasOuterMargins ? 'outerMargins' : 'outerMargin',
+        hasInnerMargins ? 'innerMargins' : 'innerMargin',
+        ...value.drawingOrigin == null ? [] : [
+            'drawingOrigin'
+        ]
+    ];
+    if (Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field');
     const scalars = Object.fromEntries(scalarKeys.map((key)=>[
             key,
             numeric(value[key], `section ${key}`)
         ]));
-    if (scalars.paperWidth < 210 || scalars.paperWidth > 1600 || scalars.paperHeight < 210 || scalars.paperHeight > 1600 || scalars.outerMargin < 3 || scalars.innerMargin <= scalars.outerMargin || scalars.plotLeft <= scalars.innerMargin || scalars.plotRight >= scalars.paperWidth - scalars.innerMargin || scalars.plotRight - scalars.plotLeft < 250 || scalars.plotBottom < scalars.innerMargin + scalars.footerHeight + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop || scalars.scaleY <= scalars.plotTop || scalars.scaleY >= scalars.titleY || scalars.boreholeWidth < 2 || scalars.boreholeWidth > 8 || scalars.elevationTickStep < 0.5 || scalars.elevationTickStep > 20) throw new KJValidationError('Geology: section layout geometry is unreadable');
+    const parseMargins = (raw, fallback, label)=>{
+        if (raw == null) {
+            const margin = numeric(fallback, `section ${label} margin`);
+            return {
+                left: margin,
+                right: margin,
+                bottom: margin,
+                top: margin
+            };
+        }
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'bottom,left,right,top') throw new KJValidationError(`Geology: section ${label} margins need exact left, right, bottom and top values`);
+        const supplied = raw;
+        return {
+            left: numeric(supplied.left, `section ${label} left margin`),
+            right: numeric(supplied.right, `section ${label} right margin`),
+            bottom: numeric(supplied.bottom, `section ${label} bottom margin`),
+            top: numeric(supplied.top, `section ${label} top margin`)
+        };
+    };
+    const outerMargins = parseMargins(value.outerMargins, value.outerMargin, 'outer');
+    const innerMargins = parseMargins(value.innerMargins, value.innerMargin, 'inner');
+    let drawingOrigin = [
+        0,
+        0
+    ];
+    if (value.drawingOrigin != null) {
+        if (!Array.isArray(value.drawingOrigin) || value.drawingOrigin.length !== 2) throw new KJValidationError('Geology: section drawing origin needs two coordinates');
+        drawingOrigin = [
+            numeric(value.drawingOrigin[0], 'section drawing origin X'),
+            numeric(value.drawingOrigin[1], 'section drawing origin Y')
+        ];
+    }
+    if (scalars.paperWidth < 210 || scalars.paperWidth > 1600 || scalars.paperHeight < 210 || scalars.paperHeight > 1600 || Object.values(outerMargins).some((margin)=>margin < 0) || !hasOuterMargins && outerMargins.left < 3 || Object.values(innerMargins).some((margin)=>margin < 0) || innerMargins.left <= outerMargins.left || innerMargins.right <= outerMargins.right || innerMargins.bottom <= outerMargins.bottom || innerMargins.top <= outerMargins.top || innerMargins.left + innerMargins.right >= scalars.paperWidth || innerMargins.bottom + innerMargins.top >= scalars.paperHeight || scalars.plotLeft <= innerMargins.left || scalars.plotRight >= scalars.paperWidth - innerMargins.right || scalars.plotRight - scalars.plotLeft < 250 || scalars.plotBottom < innerMargins.bottom + scalars.footerHeight + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop || scalars.scaleY <= scalars.plotTop || scalars.scaleY >= scalars.titleY || scalars.boreholeWidth < 2 || scalars.boreholeWidth > 8 || scalars.elevationTickStep < 0.5 || scalars.elevationTickStep > 20) throw new KJValidationError('Geology: section layout geometry is unreadable');
     if (!Array.isArray(value.footerGrid) || value.footerGrid.length < 3 || value.footerGrid.length > 8) throw new KJValidationError('Geology: section footer grid is invalid');
     const seen = new Set(), footerGrid = value.footerGrid.map((rawCell, index)=>{
         if (!rawCell || typeof rawCell !== 'object' || Array.isArray(rawCell) || Object.keys(rawCell).sort().join(',') !== 'key,label,start') throw new KJValidationError('Geology: section footer cell needs an exact key, label and start');
@@ -1364,11 +1401,14 @@ function sectionLayout(input) {
         };
     });
     for (const [index, cell] of footerGrid.entries()){
-        const end = footerGrid[index + 1]?.start ?? scalars.paperWidth - scalars.innerMargin;
-        if (index === 0 && Math.abs(cell.start - scalars.innerMargin) > 1e-6 || index && cell.start <= footerGrid[index - 1].start || end - cell.start < 28) throw new KJValidationError('Geology: section footer cell is out of bounds or unreadable');
+        const end = footerGrid[index + 1]?.start ?? scalars.paperWidth - innerMargins.right;
+        if (index === 0 && Math.abs(cell.start - innerMargins.left) > 1e-6 || index && cell.start <= footerGrid[index - 1].start || end - cell.start < 28) throw new KJValidationError('Geology: section footer cell is out of bounds or unreadable');
     }
     return {
         ...scalars,
+        drawingOrigin,
+        outerMargins,
+        innerMargins,
         footerGrid
     };
 }
@@ -1518,7 +1558,10 @@ function patternDefinitions(pack, strata) {
     for (const role of new Set(strata.map((layer)=>layer.patternKey ?? layer.lithology)))definitions[role] = hatchPatternFromKnowledgePack(pack, role);
     return definitions;
 }
-function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defaultTextStyle) {
+function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defaultTextStyle, drawingOrigin = [
+    0,
+    0
+]) {
     if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new KJValidationError('Geology: invalid expected revision');
     const prefix = `geo-${stableHash({
         input,
@@ -1582,37 +1625,22 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
             }
         });
     };
+    const shifted = (x, y)=>[
+            x + drawingOrigin[0],
+            y + drawingOrigin[1],
+            0
+        ];
     const line = (layer, x1, y1, x2, y2)=>add('LINE', layer, {
-            start: [
-                x1,
-                y1,
-                0
-            ],
-            end: [
-                x2,
-                y2,
-                0
-            ]
+            start: shifted(x1, y1),
+            end: shifted(x2, y2)
         });
     const semanticLine = (layer, x1, y1, x2, y2, metadata)=>add('LINE', layer, {
-            start: [
-                x1,
-                y1,
-                0
-            ],
-            end: [
-                x2,
-                y2,
-                0
-            ],
+            start: shifted(x1, y1),
+            end: shifted(x2, y2),
             ...metadata
         });
     const text = (layer, x, y, value, height = 2.6, centered = false, widthFactor, verticalAlignment)=>add('TEXT', layer, {
-            position: [
-                x,
-                y,
-                0
-            ],
+            position: shifted(x, y),
             text: value,
             height,
             ...textStyleId ? {
@@ -1628,19 +1656,11 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
                 verticalAlignment
             },
             ...centered || verticalAlignment != null ? {
-                alignmentPoint: [
-                    x,
-                    y,
-                    0
-                ]
+                alignmentPoint: shifted(x, y)
             } : {}
         });
     const placedText = (layer, x, y, value, height, widthFactor, horizontalAlignment, verticalAlignment, rotation)=>add('TEXT', layer, {
-            position: [
-                x,
-                y,
-                0
-            ],
+            position: shifted(x, y),
             text: value,
             height,
             widthFactor,
@@ -1655,19 +1675,11 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
                 verticalAlignment
             },
             ...horizontalAlignment !== 0 || verticalAlignment !== 0 ? {
-                alignmentPoint: [
-                    x,
-                    y,
-                    0
-                ]
+                alignmentPoint: shifted(x, y)
             } : {}
         });
     const mtext = (layer, x, y, value, height, width)=>add('MTEXT', layer, {
-            position: [
-                x,
-                y,
-                0
-            ],
+            position: shifted(x, y),
             text: value,
             height,
             width,
@@ -1677,11 +1689,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
             } : {}
         });
     const poly = (layer, points, closed = false, constantWidth)=>add('LWPOLYLINE', layer, {
-            vertices: points.map(([x, y])=>[
-                    x,
-                    y,
-                    0
-                ]),
+            vertices: points.map(([x, y])=>shifted(x, y)),
             closed,
             ...constantWidth == null || constantWidth === 0 ? {} : {
                 constantWidth
@@ -1706,11 +1714,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
             ]
         ], true, constantWidth);
     const circle = (layer, x, y, radius)=>add('CIRCLE', layer, {
-            center: [
-                x,
-                y,
-                0
-            ],
+            center: shifted(x, y),
             radius
         });
     const hatch = (points, layer)=>add('HATCH', 2, {
@@ -1718,11 +1722,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
                 {
                     external: true,
                     closed: true,
-                    vertices: points.map(([x, y])=>[
-                            x,
-                            y,
-                            0
-                        ])
+                    vertices: points.map(([x, y])=>shifted(x, y))
                 }
             ],
             patternName: pattern[layer.lithology],
@@ -2908,9 +2908,9 @@ export function compileGeologySection(input) {
     if (x(holes.at(-1)) > layout.plotRight - 4 || holes.some((hole)=>y(hole, 0) > layout.plotTop || y(hole, hole.depth) < layout.plotBottom)) throw new KJValidationError('Geology: section does not fit A3 at the declared scales and datum');
     const g = drawingBuilder(input, 'geology-section-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, [
         ...byId.values()
-    ].flatMap((value)=>value.strata)));
-    g.rect(0, layout.outerMargin, layout.outerMargin, layout.paperWidth - layout.outerMargin, layout.paperHeight - layout.outerMargin);
-    g.rect(0, layout.innerMargin, layout.innerMargin, layout.paperWidth - layout.innerMargin, layout.paperHeight - layout.innerMargin);
+    ].flatMap((value)=>value.strata)), undefined, layout.drawingOrigin);
+    g.rect(0, layout.outerMargins.left, layout.outerMargins.bottom, layout.paperWidth - layout.outerMargins.right, layout.paperHeight - layout.outerMargins.top);
+    g.rect(0, layout.innerMargins.left, layout.innerMargins.bottom, layout.paperWidth - layout.innerMargins.right, layout.paperHeight - layout.innerMargins.top);
     const locale = geologyLocale(input);
     g.text(3, layout.paperWidth / 2, layout.titleY, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质剖面图' : 'ENGINEERING GEOLOGICAL SECTION'), 'title'), 5, true);
     g.text(3, layout.paperWidth / 2, layout.scaleY, locale === 'zh-CN' ? `水平比例尺 1:${scaleDenominator(input.horizontalScaleDenominator)}   垂直比例尺 1:${scaleDenominator(input.verticalScaleDenominator)}` : `HORIZONTAL 1:${scaleDenominator(input.horizontalScaleDenominator)}   VERTICAL 1:${scaleDenominator(input.verticalScaleDenominator)}`, 2.5, true);
@@ -2923,14 +2923,14 @@ export function compileGeologySection(input) {
         g.line(1, layout.plotLeft - 1.8, tickY, layout.plotLeft + 2.2, tickY);
         g.text(3, layout.plotLeft - 13, tickY - 0.7, Number.isInteger(elevation) ? elevation.toFixed(0) : metres(elevation), 1.6);
     }
-    const footerBottom = layout.innerMargin, footerTop = footerBottom + layout.footerHeight;
-    g.rect(0, layout.innerMargin, footerBottom, layout.paperWidth - layout.innerMargin, footerTop);
+    const footerBottom = layout.innerMargins.bottom, footerTop = footerBottom + layout.footerHeight;
+    g.rect(0, layout.innerMargins.left, footerBottom, layout.paperWidth - layout.innerMargins.right, footerTop);
     const footerValues = {
         projectName: input.projectName,
         ...documentFacts
     };
     for (const [index, cell] of layout.footerGrid.entries()){
-        const end = layout.footerGrid[index + 1]?.start ?? layout.paperWidth - layout.innerMargin;
+        const end = layout.footerGrid[index + 1]?.start ?? layout.paperWidth - layout.innerMargins.right;
         if (index) g.line(0, cell.start, footerBottom, cell.start, footerTop);
         const split = cell.start + Math.min((end - cell.start) * 0.42, 3 + [
             ...cell.label
@@ -3127,7 +3127,7 @@ export function compileGeologySection(input) {
             });
         }
     }
-    g.text(3, layout.innerMargin + 2, footerTop + 2.2, locale === 'zh-CN' ? topology ? '仅显示源数据声明的地层组拓扑；未证实区域按设计留空。' : '仅显示已提供的地层与对比关系；未对比区域按设计留空。' : topology ? 'Only source-declared group topology is shown. Unproven regions remain blank.' : 'Only supplied strata/correlations are shown. Uncorrelated regions are intentionally blank.', 1.5);
+    g.text(3, layout.innerMargins.left + 2, footerTop + 2.2, locale === 'zh-CN' ? topology ? '仅显示源数据声明的地层组拓扑；未证实区域按设计留空。' : '仅显示已提供的地层与对比关系；未对比区域按设计留空。' : topology ? 'Only source-declared group topology is shown. Unproven regions remain blank.' : 'Only supplied strata/correlations are shown. Uncorrelated regions are intentionally blank.', 1.5);
     return g.finish({
         horizontalScaleDenominator: input.horizontalScaleDenominator,
         verticalScaleDenominator: input.verticalScaleDenominator,

@@ -290,8 +290,9 @@ export interface KJGeologySectionInput {
 interface SectionLayout {
   paperWidth: number
   paperHeight: number
-  outerMargin: number
-  innerMargin: number
+  drawingOrigin: [number, number]
+  outerMargins: { left: number; right: number; bottom: number; top: number }
+  innerMargins: { left: number; right: number; bottom: number; top: number }
   plotLeft: number
   plotRight: number
   plotBottom: number
@@ -1207,13 +1208,39 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
   const raw = pack.rules?.['geology-section-layout']
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new KJValidationError('Geology: bundled section layout is missing')
   const value = raw as Record<string, unknown>
-  const scalarKeys = ['paperWidth', 'paperHeight', 'outerMargin', 'innerMargin', 'plotLeft', 'plotRight', 'plotBottom', 'plotTop', 'titleY', 'scaleY', 'footerHeight', 'boreholeWidth', 'elevationTickStep'] as const
-  if (Object.keys(value).sort().join(',') !== [...scalarKeys, 'footerGrid'].sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field')
-  const scalars = Object.fromEntries(scalarKeys.map(key => [key, numeric(value[key], `section ${key}`)])) as unknown as Omit<SectionLayout, 'footerGrid'>
+  const scalarKeys = ['paperWidth', 'paperHeight', 'plotLeft', 'plotRight', 'plotBottom', 'plotTop', 'titleY', 'scaleY', 'footerHeight', 'boreholeWidth', 'elevationTickStep'] as const
+  const hasOuterMargins = value.outerMargins != null, hasInnerMargins = value.innerMargins != null
+  const expectedKeys = [...scalarKeys, 'footerGrid', hasOuterMargins ? 'outerMargins' : 'outerMargin',
+    hasInnerMargins ? 'innerMargins' : 'innerMargin', ...(value.drawingOrigin == null ? [] : ['drawingOrigin'])]
+  if (Object.keys(value).sort().join(',') !== expectedKeys.sort().join(',')) throw new KJValidationError('Geology: section layout has an undeclared field')
+  const scalars = Object.fromEntries(scalarKeys.map(key => [key, numeric(value[key], `section ${key}`)])) as unknown as Omit<SectionLayout, 'footerGrid' | 'drawingOrigin' | 'outerMargins' | 'innerMargins'>
+  const parseMargins = (raw: unknown, fallback: unknown, label: string): SectionLayout['outerMargins'] => {
+    if (raw == null) {
+      const margin = numeric(fallback, `section ${label} margin`)
+      return { left: margin, right: margin, bottom: margin, top: margin }
+    }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'bottom,left,right,top')
+      throw new KJValidationError(`Geology: section ${label} margins need exact left, right, bottom and top values`)
+    const supplied = raw as Record<string, unknown>
+    return { left: numeric(supplied.left, `section ${label} left margin`), right: numeric(supplied.right, `section ${label} right margin`),
+      bottom: numeric(supplied.bottom, `section ${label} bottom margin`), top: numeric(supplied.top, `section ${label} top margin`) }
+  }
+  const outerMargins = parseMargins(value.outerMargins, value.outerMargin, 'outer')
+  const innerMargins = parseMargins(value.innerMargins, value.innerMargin, 'inner')
+  let drawingOrigin: [number, number] = [0, 0]
+  if (value.drawingOrigin != null) {
+    if (!Array.isArray(value.drawingOrigin) || value.drawingOrigin.length !== 2)
+      throw new KJValidationError('Geology: section drawing origin needs two coordinates')
+    drawingOrigin = [numeric(value.drawingOrigin[0], 'section drawing origin X'), numeric(value.drawingOrigin[1], 'section drawing origin Y')]
+  }
   if (scalars.paperWidth < 210 || scalars.paperWidth > 1600 || scalars.paperHeight < 210 || scalars.paperHeight > 1600 ||
-    scalars.outerMargin < 3 || scalars.innerMargin <= scalars.outerMargin ||
-    scalars.plotLeft <= scalars.innerMargin || scalars.plotRight >= scalars.paperWidth - scalars.innerMargin || scalars.plotRight - scalars.plotLeft < 250 ||
-    scalars.plotBottom < scalars.innerMargin + scalars.footerHeight + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop ||
+    Object.values(outerMargins).some(margin => margin < 0) || !hasOuterMargins && outerMargins.left < 3 ||
+    Object.values(innerMargins).some(margin => margin < 0) ||
+    innerMargins.left <= outerMargins.left || innerMargins.right <= outerMargins.right ||
+    innerMargins.bottom <= outerMargins.bottom || innerMargins.top <= outerMargins.top ||
+    innerMargins.left + innerMargins.right >= scalars.paperWidth || innerMargins.bottom + innerMargins.top >= scalars.paperHeight ||
+    scalars.plotLeft <= innerMargins.left || scalars.plotRight >= scalars.paperWidth - innerMargins.right || scalars.plotRight - scalars.plotLeft < 250 ||
+    scalars.plotBottom < innerMargins.bottom + scalars.footerHeight + 8 || scalars.plotTop <= scalars.plotBottom + 120 || scalars.titleY <= scalars.plotTop ||
     scalars.scaleY <= scalars.plotTop || scalars.scaleY >= scalars.titleY || scalars.boreholeWidth < 2 || scalars.boreholeWidth > 8 ||
     scalars.elevationTickStep < 0.5 || scalars.elevationTickStep > 20) throw new KJValidationError('Geology: section layout geometry is unreadable')
   if (!Array.isArray(value.footerGrid) || value.footerGrid.length < 3 || value.footerGrid.length > 8) throw new KJValidationError('Geology: section footer grid is invalid')
@@ -1226,11 +1253,11 @@ function sectionLayout(input: KJGeologySectionInput): SectionLayout {
     return { start, key, label }
   })
   for (const [index, cell] of footerGrid.entries()) {
-    const end = footerGrid[index + 1]?.start ?? scalars.paperWidth - scalars.innerMargin
-    if (index === 0 && Math.abs(cell.start - scalars.innerMargin) > 1e-6 || index && cell.start <= footerGrid[index - 1]!.start || end - cell.start < 28)
+    const end = footerGrid[index + 1]?.start ?? scalars.paperWidth - innerMargins.right
+    if (index === 0 && Math.abs(cell.start - innerMargins.left) > 1e-6 || index && cell.start <= footerGrid[index - 1]!.start || end - cell.start < 28)
       throw new KJValidationError('Geology: section footer cell is out of bounds or unreadable')
   }
-  return { ...scalars, footerGrid }
+  return { ...scalars, drawingOrigin, outerMargins, innerMargins, footerGrid }
 }
 
 function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
@@ -1380,7 +1407,8 @@ function patternDefinitions(pack: ReadonlyDeep<KJKnowledgePack> | undefined, str
   return definitions
 }
 
-function drawingBuilder(input: unknown, templateId: string, expectedRevision: number, hatches: Record<string, Record<string, unknown>> = {}, defaultTextStyle?: KJGeologyDefaultTextStyle) {
+function drawingBuilder(input: unknown, templateId: string, expectedRevision: number, hatches: Record<string, Record<string, unknown>> = {}, defaultTextStyle?: KJGeologyDefaultTextStyle,
+  drawingOrigin: readonly [number, number] = [0, 0]) {
   if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new KJValidationError('Geology: invalid expected revision')
   const prefix = `geo-${stableHash({ input, templateId })}`
   const linetypeId = `${prefix}-continuous`
@@ -1398,33 +1426,34 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     if (entities.length >= 8192) throw new KJValidationError('Geology: entity budget exceeded')
     entities.push({ type, payload: { ...payload, layerId: layers[layer]!.id }, options: { id: `${prefix}-entity-${String(entities.length + 1).padStart(5, '0')}` } })
   }
-  const line = (layer: number, x1: number, y1: number, x2: number, y2: number) => add('LINE', layer, { start: [x1, y1, 0], end: [x2, y2, 0] })
-  const semanticLine = (layer: number, x1: number, y1: number, x2: number, y2: number, metadata: Record<string, unknown>) => add('LINE', layer, { start: [x1, y1, 0], end: [x2, y2, 0], ...metadata })
+  const shifted = (x: number, y: number): [number, number, number] => [x + drawingOrigin[0], y + drawingOrigin[1], 0]
+  const line = (layer: number, x1: number, y1: number, x2: number, y2: number) => add('LINE', layer, { start: shifted(x1, y1), end: shifted(x2, y2) })
+  const semanticLine = (layer: number, x1: number, y1: number, x2: number, y2: number, metadata: Record<string, unknown>) => add('LINE', layer, { start: shifted(x1, y1), end: shifted(x2, y2), ...metadata })
   const text = (layer: number, x: number, y: number, value: string, height = 2.6, centered = false, widthFactor?: number, verticalAlignment?: 1 | 2 | 3) => add('TEXT', layer, {
-    position: [x, y, 0], text: value, height,
+    position: shifted(x, y), text: value, height,
     ...(textStyleId ? { styleId: textStyleId } : {}),
     ...(widthFactor == null ? {} : { widthFactor }),
     ...(centered ? { horizontalAlignment: 1 } : {}), ...(verticalAlignment == null ? {} : { verticalAlignment }),
-    ...(centered || verticalAlignment != null ? { alignmentPoint: [x, y, 0] } : {}),
+    ...(centered || verticalAlignment != null ? { alignmentPoint: shifted(x, y) } : {}),
   })
   const placedText = (layer: number, x: number, y: number, value: string, height: number, widthFactor: number,
     horizontalAlignment: 0 | 1 | 2, verticalAlignment: 0 | 2, rotation: number) => add('TEXT', layer, {
-    position: [x, y, 0], text: value, height, widthFactor, rotation,
+    position: shifted(x, y), text: value, height, widthFactor, rotation,
     ...(textStyleId ? { styleId: textStyleId } : {}),
     ...(horizontalAlignment === 0 ? {} : { horizontalAlignment }), ...(verticalAlignment === 0 ? {} : { verticalAlignment }),
-    ...(horizontalAlignment !== 0 || verticalAlignment !== 0 ? { alignmentPoint: [x, y, 0] } : {}),
+    ...(horizontalAlignment !== 0 || verticalAlignment !== 0 ? { alignmentPoint: shifted(x, y) } : {}),
   })
   const mtext = (layer: number, x: number, y: number, value: string, height: number, width: number) => add('MTEXT', layer, {
-    position: [x, y, 0], text: value, height, width, attachmentPoint: 1, ...(textStyleId ? { styleId: textStyleId } : {}),
+    position: shifted(x, y), text: value, height, width, attachmentPoint: 1, ...(textStyleId ? { styleId: textStyleId } : {}),
   })
   const poly = (layer: number, points: [number, number][], closed = false, constantWidth?: number) => add('LWPOLYLINE', layer, {
-    vertices: points.map(([x, y]) => [x, y, 0]), closed, ...(constantWidth == null || constantWidth === 0 ? {} : { constantWidth }),
+    vertices: points.map(([x, y]) => shifted(x, y)), closed, ...(constantWidth == null || constantWidth === 0 ? {} : { constantWidth }),
   })
   const rect = (layer: number, x1: number, y1: number, x2: number, y2: number, constantWidth?: number) =>
     poly(layer, [[x1, y1], [x2, y1], [x2, y2], [x1, y2]], true, constantWidth)
-  const circle = (layer: number, x: number, y: number, radius: number) => add('CIRCLE', layer, { center: [x, y, 0], radius })
+  const circle = (layer: number, x: number, y: number, radius: number) => add('CIRCLE', layer, { center: shifted(x, y), radius })
   const hatch = (points: [number, number][], layer: Pick<KJGeologyStratum, 'lithology' | 'patternKey'>) => add('HATCH', 2, {
-    boundaryLoops: [{ external: true, closed: true, vertices: points.map(([x, y]) => [x, y, 0]) }],
+    boundaryLoops: [{ external: true, closed: true, vertices: points.map(([x, y]) => shifted(x, y)) }],
     patternName: pattern[layer.lithology], solid: false, patternScale: 0.6, patternAngle: 0,
     ...(hatches[layer.patternKey ?? layer.lithology] ?? {}),
   })
@@ -2292,9 +2321,9 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   const x = (hole: KJGeologyBorehole) => originX + (hole.station! - holes[0]!.station!) * hs
   const y = (hole: KJGeologyBorehole, depth: number) => layout.plotBottom + (hole.collarElevation - depth - datum) * vs
   if (x(holes.at(-1)!) > layout.plotRight - 4 || holes.some(hole => y(hole, 0) > layout.plotTop || y(hole, hole.depth) < layout.plotBottom)) throw new KJValidationError('Geology: section does not fit A3 at the declared scales and datum')
-  const g = drawingBuilder(input, 'geology-section-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, [...byId.values()].flatMap(value => value.strata)))
-  g.rect(0, layout.outerMargin, layout.outerMargin, layout.paperWidth - layout.outerMargin, layout.paperHeight - layout.outerMargin)
-  g.rect(0, layout.innerMargin, layout.innerMargin, layout.paperWidth - layout.innerMargin, layout.paperHeight - layout.innerMargin)
+  const g = drawingBuilder(input, 'geology-section-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, [...byId.values()].flatMap(value => value.strata)), undefined, layout.drawingOrigin)
+  g.rect(0, layout.outerMargins.left, layout.outerMargins.bottom, layout.paperWidth - layout.outerMargins.right, layout.paperHeight - layout.outerMargins.top)
+  g.rect(0, layout.innerMargins.left, layout.innerMargins.bottom, layout.paperWidth - layout.innerMargins.right, layout.paperHeight - layout.innerMargins.top)
   const locale = geologyLocale(input)
   g.text(3, layout.paperWidth / 2, layout.titleY, bounded(input.title ?? (locale === 'zh-CN' ? '工程地质剖面图' : 'ENGINEERING GEOLOGICAL SECTION'), 'title'), 5, true)
   g.text(3, layout.paperWidth / 2, layout.scaleY, locale === 'zh-CN'
@@ -2309,11 +2338,11 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
     g.line(1, layout.plotLeft - 1.8, tickY, layout.plotLeft + 2.2, tickY)
     g.text(3, layout.plotLeft - 13, tickY - 0.7, Number.isInteger(elevation) ? elevation.toFixed(0) : metres(elevation), 1.6)
   }
-  const footerBottom = layout.innerMargin, footerTop = footerBottom + layout.footerHeight
-  g.rect(0, layout.innerMargin, footerBottom, layout.paperWidth - layout.innerMargin, footerTop)
+  const footerBottom = layout.innerMargins.bottom, footerTop = footerBottom + layout.footerHeight
+  g.rect(0, layout.innerMargins.left, footerBottom, layout.paperWidth - layout.innerMargins.right, footerTop)
   const footerValues: Record<string, string | undefined> = { projectName: input.projectName, ...documentFacts }
   for (const [index, cell] of layout.footerGrid.entries()) {
-    const end = layout.footerGrid[index + 1]?.start ?? layout.paperWidth - layout.innerMargin
+    const end = layout.footerGrid[index + 1]?.start ?? layout.paperWidth - layout.innerMargins.right
     if (index) g.line(0, cell.start, footerBottom, cell.start, footerTop)
     const split = cell.start + Math.min((end - cell.start) * 0.42, 3 + [...cell.label].length * 1.75)
     g.line(1, split, footerBottom, split, footerTop)
@@ -2432,7 +2461,7 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
       })
     }
   }
-  g.text(3, layout.innerMargin + 2, footerTop + 2.2, locale === 'zh-CN'
+  g.text(3, layout.innerMargins.left + 2, footerTop + 2.2, locale === 'zh-CN'
     ? topology ? '仅显示源数据声明的地层组拓扑；未证实区域按设计留空。' : '仅显示已提供的地层与对比关系；未对比区域按设计留空。'
     : topology ? 'Only source-declared group topology is shown. Unproven regions remain blank.' : 'Only supplied strata/correlations are shown. Uncorrelated regions are intentionally blank.', 1.5)
   return g.finish({ horizontalScaleDenominator: input.horizontalScaleDenominator, verticalScaleDenominator: input.verticalScaleDenominator,

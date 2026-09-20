@@ -81,3 +81,54 @@ test('versioned section style pack controls physical sheet geometry without proj
   const xs = outer.payload.vertices.map(point => point[0]), ys = outer.payload.vertices.map(point => point[1])
   assert.deepEqual([Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)], [5, 651, 5, 356])
 })
+
+test('section style pack preserves a declared drawing origin and independent frame margins through KJD and DXF', async () => {
+  const pack = JSON.parse(JSON.stringify(KJDRAW_GEOLOGY_KNOWLEDGE_PACK))
+  pack.id = 'test.section.offset-asymmetric-layout'
+  pack.version = '1.0.0'
+  pack.rules['geology-section-layout'] = {
+    paperWidth: 700, paperHeight: 400, drawingOrigin: [-123, 456],
+    outerMargins: { left: 0, right: 0, bottom: 0, top: 0 },
+    innerMargins: { left: 31, right: 11, bottom: 12, top: 9 },
+    plotLeft: 42, plotRight: 680, plotBottom: 45, plotTop: 320,
+    titleY: 370, scaleY: 350, footerHeight: 10, boreholeWidth: 3, elevationTickStep: 2,
+    footerGrid: [
+      { start: 31, key: 'projectName', label: 'Project' },
+      { start: 223, key: 'organization', label: 'Organization' },
+      { start: 347, key: 'preparedBy', label: 'Prepared' },
+      { start: 431, key: 'checkedBy', label: 'Checked' },
+      { start: 517, key: 'approvedBy', label: 'Approved' },
+      { start: 601, key: 'drawingNumber', label: 'Drawing' },
+    ],
+  }
+  const input = { holes, correlations: [], sectionStylePack: pack,
+    horizontalScaleDenominator: 100, verticalScaleDenominator: 100, datumElevation: 80,
+    surfaceRule: 'straight-between-supplied-collars', expectedRevision: 0 }
+  const result = compileGeologySection(input)
+  const frames = result.commandArgs.entities.filter(entity => entity.type === 'LWPOLYLINE').slice(0, 2)
+  const bounds = entity => {
+    const points = entity.payload.vertices.map(vertex => vertex.point ?? vertex)
+    const xs = points.map(point => point[0]), ys = points.map(point => point[1])
+    return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
+  }
+  assert.deepEqual(frames.map(bounds), [[-123, 577, 456, 856], [-92, 566, 468, 847]])
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', result.commandArgs, { document })
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    const reopened = await sdk.readDocument(bytes, { format })
+    const reopenedFrames = reopened.listEntities({ type: 'LWPOLYLINE' }).slice(0, 2)
+    assert.deepEqual(reopenedFrames.map(entity => bounds({ payload: entity.payload })), frames.map(bounds))
+    assert.equal(reopened.listEntities({ type: 'PROXY_ENTITY' }).length, 0)
+  }
+  const ambiguous = structuredClone(input)
+  ambiguous.sectionStylePack.rules['geology-section-layout'].outerMargin = 5
+  assert.throws(() => compileGeologySection(ambiguous), /undeclared field/u)
+  const unreadable = structuredClone(input)
+  const legacyUnreadable = structuredClone(input)
+  delete legacyUnreadable.sectionStylePack.rules['geology-section-layout'].outerMargins
+  legacyUnreadable.sectionStylePack.rules['geology-section-layout'].outerMargin = 0
+  assert.throws(() => compileGeologySection(legacyUnreadable), /geometry is unreadable/u)
+  unreadable.sectionStylePack.rules['geology-section-layout'].innerMargins.right = 0
+  assert.throws(() => compileGeologySection(unreadable), /geometry is unreadable/u)
+})
