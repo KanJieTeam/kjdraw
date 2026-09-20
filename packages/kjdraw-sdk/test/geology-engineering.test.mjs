@@ -245,6 +245,8 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
       ] }, legendMode: 'none', textHeights: {
         headerFact: 3, fieldHeader: 3, fieldSubHeader: 2.5, majorValue: 3, intervalDepth: 2.5, observation: 2,
       }, stratigraphicNotationStyle: { symbolHeight: 3, qualifierHeight: 1.5 },
+      defaultTextStyle: { name: 'GEO-SYNTHETIC-TEXT', fontFamily: 'serif', fontFile: 'serif.ttf', bigFontFile: '',
+        fixedHeight: 0, widthFactor: 1, obliqueAngleDegrees: 0, dxfFlags: 0, generationFlags: 0 },
       sampleMarkerStyle: { height: 1, gap: 0.5, baselineOffset: 0.5 },
       groundwaterAnnotationStyle: { fieldRole: 'pattern', textHeight: 2, markerHeight: 2.5,
         textWidthFactor: 0.8, gap: 0.6, valueOffset: 3, markerOffset: 0, dateOffset: -3, guide: 'field-top-to-reading' },
@@ -273,6 +275,10 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     verticalScaleDenominator: 100, expectedRevision: 0, columnStylePack: style }
   const compiled = compileGeologyColumn(input)
   const texts = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT')
+  const declaredTextStyle = compiled.commandArgs.resources.textStyles[0]
+  assert.equal(declaredTextStyle.payload.fontFile, 'serif.ttf')
+  assert.ok(compiled.commandArgs.entities.filter(entity => ['TEXT', 'MTEXT'].includes(entity.type))
+    .every(entity => entity.payload.styleId === declaredTextStyle.id), 'all column text uses the declared source style')
   for (const [value, x] of [['P-18', 127], ['PHYS-1', 167], ['2.50', 127], ['3.00', 167]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x), `${value} at ${x}`)
   for (const [value, height] of [['Project', 3], ['Pattern', 3], ['1:100', 2.5], ['Fill', 2], ['0.60', 2.5], ['S1', 2]])
@@ -324,6 +330,12 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const kjd = await sdk.writeDocument(document, { format: 'KJD', version: '1' })
   const reopened = await sdk.readDocument(dxf, { format: 'DXF' }), reopenedKjd = await sdk.readDocument(kjd, { format: 'KJD' })
   assert.equal(reopened.validate().valid, true); assert.equal(reopenedKjd.validate().valid, true)
+  for (const reopenedDocument of [reopened, reopenedKjd]) {
+    const styleRecord = reopenedDocument.getTable('textStyles').records.find(record => record.name === 'GEO-SYNTHETIC-TEXT')
+    assert.equal(styleRecord.payload.fontFile, 'serif.ttf')
+    assert.ok(reopenedDocument.listEntities().filter(entity => ['TEXT', 'MTEXT'].includes(entity.type))
+      .every(entity => entity.payload.styleId === styleRecord.id), 'declared source font survives KJD/DXF reopen')
+  }
   for (const reopenedDocument of [reopened, reopenedKjd]) assert.equal(reopenedDocument.listEntities({ type: 'LWPOLYLINE' })
     .filter(entity => entity.payload.closed !== true && entity.payload.vertices.length === 3).length, 2,
   'groundwater guide and title-margin decoration survive KJD/DXF reopen')
@@ -369,6 +381,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const incompleteTextHeights = structuredClone(input)
   delete incompleteTextHeights.columnStylePack.rules['geology-column-layout'].textHeights.observation
   assert.throws(() => compileGeologyColumn(incompleteTextHeights), /exact versioned schema/u)
+  const unsafeTextStyle = structuredClone(input)
+  unsafeTextStyle.columnStylePack.rules['geology-column-layout'].defaultTextStyle.fontFile = 'https://invalid.example/font.ttf'
+  assert.throws(() => compileGeologyColumn(unsafeTextStyle), /invalid default text font file/u)
   const oversizedText = structuredClone(input)
   oversizedText.columnStylePack.rules['geology-column-layout'].textHeights.headerFact = 5
   assert.throws(() => compileGeologyColumn(oversizedText), /do not fit the declared rows/u)

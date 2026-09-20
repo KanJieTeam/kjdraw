@@ -105,6 +105,19 @@ export interface KJGeologyTitleMarginDecoration {
   elbowOffset: [number, number]
   horizontalEnd: 'frame-right'
 }
+/** One source-backed local CAD text style for a column template. Font files are
+ * referenced by safe local names only; KJDraw never embeds or downloads them. */
+export interface KJGeologyDefaultTextStyle {
+  name: string
+  fontFamily: string
+  fontFile: string
+  bigFontFile: string
+  fixedHeight: number
+  widthFactor: number
+  obliqueAngleDegrees: number
+  dxfFlags: number
+  generationFlags: number
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,
@@ -223,6 +236,7 @@ interface ColumnLayout {
   layerNumberStyle: 'plain' | 'circle'
   textFlow?: { firstGroupBorrowMm: number; firstGroupUnruled: boolean; firstBaselineMm: number; labelPitchMm: number; labelHeightMm: number; paragraphGapMm: number }
   textHeights?: { headerFact: number; fieldHeader: number; fieldSubHeader: number; majorValue: number; intervalDepth: number; observation: number }
+  defaultTextStyle?: KJGeologyDefaultTextStyle
   stratigraphicNotationStyle?: { symbolHeight: number; qualifierHeight: number }
   sampleMarkerStyle?: { height: number; gap: number; baselineOffset: number }
   sampleRangeBaselineStyle?: KJGeologySampleRangeBaselineStyle
@@ -332,7 +346,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'sampleRangeBaselineStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'defaultTextStyle', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'sampleRangeBaselineStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -538,6 +552,31 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       parsedTextHeights.headerFact > headerRowHeight - 1 || parsedTextHeights.fieldHeader + parsedTextHeights.fieldSubHeader + 0.8 > fieldHeaderHeight)
       throw new KJValidationError('Geology: role text heights do not fit the declared rows')
     textHeights = parsedTextHeights
+  }
+  let defaultTextStyle: ColumnLayout['defaultTextStyle']
+  if (value.defaultTextStyle != null) {
+    if (!isFieldGrid || !value.defaultTextStyle || typeof value.defaultTextStyle !== 'object' || Array.isArray(value.defaultTextStyle) ||
+      Object.keys(value.defaultTextStyle).sort().join(',') !== 'bigFontFile,dxfFlags,fixedHeight,fontFamily,fontFile,generationFlags,name,obliqueAngleDegrees,widthFactor')
+      throw new KJValidationError('Geology: default text style needs an exact declarative field-grid schema')
+    const rule = value.defaultTextStyle as Record<string, unknown>
+    const safeName = (raw: unknown, label: string, empty = false): string => {
+      if (typeof raw !== 'string' || raw.length > 128 || !empty && !raw.length || /[\\/:\u0000-\u001f\u007f]/u.test(raw) || /^(?:data|https?)/iu.test(raw))
+        throw new KJValidationError(`Geology: invalid ${label}`)
+      return raw
+    }
+    const name = safeName(rule.name, 'default text style name')
+    const fontFamily = safeName(rule.fontFamily, 'default text font family')
+    const fontFile = safeName(rule.fontFile, 'default text font file')
+    const bigFontFile = safeName(rule.bigFontFile, 'default text big-font file', true)
+    const fixedHeight = numeric(rule.fixedHeight, 'default text fixed height')
+    const widthFactor = numeric(rule.widthFactor, 'default text width factor')
+    const obliqueAngleDegrees = numeric(rule.obliqueAngleDegrees, 'default text oblique angle')
+    const dxfFlags = numeric(rule.dxfFlags, 'default text DXF flags')
+    const generationFlags = numeric(rule.generationFlags, 'default text generation flags')
+    if (fixedHeight !== 0 || widthFactor < 0.5 || widthFactor > 1.5 || obliqueAngleDegrees < -45 || obliqueAngleDegrees > 45 ||
+      !Number.isSafeInteger(dxfFlags) || dxfFlags < 0 || dxfFlags > 255 || !Number.isSafeInteger(generationFlags) || generationFlags < 0 || generationFlags > 7)
+      throw new KJValidationError('Geology: default text style is unreadable or unsafe')
+    defaultTextStyle = { name, fontFamily, fontFile, bigFontFile, fixedHeight, widthFactor, obliqueAngleDegrees, dxfFlags, generationFlags }
   }
   let stratigraphicNotationStyle: ColumnLayout['stratigraphicNotationStyle']
   if (value.stratigraphicNotationStyle != null) {
@@ -754,7 +793,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   }
   return { paperWidth, paperHeight, left, right, columns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, legendMode, layerNumberStyle, titleHeight, verticalScaleDenominators, ...(sptDisplayCap == null ? {} : { sptDisplayCap }),
     ...(observationColumns ? { observationColumns } : {}), labels,
-    ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}),
+    ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}), ...(defaultTextStyle ? { defaultTextStyle } : {}),
     ...(stratigraphicNotationStyle ? { stratigraphicNotationStyle } : {}), ...(sampleMarkerStyle ? { sampleMarkerStyle } : {}),
     ...(sampleRangeBaselineStyle ? { sampleRangeBaselineStyle } : {}),
     ...(groundwaterAnnotationStyle ? { groundwaterAnnotationStyle } : {}), ...(patternLabelStyle ? { patternLabelStyle } : {}),
@@ -932,12 +971,19 @@ function patternDefinitions(pack: ReadonlyDeep<KJKnowledgePack> | undefined, str
   return definitions
 }
 
-function drawingBuilder(input: unknown, templateId: string, expectedRevision: number, hatches: Record<string, Record<string, unknown>> = {}) {
+function drawingBuilder(input: unknown, templateId: string, expectedRevision: number, hatches: Record<string, Record<string, unknown>> = {}, defaultTextStyle?: KJGeologyDefaultTextStyle) {
   if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new KJValidationError('Geology: invalid expected revision')
   const prefix = `geo-${stableHash({ input, templateId })}`
   const linetypeId = `${prefix}-continuous`
   const names = ['GEO_FRAME', 'GEO_BOUNDARY', 'GEO_HATCH', 'GEO_TEXT', 'GEO_GUIDE']
   const layers = names.map((name, index) => ({ id: `${prefix}-layer-${index}`, name, color: [7, 7, 8, 7, 9][index]!, linetypeId, lineweight: [35, 35, 18, 18, 9][index]! }))
+  const textStyleId = defaultTextStyle ? `${prefix}-text-style` : undefined
+  const textStyles = !defaultTextStyle ? [] : [{ id: textStyleId!, name: defaultTextStyle.name, payload: {
+    fontFamily: defaultTextStyle.fontFamily, fontFile: defaultTextStyle.fontFile, bigFontFile: defaultTextStyle.bigFontFile,
+    fixedHeight: defaultTextStyle.fixedHeight, widthFactor: defaultTextStyle.widthFactor,
+    obliqueAngle: defaultTextStyle.obliqueAngleDegrees * Math.PI / 180,
+    dxfFlags: defaultTextStyle.dxfFlags, generationFlags: defaultTextStyle.generationFlags,
+  } }]
   const entities: KJKnowledgeCompileResult['commandArgs']['entities'] = []
   const add = (type: string, layer: number, payload: Record<string, unknown>) => {
     if (entities.length >= 8192) throw new KJValidationError('Geology: entity budget exceeded')
@@ -947,6 +993,7 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
   const semanticLine = (layer: number, x1: number, y1: number, x2: number, y2: number, metadata: Record<string, unknown>) => add('LINE', layer, { start: [x1, y1, 0], end: [x2, y2, 0], ...metadata })
   const text = (layer: number, x: number, y: number, value: string, height = 2.6, centered = false, widthFactor?: number, verticalAlignment?: 1 | 2 | 3) => add('TEXT', layer, {
     position: [x, y, 0], text: value, height,
+    ...(textStyleId ? { styleId: textStyleId } : {}),
     ...(widthFactor == null ? {} : { widthFactor }),
     ...(centered ? { horizontalAlignment: 1 } : {}), ...(verticalAlignment == null ? {} : { verticalAlignment }),
     ...(centered || verticalAlignment != null ? { alignmentPoint: [x, y, 0] } : {}),
@@ -954,11 +1001,12 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
   const placedText = (layer: number, x: number, y: number, value: string, height: number, widthFactor: number,
     horizontalAlignment: 0 | 1 | 2, verticalAlignment: 0 | 2, rotation: number) => add('TEXT', layer, {
     position: [x, y, 0], text: value, height, widthFactor, rotation,
+    ...(textStyleId ? { styleId: textStyleId } : {}),
     ...(horizontalAlignment === 0 ? {} : { horizontalAlignment }), ...(verticalAlignment === 0 ? {} : { verticalAlignment }),
     ...(horizontalAlignment !== 0 || verticalAlignment !== 0 ? { alignmentPoint: [x, y, 0] } : {}),
   })
   const mtext = (layer: number, x: number, y: number, value: string, height: number, width: number) => add('MTEXT', layer, {
-    position: [x, y, 0], text: value, height, width, attachmentPoint: 1,
+    position: [x, y, 0], text: value, height, width, attachmentPoint: 1, ...(textStyleId ? { styleId: textStyleId } : {}),
   })
   const poly = (layer: number, points: [number, number][], closed = false, constantWidth?: number) => add('LWPOLYLINE', layer, {
     vertices: points.map(([x, y]) => [x, y, 0]), closed, ...(constantWidth == null || constantWidth === 0 ? {} : { constantWidth }),
@@ -972,7 +1020,8 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
     ...(hatches[layer.patternKey ?? layer.lithology] ?? {}),
   })
   const finish = (parameters?: Record<string, string | number | boolean>): ReadonlyDeep<KJKnowledgeCompileResult> => deepFreeze({
-    commandArgs: { entities, resources: { linetypes: [{ id: linetypeId, name: `GEO_${stableHash(prefix).toUpperCase()}_CONT`, pattern: [] }], layers } },
+    commandArgs: { entities, resources: { linetypes: [{ id: linetypeId, name: `GEO_${stableHash(prefix).toUpperCase()}_CONT`, pattern: [] }], layers,
+      ...(textStyles.length ? { textStyles } : {}) } },
     evidence: { packId: 'geology.core', packVersion: '1.0.0', packHash: stableHash({ pattern, hatches }), intentHash: stableHash(input), templateId, rootObjectId: prefix, expectedRevision, entityCount: entities.length,
       ...(parameters ? { parameters } : {}) },
   })
@@ -984,7 +1033,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
     headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights,
-    stratigraphicNotationStyle, sampleMarkerStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology,
+    defaultTextStyle, stratigraphicNotationStyle, sampleMarkerStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology,
     layerNumberStyle, sourceTemplate } = layout
   if (strata.some(layer => layer.stratigraphicNotation != null) && !stratigraphicNotationStyle)
     throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style')
@@ -1015,7 +1064,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const scale = 1000 / verticalScaleDenominator
   const bottom = top - hole.depth * scale
   if (scale < 0.1 || scale > 100 || bottom < footerReserve) throw new KJValidationError('Geology: column does not fit the declared physical sheet at this vertical scale')
-  const g = drawingBuilder(input, 'borehole-column-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, strata))
+  const g = drawingBuilder(input, 'borehole-column-engineering', input.expectedRevision, patternDefinitions(input.hatchPack, strata), defaultTextStyle)
   const finishColumn = (): ReadonlyDeep<KJKnowledgeCompileResult> => g.finish({
     verticalScaleDenominator,
     verticalScaleSource: input.verticalScaleDenominator == null ? 'style-standard' : 'explicit',

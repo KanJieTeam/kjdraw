@@ -106,6 +106,19 @@ export interface KJGeologyTitleMarginDecoration {
     elbowOffset: [number, number];
     horizontalEnd: 'frame-right';
 }
+/** One source-backed local CAD text style for a column template. Font files are
+ * referenced by safe local names only; KJDraw never embeds or downloads them. */
+export interface KJGeologyDefaultTextStyle {
+    name: string;
+    fontFamily: string;
+    fontFile: string;
+    bigFontFile: string;
+    fixedHeight: number;
+    widthFactor: number;
+    obliqueAngleDegrees: number;
+    dxfFlags: number;
+    generationFlags: number;
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,
