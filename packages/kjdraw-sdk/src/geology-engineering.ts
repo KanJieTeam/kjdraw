@@ -1111,7 +1111,7 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   const manualConnections = input.manualConnections ?? []
   if (!Array.isArray(manualConnections) || manualConnections.length > 200) throw new KJValidationError('Geology: invalid manual connection list')
   const manualKeys = new Set<string>()
-  const manualPairTopology = new Map<string, { fromDepth: number; toDepth: number }[]>()
+  const manualPairTopology = new Map<string, { fromDepth: number; toDepth: number; kind: KJGeologySectionConnection['kind'] }[]>()
   for (const connection of manualConnections) {
     const left = byId.get(bounded(connection.fromHoleId, 'manual connection hole'))
     const right = byId.get(bounded(connection.toHoleId, 'manual connection hole'))
@@ -1128,8 +1128,14 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
     if (manualKeys.has(key)) throw new KJValidationError('Geology: duplicate manual connection')
     manualKeys.add(key)
     const pairKey = `${left.hole.id}|${right.hole.id}`, pair = manualPairTopology.get(pairKey) ?? []
-    for (const prior of pair) if (Math.sign(fromDepth - prior.fromDepth) !== Math.sign(toDepth - prior.toDepth)) throw new KJValidationError('Geology: manual connections cross or reverse stratigraphic order')
-    pair.push({ fromDepth, toDepth }); manualPairTopology.set(pairKey, pair)
+    for (const prior of pair) {
+      const fromOrder = Math.sign(fromDepth - prior.fromDepth), toOrder = Math.sign(toDepth - prior.toDepth)
+      if (fromOrder * toOrder < 0) throw new KJValidationError('Geology: manual connections cross or reverse stratigraphic order')
+      const sharedOneSide = (fromOrder === 0) !== (toOrder === 0)
+      const sourceBackedTermination = [kind, prior.kind].some(value => value === 'pinchout' || value === 'lens')
+      if (sharedOneSide && !sourceBackedTermination) throw new KJValidationError('Geology: branching manual connections require an explicit pinchout or lens condition')
+    }
+    pair.push({ fromDepth, toDepth, kind }); manualPairTopology.set(pairKey, pair)
     g.semanticLine(1, x(left.hole), y(left.hole, fromDepth), x(right.hole), y(right.hole, toDepth), {
       semanticRole: 'source-manual-connection', connectionKind: kind, ...(layerCode == null ? {} : { sourceLayerCode: layerCode }),
     })

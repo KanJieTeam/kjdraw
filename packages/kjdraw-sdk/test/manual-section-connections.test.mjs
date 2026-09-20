@@ -39,6 +39,24 @@ test('source manual section connections reject non-adjacent, out-of-range and cr
   assert.throws(() => compileGeologySection({ holes, correlations: [], manualConnections: [{ fromHoleId: 'ZK2', toHoleId: 'ZK1', fromDepth: 4, toDepth: 5 }], horizontalScaleDenominator: 100, verticalScaleDenominator: 100, datumElevation: 80, surfaceRule: 'straight-between-supplied-collars', expectedRevision: 0 }), /declared station order/)
 })
 
+test('source-backed pinchout and lens boundaries may share one endpoint without permitting ordinary branching or crossing', () => {
+  const base = { holes, correlations: [], horizontalScaleDenominator: 100, verticalScaleDenominator: 100,
+    datumElevation: 80, surfaceRule: 'straight-between-supplied-collars', expectedRevision: 0 }
+  const result = compileGeologySection({ ...base, manualConnections: [
+    { fromHoleId: 'ZK1', toHoleId: 'ZK2', fromDepth: 4, toDepth: 5, kind: 'pinchout', layerCode: '1a' },
+    { fromHoleId: 'ZK1', toHoleId: 'ZK2', fromDepth: 4, toDepth: 7, kind: 'continuity', layerCode: '1b' },
+  ] })
+  const boundaries = result.commandArgs.entities.filter(entity => entity.type === 'LINE' && entity.payload.semanticRole === 'source-manual-connection')
+  assert.equal(boundaries.length, 2)
+  assert.throws(() => compileGeologySection({ ...base, manualConnections: [
+    { fromHoleId: 'ZK1', toHoleId: 'ZK2', fromDepth: 4, toDepth: 5, kind: 'manualBoundary' },
+    { fromHoleId: 'ZK1', toHoleId: 'ZK2', fromDepth: 4, toDepth: 7, kind: 'continuity' },
+  ] }), /branching manual connections require/u)
+  assert.throws(() => compileGeologySection({ ...base, manualConnections: [
+    { fromHoleId: 'ZK1', toHoleId: 'ZK2', fromDepth: 2, toDepth: 8, kind: 'pinchout' },
+    { fromHoleId: 'ZK1', toHoleId: 'ZK2', fromDepth: 8, toDepth: 2, kind: 'lens' },
+  ] }), /cross or reverse/u)
+})
 test('versioned section style pack controls physical sheet geometry without project code', () => {
   const pack = JSON.parse(JSON.stringify(KJDRAW_GEOLOGY_KNOWLEDGE_PACK))
   pack.id = 'test.section.physical-layout'
