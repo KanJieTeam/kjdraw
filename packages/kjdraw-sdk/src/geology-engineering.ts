@@ -41,9 +41,21 @@ export interface KJGeologyBorehole {
   initialWaterDepth?: number
   /** Measured stable groundwater depth; never inferred from another hole. */
   stableWaterDepth?: number
+  /** Independent down-hole groundwater readings. These are never copied from summary header values. */
+  groundwaterObservations?: KJGeologyGroundwaterObservation[]
   station?: number
   strata: KJGeologyStratum[]
   observations?: KJGeologyObservation[]
+}
+export interface KJGeologyGroundwaterObservation {
+  /** Measured depth below the collar in metres. */
+  depth: number
+  /** Independently supplied absolute groundwater elevation in metres. */
+  elevation: number
+  /** Source-recorded observation date or timestamp. */
+  observedOn: string
+  /** Source-recorded water-level symbol. */
+  marker: 'filled-down-triangle'
 }
 export interface KJGeologyObservation {
   kind: 'sample' | 'spt'
@@ -180,6 +192,7 @@ interface ColumnLayout {
   textHeights?: { headerFact: number; fieldHeader: number; fieldSubHeader: number; majorValue: number; intervalDepth: number; observation: number }
   stratigraphicNotationStyle?: { symbolHeight: number; qualifierHeight: number }
   sampleMarkerStyle?: { height: number; gap: number; baselineOffset: number }
+  groundwaterAnnotationStyle?: { fieldRole: 'pattern'; textHeight: number; markerHeight: number; textWidthFactor: number; gap: number; valueOffset: number; markerOffset: number; dateOffset: number }
   verticalScaleDenominators: number[]
   sourceTemplate?: { sourceId: string; sourceSha256: string; verticalScaleDenominator: number; innerGridWidthMillimeters: number; fieldRoles: string[]; footerLabels: string[]; gridLineHandles: string[] }
 }
@@ -266,7 +279,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'groundwaterAnnotationStyle', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -474,6 +487,26 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       throw new KJValidationError('Geology: sample marker style is unreadable')
     sampleMarkerStyle = { height, gap, baselineOffset }
   }
+  let groundwaterAnnotationStyle: ColumnLayout['groundwaterAnnotationStyle']
+  if (value.groundwaterAnnotationStyle != null) {
+    if (!isFieldGrid || !value.groundwaterAnnotationStyle || typeof value.groundwaterAnnotationStyle !== 'object' || Array.isArray(value.groundwaterAnnotationStyle) ||
+      Object.keys(value.groundwaterAnnotationStyle).sort().join(',') !== 'dateOffset,fieldRole,gap,markerHeight,markerOffset,textHeight,textWidthFactor,valueOffset')
+      throw new KJValidationError('Geology: groundwater annotation style needs an exact declarative field-grid schema')
+    const rule = value.groundwaterAnnotationStyle as Record<string, unknown>
+    if (rule.fieldRole !== 'pattern') throw new KJValidationError('Geology: groundwater annotations need a declared pattern field')
+    const textHeight = numeric(rule.textHeight, 'groundwater annotation text height')
+    const markerHeight = numeric(rule.markerHeight, 'groundwater annotation marker height')
+    const textWidthFactor = numeric(rule.textWidthFactor, 'groundwater annotation text width factor')
+    const gap = numeric(rule.gap, 'groundwater annotation value gap')
+    const valueOffset = numeric(rule.valueOffset, 'groundwater annotation value offset')
+    const markerOffset = numeric(rule.markerOffset, 'groundwater annotation marker offset')
+    const dateOffset = numeric(rule.dateOffset, 'groundwater annotation date offset')
+    if (textHeight < 0.8 || textHeight > 4 || markerHeight < 0.8 || markerHeight > 5 || textWidthFactor < 0.5 || textWidthFactor > 1 ||
+      gap < 0 || gap > 5 || [valueOffset, markerOffset, dateOffset].some(offset => offset < -10 || offset > 10) ||
+      dateOffset + textHeight + 0.2 > markerOffset || markerOffset + markerHeight + 0.2 > valueOffset)
+      throw new KJValidationError('Geology: groundwater annotation style is unreadable')
+    groundwaterAnnotationStyle = { fieldRole: 'pattern', textHeight, markerHeight, textWidthFactor, gap, valueOffset, markerOffset, dateOffset }
+  }
   let verticalScaleDenominators = [...defaultColumnVerticalScales]
   if (value.verticalScaleDenominators != null) {
     if (!Array.isArray(value.verticalScaleDenominators) || value.verticalScaleDenominators.length < 1 || value.verticalScaleDenominators.length > 16)
@@ -521,7 +554,8 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   return { paperWidth, paperHeight, left, right, columns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, legendMode, layerNumberStyle, titleHeight, verticalScaleDenominators, ...(sptDisplayCap == null ? {} : { sptDisplayCap }),
     ...(observationColumns ? { observationColumns } : {}), labels,
     ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}),
-    ...(stratigraphicNotationStyle ? { stratigraphicNotationStyle } : {}), ...(sampleMarkerStyle ? { sampleMarkerStyle } : {}), ...(sourceTemplate ? { sourceTemplate } : {}) }
+    ...(stratigraphicNotationStyle ? { stratigraphicNotationStyle } : {}), ...(sampleMarkerStyle ? { sampleMarkerStyle } : {}),
+    ...(groundwaterAnnotationStyle ? { groundwaterAnnotationStyle } : {}), ...(sourceTemplate ? { sourceTemplate } : {}) }
 }
 
 function sectionLayout(input: KJGeologySectionInput): SectionLayout {
@@ -565,6 +599,25 @@ function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
   positive(hole.depth, 'hole depth')
   if (hole.stableWaterDepth != null && (numeric(hole.stableWaterDepth, 'stable groundwater depth') < 0 || hole.stableWaterDepth > hole.depth)) throw new KJValidationError('Geology: stable groundwater depth is outside the hole')
   if (hole.initialWaterDepth != null && (numeric(hole.initialWaterDepth, 'initial groundwater depth') < 0 || hole.initialWaterDepth > hole.depth)) throw new KJValidationError('Geology: initial groundwater depth is outside the hole')
+  if (hole.groundwaterObservations != null) {
+    if (!Array.isArray(hole.groundwaterObservations) || !hole.groundwaterObservations.length || hole.groundwaterObservations.length > 32)
+      throw new KJValidationError('Geology: groundwater observations require a bounded nonempty list')
+    const identities = new Set<string>()
+    for (const item of hole.groundwaterObservations) {
+      if (!item || typeof item !== 'object' || Array.isArray(item) || Object.keys(item).sort().join(',') !== 'depth,elevation,marker,observedOn')
+        throw new KJValidationError('Geology: groundwater observation needs exact depth, elevation, date and marker facts')
+      const depth = numeric(item.depth, 'groundwater observation depth')
+      const elevation = numeric(item.elevation, 'groundwater observation elevation')
+      const observedOn = bounded(item.observedOn, 'groundwater observation date', 64)
+      if (item.marker !== 'filled-down-triangle') throw new KJValidationError('Geology: unsupported groundwater observation marker')
+      if (depth < 0 || depth > hole.depth) throw new KJValidationError('Geology: groundwater observation depth is outside the hole')
+      if (Math.abs(hole.collarElevation - depth - elevation) > 0.011)
+        throw new KJValidationError('Geology: groundwater observation depth and elevation disagree with the supplied collar')
+      const identity = `${depth}:${elevation}:${observedOn}:${item.marker}`
+      if (identities.has(identity)) throw new KJValidationError('Geology: repeated groundwater observation identity')
+      identities.add(identity)
+    }
+  }
   if (!Array.isArray(hole.strata) || !hole.strata.length || hole.strata.length > 80) throw new KJValidationError('Geology: 1–80 strata are required')
   const strata = [...hole.strata].sort((a, b) => a.top - b.top)
   const grouped = strata.some(layer => layer.groupId != null || layer.groupRole != null)
@@ -707,7 +760,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
     headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights,
-    stratigraphicNotationStyle, sampleMarkerStyle, layerNumberStyle, sourceTemplate } = layout
+    stratigraphicNotationStyle, sampleMarkerStyle, groundwaterAnnotationStyle, layerNumberStyle, sourceTemplate } = layout
   if (strata.some(layer => layer.stratigraphicNotation != null) && !stratigraphicNotationStyle)
     throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style')
   const documentFacts = documentFactRecord(input.documentFacts)
@@ -746,6 +799,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const observations = hole.observations ?? []
   if (observations.some(item => item.sampleMarker != null) && !sampleMarkerStyle)
     throw new KJValidationError('Geology: sample marker facts need a declared field-grid marker style')
+  if (hole.groundwaterObservations?.length && !groundwaterAnnotationStyle)
+    throw new KJValidationError('Geology: groundwater observation facts need a declared field-grid annotation style')
   if (fieldGrid && observations.some(item => item.kind === 'sample' && !gridField('sample') || item.kind === 'spt' && !gridField('spt')))
     throw new KJValidationError('Geology: field grid has no physical field for supplied observations')
   if (observations.length && strata.some(layer => layer.description) && !observationColumns && !fieldGrid) throw new KJValidationError('Geology: supplied descriptions and depth-aligned observations need separate declared columns')
@@ -916,6 +971,38 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         bottom: y - 0.25, top: y + height + 0.25 },
       { role: item.role, left: markerX - markerWidth / 2 - 0.25, right: markerX + markerWidth / 2 + 0.25,
         bottom: y + style.baselineOffset - 0.25, top: y + style.baselineOffset + style.height + 0.25 })
+    }
+    const emitGroundwaterAnnotation = (item: typeof fieldGrid[number], y: number,
+      observation: KJGeologyGroundwaterObservation): void => {
+      const style = groundwaterAnnotationStyle!
+      const depthText = metres(observation.depth), elevationText = metres(observation.elevation)
+      const depthWidth = estimatedWidth(depthText, style.textHeight) * style.textWidthFactor
+      const elevationWidth = estimatedWidth(elevationText, style.textHeight) * style.textWidthFactor
+      const valuesWidth = depthWidth + style.gap + elevationWidth
+      const marker = '▼', markerWidth = estimatedWidth(marker, style.markerHeight) * style.textWidthFactor
+      const dateWidth = estimatedWidth(observation.observedOn, style.textHeight) * style.textWidthFactor
+      if (Math.max(valuesWidth, markerWidth, dateWidth) > fieldWidth(item) - 2.4)
+        throw new KJValidationError('Geology: groundwater annotation does not fit its declared field')
+      const center = item.start + fieldWidth(item) / 2, valuesStart = center - valuesWidth / 2
+      const depthX = valuesStart + depthWidth / 2
+      const elevationX = valuesStart + depthWidth + style.gap + elevationWidth / 2
+      const valueY = y + style.valueOffset, markerY = y + style.markerOffset, dateY = y + style.dateOffset
+      const boxes = [
+        { role: item.role, left: valuesStart - 0.25, right: valuesStart + valuesWidth + 0.25,
+          bottom: valueY - 0.25, top: valueY + style.textHeight + 0.25 },
+        { role: item.role, left: center - markerWidth / 2 - 0.25, right: center + markerWidth / 2 + 0.25,
+          bottom: markerY - 0.25, top: markerY + style.markerHeight + 0.25 },
+        { role: item.role, left: center - dateWidth / 2 - 0.25, right: center + dateWidth / 2 + 0.25,
+          bottom: dateY - 0.25, top: dateY + style.textHeight + 0.25 },
+      ]
+      if (boxes.some(box => box.bottom < bottom + 0.4 || box.top > top - 0.2) || boxes.some(box => textBoxes.some(prior => prior.role === item.role &&
+        box.left < prior.right && box.right > prior.left && box.bottom < prior.top && box.top > prior.bottom)))
+        throw new KJValidationError('Geology: groundwater annotation collides with its source lane or body boundary')
+      g.text(3, depthX, valueY, depthText, style.textHeight, true, style.textWidthFactor)
+      g.text(3, elevationX, valueY, elevationText, style.textHeight, true, style.textWidthFactor)
+      g.text(3, center, markerY, marker, style.markerHeight, true, style.textWidthFactor)
+      g.text(3, center, dateY, observation.observedOn, style.textHeight, true, style.textWidthFactor)
+      textBoxes.push(...boxes)
     }
     const emitLayerNumber = (item: typeof fieldGrid[number], y: number, value: string, bandHeight: number): void => {
       if (layerNumberStyle !== 'circle') return emitFieldText(item, y, value, Math.min(2.1, Math.max(1.4, bandHeight * 0.38)))
@@ -1088,6 +1175,10 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
         }
       }
     }
+    if (hole.groundwaterObservations) {
+      const groundwaterField = field(groundwaterAnnotationStyle!.fieldRole)
+      for (const item of hole.groundwaterObservations) emitGroundwaterAnnotation(groundwaterField, top - item.depth * scale, item)
+    }
     for (const line of bandLines) {
       let cursor = line.x1
       const gaps = textBoxes.filter(box => box.bottom <= line.y && line.y <= box.top && box.right > line.x1 && box.left < line.x2)
@@ -1171,6 +1262,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
 export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDeep<KJKnowledgeCompileResult> {
   if (input.surfaceRule !== 'straight-between-supplied-collars') throw new KJValidationError('Geology: an explicit surface connection rule is required')
   if (!Array.isArray(input.holes) || input.holes.length < 2 || input.holes.length > 24) throw new KJValidationError('Geology: section requires 2–24 holes')
+  if (input.holes.some(hole => hole.groundwaterObservations?.length))
+    throw new KJValidationError('Geology: down-hole groundwater annotation facts belong to column layouts, not section summaries')
   const layout = sectionLayout(input)
   const documentFacts = documentFactRecord(input.documentFacts)
   if (input.projectName != null) bounded(input.projectName, 'project name', 96)

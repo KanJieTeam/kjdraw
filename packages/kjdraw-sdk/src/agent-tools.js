@@ -1518,6 +1518,20 @@ const geologyObservationSchema = objectWithOptional({
     'displayLabel',
     'sampleMarker'
 ]);
+const geologyGroundwaterObservationSchema = object({
+    depth: nonnegative,
+    elevation: number,
+    observedOn: {
+        ...text,
+        maxLength: 64
+    },
+    marker: {
+        type: 'string',
+        enum: [
+            'filled-down-triangle'
+        ]
+    }
+});
 const geologyHoleSchema = objectWithOptional({
     id: {
         ...text,
@@ -1538,6 +1552,12 @@ const geologyHoleSchema = objectWithOptional({
     initialWaterDepth: nonnegative,
     stableWaterDepth: nonnegative,
     station: number,
+    groundwaterObservations: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 32,
+        items: geologyGroundwaterObservationSchema
+    },
     strata: {
         type: 'array',
         minItems: 1,
@@ -1557,6 +1577,7 @@ const geologyHoleSchema = objectWithOptional({
     'endDate',
     'initialWaterDepth',
     'stableWaterDepth',
+    'groundwaterObservations',
     'station',
     'observations'
 ]);

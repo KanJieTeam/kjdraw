@@ -884,6 +884,16 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
                 gap: 0.5,
                 baselineOffset: 0.5
             },
+            groundwaterAnnotationStyle: {
+                fieldRole: 'pattern',
+                textHeight: 2,
+                markerHeight: 2.5,
+                textWidthFactor: 0.8,
+                gap: 0.6,
+                valueOffset: 3,
+                markerOffset: 0,
+                dateOffset: -3
+            },
             textFlow: {
                 firstGroupBorrowMm: 8,
                 firstGroupUnruled: true,

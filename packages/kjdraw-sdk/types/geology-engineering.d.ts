@@ -40,9 +40,21 @@ export interface KJGeologyBorehole {
     initialWaterDepth?: number;
     /** Measured stable groundwater depth; never inferred from another hole. */
     stableWaterDepth?: number;
+    /** Independent down-hole groundwater readings. These are never copied from summary header values. */
+    groundwaterObservations?: KJGeologyGroundwaterObservation[];
     station?: number;
     strata: KJGeologyStratum[];
     observations?: KJGeologyObservation[];
+}
+export interface KJGeologyGroundwaterObservation {
+    /** Measured depth below the collar in metres. */
+    depth: number;
+    /** Independently supplied absolute groundwater elevation in metres. */
+    elevation: number;
+    /** Source-recorded observation date or timestamp. */
+    observedOn: string;
+    /** Source-recorded water-level symbol. */
+    marker: 'filled-down-triangle';
 }
 export interface KJGeologyObservation {
     kind: 'sample' | 'spt';

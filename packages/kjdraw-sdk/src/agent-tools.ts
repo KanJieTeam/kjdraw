@@ -341,13 +341,18 @@ const geologyObservationSchema = objectWithOptional({
   value: nonnegative, displayLabel: { ...text, maxLength: 24 },
   sampleMarker: { type: 'string', enum: ['filled-circle', 'open-circle'] },
 }, ['value', 'displayLabel', 'sampleMarker'])
+const geologyGroundwaterObservationSchema = object({
+  depth: nonnegative, elevation: number, observedOn: { ...text, maxLength: 64 },
+  marker: { type: 'string', enum: ['filled-down-triangle'] },
+})
 const geologyHoleSchema = objectWithOptional({
   id: { ...text, maxLength: 64 }, collarElevation: number, depth: radius,
   x: number, y: number, startDate: { ...text, maxLength: 64 }, endDate: { ...text, maxLength: 64 },
   initialWaterDepth: nonnegative, stableWaterDepth: nonnegative, station: number,
+  groundwaterObservations: { type: 'array', minItems: 1, maxItems: 32, items: geologyGroundwaterObservationSchema },
   strata: { type: 'array', minItems: 1, maxItems: 80, items: geologyStratumSchema },
   observations: { type: 'array', minItems: 0, maxItems: 256, items: geologyObservationSchema },
-}, ['x', 'y', 'startDate', 'endDate', 'initialWaterDepth', 'stableWaterDepth', 'station', 'observations'])
+}, ['x', 'y', 'startDate', 'endDate', 'initialWaterDepth', 'stableWaterDepth', 'groundwaterObservations', 'station', 'observations'])
 const geologyColumnSchema = objectWithOptional({
   version: { type: 'string', enum: ['1.0.0'] }, expectedRevision: revision, units: { type: 'string', enum: ['millimeter'] },
   locale: { type: 'string', enum: ['zh-CN', 'en'] },
