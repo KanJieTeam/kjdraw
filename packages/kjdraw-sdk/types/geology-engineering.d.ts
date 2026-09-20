@@ -263,6 +263,9 @@ export interface KJGeologySectionInput {
         fromIntervalId?: string;
         toIntervalId?: string;
     }[];
+    /** Explicit opt-in for source-declared group topology. The default keeps the
+     * existing caller-supplied correlation contract unchanged. */
+    correlationMode?: 'explicit-correlations' | 'source-group-topology';
     /** Explicit source-backed boundaries are rendered before inferred correlations. */
     manualConnections?: KJGeologySectionConnection[];
     horizontalScaleDenominator: number;

@@ -5,6 +5,7 @@ import { validateKnowledgePack } from './knowledge-pack.js';
 import { hatchPatternFromKnowledgePack } from './hatch-pattern-catalog.js';
 import { layoutCadMText } from './geometry/text-layout.js';
 import { KJDRAW_GEOLOGY_KNOWLEDGE_PACK } from './knowledge-packs/geology-core.js';
+import { compileGeologySectionTopology } from './geology-section-topology.js';
 const pattern = {
     fill: 'CROSS',
     'cultivated-soil': 'ANSI37',
@@ -2717,6 +2718,12 @@ export function compileGeologySection(input) {
     if (input.surfaceRule !== 'straight-between-supplied-collars') throw new KJValidationError('Geology: an explicit surface connection rule is required');
     if (!Array.isArray(input.holes) || input.holes.length < 2 || input.holes.length > 24) throw new KJValidationError('Geology: section requires 2–24 holes');
     if (input.holes.some((hole)=>hole.groundwaterObservations?.length)) throw new KJValidationError('Geology: down-hole groundwater annotation facts belong to column layouts, not section summaries');
+    const correlationMode = input.correlationMode ?? 'explicit-correlations';
+    if (correlationMode !== 'explicit-correlations' && correlationMode !== 'source-group-topology') throw new KJValidationError('Geology: invalid section correlation mode');
+    if (!Array.isArray(input.correlations) || input.correlations.length > 200) throw new KJValidationError('Geology: invalid correlation list');
+    const manualConnections = input.manualConnections ?? [];
+    if (!Array.isArray(manualConnections) || manualConnections.length > 200) throw new KJValidationError('Geology: invalid manual connection list');
+    if (correlationMode === 'source-group-topology' && (input.correlations.length || manualConnections.length)) throw new KJValidationError('Geology: source-group topology conflicts with explicit correlations or manual connections');
     const layout = sectionLayout(input);
     const documentFacts = documentFactRecord(input.documentFacts);
     if (input.projectName != null) bounded(input.projectName, 'project name', 96);
@@ -2739,6 +2746,13 @@ export function compileGeologySection(input) {
         });
     }
     for(let i = 1; i < holes.length; i++)if (holes[i].station <= holes[i - 1].station) throw new KJValidationError('Geology: stations must be strictly increasing');
+    const topology = correlationMode === 'source-group-topology' ? compileGeologySectionTopology(holes.map((hole)=>({
+            id: hole.id,
+            station: hole.station,
+            collarElevation: hole.collarElevation,
+            depth: hole.depth,
+            strata: byId.get(hole.id).strata
+        }))) : undefined;
     const originX = layout.plotLeft + 18;
     const x = (hole)=>originX + (hole.station - holes[0].station) * hs;
     const y = (hole, depth)=>layout.plotBottom + (hole.collarElevation - depth - datum) * vs;
@@ -2849,8 +2863,6 @@ export function compileGeologySection(input) {
             hole.id,
             index
         ]));
-    const manualConnections = input.manualConnections ?? [];
-    if (!Array.isArray(manualConnections) || manualConnections.length > 200) throw new KJValidationError('Geology: invalid manual connection list');
     const manualKeys = new Set();
     const manualPairTopology = new Map();
     for (const connection of manualConnections){
@@ -2898,7 +2910,6 @@ export function compileGeologySection(input) {
             }
         });
     }
-    if (!Array.isArray(input.correlations) || input.correlations.length > 200) throw new KJValidationError('Geology: invalid correlation list');
     const unique = new Set();
     const pairTopology = new Map();
     for (const link of input.correlations){
@@ -2949,11 +2960,35 @@ export function compileGeologySection(input) {
         g.line(1, xl, topL, xr, topR);
         g.text(3, (xl + xr) / 2, (topL + topR + bottomL + bottomR) / 4, a.code, 1.8, true);
     }
-    g.text(3, layout.innerMargin + 2, footerTop + 2.2, locale === 'zh-CN' ? '仅显示已提供的地层与对比关系；未对比区域按设计留空。' : 'Only supplied strata/correlations are shown. Uncorrelated regions are intentionally blank.', 1.5);
+    if (topology) {
+        const topologyPoint = (point)=>[
+                originX + (point.station - holes[0].station) * hs,
+                layout.plotBottom + (point.elevation - datum) * vs
+            ];
+        for (const cell of [
+            ...topology.mainCells,
+            ...topology.lensCells
+        ])g.hatch(cell.points.map(topologyPoint), cell.source);
+        for (const boundary of topology.mainBoundaries){
+            const [start, end] = boundary.points.map(topologyPoint);
+            g.semanticLine(1, start[0], start[1], end[0], end[1], {
+                semanticRole: 'source-group-boundary',
+                topologyIdentity: boundary.identity,
+                topologyMode: boundary.mode
+            });
+        }
+    }
+    g.text(3, layout.innerMargin + 2, footerTop + 2.2, locale === 'zh-CN' ? topology ? '仅显示源数据声明的地层组拓扑；未证实区域按设计留空。' : '仅显示已提供的地层与对比关系；未对比区域按设计留空。' : topology ? 'Only source-declared group topology is shown. Unproven regions remain blank.' : 'Only supplied strata/correlations are shown. Uncorrelated regions are intentionally blank.', 1.5);
     return g.finish({
         horizontalScaleDenominator: input.horizontalScaleDenominator,
         verticalScaleDenominator: input.verticalScaleDenominator,
         datumElevation: datum,
-        styleRule: 'geology-section-layout'
+        styleRule: 'geology-section-layout',
+        ...topology ? {
+            correlationMode,
+            topologyMainCellCount: topology.mainCells.length,
+            topologyLensCellCount: topology.lensCells.length,
+            topologyMainBoundaryCount: topology.mainBoundaries.length
+        } : {}
     });
 }

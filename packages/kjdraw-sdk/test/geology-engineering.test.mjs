@@ -642,6 +642,56 @@ test('engineering section only connects declared compatible strata, with indepen
   assert.equal(exportDrawingSvg(document, { layoutId: layout.id }).report.diagnostics.length, 0)
 })
 
+test('section source-group topology renders only declared host envelopes, lens occurrences and proven boundaries', async t => {
+  const principal = (id, groupId, top, bottom, lithology = 'clay') => ({ intervalId: id, groupId, groupRole: 'principal',
+    code: groupId, name: `Group ${groupId}`, top, bottom, lithology })
+  const lens = (id, groupId, code, top, bottom) => ({ intervalId: id, groupId, groupRole: 'lens',
+    code, name: 'Declared lens', top, bottom, lithology: 'sand' })
+  const groupedHole = (id, station, collarElevation, depth, strata) => ({ id, station, collarElevation, depth, strata })
+  const holes = [
+    groupedHole('P1', 0, 100, 12, [principal('1a', 'A', 0, 3), lens('1l', 'A', 'A-1', 3, 4),
+      principal('1b', 'A', 4, 7), principal('1c', 'B', 7, 12, 'rock')]),
+    groupedHole('P2', 10, 101, 13, [principal('2a', 'A', 0, 3.5), lens('2l', 'A', 'A-1', 3.5, 5),
+      principal('2b', 'A', 5, 8), principal('2c', 'B', 8, 13, 'rock')]),
+    groupedHole('P3', 22, 100.5, 11, [principal('3a', 'A', 0, 6), principal('3b', 'B', 6, 11, 'rock')]),
+  ]
+  const base = { holes, correlations: [], correlationMode: 'source-group-topology', horizontalScaleDenominator: 500,
+    verticalScaleDenominator: 200, datumElevation: 80, surfaceRule: 'straight-between-supplied-collars', expectedRevision: 0 }
+  const compiled = compileGeologySection(base)
+  assert.deepEqual(compiled.evidence.parameters, { horizontalScaleDenominator: 500, verticalScaleDenominator: 200,
+    datumElevation: 80, styleRule: 'geology-section-layout', correlationMode: 'source-group-topology',
+    topologyMainCellCount: 2, topologyLensCellCount: 2, topologyMainBoundaryCount: 2 })
+  assert.equal(compiled.commandArgs.entities.filter(entity => entity.type === 'HATCH').length, 14,
+    'ten source intervals plus two host cells and two exact lens-occurrence cells are preserved')
+  assert.equal(compiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
+    entity.payload.semanticRole === 'source-group-boundary').length, 2)
+  assert.throws(() => compileGeologySection({ ...base, correlations: [
+    { fromHoleId: 'P1', toHoleId: 'P2', fromIntervalId: '1a', toIntervalId: '2a' },
+  ] }), /conflicts with explicit correlations/u)
+  const missingGroup = structuredClone(base); delete missingGroup.holes[0].strata[0].groupId
+  assert.throws(() => compileGeologySection(missingGroup), /source major group id|incomplete source group hierarchy/u)
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
+  let dxf
+  for (const format of ['KJD', 'DXF']) {
+    const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
+    if (format === 'DXF') dxf = bytes
+    const reopened = await sdk.readDocument(bytes, { format })
+    assert.equal(reopened.validate().valid, true)
+    assert.equal(reopened.listEntities().length, compiled.evidence.entityCount)
+    assert.equal(reopened.listEntities({ type: 'HATCH' }).length, 14)
+  }
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,ezdxf; d=ezdxf.read(io.StringIO(open(__import__("os").environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"hatches":len(list(d.modelspace().query("HATCH"))) }))'],
+  dxf, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
+    PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) t.diagnostic('official ezdxf unavailable; independent check skipped')
+  else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, hatches: 14 })
+  }
+})
+
 test('long engineering log preserves 31 numeric intervals, repeated codes and physical 841 mm bounds', () => {
   const depths = [5.3, 6.5, 13, 17.8, 20.7, 22, 25.2, 26.5, 29.3, 33, 34.1, 37, 40.2, 47.5, 48.6, 49.5, 55.5, 58, 58.7, 60.5, 62, 63.3, 66, 70, 74.2, 77.5, 81.4, 83.5, 85, 100.5, 120]
   const codes = ['2_0', '2_2', '3_0', '5_0', '6_0', '6_1', '6_0', '6_1', '6_0', '7_0', '7_1', '7_0', '7_2', '7_0', '7_1', '7_0', '8_0', '9_0', '9_1', '9_0', '9_1', '9_0', '9_1', '9_0', '10_0', '10_1', '10_0', '10_1', '10_0', '11_0', '12_0']

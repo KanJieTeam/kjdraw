@@ -5,6 +5,7 @@ import { validateKnowledgePack, type KJKnowledgePack } from './knowledge-pack.js
 import { hatchPatternFromKnowledgePack } from './hatch-pattern-catalog.js'
 import { layoutCadMText } from './geometry/text-layout.js'
 import { KJDRAW_GEOLOGY_KNOWLEDGE_PACK } from './knowledge-packs/geology-core.js'
+import { compileGeologySectionTopology, type KJSectionTopologyResult } from './geology-section-topology.js'
 
 /** Engineering facts, not CAD coordinates. Depths/stations/elevations are metres. */
 export interface KJGeologyStratum {
@@ -245,6 +246,9 @@ export interface KJGeologySectionInput {
   holes: KJGeologyBorehole[]
   /** Only explicitly correlated layers are drawn between holes. */
   correlations: { fromHoleId: string; toHoleId: string; fromStratumCode?: string; toStratumCode?: string; fromIntervalId?: string; toIntervalId?: string }[]
+  /** Explicit opt-in for source-declared group topology. The default keeps the
+   * existing caller-supplied correlation contract unchanged. */
+  correlationMode?: 'explicit-correlations' | 'source-group-topology'
   /** Explicit source-backed boundaries are rendered before inferred correlations. */
   manualConnections?: KJGeologySectionConnection[]
   horizontalScaleDenominator: number
@@ -2114,6 +2118,14 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
   if (!Array.isArray(input.holes) || input.holes.length < 2 || input.holes.length > 24) throw new KJValidationError('Geology: section requires 2–24 holes')
   if (input.holes.some(hole => hole.groundwaterObservations?.length))
     throw new KJValidationError('Geology: down-hole groundwater annotation facts belong to column layouts, not section summaries')
+  const correlationMode = input.correlationMode ?? 'explicit-correlations'
+  if (correlationMode !== 'explicit-correlations' && correlationMode !== 'source-group-topology')
+    throw new KJValidationError('Geology: invalid section correlation mode')
+  if (!Array.isArray(input.correlations) || input.correlations.length > 200) throw new KJValidationError('Geology: invalid correlation list')
+  const manualConnections = input.manualConnections ?? []
+  if (!Array.isArray(manualConnections) || manualConnections.length > 200) throw new KJValidationError('Geology: invalid manual connection list')
+  if (correlationMode === 'source-group-topology' && (input.correlations.length || manualConnections.length))
+    throw new KJValidationError('Geology: source-group topology conflicts with explicit correlations or manual connections')
   const layout = sectionLayout(input)
   const documentFacts = documentFactRecord(input.documentFacts)
   if (input.projectName != null) bounded(input.projectName, 'project name', 96)
@@ -2131,6 +2143,10 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
     byId.set(hole.id, { hole, strata })
   }
   for (let i = 1; i < holes.length; i++) if (holes[i]!.station! <= holes[i - 1]!.station!) throw new KJValidationError('Geology: stations must be strictly increasing')
+  const topology: KJSectionTopologyResult | undefined = correlationMode === 'source-group-topology'
+    ? compileGeologySectionTopology(holes.map(hole => ({ id: hole.id, station: hole.station!, collarElevation: hole.collarElevation,
+        depth: hole.depth, strata: byId.get(hole.id)!.strata })))
+    : undefined
   const originX = layout.plotLeft + 18
   const x = (hole: KJGeologyBorehole) => originX + (hole.station! - holes[0]!.station!) * hs
   const y = (hole: KJGeologyBorehole, depth: number) => layout.plotBottom + (hole.collarElevation - depth - datum) * vs
@@ -2200,8 +2216,6 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
     }
   }
   const holeOrder = new Map(holes.map((hole, index) => [hole.id, index]))
-  const manualConnections = input.manualConnections ?? []
-  if (!Array.isArray(manualConnections) || manualConnections.length > 200) throw new KJValidationError('Geology: invalid manual connection list')
   const manualKeys = new Set<string>()
   const manualPairTopology = new Map<string, { fromDepth: number; toDepth: number; kind: KJGeologySectionConnection['kind'] }[]>()
   for (const connection of manualConnections) {
@@ -2232,7 +2246,6 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
       semanticRole: 'source-manual-connection', connectionKind: kind, ...(layerCode == null ? {} : { sourceLayerCode: layerCode }),
     })
   }
-  if (!Array.isArray(input.correlations) || input.correlations.length > 200) throw new KJValidationError('Geology: invalid correlation list')
   const unique = new Set<string>()
   const pairTopology = new Map<string, { source: KJGeologyStratum; target: KJGeologyStratum }[]>()
   for (const link of input.correlations) {
@@ -2264,9 +2277,25 @@ export function compileGeologySection(input: KJGeologySectionInput): ReadonlyDee
     g.line(1, xl, topL, xr, topR)
     g.text(3, (xl + xr) / 2, (topL + topR + bottomL + bottomR) / 4, a.code, 1.8, true)
   }
+  if (topology) {
+    const topologyPoint = (point: { station: number; elevation: number }): [number, number] => [
+      originX + (point.station - holes[0]!.station!) * hs,
+      layout.plotBottom + (point.elevation - datum) * vs,
+    ]
+    for (const cell of [...topology.mainCells, ...topology.lensCells])
+      g.hatch(cell.points.map(topologyPoint), cell.source as KJGeologyStratum)
+    for (const boundary of topology.mainBoundaries) {
+      const [start, end] = boundary.points.map(topologyPoint) as [[number, number], [number, number]]
+      g.semanticLine(1, start[0], start[1], end[0], end[1], {
+        semanticRole: 'source-group-boundary', topologyIdentity: boundary.identity, topologyMode: boundary.mode,
+      })
+    }
+  }
   g.text(3, layout.innerMargin + 2, footerTop + 2.2, locale === 'zh-CN'
-    ? '仅显示已提供的地层与对比关系；未对比区域按设计留空。'
-    : 'Only supplied strata/correlations are shown. Uncorrelated regions are intentionally blank.', 1.5)
+    ? topology ? '仅显示源数据声明的地层组拓扑；未证实区域按设计留空。' : '仅显示已提供的地层与对比关系；未对比区域按设计留空。'
+    : topology ? 'Only source-declared group topology is shown. Unproven regions remain blank.' : 'Only supplied strata/correlations are shown. Uncorrelated regions are intentionally blank.', 1.5)
   return g.finish({ horizontalScaleDenominator: input.horizontalScaleDenominator, verticalScaleDenominator: input.verticalScaleDenominator,
-    datumElevation: datum, styleRule: 'geology-section-layout' })
+    datumElevation: datum, styleRule: 'geology-section-layout',
+    ...(topology ? { correlationMode, topologyMainCellCount: topology.mainCells.length, topologyLensCellCount: topology.lensCells.length,
+      topologyMainBoundaryCount: topology.mainBoundaries.length } : {}) })
 }
