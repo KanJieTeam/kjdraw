@@ -303,6 +303,10 @@ export interface KJFlangeDimension {
   /** Optional entity-local native DIMENSION overrides. */
   textHeight?: number
   arrowSize?: number
+  /** References styleProfile.custom for the DIMENSION entity's visual layer,
+   * color, lineweight, linetype and linetype scale. This is independent from
+   * styleKey, which continues to reference only a native DIMSTYLE resource. */
+  entityStyleKey?: string
   styleKey?: string
 }
 
@@ -897,7 +901,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   if ((input.dimensions as unknown[] | undefined)?.length && (input.dimensions as unknown[]).length > 128) throw new KJValidationError('input.dimensions exceed their budget')
   const dimensions: KJFlangeDimension[] = ((input.dimensions ?? []) as unknown[]).map((value, index) => {
     const dimension = plain(value, `input.dimensions[${index}]`)
-    exact(dimension, ['kind', 'axis', 'definitionPoints', 'textPosition', 'textOverride', 'rotation', 'textHeight', 'arrowSize', 'styleKey'], `input.dimensions[${index}]`)
+    exact(dimension, ['kind', 'axis', 'definitionPoints', 'textPosition', 'textOverride', 'rotation', 'textHeight', 'arrowSize', 'entityStyleKey', 'styleKey'], `input.dimensions[${index}]`)
     if (!['aligned', 'rotated', 'diameter', 'radius', 'angular', 'ordinate'].includes(dimension.kind as string)) throw new KJValidationError(`input.dimensions[${index}].kind is invalid`)
     const axis = dimension.axis
     if (dimension.kind === 'ordinate' && !['x', 'y'].includes(axis as string)) throw new KJValidationError(`input.dimensions[${index}].axis must be x or y for an ordinate dimension`)
@@ -919,9 +923,10 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       ...(textHeight == null ? {} : { textHeight }), ...(arrowSize == null ? {} : { arrowSize }) }
     if (!projectDimension(payload)) throw new KJValidationError(`input.dimensions[${index}] does not define a projectable native dimension`)
     const styleKey = annotationStyleKey(dimension.styleKey, dimensionStyleKeys, `input.dimensions[${index}].styleKey`)
+    const dimensionEntityStyleKey = entityStyleKey(dimension.entityStyleKey, `input.dimensions[${index}].entityStyleKey`)
     return { kind: dimension.kind as KJFlangeDimension['kind'], ...(axis == null ? {} : { axis: axis as 'x' | 'y' }), definitionPoints, ...(textPosition == null ? {} : { textPosition }),
       ...(textOverride == null ? {} : { textOverride }), rotation, ...(textHeight == null ? {} : { textHeight }),
-      ...(arrowSize == null ? {} : { arrowSize }), ...(styleKey == null ? {} : { styleKey }) }
+      ...(arrowSize == null ? {} : { arrowSize }), ...(dimensionEntityStyleKey == null ? {} : { entityStyleKey: dimensionEntityStyleKey }), ...(styleKey == null ? {} : { styleKey }) }
   })
   if (input.leaders != null && !Array.isArray(input.leaders)) throw new KJValidationError('input.leaders must be an array')
   if ((input.leaders as unknown[] | undefined)?.length && (input.leaders as unknown[]).length > 64) throw new KJValidationError('input.leaders exceed their budget')
@@ -1673,15 +1678,15 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     position: p3(...note.position), text: note.text, height: note.height, rotation: note.rotation,
     ...(note.width == null ? {} : { width: note.width }), ...(note.attachmentPoint == null ? {} : { attachmentPoint: note.attachmentPoint }), ...(style == null ? {} : { styleId: style.id }), layerId: entityStyle.layerId,
   }, entityStyle.name) }
-  for (const dimension of input.dimensions) { const style = dimension.styleKey == null ? null : dimensionStyleByKey.get(dimension.styleKey)!; emit('DIMENSION', {
+  for (const dimension of input.dimensions) { const style = dimension.styleKey == null ? null : dimensionStyleByKey.get(dimension.styleKey)!, entityStyle = styled(dimension.entityStyleKey, 'dimensions'); emit('DIMENSION', {
     dimensionType: dimension.kind.toUpperCase(),
     ...(dimension.kind === 'ordinate' ? { dxfDimensionType: dimension.axis === 'x' ? 70 : 6 } : {}),
     definitionPoints: dimension.definitionPoints.map(([x, y]) => p3(x, y)),
     ...(dimension.textPosition == null ? {} : { textPosition: p3(...dimension.textPosition) }),
     textOverride: dimension.textOverride ?? null, rotation: dimension.rotation ?? 0,
     ...(dimension.textHeight == null ? {} : { textHeight: dimension.textHeight }), ...(dimension.arrowSize == null ? {} : { arrowSize: dimension.arrowSize }),
-    styleName: style?.name ?? 'STANDARD', ...(style == null ? {} : { styleId: style.id }), layerId: roleIds.dimensions,
-  }, 'dimensions') }
+    styleName: style?.name ?? 'STANDARD', ...(style == null ? {} : { styleId: style.id }), layerId: entityStyle.layerId,
+  }, entityStyle.name) }
   for (const leader of input.leaders) { const style = styled(leader.styleKey, 'notes'); emit('LEADER', { vertices: leader.vertices.map(([x, y]) => p3(x, y)), annotationId: null, ownsAnnotation: false,
     arrowEnabled: leader.arrowEnabled !== false, pathType: leader.pathType ?? 0, annotationType: leader.annotationType ?? 3,
     hookLineDirection: leader.hookLineDirection ?? 0, hookLineEnabled: leader.hookLineEnabled === true,

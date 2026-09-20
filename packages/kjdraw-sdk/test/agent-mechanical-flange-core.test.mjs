@@ -140,9 +140,10 @@ test('verified mirrored profiles stay symmetric while asymmetric source lines re
   assert.equal(emitted.has(lineKey([205, 127], [230, 124])), false)
   assert.equal(proposal.evidence.parameters.symmetricProfileCount, 1)
   assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 1)
-  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.29.0')
+  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.30.0')
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /geometry and effective visual style both mirror/u)
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /unpaired or asymmetric source segment remains an auxiliary line/u)
+  assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.annotationStyles, /style key selects only its native DIMSTYLE definition/u)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
   const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
   const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
@@ -590,6 +591,68 @@ test('caller-supplied annotation style resources stay generic and bind each nati
   assert.ok(reopened.listEntities({ type: 'DIMENSION' }).every(entity => entity.payload.styleId === reopenedDimensionStyle.id))
   assert.equal(reopened.listEntities({ type: 'TOLERANCE' })[0].payload.styleId, reopenedDimensionStyle.id)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), dimensions: [{ ...input(document.revision).dimensions[0], styleKey: 'missing' }] }), /must reference input.styleResources/u)
+})
+
+test('dimension definition styles remain independent from entity visual styles through KJD and DXF', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
+  const before = document.serialize()
+  const dimensionStyle = { key: 'measured-dimension', name: 'PUBLIC-MEASURED-DIMSTYLE', overallScale: 1.25, arrowSize: 2.75, textHeight: 3.25, decimalPlaces: 3 }
+  const entityStyle = { key: 'dimension-visible', layerName: 'PUBLIC-DIMENSION-VISIBLE', color: 3, lineweight: 35,
+    linetypeName: 'PUBLIC-DIMENSION-DASH', linetypePattern: [2, -1], linetypeScale: .75 }
+  const dimensions = source.dimensions.map(dimension => ({ ...dimension, styleKey: dimensionStyle.key, entityStyleKey: entityStyle.key }))
+  const styledSource = { ...source, styleResources: { textStyles: [], dimensionStyles: [dimensionStyle] }, styleProfile: { custom: [entityStyle] } }
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...styledSource, dimensions: [{ ...dimensions[0], entityStyleKey: 'missing' }] }), /entityStyleKey must reference input\.styleProfile\.custom/u)
+  assert.equal(document.serialize(), before)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...styledSource, dimensions: [{ ...dimensions[0], visualStyleKey: entityStyle.key }] }), /unsupported field/u)
+  assert.equal(document.serialize(), before)
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...styledSource, dimensions })
+  const dimensionStyleId = proposal.commandArgs.resources.dimensionStyles[0].id
+  const visualLayer = proposal.commandArgs.resources.layers.find(layer => layer.name === entityStyle.layerName)
+  const visualLinetype = proposal.commandArgs.resources.linetypes.find(linetype => linetype.name === entityStyle.linetypeName)
+  assert.ok(visualLayer)
+  assert.ok(visualLinetype)
+  const emitted = proposal.commandArgs.entities.filter(entity => entity.type === 'DIMENSION')
+  assert.equal(emitted.length, dimensions.length)
+  for (const entity of emitted) {
+    assert.equal(entity.payload.styleId, dimensionStyleId)
+    assert.equal(entity.payload.styleName, dimensionStyle.name)
+    assert.equal(entity.payload.layerId, visualLayer.id)
+    assert.equal(entity.payload.color, entityStyle.color)
+    assert.equal(entity.payload.lineweight, entityStyle.lineweight)
+    assert.equal(entity.payload.linetypeId, visualLinetype.id)
+    assert.equal(entity.payload.linetypeName, entityStyle.linetypeName)
+    assert.equal(entity.payload.linetypeScale, entityStyle.linetypeScale)
+  }
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
+  for (const reopened of [kjd, dxf]) {
+    const reopenedStyle = reopened.getTable('dimensionStyles').records.find(record => record.name === dimensionStyle.name)
+    const reopenedLayer = reopened.getTable('layers').records.find(record => record.name === entityStyle.layerName)
+    const reopenedLinetype = reopened.getTable('linetypes').records.find(record => record.name === entityStyle.linetypeName)
+    assert.ok(reopenedStyle)
+    assert.ok(reopenedLayer)
+    assert.ok(reopenedLinetype)
+    for (const entity of reopened.listEntities({ type: 'DIMENSION' })) {
+      assert.equal(entity.payload.styleId, reopenedStyle.id)
+      assert.equal(entity.payload.layerId, reopenedLayer.id)
+      assert.equal(entity.payload.color, entityStyle.color)
+      assert.equal(entity.payload.lineweight, entityStyle.lineweight)
+      assert.equal(entity.payload.linetypeId, reopenedLinetype.id)
+      assert.equal(entity.payload.linetypeScale, entityStyle.linetypeScale)
+    }
+  }
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); q=list(d.modelspace().query("DIMENSION")); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"count":len(q),"dimstyles":sorted(set(e.dxf.dimstyle for e in q)),"layers":sorted(set(e.dxf.layer for e in q)),"colors":sorted(set(int(e.dxf.color) for e in q)),"lineweights":sorted(set(int(e.dxf.lineweight) for e in q)),"linetypes":sorted(set(e.dxf.linetype for e in q)),"ltscales":sorted(set(float(e.dxf.ltscale) for e in q))}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || independent.status !== 0 && /No module named ['"]ezdxf/u.test(independent.stderr ?? '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr ?? independent.error?.message)
+    t.skip('official ezdxf is not installed'); return
+  }
+  assert.equal(independent.status, 0, independent.stderr)
+  assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, count: dimensions.length, dimstyles: [dimensionStyle.name], layers: [entityStyle.layerName],
+    colors: [entityStyle.color], lineweights: [entityStyle.lineweight], linetypes: [entityStyle.linetypeName], ltscales: [entityStyle.linetypeScale] })
 })
 
 test('bounded public style catalogs accept referenced 17+ records and reject record 65', async () => {
@@ -1420,7 +1483,7 @@ test('generic orthographic geometry remains native when the circular end view is
     symbols,
     dimensions,
   })
-  assert.equal(proposal.evidence.knowledgePackVersion, '2.29.0')
+  assert.equal(proposal.evidence.knowledgePackVersion, '2.30.0')
   assert.equal(proposal.evidence.parameters.endViewPresent, false)
   assert.equal(proposal.evidence.parameters.ringCount, 0)
   assert.equal(proposal.commandArgs.entities.some(entity => entity.type === 'CIRCLE'), false)
