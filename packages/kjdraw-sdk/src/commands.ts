@@ -1438,8 +1438,8 @@ function normalizePlotSettings(value: KJPlotSettingsInput = {}): KJPlotSettings 
   return { device, media: String(value.media ?? 'ISO_A4'), area, window, scale, centered: value.centered !== false, rotation, plotStyleId: value.plotStyleId == null ? null : String(value.plotStyleId), lineweights: value.lineweights !== false, outputQualityDpi: Number(value.outputQualityDpi ?? 600) }
 }
 
-const MAX_BATCH_BLOCK_RECORDS = 128
-const MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION = 512
+const MAX_BATCH_BLOCK_RECORDS = 256
+const MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION = 1024
 const MAX_BATCH_BLOCK_MEMBERS_TOTAL = 2048
 const BATCH_LINEWEIGHTS = new Set([-3, -2, -1, 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211])
 

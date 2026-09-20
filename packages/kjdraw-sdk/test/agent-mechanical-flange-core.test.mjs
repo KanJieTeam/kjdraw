@@ -140,7 +140,7 @@ test('verified mirrored profiles stay symmetric while asymmetric source lines re
   assert.equal(emitted.has(lineKey([205, 127], [230, 124])), false)
   assert.equal(proposal.evidence.parameters.symmetricProfileCount, 1)
   assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 1)
-  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.25.0')
+  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.26.0')
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /geometry and effective visual style both mirror/u)
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /unpaired or asymmetric source segment remains an auxiliary line/u)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
@@ -952,25 +952,25 @@ test('empty local symbol definitions remain bounded and native through KJD and D
     if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
     t.diagnostic('official ezdxf unavailable; independent check skipped')
   } else { assert.equal(independent.status, 0, independent.stderr); assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, blocks: 1, members: 0, inserts: 1 }) }
-  const tooMany = Array.from({ length: 513 }, (_, index) => ({ kind: 'line', start: [index, 0], end: [index + 1, 0], role: 'geometry' }))
-  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols: { definitions: [{ key: 'bounded', basePoint: [0, 0], members: tooMany }], instances: [] } }), /at most 512 items/u)
+  const tooMany = Array.from({ length: 1025 }, (_, index) => ({ kind: 'line', start: [index, 0], end: [index + 1, 0], role: 'geometry' }))
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols: { definitions: [{ key: 'bounded', basePoint: [0, 0], members: tooMany }], instances: [] } }), /at most 1024 items/u)
 })
-test('symbol budgets accept 128 definitions, 512 per definition, 2048 total members and 256 instances', async () => {
+test('symbol budgets accept 256 definitions, 1024 per definition, 2048 total members and 256 instances', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const members = (definitionIndex, count) => Array.from({ length: count }, (_, memberIndex) => ({
     kind: 'line', start: [memberIndex, definitionIndex], end: [memberIndex + .5, definitionIndex], role: 'geometry',
   }))
-  const definitions = Array.from({ length: 128 }, (_, definitionIndex) => ({
-    key: `public-symbol-${definitionIndex}`, basePoint: [0, 0], members: members(definitionIndex, definitionIndex < 4 ? 512 : 0),
+  const definitions = Array.from({ length: 256 }, (_, definitionIndex) => ({
+    key: `public-symbol-${definitionIndex}`, basePoint: [0, 0], members: members(definitionIndex, definitionIndex < 2 ? 1024 : 0),
   }))
   const instances = Array.from({ length: 256 }, (_, instanceIndex) => ({
-    symbolKey: `public-symbol-${instanceIndex % 128}`, position: [instanceIndex % 32, Math.floor(instanceIndex / 32)], role: 'geometry',
+    symbolKey: `public-symbol-${instanceIndex % 256}`, position: [instanceIndex % 32, Math.floor(instanceIndex / 32)], role: 'geometry',
   }))
   const source = input(document.revision), before = document.serialize()
   const rejected = [
-    { symbols: { definitions: [...definitions, { key: 'definition-129', basePoint: [0, 0], members: [] }], instances: [] }, pattern: /at most 128 items/u },
-    { symbols: { definitions: [{ key: 'member-513', basePoint: [0, 0], members: members(0, 513) }], instances: [] }, pattern: /at most 512 items/u },
-    { symbols: { definitions: [...definitions.slice(0, 4), { key: 'total-2049', basePoint: [0, 0], members: members(5, 1) }], instances: [] }, pattern: /2048 total-member budget/u },
+    { symbols: { definitions: [...definitions, { key: 'definition-257', basePoint: [0, 0], members: [] }], instances: [] }, pattern: /at most 256 items/u },
+    { symbols: { definitions: [{ key: 'member-1025', basePoint: [0, 0], members: members(0, 1025) }], instances: [] }, pattern: /at most 1024 items/u },
+    { symbols: { definitions: [...definitions.slice(0, 2), { key: 'total-2049', basePoint: [0, 0], members: members(2, 1) }], instances: [] }, pattern: /2048 total-member budget/u },
     { symbols: { definitions: [{ key: 'instance-target', basePoint: [0, 0], members: [] }], instances: Array.from({ length: 257 }, (_, index) => ({ symbolKey: 'instance-target', position: [index, 0], role: 'geometry' })) }, pattern: /at most 256 items/u },
   ]
   for (const value of rejected) {
@@ -983,9 +983,9 @@ test('symbol budgets accept 128 definitions, 512 per definition, 2048 total memb
     proposal.evidence.parameters.symbolMemberCount, proposal.evidence.parameters.symbolMemberBudgetPerDefinition,
     proposal.evidence.parameters.symbolMemberBudgetTotal, proposal.evidence.parameters.symbolInstanceCount,
     proposal.evidence.parameters.symbolInstanceBudget,
-  ], [128, 128, 2048, 512, 2048, 256, 256])
-  assert.equal(proposal.commandArgs.resources.blocks.length, 128)
-  assert.equal(Math.max(...proposal.commandArgs.resources.blocks.map(block => block.entities.length)), 512)
+  ], [256, 256, 2048, 1024, 2048, 256, 256])
+  assert.equal(proposal.commandArgs.resources.blocks.length, 256)
+  assert.equal(Math.max(...proposal.commandArgs.resources.blocks.map(block => block.entities.length)), 1024)
   assert.equal(proposal.commandArgs.resources.blocks.reduce((sum, block) => sum + block.entities.length, 0), 2048)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
   const [kjd, dxf] = await Promise.all([
@@ -994,11 +994,57 @@ test('symbol budgets accept 128 definitions, 512 per definition, 2048 total memb
   ])
   for (const reopened of [kjd, dxf]) {
     const blocks = reopened.getTable('blockRecords').records.filter(record => record.name?.startsWith('KJ_FLANGE_SYMBOL_'))
-    assert.equal(blocks.length, 128)
+    assert.equal(blocks.length, 256)
     assert.equal(blocks.reduce((sum, block) => sum + block.payload.entityIds.length, 0), 2048)
     assert.equal(reopened.listEntities({ type: 'INSERT' }).filter(entity => blocks.some(block => block.id === entity.payload.blockRecordId)).length, 256)
   }
 })
+test('evidence-backed outline and symmetric-profile capacities remain bounded through KJD and DXF', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
+  const endSegments = count => Array.from({ length: count }, (_, index) => ({ kind: 'line',
+    startOffset: [index / 100, -5], endOffset: [index / 100, -4.9] }))
+  const sideSegments = count => Array.from({ length: count }, (_, index) => ({ kind: 'line',
+    start: { station: 190 + index / 10, offset: 0 }, end: { station: 190.05 + index / 10, offset: 0 } }))
+  const profileVertices = count => Array.from({ length: count }, (_, index) => ({ station: 190 + index / 2, radius: 10 + index % 2 }))
+  const capacityInput = (endCount, sideCount, vertexCount) => ({ ...source,
+    endView: { ...source.endView, outlineSegments: endSegments(endCount) },
+    sideViewAxis: { ...source.sideViewAxis, symmetricProfiles: [{ vertices: profileVertices(vertexCount) }], outlineSegments: sideSegments(sideCount) },
+  })
+  const proposal = buildAgentMechanicalFlangeCore(document, capacityInput(256, 256, 128))
+  assert.deepEqual([proposal.evidence.parameters.outlineSegmentCount, proposal.evidence.parameters.sideOutlineSegmentCount,
+    proposal.evidence.parameters.symmetricProfileCount], [256, 256, 1])
+  assert.ok(proposal.commandArgs.entities.filter(entity => entity.type === 'LINE').length > 700)
+  const before = document.serialize()
+  for (const [value, pattern] of [
+    [capacityInput(257, 256, 128), /endView\.outlineSegments exceed their 256-segment budget/u],
+    [capacityInput(256, 257, 128), /sideViewAxis\.outlineSegments exceed their 256-segment budget/u],
+    [capacityInput(256, 256, 129), /vertices must contain 2 to 128 points/u],
+  ]) {
+    assert.throws(() => buildAgentMechanicalFlangeCore(document, value), pattern)
+    assert.equal(document.serialize(), before)
+  }
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const [kjd, dxf] = await Promise.all([
+    sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' }),
+    sdk.readDocument(dxfText, { format: 'DXF' }),
+  ])
+  const modelLineCount = drawing => drawing.listEntities({ type: 'LINE' }).filter(entity => entity.ownerId === drawing.spaces.modelSpaceId).length
+  assert.equal(modelLineCount(kjd), proposal.commandArgs.entities.filter(entity => entity.type === 'LINE').length)
+  assert.equal(modelLineCount(dxf), proposal.commandArgs.entities.filter(entity => entity.type === 'LINE').length)
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"lines":len(d.modelspace().query("LINE"))}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    const audit = JSON.parse(independent.stdout)
+    assert.deepEqual([audit.errors, audit.fixes, audit.lines], [0, 0, modelLineCount(dxf)])
+  }
+})
+
 test('symbol instances retain bounded Z translations through KJD and DXF', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const symbols = { definitions: [{ key: 'planar-symbol', basePoint: [0, 0], members: [
@@ -1322,7 +1368,7 @@ test('generic orthographic geometry remains native when the circular end view is
     symbols,
     dimensions,
   })
-  assert.equal(proposal.evidence.knowledgePackVersion, '2.25.0')
+  assert.equal(proposal.evidence.knowledgePackVersion, '2.26.0')
   assert.equal(proposal.evidence.parameters.endViewPresent, false)
   assert.equal(proposal.evidence.parameters.ringCount, 0)
   assert.equal(proposal.commandArgs.entities.some(entity => entity.type === 'CIRCLE'), false)

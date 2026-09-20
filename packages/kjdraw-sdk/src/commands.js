@@ -2527,8 +2527,8 @@ function normalizePlotSettings(value = {}) {
         outputQualityDpi: Number(value.outputQualityDpi ?? 600)
     };
 }
-const MAX_BATCH_BLOCK_RECORDS = 128;
-const MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION = 512;
+const MAX_BATCH_BLOCK_RECORDS = 256;
+const MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION = 1024;
 const MAX_BATCH_BLOCK_MEMBERS_TOTAL = 2048;
 const BATCH_LINEWEIGHTS = new Set([
     -3,
