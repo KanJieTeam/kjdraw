@@ -140,7 +140,7 @@ test('verified mirrored profiles stay symmetric while asymmetric source lines re
   assert.equal(emitted.has(lineKey([205, 127], [230, 124])), false)
   assert.equal(proposal.evidence.parameters.symmetricProfileCount, 1)
   assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 1)
-  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.23.0')
+  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.24.0')
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /geometry and effective visual style both mirror/u)
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /unpaired or asymmetric source segment remains an auxiliary line/u)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
@@ -816,6 +816,71 @@ test('generic local symbols compile as editable native blocks without source blo
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...symbolInput, expectedRevision: document.revision, symbols: { definitions: symbols.definitions, instances: [{ ...symbols.instances[0], symbolKey: 'missing' }] } }), /reference a definition/u)
 })
 
+test('local symbol lightweight polylines preserve native topology, widths, style and draw order', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const openPolyline = { kind: 'polyline', vertices: [
+    { point: [0, 0], bulge: .25, startWidth: .5, endWidth: 1.25 },
+    { point: [8, 2], bulge: 0, startWidth: 0, endWidth: 0 },
+    { point: [12, 0], bulge: -.125, startWidth: 2, endWidth: 1 },
+  ], closed: false, role: 'geometry', entityStyleKey: 'polyline-by-block' }
+  const closedPolyline = { kind: 'polyline', vertices: [
+    { point: [20, 0], bulge: 0, startWidth: 0, endWidth: 0 },
+    { point: [26, 0], bulge: .5, startWidth: .25, endWidth: .75 },
+    { point: [23, 5], bulge: 0, startWidth: 0, endWidth: 0 },
+  ], closed: true, role: 'hidden', entityStyleKey: 'polyline-by-block' }
+  const members = [openPolyline, { kind: 'line', start: [14, 0], end: [18, 0], role: 'geometry' }, closedPolyline]
+  const symbols = { definitions: [{ key: 'native-polylines', basePoint: [0, 0], members }],
+    instances: [{ symbolKey: 'native-polylines', position: [40, 50], role: 'geometry' }] }
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols,
+    styleProfile: { custom: [{ key: 'polyline-by-block', layerName: '0', color: 0, lineweight: 0, linetypeName: 'Continuous', linetypePattern: [] }] } })
+  const block = proposal.commandArgs.resources.blocks[0]
+  assert.deepEqual(block.entities.map(entity => entity.type), ['LWPOLYLINE', 'LINE', 'LWPOLYLINE'])
+  assert.deepEqual(block.entities.filter(entity => entity.type === 'LWPOLYLINE').map(entity => entity.payload.closed), [false, true])
+  assert.deepEqual(block.entities[0].payload.vertices[0], { point: [0, 0, 0], bulge: .25, startWidth: .5, endWidth: 1.25 })
+  assert.ok(block.entities.filter(entity => entity.type === 'LWPOLYLINE').every(entity => entity.payload.color === 0 && entity.payload.lineweight === 0))
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const [kjd, dxf] = await Promise.all([
+    sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' }),
+    sdk.readDocument(dxfText, { format: 'DXF' }),
+  ])
+  for (const reopened of [kjd, dxf]) {
+    const blockRecord = reopened.getTable('blockRecords').records.find(record => record.name?.startsWith('KJ_FLANGE_SYMBOL_'))
+    const blockEntities = reopened.listEntities().filter(entity => entity.ownerId === blockRecord.id)
+    assert.deepEqual(blockEntities.map(entity => entity.type), ['LWPOLYLINE', 'LINE', 'LWPOLYLINE'])
+    assert.deepEqual(blockEntities.filter(entity => entity.type === 'LWPOLYLINE').map(entity => entity.payload.closed), [false, true])
+  }
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); p=[e for b in d.blocks if b.name.startswith("KJ_FLANGE_SYMBOL_") for e in b.query("LWPOLYLINE")]; first=list(p[0].get_points("xyseb"))[0]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"count":len(p),"closed":[e.closed for e in p],"first":list(first)}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, count: 2, closed: [false, true], first: [0, 0, .5, 1.25, .25] })
+  }
+
+  const source = input(document.revision)
+  const withMember = member => ({ ...source, styleProfile: { custom: [{ key: 'polyline-by-block', layerName: '0', color: 0, lineweight: 0, linetypeName: 'Continuous', linetypePattern: [] }] }, symbols: { definitions: [{ key: 'bounded-polyline', basePoint: [0, 0], members: [member] }], instances: [] } })
+  const maximum = { kind: 'polyline', vertices: Array.from({ length: 4096 }, (_, index) => ({ point: [index, index % 2] })), role: 'geometry' }
+  assert.equal(buildAgentMechanicalFlangeCore(document, withMember(maximum)).commandArgs.resources.blocks[0].entities[0].payload.vertices.length, 4096)
+  const before = document.serialize()
+  for (const [member, pattern] of [
+    [{ kind: 'polyline', vertices: [{ point: [0, 0] }], role: 'geometry' }, /2 to 4096 points/u],
+    [{ kind: 'polyline', vertices: Array.from({ length: 4097 }, (_, index) => ({ point: [index, 0] })), role: 'geometry' }, /2 to 4096 points/u],
+    [{ ...openPolyline, vertices: [{ point: [0, 0], bulge: Number.NaN }, { point: [1, 0] }] }, /bulge must be finite/u],
+    [{ ...openPolyline, vertices: [{ point: [0, 0], startWidth: -1 }, { point: [1, 0] }] }, /startWidth must be finite/u],
+    [{ ...openPolyline, vertices: [{ point: [0, 0], endWidth: Number.POSITIVE_INFINITY }, { point: [1, 0] }] }, /endWidth must be finite/u],
+    [{ ...openPolyline, closed: 'yes' }, /closed must be boolean/u],
+    [{ ...openPolyline, handle: 'not-accepted' }, /unsupported field/u],
+    [{ ...openPolyline, vertices: [{ point: [0, 0], rawTags: [] }, { point: [1, 0] }] }, /unsupported field/u],
+  ]) {
+    assert.throws(() => buildAgentMechanicalFlangeCore(document, withMember(member)), pattern)
+    assert.equal(document.serialize(), before)
+  }
+})
+
 test('local symbol TEXT, HATCH and SOLID members remain native through KJD and DXF', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const outer = [[0, 0], [12, 0], [12, 8], [0, 8]]
@@ -1230,7 +1295,7 @@ test('generic orthographic geometry remains native when the circular end view is
     symbols,
     dimensions,
   })
-  assert.equal(proposal.evidence.knowledgePackVersion, '2.23.0')
+  assert.equal(proposal.evidence.knowledgePackVersion, '2.24.0')
   assert.equal(proposal.evidence.parameters.endViewPresent, false)
   assert.equal(proposal.evidence.parameters.ringCount, 0)
   assert.equal(proposal.commandArgs.entities.some(entity => entity.type === 'CIRCLE'), false)
