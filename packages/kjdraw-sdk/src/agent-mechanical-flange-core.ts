@@ -43,8 +43,8 @@ export interface KJFlangeSymmetricProfile {
   endCapStyleKey?: string
 }
 
-/** Source-measured side-view geometry. Stations use drawing X coordinates;
- *  offsets are measured from the shared projection axis. */
+/** Source-measured side-view geometry. Stations follow the configured
+ *  projection axis; offsets are measured perpendicular to that axis. */
 export type KJFlangeSideViewOutlineSegment =
   | { kind: 'line'; start: { station: number; offset: number }; end: { station: number; offset: number }; styleKey?: string }
   | { kind: 'arc'; center: { station: number; offset: number }; radius: number; startAngle: number; endAngle: number; styleKey?: string }
@@ -302,7 +302,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
   drawingId: string
   entityDrawOrder?: number[]
   endView: { center: Point2; ringRadii: number[]; ringStyleKeys?: (string | null)[]; squareHoles?: { pitch: number; radius: number }; holePatterns?: KJFlangePolarHolePattern[]; outlineSegments?: KJFlangeEndViewOutlineSegment[]; cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[] }
-  sideViewAxis?: { xRange: Point2; axisDirection?: 'forward' | 'reverse'; axisStyleKey?: string; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
+  sideViewAxis?: { xRange?: Point2; stationRange?: Point2; orientation?: 'horizontal' | 'vertical'; axisCoordinate?: number; axisVisible?: boolean; axisDirection?: 'forward' | 'reverse'; axisStyleKey?: string; symmetricProfiles?: KJFlangeSymmetricProfile[]; outlineSegments?: KJFlangeSideViewOutlineSegment[]; sectionHatches?: KJFlangeSectionHatch[] }
   dimensions?: KJFlangeDimension[]
   leaders?: KJFlangeLeader[]
   featureControlFrames?: KJFlangeFeatureControlFrame[]
@@ -493,12 +493,19 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       ...(stemStyleKey == null ? {} : { stemStyleKey }), ...(tickStyleKey == null ? {} : { tickStyleKey }), ...(arrowheadStyleKey == null ? {} : { arrowheadStyleKey }) }
   })
   const side = input.sideViewAxis == null ? null : plain(input.sideViewAxis, 'input.sideViewAxis')
-  if (side) exact(side, ['xRange', 'axisDirection', 'axisStyleKey', 'symmetricProfiles', 'outlineSegments', 'sectionHatches'], 'input.sideViewAxis')
-  const xRange = side ? point(side.xRange, 'input.sideViewAxis.xRange') : null
+  if (side) exact(side, ['xRange', 'stationRange', 'orientation', 'axisCoordinate', 'axisVisible', 'axisDirection', 'axisStyleKey', 'symmetricProfiles', 'outlineSegments', 'sectionHatches'], 'input.sideViewAxis')
+  if (side && (side.xRange == null) === (side.stationRange == null)) throw new KJValidationError('input.sideViewAxis requires exactly one of xRange or stationRange')
+  const rangeKey = side?.stationRange == null ? 'xRange' : 'stationRange'
+  const xRange = side ? point(side[rangeKey], 'input.sideViewAxis.' + rangeKey) : null
+  const orientation = side?.orientation ?? 'horizontal'
+  if (!['horizontal', 'vertical'].includes(orientation as string)) throw new KJValidationError('input.sideViewAxis.orientation is invalid')
+  const axisCoordinate = side ? finite(side.axisCoordinate ?? (orientation === 'horizontal' ? center[1] : center[0]), 'input.sideViewAxis.axisCoordinate', -1_000_000, 1_000_000) : null
+  if (side?.axisVisible != null && typeof side.axisVisible !== 'boolean') throw new KJValidationError('input.sideViewAxis.axisVisible must be boolean')
+  const axisVisible = side != null && side.axisVisible !== false
   const axisDirection = side?.axisDirection ?? 'forward'
   if (!['forward', 'reverse'].includes(axisDirection as string)) throw new KJValidationError('input.sideViewAxis.axisDirection is invalid')
   const axisStyleKey = side == null ? undefined : entityStyleKey(side.axisStyleKey, 'input.sideViewAxis.axisStyleKey')
-  if (xRange && xRange[0] >= xRange[1]) throw new KJValidationError('input.sideViewAxis.xRange must increase')
+  if (xRange && xRange[0] >= xRange[1]) throw new KJValidationError('input.sideViewAxis.' + rangeKey + ' must increase')
   if (side?.symmetricProfiles != null && !Array.isArray(side.symmetricProfiles)) throw new KJValidationError('input.sideViewAxis.symmetricProfiles must be an array')
   if ((side?.symmetricProfiles as unknown[] | undefined)?.length && (side!.symmetricProfiles as unknown[]).length > 64) throw new KJValidationError('input.sideViewAxis.symmetricProfiles exceed their budget')
   const symmetricProfiles: KJFlangeSymmetricProfile[] = ((side?.symmetricProfiles ?? []) as unknown[]).map((value, profileIndex) => {
@@ -1028,7 +1035,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     const source = plain(value, `input.styleProfile.custom[${index}]`), { key, ...definition } = source
     return { key: String(key), definition: styleRole(definition, `input.styleProfile.custom[${index}]`) }
   })
-  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, auxiliaryHatches, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSides, insetFrameSides, titleGrid, notes }
+  return { expectedRevision, drawingId: input.drawingId.trim(), entityDrawOrder, center, ringRadii, ringStyleKeys, pitch, radius, holePatterns, outlineSegments, cuttingPlaneMarks, sideOutlineSegments, xRange, orientation, axisCoordinate, axisVisible, axisDirection, axisStyleKey, symmetricProfiles, sectionHatches, dimensions, leaders, featureControlFrames, auxiliaryLines, auxiliaryCurves, auxiliaryHatches, symbolDefinitions, symbolInstances, symbolAttributeCount, textStyles, dimensionStyles, styles, customStyles, sheetOrigin, sheetSize, inset, outerFrameOffset, outerFrameStyleKey, insetFrameStyleKey, outerFrameSides, insetFrameSides, titleGrid, notes }
 }
 
 /** Compile reusable flange and sheet facts; incomplete views remain incomplete. */
@@ -1172,32 +1179,33 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     for (const segment of grid.verticalSegments ?? []) { const style = styled(segment.styleKey, 'grid'); line([x + segment.offset, y + segment.start], [x + segment.offset, y + segment.end], style.layerId, style.name) }
     if (grid.diagonalHeader) { const style = styled(grid.diagonalHeader.styleKey, 'grid'); line([x, y + h], [x + grid.diagonalHeader.width, y + h - grid.diagonalHeader.drop], style.layerId, style.name) }
   }
-  if (input.xRange) { const style = styled(input.axisStyleKey, 'center'), [startX, endX] = input.axisDirection === 'reverse' ? [input.xRange[1], input.xRange[0]] : input.xRange; line([startX, cy], [endX, cy], style.layerId, style.name) }
+  const projectSidePoint = (station: number, offset: number): Point2 => input.orientation === 'vertical' ? [input.axisCoordinate! + offset, station] : [station, input.axisCoordinate! + offset]
+  if (input.xRange && input.axisVisible) { const style = styled(input.axisStyleKey, 'center'), [start, end] = input.axisDirection === 'reverse' ? [input.xRange[1], input.xRange[0]] : input.xRange; line(projectSidePoint(start, 0), projectSidePoint(end, 0), style.layerId, style.name) }
   const directedProfileLine = (points: [Point2, Point2], direction: KJFlangeLineDirection | undefined, layerId: string, styleName: string) => line(direction === 'reverse' ? points[1] : points[0], direction === 'reverse' ? points[0] : points[1], layerId, styleName)
   for (const profile of input.symmetricProfiles) {
     const style = styled(profile.styleKey, 'geometry')
     for (let index = 1; index < profile.vertices.length; index++) {
       const previous = profile.vertices[index - 1]!, current = profile.vertices[index]!
       const directions = profile.segmentDirections?.[index - 1] ?? { upper: 'forward', lower: 'forward' }
-      const upper: [Point2, Point2] = [[previous.station, cy + previous.radius], [current.station, cy + current.radius]]
-      const lower: [Point2, Point2] = [[previous.station, cy - previous.radius], [current.station, cy - current.radius]]
+      const upper: [Point2, Point2] = [projectSidePoint(previous.station, previous.radius), projectSidePoint(current.station, current.radius)]
+      const lower: [Point2, Point2] = [projectSidePoint(previous.station, -previous.radius), projectSidePoint(current.station, -current.radius)]
       directedProfileLine(upper, directions.upper, style.layerId, style.name)
       directedProfileLine(lower, directions.lower, style.layerId, style.name)
     }
     const start = profile.vertices[0]!, end = profile.vertices.at(-1)!
-    if (profile.endCaps === 'start' || profile.endCaps === 'both') { const capStyle = styled(profile.startCapStyleKey ?? profile.styleKey, 'geometry'), points: [Point2, Point2] = [[start.station, cy - start.radius], [start.station, cy + start.radius]]; directedProfileLine(points, profile.startCapDirection, capStyle.layerId, capStyle.name) }
-    if (profile.endCaps === 'end' || profile.endCaps === 'both') { const capStyle = styled(profile.endCapStyleKey ?? profile.styleKey, 'geometry'), points: [Point2, Point2] = [[end.station, cy - end.radius], [end.station, cy + end.radius]]; directedProfileLine(points, profile.endCapDirection, capStyle.layerId, capStyle.name) }
+    if (profile.endCaps === 'start' || profile.endCaps === 'both') { const capStyle = styled(profile.startCapStyleKey ?? profile.styleKey, 'geometry'), points: [Point2, Point2] = [projectSidePoint(start.station, -start.radius), projectSidePoint(start.station, start.radius)]; directedProfileLine(points, profile.startCapDirection, capStyle.layerId, capStyle.name) }
+    if (profile.endCaps === 'end' || profile.endCaps === 'both') { const capStyle = styled(profile.endCapStyleKey ?? profile.styleKey, 'geometry'), points: [Point2, Point2] = [projectSidePoint(end.station, -end.radius), projectSidePoint(end.station, end.radius)]; directedProfileLine(points, profile.endCapDirection, capStyle.layerId, capStyle.name) }
   }
   for (const segment of input.sideOutlineSegments) {
     const style = styled(segment.styleKey, 'geometry')
-    if (segment.kind === 'line') line([segment.start.station, cy + segment.start.offset], [segment.end.station, cy + segment.end.offset], style.layerId, style.name)
-    else if (segment.kind === 'arc') emit('ARC', { center: p3(segment.center.station, cy + segment.center.offset), radius: segment.radius,
+    if (segment.kind === 'line') line(projectSidePoint(segment.start.station, segment.start.offset), projectSidePoint(segment.end.station, segment.end.offset), style.layerId, style.name)
+    else if (segment.kind === 'arc') emit('ARC', { center: p3(...projectSidePoint(segment.center.station, segment.center.offset)), radius: segment.radius,
       startAngle: segment.startAngle, endAngle: segment.endAngle, layerId: style.layerId }, style.name)
-    else emit('CIRCLE', { center: p3(segment.center.station, cy + segment.center.offset), radius: segment.radius, layerId: style.layerId }, style.name)
+    else emit('CIRCLE', { center: p3(...projectSidePoint(segment.center.station, segment.center.offset)), radius: segment.radius, layerId: style.layerId }, style.name)
   }
   for (const hatch of input.sectionHatches) { const style = styled(hatch.styleKey, 'hatch'); emit('HATCH', { boundaryLoops: [{ external: false, flags: 0, edges: hatch.edges.map(edge => edge.kind === 'line'
-    ? { type: 'LINE', start: p3(edge.start.station, cy + edge.start.offset), end: p3(edge.end.station, cy + edge.end.offset) }
-    : { type: 'ARC', center: p3(edge.center.station, cy + edge.center.offset), radius: edge.radius,
+    ? { type: 'LINE', start: p3(...projectSidePoint(edge.start.station, edge.start.offset)), end: p3(...projectSidePoint(edge.end.station, edge.end.offset)) }
+    : { type: 'ARC', center: p3(...projectSidePoint(edge.center.station, edge.center.offset)), radius: edge.radius,
       startAngle: edge.startAngle, endAngle: edge.endAngle, counterClockwise: edge.counterClockwise !== false }) }],
     patternName: hatch.patternName, solid: hatch.solid, associative: false, patternAngle: 0, patternScale: 1,
     patternLines: hatch.patternLines,
@@ -1308,7 +1316,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     evidence: { knowledgePackId: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.id,
       knowledgePackVersion: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version,
       expectedRevision: input.expectedRevision, entityCount: orderedEntities.length,
-      parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, holePatternCount: input.holePatterns.length + (input.pitch == null ? 0 : 1), holeCount: input.holePatterns.reduce((sum, pattern) => sum + pattern.count, input.pitch == null ? 0 : 4), titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null,
+      parameters: { ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, holePatternCount: input.holePatterns.length + (input.pitch == null ? 0 : 1), holeCount: input.holePatterns.reduce((sum, pattern) => sum + pattern.count, input.pitch == null ? 0 : 4), titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null, sideViewOrientation: input.orientation, sideViewAxisVisible: input.axisVisible,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
         sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryCurveCount: input.auxiliaryCurves.length,

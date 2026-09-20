@@ -97,8 +97,8 @@ export interface KJFlangeSymmetricProfile {
     startCapStyleKey?: string;
     endCapStyleKey?: string;
 }
-/** Source-measured side-view geometry. Stations use drawing X coordinates;
- *  offsets are measured from the shared projection axis. */
+/** Source-measured side-view geometry. Stations follow the configured
+ *  projection axis; offsets are measured perpendicular to that axis. */
 export type KJFlangeSideViewOutlineSegment = {
     kind: 'line';
     start: {
@@ -498,7 +498,11 @@ export interface KJAgentMechanicalFlangeCoreInput {
         cuttingPlaneMarks?: KJFlangeCuttingPlaneMark[];
     };
     sideViewAxis?: {
-        xRange: Point2;
+        xRange?: Point2;
+        stationRange?: Point2;
+        orientation?: 'horizontal' | 'vertical';
+        axisCoordinate?: number;
+        axisVisible?: boolean;
         axisDirection?: 'forward' | 'reverse';
         axisStyleKey?: string;
         symmetricProfiles?: KJFlangeSymmetricProfile[];
@@ -587,6 +591,8 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             holeCount: number;
             titleGrid: boolean;
             sideViewAxis: boolean;
+            sideViewOrientation: {};
+            sideViewAxisVisible: boolean;
             outlineSegmentCount: number;
             cuttingPlaneMarkCount: number;
             symmetricProfileCount: number;
