@@ -140,7 +140,7 @@ test('verified mirrored profiles stay symmetric while asymmetric source lines re
   assert.equal(emitted.has(lineKey([205, 127], [230, 124])), false)
   assert.equal(proposal.evidence.parameters.symmetricProfileCount, 1)
   assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 1)
-  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.27.0')
+  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.28.0')
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /geometry and effective visual style both mirror/u)
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /unpaired or asymmetric source segment remains an auxiliary line/u)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
@@ -715,19 +715,19 @@ test('auxiliary solid budget remains bounded and fail-closed', () => {
   assert.ok(performance.now() - startedAt < 5_000)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliarySolids: [...auxiliarySolids, auxiliarySolids[0]] }), /64-solid budget/u)
 })
-test('auxiliary curve budget accepts 512 mixed native curves and atomically rejects 513', async t => {
+test('auxiliary curve budget accepts 1024 mixed native curves and atomically rejects 1025', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
-  const auxiliaryCurves = Array.from({ length: 512 }, (_, index) => {
+  const auxiliaryCurves = Array.from({ length: 1024 }, (_, index) => {
     const column = index % 32, row = Math.floor(index / 32)
     if (index % 3 === 0) return { kind: 'arc', center: [column * 5, 5000 + row * 5], radius: 1, startAngle: 0, endAngle: Math.PI, role: 'geometry' }
     if (index % 3 === 1) return { kind: 'polyline', vertices: [{ point: [column * 5, 6000 + row * 5] }, { point: [column * 5 + 2, 6001 + row * 5], bulge: .1 }, { point: [column * 5 + 4, 6000 + row * 5] }], role: 'hidden' }
     return { kind: 'spline', degree: 2, controlPoints: [[column * 5, 7000 + row * 5], [column * 5 + 2, 7002 + row * 5], [column * 5 + 4, 7000 + row * 5]], knots: [0, 0, 0, 1, 1, 1], role: 'geometry' }
   })
   const startedAt = performance.now(), proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves })
-  assert.equal(proposal.evidence.parameters.auxiliaryCurveCount, 512)
-  assert.equal(proposal.evidence.parameters.auxiliaryCurveBudget, 512)
+  assert.equal(proposal.evidence.parameters.auxiliaryCurveCount, 1024)
+  assert.equal(proposal.evidence.parameters.auxiliaryCurveBudget, 1024)
   assert.ok(proposal.commandArgs.entities.length < 2_048)
-  assert.ok(Buffer.byteLength(JSON.stringify(proposal.commandArgs), 'utf8') < 2 * 1_024 * 1_024)
+  assert.ok(Buffer.byteLength(JSON.stringify(proposal.commandArgs), 'utf8') < 4 * 1_024 * 1_024)
   assert.ok(performance.now() - startedAt < 5_000)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
   const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
@@ -736,9 +736,9 @@ test('auxiliary curve budget accepts 512 mixed native curves and atomically reje
     sdk.readDocument(dxfText, { format: 'DXF' }),
   ])
   for (const reopened of [kjd, dxf]) {
-    assert.ok(reopened.listEntities({ type: 'ARC' }).length >= 171)
-    assert.ok(reopened.listEntities({ type: 'LWPOLYLINE' }).length >= 171)
-    assert.ok(reopened.listEntities({ type: 'SPLINE' }).length >= 170)
+    assert.ok(reopened.listEntities({ type: 'ARC' }).length >= 342)
+    assert.ok(reopened.listEntities({ type: 'LWPOLYLINE' }).length >= 341)
+    assert.ok(reopened.listEntities({ type: 'SPLINE' }).length >= 341)
   }
   const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
     'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"arcs":len(m.query("ARC")),"polylines":len(m.query("LWPOLYLINE")),"splines":len(m.query("SPLINE"))}))'],
@@ -750,10 +750,10 @@ test('auxiliary curve budget accepts 512 mixed native curves and atomically reje
     assert.equal(independent.status, 0, independent.stderr)
     const audit = JSON.parse(independent.stdout)
     assert.deepEqual([audit.errors, audit.fixes], [0, 0])
-    assert.ok(audit.arcs >= 171 && audit.polylines >= 171 && audit.splines >= 170)
+    assert.ok(audit.arcs >= 342 && audit.polylines >= 341 && audit.splines >= 341)
   }
   const before = document.serialize()
-  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves: [...auxiliaryCurves, auxiliaryCurves[0]] }), /512-curve budget/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves: [...auxiliaryCurves, auxiliaryCurves[0]] }), /1024-curve budget/u)
   assert.equal(document.serialize(), before)
 })
 
@@ -1397,7 +1397,7 @@ test('generic orthographic geometry remains native when the circular end view is
     symbols,
     dimensions,
   })
-  assert.equal(proposal.evidence.knowledgePackVersion, '2.27.0')
+  assert.equal(proposal.evidence.knowledgePackVersion, '2.28.0')
   assert.equal(proposal.evidence.parameters.endViewPresent, false)
   assert.equal(proposal.evidence.parameters.ringCount, 0)
   assert.equal(proposal.commandArgs.entities.some(entity => entity.type === 'CIRCLE'), false)
