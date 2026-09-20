@@ -1053,6 +1053,7 @@ function validate(document, source) {
             'position',
             'height',
             'rotation',
+            'widthFactor',
             'width',
             'attachmentPoint',
             'styleKey',
@@ -1068,9 +1069,11 @@ function validate(document, source) {
         if (position[0] < sheetOrigin[0] || position[0] > sheetOrigin[0] + sheetSize[0] || position[1] < sheetOrigin[1] || position[1] > sheetOrigin[1] + sheetSize[1]) throw new KJValidationError(`input.sheet.notes[${index}].position must lie on the sheet`);
         const height = finite(note.height, `input.sheet.notes[${index}].height`, 0.1, Math.min(...sheetSize) / 4);
         const rotation = note.rotation == null ? 0 : finite(note.rotation, `input.sheet.notes[${index}].rotation`, -Math.PI * 2, Math.PI * 2);
+        const widthFactor = note.widthFactor == null ? undefined : finite(note.widthFactor, `input.sheet.notes[${index}].widthFactor`, 0.000_001, 1_000_000);
         const width = note.width == null ? undefined : finite(note.width, `input.sheet.notes[${index}].width`, 0.1, sheetSize[0]);
         const attachmentPoint = note.attachmentPoint == null ? undefined : finite(note.attachmentPoint, 'input.sheet.notes[' + index + '].attachmentPoint', 1, 9);
         if (note.kind === 'single-line' && width != null) throw new KJValidationError(`input.sheet.notes[${index}].width is only valid for multiline text`);
+        if (note.kind === 'multiline' && widthFactor != null) throw new KJValidationError(`input.sheet.notes[${index}].widthFactor is only valid for single-line text`);
         if (attachmentPoint != null && (note.kind !== 'multiline' || !Number.isInteger(attachmentPoint))) throw new KJValidationError('input.sheet.notes[' + index + '].attachmentPoint is only valid as an integer for multiline text');
         const styleKey = annotationStyleKey(note.styleKey, textStyleKeys, `input.sheet.notes[${index}].styleKey`);
         const noteEntityStyleKey = entityStyleKey(note.entityStyleKey, `input.sheet.notes[${index}].entityStyleKey`);
@@ -1080,6 +1083,9 @@ function validate(document, source) {
             position,
             height,
             rotation,
+            ...widthFactor == null ? {} : {
+                widthFactor
+            },
             ...width == null ? {} : {
                 width
             },
@@ -3590,6 +3596,9 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             text: note.text,
             height: note.height,
             rotation: note.rotation,
+            ...note.widthFactor == null ? {} : {
+                widthFactor: note.widthFactor
+            },
             ...note.width == null ? {} : {
                 width: note.width
             },
