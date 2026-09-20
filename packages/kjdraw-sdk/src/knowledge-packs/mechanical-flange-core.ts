@@ -5,7 +5,7 @@ import { stableHash } from '../utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePack({
   schema: 'kjdraw.knowledge-pack.v1',
   id: 'mechanical-flange-core',
-  version: '2.17.0',
+  version: '2.18.0',
   title: 'Parameterized flange orthographic-view and sheet-grid rules',
   domain: 'mechanical-manufacturing',
   license: { spdx: 'MIT', redistributable: true, trainingAllowed: true },
@@ -13,7 +13,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
     id: 'kjdraw-authored-flange-rules-v1',
     title: 'KJDraw authored flange geometry and layout rules',
     license: 'MIT',
-    contentHash: stableHash('flange-views:concentric-rings:polar-hole-arrays:legacy-square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:multi-boundary-loop-hatch:spline-hatch-edges:parameterized-ansi31:caller-supplied-style-roles:caller-supplied-entity-style-overrides:caller-supplied-annotation-style-resources:semantic-auxiliary-lines:semantic-auxiliary-points:standard-point-display:symbol-text-hatch-solid:empty-symbol-blocks:semantic-native-curves:generic-local-symbols:nested-local-symbols:attributed-local-symbols:complete-attribute-sequences:semantic-feature-control-frames:auxiliary-circles:native-leaders:native-derived-dimensions:entity-local-dimension-overrides:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:per-side-frame-styles:bounded-64-style-catalogs:native-structured-wipeout:bounded-1024-auxiliary-lines:bounded-512-auxiliary-curves:v2.17'),
+    contentHash: stableHash('flange-views:concentric-rings:polar-hole-arrays:legacy-square-hole-pitch:source-measured-relative-end-outlines:relative-cutting-plane-marks:arrowheads:side-axis:symmetric-meridian-profile:source-measured-side-outlines:source-relative-cut-face-boundary:multi-boundary-loop-hatch:spline-hatch-edges:parameterized-ansi31:caller-supplied-style-roles:caller-supplied-entity-style-overrides:caller-supplied-annotation-style-resources:semantic-auxiliary-lines:semantic-auxiliary-points:standard-point-display:symbol-text-hatch-solid:empty-symbol-blocks:semantic-native-curves:generic-local-symbols:nested-local-symbols:attributed-local-symbols:complete-attribute-sequences:semantic-feature-control-frames:auxiliary-circles:native-leaders:native-derived-dimensions:entity-local-dimension-overrides:inset-frame:semantic-title-grid:bounded-grid-segments:source-sheet-notes:per-side-frame-styles:bounded-64-style-catalogs:native-structured-wipeout:bounded-1024-auxiliary-lines:bounded-512-auxiliary-curves:bounded-symbol-catalogs:v2.18'),
   }],
   ontology: {
     objectKinds: ['flange', 'bore', 'concentric-ring', 'polar-hole-pattern', 'square-hole-pattern', 'end-view-outline', 'cutting-plane-mark', 'side-view-axis', 'symmetric-meridian-profile', 'side-view-outline', 'cut-face', 'hatch-boundary-loop', 'hatch-spline-edge', 'native-dimension', 'native-leader', 'feature-control-frame', 'local-symbol', 'attribute-definition', 'attached-attribute', 'sheet-frame', 'native-point', 'title-grid', 'sheet-note', 'masking-area'],
@@ -32,7 +32,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
     auxiliaryCurves: 'up to 512 source-measured arc, ellipse, lightweight-polyline and spline facts carry only geometry and a semantic style role; the full request and atomic entity batch remain independently bounded, and handles, raw tags and application metadata are rejected',
     auxiliarySolids: 'bounded source-measured three- or four-point native filled faces preserve editable arrowheads and markers; handles, raw tags and application metadata are rejected',
     auxiliaryWipeouts: 'bounded native masking areas preserve an explicit image plane and local rectangular or polygon clipping; raw tags, source handles and object identifiers are rejected',
-    symbols: 'bounded local geometry, single-line and multiline text, hatches, filled faces, nested instances and attribute definitions compile into generic native block definitions; zero-member definitions preserve legitimate empty references without inventing visible geometry; instance attribute values compile as complete editable ATTRIB and SEQEND ownership sequences while caller block names, handles and application metadata are never retained',
+    symbols: 'up to 128 generic definitions, 512 members per definition, 2048 total members and 256 placed instances compile bounded local geometry, text, hatches, filled faces, nested instances and attributes into native blocks; zero-member definitions remain valid, while caller names, handles and application metadata are never retained',
     featureControlFrames: 'geometric characteristic, tolerance-zone and datum semantics compile into editable native TOLERANCE entities; opaque source tags and application-specific object data are rejected',
     sheet: 'outer frame and optional positive-width inset frame accept per-side style keys with a backward-compatible single-style fallback, plus an optional bounded semantic title-grid with full or locally segmented rules',
     notes: 'bounded source-supplied sheet labels and technical notes; visible content is never embedded in this pack',

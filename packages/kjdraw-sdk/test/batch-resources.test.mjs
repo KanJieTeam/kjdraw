@@ -1,5 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { spawnSyncWithFileStdin } from '../../../scripts/spawn-file-stdin.mjs'
 import { createKJDrawSDK } from '../src/sdk.js'
 import { KJCommandRegistry, registerCoreCommands } from '../src/commands.js'
 
@@ -152,8 +153,8 @@ test('block resource identity, ownership and references are validated atomically
     args => { args.resources.blocks[0].entities[0].type = 'INSERT' },
     args => { args.entities[0].payload.blockRecordId = 'missing' },
     args => { args.entities[0].payload.attributeIds = ['forged'] },
-    args => { args.resources.blocks[0].entities = Array.from({ length: 129 }, (_, index) => ({ type: 'POINT', payload: { position: [index, 0, 0], layerId: 'layer' }, options: { id: `member-${index}` } })) },
-    args => { args.resources.blocks = Array.from({ length: 65 }, (_, index) => ({ id: `b-${index}`, name: `B-${index}`, basePoint: [0, 0, 0], entities: [{ type: 'POINT', payload: { position: [0, 0, 0], layerId: 'layer' }, options: { id: `m-${index}` } }] })) },
+    args => { args.resources.blocks[0].entities = Array.from({ length: 513 }, (_, index) => ({ type: 'POINT', payload: { position: [index, 0, 0], layerId: 'layer' }, options: { id: `member-${index}` } })) },
+    args => { args.resources.blocks = Array.from({ length: 129 }, (_, index) => ({ id: `b-${index}`, name: `B-${index}`, basePoint: [0, 0, 0], entities: [{ type: 'POINT', payload: { position: [0, 0, 0], layerId: 'layer' }, options: { id: `m-${index}` } }] })) },
   ]
   for (const mutate of cases) {
     const args = valid(); mutate(args)
@@ -162,6 +163,53 @@ test('block resource identity, ownership and references are validated atomically
   }
 })
 
+test('CREATEBATCH block budgets accept 128 records, 512 per block and 2048 total before atomic next-value rejection', async t => {
+  const { sdk, document } = fixture()
+  const member = (blockIndex, memberIndex) => ({ type: 'POINT', payload: { position: [memberIndex, blockIndex, 0] }, options: { id: `public-member-${blockIndex}-${memberIndex}` } })
+  const makeArgs = (blockCount, memberCounts) => {
+    const blocks = Array.from({ length: blockCount }, (_, blockIndex) => ({
+      id: `public-block-${blockIndex}`, name: `PUBLIC_BOUNDARY_${String(blockIndex).padStart(3, '0')}`, basePoint: [0, 0, 0],
+      entities: Array.from({ length: memberCounts[blockIndex] ?? 0 }, (_, memberIndex) => member(blockIndex, memberIndex)),
+    }))
+    return { resources: { linetypes: [], layers: [], blocks }, entities: [{ type: 'INSERT', payload: {
+      blockRecordId: blocks[0].id, position: [0, 0, 0], scale: [1, 1, 1], rotation: 0, attributeIds: [], sequenceEndId: null,
+    }, options: { id: 'public-boundary-insert' } }] }
+  }
+  const source = document.serialize()
+  for (const [args, pattern] of [
+    [makeArgs(129, []), /at most 128 block records/u],
+    [makeArgs(1, [513]), /at most 512 definition entities/u],
+    [makeArgs(5, [512, 512, 512, 512, 1]), /at most 2048 total definition entities/u],
+  ]) {
+    await assert.rejects(sdk.executeCommand('CREATEBATCH', args), pattern)
+    assert.equal(document.serialize(), source)
+  }
+  const args = makeArgs(128, [512, 512, 512, 512])
+  await sdk.executeCommand('CREATEBATCH', args)
+  const customBlocks = document.getTable('blockRecords').records.filter(record => record.name?.startsWith('PUBLIC_BOUNDARY_'))
+  assert.equal(customBlocks.length, 128)
+  assert.equal(customBlocks.reduce((sum, block) => sum + block.payload.entityIds.length, 0), 2048)
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const [kjd, dxf] = await Promise.all([
+    sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' }),
+    sdk.readDocument(dxfText, { format: 'DXF' }),
+  ])
+  for (const reopened of [kjd, dxf]) {
+    const blocks = reopened.getTable('blockRecords').records.filter(record => record.name?.startsWith('PUBLIC_BOUNDARY_'))
+    assert.equal(blocks.length, 128)
+    assert.equal(blocks.reduce((sum, block) => sum + block.payload.entityIds.length, 0), 2048)
+  }
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); b=[x for x in d.blocks if x.name.startswith("PUBLIC_BOUNDARY_")]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"blocks":len(b),"members":sum(len(x) for x in b)}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, blocks: 128, members: 2048 })
+  }
+})
 test('CREATEBATCH atomically creates editable attributed block sequences and preserves them through KJD and DXF', async () => {
   const { sdk, document } = fixture(), continuous = document.getTable('linetypes').currentId
   const args = {

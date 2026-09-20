@@ -2527,6 +2527,9 @@ function normalizePlotSettings(value = {}) {
         outputQualityDpi: Number(value.outputQualityDpi ?? 600)
     };
 }
+const MAX_BATCH_BLOCK_RECORDS = 128;
+const MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION = 512;
+const MAX_BATCH_BLOCK_MEMBERS_TOTAL = 2048;
 const BATCH_LINEWEIGHTS = new Set([
     -3,
     -2,
@@ -3115,7 +3118,9 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
         textStyles,
         dimensionStyles
     ])if (!Array.isArray(group) || group.length > 32) throw new KJValidationError('CREATEBATCH resources allow at most 32 records per table');
-    if (!Array.isArray(blocks) || blocks.length > 64) throw new KJValidationError('CREATEBATCH resources allow at most 64 block records');
+    if (!Array.isArray(blocks) || blocks.length > MAX_BATCH_BLOCK_RECORDS) throw new KJValidationError(`CREATEBATCH resources allow at most ${MAX_BATCH_BLOCK_RECORDS} block records`);
+    const totalBlockMembers = blocks.reduce((sum, block)=>sum + (Array.isArray(block.entities) ? block.entities.length : 0), 0);
+    if (totalBlockMembers > MAX_BATCH_BLOCK_MEMBERS_TOTAL) throw new KJValidationError(`CREATEBATCH block resources allow at most ${MAX_BATCH_BLOCK_MEMBERS_TOTAL} total definition entities`);
     const ids = new Set(), linetypes = new Map(document.getTable('linetypes').records.filter((item)=>!item.erased).map((item)=>[
             item.id,
             item.name
@@ -3289,7 +3294,7 @@ function createBatchResources(document, transaction, resources, modelSpecs) {
         ]);
         validateIdentity(block, blockNames);
         vec3(block.basePoint, `CREATEBATCH resources.blocks[${index}].basePoint`);
-        if (!Array.isArray(block.entities) || block.entities.length > 128) throw new KJValidationError('CREATEBATCH blocks require at most 128 definition entities');
+        if (!Array.isArray(block.entities) || block.entities.length > MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION) throw new KJValidationError(`CREATEBATCH blocks require at most ${MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION} definition entities`);
         for (const [memberIndex, spec] of block.entities.entries()){
             fields(spec, [
                 'type',

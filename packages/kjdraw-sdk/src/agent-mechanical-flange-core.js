@@ -7,6 +7,10 @@ import { stableHash } from './utils.js';
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0';
 const MAX_AUXILIARY_LINES = 1024;
 const MAX_AUXILIARY_CURVES = 512;
+const MAX_SYMBOL_DEFINITIONS = 128;
+const MAX_SYMBOL_MEMBERS_PER_DEFINITION = 512;
+const MAX_SYMBOL_MEMBERS_TOTAL = 2048;
+const MAX_SYMBOL_INSTANCES = 256;
 const finite = (value, label, min, max)=>{
     if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) throw new KJValidationError(`${label} must be finite from ${min} to ${max}`);
     return value;
@@ -1806,8 +1810,8 @@ function validate(document, source) {
         'definitions',
         'instances'
     ], 'input.symbols');
-    if (!Array.isArray(symbolSource.definitions) || symbolSource.definitions.length > 64) throw new KJValidationError('input.symbols.definitions must contain at most 64 items');
-    if (!Array.isArray(symbolSource.instances) || symbolSource.instances.length > 64) throw new KJValidationError('input.symbols.instances must contain at most 64 items');
+    if (!Array.isArray(symbolSource.definitions) || symbolSource.definitions.length > MAX_SYMBOL_DEFINITIONS) throw new KJValidationError(`input.symbols.definitions must contain at most ${MAX_SYMBOL_DEFINITIONS} items`);
+    if (!Array.isArray(symbolSource.instances) || symbolSource.instances.length > MAX_SYMBOL_INSTANCES) throw new KJValidationError(`input.symbols.instances must contain at most ${MAX_SYMBOL_INSTANCES} items`);
     const symbolKeys = new Set();
     let symbolMemberCount = 0, symbolTextCharacters = 0;
     const symbolRole = (value, label)=>{
@@ -1919,9 +1923,9 @@ function validate(document, source) {
         if (typeof definition.key !== 'string' || !definition.key.trim() || definition.key !== definition.key.trim() || definition.key.length > 96 || /[\u0000-\u001f\u007f]/u.test(definition.key)) throw new KJValidationError(`${label}.key must be bounded printable text`);
         if (symbolKeys.has(definition.key)) throw new KJValidationError(`${label}.key must be unique`);
         symbolKeys.add(definition.key);
-        if (!Array.isArray(definition.members) || definition.members.length > 128) throw new KJValidationError(`${label}.members must contain at most 128 items`);
+        if (!Array.isArray(definition.members) || definition.members.length > MAX_SYMBOL_MEMBERS_PER_DEFINITION) throw new KJValidationError(`${label}.members must contain at most ${MAX_SYMBOL_MEMBERS_PER_DEFINITION} items`);
         symbolMemberCount += definition.members.length;
-        if (symbolMemberCount > 512) throw new KJValidationError('input.symbols exceed the member budget');
+        if (symbolMemberCount > MAX_SYMBOL_MEMBERS_TOTAL) throw new KJValidationError(`input.symbols exceed the ${MAX_SYMBOL_MEMBERS_TOTAL} total-member budget`);
         const members = definition.members.map((memberValue, memberIndex)=>{
             const memberLabel = `${label}.members[${memberIndex}]`, member = plain(memberValue, memberLabel), role = symbolRole(member.role, `${memberLabel}.role`);
             const entityStyleKeyValue = entityStyleKey(member.entityStyleKey, `${memberLabel}.entityStyleKey`);
@@ -3557,7 +3561,12 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 auxiliaryCurveCount: input.auxiliaryCurves.length,
                 auxiliaryCurveBudget: MAX_AUXILIARY_CURVES,
                 symbolDefinitionCount: input.symbolDefinitions.length,
+                symbolDefinitionBudget: MAX_SYMBOL_DEFINITIONS,
+                symbolMemberCount: input.symbolDefinitions.reduce((sum, definition)=>sum + definition.members.length, 0),
+                symbolMemberBudgetPerDefinition: MAX_SYMBOL_MEMBERS_PER_DEFINITION,
+                symbolMemberBudgetTotal: MAX_SYMBOL_MEMBERS_TOTAL,
                 symbolInstanceCount: input.symbolInstances.length,
+                symbolInstanceBudget: MAX_SYMBOL_INSTANCES,
                 symbolAttributeCount: input.symbolAttributeCount,
                 featureControlFrameCount: input.featureControlFrames.length,
                 entityStyleCount: input.customStyles.length,

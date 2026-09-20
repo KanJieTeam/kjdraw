@@ -7,6 +7,10 @@ import { stableHash } from './utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
 const MAX_AUXILIARY_LINES = 1024
 const MAX_AUXILIARY_CURVES = 512
+const MAX_SYMBOL_DEFINITIONS = 128
+const MAX_SYMBOL_MEMBERS_PER_DEFINITION = 512
+const MAX_SYMBOL_MEMBERS_TOTAL = 2048
+const MAX_SYMBOL_INSTANCES = 256
 type Point2 = [number, number]
 type Point3 = [number, number, number]
 type Point2Or3 = Point2 | Point3
@@ -1142,8 +1146,8 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
   })
   const symbolSource = input.symbols == null ? { definitions: [], instances: [] } : plain(input.symbols, 'input.symbols')
   exact(symbolSource, ['definitions', 'instances'], 'input.symbols')
-  if (!Array.isArray(symbolSource.definitions) || symbolSource.definitions.length > 64) throw new KJValidationError('input.symbols.definitions must contain at most 64 items')
-  if (!Array.isArray(symbolSource.instances) || symbolSource.instances.length > 64) throw new KJValidationError('input.symbols.instances must contain at most 64 items')
+  if (!Array.isArray(symbolSource.definitions) || symbolSource.definitions.length > MAX_SYMBOL_DEFINITIONS) throw new KJValidationError(`input.symbols.definitions must contain at most ${MAX_SYMBOL_DEFINITIONS} items`)
+  if (!Array.isArray(symbolSource.instances) || symbolSource.instances.length > MAX_SYMBOL_INSTANCES) throw new KJValidationError(`input.symbols.instances must contain at most ${MAX_SYMBOL_INSTANCES} items`)
   const symbolKeys = new Set<string>()
   let symbolMemberCount = 0, symbolTextCharacters = 0
   const symbolRole = (value: unknown, label: string): KJFlangeAuxiliaryLine['role'] => {
@@ -1188,9 +1192,9 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     if (typeof definition.key !== 'string' || !definition.key.trim() || definition.key !== definition.key.trim() || definition.key.length > 96 || /[\u0000-\u001f\u007f]/u.test(definition.key)) throw new KJValidationError(`${label}.key must be bounded printable text`)
     if (symbolKeys.has(definition.key)) throw new KJValidationError(`${label}.key must be unique`)
     symbolKeys.add(definition.key)
-    if (!Array.isArray(definition.members) || definition.members.length > 128) throw new KJValidationError(`${label}.members must contain at most 128 items`)
+    if (!Array.isArray(definition.members) || definition.members.length > MAX_SYMBOL_MEMBERS_PER_DEFINITION) throw new KJValidationError(`${label}.members must contain at most ${MAX_SYMBOL_MEMBERS_PER_DEFINITION} items`)
     symbolMemberCount += definition.members.length
-    if (symbolMemberCount > 512) throw new KJValidationError('input.symbols exceed the member budget')
+    if (symbolMemberCount > MAX_SYMBOL_MEMBERS_TOTAL) throw new KJValidationError(`input.symbols exceed the ${MAX_SYMBOL_MEMBERS_TOTAL} total-member budget`)
     const members: KJFlangeSymbolMember[] = (definition.members as unknown[]).map((memberValue, memberIndex) => {
       const memberLabel = `${label}.members[${memberIndex}]`, member = plain(memberValue, memberLabel), role = symbolRole(member.role, `${memberLabel}.role`)
       const entityStyleKeyValue = entityStyleKey(member.entityStyleKey, `${memberLabel}.entityStyleKey`)
@@ -1641,7 +1645,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
         sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryLineBudget: MAX_AUXILIARY_LINES, auxiliaryPointCount: input.auxiliaryPoints.length, pointDisplay: input.pointDisplay, auxiliarySolidCount: input.auxiliarySolids.length, auxiliaryWipeoutCount: input.auxiliaryWipeouts.length, auxiliaryCurveCount: input.auxiliaryCurves.length, auxiliaryCurveBudget: MAX_AUXILIARY_CURVES,
-        symbolDefinitionCount: input.symbolDefinitions.length, symbolInstanceCount: input.symbolInstances.length, symbolAttributeCount: input.symbolAttributeCount, featureControlFrameCount: input.featureControlFrames.length,
+        symbolDefinitionCount: input.symbolDefinitions.length, symbolDefinitionBudget: MAX_SYMBOL_DEFINITIONS, symbolMemberCount: input.symbolDefinitions.reduce((sum, definition) => sum + definition.members.length, 0), symbolMemberBudgetPerDefinition: MAX_SYMBOL_MEMBERS_PER_DEFINITION, symbolMemberBudgetTotal: MAX_SYMBOL_MEMBERS_TOTAL, symbolInstanceCount: input.symbolInstances.length, symbolInstanceBudget: MAX_SYMBOL_INSTANCES, symbolAttributeCount: input.symbolAttributeCount, featureControlFrameCount: input.featureControlFrames.length,
         entityStyleCount: input.customStyles.length, textStyleCount: input.textStyles.length, dimensionStyleCount: input.dimensionStyles.length,
         noteCount: input.notes.length, dimensionCount: input.dimensions.length, leaderCount: input.leaders.length },
       limitations: ['Flange end-view, symmetric axial-profile, cut-face hatches, native dimension and sheet-grid core only', 'Local symbols are bounded to editable local blocks and complete attached attribute sequences', 'Private drawings and labels are not embedded'],
