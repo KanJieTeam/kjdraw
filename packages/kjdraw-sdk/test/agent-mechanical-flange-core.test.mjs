@@ -268,7 +268,7 @@ test('flange compiler rejects unsupported source injection and impossible geomet
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, titleGrid: { ...input(0).sheet.titleGrid, verticalSegments: [{ offset: 200, start: 0, end: 10 }] } } }), /must be finite/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sheet: { ...input(0).sheet, outerFrameSides: ['left', 'left'] } }), /unique frame sides/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), styleProfile: { geometry: { color: 2.5 } } }), /integer ACI/u)
-  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), styleProfile: { center: { linetypePattern: [1, 2] } } }), /linetypePattern is invalid/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), styleProfile: { center: { linetypePattern: [0, 0] } } }), /linetypePattern is invalid/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), auxiliaryLines: [{ start: [1, 1], end: [2, 2], role: 'unknown' }] }), /role is invalid/u)
 })
 
@@ -403,6 +403,47 @@ test('caller-supplied semantic style roles preserve effective CAD display facts 
   const reopenedCircle = reopened.listEntities({ type: 'CIRCLE' }).find(entity => entity.payload.radius === 12)
   assert.equal(reopenedCircle.payload.color, 7)
   assert.equal(reopenedCircle.payload.lineweight, 35)
+})
+
+test('mechanical style patterns preserve ordered dash, gap and point segments with bounded atomic validation', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
+  const patterns = {
+    'PUBLIC-POINT': [4, -1, 0, -1],
+    'PUBLIC-ODD': [1, -1, 1],
+    'PUBLIC-REPEATED': [1, 1, -1, -1],
+    'PUBLIC-BOUNDARY': Array.from({ length: 32 }, (_, index) => index === 31 ? 0 : index % 3 === 0 ? 1000 : -1000),
+  }
+  const custom = Object.entries(patterns).map(([linetypeName, linetypePattern], index) => ({ key: `pattern-${index}`, layerName: `PUBLIC_PATTERN_${index}`, linetypeName, linetypePattern }))
+  const auxiliaryLines = custom.map((style, index) => ({ start: [20, 70 + index * 3], end: [80, 70 + index * 3], role: 'geometry', styleKey: style.key }))
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...source, styleProfile: { custom }, auxiliaryLines })
+  assert.equal(proposal.evidence.parameters.linetypePatternSegmentBudget, 32)
+  for (const [name, pattern] of Object.entries(patterns)) assert.deepEqual(proposal.commandArgs.resources.linetypes.find(record => record.name === name).pattern, pattern)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const [kjd, dxf] = await Promise.all([
+    sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' }),
+    sdk.readDocument(dxfText, { format: 'DXF' }),
+  ])
+  for (const reopened of [kjd, dxf]) for (const [name, pattern] of Object.entries(patterns)) assert.deepEqual(reopened.getTable('linetypes').records.find(record => record.name === name).payload.pattern, pattern)
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); names=["PUBLIC-POINT","PUBLIC-ODD","PUBLIC-REPEATED","PUBLIC-BOUNDARY"]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"patterns":{n:[float(x.value) for x in d.linetypes.get(n).pattern_tags.tags if x.code==49] for n in names}}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || independent.status !== 0 && /No module named ['"]ezdxf/u.test(independent.stderr ?? '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr ?? independent.error?.message)
+    t.skip('official ezdxf is not installed'); return
+  }
+  assert.equal(independent.status, 0, independent.stderr)
+  const audit = JSON.parse(independent.stdout)
+  assert.deepEqual([audit.errors, audit.fixes], [0, 0])
+  for (const [name, pattern] of Object.entries(patterns)) assert.deepEqual(audit.patterns[name], pattern)
+
+  const before = document.serialize(), invalidPatterns = [[0], [0, 0], [1, Number.NaN], [1, Number.POSITIVE_INFINITY], [1000.000_001], ['1'], Array.from({ length: 33 }, () => 1)]
+  for (const linetypePattern of invalidPatterns) {
+    assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision, styleProfile: { custom: [{ key: 'invalid', linetypeName: 'PUBLIC-INVALID', linetypePattern }] } }), /linetypePattern is invalid/u)
+    assert.equal(document.serialize(), before)
+  }
+  const continuous = buildAgentMechanicalFlangeCore(sdk.createDocument({ units: 'millimeter' }), { ...input(0), styleProfile: { center: { linetypeName: 'PUBLIC-CONTINUOUS', linetypePattern: [] } } })
+  assert.deepEqual(continuous.commandArgs.resources.linetypes.find(record => record.name === 'PUBLIC-CONTINUOUS').pattern, [])
 })
 
 test('caller-supplied entity style keys preserve mixed native display facts and merge case-insensitive table names', async () => {

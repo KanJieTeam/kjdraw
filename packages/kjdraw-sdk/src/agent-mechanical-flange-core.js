@@ -2295,7 +2295,9 @@ function validate(document, source) {
             211
         ]);
         if (lineweight != null && !supportedLineweights.has(lineweight)) throw new KJValidationError(`${label}.lineweight is not a supported CAD lineweight`);
-        if (role.linetypePattern != null && (!Array.isArray(role.linetypePattern) || role.linetypePattern.length > 32 || role.linetypePattern.length % 2 !== 0 || role.linetypePattern.some((item, index)=>typeof item !== 'number' || !Number.isFinite(item) || Math.abs(item) > 1_000 || index % 2 === 0 && item <= 0 || index % 2 === 1 && item >= 0))) throw new KJValidationError(`${label}.linetypePattern is invalid`);
+        if (role.linetypePattern != null && (!Array.isArray(role.linetypePattern) || role.linetypePattern.length > 32 || [
+            ...role.linetypePattern
+        ].some((item)=>typeof item !== 'number' || !Number.isFinite(item) || Math.abs(item) > 1_000) || role.linetypePattern.length > 0 && !role.linetypePattern.some((item)=>item !== 0))) throw new KJValidationError(`${label}.linetypePattern is invalid`);
         const linetypeScale = role.linetypeScale == null ? undefined : finite(role.linetypeScale, `${label}.linetypeScale`, 1e-9, 1e9);
         return {
             ...role.layerName == null ? {} : {
@@ -3590,6 +3592,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 symbolAttributeCount: input.symbolAttributeCount,
                 featureControlFrameCount: input.featureControlFrames.length,
                 entityStyleCount: input.customStyles.length,
+                linetypePatternSegmentBudget: 32,
                 textStyleCount: input.textStyles.length,
                 dimensionStyleCount: input.dimensionStyles.length,
                 noteCount: input.notes.length,
