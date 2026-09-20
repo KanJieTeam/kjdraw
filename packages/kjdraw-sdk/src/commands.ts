@@ -1438,6 +1438,9 @@ function normalizePlotSettings(value: KJPlotSettingsInput = {}): KJPlotSettings 
   return { device, media: String(value.media ?? 'ISO_A4'), area, window, scale, centered: value.centered !== false, rotation, plotStyleId: value.plotStyleId == null ? null : String(value.plotStyleId), lineweights: value.lineweights !== false, outputQualityDpi: Number(value.outputQualityDpi ?? 600) }
 }
 
+const MAX_BATCH_BLOCK_RECORDS = 128
+const MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION = 512
+const MAX_BATCH_BLOCK_MEMBERS_TOTAL = 2048
 const BATCH_LINEWEIGHTS = new Set([-3, -2, -1, 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211])
 
 function validateCommandData(input: unknown, label = 'CREATEBATCH resources'): void {
@@ -1783,7 +1786,9 @@ function createBatchResources(document: KJDocument, transaction: KJTransaction, 
   if (!['layers', 'linetypes'].every(key => resourceKeys.includes(key)) || resourceKeys.some(key => !['blocks', 'dimensionStyles', 'layers', 'linetypes', 'textStyles'].includes(key))) throw new KJValidationError('CREATEBATCH resource fields do not match the declared format')
   const blocks = resources.blocks ?? [], textStyles = resources.textStyles ?? [], dimensionStyles = resources.dimensionStyles ?? []
   for (const group of [resources.linetypes, resources.layers, textStyles, dimensionStyles]) if (!Array.isArray(group) || group.length > 32) throw new KJValidationError('CREATEBATCH resources allow at most 32 records per table')
-  if (!Array.isArray(blocks) || blocks.length > 64) throw new KJValidationError('CREATEBATCH resources allow at most 64 block records')
+  if (!Array.isArray(blocks) || blocks.length > MAX_BATCH_BLOCK_RECORDS) throw new KJValidationError(`CREATEBATCH resources allow at most ${MAX_BATCH_BLOCK_RECORDS} block records`)
+  const totalBlockMembers = blocks.reduce((sum, block) => sum + (Array.isArray(block.entities) ? block.entities.length : 0), 0)
+  if (totalBlockMembers > MAX_BATCH_BLOCK_MEMBERS_TOTAL) throw new KJValidationError(`CREATEBATCH block resources allow at most ${MAX_BATCH_BLOCK_MEMBERS_TOTAL} total definition entities`)
   const ids = new Set<string>(), linetypes = new Map(document.getTable('linetypes')!.records.filter(item => !item.erased).map(item => [item.id, item.name!]))
   const validateIdentity = (value: { id: string; name: string }, names: Set<string>): void => {
     if (typeof value.id !== 'string' || !value.id.trim() || value.id.length > 256 || value.id !== value.id.trim() || /[\u0000-\u001f\u007f]/.test(value.id) || ['__proto__', 'constructor', 'prototype'].includes(value.id)) throw new KJValidationError('CREATEBATCH resource IDs must be bounded nonempty data strings')
@@ -1866,7 +1871,7 @@ function createBatchResources(document: KJDocument, transaction: KJTransaction, 
   for (const [index, block] of blocks.entries()) {
     fields(block, ['id', 'name', 'basePoint', 'entities']); validateIdentity(block, blockNames)
     vec3(block.basePoint, `CREATEBATCH resources.blocks[${index}].basePoint`)
-    if (!Array.isArray(block.entities) || block.entities.length > 128) throw new KJValidationError('CREATEBATCH blocks require at most 128 definition entities')
+    if (!Array.isArray(block.entities) || block.entities.length > MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION) throw new KJValidationError(`CREATEBATCH blocks require at most ${MAX_BATCH_BLOCK_MEMBERS_PER_DEFINITION} definition entities`)
     for (const [memberIndex, spec] of block.entities.entries()) {
       fields(spec, ['type', 'payload', 'options'])
       if (typeof spec.type !== 'string' || !spec.type.trim()) throw new KJValidationError('CREATEBATCH block entity type is required')
