@@ -48,6 +48,7 @@ function validate(document, source) {
         'featureControlFrames',
         'auxiliaryLines',
         'auxiliaryCurves',
+        'auxiliaryHatches',
         'symbols',
         'styleResources',
         'styleProfile',
@@ -1101,6 +1102,113 @@ function validate(document, source) {
             role: frame.role
         };
     });
+    if (input.auxiliaryHatches != null && !Array.isArray(input.auxiliaryHatches)) throw new KJValidationError('input.auxiliaryHatches must be an array');
+    if (input.auxiliaryHatches?.length && input.auxiliaryHatches.length > 64) throw new KJValidationError('input.auxiliaryHatches exceed their budget');
+    const auxiliaryHatches = (input.auxiliaryHatches ?? []).map((value, hatchIndex)=>{
+        const label = `input.auxiliaryHatches[${hatchIndex}]`, hatch = plain(value, label);
+        exact(hatch, [
+            'edges',
+            'solid',
+            'patternName',
+            'lineAngle',
+            'lineSpacing',
+            'patternOrigin',
+            'patternLines',
+            'styleKey'
+        ], label);
+        if (!Array.isArray(hatch.edges) || hatch.edges.length < 3 || hatch.edges.length > 128) throw new KJValidationError(`${label}.edges must contain 3 to 128 edges`);
+        const edges = hatch.edges.map((value, edgeIndex)=>{
+            const edgeLabel = `${label}.edges[${edgeIndex}]`, edge = plain(value, edgeLabel);
+            if (edge.kind === 'line') {
+                exact(edge, [
+                    'kind',
+                    'start',
+                    'end'
+                ], edgeLabel);
+                const start = point(edge.start, `${edgeLabel}.start`), end = point(edge.end, `${edgeLabel}.end`);
+                if (start[0] === end[0] && start[1] === end[1]) throw new KJValidationError(`${edgeLabel} must not have zero length`);
+                return {
+                    kind: 'line',
+                    start,
+                    end
+                };
+            }
+            if (edge.kind === 'arc') {
+                exact(edge, [
+                    'kind',
+                    'center',
+                    'radius',
+                    'startAngle',
+                    'endAngle',
+                    'counterClockwise'
+                ], edgeLabel);
+                if (edge.counterClockwise != null && typeof edge.counterClockwise !== 'boolean') throw new KJValidationError(`${edgeLabel}.counterClockwise must be boolean`);
+                const startAngle = finite(edge.startAngle, `${edgeLabel}.startAngle`, -Math.PI * 4, Math.PI * 4), endAngle = finite(edge.endAngle, `${edgeLabel}.endAngle`, -Math.PI * 4, Math.PI * 4);
+                if (startAngle === endAngle) throw new KJValidationError(`${edgeLabel} arc sweep must not be zero`);
+                return {
+                    kind: 'arc',
+                    center: point(edge.center, `${edgeLabel}.center`),
+                    radius: finite(edge.radius, `${edgeLabel}.radius`, 0.1, 100_000),
+                    startAngle,
+                    endAngle,
+                    counterClockwise: edge.counterClockwise !== false
+                };
+            }
+            throw new KJValidationError(`${edgeLabel}.kind is invalid`);
+        });
+        if (hatch.solid != null && typeof hatch.solid !== 'boolean') throw new KJValidationError(`${label}.solid must be boolean`);
+        const solid = hatch.solid === true;
+        const patternName = hatch.patternName == null ? solid ? 'SOLID' : 'ANSI31' : resourceKey(hatch.patternName, `${label}.patternName`);
+        if (solid && (hatch.lineAngle != null || hatch.lineSpacing != null || hatch.patternOrigin != null || hatch.patternLines != null)) throw new KJValidationError(`${label} solid fills must not define pattern lines`);
+        if (!solid && hatch.patternLines != null && (hatch.lineAngle != null || hatch.lineSpacing != null || hatch.patternOrigin != null)) throw new KJValidationError(`${label} explicit patternLines cannot be combined with the one-family shorthand`);
+        if (!solid && hatch.patternLines == null && (hatch.lineAngle == null || hatch.lineSpacing == null)) throw new KJValidationError(`${label} patterned fills require patternLines or lineAngle and lineSpacing`);
+        if (hatch.patternLines != null && (!Array.isArray(hatch.patternLines) || hatch.patternLines.length < 1 || hatch.patternLines.length > 16)) throw new KJValidationError(`${label}.patternLines must contain 1 to 16 line families`);
+        const patternLines = solid ? [] : hatch.patternLines == null ? (()=>{
+            const lineAngle = finite(hatch.lineAngle, `${label}.lineAngle`, -Math.PI * 2, Math.PI * 2), lineSpacing = finite(hatch.lineSpacing, `${label}.lineSpacing`, 0.01, 100_000);
+            const patternOrigin = hatch.patternOrigin == null ? [
+                0,
+                0
+            ] : point(hatch.patternOrigin, `${label}.patternOrigin`);
+            return [
+                {
+                    angle: lineAngle,
+                    base: patternOrigin,
+                    offset: [
+                        -Math.sin(lineAngle) * lineSpacing,
+                        Math.cos(lineAngle) * lineSpacing
+                    ],
+                    dashes: []
+                }
+            ];
+        })() : hatch.patternLines.map((value, patternIndex)=>{
+            const lineLabel = `${label}.patternLines[${patternIndex}]`, patternLine = plain(value, lineLabel);
+            exact(patternLine, [
+                'angle',
+                'base',
+                'offset',
+                'dashes'
+            ], lineLabel);
+            const angle = finite(patternLine.angle, `${lineLabel}.angle`, -Math.PI * 2, Math.PI * 2), base = point(patternLine.base, `${lineLabel}.base`), offset = point(patternLine.offset, `${lineLabel}.offset`);
+            if (offset[0] === 0 && offset[1] === 0) throw new KJValidationError(`${lineLabel}.offset must not be zero`);
+            if (patternLine.dashes != null && (!Array.isArray(patternLine.dashes) || patternLine.dashes.length > 32)) throw new KJValidationError(`${lineLabel}.dashes must be an array with at most 32 items`);
+            return {
+                angle,
+                base,
+                offset,
+                dashes: (patternLine.dashes ?? []).map((dash, dashIndex)=>finite(dash, `${lineLabel}.dashes[${dashIndex}]`, -100_000, 100_000))
+            };
+        });
+        const styleKey = entityStyleKey(hatch.styleKey, `${label}.styleKey`);
+        return {
+            edges,
+            solid,
+            patternName,
+            patternLines,
+            ...styleKey == null ? {} : {
+                styleKey
+            }
+        };
+    });
     if (input.auxiliaryLines != null && !Array.isArray(input.auxiliaryLines)) throw new KJValidationError('input.auxiliaryLines must be an array');
     if (input.auxiliaryLines?.length && input.auxiliaryLines.length > 256) throw new KJValidationError('input.auxiliaryLines exceed their budget');
     const auxiliaryLines = (input.auxiliaryLines ?? []).map((value, index)=>{
@@ -1702,6 +1810,7 @@ function validate(document, source) {
         featureControlFrames,
         auxiliaryLines,
         auxiliaryCurves,
+        auxiliaryHatches,
         symbolDefinitions,
         symbolInstances,
         symbolAttributeCount,
@@ -2330,6 +2439,38 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             layerId: style.layerId
         }, style.name);
     }
+    for (const hatch of input.auxiliaryHatches){
+        const style = styled(hatch.styleKey, 'hatch');
+        emit('HATCH', {
+            boundaryLoops: [
+                {
+                    external: false,
+                    flags: 0,
+                    edges: hatch.edges.map((edge)=>edge.kind === 'line' ? {
+                            type: 'LINE',
+                            start: p3(...edge.start),
+                            end: p3(...edge.end)
+                        } : {
+                            type: 'ARC',
+                            center: p3(...edge.center),
+                            radius: edge.radius,
+                            startAngle: edge.startAngle,
+                            endAngle: edge.endAngle,
+                            counterClockwise: edge.counterClockwise !== false
+                        })
+                }
+            ],
+            patternName: hatch.patternName,
+            solid: hatch.solid,
+            associative: false,
+            patternAngle: 0,
+            patternScale: 1,
+            patternLines: hatch.patternLines,
+            patternDefinitionAngle: 0,
+            patternDefinitionScale: 1,
+            layerId: style.layerId
+        }, style.name);
+    }
     for (const auxiliary of input.auxiliaryLines){
         const style = styled(auxiliary.styleKey, auxiliary.role);
         line(auxiliary.start, auxiliary.end, style.layerId, style.name);
@@ -2712,6 +2853,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 symmetricProfileCount: input.symmetricProfiles.length,
                 sideOutlineSegmentCount: input.sideOutlineSegments.length,
                 sectionHatchCount: input.sectionHatches.length,
+                auxiliaryHatchCount: input.auxiliaryHatches.length,
                 auxiliaryLineCount: input.auxiliaryLines.length,
                 auxiliaryCurveCount: input.auxiliaryCurves.length,
                 symbolDefinitionCount: input.symbolDefinitions.length,

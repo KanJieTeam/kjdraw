@@ -173,6 +173,30 @@ export interface KJFlangeSectionHatch {
     patternLines?: KJFlangeHatchPatternLine[];
     styleKey?: string;
 }
+/** An independent source-measured hatch in absolute drawing coordinates.
+ *  Use this for detached sections, auxiliary views and sheet marks that do
+ *  not share the side-view projection axis. */
+export interface KJFlangeAuxiliaryHatch {
+    edges: ({
+        kind: 'line';
+        start: Point2;
+        end: Point2;
+    } | {
+        kind: 'arc';
+        center: Point2;
+        radius: number;
+        startAngle: number;
+        endAngle: number;
+        counterClockwise?: boolean;
+    })[];
+    solid?: boolean;
+    patternName?: string;
+    lineAngle?: number;
+    lineSpacing?: number;
+    patternOrigin?: Point2;
+    patternLines?: KJFlangeHatchPatternLine[];
+    styleKey?: string;
+}
 /** Drawing-style roles are caller-supplied facts. The compiler never embeds
  * a source application's layer or style catalogue; a caller may map its
  * local roles to these generic roles for faithful output. */
@@ -486,6 +510,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
     featureControlFrames?: KJFlangeFeatureControlFrame[];
     auxiliaryLines?: KJFlangeAuxiliaryLine[];
     auxiliaryCurves?: KJFlangeAuxiliaryCurve[];
+    auxiliaryHatches?: KJFlangeAuxiliaryHatch[];
     symbols?: {
         definitions: KJFlangeSymbolDefinition[];
         instances: KJFlangeSymbolInstance[];
@@ -567,6 +592,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             symmetricProfileCount: number;
             sideOutlineSegmentCount: number;
             sectionHatchCount: number;
+            auxiliaryHatchCount: number;
             auxiliaryLineCount: number;
             auxiliaryCurveCount: number;
             symbolDefinitionCount: number;
