@@ -6,6 +6,7 @@ import { stableHash } from './utils.js'
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
 type Point2 = [number, number]
 type Point3 = [number, number, number]
+type Point2Or3 = Point2 | Point3
 type Entity = { type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'ATTDEF' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT'; payload: Record<string, unknown>; options: { id: string };
   attributeSequence?: { attributes: { id: string; payload: Record<string, unknown> }[]; sequenceEnd: { id: string; dxfOwnerMode: 'insert' | 'space'; layerId?: string } } }
 interface Document { id: string; revision: number; snapshot(): { header?: { units?: string } }; getTable?: (name: string) => { records: { id: string; name?: string; payload?: Record<string, unknown> }[] } | undefined }
@@ -146,7 +147,7 @@ export type KJFlangeSymbolMember =
   | { kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; clockwise?: boolean; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
   | { kind: 'multiline-text'; text: string; position: Point2; height: number; rotation?: number; width?: number; attachmentPoint?: number; styleKey?: string; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
   | ({ kind: 'attribute-definition' } & KJFlangeSymbolAttribute)
-  | { kind: 'instance'; symbolKey: string; position: Point2; scale?: Point2; rotation?: number; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
+  | { kind: 'instance'; symbolKey: string; position: Point2Or3; scale?: Point2; rotation?: number; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
 
 export interface KJFlangeSymbolAttribute {
   text: string
@@ -176,7 +177,7 @@ export interface KJFlangeSymbolDefinition {
 
 export interface KJFlangeSymbolInstance {
   symbolKey: string
-  position: Point2
+  position: Point2Or3
   scale?: Point2
   rotation?: number
   role: KJFlangeAuxiliaryLine['role']
@@ -330,6 +331,12 @@ const exact = (value: Record<string, unknown>, keys: readonly string[], label: s
 const point = (value: unknown, label: string): Point2 => {
   if (!Array.isArray(value) || value.length !== 2) throw new KJValidationError(`${label} must contain two coordinates`)
   return [finite(value[0], `${label}[0]`, -1_000_000, 1_000_000), finite(value[1], `${label}[1]`, -1_000_000, 1_000_000)]
+}
+const point2Or3 = (value: unknown, label: string): Point2Or3 => {
+  if (!Array.isArray(value) || ![2, 3].includes(value.length)) throw new KJValidationError(`${label} must contain two or three coordinates`)
+  const result: Point2Or3 = [finite(value[0], `${label}[0]`, -1_000_000, 1_000_000), finite(value[1], `${label}[1]`, -1_000_000, 1_000_000)]
+  if (value.length === 3) result.push(finite(value[2], `${label}[2]`, -1_000_000, 1_000_000))
+  return result
 }
 const increasing = (value: unknown, label: string, maxCount: number, min: number, max: number): number[] => {
   if (!Array.isArray(value) || value.length > maxCount) throw new KJValidationError(`${label} exceeds its item budget`)
@@ -993,7 +1000,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
         const scaleSource = member.scale ?? [1, 1]
         if (!Array.isArray(scaleSource) || scaleSource.length !== 2) throw new KJValidationError(`${memberLabel}.scale must contain two coordinates`)
         const scale: Point2 = [finite(scaleSource[0], `${memberLabel}.scale[0]`, 0.000_001, 1_000_000), finite(scaleSource[1], `${memberLabel}.scale[1]`, 0.000_001, 1_000_000)]
-        return { kind: 'instance', symbolKey: member.symbolKey, position: point(member.position, `${memberLabel}.position`), scale,
+        return { kind: 'instance', symbolKey: member.symbolKey, position: point2Or3(member.position, `${memberLabel}.position`), scale,
           rotation: member.rotation == null ? 0 : finite(member.rotation, `${memberLabel}.rotation`, -Math.PI * 4, Math.PI * 4), role,
           ...(entityStyleKeyValue == null ? {} : { entityStyleKey: entityStyleKeyValue }) }
       }
@@ -1011,7 +1018,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     if (instance.attributes != null && (!Array.isArray(instance.attributes) || instance.attributes.length > 64)) throw new KJValidationError(`${label}.attributes must contain at most 64 items`)
     const attributes = ((instance.attributes ?? []) as unknown[]).map((attribute, attributeIndex) => symbolAttribute(attribute, `${label}.attributes[${attributeIndex}]`))
     if (new Set(attributes.map(attribute => attribute.tag.toUpperCase())).size !== attributes.length) throw new KJValidationError(`${label}.attributes must use unique tags`)
-    return { symbolKey: instance.symbolKey, position: point(instance.position, `${label}.position`), scale,
+    return { symbolKey: instance.symbolKey, position: point2Or3(instance.position, `${label}.position`), scale,
       rotation: instance.rotation == null ? 0 : finite(instance.rotation, `${label}.rotation`, -Math.PI * 4, Math.PI * 4), role: symbolRole(instance.role, `${label}.role`), ...(styleKey == null ? {} : { styleKey }), ...(attributes.length ? { attributes } : {}) }
   })
   for (const definition of symbolDefinitions) for (const member of definition.members) if (member.kind === 'instance' && !symbolKeys.has(member.symbolKey)) throw new KJValidationError(`input.symbols.definitions[${definition.key}].members instance must reference a definition`)
@@ -1101,7 +1108,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       layers.push({ id: roleIds[name], name: layerName, color: definition.color === 0 ? 7 : definition.color, linetypeId: id, lineweight: definition.lineweight })
     }
   }
-  const entities: Entity[] = [], p3 = (x: number, y: number): Point3 => [x, y, 0]
+  const entities: Entity[] = [], p3 = (x: number, y: number, z = 0): Point3 => [x, y, z]
   const roleByLayer = new Map(Object.keys(roles).map(name => [roleIds[name], roles[name]]))
   const stylePayload = (payload: Record<string, unknown>, styleName?: string) => {
     const resolvedStyleName = styleName ?? Object.keys(roles).find(name => roleIds[name] === payload.layerId)
@@ -1250,7 +1257,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       else if (member.kind === 'multiline-text') { const style = member.styleKey == null ? null : textStyleByKey.get(member.styleKey)!; type = 'MTEXT'; payload = { position: p3(...member.position), text: member.text, height: member.height, rotation: member.rotation ?? 0,
         attachmentPoint: member.attachmentPoint ?? 1, ...(member.width == null ? {} : { width: member.width }), ...(style == null ? {} : { styleId: style.id }), layerId: entityStyle.layerId } }
       else if (member.kind === 'attribute-definition') { type = 'ATTDEF'; payload = symbolAttributePayload(member) }
-      else { type = 'INSERT'; payload = { blockRecordId: symbolBlockByKey.get(member.symbolKey)!.id, position: p3(...member.position), scale: [member.scale?.[0] ?? 1, member.scale?.[1] ?? 1, 1], rotation: member.rotation ?? 0,
+      else { type = 'INSERT'; payload = { blockRecordId: symbolBlockByKey.get(member.symbolKey)!.id, position: p3(member.position[0], member.position[1], member.position[2]), scale: [member.scale?.[0] ?? 1, member.scale?.[1] ?? 1, 1], rotation: member.rotation ?? 0,
         attributes: {}, attributeIds: [], sequenceEndId: null, layerId: entityStyle.layerId } }
       return { type, payload: stylePayload(payload, entityStyle.name), options: { id: `${id}-member-${String(memberIndex + 1).padStart(3, '0')}` } }
     })
@@ -1259,7 +1266,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   for (const [instanceIndex, instance] of input.symbolInstances.entries()) {
     const block = symbolBlockByKey.get(instance.symbolKey)!, style = styled(instance.styleKey, instance.role)
     const id = `${prefix}-${String(entities.length + 1).padStart(4, '0')}`, attributes = instance.attributes ?? []
-    entities.push({ type: 'INSERT', payload: stylePayload({ blockRecordId: block.id, position: p3(...instance.position), scale: [instance.scale?.[0] ?? 1, instance.scale?.[1] ?? 1, 1],
+    entities.push({ type: 'INSERT', payload: stylePayload({ blockRecordId: block.id, position: p3(instance.position[0], instance.position[1], instance.position[2]), scale: [instance.scale?.[0] ?? 1, instance.scale?.[1] ?? 1, 1],
       rotation: instance.rotation ?? 0, attributes: {}, attributeIds: [], sequenceEndId: null, layerId: style.layerId }, style.name), options: { id },
       ...(attributes.length ? { attributeSequence: { attributes: attributes.map((attribute, attributeIndex) => ({ id: `${id}-attribute-${String(attributeIndex + 1).padStart(2, '0')}`, payload: symbolAttributePayload(attribute) })),
         sequenceEnd: { id: `${id}-sequence-end`, dxfOwnerMode: 'insert', layerId: style.layerId } } } : {}) })

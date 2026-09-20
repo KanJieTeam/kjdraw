@@ -1,6 +1,7 @@
 export declare const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION: '1.0.0';
 type Point2 = [number, number];
 type Point3 = [number, number, number];
+type Point2Or3 = Point2 | Point3;
 type Entity = {
     type: 'LINE' | 'CIRCLE' | 'ARC' | 'ELLIPSE' | 'LWPOLYLINE' | 'SPLINE' | 'SOLID' | 'LEADER' | 'TEXT' | 'MTEXT' | 'ATTDEF' | 'DIMENSION' | 'TOLERANCE' | 'HATCH' | 'INSERT';
     payload: Record<string, unknown>;
@@ -311,7 +312,7 @@ export type KJFlangeSymbolMember = {
 } & KJFlangeSymbolAttribute) | {
     kind: 'instance';
     symbolKey: string;
-    position: Point2;
+    position: Point2Or3;
     scale?: Point2;
     rotation?: number;
     role: KJFlangeAuxiliaryLine['role'];
@@ -343,7 +344,7 @@ export interface KJFlangeSymbolDefinition {
 }
 export interface KJFlangeSymbolInstance {
     symbolKey: string;
-    position: Point2;
+    position: Point2Or3;
     scale?: Point2;
     rotation?: number;
     role: KJFlangeAuxiliaryLine['role'];

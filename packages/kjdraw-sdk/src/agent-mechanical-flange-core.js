@@ -26,6 +26,18 @@ const point = (value, label)=>{
         finite(value[1], `${label}[1]`, -1_000_000, 1_000_000)
     ];
 };
+const point2Or3 = (value, label)=>{
+    if (!Array.isArray(value) || ![
+        2,
+        3
+    ].includes(value.length)) throw new KJValidationError(`${label} must contain two or three coordinates`);
+    const result = [
+        finite(value[0], `${label}[0]`, -1_000_000, 1_000_000),
+        finite(value[1], `${label}[1]`, -1_000_000, 1_000_000)
+    ];
+    if (value.length === 3) result.push(finite(value[2], `${label}[2]`, -1_000_000, 1_000_000));
+    return result;
+};
 const increasing = (value, label, maxCount, min, max)=>{
     if (!Array.isArray(value) || value.length > maxCount) throw new KJValidationError(`${label} exceeds its item budget`);
     const result = value.map((item, index)=>finite(item, `${label}[${index}]`, min, max));
@@ -1655,7 +1667,7 @@ function validate(document, source) {
                 return {
                     kind: 'instance',
                     symbolKey: member.symbolKey,
-                    position: point(member.position, `${memberLabel}.position`),
+                    position: point2Or3(member.position, `${memberLabel}.position`),
                     scale,
                     rotation: member.rotation == null ? 0 : finite(member.rotation, `${memberLabel}.rotation`, -Math.PI * 4, Math.PI * 4),
                     role,
@@ -1699,7 +1711,7 @@ function validate(document, source) {
         if (new Set(attributes.map((attribute)=>attribute.tag.toUpperCase())).size !== attributes.length) throw new KJValidationError(`${label}.attributes must use unique tags`);
         return {
             symbolKey: instance.symbolKey,
-            position: point(instance.position, `${label}.position`),
+            position: point2Or3(instance.position, `${label}.position`),
             scale,
             rotation: instance.rotation == null ? 0 : finite(instance.rotation, `${label}.rotation`, -Math.PI * 4, Math.PI * 4),
             role: symbolRole(instance.role, `${label}.role`),
@@ -2026,10 +2038,10 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             });
         }
     }
-    const entities = [], p3 = (x, y)=>[
+    const entities = [], p3 = (x, y, z = 0)=>[
             x,
             y,
-            0
+            z
         ];
     const roleByLayer = new Map(Object.keys(roles).map((name)=>[
             roleIds[name],
@@ -2607,7 +2619,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 type = 'INSERT';
                 payload = {
                     blockRecordId: symbolBlockByKey.get(member.symbolKey).id,
-                    position: p3(...member.position),
+                    position: p3(member.position[0], member.position[1], member.position[2]),
                     scale: [
                         member.scale?.[0] ?? 1,
                         member.scale?.[1] ?? 1,
@@ -2642,7 +2654,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             type: 'INSERT',
             payload: stylePayload({
                 blockRecordId: block.id,
-                position: p3(...instance.position),
+                position: p3(instance.position[0], instance.position[1], instance.position[2]),
                 scale: [
                     instance.scale?.[0] ?? 1,
                     instance.scale?.[1] ?? 1,
