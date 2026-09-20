@@ -254,6 +254,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     ontology: { objectKinds: ['borehole-log'], relationKinds: [] }, rules: { 'geology-column-layout': {
       paperWidth: 190, paperHeight: 290, left: 5, right: 185, headerDepth: 45, headerRowHeight: 5,
       fieldHeaderHeight: 10, footerReserve: 15, titleHeight: 10, verticalScaleDenominators: [100],
+      titleTextStyle: { anchor: 'frame-left-top', rotationDegrees: 0, placement: {
+        offset: [45, -15], height: 10, textWidthFactor: 0.8, horizontalAlignment: 'left', verticalAlignment: 'baseline',
+      } },
       fieldGrid, headerGrid: { rows: physicalRows, continuousDividers: [145, 165] }, footerGrid: { height: 10, cells: [
         { start: 5, key: 'organization', label: 'Organization' }, { start: 65, key: 'checkedBy', label: 'Checked' },
         { start: 125, key: 'drawingNumber', label: 'Drawing', internalDivider: 145, textStyle: {
@@ -317,6 +320,10 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     entity.payload.position[1] === 230.2 && entity.payload.height === 2.4 && entity.payload.widthFactor === 0.85 &&
     entity.payload.horizontalAlignment === 1 && entity.payload.verticalAlignment === 2),
   'principal interval depth uses its source-backed bottom-boundary placement')
+  assert.ok(texts.some(entity => entity.payload.text === 'BOREHOLE LOG' && entity.payload.position[0] === 50 &&
+    entity.payload.position[1] === 270 && entity.payload.height === 10 && entity.payload.widthFactor === 0.8 &&
+    entity.payload.horizontalAlignment == null && entity.payload.verticalAlignment == null),
+  'main title uses its declared frame-left-top placement')
   for (const [value, x, y, height, widthFactor] of [
     ['Project', 6.3, 256.1, 2.8, 0.8], ['Project A', 26.2, 256.1, 2.7, 0.85],
   ]) assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.position[0] === x &&
@@ -412,6 +419,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     ['Compact fill.', 234], ['Stiff clay.', 212], ['Dense sand.', 193],
   ]) assert.ok(reopenedDocument.listEntities({ type: 'MTEXT' }).some(entity => entity.payload.text === value &&
     entity.payload.position[0] === 87 && entity.payload.position[1] === y), `declared ${value} anchor survives reopen`)
+  for (const reopenedDocument of [reopened, reopenedKjd]) assert.ok(reopenedDocument.listEntities({ type: 'TEXT' }).some(entity =>
+    entity.payload.text === 'BOREHOLE LOG' && entity.payload.position[0] === 50 && entity.payload.position[1] === 270 &&
+    entity.payload.height === 10 && entity.payload.widthFactor === 0.8), 'declared main title placement survives reopen')
   for (const value of ['0.60', '2.50', 'Q', 'ml', 'S1', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04', 'Record:18', 'D-7']) {
     assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `DXF ${value}`)
     assert.ok(reopenedKjd.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `KJD ${value}`)
@@ -456,6 +466,9 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const incompleteIntervalDepthStyle = structuredClone(input)
   delete incompleteIntervalDepthStyle.columnStylePack.rules['geology-column-layout'].intervalDepthTextStyle.lens
   assert.throws(() => compileGeologyColumn(incompleteIntervalDepthStyle), /exact declarative field-grid schema/u)
+  const incompleteTitleTextStyle = structuredClone(input)
+  delete incompleteTitleTextStyle.columnStylePack.rules['geology-column-layout'].titleTextStyle.placement
+  assert.throws(() => compileGeologyColumn(incompleteTitleTextStyle), /exact physical-header schema/u)
   const incompleteFieldHeaderPlacement = structuredClone(input)
   delete incompleteFieldHeaderPlacement.columnStylePack.rules['geology-column-layout'].fieldGrid[5].headerTextStyle.sub
   assert.throws(() => compileGeologyColumn(incompleteFieldHeaderPlacement), /exactly match the field sublabel/u)

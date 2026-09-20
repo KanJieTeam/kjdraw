@@ -117,6 +117,12 @@ export interface KJGeologyTitleMarginDecoration {
     elbowOffset: [number, number];
     horizontalEnd: 'frame-right';
 }
+/** Exact main-title placement measured from the physical frame's upper-left. */
+export interface KJGeologyTitleTextStyle {
+    anchor: 'frame-left-top';
+    placement: KJGeologyFieldHeaderTextPlacement;
+    rotationDegrees: number;
+}
 /** One source-backed local CAD text style for a column template. Font files are
  * referenced by safe local names only; KJDraw never embeds or downloads them. */
 export interface KJGeologyDefaultTextStyle {

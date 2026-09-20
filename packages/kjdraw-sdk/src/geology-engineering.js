@@ -34,7 +34,7 @@ const positive = (value, label)=>{
     if (result <= 0) throw new KJValidationError(`Geology: ${label} must be positive`);
     return result;
 };
-const sourceTextPlacement = (raw, label, minimumHeight = 1.2)=>{
+const sourceTextPlacement = (raw, label, minimumHeight = 1.2, maximumHeight = 5)=>{
     if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).sort().join(',') !== 'height,horizontalAlignment,offset,textWidthFactor,verticalAlignment') throw new KJValidationError(`Geology: ${label} needs an exact source-backed placement schema`);
     const rule = raw;
     if (!Array.isArray(rule.offset) || rule.offset.length !== 2) throw new KJValidationError(`Geology: ${label} offset must contain two millimetre coordinates`);
@@ -48,7 +48,7 @@ const sourceTextPlacement = (raw, label, minimumHeight = 1.2)=>{
     ].includes(rule.horizontalAlignment) || ![
         'baseline',
         'middle'
-    ].includes(rule.verticalAlignment) || height < minimumHeight || height > 5 || textWidthFactor < 0.5 || textWidthFactor > 1.5) throw new KJValidationError(`Geology: ${label} placement is unreadable`);
+    ].includes(rule.verticalAlignment) || height < minimumHeight || height > maximumHeight || textWidthFactor < 0.5 || textWidthFactor > 1.5) throw new KJValidationError(`Geology: ${label} placement is unreadable`);
     return {
         offset,
         height,
@@ -281,6 +281,7 @@ function columnLayout(input) {
             'legendMode',
             'layerNumberStyle',
             'titleHeight',
+            'titleTextStyle',
             'textFlow',
             'textHeights',
             'intervalDepthTextStyle',
@@ -719,6 +720,20 @@ function columnLayout(input) {
             lens
         };
     }
+    let titleTextStyle;
+    if (value.titleTextStyle != null) {
+        if (!isFieldGrid || !headerGrid || !value.titleTextStyle || typeof value.titleTextStyle !== 'object' || Array.isArray(value.titleTextStyle) || Object.keys(value.titleTextStyle).sort().join(',') !== 'anchor,placement,rotationDegrees') throw new KJValidationError('Geology: title text style needs an exact physical-header schema');
+        const rule = value.titleTextStyle;
+        if (rule.anchor !== 'frame-left-top') throw new KJValidationError('Geology: title text style needs the physical frame upper-left anchor');
+        const placement = sourceTextPlacement(rule.placement, 'main title', 3, 12);
+        const rotationDegrees = numeric(rule.rotationDegrees, 'main title rotation');
+        if (Math.abs(placement.height - titleHeight) > 1e-9 || placement.offset[0] < 0 || placement.offset[0] > right - left || placement.offset[1] < -50 || placement.offset[1] > 0 || rotationDegrees !== 0) throw new KJValidationError('Geology: title text style is outside the readable title band');
+        titleTextStyle = {
+            anchor: 'frame-left-top',
+            placement,
+            rotationDegrees
+        };
+    }
     let defaultTextStyle;
     if (value.defaultTextStyle != null) {
         if (!isFieldGrid || !value.defaultTextStyle || typeof value.defaultTextStyle !== 'object' || Array.isArray(value.defaultTextStyle) || Object.keys(value.defaultTextStyle).sort().join(',') !== 'bigFontFile,dxfFlags,fixedHeight,fontFamily,fontFile,generationFlags,name,obliqueAngleDegrees,widthFactor') throw new KJValidationError('Geology: default text style needs an exact declarative field-grid schema');
@@ -1117,6 +1132,9 @@ function columnLayout(input) {
         } : {},
         ...intervalDepthTextStyle ? {
             intervalDepthTextStyle
+        } : {},
+        ...titleTextStyle ? {
+            titleTextStyle
         } : {},
         ...defaultTextStyle ? {
             defaultTextStyle
@@ -1619,7 +1637,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
 export function compileGeologyColumn(input) {
     const { hole } = input, strata = checkHole(hole);
     const layout = columnLayout(input);
-    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, intervalDepthTextStyle, defaultTextStyle, stratigraphicNotationStyle, descriptionTextStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
+    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, titleTextStyle, textFlow, textHeights, intervalDepthTextStyle, defaultTextStyle, stratigraphicNotationStyle, descriptionTextStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
     if (strata.some((layer)=>layer.stratigraphicNotation != null) && !stratigraphicNotationStyle) throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style');
     if (strata.some((layer)=>layer.descriptionPlacement != null) && !descriptionTextStyle) throw new KJValidationError('Geology: description placement facts need a declared field-grid description text style');
     if (strata.some((layer)=>layer.bottomBoundaryLineVisibility != null) && !fieldGrid) throw new KJValidationError('Geology: bottom boundary line visibility needs a declared physical field grid');
@@ -1766,8 +1784,23 @@ export function compileGeologyColumn(input) {
         const headerTop = headerBottom + rowHeight * headerGrid.rows.length;
         titleRegionBottom = headerTop;
         if (headerTop + (titleHeight ?? 5) + 1 > frameTop) throw new KJValidationError('Geology: declared title does not fit between the header and drawing frame');
-        const titleY = headerTop + (frameTop - headerTop - (titleHeight ?? 5)) / 2;
-        g.text(3, pageWidth / 2, titleY, bounded(input.title ?? (locale === 'zh-CN' ? '钻孔柱状图' : 'BOREHOLE LOG'), 'title'), titleHeight ?? 5, true);
+        const titleValue = bounded(input.title ?? (locale === 'zh-CN' ? '钻孔柱状图' : 'BOREHOLE LOG'), 'title');
+        if (titleTextStyle) {
+            const placement = titleTextStyle.placement;
+            const x = left + placement.offset[0], y = frameTop + placement.offset[1];
+            const textWidth = [
+                ...titleValue
+            ].reduce((sum, character)=>sum + (/^[\x20-\x7e]$/u.test(character) ? placement.height * 0.64 : placement.height) * placement.textWidthFactor, 0);
+            const textLeft = placement.horizontalAlignment === 'left' ? x : placement.horizontalAlignment === 'center' ? x - textWidth / 2 : x - textWidth;
+            const textBottom = placement.verticalAlignment === 'middle' ? y - placement.height / 2 : y;
+            if (textLeft < left || textLeft + textWidth > right || textBottom < headerTop || textBottom + placement.height > frameTop) throw new KJValidationError('Geology: declared main title does not fit its physical title band');
+            const horizontalAlignment = placement.horizontalAlignment === 'left' ? 0 : placement.horizontalAlignment === 'center' ? 1 : 2;
+            const verticalAlignment = placement.verticalAlignment === 'baseline' ? 0 : 2;
+            g.placedText(3, x, y, titleValue, placement.height, placement.textWidthFactor, horizontalAlignment, verticalAlignment, titleTextStyle.rotationDegrees);
+        } else {
+            const titleY = headerTop + (frameTop - headerTop - (titleHeight ?? 5)) / 2;
+            g.text(3, pageWidth / 2, titleY, titleValue, titleHeight ?? 5, true);
+        }
         if (formTopology) {
             formSeparator(headerBottom);
             formSeparator(headerTop);

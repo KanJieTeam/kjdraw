@@ -107,6 +107,12 @@ export interface KJGeologyTitleMarginDecoration {
   elbowOffset: [number, number]
   horizontalEnd: 'frame-right'
 }
+/** Exact main-title placement measured from the physical frame's upper-left. */
+export interface KJGeologyTitleTextStyle {
+  anchor: 'frame-left-top'
+  placement: KJGeologyFieldHeaderTextPlacement
+  rotationDegrees: number
+}
 /** One source-backed local CAD text style for a column template. Font files are
  * referenced by safe local names only; KJDraw never embeds or downloads them. */
 export interface KJGeologyDefaultTextStyle {
@@ -277,7 +283,7 @@ const positive = (value: unknown, label: string): number => {
   if (result <= 0) throw new KJValidationError(`Geology: ${label} must be positive`)
   return result
 }
-const sourceTextPlacement = (raw: unknown, label: string, minimumHeight = 1.2): KJGeologyFieldHeaderTextPlacement => {
+const sourceTextPlacement = (raw: unknown, label: string, minimumHeight = 1.2, maximumHeight = 5): KJGeologyFieldHeaderTextPlacement => {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) ||
     Object.keys(raw).sort().join(',') !== 'height,horizontalAlignment,offset,textWidthFactor,verticalAlignment')
     throw new KJValidationError(`Geology: ${label} needs an exact source-backed placement schema`)
@@ -289,7 +295,7 @@ const sourceTextPlacement = (raw: unknown, label: string, minimumHeight = 1.2): 
   const textWidthFactor = numeric(rule.textWidthFactor, `${label} width factor`)
   if (!['left', 'center', 'right'].includes(rule.horizontalAlignment as string) ||
     !['baseline', 'middle'].includes(rule.verticalAlignment as string) ||
-    height < minimumHeight || height > 5 || textWidthFactor < 0.5 || textWidthFactor > 1.5)
+    height < minimumHeight || height > maximumHeight || textWidthFactor < 0.5 || textWidthFactor > 1.5)
     throw new KJValidationError(`Geology: ${label} placement is unreadable`)
   return { offset, height, textWidthFactor,
     horizontalAlignment: rule.horizontalAlignment as KJGeologyFieldHeaderTextPlacement['horizontalAlignment'],
@@ -325,6 +331,7 @@ interface ColumnLayout {
   textFlow?: { firstGroupBorrowMm: number; firstGroupUnruled: boolean; firstBaselineMm: number; labelPitchMm: number; labelHeightMm: number; paragraphGapMm: number }
   textHeights?: { headerFact: number; fieldHeader: number; fieldSubHeader: number; majorValue: number; intervalDepth: number; observation: number }
   intervalDepthTextStyle?: KJGeologyIntervalDepthTextStyle
+  titleTextStyle?: KJGeologyTitleTextStyle
   defaultTextStyle?: KJGeologyDefaultTextStyle
   stratigraphicNotationStyle?: KJGeologyStratigraphicNotationStyle
   descriptionTextStyle?: KJGeologyDescriptionTextStyle
@@ -437,7 +444,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'intervalDepthTextStyle', 'defaultTextStyle', 'stratigraphicNotationStyle', 'descriptionTextStyle', 'sampleMarkerStyle', 'sampleAnnotationStyle', 'sampleRangeBaselineStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'titleTextStyle', 'textFlow', 'textHeights', 'intervalDepthTextStyle', 'defaultTextStyle', 'stratigraphicNotationStyle', 'descriptionTextStyle', 'sampleMarkerStyle', 'sampleAnnotationStyle', 'sampleRangeBaselineStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -712,6 +719,20 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       placement.offset[0] < 0 || placement.offset[0] > depthWidth || placement.offset[1] < -5 || placement.offset[1] > 10))
       throw new KJValidationError('Geology: interval depth text placement is outside its physical lane')
     intervalDepthTextStyle = { fieldRole: 'depth', principal, lens }
+  }
+  let titleTextStyle: ColumnLayout['titleTextStyle']
+  if (value.titleTextStyle != null) {
+    if (!isFieldGrid || !headerGrid || !value.titleTextStyle || typeof value.titleTextStyle !== 'object' || Array.isArray(value.titleTextStyle) ||
+      Object.keys(value.titleTextStyle).sort().join(',') !== 'anchor,placement,rotationDegrees')
+      throw new KJValidationError('Geology: title text style needs an exact physical-header schema')
+    const rule = value.titleTextStyle as Record<string, unknown>
+    if (rule.anchor !== 'frame-left-top') throw new KJValidationError('Geology: title text style needs the physical frame upper-left anchor')
+    const placement = sourceTextPlacement(rule.placement, 'main title', 3, 12)
+    const rotationDegrees = numeric(rule.rotationDegrees, 'main title rotation')
+    if (Math.abs(placement.height - titleHeight) > 1e-9 || placement.offset[0] < 0 || placement.offset[0] > right - left ||
+      placement.offset[1] < -50 || placement.offset[1] > 0 || rotationDegrees !== 0)
+      throw new KJValidationError('Geology: title text style is outside the readable title band')
+    titleTextStyle = { anchor: 'frame-left-top', placement, rotationDegrees }
   }
   let defaultTextStyle: ColumnLayout['defaultTextStyle']
   if (value.defaultTextStyle != null) {
@@ -1019,7 +1040,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   }
   return { paperWidth, paperHeight, left, right, columns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, legendMode, layerNumberStyle, titleHeight, verticalScaleDenominators, ...(sptDisplayCap == null ? {} : { sptDisplayCap }),
     ...(observationColumns ? { observationColumns } : {}), labels,
-    ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}), ...(intervalDepthTextStyle ? { intervalDepthTextStyle } : {}), ...(defaultTextStyle ? { defaultTextStyle } : {}),
+    ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}), ...(intervalDepthTextStyle ? { intervalDepthTextStyle } : {}), ...(titleTextStyle ? { titleTextStyle } : {}), ...(defaultTextStyle ? { defaultTextStyle } : {}),
     ...(stratigraphicNotationStyle ? { stratigraphicNotationStyle } : {}), ...(sampleMarkerStyle ? { sampleMarkerStyle } : {}),
     ...(sampleAnnotationStyle ? { sampleAnnotationStyle } : {}),
     ...(sampleRangeBaselineStyle ? { sampleRangeBaselineStyle } : {}),
@@ -1270,7 +1291,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const { hole } = input, strata = checkHole(hole)
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
-    headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, intervalDepthTextStyle,
+    headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, titleTextStyle, textFlow, textHeights, intervalDepthTextStyle,
     defaultTextStyle, stratigraphicNotationStyle, descriptionTextStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology,
     layerNumberStyle, sourceTemplate } = layout
   if (strata.some(layer => layer.stratigraphicNotation != null) && !stratigraphicNotationStyle)
@@ -1395,8 +1416,24 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     const headerTop = headerBottom + rowHeight * headerGrid.rows.length
     titleRegionBottom = headerTop
     if (headerTop + (titleHeight ?? 5) + 1 > frameTop) throw new KJValidationError('Geology: declared title does not fit between the header and drawing frame')
-    const titleY = headerTop + (frameTop - headerTop - (titleHeight ?? 5)) / 2
-    g.text(3, pageWidth / 2, titleY, bounded(input.title ?? (locale === 'zh-CN' ? '钻孔柱状图' : 'BOREHOLE LOG'), 'title'), titleHeight ?? 5, true)
+    const titleValue = bounded(input.title ?? (locale === 'zh-CN' ? '钻孔柱状图' : 'BOREHOLE LOG'), 'title')
+    if (titleTextStyle) {
+      const placement = titleTextStyle.placement
+      const x = left + placement.offset[0], y = frameTop + placement.offset[1]
+      const textWidth = [...titleValue].reduce((sum, character) =>
+        sum + (/^[\x20-\x7e]$/u.test(character) ? placement.height * 0.64 : placement.height) * placement.textWidthFactor, 0)
+      const textLeft = placement.horizontalAlignment === 'left' ? x : placement.horizontalAlignment === 'center' ? x - textWidth / 2 : x - textWidth
+      const textBottom = placement.verticalAlignment === 'middle' ? y - placement.height / 2 : y
+      if (textLeft < left || textLeft + textWidth > right || textBottom < headerTop || textBottom + placement.height > frameTop)
+        throw new KJValidationError('Geology: declared main title does not fit its physical title band')
+      const horizontalAlignment = placement.horizontalAlignment === 'left' ? 0 : placement.horizontalAlignment === 'center' ? 1 : 2
+      const verticalAlignment = placement.verticalAlignment === 'baseline' ? 0 : 2
+      g.placedText(3, x, y, titleValue, placement.height, placement.textWidthFactor,
+        horizontalAlignment, verticalAlignment, titleTextStyle.rotationDegrees)
+    } else {
+      const titleY = headerTop + (frameTop - headerTop - (titleHeight ?? 5)) / 2
+      g.text(3, pageWidth / 2, titleY, titleValue, titleHeight ?? 5, true)
+    }
     if (formTopology) { formSeparator(headerBottom); formSeparator(headerTop) }
     else g.rect(0, left, headerBottom, right, headerTop)
     const headerVerticals: { x: number; bottom: number; top: number }[] = []
