@@ -334,12 +334,32 @@ test('duplicate identity, name collisions, wrong-table references and invalid en
   }
 })
 
-test('linetype patterns require finite alternating dash/gap pairs and bounded table groups', async () => {
+test('linetype patterns preserve native dash, gap and point segments within bounded table groups', async t => {
   const { sdk, document } = fixture(), source = document.serialize()
-  for (const pattern of [[1], [1, -1, 1], [0, -1], [-1, 1], [1, 1], [1, -1, -1, 1], [Infinity, -1], [1, NaN], [1e13, -1], Array.from({ length: 34 }, (_, i) => i % 2 ? -1 : 1)]) {
+  for (const pattern of [[0], [0, 0], [Infinity, -1], [1, NaN], [1e13, -1], Array.from({ length: 33 }, (_, i) => i % 3 ? -1 : 0)]) {
     const args = input(); args.resources.linetypes[0].pattern = pattern
     await assert.rejects(sdk.executeCommand('CREATEBATCH', args))
     assert.equal(document.serialize(), source)
+  }
+  for (const pattern of [[1], [1, -1, 1], [0, -1], [-1, 1], [1, 1], [1, -1, -1, 1]]) {
+    const current = fixture(), args = input(); args.resources.linetypes[0].pattern = pattern
+    await current.sdk.executeCommand('CREATEBATCH', args)
+    assert.deepEqual(current.document.getObject('type-center').payload.pattern, pattern)
+  }
+  const pointArgs = input(); pointArgs.resources.linetypes[0].pattern = [4, -1, 0, -1]
+  const pointFixture = fixture(); await pointFixture.sdk.executeCommand('CREATEBATCH', pointArgs)
+  const dxf = await pointFixture.sdk.writeDocument(pointFixture.document, { format: 'DXF', version: '2018' })
+  const reopened = await createKJDrawSDK().readDocument(dxf, { format: 'DXF' })
+  assert.deepEqual(reopened.getTable('linetypes').records.find(record => record.name === 'CENTER').payload.pattern, [4, -1, 0, -1])
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"pattern":[float(x) for x in d.linetypes.get("CENTER").pattern_tags.compile()] }))'],
+  dxf, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    const audit = JSON.parse(independent.stdout); assert.deepEqual([audit.errors, audit.fixes], [0, 0]); assert.ok(audit.pattern.includes(0))
   }
   for (const resources of [null, {}, { linetypes: [] }, { linetypes: [], layers: [], code: 'DELETE' }, { linetypes: Array.from({ length: 17 }, (_, i) => ({ id: `type-${i}`, name: `TYPE${i}`, pattern: [1, -1] })), layers: [] }]) {
     await assert.rejects(sdk.executeCommand('CREATEBATCH', { ...input(), resources }))
