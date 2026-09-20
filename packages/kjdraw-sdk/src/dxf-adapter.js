@@ -1034,7 +1034,8 @@ function entityPayload(record, blockIds, resources = {}) {
                 payload: {
                     vertices: polylineVertices(record),
                     closed: (number(record, 70, 0) & 1) === 1,
-                    elevation: number(record, 38, 0)
+                    elevation: number(record, 38, 0),
+                    constantWidth: number(record, 43, 0)
                 }
             };
         case 'POLYLINE':
@@ -2493,6 +2494,10 @@ function emitLegacyPolyline(output, entity, layerName, ownerHandle, space, conte
         p.elevation ?? 0
     ]);
     emit(output, 70, Number(p.dxfFlags ?? 0) & ~1 | (p.closed ? 1 : 0));
+    if (p.constantWidth) {
+        emit(output, 40, p.constantWidth);
+        emit(output, 41, p.constantWidth);
+    }
     emitEntityExtrusion(output, p);
     for (const vertex of p.vertices ?? []){
         const pointValue = vertexPoint(vertex);
@@ -3019,6 +3024,7 @@ function emitEntity(output, entity, layerName, ownerHandle, context, blockNames 
         emit(output, 90, entityVertices.length);
         emit(output, 70, p.closed ? 1 : 0);
         emit(output, 38, p.elevation ?? 0);
+        if (p.constantWidth) emit(output, 43, p.constantWidth);
         for (const vertex of entityVertices){
             const pointValue = vertexPoint(vertex);
             const details = Array.isArray(vertex) ? null : vertex;

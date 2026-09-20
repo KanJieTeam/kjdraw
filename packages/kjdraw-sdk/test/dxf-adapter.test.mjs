@@ -81,6 +81,26 @@ test('legacy POLYLINE/VERTEX sequences import as one canonical entity and round-
   assert.equal(reopened.listEntities()[0].payload.vertices.length, 2)
 })
 
+test('LWPOLYLINE constant width survives modern DXF and maps losslessly to legacy default widths', async () => {
+  const source = [
+    '0','SECTION','2','HEADER','9','$ACADVER','1','AC1032','0','ENDSEC',
+    '0','SECTION','2','ENTITIES','0','LWPOLYLINE','5','20','8','0','90','4','70','1','43','0.5',
+    '10','5','20','5','10','185','20','5','10','185','20','285','10','5','20','285',
+    '0','ENDSEC','0','EOF','',
+  ].join('\r\n')
+  const adapter = createDXFFileAdapter(), imported = await adapter.read(source)
+  const polyline = imported.listEntities({ type: 'LWPOLYLINE' })[0]
+  assert.equal(polyline.payload.constantWidth, 0.5)
+  const modern = await adapter.write(imported, { version: '2018' })
+  assert.match(modern, /\r\n43\r\n0\.5\r\n/u)
+  const modernReopen = await adapter.read(modern)
+  assert.equal(modernReopen.listEntities({ type: 'LWPOLYLINE' })[0].payload.constantWidth, 0.5)
+  const legacy = await adapter.write(imported, { version: 'R12' })
+  assert.match(legacy, /\r\n40\r\n0\.5\r\n41\r\n0\.5\r\n/u)
+  const legacyReopen = await adapter.read(legacy), legacyPolyline = legacyReopen.listEntities({ type: 'POLYLINE' })[0]
+  assert.ok(legacyPolyline.payload.vertices.every(vertex => vertex.startWidth === 0.5 && vertex.endWidth === 0.5))
+})
+
 test('DXF BLOCKS definitions and INSERT ownership survive write and reopen', async () => {
   const source = [
     '0','SECTION','2','HEADER','9','$ACADVER','1','AC1032','0','ENDSEC',

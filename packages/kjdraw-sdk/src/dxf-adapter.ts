@@ -790,7 +790,8 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
     case 'POINT': return { type: 'POINT', payload: { position: point(record) } }
     case 'CIRCLE': return { type: 'CIRCLE', payload: { center: point(record), radius: number(record, 40) } }
     case 'ARC': return { type: 'ARC', payload: { center: point(record), radius: number(record, 40), startAngle: number(record, 50) * Math.PI / 180, endAngle: number(record, 51) * Math.PI / 180 } }
-    case 'LWPOLYLINE': return { type: 'LWPOLYLINE', payload: { vertices: polylineVertices(record), closed: (number(record, 70, 0) & 1) === 1, elevation: number(record, 38, 0) } }
+    case 'LWPOLYLINE': return { type: 'LWPOLYLINE', payload: { vertices: polylineVertices(record), closed: (number(record, 70, 0) & 1) === 1,
+      elevation: number(record, 38, 0), constantWidth: number(record, 43, 0) } }
     case 'POLYLINE': return { type: 'POLYLINE', payload: { vertices: legacyPolylineVertices(record), closed: (number(record, 70, 0) & 1) === 1, elevation: number(record, 30, 0), dxfFlags: number(record, 70, 0) } }
     case 'ELLIPSE': return { type: 'ELLIPSE', payload: { center: point(record), majorAxis: point(record, 11, 21, 31), ratio: number(record, 40), startParameter: number(record, 41, 0), endParameter: number(record, 42, Math.PI * 2) } }
     case 'SPLINE': {
@@ -1530,6 +1531,7 @@ function emitLegacyPolyline(
   emitEntityHeader(output, 'POLYLINE', entity.handle, layerName, ownerHandle, space, version, p, context.linetypeNames)
   emitSubclass(output, version, 'AcDb2dPolyline')
   emitPoint(output, [0, 0, p.elevation ?? 0]); emit(output, 70, (Number(p.dxfFlags ?? 0) & ~1) | (p.closed ? 1 : 0))
+  if (p.constantWidth) { emit(output, 40, p.constantWidth); emit(output, 41, p.constantWidth) }
   emitEntityExtrusion(output, p)
   for (const vertex of p.vertices ?? []) {
     const pointValue = vertexPoint(vertex)
@@ -1841,6 +1843,7 @@ function emitEntity(
   else if (['LWPOLYLINE', 'POLYLINE'].includes(entity.type)) {
     emitSubclass(output, version, 'AcDbPolyline')
     emit(output, 90, entityVertices.length); emit(output, 70, p.closed ? 1 : 0); emit(output, 38, p.elevation ?? 0)
+    if (p.constantWidth) emit(output, 43, p.constantWidth)
     for (const vertex of entityVertices) { const pointValue = vertexPoint(vertex); const details = Array.isArray(vertex) ? null : vertex as DxfVertex; emit(output, 10, pointValue[0]); emit(output, 20, pointValue[1]); if (details?.bulge) emit(output, 42, details.bulge); if (details?.startWidth) emit(output, 40, details.startWidth); if (details?.endWidth) emit(output, 41, details.endWidth) }
   } else if (entity.type === 'MTEXT') {
     emitSubclass(output, version, 'AcDbMText'); emitPoint(output, p.position!); emit(output, 40, p.height); emit(output, 1, p.text); emit(output, 71, p.attachmentPoint ?? 1); if (p.width != null) emit(output, 41, p.width); if (p.styleId) emit(output, 7, resources.textStyleNames?.get(p.styleId) ?? 'STANDARD'); if (p.rotation) emit(output, 50, p.rotation * 180 / Math.PI)
