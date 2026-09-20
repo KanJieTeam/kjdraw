@@ -5,7 +5,8 @@ import { normalizeHatchSplineEdge } from './geometry/hatch-boundary.js';
 import { KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK } from './knowledge-packs/mechanical-flange-core.js';
 import { stableHash } from './utils.js';
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0';
-const MAX_AUXILIARY_LINES = 1024;
+const MAX_AUXILIARY_LINES = 2048;
+const MAX_AUXILIARY_WIPEOUTS = 128;
 const MAX_AUXILIARY_CURVES = 512;
 const MIN_AUXILIARY_ARC_RADIUS = 1e-9;
 const MAX_SYMBOL_DEFINITIONS = 256;
@@ -1634,7 +1635,7 @@ function validate(document, source) {
         };
     });
     if (input.auxiliaryWipeouts != null && !Array.isArray(input.auxiliaryWipeouts)) throw new KJValidationError('input.auxiliaryWipeouts must be an array');
-    if (input.auxiliaryWipeouts?.length && input.auxiliaryWipeouts.length > 64) throw new KJValidationError('input.auxiliaryWipeouts exceed their 64-wipeout budget');
+    if (input.auxiliaryWipeouts?.length && input.auxiliaryWipeouts.length > MAX_AUXILIARY_WIPEOUTS) throw new KJValidationError(`input.auxiliaryWipeouts exceed their ${MAX_AUXILIARY_WIPEOUTS}-wipeout budget`);
     const auxiliaryWipeouts = (input.auxiliaryWipeouts ?? []).map((value, index)=>{
         const label = `input.auxiliaryWipeouts[${index}]`, wipeout = plain(value, label);
         exact(wipeout, [
@@ -3638,6 +3639,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 pointDisplay: input.pointDisplay,
                 auxiliarySolidCount: input.auxiliarySolids.length,
                 auxiliaryWipeoutCount: input.auxiliaryWipeouts.length,
+                auxiliaryWipeoutBudget: MAX_AUXILIARY_WIPEOUTS,
                 auxiliaryCurveCount: input.auxiliaryCurves.length,
                 auxiliaryCurveBudget: MAX_AUXILIARY_CURVES,
                 auxiliaryArcRadiusMinimum: MIN_AUXILIARY_ARC_RADIUS,

@@ -731,6 +731,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             pointDisplay: KJFlangePointDisplay | null;
             auxiliarySolidCount: number;
             auxiliaryWipeoutCount: number;
+            auxiliaryWipeoutBudget: number;
             auxiliaryCurveCount: number;
             auxiliaryCurveBudget: number;
             auxiliaryArcRadiusMinimum: number;

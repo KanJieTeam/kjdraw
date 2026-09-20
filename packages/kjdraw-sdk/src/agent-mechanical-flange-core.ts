@@ -5,7 +5,8 @@ import { KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK } from './knowledge-packs/
 import { stableHash } from './utils.js'
 
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0' as const
-const MAX_AUXILIARY_LINES = 1024
+const MAX_AUXILIARY_LINES = 2048
+const MAX_AUXILIARY_WIPEOUTS = 128
 const MAX_AUXILIARY_CURVES = 512
 const MIN_AUXILIARY_ARC_RADIUS = 1e-9
 const MAX_SYMBOL_DEFINITIONS = 256
@@ -1093,7 +1094,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     return { vertices, role: solid.role as KJFlangeAuxiliaryLine['role'], ...(styleKey == null ? {} : { styleKey }) }
   })
   if (input.auxiliaryWipeouts != null && !Array.isArray(input.auxiliaryWipeouts)) throw new KJValidationError('input.auxiliaryWipeouts must be an array')
-  if ((input.auxiliaryWipeouts as unknown[] | undefined)?.length && (input.auxiliaryWipeouts as unknown[]).length > 64) throw new KJValidationError('input.auxiliaryWipeouts exceed their 64-wipeout budget')
+  if ((input.auxiliaryWipeouts as unknown[] | undefined)?.length && (input.auxiliaryWipeouts as unknown[]).length > MAX_AUXILIARY_WIPEOUTS) throw new KJValidationError(`input.auxiliaryWipeouts exceed their ${MAX_AUXILIARY_WIPEOUTS}-wipeout budget`)
   const auxiliaryWipeouts: KJFlangeAuxiliaryWipeout[] = ((input.auxiliaryWipeouts ?? []) as unknown[]).map((value, index) => {
     const label = `input.auxiliaryWipeouts[${index}]`, wipeout = plain(value, label); exact(wipeout, ['position', 'uVector', 'vVector', 'clipBoundary', 'boundaryType', 'role', 'styleKey'], label)
     if (!['geometry', 'center', 'hidden', 'notes', 'grid', 'frame'].includes(wipeout.role as string)) throw new KJValidationError(`${label}.role is invalid`)
@@ -1675,7 +1676,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       parameters: { endViewPresent: input.endViewPresent, ringCount: input.ringRadii.length, squareHolePitch: input.pitch, squareHoleRadius: input.radius, holePatternCount: input.holePatterns.length + (input.pitch == null ? 0 : 1), holeCount: input.holePatterns.reduce((sum, pattern) => sum + pattern.count, input.pitch == null ? 0 : 4), titleGrid: input.titleGrid != null, sideViewAxis: input.xRange != null, sideViewOrientation: input.orientation, sideViewAxisVisible: input.axisVisible,
         outlineSegmentCount: input.outlineSegments.length, cuttingPlaneMarkCount: input.cuttingPlaneMarks.length,
         symmetricProfileCount: input.symmetricProfiles.length, sideOutlineSegmentCount: input.sideOutlineSegments.length,
-        sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryLineBudget: MAX_AUXILIARY_LINES, auxiliaryPointCount: input.auxiliaryPoints.length, pointDisplay: input.pointDisplay, auxiliarySolidCount: input.auxiliarySolids.length, auxiliaryWipeoutCount: input.auxiliaryWipeouts.length, auxiliaryCurveCount: input.auxiliaryCurves.length, auxiliaryCurveBudget: MAX_AUXILIARY_CURVES, auxiliaryArcRadiusMinimum: MIN_AUXILIARY_ARC_RADIUS,
+        sectionHatchCount: input.sectionHatches.length, auxiliaryHatchCount: input.auxiliaryHatches.length, auxiliaryLineCount: input.auxiliaryLines.length, auxiliaryLineBudget: MAX_AUXILIARY_LINES, auxiliaryPointCount: input.auxiliaryPoints.length, pointDisplay: input.pointDisplay, auxiliarySolidCount: input.auxiliarySolids.length, auxiliaryWipeoutCount: input.auxiliaryWipeouts.length, auxiliaryWipeoutBudget: MAX_AUXILIARY_WIPEOUTS, auxiliaryCurveCount: input.auxiliaryCurves.length, auxiliaryCurveBudget: MAX_AUXILIARY_CURVES, auxiliaryArcRadiusMinimum: MIN_AUXILIARY_ARC_RADIUS,
         symbolDefinitionCount: input.symbolDefinitions.length, symbolDefinitionBudget: MAX_SYMBOL_DEFINITIONS, symbolMemberCount: input.symbolDefinitions.reduce((sum, definition) => sum + definition.members.length, 0), symbolMemberBudgetPerDefinition: MAX_SYMBOL_MEMBERS_PER_DEFINITION, symbolMemberBudgetTotal: MAX_SYMBOL_MEMBERS_TOTAL, symbolInstanceCount: input.symbolInstances.length, symbolInstanceBudget: MAX_SYMBOL_INSTANCES, symbolAttributeCount: input.symbolAttributeCount, featureControlFrameCount: input.featureControlFrames.length,
         entityStyleCount: input.customStyles.length, linetypePatternSegmentBudget: 32, textStyleCount: input.textStyles.length, dimensionStyleCount: input.dimensionStyles.length,
         noteCount: input.notes.length, dimensionCount: input.dimensions.length, ordinateDimensionCount: input.dimensions.filter(dimension => dimension.kind === 'ordinate').length, leaderCount: input.leaders.length },
