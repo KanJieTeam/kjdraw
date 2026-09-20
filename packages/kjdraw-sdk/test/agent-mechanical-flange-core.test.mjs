@@ -271,7 +271,7 @@ test('flange compiler rejects unsupported source injection and impossible geomet
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), auxiliaryLines: [{ start: [1, 1], end: [2, 2], role: 'unknown' }] }), /role is invalid/u)
 })
 
-test('source-relative cut faces compile solid, shorthand and multi-family native hatches', async () => {
+test('source-relative cut faces compile multi-loop LINE, ARC and SPLINE native hatches', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const face = { lineAngle: Math.PI / 4, lineSpacing: 3.175, edges: [
     { kind: 'line', start: { station: 200, offset: 10 }, end: { station: 220, offset: 10 } },
@@ -279,32 +279,56 @@ test('source-relative cut faces compile solid, shorthand and multi-family native
     { kind: 'line', start: { station: 220, offset: 0 }, end: { station: 200, offset: 0 } },
     { kind: 'line', start: { station: 200, offset: 0 }, end: { station: 200, offset: 10 } },
   ] }
-  const rectangle = (start, end) => [
-    { kind: 'line', start: { station: start, offset: 10 }, end: { station: end, offset: 10 } },
-    { kind: 'line', start: { station: end, offset: 10 }, end: { station: end, offset: 0 } },
-    { kind: 'line', start: { station: end, offset: 0 }, end: { station: start, offset: 0 } },
-    { kind: 'line', start: { station: start, offset: 0 }, end: { station: start, offset: 10 } },
+  const rectangle = (start, end, low = 0, high = 10) => [
+    { kind: 'line', start: { station: start, offset: high }, end: { station: end, offset: high } },
+    { kind: 'line', start: { station: end, offset: high }, end: { station: end, offset: low } },
+    { kind: 'line', start: { station: end, offset: low }, end: { station: start, offset: low } },
+    { kind: 'line', start: { station: start, offset: low }, end: { station: start, offset: high } },
   ]
+  const absoluteRectangle = (left, right, bottom, top) => [
+    { kind: 'line', start: [left, top], end: [right, top] }, { kind: 'line', start: [right, top], end: [right, bottom] },
+    { kind: 'line', start: [right, bottom], end: [left, bottom] }, { kind: 'line', start: [left, bottom], end: [left, top] },
+  ]
+  const knots = [0, 0, 0, .25, .25, .5, .5, .75, .75, 1, 1, 1]
+  const weights = [1, Math.SQRT1_2, 1, Math.SQRT1_2, 1, Math.SQRT1_2, 1, Math.SQRT1_2, 1]
+  const sectionSpline = { kind: 'spline', degree: 2, knots, weights, controlPoints: [
+    { station: 278, offset: 5 }, { station: 278, offset: 7 }, { station: 276, offset: 7 }, { station: 274, offset: 7 },
+    { station: 274, offset: 5 }, { station: 274, offset: 3 }, { station: 276, offset: 3 }, { station: 278, offset: 3 }, { station: 278, offset: 5 },
+  ] }
+  const auxiliarySpline = { kind: 'spline', degree: 2, knots, weights, controlPoints: [
+    [62, 75], [62, 77], [60, 77], [58, 77], [58, 75], [58, 73], [60, 73], [62, 73], [62, 75],
+  ] }
   const solidFace = { solid: true, edges: rectangle(230, 240) }
   const doubleFace = { patternName: 'ANSI32', patternLines: [
     { angle: Math.PI / 4, base: [0, 0], offset: [-6.73519431372059, 6.73519431372059] },
     { angle: Math.PI / 4, base: [4.49012954248039, 0], offset: [-6.73519431372059, 6.73519431372059] },
   ], edges: rectangle(250, 270) }
-  const absoluteFace = { solid: true, edges: [
-    { kind: 'line', start: [20, 80], end: [30, 80] }, { kind: 'line', start: [30, 80], end: [30, 70] },
-    { kind: 'line', start: [30, 70], end: [20, 70] }, { kind: 'line', start: [20, 70], end: [20, 80] },
+  const multiLoopFace = { solid: true, boundaryLoops: [
+    { external: true, flags: 1, edges: rectangle(272, 280) },
+    { external: false, flags: 0, edges: [sectionSpline] },
   ] }
-  const source = { ...input(document.revision), auxiliaryHatches: [absoluteFace], sideViewAxis: { ...input(document.revision).sideViewAxis, sectionHatches: [face, solidFace, doubleFace] } }
+  const absoluteFace = { solid: true, edges: absoluteRectangle(20, 30, 70, 80) }
+  const auxiliaryMultiLoop = { solid: true, boundaryLoops: [
+    { external: true, flags: 1, edges: absoluteRectangle(55, 65, 70, 80) },
+    { external: false, flags: 0, edges: [auxiliarySpline] },
+  ] }
+  const source = { ...input(document.revision), auxiliaryHatches: [absoluteFace, auxiliaryMultiLoop],
+    sideViewAxis: { ...input(document.revision).sideViewAxis, sectionHatches: [face, solidFace, doubleFace, multiLoopFace] } }
   const proposal = buildAgentMechanicalFlangeCore(document, source), hatches = proposal.commandArgs.entities.filter(entity => entity.type === 'HATCH')
-  assert.equal(proposal.evidence.parameters.sectionHatchCount, 3)
-  assert.equal(proposal.evidence.parameters.auxiliaryHatchCount, 1)
-  assert.equal(proposal.evidence.entityCount, 57)
+  assert.equal(proposal.evidence.parameters.sectionHatchCount, 4)
+  assert.equal(proposal.evidence.parameters.auxiliaryHatchCount, 2)
+  assert.equal(proposal.evidence.entityCount, 59)
   assert.deepEqual(hatches[0].payload.boundaryLoops[0].edges[0], { type: 'LINE', start: [200, 160, 0], end: [220, 160, 0] })
   assert.deepEqual(hatches[0].payload.boundaryLoops[0].edges[1].center, [220, 155, 0])
   assert.ok(Math.abs(hatches[0].payload.patternLines[0].offset[0] + 3.175 / Math.sqrt(2)) < 1e-12)
   assert.deepEqual([hatches[1].payload.patternName, hatches[1].payload.solid, hatches[1].payload.patternLines], ['SOLID', true, []])
   assert.deepEqual([hatches[2].payload.patternName, hatches[2].payload.solid, hatches[2].payload.patternLines.length], ['ANSI32', false, 2])
-  assert.deepEqual(hatches[3].payload.boundaryLoops[0].edges[0], { type: 'LINE', start: [20, 80, 0], end: [30, 80, 0] })
+  assert.deepEqual(hatches[3].payload.boundaryLoops.map(loop => [loop.external, loop.flags, loop.edges.length]), [[true, 1, 4], [false, 0, 1]])
+  assert.equal(hatches[3].payload.boundaryLoops[1].edges[0].type, 'SPLINE')
+  assert.deepEqual(hatches[3].payload.boundaryLoops[1].edges[0].controlPoints[0], [278, 155, 0])
+  assert.deepEqual(hatches[4].payload.boundaryLoops[0].edges[0], { type: 'LINE', start: [20, 80, 0], end: [30, 80, 0] })
+  assert.equal(hatches[5].payload.boundaryLoops[1].edges[0].type, 'SPLINE')
+  assert.deepEqual(hatches[5].payload.boundaryLoops[1].edges[0].controlPoints[0], [62, 75, 0])
   assert.equal(JSON.stringify(hatches).includes('rawTags'), false)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
   const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
@@ -312,21 +336,31 @@ test('source-relative cut faces compile solid, shorthand and multi-family native
   const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
   const facts = drawing => drawing.listEntities({ type: 'HATCH' }).map(entity => ({
     patternName: entity.payload.patternName, solid: entity.payload.solid, patternLines: entity.payload.patternLines ?? [],
-    edgeCount: entity.payload.boundaryLoops[0].edges.length,
+    loops: entity.payload.boundaryLoops.map(loop => loop.edges.map(edge => edge.type)),
   }))
   assert.deepEqual(facts(kjd), facts(document))
-  assert.deepEqual(facts(dxf).map(item => [item.patternName, item.solid, item.patternLines.length, item.edgeCount]), [
-    ['ANSI31', false, 1, 4], ['SOLID', true, 0, 4], ['ANSI32', false, 2, 4], ['SOLID', true, 0, 4],
+  assert.deepEqual(facts(dxf).map(item => [item.patternName, item.solid, item.patternLines.length, item.loops]), [
+    ['ANSI31', false, 1, [['LINE', 'ARC', 'LINE', 'LINE']]], ['SOLID', true, 0, [['LINE', 'LINE', 'LINE', 'LINE']]],
+    ['ANSI32', false, 2, [['LINE', 'LINE', 'LINE', 'LINE']]], ['SOLID', true, 0, [['LINE', 'LINE', 'LINE', 'LINE'], ['SPLINE']]],
+    ['SOLID', true, 0, [['LINE', 'LINE', 'LINE', 'LINE']]], ['SOLID', true, 0, [['LINE', 'LINE', 'LINE', 'LINE'], ['SPLINE']]],
   ])
   const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
-    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); h=list(d.modelspace().query("HATCH")); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"hatches":len(h),"names":[x.dxf.pattern_name for x in h],"solid":[x.dxf.solid_fill for x in h],"lines":[len(x.pattern.lines) if x.pattern else 0 for x in h],"edges":[len(x.paths[0].edges) for x in h]}))'],
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); h=list(d.modelspace().query("HATCH")); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"hatches":len(h),"paths":[len(x.paths) for x in h],"splines":[sum(1 for p in x.paths for e in getattr(p,"edges",[]) if e.__class__.__name__=="SplineEdge") for x in h]}))'],
   dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
     PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
-  assert.equal(independent.status, 0, independent.stderr)
-  assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, hatches: 4,
-    names: ['ANSI31', 'SOLID', 'ANSI32', 'SOLID'], solid: [0, 1, 0, 1], lines: [1, 0, 2, 0], edges: [4, 4, 4, 4] })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, hatches: 6, paths: [1, 1, 1, 2, 1, 2], splines: [0, 0, 0, 1, 0, 1] })
+  }
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
     sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...face, rawTags: [] }] } }), /unsupported field/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
+    sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...face, boundaryLoops: multiLoopFace.boundaryLoops }] } }), /exactly one/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
+    sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...multiLoopFace, boundaryLoops: [{ ...multiLoopFace.boundaryLoops[0], flags: 1.5 }] }] } }), /flags must be an integer/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
     sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...solidFace, lineAngle: 0 }] } }), /solid fills must not define/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
@@ -337,6 +371,8 @@ test('source-relative cut faces compile solid, shorthand and multi-family native
     auxiliaryHatches: Array.from({ length: 65 }, () => absoluteFace) }), /exceed their budget/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
     auxiliaryHatches: [{ ...absoluteFace, edges: [{ kind: 'line', start: [20, 80], end: [20, 80] }, ...absoluteFace.edges.slice(1)] }] }), /zero length/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
+    auxiliaryHatches: [{ ...auxiliaryMultiLoop, boundaryLoops: [{ external: true, flags: 1, edges: [{ ...auxiliarySpline, knots: [0, 0] }] }] }] }), /knot vector is invalid/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...source, expectedRevision: document.revision,
     sideViewAxis: { ...source.sideViewAxis, sectionHatches: [{ ...face, edges: [{ ...face.edges[0], start: { station: 185, offset: 10 } }, ...face.edges.slice(1)] }] } }), /must be finite/u)
 })
@@ -450,6 +486,34 @@ test('caller-supplied annotation style resources stay generic and bind each nati
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), dimensions: [{ ...input(document.revision).dimensions[0], styleKey: 'missing' }] }), /must reference input.styleResources/u)
 })
 
+test('bounded public style catalogs accept referenced 17+ records and reject record 65', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
+  const textStyles = Array.from({ length: 17 }, (_, index) => ({ key: `text-${index}`, name: `PUBLIC-TEXT-${index}` }))
+  const dimensionStyles = Array.from({ length: 19 }, (_, index) => ({ key: `dimension-${index}`, name: `PUBLIC-DIMENSION-${index}`, textHeight: 2.5 + index / 100 }))
+  const custom = Array.from({ length: 18 }, (_, index) => ({ key: `visual-${index}`, layerName: `PUBLIC-VISUAL-${index}`, color: index % 7 + 1 }))
+  const notes = textStyles.map((style, index) => ({ kind: 'single-line', text: `NOTE ${index}`, position: [20 + index * 5, 55], height: 2.5, styleKey: style.key }))
+  const dimensions = dimensionStyles.map((style, index) => ({ kind: 'rotated', definitionPoints: [[20 + index * 4, 85], [20 + index * 4, 95], [35 + index * 4, 95]],
+    textPosition: [27.5 + index * 4, 85], rotation: 0, styleKey: style.key }))
+  const auxiliaryLines = custom.map((style, index) => ({ start: [20, 65 + index], end: [35, 65 + index], role: 'geometry', styleKey: style.key }))
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...source, styleResources: { textStyles, dimensionStyles }, styleProfile: { custom },
+    sheet: { ...source.sheet, notes }, dimensions, auxiliaryLines })
+  assert.equal(proposal.commandArgs.resources.textStyles.length, 17)
+  assert.equal(proposal.commandArgs.resources.dimensionStyles.length, 19)
+  assert.equal(proposal.evidence.parameters.entityStyleCount, 18)
+  assert.equal(new Set(proposal.commandArgs.entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.styleId)).size, 17)
+  assert.equal(new Set(proposal.commandArgs.entities.filter(entity => entity.type === 'DIMENSION').map(entity => entity.payload.styleId)).size, 19)
+  assert.equal(new Set(proposal.commandArgs.entities.filter(entity => entity.type === 'LINE' && entity.payload.start?.[0] === 20 && entity.payload.end?.[0] === 35).map(entity => entity.payload.layerId)).size, 18)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const reopened = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  assert.equal(reopened.getTable('textStyles').records.filter(record => record.name.startsWith('PUBLIC-TEXT-')).length, 17)
+  assert.equal(reopened.getTable('dimensionStyles').records.filter(record => record.name.startsWith('PUBLIC-DIMENSION-')).length, 19)
+  const sixtyFiveText = Array.from({ length: 65 }, (_, index) => ({ key: `text-over-${index}`, name: `PUBLIC-TEXT-OVER-${index}` }))
+  const sixtyFiveDimensions = Array.from({ length: 65 }, (_, index) => ({ key: `dimension-over-${index}`, name: `PUBLIC-DIMENSION-OVER-${index}` }))
+  const sixtyFiveCustom = Array.from({ length: 65 }, (_, index) => ({ key: `visual-over-${index}`, layerName: `PUBLIC-VISUAL-OVER-${index}` }))
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), styleResources: { textStyles: sixtyFiveText, dimensionStyles: [] } }), /at most 64 records/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), styleResources: { textStyles: [], dimensionStyles: sixtyFiveDimensions } }), /at most 64 records/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), styleProfile: { custom: sixtyFiveCustom } }), /at most 64 items/u)
+})
 test('conflicting built-in text style names receive deterministic non-destructive aliases', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
   const styledNotes = source.sheet.notes.map(note => ({ ...note, styleKey: 'source-standard' }))
