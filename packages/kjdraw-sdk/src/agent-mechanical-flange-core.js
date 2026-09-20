@@ -40,6 +40,7 @@ function validate(document, source) {
         'expectedRevision',
         'units',
         'drawingId',
+        'entityDrawOrder',
         'endView',
         'sideViewAxis',
         'dimensions',
@@ -53,6 +54,13 @@ function validate(document, source) {
         'sheet'
     ], 'input');
     if (input.version !== KJDRAW_MECHANICAL_FLANGE_CORE_VERSION) throw new KJValidationError(`input.version must be ${KJDRAW_MECHANICAL_FLANGE_CORE_VERSION}`);
+    if (input.entityDrawOrder != null && (!Array.isArray(input.entityDrawOrder) || input.entityDrawOrder.length > 10_000)) throw new KJValidationError('input.entityDrawOrder must be an array within its item budget');
+    const entityDrawOrder = input.entityDrawOrder == null ? null : input.entityDrawOrder.map((value, index)=>{
+        const order = finite(value, 'input.entityDrawOrder[' + index + ']', 0, 9_999);
+        if (!Number.isSafeInteger(order)) throw new KJValidationError('input.entityDrawOrder[' + index + '] must be an integer');
+        return order;
+    });
+    if (entityDrawOrder != null && new Set(entityDrawOrder).size !== entityDrawOrder.length) throw new KJValidationError('input.entityDrawOrder must contain unique indexes');
     if (input.units !== 'millimeter' || document.snapshot().header?.units !== 'millimeter') throw new KJValidationError('Flange compiler requires millimeter units');
     const expectedRevision = finite(input.expectedRevision, 'input.expectedRevision', 0, Number.MAX_SAFE_INTEGER);
     if (!Number.isInteger(expectedRevision) || expectedRevision !== document.revision) throw new KJValidationError('input.expectedRevision must match the document revision');
@@ -1626,6 +1634,7 @@ function validate(document, source) {
     return {
         expectedRevision,
         drawingId: input.drawingId.trim(),
+        entityDrawOrder,
         center,
         ringRadii,
         ringStyleKeys,
@@ -2603,9 +2612,32 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             layerId: style.layerId
         }, style.name);
     }
+    if (input.entityDrawOrder != null && (input.entityDrawOrder.length !== entities.length || input.entityDrawOrder.some((index)=>index >= entities.length))) throw new KJValidationError('input.entityDrawOrder must be a complete entity permutation');
+    const orderedEntities = (input.entityDrawOrder == null ? entities : input.entityDrawOrder.map((index)=>entities[index])).map((entity, index)=>{
+        const id = prefix + '-' + String(index + 1).padStart(4, '0');
+        return {
+            ...entity,
+            options: {
+                ...entity.options,
+                id
+            },
+            ...entity.attributeSequence ? {
+                attributeSequence: {
+                    attributes: entity.attributeSequence.attributes.map((attribute, attributeIndex)=>({
+                            ...attribute,
+                            id: id + '-attribute-' + String(attributeIndex + 1).padStart(2, '0')
+                        })),
+                    sequenceEnd: {
+                        ...entity.attributeSequence.sequenceEnd,
+                        id: id + '-sequence-end'
+                    }
+                }
+            } : {}
+        };
+    });
     return {
         commandArgs: {
-            entities,
+            entities: orderedEntities,
             resources: {
                 linetypes,
                 layers,
@@ -2624,7 +2656,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             knowledgePackId: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.id,
             knowledgePackVersion: KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version,
             expectedRevision: input.expectedRevision,
-            entityCount: entities.length,
+            entityCount: orderedEntities.length,
             parameters: {
                 ringCount: input.ringRadii.length,
                 squareHolePitch: input.pitch,

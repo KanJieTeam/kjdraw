@@ -66,6 +66,28 @@ test('flange knowledge pack and compiler are source-neutral and deterministic', 
   assert.equal(a.commandArgs.entities.find(e => e.type === 'MTEXT').payload.attachmentPoint, 8)
 })
 
+test('complete entity draw order preserves overlap stacking through KJD and DXF', async () => {
+  const sdk = createKJDrawSDK(), baselineDocument = sdk.createDocument({ units: 'millimeter' })
+  const baseline = buildAgentMechanicalFlangeCore(baselineDocument, input(baselineDocument.revision))
+  const order = [...baseline.commandArgs.entities.keys()].reverse()
+  const document = sdk.createDocument({ units: 'millimeter' })
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), entityDrawOrder: order })
+  const fingerprints = entities => entities.map(entity => JSON.stringify([entity.type, entity.payload]))
+  assert.deepEqual(fingerprints(proposal.commandArgs.entities), fingerprints(baseline.commandArgs.entities).reverse())
+  assert.deepEqual(proposal.commandArgs.entities.map(entity => entity.options.id), baseline.commandArgs.entities.map(entity => entity.options.id))
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  assert.deepEqual(document.listEntities().map(entity => entity.id), proposal.commandArgs.entities.map(entity => entity.options.id))
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  const dxf = await sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' })
+  assert.deepEqual(kjd.listEntities().map(entity => entity.id), proposal.commandArgs.entities.map(entity => entity.options.id))
+  assert.deepEqual(dxf.listEntities().filter(entity => entity.ownerId === dxf.snapshot().spaces.modelSpaceId).map(entity => entity.type), proposal.commandArgs.entities.map(entity => entity.type))
+  assert.throws(() => buildAgentMechanicalFlangeCore(baselineDocument, { ...input(0), entityDrawOrder: [0] }), /complete entity permutation/u)
+  const duplicate = [...order]; duplicate[0] = duplicate[1]
+  assert.throws(() => buildAgentMechanicalFlangeCore(baselineDocument, { ...input(0), entityDrawOrder: duplicate }), /unique indexes/u)
+  const outOfRange = [...order]; outOfRange[0] = order.length
+  assert.throws(() => buildAgentMechanicalFlangeCore(baselineDocument, { ...input(0), entityDrawOrder: outOfRange }), /complete entity permutation/u)
+})
+
 test('sheet-note attachment points are bounded to multiline MTEXT', () => {
   const document = createKJDrawSDK().createDocument({ units: 'millimeter' })
   const base = input(document.revision)
