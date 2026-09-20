@@ -1749,7 +1749,7 @@ const geologyPlanBoreholeSchema = objectWithOptional({
     'depth',
     'kind'
 ]);
-const geologyPlanSectionLineSchema = object({
+const geologyPlanSectionLineSchema = objectWithOptional({
     id: {
         ...text,
         maxLength: 40
@@ -1766,8 +1766,19 @@ const geologyPlanSectionLineSchema = object({
     label: {
         ...text,
         maxLength: 48
+    },
+    endpointLabels: {
+        type: 'array',
+        minItems: 2,
+        maxItems: 2,
+        items: {
+            ...text,
+            maxLength: 24
+        }
     }
-});
+}, [
+    'endpointLabels'
+]);
 const geologyPlanSchema = objectWithOptional({
     version: {
         type: 'string',

@@ -13,6 +13,7 @@ export interface KJGeologyPlanSectionLine {
     id: string;
     holeIds: string[];
     label: string;
+    endpointLabels?: [string, string];
 }
 export interface KJGeologyPlanCoordinateGrid {
     origin: Point2;
@@ -155,6 +156,7 @@ export declare function buildAgentGeologyPlan(document: GeologyPlanDocument, sou
             id: string;
             label: string;
             holeIds: string[];
+            endpointLabels: string[];
         }[];
         gridLineCount: number;
         coordinateBounds: {

@@ -19,6 +19,7 @@ export interface KJGeologyPlanSectionLine {
   id: string
   holeIds: string[]
   label: string
+  endpointLabels?: [string, string]
 }
 
 export interface KJGeologyPlanCoordinateGrid {
@@ -52,7 +53,7 @@ type EntitySpec = { type: string; payload: Record<string, unknown>; options: { i
 
 const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'scale', 'boundary', 'boreholes', 'sectionLines', 'coordinateGrid', 'northAngleDegrees']
 const BOREHOLE_KEYS = ['id', 'position', 'collarElevation', 'depth', 'kind']
-const SECTION_KEYS = ['id', 'holeIds', 'label']
+const SECTION_KEYS = ['id', 'holeIds', 'label', 'endpointLabels']
 const GRID_KEYS = ['origin', 'spacing']
 const SCALES = new Set<ScaleDenominator>([50, 100, 200, 500, 1000, 2000])
 const KINDS = new Set(['borehole', 'test-pit', 'in-situ-test'])
@@ -186,7 +187,16 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
     const holeIds = value.holeIds.map((holeId, holeIndex) => text(holeId, `input.sectionLines[${index}].holeIds[${holeIndex}]`, 40))
     if (new Set(holeIds).size !== holeIds.length) throw new KJValidationError(`input.sectionLines[${index}].holeIds must not repeat a point`)
     for (const holeId of holeIds) if (!holesById.has(holeId)) throw new KJValidationError(`input.sectionLines[${index}] references unknown borehole ${holeId}`)
-    return { id, holeIds, label: text(value.label, `input.sectionLines[${index}].label`, 48) }
+    let endpointLabels: [string, string] | undefined
+    if (value.endpointLabels !== undefined) {
+      if (!Array.isArray(value.endpointLabels) || value.endpointLabels.length !== 2)
+        throw new KJValidationError(`input.sectionLines[${index}].endpointLabels must contain exactly 2 labels`)
+      endpointLabels = [
+        text(value.endpointLabels[0], `input.sectionLines[${index}].endpointLabels[0]`, 24),
+        text(value.endpointLabels[1], `input.sectionLines[${index}].endpointLabels[1]`, 24),
+      ]
+    }
+    return { id, holeIds, label: text(value.label, `input.sectionLines[${index}].label`, 48), endpointLabels }
   })
   const grid = plain(input.coordinateGrid, 'input.coordinateGrid'); exactKeys(grid, GRID_KEYS, 'input.coordinateGrid')
   const coordinateGrid = { origin: point(grid.origin, 'input.coordinateGrid.origin'), spacing: finite(grid.spacing, 'input.coordinateGrid.spacing', 0.1, 1_000_000) }
@@ -248,8 +258,9 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
     add('LWPOLYLINE', 'SECTIONS', { vertices: positions.map(p3), closed: false, semanticRole: 'section-line', sourceId: section.id, referencedHoleIds: section.holeIds })
     const start = positions[0]!, end = positions.at(-1)!
     const angle = Math.atan2(end[1] - start[1], end[0] - start[0]) * 180 / Math.PI
-    addText([start[0], start[1] + textHeight * 1.35], section.label, textHeight, 'SECTIONS', angle, { semanticRole: 'section-reference', sourceId: section.id })
-    addText([end[0], end[1] + textHeight * 1.35], section.label, textHeight, 'SECTIONS', angle, { semanticRole: 'section-reference', sourceId: section.id })
+    const [startLabel, endLabel] = section.endpointLabels ?? [section.label, section.label]
+    addText([start[0], start[1] + textHeight * 1.35], startLabel, textHeight, 'SECTIONS', angle, { semanticRole: 'section-reference', sourceId: section.id, endpoint: 'start' })
+    addText([end[0], end[1] + textHeight * 1.35], endLabel, textHeight, 'SECTIONS', angle, { semanticRole: 'section-reference', sourceId: section.id, endpoint: 'end' })
   }
   const arrowLength = 12 * input.scale / 1000, angle = (90 + input.northAngleDegrees) * Math.PI / 180
   const arrowBase: Point2 = [maximum[0] - margin * 1.4, maximum[1] - margin * 1.4]
@@ -280,7 +291,7 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
       viewport: { center, width: groundWidth, height: groundHeight } },
     evidence: { drawingId: input.drawingId, skillId: 'geology-plan', skillVersion: KJDRAW_GEOLOGY_PLAN_VERSION, expectedRevision: input.expectedRevision, units: 'meter' as const,
       modelEntityCount: entities.length, entityCount: entities.length + 1, boreholeCount: input.boreholes.length, sectionLineCount: input.sectionLines.length,
-      sectionReferences: input.sectionLines.map(value => ({ id: value.id, label: value.label, holeIds: [...value.holeIds] })), gridLineCount: gridXs.length + gridYs.length,
+      sectionReferences: input.sectionLines.map(value => ({ id: value.id, label: value.label, holeIds: [...value.holeIds], endpointLabels: value.endpointLabels ? [...value.endpointLabels] : [value.label, value.label] })), gridLineCount: gridXs.length + gridYs.length,
       coordinateBounds: { minimum, maximum }, scaleDenominator: input.scale, northAngleDegrees: input.northAngleDegrees,
       limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred'] },
   }

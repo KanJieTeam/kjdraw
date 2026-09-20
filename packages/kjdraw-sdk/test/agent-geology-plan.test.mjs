@@ -24,8 +24,8 @@ function intent(patch = {}) {
       { id: 'ZK03', position: [385115, 3452070], collarElevation: 419.96, depth: 32 },
     ],
     sectionLines: [
-      { id: 'section-1', holeIds: ['ZK01', 'ZK02', 'ZK03'], label: "1—1′" },
-      { id: 'section-2', holeIds: ['ZK01', 'ZK03'], label: "2—2′" },
+      { id: 'section-1', holeIds: ['ZK01', 'ZK02', 'ZK03'], label: "1—1′", endpointLabels: ['1', "1′"] },
+      { id: 'section-2', holeIds: ['ZK01', 'ZK03'], label: "2—2′", endpointLabels: ['2', "2′"] },
     ],
     coordinateGrid: { origin: [385000, 3452000], spacing: 20 },
     northAngleDegrees: -6,
@@ -51,13 +51,16 @@ test('geology plan compiles true coordinates, investigation points and explicit 
   assert.equal(entities.filter(entity => entity.payload.semanticRole === 'investigation-point').length, 3)
   assert.equal(entities.filter(entity => entity.payload.semanticRole === 'section-line').length, 2)
   assert.equal(entities.filter(entity => entity.payload.semanticRole === 'section-reference').length, 4)
+  const sectionReferences = entities.filter(entity => entity.payload.sourceId === 'section-1' && entity.payload.semanticRole === 'section-reference')
+  assert.deepEqual(sectionReferences.map(entity => [entity.payload.endpoint, entity.payload.text]), [['start', '1'], ['end', "1′"]])
+  assert.equal(entities.some(entity => entity.payload.semanticRole === 'section-reference' && entity.payload.text === "1—1′"), false)
   assert.equal(entities.filter(entity => entity.payload.semanticRole === 'north-arrow').length, 1)
   assert.equal(entities.filter(entity => entity.payload.semanticRole === 'coordinate-grid-easting').length, 8)
   assert.equal(entities.filter(entity => entity.payload.semanticRole === 'coordinate-grid-northing').length, 5)
   const firstSection = entities.find(entity => entity.payload.sourceId === 'section-1' && entity.payload.semanticRole === 'section-line')
   assert.deepEqual(firstSection.payload.vertices, [[385020, 3452020, 0], [385070, 3452035, 0], [385115, 3452070, 0]])
   const labels = entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
-  for (const expected of ['ZK01', 'H=421.35  D=30', "1—1′", 'E 385000', 'N 3452000', '比例 1:500', '北']) assert.ok(labels.some(value => String(value).includes(expected)), expected)
+  for (const expected of ['ZK01', 'H=421.35  D=30', 'E 385000', 'N 3452000', '比例 1:500', '北']) assert.ok(labels.some(value => String(value).includes(expected)), expected)
   assert.equal(new Set(entities.map(entity => entity.options.id)).size, entities.length)
 })
 
@@ -112,6 +115,7 @@ test('geology plan fails closed on stale revisions, unsafe coordinates and broke
   rejects({ boreholes: [intent().boreholes[0], { ...intent().boreholes[1], id: 'ZK01' }] }, /duplicate id/)
   rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'missing'], label: 'X—X′' }] }, /unknown borehole/)
   rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK01'], label: 'X—X′' }] }, /must not repeat/)
+  rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK02'], label: 'X—X′', endpointLabels: ['X'] }] }, /exactly 2 labels/)
   rejects({ coordinateGrid: { origin: [385000, 3452000], spacing: 1 } }, /more than 80 grid lines/)
   rejects({ boundary: [[385000, 3452000], [385300, 3452000], [385300, 3452200], [385000, 3452200]] }, /does not fit ISO A3/)
   assert.throws(() => buildAgentGeologyPlan(KJDocument.create({ units: 'millimeter' }), intent()), /meter units/)

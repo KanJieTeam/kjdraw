@@ -23,8 +23,8 @@ function intent(patch = {}) {
       { id: 'ZK03', position: [385115, 3452070], collarElevation: 419.96, depth: 32 },
     ],
     sectionLines: [
-      { id: 'section-1', holeIds: ['ZK01', 'ZK02', 'ZK03'], label: "1—1′" },
-      { id: 'section-2', holeIds: ['ZK01', 'ZK03'], label: "2—2′" },
+      { id: 'section-1', holeIds: ['ZK01', 'ZK02', 'ZK03'], label: "1—1′", endpointLabels: ['1', "1′"] },
+      { id: 'section-2', holeIds: ['ZK01', 'ZK03'], label: "2—2′", endpointLabels: ['2', "2′"] },
     ],
     coordinateGrid: { origin: [385000, 3452000], spacing: 20 }, northAngleDegrees: -6,
     ...patch,
@@ -39,6 +39,9 @@ test('geology plan tool is metre-only proposal schema and host approval is one u
   assert.deepEqual(definition.inputSchema.properties.scale.enum, [50, 100, 200, 500, 1000, 2000])
   assert.equal(definition.inputSchema.properties.boreholes.maxItems, 128)
   assert.equal(definition.inputSchema.properties.sectionLines.items.properties.holeIds.minItems, 2)
+  assert.deepEqual(definition.inputSchema.properties.sectionLines.items.required, ['id', 'holeIds', 'label'])
+  assert.equal(definition.inputSchema.properties.sectionLines.items.properties.endpointLabels.minItems, 2)
+  assert.equal(definition.inputSchema.properties.sectionLines.items.properties.endpointLabels.maxItems, 2)
   const millimeterSdk = createKJDrawSDK(), millimeterDocument = millimeterSdk.createDocument({ units: 'millimeter' })
   assert.equal(new KJAgentToolSession(millimeterSdk, millimeterDocument).definitions.some(tool => tool.name === 'cad_propose_geology_plan'), false)
 

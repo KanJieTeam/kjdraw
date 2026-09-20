@@ -27,7 +27,8 @@ const BOREHOLE_KEYS = [
 const SECTION_KEYS = [
     'id',
     'holeIds',
-    'label'
+    'label',
+    'endpointLabels'
 ];
 const GRID_KEYS = [
     'origin',
@@ -172,10 +173,19 @@ function validateInput(document, source) {
         const holeIds = value.holeIds.map((holeId, holeIndex)=>text(holeId, `input.sectionLines[${index}].holeIds[${holeIndex}]`, 40));
         if (new Set(holeIds).size !== holeIds.length) throw new KJValidationError(`input.sectionLines[${index}].holeIds must not repeat a point`);
         for (const holeId of holeIds)if (!holesById.has(holeId)) throw new KJValidationError(`input.sectionLines[${index}] references unknown borehole ${holeId}`);
+        let endpointLabels;
+        if (value.endpointLabels !== undefined) {
+            if (!Array.isArray(value.endpointLabels) || value.endpointLabels.length !== 2) throw new KJValidationError(`input.sectionLines[${index}].endpointLabels must contain exactly 2 labels`);
+            endpointLabels = [
+                text(value.endpointLabels[0], `input.sectionLines[${index}].endpointLabels[0]`, 24),
+                text(value.endpointLabels[1], `input.sectionLines[${index}].endpointLabels[1]`, 24)
+            ];
+        }
         return {
             id,
             holeIds,
-            label: text(value.label, `input.sectionLines[${index}].label`, 48)
+            label: text(value.label, `input.sectionLines[${index}].label`, 48),
+            endpointLabels
         };
     });
     const grid = plain(input.coordinateGrid, 'input.coordinateGrid');
@@ -399,19 +409,25 @@ export function buildAgentGeologyPlan(document, source) {
         });
         const start = positions[0], end = positions.at(-1);
         const angle = Math.atan2(end[1] - start[1], end[0] - start[0]) * 180 / Math.PI;
+        const [startLabel, endLabel] = section.endpointLabels ?? [
+            section.label,
+            section.label
+        ];
         addText([
             start[0],
             start[1] + textHeight * 1.35
-        ], section.label, textHeight, 'SECTIONS', angle, {
+        ], startLabel, textHeight, 'SECTIONS', angle, {
             semanticRole: 'section-reference',
-            sourceId: section.id
+            sourceId: section.id,
+            endpoint: 'start'
         });
         addText([
             end[0],
             end[1] + textHeight * 1.35
-        ], section.label, textHeight, 'SECTIONS', angle, {
+        ], endLabel, textHeight, 'SECTIONS', angle, {
             semanticRole: 'section-reference',
-            sourceId: section.id
+            sourceId: section.id,
+            endpoint: 'end'
         });
     }
     const arrowLength = 12 * input.scale / 1000, angle = (90 + input.northAngleDegrees) * Math.PI / 180;
@@ -571,6 +587,12 @@ export function buildAgentGeologyPlan(document, source) {
                     label: value.label,
                     holeIds: [
                         ...value.holeIds
+                    ],
+                    endpointLabels: value.endpointLabels ? [
+                        ...value.endpointLabels
+                    ] : [
+                        value.label,
+                        value.label
                     ]
                 })),
             gridLineCount: gridXs.length + gridYs.length,

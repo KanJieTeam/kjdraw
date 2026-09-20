@@ -384,9 +384,10 @@ const geologyPlanBoreholeSchema = objectWithOptional({
   id: { ...text, maxLength: 40 }, position: numericTuple(2), collarElevation: number, depth: radius,
   kind: { type: 'string', enum: ['borehole', 'test-pit', 'in-situ-test'] },
 }, ['depth', 'kind'])
-const geologyPlanSectionLineSchema = object({
+const geologyPlanSectionLineSchema = objectWithOptional({
   id: { ...text, maxLength: 40 }, holeIds: { type: 'array', minItems: 2, maxItems: 24, items: { ...text, maxLength: 40 } }, label: { ...text, maxLength: 48 },
-})
+  endpointLabels: { type: 'array', minItems: 2, maxItems: 2, items: { ...text, maxLength: 24 } },
+}, ['endpointLabels'])
 const geologyPlanSchema = objectWithOptional({
   version: { type: 'string', enum: ['1.0.0'] }, expectedRevision: revision, units: { type: 'string', enum: ['meter'] },
   locale: { type: 'string', enum: ['zh-CN', 'en'] }, drawingId: { ...text, maxLength: 64 }, title: { ...text, maxLength: 96 }, revision: { ...text, maxLength: 32 },
