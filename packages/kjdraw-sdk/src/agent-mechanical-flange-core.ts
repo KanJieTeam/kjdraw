@@ -1140,7 +1140,7 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       else if (member.kind === 'attribute-definition') { type = 'ATTDEF'; payload = symbolAttributePayload(member) }
       else { type = 'INSERT'; payload = { blockRecordId: symbolBlockByKey.get(member.symbolKey)!.id, position: p3(...member.position), scale: [member.scale?.[0] ?? 1, member.scale?.[1] ?? 1, 1], rotation: member.rotation ?? 0,
         attributes: {}, attributeIds: [], sequenceEndId: null, layerId: entityStyle.layerId } }
-      return { type, payload: stylePayload(payload, entityStyle.name), options: { id: `${id}-member-${String(memberIndex + 1).padStart(2, '0')}` } }
+      return { type, payload: stylePayload(payload, entityStyle.name), options: { id: `${id}-member-${String(memberIndex + 1).padStart(3, '0')}` } }
     })
     return { id, name: `KJ_FLANGE_SYMBOL_${String(definitionIndex + 1).padStart(2, '0')}_${token.toUpperCase()}`, basePoint: p3(...definition.basePoint), entities: members }
   })

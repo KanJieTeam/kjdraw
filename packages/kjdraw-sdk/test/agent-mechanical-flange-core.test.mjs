@@ -412,6 +412,26 @@ test('generic local symbols compile as editable native blocks without source blo
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...symbolInput, expectedRevision: document.revision, symbols: { definitions: symbols.definitions, instances: [{ ...symbols.instances[0], symbolKey: 'missing' }] } }), /reference a definition/u)
 })
 
+test('local symbol member draw order survives three-digit KJD roundtrips', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const expectedStations = Array.from({ length: 101 }, (_, index) => index)
+  const members = expectedStations.map(station => ({ kind: 'line', start: [station, 0], end: [station, 1], role: 'geometry' }))
+  const symbols = {
+    definitions: [{ key: 'large-local-symbol', basePoint: [0, 0], members }],
+    instances: [{ symbolKey: 'large-local-symbol', position: [0, 0], role: 'geometry' }],
+  }
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols })
+  const block = proposal.commandArgs.resources.blocks[0]
+  assert.match(block.entities[0].options.id, /-member-001$/u)
+  assert.match(block.entities[100].options.id, /-member-101$/u)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  const record = kjd.getObject(block.id)
+  const roundtripped = kjd.listEntities().filter(entity => entity.ownerId === block.id)
+  assert.deepEqual(roundtripped.map(entity => entity.id), record.payload.entityIds)
+  assert.deepEqual(roundtripped.map(entity => entity.payload.start[0]), expectedStations)
+})
+
 test('generic local symbols preserve nested block topology without attached entities', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const symbols = { definitions: [
