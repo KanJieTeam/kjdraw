@@ -1271,11 +1271,17 @@ function validate(document, source) {
         exact(frame, [
             'position',
             'rows',
+            'datumColumnCount',
+            'trailingRowBreak',
             'xAxisDirection',
             'styleKey',
             'role'
         ], label);
         if (frame.role !== 'dimensions' && frame.role !== 'notes') throw new KJValidationError(`${label}.role is invalid`);
+        const datumColumnCount = frame.datumColumnCount == null ? 4 : finite(frame.datumColumnCount, `${label}.datumColumnCount`, 1, 4);
+        if (!Number.isInteger(datumColumnCount)) throw new KJValidationError(`${label}.datumColumnCount must be an integer from 1 to 4`);
+        if (frame.trailingRowBreak != null && typeof frame.trailingRowBreak !== 'boolean') throw new KJValidationError(`${label}.trailingRowBreak must be boolean`);
+        const trailingRowBreak = frame.trailingRowBreak == null ? true : frame.trailingRowBreak;
         if (!Array.isArray(frame.rows) || !frame.rows.length || frame.rows.length > 4) throw new KJValidationError(`${label}.rows must contain 1 to 4 items`);
         const rows = frame.rows.map((rowValue, rowIndex)=>{
             const rowLabel = `${label}.rows[${rowIndex}]`, row = plain(rowValue, rowLabel);
@@ -1290,7 +1296,7 @@ function validate(document, source) {
             if (typeof row.tolerance !== 'string' || !/^[0-9A-Za-z.+\- ]{1,32}$/u.test(row.tolerance)) throw new KJValidationError(`${rowLabel}.tolerance must be bounded frame text`);
             if (row.diameterZone != null && typeof row.diameterZone !== 'boolean') throw new KJValidationError(`${rowLabel}.diameterZone must be boolean`);
             if (row.datumReferences != null && !Array.isArray(row.datumReferences)) throw new KJValidationError(`${rowLabel}.datumReferences must be an array`);
-            if (row.datumReferences?.length && row.datumReferences.length > 4) throw new KJValidationError(`${rowLabel}.datumReferences exceed their budget`);
+            if (row.datumReferences?.length && row.datumReferences.length > datumColumnCount) throw new KJValidationError(`${rowLabel}.datumReferences exceed datumColumnCount`);
             const datumReferences = (row.datumReferences ?? []).map((datumValue, datumIndex)=>{
                 const datumLabel = `${rowLabel}.datumReferences[${datumIndex}]`, datum = plain(datumValue, datumLabel);
                 exact(datum, [
@@ -1302,7 +1308,7 @@ function validate(document, source) {
                     throw new KJValidationError(`${datumLabel}.label must be a 1 to 8 character common-datum token using uppercase letters or digits with single ASCII hyphen separators`);
                 }
                 const slot = datum.slot;
-                if (slot != null && (typeof slot !== 'number' || !Number.isInteger(slot) || slot < 0 || slot > 3)) throw new KJValidationError(`${datumLabel}.slot must be an integer from 0 to 3`);
+                if (slot != null && (typeof slot !== 'number' || !Number.isInteger(slot) || slot < 0 || slot >= datumColumnCount)) throw new KJValidationError(`${datumLabel}.slot must be an integer from 0 to ${datumColumnCount - 1}`);
                 const condition = materialCondition(datum.materialCondition, `${datumLabel}.materialCondition`);
                 return {
                     label: datum.label,
@@ -1321,6 +1327,19 @@ function validate(document, source) {
                 if (usedSlots.has(datum.slot)) throw new KJValidationError(`${rowLabel}.datumReferences slots must be unique`);
                 usedSlots.add(datum.slot);
             }
+            let nextSlot = 0;
+            const arrangedDatumReferences = datumReferences.map((datum)=>{
+                if (datum.slot != null) return datum;
+                while(usedSlots.has(nextSlot))nextSlot += 1;
+                if (nextSlot >= datumColumnCount) throw new KJValidationError(`${rowLabel}.datumReferences exceed datumColumnCount`);
+                const arranged = {
+                    ...datum,
+                    slot: nextSlot
+                };
+                usedSlots.add(nextSlot);
+                nextSlot += 1;
+                return arranged;
+            });
             return {
                 characteristic: row.characteristic,
                 tolerance: row.tolerance,
@@ -1328,7 +1347,7 @@ function validate(document, source) {
                 ...condition == null ? {} : {
                     materialCondition: condition
                 },
-                datumReferences
+                datumReferences: arrangedDatumReferences
             };
         });
         const xAxisDirection = frame.xAxisDirection == null ? [
@@ -1340,6 +1359,8 @@ function validate(document, source) {
         return {
             position: point(frame.position, `${label}.position`),
             rows,
+            datumColumnCount,
+            trailingRowBreak,
             xAxisDirection,
             ...styleKey == null ? {} : {
                 styleKey
@@ -3625,18 +3646,17 @@ export function buildAgentMechanicalFlangeCore(document, source) {
     };
     const gdt = (code)=>`{\\Fgdt;${code}}`;
     for (const frame of input.featureControlFrames){
-        const text = frame.rows.map((row)=>{
+        const encodedRows = frame.rows.map((row)=>{
             let value = `${gdt(characteristicCode[row.characteristic])}%%v${row.diameterZone ? gdt('n') : ''}${row.tolerance}${row.materialCondition ? gdt(conditionCode[row.materialCondition]) : ''}%%v`;
-            const cells = Array(4).fill('');
-            let nextSlot = 0;
+            const cells = Array(frame.datumColumnCount ?? 4).fill('');
             for (const datum of row.datumReferences ?? []){
-                const slot = datum.slot ?? nextSlot;
+                const slot = datum.slot ?? 0;
                 cells[slot] = `${datum.label}${datum.materialCondition ? gdt(conditionCode[datum.materialCondition]) : ''}`;
-                nextSlot = Math.max(nextSlot, slot + 1);
             }
             for (const cell of cells)value += `${cell}%%v`;
-            return `${value}^J`;
-        }).join('');
+            return value;
+        });
+        const text = `${encodedRows.join('^J')}${frame.trailingRowBreak === false ? '' : '^J'}`;
         const style = frame.styleKey == null ? null : dimensionStyleByKey.get(frame.styleKey);
         emit('TOLERANCE', {
             position: p3(...frame.position),
