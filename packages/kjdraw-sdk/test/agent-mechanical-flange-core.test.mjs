@@ -172,7 +172,7 @@ test('verified mirrored profiles stay symmetric while asymmetric source lines re
   assert.equal(emitted.has(lineKey([205, 127], [230, 124])), false)
   assert.equal(proposal.evidence.parameters.symmetricProfileCount, 1)
   assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 1)
-  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.31.0')
+  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.32.0')
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /geometry and effective visual style both mirror/u)
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /unpaired or asymmetric source segment remains an auxiliary line/u)
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.annotationStyles, /style key selects only its native DIMSTYLE definition/u)
@@ -1383,6 +1383,44 @@ test('feature-control datum slots preserve intentional empty cells', () => {
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames: [{ position: [120, 80], role: 'dimensions', rows: [{ characteristic: 'concentricity', tolerance: '0.03', datumReferences: [{ label: 'A', slot: 4 }] }] }] }), /slot must be an integer from 0 to 3/u)
 })
 
+test('feature-control frame layout preserves bounded datum columns and terminal row-break choice through KJD and DXF', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const frame = { position: [120, 80], role: 'dimensions', datumColumnCount: 3, trailingRowBreak: false, rows: [
+    { characteristic: 'position', tolerance: '0.04', datumReferences: [{ label: 'A', slot: 1 }, { label: 'B' }] },
+    { characteristic: 'parallelism', tolerance: '0.02', datumReferences: [{ label: 'C' }] },
+  ] }
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames: [frame] })
+  const expectedText = String.raw`{\Fgdt;j}%%v0.04%%vB%%vA%%v%%v^J{\Fgdt;f}%%v0.02%%vC%%v%%v%%v`
+  assert.equal(proposal.commandArgs.entities.find(entity => entity.type === 'TOLERANCE').payload.text, expectedText)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
+  assert.equal(kjd.listEntities({ type: 'TOLERANCE' }).at(-1).payload.text, expectedText)
+  assert.equal(dxf.listEntities({ type: 'TOLERANCE' }).at(-1).payload.text, expectedText)
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); q=list(d.modelspace().query("TOLERANCE")); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"count":len(q)}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) t.diagnostic('official ezdxf unavailable; independent check skipped')
+  else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, count: 1 })
+  }
+
+  const entityCount = document.listEntities().length
+  const build = featureControlFrames => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), featureControlFrames })
+  for (const datumColumnCount of [0, 5, 1.5, Number.NaN]) {
+    assert.throws(() => build([{ ...frame, datumColumnCount }]), /datumColumnCount/u)
+    assert.equal(document.listEntities().length, entityCount)
+  }
+  assert.throws(() => build([{ ...frame, trailingRowBreak: 0 }]), /trailingRowBreak must be boolean/u)
+  assert.throws(() => build([{ ...frame, rows: [{ characteristic: 'position', tolerance: '0.04', datumReferences: [{ label: 'A', slot: 3 }] }] }]), /slot must be an integer from 0 to 2/u)
+  assert.throws(() => build([{ ...frame, rows: [{ characteristic: 'position', tolerance: '0.04', datumReferences: [{ label: 'A' }, { label: 'B' }, { label: 'C' }, { label: 'D' }] }] }]), /exceed datumColumnCount/u)
+  assert.throws(() => build([{ ...frame, sourceHandle: 'opaque' }]), /unsupported field/u)
+  assert.equal(document.listEntities().length, entityCount)
+  assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.featureControlFrames, /one to four bounded datum columns/u)
+})
+
 test('bounded native wipeouts preserve explicit local clipping through KJD and DXF', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const rectangle = { position: [10, 20], uVector: [20, 0], vVector: [0, 8], clipBoundary: [[-.5, -.5], [.5, .5]], boundaryType: 1, role: 'notes' }
@@ -1584,7 +1622,7 @@ test('generic orthographic geometry remains native when the circular end view is
     symbols,
     dimensions,
   })
-  assert.equal(proposal.evidence.knowledgePackVersion, '2.31.0')
+  assert.equal(proposal.evidence.knowledgePackVersion, '2.32.0')
   assert.equal(proposal.evidence.parameters.endViewPresent, false)
   assert.equal(proposal.evidence.parameters.ringCount, 0)
   assert.equal(proposal.commandArgs.entities.some(entity => entity.type === 'CIRCLE'), false)

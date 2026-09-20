@@ -4,7 +4,7 @@ import { stableHash } from '../utils.js';
 export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePack({
     schema: 'kjdraw.knowledge-pack.v1',
     id: 'mechanical-flange-core',
-    version: '2.31.0',
+    version: '2.32.0',
     title: 'Parameterized mechanical orthographic-view and sheet-grid rules',
     domain: 'mechanical-manufacturing',
     license: {
@@ -74,7 +74,7 @@ export const KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK = validateKnowledgePac
         auxiliarySolids: 'bounded source-measured three- or four-point native filled faces preserve editable arrowheads and markers; handles, raw tags and application metadata are rejected',
         auxiliaryWipeouts: 'up to 128 native masking areas preserve an explicit image plane and local rectangular or polygon clipping; raw tags, source handles and object identifiers are rejected',
         symbols: 'up to 256 generic definitions, 1024 members per definition, 2048 total members and 256 placed instances compile bounded local geometry, lightweight polylines with per-vertex bulge and width facts, unattached leaders, text, hatches, filled faces, nested instances and attributes into native blocks; each polyline has 2 to 4096 finite bounded vertices, each leader has 2 to 64 distinct consecutive vertices and native drafting flags without an annotation association, while zero-member definitions remain valid and caller names, handles and application metadata are never retained',
-        featureControlFrames: 'geometric characteristic, tolerance-zone and datum semantics compile into editable native TOLERANCE entities; a common-datum token is 1 to 8 uppercase letters or digits in non-empty groups joined only by single ASCII hyphens; opaque source tags and application-specific object data are rejected',
+        featureControlFrames: 'geometric characteristic, tolerance-zone and datum semantics compile into editable native TOLERANCE entities with one to four bounded datum columns and an explicit optional terminal row break; a common-datum token is 1 to 8 uppercase letters or digits in non-empty groups joined only by single ASCII hyphens; opaque source tags and application-specific object data are rejected',
         sheet: 'outer frame and optional positive-width inset frame accept per-side style keys with a backward-compatible single-style fallback, plus an optional bounded semantic title-grid with full or locally segmented rules',
         notes: 'bounded source-supplied sheet labels and technical notes; visible content is never embedded in this pack',
         dimensions: 'aligned, rotated, radius, diameter, angular and x- or y-axis ordinate dimensions derive measurements from bounded definition points, preserve rotation and bounded entity-local overrides, and never trust supplied measurement values',

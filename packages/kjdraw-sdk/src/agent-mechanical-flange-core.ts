@@ -333,6 +333,8 @@ export interface KJFlangeDatumReference { label: string; materialCondition?: KJF
 export interface KJFlangeFeatureControlFrame {
   position: Point2
   rows: { characteristic: KJFlangeGeometricCharacteristic; tolerance: string; diameterZone?: boolean; materialCondition?: KJFlangeMaterialCondition; datumReferences?: KJFlangeDatumReference[] }[]
+  datumColumnCount?: number
+  trailingRowBreak?: boolean
   xAxisDirection?: Point2
   styleKey?: string
   role: 'dimensions' | 'notes'
@@ -959,8 +961,12 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     return value as KJFlangeMaterialCondition
   }
   const featureControlFrames: KJFlangeFeatureControlFrame[] = ((input.featureControlFrames ?? []) as unknown[]).map((value, index) => {
-    const label = `input.featureControlFrames[${index}]`, frame = plain(value, label); exact(frame, ['position', 'rows', 'xAxisDirection', 'styleKey', 'role'], label)
+    const label = `input.featureControlFrames[${index}]`, frame = plain(value, label); exact(frame, ['position', 'rows', 'datumColumnCount', 'trailingRowBreak', 'xAxisDirection', 'styleKey', 'role'], label)
     if (frame.role !== 'dimensions' && frame.role !== 'notes') throw new KJValidationError(`${label}.role is invalid`)
+    const datumColumnCount = frame.datumColumnCount == null ? 4 : finite(frame.datumColumnCount, `${label}.datumColumnCount`, 1, 4)
+    if (!Number.isInteger(datumColumnCount)) throw new KJValidationError(`${label}.datumColumnCount must be an integer from 1 to 4`)
+    if (frame.trailingRowBreak != null && typeof frame.trailingRowBreak !== 'boolean') throw new KJValidationError(`${label}.trailingRowBreak must be boolean`)
+    const trailingRowBreak = frame.trailingRowBreak == null ? true : frame.trailingRowBreak
     if (!Array.isArray(frame.rows) || !frame.rows.length || frame.rows.length > 4) throw new KJValidationError(`${label}.rows must contain 1 to 4 items`)
     const rows = (frame.rows as unknown[]).map((rowValue, rowIndex) => {
       const rowLabel = `${label}.rows[${rowIndex}]`, row = plain(rowValue, rowLabel); exact(row, ['characteristic', 'tolerance', 'diameterZone', 'materialCondition', 'datumReferences'], rowLabel)
@@ -968,14 +974,14 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
       if (typeof row.tolerance !== 'string' || !/^[0-9A-Za-z.+\- ]{1,32}$/u.test(row.tolerance)) throw new KJValidationError(`${rowLabel}.tolerance must be bounded frame text`)
       if (row.diameterZone != null && typeof row.diameterZone !== 'boolean') throw new KJValidationError(`${rowLabel}.diameterZone must be boolean`)
       if (row.datumReferences != null && !Array.isArray(row.datumReferences)) throw new KJValidationError(`${rowLabel}.datumReferences must be an array`)
-      if ((row.datumReferences as unknown[] | undefined)?.length && (row.datumReferences as unknown[]).length > 4) throw new KJValidationError(`${rowLabel}.datumReferences exceed their budget`)
+      if ((row.datumReferences as unknown[] | undefined)?.length && (row.datumReferences as unknown[]).length > datumColumnCount) throw new KJValidationError(`${rowLabel}.datumReferences exceed datumColumnCount`)
       const datumReferences: KJFlangeDatumReference[] = ((row.datumReferences ?? []) as unknown[]).map((datumValue, datumIndex) => {
         const datumLabel = `${rowLabel}.datumReferences[${datumIndex}]`, datum = plain(datumValue, datumLabel); exact(datum, ['label', 'materialCondition', 'slot'], datumLabel)
         if (typeof datum.label !== 'string' || datum.label.length < 1 || datum.label.length > 8 || !/^[A-Z0-9]+(?:-[A-Z0-9]+)*$/u.test(datum.label)) {
           throw new KJValidationError(`${datumLabel}.label must be a 1 to 8 character common-datum token using uppercase letters or digits with single ASCII hyphen separators`)
         }
         const slot = datum.slot
-        if (slot != null && (typeof slot !== 'number' || !Number.isInteger(slot) || slot < 0 || slot > 3)) throw new KJValidationError(`${datumLabel}.slot must be an integer from 0 to 3`)
+        if (slot != null && (typeof slot !== 'number' || !Number.isInteger(slot) || slot < 0 || slot >= datumColumnCount)) throw new KJValidationError(`${datumLabel}.slot must be an integer from 0 to ${datumColumnCount - 1}`)
         const condition = materialCondition(datum.materialCondition, `${datumLabel}.materialCondition`)
         return { label: datum.label, ...(condition == null ? {} : { materialCondition: condition }), ...(typeof slot === 'number' ? { slot } : {}) }
       })
@@ -986,13 +992,23 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
         if (usedSlots.has(datum.slot)) throw new KJValidationError(`${rowLabel}.datumReferences slots must be unique`)
         usedSlots.add(datum.slot)
       }
+      let nextSlot = 0
+      const arrangedDatumReferences = datumReferences.map(datum => {
+        if (datum.slot != null) return datum
+        while (usedSlots.has(nextSlot)) nextSlot += 1
+        if (nextSlot >= datumColumnCount) throw new KJValidationError(`${rowLabel}.datumReferences exceed datumColumnCount`)
+        const arranged = { ...datum, slot: nextSlot }
+        usedSlots.add(nextSlot)
+        nextSlot += 1
+        return arranged
+      })
       return { characteristic: row.characteristic as KJFlangeGeometricCharacteristic, tolerance: row.tolerance, diameterZone: row.diameterZone === true,
-        ...(condition == null ? {} : { materialCondition: condition }), datumReferences }
+        ...(condition == null ? {} : { materialCondition: condition }), datumReferences: arrangedDatumReferences }
     })
     const xAxisDirection = frame.xAxisDirection == null ? [1, 0] as Point2 : point(frame.xAxisDirection, `${label}.xAxisDirection`)
     if (Math.hypot(...xAxisDirection) <= 1e-12) throw new KJValidationError(`${label}.xAxisDirection must not be zero`)
     const styleKey = annotationStyleKey(frame.styleKey, dimensionStyleKeys, `${label}.styleKey`)
-    return { position: point(frame.position, `${label}.position`), rows, xAxisDirection, ...(styleKey == null ? {} : { styleKey }), role: frame.role as KJFlangeFeatureControlFrame['role'] }
+    return { position: point(frame.position, `${label}.position`), rows, datumColumnCount, trailingRowBreak, xAxisDirection, ...(styleKey == null ? {} : { styleKey }), role: frame.role as KJFlangeFeatureControlFrame['role'] }
   })
   const validateAbsoluteHatch = (value: unknown, label: string): KJFlangeAuxiliaryHatch => {
     const hatch = plain(value, label)
@@ -1687,18 +1703,17 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
   const conditionCode: Record<KJFlangeMaterialCondition, string> = { maximum: 'm', least: 'l', regardless: 's' }
   const gdt = (code: string) => `{\\Fgdt;${code}}`
   for (const frame of input.featureControlFrames) {
-    const text = frame.rows.map(row => {
+    const encodedRows = frame.rows.map(row => {
       let value = `${gdt(characteristicCode[row.characteristic])}%%v${row.diameterZone ? gdt('n') : ''}${row.tolerance}${row.materialCondition ? gdt(conditionCode[row.materialCondition]) : ''}%%v`
-      const cells = Array<string>(4).fill('')
-      let nextSlot = 0
+      const cells = Array<string>(frame.datumColumnCount ?? 4).fill('')
       for (const datum of row.datumReferences ?? []) {
-        const slot = datum.slot ?? nextSlot
+        const slot = datum.slot ?? 0
         cells[slot] = `${datum.label}${datum.materialCondition ? gdt(conditionCode[datum.materialCondition]) : ''}`
-        nextSlot = Math.max(nextSlot, slot + 1)
       }
       for (const cell of cells) value += `${cell}%%v`
-      return `${value}^J`
-    }).join('')
+      return value
+    })
+    const text = `${encodedRows.join('^J')}${frame.trailingRowBreak === false ? '' : '^J'}`
     const style = frame.styleKey == null ? null : dimensionStyleByKey.get(frame.styleKey)!
     emit('TOLERANCE', { position: p3(...frame.position), text, styleName: style?.name ?? 'STANDARD', ...(style == null ? {} : { styleId: style.id }), normal: [0, 0, 1],
       xAxisDirection: p3(...(frame.xAxisDirection ?? [1, 0])), layerId: roleIds[frame.role] }, frame.role)

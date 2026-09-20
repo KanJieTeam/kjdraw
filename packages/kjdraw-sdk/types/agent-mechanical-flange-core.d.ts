@@ -554,6 +554,8 @@ export interface KJFlangeFeatureControlFrame {
         materialCondition?: KJFlangeMaterialCondition;
         datumReferences?: KJFlangeDatumReference[];
     }[];
+    datumColumnCount?: number;
+    trailingRowBreak?: boolean;
     xAxisDirection?: Point2;
     styleKey?: string;
     role: 'dimensions' | 'notes';
