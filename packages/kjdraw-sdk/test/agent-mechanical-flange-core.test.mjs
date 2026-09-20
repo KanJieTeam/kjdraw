@@ -632,29 +632,47 @@ test('auxiliary solid budget remains bounded and fail-closed', () => {
   assert.ok(performance.now() - startedAt < 5_000)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliarySolids: [...auxiliarySolids, auxiliarySolids[0]] }), /64-solid budget/u)
 })
-test('auxiliary curve budget supports complex public drawings and remains fail-closed', async () => {
+test('auxiliary curve budget accepts 512 mixed native curves and atomically rejects 513', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
-  const auxiliaryCurves = Array.from({ length: 256 }, (_, index) => ({
-    kind: 'arc', center: [(index % 32) * 5, Math.floor(index / 32) * 5], radius: 1,
-    startAngle: 0, endAngle: Math.PI, role: 'geometry',
-  }))
-  const startedAt = performance.now()
-  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves })
-  const elapsedMs = performance.now() - startedAt
-  assert.equal(proposal.evidence.parameters.auxiliaryCurveCount, 256)
-  assert.ok(proposal.commandArgs.entities.length < 1_024)
-  assert.ok(Buffer.byteLength(JSON.stringify(proposal.commandArgs), 'utf8') < 512 * 1_024)
-  assert.ok(elapsedMs < 5_000)
+  const auxiliaryCurves = Array.from({ length: 512 }, (_, index) => {
+    const column = index % 32, row = Math.floor(index / 32)
+    if (index % 3 === 0) return { kind: 'arc', center: [column * 5, 5000 + row * 5], radius: 1, startAngle: 0, endAngle: Math.PI, role: 'geometry' }
+    if (index % 3 === 1) return { kind: 'polyline', vertices: [{ point: [column * 5, 6000 + row * 5] }, { point: [column * 5 + 2, 6001 + row * 5], bulge: .1 }, { point: [column * 5 + 4, 6000 + row * 5] }], role: 'hidden' }
+    return { kind: 'spline', degree: 2, controlPoints: [[column * 5, 7000 + row * 5], [column * 5 + 2, 7002 + row * 5], [column * 5 + 4, 7000 + row * 5]], knots: [0, 0, 0, 1, 1, 1], role: 'geometry' }
+  })
+  const startedAt = performance.now(), proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves })
+  assert.equal(proposal.evidence.parameters.auxiliaryCurveCount, 512)
+  assert.equal(proposal.evidence.parameters.auxiliaryCurveBudget, 512)
+  assert.ok(proposal.commandArgs.entities.length < 2_048)
+  assert.ok(Buffer.byteLength(JSON.stringify(proposal.commandArgs), 'utf8') < 2 * 1_024 * 1_024)
+  assert.ok(performance.now() - startedAt < 5_000)
   await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
   const [kjd, dxf] = await Promise.all([
     sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' }),
-    sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' }),
+    sdk.readDocument(dxfText, { format: 'DXF' }),
   ])
-  assert.ok(kjd.listEntities({ type: 'ARC' }).length >= 256)
-  assert.ok(dxf.listEntities({ type: 'ARC' }).length >= 256)
-  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves: [...auxiliaryCurves, auxiliaryCurves[0]] }), /256-curve budget/u)
+  for (const reopened of [kjd, dxf]) {
+    assert.ok(reopened.listEntities({ type: 'ARC' }).length >= 171)
+    assert.ok(reopened.listEntities({ type: 'LWPOLYLINE' }).length >= 171)
+    assert.ok(reopened.listEntities({ type: 'SPLINE' }).length >= 170)
+  }
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); m=d.modelspace(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"arcs":len(m.query("ARC")),"polylines":len(m.query("LWPOLYLINE")),"splines":len(m.query("SPLINE"))}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    const audit = JSON.parse(independent.stdout)
+    assert.deepEqual([audit.errors, audit.fixes], [0, 0])
+    assert.ok(audit.arcs >= 171 && audit.polylines >= 171 && audit.splines >= 170)
+  }
+  const before = document.serialize()
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves: [...auxiliaryCurves, auxiliaryCurves[0]] }), /512-curve budget/u)
+  assert.equal(document.serialize(), before)
 })
-
 test('generic local symbols compile as editable native blocks without source block metadata', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const symbols = { definitions: [{ key: 'local-callout', basePoint: [0, 0], members: [

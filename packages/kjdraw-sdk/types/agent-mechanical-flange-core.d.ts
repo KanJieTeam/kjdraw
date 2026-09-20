@@ -718,6 +718,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
             auxiliarySolidCount: number;
             auxiliaryWipeoutCount: number;
             auxiliaryCurveCount: number;
+            auxiliaryCurveBudget: number;
             symbolDefinitionCount: number;
             symbolInstanceCount: number;
             symbolAttributeCount: number;
