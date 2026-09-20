@@ -314,6 +314,7 @@ export interface KJFlangeSheetNote {
     height: number;
     rotation?: number;
     width?: number;
+    attachmentPoint?: number;
     styleKey?: string;
     entityStyleKey?: string;
 }
@@ -452,6 +453,7 @@ export interface KJAgentMechanicalFlangeCoreInput {
     };
     sideViewAxis?: {
         xRange: Point2;
+        axisDirection?: 'forward' | 'reverse';
         axisStyleKey?: string;
         symmetricProfiles?: KJFlangeSymmetricProfile[];
         outlineSegments?: KJFlangeSideViewOutlineSegment[];
