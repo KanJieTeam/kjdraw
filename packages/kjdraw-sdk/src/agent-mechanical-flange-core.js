@@ -7,6 +7,7 @@ import { stableHash } from './utils.js';
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0';
 const MAX_AUXILIARY_LINES = 1024;
 const MAX_AUXILIARY_CURVES = 512;
+const MIN_AUXILIARY_ARC_RADIUS = 1e-9;
 const MAX_SYMBOL_DEFINITIONS = 128;
 const MAX_SYMBOL_MEMBERS_PER_DEFINITION = 512;
 const MAX_SYMBOL_MEMBERS_TOTAL = 2048;
@@ -1703,7 +1704,7 @@ function validate(document, source) {
             return {
                 kind: 'arc',
                 center: point(curve.center, `${label}.center`),
-                radius: finite(curve.radius, `${label}.radius`, 0.1, 100_000),
+                radius: finite(curve.radius, `${label}.radius`, MIN_AUXILIARY_ARC_RADIUS, 100_000),
                 startAngle,
                 endAngle,
                 clockwise: curve.clockwise === true,
@@ -3578,6 +3579,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 auxiliaryWipeoutCount: input.auxiliaryWipeouts.length,
                 auxiliaryCurveCount: input.auxiliaryCurves.length,
                 auxiliaryCurveBudget: MAX_AUXILIARY_CURVES,
+                auxiliaryArcRadiusMinimum: MIN_AUXILIARY_ARC_RADIUS,
                 symbolDefinitionCount: input.symbolDefinitions.length,
                 symbolDefinitionBudget: MAX_SYMBOL_DEFINITIONS,
                 symbolMemberCount: input.symbolDefinitions.reduce((sum, definition)=>sum + definition.members.length, 0),
