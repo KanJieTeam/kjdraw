@@ -50,6 +50,11 @@ function point(value: unknown): Point {
   if (numeric(value[2], 0) !== 0) fail('non-XY geometry is unsupported')
   return [numeric(value[0]), numeric(value[1])]
 }
+function insertPoint(value: unknown): Point {
+  if (!Array.isArray(value) || value.length < 2) fail('expected an INSERT point')
+  numeric(value[2], 0)
+  return [numeric(value[0]), numeric(value[1])]
+}
 function xml(value: unknown): string {
   const text = String(value)
   if (text.length > 1_048_576) fail('text exceeds the 1 MiB character budget')
@@ -460,7 +465,9 @@ export function exportDrawingSvg(document: KJDocument, options: KJSvgExportOptio
         if (Array.isArray(p.scale)) numeric(p.scale[2], 1)
         if (depth >= 12 || ancestors.includes(id)) fail('block nesting or cycle budget exceeded')
         if (!block || block.kind !== 'block-record' || block.payload.isSpace) fail('invalid block reference')
-        const a=point(p.position),b=point(block.payload.basePoint??[0,0]),sc=Array.isArray(p.scale)?p.scale:[p.scale??1,p.scale??1]
+        const insertPosition = Array.isArray(p.position) ? p.position : null
+        const a=insertPoint(p.position),b=point(block.payload.basePoint??[0,0]),sc=Array.isArray(p.scale)?p.scale:[p.scale??1,p.scale??1]
+        if(numeric(insertPosition?.[2],0)!==0)report.approximations.push({entityId:entity.id,type:entity.type,reason:'SVG orthographically projects an XY-parallel block INSERT with a nonzero Z translation'})
         const sx=numeric(sc[0]),sy=numeric(sc[1],sx);if(!sx||!sy||Math.abs(sx)!==Math.abs(sy))fail('zero or nonuniform block scale is unsupported')
         const m=multiply3(translation3(...a),multiply3(rotation3(numeric(p.rotation,0)),multiply3(scale3(sx,sy),translation3(-b[0],-b[1]))))
         inner=`<g transform="matrix(${matrix(m)})">${owned(id).filter(child=>child.type!=='ATTDEF'||(numeric(child.payload.flags,0)&2)!==0).map(child=>render(child,frozen,depth+1,[...ancestors,id],layer,stroke,inViewport,geometryScale*Math.abs(sx),weight,typeId)).join('')}</g>` + attributes.map(attribute=>render(attribute,frozen,depth+1,ancestors,layer,stroke,inViewport,geometryScale,weight,typeId)).join('')

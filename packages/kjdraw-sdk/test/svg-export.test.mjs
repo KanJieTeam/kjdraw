@@ -184,6 +184,20 @@ test('SVG retains exact arc and bulge commands and expands nested blocks with co
   assert.equal(result.report.status,'complete');assert.equal(result.report.rendered,4)
 })
 
+test('SVG orthographically projects XY-parallel block INSERT Z translations but rejects tilted extrusion',async()=>{
+  const {document,layoutId,ownerId}=await fixture();let member,insert
+  await document.transact('planar block at nonzero Z',tx=>{
+    const block=tx.upsertTableRecord('blockRecords',{name:'PLANAR_Z',type:'BLOCK_RECORD',payload:{basePoint:[0,0,0],isSpace:false}})
+    member=tx.createEntity('LINE',{start:[0,0,0],end:[10,0,0]},{ownerId:block.id})
+    insert=tx.createEntity('INSERT',{blockRecordId:block.id,position:[20,30,20],scale:[1,1,1]},{ownerId})
+  })
+  const result=exportDrawingSvg(document,{layoutId}),projected=parseSvg(result.svg).lines.find(row=>row.id===member.id)
+  assert.ok(projected);assert.equal(result.report.status,'approximate')
+  assert.ok(result.report.approximations.some(row=>row.entityId===insert.id&&row.reason.includes('nonzero Z translation')))
+  await document.transact('tilt planar block',tx=>tx.updateObject(insert.id,{payload:{normal:[0,1,0]}}))
+  assert.throws(()=>exportDrawingSvg(document,{layoutId}),error=>error.details?.diagnostics.some(row=>row.entityId===insert.id&&row.reason.includes('non-XY extrusion')))
+})
+
 test('SVG resolves ByLayer and block ByBlock lineweight and linetype inheritance',async()=>{
   const {document,layoutId,ownerId}=await fixture();let top,byLayer,byBlock
   await document.transact('Inherited SVG properties',tx=>{

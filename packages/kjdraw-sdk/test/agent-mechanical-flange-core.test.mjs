@@ -545,6 +545,36 @@ test('generic local symbols compile as editable native blocks without source blo
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...symbolInput, expectedRevision: document.revision, symbols: { definitions: symbols.definitions, instances: [{ ...symbols.instances[0], symbolKey: 'missing' }] } }), /reference a definition/u)
 })
 
+test('symbol instances retain bounded Z translations through KJD and DXF', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const symbols = { definitions: [{ key: 'planar-symbol', basePoint: [0, 0], members: [
+    { kind: 'line', start: [0, 0], end: [5, 0], role: 'geometry' },
+  ] }], instances: [{ symbolKey: 'planar-symbol', position: [30, 40, 20], role: 'geometry' }] }
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), symbols })
+  const positioned = drawing => drawing.listEntities({ type: 'INSERT' }).filter(entity =>
+    Array.isArray(entity.payload.position) && Math.abs((entity.payload.position[2] ?? 0) - 20) < 1e-9)
+  assert.deepEqual(proposal.commandArgs.entities.find(entity => entity.type === 'INSERT' && entity.payload.position[2] === 20).payload.position, [30, 40, 20])
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
+  assert.equal(positioned(kjd).length, 1)
+  assert.equal(positioned(dxf).length, 1)
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); z=[e.dxf.insert.z for e in d.modelspace().query("INSERT") if abs(e.dxf.insert.z-20)<1e-9]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"z":z}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env,
+    PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, z: [20] })
+  }
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), expectedRevision: document.revision,
+    symbols: { ...symbols, instances: [{ ...symbols.instances[0], position: [30, 40, 20, 10] }] } }), /two or three coordinates/u)
+})
+
 test('local symbol member draw order survives three-digit KJD roundtrips', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const expectedStations = Array.from({ length: 101 }, (_, index) => index)
