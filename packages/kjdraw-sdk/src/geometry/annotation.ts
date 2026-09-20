@@ -169,7 +169,9 @@ export function projectDimension(payload: Readonly<Record<string, unknown>>, sty
     const featureVector = delta(second, first), leaderVector = delta(end, second)
     measurement = Math.abs(dot(featureVector, measurementAxis))
     const leaderDistance = dot(leaderVector, leaderAxis)
-    if (measurement < 1e-12 || Math.abs(leaderDistance) < 1e-12) return null
+    // A feature on the datum axis is a valid zero ordinate. Only the leader
+    // must remain non-degenerate so the annotation has an editable direction.
+    if (Math.abs(leaderDistance) < 1e-12) return null
     const direction = plus([0, 0], leaderAxis, Math.sign(leaderDistance))
     const leg = Math.max(arrowSize * 2, height)
     const start = plus(second, direction, gap)
@@ -184,13 +186,33 @@ export function projectDimension(payload: Readonly<Record<string, unknown>>, sty
     rotation = angle + (xType ? Math.PI / 2 : 0)
   } else return null
   const angular = type === 'ANGULAR' || type === 'ANGULAR_3_POINT'
-  if (angular && Number(payload.angularUnits ?? style.angularUnits ?? 0) !== 0) return null
+  const angularUnits = angular ? Number(payload.angularUnits ?? style.angularUnits ?? 0) : 0
+  if (angular && (!Number.isInteger(angularUnits) || angularUnits < 0 || angularUnits > 3)) return null
   const stylePrecision = angular && Number(style.angularDecimalPlaces) >= 0 ? style.angularDecimalPlaces : style.decimalPlaces
   const precision = Math.max(0, Math.min(8, Math.trunc(finite(Number(payload.precision) === -1 ? payload.linearPrecision ?? style.decimalPlaces : payload.precision ?? stylePrecision, 2))))
-  const measuredText = `${prefix}${measurement.toFixed(precision).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}`
-  const suffix = type === 'ANGULAR' || type === 'ANGULAR_3_POINT' ? '°' : ''
+  const decimalText = (value: number, places = precision): string => value.toFixed(places).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '').replace(/^-0$/, '0')
+  let measuredText = `${prefix}${decimalText(measurement)}`
+  if (angular) {
+    if (angularUnits === 0) measuredText = `${decimalText(measurement)}°`
+    else if (angularUnits === 2) measuredText = `${decimalText(measurement * 10 / 9)}g`
+    else if (angularUnits === 3) measuredText = `${decimalText(measurement * Math.PI / 180)}r`
+    else {
+      let degrees = Math.floor(measurement)
+      let minutes = Math.floor((measurement - degrees) * 60)
+      let seconds = (measurement - degrees - minutes / 60) * 3600
+      if (precision > 4) seconds = Number(seconds.toFixed(precision - 5))
+      else if (precision > 2) seconds = Math.round(seconds)
+      if (seconds >= 60) { seconds -= 60; minutes += 1 }
+      if (minutes >= 60) { minutes -= 60; degrees += 1 }
+      measuredText = precision > 4
+        ? `${degrees}°${minutes}'${decimalText(seconds, precision - 5)}\"`
+        : precision > 2
+          ? `${degrees}°${minutes}'${seconds.toFixed(0)}\"`
+          : precision > 0 ? `${degrees}°${minutes}'` : `${degrees}°`
+    }
+  }
   const override = payload.textOverride
-  const text = override == null || override === '' ? measuredText + suffix : String(override).replaceAll('<>', measuredText + suffix)
+  const text = override == null || override === '' ? measuredText : String(override).replaceAll('<>', measuredText)
   const overridePoint = point(payload.textPosition)
   if (overridePoint && (type === 'RADIUS' || type === 'DIAMETER')) lines.push([second, overridePoint])
   // Keep labels readable from the bottom/right without changing their geometry.

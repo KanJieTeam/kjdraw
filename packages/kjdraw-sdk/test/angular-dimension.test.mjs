@@ -34,7 +34,31 @@ test('two-line and three-point angular projection selects the arc placement sect
   assert.ok(Math.abs(p.arcs[0].radius-6)<1e-9)
  }
  for(const [type,angle,placement,expected] of [['ANGULAR',37,108.5,143],['ANGULAR',37,198.5,37],['ANGULAR',37,288.5,143],['ANGULAR_3_POINT',90,225,270],['ANGULAR_3_POINT',270,315,90]])assert.ok(Math.abs(projectDimension(definition(type,angle,placement)).measurement-expected)<1e-9)
- for(const p of [definition('ANGULAR',90,0),definition('ANGULAR_3_POINT',90,90),definition('ANGULAR',0),definition('ANGULAR',180),{...definition('ANGULAR'),definitionPoints:definition('ANGULAR').definitionPoints.slice(0,4)},{...definition('ANGULAR_3_POINT'),definitionPoints:[[0,0],[10,0],[0,10],[0,0]]},{...definition('ANGULAR_3_POINT'),normal:[1,0,1]},{...definition('ANGULAR_3_POINT'),angularUnits:3}])assert.equal(projectDimension(p),null)
+ for(const p of [definition('ANGULAR',90,0),definition('ANGULAR_3_POINT',90,90),definition('ANGULAR',0),definition('ANGULAR',180),{...definition('ANGULAR'),definitionPoints:definition('ANGULAR').definitionPoints.slice(0,4)},{...definition('ANGULAR_3_POINT'),definitionPoints:[[0,0],[10,0],[0,10],[0,0]]},{...definition('ANGULAR_3_POINT'),normal:[1,0,1]},{...definition('ANGULAR_3_POINT'),angularUnits:4}])assert.equal(projectDimension(p),null)
+})
+
+test('all native angular unit modes format deterministic measured and overridden labels',()=>{
+ const payload={...definition('ANGULAR_3_POINT',37.125),precision:3}
+ assert.equal(projectDimension({...payload,angularUnits:0}).label.text,'37.125°')
+ assert.equal(projectDimension({...payload,angularUnits:1}).label.text,`37°7'30\"`)
+ assert.equal(projectDimension({...payload,angularUnits:2}).label.text,'41.25g')
+ assert.equal(projectDimension({...payload,angularUnits:3}).label.text,'0.648r')
+ assert.equal(projectDimension({...payload,angularUnits:2,textOverride:'A=<>/<> '}).label.text,'A=41.25g/41.25g ')
+ assert.equal(projectDimension({...payload,angularUnits:1,precision:1}).label.text,`37°7'`)
+ assert.equal(projectDimension({...payload,angularUnits:1,precision:0}).label.text,'37°')
+})
+
+test('all native angular unit modes persist through independent DXF audit and reopen',async t=>{
+ const sdk=createKJDrawSDK(),document=sdk.createDocument({units:'millimeter'}),expected=['37.125°',`37°7'30\"`,'41.25g','0.648r']
+ for(let angularUnits=0;angularUnits<4;angularUnits++)await sdk.executeCommand('CREATE',{type:'DIMENSION',payload:{...definition('ANGULAR_3_POINT',37.125),angularUnits,precision:3}})
+ const dxf=await sdk.writeDocument(document,{format:'DXF'}),result=native(t,inspect,dxf);if(!result)return
+ assert.equal(result.errors+result.fixes,0);assert.equal(result.dimensions.length,4)
+ for(const [index,dimension] of result.dimensions.entries()){
+  assert.equal(dimension.units,index);assert.equal(dimension.precision,3);assert.ok(dimension.labels.includes(expected[index]),JSON.stringify(dimension))
+  assert.ok(dimension.regeneratedLabels.some(label=>label===expected[index]),JSON.stringify(dimension))
+ }
+ const reopened=await createKJDrawSDK().readDocument(dxf,{format:'DXF'}),dimensions=reopened.listEntities({ownerId:reopened.snapshot().spaces.modelSpaceId,type:'DIMENSION'})
+ assert.deepEqual(dimensions.map(entity=>entity.payload.angularUnits),[0,1,2,3]);assert.deepEqual(dimensions.map(entity=>projectDimension(entity.payload).label.text),expected)
 })
 
 test('two-line angular endpoint reversal preserves extension geometry through KJD and native DXF reopen',async t=>{
@@ -178,10 +202,10 @@ test('repeated inherited linear precision from legacy DWG conversion uses the ef
  assert.equal(last.listEntities({type:'DIMENSION'})[0].payload.linearPrecision,3)
 })
 
-test('degenerate and non-XY angular dimensions fail export explicitly without changing document history',async()=>{
- for(const payload of [definition('ANGULAR',0),definition('ANGULAR',180),{...definition('ANGULAR_3_POINT'),definitionPoints:[[0,0],[10,0],[0,10],[0,0]]},{...definition('ANGULAR_3_POINT'),definitionPoints:[[6,6,2],[10,0,2],[0,10,2],[0,0,2]]},{...definition('ANGULAR_3_POINT'),angularUnits:3}]){
+test('degenerate, non-XY and invalid-unit angular dimensions fail export explicitly without changing document history',async()=>{
+ for(const payload of [definition('ANGULAR',0),definition('ANGULAR',180),{...definition('ANGULAR_3_POINT'),definitionPoints:[[0,0],[10,0],[0,10],[0,0]]},{...definition('ANGULAR_3_POINT'),definitionPoints:[[6,6,2],[10,0,2],[0,10,2],[0,0,2]]},{...definition('ANGULAR_3_POINT'),angularUnits:4}]){
   const sdk=createKJDrawSDK(),document=sdk.createDocument();await sdk.executeCommand('CREATE',{type:'DIMENSION',payload})
-  const before=document.serialize();await assert.rejects(sdk.writeDocument(document,{format:'DXF'}),error=>/degenerate|XY plane|decimal degrees/.test(error.cause?.message??error.message));assert.equal(document.serialize(),before)
+  const before=document.serialize();await assert.rejects(sdk.writeDocument(document,{format:'DXF'}),error=>/degenerate|XY plane|incomplete/.test(error.cause?.message??error.message));assert.equal(document.serialize(),before)
  }
 })
 
