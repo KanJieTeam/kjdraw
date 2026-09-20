@@ -26,7 +26,16 @@ const BOREHOLE_KEYS = [
     'position',
     'collarElevation',
     'depth',
-    'kind'
+    'kind',
+    'labelLayout'
+];
+const BOREHOLE_LABEL_LAYOUT_KEYS = [
+    'idPosition',
+    'collarElevationPosition',
+    'depthPosition',
+    'textHeight',
+    'rotationDegrees',
+    'precision'
 ];
 const SECTION_KEYS = [
     'id',
@@ -220,12 +229,48 @@ function validateInput(document, source) {
         if (!inside(position, boundary)) throw new KJValidationError(`input.boreholes[${index}].position must lie inside the boundary`);
         const kind = value.kind == null ? 'borehole' : text(value.kind, `input.boreholes[${index}].kind`, 20);
         if (!KINDS.has(kind)) throw new KJValidationError(`input.boreholes[${index}].kind is unsupported`);
+        const depth = value.depth == null ? undefined : finite(value.depth, `input.boreholes[${index}].depth`, 0.01, 10_000);
+        let labelLayout;
+        if (value.labelLayout !== undefined) {
+            const layout = plain(value.labelLayout, `input.boreholes[${index}].labelLayout`);
+            exactKeys(layout, BOREHOLE_LABEL_LAYOUT_KEYS, `input.boreholes[${index}].labelLayout`);
+            const idPosition = point(layout.idPosition, `input.boreholes[${index}].labelLayout.idPosition`);
+            const collarElevationPosition = point(layout.collarElevationPosition, `input.boreholes[${index}].labelLayout.collarElevationPosition`);
+            const depthPosition = layout.depthPosition == null ? undefined : point(layout.depthPosition, `input.boreholes[${index}].labelLayout.depthPosition`);
+            if (![
+                idPosition,
+                collarElevationPosition,
+                ...depthPosition ? [
+                    depthPosition
+                ] : []
+            ].every(insideModelViewport)) throw new KJValidationError(`input.boreholes[${index}].labelLayout positions must lie inside the declared model viewport`);
+            if (depth !== undefined && !depthPosition) throw new KJValidationError(`input.boreholes[${index}].labelLayout.depthPosition is required when depth is supplied`);
+            if (depth === undefined && depthPosition) throw new KJValidationError(`input.boreholes[${index}].labelLayout.depthPosition requires a supplied depth`);
+            const labelTextHeight = layout.textHeight == null ? undefined : finite(layout.textHeight, `input.boreholes[${index}].labelLayout.textHeight`, 0.01, 1_000);
+            labelLayout = {
+                idPosition,
+                collarElevationPosition,
+                ...depthPosition === undefined ? {} : {
+                    depthPosition
+                },
+                ...labelTextHeight === undefined ? {} : {
+                    textHeight: labelTextHeight
+                },
+                rotationDegrees: layout.rotationDegrees == null ? 0 : finite(layout.rotationDegrees, `input.boreholes[${index}].labelLayout.rotationDegrees`, -360, 360),
+                precision: layout.precision == null ? 2 : integer(layout.precision, `input.boreholes[${index}].labelLayout.precision`, 0, 6)
+            };
+        }
         return {
             id: text(value.id, `input.boreholes[${index}].id`, 40),
             position,
             collarElevation: finite(value.collarElevation, `input.boreholes[${index}].collarElevation`),
-            depth: value.depth == null ? undefined : finite(value.depth, `input.boreholes[${index}].depth`, 0.01, 10_000),
-            kind
+            kind,
+            ...depth === undefined ? {} : {
+                depth
+            },
+            ...labelLayout === undefined ? {} : {
+                labelLayout
+            }
         };
     });
     const holesById = new Map();
@@ -754,21 +799,41 @@ export function buildAgentGeologyPlan(document, source) {
             semanticRole: 'investigation-point-cross',
             sourceId: hole.id
         });
-        addText([
-            hole.position[0] + markerRadius * 1.25,
-            hole.position[1] + textHeight * 0.25
-        ], hole.id, textHeight, 'ANNOTATION', 0, {
-            semanticRole: 'investigation-point-label',
-            sourceId: hole.id
-        });
-        const facts = hole.depth == null ? `H=${format(hole.collarElevation, 2)}` : `H=${format(hole.collarElevation, 2)}  D=${format(hole.depth, 2)}`;
-        addText([
-            hole.position[0] + markerRadius * 1.25,
-            hole.position[1] - textHeight
-        ], facts, textHeight * 0.76, 'ANNOTATION', 0, {
-            semanticRole: 'investigation-point-facts',
-            sourceId: hole.id
-        });
+        if (hole.labelLayout) {
+            const height = hole.labelLayout.textHeight ?? textHeight, rotation = hole.labelLayout.rotationDegrees * Math.PI / 180;
+            const extra = {
+                sourceId: hole.id,
+                sourceBacked: true
+            };
+            addText(hole.labelLayout.idPosition, hole.id, height, 'ANNOTATION', rotation, {
+                ...extra,
+                semanticRole: 'investigation-point-label'
+            });
+            addText(hole.labelLayout.collarElevationPosition, hole.collarElevation.toFixed(hole.labelLayout.precision), height, 'ANNOTATION', rotation, {
+                ...extra,
+                semanticRole: 'investigation-point-collar-elevation'
+            });
+            if (hole.depth !== undefined && hole.labelLayout.depthPosition) addText(hole.labelLayout.depthPosition, hole.depth.toFixed(hole.labelLayout.precision), height, 'ANNOTATION', rotation, {
+                ...extra,
+                semanticRole: 'investigation-point-depth'
+            });
+        } else {
+            addText([
+                hole.position[0] + markerRadius * 1.25,
+                hole.position[1] + textHeight * 0.25
+            ], hole.id, textHeight, 'ANNOTATION', 0, {
+                semanticRole: 'investigation-point-label',
+                sourceId: hole.id
+            });
+            const facts = hole.depth == null ? `H=${format(hole.collarElevation, 2)}` : `H=${format(hole.collarElevation, 2)}  D=${format(hole.depth, 2)}`;
+            addText([
+                hole.position[0] + markerRadius * 1.25,
+                hole.position[1] - textHeight
+            ], facts, textHeight * 0.76, 'ANNOTATION', 0, {
+                semanticRole: 'investigation-point-facts',
+                sourceId: hole.id
+            });
+        }
     }
     const sectionSegmentCounts = new Map();
     for (const section of input.sectionLines){

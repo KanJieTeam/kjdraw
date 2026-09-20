@@ -59,9 +59,61 @@ test('geology plan compiles true coordinates, investigation points and explicit 
   assert.equal(entities.filter(entity => entity.payload.semanticRole === 'coordinate-grid-northing').length, 5)
   const firstSection = entities.find(entity => entity.payload.sourceId === 'section-1' && entity.payload.semanticRole === 'section-line')
   assert.deepEqual(firstSection.payload.vertices, [[385020, 3452020, 0], [385070, 3452035, 0], [385115, 3452070, 0]])
+  const defaultPointLabels = entities.filter(entity => entity.type === 'TEXT' && entity.payload.sourceId === 'ZK01')
+  assert.deepEqual(defaultPointLabels.map(entity => [entity.payload.semanticRole, entity.payload.text, entity.payload.position, entity.payload.height, entity.payload.rotation, Object.hasOwn(entity.payload, 'sourceBacked')]), [
+    ['investigation-point-label', 'ZK01', [385021.375, 3452020.3125, 0], 1.25, 0, false],
+    ['investigation-point-facts', 'H=421.35  D=30', [385021.375, 3452018.75, 0], 0.95, 0, false],
+  ])
   const labels = entities.filter(entity => entity.type === 'TEXT').map(entity => entity.payload.text)
   for (const expected of ['ZK01', 'H=421.35  D=30', 'E 385000', 'N 3452000', '比例 1:500', '北']) assert.ok(labels.some(value => String(value).includes(expected)), expected)
   assert.equal(new Set(entities.map(entity => entity.options.id)).size, entities.length)
+})
+
+test('geology plan preserves supplied investigation-point label positions, precision and degree rotation through KJD and DXF', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'geology-plan-source-labels', units: 'meter' })
+  const source = intent()
+  source.boreholes[0] = {
+    ...source.boreholes[0],
+    labelLayout: {
+      idPosition: [385015.25, 3452025.75],
+      collarElevationPosition: [385015.5, 3452018.25],
+      depthPosition: [385015.5, 3452015.75],
+      textHeight: 1.35,
+      rotationDegrees: 30,
+      precision: 3,
+    },
+  }
+  const compiled = buildAgentGeologyPlan(document, source)
+  const labels = compiled.commandArgs.entities.filter(entity => entity.type === 'TEXT' && entity.payload.sourceId === 'ZK01')
+  assert.deepEqual(labels.map(entity => [entity.payload.semanticRole, entity.payload.text, entity.payload.position, entity.payload.height, entity.payload.rotation, entity.payload.sourceBacked]), [
+    ['investigation-point-label', 'ZK01', [385015.25, 3452025.75, 0], 1.35, Math.PI / 6, true],
+    ['investigation-point-collar-elevation', '421.350', [385015.5, 3452018.25, 0], 1.35, Math.PI / 6, true],
+    ['investigation-point-depth', '30.000', [385015.5, 3452015.75, 0], 1.35, Math.PI / 6, true],
+  ])
+  assert.equal(labels.some(entity => entity.payload.semanticRole === 'investigation-point-facts'), false)
+  await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
+  const kjd = await sdk.writeDocument(document, { format: 'KJD', version: '1' })
+  const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const reopenedKjd = await sdk.readDocument(kjd, { format: 'KJD' })
+  const reopenedDxf = await sdk.readDocument(dxf, { format: 'DXF' })
+  const texts = ['ZK01', '421.350', '30.000']
+  for (const reopened of [reopenedKjd, reopenedDxf]) {
+    assert.equal(reopened.validate().valid, true)
+    const reopenedLabels = reopened.listEntities({ type: 'TEXT' }).filter(entity => texts.includes(entity.payload.text))
+    assert.equal(reopenedLabels.length, 3)
+    for (const entity of reopenedLabels) assert.ok(Math.abs(entity.payload.rotation - Math.PI / 6) <= 1e-12)
+  }
+  const python = process.env.KJDRAW_PYTHON, pythonPath = process.env.KJDRAW_EZDXF_PATH
+  if (!python || !pythonPath) return
+  const root = await mkdtemp(join(tmpdir(), 'kjdraw-geology-plan-labels-'))
+  try {
+    const dxfPath = join(root, 'plan.dxf'), auditPath = join(root, 'audit.py')
+    await writeFile(dxfPath, dxf)
+    await writeFile(auditPath, 'import ezdxf, json, sys\ndoc=ezdxf.readfile(sys.argv[1]); audit=doc.audit(); texts=[e.dxf.text for e in doc.modelspace().query("TEXT")]; print(json.dumps({"errors":len(audit.errors),"fixes":len(audit.fixes),"labels":sum(value in texts for value in ["ZK01","421.350","30.000"])}))\n')
+    const result = spawnSync(python, [auditPath, dxfPath], { encoding: 'utf8', env: { ...process.env, PYTHONPATH: pythonPath } })
+    assert.equal(result.status, 0, result.stderr)
+    assert.deepEqual(JSON.parse(result.stdout), { errors: 0, fixes: 0, labels: 3 })
+  } finally { await rm(root, { recursive: true, force: true }) }
 })
 
 test('geology plan compiles explicit point callouts with engineering X northing and Y easting without inventing a grid', () => {
@@ -225,6 +277,11 @@ test('geology plan fails closed on stale revisions, unsafe coordinates and broke
   rejects({ boundary: [[0, 0], [10, 10], [0, 10], [10, 0]] }, /self-intersect|positive area/)
   rejects({ boreholes: [{ ...intent().boreholes[0], position: [0, 0] }, intent().boreholes[1]] }, /inside the boundary/)
   rejects({ boreholes: [intent().boreholes[0], { ...intent().boreholes[1], id: 'ZK01' }] }, /duplicate id/)
+  rejects({ boreholes: [{ ...intent().boreholes[0], labelLayout: { idPosition: [385020, 3452020], collarElevationPosition: [385020, 3452018] } }, ...intent().boreholes.slice(1)] }, /depthPosition is required/)
+  rejects({ boreholes: [{ id: 'ZK01', position: [385020, 3452020], collarElevation: 421.35, labelLayout: { idPosition: [385020, 3452020], collarElevationPosition: [385020, 3452018], depthPosition: [385020, 3452016] } }, ...intent().boreholes.slice(1)] }, /requires a supplied depth/)
+  rejects({ boreholes: [{ ...intent().boreholes[0], labelLayout: { idPosition: [0, 0], collarElevationPosition: [385020, 3452018], depthPosition: [385020, 3452016] } }, ...intent().boreholes.slice(1)] }, /declared model viewport/)
+  rejects({ boreholes: [{ ...intent().boreholes[0], labelLayout: { idPosition: [385020, 3452020], collarElevationPosition: [385020, 3452018], depthPosition: [385020, 3452016], precision: 7 } }, ...intent().boreholes.slice(1)] }, /finite number from 0 to 6/)
+  rejects({ boreholes: [{ ...intent().boreholes[0], labelLayout: { idPosition: [385020, 3452020], collarElevationPosition: [385020, 3452018], depthPosition: [385020, 3452016], invented: true } }, ...intent().boreholes.slice(1)] }, /unsupported field/)
   rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'missing'], label: 'X—X′' }] }, /unknown borehole/)
   rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK01'], label: 'X—X′' }] }, /must not repeat/)
   rejects({ sectionLines: [{ id: 'bad', holeIds: ['ZK01', 'ZK02'], label: 'X—X′', endpointLabels: ['X'] }] }, /exactly 2 labels/)

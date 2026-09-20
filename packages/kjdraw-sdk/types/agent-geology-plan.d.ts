@@ -2,12 +2,21 @@ export declare const KJDRAW_GEOLOGY_PLAN_VERSION: '1.0.0';
 type Point2 = [number, number];
 type Point3 = [number, number, number];
 type ScaleDenominator = 50 | 100 | 200 | 500 | 1000 | 2000;
+export interface KJGeologyPlanBoreholeLabelLayout {
+    idPosition: Point2;
+    collarElevationPosition: Point2;
+    depthPosition?: Point2;
+    textHeight?: number;
+    rotationDegrees?: number;
+    precision?: number;
+}
 export interface KJGeologyPlanBorehole {
     id: string;
     position: Point2;
     collarElevation: number;
     depth?: number;
     kind?: 'borehole' | 'test-pit' | 'in-situ-test';
+    labelLayout?: KJGeologyPlanBoreholeLabelLayout;
 }
 export interface KJGeologyPlanSectionLine {
     id: string;
