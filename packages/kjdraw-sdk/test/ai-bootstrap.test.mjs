@@ -5,7 +5,7 @@ import test from 'node:test'
 
 const root = new URL('../../../', import.meta.url)
 const read = path => readFile(new URL(path, root), 'utf8')
-const pinned = 'bb1739454122a33a3e9892806c029a6ba93fa725'
+const pinned = 'ddb0b538194f855d8a69b182ec4e5a454d5d1e8d'
 
 test('one-line AI bootstraps pin one public candidate and connect all clients without npx or force', async () => {
   const [powerShell, shell] = await Promise.all([read('scripts/install-ai.ps1'), read('scripts/install-ai.sh')])
@@ -23,13 +23,21 @@ test('one-line AI bootstraps pin one public candidate and connect all clients wi
     assert.match(source, /\.kjdraw\/results/)
     assert.match(source, /--previous-mcp-script/)
     assert.match(source, /--replace-existing/)
-    for (const previous of ['source-734a7f4', 'source-4c7124e', 'source-0c2d86e', 'source-57e0697', 'source-1854240', 'source-5f655c2', 'source-69bec87', 'source-7b25cf4', 'source-b022932', 'source-6da40b2', 'source-85d750e', 'source-c526aa7', 'source-a3c1bca', 'source-71df822', 'source-616133e']) assert.match(source, new RegExp(previous))
+    assert.match(source, /--mcp-script/)
+    assert.match(source, /current\.json/)
+    assert.match(source, /com\.kanjie\.kjdraw\.install-current@1/)
+    assert.match(source, /kjdraw-installed-mcp\.mjs/)
+    assert.match(source, /in-place upgrades/)
+    for (const previous of ['source-bb17394', 'source-734a7f4', 'source-4c7124e', 'source-0c2d86e', 'source-57e0697', 'source-1854240', 'source-5f655c2', 'source-69bec87', 'source-7b25cf4', 'source-b022932', 'source-6da40b2', 'source-85d750e', 'source-c526aa7', 'source-a3c1bca', 'source-71df822', 'source-616133e']) assert.match(source, new RegExp(previous))
     assert.doesNotMatch(source, /KJDRAW_PROJECT|Get-Location|\$PWD/)
     assert.doesNotMatch(source, /\bnpx\b|git clone|push|--force|reset --hard/)
   }
   assert.match(powerShell, /IsPathRooted/)
   assert.doesNotMatch(powerShell, /IsPathFullyQualified/)
+  assert.match(powerShell, /\$KJDrawArgs \+= @\('--mcp-script', \$KJDrawStableMcp\)/)
   assert.match(powerShell, /\$KJDrawArgs \+= '--replace-existing'/)
+  assert.match(powerShell, /Install-KJDrawAtomicFile \$KJDrawCurrentStage \$KJDrawCurrent/)
+  assert.match(powerShell, /UTF8Encoding\(\$false\)/)
   assert.match(powerShell, /earlier KJDraw MCP process is still attached/u)
   assert.match(powerShell, /Existing candidate HTML files are immutable/u)
   assert.match(powerShell, /WindowsIdentity/u)
@@ -40,7 +48,9 @@ test('one-line AI bootstraps pin one public candidate and connect all clients wi
   assert.match(powerShell, /ErrorAction SilentlyContinue/u)
   assert.doesNotMatch(powerShell, /Stop-Process|taskkill/u)
   assert.match(powerShell, /^[\x00-\x7f]*$/u)
-  assert.match(shell, /set -- "\$@" --replace-existing/)
+  assert.match(shell, /set -- "\$@" --mcp-script "\$KJDRAW_STABLE_MCP" --replace-existing/)
+  assert.match(shell, /mv -f "\$KJDRAW_CURRENT_STAGE" "\$KJDRAW_CURRENT"/)
+  assert.match(shell, /trap .*KJDRAW_CURRENT_STAGE/)
 })
 
 test('English default and Chinese homepage lead with the same runnable one-command AI install', async () => {
