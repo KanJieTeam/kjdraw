@@ -172,7 +172,7 @@ test('verified mirrored profiles stay symmetric while asymmetric source lines re
   assert.equal(emitted.has(lineKey([205, 127], [230, 124])), false)
   assert.equal(proposal.evidence.parameters.symmetricProfileCount, 1)
   assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 1)
-  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.30.0')
+  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.31.0')
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /geometry and effective visual style both mirror/u)
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /unpaired or asymmetric source segment remains an auxiliary line/u)
   assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.annotationStyles, /style key selects only its native DIMSTYLE definition/u)
@@ -998,6 +998,75 @@ test('local symbol lightweight polylines preserve native topology, widths, style
     assert.equal(document.serialize(), before)
   }
 })
+test('local symbol LEADER members remain native, unattached and bounded through KJD and DXF', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const explicit = { kind: 'leader', vertices: [[0, 0], [4, 3], [11, 3]], arrowEnabled: false, pathType: 1, annotationType: 2,
+    hookLineDirection: 1, hookLineEnabled: true, textHeight: 2.5, textWidth: 6, role: 'notes', entityStyleKey: 'leader-by-block' }
+  const defaults = { kind: 'leader', vertices: [[0, 8], [3, 10], [9, 10]], role: 'notes' }
+  const symbols = { definitions: [{ key: 'native-leaders', basePoint: [0, 0], members: [explicit, defaults] }],
+    instances: [{ symbolKey: 'native-leaders', position: [30, 40], role: 'notes' }] }
+  const source = { ...input(document.revision), symbols,
+    styleProfile: { custom: [{ key: 'leader-by-block', layerName: '0', color: 0, lineweight: 0, linetypeName: 'Continuous', linetypePattern: [] }] } }
+  const proposal = buildAgentMechanicalFlangeCore(document, source), block = proposal.commandArgs.resources.blocks[0]
+  assert.deepEqual(block.entities.map(entity => entity.type), ['LEADER', 'LEADER'])
+  assert.deepEqual(block.entities[0].payload.vertices, [[0, 0, 0], [4, 3, 0], [11, 3, 0]])
+  assert.deepEqual({ annotationId: block.entities[0].payload.annotationId, ownsAnnotation: block.entities[0].payload.ownsAnnotation,
+    arrowEnabled: block.entities[0].payload.arrowEnabled, pathType: block.entities[0].payload.pathType, annotationType: block.entities[0].payload.annotationType,
+    hookLineDirection: block.entities[0].payload.hookLineDirection, hookLineEnabled: block.entities[0].payload.hookLineEnabled,
+    textHeight: block.entities[0].payload.textHeight, textWidth: block.entities[0].payload.textWidth,
+  }, { annotationId: null, ownsAnnotation: false, arrowEnabled: false, pathType: 1, annotationType: 2, hookLineDirection: 1, hookLineEnabled: true, textHeight: 2.5, textWidth: 6 })
+  assert.equal('annotationHandle' in block.entities[0].payload, false)
+  assert.equal(block.entities[0].payload.color, 0)
+  assert.deepEqual({ annotationId: block.entities[1].payload.annotationId, ownsAnnotation: block.entities[1].payload.ownsAnnotation,
+    arrowEnabled: block.entities[1].payload.arrowEnabled, pathType: block.entities[1].payload.pathType, annotationType: block.entities[1].payload.annotationType,
+    hookLineDirection: block.entities[1].payload.hookLineDirection, hookLineEnabled: block.entities[1].payload.hookLineEnabled,
+  }, { annotationId: null, ownsAnnotation: false, arrowEnabled: true, pathType: 0, annotationType: 3, hookLineDirection: 0, hookLineEnabled: false })
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const [kjd, dxf] = await Promise.all([
+    sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' }),
+    sdk.readDocument(dxfText, { format: 'DXF' }),
+  ])
+  for (const reopened of [kjd, dxf]) {
+    const blockRecord = reopened.getTable('blockRecords').records.find(record => record.name?.startsWith('KJ_FLANGE_SYMBOL_'))
+    const leaders = reopened.listEntities({ type: 'LEADER' }).filter(entity => entity.ownerId === blockRecord.id)
+    assert.equal(leaders.length, 2)
+    assert.deepEqual(leaders.map(entity => entity.payload.vertices.length), [3, 3])
+    assert.ok(leaders.every(entity => entity.payload.annotationId == null && entity.payload.ownsAnnotation === false))
+    assert.deepEqual({ arrowEnabled: leaders[0].payload.arrowEnabled, pathType: leaders[0].payload.pathType, annotationType: leaders[0].payload.annotationType,
+      hookLineDirection: leaders[0].payload.hookLineDirection, hookLineEnabled: leaders[0].payload.hookLineEnabled,
+      textHeight: leaders[0].payload.textHeight, textWidth: leaders[0].payload.textWidth,
+    }, { arrowEnabled: false, pathType: 1, annotationType: 2, hookLineDirection: 1, hookLineEnabled: true, textHeight: 2.5, textWidth: 6 })
+  }
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); x=[e for b in d.blocks if b.name.startswith("KJ_FLANGE_SYMBOL_") for e in b.query("LEADER")]; print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"count":len(x),"vertices":[len(list(e.vertices)) for e in x],"associations":sum(1 for e in x if e.dxf.hasattr("annotation_handle"))}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || /No module named ['"]ezdxf/u.test(independent.stderr || '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr || independent.error?.message)
+    t.diagnostic('official ezdxf unavailable; independent check skipped')
+  } else {
+    assert.equal(independent.status, 0, independent.stderr)
+    assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, count: 2, vertices: [3, 3], associations: 0 })
+  }
+  const withMember = member => ({ ...input(document.revision), symbols: { definitions: [{ key: 'bounded-leader', basePoint: [0, 0], members: [member] }], instances: [] } })
+  const before = document.serialize()
+  for (const [member, pattern] of [
+    [{ ...defaults, vertices: [[0, 0]] }, /2 to 64 points/u],
+    [{ ...defaults, vertices: Array.from({ length: 65 }, (_, index) => [index, 0]) }, /2 to 64 points/u],
+    [{ ...defaults, vertices: [[0, 0], [0, 0], [2, 0]] }, /distinct consecutive points/u],
+    [{ ...defaults, arrowEnabled: 1 }, /arrowEnabled must be boolean/u],
+    [{ ...defaults, hookLineEnabled: 'yes' }, /hookLineEnabled must be boolean/u],
+    [{ ...defaults, pathType: 2 }, /pathType must be finite from 0 to 1/u],
+    [{ ...defaults, annotationType: 4 }, /annotationType must be finite from 0 to 3/u],
+    [{ ...defaults, hookLineDirection: .5 }, /hookLineDirection must be an integer/u],
+    [{ ...defaults, textHeight: -1 }, /textHeight must be finite from 0 to 1000000000/u],
+    [{ ...defaults, textWidth: Number.POSITIVE_INFINITY }, /textWidth must be finite/u],
+    ...['annotationId', 'annotationHandle', 'handle', 'sourceHandle', 'rawTags', 'applicationData'].map(field => [{ ...defaults, [field]: field === 'rawTags' ? [] : 'private' }, /unsupported field/u]),
+  ]) {
+    assert.throws(() => buildAgentMechanicalFlangeCore(document, withMember(member)), pattern)
+    assert.equal(document.serialize(), before)
+  }
+})
 
 test('local symbol TEXT, HATCH and SOLID members remain native through KJD and DXF', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
@@ -1515,7 +1584,7 @@ test('generic orthographic geometry remains native when the circular end view is
     symbols,
     dimensions,
   })
-  assert.equal(proposal.evidence.knowledgePackVersion, '2.30.0')
+  assert.equal(proposal.evidence.knowledgePackVersion, '2.31.0')
   assert.equal(proposal.evidence.parameters.endViewPresent, false)
   assert.equal(proposal.evidence.parameters.ringCount, 0)
   assert.equal(proposal.commandArgs.entities.some(entity => entity.type === 'CIRCLE'), false)

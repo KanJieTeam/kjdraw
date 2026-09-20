@@ -237,6 +237,7 @@ export type KJFlangeSymbolMember =
   | { kind: 'multiline-text'; text: string; position: Point2; height: number; rotation?: number; width?: number; attachmentPoint?: number; styleKey?: string; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
   | ({ kind: 'hatch'; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string } & Omit<KJFlangeAuxiliaryHatch, 'styleKey'>)
   | { kind: 'solid'; vertices: Point2[]; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
+  | { kind: 'leader'; vertices: Point2[]; arrowEnabled?: boolean; pathType?: number; annotationType?: number; hookLineDirection?: number; hookLineEnabled?: boolean; textHeight?: number; textWidth?: number; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
   | ({ kind: 'attribute-definition' } & KJFlangeSymbolAttribute)
   | { kind: 'instance'; symbolKey: string; position: Point2Or3; scale?: Point2; rotation?: number; role: KJFlangeAuxiliaryLine['role']; entityStyleKey?: string }
 
@@ -1315,6 +1316,26 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
         if (!nondegenerate) throw new KJValidationError(`${memberLabel}.vertices must span a nonzero area`)
         return { kind: 'solid', vertices, role, ...(entityStyleKeyValue == null ? {} : { entityStyleKey: entityStyleKeyValue }) }
       }
+      if (member.kind === 'leader') {
+        exact(member, ['kind', 'vertices', 'arrowEnabled', 'pathType', 'annotationType', 'hookLineDirection', 'hookLineEnabled', 'textHeight', 'textWidth', 'role', 'entityStyleKey'], memberLabel)
+        if (!Array.isArray(member.vertices) || member.vertices.length < 2 || member.vertices.length > 64) throw new KJValidationError(`${memberLabel}.vertices must contain 2 to 64 points`)
+        const vertices = member.vertices.map((value, vertexIndex) => point(value, `${memberLabel}.vertices[${vertexIndex}]`))
+        if (vertices.some((value, vertexIndex) => vertexIndex > 0 && Math.hypot(value[0] - vertices[vertexIndex - 1]![0], value[1] - vertices[vertexIndex - 1]![1]) <= 1e-12)) throw new KJValidationError(`${memberLabel}.vertices must contain distinct consecutive points`)
+        for (const field of ['arrowEnabled', 'hookLineEnabled'] as const) if (member[field] != null && typeof member[field] !== 'boolean') throw new KJValidationError(`${memberLabel}.${field} must be boolean`)
+        const integer = (value: unknown, field: string, fallback: number, maximum: number): number => {
+          if (value == null) return fallback
+          const result = finite(value, `${memberLabel}.${field}`, 0, maximum)
+          if (!Number.isInteger(result)) throw new KJValidationError(`${memberLabel}.${field} must be an integer`)
+          return result
+        }
+        const textHeight = member.textHeight == null ? undefined : finite(member.textHeight, `${memberLabel}.textHeight`, 0, 1e9)
+        const textWidth = member.textWidth == null ? undefined : finite(member.textWidth, `${memberLabel}.textWidth`, 0, 1e9)
+        return { kind: 'leader', vertices, arrowEnabled: member.arrowEnabled == null ? true : member.arrowEnabled as boolean,
+          pathType: integer(member.pathType, 'pathType', 0, 1), annotationType: integer(member.annotationType, 'annotationType', 3, 3),
+          hookLineDirection: integer(member.hookLineDirection, 'hookLineDirection', 0, 1), hookLineEnabled: member.hookLineEnabled === true,
+          ...(textHeight == null ? {} : { textHeight }), ...(textWidth == null ? {} : { textWidth }), role,
+          ...(entityStyleKeyValue == null ? {} : { entityStyleKey: entityStyleKeyValue }) }
+      }
       if (member.kind === 'multiline-text') {
         exact(member, ['kind', 'text', 'position', 'height', 'rotation', 'width', 'attachmentPoint', 'styleKey', 'role', 'entityStyleKey'], memberLabel)
         if (typeof member.text !== 'string' || !member.text || member.text.length > 512 || /[\u0000\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(member.text)) throw new KJValidationError(`${memberLabel}.text must be bounded visible text`)
@@ -1644,6 +1665,10 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       else if (member.kind === 'multiline-text') { const style = member.styleKey == null ? null : textStyleByKey.get(member.styleKey)!; type = 'MTEXT'; payload = { position: p3(...member.position), text: member.text, height: member.height, rotation: member.rotation ?? 0,
         attachmentPoint: member.attachmentPoint ?? 1, ...(member.width == null ? {} : { width: member.width }), ...(style == null ? {} : { styleId: style.id }), layerId: entityStyle.layerId } }
       else if (member.kind === 'attribute-definition') { type = 'ATTDEF'; payload = symbolAttributePayload(member) }
+      else if (member.kind === 'leader') { type = 'LEADER'; payload = { vertices: member.vertices.map(value => p3(...value)), annotationId: null, ownsAnnotation: false,
+        arrowEnabled: member.arrowEnabled !== false, pathType: member.pathType ?? 0, annotationType: member.annotationType ?? 3,
+        hookLineDirection: member.hookLineDirection ?? 0, hookLineEnabled: member.hookLineEnabled === true,
+        ...(member.textHeight == null ? {} : { textHeight: member.textHeight }), ...(member.textWidth == null ? {} : { textWidth: member.textWidth }), layerId: entityStyle.layerId } }
       else { type = 'INSERT'; payload = { blockRecordId: symbolBlockByKey.get(member.symbolKey)!.id, position: p3(member.position[0], member.position[1], member.position[2]), scale: [member.scale?.[0] ?? 1, member.scale?.[1] ?? 1, 1], rotation: member.rotation ?? 0,
         attributes: {}, attributeIds: [], sequenceEndId: null, layerId: entityStyle.layerId } }
       return { type, payload: stylePayload(payload, entityStyle.name), options: { id: `${id}-member-${String(memberIndex + 1).padStart(3, '0')}` } }

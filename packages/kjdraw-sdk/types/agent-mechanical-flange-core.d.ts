@@ -435,6 +435,18 @@ export type KJFlangeSymbolMember = {
     vertices: Point2[];
     role: KJFlangeAuxiliaryLine['role'];
     entityStyleKey?: string;
+} | {
+    kind: 'leader';
+    vertices: Point2[];
+    arrowEnabled?: boolean;
+    pathType?: number;
+    annotationType?: number;
+    hookLineDirection?: number;
+    hookLineEnabled?: boolean;
+    textHeight?: number;
+    textWidth?: number;
+    role: KJFlangeAuxiliaryLine['role'];
+    entityStyleKey?: string;
 } | ({
     kind: 'attribute-definition';
 } & KJFlangeSymbolAttribute) | {
@@ -719,7 +731,7 @@ export declare function buildAgentMechanicalFlangeCore(document: Document, sourc
                 name: string;
                 basePoint: Point3;
                 entities: {
-                    type: "ARC" | "ATTDEF" | "CIRCLE" | "HATCH" | "INSERT" | "LINE" | "LWPOLYLINE" | "MTEXT" | "SOLID" | "TEXT";
+                    type: "ARC" | "ATTDEF" | "CIRCLE" | "HATCH" | "INSERT" | "LEADER" | "LINE" | "LWPOLYLINE" | "MTEXT" | "SOLID" | "TEXT";
                     payload: Record<string, unknown>;
                     options: {
                         id: string;

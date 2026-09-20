@@ -2235,6 +2235,55 @@ function validate(document, source) {
                     }
                 };
             }
+            if (member.kind === 'leader') {
+                exact(member, [
+                    'kind',
+                    'vertices',
+                    'arrowEnabled',
+                    'pathType',
+                    'annotationType',
+                    'hookLineDirection',
+                    'hookLineEnabled',
+                    'textHeight',
+                    'textWidth',
+                    'role',
+                    'entityStyleKey'
+                ], memberLabel);
+                if (!Array.isArray(member.vertices) || member.vertices.length < 2 || member.vertices.length > 64) throw new KJValidationError(`${memberLabel}.vertices must contain 2 to 64 points`);
+                const vertices = member.vertices.map((value, vertexIndex)=>point(value, `${memberLabel}.vertices[${vertexIndex}]`));
+                if (vertices.some((value, vertexIndex)=>vertexIndex > 0 && Math.hypot(value[0] - vertices[vertexIndex - 1][0], value[1] - vertices[vertexIndex - 1][1]) <= 1e-12)) throw new KJValidationError(`${memberLabel}.vertices must contain distinct consecutive points`);
+                for (const field of [
+                    'arrowEnabled',
+                    'hookLineEnabled'
+                ])if (member[field] != null && typeof member[field] !== 'boolean') throw new KJValidationError(`${memberLabel}.${field} must be boolean`);
+                const integer = (value, field, fallback, maximum)=>{
+                    if (value == null) return fallback;
+                    const result = finite(value, `${memberLabel}.${field}`, 0, maximum);
+                    if (!Number.isInteger(result)) throw new KJValidationError(`${memberLabel}.${field} must be an integer`);
+                    return result;
+                };
+                const textHeight = member.textHeight == null ? undefined : finite(member.textHeight, `${memberLabel}.textHeight`, 0, 1e9);
+                const textWidth = member.textWidth == null ? undefined : finite(member.textWidth, `${memberLabel}.textWidth`, 0, 1e9);
+                return {
+                    kind: 'leader',
+                    vertices,
+                    arrowEnabled: member.arrowEnabled == null ? true : member.arrowEnabled,
+                    pathType: integer(member.pathType, 'pathType', 0, 1),
+                    annotationType: integer(member.annotationType, 'annotationType', 3, 3),
+                    hookLineDirection: integer(member.hookLineDirection, 'hookLineDirection', 0, 1),
+                    hookLineEnabled: member.hookLineEnabled === true,
+                    ...textHeight == null ? {} : {
+                        textHeight
+                    },
+                    ...textWidth == null ? {} : {
+                        textWidth
+                    },
+                    role,
+                    ...entityStyleKeyValue == null ? {} : {
+                        entityStyleKey: entityStyleKeyValue
+                    }
+                };
+            }
             if (member.kind === 'multiline-text') {
                 exact(member, [
                     'kind',
@@ -3465,6 +3514,25 @@ export function buildAgentMechanicalFlangeCore(document, source) {
             } else if (member.kind === 'attribute-definition') {
                 type = 'ATTDEF';
                 payload = symbolAttributePayload(member);
+            } else if (member.kind === 'leader') {
+                type = 'LEADER';
+                payload = {
+                    vertices: member.vertices.map((value)=>p3(...value)),
+                    annotationId: null,
+                    ownsAnnotation: false,
+                    arrowEnabled: member.arrowEnabled !== false,
+                    pathType: member.pathType ?? 0,
+                    annotationType: member.annotationType ?? 3,
+                    hookLineDirection: member.hookLineDirection ?? 0,
+                    hookLineEnabled: member.hookLineEnabled === true,
+                    ...member.textHeight == null ? {} : {
+                        textHeight: member.textHeight
+                    },
+                    ...member.textWidth == null ? {} : {
+                        textWidth: member.textWidth
+                    },
+                    layerId: entityStyle.layerId
+                };
             } else {
                 type = 'INSERT';
                 payload = {

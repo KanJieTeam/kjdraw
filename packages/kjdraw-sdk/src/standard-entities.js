@@ -483,6 +483,10 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                     if (!Number.isInteger(result) || result < minimum || result > maximum) throw new KJValidationError(`${label} is outside its native LEADER range`);
                     return result;
                 };
+                const textHeight = payload.textHeight == null ? undefined : finite(payload.textHeight, 'textHeight');
+                const textWidth = payload.textWidth == null ? undefined : finite(payload.textWidth, 'textWidth');
+                if (textHeight != null && (textHeight < 0 || textHeight > 1e9)) throw new KJValidationError('textHeight is outside its native LEADER range');
+                if (textWidth != null && (textWidth < 0 || textWidth > 1e9)) throw new KJValidationError('textWidth is outside its native LEADER range');
                 return {
                     ...base(payload),
                     vertices,
@@ -494,6 +498,12 @@ export function normalizeStandardEntityPayload(type, input = {}) {
                     annotationType: integer(payload.annotationType, payload.annotationId ? 0 : 3, 'annotationType', 0, 3),
                     hookLineDirection: integer(payload.hookLineDirection, 0, 'hookLineDirection', 0, 1),
                     hookLineEnabled: payload.hookLineEnabled === true,
+                    ...textHeight == null ? {} : {
+                        textHeight
+                    },
+                    ...textWidth == null ? {} : {
+                        textWidth
+                    },
                     ...payload.horizontalDirection == null ? {} : {
                         horizontalDirection: point3(payload.horizontalDirection, 'horizontalDirection')
                     },
