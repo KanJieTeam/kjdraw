@@ -684,6 +684,33 @@ function validate(document, source) {
                         counterClockwise: edge.counterClockwise !== false
                     };
                 }
+                if (edge.kind === 'ellipse') {
+                    exact(edge, [
+                        'kind',
+                        'center',
+                        'majorAxis',
+                        'ratio',
+                        'startAngle',
+                        'endAngle',
+                        'counterClockwise'
+                    ], edgeLabel);
+                    if (edge.counterClockwise != null && typeof edge.counterClockwise !== 'boolean') throw new KJValidationError(`${edgeLabel}.counterClockwise must be boolean`);
+                    const majorAxis = point(edge.majorAxis, `${edgeLabel}.majorAxis`);
+                    if (Math.hypot(...majorAxis) <= 1e-9) throw new KJValidationError(`${edgeLabel}.majorAxis must not be zero`);
+                    const ratio = finite(edge.ratio, `${edgeLabel}.ratio`, 1e-9, 1);
+                    const startAngle = finite(edge.startAngle, `${edgeLabel}.startAngle`, -Math.PI * 4, Math.PI * 4);
+                    const endAngle = finite(edge.endAngle, `${edgeLabel}.endAngle`, -Math.PI * 4, Math.PI * 4);
+                    if (startAngle === endAngle) throw new KJValidationError(`${edgeLabel} ellipse sweep must not be zero`);
+                    return {
+                        kind: 'ellipse',
+                        center: localPoint(edge.center, `${edgeLabel}.center`),
+                        majorAxis,
+                        ratio,
+                        startAngle,
+                        endAngle,
+                        counterClockwise: edge.counterClockwise !== false
+                    };
+                }
                 if (edge.kind === 'spline') {
                     exact(edge, [
                         'kind',
@@ -1377,6 +1404,33 @@ function validate(document, source) {
                         kind: 'arc',
                         center: point(edge.center, `${edgeLabel}.center`),
                         radius: finite(edge.radius, `${edgeLabel}.radius`, 0.1, 100_000),
+                        startAngle,
+                        endAngle,
+                        counterClockwise: edge.counterClockwise !== false
+                    };
+                }
+                if (edge.kind === 'ellipse') {
+                    exact(edge, [
+                        'kind',
+                        'center',
+                        'majorAxis',
+                        'ratio',
+                        'startAngle',
+                        'endAngle',
+                        'counterClockwise'
+                    ], edgeLabel);
+                    if (edge.counterClockwise != null && typeof edge.counterClockwise !== 'boolean') throw new KJValidationError(`${edgeLabel}.counterClockwise must be boolean`);
+                    const majorAxis = point(edge.majorAxis, `${edgeLabel}.majorAxis`);
+                    if (Math.hypot(...majorAxis) <= 1e-9) throw new KJValidationError(`${edgeLabel}.majorAxis must not be zero`);
+                    const ratio = finite(edge.ratio, `${edgeLabel}.ratio`, 1e-9, 1);
+                    const startAngle = finite(edge.startAngle, `${edgeLabel}.startAngle`, -Math.PI * 4, Math.PI * 4);
+                    const endAngle = finite(edge.endAngle, `${edgeLabel}.endAngle`, -Math.PI * 4, Math.PI * 4);
+                    if (startAngle === endAngle) throw new KJValidationError(`${edgeLabel} ellipse sweep must not be zero`);
+                    return {
+                        kind: 'ellipse',
+                        center: point(edge.center, `${edgeLabel}.center`),
+                        majorAxis,
+                        ratio,
                         startAngle,
                         endAngle,
                         counterClockwise: edge.counterClockwise !== false
@@ -3016,6 +3070,14 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                         startAngle: edge.startAngle,
                         endAngle: edge.endAngle,
                         counterClockwise: edge.counterClockwise !== false
+                    } : edge.kind === 'ellipse' ? {
+                        type: 'ELLIPSE',
+                        center: p3(...projectSidePoint(edge.center.station, edge.center.offset)),
+                        majorAxis: p3(...projectSideVector(...edge.majorAxis)),
+                        ratio: edge.ratio,
+                        startAngle: edge.startAngle,
+                        endAngle: edge.endAngle,
+                        counterClockwise: edge.counterClockwise !== false
                     } : {
                         type: 'SPLINE',
                         degree: edge.degree,
@@ -3062,6 +3124,14 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                         type: 'ARC',
                         center: p3(...edge.center),
                         radius: edge.radius,
+                        startAngle: edge.startAngle,
+                        endAngle: edge.endAngle,
+                        counterClockwise: edge.counterClockwise !== false
+                    } : edge.kind === 'ellipse' ? {
+                        type: 'ELLIPSE',
+                        center: p3(...edge.center),
+                        majorAxis: p3(...edge.majorAxis),
+                        ratio: edge.ratio,
                         startAngle: edge.startAngle,
                         endAngle: edge.endAngle,
                         counterClockwise: edge.counterClockwise !== false
@@ -3310,6 +3380,14 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                                 type: 'ARC',
                                 center: p3(...edge.center),
                                 radius: edge.radius,
+                                startAngle: edge.startAngle,
+                                endAngle: edge.endAngle,
+                                counterClockwise: edge.counterClockwise !== false
+                            } : edge.kind === 'ellipse' ? {
+                                type: 'ELLIPSE',
+                                center: p3(...edge.center),
+                                majorAxis: p3(...edge.majorAxis),
+                                ratio: edge.ratio,
                                 startAngle: edge.startAngle,
                                 endAngle: edge.endAngle,
                                 counterClockwise: edge.counterClockwise !== false

@@ -83,6 +83,7 @@ export interface KJFlangeSectionHatchSplineEdge {
 export type KJFlangeSectionHatchEdge =
   | { kind: 'line'; start: { station: number; offset: number }; end: { station: number; offset: number } }
   | { kind: 'arc'; center: { station: number; offset: number }; radius: number; startAngle: number; endAngle: number; counterClockwise?: boolean }
+  | { kind: 'ellipse'; center: { station: number; offset: number }; majorAxis: Point2; ratio: number; startAngle: number; endAngle: number; counterClockwise?: boolean }
   | KJFlangeSectionHatchSplineEdge
 
 export interface KJFlangeSectionHatchBoundaryLoop {
@@ -127,6 +128,7 @@ export interface KJFlangeAuxiliaryHatchSplineEdge {
 export type KJFlangeAuxiliaryHatchEdge =
   | { kind: 'line'; start: Point2; end: Point2 }
   | { kind: 'arc'; center: Point2; radius: number; startAngle: number; endAngle: number; counterClockwise?: boolean }
+  | { kind: 'ellipse'; center: Point2; majorAxis: Point2; ratio: number; startAngle: number; endAngle: number; counterClockwise?: boolean }
   | KJFlangeAuxiliaryHatchSplineEdge
 
 export interface KJFlangeAuxiliaryHatchBoundaryLoop {
@@ -720,6 +722,18 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
           return { kind: 'arc' as const, center: localPoint(edge.center, `${edgeLabel}.center`),
             radius: finite(edge.radius, `${edgeLabel}.radius`, 0.1, 100_000), startAngle, endAngle, counterClockwise: edge.counterClockwise !== false }
         }
+        if (edge.kind === 'ellipse') {
+          exact(edge, ['kind', 'center', 'majorAxis', 'ratio', 'startAngle', 'endAngle', 'counterClockwise'], edgeLabel)
+          if (edge.counterClockwise != null && typeof edge.counterClockwise !== 'boolean') throw new KJValidationError(`${edgeLabel}.counterClockwise must be boolean`)
+          const majorAxis = point(edge.majorAxis, `${edgeLabel}.majorAxis`)
+          if (Math.hypot(...majorAxis) <= 1e-9) throw new KJValidationError(`${edgeLabel}.majorAxis must not be zero`)
+          const ratio = finite(edge.ratio, `${edgeLabel}.ratio`, 1e-9, 1)
+          const startAngle = finite(edge.startAngle, `${edgeLabel}.startAngle`, -Math.PI * 4, Math.PI * 4)
+          const endAngle = finite(edge.endAngle, `${edgeLabel}.endAngle`, -Math.PI * 4, Math.PI * 4)
+          if (startAngle === endAngle) throw new KJValidationError(`${edgeLabel} ellipse sweep must not be zero`)
+          return { kind: 'ellipse' as const, center: localPoint(edge.center, `${edgeLabel}.center`), majorAxis, ratio,
+            startAngle, endAngle, counterClockwise: edge.counterClockwise !== false }
+        }
         if (edge.kind === 'spline') {
           exact(edge, ['kind', 'degree', 'controlPoints', 'knots', 'weights', 'fitPoints', 'periodic', 'startTangent', 'endTangent'], edgeLabel)
           if (!Array.isArray(edge.controlPoints)) throw new KJValidationError(`${edgeLabel}.controlPoints must be an array`)
@@ -1000,6 +1014,18 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
           const startAngle = finite(edge.startAngle, `${edgeLabel}.startAngle`, -Math.PI * 4, Math.PI * 4), endAngle = finite(edge.endAngle, `${edgeLabel}.endAngle`, -Math.PI * 4, Math.PI * 4)
           if (startAngle === endAngle) throw new KJValidationError(`${edgeLabel} arc sweep must not be zero`)
           return { kind: 'arc' as const, center: point(edge.center, `${edgeLabel}.center`), radius: finite(edge.radius, `${edgeLabel}.radius`, 0.1, 100_000), startAngle, endAngle, counterClockwise: edge.counterClockwise !== false }
+        }
+        if (edge.kind === 'ellipse') {
+          exact(edge, ['kind', 'center', 'majorAxis', 'ratio', 'startAngle', 'endAngle', 'counterClockwise'], edgeLabel)
+          if (edge.counterClockwise != null && typeof edge.counterClockwise !== 'boolean') throw new KJValidationError(`${edgeLabel}.counterClockwise must be boolean`)
+          const majorAxis = point(edge.majorAxis, `${edgeLabel}.majorAxis`)
+          if (Math.hypot(...majorAxis) <= 1e-9) throw new KJValidationError(`${edgeLabel}.majorAxis must not be zero`)
+          const ratio = finite(edge.ratio, `${edgeLabel}.ratio`, 1e-9, 1)
+          const startAngle = finite(edge.startAngle, `${edgeLabel}.startAngle`, -Math.PI * 4, Math.PI * 4)
+          const endAngle = finite(edge.endAngle, `${edgeLabel}.endAngle`, -Math.PI * 4, Math.PI * 4)
+          if (startAngle === endAngle) throw new KJValidationError(`${edgeLabel} ellipse sweep must not be zero`)
+          return { kind: 'ellipse' as const, center: point(edge.center, `${edgeLabel}.center`), majorAxis, ratio,
+            startAngle, endAngle, counterClockwise: edge.counterClockwise !== false }
         }
         if (edge.kind === 'spline') {
           exact(edge, ['kind', 'degree', 'controlPoints', 'knots', 'weights', 'fitPoints', 'periodic', 'startTangent', 'endTangent'], edgeLabel)
@@ -1524,7 +1550,9 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
       ? { type: 'LINE', start: p3(...projectSidePoint(edge.start.station, edge.start.offset)), end: p3(...projectSidePoint(edge.end.station, edge.end.offset)) }
       : edge.kind === 'arc' ? { type: 'ARC', center: p3(...projectSidePoint(edge.center.station, edge.center.offset)), radius: edge.radius,
         startAngle: edge.startAngle, endAngle: edge.endAngle, counterClockwise: edge.counterClockwise !== false }
-        : { type: 'SPLINE', degree: edge.degree,
+        : edge.kind === 'ellipse' ? { type: 'ELLIPSE', center: p3(...projectSidePoint(edge.center.station, edge.center.offset)),
+          majorAxis: p3(...projectSideVector(...edge.majorAxis)), ratio: edge.ratio, startAngle: edge.startAngle, endAngle: edge.endAngle,
+          counterClockwise: edge.counterClockwise !== false } : { type: 'SPLINE', degree: edge.degree,
           controlPoints: edge.controlPoints.map(value => p3(...projectSidePoint(value.station, value.offset))), knots: [...(edge.knots ?? [])], weights: [...(edge.weights ?? [])],
           fitPoints: (edge.fitPoints ?? []).map(value => p3(...projectSidePoint(value.station, value.offset))), periodic: edge.periodic === true,
           ...(edge.startTangent == null ? {} : { startTangent: p3(...projectSideVector(...edge.startTangent)) }),
@@ -1537,7 +1565,9 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
     const boundaryLoops = hatch.boundaryLoops!.map(loop => ({ external: loop.external === true, flags: loop.flags ?? 0, edges: loop.edges.map(edge => edge.kind === 'line'
       ? { type: 'LINE', start: p3(...edge.start), end: p3(...edge.end) }
       : edge.kind === 'arc' ? { type: 'ARC', center: p3(...edge.center), radius: edge.radius, startAngle: edge.startAngle, endAngle: edge.endAngle, counterClockwise: edge.counterClockwise !== false }
-        : { type: 'SPLINE', degree: edge.degree, controlPoints: edge.controlPoints.map(value => p3(...value)), knots: [...(edge.knots ?? [])], weights: [...(edge.weights ?? [])],
+        : edge.kind === 'ellipse' ? { type: 'ELLIPSE', center: p3(...edge.center), majorAxis: p3(...edge.majorAxis), ratio: edge.ratio,
+          startAngle: edge.startAngle, endAngle: edge.endAngle, counterClockwise: edge.counterClockwise !== false }
+          : { type: 'SPLINE', degree: edge.degree, controlPoints: edge.controlPoints.map(value => p3(...value)), knots: [...(edge.knots ?? [])], weights: [...(edge.weights ?? [])],
           fitPoints: (edge.fitPoints ?? []).map(value => p3(...value)), periodic: edge.periodic === true,
           ...(edge.startTangent == null ? {} : { startTangent: p3(...edge.startTangent) }), ...(edge.endTangent == null ? {} : { endTangent: p3(...edge.endTangent) }) } ) }))
     emit('HATCH', { boundaryLoops, patternName: hatch.patternName, solid: hatch.solid, associative: false, patternAngle: 0, patternScale: 1, patternLines: hatch.patternLines,
@@ -1593,7 +1623,9 @@ export function buildAgentMechanicalFlangeCore(document: Document, source: KJAge
         const boundaryLoops = member.boundaryLoops!.map(loop => ({ external: loop.external === true, flags: loop.flags ?? 0, edges: loop.edges.map(edge => edge.kind === 'line'
           ? { type: 'LINE', start: p3(...edge.start), end: p3(...edge.end) }
           : edge.kind === 'arc' ? { type: 'ARC', center: p3(...edge.center), radius: edge.radius, startAngle: edge.startAngle, endAngle: edge.endAngle, counterClockwise: edge.counterClockwise !== false }
-            : { type: 'SPLINE', degree: edge.degree, controlPoints: edge.controlPoints.map(value => p3(...value)), knots: [...(edge.knots ?? [])], weights: [...(edge.weights ?? [])],
+            : edge.kind === 'ellipse' ? { type: 'ELLIPSE', center: p3(...edge.center), majorAxis: p3(...edge.majorAxis), ratio: edge.ratio,
+              startAngle: edge.startAngle, endAngle: edge.endAngle, counterClockwise: edge.counterClockwise !== false }
+              : { type: 'SPLINE', degree: edge.degree, controlPoints: edge.controlPoints.map(value => p3(...value)), knots: [...(edge.knots ?? [])], weights: [...(edge.weights ?? [])],
               fitPoints: (edge.fitPoints ?? []).map(value => p3(...value)), periodic: edge.periodic === true,
               ...(edge.startTangent == null ? {} : { startTangent: p3(...edge.startTangent) }), ...(edge.endTangent == null ? {} : { endTangent: p3(...edge.endTangent) }) } ) }))
         type = 'HATCH'; payload = { boundaryLoops, patternName: member.patternName, solid: member.solid, associative: false, patternAngle: 0, patternScale: 1,
