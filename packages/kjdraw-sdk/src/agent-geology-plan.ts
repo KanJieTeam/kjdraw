@@ -41,6 +41,17 @@ export interface KJGeologyPlanCoordinateCallout {
   textHeight?: number
 }
 
+export interface KJGeologyPlanAlignedDimension {
+  id: string
+  dimensionLinePoint: Point2
+  firstExtensionOrigin: Point2
+  secondExtensionOrigin: Point2
+  textPosition?: Point2
+  displayValue: number
+  precision?: number
+  unitSuffix?: 'none' | 'm' | 'M'
+}
+
 export interface KJGeologyPlanBuildingFootprint {
   id: string
   outline: Point2[]
@@ -71,6 +82,7 @@ export interface KJAgentGeologyPlanInput {
   sectionLines: KJGeologyPlanSectionLine[]
   coordinateGrid?: KJGeologyPlanCoordinateGrid
   coordinateCallouts?: KJGeologyPlanCoordinateCallout[]
+  dimensions?: KJGeologyPlanAlignedDimension[]
   buildingFootprints?: KJGeologyPlanBuildingFootprint[]
   roadPaths?: KJGeologyPlanRoadPath[]
   northAngleDegrees?: number
@@ -84,11 +96,12 @@ interface GeologyPlanDocument {
 
 type EntitySpec = { type: string; payload: Record<string, unknown>; options: { id: string } }
 
-const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'scale', 'boundary', 'boreholes', 'sectionLines', 'coordinateGrid', 'coordinateCallouts', 'buildingFootprints', 'roadPaths', 'northAngleDegrees']
+const INPUT_KEYS = ['version', 'expectedRevision', 'units', 'locale', 'drawingId', 'title', 'revision', 'scale', 'boundary', 'boreholes', 'sectionLines', 'coordinateGrid', 'coordinateCallouts', 'dimensions', 'buildingFootprints', 'roadPaths', 'northAngleDegrees']
 const BOREHOLE_KEYS = ['id', 'position', 'collarElevation', 'depth', 'kind']
 const SECTION_KEYS = ['id', 'holeIds', 'label', 'endpointLabels', 'markerClearance', 'endpointTailLengths', 'endpointLabelPositions']
 const GRID_KEYS = ['origin', 'spacing']
 const COORDINATE_CALLOUT_KEYS = ['id', 'point', 'elbow', 'landingEnd', 'xLabelPosition', 'yLabelPosition', 'precision', 'textHeight']
+const DIMENSION_KEYS = ['id', 'dimensionLinePoint', 'firstExtensionOrigin', 'secondExtensionOrigin', 'textPosition', 'displayValue', 'precision', 'unitSuffix']
 const BUILDING_KEYS = ['id', 'outline']
 const ROAD_PATH_KEYS = ['id', 'start', 'segments', 'closed']
 const ROAD_LINE_KEYS = ['kind', 'end']
@@ -295,6 +308,31 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
     return callout
   })
   if (Boolean(coordinateGrid) === (coordinateCallouts.length > 0)) throw new KJValidationError('input must supply exactly one coordinate strategy: coordinateGrid or coordinateCallouts')
+  if (input.dimensions !== undefined && (!Array.isArray(input.dimensions) || input.dimensions.length > 64))
+    throw new KJValidationError('input.dimensions must contain at most 64 supplied aligned dimensions')
+  const dimensionIds = new Set<string>()
+  const dimensions = (input.dimensions ?? []).map((raw, index) => {
+    const value = plain(raw, `input.dimensions[${index}]`); exactKeys(value, DIMENSION_KEYS, `input.dimensions[${index}]`)
+    const id = text(value.id, `input.dimensions[${index}].id`, 40)
+    if (dimensionIds.has(id)) throw new KJValidationError(`input.dimensions contains duplicate id ${id}`)
+    dimensionIds.add(id)
+    const dimensionLinePoint = point(value.dimensionLinePoint, `input.dimensions[${index}].dimensionLinePoint`)
+    const firstExtensionOrigin = point(value.firstExtensionOrigin, `input.dimensions[${index}].firstExtensionOrigin`)
+    const secondExtensionOrigin = point(value.secondExtensionOrigin, `input.dimensions[${index}].secondExtensionOrigin`)
+    const textPosition = value.textPosition == null ? dimensionLinePoint : point(value.textPosition, `input.dimensions[${index}].textPosition`)
+    if (![dimensionLinePoint, firstExtensionOrigin, secondExtensionOrigin, textPosition].every(insideModelViewport))
+      throw new KJValidationError(`input.dimensions[${index}] geometry must lie inside the declared model viewport`)
+    const measuredLength = Math.hypot(secondExtensionOrigin[0] - firstExtensionOrigin[0], secondExtensionOrigin[1] - firstExtensionOrigin[1])
+    if (measuredLength <= EPSILON) throw new KJValidationError(`input.dimensions[${index}] extension origins must be distinct`)
+    const dimensionLineOffset = Math.abs((secondExtensionOrigin[0] - firstExtensionOrigin[0]) * (firstExtensionOrigin[1] - dimensionLinePoint[1])
+      - (firstExtensionOrigin[0] - dimensionLinePoint[0]) * (secondExtensionOrigin[1] - firstExtensionOrigin[1])) / measuredLength
+    if (dimensionLineOffset <= EPSILON) throw new KJValidationError(`input.dimensions[${index}].dimensionLinePoint must be offset from the measured line`)
+    const displayValue = finite(value.displayValue, `input.dimensions[${index}].displayValue`, 0.000001, 100_000_000)
+    const precision = value.precision == null ? 2 : integer(value.precision, `input.dimensions[${index}].precision`, 0, 6)
+    const unitSuffix = value.unitSuffix == null ? 'none' : value.unitSuffix
+    if (unitSuffix !== 'none' && unitSuffix !== 'm' && unitSuffix !== 'M') throw new KJValidationError(`input.dimensions[${index}].unitSuffix must be none, m or M`)
+    return { id, dimensionLinePoint, firstExtensionOrigin, secondExtensionOrigin, textPosition, displayValue, precision, unitSuffix }
+  })
   if (input.buildingFootprints !== undefined && (!Array.isArray(input.buildingFootprints) || input.buildingFootprints.length > 128))
     throw new KJValidationError('input.buildingFootprints must contain at most 128 supplied outlines')
   const buildingIds = new Set<string>()
@@ -375,7 +413,7 @@ function validateInput(document: GeologyPlanDocument, source: KJAgentGeologyPlan
   const northAngleDegrees = finite(input.northAngleDegrees ?? 0, 'input.northAngleDegrees', -360, 360)
   const locale = input.locale == null ? [...boreholes.map(value => value.id), ...sectionLines.map(value => value.label), input.title].some(value => /[\u3400-\u9fff]/u.test(String(value ?? ''))) ? 'zh-CN' as const : 'en' as const
     : input.locale === 'zh-CN' || input.locale === 'en' ? input.locale : (() => { throw new KJValidationError('input.locale must be zh-CN or en') })()
-  return { expectedRevision, scale, boundary, boreholes, holesById, sectionLines, coordinateGrid, coordinateCallouts, buildingFootprints, roadPaths, roadSegmentCount, northAngleDegrees, locale,
+  return { expectedRevision, scale, boundary, boreholes, holesById, sectionLines, coordinateGrid, coordinateCallouts, dimensions, buildingFootprints, roadPaths, roadSegmentCount, northAngleDegrees, locale,
     drawingId: text(input.drawingId, 'input.drawingId', 64), title: input.title == null ? undefined : text(input.title, 'input.title', 96), revision: input.revision == null ? undefined : text(input.revision, 'input.revision', 32) }
 }
 
@@ -407,6 +445,7 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
     ROADS: { id: `${prefix}-layer-roads`, color: 3, linetypeId: linetypes.continuous, lineweight: 25 },
     GRID: { id: `${prefix}-layer-grid`, color: 8, linetypeId: linetypes.grid, lineweight: 13 },
     COORDINATES: { id: `${prefix}-layer-coordinates`, color: 2, linetypeId: linetypes.continuous, lineweight: 18 },
+    DIMENSIONS: { id: `${prefix}-layer-dimensions`, color: 3, linetypeId: linetypes.continuous, lineweight: 18 },
     POINTS: { id: `${prefix}-layer-points`, color: 1, linetypeId: linetypes.continuous, lineweight: 35 },
     SECTIONS: { id: `${prefix}-layer-sections`, color: 2, linetypeId: linetypes.section, lineweight: 35 },
     ANNOTATION: { id: `${prefix}-layer-annotation`, color: 7, linetypeId: linetypes.continuous, lineweight: 18 },
@@ -441,6 +480,18 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
     addText(callout.xLabelPosition, `X=${callout.point[1].toFixed(callout.precision)}`, callout.textHeight, 'COORDINATES', 0, { semanticRole: 'coordinate-callout-label', coordinateAxis: 'X', coordinateValue: callout.point[1], coordinateConvention: 'X=northing', sourceId: callout.id, sourceBacked: true })
     addText(callout.yLabelPosition, `Y=${callout.point[0].toFixed(callout.precision)}`, callout.textHeight, 'COORDINATES', 0, { semanticRole: 'coordinate-callout-label', coordinateAxis: 'Y', coordinateValue: callout.point[0], coordinateConvention: 'Y=easting', sourceId: callout.id, sourceBacked: true })
   }
+  for (const dimension of input.dimensions) add('DIMENSION', 'DIMENSIONS', {
+    dimensionType: 'ALIGNED',
+    definitionPoints: [dimension.dimensionLinePoint, dimension.firstExtensionOrigin, dimension.secondExtensionOrigin].map(p3),
+    textPosition: p3(dimension.textPosition),
+    textOverride: `${dimension.displayValue.toFixed(dimension.precision)}${dimension.unitSuffix === 'none' ? '' : dimension.unitSuffix}`,
+    textHeight,
+    precision: dimension.precision,
+    styleName: 'STANDARD',
+    semanticRole: 'site-dimension',
+    sourceId: dimension.id,
+    sourceBacked: true,
+  })
   for (const hole of input.boreholes) {
     add('CIRCLE', 'POINTS', { center: p3(hole.position), radius: markerRadius, semanticRole: 'investigation-point', sourceId: hole.id, pointKind: hole.kind })
     add('LINE', 'POINTS', { start: [hole.position[0] - markerRadius, hole.position[1], 0], end: [hole.position[0] + markerRadius, hole.position[1], 0], semanticRole: 'investigation-point-cross', sourceId: hole.id })
@@ -531,10 +582,10 @@ export function buildAgentGeologyPlan(document: GeologyPlanDocument, source: KJA
     outputConfig: { layoutName, paper: { standard: 'ISO A3', orientation: 'landscape', widthMm: 420, heightMm: 297 }, scaleNumerator: 1, scaleDenominator: input.scale, modelUnits: 'meter' as const,
       viewport: { center, width: groundWidth, height: groundHeight } },
     evidence: { drawingId: input.drawingId, skillId: 'geology-plan', skillVersion: KJDRAW_GEOLOGY_PLAN_VERSION, expectedRevision: input.expectedRevision, units: 'meter' as const,
-      modelEntityCount: entities.length, entityCount: entities.length + 1, boreholeCount: input.boreholes.length, sectionLineCount: input.sectionLines.length, buildingFootprintCount: input.buildingFootprints.length, roadPathCount: input.roadPaths.length, roadSegmentCount: input.roadSegmentCount,
+      modelEntityCount: entities.length, entityCount: entities.length + 1, boreholeCount: input.boreholes.length, sectionLineCount: input.sectionLines.length, alignedDimensionCount: input.dimensions.length, buildingFootprintCount: input.buildingFootprints.length, roadPathCount: input.roadPaths.length, roadSegmentCount: input.roadSegmentCount,
       sectionReferences: input.sectionLines.map(value => ({ id: value.id, label: value.label, holeIds: [...value.holeIds], endpointLabels: value.endpointLabels ? [...value.endpointLabels] : [value.label, value.label], markerClearance: value.markerClearance ? [...value.markerClearance] : undefined, endpointTailLengths: value.endpointTailLengths ? [...value.endpointTailLengths] : undefined, endpointLabelPositions: value.endpointLabelPositions ? value.endpointLabelPositions.map(position => [...position]) : undefined, segmentCount: sectionSegmentCounts.get(value.id) })), gridLineCount: gridXs.length + gridYs.length, coordinateCalloutCount: input.coordinateCallouts.length, coordinateConvention: 'engineering X=northing, Y=easting' as const,
       coordinateBounds: { minimum, maximum }, scaleDenominator: input.scale, northAngleDegrees: input.northAngleDegrees,
       externalBaseMapDependencies: input.roadPaths.length ? ['terrain', 'landscaping', 'other-context'] : ['roads', 'terrain', 'landscaping', 'other-context'],
-      limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred', 'Coordinate graphics are compiled only from an explicit grid or explicit point callouts; engineering X is northing and Y is easting, and label placement is never inferred', 'Building footprints are compiled only from supplied closed outlines and are never inferred', 'Road paths are compiled only from supplied continuous line and arc facts; widths and centerlines are never inferred', 'Unsupplied roads, terrain, landscaping and other base-map context remain external source-backed dependencies and are never inferred'] },
+      limitations: ['Version 1.0.0 compiles one supplied boundary and one A3 landscape view', 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred', 'Coordinate graphics are compiled only from an explicit grid or explicit point callouts; engineering X is northing and Y is easting, and label placement is never inferred', 'Aligned dimensions are compiled only from supplied definition points, numeric display values and bounded unit suffixes; KJDraw does not infer measurements or arbitrary dimension text', 'Building footprints are compiled only from supplied closed outlines and are never inferred', 'Road paths are compiled only from supplied continuous line and arc facts; widths and centerlines are never inferred', 'Unsupplied roads, terrain, landscaping and other base-map context remain external source-backed dependencies and are never inferred'] },
   }
 }

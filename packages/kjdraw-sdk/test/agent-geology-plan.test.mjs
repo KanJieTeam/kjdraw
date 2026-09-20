@@ -89,6 +89,21 @@ test('geology plan compiles explicit point callouts with engineering X northing 
   assert.equal(compiled.evidence.coordinateConvention, 'engineering X=northing, Y=easting')
 })
 
+test('geology plan compiles supplied aligned dimension facts without inferring measurements or arbitrary text', () => {
+  const document = KJDocument.create({ documentId: 'geology-plan-dimensions', units: 'meter' })
+  const compiled = buildAgentGeologyPlan(document, intent({ dimensions: [
+    { id: 'dimension-a', dimensionLinePoint: [385025, 3452004], firstExtensionOrigin: [385010, 3452010], secondExtensionOrigin: [385040, 3452010], textPosition: [385025, 3452004], displayValue: 30, precision: 2, unitSuffix: 'M' },
+    { id: 'dimension-b', dimensionLinePoint: [385050, 3452025], firstExtensionOrigin: [385050, 3452010], secondExtensionOrigin: [385080, 3452010], displayValue: 24.5, precision: 1 },
+  ] }))
+  const dimensions = compiled.commandArgs.entities.filter(entity => entity.payload.semanticRole === 'site-dimension')
+  assert.deepEqual(dimensions.map(entity => [entity.type, entity.payload.sourceId, entity.payload.definitionPoints, entity.payload.textPosition, entity.payload.textOverride, entity.payload.sourceBacked]), [
+    ['DIMENSION', 'dimension-a', [[385025, 3452004, 0], [385010, 3452010, 0], [385040, 3452010, 0]], [385025, 3452004, 0], '30.00M', true],
+    ['DIMENSION', 'dimension-b', [[385050, 3452025, 0], [385050, 3452010, 0], [385080, 3452010, 0]], [385050, 3452025, 0], '24.5', true],
+  ])
+  assert.equal(compiled.evidence.alignedDimensionCount, 2)
+  assert.ok(compiled.evidence.limitations.some(value => value.includes('does not infer measurements')))
+})
+
 test('geology plan compiles only explicitly supplied closed building footprints as source-backed context', () => {
   const document = KJDocument.create({ documentId: 'geology-plan-buildings', units: 'meter' })
   const compiled = buildAgentGeologyPlan(document, intent({
@@ -229,6 +244,12 @@ test('geology plan fails closed on stale revisions, unsafe coordinates and broke
   rejects({ coordinateCallouts: [{ id: 'both', point: [385000, 3452000], elbow: [384990, 3451990], landingEnd: [384980, 3451990], xLabelPosition: [384981, 3451992], yLabelPosition: [384981, 3451987] }] }, /exactly one coordinate strategy/)
   rejects({ coordinateGrid: undefined, coordinateCallouts: [{ id: 'zero', point: [385000, 3452000], elbow: [385000, 3452000], landingEnd: [384980, 3451990], xLabelPosition: [384981, 3451992], yLabelPosition: [384981, 3451987] }] }, /positive length/)
   rejects({ coordinateGrid: undefined, coordinateCallouts: [{ id: 'outside', point: [385000, 3452000], elbow: [0, 0], landingEnd: [384980, 3451990], xLabelPosition: [384981, 3451992], yLabelPosition: [384981, 3451987] }] }, /declared model viewport/)
+  rejects({ dimensions: [{ id: 'zero', dimensionLinePoint: [385020, 3452010], firstExtensionOrigin: [385010, 3452010], secondExtensionOrigin: [385010, 3452010], textPosition: [385020, 3452010], displayValue: 1 }] }, /must be distinct/)
+  rejects({ dimensions: [{ id: 'collinear', dimensionLinePoint: [385020, 3452010], firstExtensionOrigin: [385010, 3452010], secondExtensionOrigin: [385030, 3452010], textPosition: [385020, 3452010], displayValue: 20 }] }, /must be offset/)
+  rejects({ dimensions: [{ id: 'outside', dimensionLinePoint: [0, 0], firstExtensionOrigin: [385010, 3452010], secondExtensionOrigin: [385030, 3452010], textPosition: [385020, 3452005], displayValue: 20 }] }, /declared model viewport/)
+  rejects({ dimensions: [{ id: 'bad-value', dimensionLinePoint: [385020, 3452005], firstExtensionOrigin: [385010, 3452010], secondExtensionOrigin: [385030, 3452010], textPosition: [385020, 3452005], displayValue: -1 }] }, /finite number from/)
+  rejects({ dimensions: [{ id: 'bad-suffix', dimensionLinePoint: [385020, 3452005], firstExtensionOrigin: [385010, 3452010], secondExtensionOrigin: [385030, 3452010], textPosition: [385020, 3452005], displayValue: 20, unitSuffix: 'mm' }] }, /none, m or M/)
+  rejects({ dimensions: [{ id: 'same', dimensionLinePoint: [385020, 3452005], firstExtensionOrigin: [385010, 3452010], secondExtensionOrigin: [385030, 3452010], textPosition: [385020, 3452005], displayValue: 20 }, { id: 'same', dimensionLinePoint: [385050, 3452005], firstExtensionOrigin: [385040, 3452010], secondExtensionOrigin: [385060, 3452010], textPosition: [385050, 3452005], displayValue: 20 }] }, /duplicate id/)
   rejects({ boundary: [[385000, 3452000], [385300, 3452000], [385300, 3452200], [385000, 3452200]] }, /does not fit ISO A3/)
   assert.throws(() => buildAgentGeologyPlan(KJDocument.create({ units: 'millimeter' }), intent()), /meter units/)
   const sdk = createKJDrawSDK(), nonBlank = sdk.createDocument({ units: 'meter' })

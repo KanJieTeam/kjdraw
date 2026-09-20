@@ -16,6 +16,7 @@ const INPUT_KEYS = [
     'sectionLines',
     'coordinateGrid',
     'coordinateCallouts',
+    'dimensions',
     'buildingFootprints',
     'roadPaths',
     'northAngleDegrees'
@@ -49,6 +50,16 @@ const COORDINATE_CALLOUT_KEYS = [
     'yLabelPosition',
     'precision',
     'textHeight'
+];
+const DIMENSION_KEYS = [
+    'id',
+    'dimensionLinePoint',
+    'firstExtensionOrigin',
+    'secondExtensionOrigin',
+    'textPosition',
+    'displayValue',
+    'precision',
+    'unitSuffix'
 ];
 const BUILDING_KEYS = [
     'id',
@@ -301,6 +312,43 @@ function validateInput(document, source) {
         return callout;
     });
     if (Boolean(coordinateGrid) === coordinateCallouts.length > 0) throw new KJValidationError('input must supply exactly one coordinate strategy: coordinateGrid or coordinateCallouts');
+    if (input.dimensions !== undefined && (!Array.isArray(input.dimensions) || input.dimensions.length > 64)) throw new KJValidationError('input.dimensions must contain at most 64 supplied aligned dimensions');
+    const dimensionIds = new Set();
+    const dimensions = (input.dimensions ?? []).map((raw, index)=>{
+        const value = plain(raw, `input.dimensions[${index}]`);
+        exactKeys(value, DIMENSION_KEYS, `input.dimensions[${index}]`);
+        const id = text(value.id, `input.dimensions[${index}].id`, 40);
+        if (dimensionIds.has(id)) throw new KJValidationError(`input.dimensions contains duplicate id ${id}`);
+        dimensionIds.add(id);
+        const dimensionLinePoint = point(value.dimensionLinePoint, `input.dimensions[${index}].dimensionLinePoint`);
+        const firstExtensionOrigin = point(value.firstExtensionOrigin, `input.dimensions[${index}].firstExtensionOrigin`);
+        const secondExtensionOrigin = point(value.secondExtensionOrigin, `input.dimensions[${index}].secondExtensionOrigin`);
+        const textPosition = value.textPosition == null ? dimensionLinePoint : point(value.textPosition, `input.dimensions[${index}].textPosition`);
+        if (![
+            dimensionLinePoint,
+            firstExtensionOrigin,
+            secondExtensionOrigin,
+            textPosition
+        ].every(insideModelViewport)) throw new KJValidationError(`input.dimensions[${index}] geometry must lie inside the declared model viewport`);
+        const measuredLength = Math.hypot(secondExtensionOrigin[0] - firstExtensionOrigin[0], secondExtensionOrigin[1] - firstExtensionOrigin[1]);
+        if (measuredLength <= EPSILON) throw new KJValidationError(`input.dimensions[${index}] extension origins must be distinct`);
+        const dimensionLineOffset = Math.abs((secondExtensionOrigin[0] - firstExtensionOrigin[0]) * (firstExtensionOrigin[1] - dimensionLinePoint[1]) - (firstExtensionOrigin[0] - dimensionLinePoint[0]) * (secondExtensionOrigin[1] - firstExtensionOrigin[1])) / measuredLength;
+        if (dimensionLineOffset <= EPSILON) throw new KJValidationError(`input.dimensions[${index}].dimensionLinePoint must be offset from the measured line`);
+        const displayValue = finite(value.displayValue, `input.dimensions[${index}].displayValue`, 0.000001, 100_000_000);
+        const precision = value.precision == null ? 2 : integer(value.precision, `input.dimensions[${index}].precision`, 0, 6);
+        const unitSuffix = value.unitSuffix == null ? 'none' : value.unitSuffix;
+        if (unitSuffix !== 'none' && unitSuffix !== 'm' && unitSuffix !== 'M') throw new KJValidationError(`input.dimensions[${index}].unitSuffix must be none, m or M`);
+        return {
+            id,
+            dimensionLinePoint,
+            firstExtensionOrigin,
+            secondExtensionOrigin,
+            textPosition,
+            displayValue,
+            precision,
+            unitSuffix
+        };
+    });
     if (input.buildingFootprints !== undefined && (!Array.isArray(input.buildingFootprints) || input.buildingFootprints.length > 128)) throw new KJValidationError('input.buildingFootprints must contain at most 128 supplied outlines');
     const buildingIds = new Set();
     const buildingFootprints = (input.buildingFootprints ?? []).map((raw, index)=>{
@@ -415,6 +463,7 @@ function validateInput(document, source) {
         sectionLines,
         coordinateGrid,
         coordinateCallouts,
+        dimensions,
         buildingFootprints,
         roadPaths,
         roadSegmentCount,
@@ -489,6 +538,12 @@ export function buildAgentGeologyPlan(document, source) {
         COORDINATES: {
             id: `${prefix}-layer-coordinates`,
             color: 2,
+            linetypeId: linetypes.continuous,
+            lineweight: 18
+        },
+        DIMENSIONS: {
+            id: `${prefix}-layer-dimensions`,
+            color: 3,
             linetypeId: linetypes.continuous,
             lineweight: 18
         },
@@ -647,6 +702,22 @@ export function buildAgentGeologyPlan(document, source) {
             sourceBacked: true
         });
     }
+    for (const dimension of input.dimensions)add('DIMENSION', 'DIMENSIONS', {
+        dimensionType: 'ALIGNED',
+        definitionPoints: [
+            dimension.dimensionLinePoint,
+            dimension.firstExtensionOrigin,
+            dimension.secondExtensionOrigin
+        ].map(p3),
+        textPosition: p3(dimension.textPosition),
+        textOverride: `${dimension.displayValue.toFixed(dimension.precision)}${dimension.unitSuffix === 'none' ? '' : dimension.unitSuffix}`,
+        textHeight,
+        precision: dimension.precision,
+        styleName: 'STANDARD',
+        semanticRole: 'site-dimension',
+        sourceId: dimension.id,
+        sourceBacked: true
+    });
     for (const hole of input.boreholes){
         add('CIRCLE', 'POINTS', {
             center: p3(hole.position),
@@ -991,6 +1062,7 @@ export function buildAgentGeologyPlan(document, source) {
             entityCount: entities.length + 1,
             boreholeCount: input.boreholes.length,
             sectionLineCount: input.sectionLines.length,
+            alignedDimensionCount: input.dimensions.length,
             buildingFootprintCount: input.buildingFootprints.length,
             roadPathCount: input.roadPaths.length,
             roadSegmentCount: input.roadSegmentCount,
@@ -1040,6 +1112,7 @@ export function buildAgentGeologyPlan(document, source) {
                 'Version 1.0.0 compiles one supplied boundary and one A3 landscape view',
                 'Investigation-point coordinates, elevations, depths and section references are supplied facts and are never inferred',
                 'Coordinate graphics are compiled only from an explicit grid or explicit point callouts; engineering X is northing and Y is easting, and label placement is never inferred',
+                'Aligned dimensions are compiled only from supplied definition points, numeric display values and bounded unit suffixes; KJDraw does not infer measurements or arbitrary dimension text',
                 'Building footprints are compiled only from supplied closed outlines and are never inferred',
                 'Road paths are compiled only from supplied continuous line and arc facts; widths and centerlines are never inferred',
                 'Unsupplied roads, terrain, landscaping and other base-map context remain external source-backed dependencies and are never inferred'
