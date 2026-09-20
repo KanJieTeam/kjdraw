@@ -124,6 +124,47 @@ test('symmetric profile line directions preserve independent dash phases', () =>
   ]) assert.ok(lines.some(value => JSON.stringify(value) === JSON.stringify(expected)), JSON.stringify(expected))
 })
 
+test('verified mirrored profiles stay symmetric while asymmetric source lines remain original-only', async t => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), source = input(document.revision)
+  const asymmetric = { start: [205, 173], end: [230, 176], role: 'geometry' }
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...source,
+    sideViewAxis: { xRange: [190, 230], symmetricProfiles: [{ vertices: [{ station: 190, radius: 10 }, { station: 200, radius: 12 }] }], outlineSegments: [] },
+    auxiliaryLines: [asymmetric],
+  })
+  const lineKey = (start, end) => JSON.stringify([[...start, 0], [...end, 0]])
+  const emitted = new Set(proposal.commandArgs.entities.filter(entity => entity.type === 'LINE')
+    .map(entity => JSON.stringify([entity.payload.start, entity.payload.end])))
+  assert.equal(emitted.has(lineKey([190, 160], [200, 162])), true)
+  assert.equal(emitted.has(lineKey([190, 140], [200, 138])), true)
+  assert.equal(emitted.has(lineKey(asymmetric.start, asymmetric.end)), true)
+  assert.equal(emitted.has(lineKey([205, 127], [230, 124])), false)
+  assert.equal(proposal.evidence.parameters.symmetricProfileCount, 1)
+  assert.equal(proposal.evidence.parameters.auxiliaryLineCount, 1)
+  assert.equal(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.version, '2.22.0')
+  assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /geometry and effective visual style both mirror/u)
+  assert.match(KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK.rules.sideView, /unpaired or asymmetric source segment remains an auxiliary line/u)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const kjd = await sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' })
+  const dxfText = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
+  const dxf = await sdk.readDocument(dxfText, { format: 'DXF' })
+  for (const reopened of [kjd, dxf]) {
+    const lines = new Set(reopened.listEntities({ type: 'LINE' }).map(entity => JSON.stringify([entity.payload.start, entity.payload.end])))
+    assert.equal(lines.has(lineKey([190, 160], [200, 162])), true)
+    assert.equal(lines.has(lineKey([190, 140], [200, 138])), true)
+    assert.equal(lines.has(lineKey(asymmetric.start, asymmetric.end)), true)
+    assert.equal(lines.has(lineKey([205, 127], [230, 124])), false)
+  }
+  const independent = spawnSyncWithFileStdin(process.env.KJDRAW_PYTHON || 'python', ['-c',
+    'import io,json,os,ezdxf; d=ezdxf.read(io.StringIO(open(os.environ["KJDRAW_FILE_STDIN_PATH"],encoding="utf-8").read())); a=d.audit(); print(json.dumps({"errors":len(a.errors),"fixes":len(a.fixes),"lines":len(d.modelspace().query("LINE"))}))'],
+  dxfText, { encoding: 'utf8', windowsHide: true, env: { ...process.env, PYTHONPATH: process.env.KJDRAW_EZDXF_PATH || process.env.PYTHONPATH || '', PYTHONIOENCODING: 'utf-8' } })
+  if (independent.error?.code === 'ENOENT' || independent.status !== 0 && /No module named ['"]ezdxf/u.test(independent.stderr ?? '')) {
+    if (process.env.KJDRAW_BENCH_INTEGRATION_REQUIRED === '1') assert.fail(independent.stderr ?? independent.error?.message)
+    t.skip('official ezdxf is not installed'); return
+  }
+  assert.equal(independent.status, 0, independent.stderr)
+  assert.deepEqual(JSON.parse(independent.stdout), { errors: 0, fixes: 0, lines: proposal.commandArgs.entities.filter(entity => entity.type === 'LINE').length })
+})
+
 test('independent projection axes support vertical stations and intentionally hidden axes', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' }), base = input(0)
   const sideViewAxis = { stationRange: [30, 70], orientation: 'vertical', axisCoordinate: 320, axisDirection: 'reverse', symmetricProfiles: [{
