@@ -26,6 +26,12 @@ export interface KJGeologyStratum {
     patternVisibility?: 'filled' | 'boundary-only';
     /** Exact source-visible label printed inside this interval's pattern lane. */
     patternLabel?: string;
+    /** Exact source visibility of this interval's bottom rule in independently
+     * rendered depth/pattern fields. Depth facts and closed fill boundaries remain. */
+    bottomBoundaryLineVisibility?: {
+        depth: 'visible' | 'hidden';
+        pattern: 'visible' | 'hidden';
+    };
     description?: string;
     /** Interval text is never merged; a project layer definition may repeat through lenses. */
     descriptionSource?: 'interval' | 'layer-definition';

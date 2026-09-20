@@ -1003,6 +1003,16 @@ function checkHole(hole) {
         if (layer.patternKey != null) bounded(layer.patternKey, 'pattern key', 96);
         if (layer.patternVisibility != null && layer.patternVisibility !== 'filled' && layer.patternVisibility !== 'boundary-only') throw new KJValidationError(`Geology: invalid pattern visibility at ${code}`);
         if (layer.patternLabel != null) bounded(layer.patternLabel, 'pattern lane label', 24);
+        if (layer.bottomBoundaryLineVisibility != null) {
+            const visibility = layer.bottomBoundaryLineVisibility;
+            if (!visibility || typeof visibility !== 'object' || Array.isArray(visibility) || Object.keys(visibility).sort().join(',') !== 'depth,pattern' || ![
+                'visible',
+                'hidden'
+            ].includes(visibility.depth) || ![
+                'visible',
+                'hidden'
+            ].includes(visibility.pattern) || visibility.depth === 'visible' && visibility.pattern === 'visible') throw new KJValidationError(`Geology: invalid bottom boundary line visibility at ${code}`);
+        }
         previous = bottom;
     }
     if (Math.abs(previous - hole.depth) > 1e-6) throw new KJValidationError('Geology: final layer bottom must equal hole depth');
@@ -1285,6 +1295,7 @@ export function compileGeologyColumn(input) {
     const layout = columnLayout(input);
     const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, stratigraphicNotationStyle, sampleMarkerStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
     if (strata.some((layer)=>layer.stratigraphicNotation != null) && !stratigraphicNotationStyle) throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style');
+    if (strata.some((layer)=>layer.bottomBoundaryLineVisibility != null) && !fieldGrid) throw new KJValidationError('Geology: bottom boundary line visibility needs a declared physical field grid');
     const documentFacts = documentFactRecord(input.documentFacts);
     const declaredDocumentFactKeys = new Set([
         ...headerGrid?.rows.flat().filter((cell)=>cell.role === 'documentFact').map((cell)=>cell.key) ?? [],
@@ -1886,6 +1897,9 @@ export function compileGeologyColumn(input) {
             const yTop = top - layer.top * scale, yBottom = top - layer.bottom * scale;
             if (yTop - yBottom < (grouped ? 0.4 : 1.4)) throw new KJValidationError(`Geology: layer ${layer.code} is too thin for readable geometry at this scale`);
             const major = !grouped || groups.some((group)=>Math.abs(group.bottom - layer.bottom) < 1e-6);
+            const fieldBoundary = layer.bottomBoundaryLineVisibility;
+            const independentBoundaryFields = !major || textFlow?.firstGroupUnruled && Math.abs(layer.bottom - firstGroupBottom) < 1e-6;
+            if (fieldBoundary && !independentBoundaryFields) throw new KJValidationError(`Geology: layer ${layer.code} bottom boundary is not independently rendered by field`);
             if (major && descriptionBoundaryStyle) majorBoundaries.push({
                 y: yBottom
             });
@@ -1898,6 +1912,7 @@ export function compileGeologyColumn(input) {
                 'depth',
                 'pattern'
             ]){
+                if (fieldBoundary?.[role] === 'hidden') continue;
                 const item = field(role);
                 bandLines.push({
                     x1: item.start,
@@ -1909,6 +1924,7 @@ export function compileGeologyColumn(input) {
                 'depth',
                 'pattern'
             ]){
+                if (fieldBoundary?.[role] === 'hidden') continue;
                 const item = field(role);
                 bandLines.push({
                     x1: item.start,

@@ -27,6 +27,9 @@ export interface KJGeologyStratum {
   patternVisibility?: 'filled' | 'boundary-only'
   /** Exact source-visible label printed inside this interval's pattern lane. */
   patternLabel?: string
+  /** Exact source visibility of this interval's bottom rule in independently
+   * rendered depth/pattern fields. Depth facts and closed fill boundaries remain. */
+  bottomBoundaryLineVisibility?: { depth: 'visible' | 'hidden'; pattern: 'visible' | 'hidden' }
   description?: string
   /** Interval text is never merged; a project layer definition may repeat through lenses. */
   descriptionSource?: 'interval' | 'layer-definition'
@@ -870,6 +873,13 @@ function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
     if (layer.patternVisibility != null && layer.patternVisibility !== 'filled' && layer.patternVisibility !== 'boundary-only')
       throw new KJValidationError(`Geology: invalid pattern visibility at ${code}`)
     if (layer.patternLabel != null) bounded(layer.patternLabel, 'pattern lane label', 24)
+    if (layer.bottomBoundaryLineVisibility != null) {
+      const visibility = layer.bottomBoundaryLineVisibility
+      if (!visibility || typeof visibility !== 'object' || Array.isArray(visibility) || Object.keys(visibility).sort().join(',') !== 'depth,pattern' ||
+        !['visible', 'hidden'].includes(visibility.depth) || !['visible', 'hidden'].includes(visibility.pattern) ||
+        visibility.depth === 'visible' && visibility.pattern === 'visible')
+        throw new KJValidationError(`Geology: invalid bottom boundary line visibility at ${code}`)
+    }
     previous = bottom
   }
   if (Math.abs(previous - hole.depth) > 1e-6) throw new KJValidationError('Geology: final layer bottom must equal hole depth')
@@ -978,6 +988,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     layerNumberStyle, sourceTemplate } = layout
   if (strata.some(layer => layer.stratigraphicNotation != null) && !stratigraphicNotationStyle)
     throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style')
+  if (strata.some(layer => layer.bottomBoundaryLineVisibility != null) && !fieldGrid)
+    throw new KJValidationError('Geology: bottom boundary line visibility needs a declared physical field grid')
   const documentFacts = documentFactRecord(input.documentFacts)
   const declaredDocumentFactKeys = new Set([...(headerGrid?.rows.flat().filter((cell): cell is Extract<HeaderCell, { role: 'documentFact' }> => cell.role === 'documentFact').map(cell => cell.key) ?? []),
     ...(footerGrid?.cells.map(cell => cell.key) ?? []), ...(titleMarginFacts?.map(item => item.key) ?? [])])
@@ -1417,14 +1429,20 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       const yTop = top - layer.top * scale, yBottom = top - layer.bottom * scale
       if (yTop - yBottom < (grouped ? 0.4 : 1.4)) throw new KJValidationError(`Geology: layer ${layer.code} is too thin for readable geometry at this scale`)
       const major = !grouped || groups.some(group => Math.abs(group.bottom - layer.bottom) < 1e-6)
+      const fieldBoundary = layer.bottomBoundaryLineVisibility
+      const independentBoundaryFields = !major || textFlow?.firstGroupUnruled && Math.abs(layer.bottom - firstGroupBottom) < 1e-6
+      if (fieldBoundary && !independentBoundaryFields)
+        throw new KJValidationError(`Geology: layer ${layer.code} bottom boundary is not independently rendered by field`)
       if (major && descriptionBoundaryStyle) majorBoundaries.push({ y: yBottom })
       else if (major && !(textFlow?.firstGroupUnruled && Math.abs(layer.bottom - firstGroupBottom) < 1e-6))
         bandLines.push({ x1: left, x2: right, y: yBottom })
       else if (major) for (const role of ['depth', 'pattern'] as const) {
+        if (fieldBoundary?.[role] === 'hidden') continue
         const item = field(role)
         bandLines.push({ x1: item.start, x2: gridEnd(item), y: yBottom })
       }
       else for (const role of ['depth', 'pattern'] as const) {
+        if (fieldBoundary?.[role] === 'hidden') continue
         const item = field(role)
         bandLines.push({ x1: item.start, x2: gridEnd(item), y: yBottom })
       }

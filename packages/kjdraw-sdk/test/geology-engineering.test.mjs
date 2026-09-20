@@ -665,6 +665,10 @@ test('a versioned fourteen-field grid charts direct sample measurements without 
     rules: { 'geology-column-layout': { paperWidth: 260, paperHeight: 340, left: 5, right: 255,
       fieldGrid, footerReserve: 30, sptDisplayCap: 50, legendMode: 'none', titleHeight: 9 } } })
   const source = hole('GRID-1', 0, 1111.04, [6.8, 15.4, 60])
+  Object.assign(source.strata[0], { intervalId: 'grid-a', groupId: '1', groupRole: 'principal' })
+  Object.assign(source.strata[1], { intervalId: 'grid-b', groupId: '2', groupRole: 'lens',
+    bottomBoundaryLineVisibility: { depth: 'hidden', pattern: 'hidden' } })
+  Object.assign(source.strata[2], { intervalId: 'grid-c', groupId: '2', groupRole: 'principal' })
   source.observations = [
     { kind: 'sample', id: 'R1', depth: 2, displayLabel: '1(2.00)', measurements: {
       moisture: 19.4, voidRatio: 0.715, liquidIndex: 0.43, plasticityIndex: 8.9, collapseCoefficient: 0.003 } },
@@ -686,6 +690,15 @@ test('a versioned fourteen-field grid charts direct sample measurements without 
   assert.ok(compiled.commandArgs.entities.some(entity => entity.type === 'HATCH' &&
     Math.min(...entity.payload.boundaryLoops[0].vertices.map(point => point[0])) === 83 &&
     Math.max(...entity.payload.boundaryLoops[0].vertices.map(point => point[0])) === 102))
+  const hiddenBoundaryY = 340 - 56 - 10 - 15.4 * 4
+  assert.ok(!compiled.commandArgs.entities.some(entity => entity.type === 'LINE' &&
+    Math.abs(entity.payload.start[1] - hiddenBoundaryY) < 1e-6 && Math.abs(entity.payload.end[1] - hiddenBoundaryY) < 1e-6 &&
+    [[71, 83], [83, 102]].some(([start, end]) => entity.payload.start[0] === start && entity.payload.end[0] === end)),
+  'source visibility hides only duplicate depth/pattern rules at the exact interval bottom')
+  assert.ok(visible.includes('15.40'), 'hidden boundary line never removes the exact depth fact')
+  assert.ok(compiled.commandArgs.entities.some(entity => entity.type === 'HATCH' &&
+    entity.payload.boundaryLoops[0].vertices.some(vertex => Math.abs(vertex[1] - hiddenBoundaryY) < 1e-6)),
+  'hidden duplicate rule never removes the measured hatch boundary')
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   await sdk.executeCommand('CREATEBATCH', compiled.commandArgs, { document })
   const dxf = await sdk.writeDocument(document, { format: 'DXF', version: '2018' })
@@ -697,6 +710,9 @@ test('a versioned fourteen-field grid charts direct sample measurements without 
   unsafe.hole.observations[0].measurements.__proto__ = { untracked: 4 }
   unsafe.hole.observations[0].measurements['not-safe!'] = 4
   assert.throws(() => compileGeologyColumn(unsafe), /invalid sampled measurement key/)
+  const invalidBoundaryVisibility = structuredClone(input)
+  delete invalidBoundaryVisibility.hole.strata[1].bottomBoundaryLineVisibility.pattern
+  assert.throws(() => compileGeologyColumn(invalidBoundaryVisibility), /invalid bottom boundary line visibility/u)
   const badTitle = structuredClone(input)
   badTitle.columnStylePack.rules['geology-column-layout'].titleHeight = 30
   assert.throws(() => compileGeologyColumn(badTitle), /title height must be 3–12/)
