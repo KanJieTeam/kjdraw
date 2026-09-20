@@ -6,6 +6,7 @@ import { KJDRAW_MECHANICAL_FLANGE_CORE_KNOWLEDGE_PACK } from './knowledge-packs/
 import { stableHash } from './utils.js';
 export const KJDRAW_MECHANICAL_FLANGE_CORE_VERSION = '1.0.0';
 const MAX_AUXILIARY_LINES = 1024;
+const MAX_AUXILIARY_CURVES = 512;
 const finite = (value, label, min, max)=>{
     if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) throw new KJValidationError(`${label} must be finite from ${min} to ${max}`);
     return value;
@@ -1653,7 +1654,7 @@ function validate(document, source) {
         };
     });
     if (input.auxiliaryCurves != null && !Array.isArray(input.auxiliaryCurves)) throw new KJValidationError('input.auxiliaryCurves must be an array');
-    if (input.auxiliaryCurves?.length && input.auxiliaryCurves.length > 256) throw new KJValidationError('input.auxiliaryCurves exceed their 256-curve budget');
+    if (input.auxiliaryCurves?.length && input.auxiliaryCurves.length > MAX_AUXILIARY_CURVES) throw new KJValidationError(`input.auxiliaryCurves exceed their ${MAX_AUXILIARY_CURVES}-curve budget`);
     const auxiliaryCurves = (input.auxiliaryCurves ?? []).map((value, index)=>{
         const label = `input.auxiliaryCurves[${index}]`, curve = plain(value, label);
         if (![
@@ -3554,6 +3555,7 @@ export function buildAgentMechanicalFlangeCore(document, source) {
                 auxiliarySolidCount: input.auxiliarySolids.length,
                 auxiliaryWipeoutCount: input.auxiliaryWipeouts.length,
                 auxiliaryCurveCount: input.auxiliaryCurves.length,
+                auxiliaryCurveBudget: MAX_AUXILIARY_CURVES,
                 symbolDefinitionCount: input.symbolDefinitions.length,
                 symbolInstanceCount: input.symbolInstances.length,
                 symbolAttributeCount: input.symbolAttributeCount,
