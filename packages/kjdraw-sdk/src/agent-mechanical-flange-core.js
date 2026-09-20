@@ -1254,7 +1254,7 @@ function validate(document, source) {
         };
     });
     if (input.auxiliaryCurves != null && !Array.isArray(input.auxiliaryCurves)) throw new KJValidationError('input.auxiliaryCurves must be an array');
-    if (input.auxiliaryCurves?.length && input.auxiliaryCurves.length > 128) throw new KJValidationError('input.auxiliaryCurves exceed their budget');
+    if (input.auxiliaryCurves?.length && input.auxiliaryCurves.length > 256) throw new KJValidationError('input.auxiliaryCurves exceed their 256-curve budget');
     const auxiliaryCurves = (input.auxiliaryCurves ?? []).map((value, index)=>{
         const label = `input.auxiliaryCurves[${index}]`, curve = plain(value, label);
         if (![

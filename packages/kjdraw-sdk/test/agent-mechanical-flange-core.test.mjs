@@ -465,6 +465,29 @@ test('bounded semantic auxiliary curves compile as native editable CAD entities'
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves: [{ kind: 'spline', degree: 2, controlPoints: [[0, 0], [1, 1], [2, 0]], knots: [0, 0, 1], role: 'geometry' }] }), /knots length/u)
 })
 
+test('auxiliary curve budget supports complex public drawings and remains fail-closed', async () => {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
+  const auxiliaryCurves = Array.from({ length: 256 }, (_, index) => ({
+    kind: 'arc', center: [(index % 32) * 5, Math.floor(index / 32) * 5], radius: 1,
+    startAngle: 0, endAngle: Math.PI, role: 'geometry',
+  }))
+  const startedAt = performance.now()
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves })
+  const elapsedMs = performance.now() - startedAt
+  assert.equal(proposal.evidence.parameters.auxiliaryCurveCount, 256)
+  assert.ok(proposal.commandArgs.entities.length < 1_024)
+  assert.ok(Buffer.byteLength(JSON.stringify(proposal.commandArgs), 'utf8') < 512 * 1_024)
+  assert.ok(elapsedMs < 5_000)
+  await sdk.executeCommand('CREATEBATCH', proposal.commandArgs, { document })
+  const [kjd, dxf] = await Promise.all([
+    sdk.readDocument(await sdk.writeDocument(document, { format: 'KJD' }), { format: 'KJD' }),
+    sdk.readDocument(await sdk.writeDocument(document, { format: 'DXF', version: '2018' }), { format: 'DXF' }),
+  ])
+  assert.ok(kjd.listEntities({ type: 'ARC' }).length >= 256)
+  assert.ok(dxf.listEntities({ type: 'ARC' }).length >= 256)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(document.revision), auxiliaryCurves: [...auxiliaryCurves, auxiliaryCurves[0]] }), /256-curve budget/u)
+})
+
 test('generic local symbols compile as editable native blocks without source block metadata', async () => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const symbols = { definitions: [{ key: 'local-callout', basePoint: [0, 0], members: [

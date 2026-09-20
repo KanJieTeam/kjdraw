@@ -857,7 +857,7 @@ function validate(document: Document, source: KJAgentMechanicalFlangeCoreInput) 
     return { start, end, role: line.role as KJFlangeAuxiliaryLine['role'], ...(styleKey == null ? {} : { styleKey }) }
   })
   if (input.auxiliaryCurves != null && !Array.isArray(input.auxiliaryCurves)) throw new KJValidationError('input.auxiliaryCurves must be an array')
-  if ((input.auxiliaryCurves as unknown[] | undefined)?.length && (input.auxiliaryCurves as unknown[]).length > 128) throw new KJValidationError('input.auxiliaryCurves exceed their budget')
+  if ((input.auxiliaryCurves as unknown[] | undefined)?.length && (input.auxiliaryCurves as unknown[]).length > 256) throw new KJValidationError('input.auxiliaryCurves exceed their 256-curve budget')
   const auxiliaryCurves: KJFlangeAuxiliaryCurve[] = ((input.auxiliaryCurves ?? []) as unknown[]).map((value, index) => {
     const label = `input.auxiliaryCurves[${index}]`, curve = plain(value, label)
     if (!['geometry', 'center', 'hidden', 'notes', 'grid', 'frame'].includes(curve.role as string)) throw new KJValidationError(`${label}.role is invalid`)
