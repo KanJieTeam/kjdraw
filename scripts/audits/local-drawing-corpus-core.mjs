@@ -3,7 +3,7 @@ import { createHash, createHmac } from 'node:crypto'
 import { displayedEntityBounds } from '../../packages/kjdraw-sdk/src/selection-geometry.js'
 
 export const KJDRAW_LOCAL_CORPUS_SCHEMA = 'com.kanjie.kjdraw.local-drawing-corpus-manifest@3'
-export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@4'
+export const KJDRAW_CANONICAL_FEATURE_SCHEMA = 'com.kanjie.kjdraw.canonical-feature-summary@5'
 export const KJDRAW_FEATURE_COMPARISON_SCHEMA = 'com.kanjie.kjdraw.feature-comparison@2'
 
 const textTypes = new Set(['TEXT', 'MTEXT', 'ATTRIB', 'ATTDEF'])
@@ -230,6 +230,41 @@ function overallBounds(document, entities) {
   return { width: merged[2] - merged[0], height: merged[3] - merged[1] }
 }
 
+function rectangularFrameRegions(document, entities, salt, tolerance, modelSpaceId) {
+  const bounded = entities.map(entity => ({ entity, bounds: displayedEntityBounds(document, entity) })).filter(item => item.bounds)
+  const candidates = []
+  for (const entity of entities) {
+    if (entity.ownerId !== modelSpaceId || !['LWPOLYLINE', 'POLYLINE'].includes(entity.type) || entity.payload?.closed !== true) continue
+    const raw = Array.isArray(entity.payload.vertices) ? entity.payload.vertices : []
+    const points = raw.map(vertex => vertex && typeof vertex === 'object' && !Array.isArray(vertex) ? vertex.point : vertex)
+      .filter(value => Array.isArray(value) && finite(value[0]) && finite(value[1])).map(value => [value[0], value[1]])
+    if (points.length === 5 && Math.hypot(points[0][0] - points[4][0], points[0][1] - points[4][1]) <= tolerance) points.pop()
+    if (points.length !== 4) continue
+    const xs = [...new Set(points.map(value => rounded(value[0], tolerance)))].sort((a, b) => a - b)
+    const ys = [...new Set(points.map(value => rounded(value[1], tolerance)))].sort((a, b) => a - b)
+    if (xs.length !== 2 || ys.length !== 2 || xs[1] - xs[0] <= tolerance || ys[1] - ys[0] <= tolerance) continue
+    const expectedCorners = new Set([[xs[0], ys[0]], [xs[0], ys[1]], [xs[1], ys[0]], [xs[1], ys[1]]].map(value => value.join(',')))
+    const cornerKey = value => [rounded(value[0], tolerance), rounded(value[1], tolerance)].join(',')
+    if (new Set(points.map(cornerKey)).size !== 4 ||
+      points.some(value => !expectedCorners.has(cornerKey(value)))) continue
+    const frame = [xs[0], ys[0], xs[1], ys[1]], contained = [], partial = []
+    for (const item of bounded) {
+      const box = item.bounds
+      if (box[0] >= frame[0] - tolerance && box[1] >= frame[1] - tolerance && box[2] <= frame[2] + tolerance && box[3] <= frame[3] + tolerance) contained.push(item)
+      else if (!(box[2] < frame[0] - tolerance || box[3] < frame[1] - tolerance || box[0] > frame[2] + tolerance || box[1] > frame[3] + tolerance)) partial.push(item)
+    }
+    candidates.push({
+      identityDigest: privateDigest(frame, salt, 'kjdraw-corpus-frame-region'),
+      width: rounded(frame[2] - frame[0], tolerance), height: rounded(frame[3] - frame[1], tolerance),
+      containedEntities: contained.length, partialEntities: partial.length,
+      outsideEntities: bounded.length - contained.length - partial.length,
+      area: (frame[2] - frame[0]) * (frame[3] - frame[1]),
+    })
+  }
+  candidates.sort((left, right) => right.area - left.area || stableCompare(left.identityDigest, right.identityDigest))
+  const totalCandidates = candidates.length, retained = candidates.slice(0, 32).map(({ area, ...value }) => value)
+  return { totalCandidates, retainedCandidates: retained, truncated: totalCandidates > retained.length, unboundedEntities: entities.length - bounded.length }
+}
 const plotNumericKeys = [
   'paperWidth', 'paperHeight', 'paperUnits', 'rotation', 'plotType', 'flags',
   'scaleNumerator', 'scaleDenominator', 'marginLeft', 'marginRight', 'marginTop', 'marginBottom',
@@ -281,6 +316,7 @@ export function createCanonicalFeatureSummary(document, { salt, geometryToleranc
     }
   })
   const snapshot = document.snapshot(), bounds = overallBounds(document, entities)
+  const frameRegions = rectangularFrameRegions(document, entities, salt, geometryTolerance, snapshot.spaces?.modelSpaceId)
   const relations = relationCounts(entities, geometryTolerance)
   const layouts = (snapshot.spaces?.layoutIds ?? []).map(id => snapshot.objects[id]).filter(Boolean).map(layout => ({
     model: layout.payload?.model === true || layout.name === 'Model',
@@ -295,6 +331,7 @@ export function createCanonicalFeatureSummary(document, { salt, geometryToleranc
     sourceVersion: snapshot.header?.sourceVersion ?? null,
     bounds: bounds ? { width: rounded(bounds.width, geometryTolerance), height: rounded(bounds.height, geometryTolerance) } : null,
     layouts,
+    frameRegions,
     counts: {
       entities: entities.length,
       entityTypes: count(entities.map(entity => entity.type)),
@@ -338,6 +375,7 @@ export function compareCanonicalFeatureSummaries(expected, actual, { boundsToler
   const exact = (category, key, left, right) => { if (JSON.stringify(left) !== JSON.stringify(right)) differences.push({ category, key, expected: left, actual: right }) }
   exact('semantic', 'units', expected.units, actual.units)
   exact('layout', 'layouts', expected.layouts, actual.layouts)
+  exact('layout', 'frameRegions', expected.frameRegions, actual.frameRegions)
   for (const key of ['entities', 'layers', 'blocks', 'text', 'hatches', 'dimensions', 'viewports', 'proxies']) exact('structure', key, expected.counts[key], actual.counts[key])
   compareMap(expected.counts.entityTypes, actual.counts.entityTypes, 'structure', differences)
   compareMap(expected.fingerprints.geometry, actual.fingerprints.geometry, 'geometry', differences)

@@ -51,6 +51,16 @@ async function drawing(patch = {}) {
   return document
 }
 
+async function framedDrawing(width = 200) {
+  const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'framed-fixture', units: 'millimeter' })
+  await document.transact('Framed corpus fixture', tx => {
+    tx.createEntity('LWPOLYLINE', { vertices: [[0, 0, 0], [width, 0, 0], [width, 100, 0], [0, 100, 0]], closed: true }, { id: 'sheet-frame' })
+    tx.createEntity('LWPOLYLINE', { vertices: [[10, 10, 0], [40, 10, 0], [40, 30, 0], [10, 30, 0]], closed: true }, { id: 'table-cell' })
+    tx.createEntity('LINE', { start: [20, 50, 0], end: [80, 50, 0] }, { id: 'inside-line' })
+    tx.createEntity('LINE', { start: [width + 20, 0, 0], end: [width + 40, 0, 0] }, { id: 'outside-line' })
+  })
+  return document
+}
 async function largeTopologyDrawing(perpendicular = false) {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ documentId: 'large-topology', units: 'millimeter' })
   await document.transact('Large topology fixture', tx => {
@@ -109,6 +119,21 @@ test('canonical feature summaries are stable and the strict comparator catches k
   }
 })
 
+test('canonical summaries separate dominant drawing frames from bounded outside geometry without hiding either', async () => {
+  const reference = createCanonicalFeatureSummary(await framedDrawing(), { salt })
+  assert.equal(reference.frameRegions.totalCandidates, 2)
+  assert.equal(reference.frameRegions.truncated, false)
+  assert.equal(reference.frameRegions.unboundedEntities, 0)
+  assert.deepEqual(reference.frameRegions.retainedCandidates[0], {
+    identityDigest: reference.frameRegions.retainedCandidates[0].identityDigest,
+    width: 200, height: 100, containedEntities: 3, partialEntities: 0, outsideEntities: 1,
+  })
+  assert.match(reference.frameRegions.retainedCandidates[0].identityDigest, /^[0-9a-f]{64}$/u)
+  const repeated = createCanonicalFeatureSummary(await framedDrawing(), { salt })
+  assert.deepEqual(reference.frameRegions, repeated.frameRegions)
+  const changed = compareCanonicalFeatureSummaries(reference, createCanonicalFeatureSummary(await framedDrawing(210), { salt }))
+  assert.ok(changed.categoryCounts.layout > 0, JSON.stringify(changed))
+})
 test('DXF imports of identical bytes ignore transient resource IDs but retain block and layer differences', async () => {
   const sdk = createKJDrawSDK()
   const encoded = async (blockName, color) => {
