@@ -98,7 +98,7 @@ export interface KJGeologySampleRangeTextFormat {
   suffix: string
   decimals: number
   trailingZeros: 'preserve' | 'trim'
-  anchor?: 'range-midpoint'
+  anchor?: 'range-top' | 'range-midpoint' | 'range-bottom'
   placement?: KJGeologyFieldHeaderTextPlacement
 }
 /** Source-backed layout for a measured groundwater annotation. The optional
@@ -955,9 +955,12 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     if (rule.fieldRole !== 'sample' || !Number.isInteger(decimals) || decimals < 0 || decimals > 4 ||
       rule.trailingZeros !== 'preserve' && rule.trailingZeros !== 'trim' || !fieldGrid!.some(field => field.role === 'sample'))
       throw new KJValidationError('Geology: sample range text format is unreadable')
+    let anchor: KJGeologySampleRangeTextFormat['anchor']
     let placement: KJGeologyFieldHeaderTextPlacement | undefined
     if (formatKeys.startsWith('anchor,')) {
-      if (rule.anchor !== 'range-midpoint') throw new KJValidationError('Geology: sample range text anchor must be the measured interval midpoint')
+      if (rule.anchor !== 'range-top' && rule.anchor !== 'range-midpoint' && rule.anchor !== 'range-bottom')
+        throw new KJValidationError('Geology: sample range text anchor must be the measured interval top, midpoint or bottom')
+      anchor = rule.anchor
       placement = sourceTextPlacement(rule.placement, 'sample range text')
       const sampleIndex = fieldGrid!.findIndex(field => field.role === 'sample')
       const sampleWidth = (fieldGrid![sampleIndex + 1]?.start ?? right) - fieldGrid![sampleIndex]!.start
@@ -965,7 +968,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
         throw new KJValidationError('Geology: sample range text placement is outside its physical lane')
     }
     sampleRangeTextFormat = { fieldRole: 'sample', prefix, separator, suffix, decimals,
-      trailingZeros: rule.trailingZeros as 'preserve' | 'trim', ...(placement ? { anchor: 'range-midpoint' as const, placement } : {}) }
+      trailingZeros: rule.trailingZeros as 'preserve' | 'trim', ...(placement ? { anchor: anchor!, placement } : {}) }
   }
   let groundwaterAnnotationStyle: ColumnLayout['groundwaterAnnotationStyle']
   if (value.groundwaterAnnotationStyle != null) {
@@ -2096,7 +2099,9 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
             ? `${sampleRangeTextFormat.prefix}${rangeEndpoint(item.rangeTop)}${sampleRangeTextFormat.separator}${rangeEndpoint(item.rangeBottom)}${sampleRangeTextFormat.suffix}`
             : `${metres(item.rangeTop)}–${metres(item.rangeBottom)}`
           if (sampleRangeTextFormat?.placement) {
-            const placement = sampleRangeTextFormat.placement, anchorY = (rangeTopY + rangeBottomY) / 2
+            const placement = sampleRangeTextFormat.placement
+            const anchorY = sampleRangeTextFormat.anchor === 'range-top' ? rangeTopY
+              : sampleRangeTextFormat.anchor === 'range-bottom' ? rangeBottomY : (rangeTopY + rangeBottomY) / 2
             emitPlacedFieldText(cell, anchorY, rangeText, placement)
           } else {
             const rangeTextY = rangeBottomY - 2.2

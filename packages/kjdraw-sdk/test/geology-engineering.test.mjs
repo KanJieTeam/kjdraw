@@ -928,18 +928,41 @@ test('a versioned fourteen-field grid charts direct sample measurements without 
   const asymmetricCompiled = compileGeologyColumn(asymmetric)
   assert.ok(asymmetricCompiled.commandArgs.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === '[2.00-2.15]'),
     'a source-backed formatter controls the sample interval text without changing its measured endpoints')
+  const rangedBottomY = 340 - 56 - 10 - 2.15 * 4
+  const rangeLabel = asymmetricCompiled.commandArgs.entities.find(entity => entity.type === 'TEXT' && entity.payload.text === '[2.00-2.15]')
+  assert.equal(rangeLabel.payload.position[1], (rangedTopY + rangedBottomY) / 2 - 3,
+    'the existing midpoint anchor remains the default declared placement')
+  const topAnchored = structuredClone(asymmetric)
+  topAnchored.columnStylePack.rules['geology-column-layout'].sampleRangeTextFormat.anchor = 'range-top'
+  topAnchored.columnStylePack.rules['geology-column-layout'].sampleRangeTextFormat.placement.offset[1] = -1.25
+  const topCompiled = compileGeologyColumn(topAnchored)
+  const topLabel = topCompiled.commandArgs.entities.find(entity =>
+    entity.type === 'TEXT' && entity.payload.text === '[2.00-2.15]')
+  assert.equal(topLabel.payload.position[1], rangedTopY - 1.25,
+    'a source-backed top anchor uses the measured rangeTop boundary')
+  const bottomAnchored = structuredClone(asymmetric)
+  bottomAnchored.columnStylePack.rules['geology-column-layout'].sampleRangeTextFormat.anchor = 'range-bottom'
+  bottomAnchored.columnStylePack.rules['geology-column-layout'].sampleRangeTextFormat.placement.offset[1] = 1.25
+  const bottomLabel = compileGeologyColumn(bottomAnchored).commandArgs.entities.find(entity =>
+    entity.type === 'TEXT' && entity.payload.text === '[2.00-2.15]')
+  assert.equal(bottomLabel.payload.position[1], rangedBottomY + 1.25,
+    'a source-backed bottom anchor uses the measured rangeBottom boundary')
   const asymmetricLines = asymmetricCompiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
     Math.abs(entity.payload.start[1] - rangedTopY) < 1e-6 && Math.abs(entity.payload.end[1] - rangedTopY) < 1e-6 &&
     entity.payload.start[0] >= 171 && entity.payload.end[0] <= 186)
   assert.deepEqual(asymmetricLines.map(entity => [entity.payload.start.slice(0, 2), entity.payload.end.slice(0, 2)]),
     [[[174, rangedTopY], [182, rangedTopY]]], 'a source-backed sample field may preserve independent start and end insets')
   const continuousDocument = sdk.createDocument({ units: 'millimeter' })
-  await sdk.executeCommand('CREATEBATCH', asymmetricCompiled.commandArgs, { document: continuousDocument })
+  await sdk.executeCommand('CREATEBATCH', topCompiled.commandArgs, { document: continuousDocument })
   for (const format of ['KJD', 'DXF']) {
     const bytes = await sdk.writeDocument(continuousDocument, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
     const reopened = await sdk.readDocument(bytes, { format })
-    assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === '[2.00-2.15]'),
+    const reopenedLabel = reopened.listEntities({ type: 'TEXT' }).find(entity => entity.payload.text === '[2.00-2.15]')
+    assert.ok(reopenedLabel,
       `${format} preserves the declared sample range text format`)
+    const reopenedPoint = reopenedLabel.payload.alignmentPoint ?? reopenedLabel.payload.position
+    assert.ok(Math.abs(reopenedPoint[1] - (rangedTopY - 1.25)) < 1e-6,
+      `${format} preserves the source-backed range-top anchor`)
     const reopenedLines = reopened.listEntities({ type: 'LINE' }).filter(entity =>
       Math.abs(entity.payload.start[0] - 174) < 1e-6 && Math.abs(entity.payload.end[0] - 182) < 1e-6 &&
       Math.abs(entity.payload.start[1] - rangedTopY) < 1e-6 && Math.abs(entity.payload.end[1] - rangedTopY) < 1e-6)
@@ -964,6 +987,9 @@ test('a versioned fourteen-field grid charts direct sample measurements without 
   const incompleteRangePlacement = structuredClone(asymmetric)
   delete incompleteRangePlacement.columnStylePack.rules['geology-column-layout'].sampleRangeTextFormat.placement
   assert.throws(() => compileGeologyColumn(incompleteRangePlacement), /exact declarative field-grid schema/)
+  const invalidRangeAnchor = structuredClone(asymmetric)
+  invalidRangeAnchor.columnStylePack.rules['geology-column-layout'].sampleRangeTextFormat.anchor = 'observation-depth'
+  assert.throws(() => compileGeologyColumn(invalidRangeAnchor), /measured interval top, midpoint or bottom/)
   const outsideRangeTextPlacement = structuredClone(asymmetric)
   outsideRangeTextPlacement.columnStylePack.rules['geology-column-layout'].sampleRangeTextFormat.placement.offset[0] = 16
   assert.throws(() => compileGeologyColumn(outsideRangeTextPlacement), /outside its physical lane/)

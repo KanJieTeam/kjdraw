@@ -965,9 +965,11 @@ function columnLayout(input) {
         const suffix = textPart(rule.suffix, 'suffix', 12, true);
         const decimals = numeric(rule.decimals, 'sample range decimals');
         if (rule.fieldRole !== 'sample' || !Number.isInteger(decimals) || decimals < 0 || decimals > 4 || rule.trailingZeros !== 'preserve' && rule.trailingZeros !== 'trim' || !fieldGrid.some((field)=>field.role === 'sample')) throw new KJValidationError('Geology: sample range text format is unreadable');
+        let anchor;
         let placement;
         if (formatKeys.startsWith('anchor,')) {
-            if (rule.anchor !== 'range-midpoint') throw new KJValidationError('Geology: sample range text anchor must be the measured interval midpoint');
+            if (rule.anchor !== 'range-top' && rule.anchor !== 'range-midpoint' && rule.anchor !== 'range-bottom') throw new KJValidationError('Geology: sample range text anchor must be the measured interval top, midpoint or bottom');
+            anchor = rule.anchor;
             placement = sourceTextPlacement(rule.placement, 'sample range text');
             const sampleIndex = fieldGrid.findIndex((field)=>field.role === 'sample');
             const sampleWidth = (fieldGrid[sampleIndex + 1]?.start ?? right) - fieldGrid[sampleIndex].start;
@@ -981,7 +983,7 @@ function columnLayout(input) {
             decimals,
             trailingZeros: rule.trailingZeros,
             ...placement ? {
-                anchor: 'range-midpoint',
+                anchor: anchor,
                 placement
             } : {}
         };
@@ -2645,7 +2647,8 @@ export function compileGeologyColumn(input) {
                     };
                     const rangeText = sampleRangeTextFormat ? `${sampleRangeTextFormat.prefix}${rangeEndpoint(item.rangeTop)}${sampleRangeTextFormat.separator}${rangeEndpoint(item.rangeBottom)}${sampleRangeTextFormat.suffix}` : `${metres(item.rangeTop)}–${metres(item.rangeBottom)}`;
                     if (sampleRangeTextFormat?.placement) {
-                        const placement = sampleRangeTextFormat.placement, anchorY = (rangeTopY + rangeBottomY) / 2;
+                        const placement = sampleRangeTextFormat.placement;
+                        const anchorY = sampleRangeTextFormat.anchor === 'range-top' ? rangeTopY : sampleRangeTextFormat.anchor === 'range-bottom' ? rangeBottomY : (rangeTopY + rangeBottomY) / 2;
                         emitPlacedFieldText(cell, anchorY, rangeText, placement);
                     } else {
                         const rangeTextY = rangeBottomY - 2.2;

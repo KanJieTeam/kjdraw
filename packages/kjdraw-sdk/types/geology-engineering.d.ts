@@ -107,7 +107,7 @@ export interface KJGeologySampleRangeTextFormat {
     suffix: string;
     decimals: number;
     trailingZeros: 'preserve' | 'trim';
-    anchor?: 'range-midpoint';
+    anchor?: 'range-top' | 'range-midpoint' | 'range-bottom';
     placement?: KJGeologyFieldHeaderTextPlacement;
 }
 /** Source-backed layout for a measured groundwater annotation. The optional
