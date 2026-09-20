@@ -1468,6 +1468,10 @@ const geologyStratumSchema = objectWithOptional({
             'boundary-only'
         ]
     },
+    patternLabel: {
+        ...text,
+        maxLength: 24
+    },
     description: {
         ...text,
         maxLength: 512
@@ -1485,6 +1489,7 @@ const geologyStratumSchema = objectWithOptional({
     'groupRole',
     'stratigraphicNotation',
     'patternVisibility',
+    'patternLabel',
     'description',
     'descriptionSource'
 ]);

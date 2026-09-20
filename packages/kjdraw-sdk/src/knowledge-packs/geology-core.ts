@@ -211,6 +211,7 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK: ReadonlyDeep<KJKnowledgePack> = vali
         fieldRole: 'pattern', textHeight: 2, markerHeight: 2.5, textWidthFactor: 0.8,
         gap: 0.6, valueOffset: 3, markerOffset: 0, dateOffset: -3,
       },
+      patternLabelStyle: { height: 1.5, textWidthFactor: 1, minimumBandHeight: 2 },
       textFlow: {
         firstGroupBorrowMm: 8,
         firstGroupUnruled: true,

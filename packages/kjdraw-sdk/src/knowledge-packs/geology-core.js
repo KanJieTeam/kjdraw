@@ -894,6 +894,11 @@ export const KJDRAW_GEOLOGY_KNOWLEDGE_PACK = validateKnowledgePack({
                 markerOffset: 0,
                 dateOffset: -3
             },
+            patternLabelStyle: {
+                height: 1.5,
+                textWidthFactor: 1,
+                minimumBandHeight: 2
+            },
             textFlow: {
                 firstGroupBorrowMm: 8,
                 firstGroupUnruled: true,

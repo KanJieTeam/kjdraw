@@ -43,6 +43,7 @@ test('versioned geology facts compile to a host-only CREATEBATCH proposal, then 
   assert.equal(schema.inputSchema.properties.hole.properties.initialWaterDepth.minimum, 0)
   assert.deepEqual(schema.inputSchema.properties.hole.properties.observations.items.properties.sampleMarker.enum,
     ['filled-circle', 'open-circle'])
+  assert.equal(schema.inputSchema.properties.hole.properties.strata.items.properties.patternLabel.maxLength, 24)
   const groundwaterSchema = schema.inputSchema.properties.hole.properties.groundwaterObservations
   assert.deepEqual(groundwaterSchema.items.required, ['depth', 'elevation', 'observedOn', 'marker'])
   assert.deepEqual(groundwaterSchema.items.properties.marker.enum, ['filled-down-triangle'])
@@ -88,19 +89,20 @@ test('bundled field-grid knowledge carries notation, sample markers and independ
   const session = new KJAgentToolSession(sdk, document), request = intent()
   request.locale = 'zh-CN'
   request.hole.strata[0].stratigraphicNotation = { symbol: 'Q', subscript: '4', superscript: 'ml' }
+  request.hole.strata[2].patternLabel = 'SC'
   request.hole.observations[0].sampleMarker = 'filled-circle'
   request.hole.groundwaterObservations = [
     { depth: 6.25, elevation: 99, observedOn: '2026-01-04', marker: 'filled-down-triangle' },
   ]
   const proposal = accepted(await session.call('cad_propose_geology_column', request))
-  for (const value of ['Q', '4', 'ml', '●', '6.25', '99.00', '▼', '2026-01-04'])
+  for (const value of ['Q', '4', 'ml', 'SC', '●', '6.25', '99.00', '▼', '2026-01-04'])
     assert.ok(proposal.arguments.entities.some(entity => entity.type === 'TEXT' && entity.payload.text === value), value)
   accepted(await session.approve(proposal.planId, 'synthetic-host-reviewer'))
   for (const format of ['KJD', 'DXF']) {
     const bytes = await sdk.writeDocument(document, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
     const reopened = await createKJDrawSDK().readDocument(bytes, { format, ...(format === 'DXF' ? { version: '2018' } : {}) })
     assert.equal(reopened.validate().valid, true)
-    for (const value of ['Q', '4', 'ml', '●', '6.25', '99.00', '▼', '2026-01-04'])
+    for (const value of ['Q', '4', 'ml', 'SC', '●', '6.25', '99.00', '▼', '2026-01-04'])
       assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `${format} ${value}`)
   }
 })

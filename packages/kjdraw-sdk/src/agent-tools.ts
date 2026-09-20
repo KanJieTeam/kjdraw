@@ -334,8 +334,9 @@ const geologyStratumSchema = objectWithOptional({
   stratigraphicNotation: stratigraphicNotationSchema,
   lithology: { type: 'string', enum: ['fill', 'cultivated-soil', 'clay', 'silty-clay', 'silt', 'sand', 'gravel', 'rock', 'weathered-rock', 'loess', 'loess-collapsible', 'loess-like', 'paleosol', 'calcareous-nodule'] },
   patternVisibility: { type: 'string', enum: ['filled', 'boundary-only'] },
+  patternLabel: { ...text, maxLength: 24 },
   description: { ...text, maxLength: 512 }, descriptionSource: { type: 'string', enum: ['interval', 'layer-definition'] },
-}, ['intervalId', 'groupId', 'groupRole', 'stratigraphicNotation', 'patternVisibility', 'description', 'descriptionSource'])
+}, ['intervalId', 'groupId', 'groupRole', 'stratigraphicNotation', 'patternVisibility', 'patternLabel', 'description', 'descriptionSource'])
 const geologyObservationSchema = objectWithOptional({
   kind: { type: 'string', enum: ['sample', 'spt'] }, id: { ...text, maxLength: 24 }, depth: nonnegative,
   value: nonnegative, displayLabel: { ...text, maxLength: 24 },

@@ -245,12 +245,14 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
       sampleMarkerStyle: { height: 1, gap: 0.5, baselineOffset: 0.5 },
       groundwaterAnnotationStyle: { fieldRole: 'pattern', textHeight: 2, markerHeight: 2.5,
         textWidthFactor: 0.8, gap: 0.6, valueOffset: 3, markerOffset: 0, dateOffset: -3 },
+      patternLabelStyle: { height: 1.5, textWidthFactor: 1, minimumBandHeight: 2 },
     } } })
   const source = { ...hole('PHYS-1', 0, 123.45, [0.6, 4, 18]), x: 123456.78, y: 654321.09,
     startDate: '2026-01-02', endDate: '2026-01-03', initialWaterDepth: 2.5, stableWaterDepth: 3 }
   source.strata[0].name = 'Fill'; source.strata[1].name = 'Clay'; source.strata[2].name = 'Sand'
   source.strata[0].stratigraphicNotation = { symbol: 'Q', subscript: '4', superscript: 'ml' }
   source.strata[1].stratigraphicNotation = { symbol: 'Q', subscript: '3' }
+  source.strata[1].patternLabel = 'SC'
   source.strata[2].stratigraphicNotation = { symbol: 'N', superscript: 'al' }
   source.observations = [{ kind: 'sample', id: 'S1', depth: 5, sampleMarker: 'filled-circle' }]
   source.groundwaterObservations = [{ depth: 3.25, elevation: 120.2, observedOn: '2026-01-04', marker: 'filled-down-triangle' }]
@@ -267,6 +269,8 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   assert.ok(texts.some(entity => entity.payload.text === '●' && entity.payload.height === 1), 'filled sample marker')
   for (const [value, height] of [['3.25', 2], ['120.20', 2], ['▼', 2.5], ['2026-01-04', 2]])
     assert.ok(texts.some(entity => entity.payload.text === value && entity.payload.height === height), `${value} groundwater annotation`)
+  assert.ok(texts.some(entity => entity.payload.text === 'SC' && entity.payload.height === 1.5 &&
+    entity.payload.horizontalAlignment === 1 && entity.payload.verticalAlignment === 2), 'centered pattern lane label')
   const headerBottom = 245, headerTop = 260
   const vertical = compiled.commandArgs.entities.filter(entity => entity.type === 'LINE' &&
     entity.payload.start[0] === entity.payload.end[0] && entity.payload.start[1] >= headerBottom && entity.payload.end[1] <= headerTop)
@@ -277,7 +281,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const kjd = await sdk.writeDocument(document, { format: 'KJD', version: '1' })
   const reopened = await sdk.readDocument(dxf, { format: 'DXF' }), reopenedKjd = await sdk.readDocument(kjd, { format: 'KJD' })
   assert.equal(reopened.validate().valid, true); assert.equal(reopenedKjd.validate().valid, true)
-  for (const value of ['2.50', 'Q', 'ml', '●', '3.25', '120.20', '▼', '2026-01-04']) {
+  for (const value of ['2.50', 'Q', 'ml', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04']) {
     assert.ok(reopened.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `DXF ${value}`)
     assert.ok(reopenedKjd.listEntities({ type: 'TEXT' }).some(entity => entity.payload.text === value), `KJD ${value}`)
   }
@@ -293,7 +297,7 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
     const report = JSON.parse(independent.stdout)
     assert.deepEqual([report.errors, report.fixes], [0, 0])
     for (const x of [25, 55, 75, 105, 125, 145, 165]) assert.ok(report.xs.includes(x), `ezdxf header x=${x}`)
-    for (const value of ['2.50', '3.00', 'Q', 'ml', '●', '3.25', '120.20', '▼', '2026-01-04'])
+    for (const value of ['2.50', '3.00', 'Q', 'ml', '●', 'SC', '3.25', '120.20', '▼', '2026-01-04'])
       assert.ok(report.texts.includes(value), `ezdxf ${value}`)
   }
   const partial = structuredClone(input)
@@ -338,6 +342,12 @@ test('source-backed physical header cells preserve unequal real-form lanes and s
   const inferredGroundwaterFact = structuredClone(input)
   delete inferredGroundwaterFact.hole.groundwaterObservations[0].observedOn
   assert.throws(() => compileGeologyColumn(inferredGroundwaterFact), /needs exact depth, elevation, date and marker/u)
+  const missingPatternLabelStyle = structuredClone(input)
+  delete missingPatternLabelStyle.columnStylePack.rules['geology-column-layout'].patternLabelStyle
+  assert.throws(() => compileGeologyColumn(missingPatternLabelStyle), /pattern label facts need a declared/u)
+  const oversizedPatternLabel = structuredClone(input)
+  oversizedPatternLabel.hole.strata[1].patternLabel = 'THIS LABEL CANNOT FIT'
+  assert.throws(() => compileGeologyColumn(oversizedPatternLabel), /pattern label for 2 does not fit/u)
 })
 
 test('bundled Chinese column header renders the selected physical vertical scale as visible native text', () => {

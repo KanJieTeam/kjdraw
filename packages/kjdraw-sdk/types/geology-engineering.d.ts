@@ -24,6 +24,8 @@ export interface KJGeologyStratum {
     patternKey?: string;
     /** Source-backed display fact: omit or filled draws the hatch; boundary-only preserves the interval without inventing fill. */
     patternVisibility?: 'filled' | 'boundary-only';
+    /** Exact source-visible label printed inside this interval's pattern lane. */
+    patternLabel?: string;
     description?: string;
     /** Interval text is never merged; a project layer definition may repeat through lenses. */
     descriptionSource?: 'interval' | 'layer-definition';

@@ -25,6 +25,8 @@ export interface KJGeologyStratum {
   patternKey?: string
   /** Source-backed display fact: omit or filled draws the hatch; boundary-only preserves the interval without inventing fill. */
   patternVisibility?: 'filled' | 'boundary-only'
+  /** Exact source-visible label printed inside this interval's pattern lane. */
+  patternLabel?: string
   description?: string
   /** Interval text is never merged; a project layer definition may repeat through lenses. */
   descriptionSource?: 'interval' | 'layer-definition'
@@ -193,6 +195,7 @@ interface ColumnLayout {
   stratigraphicNotationStyle?: { symbolHeight: number; qualifierHeight: number }
   sampleMarkerStyle?: { height: number; gap: number; baselineOffset: number }
   groundwaterAnnotationStyle?: { fieldRole: 'pattern'; textHeight: number; markerHeight: number; textWidthFactor: number; gap: number; valueOffset: number; markerOffset: number; dateOffset: number }
+  patternLabelStyle?: { height: number; textWidthFactor: number; minimumBandHeight: number }
   verticalScaleDenominators: number[]
   sourceTemplate?: { sourceId: string; sourceSha256: string; verticalScaleDenominator: number; innerGridWidthMillimeters: number; fieldRoles: string[]; footerLabels: string[]; gridLineHandles: string[] }
 }
@@ -279,7 +282,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'groundwaterAnnotationStyle', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -507,6 +510,19 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       throw new KJValidationError('Geology: groundwater annotation style is unreadable')
     groundwaterAnnotationStyle = { fieldRole: 'pattern', textHeight, markerHeight, textWidthFactor, gap, valueOffset, markerOffset, dateOffset }
   }
+  let patternLabelStyle: ColumnLayout['patternLabelStyle']
+  if (value.patternLabelStyle != null) {
+    if (!isFieldGrid || !value.patternLabelStyle || typeof value.patternLabelStyle !== 'object' || Array.isArray(value.patternLabelStyle) ||
+      Object.keys(value.patternLabelStyle).sort().join(',') !== 'height,minimumBandHeight,textWidthFactor')
+      throw new KJValidationError('Geology: pattern label style needs an exact declarative field-grid schema')
+    const rule = value.patternLabelStyle as Record<string, unknown>
+    const height = numeric(rule.height, 'pattern label height')
+    const textWidthFactor = numeric(rule.textWidthFactor, 'pattern label width factor')
+    const minimumBandHeight = numeric(rule.minimumBandHeight, 'pattern label minimum band height')
+    if (height < 0.8 || height > 4 || textWidthFactor < 0.5 || textWidthFactor > 1 || minimumBandHeight < height || minimumBandHeight > 20)
+      throw new KJValidationError('Geology: pattern label style is unreadable')
+    patternLabelStyle = { height, textWidthFactor, minimumBandHeight }
+  }
   let verticalScaleDenominators = [...defaultColumnVerticalScales]
   if (value.verticalScaleDenominators != null) {
     if (!Array.isArray(value.verticalScaleDenominators) || value.verticalScaleDenominators.length < 1 || value.verticalScaleDenominators.length > 16)
@@ -555,7 +571,8 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
     ...(observationColumns ? { observationColumns } : {}), labels,
     ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}),
     ...(stratigraphicNotationStyle ? { stratigraphicNotationStyle } : {}), ...(sampleMarkerStyle ? { sampleMarkerStyle } : {}),
-    ...(groundwaterAnnotationStyle ? { groundwaterAnnotationStyle } : {}), ...(sourceTemplate ? { sourceTemplate } : {}) }
+    ...(groundwaterAnnotationStyle ? { groundwaterAnnotationStyle } : {}), ...(patternLabelStyle ? { patternLabelStyle } : {}),
+    ...(sourceTemplate ? { sourceTemplate } : {}) }
 }
 
 function sectionLayout(input: KJGeologySectionInput): SectionLayout {
@@ -666,6 +683,7 @@ function checkHole(hole: KJGeologyBorehole): KJGeologyStratum[] {
     if (layer.patternKey != null) bounded(layer.patternKey, 'pattern key', 96)
     if (layer.patternVisibility != null && layer.patternVisibility !== 'filled' && layer.patternVisibility !== 'boundary-only')
       throw new KJValidationError(`Geology: invalid pattern visibility at ${code}`)
+    if (layer.patternLabel != null) bounded(layer.patternLabel, 'pattern lane label', 24)
     previous = bottom
   }
   if (Math.abs(previous - hole.depth) > 1e-6) throw new KJValidationError('Geology: final layer bottom must equal hole depth')
@@ -731,10 +749,11 @@ function drawingBuilder(input: unknown, templateId: string, expectedRevision: nu
   }
   const line = (layer: number, x1: number, y1: number, x2: number, y2: number) => add('LINE', layer, { start: [x1, y1, 0], end: [x2, y2, 0] })
   const semanticLine = (layer: number, x1: number, y1: number, x2: number, y2: number, metadata: Record<string, unknown>) => add('LINE', layer, { start: [x1, y1, 0], end: [x2, y2, 0], ...metadata })
-  const text = (layer: number, x: number, y: number, value: string, height = 2.6, centered = false, widthFactor?: number) => add('TEXT', layer, {
+  const text = (layer: number, x: number, y: number, value: string, height = 2.6, centered = false, widthFactor?: number, verticalAlignment?: 1 | 2 | 3) => add('TEXT', layer, {
     position: [x, y, 0], text: value, height,
     ...(widthFactor == null ? {} : { widthFactor }),
-    ...(centered ? { horizontalAlignment: 1, alignmentPoint: [x, y, 0] } : {}),
+    ...(centered ? { horizontalAlignment: 1 } : {}), ...(verticalAlignment == null ? {} : { verticalAlignment }),
+    ...(centered || verticalAlignment != null ? { alignmentPoint: [x, y, 0] } : {}),
   })
   const mtext = (layer: number, x: number, y: number, value: string, height: number, width: number) => add('MTEXT', layer, {
     position: [x, y, 0], text: value, height, width, attachmentPoint: 1,
@@ -760,7 +779,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
     headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights,
-    stratigraphicNotationStyle, sampleMarkerStyle, groundwaterAnnotationStyle, layerNumberStyle, sourceTemplate } = layout
+    stratigraphicNotationStyle, sampleMarkerStyle, groundwaterAnnotationStyle, patternLabelStyle, layerNumberStyle, sourceTemplate } = layout
   if (strata.some(layer => layer.stratigraphicNotation != null) && !stratigraphicNotationStyle)
     throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style')
   const documentFacts = documentFactRecord(input.documentFacts)
@@ -801,6 +820,8 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
     throw new KJValidationError('Geology: sample marker facts need a declared field-grid marker style')
   if (hole.groundwaterObservations?.length && !groundwaterAnnotationStyle)
     throw new KJValidationError('Geology: groundwater observation facts need a declared field-grid annotation style')
+  if (strata.some(layer => layer.patternLabel != null) && !patternLabelStyle)
+    throw new KJValidationError('Geology: pattern label facts need a declared field-grid label style')
   if (fieldGrid && observations.some(item => item.kind === 'sample' && !gridField('sample') || item.kind === 'spt' && !gridField('spt')))
     throw new KJValidationError('Geology: field grid has no physical field for supplied observations')
   if (observations.length && strata.some(layer => layer.description) && !observationColumns && !fieldGrid) throw new KJValidationError('Geology: supplied descriptions and depth-aligned observations need separate declared columns')
@@ -1137,6 +1158,16 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       }
       if (layer.patternVisibility !== 'boundary-only') g.hatch([[patternField.start, yBottom], [gridEnd(patternField), yBottom],
         [gridEnd(patternField), yTop], [patternField.start, yTop]], layer)
+      if (layer.patternLabel) {
+        const style = patternLabelStyle!, bandHeight = yTop - yBottom
+        const width = estimatedWidth(layer.patternLabel, style.height) * style.textWidthFactor
+        if (bandHeight + 1e-9 < style.minimumBandHeight || width > fieldWidth(patternField) - 2.4)
+          throw new KJValidationError(`Geology: pattern label for ${layer.code} does not fit its declared interval`)
+        const x = patternField.start + fieldWidth(patternField) / 2, y = (yTop + yBottom) / 2
+        g.text(3, x, y, layer.patternLabel, style.height, true, style.textWidthFactor, 2)
+        textBoxes.push({ role: 'pattern', left: x - width / 2, right: x + width / 2,
+          bottom: y - style.height / 2 + 0.1, top: y + style.height / 2 - 0.1 })
+      }
       const depthY = depthLabelY.get(layer) ?? yBottom + 0.4
       if (Math.abs(depthY - (yBottom + 0.4)) > 0.6) g.line(1, gridEnd(depthField) - 5, yBottom, gridEnd(depthField) - 1, depthY)
       const intervalDepthHeight = textHeights?.intervalDepth ?? (grouped ? 1.5 : Math.min(2.1, (yTop - yBottom) * 0.55))
