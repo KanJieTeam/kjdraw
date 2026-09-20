@@ -153,6 +153,13 @@ export interface KJGeologySampleAnnotationStyle {
   label: KJGeologyFieldHeaderTextPlacement
   marker: KJGeologyFieldHeaderTextPlacement
 }
+/** Source-backed depth-lane placements relative to each real interval's
+ * bottom boundary. Lens placement is explicit and never inferred by thickness. */
+export interface KJGeologyIntervalDepthTextStyle {
+  fieldRole: 'depth'
+  principal: KJGeologyFieldHeaderTextPlacement
+  lens: KJGeologyFieldHeaderTextPlacement
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,
@@ -289,6 +296,7 @@ interface ColumnLayout {
   layerNumberStyle: 'plain' | 'circle'
   textFlow?: { firstGroupBorrowMm: number; firstGroupUnruled: boolean; firstBaselineMm: number; labelPitchMm: number; labelHeightMm: number; paragraphGapMm: number }
   textHeights?: { headerFact: number; fieldHeader: number; fieldSubHeader: number; majorValue: number; intervalDepth: number; observation: number }
+  intervalDepthTextStyle?: KJGeologyIntervalDepthTextStyle
   defaultTextStyle?: KJGeologyDefaultTextStyle
   stratigraphicNotationStyle?: { symbolHeight: number; qualifierHeight: number }
   sampleMarkerStyle?: { height: number; gap: number; baselineOffset: number }
@@ -400,7 +408,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   const isFieldGrid = value.fieldGrid != null
   const expectedKeys = [isFieldGrid ? 'fieldGrid' : 'columns', 'left', 'paperHeight', 'paperWidth', 'right']
   const keys = Object.keys(value).sort()
-  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'defaultTextStyle', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'sampleAnnotationStyle', 'sampleRangeBaselineStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
+  if (keys.some(key => ![...expectedKeys, 'labels', 'observationColumns', 'displayAliases', 'headerDepth', 'headerRowHeight', 'fieldHeaderHeight', 'footerReserve', 'headerGrid', 'footerGrid', 'sptDisplayCap', 'legendMode', 'layerNumberStyle', 'titleHeight', 'textFlow', 'textHeights', 'intervalDepthTextStyle', 'defaultTextStyle', 'stratigraphicNotationStyle', 'sampleMarkerStyle', 'sampleAnnotationStyle', 'sampleRangeBaselineStyle', 'groundwaterAnnotationStyle', 'patternLabelStyle', 'titleMarginFacts', 'frameStyle', 'descriptionBoundaryStyle', 'formTopology', 'verticalScaleDenominators', 'sourceTemplate'].includes(key)) || expectedKeys.some(key => !keys.includes(key))) throw new KJValidationError('Geology: style pack layout must declare five geometry fields and optional labels/observation columns')
   const paperWidth = numeric(value.paperWidth, 'style paper width'), paperHeight = numeric(value.paperHeight, 'style paper height')
   const titleHeight = value.titleHeight == null ? 5 : numeric(value.titleHeight, 'title height')
   if (titleHeight < 3 || titleHeight > 12) throw new KJValidationError('Geology: title height must be 3–12 mm')
@@ -660,6 +668,22 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
       throw new KJValidationError('Geology: role text heights do not fit the declared rows')
     textHeights = parsedTextHeights
   }
+  let intervalDepthTextStyle: ColumnLayout['intervalDepthTextStyle']
+  if (value.intervalDepthTextStyle != null) {
+    if (!isFieldGrid || !value.intervalDepthTextStyle || typeof value.intervalDepthTextStyle !== 'object' || Array.isArray(value.intervalDepthTextStyle) ||
+      Object.keys(value.intervalDepthTextStyle).sort().join(',') !== 'fieldRole,lens,principal')
+      throw new KJValidationError('Geology: interval depth text style needs an exact declarative field-grid schema')
+    const rule = value.intervalDepthTextStyle as Record<string, unknown>
+    if (rule.fieldRole !== 'depth') throw new KJValidationError('Geology: interval depth text needs the declared depth field')
+    const principal = sourceTextPlacement(rule.principal, 'principal interval depth')
+    const lens = sourceTextPlacement(rule.lens, 'lens interval depth')
+    const depthIndex = fieldGrid!.findIndex(field => field.role === 'depth')
+    const depthWidth = depthIndex < 0 ? 0 : (fieldGrid![depthIndex + 1]?.start ?? right) - fieldGrid![depthIndex]!.start
+    if (depthIndex < 0 || [principal, lens].some(placement =>
+      placement.offset[0] < 0 || placement.offset[0] > depthWidth || placement.offset[1] < -5 || placement.offset[1] > 10))
+      throw new KJValidationError('Geology: interval depth text placement is outside its physical lane')
+    intervalDepthTextStyle = { fieldRole: 'depth', principal, lens }
+  }
   let defaultTextStyle: ColumnLayout['defaultTextStyle']
   if (value.defaultTextStyle != null) {
     if (!isFieldGrid || !value.defaultTextStyle || typeof value.defaultTextStyle !== 'object' || Array.isArray(value.defaultTextStyle) ||
@@ -917,7 +941,7 @@ function columnLayout(input: KJGeologyColumnInput): ColumnLayout {
   }
   return { paperWidth, paperHeight, left, right, columns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, legendMode, layerNumberStyle, titleHeight, verticalScaleDenominators, ...(sptDisplayCap == null ? {} : { sptDisplayCap }),
     ...(observationColumns ? { observationColumns } : {}), labels,
-    ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}), ...(defaultTextStyle ? { defaultTextStyle } : {}),
+    ...(displayAliases ? { displayAliases } : {}), ...(headerGrid ? { headerGrid } : {}), ...(footerGrid ? { footerGrid } : {}), ...(fieldGrid ? { fieldGrid } : {}), ...(textFlow ? { textFlow } : {}), ...(textHeights ? { textHeights } : {}), ...(intervalDepthTextStyle ? { intervalDepthTextStyle } : {}), ...(defaultTextStyle ? { defaultTextStyle } : {}),
     ...(stratigraphicNotationStyle ? { stratigraphicNotationStyle } : {}), ...(sampleMarkerStyle ? { sampleMarkerStyle } : {}),
     ...(sampleAnnotationStyle ? { sampleAnnotationStyle } : {}),
     ...(sampleRangeBaselineStyle ? { sampleRangeBaselineStyle } : {}),
@@ -1157,7 +1181,7 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
   const { hole } = input, strata = checkHole(hole)
   const layout = columnLayout(input)
   const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns,
-    headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights,
+    headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, intervalDepthTextStyle,
     defaultTextStyle, stratigraphicNotationStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology,
     layerNumberStyle, sourceTemplate } = layout
   if (strata.some(layer => layer.stratigraphicNotation != null) && !stratigraphicNotationStyle)
@@ -1471,6 +1495,21 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       textBoxes.push({ role: item.role, left: x - (centered ? width / 2 : 0) - 0.25,
         right: x + (centered ? width / 2 : width) + 0.25, bottom: y - 0.25, top: y + height + 0.25 })
     }
+    const emitPlacedFieldText = (item: typeof fieldGrid[number], anchorY: number, value: string,
+      placement: KJGeologyFieldHeaderTextPlacement): void => {
+      const textWidth = estimatedWidth(value, placement.height) * placement.textWidthFactor
+      const x = item.start + placement.offset[0], y = anchorY + placement.offset[1]
+      const left = placement.horizontalAlignment === 'left' ? x :
+        placement.horizontalAlignment === 'center' ? x - textWidth / 2 : x - textWidth
+      if (left < item.start + 0.2 || left + textWidth > gridEnd(item) - 0.2 || y < bottom || y > top)
+        throw new KJValidationError(`Geology: ${item.role} text does not fit its declared source placement`)
+      const horizontalAlignment = placement.horizontalAlignment === 'left' ? 0 : placement.horizontalAlignment === 'center' ? 1 : 2
+      const verticalAlignment = placement.verticalAlignment === 'baseline' ? 0 : 2
+      g.placedText(3, x, y, value, placement.height, placement.textWidthFactor, horizontalAlignment, verticalAlignment, 0)
+      const textBottom = placement.verticalAlignment === 'middle' ? y - placement.height / 2 : y
+      textBoxes.push({ role: item.role, left: left - 0.25, right: left + textWidth + 0.25,
+        bottom: textBottom - 0.25, top: textBottom + placement.height + 0.25 })
+    }
     const emitSampleText = (item: typeof fieldGrid[number], observation: KJGeologyObservation, value: string,
       marker: NonNullable<KJGeologyObservation['sampleMarker']>, height: number): void => {
       const style = sampleMarkerStyle!, factor = item.textWidthFactor ?? 1
@@ -1715,8 +1754,10 @@ export function compileGeologyColumn(input: KJGeologyColumnInput): ReadonlyDeep<
       const depthY = depthLabelY.get(layer) ?? yBottom + 0.4
       if (Math.abs(depthY - (yBottom + 0.4)) > 0.6) g.line(1, gridEnd(depthField) - 5, yBottom, gridEnd(depthField) - 1, depthY)
       const intervalDepthHeight = textHeights?.intervalDepth ?? (grouped ? 1.5 : Math.min(2.1, (yTop - yBottom) * 0.55))
-      if (textHeights && intervalDepthHeight > yTop - yBottom - 0.4) throw new KJValidationError(`Geology: layer ${layer.code} depth text does not fit its declared band`)
-      emitFieldText(depthField, depthY, metres(layer.bottom), intervalDepthHeight)
+      if (!intervalDepthTextStyle && textHeights && intervalDepthHeight > yTop - yBottom - 0.4) throw new KJValidationError(`Geology: layer ${layer.code} depth text does not fit its declared band`)
+      if (intervalDepthTextStyle) emitPlacedFieldText(depthField, yBottom, metres(layer.bottom),
+        layer.groupRole === 'lens' ? intervalDepthTextStyle.lens : intervalDepthTextStyle.principal)
+      else emitFieldText(depthField, depthY, metres(layer.bottom), intervalDepthHeight)
       if (!grouped) writeCore(layer.code, layer.top, layer.bottom, layer)
     }
     if (grouped) for (const group of groups) writeCore(group.id, group.top, group.bottom, group.principal)

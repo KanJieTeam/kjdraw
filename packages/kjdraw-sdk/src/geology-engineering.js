@@ -283,6 +283,7 @@ function columnLayout(input) {
             'titleHeight',
             'textFlow',
             'textHeights',
+            'intervalDepthTextStyle',
             'defaultTextStyle',
             'stratigraphicNotationStyle',
             'sampleMarkerStyle',
@@ -698,6 +699,25 @@ function columnLayout(input) {
         if (Object.values(parsedTextHeights).some((height)=>height < 1.2 || height > 5) || parsedTextHeights.headerFact > headerRowHeight - 1 || parsedTextHeights.fieldHeader + parsedTextHeights.fieldSubHeader + 0.8 > fieldHeaderHeight) throw new KJValidationError('Geology: role text heights do not fit the declared rows');
         textHeights = parsedTextHeights;
     }
+    let intervalDepthTextStyle;
+    if (value.intervalDepthTextStyle != null) {
+        if (!isFieldGrid || !value.intervalDepthTextStyle || typeof value.intervalDepthTextStyle !== 'object' || Array.isArray(value.intervalDepthTextStyle) || Object.keys(value.intervalDepthTextStyle).sort().join(',') !== 'fieldRole,lens,principal') throw new KJValidationError('Geology: interval depth text style needs an exact declarative field-grid schema');
+        const rule = value.intervalDepthTextStyle;
+        if (rule.fieldRole !== 'depth') throw new KJValidationError('Geology: interval depth text needs the declared depth field');
+        const principal = sourceTextPlacement(rule.principal, 'principal interval depth');
+        const lens = sourceTextPlacement(rule.lens, 'lens interval depth');
+        const depthIndex = fieldGrid.findIndex((field)=>field.role === 'depth');
+        const depthWidth = depthIndex < 0 ? 0 : (fieldGrid[depthIndex + 1]?.start ?? right) - fieldGrid[depthIndex].start;
+        if (depthIndex < 0 || [
+            principal,
+            lens
+        ].some((placement)=>placement.offset[0] < 0 || placement.offset[0] > depthWidth || placement.offset[1] < -5 || placement.offset[1] > 10)) throw new KJValidationError('Geology: interval depth text placement is outside its physical lane');
+        intervalDepthTextStyle = {
+            fieldRole: 'depth',
+            principal,
+            lens
+        };
+    }
     let defaultTextStyle;
     if (value.defaultTextStyle != null) {
         if (!isFieldGrid || !value.defaultTextStyle || typeof value.defaultTextStyle !== 'object' || Array.isArray(value.defaultTextStyle) || Object.keys(value.defaultTextStyle).sort().join(',') !== 'bigFontFile,dxfFlags,fixedHeight,fontFamily,fontFile,generationFlags,name,obliqueAngleDegrees,widthFactor') throw new KJValidationError('Geology: default text style needs an exact declarative field-grid schema');
@@ -1025,6 +1045,9 @@ function columnLayout(input) {
         } : {},
         ...textHeights ? {
             textHeights
+        } : {},
+        ...intervalDepthTextStyle ? {
+            intervalDepthTextStyle
         } : {},
         ...defaultTextStyle ? {
             defaultTextStyle
@@ -1514,7 +1537,7 @@ function drawingBuilder(input, templateId, expectedRevision, hatches = {}, defau
 export function compileGeologyColumn(input) {
     const { hole } = input, strata = checkHole(hole);
     const layout = columnLayout(input);
-    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, defaultTextStyle, stratigraphicNotationStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
+    const { paperHeight: pageHeight, paperWidth: pageWidth, left, right, columns, observationColumns, headerDepth, headerRowHeight, fieldHeaderHeight, footerReserve, labels, displayAliases, headerGrid, footerGrid, fieldGrid, sptDisplayCap, titleHeight, textFlow, textHeights, intervalDepthTextStyle, defaultTextStyle, stratigraphicNotationStyle, sampleMarkerStyle, sampleAnnotationStyle, sampleRangeBaselineStyle, groundwaterAnnotationStyle, patternLabelStyle, titleMarginFacts, frameStyle, descriptionBoundaryStyle, formTopology, layerNumberStyle, sourceTemplate } = layout;
     if (strata.some((layer)=>layer.stratigraphicNotation != null) && !stratigraphicNotationStyle) throw new KJValidationError('Geology: stratigraphic notation facts need a declared field-grid notation style');
     if (strata.some((layer)=>layer.bottomBoundaryLineVisibility != null) && !fieldGrid) throw new KJValidationError('Geology: bottom boundary line visibility needs a declared physical field grid');
     const documentFacts = documentFactRecord(input.documentFacts);
@@ -1915,6 +1938,23 @@ export function compileGeologyColumn(input) {
                 top: y + height + 0.25
             });
         };
+        const emitPlacedFieldText = (item, anchorY, value, placement)=>{
+            const textWidth = estimatedWidth(value, placement.height) * placement.textWidthFactor;
+            const x = item.start + placement.offset[0], y = anchorY + placement.offset[1];
+            const left = placement.horizontalAlignment === 'left' ? x : placement.horizontalAlignment === 'center' ? x - textWidth / 2 : x - textWidth;
+            if (left < item.start + 0.2 || left + textWidth > gridEnd(item) - 0.2 || y < bottom || y > top) throw new KJValidationError(`Geology: ${item.role} text does not fit its declared source placement`);
+            const horizontalAlignment = placement.horizontalAlignment === 'left' ? 0 : placement.horizontalAlignment === 'center' ? 1 : 2;
+            const verticalAlignment = placement.verticalAlignment === 'baseline' ? 0 : 2;
+            g.placedText(3, x, y, value, placement.height, placement.textWidthFactor, horizontalAlignment, verticalAlignment, 0);
+            const textBottom = placement.verticalAlignment === 'middle' ? y - placement.height / 2 : y;
+            textBoxes.push({
+                role: item.role,
+                left: left - 0.25,
+                right: left + textWidth + 0.25,
+                bottom: textBottom - 0.25,
+                top: textBottom + placement.height + 0.25
+            });
+        };
         const emitSampleText = (item, observation, value, marker, height)=>{
             const style = sampleMarkerStyle, factor = item.textWidthFactor ?? 1;
             const glyph = marker === 'filled-circle' ? '●' : '○';
@@ -2261,8 +2301,9 @@ export function compileGeologyColumn(input) {
             const depthY = depthLabelY.get(layer) ?? yBottom + 0.4;
             if (Math.abs(depthY - (yBottom + 0.4)) > 0.6) g.line(1, gridEnd(depthField) - 5, yBottom, gridEnd(depthField) - 1, depthY);
             const intervalDepthHeight = textHeights?.intervalDepth ?? (grouped ? 1.5 : Math.min(2.1, (yTop - yBottom) * 0.55));
-            if (textHeights && intervalDepthHeight > yTop - yBottom - 0.4) throw new KJValidationError(`Geology: layer ${layer.code} depth text does not fit its declared band`);
-            emitFieldText(depthField, depthY, metres(layer.bottom), intervalDepthHeight);
+            if (!intervalDepthTextStyle && textHeights && intervalDepthHeight > yTop - yBottom - 0.4) throw new KJValidationError(`Geology: layer ${layer.code} depth text does not fit its declared band`);
+            if (intervalDepthTextStyle) emitPlacedFieldText(depthField, yBottom, metres(layer.bottom), layer.groupRole === 'lens' ? intervalDepthTextStyle.lens : intervalDepthTextStyle.principal);
+            else emitFieldText(depthField, depthY, metres(layer.bottom), intervalDepthHeight);
             if (!grouped) writeCore(layer.code, layer.top, layer.bottom, layer);
         }
         if (grouped) for (const group of groups)writeCore(group.id, group.top, group.bottom, group.principal);

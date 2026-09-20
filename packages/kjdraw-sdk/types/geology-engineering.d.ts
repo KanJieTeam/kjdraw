@@ -154,6 +154,14 @@ export interface KJGeologySampleAnnotationStyle {
     label: KJGeologyFieldHeaderTextPlacement;
     marker: KJGeologyFieldHeaderTextPlacement;
 }
+/** Source-backed interval depth placements selected by semantic layer role.
+ * Offsets are millimetres from the depth field's lower-left at the measured
+ * interval bottom; ordinary layouts retain collision-safe defaults. */
+export interface KJGeologyIntervalDepthTextStyle {
+    fieldRole: 'depth';
+    principal: KJGeologyFieldHeaderTextPlacement;
+    lens: KJGeologyFieldHeaderTextPlacement;
+}
 /** A source-backed cross-hole boundary supplied by an external data adapter.
  *  Depths are measured downwards from each hole collar in metres.  This is
  *  deliberately a neutral input contract: adapters may read MDB/DWG facts,
