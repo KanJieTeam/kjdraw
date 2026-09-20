@@ -101,3 +101,33 @@ test('AI creates native minor and reflex angle dimensions with visible arcs, exa
     expect(labelText(result.roundTrips[format]), format + ' must preserve rendered annotation content').toEqual(labelText(result.approved))
   }
 })
+
+test('two-line angular KJD and DXF reopen keep an exact fixed-canvas image across native endpoint reversal', async ({ page }) => {
+  await page.goto('/')
+  const result = await page.evaluate(async () => {
+    const [{ createKJDrawSDK }, { exportDrawingSvg }] = await Promise.all([
+      import('/packages/kjdraw-sdk/src/sdk.js'), import('/packages/kjdraw-sdk/src/svg-export.js'),
+    ])
+    const sdk = createKJDrawSDK(), source = sdk.createDocument({ units: 'millimeter' }), layoutId = source.snapshot().spaces.layoutIds[0]
+    await sdk.executeCommand('PLOTSETUP', { layoutId, dxf: { paperWidth: 297, paperHeight: 210, paperUnits: 1, plotType: 4, flags: 0, windowMinX: -20, windowMinY: -20, windowMaxX: 20, windowMaxY: 20, scaleNumerator: 1, scaleDenominator: 1, marginLeft: 0, marginRight: 0, marginTop: 0, marginBottom: 0, originX: 0, originY: 0 } }, { document: source })
+    const points = [[0, -10, 0], [10, 0, 0], [-10, 0, 0], [0, 10, 0], [6, 6, 0]]
+    await sdk.executeCommand('CREATE', { type: 'DIMENSION', payload: { dimensionType: 'ANGULAR', definitionPoints: points, textPosition: [5, 5, 0], textHeight: 3.175, arrowSize: 1, extensionOffset: .625, extensionBeyond: 0, precision: 2 } }, { document: source })
+    const [kjd, dxf] = await Promise.all(['KJD', 'DXF'].map(async format => createKJDrawSDK().readDocument(await sdk.writeDocument(source, { format }), { format })))
+    const canvas = document.createElement('canvas'); canvas.width = 800; canvas.height = 400; document.body.append(canvas)
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    const render = async drawing => {
+      const output = exportDrawingSvg(drawing, { layoutId: drawing.snapshot().spaces.layoutIds[0], allowPartial: false })
+      const image = await new Promise((resolve, reject) => { const value = new Image(); value.onload = () => resolve(value); value.onerror = reject; value.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(output.svg)}` })
+      context.clearRect(0, 0, 800, 400); context.drawImage(image, 0, 0, 800, 400)
+      return { report: output.report, pixels: new Uint8ClampedArray(context.getImageData(0, 0, 800, 400).data) }
+    }
+    const expected = await render(source), reopened = [await render(kjd), await render(dxf)]
+    const compare = actual => { let exact = 0; for (let index = 0; index < actual.pixels.length; index++) if (actual.pixels[index] === expected.pixels[index]) exact++; return { exact, channels: actual.pixels.length, diagnostics: actual.report.diagnostics.length } }
+    canvas.remove()
+    return { sourceDiagnostics: expected.report.diagnostics.length, kjd: compare(reopened[0]), dxf: compare(reopened[1]), kjdPoints: kjd.listEntities({ type: 'DIMENSION' })[0].payload.definitionPoints, dxfPoints: dxf.listEntities({ type: 'DIMENSION' })[0].payload.definitionPoints }
+  })
+  expect(result.sourceDiagnostics).toBe(0)
+  expect(result.kjd).toEqual({ exact: 800 * 400 * 4, channels: 800 * 400 * 4, diagnostics: 0 })
+  expect(result.dxf).toEqual(result.kjd)
+  expect(result.kjdPoints).not.toEqual(result.dxfPoints)
+})

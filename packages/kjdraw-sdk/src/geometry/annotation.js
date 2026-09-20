@@ -179,6 +179,9 @@ export function projectDimension(payload, style = {}) {
                 }
             }
             if (!selected) return null;
+            const selectedOrigin = (a, b, direction)=>dot(delta(a, center), direction) >= dot(delta(b, center), direction) ? a : b;
+            origin1 = selectedOrigin(second, third, u);
+            origin2 = selectedOrigin(fourth, first, v);
         } else {
             const span = positive(endAngle - startAngle), offset = positive(placement - startAngle);
             if (span < 1e-10 || offset < 1e-10 || Math.abs(offset - span) < 1e-10) return null;

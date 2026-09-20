@@ -113,6 +113,13 @@ export function projectDimension(payload: Readonly<Record<string, unknown>>, sty
         }
       }
       if (!selected) return null // The arc location lies on a line: no unique sector.
+      // Reversing either native DXF line's endpoints must not move its visible
+      // extension origin. Select the endpoint on the placement-selected ray;
+      // DXF writers may reverse endpoints to preserve the native CCW measure.
+      const selectedOrigin = (a: Point, b: Point, direction: Point): Point =>
+        dot(delta(a, center), direction) >= dot(delta(b, center), direction) ? a : b
+      origin1 = selectedOrigin(second, third, u)
+      origin2 = selectedOrigin(fourth, first, v)
     } else {
       const span = positive(endAngle - startAngle), offset = positive(placement - startAngle)
       if (span < 1e-10 || offset < 1e-10 || Math.abs(offset - span) < 1e-10) return null
