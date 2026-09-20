@@ -833,7 +833,7 @@ function entityPayload(record: DxfRecord, blockIds: ReadonlyMap<string, string>,
       const incompleteAngularDefinition = [2, 5].includes(subtype) && (subtype === 2 ? [10, 13, 14, 15, 16] : [10, 13, 14, 15]).some(code => !optionalPoint(record, code, code + 10, code + 20))
       const definitionPoints = [optionalPoint(record, 10, 20, 30), optionalPoint(record, 13, 23, 33), optionalPoint(record, 14, 24, 34), optionalPoint(record, 15, 25, 35), optionalPoint(record, 16, 26, 36)].filter((value): value is Point3 => Boolean(value))
       const styleName = first(record, 3, 'STANDARD')
-      return { type: 'DIMENSION', payload: { dimensionType: DIMENSION_TYPE_BY_CODE[dxfDimensionType & 7] ?? 'ROTATED', ...(incompleteAngularDefinition ? { incompleteAngularDefinition: true } : {}), ...readDimensionOverrides(record), dxfDimensionType, definitionPoints, textPosition: optionalPoint(record, 11, 21, 31), textOverride: first(record, 1), styleName, styleId: resources.dimensionStyleIds?.get(normalizeName(styleName)) ?? null, blockName: first(record, 2), measurement: values(record, 42).length ? number(record, 42) : null, rotation: number(record, 50, 0) * Math.PI / 180, rawTags: record.tags } }
+      return { type: 'DIMENSION', payload: { dimensionType: DIMENSION_TYPE_BY_CODE[dxfDimensionType & 7] ?? 'ROTATED', ...(incompleteAngularDefinition ? { incompleteAngularDefinition: true } : {}), ...readDimensionOverrides(record), dxfDimensionType, definitionPoints, textPosition: optionalPoint(record, 11, 21, 31), textOverride: first(record, 1), styleName, styleId: resources.dimensionStyleIds?.get(normalizeName(styleName)) ?? null, blockName: first(record, 2), measurement: values(record, 42).length ? number(record, 42) : null, rotation: (subtype === 6 ? -number(record, 51, 0) : number(record, 50, 0)) * Math.PI / 180, rawTags: record.tags } }
     }
     case 'TOLERANCE': {
       const styleName = first(record, 3, 'STANDARD')
@@ -1266,14 +1266,14 @@ function createHandleAllocator(handles: readonly string[]): () => string {
   }
 }
 
-const NATIVE_DIMENSION_SUBTYPES = new Set([0, 1, 2, 3, 4, 5])
+const NATIVE_DIMENSION_SUBTYPES = new Set([0, 1, 2, 3, 4, 5, 6])
 
 function nativeDimensionCode(payload: DxfPayload): number {
   const namedType = normalizeName(payload.dimensionType)
   const mapped = namedType === 'LINEAR' ? 0 : DIMENSION_CODE_BY_TYPE[namedType]
   const value = payload.dxfDimensionType == null ? mapped : Number(payload.dxfDimensionType)
   if (!Number.isInteger(value) || value! < 0 || !NATIVE_DIMENSION_SUBTYPES.has(value! & 7)) {
-    throw new KJValidationError(`DXF export requires a valid ALIGNED, ROTATED, ANGULAR, ANGULAR_3_POINT, RADIUS, or DIAMETER dimension; received ${payload.dimensionType ?? payload.dxfDimensionType ?? 'unknown'}`)
+    throw new KJValidationError(`DXF export requires a valid ALIGNED, ROTATED, ANGULAR, ANGULAR_3_POINT, RADIUS, DIAMETER, or ORDINATE dimension; received ${payload.dimensionType ?? payload.dxfDimensionType ?? 'unknown'}`)
   }
   return value!
 }
@@ -1933,6 +1933,9 @@ function emitEntity(
     emit(output, 3, (p.styleId ? resources.dimensionStyleNames?.get(p.styleId) : undefined) ?? p.styleName ?? 'STANDARD')
     emit(output, 70, isSubclassDXF(version) ? dimensionCode | 32 : dimensionCode)
     if (p.textOverride != null) emit(output, 1, p.textOverride)
+    // Group 51 belongs to the common AcDbDimension subclass, before the
+    // ordinate-specific subclass marker. Readers may ignore it if emitted later.
+    if ((dimensionCode & 7) === 6 && p.rotation) emit(output, 51, -Number(p.rotation) * 180 / Math.PI)
     // Angular group 42 is optional: consumers derive it from native definitions.
     if (dimension.measurement != null && ![2, 5].includes(dimensionCode & 7)) emit(output, 42, dimension.measurement)
     const subtype = dimensionCode & 7
