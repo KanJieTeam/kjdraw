@@ -74,6 +74,20 @@ test('sheet-note attachment points are bounded to multiline MTEXT', () => {
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...base, sheet: { ...base.sheet, notes: [{ ...note, kind: 'multiline', attachmentPoint: 5.5 }] } }), /attachmentPoint is only valid/u)
 })
 
+test('symmetric profile line directions preserve independent dash phases', () => {
+  const document = createKJDrawSDK().createDocument({ units: 'millimeter' }), base = input(0)
+  const proposal = buildAgentMechanicalFlangeCore(document, { ...base, sideViewAxis: { xRange: [190, 280], symmetricProfiles: [{
+    vertices: [{ station: 190, radius: 10 }, { station: 200, radius: 12 }, { station: 210, radius: 8 }],
+    segmentDirections: [{ upper: 'reverse' }, { lower: 'reverse' }], endCaps: 'both', startCapDirection: 'reverse', endCapDirection: 'reverse',
+  }] } })
+  const lines = proposal.commandArgs.entities.filter(entity => entity.type === 'LINE').map(entity => [entity.payload.start, entity.payload.end])
+  for (const expected of [
+    [[200, 162, 0], [190, 160, 0]], [[190, 140, 0], [200, 138, 0]],
+    [[200, 162, 0], [210, 158, 0]], [[210, 142, 0], [200, 138, 0]],
+    [[190, 160, 0], [190, 140, 0]], [[210, 158, 0], [210, 142, 0]],
+  ]) assert.ok(lines.some(value => JSON.stringify(value) === JSON.stringify(expected)), JSON.stringify(expected))
+})
+
 test('all ring, hole, projection-axis and grid positions respond to parameters', async t => {
   const sdk = createKJDrawSDK(), document = sdk.createDocument({ units: 'millimeter' })
   const proposal = buildAgentMechanicalFlangeCore(document, input(document.revision))
@@ -135,6 +149,8 @@ test('flange compiler rejects unsupported source injection and impossible geomet
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), endView: { ...input(0).endView, cuttingPlaneMarks: [{ anchorOffset: [0, 50], stemVector: [0, 0], tickVector: [5, 0] }] } }), /vectors must not have zero length/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), expectedRevision: 1 }), /expectedRevision/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sideViewAxis: { ...input(0).sideViewAxis, axisDirection: 'sideways' } }), /axisDirection is invalid/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sideViewAxis: { ...input(0).sideViewAxis, symmetricProfiles: [{ vertices: [{ station: 190, radius: 10 }, { station: 200, radius: 10 }], segmentDirections: [] }] } }), /segmentDirections must match/u)
+  assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sideViewAxis: { ...input(0).sideViewAxis, symmetricProfiles: [{ vertices: [{ station: 190, radius: 10 }, { station: 200, radius: 10 }], segmentDirections: [{ upper: 'sideways' }] }] } }), /segmentDirections.*upper is invalid/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sideViewAxis: { xRange: [190, 280], symmetricProfiles: [{ vertices: [{ station: 210, radius: 10 }, { station: 200, radius: 10 }] }] } }), /must not decrease/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sideViewAxis: { xRange: [190, 280], symmetricProfiles: [{ vertices: [{ station: 200, radius: 10 }, { station: 200, radius: 10 }] }] } }), /zero-length/u)
   assert.throws(() => buildAgentMechanicalFlangeCore(document, { ...input(0), sideViewAxis: { ...input(0).sideViewAxis, outlineSegments: [{ kind: 'line', start: { station: 180, offset: 0 }, end: { station: 200, offset: 0 } }] } }), /must be finite/u)
